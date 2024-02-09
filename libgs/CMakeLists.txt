@@ -1,0 +1,12 @@
+if (WIN32)
+	set(OS_CPP win)
+elseif (UNIX)
+	set(OS_CPP unix)
+endif()
+
+add_subdirectory(core)
+add_subdirectory(io)
+add_subdirectory(http)
+add_subdirectory(web)
+add_subdirectory(dbi)
+add_subdirectory(utils)

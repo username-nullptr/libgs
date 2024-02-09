@@ -1,0 +1,488 @@
+
+/************************************************************************************
+*                                                                                   *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*                                                                                   *
+*   This file is part of LIBGS                                                      *
+*   License: MIT License                                                            *
+*                                                                                   *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
+*                                                                                   *
+*   The above copyright notice and this permission notice shall be included in      *
+*   all copies or substantial portions of the Software.                             *
+*                                                                                   *
+*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
+*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
+*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
+*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
+*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
+*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
+*   SOFTWARE.                                                                       *
+*                                                                                   *
+*************************************************************************************/
+
+#ifndef LIBGS_CORE_ALGORITHM_DETAIL_BASE_H
+#define LIBGS_CORE_ALGORITHM_DETAIL_BASE_H
+
+#include <libgs/core/global.h>
+
+namespace libgs::algorithm_base
+{
+
+template <concept_char_type CharT>
+[[nodiscard]] int _stob(const std::basic_string<CharT> &str)
+{
+	if constexpr( is_char_v<CharT> )
+	{
+#ifdef _WINDOWS
+		if( stricmp(str.c_str(), "true") == 0 )
+			return 1;
+		else if( stricmp(str.c_str(), "false") == 0 )
+			return 0;
+#else
+		if( str.size() == 4 and strncasecmp(str.c_str(), "true", 4) == 0 )
+			return 1;
+		else if( str.size() == 5 and strncasecmp(str.c_str(), "false", 5) == 0 )
+			return 0;
+		return -1;
+#endif
+	}
+	else
+	{
+		if( str.size() == 4 and wcsncasecmp(str.c_str(), L"true", 4) == 0 )
+			return 1;
+		else if( str.size() == 5 and wcsncasecmp(str.c_str(), L"false", 5) == 0 )
+			return 0;
+		return -1;
+	}
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] int8_t stoi8(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<int8_t>(std::stol(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] uint8_t stoui8(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<uint8_t>(std::stoul(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] int16_t stoi16(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<int16_t>(std::stol(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] uint16_t stoui16(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<uint16_t>(std::stoul(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] int32_t stoi32(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<int32_t>(std::stol(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] uint32_t stoui32(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<uint32_t>(std::stoul(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] int64_t stoi64(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<int64_t>(std::stoll(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] uint64_t stoui64(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	try {
+		return static_cast<uint64_t>(std::stoull(str, nullptr, static_cast<int>(base)));
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1;
+	}
+	return 0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] float stof(const std::basic_string<CharT> &str)
+{
+	try {
+		return std::stof(str, nullptr);
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1.0f;
+	}
+	return 0.0f;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] double stod(const std::basic_string<CharT> &str)
+{
+	try {
+		return std::stod(str, nullptr);
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1.0;
+	}
+	return 0.0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] double stold(const std::basic_string<CharT> &str)
+{
+	try {
+		return std::stold(str, nullptr);
+	}
+	catch(...)
+	{
+		if( _stob<CharT>(str) > 0 )
+			return 1.0;
+	}
+	return 0.0;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] bool stob(const std::basic_string<CharT> &str)
+{
+	int res = _stob<CharT>(str);
+	if( res < 0 )
+	{
+		try {
+			return !!std::stol(str, nullptr, 10);
+		}
+		catch(...) {
+			return 0;
+		}
+	}
+	return res > 0 ? true : false;
+}
+
+template <concept_number_type T, concept_char_type CharT>
+[[nodiscard]] T ston(const std::basic_string<CharT> &str, size_t base = 10)
+{
+	if constexpr( std::is_same_v<T, bool> )
+		return stob(str);
+	else
+	{
+		try {
+			if constexpr( std::is_same_v<T, char> )
+				return static_cast<char>(std::stol(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, unsigned char> )
+				return static_cast<unsigned char>(std::stoul(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, short> )
+				return static_cast<short>(std::stol(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, unsigned short> )
+				return static_cast<unsigned short>(std::stoul(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, int> )
+				return static_cast<int>(std::stol(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, unsigned int> )
+				return static_cast<unsigned int>(std::stoul(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, long> )
+				return static_cast<long>(std::stol(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, unsigned long> )
+				return static_cast<unsigned long>(std::stoul(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, long long> )
+				return static_cast<long long>(std::stoll(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, unsigned long long> )
+				return static_cast<unsigned long long>(std::stoull(str, nullptr, static_cast<int>(base)));
+			else if constexpr( std::is_same_v<T, float> )
+				return std::stof(str, nullptr);
+			else if constexpr( std::is_same_v<T, double> )
+				return std::stod(str, nullptr);
+			else if constexpr( std::is_same_v<T, long double> )
+				return std::stold(str, nullptr);
+		}
+		catch(...)
+		{
+			if( _stob<CharT>(str) > 0 )
+				return 1;
+		}
+		return 0;
+	}
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> str_to_lower(const std::basic_string<CharT> &str)
+{
+	auto tmp = str;
+	std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
+	return tmp;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> str_to_upper(const std::basic_string<CharT> &str)
+{
+	auto tmp = str;
+	std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::toupper);
+	return tmp;
+}
+
+template <concept_char_type CharT> /*[[nodiscard]]*/ 
+size_t str_replace(std::basic_string<CharT> &str, const std::basic_string<CharT> &_old, const std::basic_string<CharT> &_new)
+{
+	if( _old == _new )
+		return 0;
+
+	size_t sum = 0;
+	size_t old_pos = 0;
+
+	while( str.find(_old, old_pos) != std::basic_string<CharT>::npos )
+	{
+		int start = str.find(_old, old_pos);
+		str.replace(start, _old.size(), _new);
+		old_pos = start + _new.size();
+	}
+	return sum;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> str_trimmed(const std::basic_string<CharT> &str)
+{
+	std::basic_string<CharT> result;
+
+	size_t left = 0;
+	while( left < str.size() )
+	{
+		if( str[left] >= 1 and str[left] <= 32 )
+			left++;
+		else
+			break;
+	}
+	if( left >= str.size() )
+		return result;
+
+	int right = static_cast<int>(str.size() - 1);
+	while( right >= 0 )
+	{
+		if( str[right] >= 1 and str[right] <= 32 )
+			right--;
+		else
+			break;
+	}
+	if( right < 0 )
+		return result;
+
+	result = str.substr(0, right + 1);
+	result = result.substr(left);
+	return result;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> 
+str_remove(const std::basic_string<CharT> &str, const std::basic_string<CharT> &find)
+{
+	auto res = str;
+	str_replace<CharT>(res, find, std::basic_string<CharT>());
+	return res;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> str_remove(const std::basic_string<CharT> &str, CharT find)
+{
+	auto res = str;
+	auto it = std::remove(res.begin(), res.end(), find);
+	if( it != res.end() )
+		res.erase(it, res.end());
+	return res;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> from_percent_encoding(const std::basic_string<CharT> &str)
+{
+	std::basic_string<CharT> result;
+	if( str.empty() )
+		return result;
+
+	result = str;
+	CharT *data = const_cast<CharT*>(result.c_str());
+	const CharT *inputPtr = result.c_str();
+
+	size_t i = 0;
+	size_t len = str.size();
+	size_t outlen = 0;
+	int a, b;
+	CharT c;
+
+	while( i < len )
+	{
+		c = inputPtr[i];
+		if constexpr( is_char_v<CharT> )
+		{
+			if( c == '%' and i + 2 < len )
+			{
+				a = inputPtr[++i];
+				b = inputPtr[++i];
+
+				if( a >= '0' and a <= '9' )
+					a -= '0';
+
+				else if( a >= 'a' and a <= 'f' )
+					a = a - 'a' + 10;
+
+				else if( a >= 'A' && a <= 'F' )
+					a = a - 'A' + 10;
+
+				if( b >= '0' and b <= '9' )
+					b -= '0';
+
+				else if( b >= 'a' and b <= 'f' )
+					b = b - 'a' + 10;
+
+				else if( b >= 'A' and b <= 'F' )
+					b = b - 'A' + 10;
+
+				*data++ = static_cast<CharT>((a << 4) | b);
+			}
+			else
+				*data++ = c;
+		}
+		else
+		{
+			if( c == L'%' and i + 2 < len )
+			{
+				a = inputPtr[++i];
+				b = inputPtr[++i];
+
+				if( a >= L'0' and a <= L'9' )
+					a -= L'0';
+
+				else if( a >= L'a' and a <= L'f' )
+					a = a - L'a' + 10;
+
+				else if( a >= L'A' && a <= L'F' )
+					a = a - L'A' + 10;
+
+				if( b >= L'0' and b <= L'9' )
+					b -= L'0';
+
+				else if( b >= L'a' and b <= L'f' )
+					b = b - L'a' + 10;
+
+				else if( b >= L'A' and b <= L'F' )
+					b = b - L'A' + 10;
+
+				*data++ = static_cast<CharT>((a << 4) | b);
+			}
+			else
+				*data++ = c;
+		}
+		++i;
+		++outlen;
+	}
+	if( outlen != len )
+		result = result.substr(0, outlen);
+	return result;
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> file_name(const std::basic_string<CharT> &file_name)
+{
+	size_t pos = 0;
+	if constexpr( is_char_v<CharT> )
+		pos = file_name.rfind("/");
+	else
+		pos = file_name.rfind(L"/");
+
+	if( pos == std::basic_string<CharT>::npos )
+		return file_name;
+	return file_name.substr(pos + 1);
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> file_path(const std::basic_string<CharT> &file_name)
+{
+	size_t pos = 0;
+	if constexpr( is_char_v<CharT> )
+	{
+		pos = file_name.rfind("/");
+		if( pos == std::basic_string<CharT>::npos )
+			return ".";
+	}
+	else
+	{
+		pos = file_name.rfind(L"/");
+		if( pos == std::basic_string<CharT>::npos )
+			return L".";
+	}
+	return file_name.substr(0, pos + 1);
+}
+
+} //namespace libgs::algorithm_base
+
+
+#endif //LIBGS_CORE_ALGORITHM_DETAIL_BASE_H

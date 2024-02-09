@@ -1,0 +1,11 @@
+Source of the third-party library:
+
+asio           https://github.com/chriskohlhoff/asio.git
+
+rttr           https://github.com/rttrorg/rttr.git
+               https://gitee.com/jin-xiaoqiang/rttr.git
+
+inifile        https://github.com/Rookfighter/inifile-cpp.git
+
+nlohmann.json  https://github.com/nlohmann/json.git
+               https://gitee.com/ws-mirror-github/nlohmann.json.git
