@@ -26,31 +26,32 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_DETAIL_TCP_SOCKET_H
-#define LIBGS_IO_DETAIL_TCP_SOCKET_H
+#ifndef LIBGS_IO_DETAIL_WAITABLE_H
+#define LIBGS_IO_DETAIL_WAITABLE_H
 
-namespace libgs::io
+#ifdef WIN32
+# include <Windows.h>
+#endif //WIN32
+
+#include <libgs/io/global.h>
+
+namespace libgs::io::detail
 {
 
-template <typename SettableSocketOption>
-error_code tcp_socket::set_option(const SettableSocketOption &option) noexcept
-{
+#ifdef WIN32
+using handle = HANDLE;
+#elif defined __unix__
+using handle = int;
+#endif //WIN32
 
-}
+[[nodiscard]] LIBGS_DECL_HIDDEN bool wait_writeable
+(handle fd, const std::chrono::milliseconds &ms, error_code *error) noexcept;
 
-template <typename GettableSocketOption>
-error_code tcp_socket::get_option(GettableSocketOption &option) const noexcept
-{
+[[nodiscard]] LIBGS_DECL_HIDDEN bool wait_readable
+(handle fd, const std::chrono::milliseconds &ms, error_code *error) noexcept;
 
-}
-
-template <typename...Args>
-tcp_socket_ptr make_tcp_socket(Args&&...args)
-{
-	return std::make_shared<tcp_socket>(std::forward<Args>(args)...);
-}
-
-} //namespace libgs::io
+} //namespace libgs::io::detail
 
 
-#endif //LIBGS_IO_DETAIL_TCP_SOCKET_H
+#endif //LIBGS_IO_DETAIL_WAITABLE_H
+

@@ -38,7 +38,7 @@ class socket : public device
 {
 	LIBGS_DISABLE_COPY_MOVE(socket)
 
-protected:
+public:
 	using address_t = asio::ip::address;
 	using port_t = asio::ip::port_type;
 	using shutdown_type = asio::socket_base::shutdown_type;
@@ -53,12 +53,22 @@ public:
 	[[nodiscard]] virtual await_error_t co_connect(const address_t &addr, port_t port) noexcept = 0;
 
 public:
-	[[nodiscard]] virtual address_t remote_address(error_code *error = nullptr) noexcept = 0;
-	[[nodiscard]] virtual port_t remote_port(error_code *error = nullptr) noexcept = 0;
+	void async_connect(const std::string &addr, port_t port, callback_t callback) noexcept;
+	[[nodiscard]] error_code connect(const std::string &addr, port_t port) noexcept;
+	[[nodiscard]] await_error_t co_connect(const std::string &addr, port_t port) noexcept;
 
 public:
-	[[nodiscard]] virtual address_t local_address(error_code *error = nullptr) noexcept = 0;
-	[[nodiscard]] virtual port_t local_port(error_code *error = nullptr) noexcept = 0;
+	void async_connect(const std::string &domain, callback_t callback) noexcept;
+	[[nodiscard]] error_code connect(const std::string &domain) noexcept;
+	[[nodiscard]] await_error_t co_connect(const std::string &domain) noexcept;
+
+public:
+	[[nodiscard]] virtual address_t remote_address(error_code *error = nullptr) const noexcept = 0;
+	[[nodiscard]] virtual port_t remote_port(error_code *error = nullptr) const noexcept = 0;
+
+public:
+	[[nodiscard]] virtual address_t local_address(error_code *error = nullptr) const noexcept = 0;
+	[[nodiscard]] virtual port_t local_port(error_code *error = nullptr) const noexcept = 0;
 
 public:
 	virtual error_code shutdown(shutdown_type what = shutdown_type::shutdown_both) noexcept = 0;

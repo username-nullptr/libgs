@@ -29,7 +29,7 @@
 #ifndef LIBGS_IO_GLOBAL_H
 #define LIBGS_IO_GLOBAL_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/execution.h>
 
 #ifdef gs_io_EXPORTS
 # define LIBGS_IO_API  LIBGS_DECL_EXPORT

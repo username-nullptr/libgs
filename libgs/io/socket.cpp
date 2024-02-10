@@ -27,11 +27,44 @@
 *************************************************************************************/
 
 #include "socket.h"
+#include <iostream>
 
 namespace libgs::io
 {
 
 socket::~socket() = default;
+
+void socket::async_connect(const std::string &addr, port_t port, callback_t callback) noexcept
+{
+	async_connect(address_t::from_string(addr), port, std::move(callback));
+}
+
+error_code socket::connect(const std::string &addr, port_t port) noexcept
+{
+	return connect(address_t::from_string(addr), port);
+}
+
+socket::await_error_t socket::co_connect(const std::string &addr, port_t port) noexcept
+{
+	co_return co_await co_connect(address_t::from_string(addr), port);
+}
+
+void socket::async_connect(const std::string &domain, callback_t callback) noexcept
+{
+	// TODO ...
+}
+
+error_code socket::connect(const std::string &domain) noexcept
+{
+	// TODO ...
+	return {};
+}
+
+socket::await_error_t socket::co_connect(const std::string &domain) noexcept
+{
+	// TODO ...
+	co_return error_code();
+}
 
 error_code socket::close(bool shutdown) noexcept
 {

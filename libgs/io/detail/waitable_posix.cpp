@@ -26,31 +26,61 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_DETAIL_TCP_SOCKET_H
-#define LIBGS_IO_DETAIL_TCP_SOCKET_H
+#ifndef __unix__
+# error "This file can only be compiled on unix (non-Apple)."
+#else
 
-namespace libgs::io
+#include "waitable.h"
+#include <poll.h>
+
+namespace libgs::io::detail
 {
 
-template <typename SettableSocketOption>
-error_code tcp_socket::set_option(const SettableSocketOption &option) noexcept
-{
+using duration = std::chrono::milliseconds;
 
+static bool wait(int fd, int event, const std::chrono::milliseconds &ms, error_code &error)
+{
+	struct pollfd fds;
+	fds.fd = fd;
+	fds.events = event;
+
+	int tt = ms.count() > 0? ms.count() : -1;
+	error = std::make_error_code(static_cast<std::errc>(0));
+
+	for(;;)
+	{
+		int res = poll(&fds, 1, tt);
+		if( res < 0 )
+		{
+			error = std::make_error_code(static_cast<std::errc>(errno));
+			return false;
+		}
+		else if( res == 0 )
+			return false;
+		else if( res == 1 and fds.revents == event )
+			break;
+	}
+	return true;
 }
 
-template <typename GettableSocketOption>
-error_code tcp_socket::get_option(GettableSocketOption &option) const noexcept
+bool wait_writeable(int fd, const duration &ms, error_code *error) noexcept
 {
-
+	error_code _error;
+	bool res = wait(fd, POLLOUT, ms, _error);
+	if( error )
+		*error = _error;
+	return res;
 }
 
-template <typename...Args>
-tcp_socket_ptr make_tcp_socket(Args&&...args)
+bool wait_readable(int fd, const duration &ms, error_code *error) noexcept
 {
-	return std::make_shared<tcp_socket>(std::forward<Args>(args)...);
+	error_code _error;
+	bool res = wait(fd, POLLIN, ms, _error);
+	if( error )
+		*error = _error;
+	return res;
 }
 
-} //namespace libgs::io
+} //namespace libgs::io::detail
 
-
-#endif //LIBGS_IO_DETAIL_TCP_SOCKET_H
+#endif //__unix__

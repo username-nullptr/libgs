@@ -27,16 +27,19 @@
 *************************************************************************************/
 
 #include "tcp_socket.h"
+#include "detail/waitable.h"
 
 namespace libgs::io
 {
 
-tcp_socket::tcp_socket()
+tcp_socket::tcp_socket(asio::io_context &io) :
+	m_sock(new asio_tcp_socket(io))
 {
-
+	
 }
 
-tcp_socket::tcp_socket(asio_tcp_socket &&sock)
+tcp_socket::tcp_socket(asio_tcp_socket &&sock) :
+	m_sock(new asio_tcp_socket(std::move(sock)))
 {
 
 }
@@ -48,72 +51,130 @@ tcp_socket::~tcp_socket()
 
 void tcp_socket::async_connect(const address_t &addr, port_t port, callback_t callback) noexcept
 {
-
+	m_sock->async_connect({addr, port}, std::move(callback));
 }
 
 error_code tcp_socket::connect(const address_t &addr, port_t port) noexcept 
 {
-
+	error_code error;
+	m_sock->connect({addr, port}, error);
+	return error;
 }
 
 tcp_socket::await_error_t tcp_socket::co_connect(const address_t &addr, port_t port) noexcept
 {
-
+	error_code error;
+	co_await m_sock->async_connect({addr, port}, use_awaitable_e[error]);
+	co_return error;
 }
 
 void tcp_socket::async_read_some(void *buf, size_t size, rw_callback_t callback) noexcept 
 {
-
+	m_sock->async_read_some(asio::buffer(buf, size), [callback = std::move(callback)](error_code error, size_t size){
+		callback(size, error);
+	});
 }
 
-size_t tcp_socket::read_some(void *buf, size_t size, error_code *error = nullptr) noexcept 
+size_t tcp_socket::read_some(void *buf, size_t size, error_code *error) noexcept 
 {
-
+	m_sock->non_blocking(false);
+	return m_sock->read_some(asio::buffer(buf, size));
 }
 
-tcp_socket::await_size_t tcp_socket::co_read_some(void *buf, size_t size, error_code *error = nullptr) noexcept
+tcp_socket::await_size_t tcp_socket::co_read_some(void *buf, size_t size, error_code *error) noexcept
 {
-
+	error_code _error;
+	auto res = co_await m_sock->async_read_some(asio::buffer(buf, size), use_awaitable_e[_error]);
+	if( error )
+		*error = _error;
+	co_return res;
 }
 
 void tcp_socket::async_write_some(const void *buf, size_t size, rw_callback_t callback) noexcept 
 {
-
+	m_sock->async_write_some(asio::buffer(buf, size), [callback = std::move(callback)](error_code error, size_t size){
+		callback(size, error);
+	});
 }
 
-size_t tcp_socket::write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept 
+size_t tcp_socket::write_some(const void *buf, size_t size, error_code *error) noexcept 
 {
-
+	m_sock->non_blocking(false);
+	return m_sock->write_some(asio::buffer(buf, size));
 }
 
-tcp_socket::await_size_t tcp_socket::co_write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept
+tcp_socket::await_size_t tcp_socket::co_write_some(const void *buf, size_t size, error_code *error) noexcept
 {
-
+	error_code _error;
+	auto res = co_await m_sock->async_write_some(asio::buffer(buf, size), use_awaitable_e[_error]);
+	if( error )
+		*error = _error;
+	co_return res;
 }
 
-tcp_socket::address_t tcp_socket::remote_address(error_code *error = nullptr) noexcept
+tcp_socket::address_t tcp_socket::remote_address(error_code *error) const noexcept
 {
-
+	error_code _error;
+	auto endpoint = m_sock->remote_endpoint(_error);
+	if( error )
+		*error = _error;
+	return endpoint.address();
 }
 
-tcp_socket::port_t tcp_socket::remote_port(error_code *error = nullptr) noexcept
+tcp_socket::port_t tcp_socket::remote_port(error_code *error) const noexcept
 {
-
+	error_code _error;
+	auto endpoint = m_sock->remote_endpoint(_error);
+	if( error )
+		*error = _error;
+	return endpoint.port();
 }
 
-tcp_socket::address_t tcp_socket::local_address(error_code *error = nullptr) noexcept
+tcp_socket::address_t tcp_socket::local_address(error_code *error) const noexcept
 {
-
+	error_code _error;
+	auto endpoint = m_sock->local_endpoint(_error);
+	if( error )
+		*error = _error;
+	return endpoint.address();
 }
 
-tcp_socket::port_t tcp_socket::local_port(error_code *error = nullptr) noexcept
+tcp_socket::port_t tcp_socket::local_port(error_code *error) const noexcept
 {
-
+	error_code _error;
+	auto endpoint = m_sock->local_endpoint(_error);
+	if( error )
+		*error = _error;
+	return endpoint.port();
 }
 
-error_code tcp_socket::shutdown(shutdown_type what = shutdown_type::shutdown_both) noexcept 
+error_code tcp_socket::shutdown(shutdown_type what) noexcept 
 {
+	error_code error;
+	m_sock->shutdown(what, error);
+	return error;
+}
 
+error_code tcp_socket::close() noexcept
+{
+	error_code error;
+	m_sock->close(error);
+	return error;
+}
+
+bool tcp_socket::is_open() const noexcept
+{
+	return m_sock->is_open();
+}
+
+bool tcp_socket::wait_writeable(const duration &ms, error_code *error) noexcept
+{
+	return detail::wait_writeable(m_sock->native_handle(), ms, error);
+}
+
+bool tcp_socket::wait_readable(const duration &ms, error_code *error) noexcept
+{
+	return detail::wait_readable(m_sock->native_handle(), ms, error);
 }
 
 } //namespace libgs::io

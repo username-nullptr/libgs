@@ -45,7 +45,7 @@ protected:
 
 	using await_size_t = libgs::awaitable<size_t>;
 	using await_error_t = libgs::awaitable<error_code>;
-	using await_bool_t = libgs::awaitable<error_code>;
+	using await_bool_t = libgs::awaitable<bool>;
 
 	using duration = std::chrono::milliseconds;
 
@@ -62,28 +62,32 @@ public:
 	[[nodiscard]] virtual size_t read_some(void *buf, size_t size, error_code *error = nullptr) noexcept = 0;
 	[[nodiscard]] virtual await_size_t co_read_some(void *buf, size_t size, error_code *error = nullptr) noexcept = 0;
 
-	template <concept_char_type CharT>
-	void async_read_some(std::basic_string<CharT> &buf, size_t size, rw_callback_t callback) noexcept;
+	void async_read_some(std::string &buf, size_t size, rw_callback_t callback) noexcept;
+	size_t read_some(std::string &buf, size_t size, error_code *error = nullptr) noexcept;
+	[[nodiscard]] await_size_t co_read_some(std::string &buf, size_t size, error_code *error = nullptr) noexcept;
 
-	template <concept_char_type CharT>
-	[[nodiscard]] size_t read_some(std::basic_string<CharT> &buf, size_t size, error_code *error = nullptr) noexcept;
-	
-	template <concept_char_type CharT>
-	[[nodiscard]] await_size_t co_read_some(std::basic_string<CharT> &buf, size_t size, error_code *error = nullptr) noexcept;
+	void async_read_some(std::wstring &buf, size_t size, rw_callback_t callback) noexcept;
+	size_t read_some(std::wstring &buf, size_t size, error_code *error = nullptr) noexcept;
+	[[nodiscard]] await_size_t co_read_some(std::wstring &buf, size_t size, error_code *error = nullptr) noexcept;
 
 public:
 	virtual void async_write_some(const void *buf, size_t size, rw_callback_t callback) noexcept = 0;
-	[[nodiscard]] virtual size_t write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept = 0;
+	virtual size_t write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept = 0;
 	[[nodiscard]] virtual await_size_t co_write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept = 0;
 
-	template <concept_char_type CharT>
-	void async_write_some(const std::basic_string<CharT> &buf, rw_callback_t callback) noexcept;
+	void async_write_some(const std::string &buf, rw_callback_t callback) noexcept;
+	size_t write_some(const std::string &buf, error_code *error = nullptr) noexcept;
+	[[nodiscard]] await_size_t co_write_some(const std::string &buf, error_code *error = nullptr) noexcept;
 
-	template <concept_char_type CharT>
-	[[nodiscard]] size_t write_some(const std::basic_string<CharT> &buf, error_code *error = nullptr) noexcept;
-	
-	template <concept_char_type CharT>
-	[[nodiscard]] await_size_t co_write_some(const std::basic_string<CharT> &buf, error_code *error = nullptr) noexcept;
+	void async_write_some(const std::wstring &buf, rw_callback_t callback) noexcept;
+	size_t write_some(const std::wstring &buf, error_code *error = nullptr) noexcept;
+	[[nodiscard]] await_size_t co_write_some(const std::wstring &buf, error_code *error = nullptr) noexcept;
+
+public:
+	virtual bool wait_writeable(const duration &ms, error_code *error = nullptr) noexcept = 0;
+	virtual bool wait_readable(const duration &ms, error_code *error = nullptr) noexcept = 0;
+	[[nodiscard]] virtual await_bool_t co_wait_writeable(const duration &ms, error_code *error = nullptr) noexcept;
+	[[nodiscard]] virtual await_bool_t co_wait_readable(const duration &ms, error_code *error = nullptr) noexcept;
 };
 
 } //namespace libgs::io

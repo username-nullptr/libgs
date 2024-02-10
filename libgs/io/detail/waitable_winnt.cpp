@@ -26,31 +26,13 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_DETAIL_TCP_SOCKET_H
-#define LIBGS_IO_DETAIL_TCP_SOCKET_H
+#ifndef WIN32
+# error "This file can only be compiled on WindowsNT."
+#else
 
-namespace libgs::io
+namespace libgs::io::detail
 {
 
-template <typename SettableSocketOption>
-error_code tcp_socket::set_option(const SettableSocketOption &option) noexcept
-{
+} //namespace libgs::io::detail
 
-}
-
-template <typename GettableSocketOption>
-error_code tcp_socket::get_option(GettableSocketOption &option) const noexcept
-{
-
-}
-
-template <typename...Args>
-tcp_socket_ptr make_tcp_socket(Args&&...args)
-{
-	return std::make_shared<tcp_socket>(std::forward<Args>(args)...);
-}
-
-} //namespace libgs::io
-
-
-#endif //LIBGS_IO_DETAIL_TCP_SOCKET_H
+#endif //WIN32
