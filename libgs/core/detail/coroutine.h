@@ -34,14 +34,26 @@
 namespace libgs
 {
 
-template <typename Func, typename Exec>
+template <concept_coroutine_function Func, concept_schedulable Exec>
 auto co_spawn_detached(Func &&func, Exec &exec)
 {
-	return asio::co_spawn(exec, std::forward<Func>(func), asio::detached);
+	if constexpr( is_execution_context_v<Exec> )
+		return asio::co_spawn(exec.get_executor(), std::forward<Func>(func), asio::detached);
+	else
+		return asio::co_spawn(exec, std::forward<Func>(func), asio::detached);
+}
+
+template <concept_coroutine_function Func, concept_schedulable Exec>
+auto co_spawn_future(Func &&func, Exec &exec)
+{
+	if constexpr( is_execution_context_v<Exec> )
+		return asio::co_spawn(exec.get_executor(), std::forward<Func>(func), asio::use_future);
+	else
+		return asio::co_spawn(exec, std::forward<Func>(func), asio::use_future);
 }
 
 template <typename Exec, typename Func, typename...Args>
-auto co_post(Exec &exec, Func &&func, Args&&...args) requires awaitable_function<Func,Args...>
+auto co_post(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>
 {
 	using return_type = decltype(func(std::forward<Args>(args)...));
 	if constexpr( std::is_same_v<return_type, void> )
@@ -79,7 +91,7 @@ auto co_post(Exec &exec, Func &&func, Args&&...args) requires awaitable_function
 }
 
 template <typename Exec, typename Func, typename...Args>
-auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires awaitable_function<Func,Args...>
+auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>
 {
 	using return_type = decltype(func(std::forward<Args>(args)...));
 	if constexpr( std::is_same_v<return_type, void> )
@@ -117,7 +129,7 @@ auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires awaitable_func
 }
 
 template <typename Func, typename...Args>
-auto co_thread(Func &&func, Args&&...args) requires awaitable_function<Func,Args...>
+auto co_thread(Func &&func, Args&&...args) requires concept_callable<Func,Args...>
 {
 	using return_type = decltype(func(std::forward<Args>(args)...));
 	if constexpr( std::is_same_v<return_type, void> )
@@ -157,18 +169,18 @@ auto co_thread(Func &&func, Args&&...args) requires awaitable_function<Func,Args
 }
 
 template<typename Rep, typename Period, typename Exec>
-awaitable<asio::error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &exec)
+awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &exec)
 {
-	asio::error_code error;
+	error_code error;
 	asio::steady_timer timer(exec, rtime);
 	co_await timer.async_wait(use_awaitable_e[error]);
 	co_return error;
 }
 
 template<typename Clock, typename Duration, typename Exec>
-awaitable<asio::error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec)
+awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec)
 {
-	asio::error_code error;
+	error_code error;
 	asio::steady_timer timer(exec, atime);
 	co_await timer.async_wait(use_awaitable_e[error]);
 	co_return error;

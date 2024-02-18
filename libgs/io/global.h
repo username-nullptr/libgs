@@ -30,6 +30,7 @@
 #define LIBGS_IO_GLOBAL_H
 
 #include <libgs/core/execution.h>
+#include <libgs/io/cxx/concept.hpp>
 
 #ifdef gs_io_EXPORTS
 # define LIBGS_IO_API  LIBGS_DECL_EXPORT
@@ -40,7 +41,13 @@
 namespace libgs::io
 {
 
-using error_code = asio::error_code;
+using mutable_buffer = asio::mutable_buffer;
+
+#define LIBGS_MUTABLE_BUFFER  asio::ASIO_MUTABLE_BUFFER
+
+using const_buffer = asio::const_buffer;
+
+#define LIBGS_CONST_BUFFER  asio::ASIO_CONST_BUFFER
 
 } //namespace libgs::io
 

@@ -74,6 +74,13 @@ basic_value<CharT>::basic_value(const CharT *str, size_type len) :
 }
 
 template <concept_char_type CharT>
+template <typename T>
+basic_value<CharT>::basic_value(T &&v) requires (not is_string_v<T>)
+{
+	operator=(std::format(default_format_v, std::forward<T>(v)));
+}
+
+template <concept_char_type CharT>
 template <concept_number_type T>
 T basic_value<CharT>::get(size_t base) const
 {
@@ -177,6 +184,13 @@ basic_value<CharT> &basic_value<CharT>::set_value(format_string<Arg0,Args...> fm
 }
 
 template <concept_char_type CharT>
+template <typename T>
+basic_value<CharT> &basic_value<CharT>::set_value(T &&v) requires (not is_string_v<T>)
+{
+	return set_value(default_format_v, std::forward<T>(v));
+}
+
+template <concept_char_type CharT>
 basic_value<CharT> basic_value<CharT>::from(const std::basic_string<CharT> &v)
 {
 	return this_type(v);
@@ -195,6 +209,23 @@ basic_value<CharT> basic_value<CharT>::from(format_string<Arg0,Args...> fmt_valu
 	value hv;
 	hv.set_value(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
 	return hv;
+}
+
+template <concept_char_type CharT>
+template <typename T>
+basic_value<CharT> basic_value<CharT>::from(T &&v) requires (not is_string_v<T>)
+{
+	this_type hv;
+	hv.set_value(default_format_v, std::forward<T>(v));
+	return hv;
+}
+
+template <concept_char_type CharT>
+template <typename T>
+basic_value<CharT> &basic_value<CharT>::operator=(T &&value) requires (not is_string_v<T>)
+{
+	set_value(std::forward<T>(value));
+	return *this;
 }
 
 template <concept_char_type CharT>

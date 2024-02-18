@@ -32,7 +32,7 @@
 namespace libgs
 {
 
-template<typename T, typename Exec>
+template<typename T, concept_execution Exec>
 void delete_later(T *obj, Exec &exec) 
 {
 	post(exec, [obj]{

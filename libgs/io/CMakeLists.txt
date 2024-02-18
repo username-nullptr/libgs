@@ -1,26 +1,25 @@
 set(target_name gs_io)
 
 set(core_sources
-	detail/waitable_${IS_CPP}.cpp
-	device.cpp
-	socket.cpp
-	tcp_socket.cpp
-	tcp_ssl_socket.cpp
+	global.cpp
 )
 
 set(core_headers
+	cxx/concept.hpp
 	global.h
+	device_base.h
 	timer.h
-	device.h
+	stream_buffer.h
+	stream.h
 	socket.h
 	tcp_socket.h
-	tcp_ssl_socket.h
 )
 
 set(core_detail_headers
-	detail/timer.h
-	detail/waitable.h
-	detail/device.h
+	detail/stream_buffer.h
+	detail/device_base.h
+	detail/stream.h
+	detail/socket.h
 	detail/tcp_socket.h
 )
 

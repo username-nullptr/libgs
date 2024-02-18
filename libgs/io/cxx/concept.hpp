@@ -26,13 +26,19 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifdef GTS_ENABLE_SSL
+#ifndef LIBGS_IO_CXX_CONCEPT_H
+#define LIBGS_IO_CXX_CONCEPT_H
 
-#include "tcp_ssl_socket.h"
+#include <libgs/core/cxx/function_traits.hpp>
+#include <asio.hpp>
 
 namespace libgs::io
 {
 
+template <typename MatchCondition>
+concept concept_match_condition = asio::is_match_condition<MatchCondition>::value;
+
 } //namespace libgs::io
 
-#endif //GTS_ENABLE_SSL
+
+#endif //LIBGS_IO_CXX_CONCEPT_H

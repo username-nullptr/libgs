@@ -33,81 +33,115 @@
 
 namespace libgs
 {
-	
-using asio_tcp_socket = asio::ip::tcp::socket;
-using asio_tcp_socket_ptr = std::shared_ptr<asio_tcp_socket>;
+
+template <concept_execution Exec = asio::any_io_executor>
+using asio_basic_tcp_socket = asio::basic_stream_socket<asio::ip::tcp, Exec>;
+
+template <concept_execution Exec = asio::any_io_executor>
+using asio_basic_tcp_socket_ptr = std::shared_ptr<asio_basic_tcp_socket<Exec>>;
+
+using asio_tcp_socket = asio_basic_tcp_socket<>;
+using asio_tcp_socket_ptr = asio_basic_tcp_socket_ptr<>;
+
+using tcp_handle_type = asio::ip::tcp::socket::native_handle_type;
 
 namespace io
 {
 
-class tcp_socket : public socket
+template <concept_execution Exec = asio::any_io_executor>
+class basic_tcp_socket : public basic_socket<Exec>
 {
-	LIBGS_DISABLE_COPY_MOVE(tcp_socket)
+	LIBGS_DISABLE_COPY_MOVE(basic_tcp_socket)
+	using base_type = basic_socket<Exec>;
 
 public:
-	explicit tcp_socket(asio::io_context &io = io_context());
-	explicit tcp_socket(asio_tcp_socket &&sock);
-	~tcp_socket() override;
+	using executor_type = base_type::executor_type;
+	using address = base_type::address;
+	using address_vector = base_type::address_vector;
+	using shutdown_type = base_type::shutdown_type;
+	using endpoint_arg = base_type::endpoint_arg;
+	using endpoint = base_type::endpoint;
+	using option = base_type::option;
+
+	using asio_socket = asio_basic_tcp_socket<Exec>;
+	using asio_socket_ptr = asio_basic_tcp_socket_ptr<Exec>;
+	using resolver = asio::ip::tcp::resolver;
 
 public:
-	void async_connect(const address_t &addr, port_t port, callback_t callback) noexcept override;
-	[[nodiscard]] error_code connect(const address_t &addr, port_t port) noexcept override;
-	[[nodiscard]] await_error_t co_connect(const address_t &addr, port_t port) noexcept override;
+	template <concept_execution_context Context = asio::io_context>
+	explicit basic_tcp_socket(Context &context = io_context());
+
+	template <concept_execution Exec0>
+	basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock);
+
+	explicit basic_tcp_socket(const executor_type &exec);
+	~basic_tcp_socket() override;
 
 public:
-	using socket::async_connect;
-	using socket::connect;
-	using socket::co_connect;
+	void connect(endpoint ep, error_code &error) noexcept override;
+	address_vector dns(std::string domain, error_code &error) noexcept override;
 
 public:
-	void async_read_some(void *buf, size_t size, rw_callback_t callback) noexcept override;
-	[[nodiscard]] size_t read_some(void *buf, size_t size, error_code *error = nullptr) noexcept override;
-	[[nodiscard]] await_size_t co_read_some(void *buf, size_t size, error_code *error = nullptr) noexcept override;
+	size_t read(buffer<void*> buf, error_code &error) noexcept override;
+	size_t write(buffer<const void*> buf, error_code &error) noexcept override;
 
 public:
-	using socket::async_read_some;
-	using socket::read_some;
-	using socket::co_read_some;
+	[[nodiscard]] endpoint remote_endpoint(error_code &error) const noexcept override;
+	[[nodiscard]] endpoint local_endpoint(error_code &error) const noexcept override;
 
 public:
-	void async_write_some(const void *buf, size_t size, rw_callback_t callback) noexcept override;
-	size_t write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept override;
-	[[nodiscard]] await_size_t co_write_some(const void *buf, size_t size, error_code *error = nullptr) noexcept override;
+	void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept override;
+	void close(error_code &error) noexcept override;
 
 public:
-	using socket::async_write_some;
-	using socket::write_some;
-	using socket::co_write_some;
+	[[nodiscard]] bool is_open() const noexcept override;
+	void cancel() noexcept override;
 
 public:
-	[[nodiscard]] address_t remote_address(error_code *error = nullptr) const noexcept override;
-	[[nodiscard]] port_t remote_port(error_code *error = nullptr) const noexcept override;
+	void set_option(const option &op, error_code &error) noexcept override;
+	void get_option(option op, error_code &error) const noexcept override;
 
 public:
-	[[nodiscard]] address_t local_address(error_code *error = nullptr) const noexcept override;
-	[[nodiscard]] port_t local_port(error_code *error = nullptr) const noexcept override;
+	asio_socket &native_object() const;
+	tcp_handle_type native_handle() const;
 
 public:
-	error_code shutdown(shutdown_type what = shutdown_type::shutdown_both) noexcept override;
-	[[nodiscard]] virtual error_code close() noexcept override;
-	[[nodiscard]] virtual bool is_open() const noexcept override;
-
-public:
-	bool wait_writeable(const duration &ms, error_code *error = nullptr) noexcept override;
-	bool wait_readable(const duration &ms, error_code *error = nullptr) noexcept override;
-
-public:
-	template <typename SettableSocketOption>
-	error_code set_option(const SettableSocketOption &option) noexcept;
-
-	template <typename GettableSocketOption>
-	error_code get_option(GettableSocketOption &option) const noexcept;
+	using base_type::connect;
+	using base_type::dns;
+	using base_type::read;
+	using base_type::write;
+	using base_type::shutdown;
+	using base_type::close;
+	using base_type::set_option;
 
 protected:
-	asio_tcp_socket_ptr m_sock;
+	[[nodiscard]] awaitable<error_code> do_connect(const endpoint &ep) noexcept override;
+	[[nodiscard]] awaitable<address_vector> do_dns(const std::string &domain, error_code &error) noexcept override;
+
+protected:
+	[[nodiscard]] awaitable<size_t> read_data(void *buf, size_t size, error_code &error) noexcept override;
+	[[nodiscard]] awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept override;
+
+protected:
+	asio_socket_ptr m_sock;
+	resolver m_resolver;
+
+	std::atomic_bool m_write_cancel {false};
+	std::atomic_bool m_read_cancel {false};
+
+	std::atomic_bool m_connect_cancel {false};
+	std::atomic_bool m_dns_cancel {false};
 };
 
-using tcp_socket_ptr = std::shared_ptr<tcp_socket>;
+using tcp_socket = basic_tcp_socket<>;
+
+template <concept_execution Exec = asio::any_io_executor>
+using basic_tcp_socket_ptr = std::shared_ptr<basic_tcp_socket<Exec>>;
+
+using tcp_socket_ptr = basic_tcp_socket_ptr<>;
+
+template <concept_execution Exec, typename...Args>
+basic_tcp_socket_ptr<Exec> make_basic_tcp_socket(Args&&...args);
 
 template <typename...Args>
 tcp_socket_ptr make_tcp_socket(Args&&...args);

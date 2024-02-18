@@ -47,7 +47,7 @@ namespace libgs
 
 [[nodiscard]] LIBGS_CORE_API asio::io_context &io_context();
 
-template<typename T, typename Exec = asio::io_context>
+template<typename T, concept_schedulable Exec = asio::io_context>
 void delete_later(T *obj, Exec &exec = io_context());
 
 template<typename Rep, typename Period>
@@ -57,6 +57,10 @@ template<typename Clock, typename Duration>
 void sleep_until(const std::chrono::time_point<Clock,Duration> &atime);
 
 std::thread::id this_thread_id();
+
+using error_code = asio::error_code;
+
+namespace errc = asio::error;
 
 } //namespace libgs
 #include <libgs/core/detail/global.h>

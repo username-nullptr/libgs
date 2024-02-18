@@ -19,8 +19,10 @@ set(core_headers
 	cxx/cplusplus.hpp
 	cxx/attributes.hpp
 	cxx/concept.hpp
+	cxx/asio_concept.hpp
 	cxx/type_traits.hpp
-	cxx/remove_repeat.h
+	cxx/remove_repeat.hpp
+	cxx/function_traits.hpp
 	cxx/utilities.h
 	cxx/formatter.h
 	cxx/exception.h

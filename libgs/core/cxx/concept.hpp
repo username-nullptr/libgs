@@ -54,13 +54,13 @@ template <typename T>
 concept concept_enum_type = std::is_enum_v<T>;
 
 template <typename T>
-using is_char = std::is_same<T,char>;
+using is_char = std::is_same<std::remove_const_t<T>, char>;
 
 template <typename T>
 constexpr bool is_char_v = is_char<T>::value;
 
 template <typename T>
-using is_wchar = std::is_same<T,wchar_t>;
+using is_wchar = std::is_same<std::remove_const_t<T>,wchar_t>;
 
 template <typename T>
 constexpr bool is_wchar_v = is_wchar<T>::value;
@@ -74,16 +74,47 @@ using is_dsame = std::is_same<std::decay_t<T0>, T1>;
 template <typename T0, typename T1>
 constexpr bool is_dsame_v = libgs::is_dsame<std::decay_t<T0>, T1>::value;
 
-template <typename CharT, typename T>
-struct is_basic_string
-{
-	static constexpr bool value =
-		is_dsame_v<T, std::basic_string<CharT>> or
-		std::is_same_v<T, const CharT*> or
-		std::is_same_v<T, CharT*>;
+template <concept_char_type CharT, typename T>
+struct is_basic_char_array : std::false_type {};
+
+template <concept_char_type CharT, concept_char_type T, size_t N>
+struct is_basic_char_array<CharT, T[N]> {
+	static constexpr bool value = std::is_same_v<std::remove_const_t<CharT>, std::remove_const_t<T>>;
 };
 
-template <typename CharT, typename T>
+template <concept_char_type CharT, concept_char_type T>
+struct is_basic_char_array<CharT, T[]> {
+	static constexpr bool value = std::is_same_v<std::remove_const_t<CharT>, std::remove_const_t<T>>;
+};
+
+template <concept_char_type CharT, typename T>
+constexpr bool is_basic_char_array_v = is_basic_char_array<CharT,T>::value;
+
+template <typename CharT>
+using is_char_array = is_basic_char_array<char, CharT>;
+
+template <typename CharT>
+constexpr bool is_char_array_v = is_char_array<CharT>::value;
+
+template <typename CharT>
+using is_wchar_array = is_basic_char_array<wchar_t, CharT>;
+
+template <typename CharT>
+constexpr bool is_wchar_array_v = is_wchar_array<CharT>::value;
+
+template <concept_char_type CharT, typename T>
+struct is_basic_string
+{
+	using _CharT = std::remove_const_t<CharT>;
+
+	static constexpr bool value =
+		is_dsame_v<T, std::basic_string<_CharT>> or
+		std::is_same_v<T, const _CharT*> or
+		std::is_same_v<T, _CharT*> or
+		is_basic_char_array_v<_CharT, T>;
+};
+
+template <concept_char_type CharT, typename T>
 constexpr bool is_basic_string_v = is_basic_string<CharT,T>::value;
 
 template <typename CharT, typename T>
@@ -117,6 +148,19 @@ constexpr bool is_string_v = is_string<T>::value;
 
 template <typename T>
 concept concept_string_type = is_string_v<T>;
+
+template <typename Res, typename Func, typename...Args>
+concept concept_basic_callable = requires(Func &&func, Args&&...args) {
+	std::is_same_v<decltype(func(std::forward<Args>(args)...)), Res>;
+};
+
+template <typename Func, typename...Args>
+concept concept_void_callable = concept_basic_callable<void, Func, Args...>;
+
+template <typename Func, typename...Args>
+concept concept_callable = requires(Func &&func, Args&&...args) {
+	func(std::forward<Args>(args)...);
+};
 
 } //namespace libgs
 

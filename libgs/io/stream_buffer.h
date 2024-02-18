@@ -26,61 +26,66 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef __unix__
-# error "This file can only be compiled on unix (non-Apple)."
-#else
+#ifndef LIBGS_IO_STREAM_BUFFER_H
+#define LIBGS_IO_STREAM_BUFFER_H
 
-#include "waitable.h"
-#include <poll.h>
+#include <libgs/core/cxx/concept.hpp>
+#include <cstring>
 
-namespace libgs::io::detail
+namespace libgs
 {
 
-using duration = std::chrono::milliseconds;
-
-static bool wait(int fd, int event, const std::chrono::milliseconds &ms, error_code &error)
+template <typename T>
+struct buffer
 {
-	struct pollfd fds;
-	fds.fd = fd;
-	fds.events = event;
+	size_t size;
 
-	int tt = ms.count() > 0? ms.count() : -1;
-	error = std::make_error_code(static_cast<std::errc>(0));
+protected:
+	buffer(size_t size = 0);
+};
 
-	for(;;)
-	{
-		int res = poll(&fds, 1, tt);
-		if( res < 0 )
-		{
-			error = std::make_error_code(static_cast<std::errc>(errno));
-			return false;
-		}
-		else if( res == 0 )
-			return false;
-		else if( res == 1 and fds.revents == event )
-			break;
-	}
-	return true;
-}
-
-bool wait_writeable(int fd, const duration &ms, error_code *error) noexcept
+template <>
+struct buffer<void*> : buffer<void>
 {
-	error_code _error;
-	bool res = wait(fd, POLLOUT, ms, _error);
-	if( error )
-		*error = _error;
-	return res;
-}
+	using base_type = buffer<void>;
+	using base_type::base_type;
 
-bool wait_readable(int fd, const duration &ms, error_code *error) noexcept
+	void *data;
+	buffer(void *data, size_t size = 0);
+};
+
+template <>
+struct buffer<std::string&> : buffer<void>
 {
-	error_code _error;
-	bool res = wait(fd, POLLIN, ms, _error);
-	if( error )
-		*error = _error;
-	return res;
-}
+	using base_type = buffer<void>;
+	using base_type::base_type;
 
-} //namespace libgs::io::detail
+	std::string &data;
+	buffer(std::string &data, size_t size = 0);
+};
 
-#endif //__unix__
+template <>
+struct buffer<const void*> : buffer<void>
+{
+	using base_type = buffer<void>;
+	using base_type::base_type;
+
+	const void *data;
+	buffer(const void *data, size_t size = 0);
+};
+
+template <>
+struct buffer<const std::string&> : buffer<void>
+{
+	using base_type = buffer<void>;
+	using base_type::base_type;
+
+	const std::string &data;
+	buffer(const std::string &data, size_t size = 0);
+};
+
+} //namespace libgs
+#include <libgs/io/detail/stream_buffer.h>
+
+
+#endif //LIBGS_IO_STREAM_BUFFER_H

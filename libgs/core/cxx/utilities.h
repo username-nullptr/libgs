@@ -29,9 +29,10 @@
 #ifndef LIBGS_CORE_CXX_UTILITIES_H
 #define LIBGS_CORE_CXX_UTILITIES_H
 
-#include <libgs/core/cxx/remove_repeat.h>
+#include <libgs/core/cxx/remove_repeat.hpp>
 #include <libgs/core/cxx/type_traits.hpp>
 #include <rttr/variant.h>
+#include <utility>
 
 #ifdef __GNUC__
 # include <cxxabi.h>
@@ -64,6 +65,8 @@
 
 namespace libgs
 {
+
+using std_type_id = decltype(typeid(void).hash_code());
 
 template <typename T>
 constexpr T &remove_const_v(const T &v);

@@ -69,10 +69,8 @@ public:
 	basic_value(libgs::basic_value<CharT> &&other) noexcept;
 	basic_value(const CharT *str, size_type len);
 
-	template <typename T> requires (not is_string_v<T>)
-	basic_value(T &&v) {
-		operator=(std::format(default_format_v, std::forward<T>(v)));
-	}
+	template <typename T>
+	basic_value(T &&v) requires (not is_string_v<T>);
 
 public:
 	template <concept_number_type T>
@@ -105,10 +103,8 @@ public:
 	template <typename Arg0, typename...Args>
 	this_type &set_value(format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 
-	template <typename T> requires (not is_string_v<T>)
-	this_type &set_value(T &&v) {
-		return set_value(default_format_v, std::forward<T>(v));
-	}
+	template <typename T>
+	this_type &set_value(T &&v) requires (not is_string_v<T>);
 
 public:
 	static this_type from(const std::basic_string<CharT> &v);
@@ -117,21 +113,12 @@ public:
 	template <typename Arg0, typename...Args>
 	[[nodiscard]] static this_type from(format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 
-	template <typename T> requires (not is_string_v<T>)
-	[[nodiscard]] static this_type from(T &&v)
-	{
-		this_type hv;
-		hv.set_value(default_format_v, std::forward<T>(v));
-		return hv;
-	}
+	template <typename T>
+	[[nodiscard]] static this_type from(T &&v) requires (not is_string_v<T>);
 
 public:
-	template <typename T> requires (not is_string_v<T>)
-	this_type &operator=(T &&value)
-	{
-		set_value(std::forward<T>(value));
-		return *this;
-	}
+	template <typename T>
+	this_type &operator=(T &&value) requires (not is_string_v<T>);
 
 public:
 	this_type &operator=(const std::basic_string<CharT> &other);

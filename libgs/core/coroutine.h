@@ -32,45 +32,48 @@
 #include <libgs/core/global.h>
 #include <asio/experimental/awaitable_operators.hpp>
 
+using namespace  asio::experimental::awaitable_operators;
+
 namespace libgs
 {
 
 template <typename T>
 using awaitable = asio::awaitable<T>;
 
-template <typename Func, typename Exec = asio::io_context>
+template <concept_coroutine_function Func, concept_schedulable Exec = asio::io_context>
 auto co_spawn_detached(Func &&func, Exec &exec = io_context());
+
+template <concept_coroutine_function Func, concept_schedulable Exec = asio::io_context>
+auto co_spawn_future(Func &&func, Exec &exec = io_context());
 
 constexpr auto use_awaitable = asio::use_awaitable;
 
-struct uawaitable_t
+using use_awaitable_t = decltype(use_awaitable);
+
+struct use_awaitable_e_t
 {
-	auto operator[](asio::error_code &error) const noexcept {
-		return asio::redirect_error(asio::use_awaitable, error);
+	auto operator[](error_code &error) const noexcept {
+		return redirect_error(asio::use_awaitable, error);
 	}
 };
+constexpr use_awaitable_e_t use_awaitable_e;
 
-constexpr uawaitable_t use_awaitable_e;
-
-template <typename Func, typename...Args>
-concept awaitable_function = requires(Func &&func, Args&&...args) {
-	func(std::forward<Args>(args)...);
-};
+using ua_redirect_error_t = typename function_traits<decltype(asio::redirect_error<use_awaitable_t>)>::return_type;
 
 template <typename Exec, typename Func, typename...Args>
-auto co_post(Exec &exec, Func &&func, Args&&...args) requires awaitable_function<Func,Args...>;
+auto co_post(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
 
 template <typename Exec, typename Func, typename...Args>
-auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires awaitable_function<Func,Args...>;
+auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
 
 template <typename Func, typename...Args>
-auto co_thread(Func &&func, Args&&...args) requires awaitable_function<Func,Args...>;
+auto co_thread(Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
 
 template<typename Rep, typename Period, typename Exec = asio::io_context>
-awaitable<asio::error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &exec = io_context());
+awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &exec = io_context());
 
 template<typename Clock, typename Duration, typename Exec = asio::io_context>
-awaitable<asio::error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec = io_context());
+awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec = io_context());
 
 } //namespace libgs
 #include <libgs/core/detail/coroutine.h>

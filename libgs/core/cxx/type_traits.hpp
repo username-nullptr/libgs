@@ -29,13 +29,21 @@
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
+#include <libgs/core/cxx/asio_concept.hpp>
 #include <libgs/core/cxx/concept.hpp>
+#include <chrono>
 #include <format>
 
 namespace libgs
 {
 
 using size_t = std::size_t;
+
+template<typename Rep, typename Period>
+using duration = std::chrono::duration<Rep, Period>;
+
+template<typename Clock, typename Duration>
+using time_point = std::chrono::time_point<Clock, Duration>;
 
 template <concept_char_type CharT>
 struct default_format {};

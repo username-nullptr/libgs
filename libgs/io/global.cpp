@@ -26,25 +26,9 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_UDP_SOCKET_H
-#define LIBGS_IO_UDP_SOCKET_H
+#include "global.h"
 
-#include <libgs/io/socket.h>
-
-namespace libgs
-{
-	
-using asio_udp_socket = asio::ip::udp::socket;
-
-namespace io
+namespace libgs::io
 {
 
-class udp_socket : public socket
-{
-
-};
-
-}} //namespace libgs::io
-
-
-#endif //LIBGS_IO_UDP_SOCKET_H
+} //namespace libgs::io
