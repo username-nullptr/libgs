@@ -190,13 +190,13 @@ template <concept_execution Exec>
 void basic_timer<Exec>::wait(cb_token<error_code> tk)
 {
 	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
 	{
 		if( not valid )
 			co_return ;
 
 		error_code error;
-		co_await wait(std::move(ep), {tk.rtime, use_awaitable_e[error]});
+		co_await wait({tk.rtime, use_awaitable_e[error]});
 
 		if( not valid )
 			co_return ;

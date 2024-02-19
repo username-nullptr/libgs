@@ -137,7 +137,9 @@ awaitable<void> basic_socket<Exec>::connect(endpoint ep, opt_token<ua_redirect_e
 		co_return ;
 	}
 	auto var = co_await (do_connect(std::move(ep)) or co_sleep_for(tk.rtime));
-	if( var.index() == 1 )
+	if( var.index() == 0 )
+		tk.uare.ec_ = std::get<0>(var);
+	else if( var.index() == 1 )
 		tk.uare.ec_ = std::make_error_code(std::errc::timed_out);
 	co_return ;
 }

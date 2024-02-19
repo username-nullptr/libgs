@@ -150,9 +150,6 @@ template <concept_execution Exec>
 awaitable<size_t> basic_stream<Exec>::read(buffer<std::string&> buf, opt_token<ua_redirect_error_t> tk) noexcept
 {
 	if( buf.size == 0 )
-		co_return 0;
-
-	else if( buf.size == 0 )
 		buf.size = read_buffer_size();
 	
 	auto _buf = new char[buf.size] {0};
@@ -232,7 +229,7 @@ awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<u
 	memcpy(_buf.get(), buf.data, buf.size);
 
 	if( tk.rtime == 0s )
-		co_return co_await write_data(_buf, buf.size, tk.uare.ec_);
+		co_return co_await write_data(_buf.get(), buf.size, tk.uare.ec_);
 
 	auto no_time_out = [&]() -> awaitable<size_t>
 	{

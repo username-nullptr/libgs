@@ -127,6 +127,34 @@ public:
 	}
 };
 
+template <libgs::concept_char_type CharT>
+class formatter<asio::ip::udp::endpoint, CharT> : public libgs::no_parse_formatter<CharT>
+{
+public:
+	auto format(const asio::ip::udp::endpoint &endpoint, auto &context) const
+	{
+		if constexpr( std::is_same_v<CharT, char> )
+			return format_to(context.out(), "{}:{}", endpoint.address().to_string(), endpoint.port());
+		else
+			return format_to(context.out(), L"{}:{}", endpoint.address().to_string(), endpoint.port());
+	}
+};
+
+template <libgs::concept_char_type CharT>
+class formatter<asio::ip::address, CharT> 
+{
+public:
+	auto format(const asio::ip::address &addr, auto &context) const {
+		return m_formatter.format(addr.to_string(), context);
+	}
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<std::string, CharT> m_formatter;
+};
+
 template <typename Fir, typename Sec, libgs::concept_char_type CharT>
 class formatter<std::pair<Fir,Sec>, CharT> : public libgs::no_parse_formatter<CharT>
 {

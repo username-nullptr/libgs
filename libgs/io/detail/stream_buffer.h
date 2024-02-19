@@ -55,14 +55,14 @@ inline buffer<const void*>::buffer(const void *data, size_t size) :
 	base_type(size), data(data)
 {
 	if( size == 0 )
-		size = std::strlen(reinterpret_cast<const char*>(data));
+		this->size = std::strlen(reinterpret_cast<const char*>(data));
 }
 
 buffer<const std::string&>::buffer(const std::string &data, size_t size) :
 	base_type(size), data(data)
 {
 	if( size == 0 )
-		size = data.size();
+		this->size = data.size();
 }
 
 } //namespace libgs
