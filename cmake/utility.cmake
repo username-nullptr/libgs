@@ -37,5 +37,6 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 	endif ()
 
 	set(${CMAKE_CXX_STANDARD} 20 PARENT_SCOPE)
+	# set(${CMAKE_CXX_STANDARD} 23 PARENT_SCOPE)
 
 endfunction()

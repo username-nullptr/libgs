@@ -30,7 +30,7 @@
 #define LIBGS_CORE_CXX_FORMATTER_H
 
 #include <libgs/core/cxx/utilities.h>
-#include <rttr/type>
+// #include <rttr/type>
 #include <asio.hpp>
 
 #include <thread>
@@ -180,6 +180,8 @@ public:
 			return format_to(context.out(), L"{}:({})", libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get()));
 	}
 };
+
+#if 0
 
 template <libgs::concept_char_type CharT>
 class formatter<rttr::basic_string_view<CharT>, CharT> : public libgs::no_parse_formatter<CharT>
@@ -341,6 +343,8 @@ public:
 		return formatter<rttr::type, CharT>().format(arg.get_type(), context);
 	}
 };
+
+#endif //rttr
 
 } //namespace std
 

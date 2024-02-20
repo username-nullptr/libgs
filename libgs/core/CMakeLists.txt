@@ -77,7 +77,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 add_library(${target_name} SHARED ${all_files})
 target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
 
-target_link_libraries(${target_name} PUBLIC rttr_core)
+# target_link_libraries(${target_name} PUBLIC rttr_core)
 
 if (UNIX)
 	target_link_libraries(${target_name} PUBLIC pthread)

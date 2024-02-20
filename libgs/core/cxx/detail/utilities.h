@@ -50,6 +50,8 @@ const char *type_name() {
 	return LIBGS_ABI_CXA_DEMANGLE(typeid(T).name());
 }
 
+#if 0
+
 template <typename T>
 auto type_id() {
 	return rttr::type::get<T>();
@@ -58,6 +60,8 @@ auto type_id() {
 inline auto type_id(const std::string &name) {
 	rttr::type::get_by_name(name);
 }
+
+#endif //rttr
 
 inline std::string wcstombs(const std::wstring &str)
 {

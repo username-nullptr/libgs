@@ -31,6 +31,7 @@
 
 #include <libgs/core/global.h>
 #include <optional>
+#include <map>
 
 namespace libgs::app
 {

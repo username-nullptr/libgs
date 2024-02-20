@@ -151,92 +151,92 @@ bool stob(const std::wstring &str)
 	return algorithm_base::stob<wchar_t>(str);
 }
 
-std::string str_to_lower(const std::string &str)
+std::string str_to_lower(std::string_view str)
 {
 	return algorithm_base::str_to_lower<char>(str);
 }
 
-std::wstring str_to_lower(const std::wstring &str)
+std::wstring str_to_lower(std::wstring_view str)
 {
 	return algorithm_base::str_to_lower<wchar_t>(str);
 }
 
-std::string str_to_upper(const std::string &str)
+std::string str_to_upper(std::string_view str)
 {
 	return algorithm_base::str_to_upper<char>(str);
 }
 
-std::wstring str_to_upper(const std::wstring &str)
+std::wstring str_to_upper(std::wstring_view str)
 {
 	return algorithm_base::str_to_upper<wchar_t>(str);
 }
 
-size_t str_replace(std::string &str, const std::string &_old, const std::string &_new)
+size_t str_replace(std::string &str, std::string_view _old, std::string_view _new)
 {
 	return algorithm_base::str_replace<char>(str, _old, _new);
 }
 
-size_t str_replace(std::wstring &str, const std::wstring &_old, const std::wstring &_new)
+size_t str_replace(std::wstring &str, std::wstring_view _old, std::wstring_view _new)
 {
 	return algorithm_base::str_replace<wchar_t>(str, _old, _new);
 }
 
-std::string str_trimmed(const std::string &str)
+std::string str_trimmed(std::string_view str)
 {
 	return algorithm_base::str_trimmed<char>(str);
 }
 
-std::wstring str_trimmed(const std::wstring &str)
+std::wstring str_trimmed(std::wstring_view str)
 {
 	return algorithm_base::str_trimmed<wchar_t>(str);
 }
 
-std::string str_remove(const std::string &str, const std::string &find)
+std::string str_remove(std::string_view str, std::string_view find)
 {
 	return algorithm_base::str_remove<char>(str, find);
 }
 
-std::wstring str_remove(const std::wstring &str, const std::wstring &find)
+std::wstring str_remove(std::wstring_view str, std::wstring_view find)
 {
 	return algorithm_base::str_remove<wchar_t>(str, find);
 }
 
-std::string str_remove(const std::string &str, char find)
+std::string str_remove(std::string_view str, char find)
 {
 	return algorithm_base::str_remove<char>(str, find);
 }
 
-std::wstring str_remove(const std::wstring &str, wchar_t find)
+std::wstring str_remove(std::wstring_view str, wchar_t find)
 {
 	return algorithm_base::str_remove<wchar_t>(str, find);
 }
 
-std::string from_percent_encoding(const std::string &str)
+std::string from_percent_encoding(std::string_view str)
 {
 	return algorithm_base::from_percent_encoding<char>(str);
 }
 
-std::wstring from_percent_encoding(const std::wstring &str)
+std::wstring from_percent_encoding(std::wstring_view str)
 {
 	return algorithm_base::from_percent_encoding<wchar_t>(str);
 }
 
-std::string file_name(const std::string &file_name)
+std::string file_name(std::string_view file_name)
 {
 	return algorithm_base::file_name<char>(file_name);
 }
 
-std::wstring file_name(const std::wstring &file_name)
+std::wstring file_name(std::wstring_view file_name)
 {
 	return algorithm_base::file_name<wchar_t>(file_name);
 }
 
-std::string file_path(const std::string &file_name)
+std::string file_path(std::string_view file_name)
 {
 	return algorithm_base::file_path<char>(file_name);
 }
 
-std::wstring file_path(const std::wstring &file_name)
+std::wstring file_path(std::wstring_view file_name)
 {
 	return algorithm_base::file_path<wchar_t>(file_name);
 }

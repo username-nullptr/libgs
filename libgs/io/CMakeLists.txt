@@ -13,6 +13,7 @@ set(core_headers
 	stream.h
 	socket.h
 	tcp_socket.h
+	udp_socket.h
 )
 
 set(core_detail_headers

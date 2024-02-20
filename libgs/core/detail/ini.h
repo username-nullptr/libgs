@@ -83,7 +83,7 @@ basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(const str_type &key, T &&val
 template <concept_char_type CharT>
 basic_value<CharT> basic_ini_keys<CharT>::operator[](const str_type &key) const noexcept(false)
 {
-	return read<value_type>();
+	return read<value_type>(key);
 }
 
 template <concept_char_type CharT>
@@ -97,6 +97,31 @@ basic_value<CharT> &basic_ini_keys<CharT>::operator[](str_type &&key) noexcept
 {
 	return m_keys[std::move(key)];
 }
+
+#if LIBGS_CORE_CPLUSPLUS >= 202302 // TODO ...
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_value<CharT> basic_ini_keys<CharT>::operator[](const str_type &key, T default_value) const noexcept
+{
+	return read_or<value_type>(key, default_value);
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_value<CharT> &basic_ini_keys<CharT>::operator[](const str_type &key, T default_value) noexcept
+{
+	return *m_keys.emplace(std::make_pair(key, default_value)).first;
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_value<CharT> &basic_ini_keys<CharT>::operator[](str_type &&key, T default_value) noexcept
+{
+	return *m_keys.emplace(std::make_pair(std::move(key), default_value)).first;
+}
+
+#endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 template <concept_char_type CharT>
 basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::begin() noexcept
@@ -309,6 +334,76 @@ basic_ini_keys<CharT> &basic_ini<CharT>::operator[](str_type &&group) noexcept
 {
 	return m_data->groups[std::move(group)];
 }
+
+#if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
+
+template <concept_char_type CharT>
+basic_ini<CharT> basic_ini<CharT>::operator[](const str_type &group, const str_type &key) const noexcept(false)
+{
+	return (*this)[group][key];
+}
+
+template <concept_char_type CharT>
+basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, const str_type &key) noexcept
+{
+	return (*this)[group][key];
+}
+
+template <concept_char_type CharT>
+basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, str_type &&key) noexcept
+{
+	return (*this)[group][std::move(key)];
+}
+
+template <concept_char_type CharT>
+basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, const str_type &key) noexcept
+{
+	return (*this)[std::move(group)][key];
+}
+
+template <concept_char_type CharT>
+basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, str_type &&key) noexcept
+{
+	return (*this)[std::move(group)][std::move(key)];
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_ini<CharT> basic_ini<CharT>::operator[](const str_type &group, const str_type &key, T default_value) const noexcept
+{
+	return read_or<value_type>(group, key, default_value];
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, const str_type &key, T default_value) noexcept
+{
+	return (*this)[group][key, default_value];
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, str_type &&key, T default_value) noexcept
+{
+
+	return (*this)[group][std::move(key), default_value];
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, const str_type &key, T default_value) noexcept
+{
+	return (*this)[std::move(group)][key, default_value];
+}
+
+template <concept_char_type CharT>
+template <ini_read_type<CharT> T>
+basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, str_type &&key, T default_value) noexcept
+{
+	return (*this)[std::move(group)][std::move(key), default_value];
+}
+
+#endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 template <concept_char_type CharT>
 basic_ini<CharT>::iterator basic_ini<CharT>::begin() noexcept

@@ -277,23 +277,25 @@ template <concept_number_type T, concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> str_to_lower(const std::basic_string<CharT> &str)
+[[nodiscard]] std::basic_string<CharT> str_to_lower(std::basic_string_view<CharT> str)
 {
-	auto tmp = str;
-	std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::tolower);
-	return tmp;
+	std::basic_string<CharT> result(str.size(), '\0');
+	for(size_t i=0; i<str.size(); i++)
+		result[i] = ::tolower(str[i]);
+	return result;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> str_to_upper(const std::basic_string<CharT> &str)
+[[nodiscard]] std::basic_string<CharT> str_to_upper(std::basic_string_view<CharT> str)
 {
-	auto tmp = str;
-	std::transform(tmp.begin(), tmp.end(), tmp.begin(), ::toupper);
-	return tmp;
+	std::basic_string<CharT> result(str.size(), '\0');
+	for(size_t i=0; i<str.size(); i++)
+		result[i] = ::toupper(str[i]);
+	return result;
 }
 
 template <concept_char_type CharT> /*[[nodiscard]]*/ 
-size_t str_replace(std::basic_string<CharT> &str, const std::basic_string<CharT> &_old, const std::basic_string<CharT> &_new)
+size_t str_replace(std::basic_string<CharT> &str, std::basic_string_view<CharT> _old, std::basic_string_view<CharT> _new)
 {
 	if( _old == _new )
 		return 0;
@@ -301,17 +303,21 @@ size_t str_replace(std::basic_string<CharT> &str, const std::basic_string<CharT>
 	size_t sum = 0;
 	size_t old_pos = 0;
 
-	while( str.find(_old, old_pos) != std::basic_string<CharT>::npos )
+	for(;;)
 	{
-		int start = str.find(_old, old_pos);
+		auto start = str.find(_old, old_pos);
+		if( start == std::basic_string<CharT>::npos )
+			break;
+
 		str.replace(start, _old.size(), _new);
 		old_pos = start + _new.size();
+		sum++;
 	}
 	return sum;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> str_trimmed(const std::basic_string<CharT> &str)
+[[nodiscard]] std::basic_string<CharT> str_trimmed(std::basic_string_view<CharT> str)
 {
 	std::basic_string<CharT> result;
 
@@ -344,17 +350,17 @@ template <concept_char_type CharT>
 
 template <concept_char_type CharT>
 [[nodiscard]] std::basic_string<CharT> 
-str_remove(const std::basic_string<CharT> &str, const std::basic_string<CharT> &find)
+str_remove(std::basic_string_view<CharT> str, std::basic_string_view<CharT> find)
 {
-	auto res = str;
+	std::basic_string<CharT> res(str.data(), str.size());
 	str_replace<CharT>(res, find, std::basic_string<CharT>());
 	return res;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> str_remove(const std::basic_string<CharT> &str, CharT find)
+[[nodiscard]] std::basic_string<CharT> str_remove(std::basic_string_view<CharT> str, CharT find)
 {
-	auto res = str;
+	std::basic_string<CharT> res(str.data(), str.size());
 	auto it = std::remove(res.begin(), res.end(), find);
 	if( it != res.end() )
 		res.erase(it, res.end());
@@ -362,7 +368,7 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> from_percent_encoding(const std::basic_string<CharT> &str)
+[[nodiscard]] std::basic_string<CharT> from_percent_encoding(std::basic_string_view<CharT> str)
 {
 	std::basic_string<CharT> result;
 	if( str.empty() )
@@ -450,7 +456,7 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> file_name(const std::basic_string<CharT> &file_name)
+[[nodiscard]] std::basic_string<CharT> file_name(std::basic_string_view<CharT> file_name)
 {
 	size_t pos = 0;
 	if constexpr( is_char_v<CharT> )
@@ -458,13 +464,19 @@ template <concept_char_type CharT>
 	else
 		pos = file_name.rfind(L"/");
 
+	std::basic_string<CharT> result;
 	if( pos == std::basic_string<CharT>::npos )
-		return file_name;
-	return file_name.substr(pos + 1);
+		result = std::basic_string<CharT>(file_name.data(), file_name.size());
+	else
+	{
+		auto tmp = file_name.substr(pos + 1);
+		result = std::basic_string<CharT>(tmp.data(), tmp.size());
+	}
+	return result;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> file_path(const std::basic_string<CharT> &file_name)
+[[nodiscard]] std::basic_string<CharT> file_path(std::basic_string_view<CharT> file_name)
 {
 	size_t pos = 0;
 	if constexpr( is_char_v<CharT> )
@@ -479,7 +491,8 @@ template <concept_char_type CharT>
 		if( pos == std::basic_string<CharT>::npos )
 			return L".";
 	}
-	return file_name.substr(0, pos + 1);
+	auto tmp = file_name.substr(0, pos + 1);
+	return std::basic_string<CharT>(tmp.data(), tmp.size());
 }
 
 } //namespace libgs::algorithm_base

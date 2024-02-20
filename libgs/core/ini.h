@@ -33,6 +33,7 @@
 #include <libgs/core/string_list.h>
 #include <libgs/core/shared_mutex.h>
 #include <libgs/core/cxx/exception.h>
+#include <map>
 
 namespace libgs
 {
@@ -76,19 +77,16 @@ public:
 	value_type &operator[](const str_type &key) noexcept;
 	value_type &operator[](str_type &&key) noexcept;
 
-#if LIBGS_CORE_CPLUSPLUS >= 202302 // TODO ...
+#if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
 	template <ini_read_type<CharT> T>
 	value_type operator[](const str_type &key, T default_value) const noexcept;
-
-	template <ini_read_type<CharT> T>
-	value_type operator[](str_type &&key, T default_value) const noexcept;
 
 	template <ini_read_type<CharT> T>
 	value_type &operator[](const str_type &key, T default_value) noexcept;
 
 	template <ini_read_type<CharT> T>
 	value_type &operator[](str_type &&key, T default_value) noexcept;
-#endif
+#endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:
 	using iterator = key_map::iterator;
@@ -163,16 +161,29 @@ public:
 	ini_keys &operator[](const str_type &group) noexcept;
 	ini_keys &operator[](str_type &&group) noexcept;
 
-#if LIBGS_CORE_CPLUSPLUS >= 202302 // TODO ...
+#if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
 	value_type operator[](const str_type &group, const str_type &key) const noexcept(false);
 	value_type &operator[](const str_type &group, const str_type &key) noexcept;
+	value_type &operator[](const str_type &group, str_type &&key) noexcept;
+	value_type &operator[](str_type &&group, const str_type &key) noexcept;
+	value_type &operator[](str_type &&group, str_type &&key) noexcept;
 
 	template <ini_read_type<CharT> T>
 	value_type operator[](const str_type &group, const str_type &key, T default_value) const noexcept;
 
 	template <ini_read_type<CharT> T>
 	value_type &operator[](const str_type &group, const str_type &key, T default_value) noexcept;
-#endif //LIBGS_CORE_CPLUSPLUS
+
+	template <ini_read_type<CharT> T>
+	value_type &operator[](const str_type &group, str_type &&key, T default_value) noexcept;
+
+	template <ini_read_type<CharT> T>
+	value_type &operator[](str_type &&group, const str_type &key, T default_value) noexcept;
+
+	template <ini_read_type<CharT> T>
+	value_type &operator[](str_type &&group, str_type &&key, T default_value) noexcept;
+
+#endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:
 	using iterator = group_map::iterator;

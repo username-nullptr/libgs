@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_ALGORITHM_H
 #define LIBGS_CORE_ALGORITHM_H
 
+#include <libgs/core/algorithm/base.h>
 #include <libgs/core/algorithm/byte_order.h>
 #include <libgs/core/algorithm/mime_type.h>
 #include <libgs/core/algorithm/uuid.h>

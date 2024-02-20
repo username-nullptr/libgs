@@ -36,6 +36,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <thread>
+#include <list>
 
 namespace dt = std::chrono;
 

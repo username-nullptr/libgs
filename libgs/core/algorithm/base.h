@@ -80,32 +80,32 @@ template <concept_number_type T>
 	return algorithm_base::ston<T,wchar_t>(str, base);
 }
 
-[[nodiscard]] std::string str_to_lower(const std::string &str);
-[[nodiscard]] std::wstring str_to_lower(const std::wstring &str);
+[[nodiscard]] std::string str_to_lower(std::string_view str);
+[[nodiscard]] std::wstring str_to_lower(std::wstring_view str);
 
-[[nodiscard]] std::string str_to_upper(const std::string &str);
-[[nodiscard]] std::wstring str_to_upper(const std::wstring &str);
+[[nodiscard]] std::string str_to_upper(std::string_view str);
+[[nodiscard]] std::wstring str_to_upper(std::wstring_view str);
 
-/*[[nodiscard]]*/ size_t str_replace(std::string &str, const std::string &_old, const std::string &_new);
-/*[[nodiscard]]*/ size_t str_replace(std::wstring &str, const std::wstring &_old, const std::wstring &_new);
+/*[[nodiscard]]*/ size_t str_replace(std::string &str, std::string_view _old, std::string_view _new);
+/*[[nodiscard]]*/ size_t str_replace(std::wstring &str, std::wstring_view _old, std::wstring_view _new);
 
-[[nodiscard]] std::string str_trimmed(const std::string &str);
-[[nodiscard]] std::wstring str_trimmed(const std::wstring &str);
+[[nodiscard]] std::string str_trimmed(std::string_view str);
+[[nodiscard]] std::wstring str_trimmed(std::wstring_view str);
 
-[[nodiscard]] std::string str_remove(const std::string &str, const std::string &find);
-[[nodiscard]] std::wstring str_remove(const std::wstring &str, const std::wstring &find);
+[[nodiscard]] std::string str_remove(std::string_view str, std::string_view find);
+[[nodiscard]] std::wstring str_remove(std::wstring_view str, std::wstring_view find);
 
-[[nodiscard]] std::string str_remove(const std::string &str, char find);
-[[nodiscard]] std::wstring str_remove(const std::wstring &str, wchar_t find);
+[[nodiscard]] std::string str_remove(std::string_view str, char find);
+[[nodiscard]] std::wstring str_remove(std::wstring_view str, wchar_t find);
 
-[[nodiscard]] std::string from_percent_encoding(const std::string &str);
-[[nodiscard]] std::wstring from_percent_encoding(const std::wstring &str);
+[[nodiscard]] std::string from_percent_encoding(std::string_view str);
+[[nodiscard]] std::wstring from_percent_encoding(std::wstring_view str);
 
-[[nodiscard]] std::string file_name(const std::string &file_name);
-[[nodiscard]] std::wstring file_name(const std::wstring &file_name);
+[[nodiscard]] std::string file_name(std::string_view file_name);
+[[nodiscard]] std::wstring file_name(std::wstring_view file_name);
 
-[[nodiscard]] std::string file_path(const std::string &file_name);
-[[nodiscard]] std::wstring file_path(const std::wstring &file_name);
+[[nodiscard]] std::string file_path(std::string_view file_name);
+[[nodiscard]] std::wstring file_path(std::wstring_view file_name);
 
 } //namespace libgs
 
