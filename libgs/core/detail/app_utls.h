@@ -33,19 +33,19 @@ namespace libgs::app
 {
 
 template <typename Arg0, typename...Args>
-bool setenv(const std::string &key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+bool setenv(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
 {
 	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...));
 }
 
 template <typename Arg0, typename...Args>
-bool setenv(const std::string &key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
 {
 	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...), overwrite);
 }
 
 template <concept_char_string_type T>
-bool setenv(const std::string &key, T &&value, bool overwrite)
+bool setenv(std::string_view key, T &&value, bool overwrite)
 {
 	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
 }

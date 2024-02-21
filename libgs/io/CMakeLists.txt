@@ -19,6 +19,7 @@ set(core_headers
 set(core_detail_headers
 	detail/stream_buffer.h
 	detail/device_base.h
+	detail/timer.h
 	detail/stream.h
 	detail/socket.h
 	detail/tcp_socket.h

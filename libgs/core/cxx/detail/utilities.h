@@ -63,7 +63,7 @@ inline auto type_id(const std::string &name) {
 
 #endif //rttr
 
-inline std::string wcstombs(const std::wstring &str)
+inline std::string wcstombs(std::wstring_view str)
 {
 	if( str.empty() )
 		return "";
@@ -71,7 +71,7 @@ inline std::string wcstombs(const std::wstring &str)
 	auto size = str.size();
 	auto buf = std::make_shared<char[]>(size + 1);
 
-	std::wcstombs(buf.get(), str.c_str(), size);
+	std::wcstombs(buf.get(), str.data(), size);
 	return buf.get();
 }
 
@@ -82,7 +82,7 @@ inline char wcstombs(wchar_t c)
 	return buf;
 }
 
-inline std::wstring mbstowcs(const std::string &str)
+inline std::wstring mbstowcs(std::string_view str)
 {
 	if( str.empty() )
 		return L"";
@@ -90,7 +90,7 @@ inline std::wstring mbstowcs(const std::string &str)
 	auto size = str.size();
 	auto buf = std::make_shared<wchar_t[]>(size + 1);
 
-	std::mbstowcs(buf.get(), str.c_str(), size);
+	std::mbstowcs(buf.get(), str.data(), size);
 	return buf.get();
 }
 

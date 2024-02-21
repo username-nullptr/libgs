@@ -1023,9 +1023,9 @@ static bool s_is_text_file(std::ifstream &file)
 
 #define BUF_LEN  256
 
-static std::string mime_from_magic(const std::string &file_name)
+static std::string mime_from_magic(std::string_view file_name)
 {
-	std::ifstream file(file_name);
+	std::ifstream file(file_name.data());
 	if( not file.is_open() )
 		return "unknown";
 
@@ -1050,7 +1050,7 @@ static std::string mime_from_magic(const std::string &file_name)
 	return mime_type;
 }
 
-std::string get_mime_type(const std::string &file_name, bool magic_first)
+std::string get_mime_type(std::string_view file_name, bool magic_first)
 {
 	if( magic_first )
 	{
@@ -1081,9 +1081,9 @@ std::string get_mime_type(const std::string &file_name, bool magic_first)
 	return it->second;
 }
 
-bool is_text_file(const std::string &file_name)
+bool is_text_file(std::string_view file_name)
 {
-	std::ifstream file(file_name);
+	std::ifstream file(file_name.data());
 	if( file.is_open() )
 	{
 		s_is_text_file(file);
@@ -1093,10 +1093,10 @@ bool is_text_file(const std::string &file_name)
 	return false;
 }
 
-std::string get_text_file_encoding(const std::string &file_name)
+std::string get_text_file_encoding(std::string_view file_name)
 {
 	std::string result = "unknown";
-	FILE *fp = std::fopen(file_name.c_str(), "rb");
+	FILE *fp = std::fopen(file_name.data(), "rb");
 
 	if( not fp )
 		return result;

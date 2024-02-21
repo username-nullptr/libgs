@@ -43,37 +43,37 @@ std::string file_path();
 std::string dir_path();
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-bool set_current_directory(const std::string &path);
+bool set_current_directory(std::string_view path);
 
 [[nodiscard]] LIBGS_CORE_API
 std::string current_directory();
 
 [[nodiscard]] LIBGS_CORE_API
-std::string absolute_path(const std::string &path);
+std::string absolute_path(std::string_view path);
 
 [[nodiscard]] LIBGS_CORE_API
-bool is_absolute_path(const std::string &path);
+bool is_absolute_path(std::string_view path);
 
 [[nodiscard]] LIBGS_CORE_API
-std::optional<std::string> getenv(const std::string &key);
+std::optional<std::string> getenv(std::string_view key);
 
 [[nodiscard]] LIBGS_CORE_API
 std::map<std::string, std::string> getenvs();
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-bool setenv(const std::string &key, const std::string &value, bool overwrite = true);
+bool setenv(std::string_view key, std::string_view value, bool overwrite = true);
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-bool unsetenv(const std::string &key);
+bool unsetenv(std::string_view key);
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */
-bool setenv(const std::string &key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+bool setenv(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */
-bool setenv(const std::string &key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 
 template <concept_char_string_type T> /* [[nodiscard]] */
-bool setenv(const std::string &key, T &&value, bool overwrite = true);
+bool setenv(std::string_view key, T &&value, bool overwrite = true);
 
 } //namespace libgs::app
 #include <libgs/core/detail/app_utls.h>

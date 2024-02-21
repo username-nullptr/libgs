@@ -42,35 +42,32 @@ class LIBGS_CORE_API args_parser
 	LIBGS_DISABLE_COPY_MOVE(args_parser)
 
 public:
-	typedef std::string  rule;
-	typedef std::string  description;
-	typedef std::string  identification;
-	typedef std::unordered_map<rule, libgs::value>  arguments;
+	using arguments = std::unordered_map<std::string, libgs::value>;
 
 public:
 	explicit args_parser(std::string help_title = {});
 	~args_parser();
 
 public:
-	args_parser &set_help_title(const std::string &text);
+	args_parser &set_help_title(std::string text);
 
 public:
 	// ./a.out -f filename
 	// ./a.out --file=filename
-	args_parser &add_group(const rule &r, const description &d, const identification &i = {});
+	args_parser &add_group(const std::string &rule, const std::string &description, const std::string &identification = {});
 
 	// ./a.out -abc
 	// ./a.out -a -b -c
-	args_parser &add_flag(const rule &r, const description &d, const identification &i = {});
+	args_parser &add_flag(const std::string &rule, const std::string &description, const std::string &identification = {});
 
 public:
-	args_parser &set_version(const description &d);
-	args_parser &set_v(const description &d);
+	args_parser &set_version(std::string d);
+	args_parser &set_v(std::string d);
 
 public:
 	args_parser &enable_h();
 	args_parser &disable_h();
-	args_parser &set_help_extension(const description &d);
+	args_parser &set_help_extension(std::string d);
 
 public:
 	arguments parsing(int argc, const char *argv[], string_list &other);
@@ -82,8 +79,8 @@ private:
 
 } //namespace libgs::cmdline
 
-LIBGS_CORE_API bool operator&(const libgs::cmdline::args_parser::arguments &args_hash, const libgs::cmdline::args_parser::rule &key);
-LIBGS_CORE_API bool operator&(const libgs::cmdline::args_parser::rule &key, const libgs::cmdline::args_parser::arguments &args_hash);
+LIBGS_CORE_API bool operator&(const libgs::cmdline::args_parser::arguments &args_hash, const std::string &key);
+LIBGS_CORE_API bool operator&(const std::string &key, const libgs::cmdline::args_parser::arguments &args_hash);
 
 
 #endif //LIBGS_CORE_ARGS_PARSER_H

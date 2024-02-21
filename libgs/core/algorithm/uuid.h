@@ -38,10 +38,11 @@ template <concept_char_type CharT>
 union basic_uuid // version 4
 {
 	using str_type = std::basic_string<CharT>;
+	using str_view_type = std::basic_string_view<CharT>;
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
 public:
-	basic_uuid(const str_type &basic_uuid);
+	basic_uuid(str_view_type basic_uuid);
 	basic_uuid(const basic_uuid &other) = default;
 
 public:
@@ -49,7 +50,7 @@ public:
 
 public:
 	basic_uuid &operator=(const basic_uuid &other) = default;
-	basic_uuid &operator=(const str_type &basic_uuid);
+	basic_uuid &operator=(str_view_type basic_uuid);
 
 public:
 	bool operator==(const basic_uuid &other) const;

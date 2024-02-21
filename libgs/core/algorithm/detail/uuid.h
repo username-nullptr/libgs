@@ -35,7 +35,7 @@ namespace libgs
 {
 
 template <concept_char_type CharT>
-basic_uuid<CharT>::basic_uuid(const str_type &basic_uuid) :
+basic_uuid<CharT>::basic_uuid(str_view_type basic_uuid) :
 	_wide_integers{0}
 {
 	operator=(basic_uuid);
@@ -63,18 +63,18 @@ basic_uuid<CharT> basic_uuid<CharT>::generate()
 }
 
 template <concept_char_type CharT>
-basic_uuid<CharT> &basic_uuid<CharT>::operator=(const str_type &basic_uuid)
+basic_uuid<CharT> &basic_uuid<CharT>::operator=(str_view_type basic_uuid)
 {
 	if constexpr( is_char_v )
 	{
 		if( basic_uuid.size() == 38 ) //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
 		{
-			std::sscanf(basic_uuid.c_str(), "%08" SCNx32 "-%04" SCNx16 "-%04" SCNx16 "-%02" SCNx8 "%02" SCNx8 "-%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8,
+			std::sscanf(basic_uuid.data(), "%08" SCNx32 "-%04" SCNx16 "-%04" SCNx16 "-%02" SCNx8 "%02" SCNx8 "-%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8,
 						&_basic_uuid.d0, &_basic_uuid.d1, &_basic_uuid.d2, &_basic_uuid.d3[0], &_basic_uuid.d3[1], &_basic_uuid.d3[2], &_basic_uuid.d3[3], &_basic_uuid.d3[4], &_basic_uuid.d3[5], &_basic_uuid.d3[6], &_basic_uuid.d3[7]);
 		}
 		else if( basic_uuid.size() == 40 ) //{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}
 		{
-			std::sscanf(basic_uuid.c_str(), "{%08" SCNx32 "-%04" SCNx16 "-%04" SCNx16 "-%02" SCNx8 "%02" SCNx8 "-%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "}",
+			std::sscanf(basic_uuid.data(), "{%08" SCNx32 "-%04" SCNx16 "-%04" SCNx16 "-%02" SCNx8 "%02" SCNx8 "-%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "}",
 						&_basic_uuid.d0, &_basic_uuid.d1, &_basic_uuid.d2, &_basic_uuid.d3[0], &_basic_uuid.d3[1], &_basic_uuid.d3[2], &_basic_uuid.d3[3], &_basic_uuid.d3[4], &_basic_uuid.d3[5], &_basic_uuid.d3[6], &_basic_uuid.d3[7]);
 		}
 	}
@@ -82,12 +82,12 @@ basic_uuid<CharT> &basic_uuid<CharT>::operator=(const str_type &basic_uuid)
 	{
 		if( basic_uuid.size() == 38 ) //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
 		{
-			std::swscanf(basic_uuid.c_str(), L"%08" LIBGS_WCHAR(SCNx32) L"-%04" LIBGS_WCHAR(SCNx16) L"-%04" LIBGS_WCHAR(SCNx16) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8),
+			std::swscanf(basic_uuid.data(), L"%08" LIBGS_WCHAR(SCNx32) L"-%04" LIBGS_WCHAR(SCNx16) L"-%04" LIBGS_WCHAR(SCNx16) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8),
 						 &_basic_uuid.d0, &_basic_uuid.d1, &_basic_uuid.d2, &_basic_uuid.d3[0], &_basic_uuid.d3[1], &_basic_uuid.d3[2], &_basic_uuid.d3[3], &_basic_uuid.d3[4], &_basic_uuid.d3[5], &_basic_uuid.d3[6], &_basic_uuid.d3[7]);
 		}
 		else if( basic_uuid.size() == 40 ) //{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}
 		{
-			std::swscanf(basic_uuid.c_str(), L"{%08" LIBGS_WCHAR(SCNx32) L"-%04" LIBGS_WCHAR(SCNx16) L"-%04" LIBGS_WCHAR(SCNx16) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"}",
+			std::swscanf(basic_uuid.data(), L"{%08" LIBGS_WCHAR(SCNx32) L"-%04" LIBGS_WCHAR(SCNx16) L"-%04" LIBGS_WCHAR(SCNx16) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"}",
 						 &_basic_uuid.d0, &_basic_uuid.d1, &_basic_uuid.d2, &_basic_uuid.d3[0], &_basic_uuid.d3[1], &_basic_uuid.d3[2], &_basic_uuid.d3[3], &_basic_uuid.d3[4], &_basic_uuid.d3[5], &_basic_uuid.d3[6], &_basic_uuid.d3[7]);
 		}
 	}

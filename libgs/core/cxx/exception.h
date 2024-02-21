@@ -43,7 +43,7 @@ class exception : public null_exception
 	LIBGS_DISABLE_COPY_MOVE(exception)
 
 public:
-	explicit exception(std::string what);
+	explicit exception(std::string_view what);
 
 	template <typename Arg0, typename...Args>
 	explicit exception(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);

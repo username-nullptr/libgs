@@ -35,26 +35,23 @@
 namespace libgs::cmdline
 {
 
-typedef args_parser::rule            rule;
-typedef args_parser::description     description;
-typedef args_parser::arguments       arguments;
-typedef args_parser::identification  identification;
+using arguments = args_parser::arguments;
 
-typedef std::string  group_iden;
-typedef std::unordered_set<group_iden>  parsing_cache;
+using group_iden = std::string;
+using parsing_cache = std::unordered_set<group_iden>;
 
 struct arg_info
 {
 	group_iden group;
-	identification iden;
+	std::string iden;
 };
-typedef std::unordered_map<rule, arg_info>  args_cache;
+using args_cache = std::unordered_map<std::string, arg_info>;
 
 class LIBGS_DECL_HIDDEN args_parser_impl
 {
 public:
 	explicit args_parser_impl(std::string &help_title);
-	void add(args_cache &cache, const rule &r, const description &d, const identification &i);
+	void add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification);
 
 public:
 	[[noreturn]] void print_version() const;
@@ -65,12 +62,12 @@ public:
 	args_cache m_group;
 	args_cache m_flag;
 
-	description m_version;
-	description m_v;
+	std::string m_version;
+	std::string m_v;
 
 	std::string m_help_title;
-	description m_help;
-	description m_help_ex;
+	std::string m_help;
+	std::string m_help_ex;
 
 	bool m_h = false;
 };
@@ -94,13 +91,14 @@ static bool check(const std::string &str)
 	return true;
 }
 
-void args_parser_impl::add(args_cache &cache, const rule &r, const description &d, const identification &i)
+void args_parser_impl::add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification)
 {
 	static size_t id_source = 0;
 	char buf[128] = "";
 	sprintf(buf, "%zu", id_source++);
 
-	for(auto arg : string_list::from_string(r, ","))
+	auto str_list = string_list::from_string(rule, ",");
+	for(auto &arg : str_list)
 	{
 		arg = str_trimmed(arg);
 		if( not check(arg) or arg == "--" )
@@ -109,12 +107,12 @@ void args_parser_impl::add(args_cache &cache, const rule &r, const description &
 		else if( arg.size() == 1 )
 		{
 			if( arg != "-" )
-				cache.emplace(arg, arg_info{buf, i.empty()? arg : i});
+				cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
 		}
 		else
-			cache.emplace(arg, arg_info{buf, i.empty()? arg : i});
+			cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
 	}
-	m_help += "    " + r + " :\n        " + d + "\n\n";
+	m_help += "    " + rule + " :\n        " + description + "\n\n";
 }
 
 [[noreturn]] void args_parser_impl::print_version() const
@@ -169,33 +167,33 @@ args_parser::~args_parser()
 	delete m_impl;
 }
 
-args_parser &args_parser::set_help_title(const std::string &text)
+args_parser &args_parser::set_help_title(std::string text)
 {
-	m_impl->m_help_title = text;
+	m_impl->m_help_title = std::move(text);
 	return *this;
 }
 
-args_parser &args_parser::add_group(const rule &r, const description &d, const identification &i)
+args_parser &args_parser::add_group(const std::string &rule, const std::string &description, const std::string &identification)
 {
-	m_impl->add(m_impl->m_group, r,d,i);
+	m_impl->add(m_impl->m_group, rule, description, identification);
 	return *this;
 }
 
-args_parser &args_parser::add_flag(const rule &r, const description &d, const identification &i)
+args_parser &args_parser::add_flag(const std::string &rule, const std::string &description, const std::string &identification)
 {
-	m_impl->add(m_impl->m_flag, r,d,i);
+	m_impl->add(m_impl->m_flag, rule, description, identification);
 	return *this;
 }
 
-args_parser &args_parser::set_version(const description &d)
+args_parser &args_parser::set_version(std::string d)
 {
-	m_impl->m_version = d;
+	m_impl->m_version = std::move(d);
 	return *this;
 }
 
-args_parser &args_parser::set_v(const description &d)
+args_parser &args_parser::set_v(std::string d)
 {
-	m_impl->m_v = d;
+	m_impl->m_v = std::move(d);
 	return *this;
 }
 
@@ -211,9 +209,9 @@ args_parser &args_parser::disable_h()
 	return *this;
 }
 
-args_parser &args_parser::set_help_extension(const description &d)
+args_parser &args_parser::set_help_extension(std::string d)
 {
-	m_impl->m_help_ex = d;
+	m_impl->m_help_ex = std::move(d);
 	return *this;
 }
 
@@ -423,12 +421,12 @@ arguments args_parser::parsing(int argc, const char *argv[])
 
 using namespace libgs::cmdline;
 
-bool operator&(const args_parser::arguments &args_hash, const args_parser::rule &key)
+bool operator&(const args_parser::arguments &args_hash, const std::string &key)
 {
 	return args_hash.find(key) != args_hash.end();
 }
 
-bool operator&(const args_parser::rule &key, const args_parser::arguments &args_hash)
+bool operator&(const std::string &key, const args_parser::arguments &args_hash)
 {
 	return args_hash.find(key) != args_hash.end();
 }

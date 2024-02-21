@@ -45,9 +45,9 @@ std::string file_path()
 	return exe_name;
 }
 
-bool set_current_directory(const std::string &path)
+bool set_current_directory(std::string_view path)
 {
-	if( chdir(path.c_str()) < 0 )
+	if( chdir(path.data()) < 0 )
 	{
 		libgs_log_error("libgs::appinfo::set_current_directory: chdir: {}. ({})", strerror(errno), errno);
 		return false;
@@ -66,12 +66,12 @@ std::string current_directory()
 	return str;
 }
 
-std::string absolute_path(const std::string &path)
+std::string absolute_path(std::string_view path)
 {
-	auto result = path;
-	if( not result.starts_with("/") )
+	std::string result(path.data(), path.size());
+	if( not path.starts_with("/") )
 	{
-		if( result.starts_with("~/") )
+		if( path.starts_with("~/") )
 		{
 			auto tmp = ::getenv("HOME");
 			if( tmp == nullptr )

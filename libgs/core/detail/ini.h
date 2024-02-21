@@ -81,6 +81,14 @@ basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(const str_type &key, T &&val
 }
 
 template <concept_char_type CharT>
+template <typename T>
+basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(str_type &&key, T &&value) noexcept
+{
+	m_keys[std::move(key)] = std::forward<T>(value);
+	return *this;
+}
+
+template <concept_char_type CharT>
 basic_value<CharT> basic_ini_keys<CharT>::operator[](const str_type &key) const noexcept(false)
 {
 	return read<value_type>(key);
@@ -261,7 +269,6 @@ auto basic_ini<CharT>::read_or(const str_type &group, const str_type &key, T def
 	}
 	else
 		return read<value_type>(group, key, default_value).template get<T>();
-
 }
 
 template <concept_char_type CharT>
@@ -288,6 +295,30 @@ template <typename T>
 basic_ini<CharT> &basic_ini<CharT>::write(const str_type &group, const str_type &key, T &&value) noexcept
 {
 	m_data->groups[group][key] = std::forward<T>(value);
+	return *this;
+}
+
+template <concept_char_type CharT>
+template <typename T>
+basic_ini<CharT> &basic_ini<CharT>::write(const str_type &group, str_type &&key, T &&value) noexcept
+{
+	m_data->groups[group][std::move(key)] = std::forward<T>(value);
+	return *this;
+}
+
+template <concept_char_type CharT>
+template <typename T>
+basic_ini<CharT> &basic_ini<CharT>::write(str_type &&group, const str_type &key, T &&value) noexcept
+{
+	m_data->groups[group][std::move(key)] = std::forward<T>(value);
+	return *this;
+}
+
+template <concept_char_type CharT>
+template <typename T>
+basic_ini<CharT> &basic_ini<CharT>::write(str_type &&group, str_type &&key, T &&value) noexcept
+{
+	m_data->groups[std::move(group)][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 

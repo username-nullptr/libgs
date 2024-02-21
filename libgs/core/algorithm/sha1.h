@@ -39,8 +39,8 @@ class sha1_impl;
 class LIBGS_CORE_API sha1
 {
 public:
-	sha1(const std::string &text = {});
-	sha1(const std::wstring &text = {});
+	sha1(std::string_view text = {});
+	sha1(std::wstring_view text = {});
 	sha1(const sha1 &other);
 	sha1(sha1 &&other) noexcept;
 	~sha1();
@@ -54,8 +54,8 @@ public:
 	sha1 &append(char c);
 	sha1 &append(wchar_t c);
 	sha1 &append(const void *data, size_t size);
-	sha1 &append(const std::string &text);
-	sha1 &append(const std::wstring &text);
+	sha1 &append(std::string_view text);
+	sha1 &append(std::wstring_view text);
 
 public:
 	void operator+=(uint8_t x);

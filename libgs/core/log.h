@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_LOG_H
 #define LIBGS_CORE_LOG_H
 
+#include <iostream>
 #include <libgs/core/log/logger.h>
 
 #define libgs_log_debug    libgs::log::logger(__FILE__, __FUNCTION__, __LINE__).debug

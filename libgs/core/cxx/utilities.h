@@ -86,10 +86,10 @@ auto type_id(const std::string &name);
 
 #endif //rttr
 
-std::string wcstombs(const std::wstring &str);
+std::string wcstombs(std::wstring_view str);
 char wcstombs(wchar_t c);
 
-std::wstring mbstowcs(const std::string &str);
+std::wstring mbstowcs(std::string_view str);
 wchar_t mbstowcs(char c);
 
 } //namespace libgs

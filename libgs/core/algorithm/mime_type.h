@@ -35,16 +35,16 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_API
-std::string get_mime_type(const std::string &file_name, bool magic_first = false);
+std::string get_mime_type(std::string_view file_name, bool magic_first = false);
 
 [[nodiscard]] LIBGS_CORE_API
-bool is_text_file(const std::string &file_name);
+bool is_text_file(std::string_view file_name);
 
 [[nodiscard]] inline
-bool is_binary_file(const std::string &file_name) { return is_text_file(file_name); }
+bool is_binary_file(std::string_view file_name) { return is_text_file(file_name); }
 
 [[nodiscard]] LIBGS_CORE_API
-std::string get_text_file_encoding(const std::string &file_name);
+std::string get_text_file_encoding(std::string_view file_name);
 
 } //namespace libgs
 

@@ -72,6 +72,9 @@ public:
 	template <typename T>
 	basic_ini_keys &write(const str_type &key, T &&value) noexcept;
 
+	template <typename T>
+	basic_ini_keys &write(str_type &&key, T &&value) noexcept;
+
 public:
 	value_type operator[](const str_type &key) const noexcept(false);
 	value_type &operator[](const str_type &key) noexcept;
@@ -152,6 +155,15 @@ public:
 	template <typename T>
 	basic_ini &write(const str_type &group, const str_type &key, T &&value) noexcept;
 
+	template <typename T>
+	basic_ini &write(const str_type &group, str_type &&key, T &&value) noexcept;
+
+	template <typename T>
+	basic_ini &write(str_type &&group, const str_type &key, T &&value) noexcept;
+
+	template <typename T>
+	basic_ini &write(str_type &&group, str_type &&key, T &&value) noexcept;
+
 public:
 	const ini_keys &group(const str_type &group) const noexcept(false);
 	ini_keys &group(const str_type &group) noexcept(false);
@@ -182,7 +194,6 @@ public:
 
 	template <ini_read_type<CharT> T>
 	value_type &operator[](str_type &&group, str_type &&key, T default_value) noexcept;
-
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:

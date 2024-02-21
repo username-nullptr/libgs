@@ -32,8 +32,8 @@
 namespace libgs
 {
 
-inline exception::exception(std::string what) :
-	m_what(std::move(what))
+inline exception::exception(std::string_view what) :
+	m_what(what.data(), what.size())
 {
 
 }

@@ -208,13 +208,13 @@ public:
 
 /*----------------------------------------------------------------------------------------------------------*/
 
-sha1::sha1(const std::string &text) :
+sha1::sha1(std::string_view text) :
 	m_impl(new sha1_impl())
 {
 	append(text);
 }
 
-sha1::sha1(const std::wstring &text) :
+sha1::sha1(std::wstring_view text) :
 	m_impl(new sha1_impl())
 {
 	append(text);
@@ -305,20 +305,20 @@ sha1 &sha1::append(const void *data, size_t size)
 	return *this;
 }
 
-sha1 &sha1::append(const std::string &text)
+sha1 &sha1::append(std::string_view text)
 {
 	if( m_impl == nullptr or text.empty() )
 		return *this;
-	return append(text.c_str(), text.size());
+	return append(text.data(), text.size());
 }
 
-sha1 &sha1::append(const std::wstring &text)
+sha1 &sha1::append(std::wstring_view text)
 {
 	if( m_impl == nullptr or text.empty() )
 		return *this;
 
 	auto tmp = wcstombs(text);
-	return append(tmp.c_str(), tmp.size());
+	return append(tmp.data(), tmp.size());
 }
 
 void sha1::operator+=(uint8_t x)
