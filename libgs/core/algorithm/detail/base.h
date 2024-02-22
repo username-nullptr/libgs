@@ -30,6 +30,8 @@
 #define LIBGS_CORE_ALGORITHM_DETAIL_BASE_H
 
 #include <libgs/core/global.h>
+#include <libgs/core/cxx/exception.h>
+#include <libgs/core/log.h>
 
 namespace libgs::algorithm_base
 {
@@ -63,169 +65,182 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] int8_t stoi8(const std::basic_string<CharT> &str, size_t base = 10)
+static bool try_stob(const std::basic_string<CharT> &str, std::exception *ex)
+{
+	int res = _stob<CharT>(str);
+	if( res < 0 )
+	{
+		if( ex )
+			throw exception("Cannot convert string to arithmetic.");
+		return false;
+	}
+	return !!res;
+}
+
+#define _STO_FLOAT(_func) \
+({  \
+	size_t index = 0; \
+	auto res = std::_func(str, &index); \
+	if( index < str.size() ) \
+		throw exception("Cannot convert string to arithmetic."); \
+	res; \
+})
+
+#define _STO_INT(_func) \
+({  \
+	size_t index = 0; \
+	auto res = std::_func(str, &index, static_cast<int>(base)); \
+	if( index < str.size() ) { \
+		res = static_cast<decltype(res)>(_STO_FLOAT(stold)); \
+	} \
+	res; \
+})
+
+template <concept_char_type CharT>
+[[nodiscard]] int8_t stoi8(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<int8_t>(std::stol(str, nullptr, static_cast<int>(base)));
+		return static_cast<int8_t>(_STO_INT(stol));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] uint8_t stoui8(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] uint8_t stoui8(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<uint8_t>(std::stoul(str, nullptr, static_cast<int>(base)));
+		return static_cast<uint8_t>(_STO_INT(stoul));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] int16_t stoi16(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] int16_t stoi16(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<int16_t>(std::stol(str, nullptr, static_cast<int>(base)));
+		return static_cast<int16_t>(_STO_INT(stol));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] uint16_t stoui16(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] uint16_t stoui16(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<uint16_t>(std::stoul(str, nullptr, static_cast<int>(base)));
+		return static_cast<uint16_t>(_STO_INT(stoul));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] int32_t stoi32(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] int32_t stoi32(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<int32_t>(std::stol(str, nullptr, static_cast<int>(base)));
+		return static_cast<int32_t>(_STO_INT(stol));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] uint32_t stoui32(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] uint32_t stoui32(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<uint32_t>(std::stoul(str, nullptr, static_cast<int>(base)));
+		return static_cast<uint32_t>(_STO_INT(stoul));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] int64_t stoi64(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] int64_t stoi64(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<int64_t>(std::stoll(str, nullptr, static_cast<int>(base)));
+		return static_cast<int64_t>(_STO_INT(stoll));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] uint64_t stoui64(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] uint64_t stoui64(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	try {
-		return static_cast<uint64_t>(std::stoull(str, nullptr, static_cast<int>(base)));
+		return static_cast<uint64_t>(_STO_INT(stoull));
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] float stof(const std::basic_string<CharT> &str)
+[[nodiscard]] float stof(const std::basic_string<CharT> &str, bool _throw)
 {
 	try {
-		return std::stof(str, nullptr);
+		return _STO_FLOAT(stof);
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1.0f;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0.0f;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] double stod(const std::basic_string<CharT> &str)
+[[nodiscard]] double stod(const std::basic_string<CharT> &str, bool _throw)
 {
 	try {
-		return std::stod(str, nullptr);
+		return _STO_FLOAT(stof);
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1.0;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0.0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] double stold(const std::basic_string<CharT> &str)
+[[nodiscard]] double stold(const std::basic_string<CharT> &str, bool _throw)
 {
 	try {
-		return std::stold(str, nullptr);
+		return _STO_FLOAT(stof);
 	}
-	catch(...)
-	{
-		if( _stob<CharT>(str) > 0 )
-			return 1.0;
+	catch(std::exception ex) {
+		return try_stob<CharT>(str, _throw ? &ex : nullptr);
 	}
 	return 0.0;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] bool stob(const std::basic_string<CharT> &str)
+[[nodiscard]] bool stob(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	int res = _stob<CharT>(str);
 	if( res < 0 )
 	{
 		try {
-			return !!std::stol(str, nullptr, 10);
+			return !!_STO_INT(stol);
 		}
-		catch(...) {
+		catch(...)
+		{
+			if( _throw )
+				throw exception("Cannot convert string to arithmetic."); 
 			return 0;
 		}
 	}
@@ -233,44 +248,42 @@ template <concept_char_type CharT>
 }
 
 template <concept_number_type T, concept_char_type CharT>
-[[nodiscard]] T ston(const std::basic_string<CharT> &str, size_t base = 10)
+[[nodiscard]] T ston(const std::basic_string<CharT> &str, size_t base, bool _throw)
 {
 	if constexpr( std::is_same_v<T, bool> )
-		return stob(str);
+		return stob(str, base, _throw);
 	else
 	{
 		try {
 			if constexpr( std::is_same_v<T, char> )
-				return static_cast<char>(std::stol(str, nullptr, static_cast<int>(base)));
+				return static_cast<char>(_STO_INT(stol));
 			else if constexpr( std::is_same_v<T, unsigned char> )
-				return static_cast<unsigned char>(std::stoul(str, nullptr, static_cast<int>(base)));
+				return static_cast<unsigned char>(_STO_INT(stoul));
 			else if constexpr( std::is_same_v<T, short> )
-				return static_cast<short>(std::stol(str, nullptr, static_cast<int>(base)));
+				return static_cast<short>(_STO_INT(stol));
 			else if constexpr( std::is_same_v<T, unsigned short> )
-				return static_cast<unsigned short>(std::stoul(str, nullptr, static_cast<int>(base)));
+				return static_cast<unsigned short>(_STO_INT(stoul));
 			else if constexpr( std::is_same_v<T, int> )
-				return static_cast<int>(std::stol(str, nullptr, static_cast<int>(base)));
+				return static_cast<int>(_STO_INT(stol));
 			else if constexpr( std::is_same_v<T, unsigned int> )
-				return static_cast<unsigned int>(std::stoul(str, nullptr, static_cast<int>(base)));
+				return static_cast<unsigned int>(_STO_INT(stoul));
 			else if constexpr( std::is_same_v<T, long> )
-				return static_cast<long>(std::stol(str, nullptr, static_cast<int>(base)));
+				return static_cast<long>(_STO_INT(stol));
 			else if constexpr( std::is_same_v<T, unsigned long> )
-				return static_cast<unsigned long>(std::stoul(str, nullptr, static_cast<int>(base)));
+				return static_cast<unsigned long>(_STO_INT(stoul));
 			else if constexpr( std::is_same_v<T, long long> )
-				return static_cast<long long>(std::stoll(str, nullptr, static_cast<int>(base)));
+				return static_cast<long long>(_STO_INT(stoll));
 			else if constexpr( std::is_same_v<T, unsigned long long> )
-				return static_cast<unsigned long long>(std::stoull(str, nullptr, static_cast<int>(base)));
+				return static_cast<unsigned long long>(_STO_INT(stoull));
 			else if constexpr( std::is_same_v<T, float> )
-				return std::stof(str, nullptr);
+				return _STO_FLOAT(stof);
 			else if constexpr( std::is_same_v<T, double> )
-				return std::stod(str, nullptr);
+				return _STO_FLOAT(stod);
 			else if constexpr( std::is_same_v<T, long double> )
-				return std::stold(str, nullptr);
+				return _STO_FLOAT(stold);
 		}
-		catch(...)
-		{
-			if( _stob<CharT>(str) > 0 )
-				return 1;
+		catch( std::exception ex ) {
+			return try_stob<CharT>(str, _throw ? &ex : nullptr);
 		}
 		return 0;
 	}

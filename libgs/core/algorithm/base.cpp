@@ -31,124 +31,124 @@
 namespace libgs
 {
 
-int8_t stoi8(const std::string &str, size_t base)
+int8_t stoi8(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi8<char>(str, base);
+	return algorithm_base::stoi8<char>(str, base, _throw);
 }
 
-int8_t stoi8(const std::wstring &str, size_t base)
+int8_t stoi8(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi8<wchar_t>(str, base);
+	return algorithm_base::stoi8<wchar_t>(str, base, _throw);
 }
 
-uint8_t stoui8(const std::string &str, size_t base)
+uint8_t stoui8(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui8<char>(str, base);
+	return algorithm_base::stoui8<char>(str, base, _throw);
 }
 
-uint8_t stoui8(const std::wstring &str, size_t base)
+uint8_t stoui8(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui8<wchar_t>(str, base);
+	return algorithm_base::stoui8<wchar_t>(str, base, _throw);
 }
 
-int16_t stoi16(const std::string &str, size_t base)
+int16_t stoi16(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi16<char>(str, base);
+	return algorithm_base::stoi16<char>(str, base, _throw);
 }
 
-int16_t stoi16(const std::wstring &str, size_t base)
+int16_t stoi16(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi16<wchar_t>(str, base);
+	return algorithm_base::stoi16<wchar_t>(str, base, _throw);
 }
 
-uint16_t stoui16(const std::string &str, size_t base)
+uint16_t stoui16(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui16<char>(str, base);
+	return algorithm_base::stoui16<char>(str, base, _throw);
 }
 
-uint16_t stoui16(const std::wstring &str, size_t base)
+uint16_t stoui16(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui16<wchar_t>(str, base);
+	return algorithm_base::stoui16<wchar_t>(str, base, _throw);
 }
 
-int32_t stoi32(const std::string &str, size_t base)
+int32_t stoi32(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi32<char>(str, base);
+	return algorithm_base::stoi32<char>(str, base, _throw);
 }
 
-int32_t stoi32(const std::wstring &str, size_t base)
+int32_t stoi32(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi32<wchar_t>(str, base);
+	return algorithm_base::stoi32<wchar_t>(str, base, _throw);
 }
 
-uint32_t stoui32(const std::string &str, size_t base)
+uint32_t stoui32(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui32<char>(str, base);
+	return algorithm_base::stoui32<char>(str, base, _throw);
 }
 
-uint32_t stoui32(const std::wstring &str, size_t base)
+uint32_t stoui32(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui32<wchar_t>(str, base);
+	return algorithm_base::stoui32<wchar_t>(str, base, _throw);
 }
 
-int64_t stoi64(const std::string &str, size_t base)
+int64_t stoi64(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi64<char>(str, base);
+	return algorithm_base::stoi64<char>(str, base, _throw);
 }
 
-int64_t stoi64(const std::wstring &str, size_t base)
+int64_t stoi64(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoi64<wchar_t>(str, base);
+	return algorithm_base::stoi64<wchar_t>(str, base, _throw);
 }
 
-uint64_t stoui64(const std::string &str, size_t base)
+uint64_t stoui64(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui64<char>(str, base);
+	return algorithm_base::stoui64<char>(str, base, _throw);
 }
 
-uint64_t stoui64(const std::wstring &str, size_t base)
+uint64_t stoui64(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stoui64<wchar_t>(str, base);
+	return algorithm_base::stoui64<wchar_t>(str, base, _throw);
 }
 
-float stof(const std::string &str)
+float stof(const std::string &str, bool _throw)
 {
-	return algorithm_base::stof<char>(str);
+	return algorithm_base::stof<char>(str, _throw);
 }
 
-float stof(const std::wstring &str)
+float stof(const std::wstring &str, bool _throw)
 {
-	return algorithm_base::stof<wchar_t>(str);
+	return algorithm_base::stof<wchar_t>(str, _throw);
 }
 
-double stod(const std::string &str)
+double stod(const std::string &str, bool _throw)
 {
-	return algorithm_base::stod<char>(str);
+	return algorithm_base::stod<char>(str, _throw);
 }
 
-double stod(const std::wstring &str)
+double stod(const std::wstring &str, bool _throw)
 {
-	return algorithm_base::stod<wchar_t>(str);
+	return algorithm_base::stod<wchar_t>(str, _throw);
 }
 
-double stold(const std::string &str)
+double stold(const std::string &str, bool _throw)
 {
-	return algorithm_base::stold<char>(str);
+	return algorithm_base::stold<char>(str, _throw);
 }
 
-double stold(const std::wstring &str)
+double stold(const std::wstring &str, bool _throw)
 {
-	return algorithm_base::stold<wchar_t>(str);
+	return algorithm_base::stold<wchar_t>(str, _throw);
 }
 
-bool stob(const std::string &str)
+bool stob(const std::string &str, size_t base, bool _throw)
 {
-	return algorithm_base::stob<char>(str);
+	return algorithm_base::stob<char>(str, base, _throw);
 }
 
-bool stob(const std::wstring &str)
+bool stob(const std::wstring &str, size_t base, bool _throw)
 {
-	return algorithm_base::stob<wchar_t>(str);
+	return algorithm_base::stob<wchar_t>(str, base, _throw);
 }
 
 std::string str_to_lower(std::string_view str)

@@ -34,50 +34,50 @@
 namespace libgs
 {
 
-[[nodiscard]] int8_t stoi8(const std::string &str, size_t base = 10);
-[[nodiscard]] int8_t stoi8(const std::wstring &str, size_t base = 10);
+[[nodiscard]] int8_t stoi8(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] int8_t stoi8(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] uint8_t stoui8(const std::string &str, size_t base = 10);
-[[nodiscard]] uint8_t stoui8(const std::wstring &str, size_t base = 10);
+[[nodiscard]] uint8_t stoui8(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] uint8_t stoui8(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] int16_t stoi16(const std::string &str, size_t base = 10);
-[[nodiscard]] int16_t stoi16(const std::wstring &str, size_t base = 10);
+[[nodiscard]] int16_t stoi16(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] int16_t stoi16(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] uint16_t stoui16(const std::string &str, size_t base = 10);
-[[nodiscard]] uint16_t stoui16(const std::wstring &str, size_t base = 10);
+[[nodiscard]] uint16_t stoui16(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] uint16_t stoui16(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] int32_t stoi32(const std::string &str, size_t base = 10);
-[[nodiscard]] int32_t stoi32(const std::wstring &str, size_t base = 10);
+[[nodiscard]] int32_t stoi32(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] int32_t stoi32(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] uint32_t stoui32(const std::string &str, size_t base = 10);
-[[nodiscard]] uint32_t stoui32(const std::wstring &str, size_t base = 10);
+[[nodiscard]] uint32_t stoui32(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] uint32_t stoui32(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] int64_t stoi64(const std::string &str, size_t base = 10);
-[[nodiscard]] int64_t stoi64(const std::wstring &str, size_t base = 10);
+[[nodiscard]] int64_t stoi64(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] int64_t stoi64(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] uint64_t stoui64(const std::string &str, size_t base = 10);
-[[nodiscard]] uint64_t stoui64(const std::wstring &str, size_t base = 10);
+[[nodiscard]] uint64_t stoui64(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] uint64_t stoui64(const std::wstring &str, size_t base = 10, bool _throw = true);
 
-[[nodiscard]] float stof(const std::string &str);
-[[nodiscard]] float stof(const std::wstring &str);
+[[nodiscard]] float stof(const std::string &str, bool _throw = true);
+[[nodiscard]] float stof(const std::wstring &str, bool _throw = true);
 
-[[nodiscard]] double stod(const std::string &str);
-[[nodiscard]] double stod(const std::wstring &str);
+[[nodiscard]] double stod(const std::string &str, bool _throw = true);
+[[nodiscard]] double stod(const std::wstring &str, bool _throw = true);
 
-[[nodiscard]] double stold(const std::string &str);
-[[nodiscard]] double stold(const std::wstring &str);
+[[nodiscard]] double stold(const std::string &str, bool _throw = true);
+[[nodiscard]] double stold(const std::wstring &str, bool _throw = true);
 
-[[nodiscard]] bool stob(const std::string &str);
-[[nodiscard]] bool stob(const std::wstring &str);
+[[nodiscard]] bool stob(const std::string &str, size_t base = 10, bool _throw = true);
+[[nodiscard]] bool stob(const std::wstring &str, size_t base = 10, bool _throw = true);
 
 template <concept_number_type T>
-[[nodiscard]] T ston(const std::string &str, size_t base = 10) {
-	return algorithm_base::ston<T,char>(str, base);
+[[nodiscard]] T ston(const std::string &str, size_t base = 10, bool _throw = true) {
+	return algorithm_base::ston<T,char>(str, base, _throw);
 }
 
 template <concept_number_type T>
-[[nodiscard]] T ston(const std::wstring &str, size_t base = 10) {
-	return algorithm_base::ston<T,wchar_t>(str, base);
+[[nodiscard]] T ston(const std::wstring &str, size_t base = 10, bool _throw = true) {
+	return algorithm_base::ston<T,wchar_t>(str, base, _throw);
 }
 
 [[nodiscard]] std::string str_to_lower(std::string_view str);

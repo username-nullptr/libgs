@@ -1,4 +1,5 @@
 #include <libgs/core/log.h>
+#include <libgs/core/algorithm.h>
 
 using namespace std::chrono;
 
