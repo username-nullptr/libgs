@@ -11,9 +11,11 @@ set(core_headers
 	timer.h
 	stream_buffer.h
 	stream.h
+	ip_types.h
 	socket.h
 	tcp_socket.h
 	udp_socket.h
+	tcp_server.h
 )
 
 set(core_detail_headers

@@ -56,12 +56,8 @@ class basic_tcp_socket : public basic_socket<Exec>
 
 public:
 	using executor_type = base_type::executor_type;
-	using address = base_type::address;
 	using address_vector = base_type::address_vector;
 	using shutdown_type = base_type::shutdown_type;
-	using endpoint_arg = base_type::endpoint_arg;
-	using endpoint = base_type::endpoint;
-	using option = base_type::option;
 
 	using asio_socket = asio_basic_tcp_socket<Exec>;
 	using asio_socket_ptr = asio_basic_tcp_socket_ptr<Exec>;
@@ -78,7 +74,7 @@ public:
 	~basic_tcp_socket() override;
 
 public:
-	void connect(endpoint ep, error_code &error) noexcept override;
+	void connect(ip_endpoint ep, error_code &error) noexcept override;
 	address_vector dns(std::string domain, error_code &error) noexcept override;
 
 public:
@@ -86,8 +82,8 @@ public:
 	size_t write(buffer<const void*> buf, error_code &error) noexcept override;
 
 public:
-	[[nodiscard]] endpoint remote_endpoint(error_code &error) const noexcept override;
-	[[nodiscard]] endpoint local_endpoint(error_code &error) const noexcept override;
+	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept override;
+	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
 
 public:
 	void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept override;
@@ -98,11 +94,12 @@ public:
 	void cancel() noexcept override;
 
 public:
-	void set_option(const option &op, error_code &error) noexcept override;
-	void get_option(option op, error_code &error) const noexcept override;
+	void set_option(const socket_option &op, error_code &error) noexcept override;
+	void get_option(socket_option op, error_code &error) const noexcept override;
 
 public:
-	asio_socket &native_object() const;
+	const asio_socket &native_object() const;
+	asio_socket &native_object();
 	tcp_handle_type native_handle() const;
 
 public:
@@ -115,7 +112,7 @@ public:
 	using base_type::set_option;
 
 protected:
-	[[nodiscard]] awaitable<error_code> do_connect(const endpoint &ep) noexcept override;
+	[[nodiscard]] awaitable<error_code> do_connect(const ip_endpoint &ep) noexcept override;
 	[[nodiscard]] awaitable<address_vector> do_dns(const std::string &domain, error_code &error) noexcept override;
 
 protected:
@@ -123,7 +120,14 @@ protected:
 	[[nodiscard]] awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept override;
 
 protected:
-	asio_socket_ptr m_sock;
+	template <typename ASIO_Socket, concept_callable Func>
+	explicit basic_tcp_socket(ASIO_Socket *sock, Func &&del_sock);
+
+protected:
+	void *m_sock;
+	std::function<void()> m_del_sock {
+		[this]{ delete reinterpret_cast<asio_socket*>(m_sock); }
+	};
 	resolver m_resolver;
 
 	std::atomic_bool m_write_cancel {false};

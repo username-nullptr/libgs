@@ -33,7 +33,7 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
-void basic_socket<Exec>::connect(endpoint_arg ep, cb_token<error_code> tk) noexcept
+void basic_socket<Exec>::connect(host_endpoint ep, cb_token<error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -54,9 +54,9 @@ void basic_socket<Exec>::connect(endpoint_arg ep, cb_token<error_code> tk) noexc
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_socket<Exec>::connect(endpoint_arg ep, opt_token<ua_redirect_error_t> tk) noexcept
+awaitable<void> basic_socket<Exec>::connect(host_endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept
 {
-	auto addr = address::from_string(ep.host, tk.uare.ec_);
+	auto addr = ip_address::from_string(ep.host, tk.uare.ec_);
 	if( not tk.uare.ec_ )
 		co_return co_await connect({addr, ep.port}, std::move(tk));
 
@@ -92,7 +92,7 @@ awaitable<void> basic_socket<Exec>::connect(endpoint_arg ep, opt_token<ua_redire
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::connect(endpoint_arg ep, error_code &error) noexcept
+void basic_socket<Exec>::connect(host_endpoint ep, error_code &error) noexcept
 {
 	auto addrs = dns(std::move(ep.host), error);
 	if( error )
@@ -107,7 +107,7 @@ void basic_socket<Exec>::connect(endpoint_arg ep, error_code &error) noexcept
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::connect(endpoint ep, cb_token<error_code> tk) noexcept
+void basic_socket<Exec>::connect(ip_endpoint ep, cb_token<error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -128,7 +128,7 @@ void basic_socket<Exec>::connect(endpoint ep, cb_token<error_code> tk) noexcept
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_socket<Exec>::connect(endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept
+awaitable<void> basic_socket<Exec>::connect(ip_endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept
 {
 	using namespace std::chrono;
 	if( tk.rtime == 0s )
@@ -145,14 +145,14 @@ awaitable<void> basic_socket<Exec>::connect(endpoint ep, opt_token<ua_redirect_e
 }
 
 template <concept_execution Exec>
-basic_socket<Exec>::endpoint basic_socket<Exec>::remote_endpoint() const noexcept
+ip_endpoint basic_socket<Exec>::remote_endpoint() const noexcept
 {
 	error_code error;
 	return remote_endpoint(error);
 }
 
 template <concept_execution Exec>
-basic_socket<Exec>::endpoint basic_socket<Exec>::local_endpoint() const noexcept
+ip_endpoint basic_socket<Exec>::local_endpoint() const noexcept
 {
 	error_code error;
 	return local_endpoint(error);
@@ -185,14 +185,14 @@ void basic_socket<Exec>::close(bool _shutdown) noexcept
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::set_option(const option &op) noexcept
+void basic_socket<Exec>::set_option(const socket_option &op) noexcept
 {
 	error_code error;
 	set_option(op, error);
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::get_option(option op) const noexcept
+void basic_socket<Exec>::get_option(socket_option op) const noexcept
 {
 	error_code error;
 	get_option(std::move(op), error);

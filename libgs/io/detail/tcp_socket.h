@@ -36,7 +36,7 @@ template <concept_execution Exec>
 template <concept_execution_context Context>
 basic_tcp_socket<Exec>::basic_tcp_socket(Context &context) :
 	base_type(context.get_executor()),
-	m_sock(std::make_shared<asio_socket>(context)),
+	m_sock(new asio_socket(context)),
 	m_resolver(context)
 {
 
@@ -46,8 +46,8 @@ template <concept_execution Exec>
 template <concept_execution Exec0>
 basic_tcp_socket<Exec>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock) :
 	base_type(sock.get_executor()),
-	m_sock(std::make_shared<asio_socket>(std::move(sock))),
-	m_resolver(m_sock->get_executor())
+	m_sock(new asio_socket(std::move(sock))),
+	m_resolver(native_object().get_executor())
 {
 
 }
@@ -55,8 +55,8 @@ basic_tcp_socket<Exec>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock) :
 template <concept_execution Exec>
 basic_tcp_socket<Exec>::basic_tcp_socket(const executor_type &exec) :
 	base_type(exec),
-	m_sock(std::make_shared<asio_socket>(exec)),
-	m_resolver(m_sock->get_executor())
+	m_sock(new asio_socket(exec)),
+	m_resolver(native_object().get_executor())
 {
 
 }
@@ -64,15 +64,21 @@ basic_tcp_socket<Exec>::basic_tcp_socket(const executor_type &exec) :
 template <concept_execution Exec>
 basic_tcp_socket<Exec>::~basic_tcp_socket()
 {
+	if( m_sock == nullptr )
+		return ;
+
 	error_code error;
-	m_sock->shutdown(shutdown_type::shutdown_both, error);
-	m_sock->close(error);
+	native_object().shutdown(shutdown_type::shutdown_both, error);
+	native_object().close(error);
+
+	if( m_del_sock )
+		m_del_sock();
 }
 
 template <concept_execution Exec>
-void basic_tcp_socket<Exec>::connect(endpoint ep, error_code &error) noexcept
+void basic_tcp_socket<Exec>::connect(ip_endpoint ep, error_code &error) noexcept
 {
-	m_sock->connect({ep.addr, ep.port}, error);
+	native_object().connect({ep.addr, ep.port}, error);
 }
 
 template <concept_execution Exec>
@@ -92,45 +98,45 @@ typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(std:
 template <concept_execution Exec>
 size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, error_code &error) noexcept
 {
-	return m_sock->read_some(asio::buffer(buf.data, buf.size), error);
+	return native_object().read_some(asio::buffer(buf.data, buf.size), error);
 }
 
 template <concept_execution Exec>
 size_t basic_tcp_socket<Exec>::write(buffer<const void*> buf, error_code &error) noexcept
 {
-	return m_sock->write_some(asio::buffer(buf.data, buf.size), error);
+	return native_object().write_some(asio::buffer(buf.data, buf.size), error);
 }
 
 template <concept_execution Exec>
-basic_tcp_socket<Exec>::endpoint basic_tcp_socket<Exec>::remote_endpoint(error_code &error) const noexcept
+ip_endpoint basic_tcp_socket<Exec>::remote_endpoint(error_code &error) const noexcept
 {
-	auto ep = m_sock->remote_endpoint(error);
+	auto ep = native_object().remote_endpoint(error);
 	return {ep.address(), ep.port()};
 }
 
 template <concept_execution Exec>
-basic_tcp_socket<Exec>::endpoint basic_tcp_socket<Exec>::local_endpoint(error_code &error) const noexcept
+ip_endpoint basic_tcp_socket<Exec>::local_endpoint(error_code &error) const noexcept
 {
-	auto ep = m_sock->local_endpoint(error);
+	auto ep = native_object().local_endpoint(error);
 	return {ep.address(), ep.port()};
 }
 
 template <concept_execution Exec>
 void basic_tcp_socket<Exec>::shutdown(error_code &error, shutdown_type what) noexcept
 {
-	m_sock->shutdown(what, error);
+	native_object().shutdown(what, error);
 }
 
 template <concept_execution Exec>
 void basic_tcp_socket<Exec>::close(error_code &error) noexcept
 {
-	m_sock->close(error);
+	native_object().close(error);
 }
 
 template <concept_execution Exec>
 bool basic_tcp_socket<Exec>::is_open() const noexcept
 {
-	return m_sock->is_open();
+	return native_object().is_open();
 }
 
 template <concept_execution Exec>
@@ -143,111 +149,117 @@ void basic_tcp_socket<Exec>::cancel() noexcept
 	m_dns_cancel = true;
 
 	m_resolver.cancel();
-	m_sock->cancel();
+	native_object().cancel();
 }
 
 template <concept_execution Exec>
-void basic_tcp_socket<Exec>::set_option(const option &op, error_code &error) noexcept
+void basic_tcp_socket<Exec>::set_option(const socket_option &op, error_code &error) noexcept
 {
 	using namespace asio;
 
 	if( op.id == typeid(socket_base::broadcast).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
 
 	else if( op.id == typeid(socket_base::debug).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::do_not_route).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::enable_connection_aborted).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::keep_alive).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::linger).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::receive_buffer_size).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::receive_low_watermark).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::reuse_address).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::send_buffer_size).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::send_low_watermark).hash_code() )
-		m_sock->set_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
 	
 	else if( op.id == typeid(ip::v6_only).hash_code() )
-		m_sock->set_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+		native_object().set_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
 }
 
 template <concept_execution Exec>
-void basic_tcp_socket<Exec>::get_option(option op, error_code &error) const noexcept
+void basic_tcp_socket<Exec>::get_option(socket_option op, error_code &error) const noexcept
 {
 	using namespace asio;
 
 	if( op.id == typeid(socket_base::broadcast).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
 
 	else if( op.id == typeid(socket_base::debug).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::do_not_route).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::enable_connection_aborted).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::keep_alive).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::linger).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::receive_buffer_size).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::receive_low_watermark).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::reuse_address).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::send_buffer_size).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
 	
 	else if( op.id == typeid(socket_base::send_low_watermark).hash_code() )
-		m_sock->get_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
 	
 	else if( op.id == typeid(ip::v6_only).hash_code() )
-		m_sock->get_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+		native_object().get_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
 }
 
 template <concept_execution Exec>
-typename basic_tcp_socket<Exec>::asio_socket &basic_tcp_socket<Exec>::native_object() const
+const typename basic_tcp_socket<Exec>::asio_socket &basic_tcp_socket<Exec>::native_object() const
 {
-	return *m_sock;
+	return *reinterpret_cast<const asio_socket*>(m_sock);
+}
+
+template <concept_execution Exec>
+typename basic_tcp_socket<Exec>::asio_socket &basic_tcp_socket<Exec>::native_object()
+{
+	return *reinterpret_cast<asio_socket*>(m_sock);
 }
 
 template <concept_execution Exec>
 tcp_handle_type basic_tcp_socket<Exec>::native_handle() const
 {
-	return m_sock->native_handle();
+	return native_object().native_handle();
 }
 
 template <concept_execution Exec>
-awaitable<error_code> basic_tcp_socket<Exec>::do_connect(const endpoint &ep) noexcept 
+awaitable<error_code> basic_tcp_socket<Exec>::do_connect(const ip_endpoint &ep) noexcept 
 {
 	error_code error;
 	m_connect_cancel = false;
-	co_await m_sock->async_connect({ep.addr, ep.port}, use_awaitable_e[error]);
+	co_await native_object().async_connect({ep.addr, ep.port}, use_awaitable_e[error]);
 
 	if( m_connect_cancel )
 	{
@@ -284,7 +296,7 @@ template <concept_execution Exec>
 awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, error_code &error) noexcept 
 {
 	m_read_cancel = false;
-	size = co_await m_sock->async_read_some(asio::buffer(buf, size), use_awaitable_e[error]);
+	size = co_await native_object().async_read_some(asio::buffer(buf, size), use_awaitable_e[error]);
 
 	if( m_read_cancel )
 	{
@@ -298,7 +310,7 @@ template <concept_execution Exec>
 awaitable<size_t> basic_tcp_socket<Exec>::write_data(const void *buf, size_t size, error_code &error) noexcept 
 {
 	m_write_cancel = false;
-	size = co_await m_sock->async_write_some(asio::buffer(buf, size), use_awaitable_e[error]);
+	size = co_await native_object().async_write_some(asio::buffer(buf, size), use_awaitable_e[error]);
 
 	if( m_write_cancel )
 	{
@@ -306,6 +318,18 @@ awaitable<size_t> basic_tcp_socket<Exec>::write_data(const void *buf, size_t siz
 		m_write_cancel = false;
 	}
 	co_return size;
+}
+
+template <concept_execution Exec>
+template <typename ASIO_Socket, concept_callable Func>
+basic_tcp_socket<Exec>::basic_tcp_socket(ASIO_Socket *sock, Func &&del_sock) : 
+	base_type(sock->get_executor()),
+	m_sock(sock),
+	m_del_sock(std::forward<Func>(del_sock)),
+	m_resolver(sock->get_executor())
+{
+	assert(sock);
+	assert(m_del_sock);
 }
 
 template <concept_execution Exec, typename...Args>
