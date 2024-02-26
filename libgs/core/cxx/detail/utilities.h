@@ -101,6 +101,46 @@ inline wchar_t mbstowcs(char c)
 	return buf;
 }
 
+inline string_wrapper::string_wrapper(const char *value) :
+	value(value) 
+{
+
+}
+
+inline string_wrapper::string_wrapper(const std::string &value) :
+	value(value) 
+{
+
+}
+
+inline string_wrapper::string_wrapper(std::string &&value) : 
+	value(std::move(value)) 
+{
+
+}
+
+inline string_wrapper::string_wrapper(std::string_view value) :
+	value(value.data(), value.size()) 
+{
+
+}
+
+inline string_wrapper::string_wrapper(std::wstring_view value) :
+	value(wcstombs(value)) 
+{
+
+}
+
+inline string_wrapper::operator std::string &()
+{
+	return value;
+}
+
+inline string_wrapper::operator const std::string &() const
+{
+	return value;
+}
+
 } //namespace libgs
 
 

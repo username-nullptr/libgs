@@ -29,8 +29,7 @@
 #ifndef LIBGS_IO_DEVICE_BASE_H
 #define LIBGS_IO_DEVICE_BASE_H
 
-#include <libgs/core/coroutine.h>
-#include <libgs/io/global.h>
+#include <libgs/io/types/opt_token.h>
 
 namespace libgs::io
 {
@@ -63,75 +62,6 @@ template <concept_execution Exec = asio::any_io_executor>
 using device_base_ptr = std::shared_ptr<device_base<Exec>>;
 
 using device_ptr = device_base_ptr<>;
-
-template <typename...Args>
-using callback_t = std::function<void(Args...)>;
-
-template <typename Token>
-struct opt_token
-{
-	std::chrono::nanoseconds rtime {0};
-
-protected:
-	template <typename Rep, typename Period>
-	opt_token(const duration<Rep,Period> &rtime);
-
-	template<typename Clock, typename Duration>
-	opt_token(const time_point<Clock, Duration> &atime);
-
-	opt_token() = default;
-};
-
-template <typename...Args>
-struct opt_token<callback_t<Args...>> : opt_token<void>
-{
-	using base_type = opt_token<void>;
-	using base_type::base_type;
-
-	using callback_t = callback_t<Args...>;
-	callback_t callback;
-
-	template <typename Func>
-	opt_token(Func &&callback) requires concept_void_callable<Func,Args...>;
-
-	template <typename Rep, typename Period, typename Func>
-	opt_token(const duration<Rep,Period> &rtime, Func &&callback) requires concept_void_callable<Func,Args...>;
-
-	template<typename Clock, typename Duration, typename Func>
-	opt_token(const time_point<Clock, Duration> &atime, Func &&callback) requires concept_void_callable<Func,Args...>;
-};
-
-template <>
-struct opt_token<use_awaitable_t&> : opt_token<void>
-{
-	using base_type = opt_token<void>;
-	using base_type::base_type;
-
-	use_awaitable_t &ua;
-	opt_token(use_awaitable_t &ua);
-
-	template <typename Rep, typename Period>
-	opt_token(const duration<Rep,Period> &rtime, use_awaitable_t &ua);
-
-	template<typename Clock, typename Duration>
-	opt_token(const time_point<Clock, Duration> &atime, use_awaitable_t &ua);
-};
-
-template <>
-struct opt_token<ua_redirect_error_t> : opt_token<void>
-{
-	using base_type = opt_token<void>;
-	using base_type::base_type;
-
-	ua_redirect_error_t uare;
-	opt_token(ua_redirect_error_t uare);
-
-	template <typename Rep, typename Period>
-	opt_token(const duration<Rep,Period> &rtime, ua_redirect_error_t uare);
-
-	template<typename Clock, typename Duration>
-	opt_token(const time_point<Clock, Duration> &atime, ua_redirect_error_t uare);
-};
 
 } //namespace libgs::io
 #include <libgs/io/detail/device_base.h>

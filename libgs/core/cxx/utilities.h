@@ -92,6 +92,23 @@ char wcstombs(wchar_t c);
 std::wstring mbstowcs(std::string_view str);
 wchar_t mbstowcs(char c);
 
+struct string_wrapper
+{
+	std::string value;
+
+	string_wrapper() = default;
+	string_wrapper(const char *value);
+
+	string_wrapper(const std::string &value);
+	string_wrapper(std::string &&value);
+
+	string_wrapper(std::string_view value);
+	string_wrapper(std::wstring_view value);
+
+	operator std::string&();
+	operator const std::string&() const;
+};
+
 } //namespace libgs
 #include <libgs/core/cxx/detail/utilities.h>
 

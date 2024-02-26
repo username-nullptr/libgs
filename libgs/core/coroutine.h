@@ -40,11 +40,17 @@ namespace libgs
 template <typename T>
 using awaitable = asio::awaitable<T>;
 
-template <concept_coroutine_function Func, concept_schedulable Exec = asio::io_context>
-auto co_spawn_detached(Func &&func, Exec &exec = io_context());
+template <concept_schedulable Exec = asio::io_context>
+auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec = io_context());
 
-template <concept_coroutine_function Func, concept_schedulable Exec = asio::io_context>
-auto co_spawn_future(Func &&func, Exec &exec = io_context());
+template <concept_schedulable Exec = asio::io_context>
+auto co_spawn_detached(concept_awaitable_type auto &&awaitable, Exec &exec = io_context());
+
+template <concept_schedulable Exec = asio::io_context>
+auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec = io_context());
+
+template <concept_schedulable Exec = asio::io_context>
+auto co_spawn_future(concept_awaitable_type auto &&awaitable, Exec &exec = io_context());
 
 constexpr auto use_awaitable = asio::use_awaitable;
 

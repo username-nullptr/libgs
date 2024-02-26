@@ -38,8 +38,8 @@
 namespace libgs
 {
 
-class ini_exception : public exception {
-public: using exception::exception;
+class ini_exception : public runtime_error {
+public: using runtime_error::runtime_error;
 };
 
 template <typename CharT, typename T>

@@ -30,7 +30,7 @@
 #define LIBGS_IO_SOCKET_H
 
 #include <libgs/io/stream.h>
-#include <libgs/io/ip_types.h>
+#include <libgs/io/types/ip_types.h>
 
 namespace libgs::io
 {
@@ -46,63 +46,58 @@ public:
 	using address_vector = std::vector<ip_address>;
 	using shutdown_type = asio::socket_base::shutdown_type;
 
-	template <typename...Args>
-	using cb_token = opt_token<callback_t<Args...>>;
-
 public:
 	using base_type::base_type;
 	~basic_socket() override = default;
 
 public:
-	void connect(host_endpoint ep, cb_token<error_code> tk) noexcept;
+	void connect(host_endpoint ep, opt_cb_token<error_code> tk) noexcept;
+
 	[[nodiscard]] awaitable<void> connect(host_endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept;
+	[[nodiscard]] awaitable<void> connect(host_endpoint ep, opt_token<use_awaitable_t&> tk);
+
 	void connect(host_endpoint ep, error_code &error) noexcept;
+	void connect(host_endpoint ep);
 
 public:
-	void connect(ip_endpoint ep, cb_token<error_code> tk) noexcept;
+	void connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept;
+
 	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept;
+	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<use_awaitable_t&> tk);
+
 	virtual void connect(ip_endpoint ep, error_code &error) noexcept = 0;
+	void connect(ip_endpoint ep);
 
 public:
 	[[nodiscard]] virtual ip_endpoint remote_endpoint(error_code &error) const noexcept = 0;
 	[[nodiscard]] virtual ip_endpoint local_endpoint(error_code &error) const noexcept = 0;
 	
-	[[nodiscard]] ip_endpoint remote_endpoint() const noexcept;
-	[[nodiscard]] ip_endpoint local_endpoint() const noexcept;
+	[[nodiscard]] ip_endpoint remote_endpoint() const;
+	[[nodiscard]] ip_endpoint local_endpoint() const;
 
 public:
 	virtual void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept = 0;
-	void shutdown(shutdown_type what = shutdown_type::shutdown_both) noexcept;
+	void shutdown(shutdown_type what = shutdown_type::shutdown_both);
 
 	void close(error_code &error, bool shutdown) noexcept;
-	void close(bool shutdown) noexcept;
+	void close(bool shutdown);
 	using base_type::close;
 
 public:
 	virtual void set_option(const socket_option &op, error_code &error) noexcept = 0;
 	virtual void get_option(socket_option op, error_code &error) const noexcept = 0;
 
-	void set_option(const socket_option &op) noexcept;
-	void get_option(socket_option op) const noexcept;
+	void set_option(const socket_option &op);
+	void get_option(socket_option op) const;
 
 public:
-	void dns(std::string domain, cb_token<address_vector,error_code> tk) noexcept;
-	void dns(std::wstring domain, cb_token<address_vector,error_code> tk) noexcept;
+	void dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept;
 
-	void dns(std::string domain, cb_token<address_vector> tk) noexcept;
-	void dns(std::wstring domain, cb_token<address_vector> tk) noexcept;
+	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<ua_redirect_error_t> tk) noexcept;
+	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<use_awaitable_t&> tk);
 
-	[[nodiscard]] awaitable<address_vector> dns(std::string domain, opt_token<ua_redirect_error_t> tk) noexcept;
-	[[nodiscard]] awaitable<address_vector> dns(std::wstring domain, opt_token<ua_redirect_error_t> tk) noexcept;
-
-	[[nodiscard]] awaitable<address_vector> dns(std::string domain, opt_token<use_awaitable_t&> tk) noexcept;
-	[[nodiscard]] awaitable<address_vector> dns(std::wstring domain, opt_token<use_awaitable_t&> tk) noexcept;
-
-	virtual address_vector dns(std::string domain, error_code &error) noexcept = 0;
-	address_vector dns(std::wstring domain, error_code &error) noexcept;
-
-	address_vector dns(std::string domain) noexcept;
-	address_vector dns(std::wstring domain) noexcept;
+	virtual address_vector dns(string_wrapper domain, error_code &error) noexcept = 0;
+	address_vector dns(string_wrapper domain);
 
 public:
 	size_t read_buffer_size() const noexcept override;

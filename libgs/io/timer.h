@@ -58,9 +58,6 @@ public:
 	using time_point = asio_steady_timer::time_point;
 	using duration = asio_steady_timer::duration;
 
-	template <typename...Args>
-	using cb_token = opt_token<callback_t<Args...>>;
-
 public:
 	template <concept_execution_context Context = asio::io_context>
 	explicit basic_timer(Context &context = io_context());
@@ -82,13 +79,20 @@ public:
 	void expires_at(const time_point &atime) noexcept;
 
 public:
-	void wait(cb_token<error_code> tk);
-	[[nodiscard]] awaitable<void> wait(opt_token<ua_redirect_error_t> tk);
+	void wait(opt_cb_token<error_code> tk) noexcept;
+	[[nodiscard]] awaitable<void> wait(opt_token<ua_redirect_error_t> tk) noexcept;
+
+	void wait(const duration &rtime, error_code &error) noexcept;
+	void wait(const time_point &atime, error_code &error) noexcept;
+	void wait(error_code &error) noexcept;
 
 public:
-	void wait(const duration &rtime, error_code &error);
-	void wait(const time_point &atime, error_code &error);
-	void wait(error_code &error);
+	void wait(opt_cb_token<> tk);
+	[[nodiscard]] awaitable<void> wait(opt_token<use_awaitable_t&> tk);
+
+	void wait(const duration &rtime);
+	void wait(const time_point &atime);
+	void wait();
 
 public:
 	void cancel() noexcept override;

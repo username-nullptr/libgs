@@ -82,10 +82,10 @@ void basic_tcp_socket<Exec>::connect(ip_endpoint ep, error_code &error) noexcept
 }
 
 template <concept_execution Exec>
-typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(std::string domain, error_code &error) noexcept
+typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(string_wrapper domain, error_code &error) noexcept
 {
 	address_vector vector;
-	auto results = m_resolver.resolve(domain, "0", error);
+	auto results = m_resolver.resolve(domain.value, "0", error);
 
 	if( error )
 		return vector;
@@ -96,9 +96,9 @@ typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(std:
 }
 
 template <concept_execution Exec>
-size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, error_code &error) noexcept
+size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, read_token<error_code&> tk) noexcept
 {
-	return native_object().read_some(asio::buffer(buf.data, buf.size), error);
+	return native_object().read_some(asio::buffer(buf.data, buf.size), tk.error);
 }
 
 template <concept_execution Exec>
@@ -293,11 +293,19 @@ awaitable<typename basic_tcp_socket<Exec>::address_vector> basic_tcp_socket<Exec
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, error_code &error) noexcept 
+awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, std::string_view delim, error_code &error) noexcept 
 {
 	m_read_cancel = false;
-	size = co_await native_object().async_read_some(asio::buffer(buf, size), use_awaitable_e[error]);
+	if( delim.empty() )
+		size = co_await native_object().async_read_some(asio::buffer(buf, size), use_awaitable_e[error]);
+	else
+	{
+		std::string _buf;
+		size = co_await asio::async_read_until(native_object(), asio::dynamic_buffer(_buf, size), std::move(delim), use_awaitable_e[error]);
 
+		if( size > 0 )
+			memcpy(buf, _buf.c_str(), size);
+	}
 	if( m_read_cancel )
 	{
 		error = errc::operation_aborted;
@@ -321,14 +329,13 @@ awaitable<size_t> basic_tcp_socket<Exec>::write_data(const void *buf, size_t siz
 }
 
 template <concept_execution Exec>
-template <typename ASIO_Socket, concept_callable Func>
-basic_tcp_socket<Exec>::basic_tcp_socket(ASIO_Socket *sock, Func &&del_sock) : 
-	base_type(sock->get_executor()),
-	m_sock(sock),
+basic_tcp_socket<Exec>::basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock) : 
+	base_type(asio_sock->get_executor()),
+	m_sock(asio_sock),
 	m_del_sock(std::forward<Func>(del_sock)),
-	m_resolver(sock->get_executor())
+	m_resolver(asio_sock->get_executor())
 {
-	assert(sock);
+	assert(asio_sock);
 	assert(m_del_sock);
 }
 

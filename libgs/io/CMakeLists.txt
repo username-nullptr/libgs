@@ -6,12 +6,14 @@ set(core_sources
 
 set(core_headers
 	cxx/concept.hpp
+	types/ip_types.h
+	types/opt_token.h
+	types/opt_condition.h
+	types/stream_buffer.h
 	global.h
 	device_base.h
 	timer.h
-	stream_buffer.h
 	stream.h
-	ip_types.h
 	socket.h
 	tcp_socket.h
 	udp_socket.h
@@ -19,7 +21,10 @@ set(core_headers
 )
 
 set(core_detail_headers
-	detail/stream_buffer.h
+	types/detail/ip_types.h
+	types/detail/opt_token.h
+	types/detail/opt_condition.h
+	types/detail/stream_buffer.h
 	detail/device_base.h
 	detail/timer.h
 	detail/stream.h

@@ -85,7 +85,7 @@ struct buffer<const std::string&> : buffer<void>
 };
 
 } //namespace libgs
-#include <libgs/io/detail/stream_buffer.h>
+#include <libgs/io/types/detail/stream_buffer.h>
 
 
 #endif //LIBGS_IO_STREAM_BUFFER_H

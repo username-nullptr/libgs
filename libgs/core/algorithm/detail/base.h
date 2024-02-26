@@ -71,7 +71,7 @@ static bool try_stob(const std::basic_string<CharT> &str, std::exception *ex)
 	if( res < 0 )
 	{
 		if( ex )
-			throw exception("Cannot convert string to arithmetic.");
+			throw runtime_error("Cannot convert string to arithmetic.");
 		return false;
 	}
 	return !!res;
@@ -82,7 +82,7 @@ static bool try_stob(const std::basic_string<CharT> &str, std::exception *ex)
 	size_t index = 0; \
 	auto res = std::_func(str, &index); \
 	if( index < str.size() ) \
-		throw exception("Cannot convert string to arithmetic."); \
+		throw runtime_error("Cannot convert string to arithmetic."); \
 	res; \
 })
 
@@ -240,7 +240,7 @@ template <concept_char_type CharT>
 		catch(...)
 		{
 			if( _throw )
-				throw exception("Cannot convert string to arithmetic."); 
+				throw runtime_error("Cannot convert string to arithmetic."); 
 			return 0;
 		}
 	}

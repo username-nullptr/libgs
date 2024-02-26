@@ -93,12 +93,19 @@ private:
 };
 
 template <typename T, libgs::concept_char_type CharT>
-class formatter<std::atomic<T>, CharT> : public libgs::no_parse_formatter<CharT>
+class formatter<std::atomic<T>, CharT>
 {
 public:
 	auto format(const std::atomic<T> &n, auto &context) const {
-		return format_to(context.out(), libgs::default_format_v<CharT>, n.load());
+		return m_formatter.format(n.load(), context);
 	}
+
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<T, CharT> m_formatter;
 };
 
 template <libgs::concept_char_type CharT>

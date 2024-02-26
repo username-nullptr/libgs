@@ -34,22 +34,42 @@
 namespace libgs
 {
 
-template <concept_coroutine_function Func, concept_schedulable Exec>
-auto co_spawn_detached(Func &&func, Exec &exec)
+template <concept_schedulable Exec>
+auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec)
 {
+	using Func = std::decay_t<decltype(func)>;
 	if constexpr( is_execution_context_v<Exec> )
 		return asio::co_spawn(exec.get_executor(), std::forward<Func>(func), asio::detached);
 	else
 		return asio::co_spawn(exec, std::forward<Func>(func), asio::detached);
 }
 
-template <concept_coroutine_function Func, concept_schedulable Exec>
-auto co_spawn_future(Func &&func, Exec &exec)
+template <concept_schedulable Exec>
+auto co_spawn_detached(concept_awaitable_type auto &&awaitable, Exec &exec)
 {
+	if constexpr( is_execution_context_v<Exec> )
+		return asio::co_spawn(exec.get_executor(), std::move(awaitable), asio::detached);
+	else
+		return asio::co_spawn(exec, std::move(awaitable), asio::detached);
+}
+
+template <concept_schedulable Exec>
+auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec)
+{
+	using Func = std::decay_t<decltype(func)>;
 	if constexpr( is_execution_context_v<Exec> )
 		return asio::co_spawn(exec.get_executor(), std::forward<Func>(func), asio::use_future);
 	else
 		return asio::co_spawn(exec, std::forward<Func>(func), asio::use_future);
+}
+
+template <concept_schedulable Exec>
+auto co_spawn_future(concept_awaitable_type auto &&awaitable, Exec &exec)
+{
+	if constexpr( is_execution_context_v<Exec> )
+		return asio::co_spawn(exec.get_executor(), std::move(awaitable), asio::use_future);
+	else
+		return asio::co_spawn(exec, std::move(awaitable), asio::use_future);
 }
 
 template <typename Exec, typename Func, typename...Args>

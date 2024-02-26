@@ -33,7 +33,7 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
-void basic_socket<Exec>::connect(host_endpoint ep, cb_token<error_code> tk) noexcept
+void basic_socket<Exec>::connect(host_endpoint ep, opt_cb_token<error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -92,6 +92,17 @@ awaitable<void> basic_socket<Exec>::connect(host_endpoint ep, opt_token<ua_redir
 }
 
 template <concept_execution Exec>
+awaitable<void> basic_socket<Exec>::connect(host_endpoint ep, opt_token<use_awaitable_t&> tk)
+{
+	error_code error;
+	co_await connect(std::move(ep), {tk.rtime, use_awaitable_e[error]});
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::connect");
+	co_return ;
+}
+
+template <concept_execution Exec>
 void basic_socket<Exec>::connect(host_endpoint ep, error_code &error) noexcept
 {
 	auto addrs = dns(std::move(ep.host), error);
@@ -107,7 +118,17 @@ void basic_socket<Exec>::connect(host_endpoint ep, error_code &error) noexcept
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::connect(ip_endpoint ep, cb_token<error_code> tk) noexcept
+void basic_socket<Exec>::connect(host_endpoint ep)
+{
+	error_code error;
+	connect(std::move(ep), error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::connect");
+}
+
+template <concept_execution Exec>
+void basic_socket<Exec>::connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -145,24 +166,56 @@ awaitable<void> basic_socket<Exec>::connect(ip_endpoint ep, opt_token<ua_redirec
 }
 
 template <concept_execution Exec>
-ip_endpoint basic_socket<Exec>::remote_endpoint() const noexcept
+awaitable<void> basic_socket<Exec>::connect(ip_endpoint ep, opt_token<use_awaitable_t&> tk)
 {
 	error_code error;
-	return remote_endpoint(error);
+	co_await connect(std::move(ep), tk.rtime, use_awaitable_e[error]);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::connect");
+	co_return ;
 }
 
 template <concept_execution Exec>
-ip_endpoint basic_socket<Exec>::local_endpoint() const noexcept
+void basic_socket<Exec>::connect(ip_endpoint ep)
 {
 	error_code error;
-	return local_endpoint(error);
+	connect(std::move(ep), error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::connect");
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::shutdown(shutdown_type what) noexcept
+ip_endpoint basic_socket<Exec>::remote_endpoint() const
+{
+	error_code error;
+	auto ep = remote_endpoint(error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::remote_endpoint");
+	return ep;
+}
+
+template <concept_execution Exec>
+ip_endpoint basic_socket<Exec>::local_endpoint() const
+{
+	error_code error;
+	auto ep = local_endpoint(error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::local_endpoint");
+	return ep;
+}
+
+template <concept_execution Exec>
+void basic_socket<Exec>::shutdown(shutdown_type what)
 {
 	error_code error;
 	shutdown(error, what);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::shutdown");
 }
 
 template <concept_execution Exec>
@@ -178,28 +231,37 @@ void basic_socket<Exec>::close(error_code &error, bool _shutdown) noexcept
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::close(bool _shutdown) noexcept
+void basic_socket<Exec>::close(bool _shutdown)
 {
 	error_code error;
 	close(error, _shutdown);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::close");
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::set_option(const socket_option &op) noexcept
+void basic_socket<Exec>::set_option(const socket_option &op)
 {
 	error_code error;
 	set_option(op, error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::set_option");
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::get_option(socket_option op) const noexcept
+void basic_socket<Exec>::get_option(socket_option op) const
 {
 	error_code error;
 	get_option(std::move(op), error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::set_option");
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::dns(std::string domain, cb_token<address_vector,error_code> tk) noexcept
+void basic_socket<Exec>::dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), domain = std::move(domain), tk = std::move(tk)]() -> awaitable<void>
@@ -220,29 +282,8 @@ void basic_socket<Exec>::dns(std::string domain, cb_token<address_vector,error_c
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::dns(std::wstring domain, cb_token<address_vector,error_code> tk) noexcept
-{
-	dns(wcstombs(domain), std::move(tk));
-}
-
-template <concept_execution Exec>
-void basic_socket<Exec>::dns(std::string domain, cb_token<address_vector> tk) noexcept
-{
-	auto callback = std::move(tk.callback);
-	dns(std::move(domain), {tk.rtime, [callback = std::move(callback)](address_vector vector){
-		callback(std::move(vector));
-	}});
-}
-
-template <concept_execution Exec>
-void basic_socket<Exec>::dns(std::wstring domain, cb_token<address_vector> tk) noexcept
-{
-	dns(wcstombs(domain), std::move(tk));
-}
-
-template <concept_execution Exec>
 awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::dns
-(std::string domain, opt_token<ua_redirect_error_t> tk) noexcept
+(string_wrapper domain, opt_token<ua_redirect_error_t> tk) noexcept
 {
 	using namespace std::chrono;
 	if( tk.rtime == 0s )
@@ -260,44 +301,33 @@ awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::dns
 
 template <concept_execution Exec>
 awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::dns
-(std::wstring domain, opt_token<ua_redirect_error_t> tk) noexcept
-{
-	return dns(wcstombs(domain), std::move(tk));
-}
-
-template <concept_execution Exec>
-awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::dns
-(std::string domain, opt_token<use_awaitable_t&> tk) noexcept
+(string_wrapper domain, opt_token<use_awaitable_t&> tk)
 {
 	error_code error;
-	co_return co_await dns(std::move(domain), {tk.rtime, use_awaitable_e[error]});
+	auto res = co_await dns(std::move(domain), {tk.rtime, use_awaitable_e[error]});
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::dns");
+	co_return res;
 }
 
 template <concept_execution Exec>
-awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::dns
-(std::wstring domain, opt_token<use_awaitable_t&> tk) noexcept
-{
-	return dns(wcstombs(domain), std::move(tk));
-}
-
-template <concept_execution Exec>
-basic_socket<Exec>::address_vector basic_socket<Exec>::dns(std::wstring domain, error_code &error) noexcept
-{
-	return dns(wcstombs(domain), error);
-}
-
-template <concept_execution Exec>
-basic_socket<Exec>::address_vector basic_socket<Exec>::dns(std::string domain) noexcept
+basic_socket<Exec>::address_vector basic_socket<Exec>::dns(string_wrapper domain)
 {
 	error_code error;
-	return dns(std::move(domain), error);
+	auto res = dns(std::move(domain), error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::dns");
+	return res;
 }
 
 template <concept_execution Exec>
 size_t basic_socket<Exec>::read_buffer_size() const noexcept
 {
 	asio::socket_base::receive_buffer_size op;
-	get_option(op);
+	error_code error;
+	get_option(op, error);
 	return op.value();
 }
 
@@ -305,7 +335,8 @@ template <concept_execution Exec>
 size_t basic_socket<Exec>::write_buffer_size() const noexcept
 {
 	asio::socket_base::send_buffer_size op;
-	get_option(op);
+	error_code error;
+	get_option(op, error);
 	return op.value();
 }
 

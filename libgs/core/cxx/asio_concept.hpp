@@ -81,8 +81,11 @@ struct is_awaitable<asio::awaitable<T>> : public std::true_type {};
 template <typename T>
 constexpr bool is_awaitable_v = is_awaitable<T>::value;
 
+template <typename T>
+concept concept_awaitable_type = is_awaitable_v<T>;
+
 template <typename Func>
-concept concept_coroutine_function = is_awaitable_v<typename function_traits<Func>::return_type>;
+concept concept_awaitable_function = is_awaitable_v<typename function_traits<Func>::return_type>;
 
 } //namespace libgs
 

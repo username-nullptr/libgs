@@ -75,10 +75,10 @@ public:
 
 public:
 	void connect(ip_endpoint ep, error_code &error) noexcept override;
-	address_vector dns(std::string domain, error_code &error) noexcept override;
+	address_vector dns(string_wrapper domain, error_code &error) noexcept override;
 
 public:
-	size_t read(buffer<void*> buf, error_code &error) noexcept override;
+	size_t read(buffer<void*> buf, read_token<error_code&> tk) noexcept override;
 	size_t write(buffer<const void*> buf, error_code &error) noexcept override;
 
 public:
@@ -116,12 +116,11 @@ protected:
 	[[nodiscard]] awaitable<address_vector> do_dns(const std::string &domain, error_code &error) noexcept override;
 
 protected:
-	[[nodiscard]] awaitable<size_t> read_data(void *buf, size_t size, error_code &error) noexcept override;
+	[[nodiscard]] awaitable<size_t> read_data(void *buf, size_t size, std::string_view delim, error_code &error) noexcept override;
 	[[nodiscard]] awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept override;
 
 protected:
-	template <typename ASIO_Socket, concept_callable Func>
-	explicit basic_tcp_socket(ASIO_Socket *sock, Func &&del_sock);
+	explicit basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock);
 
 protected:
 	void *m_sock;
@@ -129,6 +128,7 @@ protected:
 		[this]{ delete reinterpret_cast<asio_socket*>(m_sock); }
 	};
 	resolver m_resolver;
+	std::function<void()> m_del_cb {nullptr};
 
 	std::atomic_bool m_write_cancel {false};
 	std::atomic_bool m_read_cancel {false};

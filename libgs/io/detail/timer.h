@@ -29,6 +29,8 @@
 #ifndef LIBGS_IO_DETAIL_TIMER_H
 #define LIBGS_IO_DETAIL_TIMER_H
 
+#include <libgs/core/cxx/exception.h>
+
 namespace libgs::io
 {
 
@@ -102,7 +104,7 @@ void basic_timer<Exec>::expires_at(const time_point &atime) noexcept
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::wait(cb_token<error_code> tk)
+void basic_timer<Exec>::wait(opt_cb_token<error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
@@ -123,7 +125,7 @@ void basic_timer<Exec>::wait(cb_token<error_code> tk)
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_timer<Exec>::wait(opt_token<ua_redirect_error_t> tk)
+awaitable<void> basic_timer<Exec>::wait(opt_token<ua_redirect_error_t> tk) noexcept
 {
 	using namespace std::chrono;
 	if( not is_run() )
@@ -140,7 +142,7 @@ awaitable<void> basic_timer<Exec>::wait(opt_token<ua_redirect_error_t> tk)
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::wait(const duration &rtime, error_code &error)
+void basic_timer<Exec>::wait(const duration &rtime, error_code &error) noexcept
 {
 	if( not is_run() )
 		expires_after(rtime);
@@ -148,7 +150,7 @@ void basic_timer<Exec>::wait(const duration &rtime, error_code &error)
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::wait(const time_point &atime, error_code &error)
+void basic_timer<Exec>::wait(const time_point &atime, error_code &error) noexcept
 {
 	if( not is_run() )
 		expires_at(atime);
@@ -156,12 +158,64 @@ void basic_timer<Exec>::wait(const time_point &atime, error_code &error)
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::wait(error_code &error)
+void basic_timer<Exec>::wait(error_code &error) noexcept
 {
 	if( is_run() )
 		m_timer.wait(error);
 	else
 		error = errc::timed_out;
+}
+
+template <concept_execution Exec>
+void basic_timer<Exec>::wait(opt_cb_token<> tk)
+{
+	auto callback = std::move(tk.callback);
+	wait([callback = std::move(tk.callback)](const error_code &error)
+	{
+		if( error )
+			throw system_error(error, "libgs::io::timer::wait");
+		callback();
+	});
+}
+
+template <concept_execution Exec>
+awaitable<void> basic_timer<Exec>::wait(opt_token<use_awaitable_t&> tk)
+{
+	error_code error;
+	co_await wait(use_awaitable_e[error]);
+
+	if( error )
+		throw system_error(error, "libgs::io::timer::wait");
+}
+
+template <concept_execution Exec>
+void basic_timer<Exec>::wait(const duration &rtime)
+{
+	error_code error;
+	co_await wait(rtime, error);
+
+	if( error )
+		throw system_error(error, "libgs::io::timer::wait");
+}
+
+template <concept_execution Exec>
+void basic_timer<Exec>::wait(const time_point &atime)
+{
+	error_code error;
+	co_await wait(atime, error);
+
+	if( error )
+		throw system_error(error, "libgs::io::timer::wait");
+}
+
+template <concept_execution Exec>
+void basic_timer<Exec>::wait()
+{
+	error_code error;
+	co_await wait(error);
+
+	if( error )
+		throw system_error(error, "libgs::io::timer::wait");
 }
 
 template <concept_execution Exec>

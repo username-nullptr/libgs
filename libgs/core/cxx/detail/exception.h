@@ -32,22 +32,25 @@
 namespace libgs
 {
 
-inline exception::exception(std::string_view what) :
-	m_what(what.data(), what.size())
+template <typename Arg0, typename...Args>
+runtime_error::runtime_error(std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
+	std::runtime_error(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 
 }
 
 template <typename Arg0, typename...Args>
-exception::exception(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	m_what(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+system_error::system_error(std::error_code ec, std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
+	std::system_error(std::move(ec), std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 
 }
 
-inline const char *exception::what() const noexcept
+template <typename Arg0, typename...Args>
+system_error::system_error(int v, const std::error_category &ecat, std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
+	std::system_error(v, std::move(ecat), std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)) 
 {
-	return m_what.c_str();
+
 }
 
 } //namespace libgs
@@ -56,11 +59,31 @@ namespace std
 {
 
 template <>
-class formatter<libgs::exception, char> : public libgs::no_parse_formatter<char>
+class formatter<std::exception, char> 
 {
 public:
-	auto format(const libgs::exception &ex, auto &context) const {
-		return format_to(context.out(), libgs::default_format_v<char>, ex.what());
+	auto format(const std::exception &ex, auto &context) const {
+		return m_formatter.format(ex.what(), context);
+	}
+
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<const char*, char> m_formatter;
+};
+
+template <libgs::concept_char_type CharT>
+class formatter<libgs::system_error, CharT> : public libgs::no_parse_formatter<CharT>
+{
+public:
+	auto format(const libgs::system_error &ex, auto &context) const
+	{
+		if constexpr( std::is_same_v<CharT, char> )
+			return format_to(context.out(), "{} ({})", ex.what(), ex.code().value());
+		else
+			return format_to(context.out(), L"{} ({})", ex.what(), ex.code().value());
 	}
 };
 

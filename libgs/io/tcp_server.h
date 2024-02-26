@@ -58,21 +58,43 @@ public:
 	using asio_acceptor_ptr = asio_basic_tcp_acceptor_ptr<Exec>;
 
 public:
-	template <concept_execution_context Context = asio::io_context>
-	explicit basic_tcp_server(Context &context = io_context());
+	explicit basic_tcp_server(size_t tcount = std::thread::hardware_concurrency() << 1);
+
+	template <concept_execution_context Context>
+	explicit basic_tcp_server(Context &context, size_t tcount = std::thread::hardware_concurrency() << 1);
 
 	template <concept_execution Exec0>
-	basic_tcp_server(asio_acceptor &&acceptor);
+	explicit basic_tcp_server(asio_acceptor &&acceptor, size_t tcount = std::thread::hardware_concurrency() << 1);
 
-	explicit basic_tcp_server(const executor_type &exec);
+	explicit basic_tcp_server(const executor_type &exec, size_t tcount = std::thread::hardware_concurrency() << 1);
 	~basic_tcp_server() override;
 
 public:
-	// TODO ...
+	void bind(ip_endpoint &ep, error_code &error) noexcept;
+	void bind(ip_endpoint &ep);
+
+	awaitable<void> cancel(use_awaitable_t &token) noexcept;
+	void cancel() noexcept override;
+
+public:
+	void accept(opt_cb_token<tcp_socket_ptr,error_code> token) noexcept;
+	void accept(opt_cb_token<tcp_socket_ptr> token);
+
+	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<ua_redirect_error_t> token) noexcept;
+	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<use_awaitable_t&> token);
+
+	tcp_socket_ptr accept(error_code &error) noexcept;
+	tcp_socket_ptr accept();
+
+public:
+	awaitable<void> wait(use_awaitable_t &token) noexcept;
+	void wait() noexcept;
+
+	awaitable<void> stop(use_awaitable_t &token) noexcept;
+	void stop() noexcept;
 
 protected:
-	template <typename ASIO_Acceptor, concept_callable Func>
-	explicit basic_tcp_server(ASIO_Acceptor *acceptor, Func &&del_acceptor);
+	explicit basic_tcp_server(auto *asio_acceptor, concept_callable auto &&del_acceptor);
 
 private:
 	const asio_acceptor &acceptor() const;
@@ -83,9 +105,23 @@ protected:
 	std::function<void()> m_del_acceptor {
 		[this]{ delete reinterpret_cast<asio_acceptor*>(m_acceptor); }
 	};
+	asio::thread_pool m_pool;
+
+
 };
 
 using tcp_server = basic_tcp_server<>;
+
+template <concept_execution Exec = asio::any_io_executor>
+using basic_tcp_server_ptr = std::shared_ptr<basic_tcp_server<Exec>>;
+
+using tcp_server_ptr = basic_tcp_server_ptr<>;
+
+template <concept_execution Exec, typename...Args>
+basic_tcp_server_ptr<Exec> make_basic_tcp_server(Args&&...args);
+
+template <typename...Args>
+tcp_server_ptr make_tcp_server(Args&&...args);
 
 } //namespace io
 
@@ -96,27 +132,39 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
+basic_tcp_server<Exec>::basic_tcp_server(size_t tcount) :
+	base_type(io_context().get_executor()),
+	m_acceptor(new asio_acceptor(io_context())),
+	m_pool(tcount)
+{
+
+}
+
+template <concept_execution Exec>
 template <concept_execution_context Context>
-basic_tcp_server<Exec>::basic_tcp_server(Context &context) :
+basic_tcp_server<Exec>::basic_tcp_server(Context &context, size_t tcount) :
 	base_type(context.get_executor()),
-	m_acceptor(new asio_acceptor(context))
+	m_acceptor(new asio_acceptor(context)),
+	m_pool(tcount)
 {
 
 }
 
 template <concept_execution Exec>
 template <concept_execution Exec0>
-basic_tcp_server<Exec>::basic_tcp_server(asio_acceptor &&acceptor) :
+basic_tcp_server<Exec>::basic_tcp_server(asio_acceptor &&acceptor, size_t tcount) :
 	base_type(acceptor.get_executor()),
-	m_acceptor(new asio_acceptor(std::move(acceptor)))
+	m_acceptor(new asio_acceptor(std::move(acceptor))),
+	m_pool(tcount)
 {
 
 }
 
 template <concept_execution Exec>
-basic_tcp_server<Exec>::basic_tcp_server(const executor_type &exec) :
+basic_tcp_server<Exec>::basic_tcp_server(const executor_type &exec, size_t tcount) :
 	base_type(exec),
-	m_acceptor(new asio_acceptor(exec))
+	m_acceptor(new asio_acceptor(exec)),
+	m_pool(tcount)
 {
 
 }
@@ -124,24 +172,63 @@ basic_tcp_server<Exec>::basic_tcp_server(const executor_type &exec) :
 template <concept_execution Exec>
 basic_tcp_server<Exec>::~basic_tcp_server()
 {
+	cancel();
 	if( m_acceptor and m_del_acceptor )
 		m_del_acceptor();
-
-	// TODO ...
 }
 
 
 // TODO ...
 
+template <concept_execution Exec>
+awaitable<void> basic_tcp_server<Exec>::cancel(use_awaitable_t&) noexcept
+{
+	return co_thread([this]{cancel();});
+}
 
 template <concept_execution Exec>
-template <typename ASIO_Acceptor, concept_callable Func>
-basic_tcp_server<Exec>::basic_tcp_server(ASIO_Acceptor *acceptor, Func &&del_acceptor) :
-	base_type(acceptor->get_executor()),
-	m_acceptor(acceptor),
+void basic_tcp_server<Exec>::cancel() noexcept
+{
+	error_code error;
+	acceptor().close(error);
+
+	wait();
+	m_pool.stop();
+
+	// TODO ...
+}
+
+template <concept_execution Exec>
+awaitable<void> basic_tcp_server<Exec>::wait(use_awaitable_t&)
+{
+	return co_thread([this]{wait();});
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::wait()
+{
+	m_pool.wait();
+}
+
+template <concept_execution Exec>
+awaitable<void> basic_tcp_server<Exec>::stop(use_awaitable_t&)
+{
+	return co_thread([this]{stop();});
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::stop()
+{
+	cancel();
+}
+
+template <concept_execution Exec>
+basic_tcp_server<Exec>::basic_tcp_server(auto *asio_acceptor, concept_callable auto &&del_acceptor) :
+	base_type(asio_acceptor->get_executor()),
+	m_acceptor(asio_acceptor),
 	m_del_acceptor(std::forward<Func>(del_acceptor))
 {
-	assert(acceptor);
+	assert(asio_acceptor);
 	assert(m_del_acceptor);
 }
 

@@ -36,26 +36,27 @@
 namespace libgs
 {
 
-class null_exception : public std::exception {};
-
-class exception : public null_exception
+class runtime_error : public std::runtime_error
 {
-	LIBGS_DISABLE_COPY_MOVE(exception)
-
 public:
-	explicit exception(std::string_view what);
+	using std::runtime_error::runtime_error;
+    ~runtime_error() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
-	explicit exception(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+	runtime_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+};
 
-    ~exception() noexcept override = default;
-
+class system_error : public std::system_error
+{
 public:
-	[[nodiscard("Get description of exception")]]
-	const char* what() const noexcept override;
+	using std::system_error::system_error;
+    ~system_error() noexcept override = default;
 
-private:
-	std::string m_what;
+	template <typename Arg0, typename...Args>
+    system_error(std::error_code ec, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+
+	template <typename Arg0, typename...Args>
+    system_error(int v, const std::error_category& ecat, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 };
 
 } //namespace libgs
