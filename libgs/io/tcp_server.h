@@ -51,6 +51,7 @@ class basic_tcp_server : public device_base<Exec>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_tcp_server)
 	using base_type = device_base<Exec>;
+	class client_socket_type;
 
 public:
 	using executor_type = base_type::executor_type;
@@ -132,6 +133,26 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
+class basic_tcp_server<Exec>::client_socket_type : public tcp_socket
+{
+	LIBGS_DISABLE_COPY_MOVE(client_socket_type)
+	using base_type = tcp_socket;
+
+public:
+	explicit client_socket_type(asio_tcp_socket &&sock, callback_t<> del_cb) :
+		base_type(std::move(sock)), m_del_cb(std::move(del_cb)) {}
+
+	~client_socket_type() override 
+	{
+		assert(m_del_cb);
+		m_del_cb();
+	}
+
+private:
+	callback_t<> m_del_cb;
+};
+
+template <concept_execution Exec>
 basic_tcp_server<Exec>::basic_tcp_server(size_t tcount) :
 	base_type(io_context().get_executor()),
 	m_acceptor(new asio_acceptor(io_context())),
@@ -199,25 +220,25 @@ void basic_tcp_server<Exec>::cancel() noexcept
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_tcp_server<Exec>::wait(use_awaitable_t&)
+awaitable<void> basic_tcp_server<Exec>::wait(use_awaitable_t&) noexcept
 {
 	return co_thread([this]{wait();});
 }
 
 template <concept_execution Exec>
-void basic_tcp_server<Exec>::wait()
+void basic_tcp_server<Exec>::wait() noexcept
 {
 	m_pool.wait();
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_tcp_server<Exec>::stop(use_awaitable_t&)
+awaitable<void> basic_tcp_server<Exec>::stop(use_awaitable_t&) noexcept
 {
 	return co_thread([this]{stop();});
 }
 
 template <concept_execution Exec>
-void basic_tcp_server<Exec>::stop()
+void basic_tcp_server<Exec>::stop() noexcept
 {
 	cancel();
 }
@@ -226,7 +247,7 @@ template <concept_execution Exec>
 basic_tcp_server<Exec>::basic_tcp_server(auto *asio_acceptor, concept_callable auto &&del_acceptor) :
 	base_type(asio_acceptor->get_executor()),
 	m_acceptor(asio_acceptor),
-	m_del_acceptor(std::forward<Func>(del_acceptor))
+	m_del_acceptor(std::forward<std::decay_t<decltype(del_acceptor)>>(del_acceptor))
 {
 	assert(asio_acceptor);
 	assert(m_del_acceptor);

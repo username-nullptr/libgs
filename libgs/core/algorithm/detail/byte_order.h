@@ -37,37 +37,32 @@ inline bool is_big_endian()
 	return not is_little_endian();
 }
 
-template <typename T> requires std::is_integral_v<T>
-T hton(T t)
+auto hton(concept_number_type auto t)
 {
 	return is_big_endian() ? t : reverse(t);
 }
 
-template <typename T>
-T *hton(T *data, size_t len)
+auto *hton(auto *data, size_t len)
 {
 	return is_big_endian() ? data : reverse(data, len);
 }
 
-template <typename T> requires std::is_integral_v<T>
-T ntoh(T t)
+auto ntoh(concept_number_type auto t)
 {
 	return is_big_endian() ? t : reverse(t);
 }
 
-template <typename T>
-T *ntoh(T *data, size_t len)
+auto *ntoh(auto *data, size_t len)
 {
 	return is_big_endian() ? data : reverse(data, len);
 }
 
-template <typename T> requires std::is_integral_v<T>
-T reverse(T t)
+auto reverse(concept_number_type auto t)
 {
-	for(size_t i=0; i<sizeof(T)>>1; i++)
+	for(size_t i=0; i<sizeof(t)>>1; i++)
 	{
 		auto m = reinterpret_cast<char*>(&t) + i;
-		auto n = reinterpret_cast<char*>(&t) + sizeof(T) - i - 1;
+		auto n = reinterpret_cast<char*>(&t) + sizeof(t) - i - 1;
 
 		*m ^= *n;
 		*n ^= *m;
@@ -76,8 +71,7 @@ T reverse(T t)
 	return t;
 }
 
-template <typename T>
-T *reverse(T *data, size_t len)
+auto *reverse(auto *data, size_t len)
 {
 	auto array = reinterpret_cast<char*>(data);
 	for(size_t i=0; i<len>>1; i++)

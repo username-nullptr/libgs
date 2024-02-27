@@ -332,7 +332,7 @@ template <concept_execution Exec>
 basic_tcp_socket<Exec>::basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock) : 
 	base_type(asio_sock->get_executor()),
 	m_sock(asio_sock),
-	m_del_sock(std::forward<Func>(del_sock)),
+	m_del_sock(std::forward<std::decay_t<decltype(del_sock)>>(del_sock)),
 	m_resolver(asio_sock->get_executor())
 {
 	assert(asio_sock);

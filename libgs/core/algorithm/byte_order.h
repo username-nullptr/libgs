@@ -38,23 +38,17 @@ namespace libgs
 
 [[nodiscard]] bool is_big_endian();
 
-template <typename T> requires std::is_arithmetic_v<T>
-[[nodiscard]] T hton(T t);
+[[nodiscard]] auto hton(concept_number_type auto t);
 
-template <typename T>
-[[nodiscard]] T *hton(T *data, size_t len);
+[[nodiscard]] auto *hton(auto *data, size_t len);
 
-template <typename T> requires std::is_arithmetic_v<T>
-[[nodiscard]] T ntoh(T t);
+[[nodiscard]] auto ntoh(concept_number_type auto t);
 
-template <typename T>
-[[nodiscard]] T *ntoh(T *data, size_t len);
+[[nodiscard]] auto *ntoh(auto *data, size_t len);
 
-template <typename T> requires std::is_arithmetic_v<T>
-[[nodiscard]] T reverse(T t);
+[[nodiscard]] auto reverse(concept_number_type auto t);
 
-template <typename T>
-[[nodiscard]] T *reverse(T *data, size_t len);
+[[nodiscard]] auto *reverse(auto *data, size_t len);
 
 } //namespace libgs
 #include <libgs/core/algorithm/detail/byte_order.h>
