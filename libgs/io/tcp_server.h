@@ -30,6 +30,7 @@
 #define LIBGS_IO_TCP_SERVER_H
 
 #include <libgs/io/tcp_socket.h>
+#include <set>
 
 namespace libgs
 {
@@ -71,28 +72,24 @@ public:
 	~basic_tcp_server() override;
 
 public:
-	void bind(ip_endpoint &ep, error_code &error) noexcept;
-	void bind(ip_endpoint &ep);
+	void bind(ip_endpoint ep, error_code &error, size_t max = asio::socket_base::max_listen_connections) noexcept;
+	void bind(ip_endpoint ep, size_t max = asio::socket_base::max_listen_connections);
 
-	awaitable<void> cancel(use_awaitable_t &token) noexcept;
+	awaitable<void> cancel(use_awaitable_t &tk) noexcept;
 	void cancel() noexcept override;
 
 public:
-	void accept(opt_cb_token<tcp_socket_ptr,error_code> token) noexcept;
-	void accept(opt_cb_token<tcp_socket_ptr> token);
+	void accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept;
 
-	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<ua_redirect_error_t> token) noexcept;
-	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<use_awaitable_t&> token);
+	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<ua_redirect_error_t> tk) noexcept;
+	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<use_awaitable_t&> tk);
 
 	tcp_socket_ptr accept(error_code &error) noexcept;
 	tcp_socket_ptr accept();
 
 public:
-	awaitable<void> wait(use_awaitable_t &token) noexcept;
+	awaitable<void> wait(use_awaitable_t &tk) noexcept;
 	void wait() noexcept;
-
-	awaitable<void> stop(use_awaitable_t &token) noexcept;
-	void stop() noexcept;
 
 protected:
 	explicit basic_tcp_server(auto *asio_acceptor, concept_callable auto &&del_acceptor);
@@ -107,8 +104,7 @@ protected:
 		[this]{ delete reinterpret_cast<asio_acceptor*>(m_acceptor); }
 	};
 	asio::thread_pool m_pool;
-
-
+	std::set<tcp_socket*> m_sock_set;
 };
 
 using tcp_server = basic_tcp_server<>;
@@ -139,13 +135,19 @@ class basic_tcp_server<Exec>::client_socket_type : public tcp_socket
 	using base_type = tcp_socket;
 
 public:
-	explicit client_socket_type(asio_tcp_socket &&sock, callback_t<> del_cb) :
-		base_type(std::move(sock)), m_del_cb(std::move(del_cb)) {}
+	explicit client_socket_type(asio_tcp_socket &&sock) :
+		base_type(std::move(sock)) {}
 
 	~client_socket_type() override 
 	{
 		assert(m_del_cb);
 		m_del_cb();
+	}
+
+	void set_delete_callback(callback_t<> del_cb) 
+	{
+		assert(del_cb);
+		m_del_cb = std::move(del_cb);
 	}
 
 private:
@@ -198,8 +200,30 @@ basic_tcp_server<Exec>::~basic_tcp_server()
 		m_del_acceptor();
 }
 
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::bind(ip_endpoint ep, error_code &error, size_t max) noexcept
+{
+	auto &apr = acceptor();
+	if( not apr.is_open() )
+	{
+		apr.open(error);
+		if( error )
+			return ;
+	}
+	apr.bind({std::move(ep.addr), ep.port}, error);
+	if( not error )
+		apr.listen(max, error);
+}
 
-// TODO ...
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::bind(ip_endpoint ep, size_t max)
+{
+	error_code error;
+	bind(std::move(ep), max);
+
+	if( error )
+		throw system_error(error, "libgs::io::tcp_server::bind");
+}
 
 template <concept_execution Exec>
 awaitable<void> basic_tcp_server<Exec>::cancel(use_awaitable_t&) noexcept
@@ -213,10 +237,106 @@ void basic_tcp_server<Exec>::cancel() noexcept
 	error_code error;
 	acceptor().close(error);
 
+	for(auto &sock : m_sock_set)
+		sock->close(error);
+	
 	wait();
 	m_pool.stop();
+}
 
-	// TODO ...
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept
+{
+	auto valid = this->m_valid;
+	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
+	{
+		if( not valid )
+			co_return ;
+
+		error_code error;
+		auto size = co_await accept({tk.rtime, use_awaitable_e[error]});
+
+		if( not valid )
+			co_return ;
+
+		tk.callback(size, error);
+		co_return ;
+	},
+	this->m_exec);
+}
+
+template <concept_execution Exec>
+awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::accept(opt_token<ua_redirect_error_t> tk) noexcept
+{
+	auto socket = co_await acceptor().accept(m_pool, std::move(tk.uare));
+	if( tk.uare.ec_ )
+		co_return tcp_socket_ptr();
+		
+	auto sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
+	auto _sock_ptr = sock_ptr.get();
+	m_sock_set.emplace(_sock_ptr);
+
+	auto valid = this->m_valid;
+	sock_ptr->set_delete_callback([this, valid = std::move(valid), _sock_ptr]
+	{
+		if( not valid )
+			return ;
+
+		asio::post(this->m_exec, [this, valid = std::move(valid), _sock_ptr]
+		{
+			if( valid )
+				m_sock_set.erase(_sock_ptr);
+		});
+	});
+	co_return sock_ptr;
+}
+
+template <concept_execution Exec>
+awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::accept(opt_token<use_awaitable_t&> tk)
+{
+	error_code error;
+	auto socket = co_await accept({tk.rtime, use_awaitable_e[error]});
+
+	if( error )
+		throw system_error(error, "libgs::io::tcp_server::accept");
+	co_return socket;
+}
+
+template <concept_execution Exec>
+tcp_socket_ptr basic_tcp_server<Exec>::accept(error_code &error) noexcept
+{
+	auto socket = acceptor().accept(m_pool, error);
+	if( error )
+		return tcp_socket_ptr();
+		
+	auto sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
+	auto _sock_ptr = sock_ptr.get();
+	m_sock_set.emplace(_sock_ptr);
+
+	auto valid = this->m_valid;
+	sock_ptr->set_delete_callback([this, valid = std::move(valid), _sock_ptr]
+	{
+		if( not valid )
+			return ;
+
+		asio::post(this->m_exec, [this, valid = std::move(valid), _sock_ptr]
+		{
+			if( valid )
+				m_sock_set.erase(_sock_ptr);
+		});
+	});
+	return sock_ptr;
+}
+
+template <concept_execution Exec>
+tcp_socket_ptr basic_tcp_server<Exec>::accept()
+{
+	error_code error;
+	auto socket = accept(error);
+
+	if( error )
+		throw system_error(error, "libgs::io::tcp_server::accept");
+	return socket;
 }
 
 template <concept_execution Exec>
@@ -229,18 +349,6 @@ template <concept_execution Exec>
 void basic_tcp_server<Exec>::wait() noexcept
 {
 	m_pool.wait();
-}
-
-template <concept_execution Exec>
-awaitable<void> basic_tcp_server<Exec>::stop(use_awaitable_t&) noexcept
-{
-	return co_thread([this]{stop();});
-}
-
-template <concept_execution Exec>
-void basic_tcp_server<Exec>::stop() noexcept
-{
-	cancel();
 }
 
 template <concept_execution Exec>

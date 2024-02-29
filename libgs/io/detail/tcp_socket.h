@@ -293,15 +293,27 @@ awaitable<typename basic_tcp_socket<Exec>::address_vector> basic_tcp_socket<Exec
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, std::string_view delim, error_code &error) noexcept 
+awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, read_condition rc, error_code &error) noexcept 
 {
 	m_read_cancel = false;
-	if( delim.empty() )
-		size = co_await native_object().async_read_some(asio::buffer(buf, size), use_awaitable_e[error]);
+	if( rc.var.index() == 0 )
+	{
+		auto delim = std::get<0>(rc.var);
+		if( delim.empty() )
+			size = co_await native_object().async_read_some(asio::buffer(buf, size), use_awaitable_e[error]);
+		else
+		{
+			std::string _buf;
+			size = co_await asio::async_read_until(native_object(), asio::dynamic_buffer(_buf, size), std::move(delim), use_awaitable_e[error]);
+
+			if( size > 0 )
+				memcpy(buf, _buf.c_str(), size);
+		}
+	}
 	else
 	{
 		std::string _buf;
-		size = co_await asio::async_read_until(native_object(), asio::dynamic_buffer(_buf, size), std::move(delim), use_awaitable_e[error]);
+		size = co_await asio::async_read_until(native_object(), asio::dynamic_buffer(_buf, size), std::get<1>(rc.var), use_awaitable_e[error]);
 
 		if( size > 0 )
 			memcpy(buf, _buf.c_str(), size);

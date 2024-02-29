@@ -116,7 +116,7 @@ protected:
 	[[nodiscard]] awaitable<address_vector> do_dns(const std::string &domain, error_code &error) noexcept override;
 
 protected:
-	[[nodiscard]] awaitable<size_t> read_data(void *buf, size_t size, std::string_view delim, error_code &error) noexcept override;
+	[[nodiscard]] awaitable<size_t> read_data(void *buf, size_t size, read_condition rc, error_code &error) noexcept override;
 	[[nodiscard]] awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept override;
 
 protected:

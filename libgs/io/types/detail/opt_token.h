@@ -124,27 +124,27 @@ inline opt_token<error_code&>::opt_token(error_code &error) :
 
 template <typename T>
 template<typename T0>
-read_token<T>::read_token(string_wrapper delim, T0 &&tk) 
+read_token<T>::read_token(read_condition rc, T0 &&tk) 
 	requires concept_opt_token<T,T0> :
-	base_type(std::forward<T>(tk)), delim(std::move(delim.value))
+	base_type(std::forward<T>(tk)), rc(std::move(rc))
 {
 
 }
 
 template <typename T>
 template <typename Rep, typename Period, typename T0>
-read_token<T>::read_token(string_wrapper delim, const duration<Rep, Period> &rtime, T0 &&tk)
+read_token<T>::read_token(read_condition rc, const duration<Rep, Period> &rtime, T0 &&tk)
 	requires concept_opt_token<T,T0> :
-	base_type(rtime, std::forward<T>(tk)), delim(std::move(delim.value))
+	base_type(rtime, std::forward<T>(tk)), rc(std::move(rc))
 {
 
 }
 
 template <typename T>
 template<typename Clock, typename Duration, typename T0>
-read_token<T>::read_token(string_wrapper delim, const time_point<Clock, Duration> &atime, T0 &&tk) 
+read_token<T>::read_token(read_condition rc, const time_point<Clock, Duration> &atime, T0 &&tk) 
 	requires concept_opt_token<T,T0> :
-	base_type(atime, std::forward<T>(tk)), delim(std::move(delim.value))
+	base_type(atime, std::forward<T>(tk)), rc(std::move(rc))
 {
 
 }

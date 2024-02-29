@@ -32,7 +32,41 @@
 namespace libgs::io
 {
 
+read_condition::read_condition() :
+	var(std::string())
+{
 
+}
+
+read_condition::read_condition(char delim) :
+	var(std::string_view(&delim,1))
+{
+
+}
+
+read_condition::read_condition(const char *delim) :
+	var(std::string_view(delim))
+{
+
+}
+
+read_condition::read_condition(std::string &delim) :
+	var(std::string_view(delim))
+{
+
+}
+
+read_condition::read_condition(std::string_view delim) :
+	var(std::move(delim))
+{
+
+}
+
+read_condition::read_condition(match_continue role)
+{
+	assert(role);
+	var = std::move(role);
+}
 
 } //namespace libgs::io
 

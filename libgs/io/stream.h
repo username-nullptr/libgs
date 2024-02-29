@@ -31,7 +31,6 @@
 
 #include <libgs/io/device_base.h>
 #include <libgs/io/types/stream_buffer.h>
-#include <libgs/io/types/opt_condition.h>
 
 namespace libgs::io
 {
@@ -62,7 +61,7 @@ public:
 	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, read_token<use_awaitable_t&> tk);
 
 	virtual size_t read(buffer<void*> buf, read_token<error_code&> tk) noexcept = 0;
-	size_t read(buffer<void*> buf, string_wrapper delim = {});
+	size_t read(buffer<void*> buf, read_condition rc = {});
 
 	void read(buffer<std::string&> buf, read_cb_token<size_t,error_code> tk) noexcept;
 	void read(buffer<std::string&> buf, read_cb_token<size_t> tk);
@@ -73,7 +72,7 @@ public:
 	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, read_token<use_awaitable_t&> tk);
 
 	size_t read(buffer<std::string&> buf, read_token<error_code&> tk) noexcept;
-	size_t read(buffer<std::string&> buf, string_wrapper delim = {});
+	size_t read(buffer<std::string&> buf, read_condition rc = {});
 
 public:
 	void write(buffer<const void*> buf, opt_cb_token<size_t,error_code> tk) noexcept;
@@ -99,7 +98,7 @@ public:
 	[[nodiscard]] virtual size_t write_buffer_size() const noexcept = 0;
 
 protected:
-	[[nodiscard]] virtual awaitable<size_t> read_data(void *buf, size_t size, std::string_view delim, error_code &error) noexcept = 0;
+	[[nodiscard]] virtual awaitable<size_t> read_data(void *buf, size_t size, read_condition rc, error_code &error) noexcept = 0;
 	[[nodiscard]] virtual awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept = 0;
 };
 

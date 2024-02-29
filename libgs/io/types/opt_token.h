@@ -30,7 +30,7 @@
 #define LIBGS_IO_TYPES_OPT_TOKEN_H
 
 #include <libgs/core/coroutine.h>
-#include <libgs/io/global.h>
+#include <libgs/io/types/opt_condition.h>
 
 namespace libgs::io
 {
@@ -125,16 +125,16 @@ struct read_token : opt_token<T>
 	using base_type = opt_token<T>;
 	using base_type::base_type;
 
-	std::string delim;
+	read_condition rc;
 
 	template <typename T0>
-	read_token(string_wrapper delim, T0 &&tk) requires concept_opt_token<T,T0>;
+	read_token(read_condition rc, T0 &&tk) requires concept_opt_token<T,T0>;
 
 	template <typename Rep, typename Period, typename T0>
-	read_token(string_wrapper delim, const duration<Rep, Period> &rtime, T0 &&tk) requires concept_opt_token<T,T0>;
+	read_token(read_condition rc, const duration<Rep, Period> &rtime, T0 &&tk) requires concept_opt_token<T,T0>;
 
 	template<typename Clock, typename Duration, typename T0>
-	read_token(string_wrapper delim, const time_point<Clock, Duration> &atime, T0 &&tk) requires concept_opt_token<T,T0>;
+	read_token(read_condition rc, const time_point<Clock, Duration> &atime, T0 &&tk) requires concept_opt_token<T,T0>;
 };
 
 template <typename...Args>

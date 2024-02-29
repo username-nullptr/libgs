@@ -54,7 +54,7 @@ void basic_stream<Exec>::read(buffer<void*> buf, read_cb_token<size_t,error_code
 			co_return ;
 
 		error_code error;
-		auto size = co_await read(buf, {std::move(tk.delim), tk.rtime, use_awaitable_e[error]});
+		auto size = co_await read(buf, {std::move(tk.rc), tk.rtime, use_awaitable_e[error]});
 
 		if( not valid )
 			co_return ;
@@ -69,7 +69,7 @@ template <concept_execution Exec>
 void basic_stream<Exec>::read(buffer<void*> buf, read_cb_token<size_t> tk)
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.delim), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
+	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	}});
 }
@@ -82,9 +82,9 @@ awaitable<size_t> basic_stream<Exec>::read(buffer<void*> buf, read_token<ua_redi
 		co_return 0;
 
 	else if( tk.rtime == 0s )
-		co_return co_await read_data(buf.data, buf.size, std::move(tk.delim), tk.uare.ec_);
+		co_return co_await read_data(buf.data, buf.size, std::move(tk.rc), tk.uare.ec_);
 	
-	auto var = co_await (read_data(buf.data, buf.size, std::move(tk.delim), tk.uare.ec_) or co_sleep_for(tk.rtime));
+	auto var = co_await (read_data(buf.data, buf.size, std::move(tk.rc), tk.uare.ec_) or co_sleep_for(tk.rtime));
 	size_t size = 0;
 
 	if( var.index() == 0 )
@@ -98,7 +98,7 @@ template <concept_execution Exec>
 awaitable<size_t> basic_stream<Exec>::read(buffer<void*> buf, read_token<use_awaitable_t&> tk)
 {
 	error_code error;
-	auto res = co_await read(buf, {std::move(tk.delim), tk.rtime, use_awaitable_e[error]});
+	auto res = co_await read(buf, {std::move(tk.rc), tk.rtime, use_awaitable_e[error]});
 
 	if( error )
 		throw system_error(error, "libgs::io::stream::read");
@@ -106,10 +106,10 @@ awaitable<size_t> basic_stream<Exec>::read(buffer<void*> buf, read_token<use_awa
 }
 
 template <concept_execution Exec>
-size_t basic_stream<Exec>::read(buffer<void*> buf, string_wrapper delim)
+size_t basic_stream<Exec>::read(buffer<void*> buf, read_condition rc)
 {
 	error_code error;
-	auto res = read(buf, {std::move(delim), error});
+	auto res = read(buf, {std::move(rc), error});
 
 	if( error )
 		throw system_error(error, "libgs::io::stream::read");
@@ -125,7 +125,7 @@ void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<size_t,err
 	auto _buf = std::make_shared<char[]>(buf.size);
 	auto callback = std::move(tk.callback);
 
-	read({_buf.get(), buf.size}, {std::move(tk.delim), tk.rtime, [buf, _buf, callback = std::move(callback)](size_t size, const error_code &error)
+	read({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, [buf, _buf, callback = std::move(callback)](size_t size, const error_code &error)
 	{
 		buf.data = std::string(_buf.get(), size);
 		callback(size, error);
@@ -136,7 +136,7 @@ template <concept_execution Exec>
 void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<size_t> tk)
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.delim), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
+	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	}});
 }
@@ -145,7 +145,7 @@ template <concept_execution Exec>
 void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<error_code> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.delim), tk.rtime, [callback = std::move(callback)](size_t, const error_code &error){
+	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t, const error_code &error){
 		callback(error);
 	}});
 }
@@ -154,7 +154,7 @@ template <concept_execution Exec>
 void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<> tk)
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.delim), tk.rtime, [callback = std::move(callback)](const error_code&){
+	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](const error_code&){
 		callback();
 	}});
 }
@@ -177,7 +177,7 @@ template <concept_execution Exec>
 awaitable<size_t> basic_stream<Exec>::read(buffer<std::string&> buf, read_token<use_awaitable_t&> tk)
 {
 	error_code error;
-	auto res = co_await read(buf, {std::move(tk.delim), tk.rtime, use_awaitable_e[error]});
+	auto res = co_await read(buf, {std::move(tk.rc), tk.rtime, use_awaitable_e[error]});
 
 	if( error )
 		throw system_error(error, "libgs::io::stream::read");
@@ -199,10 +199,10 @@ size_t basic_stream<Exec>::read(buffer<std::string&> buf, read_token<error_code&
 }
 
 template <concept_execution Exec>
-size_t basic_stream<Exec>::read(buffer<std::string&> buf, string_wrapper delim)
+size_t basic_stream<Exec>::read(buffer<std::string&> buf, read_condition rc)
 {
 	error_code error;
-	auto res = read(buf, {std::move(delim), error});
+	auto res = read(buf, {std::move(rc), error});
 
 	if( error )
 		throw system_error(error, "libgs::io::stream::read");

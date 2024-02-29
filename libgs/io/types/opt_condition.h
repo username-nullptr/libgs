@@ -34,7 +34,29 @@
 namespace libgs::io
 {
 
+using stream_buffers_iterator = 
+	asio::buffers_iterator<asio::streambuf::const_buffers_type>;
 
+using match_continue = std::function <
+	std::pair<stream_buffers_iterator, bool> (
+		stream_buffers_iterator begin,
+		stream_buffers_iterator end
+	)
+>;
+
+struct read_condition
+{
+	std::variant<std::string_view, match_continue> var;
+	read_condition();
+
+	read_condition(char delim);
+	read_condition(const char *delim);
+
+	read_condition(std::string &delim);
+	read_condition(std::string_view delim);
+
+	read_condition(match_continue role);
+};
 
 } //namespace libgs::io
 #include <libgs/io/types/detail/opt_condition.h>
