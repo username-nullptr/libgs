@@ -107,6 +107,8 @@ public:
 	using base_type::dns;
 	using base_type::read;
 	using base_type::write;
+	using base_type::remote_endpoint;
+	using base_type::local_endpoint;
 	using base_type::shutdown;
 	using base_type::close;
 	using base_type::set_option;

@@ -36,102 +36,99 @@ namespace libgs
 {
 
 template <concept_char_type CharT>
-class basic_value : public std::basic_string<CharT>
+class basic_value
 {
+public:
 	template <typename...Args>
 	using format_string = libgs::format_string<CharT, Args...>;
 
-	static constexpr const CharT *default_format_v = libgs::default_format_v<CharT>;
+	using str_type = std::basic_string<CharT>;
+	using str_view_type = std::basic_string_view<CharT>;
 
-public:
-	using base_type = std::basic_string<CharT>;
-	using this_type = basic_value<CharT>;
-	using size_type = base_type::size_type;
-
-public:
-	template <typename CT>
-	struct is_string
-	{
-		static constexpr bool value =
-			is_dsame_v<CT, basic_value<char>> or
-			is_dsame_v<CT, basic_value<wchar_t>> or
-			libgs::is_string_v<CT>;
-	};
-
-	template <typename CT>
-	static constexpr bool is_string_v = is_string<CT>::value;
+	static constexpr const CharT *default_format_v =
+		libgs::default_format_v<CharT>;
 
 public:
 	basic_value() = default;
-	basic_value(const std::basic_string<CharT> &str);
-	basic_value(const libgs::basic_value<CharT> &other) = default;
-	basic_value(std::basic_string<CharT> &&str) noexcept;
-	basic_value(libgs::basic_value<CharT> &&other) noexcept;
-	basic_value(const CharT *str, size_type len);
+	basic_value(const CharT *str);
+
+	basic_value(str_type str);
+	basic_value(str_view_type str);
+
+	template <typename Arg0, typename...Args>
+	basic_value(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename T>
-	basic_value(T &&v) requires (not is_string_v<T>);
+	basic_value(T &&value) requires (
+		not requires(T &&value) { str_type(std::forward<T>(value)); }
+	);
+
+public:
+	str_type &to_string();
+	const str_type &to_string() const;
+
+	operator str_type&();
+	operator const str_type&() const;
 
 public:
 	template <concept_number_type T>
-	[[nodiscard]] T get(size_t base = 10) const;
+	[[nodiscard]] T get(size_t base = 10, bool _throw = true) const;
 
-	template <typename T> requires is_dsame_v<T,std::basic_string<CharT>>
-	[[nodiscard]] const std::basic_string<CharT> &get() const;
+	template <typename T>
+	[[nodiscard]] const std::basic_string<CharT> &get() const requires 
+		is_dsame_v<T,std::basic_string<CharT>>;
 
-	template <typename T> requires is_dsame_v<T,std::basic_string<CharT>>
-	[[nodiscard]] std::basic_string<CharT> &get();
-
-public:
-	[[nodiscard]] bool to_bool() const;
-	[[nodiscard]] int32_t to_int(size_t base = 10) const;
-	[[nodiscard]] uint32_t to_uint(size_t base = 10) const;
-	[[nodiscard]] int64_t to_long(size_t base = 10) const;
-	[[nodiscard]] uint64_t to_ulong(size_t base = 10) const;
-	[[nodiscard]] float to_float() const;
-	[[nodiscard]] double to_double() const;
-	[[nodiscard]] long double to_ldouble() const;
+	template <typename T>
+	[[nodiscard]] std::basic_string<CharT> &get() requires 
+		is_dsame_v<T,std::basic_string<CharT>>;
 
 public:
-	[[nodiscard]] const std::basic_string<CharT> &to_string() const;
-	[[nodiscard]] std::basic_string<CharT> &to_string();
+	[[nodiscard]] bool to_bool(size_t base = 10, bool _throw = true) const;
+	[[nodiscard]] int32_t to_int(size_t base = 10, bool _throw = true) const;
+	[[nodiscard]] uint32_t to_uint(size_t base = 10, bool _throw = true) const;
+	[[nodiscard]] int64_t to_long(size_t base = 10, bool _throw = true) const;
+	[[nodiscard]] uint64_t to_ulong(size_t base = 10, bool _throw = true) const;
+	[[nodiscard]] float to_float(bool _throw = true) const;
+	[[nodiscard]] double to_double(bool _throw = true) const;
+	[[nodiscard]] long double to_ldouble(bool _throw = true) const;
 
 public:
-	this_type &set_value(const std::basic_string<CharT> &v);
-	this_type &set_value(std::basic_string<CharT> &&v);
+	basic_value &set(const CharT *str);
+
+	basic_value &set(str_type str);
+	basic_value &set(str_view_type str);
 
 	template <typename Arg0, typename...Args>
-	this_type &set_value(format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+	basic_value &set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename T>
-	this_type &set_value(T &&v) requires (not is_string_v<T>);
+	basic_value &set(T &&value) requires (
+		not requires(T &&value) { str_type(std::forward<T>(value)); }
+	);
 
 public:
-	static this_type from(const std::basic_string<CharT> &v);
-	static this_type from(std::basic_string<CharT> &&v);
+	basic_value &operator=(const basic_value&) = default;
+	basic_value &operator=(basic_value&&) noexcept = default;
 
-	template <typename Arg0, typename...Args>
-	[[nodiscard]] static this_type from(format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
-
-	template <typename T>
-	[[nodiscard]] static this_type from(T &&v) requires (not is_string_v<T>);
+	bool operator<=>(const basic_value &other);
+	bool operator<=>(const str_view_type &tr);
+	bool operator<=>(const str_type &str);
 
 public:
-	template <typename T>
-	this_type &operator=(T &&value) requires (not is_string_v<T>);
+	basic_value &operator=(const CharT *str);
+	basic_value &operator=(str_type str);
+	basic_value &operator=(str_view_type str);
 
-public:
-	this_type &operator=(const std::basic_string<CharT> &other);
-	this_type &operator=(const libgs::basic_value<CharT> &other);
-	this_type &operator=(std::basic_string<CharT> &&other) noexcept;
-	this_type &operator=(libgs::basic_value<CharT> &&other) noexcept;
+protected:
+	std::basic_string<CharT> m_str;
 };
 
 using value = basic_value<char>;
+
 using wvalue = basic_value<wchar_t>;
 
 template <concept_char_type CharT>
-using basic_value_list = std::deque<libgs::basic_value<CharT>>;
+using basic_value_list = std::deque<basic_value<CharT>>;
 
 using value_list = basic_value_list<char>;
 using wvalue_list = basic_value_list<wchar_t>;

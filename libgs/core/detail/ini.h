@@ -602,7 +602,7 @@ basic_ini<CharT> &basic_ini<CharT>::sync()
 		{
 			file << key
 				 << ini_keyword_char<CharT>::assigning
-				 << value 
+				 << value.to_string()
 				 << ini_keyword_char<CharT>::line_break;
 		}
 	}

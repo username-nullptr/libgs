@@ -58,5 +58,36 @@ socket_option::socket_option(auto &data) :
 
 } //namespace libgs::io
 
+namespace std
+{
+
+template <libgs::concept_char_type CharT>
+class formatter<libgs::io::host_endpoint, CharT> : public libgs::no_parse_formatter<CharT>
+{
+public:
+	auto format(const libgs::io::host_endpoint &ep, auto &context) const
+	{
+		if constexpr( std::is_same_v<CharT, char> )
+			return format_to(context.out(), "{}:{}", ep.host, ep.port);
+		else
+			return format_to(context.out(), L"{}:{}", ep.host, ep.port);
+	}
+};
+
+template <libgs::concept_char_type CharT>
+class formatter<libgs::io::ip_endpoint, CharT> : public libgs::no_parse_formatter<CharT>
+{
+public:
+	auto format(const libgs::io::ip_endpoint &ep, auto &context) const
+	{
+		if constexpr( std::is_same_v<CharT, char> )
+			return format_to(context.out(), "{}:{}", ep.addr.to_string(), ep.port);
+		else
+			return format_to(context.out(), L"{}:{}", ep.addr.to_string(), ep.port);
+	}
+};
+
+} //namespace std
+
 
 #endif //LIBGS_IO_TYPES_DETAIL_IP_TYPES_H

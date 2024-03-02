@@ -88,6 +88,13 @@ public:
 	tcp_socket_ptr accept();
 
 public:
+	void set_option(const auto &op, error_code &error);
+	void set_option(const auto &op);
+
+	void get_option(auto &op, error_code &error);
+	void get_option(auto &op);
+
+public:
 	awaitable<void> wait(use_awaitable_t &tk) noexcept;
 	void wait() noexcept;
 
@@ -206,10 +213,17 @@ void basic_tcp_server<Exec>::bind(ip_endpoint ep, error_code &error, size_t max)
 	auto &apr = acceptor();
 	if( not apr.is_open() )
 	{
-		apr.open(error);
+		if( ep.addr.is_v4() )
+			apr.open(asio::ip::tcp::v4(), error);
+		else
+			apr.open(asio::ip::tcp::v6(), error);
 		if( error )
 			return ;
 	}
+	apr.set_option(asio_tcp_acceptor::reuse_address(true), error);
+	if( error )
+		return;
+
 	apr.bind({std::move(ep.addr), ep.port}, error);
 	if( not error )
 		apr.listen(max, error);
@@ -219,7 +233,7 @@ template <concept_execution Exec>
 void basic_tcp_server<Exec>::bind(ip_endpoint ep, size_t max)
 {
 	error_code error;
-	bind(std::move(ep), max);
+	bind(std::move(ep), error, max);
 
 	if( error )
 		throw system_error(error, "libgs::io::tcp_server::bind");
@@ -237,11 +251,10 @@ void basic_tcp_server<Exec>::cancel() noexcept
 	error_code error;
 	acceptor().close(error);
 
-	for(auto &sock : m_sock_set)
+	auto sock_set = std::move(m_sock_set);
+	for(auto &sock : sock_set)
 		sock->close(error);
-	
 	wait();
-	m_pool.stop();
 }
 
 template <concept_execution Exec>
@@ -268,7 +281,7 @@ void basic_tcp_server<Exec>::accept(opt_cb_token<tcp_socket_ptr,error_code> tk) 
 template <concept_execution Exec>
 awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::accept(opt_token<ua_redirect_error_t> tk) noexcept
 {
-	auto socket = co_await acceptor().accept(m_pool, std::move(tk.uare));
+	auto socket = co_await acceptor().async_accept(m_pool, std::move(tk.uare));
 	if( tk.uare.ec_ )
 		co_return tcp_socket_ptr();
 		
@@ -337,6 +350,38 @@ tcp_socket_ptr basic_tcp_server<Exec>::accept()
 	if( error )
 		throw system_error(error, "libgs::io::tcp_server::accept");
 	return socket;
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::set_option(const auto &op, error_code &error)
+{
+	acceptor().set_option(op, error);
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::set_option(const auto &op)
+{
+	error_code error;
+	set_option(op, error);
+
+	if( error )
+		throw system_error(error, "libgs::io::tcp_server::set_option");
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::get_option(auto &op, error_code &error)
+{
+	acceptor().get_option(op, error);
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::get_option(auto &op)
+{
+	error_code error;
+	get_option(op, error);
+
+	if( error )
+		throw system_error(error, "libgs::io::tcp_server::get_option");
 }
 
 template <concept_execution Exec>
