@@ -114,9 +114,9 @@ struct opt_token<error_code&>
 	opt_token(error_code &error);
 };
 
-template <typename T, typename T0>
-concept concept_opt_token = requires(T0 &&value) {
-	opt_token<T>(std::forward<T0>(value));
+template <typename T, typename...Args>
+concept concept_opt_token = requires(Args&&...value) {
+	opt_token<T>(std::forward<Args>(value)...);
 };
 
 template <typename T>
