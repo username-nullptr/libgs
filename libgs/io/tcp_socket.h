@@ -74,16 +74,17 @@ public:
 	~basic_tcp_socket() override;
 
 public:
-	void connect(ip_endpoint ep, error_code &error) noexcept override;
-	address_vector dns(string_wrapper domain, error_code &error) noexcept override;
+	void connect(ip_endpoint ep, opt_token<error_code&> tk = {}) override;
+	address_vector dns(string_wrapper domain, opt_token<error_code&> tk = {}) override;
 
 public:
-	size_t read(buffer<void*> buf, read_token<error_code&> tk) noexcept override;
-	size_t write(buffer<const void*> buf, error_code &error) noexcept override;
+	size_t read(buffer<void*> buf, read_token<error_code&> tk = {}) override;
+	size_t write(buffer<const void*> buf, opt_token<error_code&> tk = {}) override;
 
 public:
-	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept override;
 	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
+	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept;
+	[[nodiscard]] ip_endpoint remote_endpoint() const;
 
 public:
 	void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept override;
@@ -107,7 +108,6 @@ public:
 	using base_type::dns;
 	using base_type::read;
 	using base_type::write;
-	using base_type::remote_endpoint;
 	using base_type::local_endpoint;
 	using base_type::shutdown;
 	using base_type::close;

@@ -75,17 +75,13 @@ public:
 	void bind(ip_endpoint ep, error_code &error, size_t max = asio::socket_base::max_listen_connections) noexcept;
 	void bind(ip_endpoint ep, size_t max = asio::socket_base::max_listen_connections);
 
-	awaitable<void> cancel(use_awaitable_t &tk) noexcept;
+	awaitable<void> co_cancel() noexcept;
 	void cancel() noexcept override;
 
 public:
-	void accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept;
-
-	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<ua_redirect_error_t> tk) noexcept;
-	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<use_awaitable_t&> tk);
-
-	tcp_socket_ptr accept(error_code &error) noexcept;
-	tcp_socket_ptr accept();
+	void async_accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept;
+	[[nodiscard]] awaitable<tcp_socket_ptr> co_accept(opt_token<error_code&> tk = {});
+	tcp_socket_ptr accept(opt_token<error_code&> tk = {});
 
 public:
 	void set_option(const auto &op, error_code &error);
@@ -95,7 +91,7 @@ public:
 	void get_option(auto &op);
 
 public:
-	awaitable<void> wait(use_awaitable_t &tk) noexcept;
+	awaitable<void> co_wait() noexcept;
 	void wait() noexcept;
 
 protected:
@@ -240,7 +236,7 @@ void basic_tcp_server<Exec>::bind(ip_endpoint ep, size_t max)
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_tcp_server<Exec>::cancel(use_awaitable_t&) noexcept
+awaitable<void> basic_tcp_server<Exec>::co_cancel() noexcept
 {
 	return co_thread([this]{cancel();});
 }
@@ -249,6 +245,7 @@ template <concept_execution Exec>
 void basic_tcp_server<Exec>::cancel() noexcept
 {
 	error_code error;
+	acceptor().cancel(error);
 	acceptor().close(error);
 
 	auto sock_set = std::move(m_sock_set);
@@ -258,7 +255,7 @@ void basic_tcp_server<Exec>::cancel() noexcept
 }
 
 template <concept_execution Exec>
-void basic_tcp_server<Exec>::accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept
+void basic_tcp_server<Exec>::async_accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
@@ -267,7 +264,7 @@ void basic_tcp_server<Exec>::accept(opt_cb_token<tcp_socket_ptr,error_code> tk) 
 			co_return ;
 
 		error_code error;
-		auto size = co_await accept({tk.rtime, use_awaitable_e[error]});
+		auto size = co_await co_accept({tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -279,13 +276,21 @@ void basic_tcp_server<Exec>::accept(opt_cb_token<tcp_socket_ptr,error_code> tk) 
 }
 
 template <concept_execution Exec>
-awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::accept(opt_token<ua_redirect_error_t> tk) noexcept
+awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::co_accept(opt_token<error_code&> tk)
 {
-	auto socket = co_await acceptor().async_accept(m_pool, std::move(tk.uare));
-	if( tk.uare.ec_ )
-		co_return tcp_socket_ptr();
-		
-	auto sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
+	error_code error;
+	auto socket = co_await acceptor().async_accept(m_pool, use_awaitable_e[error]);
+
+	std::shared_ptr<client_socket_type> sock_ptr;
+	if( error )
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::co_read");
+
+		*tk.error = std::move(error);
+		co_return sock_ptr;
+	}
+	sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
 	auto _sock_ptr = sock_ptr.get();
 	m_sock_set.emplace(_sock_ptr);
 
@@ -305,24 +310,21 @@ awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::accept(opt_token<ua_redirect_e
 }
 
 template <concept_execution Exec>
-awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::accept(opt_token<use_awaitable_t&> tk)
+tcp_socket_ptr basic_tcp_server<Exec>::accept(opt_token<error_code&> tk)
 {
 	error_code error;
-	auto socket = co_await accept({tk.rtime, use_awaitable_e[error]});
-
-	if( error )
-		throw system_error(error, "libgs::io::tcp_server::accept");
-	co_return socket;
-}
-
-template <concept_execution Exec>
-tcp_socket_ptr basic_tcp_server<Exec>::accept(error_code &error) noexcept
-{
 	auto socket = acceptor().accept(m_pool, error);
+
+	std::shared_ptr<client_socket_type> sock_ptr;
 	if( error )
-		return tcp_socket_ptr();
-		
-	auto sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::co_read");
+
+		*tk.error = std::move(error);
+		return sock_ptr;
+	}
+	sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
 	auto _sock_ptr = sock_ptr.get();
 	m_sock_set.emplace(_sock_ptr);
 
@@ -339,17 +341,6 @@ tcp_socket_ptr basic_tcp_server<Exec>::accept(error_code &error) noexcept
 		});
 	});
 	return sock_ptr;
-}
-
-template <concept_execution Exec>
-tcp_socket_ptr basic_tcp_server<Exec>::accept()
-{
-	error_code error;
-	auto socket = accept(error);
-
-	if( error )
-		throw system_error(error, "libgs::io::tcp_server::accept");
-	return socket;
 }
 
 template <concept_execution Exec>
@@ -385,7 +376,7 @@ void basic_tcp_server<Exec>::get_option(auto &op)
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_tcp_server<Exec>::wait(use_awaitable_t&) noexcept
+awaitable<void> basic_tcp_server<Exec>::co_wait() noexcept
 {
 	return co_thread([this]{wait();});
 }

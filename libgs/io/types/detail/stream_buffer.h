@@ -58,7 +58,8 @@ inline buffer<const void*>::buffer(const void *data, size_t size) :
 		this->size = std::strlen(reinterpret_cast<const char*>(data));
 }
 
-buffer<const std::string&>::buffer(const std::string &data, size_t size) :
+template <typename String>
+buffer<const std::string&>::buffer(const String &data, size_t size) requires std::is_same_v<String,std::string> :
 	base_type(size), data(data)
 {
 	if( size == 0 )

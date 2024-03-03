@@ -56,12 +56,8 @@ class basic_udp_socket : public basic_socket<Exec>
 
 public:
 	using executor_type = base_type::executor_type;
-	using address = base_type::address;
 	using address_vector = base_type::address_vector;
 	using shutdown_type = base_type::shutdown_type;
-	using endpoint_arg = base_type::endpoint_arg;
-	using endpoint = base_type::endpoint;
-	using option = base_type::option;
 
 	using asio_socket = asio_basic_udp_socket<Exec>;
 	using asio_socket_ptr = asio_basic_udp_socket_ptr<Exec>;
@@ -86,16 +82,15 @@ public: // TODO ...
 	// leave_multicast_group
 
 public:
-	void connect(endpoint ep, error_code &error) noexcept override;
-	address_vector dns(std::string domain, error_code &error) noexcept override;
+	void connect(ip_endpoint ep, opt_token<error_code&> tk = {}) override;
+	address_vector dns(string_wrapper domain, opt_token<error_code&> tk = {}) override;
 
 public:
-	size_t read(buffer<void*> buf, error_code &error) noexcept override;
-	size_t write(buffer<const void*> buf, error_code &error) noexcept override;
+	size_t read(buffer<void*> buf, read_token<error_code&> tk = {}) override;
+	size_t write(buffer<const void*> buf, opt_token<error_code&> tk = {}) override;
 
 public:
-	[[nodiscard]] endpoint remote_endpoint(error_code &error) const noexcept override;
-	[[nodiscard]] endpoint local_endpoint(error_code &error) const noexcept override;
+	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
 
 public:
 	void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept override;
@@ -106,11 +101,12 @@ public:
 	void cancel() noexcept override;
 
 public:
-	void set_option(const option &op, error_code &error) noexcept override;
-	void get_option(option op, error_code &error) const noexcept override;
+	void set_option(const socket_option &op, error_code &error) noexcept override;
+	void get_option(socket_option op, error_code &error) const noexcept override;
 
 public:
-	asio_socket &native_object() const;
+	const asio_socket &native_object() const;
+	asio_socket &native_object();
 	udp_handle_type native_handle() const;
 
 public:
@@ -118,6 +114,7 @@ public:
 	using base_type::dns;
 	using base_type::read;
 	using base_type::write;
+	using base_type::local_endpoint;
 	using base_type::shutdown;
 	using base_type::close;
 	using base_type::set_option;
@@ -131,8 +128,15 @@ protected:
 	[[nodiscard]] awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept override;
 
 protected:
-	asio_socket_ptr m_sock;
+	explicit basic_udp_socket(auto *asio_sock, concept_callable auto &&del_sock);
+
+protected:
+	void *m_sock;
+	std::function<void()> m_del_sock {
+		[this]{ delete reinterpret_cast<asio_socket*>(m_sock); }
+	};
 	resolver m_resolver;
+	std::function<void()> m_del_cb {nullptr};
 
 	std::atomic_bool m_write_cancel {false};
 	std::atomic_bool m_read_cancel {false};
@@ -198,46 +202,7 @@ basic_udp_socket<Exec>::~basic_udp_socket()
 }
 
 template <concept_execution Exec>
-void basic_udp_socket<Exec>::connect(endpoint ep, error_code &error) noexcept
-{
-	m_sock->connect({ep.addr, ep.port}, error);
-}
-
-template <concept_execution Exec>
-typename basic_udp_socket<Exec>::address_vector basic_udp_socket<Exec>::dns(std::string domain, error_code &error) noexcept
-{
-	address_vector vector;
-	auto results = m_resolver.resolve(domain, "0", error);
-
-	if( error )
-		return vector;
-
-	for(auto &addr : vector)
-		vector.emplace_back(std::move(addr));
-	return vector;
-}
-
-template <concept_execution Exec>
-size_t basic_udp_socket<Exec>::read(buffer<void*> buf, error_code &error) noexcept
-{
-	return m_sock->read_some(asio::buffer(buf.data, buf.size), error);
-}
-
-template <concept_execution Exec>
-size_t basic_udp_socket<Exec>::write(buffer<const void*> buf, error_code &error) noexcept
-{
-	return m_sock->write_some(asio::buffer(buf.data, buf.size), error);
-}
-
-template <concept_execution Exec>
-basic_udp_socket<Exec>::endpoint basic_udp_socket<Exec>::remote_endpoint(error_code &error) const noexcept
-{
-	auto ep = m_sock->remote_endpoint(error);
-	return {ep.address(), ep.port()};
-}
-
-template <concept_execution Exec>
-basic_udp_socket<Exec>::endpoint basic_udp_socket<Exec>::local_endpoint(error_code &error) const noexcept
+ip_endpoint basic_udp_socket<Exec>::local_endpoint(error_code &error) const noexcept
 {
 	auto ep = m_sock->local_endpoint(error);
 	return {ep.address(), ep.port()};
@@ -275,7 +240,7 @@ void basic_udp_socket<Exec>::cancel() noexcept
 }
 
 template <concept_execution Exec>
-void basic_udp_socket<Exec>::set_option(const option &op, error_code &error) noexcept
+void basic_udp_socket<Exec>::set_option(const socket_option &op, error_code &error) noexcept
 {
 	using namespace asio;
 
@@ -314,10 +279,12 @@ void basic_udp_socket<Exec>::set_option(const option &op, error_code &error) noe
 	
 	else if( op.id == typeid(ip::v6_only).hash_code() )
 		m_sock->set_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+
+	else error = std::make_error_code(errc::invalid_argument);
 }
 
 template <concept_execution Exec>
-void basic_udp_socket<Exec>::get_option(option op, error_code &error) const noexcept
+void basic_udp_socket<Exec>::get_option(socket_option op, error_code &error) const noexcept
 {
 	using namespace asio;
 
@@ -356,6 +323,8 @@ void basic_udp_socket<Exec>::get_option(option op, error_code &error) const noex
 	
 	else if( op.id == typeid(ip::v6_only).hash_code() )
 		m_sock->get_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+
+	else error = std::make_error_code(errc::invalid_argument);
 }
 
 template <concept_execution Exec>
@@ -379,7 +348,7 @@ awaitable<error_code> basic_udp_socket<Exec>::do_connect(const endpoint &ep) noe
 
 	if( m_connect_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(errc::operation_aborted);
 		m_connect_cancel = false;
 	}
 	co_return error;
@@ -396,7 +365,7 @@ awaitable<typename basic_udp_socket<Exec>::address_vector> basic_udp_socket<Exec
 
 	if( m_dns_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(errc::operation_aborted);
 		m_dns_cancel = false;
 		co_return vector;
 	}
@@ -416,7 +385,7 @@ awaitable<size_t> basic_udp_socket<Exec>::read_data(void *buf, size_t size, erro
 
 	if( m_read_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(errc::operation_aborted);
 		m_read_cancel = false;
 	}
 	co_return size;
@@ -430,7 +399,7 @@ awaitable<size_t> basic_udp_socket<Exec>::write_data(const void *buf, size_t siz
 
 	if( m_write_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(errc::operation_aborted);
 		m_write_cancel = false;
 	}
 	co_return size;

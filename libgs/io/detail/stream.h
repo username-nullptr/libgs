@@ -45,7 +45,7 @@ void basic_stream<Exec>::close()
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::read(buffer<void*> buf, read_cb_token<size_t,error_code> tk) noexcept
+void basic_stream<Exec>::async_read(buffer<void*> buf, read_cb_token<size_t,error_code> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), buf, tk = std::move(tk)]() -> awaitable<void>
@@ -54,7 +54,7 @@ void basic_stream<Exec>::read(buffer<void*> buf, read_cb_token<size_t,error_code
 			co_return ;
 
 		error_code error;
-		auto size = co_await read(buf, {std::move(tk.rc), tk.rtime, use_awaitable_e[error]});
+		auto size = co_await co_read(buf, {std::move(tk.rc), tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -66,58 +66,45 @@ void basic_stream<Exec>::read(buffer<void*> buf, read_cb_token<size_t,error_code
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::read(buffer<void*> buf, read_cb_token<size_t> tk)
+void basic_stream<Exec>::async_read(buffer<void*> buf, read_cb_token<size_t> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
+	async_read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	}});
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::read(buffer<void*> buf, read_token<ua_redirect_error_t> tk) noexcept
+awaitable<size_t> basic_stream<Exec>::co_read(buffer<void*> buf, read_token<error_code&> tk)
 {
 	using namespace std::chrono;
 	if( buf.size == 0 )
 		co_return 0;
 
-	else if( tk.rtime == 0s )
-		co_return co_await read_data(buf.data, buf.size, std::move(tk.rc), tk.uare.ec_);
-	
-	auto var = co_await (read_data(buf.data, buf.size, std::move(tk.rc), tk.uare.ec_) or co_sleep_for(tk.rtime));
 	size_t size = 0;
+	error_code error;
 
-	if( var.index() == 0 )
-		size = std::get<0>(var);
+	if( tk.rtime == 0s )
+		size = co_await read_data(buf.data, buf.size, std::move(tk.rc), error);
 	else
-		tk.uare.ec_ = std::make_error_code(std::errc::timed_out);
+	{
+		auto var = co_await(read_data(buf.data, buf.size, std::move(tk.rc), error) or co_sleep_for(tk.rtime));
+		if( var.index() == 0 )
+			size = std::get<0>(var);
+		else
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	if( error )
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::co_read");
+		*tk.error = std::move(error);
+	}
 	co_return size;
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::read(buffer<void*> buf, read_token<use_awaitable_t&> tk)
-{
-	error_code error;
-	auto res = co_await read(buf, {std::move(tk.rc), tk.rtime, use_awaitable_e[error]});
-
-	if( error )
-		throw system_error(error, "libgs::io::stream::read");
-	co_return res;
-}
-
-template <concept_execution Exec>
-size_t basic_stream<Exec>::read(buffer<void*> buf, read_condition rc)
-{
-	error_code error;
-	auto res = read(buf, {std::move(rc), error});
-
-	if( error )
-		throw system_error(error, "libgs::io::stream::read");
-	return res;
-}
-
-template <concept_execution Exec>
-void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<size_t,error_code> tk) noexcept
+void basic_stream<Exec>::async_read(buffer<std::string&> buf, read_cb_token<size_t,error_code> tk) noexcept
 {
 	if( buf.size == 0 )
 		buf.size = read_buffer_size();
@@ -125,7 +112,7 @@ void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<size_t,err
 	auto _buf = std::make_shared<char[]>(buf.size);
 	auto callback = std::move(tk.callback);
 
-	read({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, [buf, _buf, callback = std::move(callback)](size_t size, const error_code &error)
+	async_read({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, [buf, _buf, callback = std::move(callback)](size_t size, const error_code &error)
 	{
 		buf.data = std::string(_buf.get(), size);
 		callback(size, error);
@@ -133,84 +120,60 @@ void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<size_t,err
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<size_t> tk)
+void basic_stream<Exec>::async_read(buffer<std::string&> buf, read_cb_token<size_t> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
+	async_read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	}});
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<error_code> tk) noexcept
+void basic_stream<Exec>::async_read(buffer<std::string&> buf, read_cb_token<error_code> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t, const error_code &error){
+	async_read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](size_t, const error_code &error){
 		callback(error);
 	}});
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::read(buffer<std::string&> buf, read_cb_token<> tk)
+void basic_stream<Exec>::async_read(buffer<std::string&> buf, read_cb_token<> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](const error_code&){
+	async_read(buf, {std::move(tk.rc), tk.rtime, [callback = std::move(callback)](const error_code&){
 		callback();
 	}});
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::read(buffer<std::string&> buf, read_token<ua_redirect_error_t> tk) noexcept
+awaitable<size_t> basic_stream<Exec>::co_read(buffer<std::string&> buf, read_token<error_code&> tk)
 {
 	if( buf.size == 0 )
 		buf.size = read_buffer_size();
 	
-	auto _buf = new char[buf.size] {0};
-	auto size = co_await read({_buf, buf.size}, std::move(tk));
+	auto _buf = std::make_shared<char[]>(buf.size);
+	auto size = co_await co_read({_buf.get(), buf.size}, std::move(tk));
 
-	buf.data = std::string(_buf, size);
-	delete[] _buf;
+	buf.data = std::string(_buf.get(), size);
 	co_return size;
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::read(buffer<std::string&> buf, read_token<use_awaitable_t&> tk)
-{
-	error_code error;
-	auto res = co_await read(buf, {std::move(tk.rc), tk.rtime, use_awaitable_e[error]});
-
-	if( error )
-		throw system_error(error, "libgs::io::stream::read");
-	co_return res;
-}
-
-template <concept_execution Exec>
-size_t basic_stream<Exec>::read(buffer<std::string&> buf, read_token<error_code&> tk) noexcept
+size_t basic_stream<Exec>::read(buffer<std::string&> buf, read_token<error_code&> tk)
 {
 	if( buf.size == 0 )
 		buf.size = read_buffer_size();
 	
-	auto _buf = new char[buf.size] {0};
-	auto size = read({_buf, buf.size}, std::move(tk));
+	auto _buf = std::make_shared<char[]>(buf.size);
+	auto size = read({_buf.get(), buf.size}, std::move(tk));
 
-	buf.data = std::string(_buf, size);
-	delete[] _buf;
+	buf.data = std::string(_buf.get(), size);
 	return size;
 }
 
 template <concept_execution Exec>
-size_t basic_stream<Exec>::read(buffer<std::string&> buf, read_condition rc)
-{
-	error_code error;
-	auto res = read(buf, {std::move(rc), error});
-
-	if( error )
-		throw system_error(error, "libgs::io::stream::read");
-	return res;
-}
-
-template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const void*> buf, opt_cb_token<size_t,error_code> tk) noexcept
+void basic_stream<Exec>::async_write(buffer<const void*> buf, opt_cb_token<size_t,error_code> tk) noexcept
 {
 	auto size = buf.size;
 	auto _buf = std::make_shared<char[]>(size);
@@ -224,7 +187,7 @@ void basic_stream<Exec>::write(buffer<const void*> buf, opt_cb_token<size_t,erro
 			co_return ;
 
 		error_code error;
-		size = co_await write({buf.get(), size}, {tk.rtime, use_awaitable_e[error]});
+		size = co_await co_write({buf.get(), size}, {tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -236,16 +199,16 @@ void basic_stream<Exec>::write(buffer<const void*> buf, opt_cb_token<size_t,erro
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const void*> buf, opt_cb_token<size_t> tk)
+void basic_stream<Exec>::async_write(buffer<const void*> buf, opt_cb_token<size_t> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	write(buf, {tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
+	async_write(buf, {tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	}});
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<ua_redirect_error_t> tk) noexcept
+awaitable<size_t> basic_stream<Exec>::co_write(buffer<const void*> buf, opt_token<error_code&> tk)
 {
 	using namespace std::chrono;
 	if( buf.size == 0 )
@@ -254,91 +217,66 @@ awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<u
 	auto _buf = std::make_shared<char[]>(buf.size);
 	memcpy(_buf.get(), buf.data, buf.size);
 
-	if( tk.rtime == 0s )
-		co_return co_await write_data(_buf.get(), buf.size, tk.uare.ec_);
-
-	auto no_time_out = [&]() -> awaitable<size_t>
-	{
-		size_t sum = 0;
-		do {
-			auto res = co_await write_data(_buf.get() + sum, buf.size - sum, tk.uare.ec_);
-			if( tk.uare.ec_ and tk.uare.ec_ != errc::try_again )
-				break;
-			sum += res;
-		}
-		while( sum < buf.size );
-		co_return sum;
-	};
-
-	auto var = co_await (no_time_out() or co_sleep_for(tk.rtime));
 	size_t size = 0;
+	error_code error;
 
-	if( var.index() == 0 )
-		size = std::get<0>(var);
+	if( tk.rtime == 0s )
+		size = co_await write_data(_buf.get(), buf.size, error);
 	else
-		tk.uare.ec_ = std::make_error_code(std::errc::timed_out);
+	{
+		auto no_time_out = [&]() -> awaitable<size_t>
+		{
+			size_t sum = 0;
+			do {
+				auto res = co_await write_data(_buf.get() + sum, buf.size - sum, error);
+				if( error and error.value() != errc::try_again )
+					break;
+				sum += res;
+			}
+			while( sum < buf.size );
+			co_return sum;
+		};
+		auto var = co_await (no_time_out() or co_sleep_for(tk.rtime));
+
+		if( var.index() == 0 )
+			size = std::get<0>(var);
+		else
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	if( error )
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::co_write");
+		*tk.error = std::move(error);
+	}
 	co_return size;
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<use_awaitable_t&> tk)
+void basic_stream<Exec>::async_write(buffer<const std::string&> buf, opt_cb_token<size_t,error_code> tk) noexcept
 {
-	error_code error;
-	auto res = co_await write(buf, {tk.rtime, use_awaitable_e[error]});
-
-	if( error )
-		throw system_error(error, "libgs::io::stream::write");
-	co_return res;
+	async_write({buf.data.c_str(), buf.size}, std::move(tk));
 }
 
 template <concept_execution Exec>
-size_t basic_stream<Exec>::write(buffer<const void*> buf)
-{
-	error_code error;
-	auto res = write(buf, error);
-
-	if( error )
-		throw system_error(error, "libgs::io::stream::write");
-	return res;
-}
-
-template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const std::string&> buf, opt_cb_token<size_t,error_code> tk) noexcept
-{
-	write({buf.data.c_str(), buf.size}, std::move(tk));
-}
-
-template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const std::string&> buf, opt_cb_token<size_t> tk)
+void basic_stream<Exec>::async_write(buffer<const std::string&> buf, opt_cb_token<size_t> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	write(buf, {tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
+	async_write(buf, {tk.rtime, [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	}});
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::write(buffer<const std::string&> buf, opt_token<ua_redirect_error_t> tk) noexcept
+awaitable<size_t> basic_stream<Exec>::co_write(buffer<const std::string&> buf, opt_token<error_code&> tk)
+{
+	return co_write({buf.data.c_str(), buf.size}, std::move(tk));
+}
+
+template <concept_execution Exec>
+size_t basic_stream<Exec>::write(buffer<const std::string&> buf, opt_token<error_code&> tk)
 {
 	return write({buf.data.c_str(), buf.size}, std::move(tk));
-}
-
-template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::write(buffer<const std::string&> buf, opt_token<use_awaitable_t&> tk)
-{
-	return write({buf.data.c_str(), buf.size}, std::move(tk));
-}
-
-template <concept_execution Exec>
-size_t basic_stream<Exec>::write(buffer<const std::string&> buf, error_code &error) noexcept
-{
-	return write({buf.data.c_str(), buf.size}, error);
-}
-
-template <concept_execution Exec>
-size_t basic_stream<Exec>::write(buffer<const std::string&> buf)
-{
-	return write({buf.data.c_str(), buf.size});
 }
 
 } //namespace libgs::io

@@ -32,119 +32,55 @@
 namespace libgs::io
 {
 
-template <typename Token>
 template <typename Rep, typename Period>
-opt_token<Token>::opt_token(const duration<Rep, Period> &rtime) :
+opt_token<void>::opt_token(const duration<Rep,Period> &rtime) :
 	rtime(std::chrono::duration_cast<std::chrono::nanoseconds>(rtime))
 {
 
 }
 
-template <typename Token>
 template<typename Clock, typename Duration>
-opt_token<Token>::opt_token(const time_point<Clock, Duration> &atime)
+opt_token<void>::opt_token(const time_point<Clock,Duration> &atime)
 {
 	namespace dt = std::chrono;
-	auto _rtime = atime - dt::time_point_cast<time_point<Clock, Duration>>(dt::system_clock::now());
+	auto _rtime = atime - dt::time_point_cast<time_point<Clock,Duration>>(dt::system_clock::now());
 	rtime = dt::duration_cast<dt::nanoseconds>(_rtime);
 }
 
 template <typename...Args>
 template <typename Func>
-opt_token<callback_t<Args...>>::opt_token(Func &&callback)
-	requires concept_void_callable<Func,Args...> :
+opt_token<callback_t<Args...>>::opt_token(Func &&callback) requires concept_void_callable<Func,Args...> :
 	callback(std::forward<Func>(callback))
 {
 
 }
 
 template <typename...Args>
-template <typename Rep, typename Period, typename Func>
-opt_token<callback_t<Args...>>::opt_token(const duration<Rep, Period> &rtime, Func &&callback) 
-	requires concept_void_callable<Func,Args...> :
-	base_type(rtime), callback(std::forward<Func>(callback))
-{
-	
-}
-
-template <typename...Args>
-template<typename Clock, typename Duration, typename Func>
-opt_token<callback_t<Args...>>::opt_token(const time_point<Clock, Duration> &atime, Func &&callback) 
-	requires concept_void_callable<Func,Args...> :
-	base_type(atime), callback(std::forward<Func>(callback))
-{
-
-}
-
-inline opt_token<use_awaitable_t &>::opt_token(use_awaitable_t &ua) :
-	ua(ua)
-{
-
-}
-
-template <typename Rep, typename Period>
-opt_token<use_awaitable_t&>::opt_token(const duration<Rep, Period> &rtime, use_awaitable_t &ua) :
-	base_type(rtime), ua(ua)
-{
-
-}
-
-template<typename Clock, typename Duration>
-opt_token<use_awaitable_t&>::opt_token(const time_point<Clock, Duration> &atime, use_awaitable_t &ua) :
-	base_type(atime), ua(ua)
-{
-
-}
-
-inline opt_token<ua_redirect_error_t>::opt_token(ua_redirect_error_t uare) :
-	uare(std::move(uare))
-{
-
-}
-
-template <typename Rep, typename Period>
-opt_token<ua_redirect_error_t>::opt_token(const duration<Rep, Period> &rtime, ua_redirect_error_t uare) :
-	base_type(rtime), uare(std::move(uare))
-{
-
-}
-
-template<typename Clock, typename Duration>
-opt_token<ua_redirect_error_t>::opt_token(const time_point<Clock, Duration> &atime, ua_redirect_error_t uare) :
-	base_type(atime), uare(std::move(uare))
+template <typename Time, typename Func>
+opt_token<callback_t<Args...>>::opt_token(const Time &time, Func &&callback) requires 
+	concept_opt_token<void,Time> and concept_void_callable<Func,Args...> :
+	opt_token<void>(time), callback(std::forward<Func>(callback))
 {
 
 }
 
 inline opt_token<error_code&>::opt_token(error_code &error) :
-	error(error)
+	error(&error)
+{
+
+}
+
+template <typename Time>
+opt_token<error_code&>::opt_token(const Time &time, error_code &error) requires concept_opt_token<void,Time> :
+	opt_token<void>(time), error(&error)
 {
 
 }
 
 template <typename T>
-template<typename T0>
-read_token<T>::read_token(read_condition rc, T0 &&tk) 
-	requires concept_opt_token<T,T0> :
-	base_type(std::forward<T>(tk)), rc(std::move(rc))
-{
-
-}
-
-template <typename T>
-template <typename Rep, typename Period, typename T0>
-read_token<T>::read_token(read_condition rc, const duration<Rep, Period> &rtime, T0 &&tk)
-	requires concept_opt_token<T,T0> :
-	base_type(rtime, std::forward<T>(tk)), rc(std::move(rc))
-{
-
-}
-
-template <typename T>
-template<typename Clock, typename Duration, typename T0>
-read_token<T>::read_token(read_condition rc, const time_point<Clock, Duration> &atime, T0 &&tk) 
-	requires concept_opt_token<T,T0> :
-	base_type(atime, std::forward<T>(tk)), rc(std::move(rc))
+template <typename...Args>
+read_token<T>::read_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...> :
+	opt_token<T>(std::forward<Args>(args)...), rc(std::move(rc))
 {
 
 }

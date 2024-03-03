@@ -81,7 +81,9 @@ struct buffer<const std::string&> : buffer<void>
 	using base_type::base_type;
 
 	const std::string &data;
-	buffer(const std::string &data, size_t size = 0);
+
+	template <typename String>
+	buffer(const String &data, size_t size = 0) requires std::is_same_v<String,std::string>;
 };
 
 } //namespace libgs

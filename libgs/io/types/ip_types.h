@@ -36,6 +36,10 @@ namespace libgs::io
 
 using ip_address = asio::ip::address;
 
+using address_v4 = asio::ip::address_v4;
+
+using address_v6 = asio::ip::address_v6;
+
 struct host_endpoint
 {
 	std::string host;

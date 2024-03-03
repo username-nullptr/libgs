@@ -76,35 +76,75 @@ basic_tcp_socket<Exec>::~basic_tcp_socket()
 }
 
 template <concept_execution Exec>
-void basic_tcp_socket<Exec>::connect(ip_endpoint ep, error_code &error) noexcept
+void basic_tcp_socket<Exec>::connect(ip_endpoint ep, opt_token<error_code&> tk)
 {
+	error_code error;
 	native_object().connect({ep.addr, ep.port}, error);
+
+	if( error )
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::connect");
+		*tk.error = std::move(error);
+	}
 }
 
 template <concept_execution Exec>
-typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(string_wrapper domain, error_code &error) noexcept
+typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(string_wrapper domain, opt_token<error_code&> tk)
 {
 	address_vector vector;
+	error_code error;
+
 	auto results = m_resolver.resolve(domain.value, "0", error);
-
 	if( error )
-		return vector;
-
-	for(auto &addr : vector)
-		vector.emplace_back(std::move(addr));
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::dns");
+		*tk.error = std::move(error);
+	}
+	else
+	{
+		for(auto &ep : results)
+			vector.emplace_back(ep.endpoint().address());
+	}
 	return vector;
 }
 
 template <concept_execution Exec>
-size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, read_token<error_code&> tk) noexcept
+size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, read_token<error_code&> tk)
 {
-	return native_object().read_some(asio::buffer(buf.data, buf.size), tk.error);
+	error_code error;
+	auto res = native_object().read_some(asio::buffer(buf.data, buf.size), error);
+
+	if( error )
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::read");
+		*tk.error = std::move(error);
+	}
+	return res;
 }
 
 template <concept_execution Exec>
-size_t basic_tcp_socket<Exec>::write(buffer<const void*> buf, error_code &error) noexcept
+size_t basic_tcp_socket<Exec>::write(buffer<const void*> buf, opt_token<error_code&> tk)
 {
-	return native_object().write_some(asio::buffer(buf.data, buf.size), error);
+	error_code error;
+	auto res = native_object().write_some(asio::buffer(buf.data, buf.size), error);
+
+	if( error )
+	{
+		if( tk.error == nullptr )
+			throw system_error(error, "libgs::io::stream::write");
+		*tk.error = std::move(error);
+	}
+	return res;
+}
+
+template <concept_execution Exec>
+ip_endpoint basic_tcp_socket<Exec>::local_endpoint(error_code &error) const noexcept
+{
+	auto ep = native_object().local_endpoint(error);
+	return {ep.address(), ep.port()};
 }
 
 template <concept_execution Exec>
@@ -115,10 +155,14 @@ ip_endpoint basic_tcp_socket<Exec>::remote_endpoint(error_code &error) const noe
 }
 
 template <concept_execution Exec>
-ip_endpoint basic_tcp_socket<Exec>::local_endpoint(error_code &error) const noexcept
+ip_endpoint basic_tcp_socket<Exec>::remote_endpoint() const
 {
-	auto ep = native_object().local_endpoint(error);
-	return {ep.address(), ep.port()};
+	error_code error;
+	auto ep = remote_endpoint(error);
+
+	if( error )
+		throw system_error(error, "libgs::io::tcp_socket::remote_endpoint");
+	return ep;
 }
 
 template <concept_execution Exec>
@@ -192,6 +236,8 @@ void basic_tcp_socket<Exec>::set_option(const socket_option &op, error_code &err
 	
 	else if( op.id == typeid(ip::v6_only).hash_code() )
 		native_object().set_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+
+	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
 }
 
 template <concept_execution Exec>
@@ -234,6 +280,8 @@ void basic_tcp_socket<Exec>::get_option(socket_option op, error_code &error) con
 	
 	else if( op.id == typeid(ip::v6_only).hash_code() )
 		native_object().get_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+
+	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
 }
 
 template <concept_execution Exec>
@@ -263,7 +311,7 @@ awaitable<error_code> basic_tcp_socket<Exec>::do_connect(const ip_endpoint &ep) 
 
 	if( m_connect_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
 		m_connect_cancel = false;
 	}
 	co_return error;
@@ -280,7 +328,7 @@ awaitable<typename basic_tcp_socket<Exec>::address_vector> basic_tcp_socket<Exec
 
 	if( m_dns_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
 		m_dns_cancel = false;
 		co_return vector;
 	}
@@ -320,7 +368,7 @@ awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, read
 	}
 	if( m_read_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
 		m_read_cancel = false;
 	}
 	co_return size;
@@ -334,7 +382,7 @@ awaitable<size_t> basic_tcp_socket<Exec>::write_data(const void *buf, size_t siz
 
 	if( m_write_cancel )
 	{
-		error = errc::operation_aborted;
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
 		m_write_cancel = false;
 	}
 	co_return size;

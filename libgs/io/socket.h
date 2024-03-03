@@ -51,28 +51,17 @@ public:
 	~basic_socket() override = default;
 
 public:
-	void connect(host_endpoint ep, opt_cb_token<error_code> tk) noexcept;
-
-	[[nodiscard]] awaitable<void> connect(host_endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept;
-	[[nodiscard]] awaitable<void> connect(host_endpoint ep, opt_token<use_awaitable_t&> tk);
-
-	void connect(host_endpoint ep, error_code &error) noexcept;
-	void connect(host_endpoint ep);
+	void async_connect(host_endpoint ep, opt_cb_token<error_code> tk) noexcept;
+	[[nodiscard]] awaitable<void> co_connect(host_endpoint ep, opt_token<error_code&> tk = {});
+	void connect(host_endpoint ep, opt_token<error_code&> tk = {});
 
 public:
-	void connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept;
-
-	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<ua_redirect_error_t> tk) noexcept;
-	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<use_awaitable_t&> tk);
-
-	virtual void connect(ip_endpoint ep, error_code &error) noexcept = 0;
-	void connect(ip_endpoint ep);
+	void async_connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept;
+	[[nodiscard]] awaitable<void> co_connect(ip_endpoint ep, opt_token<error_code&> tk = {});
+	virtual void connect(ip_endpoint ep, opt_token<error_code&> tk = {}) = 0;
 
 public:
-	[[nodiscard]] virtual ip_endpoint remote_endpoint(error_code &error) const noexcept = 0;
 	[[nodiscard]] virtual ip_endpoint local_endpoint(error_code &error) const noexcept = 0;
-	
-	[[nodiscard]] ip_endpoint remote_endpoint() const;
 	[[nodiscard]] ip_endpoint local_endpoint() const;
 
 public:
@@ -91,13 +80,9 @@ public:
 	void get_option(socket_option op) const;
 
 public:
-	void dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept;
-
-	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<ua_redirect_error_t> tk) noexcept;
-	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<use_awaitable_t&> tk);
-
-	virtual address_vector dns(string_wrapper domain, error_code &error) noexcept = 0;
-	address_vector dns(string_wrapper domain);
+	void async_dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept;
+	[[nodiscard]] awaitable<address_vector> co_dns(string_wrapper domain, opt_token<error_code&> tk = {});
+	virtual address_vector dns(string_wrapper domain, opt_token<error_code&> tk = {}) = 0;
 
 public:
 	size_t read_buffer_size() const noexcept override;

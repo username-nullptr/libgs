@@ -39,79 +39,20 @@ template <typename...Args>
 using callback_t = std::function<void(Args...)>;
 
 template <typename Token>
-struct opt_token
+struct opt_token;
+
+template <>
+struct opt_token<void>
 {
 	std::chrono::nanoseconds rtime {0};
 
-protected:
 	template <typename Rep, typename Period>
 	opt_token(const duration<Rep,Period> &rtime);
 
 	template<typename Clock, typename Duration>
-	opt_token(const time_point<Clock, Duration> &atime);
+	opt_token(const time_point<Clock,Duration> &atime);
 
 	opt_token() = default;
-};
-
-template <typename...Args>
-struct opt_token<callback_t<Args...>> : opt_token<void>
-{
-	using base_type = opt_token<void>;
-	using base_type::base_type;
-
-	using callback_t = callback_t<Args...>;
-	callback_t callback;
-
-	template <typename Func>
-	opt_token(Func &&callback) requires concept_void_callable<Func,Args...>;
-
-	template <typename Rep, typename Period, typename Func>
-	opt_token(const duration<Rep,Period> &rtime, Func &&callback) requires concept_void_callable<Func,Args...>;
-
-	template<typename Clock, typename Duration, typename Func>
-	opt_token(const time_point<Clock, Duration> &atime, Func &&callback) requires concept_void_callable<Func,Args...>;
-};
-
-template <>
-struct opt_token<use_awaitable_t&> : opt_token<void>
-{
-	using base_type = opt_token<void>;
-	using base_type::base_type;
-
-	use_awaitable_t &ua;
-	opt_token(use_awaitable_t &ua);
-
-	template <typename Rep, typename Period>
-	opt_token(const duration<Rep,Period> &rtime, use_awaitable_t &ua);
-
-	template<typename Clock, typename Duration>
-	opt_token(const time_point<Clock, Duration> &atime, use_awaitable_t &ua);
-};
-
-template <>
-struct opt_token<ua_redirect_error_t> : opt_token<void>
-{
-	using base_type = opt_token<void>;
-	using base_type::base_type;
-
-	ua_redirect_error_t uare;
-	opt_token(ua_redirect_error_t uare);
-
-	template <typename Rep, typename Period>
-	opt_token(const duration<Rep,Period> &rtime, ua_redirect_error_t uare);
-
-	template<typename Clock, typename Duration>
-	opt_token(const time_point<Clock, Duration> &atime, ua_redirect_error_t uare);
-};
-
-template <typename...Args>
-using opt_cb_token = opt_token<callback_t<Args...>>;
-
-template <>
-struct opt_token<error_code&>
-{
-	error_code &error;
-	opt_token(error_code &error);
 };
 
 template <typename T, typename...Args>
@@ -119,22 +60,43 @@ concept concept_opt_token = requires(Args&&...value) {
 	opt_token<T>(std::forward<Args>(value)...);
 };
 
+template <typename...Args>
+struct opt_token<callback_t<Args...>> : opt_token<void>
+{
+	using callback_t = callback_t<Args...>;
+	callback_t callback;
+
+	template <typename Func>
+	opt_token(Func &&callback) requires concept_void_callable<Func,Args...>;
+
+	template <typename Time, typename Func>
+	opt_token(const Time &time, Func &&callback) requires 
+		concept_opt_token<void,Time> and concept_void_callable<Func,Args...>;
+};
+
+template <typename...Args>
+using opt_cb_token = opt_token<callback_t<Args...>>;
+
+template <>
+struct opt_token<error_code&> : opt_token<void>
+{
+	using opt_token<void>::opt_token;
+	error_code *error = nullptr;
+
+	opt_token(error_code &error);
+
+	template <typename Time>
+	opt_token(const Time &time, error_code &error) requires concept_opt_token<void,Time>;
+};
+
 template <typename T>
 struct read_token : opt_token<T>
 {
-	using base_type = opt_token<T>;
-	using base_type::base_type;
-
+	using opt_token<T>::opt_token;
 	read_condition rc;
 
-	template <typename T0>
-	read_token(read_condition rc, T0 &&tk) requires concept_opt_token<T,T0>;
-
-	template <typename Rep, typename Period, typename T0>
-	read_token(read_condition rc, const duration<Rep, Period> &rtime, T0 &&tk) requires concept_opt_token<T,T0>;
-
-	template<typename Clock, typename Duration, typename T0>
-	read_token(read_condition rc, const time_point<Clock, Duration> &atime, T0 &&tk) requires concept_opt_token<T,T0>;
+	template <typename...Args>
+	read_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...>;
 };
 
 template <typename...Args>

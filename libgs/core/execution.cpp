@@ -71,6 +71,9 @@ int execution::exec()
 
 void execution::exit(int code)
 {
+	if( not g_run_flag )
+		return ;
+
 	g_exit_code = code;
 	g_run_flag = false;
 	io_context().stop();
