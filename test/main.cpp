@@ -6,5 +6,6 @@ using namespace std::chrono;
 
 int main()
 {
+	libgs_log_debug("hello world.");
 	return 0;
 }

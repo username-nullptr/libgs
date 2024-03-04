@@ -30,6 +30,7 @@ set(core_detail_headers
 	detail/stream.h
 	detail/socket.h
 	detail/tcp_socket.h
+	detail/tcp_server.h
 )
 
 set(all_files
