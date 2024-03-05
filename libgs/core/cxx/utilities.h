@@ -72,6 +72,9 @@ template <typename T>
 constexpr T &remove_const_v(const T &v);
 
 template <typename T>
+constexpr T *remove_const_v(const T *v);
+
+template <typename T>
 const char *type_name(T &&t);
 
 template <typename T>

@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_COROUTINE_H
 #define LIBGS_CORE_COROUTINE_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/execution.h>
 #include <asio/experimental/awaitable_operators.hpp>
 
 using namespace  asio::experimental::awaitable_operators;
@@ -80,6 +80,12 @@ awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtim
 
 template<typename Clock, typename Duration, typename Exec = asio::io_context>
 awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec = io_context());
+
+template <typename T>
+awaitable<T> co_wait(const std::future<T> &future);
+
+awaitable<void> co_wait(const asio::thread_pool &pool);
+awaitable<void> co_wait(const std::thread &thread);
 
 } //namespace libgs
 #include <libgs/core/detail/coroutine.h>

@@ -41,6 +41,11 @@ constexpr T &remove_const_v(const T &v) {
 }
 
 template <typename T>
+constexpr T *remove_const_v(const T *v) {
+	return const_cast<T*>(v);
+}
+
+template <typename T>
 const char *type_name(T &&t) {
 	return LIBGS_ABI_CXA_DEMANGLE(typeid(t).name());
 }

@@ -94,7 +94,7 @@ auto co_post(Exec &exec, Func &&func, Args&&...args) requires concept_callable<F
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type&&)>
+		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type)>
 		([&exec, func = std::forward<Func>(func)](auto handler, Args&&...args)
 		{
 		    auto work = asio::make_work_guard(handler);
@@ -132,7 +132,7 @@ auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires concept_callab
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type&&)>
+		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type)>
 		([&exec, func = std::forward<Func>(func)](auto handler, Args&&...args)
 		{
 			auto work = asio::make_work_guard(handler);
@@ -171,7 +171,7 @@ auto co_thread(Func &&func, Args&&...args) requires concept_callable<Func,Args..
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type&&)>
+		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type)>
 		([func = std::forward<Func>(func)](auto handler, Args&&...args)
 		{
 			auto work = asio::make_work_guard(handler);
@@ -204,6 +204,28 @@ awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duratio
 	asio::steady_timer timer(exec, atime);
 	co_await timer.async_wait(use_awaitable_e[error]);
 	co_return error;
+}
+
+template <typename T>
+awaitable<T> co_wait(const std::future<T> &future)
+{
+	co_return co_await co_thread([future = &future] {
+		return remove_const_v(future)->get();
+	});
+}
+
+awaitable<void> co_wait(const asio::thread_pool &pool)
+{
+	co_return co_await co_thread([pool = &pool] {
+		return remove_const_v(pool)->wait();
+	});
+}
+
+awaitable<void> co_wait(const std::thread &thread)
+{
+	co_return co_await co_thread([thread = &thread] {
+		return remove_const_v(thread)->join();
+	});
 }
 
 } //namespace libgs

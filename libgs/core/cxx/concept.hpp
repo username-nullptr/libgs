@@ -51,6 +51,12 @@ template <typename T>
 concept concept_number_type = std::is_arithmetic_v<T>;
 
 template <typename T>
+concept concept_integral_type = std::is_integral_v<T>;
+
+template <typename T>
+concept concept_float_type = is_float_v<T>;
+
+template <typename T>
 concept concept_enum_type = std::is_enum_v<T>;
 
 template <typename T>
