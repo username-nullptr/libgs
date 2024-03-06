@@ -363,7 +363,7 @@ void _set_context(const basic_log_context<CharT> &con)
 	else
 		str_replace(g_context<CharT>.category, L"\\", L"/");
 
-#endif //os
+#endif //_WINDOWS
 
 	if( not g_context<CharT>.directory.empty() )
 		g_context<CharT>.directory = app::absolute_path(g_context<CharT>.directory);
@@ -659,12 +659,12 @@ static void size_check(const void_basic_log_context &context, const std::string 
 		return ;
 	}
 	dir_info_list.sort([](const fs::directory_entry &info0, const fs::directory_entry &info1) {
-		return fs::create_time(info0.path()) < fs::create_time(info1.path());
+		return fs::create_time(info0.path().string()) < fs::create_time(info1.path().string());
 	});
 
 	file_info_list.clear();
 	for(auto &info : dir_info_list)
-		list_push_back(file_info_list, info.path());
+		list_push_back(file_info_list, info.path().string());
 	remove_if_too_big(file_info_list, context.max_size, log_size);
 
 	if( dir_info_list.size() == 1 )
@@ -703,7 +703,7 @@ static void list_push_back(std::list<fs::directory_entry> &list, const std::stri
 		return ;
 	}
 	list.sort([](const fs::directory_entry &info0, const fs::directory_entry &info1) {
-		return fs::create_time(info0.path()) < fs::create_time(info1.path());
+		return fs::create_time(info0.path().string()) < fs::create_time(info1.path().string());
 	});
 }
 

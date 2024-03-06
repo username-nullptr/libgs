@@ -31,6 +31,7 @@
 
 #include <libgs/core/algorithm/base.h>
 #include <format>
+#include <deque>
 
 namespace libgs
 {

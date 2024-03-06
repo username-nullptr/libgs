@@ -214,14 +214,14 @@ awaitable<T> co_wait(const std::future<T> &future)
 	});
 }
 
-awaitable<void> co_wait(const asio::thread_pool &pool)
+inline awaitable<void> co_wait(const asio::thread_pool &pool)
 {
 	co_return co_await co_thread([pool = &pool] {
 		return remove_const_v(pool)->wait();
 	});
 }
 
-awaitable<void> co_wait(const std::thread &thread)
+inline awaitable<void> co_wait(const std::thread &thread)
 {
 	co_return co_await co_thread([thread = &thread] {
 		return remove_const_v(thread)->join();

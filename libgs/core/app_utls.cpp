@@ -41,41 +41,4 @@ std::string dir_path()
 	return file_name.erase(index+1);
 }
 
-bool is_absolute_path(std::string_view path)
-{
-	return path.starts_with("/")
-#ifdef __unix__
-			or path.starts_with("~/")
-#endif //__unix__
-			;
-}
-
-using optional_string = std::optional<std::string>;
-
-optional_string getenv(std::string_view key)
-{
-	auto value = ::getenv(key.data());
-	return value? optional_string(value) : optional_string();
-}
-
-bool setenv(std::string_view key, std::string_view value, bool overwrite)
-{
-	if( ::setenv(key.data(), value.data(), overwrite) != 0 )
-	{
-		libgs_log_error("libgs::appinfo::setenv: setenv: {}. ({})", strerror(errno), errno);
-		return false;
-	}
-	return true;
-}
-
-bool unsetenv(std::string_view key)
-{
-	if( ::unsetenv(key.data()) != 0 )
-	{
-		libgs_log_error("libgs::appinfo::unsetenv: unsetenv: {}. ({})", strerror(errno), errno);
-		return false;
-	}
-	return true;
-}
-
 } //namespace libgs::app

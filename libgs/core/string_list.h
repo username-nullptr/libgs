@@ -44,28 +44,28 @@ using string_deque = basic_string_deque<char>;
 
 using wstring_deque = basic_string_deque<wchar_t>;
 
+template <typename T>
+struct _default_splits_argument {};
+
+template <>
+struct _default_splits_argument<char>
+{
+	static constexpr const char *s = " ";
+	static constexpr char c = ' ';
+};
+
+template <>
+struct _default_splits_argument<wchar_t>
+{
+	static constexpr const wchar_t *s = L" ";
+	static constexpr wchar_t c = L' ';
+};
+
 template <concept_char_type CharT>
 class basic_string_list : public basic_string_deque<CharT>
 {
-	template <typename T>
-	struct default_splits_argument {};
-
-	template <>
-	struct default_splits_argument<char>
-	{
-		static constexpr const char *s = " ";
-		static constexpr char c = ' ';
-	};
-
-	template <>
-	struct default_splits_argument<wchar_t>
-	{
-		static constexpr const wchar_t *s = L" ";
-		static constexpr wchar_t c = L' ';
-	};
-
-	static constexpr const CharT *default_splits_argument_s = default_splits_argument<CharT>::s;
-	static constexpr const CharT *default_splits_argument_c = default_splits_argument<CharT>::c;
+	static constexpr const CharT *default_splits_argument_s = _default_splits_argument<CharT>::s;
+	static constexpr const CharT *default_splits_argument_c = _default_splits_argument<CharT>::c;
 
 public:
 	using str_type = std::basic_string<CharT>;

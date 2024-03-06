@@ -1,5 +1,6 @@
 set(example_sources
 	algorithm.cpp
+	app_utls.cpp
 	value.cpp
 	ini.cpp
 	argv_parse.cpp

@@ -23,7 +23,7 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 		endif ()
 
 	elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-		if (${CMAKE_CXX_COMPILER_VERSION} LESS 17)
+		if (${CMAKE_CXX_COMPILER_VERSION} LESS 13)
 			message(FATAL_ERROR "The minimum version of 'GNU' required is 13.")
 		endif ()
 

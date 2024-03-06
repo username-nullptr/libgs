@@ -82,7 +82,7 @@ target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
 if (UNIX)
 	target_link_libraries(${target_name} PUBLIC pthread)
 elseif (WIN32)
-	target_link_libraries(${target_name} PUBLIC ws2_lib wsock32)
+	target_link_libraries(${target_name} PUBLIC ws2_32 wsock32)
 endif()
 
 set_target_properties(${target_name} PROPERTIES
