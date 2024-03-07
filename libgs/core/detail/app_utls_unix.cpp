@@ -29,6 +29,7 @@
 #ifdef __unix__
 
 #include "libgs/core/app_utls.h"
+#include "libgs/core/shared_mutex.h"
 #include "libgs/core/log.h"
 #include <unistd.h>
 

@@ -37,7 +37,7 @@ namespace libgs::log
 {
 
 template <concept_char_type CharT>
-class LIBGS_CORE_API basic_buffer
+class basic_buffer
 {
 	using ocontext = basic_output_context<CharT>;
 

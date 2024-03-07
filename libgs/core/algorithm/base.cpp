@@ -153,218 +153,122 @@ bool stob(const std::wstring &str, size_t base)
 
 int8_t stoi8_or(const std::string &str, size_t base, int8_t default_value)
 {
-	try {
-		return libgs::stoi8(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi8<char>(str, base, default_value);
 }
 
 int8_t stoi8_or(const std::wstring &str, size_t base, int8_t default_value)
 {
-	try {
-		return libgs::stoi8(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi8<wchar_t>(str, base, default_value);
 }
 
 uint8_t stoui8_or(const std::string &str, size_t base, uint8_t default_value)
 {
-	try {
-		return libgs::stoui8(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui8<char>(str, base, default_value);
 }
 
 uint8_t stoui8_or(const std::wstring &str, size_t base, uint8_t default_value)
 {
-	try {
-		return libgs::stoui8(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui8<wchar_t>(str, base, default_value);
 }
 
 int16_t stoi16_or(const std::string &str, size_t base, int16_t default_value)
 {
-	try {
-		return libgs::stoi16(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi16<char>(str, base, default_value);
 }
 
 int16_t stoi16_or(const std::wstring &str, size_t base, int16_t default_value)
 {
-	try {
-		return libgs::stoi16(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi16<wchar_t>(str, base, default_value);
 }
 
 uint16_t stoui16_or(const std::string &str, size_t base, uint16_t default_value)
 {
-	try {
-		return libgs::stoui16(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui16<char>(str, base, default_value);
 }
 
 uint16_t stoui16_or(const std::wstring &str, size_t base, uint16_t default_value)
 {
-	try {
-		return libgs::stoui16(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui16<wchar_t>(str, base, default_value);
 }
 
 int32_t stoi32_or(const std::string &str, size_t base, int32_t default_value)
 {
-	try {
-		return libgs::stoi32(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi32<char>(str, base, default_value);
 }
 
 int32_t stoi32_or(const std::wstring &str, size_t base, int32_t default_value)
 {
-	try {
-		return libgs::stoi32(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi32<wchar_t>(str, base, default_value);
 }
 
 uint32_t stoui32_or(const std::string &str, size_t base, uint32_t default_value)
 {
-	try {
-		return libgs::stoui32(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui32<char>(str, base, default_value);
 }
 
 uint32_t stoui32_or(const std::wstring &str, size_t base, uint32_t default_value)
 {
-	try {
-		return libgs::stoui32(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui32<wchar_t>(str, base, default_value);
 }
 
 int64_t stoi64_or(const std::string &str, size_t base, int64_t default_value)
 {
-	try {
-		return libgs::stoi64(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi64<char>(str, base, default_value);
 }
 
 int64_t stoi64_or(const std::wstring &str, size_t base, int64_t default_value)
 {
-	try {
-		return libgs::stoi64(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoi64<wchar_t>(str, base, default_value);
 }
 
 uint64_t stoui64_or(const std::string &str, size_t base, uint64_t default_value)
 {
-	try {
-		return libgs::stoui64(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui64<char>(str, base, default_value);
 }
 
 uint64_t stoui64_or(const std::wstring &str, size_t base, uint64_t default_value)
 {
-	try {
-		return libgs::stoui64(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stoui64<wchar_t>(str, base, default_value);
 }
 
 float stof_or(const std::string &str, float default_value)
 {
-	try {
-		return libgs::stof(str);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stof<char>(str, default_value);
 }
 
 float stof_or(const std::wstring &str, float default_value)
 {
-	try {
-		return libgs::stof(str);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stof<wchar_t>(str, default_value);
 }
 
 double stod_or(const std::string &str, double default_value)
 {
-	try {
-		return libgs::stod(str);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stod<char>(str, default_value);
 }
 
 double stod_or(const std::wstring &str, double default_value)
 {
-	try {
-		return libgs::stod(str);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stod<wchar_t>(str, default_value);
 }
 
 long double stold_or(const std::string &str, long double default_value)
 {
-	try {
-		return libgs::stold(str);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stold<char>(str, default_value);
 }
 
 long double stold_or(const std::wstring &str, long double default_value)
 {
-	try {
-		return libgs::stold(str);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stold<wchar_t>(str, default_value);
 }
 
 bool stob_or(const std::string &str, size_t base, bool default_value)
 {
-	try {
-		return stob(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stob<char>(str, base, default_value);
 }
 
 bool stob_or(const std::wstring &str, size_t base, bool default_value)
 {
-	try {
-		return stob(str, base);
-	}
-	catch(...){}
-	return default_value;
+	return algorithm_base::stob<wchar_t>(str, base, default_value);
 }
 
 std::string str_to_lower(std::string_view str)

@@ -32,6 +32,10 @@
 
 #include <memory>
 
+#ifdef _MSC_VER
+# include <cstdlib>
+#endif
+
 namespace libgs
 {
 
@@ -76,14 +80,23 @@ inline std::string wcstombs(std::wstring_view str)
 	auto size = str.size();
 	auto buf = std::make_shared<char[]>(size + 1);
 
+#ifdef _MSC_VER
+	::wcstombs_s(&size, buf.get(), size, str.data(), size);
+#else
 	std::wcstombs(buf.get(), str.data(), size);
+#endif
 	return buf.get();
 }
 
 inline char wcstombs(wchar_t c)
 {
 	char buf = 0;
+#ifdef _MSC_VER
+	size_t size = 0;
+	::wcstombs_s(&size, &buf, 1, &c, 1);
+#else
 	std::wcstombs(&buf, &c, 1);
+#endif
 	return buf;
 }
 
@@ -95,14 +108,23 @@ inline std::wstring mbstowcs(std::string_view str)
 	auto size = str.size();
 	auto buf = std::make_shared<wchar_t[]>(size + 1);
 
+#ifdef _MSC_VER
+	::mbstowcs_s(&size, buf.get(), size, str.data(), size);
+#else
 	std::mbstowcs(buf.get(), str.data(), size);
+#endif
 	return buf.get();
 }
 
 inline wchar_t mbstowcs(char c)
 {
 	wchar_t buf = 0;
+#ifdef _MSC_VER
+	size_t size = 0;
+	::mbstowcs_s(&size, &buf, 1, &c, 1);
+#else
 	std::mbstowcs(&buf, &c, 1);
+#endif
 	return buf;
 }
 
