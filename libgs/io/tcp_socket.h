@@ -74,12 +74,12 @@ public:
 	~basic_tcp_socket() override;
 
 public:
-	void connect(ip_endpoint ep, opt_token<error_code&> tk = {}) override;
-	address_vector dns(string_wrapper domain, opt_token<error_code&> tk = {}) override;
+	void connect(ip_endpoint ep, opt_token<error_code&> tk) override;
+	address_vector dns(string_wrapper domain, opt_token<error_code&> tk) override;
 
 public:
-	size_t read(buffer<void*> buf, read_token<error_code&> tk = {}) override;
-	size_t write(buffer<const void*> buf, opt_token<error_code&> tk = {}) override;
+	size_t read(buffer<void*> buf, read_token<error_code&> tk) override;
+	size_t write(buffer<const void*> buf, opt_token<error_code&> tk) override;
 
 public:
 	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
@@ -87,7 +87,7 @@ public:
 	[[nodiscard]] ip_endpoint remote_endpoint() const;
 
 public:
-	void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept override;
+	void shutdown(error_code &error, shutdown_type what) noexcept override;
 	void close(error_code &error) noexcept override;
 
 public:
@@ -99,9 +99,9 @@ public:
 	void get_option(socket_option op, error_code &error) const noexcept override;
 
 public:
-	const asio_socket &native_object() const;
-	asio_socket &native_object();
-	tcp_handle_type native_handle() const;
+	[[nodiscard]] const asio_socket &native_object() const;
+	[[nodiscard]] asio_socket &native_object();
+	[[nodiscard]] tcp_handle_type native_handle() const;
 
 public:
 	using base_type::connect;

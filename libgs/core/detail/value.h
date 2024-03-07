@@ -76,9 +76,9 @@ basic_value<CharT>::basic_value(format_string<Arg0, Args...> fmt, Arg0 &&arg0, A
 
 template <concept_char_type CharT>
 template <typename T>
-basic_value<CharT>::basic_value(T &&value) requires (
-	not requires(T &&value) { str_type(std::forward<T>(value)); }
-) : basic_value<CharT>(default_format_v, std::forward<T>(value))
+basic_value<CharT>::basic_value(T &&v) requires (
+	not requires(T &&rv) { str_type(std::forward<T>(rv)); }
+) : basic_value<CharT>(default_format_v, std::forward<T>(v))
 {
 
 }
@@ -278,10 +278,10 @@ basic_value<CharT> &basic_value<CharT>::set(format_string<Arg0, Args...> fmt, Ar
 
 template <concept_char_type CharT>
 template <typename T>
-basic_value<CharT> &basic_value<CharT>::set(T &&value) requires (
-	not requires(T &&value) { str_type(std::forward<T>(value)); } )
+basic_value<CharT> &basic_value<CharT>::set(T &&v) requires (
+	not requires(T &&rv) { str_type(std::forward<T>(rv)); } )
 {
-	return set(default_format_v, value);
+	return set(default_format_v, v);
 }
 
 template <concept_char_type CharT>

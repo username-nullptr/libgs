@@ -150,12 +150,12 @@ awaitable<void> basic_timer<Exec>::co_wait(opt_token<error_code&> tk)
 		}
 		co_await m_timer.async_wait(use_awaitable_e[error]);
 	}
-	while(0);
+	while(false);
 	if( error )
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::timer::co_wait");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	co_return ;
 }
@@ -177,12 +177,12 @@ void basic_timer<Exec>::wait(opt_token<error_code&> tk)
 		}
 		m_timer.wait(error);
 	}
-	while(0);
+	while(false);
 	if( error )
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::timer::wait");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 }
 

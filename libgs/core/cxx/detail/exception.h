@@ -41,7 +41,7 @@ runtime_error::runtime_error(std::format_string<Arg0, Args...> fmt_value, Arg0 &
 
 template <typename Arg0, typename...Args>
 system_error::system_error(std::error_code ec, std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	std::system_error(std::move(ec), std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+	std::system_error(ec, std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 
 }

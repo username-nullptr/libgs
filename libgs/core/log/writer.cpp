@@ -68,7 +68,7 @@ static time_t create_time(const std::string &file)
 
 } //namespace std::filesystem
 
-#endif //os
+#endif //_WINDOWS
 
 /*---------------------------------------------------------------------------------------------------------------*/
 

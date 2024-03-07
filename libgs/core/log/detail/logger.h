@@ -102,7 +102,7 @@ bool basic_logger<CharT>::get_header_breaks_aline()
 	o.context().category = std::move(_category); \
 	return o; \
 })
-#endif //__NO_DEBUG
+#endif //__NO_DEBUG__
 
 template <concept_char_type CharT>
 template <typename...Args>

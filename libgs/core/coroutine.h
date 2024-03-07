@@ -43,14 +43,14 @@ using awaitable = asio::awaitable<T>;
 template <concept_schedulable Exec = asio::io_context>
 auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec = io_context());
 
-template <concept_schedulable Exec = asio::io_context>
-auto co_spawn_detached(concept_awaitable_type auto &&awaitable, Exec &exec = io_context());
+template <typename T, concept_schedulable Exec = asio::io_context>
+auto co_spawn_detached(awaitable<T> &&a, Exec &exec = io_context());
 
 template <concept_schedulable Exec = asio::io_context>
 auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec = io_context());
 
-template <concept_schedulable Exec = asio::io_context>
-auto co_spawn_future(concept_awaitable_type auto &&awaitable, Exec &exec = io_context());
+template <typename T, concept_schedulable Exec = asio::io_context>
+auto co_spawn_future(awaitable<T> &&a, Exec &exec = io_context());
 
 constexpr auto use_awaitable = asio::use_awaitable;
 

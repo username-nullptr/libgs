@@ -87,7 +87,7 @@ public:
 
 public:
 	void cancel() noexcept override;
-	bool is_run() const;
+	[[nodiscard]] bool is_run() const;
 
 private:
 	asio_steady_timer m_timer;

@@ -60,8 +60,8 @@ public:
 	basic_value(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename T>
-	basic_value(T &&value) requires (
-		not requires(T &&value) { str_type(std::forward<T>(value)); }
+	basic_value(T &&v) requires (
+		not requires(T &&rv) { str_type(std::forward<T>(rv)); }
 	);
 
 	basic_value(const basic_value&) = default;
@@ -124,8 +124,8 @@ public:
 	basic_value &set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename T>
-	basic_value &set(T &&value) requires (
-		not requires(T &&value) { str_type(std::forward<T>(value)); }
+	basic_value &set(T &&v) requires (
+		not requires(T &&rv) { str_type(std::forward<T>(rv)); }
 	);
 
 public:

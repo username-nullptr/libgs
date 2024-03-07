@@ -188,7 +188,7 @@ awaitable<tcp_socket_ptr> basic_tcp_server<Exec>::co_accept(opt_token<error_code
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::co_read");
 
-		*tk.error = std::move(error);
+		*tk.error = error;
 		co_return sock_ptr;
 	}
 	sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	
@@ -222,7 +222,7 @@ tcp_socket_ptr basic_tcp_server<Exec>::accept(opt_token<error_code&> tk)
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::co_read");
 
-		*tk.error = std::move(error);
+		*tk.error = error;
 		return sock_ptr;
 	}
 	sock_ptr = std::make_shared<client_socket_type>(std::move(socket));	

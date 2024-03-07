@@ -73,11 +73,11 @@ static T try_stobtot(const std::basic_string<CharT> &str, const std::optional<T>
 
 #define STO_FLOAT(_func) \
 ({  \
-	size_t index = 0; \
-	auto res = std::_func(str, &index); \
-	if( index < str.size() ) \
+	size_t _index = 0; \
+	auto __res = std::_func(str, &_index); \
+	if( _index < str.size() ) \
 		throw runtime_error("Cannot convert string to arithmetic."); \
-	res; \
+	__res; \
 })
 
 #define STO_INT(_func) \
@@ -96,10 +96,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<int8_t>(STO_INT(stol));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -108,10 +106,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<uint8_t>(STO_INT(stoul));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -120,10 +116,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<int16_t>(STO_INT(stol));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -132,10 +126,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<uint16_t>(STO_INT(stoul));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -144,10 +136,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<int32_t>(STO_INT(stol));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -156,10 +146,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<uint32_t>(STO_INT(stoul));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -168,10 +156,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<int64_t>(STO_INT(stoll));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -180,10 +166,8 @@ template <concept_char_type CharT>
 	try {
 		return static_cast<uint64_t>(STO_INT(stoull));
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -192,10 +176,8 @@ template <concept_char_type CharT>
 	try {
 		return STO_FLOAT(stof);
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0.0f;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -204,10 +186,8 @@ template <concept_char_type CharT>
 	try {
 		return STO_FLOAT(stof);
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0.0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>
@@ -216,10 +196,8 @@ template <concept_char_type CharT>
 	try {
 		return STO_FLOAT(stof);
 	}
-	catch(std::exception &ex) {
-		return try_stobtot(str, odv);
-	}
-	return 0.0;
+	catch(std::exception &ex) {}
+	return try_stobtot(str, odv);
 }
 
 template <concept_char_type CharT>

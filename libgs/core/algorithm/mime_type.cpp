@@ -35,6 +35,8 @@
 namespace libgs
 {
 
+#undef TEXT
+
 #define APPLICATION  "application/"
 #define AUDIO        "audio/"
 #define CHEMICAL     "chemical/"
@@ -981,7 +983,7 @@ static std::string s_mime_search(const char *const *const mimes, size_t len, con
 	size_t top = len;
 
 	size_t i = ((bot + top) >> 1) & ~1;
-	int cmp = 0;
+	int cmp;
 
 	for(; bot<=top and i<=len; i=((bot+top)>>1)&(~1))
 	{

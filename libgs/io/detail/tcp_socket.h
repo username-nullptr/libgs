@@ -85,7 +85,7 @@ void basic_tcp_socket<Exec>::connect(ip_endpoint ep, opt_token<error_code&> tk)
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::connect");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 }
 
@@ -100,7 +100,7 @@ typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(stri
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::dns");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	else
 	{
@@ -120,7 +120,7 @@ size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, read_token<error_code&> t
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::read");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	return res;
 }
@@ -135,7 +135,7 @@ size_t basic_tcp_socket<Exec>::write(buffer<const void*> buf, opt_token<error_co
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::write");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	return res;
 }
@@ -352,7 +352,7 @@ awaitable<size_t> basic_tcp_socket<Exec>::read_data(void *buf, size_t size, read
 		else
 		{
 			std::string _buf;
-			size = co_await asio::async_read_until(native_object(), asio::dynamic_buffer(_buf, size), std::move(delim), use_awaitable_e[error]);
+			size = co_await asio::async_read_until(native_object(), asio::dynamic_buffer(_buf, size), delim, use_awaitable_e[error]);
 
 			if( size > 0 )
 				memcpy(buf, _buf.c_str(), size);

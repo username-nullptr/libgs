@@ -42,7 +42,7 @@ void basic_socket<Exec>::async_connect(host_endpoint ep, opt_cb_token<error_code
 			co_return ;
 
 		error_code error;
-		co_await co_connect(std::move(ep), {tk.rtime, error});
+		co_await co_connect(ep, {tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -60,7 +60,7 @@ awaitable<void> basic_socket<Exec>::co_connect(host_endpoint ep, opt_token<error
 	auto addr = ip_address::from_string(ep.host, error);
 
 	if( not error )
-		co_await co_connect({addr, ep.port}, std::move(tk));
+		co_await co_connect({addr, ep.port}, tk);
 	else
 	{
 		auto no_time_out = [&]() mutable -> awaitable<error_code>
@@ -91,7 +91,7 @@ awaitable<void> basic_socket<Exec>::co_connect(host_endpoint ep, opt_token<error
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::co_connect");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	co_return ;
 }
@@ -115,7 +115,7 @@ void basic_socket<Exec>::connect(host_endpoint ep, opt_token<error_code&> tk)
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::connect");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 }
 
@@ -129,7 +129,7 @@ void basic_socket<Exec>::async_connect(ip_endpoint ep, opt_cb_token<error_code> 
 			co_return ;
 
 		error_code error;
-		co_await co_connect(std::move(ep), {tk.rtime, error});
+		co_await co_connect(ep, {tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -147,10 +147,10 @@ awaitable<void> basic_socket<Exec>::co_connect(ip_endpoint ep, opt_token<error_c
 	error_code error;
 
 	if( tk.rtime == 0s )
-		error = co_await do_connect(std::move(ep));
+		error = co_await do_connect(ep);
 	else
 	{
-		auto var = co_await (do_connect(std::move(ep)) or co_sleep_for(tk.rtime));
+		auto var = co_await (do_connect(ep) or co_sleep_for(tk.rtime));
 		if( var.index() == 0 )
 			error = std::get<0>(var);
 		else if( var.index() == 1 )
@@ -160,9 +160,15 @@ awaitable<void> basic_socket<Exec>::co_connect(ip_endpoint ep, opt_token<error_c
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::co_connect");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	co_return ;
+}
+
+template <concept_execution Exec>
+void basic_socket<Exec>::connect(ip_endpoint ep)
+{
+	connect(std::move(ep), {});
 }
 
 template <concept_execution Exec>
@@ -184,6 +190,12 @@ void basic_socket<Exec>::shutdown(shutdown_type what)
 
 	if( error )
 		throw system_error(error, "libgs::io::socket::shutdown");
+}
+
+template <concept_execution Exec>
+void basic_socket<Exec>::shutdown(error_code &error) noexcept
+{
+	shutdown(error, shutdown_type::shutdown_both);
 }
 
 template <concept_execution Exec>
@@ -222,7 +234,7 @@ template <concept_execution Exec>
 void basic_socket<Exec>::get_option(socket_option op) const
 {
 	error_code error;
-	get_option(std::move(op), error);
+	get_option(op, error);
 
 	if( error )
 		throw system_error(error, "libgs::io::socket::set_option");
@@ -238,7 +250,7 @@ void basic_socket<Exec>::async_dns(string_wrapper domain, opt_cb_token<address_v
 			co_return ;
 
 		error_code error;
-		auto vector = co_await co_dns(std::move(domain), {tk.rtime, error});
+		auto vector = co_await co_dns(domain, {tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -270,9 +282,15 @@ awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::co_dn
 	{
 		if( tk.error == nullptr )
 			throw system_error(error, "libgs::io::stream::co_dns");
-		*tk.error = std::move(error);
+		*tk.error = error;
 	}
 	co_return vector;
+}
+
+template <concept_execution Exec>
+typename basic_socket<Exec>::address_vector basic_socket<Exec>::dns(string_wrapper domain)
+{
+	return dns(std::move(domain), {});
 }
 
 template <concept_execution Exec>

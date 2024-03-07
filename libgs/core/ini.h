@@ -143,7 +143,7 @@ public:
 
 public:
 	basic_ini &set_file_nmae(const std::string &file_name);
-	std::string file_name() const noexcept;
+	[[nodiscard]] std::string file_name() const noexcept;
 
 public:
 	template <ini_read_type<CharT> T = value_type>

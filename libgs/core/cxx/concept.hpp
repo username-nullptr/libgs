@@ -111,13 +111,13 @@ constexpr bool is_wchar_array_v = is_wchar_array<CharT>::value;
 template <concept_char_type CharT, typename T>
 struct is_basic_string
 {
-	using _CharT = std::remove_const_t<CharT>;
+	using nc_CharT = std::remove_const_t<CharT>;
 
 	static constexpr bool value =
-		is_dsame_v<T, std::basic_string<_CharT>> or
-		std::is_same_v<T, const _CharT*> or
-		std::is_same_v<T, _CharT*> or
-		is_basic_char_array_v<_CharT, T>;
+		is_dsame_v<T, std::basic_string<nc_CharT>> or
+		std::is_same_v<T, const nc_CharT*> or
+		std::is_same_v<T, nc_CharT*> or
+		is_basic_char_array_v<nc_CharT, T>;
 };
 
 template <concept_char_type CharT, typename T>

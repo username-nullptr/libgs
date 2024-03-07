@@ -58,15 +58,17 @@ public:
 public:
 	void async_connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept;
 	[[nodiscard]] awaitable<void> co_connect(ip_endpoint ep, opt_token<error_code&> tk = {});
-	virtual void connect(ip_endpoint ep, opt_token<error_code&> tk = {}) = 0;
+	virtual void connect(ip_endpoint ep, opt_token<error_code&> tk) = 0;
+	void connect(ip_endpoint ep);
 
 public:
 	[[nodiscard]] virtual ip_endpoint local_endpoint(error_code &error) const noexcept = 0;
 	[[nodiscard]] ip_endpoint local_endpoint() const;
 
 public:
-	virtual void shutdown(error_code &error, shutdown_type what = shutdown_type::shutdown_both) noexcept = 0;
+	virtual void shutdown(error_code &error, shutdown_type what) noexcept = 0;
 	void shutdown(shutdown_type what = shutdown_type::shutdown_both);
+	void shutdown(error_code &error) noexcept;
 
 	void close(error_code &error, bool shutdown) noexcept;
 	void close(bool shutdown);
@@ -82,11 +84,12 @@ public:
 public:
 	void async_dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept;
 	[[nodiscard]] awaitable<address_vector> co_dns(string_wrapper domain, opt_token<error_code&> tk = {});
-	virtual address_vector dns(string_wrapper domain, opt_token<error_code&> tk = {}) = 0;
+	virtual address_vector dns(string_wrapper domain, opt_token<error_code&> tk) = 0;
+	address_vector dns(string_wrapper domain);
 
 public:
-	size_t read_buffer_size() const noexcept override;
-	size_t write_buffer_size() const noexcept override;
+	[[nodiscard]] size_t read_buffer_size() const noexcept override;
+	[[nodiscard]] size_t write_buffer_size() const noexcept override;
 
 protected:
 	[[nodiscard]] virtual awaitable<error_code> do_connect(const ip_endpoint &ep) noexcept = 0;

@@ -58,7 +58,8 @@ public:
 	void async_read(buffer<void*> buf, read_cb_token<size_t> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> co_read(buffer<void*> buf, read_token<error_code&> tk = {});
-	virtual size_t read(buffer<void*> buf, read_token<error_code&> tk = {}) = 0;
+	virtual size_t read(buffer<void*> buf, read_token<error_code&> tk) = 0;
+	size_t read(buffer<void*> buf);
 
 	void async_read(buffer<std::string&> buf, read_cb_token<size_t,error_code> tk) noexcept;
 	void async_read(buffer<std::string&> buf, read_cb_token<size_t> tk) noexcept;
@@ -73,7 +74,8 @@ public:
 	void async_write(buffer<const void*> buf, opt_cb_token<size_t> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> co_write(buffer<const void*> buf, opt_token<error_code&> tk = {});
-	virtual size_t write(buffer<const void*> buf, opt_token<error_code&> tk = {}) = 0;
+	virtual size_t write(buffer<const void*> buf, opt_token<error_code&> tk) = 0;
+	size_t write(buffer<const void*> buf);
 
 	void async_write(buffer<const std::string&> buf, opt_cb_token<size_t,error_code> tk) noexcept;
 	void async_write(buffer<const std::string&> buf, opt_cb_token<size_t> tk) noexcept;

@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_CXX_CPLUSPLUS_H
 #define LIBGS_CORE_CXX_CPLUSPLUS_H
 
-#ifdef _MSVC
+#ifdef _MSC_VER // _MSVC
 # define LIBGS_CPLUSPLUS  _MSVC_LANG
 #else
 # define LIBGS_CPLUSPLUS  __cplusplus

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(LibGS VERSION 0.0.1)
+project(LibGS VERSION 0.1.0)
 add_definitions(-DLIBGS_VERSION_STR="3.0.0-nc")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")

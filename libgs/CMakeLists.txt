@@ -16,3 +16,9 @@ add_subdirectory(http)
 add_subdirectory(web)
 add_subdirectory(dbi)
 add_subdirectory(utils)
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+	libgs.hpp
+	core.hpp
+	io.hpp
+)

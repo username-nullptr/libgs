@@ -83,7 +83,7 @@ struct basic_output_context
 	std::basic_string<CharT> category;
 	std::basic_string<CharT> file;
 	std::basic_string<CharT> func;
-	size_t line;
+	size_t line = 0;
 
 	basic_output_context() = default;
 	basic_output_context(const basic_output_context &other) = default;
