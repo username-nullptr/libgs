@@ -1098,8 +1098,14 @@ bool is_text_file(std::string_view file_name)
 std::string get_text_file_encoding(std::string_view file_name)
 {
 	std::string result = "unknown";
-	FILE *fp = std::fopen(file_name.data(), "rb");
 
+#ifdef _MSC_VER
+	FILE *fp = nullptr;
+	auto res = ::fopen_s(&fp, file_name.data(), "rb");
+	LIBGS_UNUSED(res);
+#else
+	FILE *fp = std::fopen(file_name.data(), "rb");
+#endif
 	if( not fp )
 		return result;
 

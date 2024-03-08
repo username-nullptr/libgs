@@ -35,7 +35,10 @@ namespace libgs::log
 {
 
 template <typename T>
-struct basic_log_context
+struct basic_log_context;
+
+template <>
+struct basic_log_context<void>
 {
 	std::string directory; /* = "" */;
 
@@ -49,15 +52,13 @@ struct basic_log_context
 	bool no_stdout = false;
 };
 
-using void_basic_log_context = basic_log_context<void>;
-
 template <>
-struct basic_log_context<char> : void_basic_log_context {
+struct basic_log_context<char> : basic_log_context<void> {
 	std::string category = "default";
 };
 
 template <>
-struct basic_log_context<wchar_t> : void_basic_log_context {
+struct basic_log_context<wchar_t> : basic_log_context<void> {
 	std::wstring category = L"default";
 };
 

@@ -95,7 +95,7 @@ void args_parser_impl::add(args_cache &cache, const std::string &rule, const std
 {
 	static size_t id_source = 0;
 	char buf[128] = "";
-	sprintf(buf, "%zu", id_source++);
+	std::snprintf(buf, 128, "%zu", id_source++);
 
 	auto str_list = string_list::from_string(rule, ",");
 	for(auto &arg : str_list)

@@ -26,6 +26,11 @@
 *                                                                                   *
 *************************************************************************************/
 
+#ifdef _WINDOWS
+# define WIN32_LEAN_AND_MEAN
+# include <Windows.h>
+#endif
+
 #include "writer.h"
 #include "libgs/core/algorithm/base.h"
 #include "libgs/core/shared_mutex.h"
@@ -42,33 +47,79 @@ namespace dt = std::chrono;
 
 namespace fs = std::filesystem;
 
+#ifdef _WINDOWS
+
+namespace libgs::log
+{
+
+static LPSTR convert_error_code_to_string(DWORD errc)
+{
+	HLOCAL local_address = nullptr;
+	FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_FROM_SYSTEM,
+				  nullptr, errc, 0, reinterpret_cast<PTSTR>(&local_address), 0, nullptr);
+	return reinterpret_cast<LPSTR>(local_address);
+}
+
+} //namespace libgs::log
+
+#endif //_WINDOWS
+
 namespace std::filesystem
 {
 
 #ifdef _WINDOWS
 
-# include <Windows.h>
-
-static time_t create_time(const std::string &/*file*/)
+static time_t create_time(const std::string &filename)
 {
-# error The windows has not yet been implemented.
-	return 0;
+	using namespace libgs::log;
+
+	auto hFile = CreateFile(filename.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+							TRUNCATE_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+	if( hFile == INVALID_HANDLE_VALUE )
+	{
+		auto errc = GetLastError();
+		std::cerr << "*** Error: Log: create_time: " << convert_error_code_to_string(errc) << " (" << errc << ")." << std::endl;
+		return 0;
+	}
+	FILETIME creationTime;
+	FILETIME lastAccessTime;
+	FILETIME lastWriteTime;
+	 
+	if( GetFileTime(hFile, &creationTime, &lastAccessTime, &lastWriteTime) == 0 )
+	{
+		auto errc = GetLastError();
+		std::cerr << "*** Error: Log: create_time: " << convert_error_code_to_string(errc) << " (" << errc << ")." << std::endl;
+		return 0;
+	}
+	LONGLONG ll;
+	ULARGE_INTEGER ui;
+
+	ui.LowPart = creationTime.dwLowDateTime;
+	ui.HighPart = creationTime.dwHighDateTime;
+
+	ll = (static_cast<LONGLONG>(creationTime.dwHighDateTime) << 32) | creationTime.dwLowDateTime;
+	return static_cast<time_t>((ui.QuadPart - 116444736000000000) / 10000000);
 }
 
 #else //other os
 
 # include <sys/stat.h>
 
-static time_t create_time(const std::string &file)
+static time_t create_time(const std::string &filename)
 {
 	struct stat buf = {0};
-	stat(file.c_str(), &buf);
+	if( stat(filename.c_str(), &buf) < 0 )
+	{
+		std::cerr << "*** Error: Log: create_time: " << strerror(errno) << " (" << errno << ")." << std::endl;
+		return 0;
+	}
 	return buf.st_ctime;
 }
 
-} //namespace std::filesystem
-
 #endif //_WINDOWS
+
+} //namespace std::filesystem
 
 /*---------------------------------------------------------------------------------------------------------------*/
 
@@ -278,7 +329,7 @@ static std::atomic_bool g_header_breaks_aline {false};
 }
 
 template <concept_char_type CharT>
-void _set_context(const basic_log_context<CharT> &con);
+void _set_context(const basic_log_context<CharT> &context);
 
 void writer::set_context(const log_context &con)
 {
@@ -336,10 +387,10 @@ void _write(output_type type, basic_output_context<CharT> &&runtime_context, std
 }
 
 template <concept_char_type CharT>
-void _set_context(const basic_log_context<CharT> &con)
+void _set_context(const basic_log_context<CharT> &context)
 {
 	g_context_rwlock<CharT>.lock();
-	g_context<CharT> = con;
+	g_context<CharT> = context;
 
 	if( g_context<CharT>.category.empty() )
 	{
@@ -348,22 +399,14 @@ void _set_context(const basic_log_context<CharT> &con)
 		else
 			g_context<CharT>.category = L"default";
 	}
-
-#ifdef _WINDOWS
-
-	str_replace(g_context<CharT>.dir, "/", "\\");
-	str_replace(g_context<CharT>.category, "/", "\\");
-
-#else //other os
-
-	str_replace(g_context<CharT>.directory, "\\", "/");
-
-	if constexpr( is_char_v<CharT> )
-		str_replace(g_context<CharT>.category, "\\", "/");
 	else
-		str_replace(g_context<CharT>.category, L"\\", L"/");
-
-#endif //_WINDOWS
+	{
+		if constexpr( is_char_v<CharT> )
+			str_replace(g_context<CharT>.category, "\\", "/");
+		else
+			str_replace(g_context<CharT>.category, L"\\", L"/");
+	}
+	str_replace(g_context<CharT>.directory, "\\", "/");
 
 	if( not g_context<CharT>.directory.empty() )
 		g_context<CharT>.directory = app::absolute_path(g_context<CharT>.directory);
@@ -386,7 +429,7 @@ static constexpr const CharT *type_string(output_type type);
 
 template <concept_char_type CharT>
 static void write_file(const std::basic_string<CharT> &log_text, const std::string &category, 
-					   const void_basic_log_context &context, const output_time &time, size_t log_size);
+					   const basic_log_context<void> &context, const output_time &time, size_t log_size);
 
 static std::mutex output_mutex;
 
@@ -549,11 +592,11 @@ static struct LIBGS_DECL_HIDDEN curr_log_file
 }
 g_curr_log_file;
 
-static void size_check(const void_basic_log_context &context, const std::string &dir_name, size_t log_size);
+static void size_check(const basic_log_context<void> &context, const std::string &dir_name, size_t log_size);
 
 template <concept_char_type CharT>
 static void write_file(const std::basic_string<CharT> &log_text, const std::string &category, 
-					   const void_basic_log_context &context, const output_time &time, size_t log_size)
+					   const basic_log_context<void> &context, const output_time &time, size_t log_size)
 {
 	if( context.directory.empty() )
 		return ;
@@ -629,7 +672,13 @@ static void write_file(const std::basic_string<CharT> &log_text, const std::stri
 	if( not file.is_open() )
 	{
 		fprintf(stderr, "*** Error: Log: openLogOutputDevice: The log file '%s' open failed: %s.\n",
-				curr_file_name.c_str(), strerror(errno));
+				curr_file_name.c_str(), 
+#ifdef _WINDOWS
+				convert_error_code_to_string(GetLastError())
+#else
+				strerror(errno)
+#endif //_WINDOWS
+		);
 	}
 	file << log_text;
 	file.close();
@@ -638,7 +687,7 @@ static void write_file(const std::basic_string<CharT> &log_text, const std::stri
 static void list_push_back(std::list<fs::directory_entry> &list, const std::string &dir);
 static void remove_if_too_big(const std::list<fs::directory_entry> &list, size_t max_size, size_t log_size);
 
-static void size_check(const void_basic_log_context &context, const std::string &dir_name, size_t log_size)
+static void size_check(const basic_log_context<void> &context, const std::string &dir_name, size_t log_size)
 {
 	std::list<fs::directory_entry> file_info_list;
 

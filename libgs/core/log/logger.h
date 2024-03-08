@@ -135,6 +135,7 @@ public:
 	static void wait();
 
 private:
+	buffer _output(output_type type, str_type category) const;
 	basic_output_context<CharT> m_runtime_context;
 };
 

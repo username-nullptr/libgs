@@ -32,35 +32,9 @@
 namespace libgs
 {
 
-template <typename T>
-buffer<T>::buffer(size_t size) :
-	size(size)
-{
-
-}
-
-inline buffer<void*>::buffer(void *data, size_t size) : 
-	base_type(size), data(data)
-{
-
-}
-
-inline buffer<std::string&>::buffer(std::string &data, size_t size) :
-	base_type(size), data(data)
-{
-
-}
-
-inline buffer<const void*>::buffer(const void *data, size_t size) :
-	base_type(size), data(data)
-{
-	if( size == 0 )
-		this->size = std::strlen(reinterpret_cast<const char*>(data));
-}
-
 template <typename String>
 buffer<const std::string&>::buffer(const String &data, size_t size) requires std::is_same_v<String,std::string> :
-	base_type(size), data(data)
+	buffer<void>(size), data(data)
 {
 	if( size == 0 )
 		this->size = data.size();

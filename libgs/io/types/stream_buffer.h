@@ -29,14 +29,16 @@
 #ifndef LIBGS_IO_STREAM_BUFFER_H
 #define LIBGS_IO_STREAM_BUFFER_H
 
-#include <libgs/core/cxx/concept.hpp>
-#include <cstring>
+#include <libgs/io/global.h>
 
 namespace libgs
 {
 
 template <typename T>
-struct buffer
+struct buffer;
+
+template <>
+struct LIBGS_IO_API buffer<void>
 {
 	size_t size;
 
@@ -45,41 +47,29 @@ protected:
 };
 
 template <>
-struct buffer<void*> : buffer<void>
+struct LIBGS_IO_API buffer<void*> : buffer<void>
 {
-	using base_type = buffer<void>;
-	using base_type::base_type;
-
 	void *data;
 	buffer(void *data, size_t size = 0);
 };
 
 template <>
-struct buffer<std::string&> : buffer<void>
+struct LIBGS_IO_API buffer<std::string&> : buffer<void>
 {
-	using base_type = buffer<void>;
-	using base_type::base_type;
-
 	std::string &data;
 	buffer(std::string &data, size_t size = 0);
 };
 
 template <>
-struct buffer<const void*> : buffer<void>
+struct LIBGS_IO_API buffer<const void*> : buffer<void>
 {
-	using base_type = buffer<void>;
-	using base_type::base_type;
-
 	const void *data;
 	buffer(const void *data, size_t size = 0);
 };
 
 template <>
-struct buffer<const std::string&> : buffer<void>
+struct LIBGS_IO_API buffer<const std::string&> : buffer<void>
 {
-	using base_type = buffer<void>;
-	using base_type::base_type;
-
 	const std::string &data;
 
 	template <typename String>

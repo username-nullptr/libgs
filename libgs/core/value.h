@@ -68,8 +68,8 @@ public:
 	basic_value(basic_value&&) noexcept = default;
 
 public:
-	str_type &to_string();
-	const str_type &to_string() const;
+	[[nodiscard]] str_type &to_string() noexcept;
+	[[nodiscard]] const str_type &to_string() const noexcept;
 
 	operator str_type&();
 	operator const str_type&() const;
@@ -82,17 +82,17 @@ public:
 	[[nodiscard]] T get() const;
 
 	template <concept_integral_type T>
-	[[nodiscard]] T get_or(size_t base = 10, T default_value = 0) const;
+	[[nodiscard]] T get_or(size_t base = 10, T default_value = 0) const noexcept;
 
 	template <concept_float_type T>
-	[[nodiscard]] T get_or(T default_value = 0.0) const;
+	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
 	template <typename T>
-	[[nodiscard]] const std::basic_string<CharT> &get() const requires 
+	[[nodiscard]] const std::basic_string<CharT> &get() const noexcept requires 
 		is_dsame_v<T,std::basic_string<CharT>>;
 
 	template <typename T>
-	[[nodiscard]] std::basic_string<CharT> &get() requires 
+	[[nodiscard]] std::basic_string<CharT> &get() noexcept requires 
 		is_dsame_v<T,std::basic_string<CharT>>;
 
 public:
@@ -105,14 +105,14 @@ public:
 	[[nodiscard]] double to_double() const;
 	[[nodiscard]] long double to_ldouble() const;
 
-	[[nodiscard]] bool to_bool_or(size_t base = 10, bool default_value = false) const;
-	[[nodiscard]] int32_t to_int_or(size_t base = 10, int32_t default_value = 0) const;
-	[[nodiscard]] uint32_t to_uint_or(size_t base = 10, uint32_t default_value = 0) const;
-	[[nodiscard]] int64_t to_long_or(size_t base = 10, int64_t default_value = 0) const;
-	[[nodiscard]] uint64_t to_ulong_or(size_t base = 10, uint64_t default_value = 0) const;
-	[[nodiscard]] float to_float_or(float default_value = 0.0) const;
-	[[nodiscard]] double to_double_or(double default_value = 0.0) const;
-	[[nodiscard]] long double to_ldouble_or(long double default_value = 0.0) const;
+	[[nodiscard]] bool to_bool_or(size_t base = 10, bool default_value = false) const noexcept;
+	[[nodiscard]] int32_t to_int_or(size_t base = 10, int32_t default_value = 0) const noexcept;
+	[[nodiscard]] uint32_t to_uint_or(size_t base = 10, uint32_t default_value = 0) const noexcept;
+	[[nodiscard]] int64_t to_long_or(size_t base = 10, int64_t default_value = 0) const noexcept;
+	[[nodiscard]] uint64_t to_ulong_or(size_t base = 10, uint64_t default_value = 0) const noexcept;
+	[[nodiscard]] float to_float_or(float default_value = 0.0) const noexcept;
+	[[nodiscard]] double to_double_or(double default_value = 0.0) const noexcept;
+	[[nodiscard]] long double to_ldouble_or(long double default_value = 0.0) const noexcept;
 
 public:
 	basic_value &set(const CharT *str);

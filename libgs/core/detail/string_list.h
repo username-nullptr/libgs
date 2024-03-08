@@ -69,7 +69,7 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 		return result;
 
 	auto strs = str + splits;
-	int step = splits.size();
+	auto step = splits.size();
 
 	auto pos = str.size();
 	do {

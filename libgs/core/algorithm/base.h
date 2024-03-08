@@ -90,49 +90,49 @@ template <concept_float_type T>
 	return algorithm_base::ston<T,wchar_t>(str);
 }
 
-[[nodiscard]] int8_t stoi8_or(const std::string &str, size_t base = 10, int8_t default_value = 0);
-[[nodiscard]] int8_t stoi8_or(const std::wstring &str, size_t base = 10, int8_t default_value = 0);
+[[nodiscard]] int8_t stoi8_or(const std::string &str, size_t base = 10, int8_t default_value = 0) noexcept;
+[[nodiscard]] int8_t stoi8_or(const std::wstring &str, size_t base = 10, int8_t default_value = 0) noexcept;
 
-[[nodiscard]] uint8_t stoui8_or(const std::string &str, size_t base = 10, uint8_t default_value = 0);
-[[nodiscard]] uint8_t stoui8_or(const std::wstring &str, size_t base = 10, uint8_t default_value = 0);
+[[nodiscard]] uint8_t stoui8_or(const std::string &str, size_t base = 10, uint8_t default_value = 0) noexcept;
+[[nodiscard]] uint8_t stoui8_or(const std::wstring &str, size_t base = 10, uint8_t default_value = 0) noexcept;
 
-[[nodiscard]] int16_t stoi16_or(const std::string &str, size_t base = 10, int16_t default_value = 0);
-[[nodiscard]] int16_t stoi16_or(const std::wstring &str, size_t base = 10, int16_t default_value = 0);
+[[nodiscard]] int16_t stoi16_or(const std::string &str, size_t base = 10, int16_t default_value = 0) noexcept;
+[[nodiscard]] int16_t stoi16_or(const std::wstring &str, size_t base = 10, int16_t default_value = 0) noexcept;
 
-[[nodiscard]] uint16_t stoui16_or(const std::string &str, size_t base = 10, uint16_t default_value = 0);
-[[nodiscard]] uint16_t stoui16_or(const std::wstring &str, size_t base = 10, uint16_t default_value = 0);
+[[nodiscard]] uint16_t stoui16_or(const std::string &str, size_t base = 10, uint16_t default_value = 0) noexcept;
+[[nodiscard]] uint16_t stoui16_or(const std::wstring &str, size_t base = 10, uint16_t default_value = 0) noexcept;
 
-[[nodiscard]] int32_t stoi32_or(const std::string &str, size_t base = 10, int32_t default_value = 0);
-[[nodiscard]] int32_t stoi32_or(const std::wstring &str, size_t base = 10, int32_t default_value = 0);
+[[nodiscard]] int32_t stoi32_or(const std::string &str, size_t base = 10, int32_t default_value = 0) noexcept;
+[[nodiscard]] int32_t stoi32_or(const std::wstring &str, size_t base = 10, int32_t default_value = 0) noexcept;
 
-[[nodiscard]] uint32_t stoui32_or(const std::string &str, size_t base = 10, uint32_t default_value = 0);
-[[nodiscard]] uint32_t stoui32_or(const std::wstring &str, size_t base = 10, uint32_t default_value = 0);
+[[nodiscard]] uint32_t stoui32_or(const std::string &str, size_t base = 10, uint32_t default_value = 0) noexcept;
+[[nodiscard]] uint32_t stoui32_or(const std::wstring &str, size_t base = 10, uint32_t default_value = 0) noexcept;
 
-[[nodiscard]] int64_t stoi64_or(const std::string &str, size_t base = 10, int64_t default_value = 0);
-[[nodiscard]] int64_t stoi64_or(const std::wstring &str, size_t base = 10, int64_t default_value = 0);
+[[nodiscard]] int64_t stoi64_or(const std::string &str, size_t base = 10, int64_t default_value = 0) noexcept;
+[[nodiscard]] int64_t stoi64_or(const std::wstring &str, size_t base = 10, int64_t default_value = 0) noexcept;
 
-[[nodiscard]] uint64_t stoui64_or(const std::string &str, size_t base = 10, uint64_t default_value = 0);
-[[nodiscard]] uint64_t stoui64_or(const std::wstring &str, size_t base = 10, uint64_t default_value = 0);
+[[nodiscard]] uint64_t stoui64_or(const std::string &str, size_t base = 10, uint64_t default_value = 0) noexcept;
+[[nodiscard]] uint64_t stoui64_or(const std::wstring &str, size_t base = 10, uint64_t default_value = 0) noexcept;
 
-[[nodiscard]] float stof_or(const std::string &str, float default_value = 0.0);
-[[nodiscard]] float stof_or(const std::wstring &str, float default_value = 0.0);
+[[nodiscard]] float stof_or(const std::string &str, float default_value = 0.0) noexcept;
+[[nodiscard]] float stof_or(const std::wstring &str, float default_value = 0.0) noexcept;
 
-[[nodiscard]] double stod_or(const std::string &str, double default_value = 0.0);
-[[nodiscard]] double stod_or(const std::wstring &str, double default_value = 0.0);
+[[nodiscard]] double stod_or(const std::string &str, double default_value = 0.0) noexcept;
+[[nodiscard]] double stod_or(const std::wstring &str, double default_value = 0.0) noexcept;
 
-[[nodiscard]] long double stold_or(const std::string &str, long double default_value = 0.0);
-[[nodiscard]] long double stold_or(const std::wstring &str, long double default_value = 0.0);
+[[nodiscard]] long double stold_or(const std::string &str, long double default_value = 0.0) noexcept;
+[[nodiscard]] long double stold_or(const std::wstring &str, long double default_value = 0.0) noexcept;
 
-[[nodiscard]] bool stob_or(const std::string &str, size_t base = 10, bool default_value = false);
-[[nodiscard]] bool stob_or(const std::wstring &str, size_t base = 10, bool default_value = false);
+[[nodiscard]] bool stob_or(const std::string &str, size_t base = 10, bool default_value = false) noexcept;
+[[nodiscard]] bool stob_or(const std::wstring &str, size_t base = 10, bool default_value = false) noexcept;
 
 template <concept_integral_type T>
-[[nodiscard]] T ston_or(const std::string &str, size_t base = 10, T default_value = 0) {
+[[nodiscard]] T ston_or(const std::string &str, size_t base = 10, T default_value = 0) noexcept {
 	return algorithm_base::ston<T,char>(str, base, default_value);
 }
 
 template <concept_integral_type T>
-[[nodiscard]] T ston_or(const std::wstring &str, size_t base = 10, T default_value = 0) {
+[[nodiscard]] T ston_or(const std::wstring &str, size_t base = 10, T default_value = 0) noexcept {
 	return algorithm_base::ston<T,wchar_t>(str, base, default_value);
 }
 

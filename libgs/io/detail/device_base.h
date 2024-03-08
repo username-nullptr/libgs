@@ -47,7 +47,7 @@ device_base<Exec>::~device_base()
 }
 
 template <concept_execution Exec>
-device_base<Exec>::executor_type &device_base<Exec>::executor() const
+typename device_base<Exec>::executor_type &device_base<Exec>::executor() const
 {
 	return m_exec;
 }

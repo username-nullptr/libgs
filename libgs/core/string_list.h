@@ -65,7 +65,7 @@ template <concept_char_type CharT>
 class basic_string_list : public basic_string_deque<CharT>
 {
 	static constexpr const CharT *default_splits_argument_s = _default_splits_argument<CharT>::s;
-	static constexpr const CharT *default_splits_argument_c = _default_splits_argument<CharT>::c;
+	static constexpr CharT default_splits_argument_c = _default_splits_argument<CharT>::c;
 
 public:
 	using str_type = std::basic_string<CharT>;

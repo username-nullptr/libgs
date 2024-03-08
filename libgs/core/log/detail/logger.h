@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_LOG_DETAIL_LOGGER_H
 #define LIBGS_CORE_LOG_DETAIL_LOGGER_H
 
+#include <libgs/core/cxx/utilities.h>
 #include <cstring>
 #include <chrono>
 
@@ -48,19 +49,8 @@ basic_logger<CharT>::basic_logger(const char *file, const char *func, size_t lin
 	}
 	else
 	{
-		auto size = strlen(file);
-		auto buf = new wchar_t[size + 1] {0};
-
-		std::mbstowcs(buf, file, size);
-		m_runtime_context.file = buf;
-
-		size = strlen(func);
-		memset(buf, 0, size);
-
-		std::mbstowcs(buf, func, size);
-		m_runtime_context.func = buf;
-
-		delete[] buf;
+		m_runtime_context.file = mbstowcs(file);
+		m_runtime_context.func = mbstowcs(func);
 	}
 	m_runtime_context.line = line;
 }
@@ -92,18 +82,6 @@ bool basic_logger<CharT>::get_header_breaks_aline()
 	return writer::instance().get_header_breaks_aline();
 }
 
-#ifdef __NO_DEBUG__
-# define __LIBGS_CORE_LOG_OUTPUT(_type, _category)  return buffer(output_type::_type)
-#else //DEBUG
-#define __LIBGS_CORE_LOG_OUTPUT(_type, _category) \
-({ \
-	buffer o(output_type::_type); \
-	o.context() = m_runtime_context; \
-	o.context().category = std::move(_category); \
-	return o; \
-})
-#endif //__NO_DEBUG__
-
 template <concept_char_type CharT>
 template <typename...Args>
 basic_buffer<CharT> basic_logger<CharT>::debug(format_string<Args...> fmt_value, Args&&...args) {
@@ -120,9 +98,9 @@ template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::debug()
 {
 	if constexpr( is_char_v )
-		__LIBGS_CORE_LOG_OUTPUT(debug, "");
+		return _output(output_type::debug, "");
 	else
-		__LIBGS_CORE_LOG_OUTPUT(debug, L"");
+		return _output(output_type::debug, L"");
 }
 
 template <concept_char_type CharT>
@@ -141,9 +119,9 @@ template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::info()
 {
 	if constexpr( is_char_v )
-		__LIBGS_CORE_LOG_OUTPUT(info, "");
+		return _output(output_type::info, "");
 	else
-		__LIBGS_CORE_LOG_OUTPUT(info, L"");
+		return _output(output_type::info, L"");
 }
 
 template <concept_char_type CharT>
@@ -162,9 +140,9 @@ template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::warning()
 {
 	if constexpr( is_char_v )
-		__LIBGS_CORE_LOG_OUTPUT(warning, "");
+		return _output(output_type::warning, "");
 	else
-		__LIBGS_CORE_LOG_OUTPUT(warning, L"");
+		return _output(output_type::warning, L"");
 }
 
 template <concept_char_type CharT>
@@ -183,9 +161,9 @@ template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::error()
 {
 	if constexpr( is_char_v )
-		__LIBGS_CORE_LOG_OUTPUT(error, "");
+		return _output(output_type::error, "");
 	else
-		__LIBGS_CORE_LOG_OUTPUT(error, L"");
+		return _output(output_type::error, L"");
 }
 
 template <concept_char_type CharT>
@@ -225,7 +203,7 @@ basic_buffer<CharT> basic_logger<CharT>::cdebug(str_type category, T &&msg) {
 template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::cdebug(str_type category)
 {
-	__LIBGS_CORE_LOG_OUTPUT(debug, category);
+	return _output(output_type::debug, std::move(category));
 }
 
 template <concept_char_type CharT>
@@ -243,7 +221,7 @@ basic_buffer<CharT> basic_logger<CharT>::cinfo(str_type category, T &&msg) {
 template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::cinfo(str_type category)
 {
-	__LIBGS_CORE_LOG_OUTPUT(info, category);
+	return _output(output_type::info, std::move(category));
 }
 
 template <concept_char_type CharT>
@@ -261,7 +239,7 @@ basic_buffer<CharT> basic_logger<CharT>::cwarning(str_type category, T &&msg) {
 template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::cwarning(str_type category)
 {
-	__LIBGS_CORE_LOG_OUTPUT(warning, category);
+	return _output(output_type::warning, std::move(category));
 }
 
 template <concept_char_type CharT>
@@ -279,7 +257,7 @@ basic_buffer<CharT> basic_logger<CharT>::cerror(str_type category, T &&msg) {
 template <concept_char_type CharT>
 basic_buffer<CharT> basic_logger<CharT>::cerror(str_type category)
 {
-	__LIBGS_CORE_LOG_OUTPUT(error, category);
+	return _output(output_type::error, std::move(category));
 }
 
 template <concept_char_type CharT>
@@ -308,6 +286,19 @@ template <concept_char_type CharT>
 void basic_logger<CharT>::wait()
 {
 	writer::instance().wait();
+}
+
+template <concept_char_type CharT>
+inline basic_buffer<CharT> basic_logger<CharT>::_output(output_type type, str_type category) const
+{
+#ifdef __NO_DEBUG__
+	return buffer(type);
+#else //DEBUG
+	buffer buf(type); 
+	buf.context() = m_runtime_context; 
+	buf.context().category = std::move(category); 
+	return buf; 
+#endif //__NO_DEBUG__
 }
 
 } //namespace libgs::log

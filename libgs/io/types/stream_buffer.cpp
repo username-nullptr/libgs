@@ -3,7 +3,7 @@
 *                                                                                   *
 *   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of LIBGS                                                     *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
@@ -26,59 +26,34 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_ALGORITHM_SHA1_H
-#define LIBGS_CORE_ALGORITHM_SHA1_H
-
-#include <libgs/core/global.h>
+#include "stream_buffer.h"
 
 namespace libgs
 {
 
-class sha1_impl;
-
-class LIBGS_CORE_API sha1
+buffer<void>::buffer(size_t size) :
+	size(size)
 {
-public:
-	sha1();
-	sha1(std::string_view text);
-	sha1(std::wstring_view text);
-	sha1(const sha1 &other);
-	sha1(sha1 &&other) noexcept;
-	~sha1();
 
-public:
-	sha1 &operator=(const sha1 &other);
-	sha1 &operator=(sha1 &&other) noexcept;
+}
 
-public:
-	sha1 &append(uint8_t x);
-	sha1 &append(char c);
-	sha1 &append(wchar_t c);
-	sha1 &append(const void *data, size_t size);
-	sha1 &append(std::string_view text);
-	sha1 &append(std::wstring_view text);
+buffer<void*>::buffer(void *data, size_t size) : 
+	buffer<void>(size), data(data)
+{
 
-public:
-	void operator+=(uint8_t x);
-	void operator+=(char c);
-	void operator+=(wchar_t c);
-	void operator+=(const std::string &text);
-	void operator+=(const std::wstring &text);
+}
 
-public:
-	sha1 &finalize();
-	[[nodiscard]] std::string hex(bool upper_case = true) const;
-	[[nodiscard]] std::string base64() const;
+buffer<std::string&>::buffer(std::string &data, size_t size) :
+	buffer<void>(size), data(data)
+{
 
-public:
-	[[nodiscard]] std::wstring whex(bool upper_case = true) const;
-	[[nodiscard]] std::wstring wbase64() const;
+}
 
-private:
-	sha1_impl *m_impl;
-};
+buffer<const void*>::buffer(const void *data, size_t size) :
+	buffer<void>(size), data(data)
+{
+	if( size == 0 )
+		this->size = std::strlen(reinterpret_cast<const char*>(data));
+}
 
 } //namespace libgs
-
-
-#endif //LIBGS_CORE_ALGORITHM_SHA1_H
