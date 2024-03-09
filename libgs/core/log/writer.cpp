@@ -26,7 +26,7 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifdef _WINDOWS
+#if defined(__WINNT__) || defined(_WINDOWS)
 # define WIN32_LEAN_AND_MEAN
 # include <Windows.h>
 #endif
@@ -47,7 +47,7 @@ namespace dt = std::chrono;
 
 namespace fs = std::filesystem;
 
-#ifdef _WINDOWS
+#if defined(__WINNT__) || defined(_WINDOWS)
 
 namespace libgs::log
 {
@@ -67,7 +67,7 @@ static LPSTR convert_error_code_to_string(DWORD errc)
 namespace std::filesystem
 {
 
-#ifdef _WINDOWS
+#if defined(__WINNT__) || defined(_WINDOWS)
 
 static time_t create_time(const std::string &filename)
 {
@@ -92,14 +92,10 @@ static time_t create_time(const std::string &filename)
 		std::cerr << "*** Error: Log: create_time: " << convert_error_code_to_string(errc) << " (" << errc << ")." << std::endl;
 		return 0;
 	}
-	LONGLONG ll;
-	ULARGE_INTEGER ui;
-
-	ui.LowPart = creationTime.dwLowDateTime;
-	ui.HighPart = creationTime.dwHighDateTime;
-
-	ll = (static_cast<LONGLONG>(creationTime.dwHighDateTime) << 32) | creationTime.dwLowDateTime;
-	return static_cast<time_t>((ui.QuadPart - 116444736000000000) / 10000000);
+	ULARGE_INTEGER tmp;
+	tmp.LowPart = creationTime.dwLowDateTime;
+	tmp.HighPart = creationTime.dwHighDateTime;
+	return static_cast<time_t>(tmp.QuadPart / 10000000ULL - 11644473600ULL);
 }
 
 #else //other os
@@ -153,7 +149,11 @@ public:
 					m_wait_flag = false;
 					m_wtif_condition.notify_all();
 
+#if defined(__MINGW32__) || defined(__MINGW64__)
+# warning "MinGW bug ???: 'm_condition' cannot be notified after main ends ???"
+#endif
 					m_condition.wait(locker);
+
 					if( m_stop_flag )
 						return shutdown();
 					m_wait_flag = true;
@@ -176,6 +176,9 @@ public:
 		m_stop_flag = true;
 		m_condition.notify_one();
 		try {
+#if defined(__MINGW32__) || defined(__MINGW64__)
+# warning "MinGW bug ???: The thread has not ended, but join returns ???"
+#endif
 			if( m_thread.joinable() )
 				m_thread.join();
 		}

@@ -125,14 +125,14 @@ template <concept_char_type CharT>
 template <concept_integral_type T>
 T basic_value<CharT>::get_or(size_t base, T default_value) const noexcept
 {
-	return libgs::ston<T>(m_str, base, default_value);
+	return libgs::ston_or<T>(m_str, base, default_value);
 }
 
 template <concept_char_type CharT>
 template <concept_float_type T>
 T basic_value<CharT>::get_or(T default_value) const noexcept
 {
-	return libgs::ston<T>(m_str, default_value);
+	return libgs::ston_or<T>(m_str, default_value);
 }
 
 template <concept_char_type CharT>

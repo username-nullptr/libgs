@@ -27,6 +27,8 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 		add_compile_options(-Wall)
 		if (${CMAKE_CXX_COMPILER_VERSION} LESS 13)
 			message(FATAL_ERROR "The minimum version of 'GNU' required is 13.")
+		else ()
+			message(WARNING "If you use the GNU, the async-log may have undefined behavior at the end of the process.")
 		endif ()
 
 	elseif ("MSVC" MATCHES ${CMAKE_CXX_COMPILER_ID})

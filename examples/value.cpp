@@ -20,7 +20,7 @@ int main()
 	libgs_log_debug() << v4.to_string() << v4.to_float() << v4.to_int();
 
 	libgs::value v5 = "hello";
-	libgs_log_debug() << v5.to_string() /* << v5.to_int() */; // throw !!!
+	libgs_log_debug() << v5.to_string() << v5.to_int_or(); /* << v5.to_int() */; // throw !!!
 #else
 	libgs::wvalue v0 = L"11";
 	libgs_log_wdebug() << v0.to_string() << v0.to_int();
