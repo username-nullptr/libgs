@@ -88,5 +88,5 @@ elseif (WIN32)
 endif()
 
 set_target_properties(${target_name} PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY ../../${output_dir_name}/bin
+	LIBRARY_OUTPUT_DIRECTORY ../../${output_dir_name}/lib
 )

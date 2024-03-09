@@ -322,5 +322,25 @@ basic_value<CharT> &basic_value<CharT>::operator=(str_view_type str)
 
 } //namespace libgs
 
+namespace std
+{
+
+template <libgs::concept_char_type CharT>
+class formatter<libgs::basic_value<CharT>, CharT> 
+{
+public:
+	auto format(const libgs::basic_value<CharT> &value, auto &context) const {
+		return m_formatter.format(value.to_string(), context);
+	}
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<std::basic_string<CharT>, CharT> m_formatter;
+};
+
+} //namespace std
+
 
 #endif //LIBGS_CORE_DETAIL_VALUE_H

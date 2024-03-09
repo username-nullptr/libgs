@@ -30,9 +30,23 @@
 #define LIBGS_CORE_ALGORITHM_MIME_TYPE_H
 
 #include <libgs/core/global.h>
+#include <unordered_map>
+#include <map>
 
 namespace libgs
 {
+
+using suffix_type_map = std::unordered_map<std::string, std::string>;
+using mime_head_map = std::map<std::string, std::string>;
+
+LIBGS_CORE_API void set_suffix_map(suffix_type_map map);
+LIBGS_CORE_API void insert_suffix_map(suffix_type_map map);
+
+LIBGS_CORE_API void set_signatures_map(mime_head_map map);
+LIBGS_CORE_API void insert_signatures_map(mime_head_map map);
+
+LIBGS_CORE_API void set_signatures_map_offset4(mime_head_map map);
+LIBGS_CORE_API void insert_signatures_map_offset4(mime_head_map map);
 
 [[nodiscard]] LIBGS_CORE_API
 std::string get_mime_type(std::string_view file_name, bool magic_first = false);

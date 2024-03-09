@@ -27,6 +27,7 @@
 *************************************************************************************/
 
 #include "mime_type.h"
+#include "libgs/core/app_utls.h"
 #include "base.h"
 
 #include <unordered_map>
@@ -49,7 +50,7 @@ namespace libgs
 #define VIDEO        "video/"
 #define INTERFACE    "interface"
 
-static const std::unordered_map<std::string, std::string> g_suffix_hash
+static suffix_type_map g_suffix_hash
 {
 	{ ".1"             , TEXT "troff"                                                                  },
 	{ ".3ds"           , IMAGE "x-3ds"                                                                 },
@@ -794,207 +795,209 @@ static const std::unordered_map<std::string, std::string> g_suffix_hash
 	{ ".zip"           , APPLICATION "zip"                                                             }
 };
 
-static const char *g_signatures_list[] =
+static mime_head_map g_signatures_map
 {
-	"\x05" "\x00\x01\x00\x00\x00"                           , APPLICATION "x-font-ttf"             ,
-	"\x0C" "\x04%!PS-Adobe-"                                , APPLICATION "postscript"             ,
-	"\x0D" "\x1B%-12345X%!PS"                               , APPLICATION "postscript"             ,
-	"\x02" "\x1F\x8B"                                       , APPLICATION "gzip"/*x-gzip*/         ,
-	"\x02" "\x1F\x9D"                                       , APPLICATION "x-compress"             ,
-	"\x0E" "!<arch>""\x0A""debian"                          , APPLICATION "x-debian-package"       ,
-	"\x08" "#! rnews"                                       , MESSAGE "rfc822"                     ,
-	"\x0A" "#!/bin/ash"                                     , APPLICATION "x-shellscript"          ,
-	"\x0B" "#!/bin/bash"                                    , APPLICATION "x-shellscript"          ,
-	"\x0B" "#!/bin/perl"                                    , TEXT "x-perl"                        ,
-	"\x09" "#!/bin/sh"                                      , APPLICATION "x-shellscript"          ,
-	"\x12" "#!/usr/bin/env lua"                             , TEXT "x-lua"                         ,
-	"\x0F" "#!/usr/bin/perl"                                , TEXT "x-perl"                        ,
-	"\x15" "#!/usr/bin/env python"                          , TEXT "x-python"                      ,
-	"\x13" "#!/usr/bin/env ruby"                            , TEXT "x-ruby"                        ,
-	"\x12" "#!/usr/bin/env tcl"                             , TEXT "x-tcl"                         ,
-	"\x13" "#!/usr/bin/env wish"                            , TEXT "x-tcl"                         ,
-	"\x0E" "#!/usr/bin/lua"                                 , TEXT "x-lua"                         ,
-	"\x11" "#!/usr/bin/python"                              , TEXT "x-python"                      ,
-	"\x0F" "#!/usr/bin/ruby"                                , TEXT "x-ruby"                        ,
-	"\x0E" "#!/usr/bin/tcl"                                 , TEXT "x-tcl"                         ,
-	"\x0F" "#!/usr/bin/wish"                                , TEXT "x-tcl"                         ,
-	"\x14" "#!/usr/local/bin/lua"                           , TEXT "x-lua"                         ,
-	"\x15" "#!/usr/local/bin/perl"                          , TEXT "x-perl"                        ,
-	"\x17" "#!/usr/local/bin/python"                        , TEXT "x-python"                      ,
-	"\x15" "#!/usr/local/bin/ruby"                          , TEXT "x-ruby"                        ,
-	"\x14" "#!/usr/local/bin/tcl"                           , TEXT "x-tcl"                         ,
-	"\x15" "#!/usr/local/bin/wish"                          , TEXT "x-tcl"                         ,
-	"\x11" "# KDE Config File"                              , APPLICATION "x-kdelnk"               ,
-	"\x14" "# PaCkAgE DaTaStReAm"                           , APPLICATION "x-svr4-package"         ,
-	"\x06" "# xmcd"                                         , TEXT "x-xmcd"                        ,
-	"\x0B" "#?RADIANCE\x0A"                                 , IMAGE "vnd.radiance"                 ,
-	"\x0B" "%!PS-Adobe-"                                    , APPLICATION "postscript"             ,
-	"\x05" "%PDF-"                                          , APPLICATION "pdf"                    ,
-	"\x05" "*mbx*"                                          , APPLICATION "mbox"                   ,
-	"\x1C" "-----BEGIN PGP MESSAGE-\x00\x1E---"             , APPLICATION "pgp"                    ,
-	"\x1E" "-----BEGIN PGP SIGNATURE-\x00\x03.\""           , APPLICATION "pgp-signature"          ,
-	"\x03" ".\""                                            , TEXT "troff"                         ,
-	"\x04" ".sd\x00"                                        , AUDIO "x-dec-basic"                  ,
-	"\x04" ".snd"                                           , AUDIO "basic"                        ,
-	"\x09" "/* XPM */"                                      , IMAGE "x-xpmi"                       ,
-	"\x05" "07070"                                          , APPLICATION "x-cpio"                 ,
-	"\x04" "1\xBE\x00\x00"                                  , APPLICATION "msword"                 ,
-	"\x06" "7z\xBC\xAF'\x1C"                                , APPLICATION "x-7z-compressed"        ,
-	"\x1A" "8BPS Adobe Photoshop Image"                     , IMAGE "vnd.adobe.photoshop"          ,
-	"\x04" ";ELC"                                           , APPLICATION "x-elc"                  ,
-	"\x0E" "<!DOCTYPE HTML"                                 , TEXT "html"                          ,
-	"\x0E" "<?xml version="                                 , APPLICATION "xml"                    ,
-	"\x06" "<Book "                                         , APPLICATION "x-mif"                  ,
-	"\x09" "<BookFile"                                      , APPLICATION "x-mif"                  ,
-	"\x04" "<MML"                                           , APPLICATION "x-mif"                  ,
-	"\x08" "<MIFFile"                                       , APPLICATION "x-mif"                  ,
-	"\x10" "<MakerDictionary"                               , APPLICATION "x-mif"                  ,
-	"\x06" "<Maker"                                         , APPLICATION "x-mif"                  ,
-	"\x0C" "<SCRIBUSUTF8"                                   , APPLICATION "x-scribus"              ,
-	"\x0C" "<map version"                                   , APPLICATION "x-freemind"             ,
-	"\x0A" "@ echo off"                                     , TEXT "x-msdos-batch"                 ,
-	"\x09" "@echo off"                                      , TEXT "x-msdos-batch"                 ,
-	"\x04" "@rem"                                           , TEXT "x-msdos-batch"                 ,
-	"\x04" "@set"                                           , TEXT "x-msdos-batch"                 ,
-	"\x04" "ADIF"                                           , AUDIO "x-hx-aac-adif"                ,
-	"\x08" "AT&TFORM"                                       , IMAGE "vnd.djvu"                     ,
-	"\x07" "Article"                                        , MESSAGE "news"                       ,
-	"\x0F" "BEGIN:VCALENDAR"                                , TEXT "calendar"                      ,
-	"\x0B" "BEGIN:VCARD"                                    , TEXT "x-vcard"                       ,
-	"\x04" "BM\x00\x03"                                     , IMAGE "x-ms-bmp"                     ,
-	"\x03" "BZh"                                            , APPLICATION "x-bzip2"                ,
-	"\x04" "CPC\xB2"                                        , IMAGE "x-cpi"                        ,
-	"\x03" "CWS"                                            , APPLICATION "x-shockwave-flash"      ,
-	"\x04" "DICM"                                           , APPLICATION "dicom"                  ,
-	"\x04" "EIM "                                           , IMAGE "x-eim"                        ,
-	"\x06" "FGF95a"                                         , IMAGE "x-unknown"                    ,
-	"\x03" "FLV"                                            , VIDEO "x-flv"                        ,
-	"\x04" "FOVb"                                           , IMAGE "x-x3f"                        ,
-	"\x03" "FWS"                                            , APPLICATION "x-shockwave-flash"      ,
-	"\x0A" "Forward to"                                     , MESSAGE "rfc822"                     ,
-	"\x05" "From:"                                          , MESSAGE "rfc822"                     ,
-	"\x04" "GIF8"                                           , IMAGE "gif"                          ,
-	"\x06" "GIF94z"                                         , IMAGE "x-unknown"                    ,
-	"\x0A" "HEADER    "                                     , CHEMICAL "x-pdb"                     ,
-	"\x11" "HWP Document File"                              , APPLICATION "x-hwp"                  ,
-	"\x0E" "II\x1A\x00\x00\x00HEAPCCDR"                     , IMAGE "x-canon-crw"                  ,
-	"\x04" "II*\x00"                                        , IMAGE "tiff"                         ,
-	"\x0A" "II*\x00\x10\x00\x00\x00CR"                      , IMAGE "x-canon-cr2"                  ,
-	"\x04" "IIN1"                                           , IMAGE "x-niff"                       ,
-	"\x04" "IIRO"                                           , IMAGE "x-olympus-orf"                ,
-	"\x04" "IIRS"                                           , IMAGE "x-olympus-orf"                ,
-	"\x04" "LRZI"                                           , APPLICATION "x-lrzip"                ,
-	"\x04" "LZIP"                                           , APPLICATION "x-lzip"                 ,
-	"\x0E" "MAS_UTrack_V00"                                 , AUDIO "x-mod"                        ,
-	"\x04" "MM\x00*"                                        , IMAGE "tiff"                         ,
-	"\x04" "MMOR"                                           , IMAGE "x-olympus-orf"                ,
-	"\x04" "MOVI"                                           , VIDEO "x-sgi-movie"                  ,
-	"\x04" "MThd"                                           , AUDIO "midi"                         ,
-	"\x02" "MZ"                                             , APPLICATION "x-dosexec"              ,
-	"\x09" "N#! rnews"                                      , MESSAGE "rfc822"                     ,
-	"\x04" "OTTO"                                           , APPLICATION "vnd.ms-opentype"        ,
-	"\x04" "OggS"                                           , APPLICATION "ogg"                    ,
-	"\x03" "P4\x00"                                         , IMAGE "x-portable-bitmap"            ,
-	"\x03" "P5\x00"                                         , IMAGE "x-portable-greymap"           ,
-	"\x03" "P6\x00"                                         , IMAGE "x-portable-pixmap"            ,
-	"\x03" "P7\x00"                                         , IMAGE "x-portable-pixmap"            ,
-	"\x0C" "P7\n#MTPAINT#"                                  , IMAGE "x-portable-multimap"          ,
-	"\x03" "PBF"                                            , IMAGE "x-unknown"                    ,
-	"\x04" "PDN3"                                           , IMAGE "x-paintnet"                   ,
-	"\x05" "PFS1\x0A"                                       , IMAGE "x-pfs"                        ,
-	"\x04" "PK\x03\x04"                                     , APPLICATION "zip"                    ,
-	"\x08" "PK\x07\x08PK\x03\x04"                           , APPLICATION "zip"                    ,
-	"\x08" "PK00PK\x03\x04"                                 , APPLICATION "zip"                    ,
-	"\x05" "PO^Q`"                                          , APPLICATION "msword"                 ,
-	"\x05" "Path:"                                          , MESSAGE "news"                       ,
-	"\x07" "Pipe to"                                        , MESSAGE "rfc822"                     ,
-	"\x10" "RF64\xFF\xFF\xFF\xFFWAVEds64"                   , AUDIO "x-wav"                        ,
-	"\x04" "Rar!"                                           , APPLICATION "x-rar"                  ,
-	"\x09" "Received:"                                      , MESSAGE "rfc822"                     ,
-	"\x0E" "Relay-Version:"                                 , MESSAGE "rfc822"                     ,
-	"\x0C" "Return-Path:"                                   , MESSAGE "rfc822"                     ,
-	"\x04" "SIT!"                                           , APPLICATION "x-stuffit"              ,
-	"\x0D" "SplineFontDB:"                                  , APPLICATION "vnd.font-fontforge-sfd" ,
-	"\x08" "StuffIt\x00"                                    , APPLICATION "x-stuffit"              ,
-	"\x04" "WARC"                                           , APPLICATION "warc"                   ,
-	"\x04" "Xcur"                                           , IMAGE "x-xcursor"                    ,
-	"\x05" "Xref:"                                          , MESSAGE "news"                       ,
-	"\x13" "[KDE Desktop Entry]"                            , APPLICATION "x-kdelnk"               ,
-	"\x0B" "d8:announce"                                    , APPLICATION "x-bittorrent"           ,
-	"\x04" "drpm"                                           , APPLICATION "x-rpm"                  ,
-	"\x04" "fLaC"                                           , AUDIO "x-flac"                       ,
-	"\x0B" "filedesc://"                                    , APPLICATION "x-ia-arc"               ,
-	"\x10" "riff.\x91\xCF\x11\xA5\xD6(\xDB\x04\xC1\x00\x00" , AUDIO "x-w64"                        ,
-	"\x05" "\rtf\x00"                                       , TEXT "rtf"                           ,
-	"\x09" "\x89LZO\x00\x0D\x0A\x1A\x0A"                    , APPLICATION "x-lzop"                 ,
-	"\x08" "\x89PNG\x0D\x0A\x1A\x0A"                        , IMAGE "png"                          ,
-	"\x04" "\x8AJNG"                                        , VIDEO "x-jng"                        ,
-	"\x04" "\x8AMNG"                                        , VIDEO "x-mng"                        ,
-	"\x08" "\x89HDF\x0D\x0A\x1A\x0A"                        , APPLICATION "x-hdf"                  ,
-	"\x04" "\xCE\xCE\xCE\xCE"                               , APPLICATION "x-java-jce-keystore"    ,
-	"\x06" "\xFD""7zXZ\x00"                                 , APPLICATION "x-xz"                   ,
-	"\x04" "\xFE""7\x00#"                                   , APPLICATION "msword"                 ,
-	"\x02" "\xFF\xD8"                                       , IMAGE "jpeg"                         ,
-	"\x04" "\xFF\xD8\xFF\xE0"                               , IMAGE "jpeg"                         ,
-	"\x04" "\xFF\xD8\xFF\xEE"                               , IMAGE "jpeg"
+	{ "\x00\x01\x00\x00\x00"                           , APPLICATION "x-font-ttf"             },
+	{ "\x04%!PS-Adobe-"                                , APPLICATION "postscript"             },
+	{ "\x1B%-12345X%!PS"                               , APPLICATION "postscript"             },
+	{ "\x1F\x8B"                                       , APPLICATION "gzip"/*x-gzip*/         },
+	{ "\x1F\x9D"                                       , APPLICATION "x-compress"             },
+	{ "!<arch>""\x0A""debian"                          , APPLICATION "x-debian-package"       },
+	{ "#! rnews"                                       , MESSAGE "rfc822"                     },
+	{ "#!/bin/ash"                                     , APPLICATION "x-shellscript"          },
+	{ "#!/bin/bash"                                    , APPLICATION "x-shellscript"          },
+	{ "#!/bin/perl"                                    , TEXT "x-perl"                        },
+	{ "#!/bin/sh"                                      , APPLICATION "x-shellscript"          },
+	{ "#!/usr/bin/env lua"                             , TEXT "x-lua"                         },
+	{ "#!/usr/bin/perl"                                , TEXT "x-perl"                        },
+	{ "#!/usr/bin/env python"                          , TEXT "x-python"                      },
+	{ "#!/usr/bin/env ruby"                            , TEXT "x-ruby"                        },
+	{ "#!/usr/bin/env tcl"                             , TEXT "x-tcl"                         },
+	{ "#!/usr/bin/env wish"                            , TEXT "x-tcl"                         },
+	{ "#!/usr/bin/lua"                                 , TEXT "x-lua"                         },
+	{ "#!/usr/bin/python"                              , TEXT "x-python"                      },
+	{ "#!/usr/bin/ruby"                                , TEXT "x-ruby"                        },
+	{ "#!/usr/bin/tcl"                                 , TEXT "x-tcl"                         },
+	{ "#!/usr/bin/wish"                                , TEXT "x-tcl"                         },
+	{ "#!/usr/local/bin/lua"                           , TEXT "x-lua"                         },
+	{ "#!/usr/local/bin/perl"                          , TEXT "x-perl"                        },
+	{ "#!/usr/local/bin/python"                        , TEXT "x-python"                      },
+	{ "#!/usr/local/bin/ruby"                          , TEXT "x-ruby"                        },
+	{ "#!/usr/local/bin/tcl"                           , TEXT "x-tcl"                         },
+	{ "#!/usr/local/bin/wish"                          , TEXT "x-tcl"                         },
+	{ "# KDE Config File"                              , APPLICATION "x-kdelnk"               },
+	{ "# PaCkAgE DaTaStReAm"                           , APPLICATION "x-svr4-package"         },
+	{ "# xmcd"                                         , TEXT "x-xmcd"                        },
+	{ "#?RADIANCE\x0A"                                 , IMAGE "vnd.radiance"                 },
+	{ "%!PS-Adobe-"                                    , APPLICATION "postscript"             },
+	{ "%PDF-"                                          , APPLICATION "pdf"                    },
+	{ "*mbx*"                                          , APPLICATION "mbox"                   },
+	{ "-----BEGIN PGP MESSAGE-\x00\x1E---"             , APPLICATION "pgp"                    },
+	{ "-----BEGIN PGP SIGNATURE-\x00\x03.\""           , APPLICATION "pgp-signature"          },
+	{ ".\""                                            , TEXT "troff"                         },
+	{ ".sd\x00"                                        , AUDIO "x-dec-basic"                  },
+	{ ".snd"                                           , AUDIO "basic"                        },
+	{ "/* XPM */"                                      , IMAGE "x-xpmi"                       },
+	{ "07070"                                          , APPLICATION "x-cpio"                 },
+	{ "1\xBE\x00\x00"                                  , APPLICATION "msword"                 },
+	{ "7z\xBC\xAF'\x1C"                                , APPLICATION "x-7z-compressed"        },
+	{ "8BPS Adobe Photoshop Image"                     , IMAGE "vnd.adobe.photoshop"          },
+	{ ";ELC"                                           , APPLICATION "x-elc"                  },
+	{ "<!DOCTYPE HTML"                                 , TEXT "html"                          },
+	{ "<?xml version="                                 , APPLICATION "xml"                    },
+	{ "<Book "                                         , APPLICATION "x-mif"                  },
+	{ "<BookFile"                                      , APPLICATION "x-mif"                  },
+	{ "<MML"                                           , APPLICATION "x-mif"                  },
+	{ "<MIFFile"                                       , APPLICATION "x-mif"                  },
+	{ "<MakerDictionary"                               , APPLICATION "x-mif"                  },
+	{ "<Maker"                                         , APPLICATION "x-mif"                  },
+	{ "<SCRIBUSUTF8"                                   , APPLICATION "x-scribus"              },
+	{ "<map version"                                   , APPLICATION "x-freemind"             },
+	{ "@ echo off"                                     , TEXT "x-msdos-batch"                 },
+	{ "@echo off"                                      , TEXT "x-msdos-batch"                 },
+	{ "@rem"                                           , TEXT "x-msdos-batch"                 },
+	{ "@set"                                           , TEXT "x-msdos-batch"                 },
+	{ "ADIF"                                           , AUDIO "x-hx-aac-adif"                },
+	{ "AT&TFORM"                                       , IMAGE "vnd.djvu"                     },
+	{ "Article"                                        , MESSAGE "news"                       },
+	{ "BEGIN:VCALENDAR"                                , TEXT "calendar"                      },
+	{ "BEGIN:VCARD"                                    , TEXT "x-vcard"                       },
+	{ "BM\x00\x03"                                     , IMAGE "x-ms-bmp"                     },
+	{ "BZh"                                            , APPLICATION "x-bzip2"                },
+	{ "CPC\xB2"                                        , IMAGE "x-cpi"                        },
+	{ "CWS"                                            , APPLICATION "x-shockwave-flash"      },
+	{ "DICM"                                           , APPLICATION "dicom"                  },
+	{ "EIM "                                           , IMAGE "x-eim"                        },
+	{ "FGF95a"                                         , IMAGE "x-unknown"                    },
+	{ "FLV"                                            , VIDEO "x-flv"                        },
+	{ "FOVb"                                           , IMAGE "x-x3f"                        },
+	{ "FWS"                                            , APPLICATION "x-shockwave-flash"      },
+	{ "Forward to"                                     , MESSAGE "rfc822"                     },
+	{ "From:"                                          , MESSAGE "rfc822"                     },
+	{ "GIF8"                                           , IMAGE "gif"                          },
+	{ "GIF94z"                                         , IMAGE "x-unknown"                    },
+	{ "HEADER    "                                     , CHEMICAL "x-pdb"                     },
+	{ "HWP Document File"                              , APPLICATION "x-hwp"                  },
+	{ "II\x1A\x00\x00\x00HEAPCCDR"                     , IMAGE "x-canon-crw"                  },
+	{ "II*\x00"                                        , IMAGE "tiff"                         },
+	{ "II*\x00\x10\x00\x00\x00CR"                      , IMAGE "x-canon-cr2"                  },
+	{ "IIN1"                                           , IMAGE "x-niff"                       },
+	{ "IIRO"                                           , IMAGE "x-olympus-orf"                },
+	{ "IIRS"                                           , IMAGE "x-olympus-orf"                },
+	{ "LRZI"                                           , APPLICATION "x-lrzip"                },
+	{ "LZIP"                                           , APPLICATION "x-lzip"                 },
+	{ "MAS_UTrack_V00"                                 , AUDIO "x-mod"                        },
+	{ "MM\x00*"                                        , IMAGE "tiff"                         },
+	{ "MMOR"                                           , IMAGE "x-olympus-orf"                },
+	{ "MOVI"                                           , VIDEO "x-sgi-movie"                  },
+	{ "MThd"                                           , AUDIO "midi"                         },
+	{ "MZ"                                             , APPLICATION "x-dosexec"              },
+	{ "N#! rnews"                                      , MESSAGE "rfc822"                     },
+	{ "OTTO"                                           , APPLICATION "vnd.ms-opentype"        },
+	{ "OggS"                                           , APPLICATION "ogg"                    },
+	{ "P4\x00"                                         , IMAGE "x-portable-bitmap"            },
+	{ "P5\x00"                                         , IMAGE "x-portable-greymap"           },
+	{ "P6\x00"                                         , IMAGE "x-portable-pixmap"            },
+	{ "P7\x00"                                         , IMAGE "x-portable-pixmap"            },
+	{ "P7\n#MTPAINT#"                                  , IMAGE "x-portable-multimap"          },
+	{ "PBF"                                            , IMAGE "x-unknown"                    },
+	{ "PDN3"                                           , IMAGE "x-paintnet"                   },
+	{ "PFS1\x0A"                                       , IMAGE "x-pfs"                        },
+	{ "PK\x03\x04"                                     , APPLICATION "zip"                    },
+	{ "PK\x07\x08PK\x03\x04"                           , APPLICATION "zip"                    },
+	{ "PK00PK\x03\x04"                                 , APPLICATION "zip"                    },
+	{ "PO^Q`"                                          , APPLICATION "msword"                 },
+	{ "Path:"                                          , MESSAGE "news"                       },
+	{ "Pipe to"                                        , MESSAGE "rfc822"                     },
+	{ "RF64\xFF\xFF\xFF\xFFWAVEds64"                   , AUDIO "x-wav"                        },
+	{ "Rar!"                                           , APPLICATION "x-rar"                  },
+	{ "Received:"                                      , MESSAGE "rfc822"                     },
+	{ "Relay-Version:"                                 , MESSAGE "rfc822"                     },
+	{ "Return-Path:"                                   , MESSAGE "rfc822"                     },
+	{ "SIT!"                                           , APPLICATION "x-stuffit"              },
+	{ "SplineFontDB:"                                  , APPLICATION "vnd.font-fontforge-sfd" },
+	{ "StuffIt\x00"                                    , APPLICATION "x-stuffit"              },
+	{ "WARC"                                           , APPLICATION "warc"                   },
+	{ "Xcur"                                           , IMAGE "x-xcursor"                    },
+	{ "Xref:"                                          , MESSAGE "news"                       },
+	{ "[KDE Desktop Entry]"                            , APPLICATION "x-kdelnk"               },
+	{ "d8:announce"                                    , APPLICATION "x-bittorrent"           },
+	{ "drpm"                                           , APPLICATION "x-rpm"                  },
+	{ "fLaC"                                           , AUDIO "x-flac"                       },
+	{ "filedesc://"                                    , APPLICATION "x-ia-arc"               },
+	{ "riff.\x91\xCF\x11\xA5\xD6(\xDB\x04\xC1\x00\x00" , AUDIO "x-w64"                        },
+	{ "\rtf\x00"                                       , TEXT "rtf"                           },
+	{ "\x89LZO\x00\x0D\x0A\x1A\x0A"                    , APPLICATION "x-lzop"                 },
+	{ "\x89PNG\x0D\x0A\x1A\x0A"                        , IMAGE "png"                          },
+	{ "\x8AJNG"                                        , VIDEO "x-jng"                        },
+	{ "\x8AMNG"                                        , VIDEO "x-mng"                        },
+	{ "\x89HDF\x0D\x0A\x1A\x0A"                        , APPLICATION "x-hdf"                  },
+	{ "\xCE\xCE\xCE\xCE"                               , APPLICATION "x-java-jce-keystore"    },
+	{ "\xFD""7zXZ\x00"                                 , APPLICATION "x-xz"                   },
+	{ "\xFE""7\x00#"                                   , APPLICATION "msword"                 },
+	{ "\xFF\xD8"                                       , IMAGE "jpeg"                         },
+	{ "\xFF\xD8\xFF\xE0"                               , IMAGE "jpeg"                         },
+	{ "\xFF\xD8\xFF\xEE"                               , IMAGE "jpeg"                         }
 };
 
-static const char *const g_signatures_list4[] =
+
+static mime_head_map g_signatures_map_offset4
 {
-	"\x0D" "\x0AVersion:Vivo"             , VIDEO "vivo"                     ,
-	"\x07" "#VRML V"                      , MODEL "vrml"                     ,
-	"\x1C" "-BEGIN PGP PUBLIC KEY BLOCK-" , APPLICATION "pgp-keys"           ,
-	"\x04" "XPR3"                         , APPLICATION "x-quark-xpress-3"   ,
-	"\x04" "XPRa"                         , APPLICATION "x-quark-xpress-3"   ,
-	"\x04" "free"                         , VIDEO "quicktime"                ,
-	"\x07" "ftyp3g2"                      , VIDEO "3gpp2"                    ,
-	"\x07" "ftyp3ge"                      , VIDEO "3gpp"                     ,
-	"\x07" "ftyp3gg"                      , VIDEO "3gpp"                     ,
-	"\x07" "ftyp3gp"                      , VIDEO "3gpp"                     ,
-	"\x07" "ftyp3gs"                      , VIDEO "3gpp"                     ,
-	"\x07" "ftypM4A"                      , AUDIO "mp4"                      ,
-	"\x07" "ftypM4B"                      , VIDEO "quicktime"                ,
-	"\x07" "ftypM4P"                      , VIDEO "quicktime"                ,
-	"\x07" "ftypM4V"                      , VIDEO "mp4"                      ,
-	"\x08" "ftypavc1"                     , VIDEO "3gpp"                     ,
-	"\x08" "ftypiso2"                     , VIDEO "mp4"                      ,
-	"\x08" "ftypisom"                     , VIDEO "mp4"                      ,
-	"\x07" "ftypjp2"                      , IMAGE "jp2"                      ,
-	"\x08" "ftypmmp4"                     , VIDEO "mp4"                      ,
-	"\x08" "ftypmp41"                     , VIDEO "mp4"                      ,
-	"\x08" "ftypmp42"                     , VIDEO "mp4"                      ,
-	"\x08" "ftypmp7b"                     , VIDEO "mp4"                      ,
-	"\x08" "ftypmp7t"                     , VIDEO "mp4"                      ,
-	"\x06" "ftypqt"                       , VIDEO "quicktime"                ,
-	"\x04" "idat"                         , VIDEO "quicktime"                ,
-	"\x04" "idsc"                         , VIDEO "quicktime"                ,
-	"\x02" "jP"                           , IMAGE "jp2"                      ,
-	"\x04" "mdat"                         , VIDEO "quicktime"                ,
-	"\x04" "pckg"                         , APPLICATION "x-quicktime-player" ,
-	"\x04" "skip"                         , VIDEO "quicktime"                ,
-	"\x04" "wide"                         , VIDEO "quicktime"
+	{ "\x0AVersion:Vivo"             , VIDEO "vivo"                     },
+	{ "#VRML V"                      , MODEL "vrml"                     },
+	{ "-BEGIN PGP PUBLIC KEY BLOCK-" , APPLICATION "pgp-keys"           },
+	{ "XPR3"                         , APPLICATION "x-quark-xpress-3"   },
+	{ "XPRa"                         , APPLICATION "x-quark-xpress-3"   },
+	{ "free"                         , VIDEO "quicktime"                },
+	{ "ftyp3g2"                      , VIDEO "3gpp2"                    },
+	{ "ftyp3ge"                      , VIDEO "3gpp"                     },
+	{ "ftyp3gg"                      , VIDEO "3gpp"                     },
+	{ "ftyp3gp"                      , VIDEO "3gpp"                     },
+	{ "ftyp3gs"                      , VIDEO "3gpp"                     },
+	{ "ftypM4A"                      , AUDIO "mp4"                      },
+	{ "ftypM4B"                      , VIDEO "quicktime"                },
+	{ "ftypM4P"                      , VIDEO "quicktime"                },
+	{ "ftypM4V"                      , VIDEO "mp4"                      },
+	{ "ftypavc1"                     , VIDEO "3gpp"                     },
+	{ "ftypiso2"                     , VIDEO "mp4"                      },
+	{ "ftypisom"                     , VIDEO "mp4"                      },
+	{ "ftypjp2"                      , IMAGE "jp2"                      },
+	{ "ftypmmp4"                     , VIDEO "mp4"                      },
+	{ "ftypmp41"                     , VIDEO "mp4"                      },
+	{ "ftypmp42"                     , VIDEO "mp4"                      },
+	{ "ftypmp7b"                     , VIDEO "mp4"                      },
+	{ "ftypmp7t"                     , VIDEO "mp4"                      },
+	{ "ftypqt"                       , VIDEO "quicktime"                },
+	{ "idat"                         , VIDEO "quicktime"                },
+	{ "idsc"                         , VIDEO "quicktime"                },
+	{ "jP"                           , IMAGE "jp2"                      },
+	{ "mdat"                         , VIDEO "quicktime"                },
+	{ "pckg"                         , APPLICATION "x-quicktime-player" },
+	{ "skip"                         , VIDEO "quicktime"                },
+	{ "wide"                         , VIDEO "quicktime"                }
 };
 
 #define LIST_LEN(x)  ( sizeof(x) / sizeof(x[0]) - 2 )
 
-static std::string s_mime_search(const char *const *const mimes, size_t len, const char *buf)
+static std::string s_mime_search(const mime_head_map &mimes, const char *buf, size_t size)
 {
-	size_t bot = 0;
-	size_t top = len;
+	if( size == 0 )
+		return "text/plain";
+	size_t index = 0;
 
-	size_t i = ((bot + top) >> 1) & ~1;
-	int cmp;
-
-	for(; bot<=top and i<=len; i=((bot+top)>>1)&(~1))
+	for(auto &[key,value] : mimes)
 	{
-		cmp = memcmp(buf, mimes[i]+1, *mimes[i]);
-		if( cmp == 0 )
-			return mimes[i+1]; //match found
+		if( key[index] != buf[index] )
+			continue;
+		do {
+			if( ++index == key.size() )
+				return value;
 
-		else if( cmp > 0 )
-			bot = i + 2;
-		else
-			top = i - 2;
+			else if( index == size or key[index] > buf[index] )
+				return "unknown";
+		}
+		while( key[index] == buf[index] );
+		break;
 	}
 	return "unknown";
 }
@@ -1027,7 +1030,7 @@ static bool s_is_text_file(std::ifstream &file)
 
 static std::string mime_from_magic(std::string_view file_name)
 {
-	std::ifstream file(file_name.data());
+	std::ifstream file(app::absolute_path(file_name).c_str());
 	if( not file.is_open() )
 		return "unknown";
 
@@ -1043,13 +1046,46 @@ static std::string mime_from_magic(std::string_view file_name)
 			file.close();
 			return "text/plain";
 		}
-		file.close();
-//		return "unknwon";
 	}
-	auto mime_type = s_mime_search(g_signatures_list, LIST_LEN(g_signatures_list), buf);
-	if( mime_type.empty() )
-		mime_type = s_mime_search(g_signatures_list4, LIST_LEN(g_signatures_list4), buf + 4);
+	file.close();
+	auto mime_type = s_mime_search(g_signatures_map, buf, size);
+
+	if( mime_type.empty() and size > 4 )
+		mime_type = s_mime_search(g_signatures_map_offset4, buf + 4, size - 4);
 	return mime_type;
+}
+
+void set_suffix_map(suffix_type_map map)
+{
+	g_suffix_hash = std::move(map);
+}
+
+void insert_suffix_map(suffix_type_map map)
+{
+	for(auto &[key,value] : map)
+		g_suffix_hash[std::move(key)] = std::move(value);
+}
+
+LIBGS_CORE_API void set_signatures_map(mime_head_map map)
+{
+	g_signatures_map = std::move(map);
+}
+
+LIBGS_CORE_API void insert_signatures_map(mime_head_map map)
+{
+	for(auto &[key,value] : map)
+		g_signatures_map[std::move(key)] = std::move(value);
+}
+
+LIBGS_CORE_API void set_signatures_map_offset4(mime_head_map map)
+{
+	g_signatures_map_offset4 = std::move(map);
+}
+
+LIBGS_CORE_API void insert_signatures_map_offset4(mime_head_map map)
+{
+	for(auto &[key,value] : map)
+		g_signatures_map_offset4[std::move(key)] = std::move(value);
 }
 
 std::string get_mime_type(std::string_view file_name, bool magic_first)
