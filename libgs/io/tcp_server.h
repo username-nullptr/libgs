@@ -93,6 +93,7 @@ public:
 public:
 	awaitable<void> co_wait() noexcept;
 	void wait() noexcept;
+	asio::thread_pool &pool();
 
 protected:
 	explicit basic_tcp_server(auto *asio_acceptor, concept_callable auto &&del_acceptor);

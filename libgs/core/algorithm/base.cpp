@@ -291,14 +291,44 @@ std::wstring str_to_upper(std::wstring_view str)
 	return algorithm_base::str_to_upper<wchar_t>(str);
 }
 
-size_t str_replace(std::string &str, std::string_view _old, std::string_view _new)
+size_t str_replace(std::string &str, std::string_view _old, std::string_view _new, bool step)
 {
-	return algorithm_base::str_replace<char>(str, _old, _new);
+	return algorithm_base::str_replace<char>(str, _old, _new, step);
 }
 
-size_t str_replace(std::wstring &str, std::wstring_view _old, std::wstring_view _new)
+size_t str_replace(std::wstring &str, std::wstring_view _old, std::wstring_view _new, bool step)
 {
-	return algorithm_base::str_replace<wchar_t>(str, _old, _new);
+	return algorithm_base::str_replace<wchar_t>(str, _old, _new, step);
+}
+
+size_t str_replace(std::string &str, std::string_view _old, char _new, bool step)
+{
+	return str_replace(str, std::move(_old), {&_new,1}, step);
+}
+
+size_t str_replace(std::wstring &str, std::wstring_view _old, wchar_t _new, bool step)
+{
+	return str_replace(str, std::move(_old), {&_new,1}, step);
+}
+
+size_t str_replace(std::string &str, char _old, std::string_view _new, bool step)
+{
+	return str_replace(str, {&_old,1}, std::move(_new), step);
+}
+
+size_t str_replace(std::wstring &str, wchar_t _old, std::wstring_view _new, bool step)
+{
+	return str_replace(str, {&_old,1}, std::move(_new), step);
+}
+
+size_t str_replace(std::string &str, char _old, char _new, bool step)
+{
+	return str_replace(str, {&_old,1}, {&_new,1}, step);
+}
+
+size_t str_replace(std::wstring &str, wchar_t _old, wchar_t _new, bool step)
+{
+	return str_replace(str, {&_old,1}, {&_new,1}, step);
 }
 
 std::string str_trimmed(std::string_view str)
@@ -311,24 +341,24 @@ std::wstring str_trimmed(std::wstring_view str)
 	return algorithm_base::str_trimmed<wchar_t>(str);
 }
 
-std::string str_remove(std::string_view str, std::string_view find)
+std::string str_remove(std::string_view str, std::string_view find, bool step)
 {
-	return algorithm_base::str_remove<char>(str, find);
+	return algorithm_base::str_remove<char>(str, find, step);
 }
 
-std::wstring str_remove(std::wstring_view str, std::wstring_view find)
+std::wstring str_remove(std::wstring_view str, std::wstring_view find, bool step)
 {
-	return algorithm_base::str_remove<wchar_t>(str, find);
+	return algorithm_base::str_remove<wchar_t>(str, find, step);
 }
 
-std::string str_remove(std::string_view str, char find)
+std::string str_remove(std::string_view str, char find, bool step)
 {
-	return algorithm_base::str_remove<char>(str, find);
+	return algorithm_base::str_remove<char>(str, find, step);
 }
 
-std::wstring str_remove(std::wstring_view str, wchar_t find)
+std::wstring str_remove(std::wstring_view str, wchar_t find, bool step)
 {
-	return algorithm_base::str_remove<wchar_t>(str, find);
+	return algorithm_base::str_remove<wchar_t>(str, find, step);
 }
 
 std::string from_percent_encoding(std::string_view str)

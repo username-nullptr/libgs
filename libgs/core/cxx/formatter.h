@@ -33,6 +33,7 @@
 // #include <rttr/type>
 #include <asio.hpp>
 
+#include <optional>
 #include <thread>
 #include <atomic>
 #include <memory>
@@ -90,6 +91,29 @@ public:
 
 private:
 	formatter<uint64_t, CharT> m_formatter;
+};
+
+template <typename T, libgs::concept_char_type CharT>
+class formatter<std::optional<T>, CharT>
+{
+public:
+	auto format(const std::optional<T> &ov, auto &context) const 
+	{
+		if( ov )
+			return m_formatter.format(*ov, context);
+
+		if constexpr( std::is_same_v<CharT, char> )
+			return format_to(context.out(), "optional(null)");
+		else
+			return format_to(context.out(), L"optional(null)");
+	}
+
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<T, CharT> m_formatter;
 };
 
 template <typename T, libgs::concept_char_type CharT>

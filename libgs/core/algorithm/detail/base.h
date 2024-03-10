@@ -31,7 +31,6 @@
 
 #include <libgs/core/global.h>
 #include <libgs/core/cxx/exception.h>
-#include <libgs/core/log.h>
 
 namespace libgs::algorithm_base
 {
@@ -288,7 +287,7 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT> /*[[nodiscard]]*/ 
-size_t str_replace(std::basic_string<CharT> &str, std::basic_string_view<CharT> _old, std::basic_string_view<CharT> _new)
+size_t str_replace(std::basic_string<CharT> &str, std::basic_string_view<CharT> _old, std::basic_string_view<CharT> _new, bool step)
 {
 	if( _old == _new )
 		return 0;
@@ -303,7 +302,10 @@ size_t str_replace(std::basic_string<CharT> &str, std::basic_string_view<CharT> 
 			break;
 
 		str.replace(start, _old.size(), _new);
-		old_pos = start + _new.size();
+		old_pos = start;
+
+		if( step )
+			old_pos += _new.size();
 		sum++;
 	}
 	return sum;
@@ -343,15 +345,15 @@ template <concept_char_type CharT>
 
 template <concept_char_type CharT>
 [[nodiscard]] std::basic_string<CharT> 
-str_remove(std::basic_string_view<CharT> str, std::basic_string_view<CharT> find)
+str_remove(std::basic_string_view<CharT> str, std::basic_string_view<CharT> find, bool step)
 {
 	std::basic_string<CharT> res(str.data(), str.size());
-	str_replace<CharT>(res, find, std::basic_string<CharT>());
+	str_replace<CharT>(res, find, std::basic_string<CharT>(), step);
 	return res;
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] std::basic_string<CharT> str_remove(std::basic_string_view<CharT> str, CharT find)
+[[nodiscard]] std::basic_string<CharT> str_remove(std::basic_string_view<CharT> str, CharT find, bool)
 {
 	std::basic_string<CharT> res(str.data(), str.size());
 	auto it = std::remove(res.begin(), res.end(), find);

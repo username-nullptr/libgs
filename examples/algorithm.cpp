@@ -1,4 +1,5 @@
 #include <libgs/core/algorithm.h>
+#include <libgs/core/log.h>
 
 int main()
 {

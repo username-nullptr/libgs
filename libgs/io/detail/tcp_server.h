@@ -289,6 +289,12 @@ void basic_tcp_server<Exec>::wait() noexcept
 }
 
 template <concept_execution Exec>
+asio::thread_pool &basic_tcp_server<Exec>::pool()
+{
+	return m_pool;
+}
+
+template <concept_execution Exec>
 basic_tcp_server<Exec>::basic_tcp_server(auto *asio_acceptor, concept_callable auto &&del_acceptor) :
 	base_type(asio_acceptor->get_executor()),
 	m_acceptor(asio_acceptor),

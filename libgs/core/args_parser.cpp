@@ -37,12 +37,11 @@ namespace libgs::cmdline
 
 using arguments = args_parser::arguments;
 
-using group_iden = std::string;
-using parsing_cache = std::unordered_set<group_iden>;
+using parsing_cache = std::unordered_set<std::string>;
 
 struct arg_info
 {
-	group_iden group;
+	std::string group;
 	std::string iden;
 };
 using args_cache = std::unordered_map<std::string, arg_info>;
@@ -215,7 +214,7 @@ args_parser &args_parser::set_help_extension(std::string d)
 	return *this;
 }
 
-static void group_check_duplication(parsing_cache &cache, const group_iden &group)
+static void group_check_duplication(parsing_cache &cache, const std::string &group)
 {
 	if( not cache.emplace(group).second )
 	{

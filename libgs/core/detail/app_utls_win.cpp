@@ -117,7 +117,7 @@ std::string absolute_path(std::string_view path)
 {
 	std::string result(path.data(), path.size());
 	if( not is_absolute_path(path) )
-		return dir_path() + result;
+		result = dir_path() + result;
 
 	else if( path.starts_with("~") )
 	{
@@ -139,9 +139,12 @@ std::string absolute_path(std::string_view path)
 			home.pop_back();
 
 		result = home + result.erase(0,1);
-		if( not result.ends_with("/") )
-			result += "/";
 	}
+	if( not result.ends_with("/") )
+		result += "/";
+
+	str_replace(result, "/./", "/", false);
+	str_replace(result, "//", "/", false);
 	return result;
 }
 

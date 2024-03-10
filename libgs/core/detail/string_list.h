@@ -69,18 +69,18 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 		return result;
 
 	auto strs = str + splits;
+	auto pos = strs.find(splits);
 	auto step = splits.size();
 
-	auto pos = str.size();
-	do {
+	while( pos != std::basic_string<CharT>::npos )
+	{
 		auto tmp = strs.substr(0, pos);
-		if( not tmp.empty() or not ignore_empty )
+		if( not str_trimmed(tmp).empty() or not ignore_empty )
 			result.emplace_back(std::move(tmp));
 
 		strs = strs.substr(pos + step, strs.size());
 		pos = strs.find(splits);
 	}
-	while( pos != std::basic_string<CharT>::npos );
 	return result;
 }
 
