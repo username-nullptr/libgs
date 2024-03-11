@@ -67,6 +67,12 @@ public:
 public:
 	void fatal(output_context &&runtime_context, const std::string &msg);
 	void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
+
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	// MinGW bug ???: Process will block and cannot exit. ???
+	// It could also be a bug in the posix-thread.
+	void exit();
+#endif
 };
 
 } //namespace libgs::log

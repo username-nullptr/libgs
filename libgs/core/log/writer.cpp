@@ -150,8 +150,8 @@ public:
 					m_wtif_condition.notify_all();
 
 #if defined(__MINGW32__) || defined(__MINGW64__)
-# warning "MinGW bug ???: 'm_condition' cannot be notified after main ends ???"
-#endif
+# warning "MinGW bug ???: 'm_condition' cannot be notified after main ends. ???"
+#endif // It could also be a bug in the posix-thread.
 					m_condition.wait(locker);
 
 					if( m_stop_flag )
@@ -177,8 +177,8 @@ public:
 		m_condition.notify_one();
 		try {
 #if defined(__MINGW32__) || defined(__MINGW64__)
-# warning "MinGW bug ???: The thread has not ended, but join returns ???"
-#endif
+# warning "MinGW bug ???: The thread has not ended, but join return. ???"
+#endif // It could also be a bug in the posix-thread.
 			if( m_thread.joinable() )
 				m_thread.join();
 		}
@@ -261,7 +261,7 @@ private:
 template <concept_char_type CharT>
 static writer_impl<CharT> *g_impl = nullptr;
 
-static std::atomic_uint g_counter {0};
+static std::atomic_int g_counter {0};
 
 /*------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -373,6 +373,18 @@ void writer::fatal(output_wcontext &&runtime_context, const std::wstring &msg)
 {
 	_fatal(std::move(runtime_context), msg);
 }
+
+#if defined(__MINGW32__) || defined(__MINGW64__)
+void writer::exit()
+{
+	g_counter = 1;
+	if( --g_counter == 0 )
+	{
+		delete g_impl<char>;
+		delete g_impl<wchar_t>;
+	}
+}
+#endif
 
 /*------------------------------------------------------------------------------------------------------------------------------*/
 

@@ -13,7 +13,7 @@ message(STATUS "libgs: using C++: " ${CMAKE_CXX_STANDARD})
 message(STATUS "libgs: build type: " ${CMAKE_BUILD_TYPE})
 message(STATUS "libgs: install prefix: " ${CMAKE_INSTALL_PREFIX})
 
-set(output_dir_name output)
+set(output_dir ${CMAKE_BINARY_DIR}/output)
 
 add_subdirectory(3rd_party)
 include(3rd_party)

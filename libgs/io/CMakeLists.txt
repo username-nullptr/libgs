@@ -47,5 +47,6 @@ target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
 target_link_libraries(${target_name} PUBLIC gs_core)
 
 set_target_properties(${target_name} PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY ../../${output_dir_name}/lib
+	LIBRARY_OUTPUT_DIRECTORY ${output_dir}/bin
+	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/bin
 )
