@@ -26,27 +26,15 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CONTAINER_H
-#define LIBGS_HTTP_CONTAINER_H
-
-#include <libgs/http/global.h>
-#include <libgs/core/value.h>
+#ifndef LIBGS_HTTP_DETAIL_COOKIE_H
+#define LIBGS_HTTP_DETAIL_COOKIE_H
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-struct basic_less_case_insensitive
-{
-	using str_type = std::basic_string<CharT>;
-	bool operator()(const str_type &v1, const str_type &v2) const;
-};
 
-using less_case_insensitive = basic_less_case_insensitive<char>;
-using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/detail/container.h>
 
 
-#endif //LIBGS_HTTP_CONTAINER_H
+#endif //LIBGS_HTTP_DETAIL_COOKIE_H

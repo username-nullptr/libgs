@@ -2,7 +2,6 @@ set(target_name gs_http)
 
 set(http_sources
 	global.cpp
-	cookie.cpp
 	session.cpp
 	types.cpp
 )
@@ -16,6 +15,8 @@ set(http_headers
 )
 
 set(http_detail_headers
+	detail/container.h
+	detail/cookie.h
 )
 
 set(all_files
