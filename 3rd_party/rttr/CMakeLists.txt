@@ -195,7 +195,8 @@ endif()
 target_include_directories(${target_name} PRIVATE .)
 
 set_target_properties(${target_name} PROPERTIES
-	LIBRARY_OUTPUT_DIRECTORY ../../${output_dir_name}/bin
+	LIBRARY_OUTPUT_DIRECTORY ${output_dir}/bin
+	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/bin
 )
 
 install(TARGETS ${target_name} DESTINATION bin)

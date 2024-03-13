@@ -30,41 +30,23 @@
 #define LIBGS_HTTP_COOKIE_H
 
 #include <libgs/http/container.h>
-#include <map>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-using basic_cookie_attribute = std::pair<std::basic_string<CharT>, basic_value<CharT>>;
+#define LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(_type, ...) \
+	constexpr const _type *domain    = __VA_ARGS__##"Domain"; \
+	constexpr const _type *path      = __VA_ARGS__##"Path"; \
+	constexpr const _type *size      = __VA_ARGS__##"Size"; \
+	constexpr const _type *expires   = __VA_ARGS__##"Expires"; \
+	constexpr const _type *max_age   = __VA_ARGS__##"Max-Age"; \
+	constexpr const _type *http_only = __VA_ARGS__##"HttpOnly"; \
+	constexpr const _type *secure    = __VA_ARGS__##"Secure"; \
+	constexpr const _type *same_site = __VA_ARGS__##"SameSite"; \
+	constexpr const _type *priority  = __VA_ARGS__##"Priority"
 
-struct cookie_attribute : public basic_cookie_attribute<char>
-{
-	using basic_cookie_attribute<char>::basic_cookie_attribute;
-	static constexpr const char *domain    = "Domain";
-	static constexpr const char *path      = "Path";
-	static constexpr const char *size      = "Size";
-	static constexpr const char *expires   = "Expires";
-	static constexpr const char *max_age   = "Max-Age";
-	static constexpr const char *http_only = "HttpOnly";
-	static constexpr const char *secure    = "Secure";
-	static constexpr const char *same_site = "SameSite";
-	static constexpr const char *priority  = "Priority";
-};
-
-struct wcookie_attribute : public basic_cookie_attribute<wchar_t>
-{
-	using basic_cookie_attribute<wchar_t>::basic_cookie_attribute;
-	static constexpr const wchar_t *domain    = L"Domain";
-	static constexpr const wchar_t *path      = L"Path";
-	static constexpr const wchar_t *size      = L"Size";
-	static constexpr const wchar_t *expires   = L"Expires";
-	static constexpr const wchar_t *max_age   = L"Max-Age";
-	static constexpr const wchar_t *http_only = L"HttpOnly";
-	static constexpr const wchar_t *secure    = L"Secure";
-	static constexpr const wchar_t *same_site = L"SameSite";
-	static constexpr const wchar_t *priority  = L"Priority";
-};
+namespace cookie_attribute { LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(char); };
+namespace wcookie_attribute { LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(wchar_t,L); };
 
 template <concept_char_type CharT>
 using basic_cookie_attributes = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
@@ -88,6 +70,7 @@ public:
 	basic_cookie &operator=(const basic_cookie &other) = default;
 	basic_cookie(basic_cookie &&other) noexcept = default;
 	basic_cookie &operator=(basic_cookie &&other) noexcept = default;
+	virtual ~basic_cookie() = default;
 
 public:
 	basic_cookie &set_value(value_type v);

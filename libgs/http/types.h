@@ -29,7 +29,9 @@
 #ifndef LIBGS_HTTP_TYPES_H
 #define LIBGS_HTTP_TYPES_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/header.h>
+#include <libgs/http/cookie.h>
+#include <libgs/http/session.h>
 
 #if defined(__WINNT) || defined(_WINDOWS)
 # undef DELETE

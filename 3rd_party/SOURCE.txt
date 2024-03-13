@@ -9,3 +9,5 @@ inifile        https://github.com/Rookfighter/inifile-cpp.git
 
 nlohmann.json  https://github.com/nlohmann/json.git
                https://gitee.com/ws-mirror-github/nlohmann.json.git
+			   
+leveldb        https://github.com/google/leveldb.git
