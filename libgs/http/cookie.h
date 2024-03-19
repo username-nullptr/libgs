@@ -472,7 +472,12 @@ basic_value<CharT> basic_cookie<CharT>::attributes(const str_type &key) const
 {
 	auto it = m_attributes.find(key);
 	if( it == m_attributes.end() )
-		throw runtime_error("libgs::http::cookie::attributes: key '{}' not exists.", key);
+	{
+		if constexpr( is_char_v<CharT> )
+			throw runtime_error("libgs::http::cookie::attributes: key '{}' not exists.", key);
+		else
+			throw runtime_error("libgs::http::cookie::attributes: key '{}' not exists.", wcstombs(key));
+	}
 	return it->second;
 }
 
