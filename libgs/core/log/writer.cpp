@@ -38,6 +38,7 @@
 #include "libgs/core/app_utls.h"
 
 #include <filesystem>
+#include <semaphore>
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
@@ -142,38 +143,16 @@ public:
 	{
 		m_thread = std::thread([this]
 		{
-			while( not m_stop_flag )
+			for(;;)
 			{
-				node_ptr _node;
-				for(;;)
-				{
-					auto opd = m_message_qeueue.dequeue();
-					if( opd )
-					{
-						_node = std::move(*opd);
-						std::cout << "1111111111111" << std::endl;
-						break;
-					}
-					m_wait_flag = false;
-					m_wtif_condition.notify_all();
+				m_semaphore.acquire();
+				if( m_stop_flag )
+					break;
 
-#if defined(__MINGW32__) || defined(__MINGW64__)
-# warning "MinGW bug ???: 'm_condition' cannot be notified after main ends. ???"
-#endif // It could also be a bug in the posix-thread.
-					std::unique_lock<std::mutex> locker(m_mutex);
-					m_condition.wait(locker);
+				auto opd = m_message_qeueue.dequeue();
+				assert(opd);
 
-					if constexpr( is_char_v<CharT> )
-						std::cout << "000000000000000" << std::endl;
-
-					if( m_stop_flag )
-					{
-						std::cout << "4444444444444444444444444444" << std::endl;
-						return shutdown();
-					}
-					m_wait_flag = true;
-				}
-				std::cout << "22222222222222222" << std::endl;
+				auto _node = std::move(*opd);
 				_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
 			}
 			shutdown();
@@ -183,13 +162,9 @@ public:
 public:
 	~writer_impl()
 	{
-		wait();
 		m_stop_flag = true;
-		m_condition.notify_one();
+		m_semaphore.release(1);
 		try {
-#if defined(__MINGW32__) || defined(__MINGW64__)
-# warning "MinGW bug ???: The thread has not ended, but join return. ???"
-#endif // It could also be a bug in the posix-thread.
 			if( m_thread.joinable() )
 				m_thread.join();
 		}
@@ -222,24 +197,7 @@ public:
 	{
 		auto _node = std::make_shared<node>(type, context, std::move(runtime_context), std::move(msg));
 		m_message_qeueue.enqueue(_node);
-		m_condition.notify_one();
-	}
-
-public:
-	void wait(const duration &ms)
-	{
-		std::unique_lock<std::mutex> locker(m_wtif_mutex);
-		m_wtif_condition.wait_for(locker, ms, [this]() -> bool {
-			return not m_wait_flag;
-		});
-	}
-
-	void wait()
-	{
-		std::unique_lock<std::mutex> locker(m_wtif_mutex);
-		m_wtif_condition.wait(locker, [this]() -> bool {
-			return not m_wait_flag;
-		});
+		m_semaphore.release(1);
 	}
 
 private:
@@ -254,14 +212,8 @@ private:
 
 private:
 	std::thread m_thread; // clang17 does not support std::jthread.
-	std::atomic_bool m_stop_flag { false };
-
-	std::condition_variable m_condition;
-	std::mutex m_mutex;
-
-	std::atomic_bool m_wait_flag {false};
-	std::condition_variable m_wtif_condition;
-	std::mutex m_wtif_mutex;
+	std::atomic_bool m_stop_flag {false};
+	std::counting_semaphore<> m_semaphore {0};
 };
 
 template <concept_char_type CharT>
@@ -353,18 +305,6 @@ void writer::set_context(const log_wcontext &con)
 void writer::set_header_breaks_aline(bool enable)
 {
 	g_header_breaks_aline = enable;
-}
-
-void writer::wait(const duration &ms)
-{
-	g_impl<char>->wait(ms);
-	g_impl<wchar_t>->wait(ms);
-}
-
-void writer::wait()
-{
-	g_impl<char>->wait();
-	g_impl<wchar_t>->wait();
 }
 
 template <concept_char_type CharT>

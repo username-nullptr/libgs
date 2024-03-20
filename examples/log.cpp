@@ -5,21 +5,21 @@ using namespace std::chrono_literals;
 void func_0()
 {
 	libgs::sleep_for(1ms);
-	for(int i=0; i<100; i++)
+	for(int i=0; i<200; i++)
 		libgs_log_debug("==== {}", i);
 }
 
 void func_1()
 {
 	libgs::sleep_for(1ms);
-	for(int i=100; i<200; i++)
+	for(int i=200; i<400; i++)
 		libgs_log_debug("==== {}", i);
 }
 
 void func_2()
 {
 	libgs::sleep_for(1ms);
-	for(int i=200; i<300; i++)
+	for(int i=400; i<600; i++)
 		libgs_log_debug("==== {}", i);
 }
 

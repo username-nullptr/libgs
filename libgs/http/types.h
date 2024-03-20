@@ -103,13 +103,6 @@ enum class status
 	network_authentication_required = 511, // Network Authentication Required
 };
 
-template <status>
-struct status_description {
-	static_assert(false, "Invalid http status.");
-};
-template <int S>
-constexpr const char *status_description_v = status_description<static_cast<status>(S)>::value;
-
 enum class method
 {
 	GET     = 0x01,
@@ -122,13 +115,6 @@ enum class method
 	TRACH   = 0x80
 };
 
-template <method>
-struct method_string {
-	static_assert(false, "Invalid http method.");
-};
-template <method M>
-constexpr const char *method_string_v = method_string<M>::value;
-
 enum class redirect_type
 {
 	moved_permanently  = static_cast<int>(status::moved_permanently ),
@@ -140,6 +126,12 @@ enum class redirect_type
 	not_modified       = static_cast<int>(status::not_modified      )
 };
 
+template <status>
+struct status_description
+#ifndef _MSC_VER // _MSVC
+{ static_assert(false, "Invalid http status."); }
+#endif //_MSC_VER
+;
 #define LIBGS_HTTP_STATUS_DESCRIPTION(_s, _d) \
 	template <> struct status_description<_s> { \
 		static constexpr const char *value = _d; \
@@ -204,6 +196,15 @@ LIBGS_HTTP_STATUS_DESCRIPTION(status::loop_detected                  , "Loop Det
 LIBGS_HTTP_STATUS_DESCRIPTION(status::not_extended                   , "Not Extended"                   );
 LIBGS_HTTP_STATUS_DESCRIPTION(status::network_authentication_required, "Network Authentication Required");
 
+template <int S>
+constexpr const char *status_description_v = status_description<static_cast<status>(S)>::value;
+
+template <method>
+struct method_string 
+#ifndef _MSC_VER // _MSVC
+{ static_assert(false, "Invalid http method."); }
+#endif //_MSC_VER
+;
 #define LIBGS_HTTP_METHOD_MAPPING(_m, _s) \
 	template <> struct method_string<_m> { \
 		static constexpr const char *value = _s; \
@@ -217,8 +218,8 @@ LIBGS_HTTP_METHOD_MAPPING(method::OPTIONS, "OPTIONS");
 LIBGS_HTTP_METHOD_MAPPING(method::CONNECT, "CONNECT");
 LIBGS_HTTP_METHOD_MAPPING(method::TRACH  , "TRACH"  );
 
-#define LIBGS_HTTP_METHOD_ENUM(_s, _m) \
-
+template <method M>
+constexpr const char *method_string_v = method_string<M>::value;
 
 } //namespace libgs::http
 

@@ -123,7 +123,7 @@ void basic_tcp_server<Exec>::bind(ip_endpoint ep, error_code &error, size_t max)
 
 	apr.bind({std::move(ep.addr), ep.port}, error);
 	if( not error )
-		apr.listen(max, error);
+		apr.listen(static_cast<int>(max), error);
 }
 
 template <concept_execution Exec>

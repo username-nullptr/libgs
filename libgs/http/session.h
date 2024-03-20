@@ -152,7 +152,7 @@ public:
 
 	awaitable<void> restart(uint64_t s = 0)
 	{
-		using namespace std::chrono_literals;
+		using namespace std::chrono;
 		m_timer.cancel();
 
 		if( s == 0 )
@@ -345,7 +345,7 @@ uint64_t basic_session<CharT>::lifecycle() const
 template <concept_char_type CharT>
 basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration &s)
 {
-	using namespace std::chrono_literals;
+	using namespace std::chrono;
 	m_impl->set_lifecycle(s);
 
 	uint64_t ctime = duration_cast<seconds>(system_clock::now().time_since_epoch()).count();

@@ -61,8 +61,6 @@ public:
 
 public:
 	void set_header_breaks_aline(bool enable = true); //default false
-	void wait(const duration &ms);
-	void wait();
 
 public:
 	void fatal(output_context &&runtime_context, const std::string &msg);
