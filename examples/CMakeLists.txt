@@ -27,6 +27,8 @@ endfunction()
 set(core_sources
 	algorithm.cpp
 	app_utls.cpp
+	lock_free_queue.cpp
+	log.cpp
 	value.cpp
 	ini.cpp
 	argv_parse.cpp

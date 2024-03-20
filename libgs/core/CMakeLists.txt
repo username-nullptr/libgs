@@ -36,6 +36,7 @@ set(core_headers
 	algorithm/uuid.h
 	algorithm/sha1.h
 	app_utls.h
+	lock_free_queue.h
 	log.h
 	log/logger.h
 	log/buffer.h
@@ -58,6 +59,7 @@ set(core_detail_headers
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h
 	detail/app_utls.h
+	detail/lock_free_queue.h
 	log/detail/logger.h
 	log/detail/buffer.h
 	log/detail/types.h

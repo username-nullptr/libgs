@@ -51,10 +51,10 @@ template <typename T>
 concept concept_number_type = std::is_arithmetic_v<T>;
 
 template <typename T>
-concept concept_integral_type = std::is_integral_v<T>;
+concept concept_integral_type = std::integral<T>;
 
 template <typename T>
-concept concept_float_type = is_float_v<T>;
+concept concept_float_type = std::floating_point<T>;
 
 template <typename T>
 concept concept_enum_type = std::is_enum_v<T>;
@@ -167,6 +167,15 @@ template <typename Func, typename...Args>
 concept concept_callable = requires(Func &&func, Args&&...args) {
 	func(std::forward<Args>(args)...);
 };
+
+template <typename T>
+concept concept_copyable = std::copyable<T>;
+
+template <typename T>
+concept concept_movable = std::movable<T>;
+
+template <typename T>
+concept concept_copymovable = concept_copyable<T> and concept_movable<T>;
 
 } //namespace libgs
 

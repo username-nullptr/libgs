@@ -77,7 +77,7 @@ awaitable<void> basic_socket<Exec>::co_connect(host_endpoint ep, opt_token<error
 			}
 			co_return error;
 		};
-		using namespace std::chrono;
+		using namespace std::chrono_literals;
 		if( tk.rtime == 0s )
 			error = co_await no_time_out();
 		else
@@ -143,7 +143,7 @@ void basic_socket<Exec>::async_connect(ip_endpoint ep, opt_cb_token<error_code> 
 template <concept_execution Exec>
 awaitable<void> basic_socket<Exec>::co_connect(ip_endpoint ep, opt_token<error_code&> tk)
 {
-	using namespace std::chrono;
+	using namespace std::chrono_literals;
 	error_code error;
 
 	if( tk.rtime == 0s )
@@ -264,7 +264,7 @@ void basic_socket<Exec>::async_dns(string_wrapper domain, opt_cb_token<address_v
 template <concept_execution Exec>
 awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::co_dns(string_wrapper domain, opt_token<error_code&> tk) 
 {
-	using namespace std::chrono;
+	using namespace std::chrono_literals;
 	address_vector vector;
 	error_code error;
 

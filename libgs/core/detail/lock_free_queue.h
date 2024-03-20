@@ -26,41 +26,113 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PARSER_H
-#define LIBGS_HTTP_PARSER_H
+#ifndef LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H
+#define LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H
 
-#include <libgs/http/request.h>
-#include <libgs/http/response.h>
-
-namespace libgs::http
+namespace libgs
 {
 
-class parser_impl;
-
-class LIBGS_HTTP_API parser
+template <concept_copymovable T>
+lock_free_queue<T>::lock_free_queue() :
+		m_head(new node(T())),
+		m_tail(m_head.load())
 {
-	LIBGS_DISABLE_COPY(parser)
 
-public:
-	parser();
-	~parser();
+}
 
-public:
-	parser(parser &&other);
-	parser &operator=(parser &&other);
+template <concept_copymovable T>
+lock_free_queue<T>::~lock_free_queue()
+{
+	do {
+		auto n = m_head.load();
+		m_head.store(n->next.load());
+		delete n;
+	}
+	while( m_head.load() );
+}
 
-public:
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
+template <concept_copymovable T>
+void lock_free_queue<T>::enqueue(const T &data)
+{
+	emplace(data);
+}
 
-public:
-//	??? get_result();
+template <concept_copymovable T>
+void lock_free_queue<T>::enqueue(T &&data)
+{
+	emplace(std::move(data));
+}
 
-private:
-	parser_impl *m_impl;
-};
+template <concept_copymovable T>
+std::optional<T> lock_free_queue<T>::dequeue()
+{
+	node *head = nullptr;
+	std::optional<T> data;
+	for(;;)
+	{
+		head = m_head.load();
+		auto tail = m_tail.load();
+		auto next = head->next.load();
 
-} //namespace libgs::http
+		if( head == m_head.load() )
+		{
+			if( head == tail ) // Queue may be empty.
+			{
+				if( next == nullptr ) // Queue is empty.
+					return data;
+
+				// Another thread is inserting.
+				m_tail.compare_exchange_weak(tail, next);
+			}
+			else // pop front
+			{
+				data = std::move(next->data);
+				if( m_head.compare_exchange_weak(head, next) )
+					break;
+			}
+		}
+	}
+	delete head;
+	return data;
+}
+
+template <concept_copymovable T>
+bool lock_free_queue<T>::dequeue(T &data)
+{
+	auto _data = dequeue();
+	if( _data )
+	{
+		data = std::move(*_data);
+		return true;
+	}
+	return false;
+}
+
+template <concept_copymovable T>
+template <typename...Args>
+void lock_free_queue<T>::emplace(Args&&...args)
+{
+	auto n = new node(std::forward<Args>(args)...);
+	auto tail = m_tail.load(std::memory_order_relaxed);
+	for(;;)
+	{
+		auto next = tail->next.load();
+		if( not next )
+		{
+			if( tail->next.compare_exchange_weak(next, n) )
+			{
+				m_tail.compare_exchange_strong(tail, n);
+				return ;
+			}
+		}
+			// The 'next' is not empty,
+			// which means that another thread is also being inserted
+			// and the temporary tail node needs to be updated.
+		else m_tail.compare_exchange_strong(tail, next);
+	}
+}
+
+} //namespace libgs
 
 
-#endif //LIBGS_HTTP_PARSER_H
+#endif //LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H

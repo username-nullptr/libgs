@@ -77,7 +77,7 @@ void basic_stream<Exec>::async_read(buffer<void*> buf, read_cb_token<size_t> tk)
 template <concept_execution Exec>
 awaitable<size_t> basic_stream<Exec>::co_read(buffer<void*> buf, read_token<error_code&> tk)
 {
-	using namespace std::chrono;
+	using namespace std::chrono_literals;
 	if( buf.size == 0 )
 		co_return 0;
 
@@ -216,7 +216,7 @@ void basic_stream<Exec>::async_write(buffer<const void*> buf, opt_cb_token<size_
 template <concept_execution Exec>
 awaitable<size_t> basic_stream<Exec>::co_write(buffer<const void*> buf, opt_token<error_code&> tk)
 {
-	using namespace std::chrono;
+	using namespace std::chrono_literals;
 	if( buf.size == 0 )
 		co_return 0;
 

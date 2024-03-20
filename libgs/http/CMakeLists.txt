@@ -3,6 +3,7 @@ set(target_name gs_http)
 set(http_sources
 	global.cpp
 	types.cpp
+	parser.cpp
 )
 
 set(http_headers

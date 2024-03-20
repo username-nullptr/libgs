@@ -39,7 +39,7 @@
 # define LIBGS_ABI_CXA_DEMANGLE(name)  abi::__cxa_demangle(name, nullptr, nullptr, nullptr)
 #else //_MSVC
 # define LIBGS_ABI_CXA_DEMANGLE(name)  name
-#endif //compiler
+#endif //__GNUC__
 
 #define LIBGS_UNUSED(x)  (void)(x)
 
@@ -51,17 +51,19 @@
 
 #define LIBGS_DISABLE_COPY(_class) \
 	explicit _class(const _class&) = delete; \
-	void operator=(const _class&) = delete;
+	void operator=(const _class&) = delete; \
+	void operator=(const _class&) volatile = delete;
 
 #define LIBGS_DISABLE_MOVE(_class) \
 	explicit _class(_class&&) = delete; \
-	void operator=(_class&&) = delete;
+	void operator=(_class&&) = delete; \
+	void operator=(_class&&) volatile = delete;
 
 #define LIBGS_DISABLE_COPY_MOVE(_class) \
 	LIBGS_DISABLE_COPY(_class) LIBGS_DISABLE_MOVE(_class)
 
-#define __LIBGS_WCHAR(s) L##s
-#define LIBGS_WCHAR(s) __LIBGS_WCHAR(s)
+#define P_P_LIBGS_WCHAR(s) L##s
+#define LIBGS_WCHAR(s) P_P_LIBGS_WCHAR(s)
 
 namespace libgs
 {

@@ -136,7 +136,7 @@ void basic_timer<Exec>::async_wait(opt_cb_token<> tk) noexcept
 template <concept_execution Exec>
 awaitable<void> basic_timer<Exec>::co_wait(opt_token<error_code&> tk)
 {
-	using namespace std::chrono;
+	using namespace std::chrono_literals;
 	error_code error;
 	do {
 		if( not is_run() )
@@ -163,7 +163,7 @@ awaitable<void> basic_timer<Exec>::co_wait(opt_token<error_code&> tk)
 template <concept_execution Exec>
 void basic_timer<Exec>::wait(opt_token<error_code&> tk)
 {
-	using namespace std::chrono;
+	using namespace std::chrono_literals;
 	error_code error;
 	do {
 		if( not is_run() )

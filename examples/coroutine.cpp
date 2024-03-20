@@ -1,7 +1,7 @@
 #include <libgs/core/log.h>
 #include <libgs/core/coroutine.h>
 
-using namespace std::chrono;
+using namespace std::chrono_literals;
 
 int main()
 {

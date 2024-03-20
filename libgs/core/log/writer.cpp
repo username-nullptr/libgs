@@ -33,6 +33,7 @@
 
 #include "writer.h"
 #include "libgs/core/algorithm/base.h"
+#include "libgs/core/lock_free_queue.h"
 #include "libgs/core/shared_mutex.h"
 #include "libgs/core/app_utls.h"
 
@@ -143,28 +144,38 @@ public:
 		{
 			while( not m_stop_flag )
 			{
-				std::unique_lock<std::mutex> locker(m_mutex);
-				while( m_message_qeueue.empty() )
+				node_ptr _node;
+				for(;;)
 				{
+					auto opd = m_message_qeueue.dequeue();
+					if( opd )
+					{
+						_node = std::move(*opd);
+						std::cout << "1111111111111" << std::endl;
+						break;
+					}
 					m_wait_flag = false;
 					m_wtif_condition.notify_all();
 
 #if defined(__MINGW32__) || defined(__MINGW64__)
 # warning "MinGW bug ???: 'm_condition' cannot be notified after main ends. ???"
 #endif // It could also be a bug in the posix-thread.
+					std::unique_lock<std::mutex> locker(m_mutex);
 					m_condition.wait(locker);
 
+					if constexpr( is_char_v<CharT> )
+						std::cout << "000000000000000" << std::endl;
+
 					if( m_stop_flag )
+					{
+						std::cout << "4444444444444444444444444444" << std::endl;
 						return shutdown();
+					}
 					m_wait_flag = true;
 				}
-				auto _node = m_message_qeueue.front();
-				m_message_qeueue.pop_front();
-
-				locker.unlock();
+				std::cout << "22222222222222222" << std::endl;
 				_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
 			}
-			m_mutex.lock();
 			shutdown();
 		});
 	}
@@ -203,18 +214,14 @@ private:
 
 private:
 	using node_ptr = std::shared_ptr<node>;
-	using message_list = std::list<node_ptr>;
+	using message_list = lock_free_queue<node_ptr>;
 	message_list m_message_qeueue;
 
 public:
 	void produce(output_type type, const context_ptr &context, rt_context &&runtime_context, str_type &&msg)
 	{
 		auto _node = std::make_shared<node>(type, context, std::move(runtime_context), std::move(msg));
-
-		m_mutex.lock();
-		m_message_qeueue.emplace_back(_node);
-
-		m_mutex.unlock();
+		m_message_qeueue.enqueue(_node);
 		m_condition.notify_one();
 	}
 
@@ -238,12 +245,11 @@ public:
 private:
 	void shutdown()
 	{
-		message_list list;
-		m_message_qeueue.swap(list);
-		m_mutex.unlock();
-
-		for(auto &_node : list)
+		while( auto opd = m_message_qeueue.dequeue() )
+		{
+			auto _node = std::move(*opd);
 			_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+		}
 	}
 
 private:

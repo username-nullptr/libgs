@@ -26,41 +26,48 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PARSER_H
-#define LIBGS_HTTP_PARSER_H
+#ifndef LIBGS_CORE_LOCK_FREE_QUEUE_H
+#define LIBGS_CORE_LOCK_FREE_QUEUE_H
 
-#include <libgs/http/request.h>
-#include <libgs/http/response.h>
+#include <libgs/core/global.h>
 
-namespace libgs::http
+namespace libgs
 {
 
-class parser_impl;
-
-class LIBGS_HTTP_API parser
+template <concept_copymovable T>
+class lock_free_queue
 {
-	LIBGS_DISABLE_COPY(parser)
+	LIBGS_DISABLE_COPY_MOVE(lock_free_queue)
 
 public:
-	parser();
-	~parser();
+	lock_free_queue();
+	~lock_free_queue();
 
 public:
-	parser(parser &&other);
-	parser &operator=(parser &&other);
+	void enqueue(const T &data);
+	void enqueue(T &&data);
 
-public:
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
+	template <typename...Args>
+	void emplace(Args&&...args);
 
-public:
-//	??? get_result();
+	std::optional<T> dequeue();
+	bool dequeue(T &data);
 
 private:
-	parser_impl *m_impl;
+	struct node
+	{
+		T data;
+		std::atomic<node*> next {nullptr};
+
+		template <typename...Args>
+		explicit node(Args&&...args) : data(std::forward<Args>(args)...) {}
+	};
+	std::atomic<node*> m_head;
+	std::atomic<node*> m_tail;
 };
 
-} //namespace libgs::http
+} //namespace libgs
+#include <libgs/core/detail/lock_free_queue.h>
 
 
-#endif //LIBGS_HTTP_PARSER_H
+#endif //LIBGS_CORE_LOCK_FREE_QUEUE_H
