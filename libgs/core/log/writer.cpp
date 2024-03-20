@@ -137,6 +137,7 @@ class LIBGS_DECL_HIDDEN writer_impl
 
 public:
 	using duration = std::chrono::milliseconds;
+	std::mutex m_output_mutex;
 
 public:
 	writer_impl()
@@ -227,12 +228,8 @@ writer::writer()
 {
 	if( ++g_counter == 1 )
 	{
-		static std::mutex mutex;
-		mutex.lock();
-
 		g_impl<char> = new writer_impl<char>();
 		g_impl<wchar_t> = new writer_impl<wchar_t>();
-		mutex.unlock();
 	}
 }
 
@@ -290,14 +287,14 @@ static std::atomic_bool g_header_breaks_aline {false};
 }
 
 template <concept_char_type CharT>
-void _set_context(const basic_log_context<CharT> &context);
+void _set_context(basic_log_context<CharT> &context);
 
-void writer::set_context(const log_context &con)
+void writer::set_context(log_context con)
 {
 	_set_context(con);
 }
 
-void writer::set_context(const log_wcontext &con)
+void writer::set_context(log_wcontext con)
 {
 	_set_context(con);
 }
@@ -320,18 +317,6 @@ void writer::fatal(output_wcontext &&runtime_context, const std::wstring &msg)
 	_fatal(std::move(runtime_context), msg);
 }
 
-#if defined(__MINGW32__) || defined(__MINGW64__)
-void writer::exit()
-{
-	g_counter = 1;
-	if( --g_counter == 0 )
-	{
-		delete g_impl<char>;
-		delete g_impl<wchar_t>;
-	}
-}
-#endif
-
 /*------------------------------------------------------------------------------------------------------------------------------*/
 
 template <concept_char_type CharT>
@@ -339,7 +324,7 @@ void _write(output_type type, basic_output_context<CharT> &&runtime_context, std
 {
 	g_context_rwlock<CharT>.lock_shared();
 	auto context = std::make_shared<basic_log_context<CharT>>(g_context<CharT>);
-	g_context_rwlock<CharT>.unlock();
+	g_context_rwlock<CharT>.unlock_shared();
 
 	if( context->async and type != output_type::fetal )
 		g_impl<CharT>->produce(type, context, std::move(runtime_context), std::move(msg));
@@ -348,29 +333,29 @@ void _write(output_type type, basic_output_context<CharT> &&runtime_context, std
 }
 
 template <concept_char_type CharT>
-void _set_context(const basic_log_context<CharT> &context)
+void _set_context(basic_log_context<CharT> &context)
 {
-	g_context_rwlock<CharT>.lock();
-	g_context<CharT> = context;
-
-	if( g_context<CharT>.category.empty() )
+	if( context.category.empty() )
 	{
 		if constexpr( is_char_v<CharT> )
-			g_context<CharT>.category = "default";
+			context.category = "default";
 		else
-			g_context<CharT>.category = L"default";
+			context.category = L"default";
 	}
 	else
 	{
 		if constexpr( is_char_v<CharT> )
-			str_replace(g_context<CharT>.category, "\\", "/");
+			str_replace(context.category, "\\", "/");
 		else
-			str_replace(g_context<CharT>.category, L"\\", L"/");
+			str_replace(context.category, L"\\", L"/");
 	}
-	str_replace(g_context<CharT>.directory, "\\", "/");
+	str_replace(context.directory, "\\", "/");
 
-	if( not g_context<CharT>.directory.empty() )
-		g_context<CharT>.directory = app::absolute_path(g_context<CharT>.directory);
+	if( not context.directory.empty() )
+		context.directory = app::absolute_path(context.directory);
+
+	g_context_rwlock<CharT>.lock();
+	g_context<CharT> = std::move(context);
 	g_context_rwlock<CharT>.unlock();
 }
 
@@ -379,7 +364,7 @@ void _fatal(basic_output_context<CharT> &&runtime_context, const std::basic_stri
 {
 	g_context_rwlock<CharT>.lock_shared();
 	auto context = g_context<CharT>;
-	g_context_rwlock<CharT>.unlock();
+	g_context_rwlock<CharT>.unlock_shared();
 
 	_output(output_type::fetal, context, runtime_context, msg);
 	abort();
@@ -391,8 +376,6 @@ static constexpr const CharT *type_string(output_type type);
 template <concept_char_type CharT>
 static void write_file(const std::basic_string<CharT> &log_text, const std::string &category, 
 					   const basic_log_context<void> &context, const output_time &time, size_t log_size);
-
-static std::mutex output_mutex;
 
 static void _output
 (output_type type, const log_context &context, const output_context &runtime_context, const std::string &msg)
@@ -410,7 +393,7 @@ static void _output
 	if( g_header_breaks_aline )
 		log_text += "\n";
 
-	std::unique_lock<std::mutex> locker(output_mutex);
+	std::unique_lock<std::mutex> locker(g_impl<char>->m_output_mutex);
 
 	if( type == output_type::debug )
 	{
@@ -464,7 +447,7 @@ static void _output
 	if( g_header_breaks_aline )
 		log_text += L"\n";
 
-	std::unique_lock<std::mutex> locker(output_mutex);
+	std::unique_lock<std::mutex> locker(g_impl<wchar_t>->m_output_mutex);
 
 	if( type == output_type::debug )
 	{

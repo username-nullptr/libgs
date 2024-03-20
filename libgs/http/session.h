@@ -319,7 +319,7 @@ string_list basic_session<CharT>::attribute_key_list() const
 	for(auto &pair : m_impl->m_attributes)
 		list.emplace_back(pair.first);
 
-	m_impl->m_attrs_mutex.unlock();
+	m_impl->m_attrs_mutex.unlock_shared();
 	return list;
 }
 
@@ -332,7 +332,7 @@ std::set<std::basic_string<CharT>> basic_session<CharT>::attribute_key_set() con
 	for(auto &pair : m_impl->m_attributes)
 		set.emplace(pair.first);
 
-	m_impl->m_attrs_mutex.unlock();
+	m_impl->m_attrs_mutex.unlock_shared();
 	return set;
 }
 

@@ -56,8 +56,8 @@ public:
 	[[nodiscard]] bool get_header_breaks_aline() const;
 
 public:
-	void set_context(const log_context &con);
-	void set_context(const log_wcontext &con);
+	void set_context(log_context con);
+	void set_context(log_wcontext con);
 
 public:
 	void set_header_breaks_aline(bool enable = true); //default false
@@ -65,12 +65,6 @@ public:
 public:
 	void fatal(output_context &&runtime_context, const std::string &msg);
 	void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
-
-#if defined(__MINGW32__) || defined(__MINGW64__)
-	// MinGW bug ???: Process will block and cannot exit. ???
-	// It could also be a bug in the posix-thread.
-	void exit();
-#endif
 };
 
 } //namespace libgs::log

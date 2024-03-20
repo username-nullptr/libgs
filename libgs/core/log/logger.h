@@ -130,10 +130,6 @@ public:
 	template <typename T>
 	void cfatal(str_type category, T &&msg);
 
-public:
-	static void wait(const duration &ms);
-	static void wait();
-
 private:
 	buffer _output(output_type type, str_type category) const;
 	basic_output_context<CharT> m_runtime_context;

@@ -114,7 +114,7 @@ optional_string getenv(std::string_view key)
 	g_env_mutex.lock_shared();
 	auto value = ::getenv(key.data());
 
-	g_env_mutex.unlock();
+	g_env_mutex.unlock_shared();
 	return value? optional_string(value) : optional_string();
 }
 
@@ -133,7 +133,7 @@ envs_t getenvs()
 		else
 			envs.emplace(tmp.substr(0,pos), tmp.substr(pos+1));
 	}
-	g_env_mutex.unlock();
+	g_env_mutex.unlock_shared();
 	return envs;
 }
 

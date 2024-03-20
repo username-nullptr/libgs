@@ -277,18 +277,6 @@ void basic_logger<CharT>::cfatal(str_type category, T &&msg)
 }
 
 template <concept_char_type CharT>
-void basic_logger<CharT>::wait(const duration &ms)
-{
-	writer::instance().wait(ms);
-}
-
-template <concept_char_type CharT>
-void basic_logger<CharT>::wait()
-{
-	writer::instance().wait();
-}
-
-template <concept_char_type CharT>
 inline basic_buffer<CharT> basic_logger<CharT>::_output(output_type type, str_type category) const
 {
 #ifdef __NO_DEBUG__
