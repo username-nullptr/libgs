@@ -2,24 +2,28 @@ set(target_name gs_http)
 
 set(http_sources
 	global.cpp
-	types.cpp
 	parser.cpp
 )
 
 set(http_headers
 	global.h
-	container.h
-	cookie.h
-	session.h
-	types.h
-	request.h
-	response.h
 	parser.h
+	basic/container.h
+	basic/cookie.h
+	basic/types.h
+	context/datagram.h
+	context/session.h
+	context/request.h
+	context/response.h
 )
 
 set(http_detail_headers
-	detail/container.h
-	detail/cookie.h
+	basic/detail/container.h
+	basic/detail/cookie.h
+	context/detail/datagram.h
+	context/detail/session.h
+	context/detail/request.h
+	context/detail/response.h
 )
 
 set(all_files

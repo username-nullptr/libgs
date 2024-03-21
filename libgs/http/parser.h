@@ -29,8 +29,8 @@
 #ifndef LIBGS_HTTP_PARSER_H
 #define LIBGS_HTTP_PARSER_H
 
-#include <libgs/http/request.h>
-#include <libgs/http/response.h>
+#include <libgs/http/context/request.h>
+#include <libgs/http/context/response.h>
 
 namespace libgs::http
 {
