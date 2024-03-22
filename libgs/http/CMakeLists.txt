@@ -11,19 +11,12 @@ set(http_headers
 	basic/container.h
 	basic/cookie.h
 	basic/types.h
-	context/datagram.h
-	context/session.h
-	context/request.h
-	context/response.h
+	server/datagram.h
 )
 
 set(http_detail_headers
 	basic/detail/container.h
 	basic/detail/cookie.h
-	context/detail/datagram.h
-	context/detail/session.h
-	context/detail/request.h
-	context/detail/response.h
 )
 
 set(all_files

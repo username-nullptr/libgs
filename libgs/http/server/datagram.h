@@ -26,41 +26,50 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PARSER_H
-#define LIBGS_HTTP_PARSER_H
+#ifndef LIBGS_HTTP_SERVER_DATAGRAM_H
+#define LIBGS_HTTP_SERVER_DATAGRAM_H
 
-#include <libgs/http/client/parser.h>
-#include <libgs/http/server/parser.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
 
-class parser_impl;
-
-class LIBGS_HTTP_API parser
+template <concept_char_type CharT>
+struct basic_server_datagram : basic_datagram<CharT>
 {
-	LIBGS_DISABLE_COPY(parser)
+	LIBGS_DISABLE_COPY(basic_server_datagram)
+	basic_server_datagram() = default;
 
-public:
-	parser();
-	~parser();
+	using str_type = std::basic_string<CharT>;
+	using headers_type = basic_headers<CharT>;
+	using cookies_type = basic_cookies<CharT>;
+	using parameters_type = basic_parameters<CharT>;
 
-public:
-	parser(parser &&other);
-	parser &operator=(parser &&other);
+	http::method m_method;
+	str_type m_version;
 
-public:
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
+	str_type m_path;
+	str_type m_parameter_string;
 
-public:
-//	??? get_result();
+	headers_type m_headers;
+	cookies_type m_cookies;
 
-private:
-	parser_impl *m_impl;
+	parameters_type m_parameters;
+	std::string m_partial_body;
+
+	bool m_keep_alive = false;
+	bool m_support_gzip = false;
+	bool m_websocket = false;
+	bool m_finished = false;
+
+	basic_server_datagram(basic_server_datagram&&) noexcept = default;
+	basic_server_datagram &operator=(basic_server_datagram&&) noexcept = default;
 };
+
+using server_datagram = basic_server_datagram<char>;
+using server_wdatagram = basic_server_datagram<wchar_t>;
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_PARSER_H
+#endif //LIBGS_HTTP_SERVER_DATAGRAM_H

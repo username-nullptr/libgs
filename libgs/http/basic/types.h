@@ -226,6 +226,18 @@ using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, 
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
+template <concept_char_type CharT>
+struct basic_datagram
+{
+	using str_type = std::basic_string<CharT>;
+	using headers_type = basic_headers<CharT>;
+	using cookies_type = basic_cookies<CharT>;
+
+	str_type m_version;
+	headers_type m_headers;
+	std::string m_partial_body;
+};
+
 } //namespace libgs::http
 
 

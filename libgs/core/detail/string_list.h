@@ -62,13 +62,13 @@ std::basic_string<CharT> basic_string_list<CharT>::join(const str_type &splits)
 
 template <concept_char_type CharT>
 basic_string_list<CharT> basic_string_list<CharT>::from_string
-(const str_type &str, const str_type &splits, bool ignore_empty)
+(str_view_type str, str_view_type splits, bool ignore_empty)
 {
 	basic_string_list<CharT> result;
 	if( str.empty() )
 		return result;
 
-	auto strs = str + splits;
+	auto strs = str_type(str.data(), str.size()) + str_type(splits.data(), splits.size());
 	auto pos = strs.find(splits);
 	auto step = splits.size();
 
@@ -86,7 +86,7 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 
 template <concept_char_type CharT>
 basic_string_list<CharT> basic_string_list<CharT>::from_string
-(const str_type &str, CharT splits, bool ignore_empty)
+(str_view_type str, CharT splits, bool ignore_empty)
 {
 	return from_string(str, str_type(1,splits), ignore_empty);
 }

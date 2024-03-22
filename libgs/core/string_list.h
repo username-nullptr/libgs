@@ -69,6 +69,8 @@ class basic_string_list : public basic_string_deque<CharT>
 
 public:
 	using str_type = std::basic_string<CharT>;
+	using str_view_type = std::basic_string_view<CharT>;
+
 	using base_type = basic_string_deque<CharT>;
 	using base_type::base_type;
 
@@ -80,12 +82,11 @@ public:
 	[[nodiscard]] str_type join(const str_type &splits = default_splits_argument_s);
 
 	[[nodiscard]] static basic_string_list<CharT>
-		from_string(const str_type &str, const str_type &splits = default_splits_argument_s,
+		from_string(str_view_type str, str_view_type splits = default_splits_argument_s,
 					bool ignore_empty = true);
 
 	[[nodiscard]] static basic_string_list<CharT>
-		from_string(const str_type &str, CharT splits = default_splits_argument_c,
-					bool ignore_empty = true);
+		from_string(str_view_type str, CharT splits, bool ignore_empty = true);
 };
 
 using string_list = basic_string_list<char>;

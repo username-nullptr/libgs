@@ -26,41 +26,28 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PARSER_H
-#define LIBGS_HTTP_PARSER_H
+#ifndef LIBGS_HTTP_SERVER_PARSER_H
+#define LIBGS_HTTP_SERVER_PARSER_H
 
-#include <libgs/http/client/parser.h>
-#include <libgs/http/server/parser.h>
+#include <libgs/http/server/datagram.h>
 
 namespace libgs::http
 {
 
-class parser_impl;
-
-class LIBGS_HTTP_API parser
+class server_parser
 {
-	LIBGS_DISABLE_COPY(parser)
+	LIBGS_DISABLE_COPY(server_parser)
 
 public:
-	parser();
-	~parser();
+	server_parser();
+	~server_parser();
 
 public:
-	parser(parser &&other);
-	parser &operator=(parser &&other);
-
-public:
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
-
-public:
-//	??? get_result();
 
 private:
-	parser_impl *m_impl;
 };
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_PARSER_H
+#endif //LIBGS_HTTP_SERVER_PARSER_H
