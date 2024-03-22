@@ -25,9 +25,13 @@ void func_2()
 
 int main()
 {
-	libgs::log::log_context context;
+#if 0
+	auto context = libgs::log::logger::get_context();
 	context.async = true;
+	context.source_visible = true;
+	context.header_breaks_aline = true;
 	libgs::log::logger::set_context(context);
+#endif
 
 	std::thread t0(func_0);
 	std::thread t1(func_1);

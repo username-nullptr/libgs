@@ -62,24 +62,12 @@ void basic_logger<CharT>::set_context(const context &con)
 }
 
 template <concept_char_type CharT>
-void basic_logger<CharT>::set_header_breaks_aline(bool enable)
-{
-	writer::instance().set_header_breaks_aline(enable);
-}
-
-template <concept_char_type CharT>
 basic_log_context<CharT> basic_logger<CharT>::get_context()
 {
 	if constexpr( is_char_v )
 		return writer::instance().get_context();
 	else
 		return writer::instance().get_wcontext();
-}
-
-template <concept_char_type CharT>
-bool basic_logger<CharT>::get_header_breaks_aline()
-{
-	return writer::instance().get_header_breaks_aline();
 }
 
 template <concept_char_type CharT>

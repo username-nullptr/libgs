@@ -65,7 +65,7 @@ public:
 	[[nodiscard]] const headers_type &headers() const;
 	[[nodiscard]] const cookies_type &cookies() const;
 
-	[[nodsicard]] std::string &partial_body() const;
+	[[nodiscard]] std::string &partial_body() const;
 	[[nodiscard]] bool can_read_body() const;
 
 public:

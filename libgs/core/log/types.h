@@ -47,9 +47,11 @@ struct basic_log_context<void>
 	size_t max_size = 1073741824;
 
 	uint8_t mask = 4;
+	bool source_visible = false;
 	bool time_category = true;
 	bool async = false;
 	bool no_stdout = false;
+	bool header_breaks_aline = false;
 };
 
 template <>

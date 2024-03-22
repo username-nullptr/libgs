@@ -53,14 +53,10 @@ public:
 public:
 	[[nodiscard]] log_context get_context() const;
 	[[nodiscard]] log_wcontext get_wcontext() const;
-	[[nodiscard]] bool get_header_breaks_aline() const;
 
 public:
 	void set_context(log_context con);
 	void set_context(log_wcontext con);
-
-public:
-	void set_header_breaks_aline(bool enable = true); //default false
 
 public:
 	void fatal(output_context &&runtime_context, const std::string &msg);

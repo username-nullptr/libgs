@@ -53,12 +53,10 @@ class basic_logger
 
 public:
 	basic_logger(const char *file, const char *func, size_t line);
-	static void set_context(const context &con);
-	static void set_header_breaks_aline(bool enable = true); //default false
 
 public:
+	static void set_context(const context &con);
 	[[nodiscard]] static context get_context();
-	[[nodiscard]] static bool get_header_breaks_aline();
 
 public:
 	template <typename...Args>

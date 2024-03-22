@@ -137,9 +137,6 @@ class LIBGS_DECL_HIDDEN writer_impl
 
 public:
 	using duration = std::chrono::milliseconds;
-	std::mutex m_output_mutex;
-
-public:
 	writer_impl()
 	{
 		m_thread = std::thread([this]
@@ -279,13 +276,6 @@ void writer::write(type type, output_wcontext &&runtime_context, std::wstring &&
 	return g_context<wchar_t>;
 }
 
-static std::atomic_bool g_header_breaks_aline {false};
-
-[[nodiscard]] bool writer::get_header_breaks_aline() const
-{
-	return g_header_breaks_aline;
-}
-
 template <concept_char_type CharT>
 void _set_context(basic_log_context<CharT> &context);
 
@@ -297,11 +287,6 @@ void writer::set_context(log_context con)
 void writer::set_context(log_wcontext con)
 {
 	_set_context(con);
-}
-
-void writer::set_header_breaks_aline(bool enable)
-{
-	g_header_breaks_aline = enable;
 }
 
 template <concept_char_type CharT>
@@ -377,6 +362,8 @@ template <concept_char_type CharT>
 static void write_file(const std::basic_string<CharT> &log_text, const std::string &category, 
 					   const basic_log_context<void> &context, const output_time &time, size_t log_size);
 
+static std::counting_semaphore<1> g_output_semaphore {1};
+
 static void _output
 (output_type type, const log_context &context, const output_context &runtime_context, const std::string &msg)
 {
@@ -385,15 +372,18 @@ static void _output
 							"" : 
 							context.category :
 						runtime_context.category;
+	std::string source;
+	if( context.source_visible )
+		source = std::format("-[{0}:{1}]", runtime_context.file, runtime_context.line);
 
-	auto log_text = std::format("[{0}::{1}]-[{2:%Y-%m-%d %H:%M:%S}]-[{3}:{4}]:{5}", 
+	auto log_text = std::format("[{0}::{1}]-[{2:%Y-%m-%d %H:%M:%S}]{3}:{4}",
 								category, type_string<char>(type), runtime_context.time,
-								runtime_context.file, runtime_context.line, 
-								g_header_breaks_aline ? "\n" : " ") + msg + "\n";
-	if( g_header_breaks_aline )
+								source, context.header_breaks_aline ? "\n" : " ") + msg + "\n";
+	if( context.header_breaks_aline )
 		log_text += "\n";
 
-	std::unique_lock<std::mutex> locker(g_impl<char>->m_output_mutex);
+	// No lock is required when there is only one thread.
+	g_output_semaphore.acquire();
 
 	if( type == output_type::debug )
 	{
@@ -429,6 +419,7 @@ static void _output
 		std::cerr << log_text << std::flush;
 
 	write_file<char>(log_text, category, context, runtime_context.time, log_text.size());
+	g_output_semaphore.release(1);
 }
 
 static void _output
@@ -439,15 +430,18 @@ static void _output
 							L"" : 
 							context.category :
 						runtime_context.category;
+	std::wstring source;
+	if( context.source_visible )
+		source = std::format(L"-[{0}:{1}]", runtime_context.file, runtime_context.line);
 
-	auto log_text = std::format(L"[{0}::{1}]-[{2:%Y-%m-%d %H:%M:%S}]-[{3}:{4}]:{5}", 
+	auto log_text = std::format(L"[{0}::{1}]-[{2:%Y-%m-%d %H:%M:%S}]{3}:{4}",
 								category, type_string<wchar_t>(type), runtime_context.time,
-								runtime_context.file, runtime_context.line, 
-								g_header_breaks_aline ? L"\n" : L" ") + msg + L"\n";
-	if( g_header_breaks_aline )
+								source, context.header_breaks_aline ? L"\n" : L" ") + msg + L"\n";
+	if( context.header_breaks_aline )
 		log_text += L"\n";
 
-	std::unique_lock<std::mutex> locker(g_impl<wchar_t>->m_output_mutex);
+	// No lock is required when there is only one thread.
+	g_output_semaphore.acquire();
 
 	if( type == output_type::debug )
 	{
@@ -483,6 +477,7 @@ static void _output
 		std::wcerr << log_text << std::flush;
 
 	write_file<wchar_t>(log_text, libgs::wcstombs(category), context, runtime_context.time, log_text.size());
+	g_output_semaphore.release(1);
 }
 
 template <concept_char_type CharT>
