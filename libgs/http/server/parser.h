@@ -34,6 +34,7 @@
 namespace libgs::http
 {
 
+template <concept_char_type CharT>
 class server_parser
 {
 	LIBGS_DISABLE_COPY(server_parser)
@@ -42,9 +43,18 @@ public:
 	server_parser();
 	~server_parser();
 
-public:
+	server_parser(server_parser &&other);
+	server_parser &operator=(server_parser &&other);
 
-private:
+public:
+	bool append(std::string_view buf);
+	bool operator<<(std::string_view buf);
+
+public:
+	using datagram_type = basic_server_datagram<CharT>;
+	datagram_type get_result();
+
+protected:
 };
 
 } //namespace libgs::http

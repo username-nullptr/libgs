@@ -231,7 +231,6 @@ struct basic_datagram
 {
 	using str_type = std::basic_string<CharT>;
 	using headers_type = basic_headers<CharT>;
-	using cookies_type = basic_cookies<CharT>;
 
 	str_type m_version;
 	headers_type m_headers;

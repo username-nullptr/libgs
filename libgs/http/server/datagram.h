@@ -40,27 +40,17 @@ struct basic_server_datagram : basic_datagram<CharT>
 	LIBGS_DISABLE_COPY(basic_server_datagram)
 	basic_server_datagram() = default;
 
-	using str_type = std::basic_string<CharT>;
-	using headers_type = basic_headers<CharT>;
-	using cookies_type = basic_cookies<CharT>;
+	using base_type = basic_datagram<CharT>;
+	using str_type = base_type::str_type;
+	using headers_type = base_type::headers_type;
+
+	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
 	using parameters_type = basic_parameters<CharT>;
 
-	http::method m_method;
-	str_type m_version;
-
-	str_type m_path;
-	str_type m_parameter_string;
-
-	headers_type m_headers;
-	cookies_type m_cookies;
-
-	parameters_type m_parameters;
-	std::string m_partial_body;
-
-	bool m_keep_alive = false;
-	bool m_support_gzip = false;
-	bool m_websocket = false;
-	bool m_finished = false;
+	http::method method;
+	str_type path;
+	parameters_type parameters;
+	cookies_type cookies;
 
 	basic_server_datagram(basic_server_datagram&&) noexcept = default;
 	basic_server_datagram &operator=(basic_server_datagram&&) noexcept = default;
