@@ -361,7 +361,7 @@ sha1& sha1::finalize()
 	while( m_impl->m_i % 64 != 56 )
 		m_impl->add_byte_dont_count_bits(0x00);
 	for(int j=7; j>=0; j--)
-		m_impl->add_byte_dont_count_bits(m_impl->m_n_bits >> (j << 3));
+		m_impl->add_byte_dont_count_bits(static_cast<uint8_t>(m_impl->m_n_bits >> (j << 3)));
 	return *this;
 }
 

@@ -220,6 +220,9 @@ LIBGS_HTTP_METHOD_MAPPING(method::TRACH  , "TRACH"  );
 template <method M>
 constexpr const char *method_string_v = method_string<M>::value;
 
+LIBGS_HTTP_API method from_method_string(std::string_view str);
+LIBGS_HTTP_API method from_method_wstring(std::wstring_view str);
+
 template <concept_char_type CharT>
 using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
 
@@ -232,12 +235,13 @@ struct basic_datagram
 	using str_type = std::basic_string<CharT>;
 	using headers_type = basic_headers<CharT>;
 
-	str_type m_version;
-	headers_type m_headers;
-	std::string m_partial_body;
+	str_type version;
+	headers_type headers;
+	std::string partial_body;
 };
 
 } //namespace libgs::http
+#include <libgs/http/basic/types.h>
 
 
 #endif //LIBGS_HTTP_BASIC_TYPES_H

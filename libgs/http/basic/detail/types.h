@@ -26,61 +26,57 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_REQUEST_H
-#define LIBGS_HTTP_SERVER_REQUEST_H
-
-#include <libgs/http/server/datagram.h>
-#include <libgs/io/socket.h>
+#ifndef LIBGS_HTTP_BASIC_DETAIL_TYPES_H
+#define LIBGS_HTTP_BASIC_DETAIL_TYPES_H
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-class basic_server_request
+inline method from_method_string(std::string_view str)
 {
-	LIBGS_DISABLE_COPY(basic_server_request)
-
-public:
-	using datagram_type = basic_server_datagram<CharT>;
-
-public:
-	basic_server_request(io::socket_ptr socket, const datagram_type &datagram);
-	basic_server_request(io::socket_ptr socket, datagram_type &&datagram);
-
-	basic_server_request(basic_server_request&&) noexcept = default;
-	basic_server_request &operator=(basic_server_request&&) noexcept = default;
-
-public:
-	// TODO ...
-
-protected:
-	io::socket_ptr m_socket;
-	datagram_type m_datagram;
-};
-
-using server_request = basic_server_request<char>;
-using server_wrequest = basic_server_request<wchar_t>;
-
-} //namespace libgs::http
-
-namespace libgs::http
-{
-
-template <concept_char_type CharT>
-basic_server_request<CharT>::basic_server_request(io::socket_ptr socket, const datagram_type &datagram) :
-	m_socket(std::move(socket)), m_datagram(datagram)
-{
-
+	if( str == "GET" )
+		return method::GET;
+	else if( str == "PUT" )
+		return method::PUT;
+	else if( str == "POST" )
+		return method::POST;
+	else if( str == "HEAD" )
+		return method::HEAD;
+	else if( str == "DELETE" )
+		return method::DELETE;
+	else if( str == "OPTIONS" )
+		return method::OPTIONS;
+	else if( str == "CONNECT" )
+		return method::CONNECT;
+	else if( str == "TRACH" )
+		return method::TRACH;
+	else
+		throw runtime_error("libgs::http: Invalid http method: '{}'.", str);
 }
 
-template <concept_char_type CharT>
-basic_server_request<CharT>::basic_server_request(io::socket_ptr socket, datagram_type &&datagram) :
-	m_socket(std::move(socket)), m_datagram(std::move(datagram))
+inline method from_method_wstring(std::wstring_view str)
 {
-
+	if( str == L"GET" )
+		return method::GET;
+	else if( str == L"PUT" )
+		return method::PUT;
+	else if( str == L"POST" )
+		return method::POST;
+	else if( str == L"HEAD" )
+		return method::HEAD;
+	else if( str == L"DELETE" )
+		return method::DELETE;
+	else if( str == L"OPTIONS" )
+		return method::OPTIONS;
+	else if( str == L"CONNECT" )
+		return method::CONNECT;
+	else if( str == L"TRACH" )
+		return method::TRACH;
+	else
+		throw runtime_error("libgs::http: Invalid http method: '{}'.", str);
 }
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_SERVER_REQUEST_H
+#endif //LIBGS_HTTP_BASIC_DETAIL_TYPES_H

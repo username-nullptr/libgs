@@ -40,11 +40,11 @@ class server_parser
 	LIBGS_DISABLE_COPY(server_parser)
 
 public:
-	server_parser();
+	explicit server_parser(size_t init_buf_size = 0xFFFF);
 	~server_parser();
 
-	server_parser(server_parser &&other);
-	server_parser &operator=(server_parser &&other);
+	server_parser(server_parser &&other) noexcept;
+	server_parser &operator=(server_parser &&other) noexcept;
 
 public:
 	bool append(std::string_view buf);
@@ -55,7 +55,228 @@ public:
 	datagram_type get_result();
 
 protected:
+	class impl;
+	impl *m_impl;
 };
+
+} //namespace libgs::http
+
+
+#include <libgs/core/string_list.h>
+
+namespace libgs::http
+{
+
+template <concept_char_type CharT>
+class server_parser<CharT>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	explicit impl(std::size_t init_buf_size)
+	{
+		m_buffer.reserve(init_buf_size);
+	}
+
+public:
+	void state_handler_waiting_request(std::string_view line_buf)
+	{
+		auto request_line_parts = string_list::from_string(line_buf, ' ');
+		if( request_line_parts.size() != 3 or not str_to_upper(request_line_parts[2]).starts_with("HTTP/") )
+		{
+			m_buffer.clear();
+			throw runtime_error("libgs::http::server::parser: Invalid request line.");
+		}
+		http::method method;
+		try {
+			method = from_method_string(request_line_parts[0]);
+		}
+		catch(std::exception&)
+		{
+			m_buffer.clear();
+			throw runtime_error("libgs::http::server::parser: Invalid http method.");
+		}
+		m_datagram.method  = method;
+		m_datagram.version = mbstoxx<CharT>(request_line_parts[2].substr(5,3));
+
+		auto resource_line = from_percent_encoding(request_line_parts[1]);
+		auto pos = resource_line.find('?');
+
+		if( pos == std::string::npos )
+			m_datagram.path = mbstoxx<CharT>(resource_line);
+		else
+		{
+			m_datagram.path = mbstoxx<CharT>(resource_line.substr(0, pos));
+			auto parameters_string = resource_line.substr(pos + 1);
+
+			for(auto &para_str : string_list::from_string(parameters_string, '&'))
+			{
+				pos = para_str.find('=');
+				if( pos == std::string::npos )
+					m_datagram.parameters.emplace(mbstoxx<CharT>(para_str), mbstoxx<CharT>(para_str));
+				else
+					m_datagram.parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
+			}
+		}
+		auto n_it = std::unique(m_datagram.path.begin(), m_datagram.path.end(), [](CharT c0, CharT c1){
+			return c0 == c1 and c0 == 0x2F/*/*/;
+		});
+		if( n_it != m_datagram.path.end() )
+			m_datagram.path.erase(n_it, m_datagram.path.end());
+		m_state = state::reading_headers;
+	}
+
+	[[nodiscard]] bool state_handler_reading_headers(std::string_view line_buf)
+	{
+		if( line_buf == "\r\n" )
+			return next_request_ready();
+
+		auto colon_index = line_buf.find(':');
+		if( colon_index == std::string::npos )
+		{
+			reset();
+			throw runtime_error("libgs::http::server::parser: Invalid header line.");
+		}
+		auto key = str_to_lower(str_trimmed(line_buf.substr(0, colon_index)));
+		auto value = from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1)));
+
+		if( key != "cookie" )
+		{
+			m_datagram.headers[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
+			return false;
+		}
+		auto list = string_list::from_string(value, ';');
+		for(auto &statement : list)
+		{
+			statement = str_trimmed(statement);
+			auto pos = statement.find('=');
+
+			if( pos == std::string::npos )
+			{
+				reset();
+				throw runtime_error("libgs::http::server::parser: Invalid header line.");
+			}
+			key = str_trimmed(statement.substr(0,pos));
+			value = str_trimmed(statement.substr(pos+1));
+			m_datagram->m_impl->m_cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
+		}
+		return false;
+	}
+
+public:
+	bool next_request_ready()
+	{
+		m_state = state::waiting_request;
+		datagram_clear();
+		return true;
+	}
+
+	void reset()
+	{
+		next_request_ready();
+		m_buffer.clear();
+	}
+
+	void datagram_clear()
+	{
+		m_datagram.version.clear();
+		m_datagram.headers.clear();
+		m_datagram.partial_body.clear();
+
+		m_datagram.path.clear();
+		m_datagram.parameters.clear();
+		m_datagram.cookies.clear();
+	}
+
+public:
+	enum class state
+	{
+		waiting_request,
+		reading_headers
+	}
+	m_state;
+	std::string m_buffer;
+	datagram_type m_datagram;
+};
+
+template <concept_char_type CharT>
+server_parser<CharT>::server_parser(size_t init_buf_size) :
+	m_impl(new impl(init_buf_size))
+{
+
+}
+
+template <concept_char_type CharT>
+server_parser<CharT>::~server_parser()
+{
+	delete m_impl;
+}
+
+template <concept_char_type CharT>
+server_parser<CharT>::server_parser(server_parser &&other) noexcept :
+	m_impl(other.m_impl)
+{
+	other.m_impl = new impl(0xFFFF);
+}
+
+template <concept_char_type CharT>
+server_parser<CharT> &server_parser<CharT>::operator=(server_parser &&other) noexcept
+{
+	m_impl = other.m_impl;
+	other.m_impl = new impl(0xFFFF);
+}
+
+template <concept_char_type CharT>
+bool server_parser<CharT>::append(std::string_view buf)
+{
+	using state = impl::state;
+	m_impl->m_buffer.append(buf);
+
+	while( not m_impl->m_buffer.empty() )
+	{
+		auto pos = m_impl->m_buffer.find("\r\n");
+		if( pos == std::string::npos )
+		{
+			if( m_impl->m_buffer.size() < 1024 )
+				return false;
+			else if( m_impl->m_state == state::waiting_request )
+			{
+				m_impl->m_buffer.clear();
+				throw runtime_error("libgs::http::server::parser: Request line too long.");
+			}
+			else if( m_impl->m_state == state::reading_headers )
+			{
+				m_impl->reset();
+				throw runtime_error("libgs::http::server::parser: Header line too long.");
+			}
+			return false;
+		}
+		auto line_buf = m_impl->m_buffer.substr(0, pos + 2);
+		m_impl->m_buffer.erase(0, pos + 2);
+
+		if( m_impl->m_state == state::waiting_request )
+			m_impl->state_handler_waiting_request(line_buf);
+
+		else if( m_impl->m_state == state::reading_headers )
+		{
+			if( m_impl->state_handler_reading_headers(line_buf) )
+				return true;
+		}
+	}
+	return false;
+}
+
+template <concept_char_type CharT>
+bool server_parser<CharT>::operator<<(std::string_view buf)
+{
+	return append(buf);
+}
+
+template <concept_char_type CharT>
+basic_server_datagram<CharT> server_parser<CharT>::get_result()
+{
+	return std::move(m_impl->m_datagram);
+}
 
 } //namespace libgs::http
 

@@ -371,6 +371,16 @@ std::wstring from_percent_encoding(std::wstring_view str)
 	return algorithm_base::from_percent_encoding<wchar_t>(str);
 }
 
+std::string to_percent_encoding(std::string_view str, std::string_view exclude, std::string_view include, char percent)
+{
+	return algorithm_base::to_percent_encoding<char>(str, exclude, include, percent);
+}
+
+std::wstring to_percent_encoding(std::wstring_view str, std::wstring_view exclude, std::wstring_view include, wchar_t percent)
+{
+	return algorithm_base::to_percent_encoding<wchar_t>(str, exclude, include, percent);
+}
+
 std::string file_name(std::string_view file_name)
 {
 	return algorithm_base::file_name<char>(file_name);

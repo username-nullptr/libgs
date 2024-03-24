@@ -97,6 +97,30 @@ char wcstombs(wchar_t c);
 std::wstring mbstowcs(std::string_view str);
 wchar_t mbstowcs(char c);
 
+template <concept_char_type CharT>
+std::string xxtombs(std::basic_string_view<CharT> str);
+
+template <concept_char_type CharT>
+char xxtombs(CharT c);
+
+template <concept_char_type CharT>
+std::wstring xxtowcs(std::basic_string_view<CharT> str);
+
+template <concept_char_type CharT>
+wchar_t xxtowcs(CharT c);
+
+template <concept_char_type CharT>
+std::basic_string<CharT> mbstoxx(std::string_view str);
+
+template <concept_char_type CharT>
+CharT mbstoxx(char c);
+
+template <concept_char_type CharT>
+std::basic_string<CharT> wcstoxx(std::wstring_view str);
+
+template <concept_char_type CharT>
+CharT wcstoxx(wchar_t c);
+
 struct string_wrapper
 {
 	std::string value;

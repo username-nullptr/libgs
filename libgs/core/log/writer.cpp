@@ -699,14 +699,14 @@ static void remove_if_too_big(const std::list<fs::directory_entry> &list, size_t
 {
 	size_t size = 0;
 	for(auto &info : list)
-		size += fs::file_size(info.path());
+		size += static_cast<size_t>(fs::file_size(info.path()));
 
 	if( size + log_size <= max_size )
 		return ;
 
 	for(auto &info : list)
 	{
-		size -= fs::file_size(info.path());
+		size -= static_cast<size_t>(fs::file_size(info.path()));
 		fs::remove(info.path());
 
 		if( size + log_size <= max_size )

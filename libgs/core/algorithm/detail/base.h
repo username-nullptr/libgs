@@ -382,71 +382,104 @@ template <concept_char_type CharT>
 	while( i < len )
 	{
 		c = inputPtr[i];
-		if constexpr( is_char_v<CharT> )
+		if( c == 0x25/*%*/ and i + 2 < len )
 		{
-			if( c == '%' and i + 2 < len )
-			{
-				a = inputPtr[++i];
-				b = inputPtr[++i];
+			a = inputPtr[++i];
+			b = inputPtr[++i];
 
-				if( a >= '0' and a <= '9' )
-					a -= '0';
+			if( a >= 0x30/*0*/ and a <= 0x39/*9*/ )
+				a -= 0x30/*0*/;
 
-				else if( a >= 'a' and a <= 'f' )
-					a = a - 'a' + 10;
+			else if( a >= 0x61/*a*/ and a <= 0x66/*f*/ )
+				a = a - 0x61/*a*/ + 10;
 
-				else if( a >= 'A' && a <= 'F' )
-					a = a - 'A' + 10;
+			else if( a >= 0x41/*A*/ && a <= 0x46/*F*/ )
+				a = a - 0x41/*A*/ + 10;
 
-				if( b >= '0' and b <= '9' )
-					b -= '0';
+			if( b >= 0x30/*0*/ and b <= 0x39/*9*/ )
+				b -= 0x30/*0*/;
 
-				else if( b >= 'a' and b <= 'f' )
-					b = b - 'a' + 10;
+			else if( b >= 0x61/*a*/ and b <= 0x66/*f*/ )
+				b = b - 0x61/*a*/ + 10;
 
-				else if( b >= 'A' and b <= 'F' )
-					b = b - 'A' + 10;
+			else if( b >= 0x41/*A*/ and b <= 0x46/*F*/ )
+				b = b - 0x41/*A*/ + 10;
 
-				*data++ = static_cast<CharT>((a << 4) | b);
-			}
-			else
-				*data++ = c;
+			*data++ = static_cast<CharT>((a << 4) | b);
 		}
 		else
-		{
-			if( c == L'%' and i + 2 < len )
-			{
-				a = inputPtr[++i];
-				b = inputPtr[++i];
-
-				if( a >= L'0' and a <= L'9' )
-					a -= L'0';
-
-				else if( a >= L'a' and a <= L'f' )
-					a = a - L'a' + 10;
-
-				else if( a >= L'A' && a <= L'F' )
-					a = a - L'A' + 10;
-
-				if( b >= L'0' and b <= L'9' )
-					b -= L'0';
-
-				else if( b >= L'a' and b <= L'f' )
-					b = b - L'a' + 10;
-
-				else if( b >= L'A' and b <= L'F' )
-					b = b - L'A' + 10;
-
-				*data++ = static_cast<CharT>((a << 4) | b);
-			}
-			else
-				*data++ = c;
-		}
+			*data++ = c;
 		++i;
 		++outlen;
 	}
 	if( outlen != len )
 		result = result.substr(0, outlen);
+	return result;
+}
+
+template <concept_char_type CharT>
+constexpr CharT to_hex_upper(unsigned int value) noexcept
+{
+	if constexpr( is_char_v<CharT> )
+		return "0123456789ABCDEF"[value & 0xF];
+	else
+		return L"0123456789ABCDEF"[value & 0xF];
+}
+
+template <concept_char_type CharT>
+constexpr CharT to_hex_lower(unsigned int value) noexcept
+{
+	if constexpr( is_char_v<CharT> )
+		return "0123456789abcdef"[value & 0xF];
+	else
+		return L"0123456789abcdef"[value & 0xF];
+}
+
+template <concept_char_type CharT>
+[[nodiscard]] std::basic_string<CharT> to_percent_encoding
+(std::basic_string_view<CharT> str, std::basic_string_view<CharT> exclude, std::basic_string_view<CharT> include, CharT percent)
+{
+	std::basic_string<CharT> result;
+	if( str.empty() )
+		return result;
+
+	const auto contains = [](std::basic_string_view<CharT> view, CharT c) {
+		return not view.empty() and memchr(view.data(), c, view.size()) != nullptr;
+	};
+	CharT *output = nullptr;
+	size_t length = 0;
+
+	for(auto &c : str)
+	{
+		if( c != percent and
+			((c >= 0x61 and c <= 0x7A) // ALPHA
+			 or (c >= 0x41 and c <= 0x5A) // ALPHA
+			 or (c >= 0x30 and c <= 0x39) // DIGIT
+			 or c == 0x2D // -
+			 or c == 0x2E // .
+			 or c == 0x5F // _
+			 or c == 0x7E // ~
+			 or contains(exclude, c)) and
+			not contains(include, c) )
+		{
+			if( output )
+				output[length] = c;
+			length++;
+		}
+		else
+		{
+			if( not output )
+			{
+				result.resize(str.size() * 3);
+				output = result.data();
+			}
+			output[length++] = percent;
+			output[length++] = to_hex_upper<CharT>((c & 0xf0) >> 4);
+			output[length++] = to_hex_upper<CharT>(c & 0xf);
+		}
+	}
+	if( output )
+		result = result.substr(0, length);
 	return result;
 }
 

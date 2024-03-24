@@ -128,6 +128,78 @@ inline wchar_t mbstowcs(char c)
 	return buf;
 }
 
+template <concept_char_type CharT>
+std::string xxtombs(std::basic_string_view<CharT> str)
+{
+	if constexpr( is_char_v<CharT> )
+		return {str.data(), str.size()};
+	else
+		return wcstombs(str);
+}
+
+template <concept_char_type CharT>
+char xxtombs(CharT c)
+{
+	if constexpr( is_char_v<CharT> )
+		return c;
+	else
+		return wcstombs(c);
+}
+
+template <concept_char_type CharT>
+std::wstring xxtowcs(std::basic_string_view<CharT> str)
+{
+	if constexpr( is_char_v<CharT> )
+		return mbstowcs(str);
+	else
+		return {str.data(), str.size()};
+}
+
+template <concept_char_type CharT>
+wchar_t xxtowcs(CharT c)
+{
+	if constexpr( is_char_v<CharT> )
+		return mbstowcs(c);
+	else
+		return c;
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> mbstoxx(std::string_view str)
+{
+	if constexpr( is_char_v<CharT> )
+		return {str.data(), str.size()};
+	else
+		return mbstowcs(str);
+}
+
+template <concept_char_type CharT>
+CharT mbstoxx(char c)
+{
+	if constexpr( is_char_v<CharT> )
+		return c;
+	else
+		return mbstowcs(c);
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> wcstoxx(std::wstring_view str)
+{
+	if constexpr( is_char_v<CharT> )
+		return wcstombs(str);
+	else
+		return {str.data(), str.size()};
+}
+
+template <concept_char_type CharT>
+CharT wcstoxx(wchar_t c)
+{
+	if constexpr( is_char_v<CharT> )
+		return wcstombs(c);
+	else
+		return c;
+}
+
 inline string_wrapper::string_wrapper(const char *value) :
 	value(value) 
 {

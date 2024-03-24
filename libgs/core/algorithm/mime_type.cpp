@@ -1007,7 +1007,7 @@ static bool s_is_text_file(std::ifstream &file)
 	char buf[0x4000] = {0};
 	file.read(buf, sizeof(buf));
 
-	auto buf_size = file.gcount();
+	auto buf_size = static_cast<size_t>(file.gcount());
 	std::string data(buf, buf_size);
 
 	// UTF16 byte order marks
@@ -1037,7 +1037,7 @@ static std::string mime_from_magic(std::string_view file_name)
 	char buf[BUF_LEN] = {0};
 	file.read(buf, BUF_LEN);
 
-	auto size = file.gcount();
+	auto size = static_cast<size_t>(file.gcount());
 	if( size < BUF_LEN )
 	{
 		file.seekg(0, std::ios_base::beg);

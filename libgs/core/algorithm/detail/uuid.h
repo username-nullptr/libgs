@@ -126,12 +126,12 @@ std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
 		char buffer[41] = ""; //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
 		if( parcel )
 		{
-			std::sprintf(buffer, "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+			std::snprintf(buffer, 40, "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
 						 _basic_uuid.d0, _basic_uuid.d1, _basic_uuid.d2, _basic_uuid.d3[0], _basic_uuid.d3[1], _basic_uuid.d3[2], _basic_uuid.d3[3], _basic_uuid.d3[4], _basic_uuid.d3[5], _basic_uuid.d3[6], _basic_uuid.d3[7]);
 		}
 		else
 		{
-			std::sprintf(buffer, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+			std::snprintf(buffer, 40, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
 						 _basic_uuid.d0, _basic_uuid.d1, _basic_uuid.d2, _basic_uuid.d3[0], _basic_uuid.d3[1], _basic_uuid.d3[2], _basic_uuid.d3[3], _basic_uuid.d3[4], _basic_uuid.d3[5], _basic_uuid.d3[6], _basic_uuid.d3[7]);
 		}
 		return buffer;
