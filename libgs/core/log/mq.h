@@ -26,81 +26,101 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_LOG_TYPES_H
-#define LIBGS_CORE_LOG_TYPES_H
+#ifndef LIBGS_CORE_LOG_MQ_H
+#define LIBGS_CORE_LOG_MQ_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/log/context.h>
+#include <libgs/core/lock_free_queue.h>
 
 namespace libgs::log
 {
 
 template <typename T>
-struct basic_log_context;
+struct basic_message_node;
 
 template <>
-struct basic_log_context<void>
+struct basic_message_node<void>
 {
-	std::string directory; /* = "" */;
+	using context_ptr = std::shared_ptr<log_context>;
 
-	size_t max_size_one_file = 10240;
-	size_t max_size_one_day = 10485760;
-	size_t max_size = 1073741824;
+	output_type type;
+	context_ptr context;
 
-	uint8_t mask = 4;
-	bool source_visible = false;
-	bool time_category = true;
-	bool async = false;
-	bool no_stdout = false;
-	bool header_breaks_aline = false;
+	basic_message_node(output_type type, context_ptr context);
 };
 
 template <>
-struct basic_log_context<char> : basic_log_context<void> {
-	std::string category = "default";
-};
-
-template <>
-struct basic_log_context<wchar_t> : basic_log_context<void> {
-	std::wstring category = L"default";
-};
-
-using log_context = basic_log_context<char>;
-
-using log_wcontext = basic_log_context<wchar_t>;
-
-enum class output_type
+struct basic_message_node<char> : basic_message_node<void>
 {
-	debug,   //stdout
-	info,    //stdout
-	warning, //stderr
-	error,   //stderr
-	fetal    //stderr-sync
+	using rt_context = output_context;
+	using str_type = std::string;
+
+	rt_context runtime_context;
+	str_type msg;
+
+	basic_message_node
+	(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg);
 };
 
-using output_time = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>;
+template <>
+struct basic_message_node<wchar_t> : basic_message_node<void>
+{
+	using rt_context = output_wcontext;
+	using str_type = std::wstring;
+
+	rt_context runtime_context;
+	str_type msg;
+
+	basic_message_node
+	(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg);
+};
+
+using message_node = basic_message_node<char>;
+
+using wmessage_node = basic_message_node<wchar_t>;
 
 template <concept_char_type CharT>
-struct basic_output_context
-{
-	output_time time;
-	std::basic_string<CharT> category;
-	std::basic_string<CharT> file;
-	std::basic_string<CharT> func;
-	size_t line = 0;
+using basic_msg_node_ptr = std::shared_ptr<basic_message_node<CharT>>;
 
-	basic_output_context() = default;
-	basic_output_context(const basic_output_context &other) = default;
-	basic_output_context &operator=(const basic_output_context &other) = default;
-	basic_output_context(basic_output_context &&other) noexcept;
-	basic_output_context &operator=(basic_output_context &&other) noexcept;
-};
+using msg_node_ptr = basic_msg_node_ptr<char>;
 
-using output_context = basic_output_context<char>;
+using wmsg_node_ptr = basic_msg_node_ptr<wchar_t>;
 
-using output_wcontext = basic_output_context<wchar_t>;
+using msg_node_base_ptr = std::shared_ptr<basic_message_node<void>>;
+
+using message_queue = lock_free_queue<msg_node_base_ptr>;
 
 } //namespace libgs::log
-#include <libgs/core/log/detail/types.h>
+
+namespace libgs::log
+{
+
+inline basic_message_node<void>::basic_message_node(output_type type, context_ptr context) :
+	type(type),
+	context(std::move(context))
+{
+
+}
+
+inline basic_message_node<char>::basic_message_node
+(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
+	basic_message_node<void>(type, std::move(context)),
+	runtime_context(runtime_context),
+	msg(msg)
+{
+
+}
+
+inline basic_message_node<wchar_t>::basic_message_node
+(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
+	basic_message_node<void>(type, std::move(context)),
+	runtime_context(runtime_context),
+	msg(msg)
+{
+
+}
+
+} //namespace libgs::log
 
 
-#endif //LIBGS_CORE_LOG_TYPES_H
+#endif //LIBGS_CORE_LOG_MQ_H

@@ -45,7 +45,6 @@ class basic_logger
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
 	using buffer = basic_buffer<CharT>;
-	using context = basic_log_context<CharT>;
 	using str_type = std::basic_string<CharT>;
 
 	template <typename...Args>
@@ -53,10 +52,6 @@ class basic_logger
 
 public:
 	basic_logger(const char *file, const char *func, size_t line);
-
-public:
-	static void set_context(const context &con);
-	[[nodiscard]] static context get_context();
 
 public:
 	template <typename...Args>

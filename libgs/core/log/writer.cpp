@@ -32,6 +32,8 @@
 #endif
 
 #include "writer.h"
+#include "mq.h"
+
 #include "libgs/core/algorithm/base.h"
 #include "libgs/core/lock_free_queue.h"
 #include "libgs/core/shared_mutex.h"
@@ -130,10 +132,16 @@ static void _output
 static void _output
 (output_type type, const log_wcontext &context, const output_wcontext &runtime_context, const std::wstring &msg);
 
-template <concept_char_type CharT>
-class LIBGS_DECL_HIDDEN writer_impl
+static class LIBGS_DECL_HIDDEN writer_impl
 {
 	LIBGS_DISABLE_COPY_MOVE(writer_impl)
+	using context_ptr = std::shared_ptr<log_context>;
+
+	std::thread m_thread; // clang17 does not support std::jthread.
+	std::atomic_bool m_stop_flag {false};
+
+	std::counting_semaphore<> m_semaphore {0};
+	message_queue m_message_qeueue;
 
 public:
 	using duration = std::chrono::milliseconds;
@@ -149,9 +157,7 @@ public:
 
 				auto opd = m_message_qeueue.dequeue();
 				assert(opd);
-
-				auto _node = std::move(*opd);
-				_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+				output(std::move(*opd));
 			}
 			shutdown();
 		});
@@ -169,31 +175,12 @@ public:
 		catch(...) {}
 	}
 	
-private:
-	using context_ptr = std::shared_ptr<basic_log_context<CharT>>;
-	using rt_context = basic_output_context<CharT>;
-	using str_type = std::basic_string<CharT>;
-
-	struct node
-	{
-		output_type type;
-		context_ptr context;
-		rt_context runtime_context;
-		str_type msg;
-
-		node(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
-			type(type), context(std::move(context)), runtime_context(runtime_context), msg(msg) {}
-	};
-
-private:
-	using node_ptr = std::shared_ptr<node>;
-	using message_list = lock_free_queue<node_ptr>;
-	message_list m_message_qeueue;
-
 public:
-	void produce(output_type type, const context_ptr &context, rt_context &&runtime_context, str_type &&msg)
+	template <concept_char_type CharT>
+	void produce(output_type type, const context_ptr &context,
+				 basic_output_context<CharT> &&runtime_context, std::basic_string<CharT> &&msg)
 	{
-		auto _node = std::make_shared<node>(type, context, std::move(runtime_context), std::move(msg));
+		auto _node = std::make_shared<basic_message_node<CharT>>(type, context, std::move(runtime_context), std::move(msg));
 		m_message_qeueue.enqueue(_node);
 		m_semaphore.release(1);
 	}
@@ -203,19 +190,25 @@ private:
 	{
 		while( auto opd = m_message_qeueue.dequeue() )
 		{
-			auto _node = std::move(*opd);
-			_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+			assert(opd);
+			output(std::move(*opd));
 		}
 	}
 
-private:
-	std::thread m_thread; // clang17 does not support std::jthread.
-	std::atomic_bool m_stop_flag {false};
-	std::counting_semaphore<> m_semaphore {0};
-};
-
-template <concept_char_type CharT>
-static writer_impl<CharT> *g_impl = nullptr;
+	void output(msg_node_base_ptr _node_base)
+	{
+		auto _node = std::dynamic_pointer_cast<message_node>(_node_base);
+		if( _node )
+			_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+		else
+		{
+			auto _node = std::dynamic_pointer_cast<wmessage_node>(_node_base);
+			assert(_node);
+			_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+		}
+	}
+}
+*g_impl = nullptr;
 
 static std::atomic_int g_counter {0};
 
@@ -224,19 +217,13 @@ static std::atomic_int g_counter {0};
 writer::writer()
 {
 	if( ++g_counter == 1 )
-	{
-		g_impl<char> = new writer_impl<char>();
-		g_impl<wchar_t> = new writer_impl<wchar_t>();
-	}
+		g_impl = new writer_impl();
 }
 
 writer::~writer()
 {
 	if( --g_counter == 0 )
-	{
-		delete g_impl<char>;
-		delete g_impl<wchar_t>;
-	}
+		delete g_impl;
 }
 
 writer &writer::instance()
@@ -244,12 +231,6 @@ writer &writer::instance()
 	static writer obj;
 	return obj;
 }
-
-template <concept_char_type CharT>
-static basic_log_context<CharT> g_context;
-
-template <concept_char_type CharT>
-static shared_mutex g_context_rwlock;
 
 template <concept_char_type CharT>
 void _write(output_type type, basic_output_context<CharT> &&runtime_context, std::basic_string<CharT> &&msg);
@@ -262,31 +243,6 @@ void writer::write(type type, output_context &&runtime_context, std::string &&ms
 void writer::write(type type, output_wcontext &&runtime_context, std::wstring &&msg)
 {
 	_write(type, std::move(runtime_context), std::move(msg));
-}
-
-[[nodiscard]] log_context writer::get_context() const
-{
-	shared_lock locker(g_context_rwlock<char>); LIBGS_UNUSED(locker);
-	return g_context<char>;
-}
-
-[[nodiscard]] log_wcontext writer::get_wcontext() const
-{
-	shared_lock locker(g_context_rwlock<wchar_t>); LIBGS_UNUSED(locker);
-	return g_context<wchar_t>;
-}
-
-template <concept_char_type CharT>
-void _set_context(basic_log_context<CharT> &context);
-
-void writer::set_context(log_context con)
-{
-	_set_context(con);
-}
-
-void writer::set_context(log_wcontext con)
-{
-	_set_context(con);
 }
 
 template <concept_char_type CharT>
@@ -307,41 +263,11 @@ void writer::fatal(output_wcontext &&runtime_context, const std::wstring &msg)
 template <concept_char_type CharT>
 void _write(output_type type, basic_output_context<CharT> &&runtime_context, std::basic_string<CharT> &&msg)
 {
-	g_context_rwlock<CharT>.lock_shared();
-	auto context = std::make_shared<basic_log_context<CharT>>(g_context<CharT>);
-	g_context_rwlock<CharT>.unlock_shared();
-
+	auto context = get_context();
 	if( context->async and type != output_type::fetal )
-		g_impl<CharT>->produce(type, context, std::move(runtime_context), std::move(msg));
+		g_impl->produce(type, context, std::move(runtime_context), std::move(msg));
 	else
 		_output(type, *context, runtime_context, msg);
-}
-
-template <concept_char_type CharT>
-void _set_context(basic_log_context<CharT> &context)
-{
-	if( context.category.empty() )
-	{
-		if constexpr( is_char_v<CharT> )
-			context.category = "default";
-		else
-			context.category = L"default";
-	}
-	else
-	{
-		if constexpr( is_char_v<CharT> )
-			str_replace(context.category, "\\", "/");
-		else
-			str_replace(context.category, L"\\", L"/");
-	}
-	str_replace(context.directory, "\\", "/");
-
-	if( not context.directory.empty() )
-		context.directory = app::absolute_path(context.directory);
-
-	g_context_rwlock<CharT>.lock();
-	g_context<CharT> = std::move(context);
-	g_context_rwlock<CharT>.unlock();
 }
 
 template <concept_char_type CharT>
@@ -423,12 +349,12 @@ static void _output
 }
 
 static void _output
-(output_type type, const log_wcontext &context, const output_wcontext &runtime_context, const std::wstring &msg)
+(output_type type, const log_context &context, const output_wcontext &runtime_context, const std::wstring &msg)
 {
 	auto category = runtime_context.category.empty() ?
-						context.category == L"default" ?
+						context.category == "default" ?
 							L"" : 
-							context.category :
+							mbstowcs(context.category) :
 						runtime_context.category;
 	std::wstring source;
 	if( context.source_visible )

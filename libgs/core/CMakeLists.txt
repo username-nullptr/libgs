@@ -41,7 +41,8 @@ set(core_headers
 	log/logger.h
 	log/buffer.h
 	log/writer.h
-	log/types.h
+	log/mq.h
+	log/context.h
 	string_list.h
 	value.h
 	args_parser.h
@@ -62,7 +63,7 @@ set(core_detail_headers
 	detail/lock_free_queue.h
 	log/detail/logger.h
 	log/detail/buffer.h
-	log/detail/types.h
+	log/detail/context.h
 	detail/string_list.h
 	detail/value.h
 	detail/ini.h

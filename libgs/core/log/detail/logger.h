@@ -56,21 +56,6 @@ basic_logger<CharT>::basic_logger(const char *file, const char *func, size_t lin
 }
 
 template <concept_char_type CharT>
-void basic_logger<CharT>::set_context(const context &con)
-{
-	writer::instance().set_context(con);
-}
-
-template <concept_char_type CharT>
-basic_log_context<CharT> basic_logger<CharT>::get_context()
-{
-	if constexpr( is_char_v )
-		return writer::instance().get_context();
-	else
-		return writer::instance().get_wcontext();
-}
-
-template <concept_char_type CharT>
 template <typename...Args>
 basic_buffer<CharT> basic_logger<CharT>::debug(format_string<Args...> fmt_value, Args&&...args) {
 	return std::move(debug() << std::format(fmt_value, std::forward<Args>(args)...));

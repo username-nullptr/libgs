@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_LOG_WRITER_H
 #define LIBGS_CORE_LOG_WRITER_H
 
-#include <libgs/core/log/types.h>
+#include <libgs/core/log/context.h>
 
 namespace libgs::log
 {
@@ -49,14 +49,6 @@ public:
 	static writer &instance();
 	void write(type type, output_context &&runtime_context, std::string &&msg);
 	void write(type type, output_wcontext &&runtime_context, std::wstring &&msg);
-
-public:
-	[[nodiscard]] log_context get_context() const;
-	[[nodiscard]] log_wcontext get_wcontext() const;
-
-public:
-	void set_context(log_context con);
-	void set_context(log_wcontext con);
 
 public:
 	void fatal(output_context &&runtime_context, const std::string &msg);

@@ -26,36 +26,87 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_LOG_DETAIL_TYPES_H
-#define LIBGS_CORE_LOG_DETAIL_TYPES_H
+#ifndef LIBGS_CORE_LOG_CONTEXT_H
+#define LIBGS_CORE_LOG_CONTEXT_H
+
+#include <libgs/core/global.h>
 
 namespace libgs::log
 {
 
-template <concept_char_type CharT>
-basic_output_context<CharT>::basic_output_context(basic_output_context &&other) noexcept :
-	time(std::move(other.time)),
-	category(std::move(other.category)),
-	file(other.file),
-	func(other.func),
-	line(other.line)
-{
+template <typename T>
+struct basic_log_context;
 
-}
+template <>
+struct basic_log_context<void>
+{
+	std::string directory/* = "" */;
+
+	size_t max_size_one_file = 10240;
+	size_t max_size_one_day = 10485760;
+	size_t max_size = 1073741824;
+
+	uint8_t mask = 4;
+	bool source_visible = false;
+	bool time_category = true;
+	bool async = false;
+	bool no_stdout = false;
+	bool header_breaks_aline = false;
+};
+
+template <>
+struct basic_log_context<char> : basic_log_context<void> {
+	std::string category = "default";
+};
+
+template <>
+struct basic_log_context<wchar_t> : basic_log_context<void> {
+	std::wstring category = L"default";
+};
+
+using log_context = basic_log_context<char>;
+
+using log_wcontext = basic_log_context<wchar_t>;
+
+LIBGS_CORE_API void set_context(log_context context);
+LIBGS_CORE_API void set_context(log_wcontext context);
+
+template <concept_char_type CharT = char>
+[[nodiscard]] LIBGS_CORE_API basic_log_context<CharT> get_context();
+
+enum class output_type
+{
+	debug,   //stdout
+	info,    //stdout
+	warning, //stderr
+	error,   //stderr
+	fetal    //stderr-sync
+};
+
+using output_time = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>;
 
 template <concept_char_type CharT>
-basic_output_context<CharT> &basic_output_context<CharT>::operator=(basic_output_context &&other) noexcept
+struct basic_output_context
 {
-	time = std::move(other.time);
-	category = std::move(other.category);
-	file = other.file;
-	func = other.func;
-	line = other.line;
-	return *this;
-}
+	output_time time;
+	std::basic_string<CharT> category;
+	std::basic_string<CharT> file;
+	std::basic_string<CharT> func;
+	size_t line = 0;
+
+	basic_output_context() = default;
+	basic_output_context(const basic_output_context &other) = default;
+	basic_output_context &operator=(const basic_output_context &other) = default;
+	basic_output_context(basic_output_context &&other) noexcept;
+	basic_output_context &operator=(basic_output_context &&other) noexcept;
+};
+
+using output_context = basic_output_context<char>;
+
+using output_wcontext = basic_output_context<wchar_t>;
 
 } //namespace libgs::log
+#include <libgs/core/log/detail/context.h>
 
 
-#endif //LIBGS_CORE_LOG_DETAIL_TYPES_H
-
+#endif //LIBGS_CORE_LOG_CONTEXT_H
