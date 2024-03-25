@@ -8,21 +8,21 @@ static libgs::lock_free_queue<int> queue;
 void producer_0()
 {
 	libgs::sleep_for(1ms);
-	for(int i=0; i<100; i++)
+	for(int i=0; i<200; i++)
 		queue.enqueue(i);
 }
 
 void producer_1()
 {
 	libgs::sleep_for(1ms);
-	for(int i=100; i<200; i++)
+	for(int i=200; i<400; i++)
 		queue.enqueue(i);
 }
 
 void producer_2()
 {
 	libgs::sleep_for(1ms);
-	for(int i=200; i<300; i++)
+	for(int i=400; i<600; i++)
 		queue.enqueue(i);
 }
 

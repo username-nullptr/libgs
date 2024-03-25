@@ -70,6 +70,7 @@ struct LIBGS_IO_API buffer<const void*> : buffer<void>
 template <>
 struct LIBGS_IO_API buffer<const std::string&> : buffer<void>
 {
+	using this_type = buffer<const std::string&>;
 	const std::string &data;
 
 	template <typename String>

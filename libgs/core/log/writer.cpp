@@ -126,11 +126,13 @@ static time_t create_time(const std::string &filename)
 namespace libgs::log
 {
 
+static void output(msg_node_base_ptr &_node_base);
+
 static void _output
 (output_type type, const log_context &context, const output_context &runtime_context, const std::string &msg);
 
 static void _output
-(output_type type, const log_wcontext &context, const output_wcontext &runtime_context, const std::wstring &msg);
+(output_type type, const log_context &context, const output_wcontext &runtime_context, const std::wstring &msg);
 
 static class LIBGS_DECL_HIDDEN writer_impl
 {
@@ -157,7 +159,7 @@ public:
 
 				auto opd = m_message_qeueue.dequeue();
 				assert(opd);
-				output(std::move(*opd));
+				output(*opd);
 			}
 			shutdown();
 		});
@@ -191,20 +193,7 @@ private:
 		while( auto opd = m_message_qeueue.dequeue() )
 		{
 			assert(opd);
-			output(std::move(*opd));
-		}
-	}
-
-	void output(msg_node_base_ptr _node_base)
-	{
-		auto _node = std::dynamic_pointer_cast<message_node>(_node_base);
-		if( _node )
-			_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
-		else
-		{
-			auto _node = std::dynamic_pointer_cast<wmessage_node>(_node_base);
-			assert(_node);
-			_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+			output(*opd);
 		}
 	}
 }
@@ -258,14 +247,22 @@ void writer::fatal(output_wcontext &&runtime_context, const std::wstring &msg)
 	_fatal(std::move(runtime_context), msg);
 }
 
+#if defined(__WINNT__) || defined(_WINDOWS)
+void writer::exit()
+{
+	if( --g_counter == 0 )
+		delete g_impl;
+}
+#endif //Windows
+
 /*------------------------------------------------------------------------------------------------------------------------------*/
 
 template <concept_char_type CharT>
 void _write(output_type type, basic_output_context<CharT> &&runtime_context, std::basic_string<CharT> &&msg)
 {
-	auto context = get_context();
+	auto context = std::make_shared<log_context>(get_context());
 	if( context->async and type != output_type::fetal )
-		g_impl->produce(type, context, std::move(runtime_context), std::move(msg));
+		g_impl->produce<CharT>(type, context, std::move(runtime_context), std::move(msg));
 	else
 		_output(type, *context, runtime_context, msg);
 }
@@ -273,10 +270,7 @@ void _write(output_type type, basic_output_context<CharT> &&runtime_context, std
 template <concept_char_type CharT>
 void _fatal(basic_output_context<CharT> &&runtime_context, const std::basic_string<CharT> &msg)
 {
-	g_context_rwlock<CharT>.lock_shared();
-	auto context = g_context<CharT>;
-	g_context_rwlock<CharT>.unlock_shared();
-
+	auto context = get_context();
 	_output(output_type::fetal, context, runtime_context, msg);
 	abort();
 }
@@ -287,6 +281,19 @@ static constexpr const CharT *type_string(output_type type);
 template <concept_char_type CharT>
 static void write_file(const std::basic_string<CharT> &log_text, const std::string &category, 
 					   const basic_log_context<void> &context, const output_time &time, size_t log_size);
+
+static void output(msg_node_base_ptr &_node_base)
+{
+	{
+		auto _node = std::dynamic_pointer_cast<message_node>(_node_base);
+		if( _node )
+			return _output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+	}{
+		auto _node = std::dynamic_pointer_cast<wmessage_node>(_node_base);
+		assert(_node);
+		_output(_node->type, *_node->context, _node->runtime_context, _node->msg);
+	}
+}
 
 static std::counting_semaphore<1> g_output_semaphore {1};
 
@@ -300,7 +307,7 @@ static void _output
 						runtime_context.category;
 	std::string source;
 	if( context.source_visible )
-		source = std::format("-[{0}:{1}]", runtime_context.file, runtime_context.line);
+		source = std::format("-[{0}:{1}]", context.file_path_visible ? runtime_context.file : file_name(runtime_context.file), runtime_context.line);
 
 	auto log_text = std::format("[{0}::{1}]-[{2:%Y-%m-%d %H:%M:%S}]{3}:{4}",
 								category, type_string<char>(type), runtime_context.time,
@@ -358,7 +365,7 @@ static void _output
 						runtime_context.category;
 	std::wstring source;
 	if( context.source_visible )
-		source = std::format(L"-[{0}:{1}]", runtime_context.file, runtime_context.line);
+		source = std::format(L"-[{0}:{1}]", context.file_path_visible ? runtime_context.file : file_name(runtime_context.file), runtime_context.line);
 
 	auto log_text = std::format(L"[{0}::{1}]-[{2:%Y-%m-%d %H:%M:%S}]{3}:{4}",
 								category, type_string<wchar_t>(type), runtime_context.time,
@@ -420,7 +427,6 @@ static constexpr const CharT *type_string(output_type type)
 		case output_type::fetal  : return "Fetal";
 		default: break;
 		}
-		return "";
 	}
 	else
 	{
@@ -433,8 +439,8 @@ static constexpr const CharT *type_string(output_type type)
 		case output_type::fetal  : return L"Fetal";
 		default: break;
 		}
-		return L"";
 	}
+	throw runtime_error("Code bug: enum output_type is invalid.");
 }
 
 static struct LIBGS_DECL_HIDDEN curr_log_file

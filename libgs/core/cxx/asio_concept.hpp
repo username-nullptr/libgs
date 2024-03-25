@@ -85,7 +85,10 @@ template <typename T>
 concept concept_awaitable_type = is_awaitable_v<T>;
 
 template <typename Func>
-concept concept_awaitable_function = is_awaitable_v<typename function_traits<Func>::return_type>;
+concept concept_awaitable_function =
+		is_functor_v<Func> and
+		is_awaitable_v<typename function_traits<Func>::return_type> and
+		function_traits<Func>::arg_count == 0;
 
 } //namespace libgs
 

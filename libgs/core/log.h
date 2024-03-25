@@ -56,5 +56,17 @@
 #define libgs_custom_log_werror    libgs::log::wlogger(__FILE__, __FUNCTION__, __LINE__).cerror
 #define libgs_custom_log_wfatal    libgs::log::wlogger(__FILE__, __FUNCTION__, __LINE__).cfatal
 
+#define libgs_basic_log_debug(CharT)    libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).debug
+#define libgs_basic_log_info(CharT)     libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).info
+#define libgs_basic_log_warning(CharT)  libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).warning
+#define libgs_basic_log_error(CharT)    libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).error
+#define libgs_basic_log_fatal(CharT)    libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).fatal
+
+#define libgs_custom_basic_log_debug(CharT)    libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).cdebug
+#define libgs_custom_basic_log_info(CharT)     libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).cinfo
+#define libgs_custom_basic_log_warning(CharT)  libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).cwarning
+#define libgs_custom_basic_log_error(CharT)    libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).cerror
+#define libgs_custom_basic_log_fatal(CharT)    libgs::log::basic_logger<CharT>(__FILE__, __FUNCTION__, __LINE__).cfatal
+
 
 #endif //LIBGS_CORE_LOG_H

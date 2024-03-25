@@ -494,13 +494,17 @@ template <concept_char_type CharT>
 
 	std::basic_string<CharT> result;
 	if( pos == std::basic_string<CharT>::npos )
-		result = std::basic_string<CharT>(file_name.data(), file_name.size());
-	else
 	{
-		auto tmp = file_name.substr(pos + 1);
-		result = std::basic_string<CharT>(tmp.data(), tmp.size());
+		if constexpr( is_char_v<CharT> )
+			pos = file_name.rfind("\\");
+		else
+			pos = file_name.rfind(L"\\");
+
+		if( pos == std::basic_string<CharT>::npos )
+			return std::basic_string<CharT>(file_name.data(), file_name.size());
 	}
-	return result;
+	auto tmp = file_name.substr(pos + 1);
+	return std::basic_string<CharT>(tmp.data(), tmp.size());
 }
 
 template <concept_char_type CharT>

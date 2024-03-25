@@ -25,12 +25,13 @@ void func_2()
 
 int main()
 {
-#if 0
-	auto context = libgs::log::logger::get_context();
+#if 1
+	auto context = libgs::log::get_context();
 	context.async = true;
 	context.source_visible = true;
+	context.file_path_visible = false;
 	context.header_breaks_aline = true;
-	libgs::log::logger::set_context(context);
+	libgs::log::set_context(context);
 #endif
 
 	std::thread t0(func_0);
@@ -39,5 +40,9 @@ int main()
 	t0.join();
 	t1.join();
 	t2.join();
+
+#if defined(__WINNT__) || defined(_WINDOWS)
+	libgs::log::writer::instance().exit();
+#endif
 	return 0;
 }

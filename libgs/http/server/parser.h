@@ -35,16 +35,16 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class server_parser
+class basic_server_parser
 {
-	LIBGS_DISABLE_COPY(server_parser)
+	LIBGS_DISABLE_COPY(basic_server_parser)
 
 public:
-	explicit server_parser(size_t init_buf_size = 0xFFFF);
-	~server_parser();
+	explicit basic_server_parser(size_t init_buf_size = 0xFFFF);
+	~basic_server_parser();
 
-	server_parser(server_parser &&other) noexcept;
-	server_parser &operator=(server_parser &&other) noexcept;
+	basic_server_parser(basic_server_parser &&other) noexcept;
+	basic_server_parser &operator=(basic_server_parser &&other) noexcept;
 
 public:
 	bool append(std::string_view buf);
@@ -59,16 +59,22 @@ protected:
 	impl *m_impl;
 };
 
+using server_parser = basic_server_parser<char>;
+
+using server_wparser = basic_server_parser<wchar_t>;
+
 } //namespace libgs::http
 
 
 #include <libgs/core/string_list.h>
 
+#include <libgs/core/log.h>
+
 namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class server_parser<CharT>::impl
+class basic_server_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -128,7 +134,7 @@ public:
 
 	[[nodiscard]] bool state_handler_reading_headers(std::string_view line_buf)
 	{
-		if( line_buf == "\r\n" )
+		if( line_buf.empty() )
 			return next_request_ready();
 
 		auto colon_index = line_buf.find(':');
@@ -158,7 +164,7 @@ public:
 			}
 			key = str_trimmed(statement.substr(0,pos));
 			value = str_trimmed(statement.substr(pos+1));
-			m_datagram->m_impl->m_cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
+			m_datagram.cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
 		}
 		return false;
 	}
@@ -167,14 +173,14 @@ public:
 	bool next_request_ready()
 	{
 		m_state = state::waiting_request;
-		datagram_clear();
 		return true;
 	}
 
 	void reset()
 	{
-		next_request_ready();
+		m_state = state::waiting_request;
 		m_buffer.clear();
+		datagram_clear();
 	}
 
 	void datagram_clear()
@@ -191,43 +197,43 @@ public:
 public:
 	enum class state
 	{
-		waiting_request,
+		waiting_request = 0,
 		reading_headers
 	}
-	m_state;
+	m_state = state::waiting_request;
 	std::string m_buffer;
 	datagram_type m_datagram;
 };
 
 template <concept_char_type CharT>
-server_parser<CharT>::server_parser(size_t init_buf_size) :
+basic_server_parser<CharT>::basic_server_parser(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
 template <concept_char_type CharT>
-server_parser<CharT>::~server_parser()
+basic_server_parser<CharT>::~basic_server_parser()
 {
 	delete m_impl;
 }
 
 template <concept_char_type CharT>
-server_parser<CharT>::server_parser(server_parser &&other) noexcept :
+basic_server_parser<CharT>::basic_server_parser(basic_server_parser &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
 template <concept_char_type CharT>
-server_parser<CharT> &server_parser<CharT>::operator=(server_parser &&other) noexcept
+basic_server_parser<CharT> &basic_server_parser<CharT>::operator=(basic_server_parser &&other) noexcept
 {
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
 }
 
 template <concept_char_type CharT>
-bool server_parser<CharT>::append(std::string_view buf)
+bool basic_server_parser<CharT>::append(std::string_view buf)
 {
 	using state = impl::state;
 	m_impl->m_buffer.append(buf);
@@ -251,7 +257,7 @@ bool server_parser<CharT>::append(std::string_view buf)
 			}
 			return false;
 		}
-		auto line_buf = m_impl->m_buffer.substr(0, pos + 2);
+		auto line_buf = m_impl->m_buffer.substr(0, pos);
 		m_impl->m_buffer.erase(0, pos + 2);
 
 		if( m_impl->m_state == state::waiting_request )
@@ -267,13 +273,13 @@ bool server_parser<CharT>::append(std::string_view buf)
 }
 
 template <concept_char_type CharT>
-bool server_parser<CharT>::operator<<(std::string_view buf)
+bool basic_server_parser<CharT>::operator<<(std::string_view buf)
 {
 	return append(buf);
 }
 
 template <concept_char_type CharT>
-basic_server_datagram<CharT> server_parser<CharT>::get_result()
+basic_server_datagram<CharT> basic_server_parser<CharT>::get_result()
 {
 	return std::move(m_impl->m_datagram);
 }

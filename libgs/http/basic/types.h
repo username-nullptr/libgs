@@ -198,6 +198,9 @@ LIBGS_HTTP_STATUS_DESCRIPTION(status::network_authentication_required, "Network 
 template <int S>
 constexpr const char *status_description_v = status_description<static_cast<status>(S)>::value;
 
+template <concept_char_type CharT = char>
+std::basic_string<CharT> to_status_description(status s);
+
 template <method>
 struct method_string 
 #ifndef _MSC_VER // _MSVC
@@ -220,8 +223,11 @@ LIBGS_HTTP_METHOD_MAPPING(method::TRACH  , "TRACH"  );
 template <method M>
 constexpr const char *method_string_v = method_string<M>::value;
 
+template <concept_char_type CharT = char>
+std::basic_string<CharT> to_method_string(method m);
+
 LIBGS_HTTP_API method from_method_string(std::string_view str);
-LIBGS_HTTP_API method from_method_wstring(std::wstring_view str);
+LIBGS_HTTP_API method from_method_string(std::wstring_view str);
 
 template <concept_char_type CharT>
 using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
@@ -241,7 +247,7 @@ struct basic_datagram
 };
 
 } //namespace libgs::http
-#include <libgs/http/basic/types.h>
+#include <libgs/http/basic/detail/types.h>
 
 
 #endif //LIBGS_HTTP_BASIC_TYPES_H

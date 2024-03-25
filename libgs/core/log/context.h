@@ -40,6 +40,7 @@ struct basic_log_context;
 template <>
 struct basic_log_context<void>
 {
+	virtual ~basic_log_context() = default;
 	std::string directory/* = "" */;
 
 	size_t max_size_one_file = 10240;
@@ -48,6 +49,8 @@ struct basic_log_context<void>
 
 	uint8_t mask = 4;
 	bool source_visible = false;
+	bool file_path_visible = true;
+
 	bool time_category = true;
 	bool async = false;
 	bool no_stdout = false;
@@ -72,7 +75,7 @@ LIBGS_CORE_API void set_context(log_context context);
 LIBGS_CORE_API void set_context(log_wcontext context);
 
 template <concept_char_type CharT = char>
-[[nodiscard]] LIBGS_CORE_API basic_log_context<CharT> get_context();
+[[nodiscard]] basic_log_context<CharT> get_context();
 
 enum class output_type
 {

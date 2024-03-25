@@ -67,6 +67,7 @@ int main()
 						libgs_log_error("socket error: {}", ex);
 					}
 					libgs_log_error("disconnected: {}", ep);
+					co_return ;
 				},
 				server.pool());
 			}
@@ -76,6 +77,7 @@ int main()
 			libgs_log_error("server error: {}", ex);
 			libgs_exe.exit(-1);
 		}
+		co_return ;
 	});
 #else
 	libgs::io::tcp_server server;

@@ -27,6 +27,7 @@ int main()
 			libgs_log_error("tcp_socket error: {}.", ex);
 			libgs_exe.exit(-1);
 		}
+		co_return ;
 	});
 #else
 	libgs::io::tcp_socket socket;

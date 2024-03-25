@@ -47,6 +47,7 @@ struct basic_message_node<void>
 	context_ptr context;
 
 	basic_message_node(output_type type, context_ptr context);
+	virtual ~basic_message_node() = default;
 };
 
 template <>

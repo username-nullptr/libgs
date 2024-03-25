@@ -41,7 +41,7 @@ class LIBGS_CORE_API writer
 	using type = output_type;
 	using duration = std::chrono::milliseconds;
 
-private:
+public:
 	writer();
 	~writer();
 
@@ -53,6 +53,10 @@ public:
 public:
 	void fatal(output_context &&runtime_context, const std::string &msg);
 	void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
+
+#if defined(__WINNT__) || defined(_WINDOWS)
+	void exit();
+#endif //Windows
 };
 
 } //namespace libgs::log
