@@ -41,7 +41,7 @@ struct basic_message_node;
 template <>
 struct basic_message_node<void>
 {
-	using context_ptr = std::shared_ptr<log_context>;
+	using context_ptr = std::shared_ptr<static_context>;
 
 	output_type type;
 	context_ptr context;
@@ -92,36 +92,7 @@ using msg_node_base_ptr = std::shared_ptr<basic_message_node<void>>;
 using message_queue = lock_free_queue<msg_node_base_ptr>;
 
 } //namespace libgs::log
-
-namespace libgs::log
-{
-
-inline basic_message_node<void>::basic_message_node(output_type type, context_ptr context) :
-	type(type),
-	context(std::move(context))
-{
-
-}
-
-inline basic_message_node<char>::basic_message_node
-(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
-	basic_message_node<void>(type, std::move(context)),
-	runtime_context(runtime_context),
-	msg(msg)
-{
-
-}
-
-inline basic_message_node<wchar_t>::basic_message_node
-(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
-	basic_message_node<void>(type, std::move(context)),
-	runtime_context(runtime_context),
-	msg(msg)
-{
-
-}
-
-} //namespace libgs::log
+#include <libgs/core/log/detail/mq.h>
 
 
 #endif //LIBGS_CORE_LOG_MQ_H

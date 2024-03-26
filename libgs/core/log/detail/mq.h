@@ -26,40 +26,38 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_LOG_WRITER_H
-#define LIBGS_CORE_LOG_WRITER_H
-
-#include <libgs/core/log/context.h>
+#ifndef LIBGS_CORE_LOG_DETAIL_MQ_H
+#define LIBGS_CORE_LOG_DETAIL_MQ_H
 
 namespace libgs::log
 {
 
-class LIBGS_CORE_API writer
+inline basic_message_node<void>::basic_message_node(output_type type, context_ptr context) :
+	type(type),
+	context(std::move(context))
 {
-	LIBGS_DISABLE_COPY_MOVE(writer)
 
-	using type = output_type;
-	using duration = std::chrono::milliseconds;
+}
 
-public:
-	writer();
-	~writer();
+inline basic_message_node<char>::basic_message_node
+(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
+	basic_message_node<void>(type, std::move(context)),
+	runtime_context(runtime_context),
+	msg(msg)
+{
 
-public:
-	static writer &instance();
-	void write(type type, output_context &&runtime_context, std::string &&msg);
-	void write(type type, output_wcontext &&runtime_context, std::wstring &&msg);
+}
 
-public:
-	void fatal(output_context &&runtime_context, const std::string &msg);
-	void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
+inline basic_message_node<wchar_t>::basic_message_node
+(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
+	basic_message_node<void>(type, std::move(context)),
+	runtime_context(runtime_context),
+	msg(msg)
+{
 
-#if defined(__WINNT__) || defined(_WINDOWS)
-	void exit();
-#endif //Windows
-};
+}
 
 } //namespace libgs::log
 
 
-#endif //LIBGS_CORE_LOG_WRITER_H
+#endif //LIBGS_CORE_LOG_DETAIL_MQ_H

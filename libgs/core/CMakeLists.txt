@@ -8,7 +8,6 @@ set(core_sources
 	algorithm/sha1.cpp
 	app_utls.cpp
 	detail/app_utls_${OS_CPP}.cpp
-	log/writer.cpp
 	string_list.cpp
 	args_parser.cpp
 	ini.cpp
@@ -40,7 +39,7 @@ set(core_headers
 	log.h
 	log/logger.h
 	log/buffer.h
-	log/writer.h
+	log/scheduler.h
 	log/mq.h
 	log/context.h
 	string_list.h
@@ -63,6 +62,8 @@ set(core_detail_headers
 	detail/lock_free_queue.h
 	log/detail/logger.h
 	log/detail/buffer.h
+	log/detail/scheduler.h
+	log/detail/mq.h
 	log/detail/context.h
 	detail/string_list.h
 	detail/value.h

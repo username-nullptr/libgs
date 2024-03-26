@@ -147,7 +147,7 @@ void basic_logger<CharT>::fatal(format_string<Args...> fmt_value, Args&&...args)
 		m_runtime_context.category = "";
 	else
 		m_runtime_context.category = L"";
-	writer::instance().fatal(std::move(m_runtime_context), std::format(fmt_value, std::forward<Args>(args)...));
+	scheduler::instance().fatal(std::move(m_runtime_context), std::format(fmt_value, std::forward<Args>(args)...));
 }
 
 template <concept_char_type CharT>
@@ -158,7 +158,7 @@ void basic_logger<CharT>::fatal(T &&msg)
 		m_runtime_context.category = "";
 	else
 		m_runtime_context.category = L"";
-	writer::instance().fatal(std::move(m_runtime_context), std::format(default_format_v<CharT>, std::forward<T>(msg)));
+	scheduler::instance().fatal(std::move(m_runtime_context), std::format(default_format_v<CharT>, std::forward<T>(msg)));
 }
 
 template <concept_char_type CharT>
@@ -238,7 +238,7 @@ template <typename...Args>
 void basic_logger<CharT>::cfatal(str_type category, format_string<Args...> fmt_value, Args&&...args) 
 {
 	m_runtime_context.category = std::move(category);
-	writer::instance().fatal(std::move(m_runtime_context), std::format(fmt_value, std::forward<Args>(args)...));
+	scheduler::instance().fatal(std::move(m_runtime_context), std::format(fmt_value, std::forward<Args>(args)...));
 }
 
 template <concept_char_type CharT>
@@ -246,7 +246,7 @@ template <typename T>
 void basic_logger<CharT>::cfatal(str_type category, T &&msg)
 {
 	m_runtime_context.category = std::move(category);
-	writer::instance().fatal(std::move(m_runtime_context), std::format(default_format_v<CharT>, std::forward<T>(msg)));
+	scheduler::instance().fatal(std::move(m_runtime_context), std::format(default_format_v<CharT>, std::forward<T>(msg)));
 }
 
 template <concept_char_type CharT>

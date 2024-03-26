@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_LOG_BUFFER_H
 #define LIBGS_CORE_LOG_BUFFER_H
 
-#include <libgs/core/log/writer.h>
+#include <libgs/core/log/scheduler.h>
 #include <chrono>
 #include <cstdio>
 

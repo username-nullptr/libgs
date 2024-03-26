@@ -26,84 +26,49 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_LOG_CONTEXT_H
-#define LIBGS_CORE_LOG_CONTEXT_H
+#ifndef LIBGS_CORE_LOG_SCHEDULER_H
+#define LIBGS_CORE_LOG_SCHEDULER_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/log/context.h>
 
 namespace libgs::log
 {
 
-template <typename T>
-struct basic_static_context;
-
-template <>
-struct basic_static_context<void>
+class LIBGS_CORE_API scheduler
 {
-	virtual ~basic_static_context() = default;
-	std::string directory/* = "" */;
+	LIBGS_DISABLE_COPY_MOVE(scheduler)
 
-	size_t max_size_one_file = 10240;
-	size_t max_size_one_day = 10485760;
-	size_t max_size = 1073741824;
+	using type = output_type;
+	using duration = std::chrono::milliseconds;
 
-	uint8_t mask = 4;
-	bool source_visible = false;
-	bool file_path_visible = true;
+public:
+	scheduler();
+	~scheduler();
 
-	bool time_category = true;
-	bool async = false;
-	bool no_stdout = false;
-	bool header_breaks_aline = false;
+public:
+	static scheduler &instance();
+
+	void set_context(static_context context);
+	void set_context(static_wcontext context);
+
+	template <concept_char_type CharT = char>
+	[[nodiscard]] basic_static_context<CharT> get_context() const;
+
+public:
+	void write(type type, output_context &&runtime_context, std::string &&msg);
+	void write(type type, output_wcontext &&runtime_context, std::wstring &&msg);
+
+public:
+	void fatal(output_context &&runtime_context, const std::string &msg);
+	void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
+
+#if defined(__WINNT__) || defined(_WINDOWS)
+	void exit();
+#endif //Windows
 };
-
-template <>
-struct basic_static_context<char> : basic_static_context<void> {
-	std::string category = "default";
-};
-
-template <>
-struct basic_static_context<wchar_t> : basic_static_context<void> {
-	std::wstring category = L"default";
-};
-
-using static_context = basic_static_context<char>;
-
-using static_wcontext = basic_static_context<wchar_t>;
-
-enum class output_type
-{
-	debug,   //stdout
-	info,    //stdout
-	warning, //stderr
-	error,   //stderr
-	fetal    //stderr-sync
-};
-
-using output_time = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>;
-
-template <concept_char_type CharT>
-struct basic_output_context
-{
-	output_time time;
-	std::basic_string<CharT> category;
-	std::basic_string<CharT> file;
-	std::basic_string<CharT> func;
-	size_t line = 0;
-
-	basic_output_context() = default;
-	basic_output_context(const basic_output_context &other) = default;
-	basic_output_context &operator=(const basic_output_context &other) = default;
-	basic_output_context(basic_output_context &&other) noexcept;
-	basic_output_context &operator=(basic_output_context &&other) noexcept;
-};
-
-using output_context = basic_output_context<char>;
-
-using output_wcontext = basic_output_context<wchar_t>;
 
 } //namespace libgs::log
-#include <libgs/core/log/detail/context.h>
+#include <libgs/core/log/detail/scheduler.h>
 
 
-#endif //LIBGS_CORE_LOG_CONTEXT_H
+#endif //LIBGS_CORE_LOG_SCHEDULER_H
