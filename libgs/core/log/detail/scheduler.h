@@ -31,7 +31,7 @@
 
 #if defined(__WINNT__) || defined(_WINDOWS)
 # define WIN32_LEAN_AND_MEAN
-# include <Windows.h>
+# include <windows.h>
 #else
 # include <sys/stat.h>
 #endif
@@ -48,6 +48,8 @@
 #include <fstream>
 #include <cstdlib>
 #include <thread>
+#include <list>
+#include <map>
 
 namespace dt = std::chrono;
 
@@ -85,7 +87,7 @@ static time_t fs_create_time(const std::string &filename)
 	FILETIME creationTime;
 	FILETIME lastAccessTime;
 	FILETIME lastWriteTime;
-	 
+
 	if( GetFileTime(hFile, &creationTime, &lastAccessTime, &lastWriteTime) == 0 )
 	{
 		auto errc = GetLastError();
@@ -254,7 +256,7 @@ static void size_check(const basic_static_context<void> &context, const std::str
 }
 
 template <concept_char_type CharT>
-static void write_file(const std::basic_string<CharT> &log_text, const std::string &category, 
+static void write_file(const std::basic_string<CharT> &log_text, const std::string &category,
 					   const basic_static_context<void> &context, const output_time &time, size_t log_size)
 {
 	if( context.directory.empty() )
@@ -331,7 +333,7 @@ static void write_file(const std::basic_string<CharT> &log_text, const std::stri
 	if( not file.is_open() )
 	{
 		fprintf(stderr, "*** Error: Log: openLogOutputDevice: The log file '%s' open failed: %s.\n",
-				curr_file_name.c_str(), 
+				curr_file_name.c_str(),
 #ifdef _WINDOWS
 				convert_error_code_to_string(GetLastError())
 #else
@@ -348,9 +350,9 @@ static std::counting_semaphore<1> g_output_semaphore {1};
 static void _output
 (output_type type, const static_context &context, const output_context &runtime_context, const std::string &msg)
 {
-	auto category = runtime_context.category.empty() ? 
-						context.category == "default" ? 
-							"" : 
+	auto category = runtime_context.category.empty() ?
+						context.category == "default" ?
+							"" :
 							context.category :
 						runtime_context.category;
 	std::string source;
@@ -408,7 +410,7 @@ static void _output
 {
 	auto category = runtime_context.category.empty() ?
 						context.category == "default" ?
-							L"" : 
+							L"" :
 							mbstowcs(context.category) :
 						runtime_context.category;
 	std::wstring source;
@@ -498,42 +500,16 @@ inline class LIBGS_DECL_HIDDEN scheduler_impl
 	LIBGS_DISABLE_COPY_MOVE(scheduler_impl)
 	using context_ptr = std::shared_ptr<static_context>;
 
-	std::thread m_thread; // clang17 does not support std::jthread.
+	std::atomic<std::thread*> m_thread {nullptr}; // clang17 does not support std::jthread.
 	std::atomic_bool m_stop_flag {false};
 
 	std::counting_semaphore<> m_semaphore {0};
 	message_queue m_message_qeueue;
 
 public:
-	using duration = std::chrono::milliseconds;
-	scheduler_impl()
-	{
-		m_thread = std::thread([this]
-		{
-			for(;;)
-			{
-				m_semaphore.acquire();
-				if( m_stop_flag )
-					break;
-
-				auto opd = m_message_qeueue.dequeue();
-				assert(opd);
-				output(*opd);
-			}
-			shutdown();
-		});
-	}
-
-public:
-	~scheduler_impl()
-	{
-		m_stop_flag = true;
-		m_semaphore.release(1);
-		try {
-			if( m_thread.joinable() )
-				m_thread.join();
-		}
-		catch(...) {}
+	scheduler_impl()= default;
+	~scheduler_impl() {
+		exit();
 	}
 
 public:
@@ -561,11 +537,50 @@ public:
 		abort();
 	}
 
+public:
+	void exit()
+	{
+		m_stop_flag = true;
+		m_semaphore.release(1);
+
+		auto thread = m_thread.exchange(nullptr);
+		if( thread == nullptr )
+			return ;
+
+		try {
+			if( thread->joinable() )
+				thread->join();
+		}
+		catch(...) {}
+		delete thread;
+	}
+
 private:
+	inline static std::atomic<scheduler_impl*> g_self {nullptr};
+
 	template <concept_char_type CharT>
 	void produce(output_type type, const context_ptr &context,
 				 basic_output_context<CharT> &&runtime_context, std::basic_string<CharT> &&msg)
 	{
+		auto tmp = m_thread.load();
+		if( m_thread.compare_exchange_strong(tmp, reinterpret_cast<std::thread*>(1)) )
+		{
+			m_stop_flag = false;
+			m_thread = new std::thread([this]
+			{
+				for(;;)
+				{
+					m_semaphore.acquire();
+					if( m_stop_flag )
+						break;
+
+					auto opd = m_message_qeueue.dequeue();
+					assert(opd);
+					output(*opd);
+				}
+				shutdown();
+			});
+		}
 		auto _node = std::make_shared<basic_message_node<CharT>>(type, context, std::move(runtime_context), std::move(msg));
 		m_message_qeueue.enqueue(_node);
 		m_semaphore.release(1);
@@ -580,33 +595,16 @@ private:
 		}
 	}
 }
-*g_impl = nullptr;
-
-static std::atomic_int g_counter {0};
+g_impl;
 
 } //namespace detail
 
 /*------------------------------------------------------------------------------------------------------------------------------*/
 
-inline scheduler::scheduler()
+namespace scheduler
 {
-	if( ++detail::g_counter == 1 )
-		detail::g_impl = new detail::scheduler_impl();
-}
 
-inline scheduler::~scheduler()
-{
-	if( --detail::g_counter == 0 )
-		delete detail::g_impl;
-}
-
-inline scheduler &scheduler::instance()
-{
-	static scheduler obj;
-	return obj;
-}
-
-inline void scheduler::set_context(static_context context)
+inline void set_context(static_context context)
 {
 	if( context.category.empty() )
 		context.category = "default";
@@ -623,7 +621,7 @@ inline void scheduler::set_context(static_context context)
 	detail::g_context_rwlock.unlock();
 }
 
-inline void scheduler::set_context(static_wcontext context)
+inline void set_context(static_wcontext context)
 {
 	static_context tmp;
 	detail::context_transition(tmp, context);
@@ -633,7 +631,7 @@ inline void scheduler::set_context(static_wcontext context)
 }
 
 template <concept_char_type CharT>
-basic_static_context<CharT> scheduler::get_context() const
+basic_static_context<CharT> get_context()
 {
 	if constexpr( is_char_v<CharT> )
 	{
@@ -653,35 +651,32 @@ basic_static_context<CharT> scheduler::get_context() const
 	}
 }
 
-inline void scheduler::write(type type, output_context &&runtime_context, std::string &&msg)
+inline void write(output_type type, output_context &&runtime_context, std::string &&msg)
 {
-	detail::g_impl->write(type, std::move(runtime_context), std::move(msg));
+	detail::g_impl.write(type, std::move(runtime_context), std::move(msg));
 }
 
-inline void scheduler::write(type type, output_wcontext &&runtime_context, std::wstring &&msg)
+inline void write(output_type type, output_wcontext &&runtime_context, std::wstring &&msg)
 {
-	detail::g_impl->write(type, std::move(runtime_context), std::move(msg));
+	detail::g_impl.write(type, std::move(runtime_context), std::move(msg));
 }
 
-inline void scheduler::fatal(output_context &&runtime_context, const std::string &msg)
+inline void fatal(output_context &&runtime_context, const std::string &msg)
 {
-	detail::g_impl->fatal(std::move(runtime_context), msg);
+	detail::g_impl.fatal(std::move(runtime_context), msg);
 }
 
-inline void scheduler::fatal(output_wcontext &&runtime_context, const std::wstring &msg)
+inline void fatal(output_wcontext &&runtime_context, const std::wstring &msg)
 {
-	detail::g_impl->fatal(std::move(runtime_context), msg);
+	detail::g_impl.fatal(std::move(runtime_context), msg);
 }
 
-#if defined(__WINNT__) || defined(_WINDOWS)
-inline void scheduler::exit()
+inline void exit()
 {
-	if( --detail::g_counter == 0 )
-		delete detail::g_impl;
+	detail::g_impl.exit();
 }
-#endif //Windows
 
-} //namespace libgs::log
+}} //namespace libgs::log::scheduler
 
 
 #endif //LIBGS_CORE_LOG_DETAIL_SCHEDULER_H

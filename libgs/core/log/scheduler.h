@@ -31,43 +31,24 @@
 
 #include <libgs/core/log/context.h>
 
-namespace libgs::log
+namespace libgs::log::scheduler
 {
 
-class LIBGS_CORE_API scheduler
-{
-	LIBGS_DISABLE_COPY_MOVE(scheduler)
+LIBGS_CORE_API void set_context(static_context context);
+LIBGS_CORE_API void set_context(static_wcontext context);
 
-	using type = output_type;
-	using duration = std::chrono::milliseconds;
+template <concept_char_type CharT = char>
+[[nodiscard]] basic_static_context<CharT> get_context();
 
-public:
-	scheduler();
-	~scheduler();
+LIBGS_CORE_API void write(output_type type, output_context &&runtime_context, std::string &&msg);
+LIBGS_CORE_API void write(output_type type, output_wcontext &&runtime_context, std::wstring &&msg);
 
-public:
-	static scheduler &instance();
+LIBGS_CORE_API void fatal(output_context &&runtime_context, const std::string &msg);
+LIBGS_CORE_API void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
 
-	void set_context(static_context context);
-	void set_context(static_wcontext context);
+LIBGS_CORE_API void exit();
 
-	template <concept_char_type CharT = char>
-	[[nodiscard]] basic_static_context<CharT> get_context() const;
-
-public:
-	void write(type type, output_context &&runtime_context, std::string &&msg);
-	void write(type type, output_wcontext &&runtime_context, std::wstring &&msg);
-
-public:
-	void fatal(output_context &&runtime_context, const std::string &msg);
-	void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
-
-#if defined(__WINNT__) || defined(_WINDOWS)
-	void exit();
-#endif //Windows
-};
-
-} //namespace libgs::log
+} //namespace libgs::log::scheduler
 #include <libgs/core/log/detail/scheduler.h>
 
 

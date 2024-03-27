@@ -33,6 +33,7 @@
 #include <libgs/core/cxx/cplusplus.hpp>
 #include <libgs/core/cxx/utilities.h>
 #include <libgs/core/cxx/formatter.h>
+#include <libgs/core/cxx/exception.h>
 
 #ifdef gs_core_EXPORTS
 # define LIBGS_CORE_API  LIBGS_DECL_EXPORT
@@ -44,11 +45,6 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_API std::string version_string();
-
-[[nodiscard]] LIBGS_CORE_API asio::io_context &io_context();
-
-template<typename T, concept_schedulable Exec = asio::io_context>
-void delete_later(T *obj, Exec &exec = io_context());
 
 template<typename Rep, typename Period>
 void sleep_for(const std::chrono::duration<Rep,Period> &rtime);

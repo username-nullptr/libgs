@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_APPLICATION_H
-#define LIBGS_CORE_DETAIL_APPLICATION_H
+#ifndef LIBGS_CORE_DETAIL_APP_UTILS_H
+#define LIBGS_CORE_DETAIL_APP_UTILS_H
 
 namespace libgs::app
 {
@@ -53,4 +53,4 @@ bool setenv(std::string_view key, T &&value, bool overwrite)
 } //namespace libgs::app
 
 
-#endif //LIBGS_CORE_DETAIL_APPLICATION_H
+#endif //LIBGS_CORE_DETAIL_APP_UTILS_H

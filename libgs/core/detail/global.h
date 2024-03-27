@@ -29,15 +29,14 @@
 #ifndef LIBGS_CORE_DETAIL_GLOBAL_H
 #define LIBGS_CORE_DETAIL_GLOBAL_H
 
+#include <libgs/core/execution.h>
+
 namespace libgs
 {
 
-template<typename T, concept_execution Exec>
-void delete_later(T *obj, Exec &exec) 
+inline std::string version_string()
 {
-	post(exec, [obj]{
-		delete obj; 
-	});
+	return LIBGS_VERSION_STR;
 }
 
 template<typename Rep, typename Period>

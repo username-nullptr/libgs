@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_APPLICATION_H
-#define LIBGS_CORE_APPLICATION_H
+#ifndef LIBGS_CORE_APP_UTILS_H
+#define LIBGS_CORE_APP_UTILS_H
 
 #include <libgs/core/global.h>
 #include <optional>
@@ -79,4 +79,4 @@ bool setenv(std::string_view key, T &&value, bool overwrite = true);
 #include <libgs/core/detail/app_utls.h>
 
 
-#endif //LIBGS_CORE_APPLICATION_H
+#endif //LIBGS_CORE_APP_UTILS_H

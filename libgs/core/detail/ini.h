@@ -222,21 +222,25 @@ basic_ini<CharT>::~basic_ini()
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT>::basic_ini(basic_ini &&other) noexcept
+basic_ini<CharT>::basic_ini(basic_ini &&other) noexcept :
+	m_data(other.m_data)
 {
-	operator=(std::move(other));
+	other.m_data = new data();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT> &basic_ini<CharT>::operator=(basic_ini &&other) noexcept
 {
-	if( m_data )
-		delete m_data;
-
 	m_data = other.m_data;
-	other.m_data = nullptr;
-
+	other.m_data = new data();
 	return *this;
+}
+
+template <concept_char_type CharT>
+basic_ini<CharT> &basic_ini<CharT>::instance()
+{
+	static basic_ini obj;
+	return obj;
 }
 
 template <concept_char_type CharT>

@@ -25,15 +25,14 @@ void func_2()
 
 int main()
 {
-	auto &log_scheduler = libgs::log::scheduler::instance();
-	auto context = log_scheduler.get_context();
+	auto context = libgs::log::scheduler::get_context();
 
 	context.async = true;
 	context.source_visible = true;
 	context.file_path_visible = false;
 	context.header_breaks_aline = true;
 
-	log_scheduler.set_context(context);
+	libgs::log::scheduler::set_context(context);
 
 	std::thread t0(func_0);
 	std::thread t1(func_1);
@@ -42,8 +41,5 @@ int main()
 	t1.join();
 	t2.join();
 
-#if defined(__WINNT__) || defined(_WINDOWS)
-	log_scheduler.exit();
-#endif
 	return 0;
 }

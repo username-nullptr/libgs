@@ -26,26 +26,90 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "string_list.h"
+#ifndef LIBGS_CORE_DETAIL_EXECUTION_H
+#define LIBGS_CORE_DETAIL_EXECUTION_H
+
+#include <cstdio>
 
 namespace libgs
 {
 
-#if 0
-template <concept_char_type CharT> static std::basic_string<CharT> 
-_str_list_join(const basic_string_deque<CharT> &list, const std::basic_string<CharT> &splits)
+namespace _execution::detail
 {
-	std::basic_string<CharT> result;
-	if( list.empty() )
-		return result;
 
-	size_t i = 0;
-	for(; i<list.size()-1; i++)
-		result += list[i] + splits;
+inline std::atomic_int g_exit_code {0};
 
-	result += list[i];
-	return result;
+inline std::atomic_bool g_run_flag {false};
+
+} //namespace _execution::detail
+
+inline execution &execution::instance()
+{
+	static execution g_obj;
+	return g_obj;
 }
-#endif
+
+inline asio::io_context &execution::io_context()
+{
+	static asio::io_context ioc;
+	return ioc;
+}
+
+inline typename execution::executor_type execution::get_executor() noexcept
+{
+	return io_context().get_executor();
+}
+
+inline int execution::exec()
+{
+	using namespace _execution::detail;
+	if( g_run_flag )
+		throw runtime_error("libgs::execution::exec: not reentrant.");
+
+	g_run_flag = true;
+	auto &ioc = io_context();
+
+	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
+	for(;;)
+	{
+		ioc.run();
+		if( not g_run_flag )
+			break;
+		ioc.restart();
+	}
+	return g_exit_code;
+}
+
+inline void execution::exit(int code)
+{
+	using namespace _execution::detail;
+	if( not g_run_flag )
+		return ;
+
+	g_exit_code = code;
+	g_run_flag = false;
+	io_context().stop();
+}
+
+inline bool execution::is_run() const
+{
+	return _execution::detail::g_run_flag;
+}
+
+inline asio::io_context &io_context()
+{
+	return execution::instance().io_context();
+}
+
+template<typename T, concept_execution Exec>
+void delete_later(T *obj, Exec &exec)
+{
+	post(exec, [obj]{
+		delete obj;
+	});
+}
 
 } //namespace libgs
+
+
+#endif //LIBGS_CORE_DETAIL_EXECUTION_H

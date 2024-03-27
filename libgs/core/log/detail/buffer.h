@@ -61,7 +61,7 @@ basic_buffer<CharT>::~basic_buffer()
 
 #ifndef __NO_DEBUG__
 	else if( not m_data->buffer.empty() )
-		scheduler::instance().write(m_data->type, std::move(m_data->context), std::move(m_data->buffer));
+		scheduler::write(m_data->type, std::move(m_data->context), std::move(m_data->buffer));
 #endif //__NO_DEBUG__
 	delete m_data;
 }

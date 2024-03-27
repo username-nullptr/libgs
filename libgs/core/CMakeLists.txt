@@ -1,17 +1,13 @@
 set(target_name gs_core)
 
 set(core_sources
-	global.cpp
 	algorithm/base.cpp
 	algorithm/byte_order.cpp
 	algorithm/mime_type.cpp
 	algorithm/sha1.cpp
 	app_utls.cpp
 	detail/app_utls_${OS_CPP}.cpp
-	string_list.cpp
 	args_parser.cpp
-	ini.cpp
-	execution.cpp
 )
 
 set(core_headers
@@ -55,6 +51,7 @@ set(core_detail_headers
 	cxx/detail/exception.h
 	detail/global.h
 	detail/flags.h
+	detail/execution.h
 	algorithm/detail/base.h
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h

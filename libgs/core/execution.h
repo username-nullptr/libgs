@@ -38,19 +38,34 @@ namespace libgs
 
 class LIBGS_CORE_API execution
 {
+	LIBGS_DISABLE_COPY_MOVE(execution)
+
 public:
+	using executor_type = asio::io_context::executor_type;
+
+public:
+	execution() = default;
 	static execution &instance();
+
+public:
 	asio::io_context &io_context();
+	executor_type get_executor() noexcept;
 
 public:
 	int exec();
 	void exit(int code = 0);
 
 public:
-	bool is_run() const;
+	[[nodiscard]] bool is_run() const;
 };
 
+LIBGS_CORE_API asio::io_context &io_context();
+
+template<typename T, concept_schedulable Exec = asio::io_context>
+void delete_later(T *obj, Exec &exec = io_context());
+
 } //namespace libgs
+#include <libgs/core/detail/execution.h>
 
 
 #endif //LIBGS_CORE_EXECUTION_H

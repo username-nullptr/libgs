@@ -32,7 +32,6 @@
 #include <libgs/core/value.h>
 #include <libgs/core/string_list.h>
 #include <libgs/core/shared_mutex.h>
-#include <libgs/core/cxx/exception.h>
 #include <map>
 
 namespace libgs
@@ -137,9 +136,10 @@ public:
 	explicit basic_ini(std::string file_name = {});
 	virtual ~basic_ini();
 
-public:
 	basic_ini(basic_ini &&other) noexcept;
 	basic_ini &operator=(basic_ini &&other) noexcept;
+
+	static basic_ini &instance();
 
 public:
 	basic_ini &set_file_nmae(const std::string &file_name);
@@ -243,10 +243,6 @@ protected:
 using ini = basic_ini<char>;
 
 using wini = basic_ini<wchar_t>;
-
-LIBGS_CORE_API ini &ini_instance();
-
-LIBGS_CORE_API wini &wini_instance();
 
 } //namespace libgs
 #include <libgs/core/detail/ini.h>
