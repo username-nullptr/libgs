@@ -35,7 +35,7 @@ namespace libgs
 {
 
 template <concept_copymovable T>
-class lock_free_queue
+class LIBGS_CORE_API lock_free_queue
 {
 	LIBGS_DISABLE_COPY_MOVE(lock_free_queue)
 

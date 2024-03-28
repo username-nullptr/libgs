@@ -37,7 +37,7 @@ namespace libgs::log
 class logger_impl;
 
 template <concept_char_type CharT>
-class basic_logger
+class LIBGS_CORE_API basic_logger
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_logger)
 

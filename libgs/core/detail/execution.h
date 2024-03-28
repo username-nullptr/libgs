@@ -29,76 +29,65 @@
 #ifndef LIBGS_CORE_DETAIL_EXECUTION_H
 #define LIBGS_CORE_DETAIL_EXECUTION_H
 
-#include <cstdio>
-
-namespace libgs
+namespace libgs::execution
 {
 
-namespace _execution::detail
+namespace detail
 {
 
-inline std::atomic_int g_exit_code {0};
-
-inline std::atomic_bool g_run_flag {false};
-
-} //namespace _execution::detail
-
-inline execution &execution::instance()
+struct LIBGS_CORE_API execution_impl
 {
-	static execution g_obj;
-	return g_obj;
+	inline static asio::io_context ioc;
+	inline static std::atomic_int exit_code {0};
+	inline static std::atomic_bool run_flag {false};
+};
+
+} //namespace detail
+
+inline asio::io_context &io_context()
+{
+	return detail::execution_impl::ioc;
 }
 
-inline asio::io_context &execution::io_context()
-{
-	static asio::io_context ioc;
-	return ioc;
-}
-
-inline typename execution::executor_type execution::get_executor() noexcept
+inline executor_type get_executor() noexcept
 {
 	return io_context().get_executor();
 }
 
-inline int execution::exec()
+inline int exec()
 {
-	using namespace _execution::detail;
-	if( g_run_flag )
+	using namespace detail;
+	if( execution_impl::run_flag )
 		throw runtime_error("libgs::execution::exec: not reentrant.");
 
-	g_run_flag = true;
+	execution_impl::run_flag = true;
 	auto &ioc = io_context();
 
 	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
 	for(;;)
 	{
 		ioc.run();
-		if( not g_run_flag )
+		if( not execution_impl::run_flag )
 			break;
 		ioc.restart();
 	}
-	return g_exit_code;
+	return execution_impl::exit_code;
 }
 
-inline void execution::exit(int code)
+inline void exit(int code)
 {
-	using namespace _execution::detail;
-	if( not g_run_flag )
+	using namespace detail;
+	if( not execution_impl::run_flag )
 		return ;
 
-	g_exit_code = code;
-	g_run_flag = false;
+	execution_impl::exit_code = code;
+	execution_impl::run_flag = false;
 	io_context().stop();
 }
 
-inline bool execution::is_run() const
+inline bool is_run()
 {
-	return _execution::detail::g_run_flag;
-}
-
-inline asio::io_context &io_context()
-{
-	return execution::instance().io_context();
+	return detail::execution_impl::run_flag;
 }
 
 template<typename T, concept_execution Exec>
@@ -109,7 +98,7 @@ void delete_later(T *obj, Exec &exec)
 	});
 }
 
-} //namespace libgs
+} //namespace libgs::execution
 
 
 #endif //LIBGS_CORE_DETAIL_EXECUTION_H

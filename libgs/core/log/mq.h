@@ -39,7 +39,7 @@ template <typename T>
 struct basic_message_node;
 
 template <>
-struct basic_message_node<void>
+struct LIBGS_CORE_API basic_message_node<void>
 {
 	using context_ptr = std::shared_ptr<static_context>;
 
@@ -51,7 +51,7 @@ struct basic_message_node<void>
 };
 
 template <>
-struct basic_message_node<char> : basic_message_node<void>
+struct LIBGS_CORE_API basic_message_node<char> : basic_message_node<void>
 {
 	using rt_context = output_context;
 	using str_type = std::string;
@@ -64,7 +64,7 @@ struct basic_message_node<char> : basic_message_node<void>
 };
 
 template <>
-struct basic_message_node<wchar_t> : basic_message_node<void>
+struct LIBGS_CORE_API basic_message_node<wchar_t> : basic_message_node<void>
 {
 	using rt_context = output_wcontext;
 	using str_type = std::wstring;

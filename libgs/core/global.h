@@ -41,6 +41,8 @@
 # define LIBGS_CORE_API  LIBGS_DECL_IMPORT
 #endif //gs_core_EXPORTS
 
+#define LIBGS_CORE_VAPI
+
 namespace libgs
 {
 

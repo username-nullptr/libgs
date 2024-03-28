@@ -84,8 +84,8 @@ awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duratio
 template <typename T>
 awaitable<T> co_wait(const std::future<T> &future);
 
-awaitable<void> co_wait(const asio::thread_pool &pool);
-awaitable<void> co_wait(const std::thread &thread);
+LIBGS_CORE_VAPI awaitable<void> co_wait(const asio::thread_pool &pool);
+LIBGS_CORE_VAPI awaitable<void> co_wait(const std::thread &thread);
 
 } //namespace libgs
 #include <libgs/core/detail/coroutine.h>

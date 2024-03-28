@@ -48,7 +48,7 @@ concept ini_read_type =
 	std::is_enum_v<T>;
 
 template <concept_char_type CharT>
-class basic_ini_keys
+class LIBGS_CORE_API basic_ini_keys
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_ini_keys)
 
@@ -118,7 +118,7 @@ protected:
 };
 
 template <concept_char_type CharT>
-class basic_ini
+class LIBGS_CORE_API basic_ini
 {
 	LIBGS_DISABLE_COPY(basic_ini)
 

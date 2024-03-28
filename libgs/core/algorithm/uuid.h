@@ -35,7 +35,7 @@ namespace libgs
 {
 
 template <concept_char_type CharT>
-union basic_uuid // version 4
+union LIBGS_CORE_API basic_uuid // version 4
 {
 	using str_type = std::basic_string<CharT>;
 	using str_view_type = std::basic_string_view<CharT>;

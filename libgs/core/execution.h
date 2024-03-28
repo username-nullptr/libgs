@@ -33,38 +33,23 @@
 
 #define libgs_exe  libgs::execution::instance()
 
-namespace libgs
+namespace libgs::execution
 {
 
-class LIBGS_CORE_API execution
-{
-	LIBGS_DISABLE_COPY_MOVE(execution)
+using executor_type = typename asio::io_context::executor_type;
 
-public:
-	using executor_type = asio::io_context::executor_type;
+[[nodiscard]] LIBGS_CORE_VAPI asio::io_context &io_context();
+[[nodiscard]] LIBGS_CORE_VAPI executor_type get_executor() noexcept;
 
-public:
-	execution() = default;
-	static execution &instance();
+LIBGS_CORE_VAPI int exec();
+LIBGS_CORE_VAPI void exit(int code = 0);
 
-public:
-	asio::io_context &io_context();
-	executor_type get_executor() noexcept;
-
-public:
-	int exec();
-	void exit(int code = 0);
-
-public:
-	[[nodiscard]] bool is_run() const;
-};
-
-LIBGS_CORE_API asio::io_context &io_context();
+[[nodiscard]] LIBGS_CORE_VAPI bool is_run();
 
 template<typename T, concept_schedulable Exec = asio::io_context>
 void delete_later(T *obj, Exec &exec = io_context());
 
-} //namespace libgs
+} //namespace libgs::execution
 #include <libgs/core/detail/execution.h>
 
 

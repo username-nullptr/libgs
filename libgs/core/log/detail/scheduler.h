@@ -147,8 +147,11 @@ static constexpr const CharT *type_string(output_type type)
 	throw runtime_error("Code bug: enum output_type is invalid.");
 }
 
-inline struct LIBGS_DECL_HIDDEN curr_log_file
+struct LIBGS_CORE_API _curr_log_file
 {
+	LIBGS_DISABLE_COPY_MOVE(_curr_log_file)
+	_curr_log_file() = default;
+
 	std::map<std::string, std::string> name_map;
 	output_time last;
 
@@ -164,8 +167,11 @@ inline struct LIBGS_DECL_HIDDEN curr_log_file
 		name += std::format("{:%H:%M:%S}", last);
 		std::rename(old_name.c_str(), name.c_str());
 	}
-}
-g_curr_log_file;
+};
+
+struct LIBGS_CORE_API curr_log_file {
+	inline static _curr_log_file object;
+};
 
 static void list_push_back(std::list<fs::directory_entry> &list, const std::string &dir)
 {
@@ -262,10 +268,10 @@ static void write_file(const std::basic_string<CharT> &log_text, const std::stri
 	if( context.directory.empty() )
 		return ;
 
-	auto &curr_file_name = g_curr_log_file.name_map[category];
-	if( dt::time_point_cast<dt::days>(time) > g_curr_log_file.last )
+	auto &curr_file_name = curr_log_file::object.name_map[category];
+	if( dt::time_point_cast<dt::days>(time) > curr_log_file::object.last )
 	{
-		g_curr_log_file.save_last_name(category);
+		curr_log_file::object.save_last_name(category);
 		curr_file_name = "";
 	}
 	auto dir_name = context.directory;
@@ -323,11 +329,11 @@ static void write_file(const std::basic_string<CharT> &log_text, const std::stri
 	}
 	else if( fs::file_size(curr_file_name) + log_size > context.max_size_one_file )
 	{
-		g_curr_log_file.save_last_name(category);
+		curr_log_file::object.save_last_name(category);
 		curr_file_name = dir_name + std::format("{:%H:%M:%S}-(now)", time);
 	}
 	size_check(context, dir_name, log_size);
-	g_curr_log_file.last = time;
+	curr_log_file::object.last = time;
 
 	std::basic_ofstream<CharT> file(curr_file_name, std::ios_base::out | std::ios_base::app);
 	if( not file.is_open() )
@@ -495,21 +501,41 @@ static void context_transition(auto &context, const auto &other)
 	context.header_breaks_aline = other.header_breaks_aline;
 }
 
-inline class LIBGS_DECL_HIDDEN scheduler_impl
+class LIBGS_CORE_API _scheduler_impl
 {
-	LIBGS_DISABLE_COPY_MOVE(scheduler_impl)
+	LIBGS_DISABLE_COPY_MOVE(_scheduler_impl)
 	using context_ptr = std::shared_ptr<static_context>;
 
-	std::atomic<std::thread*> m_thread {nullptr}; // clang17 does not support std::jthread.
+	std::thread m_thread; // clang17 does not support std::jthread.
 	std::atomic_bool m_stop_flag {false};
 
 	std::counting_semaphore<> m_semaphore {0};
 	message_queue m_message_qeueue;
 
 public:
-	scheduler_impl()= default;
-	~scheduler_impl() {
-		exit();
+	_scheduler_impl()
+	{
+		std::cerr << "============== : " << reinterpret_cast<uint64_t>(&m_message_qeueue) << " : " << reinterpret_cast<uint64_t>(this) << std::endl;
+		m_thread = std::thread([this]
+		{
+			for(;;)
+			{
+				m_semaphore.acquire();
+				if( m_stop_flag )
+					break;
+
+				auto opd = m_message_qeueue.dequeue();
+				assert(opd);
+				output(*opd);
+			}
+			shutdown();
+		});
+	}
+
+	~_scheduler_impl()
+	{
+		if( not m_stop_flag )
+			on_exit();
 	}
 
 public:
@@ -538,49 +564,22 @@ public:
 	}
 
 public:
-	void exit()
+	void on_exit()
 	{
 		m_stop_flag = true;
 		m_semaphore.release(1);
-
-		auto thread = m_thread.exchange(nullptr);
-		if( thread == nullptr )
-			return ;
-
 		try {
-			if( thread->joinable() )
-				thread->join();
+			if( m_thread.joinable() )
+				m_thread.join();
 		}
 		catch(...) {}
-		delete thread;
 	}
 
 private:
-	inline static std::atomic<scheduler_impl*> g_self {nullptr};
-
 	template <concept_char_type CharT>
 	void produce(output_type type, const context_ptr &context,
 				 basic_output_context<CharT> &&runtime_context, std::basic_string<CharT> &&msg)
 	{
-		auto tmp = m_thread.load();
-		if( m_thread.compare_exchange_strong(tmp, reinterpret_cast<std::thread*>(1)) )
-		{
-			m_stop_flag = false;
-			m_thread = new std::thread([this]
-			{
-				for(;;)
-				{
-					m_semaphore.acquire();
-					if( m_stop_flag )
-						break;
-
-					auto opd = m_message_qeueue.dequeue();
-					assert(opd);
-					output(*opd);
-				}
-				shutdown();
-			});
-		}
 		auto _node = std::make_shared<basic_message_node<CharT>>(type, context, std::move(runtime_context), std::move(msg));
 		m_message_qeueue.enqueue(_node);
 		m_semaphore.release(1);
@@ -594,10 +593,23 @@ private:
 			output(*opd);
 		}
 	}
-}
-g_impl;
+};
 
-} //namespace detail
+struct LIBGS_CORE_API scheduler_impl
+{
+//	inline static _scheduler_impl &object = *_scheduler_impl::instance();
+	inline static _scheduler_impl object;
+	static void _on_exit() {
+		object.on_exit();
+	}
+	[[maybe_unused]] inline static int _res = []()
+	{
+		std::atexit(&scheduler_impl::_on_exit);
+		return 0;
+	}();
+};
+
+}; //namespace detail
 
 /*------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -653,27 +665,22 @@ basic_static_context<CharT> get_context()
 
 inline void write(output_type type, output_context &&runtime_context, std::string &&msg)
 {
-	detail::g_impl.write(type, std::move(runtime_context), std::move(msg));
+	detail::scheduler_impl::object.write(type, std::move(runtime_context), std::move(msg));
 }
 
 inline void write(output_type type, output_wcontext &&runtime_context, std::wstring &&msg)
 {
-	detail::g_impl.write(type, std::move(runtime_context), std::move(msg));
+	detail::scheduler_impl::object.write(type, std::move(runtime_context), std::move(msg));
 }
 
 inline void fatal(output_context &&runtime_context, const std::string &msg)
 {
-	detail::g_impl.fatal(std::move(runtime_context), msg);
+	detail::scheduler_impl::object.fatal(std::move(runtime_context), msg);
 }
 
 inline void fatal(output_wcontext &&runtime_context, const std::wstring &msg)
 {
-	detail::g_impl.fatal(std::move(runtime_context), msg);
-}
-
-inline void exit()
-{
-	detail::g_impl.exit();
+	detail::scheduler_impl::object.fatal(std::move(runtime_context), msg);
 }
 
 }} //namespace libgs::log::scheduler

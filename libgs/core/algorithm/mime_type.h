@@ -54,7 +54,7 @@ std::string get_mime_type(std::string_view file_name, bool magic_first = false);
 [[nodiscard]] LIBGS_CORE_API
 bool is_text_file(std::string_view file_name);
 
-[[nodiscard]] inline
+[[nodiscard]] inline LIBGS_CORE_API
 bool is_binary_file(std::string_view file_name) { return is_text_file(file_name); }
 
 [[nodiscard]] LIBGS_CORE_API

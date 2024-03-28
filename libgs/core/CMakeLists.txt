@@ -21,9 +21,9 @@ set(core_headers
 	cxx/utilities.h
 	cxx/formatter.h
 	cxx/exception.h
+	cxx/flags.h
 	global.h
 	shared_mutex.h
-	flags.h
 	algorithm.h
 	algorithm/base.h
 	algorithm/byte_order.h
@@ -49,8 +49,8 @@ set(core_headers
 set(core_detail_headers
 	cxx/detail/utilities.h
 	cxx/detail/exception.h
+	cxx/detail/flags.h
 	detail/global.h
-	detail/flags.h
 	detail/execution.h
 	algorithm/detail/base.h
 	algorithm/detail/byte_order.h

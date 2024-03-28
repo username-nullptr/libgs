@@ -125,9 +125,9 @@ void lock_free_queue<T>::emplace(Args&&...args)
 				return ;
 			}
 		}
-			// The 'next' is not empty,
-			// which means that another thread is also being inserted
-			// and the temporary tail node needs to be updated.
+		// The 'next' is not empty,
+		// which means that another thread is also being inserted
+		// and the temporary tail node needs to be updated.
 		else m_tail.compare_exchange_strong(tail, next);
 	}
 }

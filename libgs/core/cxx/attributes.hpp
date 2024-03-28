@@ -43,8 +43,14 @@
 
 #elif defined(__GNUC__)
 
-# define LIBGS_DECL_EXPORT  __attribute__((visibility("default")))
-# define LIBGS_DECL_IMPORT
+# if defined(__MINGW32__) || defined(__MINGW32__)
+#  define LIBGS_DECL_EXPORT  __declspec(dllexport)
+#  define LIBGS_DECL_IMPORT  __declspec(dllimport)
+# else
+#  define LIBGS_DECL_EXPORT  __attribute__((visibility("default")))
+#  define LIBGS_DECL_IMPORT
+# endif //__MINGW
+
 # define LIBGS_DECL_HIDDEN  __attribute__((visibility("hidden")))
 
 # define LIBGS_CXX_ATTR_USED    __attribute__((used))
