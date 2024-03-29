@@ -42,6 +42,7 @@
 #endif //gs_core_EXPORTS
 
 #define LIBGS_CORE_VAPI
+#define LIBGS_CORE_TAPI
 
 namespace libgs
 {

@@ -38,6 +38,9 @@
 # define LIBGS_IO_API  LIBGS_DECL_IMPORT
 #endif //gs_io_EXPORTS
 
+#define LIBGS_IO_VAPI
+#define LIBGS_IO_TAPI
+
 namespace libgs::io
 {
 

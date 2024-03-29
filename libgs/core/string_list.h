@@ -62,7 +62,7 @@ struct _default_splits_argument<wchar_t>
 };
 
 template <concept_char_type CharT>
-class LIBGS_CORE_API basic_string_list : public basic_string_deque<CharT>
+class LIBGS_CORE_TAPI basic_string_list : public basic_string_deque<CharT>
 {
 	static constexpr const CharT *default_splits_argument_s = _default_splits_argument<CharT>::s;
 	static constexpr CharT default_splits_argument_c = _default_splits_argument<CharT>::c;

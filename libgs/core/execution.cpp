@@ -26,13 +26,59 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CONTEXT_DETAIL_DATAGRAM_H
-#define LIBGS_HTTP_CONTEXT_DETAIL_DATAGRAM_H
+#include "execution.h"
 
-namespace libgs::http
+namespace libgs::execution
 {
 
-} //namespace libgs::http
+static asio::io_context g_ioc;
 
+static std::atomic_int g_exit_code {0};
 
-#endif //LIBGS_HTTP_CONTEXT_DETAIL_DATAGRAM_H
+static std::atomic_bool g_run_flag {false};
+
+asio::io_context &io_context()
+{
+	return g_ioc;
+}
+
+executor_type get_executor() noexcept
+{
+	return io_context().get_executor();
+}
+
+int exec()
+{
+	if( g_run_flag )
+		throw runtime_error("libgs::execution::exec: not reentrant.");
+
+	g_run_flag = true;
+	auto &ioc = io_context();
+
+	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
+	for(;;)
+	{
+		ioc.run();
+		if( not g_run_flag )
+			break;
+		ioc.restart();
+	}
+	return g_exit_code;
+}
+
+void exit(int code)
+{
+	if( not g_run_flag )
+		return ;
+
+	g_exit_code = code;
+	g_run_flag = false;
+	io_context().stop();
+}
+
+bool is_run()
+{
+	return g_run_flag;
+}
+
+} //namespace libgs::execution

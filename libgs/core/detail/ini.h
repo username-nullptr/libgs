@@ -237,10 +237,12 @@ basic_ini<CharT> &basic_ini<CharT>::operator=(basic_ini &&other) noexcept
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::instance()
+basic_ini<CharT> &basic_ini<CharT>::global_instance()
 {
-	static basic_ini obj;
-	return obj;
+	if constexpr( is_char_v )
+		return ini_global_instance();
+	else
+		return wini_global_instance();
 }
 
 template <concept_char_type CharT>

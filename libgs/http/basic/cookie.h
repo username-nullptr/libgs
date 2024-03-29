@@ -55,7 +55,7 @@ using cookie_attributes = basic_cookie_attributes<char>;
 using wcookie_attributes = basic_cookie_attributes<wchar_t>;
 
 template <concept_char_type CharT>
-class basic_cookie
+class LIBGS_HTTP_TAPI basic_cookie
 {
 public:
 	using str_type = std::basic_string<CharT>;

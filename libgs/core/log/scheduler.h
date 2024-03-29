@@ -31,22 +31,31 @@
 
 #include <libgs/core/log/context.h>
 
-namespace libgs::log::scheduler
+namespace libgs::log { namespace scheduler
 {
 
-LIBGS_CORE_VAPI void set_context(static_context context);
-LIBGS_CORE_VAPI void set_context(static_wcontext context);
+LIBGS_CORE_API void set_context(static_context context);
+LIBGS_CORE_API void set_context(static_wcontext context);
 
-template <concept_char_type CharT = char>
-[[nodiscard]] basic_static_context<CharT> get_context();
+[[nodiscard]] LIBGS_CORE_API static_context get_context();
+[[nodiscard]] LIBGS_CORE_API static_wcontext get_wcontext();
 
-LIBGS_CORE_VAPI void write(output_type type, output_context &&runtime_context, std::string &&msg);
-LIBGS_CORE_VAPI void write(output_type type, output_wcontext &&runtime_context, std::wstring &&msg);
+template <concept_char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI basic_static_context<CharT> get_context();
 
-LIBGS_CORE_VAPI void fatal(output_context &&runtime_context, const std::string &msg);
-LIBGS_CORE_VAPI void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
+LIBGS_CORE_API void write(output_type type, output_context &&runtime_context, std::string &&msg);
+LIBGS_CORE_API void write(output_type type, output_wcontext &&runtime_context, std::wstring &&msg);
 
-} //namespace libgs::log::scheduler
+LIBGS_CORE_API void fatal(output_context &&runtime_context, const std::string &msg);
+LIBGS_CORE_API void fatal(output_wcontext &&runtime_context, const std::wstring &msg);
+
+LIBGS_CORE_API void exit();
+
+} //namespace scheduler
+
+LIBGS_CORE_API void exit();
+
+} //namespace libgs::log
 #include <libgs/core/log/detail/scheduler.h>
 
 

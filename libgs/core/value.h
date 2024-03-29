@@ -37,7 +37,7 @@ namespace libgs
 {
 
 template <concept_char_type CharT>
-class LIBGS_CORE_API basic_value
+class LIBGS_CORE_TAPI basic_value
 {
 public:
 	template <typename...Args>

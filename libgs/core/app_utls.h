@@ -66,13 +66,13 @@ bool setenv(std::string_view key, std::string_view value, bool overwrite = true)
 /*[[nodiscard]]*/ LIBGS_CORE_API
 bool unsetenv(std::string_view key);
 
-template <typename Arg0, typename...Args> /* [[nodiscard]] */
+template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 
-template <typename Arg0, typename...Args> /* [[nodiscard]] */
+template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 
-template <concept_char_string_type T> /* [[nodiscard]] */
+template <concept_char_string_type T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(std::string_view key, T &&value, bool overwrite = true);
 
 } //namespace libgs::app

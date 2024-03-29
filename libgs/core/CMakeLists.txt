@@ -8,6 +8,9 @@ set(core_sources
 	app_utls.cpp
 	detail/app_utls_${OS_CPP}.cpp
 	args_parser.cpp
+	ini.cpp
+	execution.cpp
+	log/scheduler.cpp
 )
 
 set(core_headers

@@ -38,7 +38,7 @@ template <typename T>
 struct basic_static_context;
 
 template <>
-struct LIBGS_CORE_API basic_static_context<void>
+struct LIBGS_CORE_VAPI basic_static_context<void>
 {
 	virtual ~basic_static_context() = default;
 	std::string directory/* = "" */;
@@ -58,12 +58,12 @@ struct LIBGS_CORE_API basic_static_context<void>
 };
 
 template <>
-struct LIBGS_CORE_API basic_static_context<char> : basic_static_context<void> {
+struct LIBGS_CORE_VAPI basic_static_context<char> : basic_static_context<void> {
 	std::string category = "default";
 };
 
 template <>
-struct LIBGS_CORE_API basic_static_context<wchar_t> : basic_static_context<void> {
+struct LIBGS_CORE_VAPI basic_static_context<wchar_t> : basic_static_context<void> {
 	std::wstring category = L"default";
 };
 
@@ -83,7 +83,7 @@ enum class output_type
 using output_time = std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>;
 
 template <concept_char_type CharT>
-struct LIBGS_CORE_API basic_output_context
+struct LIBGS_CORE_TAPI basic_output_context
 {
 	output_time time;
 	std::basic_string<CharT> category;

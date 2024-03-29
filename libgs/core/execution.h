@@ -31,20 +31,18 @@
 
 #include <libgs/core/global.h>
 
-#define libgs_exe  libgs::execution::instance()
-
 namespace libgs::execution
 {
 
 using executor_type = typename asio::io_context::executor_type;
 
-[[nodiscard]] LIBGS_CORE_VAPI asio::io_context &io_context();
-[[nodiscard]] LIBGS_CORE_VAPI executor_type get_executor() noexcept;
+[[nodiscard]] LIBGS_CORE_API asio::io_context &io_context();
+[[nodiscard]] LIBGS_CORE_API executor_type get_executor() noexcept;
 
-LIBGS_CORE_VAPI int exec();
-LIBGS_CORE_VAPI void exit(int code = 0);
+LIBGS_CORE_API int exec();
+LIBGS_CORE_API void exit(int code = 0);
 
-[[nodiscard]] LIBGS_CORE_VAPI bool is_run();
+[[nodiscard]] LIBGS_CORE_API bool is_run();
 
 template<typename T, concept_schedulable Exec = asio::io_context>
 void delete_later(T *obj, Exec &exec = io_context());

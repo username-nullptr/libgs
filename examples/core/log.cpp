@@ -41,5 +41,8 @@ int main()
 	t1.join();
 	t2.join();
 
+#if defined(__WINNT__) || defined(_WINDOWS)
+	libgs::log::exit();
+#endif
 	return 0;
 }

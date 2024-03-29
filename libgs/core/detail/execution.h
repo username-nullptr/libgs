@@ -32,64 +32,6 @@
 namespace libgs::execution
 {
 
-namespace detail
-{
-
-struct LIBGS_CORE_API execution_impl
-{
-	inline static asio::io_context ioc;
-	inline static std::atomic_int exit_code {0};
-	inline static std::atomic_bool run_flag {false};
-};
-
-} //namespace detail
-
-inline asio::io_context &io_context()
-{
-	return detail::execution_impl::ioc;
-}
-
-inline executor_type get_executor() noexcept
-{
-	return io_context().get_executor();
-}
-
-inline int exec()
-{
-	using namespace detail;
-	if( execution_impl::run_flag )
-		throw runtime_error("libgs::execution::exec: not reentrant.");
-
-	execution_impl::run_flag = true;
-	auto &ioc = io_context();
-
-	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
-	for(;;)
-	{
-		ioc.run();
-		if( not execution_impl::run_flag )
-			break;
-		ioc.restart();
-	}
-	return execution_impl::exit_code;
-}
-
-inline void exit(int code)
-{
-	using namespace detail;
-	if( not execution_impl::run_flag )
-		return ;
-
-	execution_impl::exit_code = code;
-	execution_impl::run_flag = false;
-	io_context().stop();
-}
-
-inline bool is_run()
-{
-	return detail::execution_impl::run_flag;
-}
-
 template<typename T, concept_execution Exec>
 void delete_later(T *obj, Exec &exec)
 {

@@ -45,7 +45,7 @@ using session_attributes = basic_session_attributes<char>;
 using wsession_attributes = basic_session_attributes<wchar_t>;
 
 template <concept_char_type CharT>
-class basic_session
+class LIBGS_HTTP_TAPI basic_session
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_session)
 

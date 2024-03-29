@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-struct basic_server_datagram : basic_datagram<CharT>
+struct LIBGS_HTTP_TAPI basic_server_datagram : basic_datagram<CharT>
 {
 	LIBGS_DISABLE_COPY(basic_server_datagram)
 	basic_server_datagram() = default;
@@ -47,7 +47,7 @@ struct basic_server_datagram : basic_datagram<CharT>
 	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
 	using parameters_type = basic_parameters<CharT>;
 
-	http::method method;
+	http::method method = http::method::GET;
 	str_type path;
 	parameters_type parameters;
 	cookies_type cookies;

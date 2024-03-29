@@ -71,22 +71,22 @@ namespace libgs
 [[nodiscard]] LIBGS_CORE_API bool stob(const std::wstring &str, size_t base = 10);
 
 template <concept_integral_type T>
-[[nodiscard]] T ston(const std::string &str, size_t base = 10) {
+[[nodiscard]] LIBGS_CORE_TAPI T ston(const std::string &str, size_t base = 10) {
 	return algorithm_base::ston<T,char>(str, base);
 }
 
 template <concept_integral_type T>
-[[nodiscard]] T ston(const std::wstring &str, size_t base = 10) {
+[[nodiscard]] LIBGS_CORE_TAPI T ston(const std::wstring &str, size_t base = 10) {
 	return algorithm_base::ston<T,wchar_t>(str, base);
 }
 
 template <concept_float_type T>
-[[nodiscard]] T ston(const std::string &str) {
+[[nodiscard]] LIBGS_CORE_TAPI T ston(const std::string &str) {
 	return algorithm_base::ston<T,char>(str);
 }
 
 template <concept_float_type T>
-[[nodiscard]] T ston(const std::wstring &str) {
+[[nodiscard]] LIBGS_CORE_TAPI T ston(const std::wstring &str) {
 	return algorithm_base::ston<T,wchar_t>(str);
 }
 
@@ -127,22 +127,22 @@ template <concept_float_type T>
 [[nodiscard]] LIBGS_CORE_API bool stob_or(const std::wstring &str, size_t base = 10, bool default_value = false) noexcept;
 
 template <concept_integral_type T>
-[[nodiscard]] T ston_or(const std::string &str, size_t base = 10, T default_value = 0) noexcept {
+[[nodiscard]] LIBGS_CORE_TAPI T ston_or(const std::string &str, size_t base = 10, T default_value = 0) noexcept {
 	return algorithm_base::ston<T,char>(str, base, default_value);
 }
 
 template <concept_integral_type T>
-[[nodiscard]] T ston_or(const std::wstring &str, size_t base = 10, T default_value = 0) noexcept {
+[[nodiscard]] LIBGS_CORE_TAPI T ston_or(const std::wstring &str, size_t base = 10, T default_value = 0) noexcept {
 	return algorithm_base::ston<T,wchar_t>(str, base, default_value);
 }
 
 template <concept_float_type T>
-[[nodiscard]] T ston_or(const std::string &str, T default_value = 0.0) {
+[[nodiscard]] LIBGS_CORE_TAPI T ston_or(const std::string &str, T default_value = 0.0) {
 	return algorithm_base::ston<T,char>(str, default_value);
 }
 
 template <concept_float_type T>
-[[nodiscard]] T ston_or(const std::wstring &str, T default_value = 0.0) {
+[[nodiscard]] LIBGS_CORE_TAPI T ston_or(const std::wstring &str, T default_value = 0.0) {
 	return algorithm_base::ston<T,wchar_t>(str, default_value);
 }
 

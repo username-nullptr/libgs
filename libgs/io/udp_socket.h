@@ -51,7 +51,7 @@ namespace io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class basic_udp_socket : public basic_socket<Exec>
+class LIBGS_CORE_TAPI basic_udp_socket : public basic_socket<Exec>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_udp_socket)
 	using base_type = basic_socket<Exec>;
@@ -67,7 +67,7 @@ public:
 
 public:
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_udp_socket(Context &context = io_context());
+	explicit basic_udp_socket(Context &context = execution::io_context());
 
 	template <concept_execution Exec0>
 	basic_udp_socket(asio_basic_udp_socket<Exec0> &&sock);

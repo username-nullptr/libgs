@@ -48,7 +48,7 @@ namespace io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class basic_tcp_server : public device_base<Exec>
+class LIBGS_CORE_TAPI basic_tcp_server : public device_base<Exec>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_tcp_server)
 	using base_type = device_base<Exec>;

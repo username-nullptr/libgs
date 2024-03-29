@@ -16,12 +16,12 @@ int main()
 		try {
 			co_await timer.co_wait(2s);
 			libgs_log_debug("timer finished.");
-			libgs_exe.exit();
+			libgs::execution::exit();
 		}
 		catch(std::exception &ex)
 		{
 			libgs_log_debug("timer error: {}.", ex);
-			libgs_exe.exit(-1);
+			libgs::execution::exit(-1);
 		}
 		co_return ;
 	});
@@ -32,8 +32,8 @@ int main()
 	timer.async_wait({2s, [](const std::error_code &error)
 	{
 		libgs_log_debug("timer finished. ({})", error);
-		libgs_exe.exit(-error.value());
+		libgs::execution::exit(-error.value());
 	}});
 #endif
-	return libgs_exe.exec();
+	return libgs::execution::exec();
 }

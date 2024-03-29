@@ -36,7 +36,7 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class basic_server_request
+class LIBGS_HTTP_TAPI basic_server_request
 {
 	LIBGS_DISABLE_COPY(basic_server_request)
 

@@ -38,7 +38,7 @@ int main()
 		co_await libgs::co_wait(future);
 
 		libgs_log_debug() << "example finished...";
-		libgs_exe.exit();
+		libgs::execution::exit();
 	});
-	return libgs_exe.exec();
+	return libgs::execution::exec();
 }

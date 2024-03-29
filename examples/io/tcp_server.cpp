@@ -26,7 +26,7 @@ void do_accept(libgs::io::tcp_server &server)
 		if( error )
 		{
 			libgs_log_error("server error: {}", error);
-			return libgs_exe.exit(-1);
+			return libgs::execution::exit(-1);
 		}
 		auto ep = socket->remote_endpoint();
 		libgs_log_debug("new connction: {}", ep);
@@ -75,7 +75,7 @@ int main()
 		catch(std::exception &ex)
 		{
 			libgs_log_error("server error: {}", ex);
-			libgs_exe.exit(-1);
+			libgs::execution::exit(-1);
 		}
 		co_return ;
 	});
@@ -91,5 +91,5 @@ int main()
 	}
 	do_accept(server);
 #endif
-	return libgs_exe.exec();
+	return libgs::execution::exec();
 }

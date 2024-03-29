@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class basic_session<CharT>::impl
+class LIBGS_HTTP_TAPI basic_session<CharT>::impl
 {
 public:
 	explicit impl(const duration &s) {

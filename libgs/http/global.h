@@ -37,5 +37,8 @@
 # define LIBGS_HTTP_API  LIBGS_DECL_IMPORT
 #endif //gs_http_EXPORTS
 
+# define LIBGS_HTTP_VAPI
+# define LIBGS_HTTP_TAPI
+
 
 #endif //LIBGS_HTTP_GLOBAL_H

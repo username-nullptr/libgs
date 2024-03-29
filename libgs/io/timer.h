@@ -48,7 +48,7 @@ namespace io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class basic_timer : public device_base<Exec>
+class LIBGS_CORE_TAPI basic_timer : public device_base<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_timer)
 	using base_type = device_base<Exec>;
@@ -60,13 +60,13 @@ public:
 
 public:
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_timer(Context &context = io_context());
+	explicit basic_timer(Context &context = execution::io_context());
 
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_timer(const duration &rtime, Context &context = io_context());
+	explicit basic_timer(const duration &rtime, Context &context = execution::io_context());
 
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_timer(const time_point &atime, Context &context = io_context());
+	explicit basic_timer(const time_point &atime, Context &context = execution::io_context());
 
 	basic_timer(basic_timer &&other) noexcept;
 	basic_timer &operator=(basic_timer &&other) noexcept;

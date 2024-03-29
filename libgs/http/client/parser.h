@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class client_parser
+class LIBGS_HTTP_TAPI client_parser
 {
 	LIBGS_DISABLE_COPY(client_parser)
 

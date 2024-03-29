@@ -41,22 +41,22 @@ template <typename T>
 using awaitable = asio::awaitable<T>;
 
 template <concept_schedulable Exec = asio::io_context>
-auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec = io_context());
+LIBGS_CORE_TAPI auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec = execution::io_context());
 
 template <typename T, concept_schedulable Exec = asio::io_context>
-auto co_spawn_detached(awaitable<T> &&a, Exec &exec = io_context());
+LIBGS_CORE_TAPI auto co_spawn_detached(awaitable<T> &&a, Exec &exec = execution::io_context());
 
 template <concept_schedulable Exec = asio::io_context>
-auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec = io_context());
+LIBGS_CORE_TAPI auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec = execution::io_context());
 
 template <typename T, concept_schedulable Exec = asio::io_context>
-auto co_spawn_future(awaitable<T> &&a, Exec &exec = io_context());
+LIBGS_CORE_TAPI auto co_spawn_future(awaitable<T> &&a, Exec &exec = execution::io_context());
 
 constexpr auto use_awaitable = asio::use_awaitable;
 
 using use_awaitable_t = decltype(use_awaitable);
 
-struct use_awaitable_e_t
+struct LIBGS_CORE_VAPI use_awaitable_e_t
 {
 	auto operator[](error_code &error) const noexcept {
 		return redirect_error(asio::use_awaitable, error);
@@ -67,22 +67,24 @@ constexpr use_awaitable_e_t use_awaitable_e;
 using ua_redirect_error_t = typename function_traits<decltype(asio::redirect_error<use_awaitable_t>)>::return_type;
 
 template <typename Exec, typename Func, typename...Args>
-auto co_post(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
+LIBGS_CORE_TAPI auto co_post(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
 
 template <typename Exec, typename Func, typename...Args>
-auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
+LIBGS_CORE_TAPI auto co_dispatch(Exec &exec, Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
 
 template <typename Func, typename...Args>
-auto co_thread(Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
+LIBGS_CORE_TAPI auto co_thread(Func &&func, Args&&...args) requires concept_callable<Func,Args...>;
 
 template<typename Rep, typename Period, typename Exec = asio::io_context>
-awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &exec = io_context());
+LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for
+(const std::chrono::duration<Rep,Period> &rtime, Exec &exec = execution::io_context());
 
 template<typename Clock, typename Duration, typename Exec = asio::io_context>
-awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec = io_context());
+LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until
+(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec = execution::io_context());
 
 template <typename T>
-awaitable<T> co_wait(const std::future<T> &future);
+LIBGS_CORE_TAPI awaitable<T> co_wait(const std::future<T> &future);
 
 LIBGS_CORE_VAPI awaitable<void> co_wait(const asio::thread_pool &pool);
 LIBGS_CORE_VAPI awaitable<void> co_wait(const std::thread &thread);

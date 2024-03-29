@@ -224,7 +224,7 @@ template <method M>
 constexpr const char *method_string_v = method_string<M>::value;
 
 template <concept_char_type CharT = char>
-std::basic_string<CharT> to_method_string(method m);
+LIBGS_HTTP_TAPI std::basic_string<CharT> to_method_string(method m);
 
 LIBGS_HTTP_API method from_method_string(std::string_view str);
 LIBGS_HTTP_API method from_method_string(std::wstring_view str);
@@ -236,7 +236,7 @@ using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
 template <concept_char_type CharT>
-struct basic_datagram
+struct LIBGS_HTTP_TAPI basic_datagram
 {
 	using str_type = std::basic_string<CharT>;
 	using headers_type = basic_headers<CharT>;

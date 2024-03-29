@@ -20,6 +20,7 @@ set(http_detail_headers
 	basic/detail/container.h
 	basic/detail/cookie.h
 	basic/detail/types.h
+	server/detail/parser.h
 )
 
 set(all_files

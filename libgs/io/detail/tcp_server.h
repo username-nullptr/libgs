@@ -33,7 +33,7 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
-class basic_tcp_server<Exec>::client_socket_type : public tcp_socket
+class LIBGS_CORE_TAPI basic_tcp_server<Exec>::client_socket_type : public tcp_socket
 {
 	LIBGS_DISABLE_COPY_MOVE(client_socket_type)
 	using base_type = tcp_socket;
@@ -60,8 +60,8 @@ private:
 
 template <concept_execution Exec>
 basic_tcp_server<Exec>::basic_tcp_server(size_t tcount) :
-	base_type(io_context().get_executor()),
-	m_acceptor(new asio_acceptor(io_context())),
+	base_type(execution::io_context().get_executor()),
+	m_acceptor(new asio_acceptor(execution::io_context())),
 	m_pool(tcount)
 {
 

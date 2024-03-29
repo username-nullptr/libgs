@@ -71,8 +71,8 @@ int main()
 		catch(std::exception &ex)
 		{
 			libgs_log_error("server error: {}", ex);
-			libgs_exe.exit(-1);
+			libgs::execution::exit(-1);
 		}
 	});
-	return libgs_exe.exec();
+	return libgs::execution::exec();
 }

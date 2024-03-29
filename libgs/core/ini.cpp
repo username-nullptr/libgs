@@ -26,45 +26,21 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_DEVICE_BASE_H
-#define LIBGS_IO_DEVICE_BASE_H
+#include "ini.h"
 
-#include <libgs/io/types/opt_token.h>
-
-namespace libgs::io
+namespace libgs
 {
 
-template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_CORE_TAPI device_base
+ini &ini_global_instance() noexcept
 {
-	LIBGS_DISABLE_COPY_MOVE(device_base)
+	static ini obj;
+	return obj;
+}
 
-public:
-	using executor_type = Exec;
-	using bool_ptr = std::shared_ptr<bool>;
+wini &wini_global_instance() noexcept
+{
+	static wini obj;
+	return obj;
+}
 
-public:
-	explicit device_base(const executor_type &exec);
-	virtual ~device_base() = 0;
-
-public:
-	virtual void cancel() noexcept = 0;
-	executor_type &executor() const;
-
-protected:
-	mutable Exec m_exec;
-	bool_ptr m_valid;
-};
-
-using device = device_base<>;
-
-template <concept_execution Exec = asio::any_io_executor>
-using device_base_ptr = std::shared_ptr<device_base<Exec>>;
-
-using device_ptr = device_base_ptr<>;
-
-} //namespace libgs::io
-#include <libgs/io/detail/device_base.h>
-
-
-#endif //LIBGS_IO_DEVICE_BASE_H
+} //namespace libgs
