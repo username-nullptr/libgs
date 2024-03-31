@@ -26,40 +26,52 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_DATAGRAM_H
-#define LIBGS_HTTP_SERVER_DATAGRAM_H
+#ifndef LIBGS_HTTP_BASIC_OPT_TOKEN_H
+#define LIBGS_HTTP_BASIC_OPT_TOKEN_H
 
-#include <libgs/http/basic/types.h>
+#include <libgs/http/global.h>
+#include <libgs/io/types/opt_token.h>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-struct LIBGS_HTTP_TAPI basic_server_datagram : basic_datagram<CharT>
+template <typename T>
+using read_token = io::read_token<T>;
+
+template <typename...Args>
+using read_cb_token = io::read_cb_token<Args...>;
+
+namespace detail
 {
-	LIBGS_DISABLE_COPY(basic_server_datagram)
-	basic_server_datagram() = default;
 
-	using base_type = basic_datagram<CharT>;
-	using str_type = base_type::str_type;
-	using headers_type = base_type::headers_type;
+template <typename T>
+struct save_file_token : io::opt_token<T>
+{
+	using io::opt_token<T>::opt_token;
+	size_t total_size = 0;
 
-	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
-	using parameters_type = basic_parameters<CharT>;
-
-	http::method method = http::method::GET;
-	str_type path;
-	parameters_type parameters;
-	cookies_type cookies;
-
-	basic_server_datagram(basic_server_datagram&&) noexcept = default;
-	basic_server_datagram &operator=(basic_server_datagram&&) noexcept = default;
+	template <typename...Args>
+	save_file_token(size_t total_size, Args&&...args) requires io::concept_opt_token<T,Args...> :
+		io::opt_token<T>(std::forward<Args>(args)...), total_size(total_size) {}
 };
 
-using server_datagram = basic_server_datagram<char>;
-using server_wdatagram = basic_server_datagram<wchar_t>;
+} //namespace detail
+
+template <typename T>
+struct save_file_token : detail::save_file_token<T>
+{
+	using detail::save_file_token<T>::save_file_token;
+	size_t begin = 0;
+
+	template <typename...Args>
+	save_file_token(size_t begin, Args&&...args) :
+			detail::save_file_token<T>(std::forward<Args>(args)...), begin(begin) {}
+};
+
+template <typename...Args>
+using save_file_cb_token = save_file_token<io::callback_t<Args...>>;
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_SERVER_DATAGRAM_H
+#endif //LIBGS_HTTP_BASIC_OPT_TOKEN_H

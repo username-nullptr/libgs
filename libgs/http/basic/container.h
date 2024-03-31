@@ -31,6 +31,7 @@
 
 #include <libgs/http/global.h>
 #include <libgs/core/value.h>
+#include <ranges>
 #include <map>
 
 namespace libgs::http

@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_DETAIL_PARSER_H
-#define LIBGS_HTTP_SERVER_DETAIL_PARSER_H
+#ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
+#define LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 
 #include <libgs/core/string_list.h>
 
@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI basic_server_parser<CharT>::impl
+class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -161,40 +161,40 @@ public:
 		waiting_request = 0,
 		reading_headers
 	}
-			m_state = state::waiting_request;
+	m_state = state::waiting_request;
 	std::string m_buffer;
 	datagram_type m_datagram;
 };
 
 template <concept_char_type CharT>
-basic_server_parser<CharT>::basic_server_parser(size_t init_buf_size) :
+basic_request_parser<CharT>::basic_request_parser(size_t init_buf_size) :
 		m_impl(new impl(init_buf_size))
 {
 
 }
 
 template <concept_char_type CharT>
-basic_server_parser<CharT>::~basic_server_parser()
+basic_request_parser<CharT>::~basic_request_parser()
 {
 	delete m_impl;
 }
 
 template <concept_char_type CharT>
-basic_server_parser<CharT>::basic_server_parser(basic_server_parser &&other) noexcept :
+basic_request_parser<CharT>::basic_request_parser(basic_request_parser &&other) noexcept :
 		m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
 template <concept_char_type CharT>
-basic_server_parser<CharT> &basic_server_parser<CharT>::operator=(basic_server_parser &&other) noexcept
+basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_request_parser &&other) noexcept
 {
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
 }
 
 template <concept_char_type CharT>
-bool basic_server_parser<CharT>::append(std::string_view buf)
+bool basic_request_parser<CharT>::append(std::string_view buf)
 {
 	using state = impl::state;
 	m_impl->m_buffer.append(buf);
@@ -234,13 +234,13 @@ bool basic_server_parser<CharT>::append(std::string_view buf)
 }
 
 template <concept_char_type CharT>
-bool basic_server_parser<CharT>::operator<<(std::string_view buf)
+bool basic_request_parser<CharT>::operator<<(std::string_view buf)
 {
 	return append(buf);
 }
 
 template <concept_char_type CharT>
-basic_server_datagram<CharT> basic_server_parser<CharT>::get_result()
+basic_request_datagram<CharT> basic_request_parser<CharT>::get_result()
 {
 	return std::move(m_impl->m_datagram);
 }
@@ -248,4 +248,4 @@ basic_server_datagram<CharT> basic_server_parser<CharT>::get_result()
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_SERVER_DETAIL_PARSER_H
+#endif //LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H

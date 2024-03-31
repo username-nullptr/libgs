@@ -1,8 +1,8 @@
-#include <libgs/http/server/parser.h>
+#include <libgs/http/server/request_parser.h>
 #include <libgs/io/tcp_server.h>
 #include <libgs/core/log.h>
 
-libgs::awaitable<void> service(libgs::http::server_parser &parser, libgs::io::socket_ptr socket, libgs::io::ip_endpoint ep)
+libgs::awaitable<void> service(libgs::http::request_parser &parser, libgs::io::socket_ptr socket, libgs::io::ip_endpoint ep)
 {
 	try {
 		char rbuf[4096] = "";
@@ -55,7 +55,7 @@ int main()
 {
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
-		libgs::http::server_parser parser;
+		libgs::http::request_parser parser;
 		libgs::io::tcp_server server;
 		try {
 			server.bind({libgs::io::address_v4(),22222});

@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DATAGRAM_H
-#define LIBGS_HTTP_CLIENT_DATAGRAM_H
+#ifndef LIBGS_HTTP_SERVER_REQUEST_DATAGRAM_H
+#define LIBGS_HTTP_SERVER_REQUEST_DATAGRAM_H
 
 #include <libgs/http/basic/types.h>
 
@@ -35,28 +35,38 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-struct basic_client_datagram : basic_datagram<CharT>
+struct LIBGS_HTTP_TAPI basic_request_datagram : basic_datagram<CharT>
 {
-	LIBGS_DISABLE_COPY(basic_client_datagram)
-	basic_client_datagram() = default;
+	LIBGS_DISABLE_COPY(basic_request_datagram)
+	basic_request_datagram() = default;
 
 	using base_type = basic_datagram<CharT>;
-	using str_type = base_type::str_type;
-	using headers_type = base_type::headers_type;
-	using cookies_type = basic_cookies<CharT>;
+	using str_type = typename base_type::str_type;
+	using headers_type = typename base_type::headers_type;
 
-	http::status status;
-	str_type description;
+	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
+	using parameters_type = basic_parameters<CharT>;
+
+	using cookies_view_type = decltype(
+		std::declval<cookies_type>() |
+		std::views::take(std::declval<cookies_type>().size()));
+
+	using headers_view_type = typename base_type::headers_view_type;
+	using parameters_view_type = basic_parameters_view<CharT>;
+
+	http::method method = http::method::GET;
+	str_type path;
+	parameters_type parameters;
 	cookies_type cookies;
 
-	basic_client_datagram(basic_client_datagram&&) noexcept = default;
-	basic_client_datagram &operator=(basic_client_datagram&&) noexcept = default;
+	basic_request_datagram(basic_request_datagram&&) noexcept = default;
+	basic_request_datagram &operator=(basic_request_datagram&&) noexcept = default;
 };
 
-using client_datagram = basic_client_datagram<char>;
-using client_wdatagram = basic_client_datagram<wchar_t>;
+using request_datagram = basic_request_datagram<char>;
+using wrequest_datagram = basic_request_datagram<wchar_t>;
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_DATAGRAM_H
+#endif //LIBGS_HTTP_SERVER_REQUEST_DATAGRAM_H

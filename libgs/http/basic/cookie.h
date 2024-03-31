@@ -55,6 +55,17 @@ using cookie_attributes = basic_cookie_attributes<char>;
 using wcookie_attributes = basic_cookie_attributes<wchar_t>;
 
 template <concept_char_type CharT>
+using basic_cookie_attributes_view = decltype (
+	std::declval<basic_cookie_attributes<CharT>>() |
+	std::views::take (
+		std::declval<basic_cookie_attributes<CharT>>().size()
+	)
+);
+
+using cookie_attributes_view = basic_cookie_attributes_view<char>;
+using wcookie_attributes_view = basic_cookie_attributes_view<wchar_t>;
+
+template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_cookie
 {
 public:
@@ -165,6 +176,17 @@ using basic_cookies = std::map<std::basic_string<CharT>, basic_cookie<CharT>, le
 
 using cookies = basic_cookies<char>;
 using wcookies = basic_cookies<wchar_t>;
+
+template <concept_char_type CharT>
+using basic_cookies_view = decltype (
+	std::declval<basic_cookies<CharT>>() |
+	std::views::take (
+		std::declval<basic_cookies<CharT>>().size()
+	)
+);
+
+using cookies_view = basic_cookies_view<char>;
+using wcookies_view = basic_cookies_view<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/basic/detail/cookie.h>

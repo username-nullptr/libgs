@@ -10,17 +10,22 @@ set(http_headers
 	parser.h
 	basic/container.h
 	basic/cookie.h
+	basic/header.h
 	basic/types.h
-	server/datagram.h
+	basic/opt_token.h
+	server/request_datagram.h
 	server/request.h
-	server/parser.h
+	server/request_parser.h
+	server/response_helper.h
+	server/response.h
+	server/server.h
 )
 
 set(http_detail_headers
 	basic/detail/container.h
 	basic/detail/cookie.h
 	basic/detail/types.h
-	server/detail/parser.h
+	server/detail/request_parser.h
 )
 
 set(all_files

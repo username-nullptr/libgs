@@ -26,42 +26,44 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_SERVER_H
-#define LIBGS_HTTP_SERVER_SERVER_H
+#ifndef LIBGS_HTTP_SERVER_REQUEST_PARSER_H
+#define LIBGS_HTTP_SERVER_REQUEST_PARSER_H
 
-#include <libgs/http/server/request.h>
-#include <libgs/http/server/response.h>
-#include <libgs/http/server/request_parser.h>
+#include <libgs/http/server/request_datagram.h>
 
 namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class basic_server
+class LIBGS_HTTP_TAPI basic_request_parser
 {
-	LIBGS_DISABLE_COPY(basic_server)
+	LIBGS_DISABLE_COPY(basic_request_parser)
 
 public:
-	using datagram = basic_datagram<CharT>;
-	using parser = basic_request_parser<CharT>;
+	explicit basic_request_parser(size_t init_buf_size = 0xFFFF);
+	~basic_request_parser();
 
-	using requset = basic_server_request<CharT>;
-	using response = basic_server_response<CharT>;
-
-public:
-	basic_server();
-	~basic_server();
+	basic_request_parser(basic_request_parser &&other) noexcept;
+	basic_request_parser &operator=(basic_request_parser &&other) noexcept;
 
 public:
+	bool append(std::string_view buf);
+	bool operator<<(std::string_view buf);
 
-protected:
+public:
+	using datagram_type = basic_request_datagram<CharT>;
+	datagram_type get_result();
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
-using server = basic_server<char>;
-using wserver = basic_server<wchar_t>;
+using request_parser = basic_request_parser<char>;
+using wrequest_parser = basic_request_parser<wchar_t>;
 
 } //namespace libgs::http
+#include <libgs/http/server/detail/request_parser.h>
 
 
-#endif //LIBGS_HTTP_SERVER_SERVER_H
-
+#endif //LIBGS_HTTP_SERVER_REQUEST_PARSER_H

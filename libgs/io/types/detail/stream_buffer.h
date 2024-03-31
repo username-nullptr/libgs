@@ -29,7 +29,7 @@
 #ifndef LIBGS_IO_DETAIL_STREAM_BUFFER_H
 #define LIBGS_IO_DETAIL_STREAM_BUFFER_H
 
-namespace libgs
+namespace libgs::io
 {
 
 template <typename String>
@@ -40,7 +40,7 @@ buffer<const std::string&>::buffer(const String &data, size_t size) requires std
 		this->size = data.size();
 }
 
-} //namespace libgs
+} //namespace libgs::io
 
 
 #endif //LIBGS_IO_DETAIL_STREAM_BUFFER_H

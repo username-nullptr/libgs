@@ -31,7 +31,7 @@
 
 #include <libgs/io/global.h>
 
-namespace libgs
+namespace libgs::io
 {
 
 template <typename T>
@@ -77,7 +77,7 @@ struct LIBGS_IO_API buffer<const std::string&> : buffer<void>
 	buffer(const String &data, size_t size = 0) requires std::is_same_v<String,std::string>;
 };
 
-} //namespace libgs
+} //namespace libgs::io
 #include <libgs/io/types/detail/stream_buffer.h>
 
 

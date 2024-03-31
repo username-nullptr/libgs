@@ -28,7 +28,7 @@
 
 #include "stream_buffer.h"
 
-namespace libgs
+namespace libgs::io
 {
 
 buffer<void>::buffer(size_t size) :
@@ -56,4 +56,4 @@ buffer<const void*>::buffer(const void *data, size_t size) :
 		this->size = std::strlen(reinterpret_cast<const char*>(data));
 }
 
-} //namespace libgs
+} //namespace libgs::io

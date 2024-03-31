@@ -26,32 +26,32 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_PARSER_H
-#define LIBGS_HTTP_CLIENT_PARSER_H
+#ifndef LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
+#define LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
 
-#include <libgs/http/client/datagram.h>
+#include <libgs/http/client/response_datagram.h>
 
 namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI client_parser
+class LIBGS_HTTP_TAPI response_parser
 {
-	LIBGS_DISABLE_COPY(client_parser)
+	LIBGS_DISABLE_COPY(response_parser)
 
 public:
-	client_parser();
-	~client_parser();
+	response_parser();
+	~response_parser();
 
-	client_parser(client_parser &&other);
-	client_parser &operator=(client_parser &&other);
+	response_parser(response_parser &&other);
+	response_parser &operator=(response_parser &&other);
 
 public:
 	bool append(std::string_view buf);
 	bool operator<<(std::string_view buf);
 
 public:
-	using datagram_type = basic_client_datagram<CharT>;
+	using datagram_type = basic_response_datagram<CharT>;
 	datagram_type get_result();
 
 protected:
@@ -60,4 +60,4 @@ protected:
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_PARSER_H
+#endif //LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H

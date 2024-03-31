@@ -26,42 +26,37 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_SERVER_H
-#define LIBGS_HTTP_SERVER_SERVER_H
+#ifndef LIBGS_HTTP_CLIENT_RESPONSE_DATAGRAM_H
+#define LIBGS_HTTP_CLIENT_RESPONSE_DATAGRAM_H
 
-#include <libgs/http/server/request.h>
-#include <libgs/http/server/response.h>
-#include <libgs/http/server/request_parser.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class basic_server
+struct basic_response_datagram : basic_datagram<CharT>
 {
-	LIBGS_DISABLE_COPY(basic_server)
+	LIBGS_DISABLE_COPY(basic_response_datagram)
+	basic_response_datagram() = default;
 
-public:
-	using datagram = basic_datagram<CharT>;
-	using parser = basic_request_parser<CharT>;
+	using base_type = basic_datagram<CharT>;
+	using str_type = base_type::str_type;
+	using headers_type = base_type::headers_type;
+	using cookies_type = basic_cookies<CharT>;
 
-	using requset = basic_server_request<CharT>;
-	using response = basic_server_response<CharT>;
+	http::status status = http::status::ok;
+	str_type description;
+	cookies_type cookies;
 
-public:
-	basic_server();
-	~basic_server();
-
-public:
-
-protected:
+	basic_response_datagram(basic_response_datagram&&) noexcept = default;
+	basic_response_datagram &operator=(basic_response_datagram&&) noexcept = default;
 };
 
-using server = basic_server<char>;
-using wserver = basic_server<wchar_t>;
+using response_datagram = basic_response_datagram<char>;
+using response_wdatagram = basic_response_datagram<wchar_t>;
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_SERVER_SERVER_H
-
+#endif //LIBGS_HTTP_CLIENT_RESPONSE_DATAGRAM_H

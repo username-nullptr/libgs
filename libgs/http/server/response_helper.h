@@ -26,45 +26,26 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_PARSER_H
-#define LIBGS_HTTP_SERVER_PARSER_H
+#ifndef LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
+#define LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
 
-#include <libgs/http/server/datagram.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI basic_server_parser
+class LIBGS_HTTP_TAPI basic_response_helper
 {
-	LIBGS_DISABLE_COPY(basic_server_parser)
+	LIBGS_DISABLE_COPY(basic_response_helper)
 
 public:
-	explicit basic_server_parser(size_t init_buf_size = 0xFFFF);
-	~basic_server_parser();
-
-	basic_server_parser(basic_server_parser &&other) noexcept;
-	basic_server_parser &operator=(basic_server_parser &&other) noexcept;
-
-public:
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
-
-public:
-	using datagram_type = basic_server_datagram<CharT>;
-	datagram_type get_result();
-
-protected:
-	class impl;
-	impl *m_impl;
 };
 
-using server_parser = basic_server_parser<char>;
-
-using server_wparser = basic_server_parser<wchar_t>;
+using response_helper = basic_response_helper<char>;
+using wresponse_helper = basic_response_helper<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/server/detail/parser.h>
 
 
-#endif //LIBGS_HTTP_SERVER_PARSER_H
+#endif //LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
