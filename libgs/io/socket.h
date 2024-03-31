@@ -62,6 +62,9 @@ public:
 	void connect(ip_endpoint ep);
 
 public:
+	[[nodiscard]] virtual ip_endpoint remote_endpoint(error_code &error) const noexcept = 0;
+	[[nodiscard]] ip_endpoint remote_endpoint() const;
+
 	[[nodiscard]] virtual ip_endpoint local_endpoint(error_code &error) const noexcept = 0;
 	[[nodiscard]] ip_endpoint local_endpoint() const;
 

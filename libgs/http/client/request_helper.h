@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_RESPONSE_H
-#define LIBGS_HTTP_CLIENT_RESPONSE_H
+#ifndef LIBGS_HTTP_CLIENT_REQUEST_HELPER_H
+#define LIBGS_HTTP_CLIENT_REQUEST_HELPER_H
 
 namespace libgs::http
 {
@@ -35,4 +35,4 @@ namespace libgs::http
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_RESPONSE_H
+#endif //LIBGS_HTTP_CLIENT_REQUEST_HELPER_H

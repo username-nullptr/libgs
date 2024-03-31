@@ -82,9 +82,8 @@ public:
 	size_t write(buffer<const void*> buf, opt_token<error_code&> tk) override;
 
 public:
+	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept override;
 	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
-	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept;
-	[[nodiscard]] ip_endpoint remote_endpoint() const;
 
 public:
 	void shutdown(error_code &error, shutdown_type what) noexcept override;
@@ -108,6 +107,7 @@ public:
 	using base_type::dns;
 	using base_type::read;
 	using base_type::write;
+	using base_type::remote_endpoint;
 	using base_type::local_endpoint;
 	using base_type::shutdown;
 	using base_type::close;

@@ -172,6 +172,17 @@ void basic_socket<Exec>::connect(ip_endpoint ep)
 }
 
 template <concept_execution Exec>
+ip_endpoint basic_socket<Exec>::remote_endpoint() const
+{
+	error_code error;
+	auto ep = remote_endpoint(error);
+
+	if( error )
+		throw system_error(error, "libgs::io::socket::remote_endpoint");
+	return ep;
+}
+
+template <concept_execution Exec>
 ip_endpoint basic_socket<Exec>::local_endpoint() const
 {
 	error_code error;

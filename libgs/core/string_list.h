@@ -44,8 +44,11 @@ using string_deque = basic_string_deque<char>;
 
 using wstring_deque = basic_string_deque<wchar_t>;
 
+namespace detail
+{
+
 template <typename T>
-struct _default_splits_argument {};
+struct _default_splits_argument;
 
 template <>
 struct _default_splits_argument<char>
@@ -61,11 +64,13 @@ struct _default_splits_argument<wchar_t>
 	static constexpr wchar_t c = L' ';
 };
 
+} //namespace detail
+
 template <concept_char_type CharT>
 class LIBGS_CORE_TAPI basic_string_list : public basic_string_deque<CharT>
 {
-	static constexpr const CharT *default_splits_argument_s = _default_splits_argument<CharT>::s;
-	static constexpr CharT default_splits_argument_c = _default_splits_argument<CharT>::c;
+	static constexpr const CharT *default_splits_argument_s = detail::_default_splits_argument<CharT>::s;
+	static constexpr CharT default_splits_argument_c = detail::_default_splits_argument<CharT>::c;
 
 public:
 	using str_type = std::basic_string<CharT>;

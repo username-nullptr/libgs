@@ -141,13 +141,6 @@ size_t basic_tcp_socket<Exec>::write(buffer<const void*> buf, opt_token<error_co
 }
 
 template <concept_execution Exec>
-ip_endpoint basic_tcp_socket<Exec>::local_endpoint(error_code &error) const noexcept
-{
-	auto ep = native_object().local_endpoint(error);
-	return {ep.address(), ep.port()};
-}
-
-template <concept_execution Exec>
 ip_endpoint basic_tcp_socket<Exec>::remote_endpoint(error_code &error) const noexcept
 {
 	auto ep = native_object().remote_endpoint(error);
@@ -155,14 +148,10 @@ ip_endpoint basic_tcp_socket<Exec>::remote_endpoint(error_code &error) const noe
 }
 
 template <concept_execution Exec>
-ip_endpoint basic_tcp_socket<Exec>::remote_endpoint() const
+ip_endpoint basic_tcp_socket<Exec>::local_endpoint(error_code &error) const noexcept
 {
-	error_code error;
-	auto ep = remote_endpoint(error);
-
-	if( error )
-		throw system_error(error, "libgs::io::tcp_socket::remote_endpoint");
-	return ep;
+	auto ep = native_object().local_endpoint(error);
+	return {ep.address(), ep.port()};
 }
 
 template <concept_execution Exec>
