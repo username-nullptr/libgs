@@ -51,12 +51,12 @@ public:
 	~basic_socket() override = default;
 
 public:
-	void async_connect(host_endpoint ep, opt_cb_token<error_code> tk) noexcept;
+	void async_connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<void> co_connect(host_endpoint ep, opt_token<error_code&> tk = {});
 	void connect(host_endpoint ep, opt_token<error_code&> tk = {});
 
 public:
-	void async_connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept;
+	void async_connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<void> co_connect(ip_endpoint ep, opt_token<error_code&> tk = {});
 	virtual void connect(ip_endpoint ep, opt_token<error_code&> tk) = 0;
 	void connect(ip_endpoint ep);
@@ -85,7 +85,7 @@ public:
 	void get_option(socket_option op) const;
 
 public:
-	void async_dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept;
+	void async_dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<address_vector> co_dns(string_wrapper domain, opt_token<error_code&> tk = {});
 	virtual address_vector dns(string_wrapper domain, opt_token<error_code&> tk) = 0;
 	address_vector dns(string_wrapper domain);

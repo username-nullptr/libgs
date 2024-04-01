@@ -79,7 +79,7 @@ public:
 	void cancel() noexcept override;
 
 public:
-	void async_accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept;
+	void async_accept(opt_token<callback_t<tcp_socket_ptr,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<tcp_socket_ptr> co_accept(opt_token<error_code&> tk = {});
 	tcp_socket_ptr accept(opt_token<error_code&> tk = {});
 

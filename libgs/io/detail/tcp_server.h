@@ -156,7 +156,7 @@ void basic_tcp_server<Exec>::cancel() noexcept
 }
 
 template <concept_execution Exec>
-void basic_tcp_server<Exec>::async_accept(opt_cb_token<tcp_socket_ptr,error_code> tk) noexcept
+void basic_tcp_server<Exec>::async_accept(opt_token<callback_t<tcp_socket_ptr,error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>

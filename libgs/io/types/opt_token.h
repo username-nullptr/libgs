@@ -38,7 +38,7 @@ namespace libgs::io
 template <typename...Args>
 using callback_t = std::function<void(Args...)>;
 
-template <typename Token>
+template <typename...Token>
 struct opt_token;
 
 template <>
@@ -74,9 +74,6 @@ struct LIBGS_CORE_VAPI opt_token<callback_t<Args...>> : opt_token<void>
 		concept_opt_token<void,Time> and concept_void_callable<Func,Args...>;
 };
 
-template <typename...Args>
-using opt_cb_token = opt_token<callback_t<Args...>>;
-
 template <>
 struct LIBGS_CORE_VAPI opt_token<error_code&> : opt_token<void>
 {
@@ -90,17 +87,14 @@ struct LIBGS_CORE_VAPI opt_token<error_code&> : opt_token<void>
 };
 
 template <typename T>
-struct LIBGS_CORE_VAPI read_token : opt_token<T>
+struct LIBGS_CORE_VAPI opt_token<read_condition,T> : opt_token<T>
 {
 	using opt_token<T>::opt_token;
 	read_condition rc;
 
 	template <typename...Args>
-	read_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...>;
+	opt_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...>;
 };
-
-template <typename...Args>
-using read_cb_token = read_token<callback_t<Args...>>;
 
 } //namespace libgs::io
 #include <libgs/io/types/detail/opt_token.h>

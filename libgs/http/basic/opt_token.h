@@ -32,46 +32,46 @@
 #include <libgs/http/global.h>
 #include <libgs/io/types/opt_token.h>
 
-namespace libgs::http
+
+namespace libgs { namespace http
 {
 
-template <typename T>
-using read_token = io::read_token<T>;
+using begin_t = size_t;
+using total_t = size_t;
+
+using read_condition = io::read_condition;
 
 template <typename...Args>
-using read_cb_token = io::read_cb_token<Args...>;
+using callback_t = io::callback_t<Args...>;
 
-namespace detail
+template <typename...Token>
+using opt_token = io::opt_token<Token...>;
+
+} //namespace http
+
+namespace io
 {
+
+using begin_t = http::begin_t;
+using total_t = http::total_t;
 
 template <typename T>
-struct save_file_token : io::opt_token<T>
+struct opt_token<begin_t,total_t,T> : opt_token<T>
 {
-	using io::opt_token<T>::opt_token;
-	size_t total_size = 0;
+	using opt_token<T>::opt_token;
+	begin_t begin = 0;
+	total_t total = 0;
 
 	template <typename...Args>
-	save_file_token(size_t total_size, Args&&...args) requires io::concept_opt_token<T,Args...> :
-		io::opt_token<T>(std::forward<Args>(args)...), total_size(total_size) {}
-};
-
-} //namespace detail
-
-template <typename T>
-struct save_file_token : detail::save_file_token<T>
-{
-	using detail::save_file_token<T>::save_file_token;
-	size_t begin = 0;
+	opt_token(total_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
+		opt_token<T>(std::forward<Args>(args)...), total(total) {}
 
 	template <typename...Args>
-	save_file_token(size_t begin, Args&&...args) :
-			detail::save_file_token<T>(std::forward<Args>(args)...), begin(begin) {}
+	opt_token(begin_t begin, total_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
+		opt_token<T>(std::forward<Args>(args)...), begin(begin), total(total) {}
 };
 
-template <typename...Args>
-using save_file_cb_token = save_file_token<io::callback_t<Args...>>;
-
-} //namespace libgs::http
+}} //namespace libgs::io
 
 
 #endif //LIBGS_HTTP_BASIC_OPT_TOKEN_H

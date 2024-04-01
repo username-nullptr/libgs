@@ -111,7 +111,7 @@ typename basic_tcp_socket<Exec>::address_vector basic_tcp_socket<Exec>::dns(stri
 }
 
 template <concept_execution Exec>
-size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, read_token<error_code&> tk)
+size_t basic_tcp_socket<Exec>::read(buffer<void*> buf, opt_token<read_condition,error_code&> tk)
 {
 	error_code error;
 	auto res = native_object().read_some(asio::buffer(buf.data, buf.size), error);

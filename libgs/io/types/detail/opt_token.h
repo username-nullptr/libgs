@@ -79,7 +79,7 @@ opt_token<error_code&>::opt_token(const Time &time, error_code &error) requires 
 
 template <typename T>
 template <typename...Args>
-read_token<T>::read_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...> :
+opt_token<read_condition,T>::opt_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...> :
 	opt_token<T>(std::forward<Args>(args)...), rc(std::move(rc))
 {
 

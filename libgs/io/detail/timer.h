@@ -104,7 +104,7 @@ void basic_timer<Exec>::expires_at(const time_point &atime) noexcept
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::async_wait(opt_cb_token<error_code> tk) noexcept
+void basic_timer<Exec>::async_wait(opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
@@ -125,7 +125,7 @@ void basic_timer<Exec>::async_wait(opt_cb_token<error_code> tk) noexcept
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::async_wait(opt_cb_token<> tk) noexcept
+void basic_timer<Exec>::async_wait(opt_token<callback_t<>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
 	async_wait([callback = std::move(tk.callback)](const error_code&){

@@ -79,8 +79,8 @@ public:
 	void expires_at(const time_point &atime) noexcept;
 
 public:
-	void async_wait(opt_cb_token<error_code> tk) noexcept;
-	void async_wait(opt_cb_token<> tk) noexcept;
+	void async_wait(opt_token<callback_t<error_code>> tk) noexcept;
+	void async_wait(opt_token<callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<void> co_wait(opt_token<error_code&> tk = {});
 	void wait(opt_token<error_code&> tk = {});

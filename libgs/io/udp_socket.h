@@ -88,7 +88,7 @@ public:
 	address_vector dns(string_wrapper domain, opt_token<error_code&> tk) override;
 
 public:
-	size_t read(buffer<void*> buf, read_token<error_code&> tk) override;
+	size_t read(buffer<void*> buf, opt_token<read_condition,error_code&>> tk) override;
 	size_t write(buffer<const void*> buf, opt_token<error_code&> tk) override;
 
 public:

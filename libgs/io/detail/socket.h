@@ -33,7 +33,7 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
-void basic_socket<Exec>::async_connect(host_endpoint ep, opt_cb_token<error_code> tk) noexcept
+void basic_socket<Exec>::async_connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -120,7 +120,7 @@ void basic_socket<Exec>::connect(host_endpoint ep, opt_token<error_code&> tk)
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::async_connect(ip_endpoint ep, opt_cb_token<error_code> tk) noexcept
+void basic_socket<Exec>::async_connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -252,7 +252,7 @@ void basic_socket<Exec>::get_option(socket_option op) const
 }
 
 template <concept_execution Exec>
-void basic_socket<Exec>::async_dns(string_wrapper domain, opt_cb_token<address_vector,error_code> tk) noexcept
+void basic_socket<Exec>::async_dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), domain = std::move(domain), tk = std::move(tk)]() -> awaitable<void>
