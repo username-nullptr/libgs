@@ -83,8 +83,7 @@ public:
 	void async_read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> co_read(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
-	size_t read(buffer<void*> buf, opt_token<read_condition,error_code&> tk);
-	size_t read(buffer<void*> buf);
+	size_t read(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
 
 	void async_read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
 	void async_read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
@@ -243,17 +242,425 @@ public:
 	}
 
 public:
-	[[nodiscard]] size_t read_length_mode(error_code &error, void *buf, size_t size)
+	[[nodiscard]] awaitable<size_t> co_read_length_mode(void *buf, size_t size, opt_token<error_code&> tk = {})
 	{
+		auto &tplen = get<std::size_t>(m_rb_context);
+		if( size > tplen )
+			size = tplen;
 
+		std::size_t sum = 0;
+		if( size > m_datagram.partial_body.size() )
+		{
+			if( not m_datagram.partial_body.empty() )
+			{
+				memcpy(buf, m_datagram.partial_body.c_str(), m_datagram.partial_body.size());
+				tplen -= m_datagram.partial_body.size();
+				size -= m_datagram.partial_body.size();
+
+				sum += m_datagram.partial_body.size();
+				m_datagram.partial_body.clear();
+			}
+			char *cbuf = reinterpret_cast<char*>(buf) + sum;
+			while( tplen > 0 and size > 0 )
+			{
+				auto res = co_await m_socket->co_read({cbuf, size}, tk);
+
+				cbuf += res;
+				sum += res;
+
+				size -= res;
+				tplen -= res;
+
+				if( not tk.error or not *tk.error )
+					continue;
+				else if( res > 0 )
+					*tk.error = std::error_code();
+				else
+				{
+					if( sum > 0 )
+						*tk.error = std::error_code();
+					break;
+				}
+			}
+		}
+		else
+		{
+			memcpy(buf, m_datagram.partial_body.c_str(), size);
+			m_datagram.partial_body.erase(0,size);
+			tplen -= size;
+			sum = size;
+		}
+		if( tplen == 0 )
+		{
+			m_rb_status = rb_status::finished;
+			if( tk.error )
+				*tk.error = std::error_code();
+		}
+		co_return sum;
 	}
 
-	[[nodiscard]] size_t read_chunked_mode(error_code &error, void *buf, size_t size)
+	[[nodiscard]] size_t read_length_mode(void *buf, size_t size, opt_token<error_code&> tk = {})
 	{
+		auto &tplen = get<std::size_t>(m_rb_context);
+		if( size > tplen )
+			size = tplen;
 
+		std::size_t sum = 0;
+		if( size > m_datagram.partial_body.size() )
+		{
+			if( not m_datagram.partial_body.empty() )
+			{
+				memcpy(buf, m_datagram.partial_body.c_str(), m_datagram.partial_body.size());
+				tplen -= m_datagram.partial_body.size();
+				size -= m_datagram.partial_body.size();
+
+				sum += m_datagram.partial_body.size();
+				m_datagram.partial_body.clear();
+			}
+			char *cbuf = reinterpret_cast<char*>(buf) + sum;
+			while( tplen > 0 and size > 0 )
+			{
+				auto res = m_socket->read({cbuf, size}, tk);
+
+				cbuf += res;
+				sum += res;
+
+				size -= res;
+				tplen -= res;
+
+				if( not tk.error or not *tk.error )
+					continue;
+				else if( res > 0 )
+					*tk.error = std::error_code();
+				else
+				{
+					if( sum > 0 )
+						*tk.error = std::error_code();
+					break;
+				}
+			}
+		}
+		else
+		{
+			memcpy(buf, m_datagram.partial_body.c_str(), size);
+			m_datagram.partial_body.erase(0,size);
+			tplen -= size;
+			sum = size;
+		}
+		if( tplen == 0 )
+		{
+			m_rb_status = rb_status::finished;
+			if( tk.error )
+				*tk.error = std::error_code();
+		}
+		return sum;
 	}
 
-	[[nodiscard]] size_t device_buffer_size() const
+public:
+	[[nodiscard]] awaitable<size_t> co_read_chunked_mode(void *buf, size_t size, opt_token<error_code&> tk = {})
+	{
+		if( size <= m_datagram.partial_body.size() )
+		{
+			memcpy(buf, m_datagram.partial_body.c_str(), size);
+			m_datagram.partial_body.erase(0,size);
+			co_return size;
+		}
+		std::size_t sum = 0;
+		memcpy(buf, m_datagram.partial_body.c_str(), m_datagram.partial_body.size());
+
+		size -= m_datagram.partial_body.size();
+		sum += m_datagram.partial_body.size();
+		m_datagram.partial_body.clear();
+
+		if( m_rb_status == rb_status::chunked_end )
+		{
+			m_rb_status = rb_status::finished;
+			co_return sum;
+		}
+		auto &abuf = get<std::string>(m_rb_context);
+		if( abuf.empty() )
+		{
+			auto tcp_size = io_buffer_size();
+			char *tmp_buf = new char[tcp_size] {0};
+
+			auto res = co_await m_socket->co_read({tmp_buf, tcp_size}, tk);
+			abuf.append(tmp_buf, res);
+			delete[] tmp_buf;
+
+			if( tk.error and *tk.error )
+			{
+				if( res > 0 )
+					*tk.error = std::error_code();
+				else
+				{
+					if( sum > 0 )
+						*tk.error = std::error_code();
+					co_return sum;
+				}
+			}
+		}
+		std::size_t _size = 0;
+		auto lambda_reset = [&]
+		{
+			m_rb_status = rb_status::finished;
+			auto ec = std::make_error_code(std::errc::wrong_protocol_type);
+			if( tk.error )
+				*tk.error = ec;
+			else
+				throw system_error(ec, "libgs::http::request: read_chunked_mode");
+		};
+		while( not abuf.empty() )
+		{
+			auto pos = abuf.find("\r\n");
+			if( pos == std::string::npos )
+			{
+				if( abuf.size() >= 1024 )
+				{
+					lambda_reset();
+					co_return 0;
+				}
+				break;
+			}
+			auto line_buf = abuf.substr(0, pos + 2);
+			abuf.erase(0, pos + 2);
+
+			if( m_rb_status == rb_status::wait_size )
+			{
+				line_buf.erase(pos);
+				pos = line_buf.find(';');
+				if( pos != std::string::npos )
+					line_buf.erase(pos);
+
+				if( line_buf.size() > 16 )
+				{
+					lambda_reset();
+					co_return 0;
+				}
+				try {
+					_size = static_cast<size_t>(std::stoull(line_buf, nullptr, 16));
+				}
+				catch(...)
+				{
+					lambda_reset();
+					co_return 0;
+				}
+				m_rb_status = _size == 0 ? rb_status::wait_headers : rb_status::wait_content;
+			}
+			else if( m_rb_status == rb_status::wait_content )
+			{
+				line_buf.erase(pos);
+				if( _size < line_buf.size() )
+					_size = line_buf.size();
+				else
+					m_rb_status = rb_status::wait_size;
+				m_datagram.partial_body += line_buf;
+			}
+			else if( m_rb_status == rb_status::wait_headers )
+			{
+				if( line_buf == "\r\n" )
+				{
+					m_rb_status = rb_status::chunked_end;
+					break;
+				}
+				auto colon_index = line_buf.find(':');
+				if( colon_index == std::string::npos )
+				{
+					lambda_reset();
+					co_return 0;
+				}
+				auto header_key = str_to_lower(str_trimmed(line_buf.substr(0, colon_index)));
+				auto header_value = from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1)));
+
+				if( header_key != "cookie" )
+				{
+					m_datagram.headers[header_key] = header_value;
+					continue;
+				}
+				auto list = string_list::from_string(header_value, ";");
+				for(auto &statement : list)
+				{
+					statement = str_trimmed(statement);
+					pos = statement.find('=');
+
+					if( pos == std::string::npos )
+					{
+						lambda_reset();
+						co_return 0;
+					}
+					header_key = str_trimmed(statement.substr(0,pos));
+					header_value = str_trimmed(statement.substr(pos+1));
+					m_datagram.cookies[header_key] = header_value;
+				}
+			}
+		}
+		if( size <= m_datagram.partial_body.size() )
+		{
+			memcpy(buf, m_datagram.partial_body.c_str(), size);
+			m_datagram.partial_body.erase(0,size);
+			co_return sum + size;
+		}
+		memcpy(buf, m_datagram.partial_body.c_str(), m_datagram.partial_body.size());
+		sum += m_datagram.partial_body.size();
+		m_datagram.partial_body.clear();
+
+		if( m_rb_status == rb_status::chunked_end )
+			m_rb_status = rb_status::finished;
+		co_return sum;
+	}
+
+	[[nodiscard]] size_t read_chunked_mode(void *buf, size_t size, opt_token<error_code&> tk = {})
+	{
+		if( size <= m_datagram.partial_body.size() )
+		{
+			memcpy(buf, m_datagram.partial_body.c_str(), size);
+			m_datagram.partial_body.erase(0,size);
+			return size;
+		}
+		std::size_t sum = 0;
+		memcpy(buf, m_datagram.partial_body.c_str(), m_datagram.partial_body.size());
+
+		size -= m_datagram.partial_body.size();
+		sum += m_datagram.partial_body.size();
+		m_datagram.partial_body.clear();
+
+		if( m_rb_status == rb_status::chunked_end )
+		{
+			m_rb_status = rb_status::finished;
+			return sum;
+		}
+		auto &abuf = get<std::string>(m_rb_context);
+		if( abuf.empty() )
+		{
+			auto tcp_size = io_buffer_size();
+			char *tmp_buf = new char[tcp_size] {0};
+
+			auto res = m_socket->read({tmp_buf, tcp_size}, tk);
+			abuf.append(tmp_buf, res);
+			delete[] tmp_buf;
+
+			if( tk.error and *tk.error )
+			{
+				if( res > 0 )
+					*tk.error = std::error_code();
+				else
+				{
+					if( sum > 0 )
+						*tk.error = std::error_code();
+					return sum;
+				}
+			}
+		}
+		std::size_t _size = 0;
+		auto lambda_reset = [&]
+		{
+			m_rb_status = rb_status::finished;
+			auto ec = std::make_error_code(std::errc::wrong_protocol_type);
+			if( tk.error )
+				*tk.error = ec;
+			else
+				throw system_error(ec, "libgs::http::request: read_chunked_mode");
+		};
+		while( not abuf.empty() )
+		{
+			auto pos = abuf.find("\r\n");
+			if( pos == std::string::npos )
+			{
+				if( abuf.size() >= 1024 )
+				{
+					lambda_reset();
+					return 0;
+				}
+				break;
+			}
+			auto line_buf = abuf.substr(0, pos + 2);
+			abuf.erase(0, pos + 2);
+
+			if( m_rb_status == rb_status::wait_size )
+			{
+				line_buf.erase(pos);
+				pos = line_buf.find(';');
+				if( pos != std::string::npos )
+					line_buf.erase(pos);
+
+				if( line_buf.size() > 16 )
+				{
+					lambda_reset();
+					return 0;
+				}
+				try {
+					_size = static_cast<size_t>(std::stoull(line_buf, nullptr, 16));
+				}
+				catch(...)
+				{
+					lambda_reset();
+					return 0;
+				}
+				m_rb_status = _size == 0 ? rb_status::wait_headers : rb_status::wait_content;
+			}
+			else if( m_rb_status == rb_status::wait_content )
+			{
+				line_buf.erase(pos);
+				if( _size < line_buf.size() )
+					_size = line_buf.size();
+				else
+					m_rb_status = rb_status::wait_size;
+				m_datagram.partial_body += line_buf;
+			}
+			else if( m_rb_status == rb_status::wait_headers )
+			{
+				if( line_buf == "\r\n" )
+				{
+					m_rb_status = rb_status::chunked_end;
+					break;
+				}
+				auto colon_index = line_buf.find(':');
+				if( colon_index == std::string::npos )
+				{
+					lambda_reset();
+					return 0;
+				}
+				auto header_key = str_to_lower(str_trimmed(line_buf.substr(0, colon_index)));
+				auto header_value = from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1)));
+
+				if( header_key != "cookie" )
+				{
+					m_datagram.headers[header_key] = header_value;
+					continue;
+				}
+				auto list = string_list::from_string(header_value, ";");
+				for(auto &statement : list)
+				{
+					statement = str_trimmed(statement);
+					pos = statement.find('=');
+
+					if( pos == std::string::npos )
+					{
+						lambda_reset();
+						return 0;
+					}
+					header_key = str_trimmed(statement.substr(0,pos));
+					header_value = str_trimmed(statement.substr(pos+1));
+					m_datagram.cookies[header_key] = header_value;
+				}
+			}
+		}
+		if( size <= m_datagram.partial_body.size() )
+		{
+			memcpy(buf, m_datagram.partial_body.c_str(), size);
+			m_datagram.partial_body.erase(0,size);
+			return sum + size;
+		}
+		memcpy(buf, m_datagram.partial_body.c_str(), m_datagram.partial_body.size());
+		sum += m_datagram.partial_body.size();
+		m_datagram.partial_body.clear();
+
+		if( m_rb_status == rb_status::chunked_end )
+			m_rb_status = rb_status::finished;
+		return sum;
+	}
+
+public:
+	[[nodiscard]] size_t io_buffer_size() const
 	{
 		asio::ip::tcp::socket::send_buffer_size attr;
 		m_socket->get_option(attr);
@@ -362,19 +769,27 @@ void basic_server_request<CharT,Exec>::async_read(buffer<void*> buf, opt_token<r
 template <concept_char_type CharT, concept_execution Exec>
 awaitable<size_t> basic_server_request<CharT,Exec>::co_read(buffer<void*> buf, opt_token<read_condition,error_code&> tk)
 {
+	using rb_stat = impl::rb_status;
+	if( buf.size == 0 or m_impl->m_rb_status == rb_stat::finished )
+		co_return 0;
 
+	else if( m_impl->m_rb_status == rb_stat::length )
+		co_return co_await m_impl->co_read_length_mode(buf.data, buf.size, tk);
+
+	co_return co_await m_impl->co_read_chunked_mode(buf.data, buf.size, tk);
 }
 
 template <concept_char_type CharT, concept_execution Exec>
 size_t basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_token<read_condition,error_code&> tk)
 {
+	using rb_stat = impl::rb_status;
+	if( buf.size == 0 or m_impl->m_rb_status == rb_stat::finished )
+		return 0;
 
-}
+	else if( m_impl->m_rb_status == rb_stat::length )
+		return m_impl->read_length_mode(buf.data, buf.size, tk);
 
-template <concept_char_type CharT, concept_execution Exec>
-size_t basic_server_request<CharT,Exec>::read(buffer<void*> buf)
-{
-
+	return m_impl->read_chunked_mode(buf.data, buf.size, tk);
 }
 
 template <concept_char_type CharT, concept_execution Exec>

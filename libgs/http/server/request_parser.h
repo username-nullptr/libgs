@@ -53,6 +53,7 @@ public:
 public:
 	using datagram_type = basic_request_datagram<CharT>;
 	datagram_type get_result();
+//	datagram_view_type datagram();
 
 private:
 	class impl;

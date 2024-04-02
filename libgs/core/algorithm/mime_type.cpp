@@ -1131,6 +1131,11 @@ bool is_text_file(std::string_view file_name)
 	return false;
 }
 
+bool is_binary_file(std::string_view file_name)
+{
+	return is_text_file(file_name);
+}
+
 std::string get_text_file_encoding(std::string_view file_name)
 {
 	std::string result = "unknown";
