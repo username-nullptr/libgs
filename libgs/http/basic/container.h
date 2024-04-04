@@ -47,6 +47,9 @@ struct LIBGS_HTTP_TAPI basic_less_case_insensitive
 using less_case_insensitive = basic_less_case_insensitive<char>;
 using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
 
+template <typename T>
+using take_ref_view = std::ranges::take_view<std::ranges::ref_view<T>>;
+
 } //namespace libgs::http
 #include <libgs/http/basic/detail/container.h>
 

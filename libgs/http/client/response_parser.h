@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
 #define LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
 
-#include <libgs/http/client/response_datagram.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
@@ -51,8 +51,6 @@ public:
 	bool operator<<(std::string_view buf);
 
 public:
-	using datagram_type = basic_response_datagram<CharT>;
-	datagram_type get_result();
 
 protected:
 };

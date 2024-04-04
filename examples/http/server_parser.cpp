@@ -2,35 +2,37 @@
 #include <libgs/io/tcp_server.h>
 #include <libgs/core/log.h>
 
-libgs::awaitable<void> service(libgs::http::request_parser &parser, libgs::io::socket_ptr socket, libgs::io::ip_endpoint ep)
+using namespace std::chrono_literals;
+
+libgs::awaitable<void> service(libgs::io::socket_ptr socket, libgs::io::ip_endpoint ep)
 {
+	libgs::http::request_parser parser;
 	try {
 		char rbuf[4096] = "";
 		for(;;)
 		{
-			auto res = co_await socket->co_read({rbuf,4096});
+			auto res = co_await socket->co_read({rbuf,4096}, 5s);
 			if( res == 0 )
 				break;
 
-			if( not parser.append({rbuf,res}) )
+			if( not parser.append({rbuf,res}) or parser.can_read_body() )
 				continue;
-			auto datagram = parser.get_result();
 
 			libgs_log_debug("Version:{} - Method:{} - Path:{}",
-							datagram.version,
-							libgs::http::to_method_string(datagram.method),
-							datagram.path);
+							parser.version(),
+							libgs::http::to_method_string(parser.method()),
+							parser.path());
 
-			for(auto &[key,value] : datagram.parameters)
+			for(auto &[key,value] : parser.parameters())
 				libgs_log_debug("Parameter: {}: {}", key, value);
 
-			for(auto &[key,value] : datagram.headers)
+			for(auto &[key,value] : parser.headers())
 				libgs_log_debug("Header: {}: {}", key, value);
 
-			for(auto &[key,value] : datagram.cookies)
+			for(auto &[key,value] : parser.cookies())
 				libgs_log_debug("Cookie: {}: {}", key, value);
 
-			libgs_log_debug("partial_body: {}", datagram.partial_body);
+			libgs_log_debug("partial_body: {}\n", parser.take_partial_body());
 
 			auto wbuf = std::format("HTTP/1.1 200 OK\r\n"
 									"{}:close\r\n"
@@ -55,7 +57,6 @@ int main()
 {
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
-		libgs::http::request_parser parser;
 		libgs::io::tcp_server server;
 		try {
 			server.bind({libgs::io::address_v4(),22222});
@@ -65,7 +66,7 @@ int main()
 				auto ep = socket->remote_endpoint();
 
 				libgs_log_debug("new connction: {}", ep);
-				libgs::co_spawn_detached(service(parser, std::move(socket), std::move(ep)), server.pool());
+				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)), server.pool());
 			}
 		}
 		catch(std::exception &ex)

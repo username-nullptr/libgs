@@ -236,27 +236,10 @@ using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
 template <concept_char_type CharT>
-using basic_parameters_view = decltype (
-	std::declval<basic_parameters<CharT>>() |
-	std::views::take (
-		std::declval<basic_parameters<CharT>>().size()
-	)
-);
+using basic_parameters_view = take_ref_view<basic_parameters<CharT>>;
 
 using parameters_view = basic_parameters_view<char>;
 using wparameters_view = basic_parameters_view<wchar_t>;
-
-template <concept_char_type CharT>
-struct LIBGS_HTTP_TAPI basic_datagram
-{
-	using str_type = std::basic_string<CharT>;
-	using headers_type = basic_headers<CharT>;
-	using headers_view_type = basic_headers_view<CharT>;
-
-	str_type version;
-	headers_type headers;
-	std::string partial_body;
-};
 
 } //namespace libgs::http
 #include <libgs/http/basic/detail/types.h>

@@ -13,7 +13,6 @@ set(http_headers
 	basic/header.h
 	basic/types.h
 	basic/opt_token.h
-	server/request_datagram.h
 	server/request.h
 	server/request_parser.h
 	server/response_helper.h

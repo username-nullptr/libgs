@@ -34,19 +34,25 @@
 namespace libgs::http
 {
 
-#define LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(_type, ...) \
-	constexpr const _type *domain    = __VA_ARGS__##"Domain"; \
-	constexpr const _type *path      = __VA_ARGS__##"Path"; \
-	constexpr const _type *size      = __VA_ARGS__##"Size"; \
-	constexpr const _type *expires   = __VA_ARGS__##"Expires"; \
-	constexpr const _type *max_age   = __VA_ARGS__##"Max-Age"; \
-	constexpr const _type *http_only = __VA_ARGS__##"HttpOnly"; \
-	constexpr const _type *secure    = __VA_ARGS__##"Secure"; \
-	constexpr const _type *same_site = __VA_ARGS__##"SameSite"; \
-	constexpr const _type *priority  = __VA_ARGS__##"Priority"
+template <concept_char_type CharT>
+struct basic_cookie_attribute;
 
-namespace cookie_attribute { LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(char); };
-namespace wcookie_attribute { LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(wchar_t,L); };
+#define LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(_type, ...) \
+	static constexpr const _type *domain    = __VA_ARGS__##"Domain"; \
+	static constexpr const _type *path      = __VA_ARGS__##"Path"; \
+	static constexpr const _type *size      = __VA_ARGS__##"Size"; \
+	static constexpr const _type *expires   = __VA_ARGS__##"Expires"; \
+	static constexpr const _type *max_age   = __VA_ARGS__##"Max-Age"; \
+	static constexpr const _type *http_only = __VA_ARGS__##"HttpOnly"; \
+	static constexpr const _type *secure    = __VA_ARGS__##"Secure"; \
+	static constexpr const _type *same_site = __VA_ARGS__##"SameSite"; \
+	static constexpr const _type *priority  = __VA_ARGS__##"Priority"
+
+template <> struct basic_cookie_attribute<char> { LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(char); };
+template <> struct basic_cookie_attribute<wchar_t> { LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(wchar_t,L); };
+
+using cookie_attribute = basic_cookie_attribute<char>;
+using wcookie_attribute = basic_cookie_attribute<wchar_t>;
 
 template <concept_char_type CharT>
 using basic_cookie_attributes = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
@@ -172,18 +178,25 @@ using cookie = basic_cookie<char>;
 using wcookie = basic_cookie<wchar_t>;
 
 template <concept_char_type CharT>
+using basic_cookie_values = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
+
+using cookie_values = basic_cookie_values<char>;
+using wcookie_values = basic_cookie_values<wchar_t>;
+
+template <concept_char_type CharT>
+using basic_cookie_values_view = take_ref_view<basic_cookie_values<CharT>>;
+
+using cookie_values_view = basic_cookie_values_view<char>;
+using wcookie_values_view = basic_cookie_values_view<wchar_t>;
+
+template <concept_char_type CharT>
 using basic_cookies = std::map<std::basic_string<CharT>, basic_cookie<CharT>, less_case_insensitive>;
 
 using cookies = basic_cookies<char>;
 using wcookies = basic_cookies<wchar_t>;
 
 template <concept_char_type CharT>
-using basic_cookies_view = decltype (
-	std::declval<basic_cookies<CharT>>() |
-	std::views::take (
-		std::declval<basic_cookies<CharT>>().size()
-	)
-);
+using basic_cookies_view = take_ref_view<basic_cookies<CharT>>;
 
 using cookies_view = basic_cookies_view<char>;
 using wcookies_view = basic_cookies_view<wchar_t>;
