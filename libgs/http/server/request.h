@@ -39,11 +39,12 @@ namespace libgs::http
 template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server_request : public io::device_base<Exec>
 {
-	LIBGS_DISABLE_COPY(basic_server_request)
+	LIBGS_DISABLE_COPY_MOVE(basic_server_request)
 	using base_type = io::device_base<Exec>;
 
 public:
-	using executor_type = Exec;
+	using executor_type = typename base_type::executor_type;
+	using socket_ptr = io::basic_socket_ptr<Exec>;
 	using parser_type = basic_request_parser<CharT>;
 
 	using str_type = typename parser_type::str_type;
@@ -57,9 +58,8 @@ public:
 	using buffer = io::buffer<T>;
 
 public:
-	basic_server_request(io::basic_socket_ptr<Exec> socket, parser_type &parser);
-	basic_server_request(basic_server_request &&other) noexcept;
-	basic_server_request &operator=(basic_server_request &&other) noexcept;
+	basic_server_request(socket_ptr socket, parser_type &parser);
+	~basic_server_request() override;
 
 public:
 	[[nodiscard]] http::method method() const noexcept;
@@ -117,6 +117,7 @@ public:
 public:
 	[[nodiscard]] io::ip_endpoint remote_endpoint() const;
 	[[nodiscard]] io::ip_endpoint local_endpoint() const;
+	void cancel() noexcept override;
 
 private:
 	class impl;
@@ -125,6 +126,12 @@ private:
 
 using server_request = basic_server_request<char>;
 using server_wrequest = basic_server_request<wchar_t>;
+
+template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
+using basic_server_request_ptr = std::shared_ptr<basic_server_request<CharT,Exec>>;
+
+using server_request_ptr = std::shared_ptr<basic_server_request<char>>;
+using server_wrequest_ptr = std::shared_ptr<basic_server_request<char>>;
 
 } //namespace libgs::http
 
@@ -142,7 +149,6 @@ public:
 	template <typename Socket>
 	impl(Socket &&socket, parser_type &parser) :
 		m_socket(std::forward<Socket>(socket)), m_parser(parser) {}
-	impl() = default;
 
 public:
 
@@ -156,7 +162,7 @@ public:
 	}
 
 public:
-	io::basic_socket_ptr<Exec> m_socket;
+	socket_ptr m_socket;
 	parser_type &m_parser;
 };
 
@@ -168,19 +174,9 @@ basic_server_request<CharT,Exec>::basic_server_request(io::basic_socket_ptr<Exec
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server_request<CharT,Exec>::basic_server_request(basic_server_request &&other) noexcept :
-	base_type(std::move(other)), m_impl(other.m_impl)
+basic_server_request<CharT,Exec>::~basic_server_request()
 {
-	other.m_impl = new impl();
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_request<CharT,Exec> &basic_server_request<CharT,Exec>::operator=(basic_server_request &&other) noexcept
-{
-	base_type::operator=(std::move(other));
-	m_impl = other.m_impl;
-	other.m_impl = new impl();
-	return *this;
+	delete m_impl;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
@@ -433,6 +429,12 @@ template <concept_char_type CharT, concept_execution Exec>
 io::ip_endpoint basic_server_request<CharT,Exec>::local_endpoint() const
 {
 	return m_impl->m_socket->local_endpoint();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+void basic_server_request<CharT,Exec>::cancel() noexcept
+{
+	m_impl->m_socket->cancel();
 }
 
 } //namespace libgs::http

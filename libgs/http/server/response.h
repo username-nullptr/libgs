@@ -30,17 +30,27 @@
 #define LIBGS_HTTP_SERVER_RESPONSE_H
 
 #include <libgs/http/basic/types.h>
+#include <libgs/io/device_base.h>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-class LIBGS_HTTP_VAPI basic_server_response
+template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
+class LIBGS_HTTP_VAPI basic_server_response : public io::device_base<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_server_response)
 
 public:
 };
+
+using server_response = basic_server_response<char>;
+using server_wresponse = basic_server_response<wchar_t>;
+
+template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
+using basic_server_response_ptr = std::shared_ptr<basic_server_response<CharT,Exec>>;
+
+using server_response_ptr = std::shared_ptr<basic_server_response<char>>;
+using server_wresponse_ptr = std::shared_ptr<basic_server_response<char>>;
 
 } //namespace libgs::http
 

@@ -59,6 +59,16 @@ public:
 	using asio_acceptor = asio_basic_tcp_acceptor<Exec>;
 	using asio_acceptor_ptr = asio_basic_tcp_acceptor_ptr<Exec>;
 
+	struct bind_token
+	{
+		bind_token(size_t max, error_code &error);
+		bind_token(error_code &error);
+		bind_token() = default;
+
+		size_t max = asio::socket_base::max_listen_connections;
+		error_code *error = nullptr;
+	};
+
 public:
 	explicit basic_tcp_server(size_t tcount = std::thread::hardware_concurrency() << 1);
 
@@ -72,13 +82,7 @@ public:
 	~basic_tcp_server() override;
 
 public:
-	void bind(ip_endpoint ep, error_code &error, size_t max = asio::socket_base::max_listen_connections) noexcept;
-	void bind(ip_endpoint ep, size_t max = asio::socket_base::max_listen_connections);
-
-	awaitable<void> co_cancel() noexcept;
-	void cancel() noexcept override;
-
-public:
+	void bind(ip_endpoint ep, bind_token tk = {});
 	void async_accept(opt_token<callback_t<tcp_socket_ptr,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<tcp_socket_ptr> co_accept(opt_token<error_code&> tk = {});
 	tcp_socket_ptr accept(opt_token<error_code&> tk = {});
@@ -93,6 +97,10 @@ public:
 public:
 	awaitable<void> co_wait() noexcept;
 	void wait() noexcept;
+
+	awaitable<void> co_cancel() noexcept;
+	void cancel() noexcept override;
+
 	asio::thread_pool &pool();
 
 protected:

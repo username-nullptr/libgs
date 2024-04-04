@@ -59,6 +59,20 @@ private:
 };
 
 template <concept_execution Exec>
+basic_tcp_server<Exec>::bind_token::bind_token(size_t max, error_code &error) :
+	max(max), error(&error)
+{
+
+}
+
+template <concept_execution Exec>
+basic_tcp_server<Exec>::bind_token::bind_token(error_code &error) :
+	error(&error)
+{
+
+}
+
+template <concept_execution Exec>
 basic_tcp_server<Exec>::basic_tcp_server(size_t tcount) :
 	base_type(execution::io_context().get_executor()),
 	m_acceptor(new asio_acceptor(execution::io_context())),
@@ -105,54 +119,45 @@ basic_tcp_server<Exec>::~basic_tcp_server()
 }
 
 template <concept_execution Exec>
-void basic_tcp_server<Exec>::bind(ip_endpoint ep, error_code &error, size_t max) noexcept
+void basic_tcp_server<Exec>::bind(ip_endpoint ep, bind_token tk)
 {
+	error_code error;
 	auto &apr = acceptor();
+
+	if( tk.error )
+		*tk.error = error;
+
+	auto lambda_error = [&]()
+	{
+		if( tk.error )
+		{
+			*tk.error = error;
+			return ;
+		}
+		else
+			throw system_error(error, "libgs::io::tcp_server::bind");
+	};
 	if( not apr.is_open() )
 	{
 		if( ep.addr.is_v4() )
 			apr.open(asio::ip::tcp::v4(), error);
 		else
 			apr.open(asio::ip::tcp::v6(), error);
+
 		if( error )
-			return ;
+			return lambda_error();
 	}
 	apr.set_option(asio_tcp_acceptor::reuse_address(true), error);
 	if( error )
-		return;
+		return lambda_error();
 
 	apr.bind({std::move(ep.addr), ep.port}, error);
-	if( not error )
-		apr.listen(static_cast<int>(max), error);
-}
-
-template <concept_execution Exec>
-void basic_tcp_server<Exec>::bind(ip_endpoint ep, size_t max)
-{
-	error_code error;
-	bind(std::move(ep), error, max);
-
 	if( error )
-		throw system_error(error, "libgs::io::tcp_server::bind");
-}
+		return lambda_error();
 
-template <concept_execution Exec>
-awaitable<void> basic_tcp_server<Exec>::co_cancel() noexcept
-{
-	return co_thread([this]{cancel();});
-}
-
-template <concept_execution Exec>
-void basic_tcp_server<Exec>::cancel() noexcept
-{
-	error_code error;
-	acceptor().cancel(error);
-	acceptor().close(error);
-
-	auto sock_set = std::move(m_sock_set);
-	for(auto &sock : sock_set)
-		sock->close(error);
-	wait();
+	apr.listen(static_cast<int>(tk.max), error);
+	if( error )
+		lambda_error();
 }
 
 template <concept_execution Exec>
@@ -286,6 +291,25 @@ template <concept_execution Exec>
 void basic_tcp_server<Exec>::wait() noexcept
 {
 	m_pool.wait();
+}
+
+template <concept_execution Exec>
+awaitable<void> basic_tcp_server<Exec>::co_cancel() noexcept
+{
+	return co_thread([this]{cancel();});
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::cancel() noexcept
+{
+	error_code error;
+	acceptor().cancel(error);
+	acceptor().close(error);
+
+	auto sock_set = std::move(m_sock_set);
+	for(auto &sock : sock_set)
+		sock->close(error);
+	wait();
 }
 
 template <concept_execution Exec>
