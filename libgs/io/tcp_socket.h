@@ -97,6 +97,9 @@ public:
 	void set_option(const socket_option &op, error_code &error) noexcept override;
 	void get_option(socket_option op, error_code &error) const noexcept override;
 
+	void set_non_block(bool flag, error_code &error) noexcept override;
+	bool is_non_block() const noexcept override;
+
 public:
 	[[nodiscard]] const asio_socket &native_object() const;
 	[[nodiscard]] asio_socket &native_object();
@@ -112,6 +115,7 @@ public:
 	using base_type::shutdown;
 	using base_type::close;
 	using base_type::set_option;
+	using base_type::set_non_block;
 
 protected:
 	[[nodiscard]] awaitable<error_code> do_connect(const ip_endpoint &ep) noexcept override;

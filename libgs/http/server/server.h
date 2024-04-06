@@ -54,7 +54,7 @@ public:
 	using tcp_server_type = io::basic_tcp_server<Exec>;
 	using tcp_server_ptr = io::basic_tcp_server_ptr<Exec>;
 
-	using bind_token = typename tcp_server_type::bind_token;
+	using start_token = typename tcp_server_type::start_token;
 	using tcp_socket_ptr = io::tcp_socket_ptr;
 
 	using asio_acceptor = asio_basic_tcp_acceptor<Exec>;
@@ -73,7 +73,10 @@ public:
 	~basic_server() override;
 
 public:
-	void bind(io::ip_endpoint ep, bind_token tk = {});
+	void bind(io::ip_endpoint ep, opt_token<error_code&> tk = {});
+	void start(start_token tk = {});
+
+public:
 	void async_accept(opt_token<callback_t<request_ptr,response_ptr,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<bool> co_accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk = {});
 	bool accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk = {});
@@ -82,6 +85,9 @@ public:
 public:
 	awaitable<void> co_cancel() noexcept;
 	void cancel() noexcept override;
+
+	void set_non_block(bool flag, error_code &error) noexcept override;
+	bool is_non_block() const noexcept override;
 
 public:
 	[[nodiscard]] const tcp_server_type &native_object() const;
@@ -117,17 +123,67 @@ public:
 		impl(std::make_shared<tcp_handle_type>(std::forward<Args>(args)...)) {}
 
 	explicit impl(tcp_server_ptr &&tcp_server) :
-		m_tcp_server(std::move(tcp_server))
+		m_tcp_server(std::move(tcp_server)) {}
+
+public:
+	void async_start() noexcept
 	{
-		co_spawn_detached([]() -> awaitable<void>
+		if( m_core_run )
+			return ;
+		m_core_run = true;
+
+		co_spawn_detached([this]() -> awaitable<void>
 		{
-			// TODO ...
+			try { co_await do_tcp_accept(); }
+			catch(...) {}
+			m_core_run = false;
+			co_return ;
 		});
+	}
+
+private:
+	awaitable<void> do_tcp_accept()
+	{
+		for(;;)
+		{
+			auto socket = co_await m_tcp_server->co_accept();
+			libgs::co_spawn_detached([this, socket = std::move(socket)]() -> awaitable<void>
+			{
+				try { do_tcp_service(std::move(socket)); }
+				catch(...) {}
+			},
+			m_tcp_server.pool());
+		}
+		co_return ;
+	}
+
+	awaitable<void> do_tcp_service(io::tcp_socket_ptr socket)
+	{
+		libgs::http::request_parser parser;
+		char rbuf[65536] = {0};
+		for(;;)
+		{
+			auto res = co_await socket->co_read({rbuf, 65536}, m_keepalive_timeout);
+			if( res == 0 )
+				break;
+
+			if( not parser.append({rbuf, res}) or parser.can_read_body() )
+				continue;
+
+			m_request_queue.emplace(socket, parser);
+			// TODO ...
+		}
+		co_return ;
 	}
 
 public:
 	tcp_server_ptr m_tcp_server;
+
 	lock_free_queue<request_ptr> m_request_queue;
+	lock_free_queue<std::function<void()>> m_callback_queue;
+
+	std::chrono::milliseconds m_keepalive_timeout {5000};
+	std::atomic_bool m_core_run {false};
 };
 
 template <concept_char_type CharT, concept_execution Exec>
@@ -174,9 +230,15 @@ basic_server<CharT,Exec>::~basic_server()
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server<CharT,Exec>::bind(io::ip_endpoint ep, bind_token tk)
+void basic_server<CharT,Exec>::bind(io::ip_endpoint ep, opt_token<error_code&> tk)
 {
-	m_impl->m_tcp_server.bind(std::move(ep), std::move(tk));
+	m_impl->m_tcp_server.bind(std::move(ep), tk);
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+void basic_server<CharT,Exec>::start(start_token tk)
+{
+	m_impl->async_start();
 }
 
 template <concept_char_type CharT, concept_execution Exec>
@@ -188,16 +250,7 @@ void basic_server<CharT,Exec>::async_accept(opt_token<callback_t<request_ptr,res
 template <concept_char_type CharT, concept_execution Exec>
 awaitable<bool> basic_server<CharT,Exec>::co_accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk)
 {
-	auto co_tcp_server_accept = [&]() -> awaitable<bool>
-	{
-		auto socket_ptr = co_await m_impl->m_tcp_server.co_accept();
 
-
-
-		co_return true;
-	};
-	co_await (co_tcp_server_accept() or tk.rtime);
-	co_return true;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
@@ -230,6 +283,28 @@ template <concept_char_type CharT, concept_execution Exec>
 void basic_server<CharT,Exec>::cancel() noexcept
 {
 	m_impl->m_tcp_server->cancel();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+void basic_server<CharT,Exec>::set_non_block(bool flag, error_code &error) noexcept
+{
+	if( flag )
+	{
+		if( m_impl->m_core_run )
+			error = error_code();
+		else
+			m_impl->m_tcp_server->set_non_block(flag, error);
+	}
+	else if( m_impl->m_core_run )
+		error = std::make_error_code(std::errc::device_or_resource_busy);
+	else
+		m_impl->m_tcp_server->set_non_block(flag, error);
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+bool basic_server<CharT,Exec>::is_non_block() const noexcept
+{
+	return m_impl->m_tcp_server->is_non_block();
 }
 
 } //namespace libgs::http

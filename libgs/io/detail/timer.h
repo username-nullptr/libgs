@@ -199,6 +199,18 @@ bool basic_timer<Exec>::is_run() const
 	return m_run;
 }
 
+template <concept_execution Exec>
+void basic_timer<Exec>::set_non_block(bool, error_code &error) noexcept
+{
+	error = std::make_error_code(static_cast<std::errc>(errc::operation_not_supported));
+}
+
+template <concept_execution Exec>
+bool basic_timer<Exec>::is_non_block() const noexcept
+{
+	return true;
+}
+
 template <concept_execution Exec, typename...Args>
 basic_timer_ptr<Exec> make_basic_timer(Args&&...args)
 {

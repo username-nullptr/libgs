@@ -35,6 +35,25 @@ namespace libgs
 {
 
 template <concept_schedulable Exec>
+auto co_spawn(concept_awaitable_function auto &&func, Exec &exec)
+{
+	using Func = std::decay_t<decltype(func)>;
+	if constexpr( is_execution_context_v<Exec> )
+		return asio::co_spawn(exec.get_executor(), std::forward<Func>(func), asio::use_awaitable);
+	else
+		return asio::co_spawn(exec, std::forward<Func>(func), asio::use_awaitable);
+}
+
+template <typename T, concept_schedulable Exec>
+auto co_spawn(awaitable<T> &&a, Exec &exec)
+{
+	if constexpr( is_execution_context_v<Exec> )
+		return asio::co_spawn(exec.get_executor(), std::move(a), asio::use_awaitable);
+	else
+		return asio::co_spawn(exec, std::move(a), asio::use_awaitable);
+}
+
+template <concept_schedulable Exec>
 auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec)
 {
 	using Func = std::decay_t<decltype(func)>;

@@ -59,11 +59,11 @@ public:
 	using asio_acceptor = asio_basic_tcp_acceptor<Exec>;
 	using asio_acceptor_ptr = asio_basic_tcp_acceptor_ptr<Exec>;
 
-	struct bind_token
+	struct start_token
 	{
-		bind_token(size_t max, error_code &error);
-		bind_token(error_code &error);
-		bind_token() = default;
+		start_token(size_t max, error_code &error);
+		start_token(error_code &error);
+		start_token() = default;
 
 		size_t max = asio::socket_base::max_listen_connections;
 		error_code *error = nullptr;
@@ -82,7 +82,10 @@ public:
 	~basic_tcp_server() override;
 
 public:
-	void bind(ip_endpoint ep, bind_token tk = {});
+	void bind(ip_endpoint ep, opt_token<error_code&> tk = {});
+	void start(start_token tk = {});
+
+public:
 	void async_accept(opt_token<callback_t<tcp_socket_ptr,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<tcp_socket_ptr> co_accept(opt_token<error_code&> tk = {});
 	tcp_socket_ptr accept(opt_token<error_code&> tk = {});
@@ -93,6 +96,10 @@ public:
 
 	void get_option(auto &op, error_code &error);
 	void get_option(auto &op);
+
+	void set_non_block(bool flag, error_code &error) noexcept override;
+	bool is_non_block() const noexcept override;
+	using base_type::set_non_block;
 
 public:
 	awaitable<void> co_wait() noexcept;

@@ -59,14 +59,14 @@ private:
 };
 
 template <concept_execution Exec>
-basic_tcp_server<Exec>::bind_token::bind_token(size_t max, error_code &error) :
+basic_tcp_server<Exec>::start_token::start_token(size_t max, error_code &error) :
 	max(max), error(&error)
 {
 
 }
 
 template <concept_execution Exec>
-basic_tcp_server<Exec>::bind_token::bind_token(error_code &error) :
+basic_tcp_server<Exec>::start_token::start_token(error_code &error) :
 	error(&error)
 {
 
@@ -119,7 +119,7 @@ basic_tcp_server<Exec>::~basic_tcp_server()
 }
 
 template <concept_execution Exec>
-void basic_tcp_server<Exec>::bind(ip_endpoint ep, bind_token tk)
+void basic_tcp_server<Exec>::bind(ip_endpoint ep, opt_token<error_code&> tk)
 {
 	error_code error;
 	auto &apr = acceptor();
@@ -137,9 +137,9 @@ void basic_tcp_server<Exec>::bind(ip_endpoint ep, bind_token tk)
 		else
 			throw system_error(error, "libgs::io::tcp_server::bind");
 	};
-	if( not apr.is_open() )
+	if( not apr.is_open())
 	{
-		if( ep.addr.is_v4() )
+		if( ep.addr.is_v4())
 			apr.open(asio::ip::tcp::v4(), error);
 		else
 			apr.open(asio::ip::tcp::v6(), error);
@@ -154,10 +154,26 @@ void basic_tcp_server<Exec>::bind(ip_endpoint ep, bind_token tk)
 	apr.bind({std::move(ep.addr), ep.port}, error);
 	if( error )
 		return lambda_error();
+}
 
-	apr.listen(static_cast<int>(tk.max), error);
-	if( error )
-		lambda_error();
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::start(start_token tk)
+{
+	error_code error;
+	if( tk.error )
+		*tk.error = error;
+
+	acceptor().listen(static_cast<int>(tk.max), error);
+	if( not error )
+		return ;
+
+	if( tk.error )
+	{
+		*tk.error = error;
+		return ;
+	}
+	else
+		throw system_error(error, "libgs::io::tcp_server::start");
 }
 
 template <concept_execution Exec>
@@ -276,9 +292,20 @@ void basic_tcp_server<Exec>::get_option(auto &op)
 {
 	error_code error;
 	get_option(op, error);
-
 	if( error )
 		throw system_error(error, "libgs::io::tcp_server::get_option");
+}
+
+template <concept_execution Exec>
+void basic_tcp_server<Exec>::set_non_block(bool flag, error_code &error) noexcept
+{
+	acceptor().non_blocking(flag, error);
+}
+
+template <concept_execution Exec>
+bool basic_tcp_server<Exec>::is_non_block() const noexcept
+{
+	return acceptor().non_blocking();
 }
 
 template <concept_execution Exec>

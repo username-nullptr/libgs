@@ -89,6 +89,9 @@ public:
 	void cancel() noexcept override;
 	[[nodiscard]] bool is_run() const;
 
+	void set_non_block(bool flag, error_code &error) noexcept override;
+	bool is_non_block() const noexcept override;
+
 private:
 	asio_steady_timer m_timer;
 	std::atomic_bool m_run {false};

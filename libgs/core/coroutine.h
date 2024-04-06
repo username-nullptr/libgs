@@ -41,6 +41,12 @@ template <typename T>
 using awaitable = asio::awaitable<T>;
 
 template <concept_schedulable Exec = asio::io_context>
+LIBGS_CORE_TAPI auto co_spawn(concept_awaitable_function auto &&func, Exec &exec = execution::io_context());
+
+template <typename T, concept_schedulable Exec = asio::io_context>
+LIBGS_CORE_TAPI auto co_spawn(awaitable<T> &&a, Exec &exec = execution::io_context());
+
+template <concept_schedulable Exec = asio::io_context>
 LIBGS_CORE_TAPI auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec = execution::io_context());
 
 template <typename T, concept_schedulable Exec = asio::io_context>

@@ -274,6 +274,18 @@ void basic_tcp_socket<Exec>::get_option(socket_option op, error_code &error) con
 }
 
 template <concept_execution Exec>
+void basic_tcp_socket<Exec>::set_non_block(bool flag, error_code &error) noexcept
+{
+	native_object().non_blocking(flag, error);
+}
+
+template <concept_execution Exec>
+bool basic_tcp_socket<Exec>::is_non_block() const noexcept
+{
+	return native_object().non_blocking();
+}
+
+template <concept_execution Exec>
 const typename basic_tcp_socket<Exec>::asio_socket &basic_tcp_socket<Exec>::native_object() const
 {
 	return *reinterpret_cast<const asio_socket*>(m_sock);
