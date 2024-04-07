@@ -77,17 +77,18 @@ public:
 	void start(start_token tk = {});
 
 public:
-	void async_accept(opt_token<callback_t<request_ptr,response_ptr,error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<bool> co_accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk = {});
-	bool accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk = {});
+	void async_accept(opt_token<callback_t<request_ptr,error_code>> tk) noexcept;
+	void async_accept(opt_token<callback_t<request_ptr>> tk) noexcept;
 
+	[[nodiscard]] awaitable<request_ptr> co_accept(opt_token<error_code&> tk = {});
+	request_ptr accept(opt_token<error_code&> tk = {});
 
 public:
 	awaitable<void> co_cancel() noexcept;
 	void cancel() noexcept override;
 
 	void set_non_block(bool flag, error_code &error) noexcept override;
-	bool is_non_block() const noexcept override;
+	[[nodiscard]] bool is_non_block() const noexcept override;
 
 public:
 	[[nodiscard]] const tcp_server_type &native_object() const;
@@ -116,6 +117,8 @@ template <concept_char_type CharT, concept_execution Exec>
 class basic_server<CharT,Exec>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using request_queue = lock_free_queue<request_ptr>;
+	using callback_queue = lock_free_queue<callback_t<request_ptr,error_code>>;
 
 public:
 	template <typename...Args>
@@ -126,30 +129,41 @@ public:
 		m_tcp_server(std::move(tcp_server)) {}
 
 public:
-	void async_start() noexcept
+	void async_start(size_t max) noexcept
 	{
 		if( m_core_run )
 			return ;
 		m_core_run = true;
 
-		co_spawn_detached([this]() -> awaitable<void>
+		co_spawn_detached([this, max]() -> awaitable<void>
 		{
-			try { co_await do_tcp_accept(); }
+			try { co_await do_tcp_accept(max); }
 			catch(...) {}
+
+			co_await m_tcp_server->co_cancel();
 			m_core_run = false;
 			co_return ;
 		});
 	}
 
-private:
-	awaitable<void> do_tcp_accept()
+	request_ptr do_one_blocking(error_code &error) noexcept
 	{
+		auto socket = m_tcp_server->accept(error);
+		if( error )
+			return {};
+		return do_one_tcp_service(std::move(socket), error);
+	}
+
+private:
+	awaitable<void> do_tcp_accept(size_t max)
+	{
+		m_tcp_server->start(max);
 		for(;;)
 		{
 			auto socket = co_await m_tcp_server->co_accept();
 			libgs::co_spawn_detached([this, socket = std::move(socket)]() -> awaitable<void>
 			{
-				try { do_tcp_service(std::move(socket)); }
+				try { co_await do_tcp_service(std::move(socket)); }
 				catch(...) {}
 			},
 			m_tcp_server.pool());
@@ -160,27 +174,66 @@ private:
 	awaitable<void> do_tcp_service(io::tcp_socket_ptr socket)
 	{
 		libgs::http::request_parser parser;
-		char rbuf[65536] = {0};
+		error_code error;
+
+		char buf[65536] = {0};
 		for(;;)
 		{
-			auto res = co_await socket->co_read({rbuf, 65536}, m_keepalive_timeout);
-			if( res == 0 )
+			auto size = co_await socket->co_read({buf, 65536}, m_keepalive_timeout);
+			if( size == 0 )
 				break;
 
-			if( not parser.append({rbuf, res}) or parser.can_read_body() )
+			bool parse_res = parser.append({buf, size}, error);
+			if( error )
+			{
+				while( auto callback_opt = m_callback_queue.dequeue() )
+					(*callback_opt)(nullptr, error);
+				break;
+			}
+			else if( not parse_res )
 				continue;
 
 			m_request_queue.emplace(socket, parser);
-			// TODO ...
+			auto request_opt = m_request_queue.dequeue();
+
+			while( auto callback_opt = m_callback_queue.dequeue() )
+				(*callback_opt)(*request_opt, error_code());
 		}
 		co_return ;
 	}
 
+private:
+	request_ptr do_one_tcp_service(io::tcp_socket_ptr socket, error_code &error)
+	{
+		libgs::http::request_parser parser;
+		char buf[65536] = {0};
+		for(;;)
+		{
+			auto size = socket->read({buf, 65536}, error);
+			if( size == 0 )
+				break;
+
+			bool parse_res = parser.append({buf, size}, error);
+			if( error )
+			{
+				while( auto callback_opt = m_callback_queue.dequeue() )
+					(*callback_opt)(nullptr, error);
+				break;
+			}
+			else if( not parse_res )
+				continue;
+
+			m_request_queue.emplace(socket, parser);
+			return *m_request_queue.dequeue();
+		}
+		return {};
+	}
+
 public:
 	tcp_server_ptr m_tcp_server;
+	request_queue m_request_queue;
 
-	lock_free_queue<request_ptr> m_request_queue;
-	lock_free_queue<std::function<void()>> m_callback_queue;
+	callback_queue m_callback_queue;
 
 	std::chrono::milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_core_run {false};
@@ -238,50 +291,71 @@ void basic_server<CharT,Exec>::bind(io::ip_endpoint ep, opt_token<error_code&> t
 template <concept_char_type CharT, concept_execution Exec>
 void basic_server<CharT,Exec>::start(start_token tk)
 {
-	m_impl->async_start();
+	m_impl->async_start(tk.max);
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server<CharT,Exec>::async_accept(opt_token<callback_t<request_ptr,response_ptr,error_code>> tk) noexcept
+void basic_server<CharT,Exec>::async_accept(opt_token<callback_t<request_ptr,error_code>> tk) noexcept
+{
+	auto request_opt = m_impl->m_request_queue.dequeue();
+	if( not request_opt )
+	{
+		m_impl->m_callback_queue.emplace(std::move(tk.callback));
+		return ;
+	}
+	auto callback = std::move(tk.callback);
+	asio::post([callback = std::move(tk.callback)]{
+		callback(*request_opt, error_code());
+	});
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+void basic_server<CharT,Exec>::async_accept(opt_token<callback_t<request_ptr>> tk) noexcept
+{
+	auto callback = std::move(tk.callback);
+	async_accept([callback = std::move(tk.callback)](request_ptr request, const error_code&){
+		callback(std::move(request));
+	});
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+awaitable<basic_server_request_ptr<CharT,Exec>> basic_server<CharT,Exec>::co_accept(opt_token<error_code&> tk)
 {
 
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-awaitable<bool> basic_server<CharT,Exec>::co_accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk)
+basic_server_request_ptr<CharT,Exec> basic_server<CharT,Exec>::accept(opt_token<error_code&> tk)
 {
+	error_code error;
+	auto request = m_impl->do_one_blocking(error);
+	if( not error )
+		return request;
 
+	if( tk.error )
+		*tk.error = error;
+	else
+		throw system_error(error, "libgs::http::server::accept");
+	return request;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server<CharT,Exec>::accept(request_ptr &request, response_ptr &response, opt_token<error_code&> tk)
-{
 
-}
+
+
 
 
 
 template <concept_char_type CharT, concept_execution Exec>
 awaitable<void> basic_server<CharT,Exec>::co_cancel() noexcept
 {
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-const io::basic_tcp_server<Exec> &basic_server<CharT,Exec>::native_object() const
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-io::basic_tcp_server<Exec> &basic_server<CharT,Exec>::native_object()
-{
-
+	// TODO ...
+	co_await m_impl->m_tcp_server->co_cancel();
 }
 
 template <concept_char_type CharT, concept_execution Exec>
 void basic_server<CharT,Exec>::cancel() noexcept
 {
+	// TODO ...
 	m_impl->m_tcp_server->cancel();
 }
 
@@ -305,6 +379,18 @@ template <concept_char_type CharT, concept_execution Exec>
 bool basic_server<CharT,Exec>::is_non_block() const noexcept
 {
 	return m_impl->m_tcp_server->is_non_block();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+const io::basic_tcp_server<Exec> &basic_server<CharT,Exec>::native_object() const
+{
+	return *m_impl->m_tcp_server;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+io::basic_tcp_server<Exec> &basic_server<CharT,Exec>::native_object()
+{
+	return *m_impl->m_tcp_server;
 }
 
 } //namespace libgs::http

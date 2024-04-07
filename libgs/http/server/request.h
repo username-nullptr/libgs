@@ -72,39 +72,20 @@ public:
 	[[nodiscard]] cookies_view_type cookies() const noexcept;
 
 public:
-	void async_read(buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void async_read(buffer<void*> buf, opt_token<callback_t<size_t>> tk) noexcept;
-
 	[[nodiscard]] awaitable<size_t> co_read(buffer<void*> buf, opt_token<error_code&> tk = {});
 	size_t read(buffer<void*> buf, opt_token<error_code&> tk = {});
-
-	void async_read(buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void async_read(buffer<std::string&> buf, opt_token<callback_t<size_t>> tk) noexcept;
-	void async_read(buffer<std::string&> buf, opt_token<callback_t<error_code>> tk) noexcept;
-	void async_read(buffer<std::string&> buf, opt_token<callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> co_read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
 	size_t read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
 
 public:
-	void async_read_all(buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void async_read_all(buffer<void*> buf, opt_token<callback_t<size_t>> tk) noexcept;
-
 	[[nodiscard]] awaitable<size_t> co_read_all(buffer<void*> buf, opt_token<error_code&> tk = {});
 	size_t read_all(buffer<void*> buf, opt_token<error_code&> tk = {});
-
-	void async_read_all(std::string &buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void async_read_all(std::string &buf, opt_token<callback_t<size_t>> tk) noexcept;
-	void async_read_all(std::string &buf, opt_token<callback_t<error_code>> tk) noexcept;
-	void async_read_all(std::string &buf, opt_token<callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<std::string> co_read_all(opt_token<error_code&> tk = {});
 	std::string read_all(opt_token<error_code&> tk = {});
 
 public:
-	void async_save_file(const std::string &file_name, opt_token<begin_t,total_t,callback_t<size_t,error_code>> tk);
-	void async_save_file(const std::string &file_name, opt_token<begin_t,total_t,callback_t<size_t>> tk);
-
 	[[nodiscard]] awaitable<size_t> co_save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk = {});
 	size_t save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk = {});
 
@@ -216,18 +197,6 @@ typename basic_server_request<CharT,Exec>::cookies_view_type basic_server_reques
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read(buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read(buffer<void*> buf, opt_token<callback_t<size_t>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
 awaitable<size_t> basic_server_request<CharT,Exec>::co_read(buffer<void*> buf, opt_token<error_code&> tk)
 {
 	if( tk.error )
@@ -276,30 +245,6 @@ size_t basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_token<error
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read(buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read(buffer<std::string&> buf, opt_token<callback_t<size_t>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read(buffer<std::string&> buf, opt_token<callback_t<error_code>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read(buffer<std::string&> buf, opt_token<callback_t<>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
 awaitable<size_t> basic_server_request<CharT,Exec>::co_read(buffer<std::string&> buf, opt_token<error_code&> tk)
 {
 
@@ -307,18 +252,6 @@ awaitable<size_t> basic_server_request<CharT,Exec>::co_read(buffer<std::string&>
 
 template <concept_char_type CharT, concept_execution Exec>
 size_t basic_server_request<CharT,Exec>::read(buffer<std::string&> buf, opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read_all(buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read_all(buffer<void*> buf, opt_token<callback_t<size_t>> tk) noexcept
 {
 
 }
@@ -336,30 +269,6 @@ size_t basic_server_request<CharT,Exec>::read_all(buffer<void*> buf, opt_token<e
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read_all(std::string &buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read_all(std::string &buf, opt_token<callback_t<size_t>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read_all(std::string &buf, opt_token<callback_t<error_code>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_read_all(std::string &buf, opt_token<callback_t<>> tk) noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
 awaitable<std::string> basic_server_request<CharT,Exec>::co_read_all(opt_token<error_code&> tk)
 {
 
@@ -367,18 +276,6 @@ awaitable<std::string> basic_server_request<CharT,Exec>::co_read_all(opt_token<e
 
 template <concept_char_type CharT, concept_execution Exec>
 std::string basic_server_request<CharT,Exec>::read_all(opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_save_file(const std::string &file_name, opt_token<begin_t,total_t,callback_t<size_t,error_code>> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::async_save_file(const std::string &file_name, opt_token<begin_t,total_t,callback_t<size_t>> tk)
 {
 
 }

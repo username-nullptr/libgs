@@ -34,8 +34,8 @@ namespace libgs
 
 template <concept_copymovable T>
 lock_free_queue<T>::lock_free_queue() :
-		m_head(new node(T())),
-		m_tail(m_head.load())
+	m_head(new node(T())),
+	m_tail(m_head.load())
 {
 
 }

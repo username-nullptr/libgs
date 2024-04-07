@@ -55,6 +55,7 @@ public:
 	basic_request_parser &operator=(basic_request_parser &&other) noexcept;
 
 public:
+	bool append(std::string_view buf, error_code &error);
 	bool append(std::string_view buf);
 	bool operator<<(std::string_view buf);
 
@@ -476,6 +477,31 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_reques
 {
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
+}
+
+template <concept_char_type CharT>
+bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error)
+{
+	bool res = false;
+	try {
+		error = error_code();
+		res = append(buf);
+	}
+	catch(std::exception &ex)
+	{
+		class error_category : public std::error_category
+		{
+		public:
+			[[nodiscard]] const char *name() const noexcept override {
+				return "libgs::http::request_parser_error";
+			}
+			[[nodiscard]] std::string message(int) const override {
+				return ex.what();
+			}
+		};
+		error = error_code(-1, error_category());
+	}
+	return res;
 }
 
 template <concept_char_type CharT>
