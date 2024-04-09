@@ -49,14 +49,6 @@ public:
 
 public:
 	virtual void cancel() noexcept = 0;
-	virtual void set_non_block(bool flag, error_code &error) noexcept = 0;
-	virtual bool is_non_block() const noexcept = 0;
-
-public:
-	void set_non_block(error_code &error) noexcept;
-	void set_non_block(bool flag);
-
-public:
 	executor_type &executor() const;
 
 protected:

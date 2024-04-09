@@ -74,14 +74,6 @@ public:
 	~basic_tcp_socket() override;
 
 public:
-	void connect(ip_endpoint ep, opt_token<error_code&> tk) override;
-	address_vector dns(string_wrapper domain, opt_token<error_code&> tk) override;
-
-public:
-	size_t read(buffer<void*> buf, opt_token<read_condition,error_code&> tk) override;
-	size_t write(buffer<const void*> buf, opt_token<error_code&> tk) override;
-
-public:
 	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept override;
 	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
 
@@ -97,33 +89,30 @@ public:
 	void set_option(const socket_option &op, error_code &error) noexcept override;
 	void get_option(socket_option op, error_code &error) const noexcept override;
 
-	void set_non_block(bool flag, error_code &error) noexcept override;
-	bool is_non_block() const noexcept override;
-
 public:
 	[[nodiscard]] const asio_socket &native_object() const;
 	[[nodiscard]] asio_socket &native_object();
 	[[nodiscard]] tcp_handle_type native_handle() const;
 
 public:
-	using base_type::connect;
-	using base_type::dns;
-	using base_type::read;
-	using base_type::write;
 	using base_type::remote_endpoint;
 	using base_type::local_endpoint;
 	using base_type::shutdown;
 	using base_type::close;
 	using base_type::set_option;
-	using base_type::set_non_block;
 
 protected:
-	[[nodiscard]] awaitable<error_code> do_connect(const ip_endpoint &ep) noexcept override;
-	[[nodiscard]] awaitable<address_vector> do_dns(const std::string &domain, error_code &error) noexcept override;
+	[[nodiscard]] awaitable<error_code> do_connect
+	(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept override;
 
-protected:
-	[[nodiscard]] awaitable<size_t> read_data(void *buf, size_t size, read_condition rc, error_code &error) noexcept override;
-	[[nodiscard]] awaitable<size_t> write_data(const void *buf, size_t size, error_code &error) noexcept override;
+	[[nodiscard]] awaitable<address_vector> do_dns
+	(const std::string &domain, cancellation_signal *cnl_sig, error_code &error) noexcept override;
+
+	[[nodiscard]] awaitable<size_t> read_data
+	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept override;
+
+	[[nodiscard]] awaitable<size_t> write_data
+	(buffer<const void*> buf, cancellation_signal *cnl_sig, error_code &error) noexcept override;
 
 protected:
 	explicit basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock);

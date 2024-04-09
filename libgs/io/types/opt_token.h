@@ -35,6 +35,8 @@
 namespace libgs::io
 {
 
+using cancellation_signal = asio::cancellation_signal;
+
 template <typename...Args>
 using callback_t = std::function<void(Args...)>;
 
@@ -45,6 +47,13 @@ template <>
 struct LIBGS_CORE_VAPI opt_token<void>
 {
 	std::chrono::nanoseconds rtime {0};
+	cancellation_signal *cnl_sig = nullptr;
+
+	template <typename Rep, typename Period>
+	opt_token(const duration<Rep,Period> &rtime, cancellation_signal &cnl_sig);
+
+	template<typename Clock, typename Duration>
+	opt_token(const time_point<Clock,Duration> &atime, cancellation_signal &cnl_sig);
 
 	template <typename Rep, typename Period>
 	opt_token(const duration<Rep,Period> &rtime);
@@ -72,6 +81,10 @@ struct LIBGS_CORE_VAPI opt_token<callback_t<Args...>> : opt_token<void>
 	template <typename Time, typename Func>
 	opt_token(const Time &time, Func &&callback) requires 
 		concept_opt_token<void,Time> and concept_void_callable<Func,Args...>;
+
+	template <typename Time, typename Func>
+	opt_token(const Time &time, cancellation_signal &cnl_sig, Func &&callback) requires
+		concept_opt_token<void,Time,cancellation_signal&> and concept_void_callable<Func,Args...>;
 };
 
 template <>
@@ -84,6 +97,10 @@ struct LIBGS_CORE_VAPI opt_token<error_code&> : opt_token<void>
 
 	template <typename Time>
 	opt_token(const Time &time, error_code &error) requires concept_opt_token<void,Time>;
+
+	template <typename Time>
+	opt_token(const Time &time, cancellation_signal &cnl_sig, error_code &error)
+		requires concept_opt_token<void,Time,cancellation_signal&>;
 };
 
 template <typename T>
@@ -95,6 +112,10 @@ struct LIBGS_CORE_VAPI opt_token<read_condition,T> : opt_token<T>
 	template <typename...Args>
 	opt_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...>;
 };
+
+namespace detail {
+LIBGS_IO_API void check_error(error_code *tk_error, const error_code &error, const char *header);
+} //namespace detail
 
 } //namespace libgs::io
 #include <libgs/io/types/detail/opt_token.h>

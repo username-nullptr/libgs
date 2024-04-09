@@ -33,6 +33,23 @@ namespace libgs::io
 {
 
 template <typename Rep, typename Period>
+opt_token<void>::opt_token(const duration<Rep,Period> &rtime, cancellation_signal &cnl_sig) :
+	rtime(std::chrono::duration_cast<std::chrono::nanoseconds>(rtime)),
+	cnl_sig(&cnl_sig)
+{
+
+}
+
+template<typename Clock, typename Duration>
+opt_token<void>::opt_token(const time_point<Clock,Duration> &atime, cancellation_signal &cnl_sig) :
+	cnl_sig(&cnl_sig)
+{
+	namespace dt = std::chrono;
+	auto _rtime = atime - dt::time_point_cast<time_point<Clock,Duration>>(dt::system_clock::now());
+	rtime = dt::duration_cast<dt::nanoseconds>(_rtime);
+}
+
+template <typename Rep, typename Period>
 opt_token<void>::opt_token(const duration<Rep,Period> &rtime) :
 	rtime(std::chrono::duration_cast<std::chrono::nanoseconds>(rtime))
 {
@@ -64,6 +81,15 @@ opt_token<callback_t<Args...>>::opt_token(const Time &time, Func &&callback) req
 
 }
 
+template <typename...Args>
+template <typename Time, typename Func>
+opt_token<callback_t<Args...>>::opt_token(const Time &time, cancellation_signal &cnl_sig, Func &&callback) requires
+	concept_opt_token<void,Time,cancellation_signal&> and concept_void_callable<Func,Args...> :
+	opt_token<void>(time, cnl_sig), callback(std::forward<Func>(callback))
+{
+
+}
+
 inline opt_token<error_code&>::opt_token(error_code &error) :
 	error(&error)
 {
@@ -73,6 +99,14 @@ inline opt_token<error_code&>::opt_token(error_code &error) :
 template <typename Time>
 opt_token<error_code&>::opt_token(const Time &time, error_code &error) requires concept_opt_token<void,Time> :
 	opt_token<void>(time), error(&error)
+{
+
+}
+
+template <typename Time>
+opt_token<error_code&>::opt_token(const Time &time, cancellation_signal &cnl_sig, error_code &error)
+	requires concept_opt_token<void,Time,cancellation_signal&> :
+	opt_token<void>(time, cnl_sig), error(&error)
 {
 
 }

@@ -47,21 +47,6 @@ device_base<Exec>::~device_base()
 }
 
 template <concept_execution Exec>
-void device_base<Exec>::set_non_block(error_code &error) noexcept
-{
-	set_non_block(true, error);
-}
-
-template <concept_execution Exec>
-void device_base<Exec>::set_non_block(bool flag)
-{
-	error_code error;
-	set_non_block(true, error);
-	if( error )
-		throw system_error(error, "libgs::io::device_base::set_non_block");
-}
-
-template <concept_execution Exec>
 typename device_base<Exec>::executor_type &device_base<Exec>::executor() const
 {
 	return m_exec;

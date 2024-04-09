@@ -2,6 +2,7 @@ set(target_name gs_io)
 
 set(core_sources
 	global.cpp
+	types/opt_token.cpp
 	types/stream_buffer.cpp
 )
 

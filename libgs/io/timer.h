@@ -79,18 +79,13 @@ public:
 	void expires_at(const time_point &atime) noexcept;
 
 public:
-	void async_wait(opt_token<callback_t<error_code>> tk) noexcept;
-	void async_wait(opt_token<callback_t<>> tk) noexcept;
-
-	[[nodiscard]] awaitable<void> co_wait(opt_token<error_code&> tk = {});
-	void wait(opt_token<error_code&> tk = {});
+	void wait(opt_token<callback_t<error_code>> tk) noexcept;
+	void wait(opt_token<callback_t<>> tk) noexcept;
+	[[nodiscard]] awaitable<void> wait(opt_token<error_code&> tk = {});
 
 public:
 	void cancel() noexcept override;
 	[[nodiscard]] bool is_run() const;
-
-	void set_non_block(bool flag, error_code &error) noexcept override;
-	bool is_non_block() const noexcept override;
 
 private:
 	asio_steady_timer m_timer;

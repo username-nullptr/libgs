@@ -51,15 +51,11 @@ public:
 	~basic_socket() override = default;
 
 public:
-	void async_connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<void> co_connect(host_endpoint ep, opt_token<error_code&> tk = {});
-	void connect(host_endpoint ep, opt_token<error_code&> tk = {});
+	void connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<void> connect(host_endpoint ep, opt_token<error_code&> tk = {});
 
-public:
-	void async_connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<void> co_connect(ip_endpoint ep, opt_token<error_code&> tk = {});
-	virtual void connect(ip_endpoint ep, opt_token<error_code&> tk) = 0;
-	void connect(ip_endpoint ep);
+	void connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<error_code&> tk = {});
 
 public:
 	[[nodiscard]] virtual ip_endpoint remote_endpoint(error_code &error) const noexcept = 0;
@@ -85,18 +81,19 @@ public:
 	void get_option(socket_option op) const;
 
 public:
-	void async_dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<address_vector> co_dns(string_wrapper domain, opt_token<error_code&> tk = {});
-	virtual address_vector dns(string_wrapper domain, opt_token<error_code&> tk) = 0;
-	address_vector dns(string_wrapper domain);
+	void dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<error_code&> tk = {});
 
 public:
 	[[nodiscard]] size_t read_buffer_size() const noexcept override;
 	[[nodiscard]] size_t write_buffer_size() const noexcept override;
 
 protected:
-	[[nodiscard]] virtual awaitable<error_code> do_connect(const ip_endpoint &ep) noexcept = 0;
-	[[nodiscard]] virtual awaitable<address_vector> do_dns(const std::string &domain, error_code &error) noexcept = 0;
+	[[nodiscard]] virtual awaitable<error_code> do_connect
+	(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept = 0;
+
+	[[nodiscard]] virtual awaitable<address_vector> do_dns
+	(const std::string &domain, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
 };
 
 using socket = basic_socket<>;

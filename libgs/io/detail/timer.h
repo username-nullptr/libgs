@@ -104,16 +104,19 @@ void basic_timer<Exec>::expires_at(const time_point &atime) noexcept
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::async_wait(opt_token<callback_t<error_code>> tk) noexcept
+void basic_timer<Exec>::wait(opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
 	{
 		if( not valid )
 			co_return ;
-
 		error_code error;
-		co_await co_wait({tk.rtime, error});
+
+		if( tk.cnl_sig )
+			co_await wait({tk.rtime, *tk.cnl_sig, error});
+		else
+			co_await wait({tk.rtime, error});
 
 		if( not valid )
 			co_return ;
@@ -125,16 +128,20 @@ void basic_timer<Exec>::async_wait(opt_token<callback_t<error_code>> tk) noexcep
 }
 
 template <concept_execution Exec>
-void basic_timer<Exec>::async_wait(opt_token<callback_t<>> tk) noexcept
+void basic_timer<Exec>::wait(opt_token<callback_t<>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
-	async_wait([callback = std::move(tk.callback)](const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](const error_code&){
 		callback();
-	});
+	};
+	if( tk.cnl_sig )
+		wait({tk.rtime, *tk.cnl_sig, std::move(_callback)});
+	else
+		wait({tk.rtime, std::move(_callback)});
 }
 
 template <concept_execution Exec>
-awaitable<void> basic_timer<Exec>::co_wait(opt_token<error_code&> tk)
+awaitable<void> basic_timer<Exec>::wait(opt_token<error_code&> tk)
 {
 	using namespace std::chrono_literals;
 	error_code error;
@@ -148,34 +155,10 @@ awaitable<void> basic_timer<Exec>::co_wait(opt_token<error_code&> tk)
 			}
 			expires_after(tk.rtime);
 		}
-		co_await m_timer.async_wait(use_awaitable_e[error]);
-	}
-	while(false);
-	if( error )
-	{
-		if( tk.error == nullptr )
-			throw system_error(error, "libgs::io::timer::co_wait");
-		*tk.error = error;
-	}
-	co_return ;
-}
-
-template <concept_execution Exec>
-void basic_timer<Exec>::wait(opt_token<error_code&> tk)
-{
-	using namespace std::chrono_literals;
-	error_code error;
-	do {
-		if( not is_run() )
-		{
-			if( tk.rtime == 0s )
-			{
-				error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
-				break;
-			}
-			expires_after(tk.rtime);
-		}
-		m_timer.wait(error);
+		if( tk.cnl_sig )
+			co_await m_timer.async_wait(asio::bind_cancellation_slot(tk.cnl_sig->slot(), use_awaitable_e[error]));
+		else
+			co_await m_timer.async_wait(use_awaitable_e[error]);
 	}
 	while(false);
 	if( error )
@@ -184,6 +167,7 @@ void basic_timer<Exec>::wait(opt_token<error_code&> tk)
 			throw system_error(error, "libgs::io::timer::wait");
 		*tk.error = error;
 	}
+	co_return ;
 }
 
 template <concept_execution Exec>
@@ -197,18 +181,6 @@ template <concept_execution Exec>
 bool basic_timer<Exec>::is_run() const
 {
 	return m_run;
-}
-
-template <concept_execution Exec>
-void basic_timer<Exec>::set_non_block(bool, error_code &error) noexcept
-{
-	error = std::make_error_code(static_cast<std::errc>(errc::operation_not_supported));
-}
-
-template <concept_execution Exec>
-bool basic_timer<Exec>::is_non_block() const noexcept
-{
-	return true;
 }
 
 template <concept_execution Exec, typename...Args>
