@@ -64,6 +64,12 @@ opt_token<void>::opt_token(const time_point<Clock,Duration> &atime)
 	rtime = dt::duration_cast<dt::nanoseconds>(_rtime);
 }
 
+inline opt_token<void>::opt_token(cancellation_signal &cnl_sig) :
+	cnl_sig(&cnl_sig)
+{
+
+}
+
 template <typename...Args>
 template <typename Func>
 opt_token<callback_t<Args...>>::opt_token(Func &&callback) requires concept_void_callable<Func,Args...> :
@@ -92,6 +98,12 @@ opt_token<callback_t<Args...>>::opt_token(const Time &time, cancellation_signal 
 
 inline opt_token<error_code&>::opt_token(error_code &error) :
 	error(&error)
+{
+
+}
+
+inline opt_token<error_code&>::opt_token(cancellation_signal &cnl_sig, error_code &error) :
+	opt_token<void>(cnl_sig), error(&error)
 {
 
 }

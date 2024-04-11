@@ -52,7 +52,7 @@ void basic_stream<Exec>::read(buffer<void*> buf, opt_token<read_condition,callba
 		if( not valid )
 			co_return ;
 
-		size_t size = 0;
+		size_t size;
 		error_code error;
 
 		if( tk.cnl_sig )
@@ -152,10 +152,10 @@ awaitable<size_t> basic_stream<Exec>::read(buffer<void*> buf, opt_token<read_con
 	error_code error;
 
 	if( tk.rtime == 0s )
-		size = co_await read_data(buf.data, buf.size, std::move(tk.rc), tk.cnl_sig, error);
+		size = co_await read_data(buf, std::move(tk.rc), tk.cnl_sig, error);
 	else
 	{
-		auto var = co_await(read_data(buf.data, buf.size, std::move(tk.rc), tk.cnl_sig, error) or co_sleep_for(tk.rtime));
+		auto var = co_await(read_data(buf, std::move(tk.rc), tk.cnl_sig, error) or co_sleep_for(tk.rtime));
 		if( var.index() == 0 )
 			size = std::get<0>(var);
 		else
@@ -253,14 +253,14 @@ awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<e
 	error_code error;
 
 	if( tk.rtime == 0s )
-		size = co_await write_data(_buf.get(), buf.size, tk.cnl_sig, error);
+		size = co_await write_data({_buf.get(), buf.size}, tk.cnl_sig, error);
 	else
 	{
 		auto no_time_out = [&]() -> awaitable<size_t>
 		{
 			size_t sum = 0;
 			do {
-				auto res = co_await write_data(_buf.get() + sum, buf.size - sum, tk.cnl_sig, error);
+				auto res = co_await write_data({_buf.get() + sum, buf.size - sum}, tk.cnl_sig, error);
 				if( error and error.value() != errc::try_again )
 					break;
 				sum += res;

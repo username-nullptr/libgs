@@ -235,12 +235,6 @@ using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, 
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
-template <concept_char_type CharT>
-using basic_parameters_view = take_ref_view<basic_parameters<CharT>>;
-
-using parameters_view = basic_parameters_view<char>;
-using wparameters_view = basic_parameters_view<wchar_t>;
-
 } //namespace libgs::http
 #include <libgs/http/basic/detail/types.h>
 

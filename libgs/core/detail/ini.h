@@ -600,15 +600,15 @@ basic_ini<CharT> &basic_ini<CharT>::sync()
 	for(auto &[group, keys] : *this)
 	{
 		file << ini_keyword_char<CharT>::left_bracket
-			 << group
+			 << to_percent_encoding(group)
 			 << ini_keyword_char<CharT>::right_bracket 
 			 << ini_keyword_char<CharT>::line_break;
 
 		for(auto &[key, value] : keys)
 		{
-			file << key
+			file << to_percent_encoding(key)
 				 << ini_keyword_char<CharT>::assigning
-				 << value.to_string()
+				 << to_percent_encoding(value.to_string())
 				 << ini_keyword_char<CharT>::line_break;
 		}
 	}
@@ -639,7 +639,7 @@ std::basic_string<CharT> basic_ini<CharT>::parsing_group(const str_type &str, si
 			libgs_log_werror(L"Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
 		return {};
 	}
-	auto group = str_trimmed(str_type(str.c_str() + 1, str.size() - 2));
+	auto group = from_percent_encoding(str_trimmed(str_type(str.c_str() + 1, str.size() - 2)));
 	if( group.empty() )
 	{
 		if constexpr( is_char_v )
@@ -688,7 +688,7 @@ bool basic_ini<CharT>::parsing_key_value(const str_type &curr_group, const str_t
 			libgs_log_werror(L"Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
 		return false;
 	}
-	auto key = str_trimmed(str.substr(0,pos));
+	auto key = from_percent_encoding(str_trimmed(str.substr(0,pos)));
 	if( key.empty() )
 	{
 		if constexpr( is_char_v )
@@ -697,7 +697,7 @@ bool basic_ini<CharT>::parsing_key_value(const str_type &curr_group, const str_t
 			libgs_log_werror(L"Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
 		return false;
 	}
-	m_data->groups[curr_group][key] = str_trimmed(str.substr(pos+1));
+	m_data->groups[curr_group][key] = from_percent_encoding(str_trimmed(str.substr(pos+1)));
 	return true;
 }
 

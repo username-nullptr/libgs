@@ -43,9 +43,9 @@ public:
 	using str_type = std::basic_string<CharT>;
 	using str_view_type = std::basic_string_view<CharT>;
 
-	using cookies_view_type = basic_cookie_values_view<CharT>;
-	using headers_view_type = basic_headers_view<CharT>;
-	using parameters_view_type = basic_parameters_view<CharT>;
+	using cookies_type = basic_cookie_values<CharT>;
+	using headers_type = basic_headers<CharT>;
+	using parameters_type = basic_parameters<CharT>;
 
 public:
 	explicit basic_request_parser(size_t init_buf_size = 0xFFFF);
@@ -65,9 +65,9 @@ public:
 	[[nodiscard]] str_view_type version() const noexcept;
 
 public:
-	[[nodiscard]] parameters_view_type parameters() const noexcept;
-	[[nodiscard]] headers_view_type headers() const noexcept;
-	[[nodiscard]] cookies_view_type cookies() const noexcept;
+	[[nodiscard]] const parameters_type &parameters() const noexcept;
+	[[nodiscard]] const headers_type &headers() const noexcept;
+	[[nodiscard]] const cookies_type &cookies() const noexcept;
 
 public:
 	[[nodiscard]] bool is_websocket_handshake() const;
@@ -137,13 +137,6 @@ public:
 
 	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
 	using parameters_type = basic_parameters<CharT>;
-
-	using cookies_view_type = decltype(
-		std::declval<cookies_type>() |
-		std::views::take(std::declval<cookies_type>().size())
-	);
-	using headers_view_type = basic_headers_view<CharT>;
-	using parameters_view_type = basic_parameters_view<CharT>;
 
 public:
 	explicit impl(size_t init_buf_size)
@@ -492,14 +485,19 @@ bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error
 		class error_category : public std::error_category
 		{
 		public:
+			error_category(const char *what) : m_what(what) {}
+
 			[[nodiscard]] const char *name() const noexcept override {
 				return "libgs::http::request_parser_error";
 			}
 			[[nodiscard]] std::string message(int) const override {
-				return ex.what();
+				return m_what;
 			}
+
+		private:
+			const char *m_what;
 		};
-		error = error_code(-1, error_category());
+		error = error_code(-1, error_category(ex.what()));
 	}
 	return res;
 }
@@ -549,21 +547,21 @@ std::basic_string_view<CharT> basic_request_parser<CharT>::version() const noexc
 }
 
 template <concept_char_type CharT>
-typename basic_request_parser<CharT>::parameters_view_type basic_request_parser<CharT>::parameters() const noexcept
+const typename basic_request_parser<CharT>::parameters_type &basic_request_parser<CharT>::parameters() const noexcept
 {
-	return m_impl->m_parameters | std::views::take(m_impl->m_parameters.size());
+	return m_impl->m_parameters;
 }
 
 template <concept_char_type CharT>
-typename basic_request_parser<CharT>::headers_view_type basic_request_parser<CharT>::headers() const noexcept
+const typename basic_request_parser<CharT>::headers_type &basic_request_parser<CharT>::headers() const noexcept
 {
-	return m_impl->m_headers | std::views::take(m_impl->m_headers.size());
+	return m_impl->m_headers;
 }
 
 template <concept_char_type CharT>
-typename basic_request_parser<CharT>::cookies_view_type basic_request_parser<CharT>::cookies() const noexcept
+const typename basic_request_parser<CharT>::cookies_type &basic_request_parser<CharT>::cookies() const noexcept
 {
-	return m_impl->m_cookies | std::views::take(m_impl->m_cookies.size());
+	return m_impl->m_cookies;
 }
 
 template <concept_char_type CharT>

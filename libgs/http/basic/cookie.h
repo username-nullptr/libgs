@@ -184,22 +184,10 @@ using cookie_values = basic_cookie_values<char>;
 using wcookie_values = basic_cookie_values<wchar_t>;
 
 template <concept_char_type CharT>
-using basic_cookie_values_view = take_ref_view<basic_cookie_values<CharT>>;
-
-using cookie_values_view = basic_cookie_values_view<char>;
-using wcookie_values_view = basic_cookie_values_view<wchar_t>;
-
-template <concept_char_type CharT>
 using basic_cookies = std::map<std::basic_string<CharT>, basic_cookie<CharT>, less_case_insensitive>;
 
 using cookies = basic_cookies<char>;
 using wcookies = basic_cookies<wchar_t>;
-
-template <concept_char_type CharT>
-using basic_cookies_view = take_ref_view<basic_cookies<CharT>>;
-
-using cookies_view = basic_cookies_view<char>;
-using wcookies_view = basic_cookies_view<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/basic/detail/cookie.h>

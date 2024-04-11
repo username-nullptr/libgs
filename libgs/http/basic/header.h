@@ -73,12 +73,6 @@ using basic_headers = std::map<std::basic_string<CharT>, basic_value<CharT>, les
 using headers = basic_headers<char>;
 using wheaders = basic_headers<wchar_t>;
 
-template <concept_char_type CharT>
-using basic_headers_view = take_ref_view<basic_headers<CharT>>;
-
-using headers_view = basic_headers_view<char>;
-using wheaders_view = basic_headers_view<wchar_t>;
-
 } //namespace libgs::http
 
 

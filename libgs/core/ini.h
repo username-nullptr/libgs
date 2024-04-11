@@ -228,7 +228,7 @@ public:
 protected:
 	[[nodiscard]] str_type parsing_group(const str_type &str, size_t line);
 	[[nodiscard]] bool parsing_key_value(const str_type &curr_group, const str_type &str, size_t line);
-	
+
 protected:
 	struct data
 	{

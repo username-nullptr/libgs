@@ -11,7 +11,7 @@ libgs::awaitable<void> service(libgs::io::socket_ptr socket, libgs::io::ip_endpo
 		char rbuf[4096] = "";
 		for(;;)
 		{
-			auto res = co_await socket->co_read({rbuf,4096}, 5s);
+			auto res = co_await socket->read({rbuf,4096}, 5s);
 			if( res == 0 )
 				break;
 
@@ -41,7 +41,7 @@ libgs::awaitable<void> service(libgs::io::socket_ptr socket, libgs::io::ip_endpo
 									"Hello world",
 									libgs::http::header::connection,
 									libgs::http::header::content_length);
-			co_await socket->co_write(wbuf);
+			co_await socket->write(wbuf);
 			socket->close();
 			break;
 		}
@@ -62,7 +62,7 @@ int main()
 			server.bind({libgs::io::address_v4(),22222});
 			for(;;)
 			{
-				auto socket = co_await server.co_accept();
+				auto socket = co_await server.accept();
 				auto ep = socket->remote_endpoint();
 
 				libgs_log_debug("new connction: {}", ep);

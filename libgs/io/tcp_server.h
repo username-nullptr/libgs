@@ -86,9 +86,8 @@ public:
 	void start(start_token tk = {});
 
 public:
-	void async_accept(opt_token<callback_t<tcp_socket_ptr,error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<tcp_socket_ptr> co_accept(opt_token<error_code&> tk = {});
-	tcp_socket_ptr accept(opt_token<error_code&> tk = {});
+	void accept(opt_token<callback_t<tcp_socket_ptr,error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<tcp_socket_ptr> accept(opt_token<error_code&> tk = {});
 
 public:
 	void set_option(const auto &op, error_code &error);
@@ -96,10 +95,6 @@ public:
 
 	void get_option(auto &op, error_code &error);
 	void get_option(auto &op);
-
-	void set_non_block(bool flag, error_code &error) noexcept override;
-	bool is_non_block() const noexcept override;
-	using base_type::set_non_block;
 
 public:
 	awaitable<void> co_wait() noexcept;

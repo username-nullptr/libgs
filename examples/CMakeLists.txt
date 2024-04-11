@@ -52,6 +52,7 @@ set_target(gs_io ${io_sources})
 
 set(http_sources
 	http/server_parser.cpp
+	http/server.cpp
 )
 set_target(gs_http ${http_sources})
 

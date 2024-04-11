@@ -61,6 +61,7 @@ struct LIBGS_CORE_VAPI opt_token<void>
 	template<typename Clock, typename Duration>
 	opt_token(const time_point<Clock,Duration> &atime);
 
+	opt_token(cancellation_signal &cnl_sig);
 	opt_token() = default;
 };
 
@@ -94,6 +95,7 @@ struct LIBGS_CORE_VAPI opt_token<error_code&> : opt_token<void>
 	error_code *error = nullptr;
 
 	opt_token(error_code &error);
+	opt_token(cancellation_signal &cnl_sig, error_code &error);
 
 	template <typename Time>
 	opt_token(const Time &time, error_code &error) requires concept_opt_token<void,Time>;
@@ -114,7 +116,7 @@ struct LIBGS_CORE_VAPI opt_token<read_condition,T> : opt_token<T>
 };
 
 namespace detail {
-LIBGS_IO_API void check_error(error_code *tk_error, const error_code &error, const char *header);
+LIBGS_IO_API bool check_error(error_code *tk_error, const error_code &error, const char *header);
 } //namespace detail
 
 } //namespace libgs::io

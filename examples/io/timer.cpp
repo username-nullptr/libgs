@@ -14,7 +14,7 @@ int main()
 		// std::error_code error;
 		// co_await timer.co_wait({2s, error});
 		try {
-			co_await timer.co_wait(3s);
+			co_await timer.wait(3s);
 			libgs_log_debug("timer finished.");
 			libgs::execution::exit();
 		}

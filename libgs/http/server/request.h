@@ -50,9 +50,9 @@ public:
 	using str_type = typename parser_type::str_type;
 	using str_view_type = std::basic_string_view<CharT>;
 
-	using headers_view_type = typename parser_type::headers_view_type;
-	using cookies_view_type = typename parser_type::cookies_view_type;
-	using parameters_view_type = typename parser_type::parameters_view_type;
+	using headers_type = typename parser_type::headers_type;
+	using cookies_type = typename parser_type::cookies_type;
+	using parameters_type = typename parser_type::parameters_type;
 
 	template <typename T>
 	using buffer = io::buffer<T>;
@@ -67,27 +67,16 @@ public:
 	[[nodiscard]] str_view_type path() const noexcept;
 
 public:
-	[[nodiscard]] parameters_view_type parameters() const noexcept;
-	[[nodiscard]] headers_view_type headers() const noexcept;
-	[[nodiscard]] cookies_view_type cookies() const noexcept;
+	[[nodiscard]] const parameters_type &parameters() const noexcept;
+	[[nodiscard]] const headers_type &headers() const noexcept;
+	[[nodiscard]] const cookies_type &cookies() const noexcept;
 
 public:
-	[[nodiscard]] awaitable<size_t> co_read(buffer<void*> buf, opt_token<error_code&> tk = {});
-	size_t read(buffer<void*> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
 
-	[[nodiscard]] awaitable<size_t> co_read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
-	size_t read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
-
-public:
-	[[nodiscard]] awaitable<size_t> co_read_all(buffer<void*> buf, opt_token<error_code&> tk = {});
-	size_t read_all(buffer<void*> buf, opt_token<error_code&> tk = {});
-
-	[[nodiscard]] awaitable<std::string> co_read_all(opt_token<error_code&> tk = {});
-	std::string read_all(opt_token<error_code&> tk = {});
-
-public:
-	[[nodiscard]] awaitable<size_t> co_save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk = {});
-	size_t save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk = {});
+	[[nodiscard]] awaitable<std::string> read_all(opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk = {});
 
 public:
 	[[nodiscard]] bool is_websocket_handshake() const;
@@ -117,6 +106,9 @@ using server_wrequest_ptr = std::shared_ptr<basic_server_request<char>>;
 } //namespace libgs::http
 
 #include <libgs/core/string_list.h>
+#include <libgs/core/app_utls.h>
+#include <filesystem>
+#include <fstream>
 
 namespace libgs::http
 {
@@ -179,117 +171,213 @@ std::basic_string_view<CharT> basic_server_request<CharT,Exec>::path() const noe
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-typename basic_server_request<CharT,Exec>::parameters_view_type basic_server_request<CharT,Exec>::parameters() const noexcept
+const typename basic_server_request<CharT,Exec>::parameters_type &basic_server_request<CharT,Exec>::parameters() const noexcept
 {
 	return m_impl->m_parser.parameters();
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-typename basic_server_request<CharT,Exec>::headers_view_type basic_server_request<CharT,Exec>::headers() const noexcept
+const typename basic_server_request<CharT,Exec>::headers_type &basic_server_request<CharT,Exec>::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-typename basic_server_request<CharT,Exec>::cookies_view_type basic_server_request<CharT,Exec>::cookies() const noexcept
+const typename basic_server_request<CharT,Exec>::cookies_type &basic_server_request<CharT,Exec>::cookies() const noexcept
 {
 	return m_impl->m_parser.cookies();
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::co_read(buffer<void*> buf, opt_token<error_code&> tk)
+awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_token<error_code&> tk)
 {
 	if( tk.error )
 		*tk.error = std::error_code();
 
-	auto dst_buf = reinterpret_cast<char*>(buf.data);
+	error_code error;
 	size_t sum = 0;
-	do {
-		auto body = m_impl->m_parser.take_partial_body(buf.size);
-		sum += body.size();
 
-		memcpy(dst_buf + sum, body.c_str(), body.size());
-		if( sum == buf.size )
-			break;
+	auto lambda_read = [&]() mutable -> awaitable<size_t>
+	{
+		auto dst_buf = reinterpret_cast<char*>(buf.data);
+		auto buf_size = m_impl->m_socket->read_buffer_size();
+		do {
+			auto body = m_impl->m_parser.take_partial_body(buf.size);
+			sum += body.size();
 
-		sum += co_await m_impl->m_socket->co_read(body, tk);
-		if( body.empty() or not m_impl->m_parser.append(body) )
-			break;
-	}
-	while(true);
+			memcpy(dst_buf + sum, body.c_str(), body.size());
+			if( sum == buf.size )
+				break;
+
+			if( tk.cnl_sig )
+				sum += co_await m_impl->m_socket->read({body, buf_size}, {*tk.cnl_sig, error});
+			else
+				sum += co_await m_impl->m_socket->read({body, buf_size}, error);
+
+			io::detail::check_error(tk.error, error, "libgs::http::request::read");
+			if( body.empty() or not m_impl->m_parser.append(body) )
+				break;
+		}
+		while(true);
+	};
+	auto var = co_await (lambda_read() or co_sleep_for(tk.rtime));
+	if( var.index() == 1 )
+		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+
+	io::detail::check_error(tk.error, error, "libgs::http::request::read");
 	co_return sum;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-size_t basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_token<error_code&> tk)
+awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<std::string&> buf, opt_token<error_code&> tk)
 {
 	if( tk.error )
 		*tk.error = std::error_code();
 
-	auto dst_buf = reinterpret_cast<char*>(buf.data);
+	error_code error;
 	size_t sum = 0;
-	do {
-		auto body = m_impl->m_parser.take_partial_body(buf.size);
-		sum += body.size();
 
-		memcpy(dst_buf + sum, body.c_str(), body.size());
-		if( sum == buf.size )
-			break;
+	auto lambda_read = [&]() mutable -> awaitable<size_t>
+	{
+		do {
+			auto body = m_impl->m_parser.take_partial_body(buf.size);
+			sum += body.size();
 
-		sum += m_impl->m_socket->read(body, tk);
-		if( body.empty() or not m_impl->m_parser.append(body) )
-			break;
+			buf.data += std::string(body.c_str(), body.size());
+			if( sum == buf.size )
+				break;
+
+			body.clear();
+			if( tk.cnl_sig )
+				sum += co_await m_impl->m_socket->read(body, {*tk.cnl_sig, error});
+			else
+				sum += co_await m_impl->m_socket->read(body, error);
+
+			if( body.empty() or not m_impl->m_parser.append(body) )
+				break;
+		}
+		while(true);
+	};
+	auto var = co_await (lambda_read() or co_sleep_for(tk.rtime));
+	if( var.index() == 1 )
+		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+
+	io::detail::check_error(tk.error, error, "libgs::http::request::read");
+	co_return sum;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<error_code&> tk)
+{
+	if( tk.error )
+		*tk.error = std::error_code();
+
+	auto headers = m_impl->m_parser.headers();
+	auto it = headers.find(basic_header<CharT>::content_length);
+
+	size_t buf_size = 0;
+	if( it != headers.end() )
+		buf_size = it->second.template get<size_t>();
+	else
+		buf_size = m_impl->m_socket->read_buffer_size();
+
+	error_code error;
+	std::string buf;
+
+	auto lambda_read = [&]() mutable -> awaitable<size_t>
+	{
+		do {
+			auto body = m_impl->m_parser.take_partial_body(buf_size);
+			buf += std::string(body.c_str(), body.size());
+
+			body.clear();
+			if( tk.cnl_sig )
+				co_await m_impl->m_socket->read(body, {*tk.cnl_sig, error});
+			else
+				co_await m_impl->m_socket->read(body, error);
+
+			if( body.empty() or not m_impl->m_parser.append(body) )
+				break;
+		}
+		while(true);
+		co_return 0;
+	};
+	auto var = co_await (lambda_read() or co_sleep_for(tk.rtime));
+	if( var.index() == 1 )
+		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+
+	io::detail::check_error(tk.error, error, "libgs::http::request::read");
+	co_return buf;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+awaitable<size_t> basic_server_request<CharT,Exec>::save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk)
+{
+	if( file_name.empty() )
+	{
+		io::detail::check_error(tk.error, std::make_error_code(std::errc::invalid_argument), "libgs::http::request::save_file");
+		co_return 0;
 	}
-	while(true);
-	return sum;
-}
+	auto _file_name = app::absolute_path(file_name);
+	using namespace std::chrono_literals;
+	namespace fs = std::filesystem;
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::co_read(buffer<std::string&> buf, opt_token<error_code&> tk)
-{
+	if( tk.begin > 0 and not fs::exists(file_name) )
+	{
+		io::detail::check_error(tk.error, std::make_error_code(std::errc::no_such_file_or_directory), "libgs::http::request::save_file");
+		co_return 0;
+	}
+	std::ofstream file(_file_name, std::ios_base::out | std::ios_base::binary);
+	if( not file.is_open() )
+	{
+		io::detail::check_error(tk.error, std::make_error_code(static_cast<std::errc>(errno)), "libgs::http::request::save_file");
+		co_return 0;
+	}
+	file.seekp(tk.begin);
+	auto tcp_buf_size = m_impl->tcp_ip_buffer_size();
 
-}
+	auto buf = new char[tcp_buf_size] {0};
+	std::size_t sum = 0;
+	error_code error;
 
-template <concept_char_type CharT, concept_execution Exec>
-size_t basic_server_request<CharT,Exec>::read(buffer<std::string&> buf, opt_token<error_code&> tk)
-{
+	size_t size = 0;
+	while( can_read_body() )
+	{
+		if( tk.cnl_sig )
+			size = read({buf, tcp_buf_size}, {tk.rtime, *tk.cnl_sig, error});
+		else
+			size = read({buf, tcp_buf_size}, {tk.rtime, error});
 
-}
+		if( error )
+		{
+			if( tk.error )
+				*tk.error = error;
+			else if( error != errc::operation_aborted )
+			{
+				file.close();
+				delete[] buf;
+				throw system_error(error, "libgs::http::request::save_file");
+			}
+		}
+		sum += size;
+		if( tk.total == 0 )
+			file.write(buf, size);
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::co_read_all(buffer<void*> buf, opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-size_t basic_server_request<CharT,Exec>::read_all(buffer<void*> buf, opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<std::string> basic_server_request<CharT,Exec>::co_read_all(opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-std::string basic_server_request<CharT,Exec>::read_all(opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::co_save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-size_t basic_server_request<CharT,Exec>::save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk)
-{
-
+		else if( size > tk.total )
+		{
+			file.write(buf, tk.total);
+			break;
+		}
+		else
+		{
+			file.write(buf, size);
+			tk.total -= size;
+		}
+		co_await co_sleep_for(512us);
+	}
+	file.close();
+	delete[] buf;
+	co_return sum;
 }
 
 template <concept_char_type CharT, concept_execution Exec>

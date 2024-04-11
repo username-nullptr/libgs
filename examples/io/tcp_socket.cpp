@@ -13,11 +13,11 @@ int main()
 		// std::error_code error;
 		// co_await socket.co_connect({"127.0.0.1", 6688}, {10s, error});
 		try {
-			co_await socket.co_connect({"127.0.0.1", 6688}, 10s);
-			co_await socket.co_write("hello world");
+			co_await socket.connect({"127.0.0.1", 6688}, 10s);
+			co_await socket.write("hello world");
 
 			char buf[128] = "";
-			auto size = co_await socket.co_read({buf,128});
+			auto size = co_await socket.read({buf,128});
 
 			libgs_log_debug("tcp_socket read: {}.", std::string_view(buf,size));
 			libgs::execution::exit();
@@ -31,14 +31,14 @@ int main()
 	});
 #else
 	libgs::io::tcp_socket socket;
-	socket.async_connect({"127.0.0.1", 6688}, [&socket](const std::error_code &error)
+	socket.connect({"127.0.0.1", 6688}, [&socket](const std::error_code &error)
 	{
 		if( error )
 		{
 			libgs_log_error("tcp_socket connect error: {}.", error);
 			libgs::execution::exit(-error.value());
 		}
-		socket.async_write("hello world", [&socket](size_t, const std::error_code &error)
+		socket.write("hello world", [&socket](size_t, const std::error_code &error)
 		{
 			if( error )
 			{
@@ -46,7 +46,7 @@ int main()
 				libgs::execution::exit(-error.value());
 			}
 			auto buf = std::make_shared<char[128]>();
-			socket.async_read({buf.get(),128}, [buf = std::move(buf)](size_t size, const std::error_code &error)
+			socket.read({buf.get(),128}, [buf = std::move(buf)](size_t size, const std::error_code &error)
 			{
 				if( error )
 				{

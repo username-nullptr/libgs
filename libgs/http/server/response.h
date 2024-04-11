@@ -29,8 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_RESPONSE_H
 #define LIBGS_HTTP_SERVER_RESPONSE_H
 
-#include <libgs/http/basic/types.h>
-#include <libgs/io/device_base.h>
+#include <libgs/http/server/request.h>
 
 namespace libgs::http
 {

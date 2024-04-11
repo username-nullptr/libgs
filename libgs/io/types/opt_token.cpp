@@ -31,10 +31,11 @@
 namespace libgs::io::detail
 {
 
-void check_error(error_code *tk_error, const error_code &error, const char *header)
+bool check_error(error_code *tk_error, const error_code &error, const char *header)
 {
 	if( not error )
-		return ;
+		return true;
+
 	else if( tk_error )
 		*tk_error = error;
 	else
@@ -42,6 +43,7 @@ void check_error(error_code *tk_error, const error_code &error, const char *head
 		if( error != errc::operation_aborted )
 			throw system_error(error, header);
 	}
+	return false;
 }
 
 } //namespace libgs::io::detail
