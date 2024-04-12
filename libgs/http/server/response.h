@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_RESPONSE_H
 
 #include <libgs/http/server/request.h>
+#include <libgs/http/server/response_helper.h>
 
 namespace libgs::http
 {
@@ -40,6 +41,18 @@ class LIBGS_HTTP_VAPI basic_server_response : public io::device_base<Exec>
 	LIBGS_DISABLE_COPY(basic_server_response)
 
 public:
+	using request = basic_server_request<CharT,Exec>;
+	using request_ptr = basic_server_request_ptr<CharT,Exec>;
+
+public:
+	explicit basic_server_response(request_ptr request);
+	~basic_server_response() = default;
+
+public:
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
 using server_response = basic_server_response<char>;
@@ -50,6 +63,27 @@ using basic_server_response_ptr = std::shared_ptr<basic_server_response<CharT,Ex
 
 using server_response_ptr = std::shared_ptr<basic_server_response<char>>;
 using server_wresponse_ptr = std::shared_ptr<basic_server_response<char>>;
+
+} //namespace libgs::http
+
+
+
+namespace libgs::http
+{
+
+template <concept_char_type CharT, concept_execution Exec>
+class basic_server_response<CharT, Exec>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+};
+
+template <concept_char_type CharT, concept_execution Exec>
+basic_server_response<CharT,Exec>::basic_server_response(basic_server_response::request_ptr request)
+{
+
+}
 
 } //namespace libgs::http
 

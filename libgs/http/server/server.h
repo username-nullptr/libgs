@@ -59,6 +59,9 @@ public:
 	using asio_acceptor = asio_basic_tcp_acceptor<Exec>;
 	using asio_acceptor_ptr = asio_basic_tcp_acceptor_ptr<Exec>;
 
+	using request_handler = std::function<awaitable<void>(request_ptr)>;
+	using error_handler = std::function<awaitable<void>(error_code)>;
+
 public:
 	explicit basic_server(size_t tcount = std::thread::hardware_concurrency() << 1);
 
@@ -72,13 +75,11 @@ public:
 	~basic_server() override;
 
 public:
-	void bind(io::ip_endpoint ep, opt_token<error_code&> tk = {});
-	void start(start_token tk = {});
+	basic_server &bind(io::ip_endpoint ep, opt_token<error_code&> tk = {});
+	basic_server &start(start_token tk = {});
 
-public:
-	using request_handler = std::function<awaitable<void>(request_ptr)>;
 	basic_server &on_request(request_handler callback) noexcept;
-	basic_server &on_error(callback_t<error_code> callback);
+	basic_server &on_error(error_handler callback) noexcept;
 
 public:
 	awaitable<void> co_cancel() noexcept;
@@ -152,7 +153,7 @@ private:
 				try { co_await do_tcp_service(std::move(socket)); }
 				catch(...) {}
 			},
-			m_tcp_server.pool());
+			m_tcp_server->pool());
 		}
 		co_return ;
 	}
@@ -175,7 +176,7 @@ private:
 				if( not m_is_start )
 					break;
 				else if( m_error_callback )
-					m_error_callback(error);
+					co_await m_error_callback(error);
 				else
 					throw system_error(error, "libgs::http::server::impl::do_tcp_service");
 			}
@@ -188,7 +189,7 @@ private:
 public:
 	tcp_server_ptr m_tcp_server;
 	request_handler m_request_callback;
-	callback_t<error_code> m_error_callback;
+	error_handler m_error_callback;
 
 	std::chrono::milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_is_start {false};
@@ -243,15 +244,17 @@ basic_server<CharT,Exec>::~basic_server()
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server<CharT,Exec>::bind(io::ip_endpoint ep, opt_token<error_code&> tk)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::bind(io::ip_endpoint ep, opt_token<error_code&> tk)
 {
-	m_impl->m_tcp_server.bind(std::move(ep), tk);
+	m_impl->m_tcp_server->bind(std::move(ep), tk);
+	return *this;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-void basic_server<CharT,Exec>::start(start_token tk)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::start(start_token tk)
 {
 	m_impl->async_start(tk.max);
+	return *this;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
@@ -262,7 +265,7 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(request_handler c
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_error(callback_t<error_code> callback)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_error(error_handler callback) noexcept
 {
 	m_impl->m_error_callback = std::move(callback);
 	return *this;

@@ -40,10 +40,42 @@ class LIBGS_HTTP_TAPI basic_response_helper
 	LIBGS_DISABLE_COPY(basic_response_helper)
 
 public:
+	using str_type = std::basic_string<CharT>;
+	using str_view_type = std::basic_string_view<CharT>;
+	using headers_type = basic_headers<CharT>;
+
+public:
+	explicit basic_response_helper(str_view_type version, const headers_type &headers);
+	~basic_response_helper() = default;
+
+public:
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
 using response_helper = basic_response_helper<char>;
 using wresponse_helper = basic_response_helper<wchar_t>;
+
+} //namespace libgs::http
+
+namespace libgs::http
+{
+
+template <concept_char_type CharT>
+class basic_response_helper<CharT>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+};
+
+template <concept_char_type CharT>
+basic_response_helper<CharT>::basic_response_helper(str_view_type version, const headers_type &headers)
+{
+
+}
 
 } //namespace libgs::http
 

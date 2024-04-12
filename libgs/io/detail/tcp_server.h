@@ -73,6 +73,13 @@ basic_tcp_server<Exec>::start_token::start_token(error_code &error) :
 }
 
 template <concept_execution Exec>
+basic_tcp_server<Exec>::start_token::start_token(size_t max) :
+	max(max)
+{
+
+}
+
+template <concept_execution Exec>
 basic_tcp_server<Exec>::basic_tcp_server(size_t tcount) :
 	base_type(execution::io_context().get_executor()),
 	m_acceptor(new asio_acceptor(execution::io_context())),

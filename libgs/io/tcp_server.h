@@ -63,6 +63,7 @@ public:
 	{
 		start_token(size_t max, error_code &error);
 		start_token(error_code &error);
+		start_token(size_t max);
 		start_token() = default;
 
 		size_t max = asio::socket_base::max_listen_connections;
