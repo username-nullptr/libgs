@@ -38,17 +38,40 @@ template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_response_helper
 {
 	LIBGS_DISABLE_COPY(basic_response_helper)
+	using this_type = basic_response_helper;
 
 public:
 	using str_type = std::basic_string<CharT>;
 	using str_view_type = std::basic_string_view<CharT>;
+
+	using value_type = basic_value<CharT>;
 	using headers_type = basic_headers<CharT>;
+
+	using cookie_type = basic_cookie<CharT>;
+	using cookies_type = basic_cookies<CharT>;
 
 public:
 	explicit basic_response_helper(str_view_type version, const headers_type &headers);
 	~basic_response_helper();
 
 public:
+	this_type &set_status(uint32_t status);
+	this_type &set_status(http::status status);
+
+	this_type &set_header(str_view_type key, value_type value);
+	this_type &set_cookie(std::string key, cookie_type cookie);
+
+	this_type &redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+	this_type &send_file(std::string_view file_name, http::ranges ranges = {});
+
+public:
+
+public:
+	[[nodiscard]] str_view_type version() const;
+	[[nodiscard]] http::status status() const;
+
+	[[nodiscard]] const headers_type &headers() const;
+	[[nodiscard]] const cookies_type &cookies() const;
 
 private:
 	class impl;
@@ -70,11 +93,17 @@ class basic_response_helper<CharT>::impl
 
 public:
 	impl(str_view_type version, const headers_type &headers) :
-		m_version(version), m_headers(headers) {}
+		m_version(version), m_request_headers(headers) {}
 
 public:
 	str_view_type m_version;
-	const headers_type &m_headers;
+	const headers_type &m_request_headers;
+
+	http::status m_status;
+	headers_type m_response_headers;
+
+	str_type m_redirect_url;
+	std::string m_file_name;
 };
 
 template <concept_char_type CharT>

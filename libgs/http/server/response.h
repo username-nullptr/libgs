@@ -47,6 +47,7 @@ public:
 	using executor_type = typename base_type::executor_type;
 	using request = basic_server_request<CharT,Exec>;
 	using request_ptr = basic_server_request_ptr<CharT,Exec>;
+	using helper_type = basic_response_helper<CharT>;
 
 	using str_type = typename request::str_type;
 	using str_view_type = typename request::str_view_type;
@@ -74,16 +75,17 @@ public:
 	this_type &set_cookie(std::string key, cookie_type cookie);
 
 public:
-	awaitable<size_t> write(opt_token<error_code&> tk = {});
-	awaitable<size_t> write(buffer<const void*> buf, opt_token<error_code&> tk = {});
-	awaitable<size_t> write(buffer<const std::string&> buf, opt_token<error_code&> tk = {});
-	awaitable<size_t> redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> write(buffer<const void*> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> write(buffer<const std::string&> buf, opt_token<error_code&> tk = {});
+
+	[[nodiscard]] awaitable<size_t> redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+	[[nodiscard]] awaitable<size_t> send_file(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
 
 public:
 	this_type &set_chunk_attribute(value_type attribute);
 	this_type &set_chunk_attributes(value_list_type attributes);
 	this_type &chunk_end(const headers_type &headers = {});
-	awaitable<size_t> write_file(str_view_type file_name, opt_token<ranges,error_code&> tk = {});
 
 public:
 	[[nodiscard]] str_view_type version() const;
@@ -131,7 +133,7 @@ public:
 		m_request(std::move(request)) {}
 
 public:
-	response_helper m_helper;
+	helper_type m_helper;
 	request_ptr m_request;
 };
 
