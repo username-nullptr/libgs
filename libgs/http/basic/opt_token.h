@@ -38,6 +38,7 @@ namespace libgs { namespace http
 
 using begin_t = size_t;
 using total_t = size_t;
+using end_t   = size_t;
 
 using read_condition = io::read_condition;
 
@@ -47,6 +48,13 @@ using callback_t = io::callback_t<Args...>;
 template <typename...Token>
 using opt_token = io::opt_token<Token...>;
 
+struct range
+{
+	size_t begin;
+	size_t end;
+};
+using ranges = std::vector<range>;
+
 } //namespace http
 
 namespace io
@@ -54,24 +62,37 @@ namespace io
 
 using begin_t = http::begin_t;
 using total_t = http::total_t;
+using end_t   = http::end_t;
 
 template <typename T>
 struct opt_token<begin_t,total_t,T> : opt_token<T>
 {
 	using opt_token<T>::opt_token;
-	begin_t begin = 0;
-	total_t total = 0;
+	size_t begin = 0;
+	size_t total = 0;
 
 	template <typename...Args>
-	opt_token(total_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
-		opt_token<T>(std::forward<Args>(args)...), total(total) {}
+	opt_token(size_t total, Args&&...args) requires io::concept_opt_token<T,Args...>;
 
 	template <typename...Args>
-	opt_token(begin_t begin, total_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
-		opt_token<T>(std::forward<Args>(args)...), begin(begin), total(total) {}
+	opt_token(size_t begin, size_t total, Args&&...args) requires io::concept_opt_token<T,Args...>;
+};
+
+template <typename T>
+struct opt_token<http::ranges,T> : opt_token<T>
+{
+	using opt_token<T>::opt_token;
+	http::ranges ranges;
+
+	template <typename...Args>
+	opt_token(size_t begin, size_t end, Args&&...args) requires io::concept_opt_token<T,Args...>;
+
+	template <typename...Args>
+	opt_token(http::ranges ranges, Args&&...args) requires io::concept_opt_token<T,Args...>;
 };
 
 }} //namespace libgs::io
+#include <libgs/http/basic/detail/opt_token.h>
 
 
 #endif //LIBGS_HTTP_BASIC_OPT_TOKEN_H

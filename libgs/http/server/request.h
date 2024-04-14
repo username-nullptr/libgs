@@ -36,6 +36,9 @@
 namespace libgs::http
 {
 
+template <concept_char_type CharT, concept_execution Exec>
+class basic_server_response;
+
 template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server_request : public io::device_base<Exec>
 {
@@ -49,6 +52,7 @@ public:
 
 	using str_type = typename parser_type::str_type;
 	using str_view_type = std::basic_string_view<CharT>;
+	using value_type = basic_value<CharT>;
 
 	using headers_type = typename parser_type::headers_type;
 	using cookies_type = typename parser_type::cookies_type;
@@ -66,17 +70,25 @@ public:
 	[[nodiscard]] str_view_type version() const noexcept;
 	[[nodiscard]] str_view_type path() const noexcept;
 
-public:
 	[[nodiscard]] const parameters_type &parameters() const noexcept;
 	[[nodiscard]] const headers_type &headers() const noexcept;
 	[[nodiscard]] const cookies_type &cookies() const noexcept;
+
+public:
+	[[nodiscard]] const value_type &parameter(str_view_type key) const;
+	[[nodiscard]] const value_type &header(str_view_type key) const;
+	[[nodiscard]] const value_type &cookie(str_view_type key) const;
+
+	[[nodiscard]] value_type parameter_or(str_view_type key, value_type def_value = {}) const noexcept;
+	[[nodiscard]] value_type header_or(str_view_type key, value_type def_value = {}) const noexcept;
+	[[nodiscard]] value_type cookie_or(str_view_type key, value_type def_value = {}) const noexcept;
 
 public:
 	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
 
 	[[nodiscard]] awaitable<std::string> read_all(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> save_file(const std::string &file_name, opt_token<begin_t,total_t,error_code&> tk = {});
 
 public:
 	[[nodiscard]] bool is_websocket_handshake() const;
@@ -90,6 +102,7 @@ public:
 	void cancel() noexcept override;
 
 private:
+	friend class basic_server_response<CharT,Exec>;
 	class impl;
 	impl *m_impl;
 };
@@ -122,17 +135,6 @@ public:
 	template <typename Socket>
 	impl(Socket &&socket, parser_type &parser) :
 		m_socket(std::forward<Socket>(socket)), m_parser(parser) {}
-
-public:
-
-
-public:
-	[[nodiscard]] size_t io_buffer_size() const
-	{
-		asio::ip::tcp::socket::send_buffer_size attr;
-		m_socket->get_option(attr);
-		return attr.value();
-	}
 
 public:
 	socket_ptr m_socket;
@@ -186,6 +188,60 @@ template <concept_char_type CharT, concept_execution Exec>
 const typename basic_server_request<CharT,Exec>::cookies_type &basic_server_request<CharT,Exec>::cookies() const noexcept
 {
 	return m_impl->m_parser.cookies();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+const basic_value<CharT> &basic_server_request<CharT,Exec>::parameter(str_view_type key) const
+{
+	auto map = m_impl->m_parser.parameters();
+	auto it = map.find(key);
+	if( it == map.end() )
+		throw runtime_error("libgs::http::request::parameter: key '{}' not exists.", wcstoxx<std::string>(key));
+	return it->second;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+const basic_value<CharT> &basic_server_request<CharT,Exec>::header(str_view_type key) const
+{
+	auto map = m_impl->m_parser.headers();
+	auto it = map.find(key);
+	if( it == map.end() )
+		throw runtime_error("libgs::http::request::header: key '{}' not exists.", wcstoxx<std::string>(key));
+	return it->second;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+const basic_value<CharT> &basic_server_request<CharT,Exec>::cookie(str_view_type key) const
+{
+	auto map = m_impl->m_parser.cookies();
+	auto it = map.find(key);
+	if( it == map.end() )
+		throw runtime_error("libgs::http::request::cookie: key '{}' not exists.", wcstoxx<std::string>(key));
+	return it->second;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+basic_value<CharT> basic_server_request<CharT,Exec>::parameter_or(str_view_type key, value_type def_value) const noexcept
+{
+	auto map = m_impl->m_parser.parameters();
+	auto it = map.find(key);
+	return it == map.end() ? def_value : it->second;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+basic_value<CharT> basic_server_request<CharT,Exec>::header_or(str_view_type key, value_type def_value) const noexcept
+{
+	auto map = m_impl->m_parser.headers();
+	auto it = map.find(key);
+	return it == map.end() ? def_value : it->second;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+basic_value<CharT> basic_server_request<CharT,Exec>::cookie_or(str_view_type key, value_type def_value) const noexcept
+{
+	auto map = m_impl->m_parser.cookies();
+	auto it = map.find(key);
+	return it == map.end() ? def_value : it->second;
 }
 
 template <concept_char_type CharT, concept_execution Exec>

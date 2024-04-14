@@ -26,7 +26,7 @@ int main()
 
 		libgs_log_debug("partial_body: {}\n", co_await request->read_all());
 
-
+//		libgs::http::server::response response(request);
 		co_return ;
 	})
 	.on_error([](const std::error_code &error) -> libgs::awaitable<void>

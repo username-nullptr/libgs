@@ -31,6 +31,7 @@
 
 #include <libgs/http/server/request.h>
 #include <libgs/http/server/response_helper.h>
+#include <libgs/core/value.h>
 
 namespace libgs::http
 {
@@ -39,16 +40,64 @@ template <concept_char_type CharT, concept_execution Exec = asio::any_io_executo
 class LIBGS_HTTP_VAPI basic_server_response : public io::device_base<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_server_response)
+	using base_type = io::device_base<Exec>;
+	using this_type = basic_server_response;
 
 public:
+	using executor_type = typename base_type::executor_type;
 	using request = basic_server_request<CharT,Exec>;
 	using request_ptr = basic_server_request_ptr<CharT,Exec>;
 
-public:
-	explicit basic_server_response(request_ptr request);
-	~basic_server_response() = default;
+	using str_type = typename request::str_type;
+	using str_view_type = typename request::str_view_type;
+	using socket_ptr = typename request::socket_ptr;
+
+	using headers_type = typename request::headers_type;
+	using cookie_type = basic_cookie<CharT>;
+	using cookies_type = basic_cookies<CharT>;
+
+	using value_type = typename request::value_type;
+	using value_list_type = basic_value_list<CharT>;
+
+	template <typename T>
+	using buffer = io::buffer<T>;
 
 public:
+	explicit basic_server_response(request_ptr request);
+	~basic_server_response();
+
+public:
+	this_type &set_status(uint32_t status);
+	this_type &set_status(http::status status);
+
+	this_type &set_header(str_view_type key, value_type value);
+	this_type &set_cookie(std::string key, cookie_type cookie);
+
+public:
+	awaitable<size_t> write(opt_token<error_code&> tk = {});
+	awaitable<size_t> write(buffer<const void*> buf, opt_token<error_code&> tk = {});
+	awaitable<size_t> write(buffer<const std::string&> buf, opt_token<error_code&> tk = {});
+	awaitable<size_t> redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+
+public:
+	this_type &set_chunk_attribute(value_type attribute);
+	this_type &set_chunk_attributes(value_list_type attributes);
+	this_type &chunk_end(const headers_type &headers = {});
+	awaitable<size_t> write_file(str_view_type file_name, opt_token<ranges,error_code&> tk = {});
+
+public:
+	[[nodiscard]] str_view_type version() const;
+	[[nodiscard]] http::status status() const;
+
+	[[nodiscard]] const headers_type &headers() const;
+	[[nodiscard]] const cookies_type &cookies() const;
+
+	[[nodiscard]] bool is_writed() const;
+	void cancel() noexcept override;
+
+public:
+	this_type &unset_header(str_view_type key);
+	this_type &unset_cookie(str_view_type key);
 
 private:
 	class impl;
@@ -77,12 +126,27 @@ class basic_server_response<CharT, Exec>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
+	explicit impl(request_ptr request) :
+		m_helper(request->version(), request->headers()),
+		m_request(std::move(request)) {}
+
+public:
+	response_helper m_helper;
+	request_ptr m_request;
 };
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec>::basic_server_response(basic_server_response::request_ptr request)
+basic_server_response<CharT,Exec>::basic_server_response(request_ptr request) :
+	io::device_base<Exec>(request->executor()),
+	m_impl(new impl(std::move(request)))
 {
 
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+basic_server_response<CharT,Exec>::~basic_server_response()
+{
+	delete m_impl;
 }
 
 } //namespace libgs::http

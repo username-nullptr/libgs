@@ -26,71 +26,46 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
-#define LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
+#ifndef LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
+#define LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
 
-#include <libgs/http/basic/types.h>
-
-namespace libgs::http
+namespace libgs::io
 {
 
-template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI basic_response_helper
-{
-	LIBGS_DISABLE_COPY(basic_response_helper)
-
-public:
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
-	using headers_type = basic_headers<CharT>;
-
-public:
-	explicit basic_response_helper(str_view_type version, const headers_type &headers);
-	~basic_response_helper();
-
-public:
-
-private:
-	class impl;
-	impl *m_impl;
-};
-
-using response_helper = basic_response_helper<char>;
-using wresponse_helper = basic_response_helper<wchar_t>;
-
-} //namespace libgs::http
-
-namespace libgs::http
-{
-
-template <concept_char_type CharT>
-class basic_response_helper<CharT>::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
-
-public:
-	impl(str_view_type version, const headers_type &headers) :
-		m_version(version), m_headers(headers) {}
-
-public:
-	str_view_type m_version;
-	const headers_type &m_headers;
-};
-
-template <concept_char_type CharT>
-basic_response_helper<CharT>::basic_response_helper(str_view_type version, const headers_type &headers) :
-	m_impl(new impl(version, headers))
+template <typename T>
+template <typename...Args>
+opt_token<begin_t,total_t,T>::opt_token(size_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
+	opt_token<T>(std::forward<Args>(args)...), total(total)
 {
 
 }
 
-template <concept_char_type CharT>
-basic_response_helper<CharT>::~basic_response_helper()
+template <typename T>
+template <typename...Args>
+opt_token<begin_t,total_t,T>::opt_token(size_t begin, size_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
+	opt_token<T>(std::forward<Args>(args)...), begin(begin), total(total)
 {
-	delete m_impl;
+
 }
 
-} //namespace libgs::http
+template <typename T>
+template <typename...Args>
+opt_token<http::ranges,T>::opt_token(size_t begin, size_t end, Args&&...args) requires io::concept_opt_token<T,Args...> :
+	opt_token<T>(std::forward<Args>(args)...)
+{
+	ranges.emplace_back(http::range{begin, end});
+}
+
+template <typename T>
+template <typename...Args>
+opt_token<http::ranges,T>::opt_token(http::ranges ranges, Args&&...args) requires io::concept_opt_token<T,Args...> :
+	opt_token<T>(std::forward<Args>(args)...), ranges(std::move(ranges))
+{
+
+}
+
+} //namespace libgs::io
 
 
-#endif //LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
+#endif //LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
+

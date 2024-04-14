@@ -24,6 +24,7 @@ set(http_detail_headers
 	basic/detail/container.h
 	basic/detail/cookie.h
 	basic/detail/types.h
+	basic/detail/opt_token.h
 	server/detail/request_parser.h
 )
 
