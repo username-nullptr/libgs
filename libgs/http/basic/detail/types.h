@@ -32,35 +32,50 @@
 namespace libgs::http
 {
 
-inline void status_check(uint32_t status)
+inline void status_check(uint32_t s)
 {
-	switch(static_cast<http::status>(status))
+	status_check(static_cast<status>(s));
+}
+
+inline void status_check(status s)
+{
+	switch(s)
 	{
 #define X_MACRO(e,v,d) case http::status::e:
 		LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
 			break;
 		default:
-			throw runtime_error("libgs::http::status_check: Invalid http status: '{}'.", status);
+			throw runtime_error("libgs::http::status_check: Invalid http status: '{}'.", s);
 	}
 }
 
-inline void method_check(uint32_t method)
+inline void method_check(uint32_t m)
 {
-	switch(static_cast<http::method>(method))
+	method_check(static_cast<method>(m));
+}
+
+inline void method_check(method m)
+{
+	switch(m)
 	{
 #define X_MACRO(e,v,d) case http::method::e:
 		LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 			break;
 		default:
-			throw runtime_error("libgs::http::method_check: Invalid http method: '{}'.", method);
+			throw runtime_error("libgs::http::method_check: Invalid http method: '{}'.", m);
 	}
 }
 
 inline void redirect_type_check(uint32_t type)
 {
-	switch(static_cast<http::redirect_type>(type))
+	redirect_type_check(static_cast<redirect_type>(type));
+}
+
+inline void redirect_type_check(redirect_type type)
+{
+	switch(type)
 	{
 #define X_MACRO(e,v) case redirect_type::e:
 		LIBGS_HTTP_REDIRECT_TYPE_TABLE

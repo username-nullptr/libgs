@@ -106,7 +106,8 @@ enum class status
 	LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
 };
-LIBGS_HTTP_VAPI void status_check(uint32_t status);
+LIBGS_HTTP_VAPI void status_check(uint32_t s);
+LIBGS_HTTP_VAPI void status_check(status s);
 
 #define LIBGS_HTTP_METHOD_TABLE \
 X_MACRO( GET     , 0x01 , "GET"     ) \
@@ -124,7 +125,8 @@ enum method
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 };
-LIBGS_HTTP_VAPI void method_check(uint32_t method);
+LIBGS_HTTP_VAPI void method_check(uint32_t m);
+LIBGS_HTTP_VAPI void method_check(method m);
 
 #define LIBGS_HTTP_REDIRECT_TYPE_TABLE \
 X_MACRO( moved_permanently  , static_cast<int>(status::moved_permanently ) ) \
@@ -142,6 +144,7 @@ enum class redirect_type
 #undef X_MACRO
 };
 LIBGS_HTTP_VAPI void redirect_type_check(uint32_t type);
+LIBGS_HTTP_VAPI void redirect_type_check(redirect_type type);
 
 template <status>
 struct status_description

@@ -75,12 +75,6 @@ struct LIBGS_IO_API buffer<const std::string&> : buffer<void>
 
 	template <typename String>
 	buffer(const String &data, size_t size = 0) requires std::is_same_v<String,std::string>;
-
-	template <typename Args0, typename...Args>
-	buffer(std::format_string<Args...> fmt, Args0 &&arg0, Args&&...args);
-
-	template <typename Args0, typename...Args>
-	buffer(std::wformat_string<Args...> fmt, Args0 &&arg0, Args&&...args);
 };
 
 } //namespace libgs::io

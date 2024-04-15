@@ -37,7 +37,6 @@ namespace libgs::http
 template <concept_char_type CharT>
 struct basic_header;
 
-
 #define LIBGS_HTTP_HEADER_KEY(_type, ...) \
 	static constexpr const _type *accept_language   = __VA_ARGS__##"Accept-Language"; \
 	static constexpr const _type *accept_encoding   = __VA_ARGS__##"Accept-Encoding"; \

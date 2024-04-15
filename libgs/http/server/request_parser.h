@@ -101,7 +101,7 @@ namespace detail
 {
 
 template <typename T>
-struct _static_string;
+struct _key_static_string;
 
 #define LIBGS_HTTP_DETAIL_STATIC_STRING_KEY(_type, ...) \
 	static constexpr const _type *v_1_0      = __VA_ARGS__##"1.0"       ; \
@@ -114,12 +114,12 @@ struct _static_string;
 	static constexpr const _type *websocket  = __VA_ARGS__##"websocket" ;
 
 template <>
-struct _static_string<char> {
+struct _key_static_string<char> {
 	LIBGS_HTTP_DETAIL_STATIC_STRING_KEY(char);
 };
 
 template <>
-struct _static_string<wchar_t> {
+struct _key_static_string<wchar_t> {
 	LIBGS_HTTP_DETAIL_STATIC_STRING_KEY(wchar_t,L);
 };
 
@@ -129,7 +129,7 @@ template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using static_string = detail::_static_string<CharT>;
+	using static_string = detail::_key_static_string<CharT>;
 
 public:
 	using str_type = std::basic_string<CharT>;

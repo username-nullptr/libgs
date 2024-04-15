@@ -40,20 +40,6 @@ buffer<const std::string&>::buffer(const String &data, size_t size) requires std
 		this->size = data.size();
 }
 
-template <typename Args0, typename...Args>
-buffer<const std::string&>::buffer(std::format_string<Args...> fmt, Args0 &&arg0, Args&&...args)
-{
-	data = std::format(fmt, std::forward<Args0>(arg0), std::forward<Args>(args)...);
-	size = data.size();
-}
-
-template <typename Args0, typename...Args>
-buffer<const std::string&>::buffer(std::wformat_string<Args...> fmt, Args0 &&arg0, Args&&...args)
-{
-	data = std::format(fmt, std::forward<Args0>(arg0), std::forward<Args>(args)...);
-	size = data.size();
-}
-
 } //namespace libgs::io
 
 
