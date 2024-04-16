@@ -90,11 +90,15 @@ public:
 	virtual ~basic_cookie() = default;
 
 public:
-	basic_cookie &set_value(value_type v);
-	basic_cookie &operator=(value_type v);
+	basic_cookie &set_value(value_type v) noexcept;
+	basic_cookie &operator=(value_type v) noexcept;
 
-	operator value_type&();
-	operator const value_type&() const;
+public:
+	[[nodiscard]] const value_type &value() const noexcept;
+	[[nodiscard]] value_type &value() noexcept;
+
+	operator const value_type&() const noexcept;
+	operator value_type&() noexcept;
 
 public:
 	[[nodiscard]] str_type domain() const;
@@ -166,7 +170,6 @@ public:
 	[[nodiscard]] T attributes_or(const str_type &key, T default_value = {}) const noexcept
 		requires std::is_arithmetic_v<T> or std::is_same_v<T,str_type>;
 
-public:
 	[[nodiscard]] attributes_type attributes() const noexcept;
 
 protected:

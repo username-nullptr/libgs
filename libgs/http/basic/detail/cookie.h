@@ -40,25 +40,37 @@ basic_cookie<CharT>::basic_cookie(value_type &v) :
 }
 
 template <concept_char_type CharT>
-basic_cookie<CharT> &basic_cookie<CharT>::set_value(value_type v)
+basic_cookie<CharT> &basic_cookie<CharT>::set_value(value_type v) noexcept
 {
 	m_value = std::move(v);
 }
 
 template <concept_char_type CharT>
-basic_cookie<CharT> &basic_cookie<CharT>::operator=(value_type v)
+basic_cookie<CharT> &basic_cookie<CharT>::operator=(value_type v) noexcept
 {
 	m_value = std::move(v);
 }
 
 template <concept_char_type CharT>
-basic_cookie<CharT>::operator value_type&()
+const basic_value<CharT> &basic_cookie<CharT>::value() const noexcept
 {
 	return m_value;
 }
 
 template <concept_char_type CharT>
-basic_cookie<CharT>::operator const value_type&() const
+basic_value<CharT> &basic_cookie<CharT>::value() noexcept
+{
+	return m_value;
+}
+
+template <concept_char_type CharT>
+basic_cookie<CharT>::operator const value_type&() const noexcept
+{
+	return m_value;
+}
+
+template <concept_char_type CharT>
+basic_cookie<CharT>::operator value_type&() noexcept
 {
 	return m_value;
 }

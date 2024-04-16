@@ -54,6 +54,7 @@ public:
 	using str_view_type = std::basic_string_view<CharT>;
 	using value_type = basic_value<CharT>;
 
+	using header_type = typename parser_type::header_type;
 	using headers_type = typename parser_type::headers_type;
 	using cookies_type = typename parser_type::cookies_type;
 	using parameters_type = typename parser_type::parameters_type;
@@ -94,6 +95,7 @@ public:
 	[[nodiscard]] bool is_websocket_handshake() const;
 	[[nodiscard]] bool keep_alive() const;
 	[[nodiscard]] bool support_gzip() const;
+	[[nodiscard]] bool is_chunked() const;
 	[[nodiscard]] bool can_read_body() const;
 
 public:
@@ -452,6 +454,15 @@ template <concept_char_type CharT, concept_execution Exec>
 bool basic_server_request<CharT,Exec>::support_gzip() const
 {
 	return m_impl->m_parser.support_gzip();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+bool basic_server_request<CharT,Exec>::is_chunked() const
+{
+	if( stoi32(version()) < 1.1 )
+		return false;
+	auto it = m_impl->m_headers.find(header_type::transfer_encoding);
+	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::_key_static_string<CharT>::chunked;
 }
 
 template <concept_char_type CharT, concept_execution Exec>

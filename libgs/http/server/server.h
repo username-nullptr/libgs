@@ -38,7 +38,7 @@ namespace libgs::http
 template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server : public io::device_base<Exec>
 {
-	LIBGS_DISABLE_COPY(basic_server)
+	LIBGS_DISABLE_COPY_MOVE(basic_server)
 	using base_type = io::device_base<Exec>;
 
 public:

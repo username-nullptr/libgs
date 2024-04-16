@@ -100,6 +100,7 @@ public:
 public:
 	this_type &unset_header(str_view_type key);
 	this_type &unset_cookie(str_view_type key);
+	this_type &unset_chunk_attribute(value_type attribute);
 
 private:
 	class impl;
@@ -267,6 +268,12 @@ basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_head
 
 template <concept_char_type CharT, concept_execution Exec>
 basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_cookie(str_view_type key)
+{
+	return *this;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_chunk_attribute(value_type attribute)
 {
 	return *this;
 }

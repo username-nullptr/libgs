@@ -44,6 +44,7 @@ public:
 	using str_view_type = std::basic_string_view<CharT>;
 
 	using cookies_type = basic_cookie_values<CharT>;
+	using header_type = basic_header<CharT>;
 	using headers_type = basic_headers<CharT>;
 	using parameters_type = basic_parameters<CharT>;
 

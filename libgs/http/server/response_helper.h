@@ -53,6 +53,9 @@ public:
 	using cookie_type = basic_cookie<CharT>;
 	using cookies_type = basic_cookies<CharT>;
 
+	template <typename T>
+	using buffer = io::buffer<T>;
+
 public:
 	explicit basic_response_helper(str_view_type version, const headers_type &headers);
 	~basic_response_helper();
@@ -67,14 +70,19 @@ public:
 	this_type &set_header(str_view_type key, value_type value) noexcept;
 	this_type &set_cookie(str_view_type key, cookie_type cookie) noexcept;
 
-	this_type &redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+	this_type &set_redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
 
-public:
 	this_type &set_chunk_attribute(value_type attribute);
 	this_type &set_chunk_attributes(value_list_type attributes);
 
 public:
-	[[nodiscard]] std::string generate_protocol_header() const;
+	using write_callback = std::function<awaitable<size_t>(std::string_view,error_code&)>;
+	this_type &on_write(write_callback writer) const;
+
+	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {}) const;
+	[[nodiscard]] awaitable<size_t> write(buffer<const void*> body, opt_token<error_code&> tk = {}) const;
+	[[nodiscard]] awaitable<size_t> write(buffer<const std::string&> body, opt_token<error_code&> tk = {}) const;
+	[[nodiscard]] awaitable<size_t> write(std::ifstream &file, opt_token<error_code&> tk = {}) const;
 
 public:
 	[[nodiscard]] str_view_type version() const;
@@ -86,6 +94,7 @@ public:
 public:
 	this_type &unset_header(str_view_type key);
 	this_type &unset_cookie(str_view_type key);
+	this_type &unset_chunk_attribute(value_type attribute);
 
 private:
 	class impl;
@@ -131,6 +140,27 @@ public:
 		m_version(version), m_request_headers(headers) {}
 
 public:
+	[[nodiscard]] std::string generate_protocol_header() const
+	{
+		std::string result;
+		result.reserve(4096);
+
+		m_response_headers.erase("set-cookie");
+		for(auto &[key,value] : m_response_headers)
+			result += key + ": " + value;
+
+		for(auto &[key,cookie] : m_cookies)
+		{
+			result += "set-cookie: " + key + "=" + cookie + ";";
+			for(auto &attr_pair : cookie.attributes())
+				result += attr_pair.first + "=" + attr_pair.second + ";";
+			result.pop_back();
+		}
+		result += "\r\n";
+		return result;
+	}
+
+public:
 	str_view_type m_version = key_static_string::v_1_1;
 	const headers_type &m_request_headers;
 
@@ -138,13 +168,12 @@ public:
 	headers_type m_response_headers {
 		{ header_type::content_type, header_value_static_string::content_type }
 	};
-	cookies_type m_cookies;
 
+	cookies_type m_cookies;
 	value_list_type m_chunk_attributes;
-	bool m_chunk_end_writed = false;
 
 	str_type m_redirect_url;
-	std::string m_file_name;
+	write_callback m_writer {};
 };
 
 template <concept_char_type CharT>
@@ -206,7 +235,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(str_view_
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::redirect(str_view_type url, redirect_type type)
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect(str_view_type url, redirect_type type)
 {
 	switch(type)
 	{
@@ -239,13 +268,33 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 	return *this;
 }
 
-
-
-
-
+template <concept_char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::on_write(write_callback writer) const
+{
+	m_impl->m_writer = std::move(writer);
+	return *this;
+}
 
 template <concept_char_type CharT>
-std::string basic_response_helper<CharT>::generate_protocol_header() const
+awaitable<size_t> basic_response_helper<CharT>::write(opt_token<error_code&> tk) const
+{
+
+}
+
+template <concept_char_type CharT>
+awaitable<size_t> basic_response_helper<CharT>::write(buffer<const void*> body, opt_token<error_code&> tk) const
+{
+
+}
+
+template <concept_char_type CharT>
+awaitable<size_t> basic_response_helper<CharT>::write(buffer<const std::string&> body, opt_token<error_code&> tk) const
+{
+
+}
+
+template <concept_char_type CharT>
+awaitable<size_t> basic_response_helper<CharT>::write(std::ifstream &file, opt_token<error_code&> tk) const
 {
 
 }
@@ -284,6 +333,12 @@ template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(str_view_type key)
 {
 	m_impl->m_cookies.erase(key);
+}
+
+template <concept_char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(value_type key)
+{
+	m_impl->m_chunk_attributes.erase(key);
 }
 
 } //namespace libgs::http
