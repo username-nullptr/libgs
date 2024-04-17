@@ -94,7 +94,8 @@ public:
 public:
 	this_type &unset_header(str_view_type key);
 	this_type &unset_cookie(str_view_type key);
-	this_type &unset_chunk_attribute(value_type attribute);
+	this_type &unset_chunk_attribute(value_type key);
+	this_type &reset();
 
 private:
 	class impl;
@@ -140,24 +141,88 @@ public:
 		m_version(version), m_request_headers(headers) {}
 
 public:
-	[[nodiscard]] std::string generate_protocol_header() const
+	[[nodiscard]] awaitable<size_t> write_header(size_t body_size, opt_token<error_code&> tk)
 	{
-		std::string result;
-		result.reserve(4096);
+		m_headers_writed = true;
+		auto it = m_response_headers.find(header_type::content_length);
 
+		if( it == m_response_headers.end() )
+		{
+			if( stoi32(m_version) > 1.0 )
+			{
+				it = m_response_headers.find(header_type::transfer_encoding);
+				if( it == m_response_headers.end() or str_to_lower(it->second) != key_static_string::chunked )
+					m_response_headers[str_to_lower(header_type::content_length)] = body_size;
+			}
+			else
+				m_response_headers[str_to_lower(header_type::content_length)] = body_size;
+		}
+		std::string buf;
+		buf.reserve(4096);
+
+		buf = std::format("HTTP/{} {} {}\r\n", m_version, m_status, to_status_description(m_status));
 		m_response_headers.erase("set-cookie");
+
 		for(auto &[key,value] : m_response_headers)
-			result += key + ": " + value;
+			buf += key + ": " + value + "\r\n";
 
 		for(auto &[key,cookie] : m_cookies)
 		{
-			result += "set-cookie: " + key + "=" + cookie + ";";
+			buf += "set-cookie: " + key + "=" + cookie + ";";
 			for(auto &attr_pair : cookie.attributes())
-				result += attr_pair.first + "=" + attr_pair.second + ";";
-			result.pop_back();
+				buf += attr_pair.first + "=" + attr_pair.second + ";";
+
+			buf.pop_back();
+			buf += "\r\n";
 		}
-		result += "\r\n";
-		return result;
+		error_code error;
+		auto res = co_await m_writer(buf, error);
+
+		io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
+		co_return res;
+	}
+
+	[[nodiscard]] awaitable<size_t> write_body(const void *buf, size_t size, opt_token<error_code&> tk)
+	{
+		error_code error;
+		if( not is_chunked() )
+		{
+			size = co_await m_writer({static_cast<const char*>(buf), size}, error);
+			io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
+			co_return size;
+		}
+		else if( m_chunk_attributes.empty() )
+		{
+			size = co_await m_writer(std::format("{:X}\r\n", size), error);
+			if( not io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+				co_return size;
+		}
+		else
+		{
+			std::string attributes;
+			for(auto &attr : m_chunk_attributes)
+				attributes += attr + ";";
+
+			m_chunk_attributes.clear();
+			attributes.pop_back();
+
+			size = co_await m_writer(std::format("{:X}; {}\r\n", size, attributes), error);
+			if( not io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+				co_return size;
+		}
+		size = co_await m_writer(std::string(static_cast<const char*>(buf), size) + "\r\n", error);
+		io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
+		co_return size;
+	}
+
+private:
+	[[nodiscard]] bool is_chunked() const
+	{
+		if( stoi32(m_version) < 1.1 )
+			return false;
+
+		auto it = m_request_headers.find(header_type::transfer_encoding);
+		return it != m_response_headers.end() and str_to_lower(it->second) == key_static_string::chunked;
 	}
 
 public:
@@ -168,12 +233,14 @@ public:
 	headers_type m_response_headers {
 		{ header_type::content_type, header_value_static_string::content_type }
 	};
-
 	cookies_type m_cookies;
 	value_list_type m_chunk_attributes;
 
 	str_type m_redirect_url;
 	write_callback m_writer {};
+
+	bool m_chunk_end_writed = false;
+	bool m_headers_writed = false;
 };
 
 template <concept_char_type CharT>
@@ -278,25 +345,42 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::on_write(write_callb
 template <concept_char_type CharT>
 awaitable<size_t> basic_response_helper<CharT>::write(opt_token<error_code&> tk) const
 {
-
+	if( m_impl->m_headers_writed )
+		throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
+	co_return co_await write(std::format("{} ({})", to_status_description(status()), status()), std::move(tk));
 }
 
 template <concept_char_type CharT>
 awaitable<size_t> basic_response_helper<CharT>::write(buffer<const void*> body, opt_token<error_code&> tk) const
 {
+	if( not m_impl->m_writer )
+		throw runtime_error("libgs::http::response_helper::write: No writer");
 
+	else if( m_impl->m_headers_writed )
+	{
+		if( body.size == 0 )
+			throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
+		co_return co_await m_impl->write_body(body.data, body.size, std::move(tk));
+	}
+	auto res = co_await m_impl->write_header(body.size, tk);
+	if( tk.error and *tk.error )
+		co_return res;
+	else if( body.size > 0 )
+		co_return res + (co_await m_impl->write_body(body.data, body.size, std::move(tk)));
 }
 
 template <concept_char_type CharT>
 awaitable<size_t> basic_response_helper<CharT>::write(buffer<const std::string&> body, opt_token<error_code&> tk) const
 {
-
+	co_return co_await write({body.data, body.size}, std::move(tk));
 }
 
 template <concept_char_type CharT>
 awaitable<size_t> basic_response_helper<CharT>::write(std::ifstream &file, opt_token<error_code&> tk) const
 {
-
+	if( not m_impl->m_writer )
+		throw runtime_error("libgs::http::response_helper::write: No writer");
+	// TODO ...
 }
 
 template <concept_char_type CharT>
@@ -327,18 +411,39 @@ template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(str_view_type key)
 {
 	m_impl->m_response_headers.erase(key);
+	return *this;
 }
 
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(str_view_type key)
 {
 	m_impl->m_cookies.erase(key);
+	return *this;
 }
 
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(value_type key)
 {
 	m_impl->m_chunk_attributes.erase(key);
+	return *this;
+}
+
+template <concept_char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
+{
+	m_impl->m_version = detail::_key_static_string<CharT>::v_1_1;
+	m_impl->m_status = status::ok;
+
+	m_impl->m_response_headers = {
+		{ header_type::content_type, detail::_header_value_static_string<CharT>::content_type }
+	};
+	m_impl->m_cookies.clear();
+	m_impl->m_chunk_attributes.clear();
+	m_impl->m_redirect_url.clear();
+
+	m_impl->m_chunk_end_writed = false;
+	m_impl->m_headers_writed = false;
+	return *this;
 }
 
 } //namespace libgs::http

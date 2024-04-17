@@ -79,7 +79,7 @@ public:
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size = 0);
 	[[nodiscard]] bool is_finished() const noexcept;
-	void reset();
+	basic_request_parser &reset();
 
 private:
 	class impl;
@@ -611,9 +611,10 @@ bool basic_request_parser<CharT>::is_finished() const noexcept
 }
 
 template <concept_char_type CharT>
-void basic_request_parser<CharT>::reset()
+basic_request_parser<CharT> &basic_request_parser<CharT>::reset()
 {
 	m_impl->reset();
+	return *this;
 }
 
 } //namespace libgs::http
