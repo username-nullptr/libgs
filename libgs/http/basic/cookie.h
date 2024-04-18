@@ -80,7 +80,7 @@ public:
 	using attributes_type = basic_cookie_attributes<CharT>;
 
 public:
-	basic_cookie() = default;
+	basic_cookie();
 	basic_cookie(value_type &v);
 
 	basic_cookie(const basic_cookie &other) = default;
@@ -174,7 +174,7 @@ public:
 
 protected:
 	value_type m_value;
-	attributes_type m_attributes {{attributes_type::path,"/"}};
+	attributes_type m_attributes;
 };
 
 using cookie = basic_cookie<char>;

@@ -77,12 +77,12 @@ public:
 
 public:
 	using write_callback = std::function<awaitable<size_t>(std::string_view,error_code&)>;
-	this_type &on_write(write_callback writer) const;
+	this_type &on_write(write_callback writer, std::function<size_t()> get_write_buffer_size = {}) const;
 
 	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {}) const;
 	[[nodiscard]] awaitable<size_t> write(buffer<const void*> body, opt_token<error_code&> tk = {}) const;
 	[[nodiscard]] awaitable<size_t> write(buffer<const std::string&> body, opt_token<error_code&> tk = {}) const;
-	[[nodiscard]] awaitable<size_t> write(std::ifstream &file, opt_token<error_code&> tk = {}) const;
+	[[nodiscard]] awaitable<size_t> write(std::string_view file_name, opt_token<ranges,error_code&> tk = {}) const;
 
 public:
 	[[nodiscard]] str_view_type version() const;
@@ -106,6 +106,11 @@ using response_helper = basic_response_helper<char>;
 using wresponse_helper = basic_response_helper<wchar_t>;
 
 } //namespace libgs::http
+
+
+#include <libgs/core/algorithm/mime_type.h>
+#include <libgs/core/log.h>
+#include <filesystem>
 
 namespace libgs::http
 {
@@ -132,13 +137,14 @@ template <concept_char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using helper_type = basic_response_helper<CharT>;
 	using key_static_string = detail::_key_static_string<CharT>;
 	using header_value_static_string = detail::_header_value_static_string<CharT>;
 
 public:
-	impl() = default;
-	impl(str_view_type version, const headers_type &headers) :
-		m_version(version), m_request_headers(headers) {}
+	explicit impl(helper_type *q_ptr) : q_ptr(q_ptr) {}
+	impl(helper_type *q_ptr, str_view_type version, const headers_type &headers) :
+		q_ptr(q_ptr), m_version(version), m_request_headers(headers) {}
 
 public:
 	[[nodiscard]] awaitable<size_t> write_header(size_t body_size, opt_token<error_code&> tk)
@@ -152,10 +158,10 @@ public:
 			{
 				it = m_response_headers.find(header_type::transfer_encoding);
 				if( it == m_response_headers.end() or str_to_lower(it->second) != key_static_string::chunked )
-					m_response_headers[str_to_lower(header_type::content_length)] = body_size;
+					q_ptr->set_header(header_type::content_length, body_size);
 			}
 			else
-				m_response_headers[str_to_lower(header_type::content_length)] = body_size;
+				q_ptr->set_header(header_type::content_length, body_size);
 		}
 		std::string buf;
 		buf.reserve(4096);
@@ -215,7 +221,98 @@ public:
 		co_return size;
 	}
 
+	[[nodiscard]] awaitable<size_t> send_file(std::string_view file_name, opt_token<ranges,error_code&> tk)
+	{
+		namespace fs = std::filesystem;
+		if( not fs::exists(file_name) )
+		{
+			throw system_error(std::make_error_code(static_cast<std::errc>(errc::no_such_device)),
+							   "libgs::http::response_helper::write('{}')", file_name);
+		}
+		std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+		if( not file.is_open() )
+		{
+			throw system_error(std::make_error_code(static_cast<std::errc>(errno)),
+							   "libgs::http::response_helper::write('{}')", file_name);
+		}
+		size_t res = 0;
+		std::exception *exp = nullptr;
+		try {
+			if( tk.ranges.empty() )
+			{
+				auto it = m_request_headers.find(header_type::range);
+				if( it != m_response_headers.end() )
+					res = co_await range_transfer(file_name, file, xxtombs<CharT>(it->second), tk);
+				else
+					res = co_await default_transfer(file_name, file, tk);
+			}
+			else
+			{
+				std::string range_text = "bytes=";
+				for(auto &range : tk.ranges)
+				{
+					if( range.begin >= range.end )
+						range_text += std::format("{}-{},", range.begin, range.end);
+					else
+					{
+						throw system_error(std::make_error_code(static_cast<std::errc>(errc::invalid_argument)),
+										   "gts::response::write_file: range error: begin > end");
+					}
+				}
+				range_text.pop_back();
+				res = co_await range_transfer(file_name, file, range_text, tk);
+			}
+		}
+		catch(std::exception &ex) {
+			exp = &ex;
+		}
+		file.close();
+		if( exp )
+			throw *exp;
+		co_return res;
+	}
+
 private:
+	awaitable<size_t> default_transfer(std::string_view file_name, std::ifstream &file, opt_token<error_code&> &tk)
+	{
+		using namespace std::chrono_literals;
+		namespace fs = std::filesystem;
+		error_code error;
+
+		auto mime_type = get_mime_type(file_name);
+		libgs_log_debug("resource mime-type: {}.", mime_type);
+
+		auto file_size = fs::file_size(file_name);
+		if( file_size == 0 )
+			co_return 0;
+
+		q_ptr->set_header(header::content_type, mime_type);
+		auto sum = co_await write_header(file_size, error);
+
+		if( not io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+			co_return sum;
+
+		size_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
+		char *fr_buf = new char[buf_size] {0};
+
+		auto is_chunked = this->is_chunked();
+		while( not file.eof() )
+		{
+			file.read(fr_buf, buf_size);
+			auto size = file.gcount();
+
+			if( size == 0 or not write_body(fr_buf, size, is_chunked) )
+				break;
+			sleep_for(512us);
+		}
+		delete[] fr_buf;
+	}
+
+	awaitable<size_t> range_transfer(std::string_view file_name, std::ifstream &file, std::string_view _range_str, opt_token<error_code&> &tk)
+	{
+		// TODO ...
+	}
+
 	[[nodiscard]] bool is_chunked() const
 	{
 		if( stoi32(m_version) < 1.1 )
@@ -226,6 +323,7 @@ private:
 	}
 
 public:
+	helper_type *q_ptr;
 	str_view_type m_version = key_static_string::v_1_1;
 	const headers_type &m_request_headers;
 
@@ -238,6 +336,7 @@ public:
 
 	str_type m_redirect_url;
 	write_callback m_writer {};
+	std::function<size_t()> m_get_write_buffer_size {};
 
 	bool m_chunk_end_writed = false;
 	bool m_headers_writed = false;
@@ -245,7 +344,7 @@ public:
 
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(str_view_type version, const headers_type &headers) :
-	m_impl(new impl(version, headers))
+	m_impl(new impl(this, version, headers))
 {
 
 }
@@ -260,14 +359,14 @@ template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(basic_response_helper &&other) noexcept :
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl();
+	other.m_impl = new impl(&other);
 }
 
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::operator=(basic_response_helper &&other) noexcept
 {
 	m_impl = other.m_impl;
-	other.m_impl = new impl();
+	other.m_impl = new impl(&other);
 	return *this;
 }
 
@@ -336,9 +435,11 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::on_write(write_callback writer) const
+basic_response_helper<CharT> &basic_response_helper<CharT>::on_write
+(write_callback writer, std::function<size_t()> get_write_buffer_size) const
 {
 	m_impl->m_writer = std::move(writer);
+	m_impl->m_get_write_buffer_size = std::move(get_write_buffer_size);
 	return *this;
 }
 
@@ -376,11 +477,13 @@ awaitable<size_t> basic_response_helper<CharT>::write(buffer<const std::string&>
 }
 
 template <concept_char_type CharT>
-awaitable<size_t> basic_response_helper<CharT>::write(std::ifstream &file, opt_token<error_code&> tk) const
+awaitable<size_t> basic_response_helper<CharT>::write(std::string_view file_name, opt_token<ranges,error_code&> tk) const
 {
 	if( not m_impl->m_writer )
 		throw runtime_error("libgs::http::response_helper::write: No writer");
-	// TODO ...
+	else if( m_impl->m_headers_writed )
+		throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
+	co_return co_await m_impl->send_file(file_name, std::move(tk));
 }
 
 template <concept_char_type CharT>

@@ -1028,9 +1028,8 @@ static bool s_is_text_file(std::ifstream &file)
 
 #define BUF_LEN  256
 
-static std::string mime_from_magic(std::string_view file_name)
+static std::string _mime_from_magic(std::ifstream &file)
 {
-	std::ifstream file(app::absolute_path(file_name).c_str());
 	if( not file.is_open() )
 		return "unknown";
 
@@ -1047,11 +1046,17 @@ static std::string mime_from_magic(std::string_view file_name)
 			return "text/plain";
 		}
 	}
-	file.close();
 	auto mime_type = s_mime_search(g_signatures_map, buf, size);
-
 	if( mime_type.empty() and size > 4 )
 		mime_type = s_mime_search(g_signatures_map_offset4, buf + 4, size - 4);
+	return mime_type;
+}
+
+static std::string mime_from_magic(std::string_view file_name)
+{
+	std::ifstream file(app::absolute_path(file_name).c_str());
+	auto mime_type = _mime_from_magic(file);
+	file.close();
 	return mime_type;
 }
 
@@ -1122,53 +1127,81 @@ std::string get_mime_type(std::string_view file_name, bool magic_first)
 bool is_text_file(std::string_view file_name)
 {
 	std::ifstream file(file_name.data());
-	if( file.is_open() )
-	{
-		s_is_text_file(file);
-		file.close();
-		return true;
-	}
-	return false;
+	bool res = is_text_file(file);
+	file.close();
+	return res;
 }
 
 bool is_binary_file(std::string_view file_name)
 {
-	return is_text_file(file_name);
+	return not is_text_file(file_name);
 }
 
 std::string get_text_file_encoding(std::string_view file_name)
 {
-	std::string result = "unknown";
+	std::ifstream file(file_name.data());
+	auto res = get_text_file_encoding(file);
+	file.close();
+	return res;
+}
 
-#ifdef _MSC_VER
-	FILE *fp = nullptr;
-	auto res = ::fopen_s(&fp, file_name.data(), "rb");
-	LIBGS_UNUSED(res);
-#else
-	FILE *fp = std::fopen(file_name.data(), "rb");
-#endif
-	if( not fp )
+std::string get_mime_type(std::ifstream &file)
+{
+	return _mime_from_magic(file);
+}
+
+bool is_text_file(std::ifstream &file)
+{
+	if( file.is_open() )
+		return s_is_text_file(file);
+	return false;
+}
+
+bool is_binary_file(std::ifstream &file)
+{
+	return not is_text_file(file);
+}
+
+std::string get_text_file_encoding(std::ifstream &file)
+{
+	std::string result = "unknown";
+	if( not file.is_open() )
 		return result;
 
-	// A is just a place holder
-	unsigned char first_byte  = std::fgetc(fp);
-	unsigned char second_byte = not std::feof(fp)? std::fgetc(fp) : 'A';
-	unsigned char third_byte  = not std::feof(fp)? std::fgetc(fp) : 'A';
-	unsigned char fourth_byte = not std::feof(fp)? std::fgetc(fp) : 'A';
+	char first_byte = 0;
+	file.get(first_byte);
 
-	if( first_byte == 0xEF and second_byte == 0xBB and third_byte == 0xBF )
+	char second_byte = 0;
+	if( file.eof() )
+		second_byte = 'A';
+	else
+		file.get(second_byte);
+
+	char third_byte = 0;
+	if( file.eof() )
+		third_byte = 'A';
+	else
+		file.get(third_byte);
+
+	char fourth_byte = 0;
+	if( file.eof() )
+		fourth_byte = 'A';
+	else
+		file.get(fourth_byte);
+
+	if( static_cast<uint8_t>(first_byte) == 0xEF and static_cast<uint8_t>(second_byte) == 0xBB and static_cast<uint8_t>(third_byte) == 0xBF )
 		result = "UTF-8";
 
-	else if( first_byte == 0xFF and second_byte == 0xFE )
+	else if( static_cast<uint8_t>(first_byte) == 0xFF and static_cast<uint8_t>(second_byte) == 0xFE )
 		result = "UTF-16LE";
 
-	else if( first_byte == 0xFE and second_byte == 0xFF )
+	else if( static_cast<uint8_t>(first_byte) == 0xFE and static_cast<uint8_t>(second_byte) == 0xFF )
 		result =  "UTF-16BE";
 
-	else if( first_byte == 0xFF and second_byte == 0xFE and third_byte == 0x0 and fourth_byte == 0x0)
+	else if( static_cast<uint8_t>(first_byte) == 0xFF and static_cast<uint8_t>(second_byte) == 0xFE and static_cast<uint8_t>(third_byte) == 0x0 and static_cast<uint8_t>(fourth_byte) == 0x0)
 		result = "UTF-32LE";
 
-	else if( first_byte == 0x00 and second_byte == 0x00 and third_byte == 0xFE and fourth_byte == 0xFF)
+	else if( static_cast<uint8_t>(first_byte) == 0x00 and static_cast<uint8_t>(second_byte) == 0x00 and static_cast<uint8_t>(third_byte) == 0xFE and static_cast<uint8_t>(fourth_byte) == 0xFF)
 		result = "UTF-32BE";
 
 	return result;

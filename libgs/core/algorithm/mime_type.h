@@ -60,6 +60,18 @@ bool is_binary_file(std::string_view file_name);
 [[nodiscard]] LIBGS_CORE_API
 std::string get_text_file_encoding(std::string_view file_name);
 
+[[nodiscard]] LIBGS_CORE_API
+std::string get_mime_type(std::ifstream &file);
+
+[[nodiscard]] LIBGS_CORE_API
+bool is_text_file(std::ifstream &file);
+
+[[nodiscard]] LIBGS_CORE_API
+bool is_binary_file(std::ifstream &file);
+
+[[nodiscard]] LIBGS_CORE_API
+std::string get_text_file_encoding(std::ifstream &file);
+
 } //namespace libgs
 
 
