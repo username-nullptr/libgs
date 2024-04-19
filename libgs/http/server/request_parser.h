@@ -104,7 +104,7 @@ namespace detail
 template <typename T>
 struct _key_static_string;
 
-#define LIBGS_HTTP_DETAIL_STATIC_STRING_KEY(_type, ...) \
+#define LIBGS_HTTP_DETAIL_STATIC_STRING(_type, ...) \
 	static constexpr const _type *v_1_0      = __VA_ARGS__##"1.0"       ; \
 	static constexpr const _type *v_1_1      = __VA_ARGS__##"1.1"       ; \
 	static constexpr const _type *close      = __VA_ARGS__##"close"     ; \
@@ -116,13 +116,15 @@ struct _key_static_string;
 
 template <>
 struct _key_static_string<char> {
-	LIBGS_HTTP_DETAIL_STATIC_STRING_KEY(char);
+	LIBGS_HTTP_DETAIL_STATIC_STRING(char);
 };
 
 template <>
 struct _key_static_string<wchar_t> {
-	LIBGS_HTTP_DETAIL_STATIC_STRING_KEY(wchar_t,L);
+	LIBGS_HTTP_DETAIL_STATIC_STRING(wchar_t,L);
 };
+
+#undef LIBGS_HTTP_DETAIL_STATIC_STRING
 
 } //namespace detail
 

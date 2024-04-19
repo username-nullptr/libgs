@@ -50,8 +50,8 @@ using opt_token = io::opt_token<Token...>;
 
 struct range
 {
-	size_t begin;
-	size_t end;
+	size_t begin = 0;
+	size_t end = 0;
 };
 using ranges = std::vector<range>;
 

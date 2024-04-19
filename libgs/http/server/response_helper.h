@@ -119,17 +119,30 @@ namespace detail
 {
 
 template <typename T>
-struct _header_value_static_string;
+struct _response_helper_static_string;
+
+#define LIBGS_HTTP_DETAIL_STATIC_STRING(_type, ...) \
+	static constexpr const _type *colon                 = __VA_ARGS__##": "                             ; \
+	static constexpr const _type *line_break            = __VA_ARGS__##"\r\n"                           ; \
+	static constexpr const _type *content_type          = __VA_ARGS__##"text/plain; charset=utf-8"      ; \
+	static constexpr const _type *set_cookie            = __VA_ARGS__##"set-cookie"                     ; \
+	static constexpr const _type *bytes                 = __VA_ARGS__##"bytes"                          ; \
+	static constexpr const _type *bytes_start           = __VA_ARGS__##"bytes="                         ; \
+	static constexpr const _type *range_format          = __VA_ARGS__##"{}-{},"                         ; \
+	static constexpr const _type *content_range_format  = __VA_ARGS__##"{}-{}/{}"                       ; \
+	static constexpr const _type *content_type_boundary = __VA_ARGS__##"multipart/byteranges; boundary="; \
 
 template <>
-struct _header_value_static_string<char> {
-	static constexpr const char *content_type = "text/plain; charset=utf-8";
+struct _response_helper_static_string<char> {
+	LIBGS_HTTP_DETAIL_STATIC_STRING(char);
 };
 
 template <>
-struct _header_value_static_string<wchar_t> {
-	static constexpr const wchar_t *content_type = L"text/plain; charset=utf-8";
+struct _response_helper_static_string<wchar_t> {
+	LIBGS_HTTP_DETAIL_STATIC_STRING(wchar_t,L);
 };
+
+#undef LIBGS_HTTP_DETAIL_STATIC_STRING
 
 } //namespace detail
 
@@ -137,9 +150,12 @@ template <concept_char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+
 	using helper_type = basic_response_helper<CharT>;
+	using str_list_type = basic_string_list<CharT>;
+
 	using key_static_string = detail::_key_static_string<CharT>;
-	using header_value_static_string = detail::_header_value_static_string<CharT>;
+	using static_string = detail::_response_helper_static_string<CharT>;
 
 public:
 	explicit impl(helper_type *q_ptr) : q_ptr(q_ptr) {}
@@ -166,17 +182,17 @@ public:
 		std::string buf;
 		buf.reserve(4096);
 
-		buf = std::format("HTTP/{} {} {}\r\n", m_version, m_status, to_status_description(m_status));
-		m_response_headers.erase("set-cookie");
+		buf = std::format("HTTP/{} {} {}\r\n", xxtombs<CharT>(m_version), m_status, to_status_description(m_status));
+		m_response_headers.erase(static_string::set_cookie);
 
 		for(auto &[key,value] : m_response_headers)
-			buf += key + ": " + value + "\r\n";
+			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
 
-		for(auto &[key,cookie] : m_cookies)
+		for(auto &[ckey,cookie] : m_cookies)
 		{
-			buf += "set-cookie: " + key + "=" + cookie + ";";
-			for(auto &attr_pair : cookie.attributes())
-				buf += attr_pair.first + "=" + attr_pair.second + ";";
+			buf += "set-cookie: " + xxtombs<CharT>(ckey) + "=" + xxtombs<CharT>(cookie.to_string()) + ";";
+			for(auto &[akey,attr] : cookie.attributes())
+				buf += xxtombs<CharT>(akey) + "=" + xxtombs<CharT>(attr.to_string()) + ";";
 
 			buf.pop_back();
 			buf += "\r\n";
@@ -207,7 +223,7 @@ public:
 		{
 			std::string attributes;
 			for(auto &attr : m_chunk_attributes)
-				attributes += attr + ";";
+				attributes += xxtombs<CharT>(attr.to_string()) + ";";
 
 			m_chunk_attributes.clear();
 			attributes.pop_back();
@@ -242,17 +258,17 @@ public:
 			{
 				auto it = m_request_headers.find(header_type::range);
 				if( it != m_response_headers.end() )
-					res = co_await range_transfer(file_name, file, xxtombs<CharT>(it->second), tk);
+					res = co_await range_transfer(file_name, file, it->second, tk);
 				else
 					res = co_await default_transfer(file_name, file, tk);
 			}
 			else
 			{
-				std::string range_text = "bytes=";
+				str_type range_text = static_string::bytes_start;
 				for(auto &range : tk.ranges)
 				{
 					if( range.begin >= range.end )
-						range_text += std::format("{}-{},", range.begin, range.end);
+						range_text += std::format(static_string::range_format, range.begin, range.end);
 					else
 					{
 						throw system_error(std::make_error_code(static_cast<std::errc>(errc::invalid_argument)),
@@ -270,6 +286,16 @@ public:
 		if( exp )
 			throw *exp;
 		co_return res;
+	}
+
+private:
+	[[nodiscard]] bool is_chunked() const
+	{
+		if( stoi32(m_version) < 1.1 )
+			return false;
+
+		auto it = m_request_headers.find(header_type::transfer_encoding);
+		return it != m_response_headers.end() and str_to_lower(it->second) == key_static_string::chunked;
 	}
 
 private:
@@ -303,23 +329,274 @@ private:
 
 			if( size == 0 or not write_body(fr_buf, size, is_chunked) )
 				break;
-			sleep_for(512us);
+			co_await co_sleep_for(512us);
 		}
 		delete[] fr_buf;
 	}
 
-	awaitable<size_t> range_transfer(std::string_view file_name, std::ifstream &file, std::string_view _range_str, opt_token<error_code&> &tk)
+private:
+	struct range_value : range
 	{
-		// TODO ...
+		std::string cr_line;
+		std::size_t size = 0;
+	};
+
+	bool range_parsing(std::string_view file_name, str_view_type range_str, range_value &rv)
+	{
+		rv.size = 0;
+		auto list = str_list_type::from_string(range_str, '-', false);
+
+		if( list.size() > 2 )
+		{
+			libgs_log_debug("Range format error: {}.", range_str);
+			return false;
+		}
+		namespace fs = std::filesystem;
+		auto file_size = fs::file_size(file_name);
+
+		if( list[0].empty() )
+		{
+			if( list[1].empty() )
+			{
+				libgs_log_debug("Range format error.");
+				return false;
+			}
+			rv.size = ston_or<size_t>(list[1]);
+
+			if( rv.size == 0 or rv.size > file_size )
+			{
+				libgs_log_debug("Range size is invalid.");
+				return false;
+			}
+			rv.end = file_size - 1;
+			rv.begin = file_size - rv.size;
+		}
+		else if( list[1].empty() )
+		{
+			if( list[0].empty() )
+			{
+				libgs_log_debug("Range format error.");
+				return false;
+			}
+			rv.begin = ston_or<size_t>(list[0]);
+			rv.end = file_size - 1;
+
+			if( rv.begin > rv.end )
+			{
+				libgs_log_debug("Range is invalid.");
+				return false;
+			}
+			rv.size = file_size - rv.begin;
+		}
+		else
+		{
+			rv.begin = ston_or<size_t>(list[0]);
+			rv.end = ston_or<size_t>(list[1]);
+
+			if( rv.begin > rv.end or rv.end >= file_size )
+			{
+				libgs_log_debug("Range is invalid.");
+				return false;
+			}
+			rv.size = rv.end - rv.begin + 1;
+		}
+		return true;
 	}
 
-	[[nodiscard]] bool is_chunked() const
+	awaitable<size_t> send_range(std::ifstream &file,
+								 std::string_view boundary,
+								 std::string_view ct_line,
+								 std::list<range_value> &range_value_queue,
+								 opt_token<error_code&> tk)
 	{
-		if( stoi32(m_version) < 1.1 )
-			return false;
+		using namespace std::chrono_literals;
 
-		auto it = m_request_headers.find(header_type::transfer_encoding);
-		return it != m_response_headers.end() and str_to_lower(it->second) == key_static_string::chunked;
+		assert(not range_value_queue.empty());
+		auto sum = co_await write_header();
+
+		size_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
+		error_code error;
+
+		if( range_value_queue.size() == 1 )
+		{
+			auto &value = range_value_queue.back();
+			file.seekg(value.begin, std::ios_base::beg);
+
+			auto buf = new char[buf_size] {0};
+			while( not file.eof() )
+			{
+				if( value.size <= buf_size )
+				{
+					file.read(buf, value.size);
+					auto size = file.gcount();
+
+					sum += co_await write_body(buf, size, error);
+					if( io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+						break;
+
+					co_await co_sleep_for(512us);
+					break;
+				}
+				file.read(buf, buf_size);
+				auto size = file.gcount();
+
+				sum += write_body(buf, size, error);
+				if( io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+					break;
+
+				value.size -= buf_size;
+				co_await co_sleep_for(512us);
+			}
+			delete[] buf;
+			co_return sum;
+		}
+		else if( range_value_queue.empty() )
+			co_return 0;
+
+		auto buf = new char[buf_size] {0};
+		auto sp_buf = std::shared_ptr<char>(buf); LIBGS_UNUSED(sp_buf);
+
+		for(auto &value : range_value_queue)
+		{
+			std::string body;
+			body.reserve(2 + boundary.size() + 2 +
+						 ct_line.size() + 2 +
+						 value.cr_line.size() + 2 +
+						 2);
+
+			body.append("--").append(boundary).append("\r\n")
+				.append(ct_line).append("\r\n")
+				.append(value.cr_line).append("\r\n"
+											  "\r\n");
+
+			sum += co_await write_body(body, error);
+			if( io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+				co_return sum;
+
+			file.seekg(value.begin, std::ios_base::beg);
+			while( not file.eof() )
+			{
+				if( value.size <= buf_size )
+				{
+					file.read(buf, value.size);
+					auto size = file.gcount();
+
+					if( size == 0 )
+						break;
+
+					buf[size + 0] = '\r';
+					buf[size + 1] = '\n';
+
+					sum += co_await write_body(buf, size + 2, error);
+					if( io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+						co_return sum;
+
+					co_await co_sleep_for(512us);
+					break;
+				}
+				file.read(buf, buf_size);
+				auto size = file.gcount();
+
+				sum += co_await write_body(buf, size, error);
+				if( io::detail::check_error(tk.error, error, "libgs::http::response_helper::write") )
+					co_return sum;
+
+				value.size -= buf_size;
+				co_await co_sleep_for(512us);
+			}
+		}
+		sum += co_await write_body("--" + std::string(boundary.data(), boundary.size()) + "--\r\n", error);
+		io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
+		co_return sum;
+	}
+
+	awaitable<size_t> range_transfer(std::string_view file_name, std::ifstream &file, str_view_type _range_str, opt_token<error_code&> &tk)
+	{
+		str_type range_str(_range_str.data(), _range_str.size());
+		for(auto i=range_str.size(); i>0; i--)
+		{
+			if( range_str[i] == 0x20/*SPACE*/ )
+				range_str.erase(i,1);
+		}
+		if( range_str.empty() )
+			co_return co_await q_ptr->set_status(status::bad_request).write(std::move(tk));
+
+		// bytes=x-y, m-n, i-j ...
+		else if( range_str.substr(0,6) != static_string::bytes_start )
+			co_return co_await q_ptr->set_status(status::range_not_satisfiable).write(std::move(tk));
+
+		// x-y, m-n, i-j ...
+		auto range_list_str = range_str.substr(6);
+		if( range_list_str.empty() )
+			co_return co_await q_ptr->set_status(status::range_not_satisfiable).write(std::move(tk));
+
+		// (x-y) ( m-n) ( i-j) ...
+		auto range_list = str_list_type::from_string(range_list_str, 0x2C/*,*/);
+		auto mime_type = get_mime_type(file_name);
+
+		q_ptr->set_status(status::partial_content);
+		std::list<range_value> range_value_list;
+
+		if( range_list.size() == 1 )
+		{
+			range_value_list.emplace_back();
+			auto &range_value = range_value_list.back();
+
+			if( not range_parsing(range_list[0], range_value) )
+				co_return co_await q_ptr->set_status(status::range_not_satisfiable).write(std::move(tk));
+
+			q_ptr->set_header(header_type::accept_ranges , static_string::bytes)
+				  .set_header(header_type::content_type  , mime_type)
+				  .set_header(header_type::content_length, range_value.size)
+				  .set_header(header_type::content_range , {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
+
+			co_return co_await send_range(file, "", "", range_value_list, std::move(tk));
+		} // if( rangeList.size() == 1 )
+
+		using namespace std::chrono;
+		auto boundary = std::format("{}_{}", __func__, duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+
+		q_ptr->set_header(header_type::content_type, static_string::content_type_boundary + boundary);
+
+		auto ct_line = std::format("{}: {}", header::content_type, mime_type);
+		std::size_t content_length = 0;
+
+		for(auto &str : range_list)
+		{
+			range_value_list.emplace_back();
+			auto &range_value = range_value_list.back();
+
+			if( not range_parsing(str_trimmed(str), range_value) )
+				co_return co_await q_ptr->set_status(status::range_not_satisfiable).write(std::move(tk));
+
+			namespace fs = std::filesystem;
+			range_value.cr_line = std::format("{}: bytes {}-{}/{}", header::content_range,
+											  range_value.begin, range_value.end, fs::file_size(file_name));
+			/*
+				--boundary<CR><LF>
+				Content-Type: xxx<CR><LF>
+				Content-Range: bytes 3-11/96<CR><LF>
+				<CR><LF>
+				012345678<CR><LF>
+				--boundary<CR><LF>
+				Content-Type: xxx<CR><LF>
+				Content-Range: bytes 0-7/96<CR><LF>
+				<CR><LF>
+				01235467<CR><LF>
+				--boundary--<CR><LF>
+			*/
+			content_length += 2 + boundary.size() + 2 +        // --boundary<CR><LF>
+							  ct_line.size() + 2 +             // Content-Type: xxx<CR><LF>
+							  range_value.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+							  2 +                              // <CR><LF>
+							  range_value.size + 2;            // 012345678<CR><LF>
+		}
+		content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
+
+		q_ptr->set_header(header_type::content_length, content_length)
+			  .set_header(header_type::accept_ranges , static_string::bytes);
+
+		co_return co_await send_range(file, boundary, ct_line, range_value_list, std::move(tk));
 	}
 
 public:
@@ -329,7 +606,7 @@ public:
 
 	http::status m_status = status::ok;
 	headers_type m_response_headers {
-		{ header_type::content_type, header_value_static_string::content_type }
+		{header_type::content_type, static_string::content_type }
 	};
 	cookies_type m_cookies;
 	value_list_type m_chunk_attributes;
@@ -538,7 +815,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 	m_impl->m_status = status::ok;
 
 	m_impl->m_response_headers = {
-		{ header_type::content_type, detail::_header_value_static_string<CharT>::content_type }
+		{ header_type::content_type, detail::_response_helper_static_string<CharT>::content_type }
 	};
 	m_impl->m_cookies.clear();
 	m_impl->m_chunk_attributes.clear();
