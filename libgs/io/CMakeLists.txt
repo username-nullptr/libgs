@@ -26,7 +26,6 @@ set(core_detail_headers
 	types/detail/ip_types.h
 	types/detail/opt_token.h
 	types/detail/opt_condition.h
-	types/detail/stream_buffer.h
 	detail/device_base.h
 	detail/timer.h
 	detail/stream.h

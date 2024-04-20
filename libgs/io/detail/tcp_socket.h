@@ -343,16 +343,16 @@ awaitable<size_t> basic_tcp_socket<Exec>::read_data(buffer<void*> buf, read_cond
 }
 
 template <concept_execution Exec>
-awaitable<size_t> basic_tcp_socket<Exec>::write_data(buffer<const void*> buf, cancellation_signal *cnl_sig, error_code &error) noexcept
+awaitable<size_t> basic_tcp_socket<Exec>::write_data(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept
 {
 	m_write_cancel = false;
 	if( cnl_sig )
 	{
 		buf.size = co_await native_object().async_write_some
-				(asio::buffer(buf.data, buf.size), asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+				(asio::buffer(buf.data.data(), buf.size), asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
 	}
 	else
-		buf.size = co_await native_object().async_write_some(asio::buffer(buf.data, buf.size), use_awaitable_e[error]);
+		buf.size = co_await native_object().async_write_some(asio::buffer(buf.data.data(), buf.size), use_awaitable_e[error]);
 
 	if( m_write_cancel )
 	{

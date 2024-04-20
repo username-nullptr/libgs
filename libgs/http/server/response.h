@@ -76,25 +76,23 @@ public:
 
 public:
 	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(buffer<const void*> buf, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(buffer<const std::string&> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
-	[[nodiscard]] awaitable<size_t> redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+	[[nodiscard]] awaitable<size_t> redirect(str_view_type url, opt_token<redirect_type,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> send_file(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
 
 public:
 	this_type &set_chunk_attribute(value_type attribute);
 	this_type &set_chunk_attributes(value_list_type attributes);
-	[[nodiscard]] awaitable<size_t> chunk_end(const headers_type &headers = {});
+	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_type&, error_code&> tk = {});
 
 public:
-	[[nodiscard]] str_view_type version() const;
-	[[nodiscard]] http::status status() const;
+	[[nodiscard]] str_view_type version() const noexcept;
+	[[nodiscard]] http::status status() const noexcept;
 
-	[[nodiscard]] const headers_type &headers() const;
-	[[nodiscard]] const cookies_type &cookies() const;
+	[[nodiscard]] const headers_type &headers() const noexcept;
+	[[nodiscard]] const cookies_type &cookies() const noexcept;
 
-	[[nodiscard]] bool is_writed() const;
 	void cancel() noexcept override;
 
 public:
@@ -117,168 +115,7 @@ using server_response_ptr = std::shared_ptr<basic_server_response<char>>;
 using server_wresponse_ptr = std::shared_ptr<basic_server_response<char>>;
 
 } //namespace libgs::http
-
-
-
-namespace libgs::http
-{
-
-template <concept_char_type CharT, concept_execution Exec>
-class basic_server_response<CharT, Exec>::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
-
-public:
-	explicit impl(request_ptr request) :
-		m_helper(request->version(), request->headers()),
-		m_request(std::move(request)) {}
-
-public:
-	helper_type m_helper;
-	request_ptr m_request;
-};
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec>::basic_server_response(request_ptr request) :
-	io::device_base<Exec>(request->executor()),
-	m_impl(new impl(std::move(request)))
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec>::~basic_server_response()
-{
-	delete m_impl;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_status(uint32_t status)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_status(http::status status)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_header(str_view_type key, value_type value)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_cookie(str_view_type key, cookie_type cookie)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::write(opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::write(buffer<const void*> buf, opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::write(buffer<const std::string&> buf, opt_token<error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::redirect(str_view_type url, redirect_type type)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::send_file(std::string_view file_name, opt_token<ranges,error_code&> tk)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_chunk_attribute(value_type attribute)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_chunk_attributes(value_list_type attributes)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-[[nodiscard]] awaitable<size_t> basic_server_response<CharT,Exec>::chunk_end(const headers_type &headers)
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-typename basic_server_response<CharT,Exec>::str_view_type basic_server_response<CharT,Exec>::version() const
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-http::status basic_server_response<CharT,Exec>::status() const
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_response<CharT,Exec>::headers_type &basic_server_response<CharT,Exec>::headers() const
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_response<CharT,Exec>::cookies_type &basic_server_response<CharT,Exec>::cookies() const
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_response<CharT,Exec>::is_writed() const
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_response<CharT,Exec>::cancel() noexcept
-{
-
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_header(str_view_type key)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_cookie(str_view_type key)
-{
-	return *this;
-}
-
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_chunk_attribute(value_type attribute)
-{
-	return *this;
-}
-
-} //namespace libgs::http
+#include <libgs/http/server/detail/response.h>
 
 
 #endif //LIBGS_HTTP_SERVER_RESPONSE_H

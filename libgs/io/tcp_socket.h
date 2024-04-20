@@ -112,7 +112,7 @@ protected:
 	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept override;
 
 	[[nodiscard]] awaitable<size_t> write_data
-	(buffer<const void*> buf, cancellation_signal *cnl_sig, error_code &error) noexcept override;
+	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept override;
 
 protected:
 	explicit basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock);

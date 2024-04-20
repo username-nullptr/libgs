@@ -66,14 +66,9 @@ public:
 	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
 
 public:
-	void write(buffer<const void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void write(buffer<const void*> buf, opt_token<callback_t<size_t>> tk) noexcept;
-
-	void write(buffer<const std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void write(buffer<const std::string&> buf, opt_token<callback_t<size_t>> tk) noexcept;
-
-	[[nodiscard]] awaitable<size_t> write(buffer<const void*> buf, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(buffer<const std::string&> buf, opt_token<error_code&> tk = {});
+	void write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	void write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
+	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
 public:
 	[[nodiscard]] virtual size_t read_buffer_size() const noexcept = 0;
@@ -84,7 +79,7 @@ protected:
 	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
 
 	[[nodiscard]] virtual awaitable<size_t> write_data
-	(buffer<const void*> buf, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
+	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
 };
 
 using stream = basic_stream<>;

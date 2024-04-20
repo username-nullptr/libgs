@@ -179,12 +179,12 @@ awaitable<size_t> basic_stream<Exec>::read(buffer<std::string&> buf, opt_token<r
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+void basic_stream<Exec>::write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
 	auto size = buf.size;
 	auto _buf = std::make_shared<char[]>(size);
 
-	memcpy(_buf.get(), buf.data, size);
+	memcpy(_buf.get(), buf.data.data(), size);
 	auto valid = this->m_valid;
 
 	co_spawn_detached([this, valid = std::move(valid), buf = std::move(_buf), size, tk = std::move(tk)]() mutable -> awaitable<void>
@@ -208,46 +208,27 @@ void basic_stream<Exec>::write(buffer<const void*> buf, opt_token<callback_t<siz
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const void*> buf, opt_token<callback_t<size_t>> tk) noexcept
+void basic_stream<Exec>::write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
 	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )
-		async_write(buf, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
+		write(buf, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
 	else
-		async_write(buf, {tk.rtime, std::move(_callback)});
+		write(buf, {tk.rtime, std::move(_callback)});
 }
 
 template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
-{
-	write({buf.data.c_str(), buf.size}, std::move(tk));
-}
-
-template <concept_execution Exec>
-void basic_stream<Exec>::write(buffer<const std::string&> buf, opt_token<callback_t<size_t>> tk) noexcept
-{
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		async_write(buf, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	else
-		async_write(buf, {tk.rtime, std::move(_callback)});
-}
-
-template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<error_code&> tk)
+awaitable<size_t> basic_stream<Exec>::write(buffer<std::string_view> buf, opt_token<error_code&> tk)
 {
 	using namespace std::chrono_literals;
 	if( buf.size == 0 )
 		co_return 0;
 
 	auto _buf = std::make_shared<char[]>(buf.size);
-	memcpy(_buf.get(), buf.data, buf.size);
+	memcpy(_buf.get(), buf.data.data(), buf.size);
 
 	size_t size = 0;
 	error_code error;
@@ -277,12 +258,6 @@ awaitable<size_t> basic_stream<Exec>::write(buffer<const void*> buf, opt_token<e
 	}
 	detail::check_error(tk.error, error, "libgs::io::stream::write");
 	co_return size;
-}
-
-template <concept_execution Exec>
-awaitable<size_t> basic_stream<Exec>::write(buffer<const std::string&> buf, opt_token<error_code&> tk)
-{
-	return write({buf.data.c_str(), buf.size}, std::move(tk));
 }
 
 } //namespace libgs::io

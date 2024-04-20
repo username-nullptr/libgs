@@ -61,24 +61,18 @@ struct LIBGS_IO_API buffer<std::string&> : buffer<void>
 };
 
 template <>
-struct LIBGS_IO_API buffer<const void*> : buffer<void>
-{
-	const void *data;
-	buffer(const void *data, size_t size = 0);
-};
-
-template <>
-struct LIBGS_IO_API buffer<const std::string&> : buffer<void>
+struct LIBGS_IO_API buffer<std::string_view> : buffer<void>
 {
 	using this_type = buffer<const std::string&>;
-	const std::string &data;
+	std::string_view data;
 
-	template <typename String>
-	buffer(const String &data, size_t size = 0) requires std::is_same_v<String,std::string>;
+	buffer(std::string_view data, size_t size = 0);
+	buffer(const std::string &data, size_t size = 0);
+	buffer(const void *data, size_t size);
+	buffer(const char *data);
 };
 
 } //namespace libgs::io
-#include <libgs/io/types/detail/stream_buffer.h>
 
 
 #endif //LIBGS_IO_STREAM_BUFFER_H

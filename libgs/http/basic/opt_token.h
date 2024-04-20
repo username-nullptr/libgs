@@ -29,9 +29,8 @@
 #ifndef LIBGS_HTTP_BASIC_OPT_TOKEN_H
 #define LIBGS_HTTP_BASIC_OPT_TOKEN_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/basic/types.h>
 #include <libgs/io/types/opt_token.h>
-
 
 namespace libgs { namespace http
 {
@@ -79,6 +78,16 @@ struct opt_token<begin_t,total_t,T> : opt_token<T>
 };
 
 template <typename T>
+struct opt_token<http::redirect_type,T> : opt_token<T>
+{
+	using opt_token<T>::opt_token;
+	http::redirect_type type = http::redirect_type::moved_permanently;
+
+	template <typename...Args>
+	opt_token(http::redirect_type type, Args&&...args) requires io::concept_opt_token<T,Args...>;
+};
+
+template <typename T>
 struct opt_token<http::ranges,T> : opt_token<T>
 {
 	using opt_token<T>::opt_token;
@@ -89,6 +98,16 @@ struct opt_token<http::ranges,T> : opt_token<T>
 
 	template <typename...Args>
 	opt_token(http::ranges ranges, Args&&...args) requires io::concept_opt_token<T,Args...>;
+};
+
+template <concept_char_type CharT, typename T>
+struct opt_token<http::basic_headers<CharT>,T> : opt_token<T>
+{
+	using opt_token<T>::opt_token;
+	http::basic_headers<CharT> headers;
+
+	template <typename...Args>
+	opt_token(http::basic_headers<CharT> headers, Args&&...args) requires io::concept_opt_token<T,Args...>;
 };
 
 }} //namespace libgs::io

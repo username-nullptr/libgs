@@ -31,242 +31,242 @@
 namespace libgs
 {
 
-int8_t stoi8(const std::string &str, size_t base)
+int8_t stoi8(std::string_view str, size_t base)
 {
 	return algorithm_base::stoi8<char>(str, base);
 }
 
-int8_t stoi8(const std::wstring &str, size_t base)
+int8_t stoi8(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoi8<wchar_t>(str, base);
 }
 
-uint8_t stoui8(const std::string &str, size_t base)
+uint8_t stoui8(std::string_view str, size_t base)
 {
 	return algorithm_base::stoui8<char>(str, base);
 }
 
-uint8_t stoui8(const std::wstring &str, size_t base)
+uint8_t stoui8(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoui8<wchar_t>(str, base);
 }
 
-int16_t stoi16(const std::string &str, size_t base)
+int16_t stoi16(std::string_view str, size_t base)
 {
 	return algorithm_base::stoi16<char>(str, base);
 }
 
-int16_t stoi16(const std::wstring &str, size_t base)
+int16_t stoi16(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoi16<wchar_t>(str, base);
 }
 
-uint16_t stoui16(const std::string &str, size_t base)
+uint16_t stoui16(std::string_view str, size_t base)
 {
 	return algorithm_base::stoui16<char>(str, base);
 }
 
-uint16_t stoui16(const std::wstring &str, size_t base)
+uint16_t stoui16(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoui16<wchar_t>(str, base);
 }
 
-int32_t stoi32(const std::string &str, size_t base)
+int32_t stoi32(std::string_view str, size_t base)
 {
 	return algorithm_base::stoi32<char>(str, base);
 }
 
-int32_t stoi32(const std::wstring &str, size_t base)
+int32_t stoi32(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoi32<wchar_t>(str, base);
 }
 
-uint32_t stoui32(const std::string &str, size_t base)
+uint32_t stoui32(std::string_view str, size_t base)
 {
 	return algorithm_base::stoui32<char>(str, base);
 }
 
-uint32_t stoui32(const std::wstring &str, size_t base)
+uint32_t stoui32(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoui32<wchar_t>(str, base);
 }
 
-int64_t stoi64(const std::string &str, size_t base)
+int64_t stoi64(std::string_view str, size_t base)
 {
 	return algorithm_base::stoi64<char>(str, base);
 }
 
-int64_t stoi64(const std::wstring &str, size_t base)
+int64_t stoi64(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoi64<wchar_t>(str, base);
 }
 
-uint64_t stoui64(const std::string &str, size_t base)
+uint64_t stoui64(std::string_view str, size_t base)
 {
 	return algorithm_base::stoui64<char>(str, base);
 }
 
-uint64_t stoui64(const std::wstring &str, size_t base)
+uint64_t stoui64(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stoui64<wchar_t>(str, base);
 }
 
-float stof(const std::string &str)
+float stof(std::string_view str)
 {
 	return algorithm_base::stof<char>(str);
 }
 
-float stof(const std::wstring &str)
+float stof(std::wstring_view str)
 {
 	return algorithm_base::stof<wchar_t>(str);
 }
 
-double stod(const std::string &str)
+double stod(std::string_view str)
 {
 	return algorithm_base::stod<char>(str);
 }
 
-double stod(const std::wstring &str)
+double stod(std::wstring_view str)
 {
 	return algorithm_base::stod<wchar_t>(str);
 }
 
-long double stold(const std::string &str)
+long double stold(std::string_view str)
 {
 	return algorithm_base::stold<char>(str);
 }
 
-long double stold(const std::wstring &str)
+long double stold(std::wstring_view str)
 {
 	return algorithm_base::stold<wchar_t>(str);
 }
 
-bool stob(const std::string &str, size_t base)
+bool stob(std::string_view str, size_t base)
 {
 	return algorithm_base::stob<char>(str, base);
 }
 
-bool stob(const std::wstring &str, size_t base)
+bool stob(std::wstring_view str, size_t base)
 {
 	return algorithm_base::stob<wchar_t>(str, base);
 }
 
-int8_t stoi8_or(const std::string &str, size_t base, int8_t default_value) noexcept
+int8_t stoi8_or(std::string_view str, size_t base, int8_t default_value) noexcept
 {
 	return algorithm_base::stoi8<char>(str, base, default_value);
 }
 
-int8_t stoi8_or(const std::wstring &str, size_t base, int8_t default_value) noexcept
+int8_t stoi8_or(std::wstring_view str, size_t base, int8_t default_value) noexcept
 {
 	return algorithm_base::stoi8<wchar_t>(str, base, default_value);
 }
 
-uint8_t stoui8_or(const std::string &str, size_t base, uint8_t default_value) noexcept
+uint8_t stoui8_or(std::string_view str, size_t base, uint8_t default_value) noexcept
 {
 	return algorithm_base::stoui8<char>(str, base, default_value);
 }
 
-uint8_t stoui8_or(const std::wstring &str, size_t base, uint8_t default_value) noexcept
+uint8_t stoui8_or(std::wstring_view str, size_t base, uint8_t default_value) noexcept
 {
 	return algorithm_base::stoui8<wchar_t>(str, base, default_value);
 }
 
-int16_t stoi16_or(const std::string &str, size_t base, int16_t default_value) noexcept
+int16_t stoi16_or(std::string_view str, size_t base, int16_t default_value) noexcept
 {
 	return algorithm_base::stoi16<char>(str, base, default_value);
 }
 
-int16_t stoi16_or(const std::wstring &str, size_t base, int16_t default_value) noexcept
+int16_t stoi16_or(std::wstring_view str, size_t base, int16_t default_value) noexcept
 {
 	return algorithm_base::stoi16<wchar_t>(str, base, default_value);
 }
 
-uint16_t stoui16_or(const std::string &str, size_t base, uint16_t default_value) noexcept
+uint16_t stoui16_or(std::string_view str, size_t base, uint16_t default_value) noexcept
 {
 	return algorithm_base::stoui16<char>(str, base, default_value);
 }
 
-uint16_t stoui16_or(const std::wstring &str, size_t base, uint16_t default_value) noexcept
+uint16_t stoui16_or(std::wstring_view str, size_t base, uint16_t default_value) noexcept
 {
 	return algorithm_base::stoui16<wchar_t>(str, base, default_value);
 }
 
-int32_t stoi32_or(const std::string &str, size_t base, int32_t default_value) noexcept
+int32_t stoi32_or(std::string_view str, size_t base, int32_t default_value) noexcept
 {
 	return algorithm_base::stoi32<char>(str, base, default_value);
 }
 
-int32_t stoi32_or(const std::wstring &str, size_t base, int32_t default_value) noexcept
+int32_t stoi32_or(std::wstring_view str, size_t base, int32_t default_value) noexcept
 {
 	return algorithm_base::stoi32<wchar_t>(str, base, default_value);
 }
 
-uint32_t stoui32_or(const std::string &str, size_t base, uint32_t default_value) noexcept
+uint32_t stoui32_or(std::string_view str, size_t base, uint32_t default_value) noexcept
 {
 	return algorithm_base::stoui32<char>(str, base, default_value);
 }
 
-uint32_t stoui32_or(const std::wstring &str, size_t base, uint32_t default_value) noexcept
+uint32_t stoui32_or(std::wstring_view str, size_t base, uint32_t default_value) noexcept
 {
 	return algorithm_base::stoui32<wchar_t>(str, base, default_value);
 }
 
-int64_t stoi64_or(const std::string &str, size_t base, int64_t default_value) noexcept
+int64_t stoi64_or(std::string_view str, size_t base, int64_t default_value) noexcept
 {
 	return algorithm_base::stoi64<char>(str, base, default_value);
 }
 
-int64_t stoi64_or(const std::wstring &str, size_t base, int64_t default_value) noexcept
+int64_t stoi64_or(std::wstring_view str, size_t base, int64_t default_value) noexcept
 {
 	return algorithm_base::stoi64<wchar_t>(str, base, default_value);
 }
 
-uint64_t stoui64_or(const std::string &str, size_t base, uint64_t default_value) noexcept
+uint64_t stoui64_or(std::string_view str, size_t base, uint64_t default_value) noexcept
 {
 	return algorithm_base::stoui64<char>(str, base, default_value);
 }
 
-uint64_t stoui64_or(const std::wstring &str, size_t base, uint64_t default_value) noexcept
+uint64_t stoui64_or(std::wstring_view str, size_t base, uint64_t default_value) noexcept
 {
 	return algorithm_base::stoui64<wchar_t>(str, base, default_value);
 }
 
-float stof_or(const std::string &str, float default_value) noexcept
+float stof_or(std::string_view str, float default_value) noexcept
 {
 	return algorithm_base::stof<char>(str, default_value);
 }
 
-float stof_or(const std::wstring &str, float default_value) noexcept
+float stof_or(std::wstring_view str, float default_value) noexcept
 {
 	return algorithm_base::stof<wchar_t>(str, default_value);
 }
 
-double stod_or(const std::string &str, double default_value) noexcept
+double stod_or(std::string_view str, double default_value) noexcept
 {
 	return algorithm_base::stod<char>(str, default_value);
 }
 
-double stod_or(const std::wstring &str, double default_value) noexcept
+double stod_or(std::wstring_view str, double default_value) noexcept
 {
 	return algorithm_base::stod<wchar_t>(str, default_value);
 }
 
-long double stold_or(const std::string &str, long double default_value) noexcept
+long double stold_or(std::string_view str, long double default_value) noexcept
 {
 	return algorithm_base::stold<char>(str, default_value);
 }
 
-long double stold_or(const std::wstring &str, long double default_value) noexcept
+long double stold_or(std::wstring_view str, long double default_value) noexcept
 {
 	return algorithm_base::stold<wchar_t>(str, default_value);
 }
 
-bool stob_or(const std::string &str, size_t base, bool default_value) noexcept
+bool stob_or(std::string_view str, size_t base, bool default_value) noexcept
 {
 	return algorithm_base::stob<char>(str, base, default_value);
 }
 
-bool stob_or(const std::wstring &str, size_t base, bool default_value) noexcept
+bool stob_or(std::wstring_view str, size_t base, bool default_value) noexcept
 {
 	return algorithm_base::stob<wchar_t>(str, base, default_value);
 }

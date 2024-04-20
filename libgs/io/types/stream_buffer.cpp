@@ -49,11 +49,44 @@ buffer<std::string&>::buffer(std::string &data, size_t size) :
 
 }
 
-buffer<const void*>::buffer(const void *data, size_t size) :
-	buffer<void>(size), data(data)
+buffer<std::string_view>::buffer(std::string_view data, size_t size)
 {
 	if( size == 0 )
-		this->size = std::strlen(reinterpret_cast<const char*>(data));
+	{
+		this->data = data;
+		this->size = data.size();
+	}
+	else
+	{
+		this->size = size > data.size() ? data.size() : size;
+		this->data = std::string_view(data.data(), this->size);
+	}
+}
+
+buffer<std::string_view>::buffer(const std::string &data, size_t size)
+{
+	if( size == 0 )
+	{
+		this->data = data;
+		this->size = data.size();
+	}
+	else
+	{
+		this->size = size > data.size() ? data.size() : size;
+		this->data = std::string_view(data.c_str(), this->size);
+	}
+}
+
+buffer<std::string_view>::buffer(const void *data, size_t size) :
+	buffer<void>(size), data(reinterpret_cast<const char*>(data), size)
+{
+
+}
+
+buffer<std::string_view>::buffer(const char *data) :
+	buffer<void>(strlen(data)), data(data)
+{
+
 }
 
 } //namespace libgs::io

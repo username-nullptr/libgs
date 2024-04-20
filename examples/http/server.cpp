@@ -1,4 +1,4 @@
-#include <libgs/http/server/server.h>
+#include <libgs/http/server.hpp>
 #include <libgs/core/log.h>
 
 using namespace std::chrono_literals;
@@ -24,9 +24,11 @@ int main()
 		for(auto &[key,value] : request->cookies())
 			libgs_log_debug("Cookie: {}: {}", key, value);
 
-		libgs_log_debug("partial_body: {}\n", co_await request->read_all());
+		if( request->can_read_body() )
+			libgs_log_debug("partial_body: {}\n", co_await request->read_all());
 
 		libgs::http::server::response response(request);
+		co_await response.write("hello world");
 		co_return ;
 	})
 	.on_error([](const std::error_code &error) -> libgs::awaitable<void>

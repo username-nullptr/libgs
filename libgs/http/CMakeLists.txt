@@ -8,6 +8,8 @@ set(http_sources
 set(http_headers
 	global.h
 	parser.h
+	client.hpp
+	server.hpp
 	basic/container.h
 	basic/cookie.h
 	basic/header.h
@@ -26,6 +28,9 @@ set(http_detail_headers
 	basic/detail/types.h
 	basic/detail/opt_token.h
 	server/detail/request_parser.h
+	server/detail/request.h
+	server/detail/response_helper.h
+	server/detail/response.h
 )
 
 set(all_files
