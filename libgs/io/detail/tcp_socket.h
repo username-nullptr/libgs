@@ -98,7 +98,9 @@ void basic_tcp_socket<Exec>::shutdown(error_code &error, shutdown_type what) noe
 template <concept_execution Exec>
 void basic_tcp_socket<Exec>::close(error_code &error) noexcept
 {
-	native_object().close(error);
+	auto &sock = native_object();
+	sock.non_blocking(false);
+	sock.close(error);
 }
 
 template <concept_execution Exec>

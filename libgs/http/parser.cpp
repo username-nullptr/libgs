@@ -27,6 +27,8 @@
 *************************************************************************************/
 
 #include "parser.h"
+#include <libgs/http/client/response_parser.h>
+#include <libgs/http/server/request_parser.h>
 
 namespace libgs::http
 {
@@ -38,7 +40,7 @@ public:
 
 /*--------------------------------------------------------------------------------------------------------------------*/
 
-parser::parser() :
+parser::parser(mode m) :
 	m_impl(new parser_impl())
 {
 

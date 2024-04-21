@@ -81,7 +81,7 @@ class basic_response_helper<CharT>::impl
 public:
 	explicit impl(helper_type *q_ptr) : q_ptr(q_ptr) {}
 	impl(helper_type *q_ptr, str_view_type version, const headers_type &request_headers) :
-			q_ptr(q_ptr), m_version(version), m_request_headers(request_headers) {}
+		q_ptr(q_ptr), m_version(version), m_request_headers(request_headers) {}
 
 public:
 	[[nodiscard]] awaitable<size_t> write_header(size_t body_size, error_code &error)
@@ -372,8 +372,8 @@ private:
 						 2);
 
 			body.append("--").append(boundary).append("\r\n")
-					.append(ct_line).append("\r\n")
-					.append(value.cr_line).append("\r\n"
+				.append(ct_line).append("\r\n")
+				.append(value.cr_line).append("\r\n"
 												  "\r\n");
 
 			sum += co_await write_body(body, error);
@@ -430,7 +430,7 @@ private:
 			co_return co_await m_writer(std::format("{} ({})", to_status_description(m_status), m_status), error);
 		}
 
-			// bytes=x-y, m-n, i-j ...
+		// bytes=x-y, m-n, i-j ...
 		else if( range_str.substr(0,6) != static_string::bytes_start )
 		{
 			q_ptr->set_status(status::range_not_satisfiable);
@@ -525,7 +525,7 @@ public:
 
 	http::status m_status = status::ok;
 	headers_type m_response_headers {
-			{header_type::content_type, static_string::content_type }
+		{ header_type::content_type, static_string::content_type }
 	};
 	cookies_type m_cookies;
 	value_list_type m_chunk_attributes;
@@ -534,13 +534,13 @@ public:
 	write_callback m_writer {};
 	std::function<size_t()> m_get_write_buffer_size {};
 
-	bool m_chunk_end_writed = false;
 	bool m_headers_writed = false;
+	bool m_chunk_end_writed = false;
 };
 
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(str_view_type version, const headers_type &request_headers) :
-		m_impl(new impl(this, version, request_headers))
+	m_impl(new impl(this, version, request_headers))
 {
 
 }
@@ -553,7 +553,7 @@ basic_response_helper<CharT>::~basic_response_helper()
 
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(basic_response_helper &&other) noexcept :
-		m_impl(other.m_impl)
+	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(&other);
 }
@@ -644,7 +644,7 @@ awaitable<size_t> basic_response_helper<CharT>::write(opt_token<error_code&> tk)
 {
 	if( m_impl->m_headers_writed )
 		throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
-	co_return co_await write(std::format("{} ({})", to_status_description(status()), status()), std::move(tk));
+	co_return co_await write(std::format("LIBGS: {} ({})", to_status_description(status()), status()), std::move(tk));
 }
 
 template <concept_char_type CharT>
@@ -656,13 +656,18 @@ awaitable<size_t> basic_response_helper<CharT>::write(buffer<std::string_view> b
 	error_code error;
 	std::variant<size_t,error_code> var;
 
+	using namespace std::chrono_literals;
 	if( m_impl->m_headers_writed )
 	{
 		if( body.size == 0 )
 			throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
 		else if( m_impl->m_chunk_end_writed )
 			throw runtime_error("libgs::http::response_helper::write: Chunk has been written.");
-		var = co_await (m_impl->write_body(body.data.data(), body.size, error) or co_sleep_for(tk.rtime));
+
+		if( tk.rtime == 0ns )
+			var = co_await m_impl->write_body(body.data.data(), body.size, error);
+		else
+			var = co_await (m_impl->write_body(body.data.data(), body.size, error) or co_sleep_for(tk.rtime));
 	}
 	else
 	{
@@ -675,7 +680,10 @@ awaitable<size_t> basic_response_helper<CharT>::write(buffer<std::string_view> b
 				sum += co_await m_impl->write_body(body.data.data(), body.size, error);
 			co_return sum;
 		};
-		var = co_await (lambda_write() or co_sleep_for(tk.rtime));
+		if( tk.rtime == 0ns )
+			var = co_await lambda_write();
+		else
+			var = co_await (lambda_write() or co_sleep_for(tk.rtime));
 	}
 	size_t sum = 0;
 	if( var.index() == 1 )
@@ -683,7 +691,7 @@ awaitable<size_t> basic_response_helper<CharT>::write(buffer<std::string_view> b
 	else
 		sum = std::get<0>(var);
 
-	io::detail::check_error(tk.error, error, "libgs::http::request::write");
+	io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
 	co_return sum;
 }
 
@@ -697,22 +705,30 @@ awaitable<size_t> basic_response_helper<CharT>::write(std::string_view file_name
 	else if( m_impl->m_chunk_end_writed )
 		throw runtime_error("libgs::http::response_helper::chunk_end: Chunk has been written.");
 
+	using namespace std::chrono_literals;
 	error_code error;
-	auto var = co_await (m_impl->send_file(file_name, tk.ranges, error) or co_sleep_for(tk.rtime));
-
 	size_t sum = 0;
-	if( var.index() == 1 )
-		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
-	else
-		sum = std::get<0>(var);
 
-	io::detail::check_error(tk.error, error, "libgs::http::request::write");
+	if( tk.rtime == 0ns )
+		sum = co_await m_impl->send_file(file_name, tk.ranges, error);
+	else
+	{
+		auto var = co_await (m_impl->send_file(file_name, tk.ranges, error) or co_sleep_for(tk.rtime));
+		if( var.index() == 1 )
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+		else
+			sum = std::get<0>(var);
+	}
+	io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
 	co_return sum;
 }
 
 template <concept_char_type CharT>
 awaitable<size_t> basic_response_helper<CharT>::chunk_end(opt_token<const headers_type&, error_code&> tk)
 {
+	if( not m_impl->m_headers_writed )
+		throw runtime_error("libgs::http::response_helper::chunk_end: Http header hasn't been send.");
+
 	auto it = m_impl->m_response_headers.find(header_type::content_length);
 	if( it != m_impl->m_request_headers.end() )
 		throw runtime_error("libgs::http::response_helper::chunk_end: 'Content-Length' has been set.");
@@ -743,6 +759,10 @@ awaitable<size_t> basic_response_helper<CharT>::chunk_end(opt_token<const header
 		sum += co_await m_impl->writer(buf + "\r\n", error);
 		co_return sum;
 	};
+	using namespace std::chrono_literals;
+	if( tk.rtime == 0ns )
+		co_await lambda_write();
+
 	auto var = co_await (lambda_write() or co_sleep_for(tk.rtime));
 	if( var.index() == 1 )
 		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
@@ -773,6 +793,18 @@ template <concept_char_type CharT>
 const typename basic_response_helper<CharT>::cookies_type &basic_response_helper<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
+}
+
+template <concept_char_type CharT>
+bool basic_response_helper<CharT>::headers_writed() const noexcept
+{
+	return m_impl->m_headers_writed;
+}
+
+template <concept_char_type CharT>
+bool basic_response_helper<CharT>::chunk_end_writed() const noexcept
+{
+	return m_impl->m_chunk_end_writed;
 }
 
 template <concept_char_type CharT>

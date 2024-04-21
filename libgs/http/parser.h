@@ -29,8 +29,7 @@
 #ifndef LIBGS_HTTP_PARSER_H
 #define LIBGS_HTTP_PARSER_H
 
-#include <libgs/http/client/response_parser.h>
-#include <libgs/http/server/request_parser.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
@@ -42,7 +41,10 @@ class LIBGS_HTTP_API parser
 	LIBGS_DISABLE_COPY(parser)
 
 public:
-	parser();
+	enum class mode {
+		server, client
+	};
+	explicit parser(mode m = mode::server);
 	~parser();
 
 public:

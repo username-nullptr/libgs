@@ -31,6 +31,7 @@ set(http_detail_headers
 	server/detail/request.h
 	server/detail/response_helper.h
 	server/detail/response.h
+	server/detail/server.h
 )
 
 set(all_files

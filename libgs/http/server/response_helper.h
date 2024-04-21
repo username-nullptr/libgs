@@ -91,6 +91,9 @@ public:
 	[[nodiscard]] const headers_type &headers() const noexcept;
 	[[nodiscard]] const cookies_type &cookies() const noexcept;
 
+	[[nodiscard]] bool headers_writed() const noexcept;
+	[[nodiscard]] bool chunk_end_writed() const noexcept;
+
 public:
 	this_type &unset_header(str_view_type key);
 	this_type &unset_cookie(str_view_type key);

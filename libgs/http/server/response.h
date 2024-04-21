@@ -93,6 +93,9 @@ public:
 	[[nodiscard]] const headers_type &headers() const noexcept;
 	[[nodiscard]] const cookies_type &cookies() const noexcept;
 
+	[[nodiscard]] bool headers_writed() const noexcept;
+	[[nodiscard]] bool chunk_end_writed() const noexcept;
+
 	void cancel() noexcept override;
 
 public:

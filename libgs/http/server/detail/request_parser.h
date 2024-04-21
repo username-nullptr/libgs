@@ -74,7 +74,7 @@ public:
 	using str_type = std::basic_string<CharT>;
 	using headers_type = basic_headers<CharT>;
 
-	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
+	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 	using parameters_type = basic_parameters<CharT>;
 
 public:
@@ -117,7 +117,7 @@ public:
 		return false;
 	}
 
-	bool parse_length() noexcept
+	void parse_length() noexcept
 	{
 		auto tsize = m_state_context;
 		auto rsize = m_partial_body.size() + m_src_buf.size();
@@ -127,7 +127,6 @@ public:
 		m_src_buf.clear();
 
 		m_state = tsize > m_partial_body.size() ? state::reading_length : state::finished;
-		return true;
 	}
 
 	bool parse_chunked()
@@ -366,7 +365,7 @@ public:
 		chunked_wait_headers,
 		finished
 	}
-			m_state = state::waiting_request;
+	m_state = state::waiting_request;
 	size_t m_state_context = 0;
 	std::string m_src_buf;
 
@@ -386,7 +385,7 @@ public:
 
 template <concept_char_type CharT>
 basic_request_parser<CharT>::basic_request_parser(size_t init_buf_size) :
-		m_impl(new impl(init_buf_size))
+	m_impl(new impl(init_buf_size))
 {
 
 }
@@ -421,11 +420,19 @@ bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error
 	}
 	catch(std::exception &ex)
 	{
-		class error_category : public std::error_category
+		static class error_category : public std::error_category
 		{
-		public:
-			error_category(const char *what) : m_what(what) {}
+			LIBGS_DISABLE_COPY_MOVE(error_category)
 
+		public:
+			error_category() = default;
+			error_category &set_message(std::exception &ex)
+			{
+				m_what = ex.what();
+				return *this;
+			}
+
+		public:
 			[[nodiscard]] const char *name() const noexcept override {
 				return "libgs::http::request_parser_error";
 			}
@@ -434,9 +441,10 @@ bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error
 			}
 
 		private:
-			const char *m_what;
-		};
-		error = error_code(-1, error_category(ex.what()));
+			std::string m_what;
+		}
+		error_category;
+		error = error_code(-1, error_category.set_message(ex));
 	}
 	return res;
 }
@@ -456,8 +464,10 @@ bool basic_request_parser<CharT>::append(std::string_view buf)
 		return m_impl->parse_header();
 
 	else if( m_impl->m_state == state::reading_length )
-		return m_impl->parse_length();
-
+	{
+		m_impl->parse_length();
+		return true;
+	}
 	return m_impl->parse_chunked();
 }
 

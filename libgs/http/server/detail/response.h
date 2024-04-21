@@ -39,22 +39,25 @@ class basic_server_response<CharT, Exec>::impl
 
 public:
 	explicit impl(request_ptr request) :
-			m_helper(request->version(), request->headers()),
-			m_request(std::move(request))
+		m_helper(request->version(), request->headers()),
+		m_request(std::move(request))
 	{
 
 	}
 
 public:
 	helper_type m_helper;
-	request_ptr m_request;
+	request_ptr m_request {};
 };
 
 template <concept_char_type CharT, concept_execution Exec>
 basic_server_response<CharT,Exec>::basic_server_response(request_ptr request) :
-		io::device_base<Exec>(request->executor()),
-		m_impl(new impl(std::move(request)))
+	io::device_base<Exec>(request->executor())
 {
+	if( request->m_impl->m_bound )
+		throw runtime_error("libgs::http::server::response: The 'request' has been occupied by another 'response'");
+
+	m_impl = new impl(std::move(request));
 	m_impl->m_helper.on_write([this](std::string_view buf, error_code &error) -> awaitable<size_t> {
 		co_return co_await m_impl->m_request->m_impl->m_socket->write(buf, error);
 	});
@@ -63,6 +66,7 @@ basic_server_response<CharT,Exec>::basic_server_response(request_ptr request) :
 template <concept_char_type CharT, concept_execution Exec>
 basic_server_response<CharT,Exec>::~basic_server_response()
 {
+	m_impl->m_request->m_impl->m_bound = false;
 	delete m_impl;
 }
 
@@ -160,6 +164,18 @@ template <concept_char_type CharT, concept_execution Exec>
 const typename basic_server_response<CharT,Exec>::cookies_type &basic_server_response<CharT,Exec>::cookies() const noexcept
 {
 	return m_impl->m_helper.cookies();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+bool basic_server_response<CharT,Exec>::headers_writed() const noexcept
+{
+	return m_impl->m_helper.headers_writed();
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+bool basic_server_response<CharT,Exec>::chunk_end_writed() const noexcept
+{
+	return m_impl->m_helper.chunk_end_writed();
 }
 
 template <concept_char_type CharT, concept_execution Exec>

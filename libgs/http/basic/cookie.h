@@ -181,13 +181,13 @@ using cookie = basic_cookie<char>;
 using wcookie = basic_cookie<wchar_t>;
 
 template <concept_char_type CharT>
-using basic_cookie_values = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
+using basic_cookie_values = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using cookie_values = basic_cookie_values<char>;
 using wcookie_values = basic_cookie_values<wchar_t>;
 
 template <concept_char_type CharT>
-using basic_cookies = std::map<std::basic_string<CharT>, basic_cookie<CharT>, less_case_insensitive>;
+using basic_cookies = std::map<std::basic_string<CharT>, basic_cookie<CharT>, basic_less_case_insensitive<CharT>>;
 
 using cookies = basic_cookies<char>;
 using wcookies = basic_cookies<wchar_t>;

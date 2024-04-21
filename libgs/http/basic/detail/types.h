@@ -103,12 +103,25 @@ std::basic_string<CharT> to_status_description(status s)
 template <concept_char_type CharT>
 std::basic_string<CharT> to_method_string(method m)
 {
-	switch(m)
+	if constexpr( is_char_v<CharT> )
 	{
+		switch(m)
+		{
 #define X_MACRO(e,v,d) case method::e: return d;
-		LIBGS_HTTP_METHOD_TABLE
+			LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
-		default: break;
+			default: break;
+		}
+	}
+	else
+	{
+		switch(m)
+		{
+#define X_MACRO(e,v,d) case method::e: return L##d;
+			LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
+			default: break;
+		}
 	}
 	throw runtime_error("libgs::http: Invalid http method (enum): '{}'.", m);
 //	return {};
@@ -116,7 +129,7 @@ std::basic_string<CharT> to_method_string(method m)
 
 inline method from_method_string(std::string_view str)
 {
-#define X_MACRO(e,v,d) if( str == d ) return method::e;
+#define X_MACRO(e,v,d) if( str == (d) ) return method::e;
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 	throw runtime_error("libgs::http: Invalid http method: '{}'.", str);

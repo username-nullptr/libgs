@@ -45,16 +45,17 @@ class basic_server_request<CharT,Exec>::impl
 public:
 	template <typename Socket>
 	impl(Socket &&socket, parser_type &parser) :
-			m_socket(std::forward<Socket>(socket)), m_parser(parser) {}
+		m_socket(std::forward<Socket>(socket)), m_parser(parser) {}
 
 public:
-	socket_ptr m_socket;
+	socket_ptr m_socket {};
 	parser_type &m_parser;
+	bool m_bound = false;
 };
 
 template <concept_char_type CharT, concept_execution Exec>
 basic_server_request<CharT,Exec>::basic_server_request(io::basic_socket_ptr<Exec> socket, parser_type &parser) :
-		base_type(socket->executor()), m_impl(new impl(std::move(socket), parser))
+	base_type(socket->executor()), m_impl(new impl(std::move(socket), parser))
 {
 
 }
@@ -192,6 +193,10 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_
 		}
 		while(true);
 	};
+	using namespace std::chrono_literals;
+	if( tk.rtime == 0ns )
+		co_await lambda_read();
+
 	auto var = co_await (lambda_read() or co_sleep_for(tk.rtime));
 	if( var.index() == 1 )
 		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
@@ -235,6 +240,10 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<std::string&> bu
 		}
 		while(true);
 	};
+	using namespace std::chrono_literals;
+	if( tk.rtime == 0ns )
+		co_await lambda_read();
+
 	auto var = co_await (lambda_read() or co_sleep_for(tk.rtime));
 	if( var.index() == 1 )
 		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
@@ -256,8 +265,8 @@ awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<erro
 	if( tk.error )
 		*tk.error = std::error_code();
 
-	auto headers = m_impl->m_parser.headers();
-	auto it = headers.find(basic_header<CharT>::content_length);
+	auto &headers = m_impl->m_parser.headers();
+	auto it = headers.find(header_type::content_length);
 
 	size_t buf_size = 0;
 	if( it != headers.end() )
@@ -284,6 +293,10 @@ awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<erro
 		while(true);
 		co_return 0;
 	};
+	using namespace std::chrono_literals;
+	if( tk.rtime == 0ns )
+		co_await lambda_read();
+
 	auto var = co_await (lambda_read() or co_sleep_for(tk.rtime));
 	if( var.index() == 1 )
 		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));

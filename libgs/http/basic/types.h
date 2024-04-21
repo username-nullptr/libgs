@@ -188,7 +188,7 @@ LIBGS_HTTP_VAPI method from_method_string(std::string_view str);
 LIBGS_HTTP_VAPI method from_method_string(std::wstring_view str);
 
 template <concept_char_type CharT>
-using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, less_case_insensitive>;
+using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
