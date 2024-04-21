@@ -45,7 +45,6 @@ int main()
 	})
 	.start();
 #else
-
 	libgs::http::wserver server;
 	server.bind({libgs::io::address_v4(),12345})
 
