@@ -46,9 +46,9 @@ template <concept_char_type CharT>
 		else if( _stricmp(str.data(), "false") == 0 )
 			return 0;
 #else
-		if( str.size() == 4 and strncasecmp(str.c_str(), "true", 4) == 0 )
+		if( str.size() == 4 and strncasecmp(str.data(), "true", 4) == 0 )
 			return 1;
-		else if( str.size() == 5 and strncasecmp(str.c_str(), "false", 5) == 0 )
+		else if( str.size() == 5 and strncasecmp(str.data(), "false", 5) == 0 )
 			return 0;
 #endif
 	}
@@ -207,7 +207,7 @@ template <concept_char_type CharT>
 	if( res < 0 )
 	{
 		try {
-			return !!_sto_int(static_cast<long(*)(const std::basic_string<CharT>&,size_t*,int)>(std::stol), str, base);
+			return /*!!*/_sto_int(static_cast<long(*)(const std::basic_string<CharT>&,size_t*,int)>(std::stol), str, base);
 		}
 		catch(...)
 		{

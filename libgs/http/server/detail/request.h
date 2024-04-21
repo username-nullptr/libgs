@@ -328,14 +328,14 @@ awaitable<size_t> basic_server_request<CharT,Exec>::save_file(const std::string 
 		io::detail::check_error(tk.error, std::make_error_code(static_cast<std::errc>(errno)), "libgs::http::request::save_file");
 		co_return 0;
 	}
-	file.seekp(static_cast<std::ifstream::pos_type>(tk.begin));
-	auto tcp_buf_size = m_impl->tcp_ip_buffer_size();
+	using pos_type = std::ifstream::pos_type;
+	file.seekp(static_cast<pos_type>(tk.begin));
 
+	auto tcp_buf_size = m_impl->tcp_ip_buffer_size();
 	auto buf = new char[tcp_buf_size] {0};
+
 	std::size_t sum = 0;
 	error_code error;
-
-	using pos_type = std::ifstream::pos_type;
 	size_t size;
 
 	while( can_read_body() )

@@ -113,8 +113,8 @@ private:
 			}
 			else if( parse_res and m_request_callback )
 			{
-				auto req = std::make_shared<request>(socket, parser);
-				response resp(req);
+				auto req = std::make_shared<basic_server::request>(socket, parser);
+				basic_server::response resp(req);
 
 				co_await m_request_callback(*req, resp);
 				if( not resp.headers_writed() )

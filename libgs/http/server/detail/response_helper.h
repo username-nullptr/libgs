@@ -32,6 +32,7 @@
 #include <libgs/core/algorithm/mime_type.h>
 #include <libgs/core/log.h>
 #include <filesystem>
+#include <list>
 
 namespace libgs::http
 {
@@ -71,6 +72,7 @@ template <concept_char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using fpos_t = std::ifstream::pos_type;
 
 	using helper_type = basic_response_helper<CharT>;
 	using str_list_type = basic_string_list<CharT>;
@@ -168,7 +170,7 @@ public:
 			if( ranges.empty() )
 			{
 				auto it = m_request_headers.find(header_type::range);
-				if( it != m_response_headers.end() )
+				if( it != m_request_headers.end() )
 					res = co_await range_transfer(file_name, file, it->second, error);
 				else
 					res = co_await default_transfer(file_name, file, error);
@@ -206,7 +208,7 @@ private:
 			return false;
 
 		auto it = m_request_headers.find(header_type::transfer_encoding);
-		return it != m_response_headers.end() and str_to_lower(it->second.to_string()) == key_static_string::chunked;
+		return it != m_request_headers.end() and str_to_lower(it->second.to_string()) == key_static_string::chunked;
 	}
 
 private:
@@ -222,12 +224,12 @@ private:
 		if( file_size == 0 )
 			co_return 0;
 
-		q_ptr->set_header(header::content_type, mime_type);
+		q_ptr->set_header(header_type::content_type, mbstoxx<CharT>(mime_type));
 		auto sum = co_await write_header(file_size, error);
 		if( error )
 			co_return sum;
 
-		size_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
+		fpos_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
 		char *fr_buf = new char[buf_size] {0};
 
 		auto is_chunked = this->is_chunked();
@@ -323,7 +325,7 @@ private:
 		assert(not range_value_queue.empty());
 		auto sum = co_await write_header();
 
-		size_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
+		fpos_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
 		if( range_value_queue.size() == 1 )
 		{
 			auto &value = range_value_queue.back();
@@ -374,7 +376,7 @@ private:
 			body.append("--").append(boundary).append("\r\n")
 				.append(ct_line).append("\r\n")
 				.append(value.cr_line).append("\r\n"
-												  "\r\n");
+				                              "\r\n");
 
 			sum += co_await write_body(body, error);
 			if( error )
@@ -632,7 +634,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::on_write
-		(write_callback writer, std::function<size_t()> get_write_buffer_size)
+(write_callback writer, std::function<size_t()> get_write_buffer_size)
 {
 	m_impl->m_writer = std::move(writer);
 	m_impl->m_get_write_buffer_size = std::move(get_write_buffer_size);
@@ -644,7 +646,7 @@ awaitable<size_t> basic_response_helper<CharT>::write(opt_token<error_code&> tk)
 {
 	if( m_impl->m_headers_writed )
 		throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
-	co_return co_await write(std::format("LIBGS: {} ({})", to_status_description(status()), status()), std::move(tk));
+	co_return co_await write(std::format("LIBGS: {} ({})", to_status_description(status()), status()), tk);
 }
 
 template <concept_char_type CharT>
@@ -835,7 +837,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 	m_impl->m_status = status::ok;
 
 	m_impl->m_response_headers = {
-			{ header_type::content_type, detail::_response_helper_static_string<CharT>::content_type }
+		{ header_type::content_type, detail::_response_helper_static_string<CharT>::content_type }
 	};
 	m_impl->m_cookies.clear();
 	m_impl->m_chunk_attributes.clear();
