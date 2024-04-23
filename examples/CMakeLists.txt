@@ -24,6 +24,7 @@ function(set_target)
 		set_target_properties(${target_name} PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${output_dir}/examples/${path}/
 		)
+		install(TARGETS ${target_name} DESTINATION examples/${path})
 		math(EXPR INDEX "${INDEX} + 1")
 	endwhile ()
 
@@ -51,10 +52,7 @@ set(io_sources
 set_target(gs_io ${io_sources})
 
 set(http_sources
-	http/server_parser.cpp
-	http/server.cpp
+	http/http_server_parser.cpp
+	http/http_server.cpp
 )
 set_target(gs_http ${http_sources})
-
-# set(http_sources ...)
-# set_target(gs_http ${http_sources})

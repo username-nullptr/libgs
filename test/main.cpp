@@ -5,6 +5,7 @@ using namespace std::chrono_literals;
 
 int main()
 {
+#if 0
 	asio::thread_pool pool;
 	libgs::co_spawn_detached([&]() -> asio::awaitable<void>
 	{
@@ -32,5 +33,6 @@ int main()
 		co_return ;
 	});
 	libgs::execution::exec();
+#endif
 	return 0;
 }

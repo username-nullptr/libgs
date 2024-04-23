@@ -8,8 +8,8 @@ set(http_sources
 set(http_headers
 	global.h
 	parser.h
-	client.hpp
-	server.hpp
+	client.h
+	server.h
 	basic/container.h
 	basic/cookie.h
 	basic/header.h
@@ -50,3 +50,4 @@ set_target_properties(${target_name} PROPERTIES
 	LIBRARY_OUTPUT_DIRECTORY ${output_dir}/bin
 	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/bin
 )
+install(TARGETS ${target_name} DESTINATION lib)
