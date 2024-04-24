@@ -225,7 +225,7 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_error() noexcept
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-template<typename Rep, typename Period>
+template <typename Rep, typename Period>
 basic_server<CharT,Exec> &basic_server<CharT,Exec>::set_keepalive_time(const std::chrono::duration<Rep,Period> &d)
 {
 	using namespace std::chrono;

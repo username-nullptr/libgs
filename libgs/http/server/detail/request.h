@@ -378,12 +378,6 @@ awaitable<size_t> basic_server_request<CharT,Exec>::save_file(const std::string 
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_request<CharT,Exec>::is_websocket_handshake() const
-{
-	return m_impl->m_parser.is_websocket_handshake();
-}
-
-template <concept_char_type CharT, concept_execution Exec>
 bool basic_server_request<CharT,Exec>::keep_alive() const
 {
 	return m_impl->m_parser.keep_alive();

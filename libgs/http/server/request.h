@@ -92,7 +92,6 @@ public:
 	[[nodiscard]] awaitable<size_t> save_file(const std::string &file_name, opt_token<begin_t,total_t,error_code&> tk = {});
 
 public:
-	[[nodiscard]] bool is_websocket_handshake() const;
 	[[nodiscard]] bool keep_alive() const;
 	[[nodiscard]] bool support_gzip() const;
 	[[nodiscard]] bool is_chunked() const;

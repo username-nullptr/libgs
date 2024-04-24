@@ -334,17 +334,6 @@ private:
 		}
 		else
 			m_state = state::finished;
-
-		if( m_version == static_string::v_1_1 )
-		{
-			it = m_headers.find(basic_header<CharT>::connection);
-			if( it != m_headers.end() and str_to_lower(it->second.to_string()) == static_string::upgrade )
-			{
-				it = m_headers.find(basic_header<CharT>::upgrade);
-				if( it != m_headers.end() and str_to_lower(it->second.to_string()) == static_string::websocket )
-					m_websocket = true;
-			}
-		}
 		return true;
 	}
 
@@ -380,7 +369,6 @@ public:
 
 	bool m_keep_alive = true;
 	bool m_support_gzip = false;
-	bool m_websocket = false;
 };
 
 template <concept_char_type CharT>
@@ -511,12 +499,6 @@ template <concept_char_type CharT>
 const typename basic_request_parser<CharT>::cookies_type &basic_request_parser<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
-}
-
-template <concept_char_type CharT>
-bool basic_request_parser<CharT>::is_websocket_handshake() const
-{
-	return m_impl->m_websocket;
 }
 
 template <concept_char_type CharT>

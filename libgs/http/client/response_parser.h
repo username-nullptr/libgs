@@ -35,22 +35,15 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI response_parser
+class LIBGS_HTTP_TAPI basic_response_parser
 {
-	LIBGS_DISABLE_COPY(response_parser)
+	LIBGS_DISABLE_COPY(basic_response_parser)
 
 public:
-	response_parser();
-	~response_parser();
+	basic_response_parser();
+	~basic_response_parser();
 
-	response_parser(response_parser &&other);
-	response_parser &operator=(response_parser &&other);
 
-public:
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
-
-public:
 
 protected:
 };

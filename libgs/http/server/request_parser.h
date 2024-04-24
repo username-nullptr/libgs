@@ -71,7 +71,6 @@ public:
 	[[nodiscard]] const cookies_type &cookies() const noexcept;
 
 public:
-	[[nodiscard]] bool is_websocket_handshake() const;
 	[[nodiscard]] bool keep_alive() const;
 	[[nodiscard]] bool support_gzip() const;
 	[[nodiscard]] bool can_read_body() const;

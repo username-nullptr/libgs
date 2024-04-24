@@ -85,7 +85,7 @@ public:
 	basic_server &unbound_request() noexcept;
 	basic_server &unbound_error() noexcept;
 
-	template<typename Rep, typename Period>
+	template <typename Rep, typename Period>
 	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
 
 public:

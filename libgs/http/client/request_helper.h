@@ -29,8 +29,34 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_HELPER_H
 #define LIBGS_HTTP_CLIENT_REQUEST_HELPER_H
 
+#include <libgs/http/basic/types.h>
+
 namespace libgs::http
 {
+
+template <concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_request_helper
+{
+	LIBGS_DISABLE_COPY(basic_request_helper)
+	using this_type = basic_request_helper;
+
+public:
+	using str_type = std::basic_string<CharT>;
+	using str_view_type = std::basic_string_view<CharT>;
+
+	using value_type = basic_value<CharT>;
+	using value_list_type = basic_value_list<CharT>;
+
+public:
+	explicit basic_request_helper(str_view_type version);
+	~basic_request_helper();
+
+	basic_request_helper(basic_request_helper &&other) noexcept ;
+	basic_request_helper &operator=(basic_request_helper &&other) noexcept;
+
+public:
+	this_type &set_header(str_view_type key, value_type value) noexcept;
+};
 
 } //namespace libgs::http
 

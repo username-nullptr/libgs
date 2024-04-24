@@ -5,7 +5,7 @@ using namespace std::chrono_literals;
 
 int main()
 {
-#if 0
+#if 1
 	libgs::http::server server;
 	server.bind({libgs::io::address_v4(),12345})
 
