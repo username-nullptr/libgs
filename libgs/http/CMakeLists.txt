@@ -3,6 +3,7 @@ set(target_name gs_http)
 set(http_sources
 	global.cpp
 	parser.cpp
+	server/detail/session_base.cpp
 )
 
 set(http_headers
@@ -34,6 +35,8 @@ set(http_detail_headers
 	server/detail/request.h
 	server/detail/response_helper.h
 	server/detail/response.h
+	server/detail/session_base.h
+#	server/detail/session.h
 	server/detail/server.h
 )
 
