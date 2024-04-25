@@ -14,13 +14,13 @@ set(core_sources
 )
 
 set(core_headers
-	cxx/cplusplus.hpp
-	cxx/attributes.hpp
-	cxx/concept.hpp
-	cxx/asio_concept.hpp
-	cxx/type_traits.hpp
-	cxx/remove_repeat.hpp
-	cxx/function_traits.hpp
+	cxx/cplusplus.h
+	cxx/attributes.h
+	cxx/concept.h
+	cxx/asio_concept.h
+	cxx/type_traits.h
+	cxx/remove_repeat.h
+	cxx/function_traits.h
 	cxx/utilities.h
 	cxx/formatter.h
 	cxx/exception.h

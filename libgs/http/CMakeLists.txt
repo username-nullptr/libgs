@@ -21,6 +21,7 @@ set(http_headers
 	server/request_parser.h
 	server/response_helper.h
 	server/response.h
+	server/session.h
 	server/server.h
 )
 

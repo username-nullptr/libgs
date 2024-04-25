@@ -30,7 +30,7 @@
 #define LIBGS_IO_GLOBAL_H
 
 #include <libgs/core/execution.h>
-#include <libgs/io/cxx/concept.hpp>
+#include <libgs/io/cxx/concept.h>
 
 #ifdef gs_io_EXPORTS
 # define LIBGS_IO_API  LIBGS_DECL_EXPORT

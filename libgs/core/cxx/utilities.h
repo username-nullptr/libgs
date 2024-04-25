@@ -29,8 +29,8 @@
 #ifndef LIBGS_CORE_CXX_UTILITIES_H
 #define LIBGS_CORE_CXX_UTILITIES_H
 
-#include <libgs/core/cxx/remove_repeat.hpp>
-#include <libgs/core/cxx/type_traits.hpp>
+#include <libgs/core/cxx/remove_repeat.h>
+#include <libgs/core/cxx/type_traits.h>
 // #include <rttr/type>
 #include <utility>
 

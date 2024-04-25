@@ -3,7 +3,7 @@
 *                                                                                   *
 *   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of LIBGS3                                                       *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
@@ -26,71 +26,19 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_ASIO_CONCEPT_H
-#define LIBGS_CORE_CXX_ASIO_CONCEPT_H
+#ifndef LIBGS_IO_CXX_CONCEPT_H
+#define LIBGS_IO_CXX_CONCEPT_H
 
-#include <libgs/core/cxx/function_traits.hpp>
+#include <libgs/core/cxx/function_traits.h>
 #include <asio.hpp>
-#include <concepts>
 
-namespace libgs
+namespace libgs::io
 {
 
-template <typename Exec>
-struct is_execution {
-	static constexpr bool value =
-		(asio::execution::is_executor<Exec>::value and
-		 asio::can_require<Exec, asio::execution::blocking_t::never_t>::value) or
-		asio::is_executor<Exec>::value;
-};
+template <typename MatchCondition>
+concept concept_match_condition = asio::is_match_condition<MatchCondition>::value;
 
-template <typename Exec>
-constexpr bool is_execution_v = is_execution<Exec>::value;
-
-template <typename Exec>
-concept concept_execution = is_execution_v<Exec>;
-
-template <typename ExecContext>
-struct is_execution_context {
-	static constexpr bool value = asio::is_convertible<ExecContext&, asio::execution_context&>::value;
-};
-
-template <typename ExecContext>
-constexpr bool is_execution_context_v = is_execution_context<ExecContext>::value;
-
-template <typename ExecContext>
-concept concept_execution_context = is_execution_context_v<ExecContext>;
-
-template <typename Exec>
-struct is_schedulable {
-	static constexpr bool value = is_execution_v<Exec> or is_execution_context_v<Exec>;
-};
-
-template <typename Exec>
-constexpr bool is_schedulable_v = is_schedulable<Exec>::value;
-
-template <typename Exec>
-concept concept_schedulable = is_schedulable_v<Exec>;
-
-template <typename T>
-struct is_awaitable : public std::false_type {};
-
-template <typename T>
-struct is_awaitable<asio::awaitable<T>> : public std::true_type {};
-
-template <typename T>
-constexpr bool is_awaitable_v = is_awaitable<T>::value;
-
-template <typename T>
-concept concept_awaitable_type = is_awaitable_v<T>;
-
-template <typename Func>
-concept concept_awaitable_function =
-		is_functor_v<Func> and
-		is_awaitable_v<typename function_traits<Func>::return_type> and
-		function_traits<Func>::arg_count == 0;
-
-} //namespace libgs
+} //namespace libgs::io
 
 
-#endif //LIBGS_CORE_CXX_ASIO_CONCEPT_H
+#endif //LIBGS_IO_CXX_CONCEPT_H

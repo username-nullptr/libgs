@@ -7,7 +7,7 @@ set(core_sources
 )
 
 set(core_headers
-	cxx/concept.hpp
+	cxx/concept.h
 	types/ip_types.h
 	types/opt_token.h
 	types/opt_condition.h
