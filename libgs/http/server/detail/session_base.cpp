@@ -38,8 +38,11 @@ std::chrono::seconds session_duration_base::global_lifecycle() noexcept
 	return std::chrono::seconds(g_lifecycle);
 }
 
-std::map<std::string_view, session_base<char>> session_base<char>::session_map;
+template <concept_char_type CharT>
+using ptr = std::shared_ptr<basic_session<CharT>>;
 
-std::map<std::wstring_view, session_base<wchar_t>> session_base<wchar_t>::session_map;
+std::map<std::string_view, ptr<char>> session_base<char>::session_map;
+
+std::map<std::wstring_view, ptr<wchar_t>> session_base<wchar_t>::session_map;
 
 } //namespace libgs::http::detail

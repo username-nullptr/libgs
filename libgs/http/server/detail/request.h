@@ -108,7 +108,7 @@ const basic_value<CharT> &basic_server_request<CharT,Exec>::parameter(str_view_t
 	auto map = m_impl->m_parser.parameters();
 	auto it = map.find(key);
 	if( it == map.end() )
-		throw runtime_error("libgs::http::request::parameter: key '{}' not exists.", wcstoxx<std::string>(key));
+		throw runtime_error("libgs::http::request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
 }
 
@@ -118,7 +118,7 @@ const basic_value<CharT> &basic_server_request<CharT,Exec>::header(str_view_type
 	auto map = m_impl->m_parser.headers();
 	auto it = map.find(key);
 	if( it == map.end() )
-		throw runtime_error("libgs::http::request::header: key '{}' not exists.", wcstoxx<std::string>(key));
+		throw runtime_error("libgs::http::request::header: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
 }
 
@@ -128,7 +128,7 @@ const basic_value<CharT> &basic_server_request<CharT,Exec>::cookie(str_view_type
 	auto map = m_impl->m_parser.cookies();
 	auto it = map.find(key);
 	if( it == map.end() )
-		throw runtime_error("libgs::http::request::cookie: key '{}' not exists.", wcstoxx<std::string>(key));
+		throw runtime_error("libgs::http::request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
 }
 

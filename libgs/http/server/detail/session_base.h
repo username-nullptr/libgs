@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
 
 #include <libgs/http/global.h>
+#include <libgs/core/shared_mutex.h>
 #include <map>
 
 namespace libgs::http
@@ -53,8 +54,13 @@ public:
 	[[nodiscard]] static std::chrono::seconds global_lifecycle() noexcept;
 
 	template <typename Rep, typename Period = std::ratio<1>>
-	static void set_global_lifecycle(const duration<Rep,Period> &seconds) noexcept {
-		g_lifecycle = std::chrono::duration_cast<std::chrono::seconds>(seconds);
+	static void set_global_lifecycle(const duration<Rep,Period> &seconds) noexcept
+	{
+		namespace sc = std::chrono;
+		g_lifecycle = sc::duration_cast<sc::seconds>(seconds).count();
+
+		if( g_lifecycle == 0 )
+			g_lifecycle = 1;
 	}
 
 private:
@@ -68,21 +74,25 @@ template <>
 class LIBGS_HTTP_API session_base<char> : public session_duration_base
 {
 	LIBGS_DISABLE_COPY_MOVE(session_base)
+	using ptr = std::shared_ptr<basic_session<char>>;
 	friend class basic_session<char>;
 
-private:
+private: //
 	session_base() = default;
-	static std::map<std::string_view, session_base> session_map;
+	static std::map<std::string_view, ptr> session_map;
+	static shared_mutex rwlock;
 };
 
 template <> class LIBGS_HTTP_API session_base<wchar_t> : public session_duration_base
 {
 	LIBGS_DISABLE_COPY_MOVE(session_base)
+	using ptr = std::shared_ptr<basic_session<wchar_t>>;
 	friend class basic_session<wchar_t>;
 
-private:
+private: //
 	session_base() = default;
-	static std::map<std::wstring_view, session_base> session_map;
+	static std::map<std::wstring_view, ptr> session_map;
+	static shared_mutex rwlock;
 };
 
 }} //namespace libgs::http::detail
