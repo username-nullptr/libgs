@@ -94,49 +94,6 @@ public:
 	basic_session &expand();
 
 public:
-#ifdef _MSC_VER // _MSVC
-	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> make(Args&&...args) noexcept
-		requires detail::can_construct<Session, Args...>
-	{
-		auto ptr = std::make_shared<Session>(std::forward<Args>(args)...);
-		ptr->m_impl->start();
-		return ptr;
-	}
-
-	template <typename...Args>
-	static std::shared_ptr<basic_session> make(Args&&...args) noexcept
-		requires detail::can_construct<basic_session, Args...>
-	{
-		auto ptr = std::make_shared<basic_session>(std::forward<Args>(args)...);
-		ptr->m_impl->start();
-		return ptr;
-	}
-
-	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get_or_make(str_view_type id, Args&&...args)
-		requires detail::can_construct<Session, Args...>
-	{
-		auto ptr = _find(id, false);
-		if( not ptr )
-			return make<Session>(std::forward<Args>(args)...);
-
-		auto rptr = std::dynamic_pointer_cast<Session>(ptr);
-		if( not rptr )
-			throw runtime_error("libgs::http::session::get_or_make: type error.", xxtombs<CharT>(id));
-		return rptr;
-	}
-
-	template <typename...Args>
-	static std::shared_ptr<basic_session> get_or_make(str_view_type id, Args&&...args) noexcept
-		requires detail::can_construct<basic_session, Args...>
-	{
-		auto ptr = _find(id, false);
-		if( not ptr )
-			return make(std::forward<Args>(args)...);
-		return ptr;
-	}
-#else //_MSC_VER
 	template <detail::base_of_session<CharT> Session, typename...Args>
 	static std::shared_ptr<Session> make(Args&&...args) noexcept
 		requires detail::can_construct<Session, Args...>;
@@ -152,7 +109,7 @@ public:
 	template <typename...Args>
 	static std::shared_ptr<basic_session> get_or_make(str_view_type id, Args&&...args) noexcept
 		requires detail::can_construct<basic_session<CharT>, Args...>;
-#endif //_MSC_VER
+
 public:
 	template <detail::base_of_session<CharT> Session, typename...Args>
 	static std::shared_ptr<Session> get(str_view_type id);

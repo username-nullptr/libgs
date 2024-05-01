@@ -229,7 +229,6 @@ basic_session<CharT> &basic_session<CharT>::expand()
 	return *this;
 }
 
-#ifndef _MSC_VER // _MSVC
 template <concept_char_type CharT>
 template <detail::base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_session<CharT>::make(Args&&...args) noexcept
@@ -275,7 +274,6 @@ basic_session_ptr<CharT> basic_session<CharT>::get_or_make(str_view_type id, Arg
 		return make(std::forward<Args>(args)...);
 	return ptr;
 }
-#endif //_MSC_VER
 
 template <concept_char_type CharT>
 template <detail::base_of_session<CharT> Session, typename...Args>
