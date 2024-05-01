@@ -31,6 +31,7 @@
 
 #include <libgs/http/basic/header.h>
 #include <libgs/http/basic/cookie.h>
+#include <libgs/core/cxx/flags.h>
 
 #if defined(__WINNT) || defined(_WINDOWS)
 # undef DELETE
@@ -125,6 +126,7 @@ enum method
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 };
+LIBGS_DECLARE_FLAGS(methods, method)
 LIBGS_HTTP_VAPI void method_check(uint32_t m);
 LIBGS_HTTP_VAPI void method_check(method m);
 

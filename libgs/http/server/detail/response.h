@@ -199,7 +199,7 @@ basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_cook
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_chunk_attribute(value_type attribute)
+basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_chunk_attribute(const value_type &attribute)
 {
 	m_impl->m_helper.unset_chunk_attribute(std::move(attribute));
 	return *this;

@@ -77,11 +77,12 @@ class LIBGS_HTTP_TAPI basic_cookie
 public:
 	using str_type = std::basic_string<CharT>;
 	using value_type = basic_value<CharT>;
+	using attribute_type = basic_cookie_attribute<CharT>;
 	using attributes_type = basic_cookie_attributes<CharT>;
 
 public:
 	basic_cookie();
-	basic_cookie(value_type &v);
+	basic_cookie(value_type v);
 
 	basic_cookie(const basic_cookie &other) = default;
 	basic_cookie &operator=(const basic_cookie &other) = default;

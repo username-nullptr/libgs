@@ -3,7 +3,6 @@ set(target_name gs_io)
 set(core_sources
 	global.cpp
 	types/opt_token.cpp
-	types/stream_buffer.cpp
 )
 
 set(core_headers
@@ -26,6 +25,7 @@ set(core_detail_headers
 	types/detail/ip_types.h
 	types/detail/opt_token.h
 	types/detail/opt_condition.h
+	types/detail/stream_buffer.h
 	detail/device_base.h
 	detail/timer.h
 	detail/stream.h

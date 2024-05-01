@@ -36,7 +36,7 @@ set(http_detail_headers
 	server/detail/response_helper.h
 	server/detail/response.h
 	server/detail/session_base.h
-#	server/detail/session.h
+	server/detail/session.h
 	server/detail/server.h
 )
 

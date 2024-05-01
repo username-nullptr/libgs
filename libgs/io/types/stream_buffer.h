@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_STREAM_BUFFER_H
-#define LIBGS_IO_STREAM_BUFFER_H
+#ifndef LIBGS_IO_TYPES_STREAM_BUFFER_H
+#define LIBGS_IO_TYPES_STREAM_BUFFER_H
 
 #include <libgs/io/global.h>
 
@@ -38,7 +38,7 @@ template <typename T>
 struct buffer;
 
 template <>
-struct LIBGS_IO_API buffer<void>
+struct LIBGS_IO_VAPI buffer<void>
 {
 	size_t size;
 
@@ -47,21 +47,21 @@ protected:
 };
 
 template <>
-struct LIBGS_IO_API buffer<void*> : buffer<void>
+struct LIBGS_IO_VAPI buffer<void*> : buffer<void>
 {
 	void *data;
 	buffer(void *data, size_t size = 0);
 };
 
 template <>
-struct LIBGS_IO_API buffer<std::string&> : buffer<void>
+struct LIBGS_IO_VAPI buffer<std::string&> : buffer<void>
 {
 	std::string &data;
 	buffer(std::string &data, size_t size = 0);
 };
 
 template <>
-struct LIBGS_IO_API buffer<std::string_view> : buffer<void>
+struct LIBGS_IO_VAPI buffer<std::string_view> : buffer<void>
 {
 	using this_type = buffer<const std::string&>;
 	std::string_view data;
@@ -73,6 +73,7 @@ struct LIBGS_IO_API buffer<std::string_view> : buffer<void>
 };
 
 } //namespace libgs::io
+#include <libgs/io/types/detail/stream_buffer.h>
 
 
-#endif //LIBGS_IO_STREAM_BUFFER_H
+#endif //LIBGS_IO_TYPES_STREAM_BUFFER_H

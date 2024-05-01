@@ -26,30 +26,31 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "stream_buffer.h"
+#ifndef LIBGS_IO_TYPES_DETAIL_STREAM_BUFFER_H
+#define LIBGS_IO_TYPES_DETAIL_STREAM_BUFFER_H
 
 namespace libgs::io
 {
 
-buffer<void>::buffer(size_t size) :
+inline buffer<void>::buffer(size_t size) :
 	size(size)
 {
 
 }
 
-buffer<void*>::buffer(void *data, size_t size) : 
+inline buffer<void*>::buffer(void *data, size_t size) :
 	buffer<void>(size), data(data)
 {
 
 }
 
-buffer<std::string&>::buffer(std::string &data, size_t size) :
+inline buffer<std::string&>::buffer(std::string &data, size_t size) :
 	buffer<void>(size), data(data)
 {
 
 }
 
-buffer<std::string_view>::buffer(std::string_view data, size_t size)
+inline buffer<std::string_view>::buffer(std::string_view data, size_t size)
 {
 	if( size == 0 )
 	{
@@ -63,7 +64,7 @@ buffer<std::string_view>::buffer(std::string_view data, size_t size)
 	}
 }
 
-buffer<std::string_view>::buffer(const std::string &data, size_t size)
+inline buffer<std::string_view>::buffer(const std::string &data, size_t size)
 {
 	if( size == 0 )
 	{
@@ -77,16 +78,19 @@ buffer<std::string_view>::buffer(const std::string &data, size_t size)
 	}
 }
 
-buffer<std::string_view>::buffer(const void *data, size_t size) :
+inline buffer<std::string_view>::buffer(const void *data, size_t size) :
 	buffer<void>(size), data(reinterpret_cast<const char*>(data), size)
 {
 
 }
 
-buffer<std::string_view>::buffer(const char *data) :
+inline buffer<std::string_view>::buffer(const char *data) :
 	buffer<void>(strlen(data)), data(data)
 {
 
 }
 
 } //namespace libgs::io
+
+
+#endif //LIBGS_IO_TYPES_DETAIL_STREAM_BUFFER_H

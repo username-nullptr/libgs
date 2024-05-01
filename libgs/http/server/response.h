@@ -101,7 +101,7 @@ public:
 public:
 	this_type &unset_header(str_view_type key);
 	this_type &unset_cookie(str_view_type key);
-	this_type &unset_chunk_attribute(value_type attribute);
+	this_type &unset_chunk_attribute(const value_type &attribute);
 
 private:
 	class impl;

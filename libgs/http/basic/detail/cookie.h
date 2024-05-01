@@ -36,13 +36,13 @@ template <concept_char_type CharT>
 basic_cookie<CharT>::basic_cookie()
 {
 	if constexpr( is_char_v<CharT> )
-		m_attributes[attributes_type::path] = "/";
+		m_attributes[attribute_type::path] = "/";
 	else
-		m_attributes[attributes_type::path] = L"/";
+		m_attributes[attribute_type::path] = L"/";
 }
 
 template <concept_char_type CharT>
-basic_cookie<CharT>::basic_cookie(value_type &v) :
+basic_cookie<CharT>::basic_cookie(value_type v) :
 	m_value(std::move(v))
 {
 

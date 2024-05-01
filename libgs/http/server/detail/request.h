@@ -106,7 +106,7 @@ template <concept_char_type CharT, concept_execution Exec>
 const basic_value<CharT> &basic_server_request<CharT,Exec>::parameter(str_view_type key) const
 {
 	auto map = m_impl->m_parser.parameters();
-	auto it = map.find(key);
+	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
@@ -116,7 +116,7 @@ template <concept_char_type CharT, concept_execution Exec>
 const basic_value<CharT> &basic_server_request<CharT,Exec>::header(str_view_type key) const
 {
 	auto map = m_impl->m_parser.headers();
-	auto it = map.find(key);
+	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::request::header: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
@@ -126,7 +126,7 @@ template <concept_char_type CharT, concept_execution Exec>
 const basic_value<CharT> &basic_server_request<CharT,Exec>::cookie(str_view_type key) const
 {
 	auto map = m_impl->m_parser.cookies();
-	auto it = map.find(key);
+	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
@@ -136,7 +136,7 @@ template <concept_char_type CharT, concept_execution Exec>
 basic_value<CharT> basic_server_request<CharT,Exec>::parameter_or(str_view_type key, value_type def_value) const noexcept
 {
 	auto map = m_impl->m_parser.parameters();
-	auto it = map.find(key);
+	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
@@ -144,7 +144,7 @@ template <concept_char_type CharT, concept_execution Exec>
 basic_value<CharT> basic_server_request<CharT,Exec>::header_or(str_view_type key, value_type def_value) const noexcept
 {
 	auto map = m_impl->m_parser.headers();
-	auto it = map.find(key);
+	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
@@ -152,7 +152,7 @@ template <concept_char_type CharT, concept_execution Exec>
 basic_value<CharT> basic_server_request<CharT,Exec>::cookie_or(str_view_type key, value_type def_value) const noexcept
 {
 	auto map = m_impl->m_parser.cookies();
-	auto it = map.find(key);
+	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 

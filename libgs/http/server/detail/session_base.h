@@ -42,13 +42,14 @@ class basic_session;
 namespace detail
 {
 
-class session_duration_base
+class LIBGS_HTTP_API session_duration_base
 {
 	LIBGS_DISABLE_COPY_MOVE(session_duration_base)
 
 public:
 	template<typename Rep, typename Period = std::ratio<1>>
 	using duration = std::chrono::duration<Rep,Period>;
+	session_duration_base() = default;
 
 public:
 	[[nodiscard]] static std::chrono::seconds global_lifecycle() noexcept;
@@ -57,14 +58,14 @@ public:
 	static void set_global_lifecycle(const duration<Rep,Period> &seconds) noexcept
 	{
 		namespace sc = std::chrono;
-		g_lifecycle = sc::duration_cast<sc::seconds>(seconds).count();
-
-		if( g_lifecycle == 0 )
-			g_lifecycle = 1;
+		auto &lv = _lifecycle();
+		lv = sc::duration_cast<sc::seconds>(seconds).count();
+		if( lv == 0 )
+			lv = 1;
 	}
 
 private:
-	static std::atomic<uint64_t> g_lifecycle;
+	static std::atomic<uint64_t> &_lifecycle() noexcept;
 };
 
 template <concept_char_type CharT>
@@ -79,8 +80,9 @@ class LIBGS_HTTP_API session_base<char> : public session_duration_base
 
 private: //
 	session_base() = default;
-	static std::map<std::string_view, ptr> session_map;
-	static shared_mutex rwlock;
+	static std::string &cookie_key() noexcept;
+	static std::map<std::string_view, ptr> &session_map() noexcept;
+	static shared_mutex &map_rwlock() noexcept;
 };
 
 template <> class LIBGS_HTTP_API session_base<wchar_t> : public session_duration_base
@@ -91,9 +93,16 @@ template <> class LIBGS_HTTP_API session_base<wchar_t> : public session_duration
 
 private: //
 	session_base() = default;
-	static std::map<std::wstring_view, ptr> session_map;
-	static shared_mutex rwlock;
+	static std::wstring &cookie_key() noexcept;
+	static std::map<std::wstring_view, ptr> &session_map() noexcept;
+	static shared_mutex &map_rwlock() noexcept;
 };
+
+template <typename CharT, typename Session>
+concept base_of_session = std::is_base_of_v<basic_session<CharT>, Session>;
+
+template <typename Session, typename...Args>
+concept can_construct = requires { Session(std::declval<Args>()...); };
 
 }} //namespace libgs::http::detail
 

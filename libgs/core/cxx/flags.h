@@ -86,11 +86,11 @@ private:
 };
 
 } //namespace libgs
-#include <libgs/core/detail/flags.h>
+#include <libgs/core/cxx/detail/flags.h>
 
-#define LIBGS_CORE_DECLARE_FLAGS(_flags, _enum)  using _flags = flags<_enum>;
+#define LIBGS_DECLARE_FLAGS(v_flags, v_enum)  using v_flags = libgs::flags<v_enum>;
 
-#define LIBGS_CORE_DECLARE_OPERATORS_FOR_FLAGS(_flags) \
+#define LIBGS_DECLARE_OPERATORS_FOR_FLAGS(_flags) \
 	constexpr inline flags<_flags::enum_type> operator| \
 	(_flags::enum_type f1, _flags::enum_type f2) noexcept \
 	{ return flags<_flags::enum_type>(f1) | f2; } \

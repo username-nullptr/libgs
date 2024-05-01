@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_SERVER_H
 
 #include <libgs/http/server/response.h>
+#include <libgs/http/server/session.h>
 #include <libgs/io/tcp_server.h>
 
 namespace libgs::http
@@ -48,6 +49,9 @@ public:
 
 	using request_ptr = basic_server_request_ptr<CharT,Exec>;
 	using response_ptr = basic_server_response_ptr<CharT,Exec>;
+
+	using str_type = std::basic_string<CharT>;
+	using str_view_type = std::basic_string_view<CharT>;
 
 	using executor_type = typename base_type::executor_type;
 	using tcp_server_type = io::basic_tcp_server<Exec>;
@@ -79,6 +83,9 @@ public:
 	basic_server &start(start_token tk = {});
 
 public:
+	basic_server &filter(str_view_type path, request_handler callback) noexcept; // TODO ...
+	basic_server &on_request(str_view_type path, methods m, request_handler callback) noexcept; // TODO ...
+
 	basic_server &on_request(request_handler callback) noexcept;
 	basic_server &on_error(error_handler callback) noexcept;
 

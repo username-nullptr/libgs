@@ -812,21 +812,21 @@ bool basic_response_helper<CharT>::chunk_end_writed() const noexcept
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(str_view_type key)
 {
-	m_impl->m_response_headers.erase(key);
+	m_impl->m_response_headers.erase({key.data(), key.size()});
 	return *this;
 }
 
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(str_view_type key)
 {
-	m_impl->m_cookies.erase(key);
+	m_impl->m_cookies.erase({key.data(), key.size()});
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(value_type key)
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(const value_type &attributes)
 {
-	m_impl->m_chunk_attributes.erase(key);
+	m_impl->m_chunk_attributes.erase(attributes);
 	return *this;
 }
 

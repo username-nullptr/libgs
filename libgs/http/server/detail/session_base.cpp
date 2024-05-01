@@ -31,18 +31,55 @@
 namespace libgs::http::detail
 {
 
-std::atomic<uint64_t> session_duration_base::g_lifecycle;
+static std::atomic<uint64_t> g_lifecycle = 60;
 
 std::chrono::seconds session_duration_base::global_lifecycle() noexcept
 {
 	return std::chrono::seconds(g_lifecycle);
 }
 
+std::atomic<uint64_t> &session_duration_base::_lifecycle() noexcept
+{
+	return g_lifecycle;
+}
+
 template <concept_char_type CharT>
 using ptr = std::shared_ptr<basic_session<CharT>>;
 
-std::map<std::string_view, ptr<char>> session_base<char>::session_map;
+std::string &session_base<char>::cookie_key() noexcept
+{
+	static std::string key = "session";
+	return key;
+}
 
-std::map<std::wstring_view, ptr<wchar_t>> session_base<wchar_t>::session_map;
+std::map<std::string_view, ptr<char>> &session_base<char>::session_map() noexcept
+{
+	static std::map<std::string_view, ptr> map;
+	return map;
+}
+
+shared_mutex &session_base<char>::map_rwlock() noexcept
+{
+	static shared_mutex rwlock;
+	return rwlock;
+}
+
+std::wstring &session_base<wchar_t>::cookie_key() noexcept
+{
+	static std::wstring key = L"session";
+	return key;
+}
+
+std::map<std::wstring_view, ptr<wchar_t>> &session_base<wchar_t>::session_map() noexcept
+{
+	static std::map<std::wstring_view, ptr> map;
+	return map;
+}
+
+shared_mutex &session_base<wchar_t>::map_rwlock() noexcept
+{
+	static shared_mutex rwlock;
+	return rwlock;
+}
 
 } //namespace libgs::http::detail
