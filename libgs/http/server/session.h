@@ -143,7 +143,7 @@ public:
 
 	template <typename...Args>
 	static std::shared_ptr<basic_session> make(Args&&...args) noexcept
-		requires detail::can_construct<basic_session, Args...>;
+		requires detail::can_construct<basic_session<CharT>, Args...>;
 
 	template <detail::base_of_session<CharT> Session, typename...Args>
 	static std::shared_ptr<Session> get_or_make(str_view_type id, Args&&...args)
@@ -151,7 +151,7 @@ public:
 
 	template <typename...Args>
 	static std::shared_ptr<basic_session> get_or_make(str_view_type id, Args&&...args) noexcept
-		requires detail::can_construct<basic_session, Args...>;
+		requires detail::can_construct<basic_session<CharT>, Args...>;
 #endif //_MSC_VER
 public:
 	template <detail::base_of_session<CharT> Session, typename...Args>
