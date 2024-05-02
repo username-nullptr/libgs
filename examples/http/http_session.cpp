@@ -8,7 +8,8 @@ int main()
 	libgs::http::server server;
 	server.bind({libgs::io::address_v4(),12345})
 
-	.on_request([](libgs::http::server::request &request, libgs::http::server::response &response) -> libgs::awaitable<void>
+	.on_request<libgs::http::method::GET>("/*",
+	[](libgs::http::server::request &request, libgs::http::server::response &response) -> libgs::awaitable<void>
 	{
 		auto session_cookie =libgs::http::session::cookie_key();
 		libgs_log_debug("cookie key: '{}'", session_cookie);

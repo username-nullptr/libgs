@@ -67,8 +67,21 @@ public:
 		});
 	}
 
+	void rule_path_check(str_type &str)
+	{
+		auto n_it = std::unique(str.begin(), str.end(), [](CharT c0, CharT c1){
+			return c0 == c1 and c0 == 0x2F/*/*/;
+		});
+		if( n_it != str.end() )
+			str.erase(n_it, str.end());
+
+		constexpr auto root = detail::_key_static_string<CharT>::root;
+		if( not str.starts_with(root) )
+			str = root + str;
+	}
+
 private:
-	awaitable<void> do_tcp_accept(size_t max)
+	[[nodiscard]] awaitable<void> do_tcp_accept(size_t max)
 	{
 		m_tcp_server->start(max);
 		for(;;)
@@ -89,7 +102,7 @@ private:
 		co_return ;
 	}
 
-	awaitable<void> do_tcp_service(io::tcp_socket_ptr socket, const std::chrono::milliseconds &keepalive_time)
+	[[nodiscard]] awaitable<void> do_tcp_service(io::tcp_socket_ptr socket, const std::chrono::milliseconds &keepalive_time)
 	{
 		basic_server::parser parser;
 		error_code error;
@@ -106,28 +119,135 @@ private:
 			{
 				if( not m_is_start )
 					break;
-				else if( m_error_callback )
-					co_await m_error_callback(error);
-				else
-					throw system_error(error, "libgs::http::server::impl::do_tcp_service");
+				co_await call_on_error(error);
+				continue;
 			}
-			else if( parse_res and m_request_callback )
-			{
-				auto req = std::make_shared<basic_server::request>(socket, parser);
-				basic_server::response resp(req);
+			else if( not parse_res )
+				continue;
 
-				co_await m_request_callback(*req, resp);
-				if( not resp.headers_writed() )
-					co_await resp.write();
-				parser.reset();
-			}
+			auto req = std::make_shared<basic_server::request>(socket, parser);
+			basic_server::response resp(req);
+
+			co_await call_on_request(parser, *req, resp);
+			if( not resp.headers_writed() )
+				co_await call_on_default(*req, resp);
+			parser.reset();
 		}
 		co_return ;
 	}
 
+private:
+	[[nodiscard]] awaitable<bool> call_on_request(basic_server::parser &parser, basic_server::request &req, basic_server::response &resp)
+	{
+		for(auto &[rule, handler] : m_request_handler_map)
+		{
+			if( not wildcard_match(rule, parser.path()) )
+				continue;
+			else if( (handler->method & parser.method()) == 0 )
+			{
+				resp.set_status(status::method_not_allowed);
+				co_return false;
+			}
+			else if( handler->aop.index() == 0 )
+				co_await for_aop(std::get<0>(handler->aop), req, resp);
+			else // index == 1
+				co_await ctrlr_aop(std::get<1>(handler->aop), req, resp);
+			co_return true;
+		}
+		resp.set_status(status::not_found);
+		co_return false;
+	}
+
+	[[nodiscard]] awaitable<void> call_on_default(basic_server::request &req, basic_server::response &resp)
+	{
+		if( m_default_handler )
+		{
+			co_await m_default_handler(req, resp);
+			if( resp.headers_writed() )
+				co_return ;
+		}
+		co_await resp.write();
+		co_return ;
+	}
+
+	[[nodiscard]] awaitable<void> call_on_error(const error_code &error)
+	{
+		if( m_error_callback )
+			co_await m_error_callback(error);
+		else
+			throw system_error(error, "libgs::http::server::impl::do_tcp_service");
+		co_return ;
+	}
+
+private:
+	[[nodiscard]] awaitable<void> for_aop(aop_token &tk, basic_server::request &req, basic_server::response &resp)
+	{
+		for(auto &aop : tk.aops)
+		{
+			if( co_await aop->before(req, resp) )
+				co_return ;
+		}
+		if( tk.callback )
+			co_await tk.callback(req, resp);
+		for(auto &aop : tk.aops)
+		{
+			if( co_await aop->after(req, resp) )
+				break;
+		}
+		co_return ;
+	}
+
+	[[nodiscard]] awaitable<void> ctrlr_aop(ctrlr_aop_ptr &ctrlr, basic_server::request &req, basic_server::response &resp)
+	{
+		if( co_await ctrlr->before(req, resp) )
+			co_return ;
+
+		co_await ctrlr->service(req, resp);
+		co_await ctrlr->after(req, resp);
+		co_return ;
+	}
+
+public:
+	struct tk_handler
+	{
+		using aop_var = std::variant<aop_token, ctrlr_aop_ptr>;
+		explicit tk_handler(aop_var aop) : aop(std::move(aop)) {}
+
+		template <http::method...method>
+		tk_handler &bind_method()
+		{
+			if constexpr( sizeof...(method) == 0 )
+			{
+				using hm = http::method;
+				this->method = {
+					hm::GET, hm::PUT, hm::POST, hm::HEAD, hm::DELETE, hm::OPTIONS, hm::CONNECT, hm::TRACH
+				};
+			}
+			else
+			{
+				(void) std::initializer_list<int> {
+					(this->method |= method, 0) ...
+				};
+			}
+			return *this;
+		}
+		http::methods method {};
+		aop_var aop {};
+	};
+	using tk_handler_ptr = std::shared_ptr<tk_handler>;
+
+	struct greater_case_insensitive
+	{
+		bool operator()(const str_type &s1, const str_type &s2) const {
+			return s1 > s2;
+		}
+	};
+
 public:
 	tcp_server_ptr m_tcp_server {};
-	request_handler m_request_callback {};
+	std::map<str_type, tk_handler_ptr, greater_case_insensitive> m_request_handler_map;
+
+	request_handler m_default_handler {};
 	error_handler m_error_callback {};
 
 	std::chrono::milliseconds m_keepalive_timeout {5000};
@@ -197,9 +317,85 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::start(start_token tk)
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(request_handler callback) noexcept
+template <typename Func, typename...AopPtr>
+basic_server<CharT,Exec>::aop_token::aop_token(Func &&callback, AopPtr&&...a) requires
+	concept_request_handler<Func,CharT,Exec> and concept_aop_ptr_list<CharT,Exec,AopPtr...> :
+	aops{aop_ptr(std::forward<AopPtr>(a))...}, callback(std::forward<Func>(callback))
 {
-	m_impl->m_request_callback = std::move(callback);
+	assert([this]
+	{
+		for(auto &aop : aops)
+		{
+			if( not aop )
+				return false;
+		}
+		return true;
+	}());
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+template <http::method...method>
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, aop_token tk)
+{
+	if( path_rule.empty() )
+		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+
+	str_type rule(path_rule.data(), path_rule.size());
+	m_impl->rule_path_check(rule);
+	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+
+	if( not res )
+		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+
+	it->second = std::make_shared<typename impl::tk_handler>(std::move(tk));
+	it->second->template bind_method<method...>();
+	return *this;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+template <http::method...method>
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, ctrlr_aop_ptr ctrlr)
+{
+	if( path_rule.empty() )
+		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+
+	str_type rule(path_rule.data(), path_rule.size());
+	m_impl->rule_path_check(rule);
+	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+
+	if( not res )
+		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+
+	it->second = std::make_shared<typename impl::tk_handler>(std::move(ctrlr));
+	it->second->template bind_method<method...>();
+	return *this;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+template <http::method...method>
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, ctrlr_aop *ctrlr)
+{
+	if( path_rule.empty() )
+		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+
+	str_type rule(path_rule.data(), path_rule.size());
+	m_impl->rule_path_check(rule);
+	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+
+	if( not res )
+		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+
+	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr(ctrlr));
+	it->second->template bind_method<method...>();
+	return *this;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+template <typename Func>
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_default(Func &&callback)
+	requires concept_request_handler<Func,CharT,Exec>
+{
+	m_impl->m_default_handler = std::forward<Func>(callback);
 	return *this;
 }
 
@@ -211,9 +407,11 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_error(error_handler callb
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_request() noexcept
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_request(str_view_type path_rule) noexcept
 {
-	m_impl->m_request_callback = {};
+	if( path_rule.empty() )
+		throw runtime_error("libgs::http::server::unbound_request: path_rule is empty.");
+	m_impl->m_request_handler_map.erase({path_rule.data(), path_rule.size()});
 	return *this;
 }
 

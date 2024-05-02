@@ -74,7 +74,7 @@ template <typename...Args>
 struct LIBGS_CORE_VAPI opt_token<callback_t<Args...>> : opt_token<void>
 {
 	using callback_t = callback_t<Args...>;
-	callback_t callback;
+	callback_t callback {};
 
 	template <typename Func>
 	opt_token(Func &&callback) requires concept_void_callable<Func,Args...>;
@@ -109,7 +109,7 @@ template <typename T>
 struct LIBGS_CORE_VAPI opt_token<read_condition,T> : opt_token<T>
 {
 	using opt_token<T>::opt_token;
-	read_condition rc;
+	read_condition rc {};
 
 	template <typename...Args>
 	opt_token(read_condition rc, Args&&...args) requires concept_opt_token<T,Args...>;

@@ -23,6 +23,7 @@ set(http_headers
 	server/response_helper.h
 	server/response.h
 	server/session.h
+	server/aop.h
 	server/server.h
 )
 

@@ -68,6 +68,9 @@
 namespace libgs
 {
 
+template <typename...Args>
+constexpr inline void ignore_unused(Args&&...) {}
+
 using std_type_id = decltype(typeid(void).hash_code());
 
 template <typename T>

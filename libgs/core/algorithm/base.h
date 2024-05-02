@@ -182,6 +182,9 @@ template <concept_float_type T>
 [[nodiscard]] LIBGS_CORE_API std::wstring to_percent_encoding
 (std::wstring_view str, std::wstring_view exclude = {}, std::wstring_view include = {}, wchar_t percent = L'%');
 
+[[nodiscard]] LIBGS_CORE_API bool wildcard_match(std::string_view rule, std::string_view str);
+[[nodiscard]] LIBGS_CORE_API bool wildcard_match(std::wstring_view rule, std::wstring_view str);
+
 [[nodiscard]] LIBGS_CORE_API std::string file_name(std::string_view file_name);
 [[nodiscard]] LIBGS_CORE_API std::wstring file_name(std::wstring_view file_name);
 

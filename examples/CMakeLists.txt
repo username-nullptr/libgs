@@ -54,6 +54,7 @@ set_target(gs_io ${io_sources})
 set(http_sources
 	http/http_server_parser.cpp
 	http/http_server.cpp
+	http/http_server_aop.cpp
 	http/http_session.cpp
 )
 set_target(gs_http ${http_sources})

@@ -29,8 +29,8 @@
 #ifndef LIBGS_HTTP_SERVER_SERVER_H
 #define LIBGS_HTTP_SERVER_SERVER_H
 
-#include <libgs/http/server/response.h>
 #include <libgs/http/server/session.h>
+#include <libgs/http/server/aop.h>
 #include <libgs/io/tcp_server.h>
 
 namespace libgs::http
@@ -49,6 +49,11 @@ public:
 
 	using request_ptr = basic_server_request_ptr<CharT,Exec>;
 	using response_ptr = basic_server_response_ptr<CharT,Exec>;
+
+	using aop = basic_aop<CharT,Exec>;
+	using ctrlr_aop = basic_ctrlr_aop<CharT,Exec>;
+	using aop_ptr = basic_aop_ptr<CharT,Exec>;
+	using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<CharT,Exec>;
 
 	using str_type = std::basic_string<CharT>;
 	using str_view_type = std::basic_string_view<CharT>;
@@ -83,13 +88,32 @@ public:
 	basic_server &start(start_token tk = {});
 
 public:
-	basic_server &filter(str_view_type path, request_handler callback) noexcept; // TODO ...
-	basic_server &on_request(str_view_type path, methods m, request_handler callback) noexcept; // TODO ...
+	struct aop_token
+	{
+		template <typename Func, typename...AopPtr>
+		aop_token(Func &&callback, AopPtr&&...a) requires
+			concept_request_handler<Func,CharT,Exec> and
+			concept_aop_ptr_list<CharT,Exec,AopPtr...>;
 
-	basic_server &on_request(request_handler callback) noexcept;
+		std::vector<aop_ptr> aops {};
+		request_handler callback {};
+	};
+
+public:
+	template <http::method...method>
+	basic_server &on_request(str_view_type path_rule, aop_token tk);
+
+	template <http::method...method>
+	basic_server &on_request(str_view_type path_rule, ctrlr_aop_ptr ctrlr);
+
+	template <http::method...method>
+	basic_server &on_request(str_view_type path_rule, ctrlr_aop *ctrlr);
+
+	template <typename Func>
+	basic_server &on_default(Func &&callback) requires concept_request_handler<Func,CharT,Exec>;
+
 	basic_server &on_error(error_handler callback) noexcept;
-
-	basic_server &unbound_request() noexcept;
+	basic_server &unbound_request(str_view_type path_rule = {}) noexcept;
 	basic_server &unbound_error() noexcept;
 
 	template <typename Rep, typename Period>

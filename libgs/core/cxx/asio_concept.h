@@ -84,11 +84,22 @@ constexpr bool is_awaitable_v = is_awaitable<T>::value;
 template <typename T>
 concept concept_awaitable_type = is_awaitable_v<T>;
 
+template <typename T>
+struct awaitable_return_type {};
+
+template <typename T>
+struct awaitable_return_type<asio::awaitable<T>> {
+	using type = T;
+};
+
+template <concept_awaitable_type T>
+using awaitable_return_type_t = typename awaitable_return_type<T>::type;
+
 template <typename Func>
 concept concept_awaitable_function =
-		is_functor_v<Func> and
-		is_awaitable_v<typename function_traits<Func>::return_type> and
-		function_traits<Func>::arg_count == 0;
+	is_functor_v<Func> and
+	is_awaitable_v<typename function_traits<Func>::return_type> and
+	function_traits<Func>::arg_count == 0;
 
 } //namespace libgs
 

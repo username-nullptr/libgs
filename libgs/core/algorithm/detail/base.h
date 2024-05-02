@@ -484,6 +484,33 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
+[[nodiscard]] bool wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
+{
+	size_t rule_len = static_cast<int>(rule.size());
+	size_t str_len = static_cast<int>(str.size());
+
+	std::vector<std::vector<bool>> dp(str_len + 1, std::vector<bool>(rule_len + 1, false));
+	dp[0][0] = true;
+
+	for(size_t j=1; j<rule_len+1; j++)
+	{
+		if( rule[j-1] == '*')
+			dp[0][j] = dp[0][j-1];
+	}
+	for(size_t i=1; i<str_len+1; i++)
+	{
+		for(size_t j=1; j<rule_len+1; j++)
+		{
+			if( rule[j-1] == '?' or rule[j-1] == str[i-1] )
+				dp[i][j] = dp[i-1][j-1];
+			else if( rule[j-1] == '*' )
+				dp[i][j] = dp[i-1][j] or dp[i][j-1];
+		}
+	}
+	return dp.back().back();
+}
+
+template <concept_char_type CharT>
 [[nodiscard]] std::basic_string<CharT> file_name(std::basic_string_view<CharT> file_name)
 {
 	size_t pos = 0;

@@ -41,6 +41,7 @@ template <typename T>
 struct _key_static_string;
 
 #define LIBGS_HTTP_DETAIL_STATIC_STRING(_type, ...) \
+	static constexpr const _type *root       = __VA_ARGS__##"/"         ; \
 	static constexpr const _type *v_1_0      = __VA_ARGS__##"1.0"       ; \
 	static constexpr const _type *v_1_1      = __VA_ARGS__##"1.1"       ; \
 	static constexpr const _type *close      = __VA_ARGS__##"close"     ; \
@@ -246,11 +247,20 @@ private:
 					m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
 			}
 		}
+		if( not m_path.starts_with(static_string::root) )
+		{
+			m_src_buf.clear();
+			throw runtime_error("libgs::http::server::parser: Invalid http path.");
+		}
 		auto n_it = std::unique(m_path.begin(), m_path.end(), [](CharT c0, CharT c1){
 			return c0 == c1 and c0 == 0x2F/*/*/;
 		});
 		if( n_it != m_path.end() )
 			m_path.erase(n_it, m_path.end());
+
+		if( m_path.size() > 1 and m_path.ends_with(static_string::root) )
+			m_path.pop_back();
+
 		m_state = state::reading_headers;
 	}
 
