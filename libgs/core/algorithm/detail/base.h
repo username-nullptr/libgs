@@ -484,30 +484,43 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] bool wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
+[[nodiscard]] size_t wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
 {
 	size_t rule_len = static_cast<int>(rule.size());
 	size_t str_len = static_cast<int>(str.size());
+	size_t weight = rule_len;
 
 	std::vector<std::vector<bool>> dp(str_len + 1, std::vector<bool>(rule_len + 1, false));
 	dp[0][0] = true;
 
 	for(size_t j=1; j<rule_len+1; j++)
 	{
-		if( rule[j-1] == '*')
+		if( rule[j-1] == 0x2A/***/ )
+		{
 			dp[0][j] = dp[0][j-1];
+			weight++;
+		}
 	}
 	for(size_t i=1; i<str_len+1; i++)
 	{
 		for(size_t j=1; j<rule_len+1; j++)
 		{
-			if( rule[j-1] == '?' or rule[j-1] == str[i-1] )
+			if( rule[j-1] == 0x3F/*?*/ )
+			{
 				dp[i][j] = dp[i-1][j-1];
-			else if( rule[j-1] == '*' )
+				weight += 2;
+			}
+			else if( rule[j-1] == str[i-1] )
+				dp[i][j] = dp[i-1][j-1];
+
+			else if( rule[j-1] == 0x2A/***/ )
+			{
 				dp[i][j] = dp[i-1][j] or dp[i][j-1];
+				weight++;
+			}
 		}
 	}
-	return dp.back().back();
+	return dp.back().back() ? weight : 0;
 }
 
 template <concept_char_type CharT>

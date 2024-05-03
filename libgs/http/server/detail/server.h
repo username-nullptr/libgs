@@ -137,25 +137,37 @@ private:
 	}
 
 private:
-	[[nodiscard]] awaitable<bool> call_on_request(basic_server::parser &parser, basic_server::request &req, basic_server::response &resp)
+	[[nodiscard]] awaitable<void> call_on_request(basic_server::parser &parser, basic_server::request &req, basic_server::response &resp)
 	{
-		for(auto &[rule, handler] : m_request_handler_map)
+		tk_handler_ptr handler {};
+		size_t weight = 0;
+
+		for(auto &[rule, _handler] : m_request_handler_map)
 		{
-			if( not wildcard_match(rule, parser.path()) )
+			auto _weight = wildcard_match(rule, parser.path());
+			if( _weight == 0 )
 				continue;
-			else if( (handler->method & parser.method()) == 0 )
+			else if( _weight > weight )
 			{
-				resp.set_status(status::method_not_allowed);
-				co_return false;
+				handler = _handler;
+				weight = _weight;
 			}
-			else if( handler->aop.index() == 0 )
-				co_await for_aop(std::get<0>(handler->aop), req, resp);
-			else // index == 1
-				co_await ctrlr_aop(std::get<1>(handler->aop), req, resp);
-			co_return true;
 		}
-		resp.set_status(status::not_found);
-		co_return false;
+		if( weight == 0 )
+		{
+			resp.set_status(status::not_found);
+			co_return ;
+		}
+		else if( (handler->method & parser.method()) == 0 )
+		{
+			resp.set_status(status::method_not_allowed);
+			co_return ;
+		}
+		else if( handler->aop.index() == 0 )
+			co_await for_aop(std::get<0>(handler->aop), req, resp);
+		else // index == 1
+			co_await ctrlr_aop(std::get<1>(handler->aop), req, resp);
+		co_return ;
 	}
 
 	[[nodiscard]] awaitable<void> call_on_default(basic_server::request &req, basic_server::response &resp)
@@ -236,16 +248,9 @@ public:
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
 
-	struct greater_case_insensitive
-	{
-		bool operator()(const str_type &s1, const str_type &s2) const {
-			return s1 > s2;
-		}
-	};
-
 public:
 	tcp_server_ptr m_tcp_server {};
-	std::map<str_type, tk_handler_ptr, greater_case_insensitive> m_request_handler_map;
+	std::map<str_type, tk_handler_ptr> m_request_handler_map;
 
 	request_handler m_default_handler {};
 	error_handler m_error_callback {};
