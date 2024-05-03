@@ -520,7 +520,7 @@ template <concept_char_type CharT>
 			}
 		}
 	}
-	return dp.back().back() ? weight : 0;
+	return dp.back().back() ? weight == rule_len ? std::numeric_limits<size_t>::max() : weight : 0;
 }
 
 template <concept_char_type CharT>

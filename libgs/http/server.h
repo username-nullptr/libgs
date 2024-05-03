@@ -30,6 +30,5 @@
 #define LIBGS_HTTP_SERVER_H
 
 #include <libgs/http/server/server.h>
-#include <libgs/http/server/session.h>
 
 #endif //LIBGS_HTTP_SERVER_H

@@ -125,19 +125,18 @@ private:
 			else if( not parse_res )
 				continue;
 
-			auto req = std::make_shared<basic_server::request>(socket, parser);
-			basic_server::response resp(req);
+			context_type context(socket, parser);
+			co_await call_on_request(parser, context);
 
-			co_await call_on_request(parser, *req, resp);
-			if( not resp.headers_writed() )
-				co_await call_on_default(*req, resp);
+			if( not context.response().headers_writed() )
+				co_await call_on_default(context);
 			parser.reset();
 		}
 		co_return ;
 	}
 
 private:
-	[[nodiscard]] awaitable<void> call_on_request(basic_server::parser &parser, basic_server::request &req, basic_server::response &resp)
+	[[nodiscard]] awaitable<void> call_on_request(basic_server::parser &parser, context_type &context)
 	{
 		tk_handler_ptr handler {};
 		size_t weight = 0;
@@ -155,30 +154,30 @@ private:
 		}
 		if( weight == 0 )
 		{
-			resp.set_status(status::not_found);
+			context.response().set_status(status::not_found);
 			co_return ;
 		}
 		else if( (handler->method & parser.method()) == 0 )
 		{
-			resp.set_status(status::method_not_allowed);
+			context.response().set_status(status::method_not_allowed);
 			co_return ;
 		}
 		else if( handler->aop.index() == 0 )
-			co_await for_aop(std::get<0>(handler->aop), req, resp);
+			co_await for_aop(std::get<0>(handler->aop), context);
 		else // index == 1
-			co_await ctrlr_aop(std::get<1>(handler->aop), req, resp);
+			co_await ctrlr_aop(std::get<1>(handler->aop), context);
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> call_on_default(basic_server::request &req, basic_server::response &resp)
+	[[nodiscard]] awaitable<void> call_on_default(context_type &context)
 	{
 		if( m_default_handler )
 		{
-			co_await m_default_handler(req, resp);
-			if( resp.headers_writed() )
+			co_await m_default_handler(context);
+			if( context.response().headers_writed() )
 				co_return ;
 		}
-		co_await resp.write();
+		co_await context.response().write();
 		co_return ;
 	}
 
@@ -192,30 +191,30 @@ private:
 	}
 
 private:
-	[[nodiscard]] awaitable<void> for_aop(aop_token &tk, basic_server::request &req, basic_server::response &resp)
+	[[nodiscard]] awaitable<void> for_aop(aop_token &tk, context_type &context)
 	{
 		for(auto &aop : tk.aops)
 		{
-			if( co_await aop->before(req, resp) )
+			if( co_await aop->before(context) )
 				co_return ;
 		}
 		if( tk.callback )
-			co_await tk.callback(req, resp);
+			co_await tk.callback(context);
 		for(auto &aop : tk.aops)
 		{
-			if( co_await aop->after(req, resp) )
+			if( co_await aop->after(context) )
 				break;
 		}
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> ctrlr_aop(ctrlr_aop_ptr &ctrlr, basic_server::request &req, basic_server::response &resp)
+	[[nodiscard]] awaitable<void> ctrlr_aop(ctrlr_aop_ptr &ctrlr, context_type &context)
 	{
-		if( co_await ctrlr->before(req, resp) )
+		if( co_await ctrlr->before(context) )
 			co_return ;
 
-		co_await ctrlr->service(req, resp);
-		co_await ctrlr->after(req, resp);
+		co_await ctrlr->service(context);
+		co_await ctrlr->after(context);
 		co_return ;
 	}
 
@@ -324,7 +323,7 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::start(start_token tk)
 template <concept_char_type CharT, concept_execution Exec>
 template <typename Func, typename...AopPtr>
 basic_server<CharT,Exec>::aop_token::aop_token(Func &&callback, AopPtr&&...a) requires
-	concept_request_handler<Func,CharT,Exec> and concept_aop_ptr_list<CharT,Exec,AopPtr...> :
+	detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...> :
 	aops{aop_ptr(std::forward<AopPtr>(a))...}, callback(std::forward<Func>(callback))
 {
 	assert([this]
@@ -398,7 +397,7 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type pat
 template <concept_char_type CharT, concept_execution Exec>
 template <typename Func>
 basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_default(Func &&callback)
-	requires concept_request_handler<Func,CharT,Exec>
+	requires detail::concept_request_handler<Func,CharT,Exec>
 {
 	m_impl->m_default_handler = std::forward<Func>(callback);
 	return *this;

@@ -74,10 +74,16 @@ constexpr inline void ignore_unused(Args&&...) {}
 using std_type_id = decltype(typeid(void).hash_code());
 
 template <typename T>
-constexpr T &remove_const_v(const T &v);
+constexpr T &remove_const(const T &v);
 
 template <typename T>
-constexpr T *remove_const_v(const T *v);
+constexpr T *remove_const(const T *v);
+
+template <typename T>
+constexpr const T &as_const(const T &v);
+
+template <typename T>
+constexpr const T *as_const(const T *v);
 
 template <typename T>
 const char *type_name(T &&t);

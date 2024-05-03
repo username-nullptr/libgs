@@ -304,7 +304,7 @@ std::shared_ptr<Session> basic_session<CharT>::get_or(str_view_type id)
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get_or(str_view_type id)
+basic_session_ptr<CharT> basic_session<CharT>::get_or(str_view_type id) noexcept
 {
 	return _find(id, false);
 }

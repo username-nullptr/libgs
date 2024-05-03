@@ -40,13 +40,23 @@ namespace libgs
 {
 
 template <typename T>
-constexpr T &remove_const_v(const T &v) {
+constexpr T &remove_const(const T &v) {
 	return const_cast<T&>(v);
 }
 
 template <typename T>
-constexpr T *remove_const_v(const T *v) {
+constexpr T *remove_const(const T *v) {
 	return const_cast<T*>(v);
+}
+
+template <typename T>
+constexpr const T &as_const(const T &v) {
+	return v;
+}
+
+template <typename T>
+constexpr const T *as_const(const T *v) {
+	return v;
 }
 
 template <typename T>

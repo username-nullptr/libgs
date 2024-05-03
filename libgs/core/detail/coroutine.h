@@ -229,21 +229,21 @@ template <typename T>
 awaitable<T> co_wait(const std::future<T> &future)
 {
 	co_return co_await co_thread([future = &future] {
-		return remove_const_v(future)->get();
+		return remove_const(future)->get();
 	});
 }
 
 inline awaitable<void> co_wait(const asio::thread_pool &pool)
 {
 	co_return co_await co_thread([pool = &pool] {
-		return remove_const_v(pool)->wait();
+		return remove_const(pool)->wait();
 	});
 }
 
 inline awaitable<void> co_wait(const std::thread &thread)
 {
 	co_return co_await co_thread([thread = &thread] {
-		return remove_const_v(thread)->join();
+		return remove_const(thread)->join();
 	});
 }
 

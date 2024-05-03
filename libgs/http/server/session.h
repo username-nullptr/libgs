@@ -121,7 +121,7 @@ public:
 	static std::shared_ptr<Session> get_or(str_view_type id);
 
 	template <typename...Args>
-	static std::shared_ptr<basic_session> get_or(str_view_type id);
+	static std::shared_ptr<basic_session> get_or(str_view_type id) noexcept;
 
 public:
 	static void set_cookie_key(str_type key);

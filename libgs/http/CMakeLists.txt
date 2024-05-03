@@ -24,6 +24,7 @@ set(http_headers
 	server/response.h
 	server/session.h
 	server/aop.h
+	server/context.h
 	server/server.h
 )
 
@@ -38,6 +39,8 @@ set(http_detail_headers
 	server/detail/response.h
 	server/detail/session_base.h
 	server/detail/session.h
+	server/detail/aop.h
+	server/detail/context.h
 	server/detail/server.h
 )
 

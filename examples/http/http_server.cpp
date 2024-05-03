@@ -10,8 +10,10 @@ int main()
 	server.bind({libgs::io::address_v4(),12345})
 
 	.on_request<libgs::http::method::GET>("/*",
-	[](libgs::http::server::request &request, libgs::http::server::response &response) -> libgs::awaitable<void>
+	[](libgs::http::service_context &context) -> libgs::awaitable<void>
 	{
+		auto &request = context.request();
+//		auto &response = context.response();
 		try {
 			libgs_log_debug("Version:{} - Method:{} - Path:{}",
 							request.version(),
@@ -39,10 +41,9 @@ int main()
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/hello",
-	[](libgs::http::server::request &request, libgs::http::server::response &response) -> libgs::awaitable<void>
+	[](libgs::http::service_context &context) -> libgs::awaitable<void>
 	{
-		LIBGS_UNUSED(request);
-		co_await response.write("hello world !!!");
+		co_await context.response().write("hello world !!!");
 	})
 	.on_error([](std::error_code error) -> libgs::awaitable<void>
 	{

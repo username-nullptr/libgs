@@ -16,5 +16,8 @@ int main()
 	// auto wuuid = libgs::wuuid::generate();
 	// libgs_log_wdebug(L"uuid: '{}'.", wuuid/*.to_string()*/);
 
+	auto weight = libgs::wildcard_match("lib*.so*", "libaaa.so.1.1.1");
+	libgs_log_debug("wildcard_match: {}.", weight);
+
 	return 0;
 }

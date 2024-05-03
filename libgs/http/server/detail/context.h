@@ -26,52 +26,16 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_AOP_H
-#define LIBGS_HTTP_SERVER_AOP_H
-
-#include <libgs/http/server/context.h>
+#ifndef LIBGS_HTTP_SERVER_DETAIL_CONTEXT_H
+#define LIBGS_HTTP_SERVER_DETAIL_CONTEXT_H
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class basic_aop
-{
-public:
-	using context_type = basic_service_context<CharT,Exec>;
-	virtual ~basic_aop() = 0;
-	virtual awaitable<bool> before(context_type &context);
-	virtual awaitable<bool> after(context_type &context);
-};
 
-using aop = basic_aop<char>;
-using waop = basic_aop<wchar_t>;
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_aop_ptr = std::shared_ptr<basic_aop<CharT,Exec>>;
-
-using aop_ptr = basic_aop_ptr<char>;
-using waop_ptr = basic_aop_ptr<wchar_t>;
-
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class basic_ctrlr_aop : public basic_aop<CharT, Exec>
-{
-public:
-	using context_type = basic_service_context<CharT,Exec>;
-	virtual awaitable<void> service(context_type &context) = 0;
-};
-
-using ctrlr_aop = basic_ctrlr_aop<char>;
-using wctrlr_aop = basic_ctrlr_aop<wchar_t>;
-
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<CharT,Exec>>;
-
-using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<char>;
-using wctrlr_aop_ptr = basic_ctrlr_aop_ptr<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/server/detail/aop.h>
 
 
-#endif //LIBGS_HTTP_SERVER_AOP_H
+#endif //LIBGS_HTTP_SERVER_DETAIL_CONTEXT_H

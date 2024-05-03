@@ -26,52 +26,50 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_AOP_H
-#define LIBGS_HTTP_SERVER_AOP_H
-
-#include <libgs/http/server/context.h>
+#ifndef LIBGS_HTTP_SERVER_DETAIL_AOP_H
+#define LIBGS_HTTP_SERVER_DETAIL_AOP_H
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class basic_aop
+template <concept_char_type CharT, concept_execution Exec>
+basic_aop<CharT,Exec>::~basic_aop() = default;
+
+template <concept_char_type CharT, concept_execution Exec>
+awaitable<bool> basic_aop<CharT,Exec>::before(context_type &context)
 {
-public:
-	using context_type = basic_service_context<CharT,Exec>;
-	virtual ~basic_aop() = 0;
-	virtual awaitable<bool> before(context_type &context);
-	virtual awaitable<bool> after(context_type &context);
+	ignore_unused(context);
+	co_return false;
+}
+
+template <concept_char_type CharT, concept_execution Exec>
+awaitable<bool> basic_aop<CharT,Exec>::after(context_type &context)
+{
+	ignore_unused(context);
+	co_return false;
+}
+
+namespace detail
+{
+
+template <typename CharT, typename Exec, typename...Args>
+concept concept_aop_ptr_list = requires(Args&&...args) {
+	std::vector<basic_aop_ptr<CharT,Exec>> { basic_aop_ptr<CharT,Exec>(std::forward<Args>(args))... };
 };
 
-using aop = basic_aop<char>;
-using waop = basic_aop<wchar_t>;
-
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_aop_ptr = std::shared_ptr<basic_aop<CharT,Exec>>;
-
-using aop_ptr = basic_aop_ptr<char>;
-using waop_ptr = basic_aop_ptr<wchar_t>;
-
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class basic_ctrlr_aop : public basic_aop<CharT, Exec>
-{
-public:
-	using context_type = basic_service_context<CharT,Exec>;
-	virtual awaitable<void> service(context_type &context) = 0;
+template <typename CharT, typename Exec, typename...Args>
+concept concept_ctrlr_aop_ptr_list = requires(Args&&...args) {
+	std::vector<basic_ctrlr_aop_ptr<CharT,Exec>> { basic_ctrlr_aop_ptr<CharT,Exec>(std::forward<Args>(args))... };
 };
 
-using ctrlr_aop = basic_ctrlr_aop<char>;
-using wctrlr_aop = basic_ctrlr_aop<wchar_t>;
+template <typename Func, typename CharT, typename Exec>
+concept concept_request_handler = requires(Func &&func, basic_service_context<CharT,Exec> &context) {
+	std::is_same_v<awaitable_return_type_t<decltype(func(context))>,void>;
+};
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<CharT,Exec>>;
-
-using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<char>;
-using wctrlr_aop_ptr = basic_ctrlr_aop_ptr<wchar_t>;
+} //namespace detail
 
 } //namespace libgs::http
-#include <libgs/http/server/detail/aop.h>
 
 
-#endif //LIBGS_HTTP_SERVER_AOP_H
+#endif //LIBGS_HTTP_SERVER_DETAIL_AOP_H
