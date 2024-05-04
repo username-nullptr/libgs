@@ -49,6 +49,13 @@ awaitable<bool> basic_aop<CharT,Exec>::after(context_type &context)
 	co_return false;
 }
 
+template <concept_char_type CharT, concept_execution Exec>
+bool basic_aop<CharT,Exec>::exception(context_type &context, std::exception &ex)
+{
+	ignore_unused(context, ex);
+	return false;
+}
+
 namespace detail
 {
 

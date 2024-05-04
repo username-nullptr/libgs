@@ -43,13 +43,17 @@ int main()
 	.on_request<libgs::http::method::GET>("/hello",
 	[](libgs::http::service_context &context) -> libgs::awaitable<void>
 	{
-		co_await context.response().write("hello world !!!");
+//		co_await context.response().write("hello world !!!");
+		co_await context.response().send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 	})
-	.on_error([](std::error_code error) -> libgs::awaitable<void>
+	.on_system_error([](std::error_code error) -> libgs::awaitable<bool>
 	{
 		libgs_log_error() << error;
 		libgs::execution::exit(-1);
-		co_return ;
+		co_return true;
+	})
+	.on_exception([](libgs::http::service_context&, std::exception &ex) {
+		libgs_log_error() << ex;
 	})
 	.start();
 #else
@@ -84,11 +88,11 @@ int main()
 		}
 		co_return ;
 	})
-	.on_error([](std::error_code error) -> libgs::awaitable<void>
+	.on_system_error([](std::error_code error) -> libgs::awaitable<bool>
 	{
 		  libgs_log_error() << error;
 		  libgs::execution::exit(-1);
-		  co_return ;
+		  co_return true;
 	})
 	.start();
 #endif

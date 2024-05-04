@@ -16,6 +16,11 @@ public:
 		libgs_log_info("request after log: '{}'.", context.request().path());
 		co_return false;
 	}
+	bool exception(context_type &context, std::exception &ex) override
+	{
+		libgs_log_error("request throw <{}> log: '{}'.", ex, context.request().path());
+		return true;
+	}
 };
 
 class controller : public libgs::http::ctrlr_aop
@@ -30,6 +35,11 @@ public:
 	{
 		libgs_log_info("request after log (controller): '{}'.", context.request().path());
 		co_return false;
+	}
+	bool exception(context_type &context, std::exception &ex) override
+	{
+		libgs_log_error("request throw <{}> log (controller): '{}'.", ex, context.request().path());
+		return true;
 	}
 	libgs::awaitable<void> service(libgs::http::service_context &context) override
 	{
@@ -53,11 +63,11 @@ int main()
 
 	.on_request<libgs::http::method::GET>("/ctrlr*", new controller())
 
-	.on_error([](std::error_code error) -> libgs::awaitable<void>
+	.on_system_error([](std::error_code error) -> libgs::awaitable<bool>
 	{
 		libgs_log_error() << error;
 		libgs::execution::exit(-1);
-		co_return ;
+		co_return true;
 	})
 	.start();
 	return libgs::execution::exec();

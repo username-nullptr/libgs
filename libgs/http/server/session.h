@@ -50,7 +50,7 @@ class LIBGS_HTTP_TAPI basic_session :
 	using base_type = detail::session_base<CharT>;
 
 public:
-	template<typename Rep, typename Period = std::ratio<1>>
+	template <typename Rep, typename Period = std::ratio<1>>
 	using duration = std::chrono::duration<Rep,Period>;
 	using time_point = decltype(std::chrono::system_clock::now());
 

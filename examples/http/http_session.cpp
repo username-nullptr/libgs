@@ -15,11 +15,14 @@ int main()
 		libgs_log_debug("session: '{}': <{}>", session->id(), session);
 		co_return ;
 	})
-	.on_error([](std::error_code error) -> libgs::awaitable<void>
+	.on_system_error([](std::error_code error) -> libgs::awaitable<bool>
 	{
 		libgs_log_error() << error;
 		libgs::execution::exit(-1);
-		co_return ;
+		co_return true;
+	})
+	.on_exception([](libgs::http::service_context&, std::exception &ex) {
+		libgs_log_error() << ex;
 	})
 	.start();
 	return libgs::execution::exec();

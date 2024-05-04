@@ -171,7 +171,7 @@ public:
 			{
 				auto it = m_request_headers.find(header_type::range);
 				if( it != m_request_headers.end() )
-					res = co_await range_transfer(file_name, file, it->second, error);
+					res = co_await range_transfer(file_name, file, it->second.to_string(), error);
 				else
 					res = co_await default_transfer(file_name, file, error);
 			}
@@ -232,17 +232,21 @@ private:
 		fpos_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
 		char *fr_buf = new char[buf_size] {0};
 
-		auto is_chunked = this->is_chunked();
 		while( not file.eof() )
 		{
 			file.read(fr_buf, buf_size);
 			auto size = file.gcount();
-
-			if( size == 0 or not write_body(fr_buf, size, is_chunked) )
+			if( size == 0 )
 				break;
+
+			co_await write_body(fr_buf, size, error);
+			if( error )
+				break;
+
 			co_await co_sleep_for(512us);
 		}
 		delete[] fr_buf;
+		co_return sum;
 	}
 
 private:
@@ -323,7 +327,7 @@ private:
 		using namespace std::chrono_literals;
 
 		assert(not range_value_queue.empty());
-		auto sum = co_await write_header();
+		auto sum = co_await write_header(0,error);
 
 		fpos_t buf_size = m_get_write_buffer_size ? m_get_write_buffer_size() : 65536;
 		if( range_value_queue.size() == 1 )
@@ -334,7 +338,7 @@ private:
 			auto buf = new char[buf_size] {0};
 			while( not file.eof() )
 			{
-				if( value.size <= buf_size )
+				if( value.size <= static_cast<size_t>(buf_size) )
 				{
 					file.read(buf, value.size);
 					auto size = file.gcount();
@@ -349,7 +353,7 @@ private:
 				file.read(buf, buf_size);
 				auto size = file.gcount();
 
-				sum += write_body(buf, size, error);
+				sum += co_await write_body(buf, size, error);
 				if( error )
 					break;
 
@@ -378,14 +382,14 @@ private:
 				.append(value.cr_line).append("\r\n"
 				                              "\r\n");
 
-			sum += co_await write_body(body, error);
+			sum += co_await write_body(body.c_str(), body.size(), error);
 			if( error )
 				co_return sum;
 
 			file.seekg(value.begin, std::ios_base::beg);
 			while( not file.eof() )
 			{
-				if( value.size <= buf_size )
+				if( value.size <= static_cast<size_t>(buf_size) )
 				{
 					file.read(buf, value.size);
 					auto size = file.gcount();
@@ -414,7 +418,8 @@ private:
 				co_await co_sleep_for(512us);
 			}
 		}
-		sum += co_await write_body("--" + std::string(boundary.data(), boundary.size()) + "--\r\n", error);
+		auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
+		sum += co_await write_body(abuf.c_str(), abuf.size(), error);
 		co_return sum;
 	}
 
@@ -459,7 +464,7 @@ private:
 			range_value_list.emplace_back();
 			auto &range_value = range_value_list.back();
 
-			if( not range_parsing(range_list[0], range_value) )
+			if( not range_parsing(file_name, range_list[0], range_value) )
 			{
 				q_ptr->set_status(status::range_not_satisfiable);
 				co_return co_await m_writer(std::format("{} ({})", to_status_description(m_status), m_status), error);
@@ -485,7 +490,7 @@ private:
 			range_value_list.emplace_back();
 			auto &range_value = range_value_list.back();
 
-			if( not range_parsing(str_trimmed(str), range_value) )
+			if( not range_parsing(file_name, str_trimmed(str), range_value) )
 			{
 				q_ptr->set_status(status::range_not_satisfiable);
 				co_return co_await m_writer(std::format("{} ({})", to_status_description(m_status), m_status), error);

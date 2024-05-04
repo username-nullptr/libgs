@@ -69,7 +69,8 @@ public:
 
 	using context_type = basic_service_context<CharT,Exec>;
 	using request_handler = std::function<awaitable<void>(context_type&)>;
-	using error_handler = std::function<awaitable<void>(error_code)>;
+	using system_error_handler = std::function<awaitable<bool>(error_code)>;
+	using throw_handler = std::function<void(context_type&,std::exception&)>;
 
 public:
 	explicit basic_server(size_t tcount = std::thread::hardware_concurrency() << 1);
@@ -113,9 +114,12 @@ public:
 	basic_server &on_default(Func &&callback)
 		requires detail::concept_request_handler<Func,CharT,Exec>;
 
-	basic_server &on_error(error_handler callback) noexcept;
-	basic_server &unbound_request(str_view_type path_rule = {}) noexcept;
-	basic_server &unbound_error() noexcept;
+	basic_server &on_system_error(system_error_handler callback);
+	basic_server &on_exception(throw_handler callback);
+
+	basic_server &unbound_request(str_view_type path_rule = {});
+	basic_server &unbound_system_error();
+	basic_server &unbound_throw();
 
 	template <typename Rep, typename Period>
 	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);

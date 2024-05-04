@@ -42,6 +42,7 @@ public:
 	virtual ~basic_aop() = 0;
 	virtual awaitable<bool> before(context_type &context);
 	virtual awaitable<bool> after(context_type &context);
+	virtual bool exception(context_type &context, std::exception &ex);
 };
 
 using aop = basic_aop<char>;
