@@ -97,13 +97,15 @@ private:
 	[[nodiscard]] awaitable<void> do_tcp_accept(size_t max)
 	{
 		m_tcp_server->start(max);
-		error_code error;
+		tcp_socket_ptr socket;
 		for(;;)
 		{
-			auto socket = co_await m_tcp_server->accept(error);
-			if( error )
+			try {
+				socket = co_await m_tcp_server->accept();
+			}
+			catch(std::system_error &ex)
 			{
-				co_await call_on_system_error(error);
+				call_on_system_error(ex.code());
 				continue;
 			}
 			auto ktime = m_keepalive_timeout;
@@ -137,35 +139,27 @@ private:
 	[[nodiscard]] awaitable<void> do_tcp_service(io::tcp_socket_ptr socket, const std::chrono::milliseconds &keepalive_time)
 	{
 		basic_server::parser parser;
-		error_code error;
-
 		char buf[65536] = {0};
 		for(;;)
 		{
-			auto size = co_await socket->read({buf, 65536}, keepalive_time);
-			if( size == 0 )
-				break;
-
-			bool parse_res = parser.append({buf, size}, error);
-			if( error )
-			{
-				if( not m_is_start )
-					break;
-				co_await call_on_system_error(error);
-				continue;
-			}
-			else if( not parse_res )
-				continue;
-
-			context_type context(socket, parser);
 			try {
-				co_await call_on_request(parser, context);
-				if( not context.response().headers_writed() )
-					co_await call_on_default(context);
+				auto size = co_await socket->read({buf, 65536}, {keepalive_time});
+				bool parse_res = parser.append({buf, size});
+
+				if( not parse_res )
+					continue;
 			}
-			catch(std::exception &ex) {
-				call_on_exception(context, ex);
+			catch(std::system_error &ex)
+			{
+				if( ex.code().value() == errc::eof or ex.code().value() == errc::timed_out )
+					break;
+				call_on_system_error(ex.code());
 			}
+			context_type context(socket, parser);
+			co_await call_on_request(parser, context);
+
+			if( not context.response().headers_writed() )
+				co_await call_on_default(context);
 			parser.reset();
 		}
 		co_return ;
@@ -209,7 +203,12 @@ private:
 	{
 		if( m_default_handler )
 		{
-			co_await m_default_handler(context);
+			try {
+				co_await m_default_handler(context);
+			}
+			catch(std::exception &ex) {
+				call_on_exception(context, ex);
+			}
 			if( context.response().headers_writed() )
 				co_return ;
 		}
@@ -266,12 +265,12 @@ private:
 	}
 
 private:
-	[[nodiscard]] awaitable<void> call_on_system_error(const error_code &error)
+	void call_on_system_error(const error_code &error)
 	{
 		if( m_system_error_callback )
 		{
-			if( co_await m_system_error_callback(error) )
-				co_return ;
+			if( m_system_error_callback(error) )
+				return ;
 		}
 		throw system_error(error, "libgs::http::server");
 	}
@@ -279,10 +278,12 @@ private:
 	void call_on_exception(context_type &context, std::exception &ex)
 	{
 		context.response().set_status(status::internal_server_error);
-		if( m_throw_callback )
-			m_throw_callback(context, ex);
-		else
-			throw runtime_error("libgs::http::server");
+		if( m_exception_callback )
+		{
+			if( m_exception_callback(context, ex) )
+				return ;
+		}
+		throw runtime_error("libgs::http::server");
 	}
 
 public:
@@ -320,7 +321,7 @@ public:
 
 	request_handler m_default_handler {};
 	system_error_handler m_system_error_callback {};
-	throw_handler m_throw_callback {};
+	exception_handler m_exception_callback {};
 
 	std::chrono::milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_is_start {false};
@@ -479,9 +480,9 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_system_error(system_error
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_exception(throw_handler callback)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_exception(exception_handler callback)
 {
-	m_impl->m_throw_callback = std::move(callback);
+	m_impl->m_exception_callback = std::move(callback);
 	return *this;
 }
 
@@ -502,9 +503,9 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_system_error()
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_throw()
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_exception()
 {
-	m_impl->m_throw_callback = {};
+	m_impl->m_exception_callback = {};
 	return *this;
 }
 

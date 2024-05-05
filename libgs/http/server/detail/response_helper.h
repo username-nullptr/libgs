@@ -155,7 +155,7 @@ public:
 		namespace fs = std::filesystem;
 		if( not fs::exists(file_name) )
 		{
-			throw system_error(std::make_error_code(static_cast<std::errc>(errc::no_such_device)),
+			throw system_error(std::make_error_code(std::errc::no_such_file_or_directory),
 							   "libgs::http::response_helper::write('{}')", file_name);
 		}
 		std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);

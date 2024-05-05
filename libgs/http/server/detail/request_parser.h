@@ -442,7 +442,7 @@ bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error
 			std::string m_what;
 		}
 		error_category;
-		error = error_code(-1, error_category.set_message(ex));
+		error = error_code(std::errc::protocol_error, error_category.set_message(ex));
 	}
 	return res;
 }
