@@ -26,19 +26,36 @@
 *                                                                                   *
 *************************************************************************************/
 
+#include "global.h"
+
+#ifdef __unix__
+# include <sys/types.h>
+# include <signal.h>
+# include <unistd.h>
+#endif //__unix__
+
 namespace libgs
 {
 
-template<typename Rep, typename Period>
-void sleep_for(const std::chrono::duration<Rep,Period> &rtime)
+std::string version_string()
 {
-	std::this_thread::sleep_for(rtime);
+	return LIBGS_VERSION_STR;
 }
 
-template<typename Clock, typename Duration>
-void sleep_until(const std::chrono::time_point<Clock,Duration> &atime)
+inline std::thread::id this_thread_id()
 {
-	std::this_thread::sleep_until(atime);
+	return std::this_thread::get_id();
+}
+
+void forced_termination()
+{
+#ifdef __unix__
+	kill(getpid(), SIGKILL);
+#else
+	TerminateProcess(GetCurrentProcess(), -9);
+#endif
+	// No return;
+	abort(); // This function is never executed.
 }
 
 } //namespace libgs

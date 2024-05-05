@@ -49,12 +49,14 @@ namespace libgs
 [[nodiscard]] LIBGS_CORE_API std::string version_string();
 
 template<typename Rep, typename Period>
-void sleep_for(const std::chrono::duration<Rep,Period> &rtime);
+LIBGS_CORE_TAPI void sleep_for(const std::chrono::duration<Rep,Period> &rtime);
 
 template<typename Clock, typename Duration>
-void sleep_until(const std::chrono::time_point<Clock,Duration> &atime);
+LIBGS_CORE_TAPI void sleep_until(const std::chrono::time_point<Clock,Duration> &atime);
 
-std::thread::id this_thread_id();
+LIBGS_CORE_API std::thread::id this_thread_id();
+
+[[noreturn]] LIBGS_CORE_API void forced_termination();
 
 using error_code = asio::error_code;
 

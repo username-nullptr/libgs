@@ -75,7 +75,7 @@ public:
 			co_await m_tcp_server->co_cancel();
 			m_is_start = false;
 			if( abd )
-				abort();
+				forced_termination();
 			co_return ;
 		});
 	}
@@ -128,7 +128,7 @@ private:
 				error_code error;
 				socket->close(error);
 				if( abd )
-					abort();
+					forced_termination();
 				co_return ;
 			},
 			m_tcp_server->pool());
@@ -283,7 +283,7 @@ private:
 			if( m_exception_callback(context, ex) )
 				return ;
 		}
-		throw runtime_error("libgs::http::server");
+		throw ex;
 	}
 
 public:

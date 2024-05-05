@@ -7,6 +7,7 @@ set(core_sources
 	algorithm/sha1.cpp
 	app_utls.cpp
 	detail/app_utls_${OS_CPP}.cpp
+	global.cpp
 	args_parser.cpp
 	ini.cpp
 	execution.cpp
@@ -53,7 +54,6 @@ set(core_detail_headers
 	cxx/detail/utilities.h
 	cxx/detail/exception.h
 	cxx/detail/flags.h
-	detail/global.h
 	detail/execution.h
 	algorithm/detail/base.h
 	algorithm/detail/byte_order.h

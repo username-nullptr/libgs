@@ -38,7 +38,7 @@ int main()
 	[](libgs::http::service_context &context) -> libgs::awaitable<void>
 	{
 //		co_await context.response().write("hello world !!!");
-		co_await context.response().send_file("C:/Users/Administrator/Desktop/hello_world.tx");
+		co_await context.response().send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 	})
 	.on_exception([](libgs::http::service_context&, std::exception &ex)
 	{
