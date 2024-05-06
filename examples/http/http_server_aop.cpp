@@ -67,13 +67,13 @@ int main()
 	libgs::http::server server;
 	server.bind({libgs::io::address_v4(),12345})
 
-	.on_request<libgs::http::method::GET>("/*", {
+	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::http::service_context &context) -> libgs::awaitable<void>
 	{
 		co_await context.response().write("hello libgs");
 		co_return ;
 	},
-	new aop(), new aop()})
+	new aop(), new aop())
 
 	.on_request<libgs::http::method::GET>("/ctrlr*", new controller())
 

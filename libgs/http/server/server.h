@@ -89,20 +89,24 @@ public:
 	basic_server &start(start_token tk = {});
 
 public:
-	struct aop_token
-	{
-		template <typename Func, typename...AopPtr>
-		aop_token(Func &&callback, AopPtr&&...a) requires
-			detail::concept_request_handler<Func,CharT,Exec> and
-			detail::concept_aop_ptr_list<CharT,Exec,AopPtr...>;
-
-		std::vector<aop_ptr> aops {};
-		request_handler callback {};
-	};
+//	struct aop_token
+//	{
+//		template <typename Func, typename...AopPtr>
+//		aop_token(Func &&callback, AopPtr&&...a) requires
+//			detail::concept_request_handler<Func,CharT,Exec> and
+//			detail::concept_aop_ptr_list<CharT,Exec,AopPtr...>;
+//
+//		std::vector<aop_ptr> aops {};
+//		request_handler callback {};
+//	};
 
 public:
-	template <http::method...method>
-	basic_server &on_request(str_view_type path_rule, aop_token tk);
+//	template <http::method...method>
+//	basic_server &on_request(str_view_type path_rule, aop_token tk);
+
+	template <http::method...method, typename Func, typename...AopPtr>
+	basic_server &on_request(str_view_type path_rule, Func &&func, AopPtr&&...aops) requires
+		detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...>;
 
 	template <http::method...method>
 	basic_server &on_request(str_view_type path_rule, ctrlr_aop_ptr ctrlr);
@@ -111,11 +115,10 @@ public:
 	basic_server &on_request(str_view_type path_rule, ctrlr_aop *ctrlr);
 
 	template <typename Func>
-	basic_server &on_default(Func &&callback)
-		requires detail::concept_request_handler<Func,CharT,Exec>;
+	basic_server &on_default(Func &&func) requires detail::concept_request_handler<Func,CharT,Exec>;
 
-	basic_server &on_system_error(system_error_handler callback);
-	basic_server &on_exception(exception_handler callback);
+	basic_server &on_system_error(system_error_handler func);
+	basic_server &on_exception(exception_handler func);
 
 	basic_server &unbound_request(str_view_type path_rule = {});
 	basic_server &unbound_system_error();

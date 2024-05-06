@@ -192,10 +192,20 @@ private:
 			context.response().set_status(status::method_not_allowed);
 			co_return ;
 		}
-		else if( handler->aop.index() == 0 )
-			co_await for_aop(std::get<0>(handler->aop), context);
-		else // index == 1
-			co_await ctrlr_aop(std::get<1>(handler->aop), context);
+		try
+		{
+			if( co_await handler->aop->before(context) )
+				co_return ;
+
+			co_await handler->aop->service(context);
+			co_await handler->aop->after(context);
+		}
+		catch(std::exception &ex)
+		{
+			if( handler->aop->exception(context, ex) )
+				co_return ;
+			call_on_exception(context, ex);
+		}
 		co_return ;
 	}
 
@@ -217,59 +227,11 @@ private:
 	}
 
 private:
-	[[nodiscard]] awaitable<void> for_aop(aop_token &tk, context_type &context)
-	{
-		try {
-			for(auto &aop : tk.aops)
-			{
-				if( co_await aop->before(context) )
-					co_return ;
-			}
-			if( tk.callback )
-				co_await tk.callback(context);
-			for(auto &aop : tk.aops)
-			{
-				if( co_await aop->after(context) )
-					break;
-			}
-		}
-		catch(std::exception &ex)
-		{
-			for(auto &aop : tk.aops)
-			{
-				if( aop->exception(context, ex) )
-					co_return ;
-			}
-			call_on_exception(context, ex);
-		}
-		co_return ;
-	}
-
-	[[nodiscard]] awaitable<void> ctrlr_aop(ctrlr_aop_ptr &ctrlr, context_type &context)
-	{
-		try
-		{
-			if( co_await ctrlr->before(context))
-				co_return;
-
-			co_await ctrlr->service(context);
-			co_await ctrlr->after(context);
-		}
-		catch(std::exception &ex)
-		{
-			if( ctrlr->exception(context, ex) )
-				co_return ;
-			call_on_exception(context, ex);
-		}
-		co_return ;
-	}
-
-private:
 	void call_on_system_error(const error_code &error)
 	{
-		if( m_system_error_callback )
+		if( m_system_error_handler )
 		{
-			if( m_system_error_callback(error) )
+			if( m_system_error_handler(error) )
 				return ;
 		}
 		throw system_error(error, "libgs::http::server");
@@ -278,19 +240,70 @@ private:
 	void call_on_exception(context_type &context, std::exception &ex)
 	{
 		context.response().set_status(status::internal_server_error);
-		if( m_exception_callback )
+		if( m_exception_handler )
 		{
-			if( m_exception_callback(context, ex) )
+			if( m_exception_handler(context, ex) )
 				return ;
 		}
 		throw ex;
 	}
 
 public:
+	class multi_ctrlr_aop : public ctrlr_aop
+	{
+	public:
+		template <typename Func, typename...AopPtr>
+		multi_ctrlr_aop(Func &&func, AopPtr&&...aops) :
+			m_aops{aop_ptr(std::forward<AopPtr>(aops))...},
+			m_func(std::forward<Func>(func))
+		{
+			assert(m_func);
+		}
+
+	public:
+		awaitable<bool> before(context_type &context) override
+		{
+			for(auto &aop : m_aops)
+			{
+				if( co_await aop->before(context) )
+					co_return true;
+			}
+			co_return false;
+		}
+
+		awaitable<bool> after(context_type &context) override
+		{
+			for(auto &aop : m_aops)
+			{
+				if( co_await aop->after(context) )
+					co_return true;
+			}
+			co_return false;
+		}
+
+		bool exception(context_type &context, std::exception &ex) override
+		{
+			for(auto &aop : m_aops)
+			{
+				if( aop->exception(context, ex) )
+					return true;
+			}
+			return false;
+		}
+
+	public:
+		awaitable<void> service(context_type &context) override {
+			co_return co_await m_func(context);
+		}
+
+	private:
+		std::vector<aop_ptr> m_aops {};
+		request_handler m_func {};
+	};
+
 	struct tk_handler
 	{
-		using aop_var = std::variant<aop_token, ctrlr_aop_ptr>;
-		explicit tk_handler(aop_var aop) : aop(std::move(aop)) {}
+		explicit tk_handler(ctrlr_aop_ptr aop) : aop(std::move(aop)) {}
 
 		template <http::method...method>
 		tk_handler &bind_method()
@@ -311,7 +324,7 @@ public:
 			return *this;
 		}
 		http::methods method {};
-		aop_var aop {};
+		ctrlr_aop_ptr aop {};
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
 
@@ -320,8 +333,8 @@ public:
 	std::map<str_type, tk_handler_ptr> m_request_handler_map;
 
 	request_handler m_default_handler {};
-	system_error_handler m_system_error_callback {};
-	exception_handler m_exception_callback {};
+	system_error_handler m_system_error_handler {};
+	exception_handler m_exception_handler {};
 
 	std::chrono::milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_is_start {false};
@@ -389,26 +402,46 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::start(start_token tk)
 	return *this;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-template <typename Func, typename...AopPtr>
-basic_server<CharT,Exec>::aop_token::aop_token(Func &&callback, AopPtr&&...a) requires
-	detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...> :
-	aops{aop_ptr(std::forward<AopPtr>(a))...}, callback(std::forward<Func>(callback))
-{
-	assert([this]
-	{
-		for(auto &aop : aops)
-		{
-			if( not aop )
-				return false;
-		}
-		return true;
-	}());
-}
+//template <concept_char_type CharT, concept_execution Exec>
+//template <typename Func, typename...AopPtr>
+//basic_server<CharT,Exec>::aop_token::aop_token(Func &&callback, AopPtr&&...a) requires
+//	detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...> :
+//	aops{aop_ptr(std::forward<AopPtr>(a))...}, callback(std::forward<Func>(callback))
+//{
+//	assert([this]
+//	{
+//		for(auto &aop : aops)
+//		{
+//			if( not aop )
+//				return false;
+//		}
+//		return true;
+//	}());
+//}
+
+//template <concept_char_type CharT, concept_execution Exec>
+//template <http::method...method>
+//basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, aop_token tk)
+//{
+//	if( path_rule.empty() )
+//		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+//
+//	str_type rule(path_rule.data(), path_rule.size());
+//	m_impl->rule_path_check(rule);
+//	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+//
+//	if( not res )
+//		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+//
+//	it->second = std::make_shared<typename impl::tk_handler>(std::move(tk));
+//	it->second->template bind_method<method...>();
+//	return *this;
+//}
 
 template <concept_char_type CharT, concept_execution Exec>
-template <http::method...method>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, aop_token tk)
+template <http::method...method, typename Func, typename...AopPtr>
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, Func &&func, AopPtr&&...aops)
+	requires detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...>
 {
 	if( path_rule.empty() )
 		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
@@ -420,7 +453,8 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type pat
 	if( not res )
 		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
-	it->second = std::make_shared<typename impl::tk_handler>(std::move(tk));
+	auto aop = new typename impl::multi_ctrlr_aop(std::forward<Func>(func), std::forward<AopPtr>(aops)...);
+	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr(aop));
 	it->second->template bind_method<method...>();
 	return *this;
 }
@@ -465,24 +499,24 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type pat
 
 template <concept_char_type CharT, concept_execution Exec>
 template <typename Func>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_default(Func &&callback)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_default(Func &&func)
 	requires detail::concept_request_handler<Func,CharT,Exec>
 {
-	m_impl->m_default_handler = std::forward<Func>(callback);
+	m_impl->m_default_handler = std::forward<Func>(func);
 	return *this;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_system_error(system_error_handler callback)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_system_error(system_error_handler func)
 {
-	m_impl->m_system_error_callback = std::move(callback);
+	m_impl->m_system_error_handler = std::move(func);
 	return *this;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
-basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_exception(exception_handler callback)
+basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_exception(exception_handler func)
 {
-	m_impl->m_exception_callback = std::move(callback);
+	m_impl->m_exception_handler = std::move(func);
 	return *this;
 }
 
@@ -498,14 +532,14 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_request(str_view_typ
 template <concept_char_type CharT, concept_execution Exec>
 basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_system_error()
 {
-	m_impl->m_system_error_callback = {};
+	m_impl->m_system_error_handler = {};
 	return *this;
 }
 
 template <concept_char_type CharT, concept_execution Exec>
 basic_server<CharT,Exec> &basic_server<CharT,Exec>::unbound_exception()
 {
-	m_impl->m_exception_callback = {};
+	m_impl->m_exception_handler = {};
 	return *this;
 }
 
