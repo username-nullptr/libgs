@@ -15,6 +15,7 @@ set(core_headers
 	device_base.h
 	timer.h
 	stream.h
+	ssl_stream.h
 	socket.h
 	tcp_socket.h
 	udp_socket.h

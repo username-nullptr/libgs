@@ -43,8 +43,6 @@ class LIBGS_CORE_TAPI basic_stream : public device_base<Exec>
 
 public:
 	using executor_type = base_type::executor_type;
-
-public:
 	using base_type::base_type;
 	~basic_stream() override = default;
 
@@ -88,6 +86,9 @@ template <concept_execution Exec = asio::any_io_executor>
 using basic_stream_ptr = std::shared_ptr<basic_stream<Exec>>;
 
 using stream_ptr = basic_stream_ptr<>;
+
+template <typename T>
+concept concept_base_of_stream = std::is_base_of_v<basic_stream<typename T::executor_type>, T>;
 
 } //namespace libgs::io
 #include <libgs/io/detail/stream.h>

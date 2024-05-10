@@ -32,7 +32,7 @@
 #include <libgs/http/server/aop.h>
 #include <libgs/io/tcp_server.h>
 
-namespace libgs::http
+namespace libgs { namespace http
 {
 
 template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
@@ -89,21 +89,6 @@ public:
 	basic_server &start(start_token tk = {});
 
 public:
-//	struct aop_token
-//	{
-//		template <typename Func, typename...AopPtr>
-//		aop_token(Func &&callback, AopPtr&&...a) requires
-//			detail::concept_request_handler<Func,CharT,Exec> and
-//			detail::concept_aop_ptr_list<CharT,Exec,AopPtr...>;
-//
-//		std::vector<aop_ptr> aops {};
-//		request_handler callback {};
-//	};
-
-public:
-//	template <http::method...method>
-//	basic_server &on_request(str_view_type path_rule, aop_token tk);
-
 	template <http::method...method, typename Func, typename...AopPtr>
 	basic_server &on_request(str_view_type path_rule, Func &&func, AopPtr&&...aops) requires
 		detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...>;
@@ -146,17 +131,60 @@ private:
 using server = basic_server<char>;
 using wserver = basic_server<wchar_t>;
 
-// TODO ...
-// template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-// class LIBGS_HTTP_TAPI basic_ssl_server : public basic_server<CharT,Exec>
-// {
-// 	// TODO ...
-// };
-// TODO ...
-// using ssl_server = basic_ssl_server<char>;
-// using ssl_wserver = basic_ssl_server<wchar_t>;
+template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
+class LIBGS_HTTP_TAPI basic_ssl_server : public basic_server<CharT,Exec>
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_ssl_server)
+	using base_type = io::device_base<Exec>;
 
-} //namespace libgs::http
+public:
+	using parser = typename base_type::parser;
+	using request = typename base_type::request;
+	using response = typename base_type::response;
+
+	using request_ptr = typename base_type::request_ptr;
+	using response_ptr = typename base_type::response_ptr;
+
+	using aop = typename base_type::aop;
+	using ctrlr_aop = typename base_type::ctrlr_aop;
+	using aop_ptr = typename base_type::aop_ptr;
+	using ctrlr_aop_ptr = typename base_type::ctrlr_aop_ptr;
+
+	using str_type = typename base_type::str_type;
+	using str_view_type = typename base_type::str_view_type;
+
+	using executor_type = typename base_type::executor_type;
+	using tcp_server_type = typename base_type::tcp_server_type;
+	using tcp_server_ptr = typename base_type::tcp_server_ptr;
+
+	using start_token = typename base_type::start_token;
+	using tcp_socket_ptr = typename base_type::tcp_socket_ptr;
+
+	// TODO ...
+//	using asio_acceptor = typename base_type::asio_acceptor;
+//	using asio_acceptor_ptr = typename base_type::asio_acceptor_ptr;
+
+	using context_type = typename base_type::context_type;
+	using request_handler = typename base_type::request_handler;
+	using system_error_handler = typename base_type::system_error_handler;
+	using exception_handler = typename base_type::exception_handler;
+
+public:
+	// TODO ...
+};
+
+using ssl_server = basic_ssl_server<char>;
+using ssl_wserver = basic_ssl_server<wchar_t>;
+
+} //namespace http
+
+namespace https
+{
+
+using server = http::ssl_server;
+using wserver = http::ssl_wserver;
+
+}} //namespace libgs
 #include <libgs/http/server/detail/server.h>
 
 

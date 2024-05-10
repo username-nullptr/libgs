@@ -402,42 +402,6 @@ basic_server<CharT,Exec> &basic_server<CharT,Exec>::start(start_token tk)
 	return *this;
 }
 
-//template <concept_char_type CharT, concept_execution Exec>
-//template <typename Func, typename...AopPtr>
-//basic_server<CharT,Exec>::aop_token::aop_token(Func &&callback, AopPtr&&...a) requires
-//	detail::concept_request_handler<Func,CharT,Exec> and detail::concept_aop_ptr_list<CharT,Exec,AopPtr...> :
-//	aops{aop_ptr(std::forward<AopPtr>(a))...}, callback(std::forward<Func>(callback))
-//{
-//	assert([this]
-//	{
-//		for(auto &aop : aops)
-//		{
-//			if( not aop )
-//				return false;
-//		}
-//		return true;
-//	}());
-//}
-
-//template <concept_char_type CharT, concept_execution Exec>
-//template <http::method...method>
-//basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, aop_token tk)
-//{
-//	if( path_rule.empty() )
-//		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
-//
-//	str_type rule(path_rule.data(), path_rule.size());
-//	m_impl->rule_path_check(rule);
-//	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
-//
-//	if( not res )
-//		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
-//
-//	it->second = std::make_shared<typename impl::tk_handler>(std::move(tk));
-//	it->second->template bind_method<method...>();
-//	return *this;
-//}
-
 template <concept_char_type CharT, concept_execution Exec>
 template <http::method...method, typename Func, typename...AopPtr>
 basic_server<CharT,Exec> &basic_server<CharT,Exec>::on_request(str_view_type path_rule, Func &&func, AopPtr&&...aops)
