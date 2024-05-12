@@ -19,7 +19,7 @@ if (ENABLE_SSL)
 		include_directories(${OpenSSL_DIR}/include)
 		link_directories(${OpenSSL_DIR}/lib)
 	else()
-		find_package(OpenSSL REQUIRED)
+		find_package(OpenSSL 1.0.2 REQUIRED)
 	endif()
 endif()
 

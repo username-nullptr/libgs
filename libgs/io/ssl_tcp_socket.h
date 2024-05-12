@@ -26,32 +26,25 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_TCP_SOCKET_H
-#define LIBGS_IO_TCP_SOCKET_H
+#ifndef LIBGS_IO_SSL_TCP_SOCKET
+#define LIBGS_IO_SSL_TCP_SOCKET
 
-#include <libgs/io/socket.h>
+// TODO ...
 
-namespace libgs
+#include <libgs/io/cxx/option_ssl>
+//#ifdef LIBGS_DISABLE_SSL
+#if 1 //tmp
+
+#include <libgs/io/tcp_socket.h>
+#include <libgs/io/detail/ssl_tcp_socket_data.h>
+
+namespace libgs::io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-using asio_basic_tcp_socket = asio::basic_stream_socket<asio::ip::tcp, Exec>;
-
-template <concept_execution Exec = asio::any_io_executor>
-using asio_basic_tcp_socket_ptr = std::shared_ptr<asio_basic_tcp_socket<Exec>>;
-
-using asio_tcp_socket = asio_basic_tcp_socket<>;
-using asio_tcp_socket_ptr = asio_basic_tcp_socket_ptr<>;
-
-using tcp_handle_type = asio::ip::tcp::socket::native_handle_type;
-
-namespace io
+class LIBGS_CORE_TAPI basic_ssl_tcp_socket : public basic_tcp_socket<Exec>
 {
-
-template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_CORE_TAPI basic_tcp_socket : public basic_socket<Exec>
-{
-	LIBGS_DISABLE_COPY_MOVE(basic_tcp_socket)
+	LIBGS_DISABLE_COPY_MOVE(basic_ssl_tcp_socket)
 	using base_type = basic_socket<Exec>;
 
 public:
@@ -59,47 +52,20 @@ public:
 	using address_vector = base_type::address_vector;
 	using shutdown_type = base_type::shutdown_type;
 
-	using asio_socket_type = asio_basic_tcp_socket<Exec>;
-	using asio_socket_ptr = asio_basic_tcp_socket_ptr<Exec>;
-	using resolver = asio::ip::tcp::resolver;
+	using asio_socket_type = base_type::asio_socket_type;
+	using asio_socket_ptr = base_type::asio_socket_ptr;
+	using resolver = base_type::resolver;
 
 public:
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_tcp_socket(Context &context = execution::io_context());
+	explicit basic_ssl_tcp_socket(Context &context = execution::io_context());
 
 	template <concept_execution Exec0>
-	basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock);
+	basic_ssl_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock);
 
-	explicit basic_tcp_socket(const executor_type &exec);
-	~basic_tcp_socket() override;
+	explicit basic_ssl_tcp_socket(const executor_type &exec);
 
-public:
-	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept override;
-	[[nodiscard]] ip_endpoint local_endpoint(error_code &error) const noexcept override;
-
-public:
-	void shutdown(error_code &error, shutdown_type what) noexcept override;
-	void close(error_code &error) noexcept override;
-
-public:
-	[[nodiscard]] bool is_open() const noexcept override;
-	void cancel() noexcept override;
-
-public:
-	void set_option(const socket_option &op, error_code &error) noexcept override;
-	void get_option(socket_option op, error_code &error) const noexcept override;
-
-public:
-	[[nodiscard]] virtual asio_socket_type &native_object();
-	[[nodiscard]] const asio_socket_type &native_object() const;
-	[[nodiscard]] tcp_handle_type native_handle() const;
-
-public:
-	using base_type::remote_endpoint;
-	using base_type::local_endpoint;
-	using base_type::shutdown;
-	using base_type::close;
-	using base_type::set_option;
+	[[nodiscard]] asio_socket_type &native_object() override;
 
 protected:
 	[[nodiscard]] awaitable<error_code> do_connect
@@ -113,35 +79,24 @@ protected:
 
 	[[nodiscard]] awaitable<size_t> write_data
 	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept override;
-
-protected:
-	explicit basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock);
-
-	resolver m_resolver;
-	std::function<void()> m_del_cb {nullptr};
-
-	std::atomic_bool m_write_cancel {false};
-	std::atomic_bool m_read_cancel {false};
-
-	std::atomic_bool m_connect_cancel {false};
-	std::atomic_bool m_dns_cancel {false};
 };
 
-using tcp_socket = basic_tcp_socket<>;
+using ssl_tcp_socket = basic_ssl_tcp_socket<>;
 
 template <concept_execution Exec = asio::any_io_executor>
-using basic_tcp_socket_ptr = std::shared_ptr<basic_tcp_socket<Exec>>;
+using basic_ssl_tcp_socket_ptr = std::shared_ptr<basic_ssl_tcp_socket<Exec>>;
 
-using tcp_socket_ptr = basic_tcp_socket_ptr<>;
+using ssl_tcp_socket_ptr = basic_ssl_tcp_socket_ptr<>;
 
 template <concept_execution Exec, typename...Args>
-basic_tcp_socket_ptr<Exec> make_basic_tcp_socket(Args&&...args);
+basic_ssl_tcp_socket_ptr<Exec> make_basic_ssl_tcp_socket(Args&&...args);
 
 template <typename...Args>
-tcp_socket_ptr make_tcp_socket(Args&&...args);
+ssl_tcp_socket_ptr make_ssl_tcp_socket(Args&&...args);
 
-}} //namespace libgs::io
-#include <libgs/io/detail/tcp_socket.h>
+} //namespace libgs::io
+#include <libgs/io/detail/ssl_tcp_socket.h>
 
+#endif //LIBGS_DISABLE_SSL
 
-#endif //LIBGS_IO_TCP_SOCKET_H
+#endif //LIBGS_IO_SSL_TCP_SOCKET

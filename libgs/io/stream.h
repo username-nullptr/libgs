@@ -78,6 +78,11 @@ protected:
 
 	[[nodiscard]] virtual awaitable<size_t> write_data
 	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
+
+protected:
+	explicit basic_stream(auto *handle, concept_callable auto &&del_handle);
+	void *m_handle;
+	std::function<void()> m_del_handle;
 };
 
 using stream = basic_stream<>;
@@ -86,9 +91,6 @@ template <concept_execution Exec = asio::any_io_executor>
 using basic_stream_ptr = std::shared_ptr<basic_stream<Exec>>;
 
 using stream_ptr = basic_stream_ptr<>;
-
-template <typename T>
-concept concept_base_of_stream = std::is_base_of_v<basic_stream<typename T::executor_type>, T>;
 
 } //namespace libgs::io
 #include <libgs/io/detail/stream.h>

@@ -3,10 +3,12 @@ set(target_name gs_io)
 set(core_sources
 	global.cpp
 	types/opt_token.cpp
+	detail/ssl_tcp_socket_data.cpp
 )
 
 set(core_headers
 	cxx/concept.h
+	cxx/option_ssl
 	types/ip_types.h
 	types/opt_token.h
 	types/opt_condition.h
@@ -15,9 +17,9 @@ set(core_headers
 	device_base.h
 	timer.h
 	stream.h
-	ssl_stream.h
 	socket.h
 	tcp_socket.h
+	ssl_tcp_socket.h
 	udp_socket.h
 	tcp_server.h
 )
@@ -32,13 +34,22 @@ set(core_detail_headers
 	detail/stream.h
 	detail/socket.h
 	detail/tcp_socket.h
+	detail/ssl_tcp_socket_data.h
+	detail/ssl_tcp_socket.h
 	detail/tcp_server.h
 )
+
+if (ENABLE_SSL)
+	set(option_ssl_header cxx/enable_ssl)
+else ()
+	set(option_ssl_header cxx/disable_ssl)
+endif ()
 
 set(all_files
 	${core_sources}
 	${core_headers}
 	${core_detail_headers}
+	${option_ssl_header}
 )
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 
@@ -55,3 +66,4 @@ set_target_properties(${target_name} PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/bin
 )
 install(TARGETS ${target_name} DESTINATION lib)
+install(FILES ${option_ssl_header} RENAME option_ssl DESTINATION include/libgs/io/cxx)

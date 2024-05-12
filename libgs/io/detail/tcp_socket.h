@@ -36,7 +36,7 @@ template <concept_execution Exec>
 template <concept_execution_context Context>
 basic_tcp_socket<Exec>::basic_tcp_socket(Context &context) :
 	base_type(context.get_executor()),
-	m_sock(new asio_socket(context)),
+	m_sock(new asio_socket_type(context)),
 	m_resolver(context)
 {
 
@@ -46,19 +46,17 @@ template <concept_execution Exec>
 template <concept_execution Exec0>
 basic_tcp_socket<Exec>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock) :
 	base_type(sock.get_executor()),
-	m_sock(new asio_socket(std::move(sock))),
-	m_resolver(native_object().get_executor())
+	m_resolver(sock.get_executor())
 {
-
+	m_sock = new asio_socket_type(std::move(sock));
 }
 
 template <concept_execution Exec>
 basic_tcp_socket<Exec>::basic_tcp_socket(const executor_type &exec) :
 	base_type(exec),
-	m_sock(new asio_socket(exec)),
-	m_resolver(native_object().get_executor())
+	m_resolver(exec.get_executor())
 {
-
+	m_sock = new asio_socket_type(exec);
 }
 
 template <concept_execution Exec>
@@ -211,15 +209,15 @@ void basic_tcp_socket<Exec>::get_option(socket_option op, error_code &error) con
 }
 
 template <concept_execution Exec>
-const typename basic_tcp_socket<Exec>::asio_socket &basic_tcp_socket<Exec>::native_object() const
+typename basic_tcp_socket<Exec>::asio_socket_type &basic_tcp_socket<Exec>::native_object()
 {
-	return *reinterpret_cast<const asio_socket*>(m_sock);
+	return *reinterpret_cast<asio_socket_type*>(m_sock);
 }
 
 template <concept_execution Exec>
-typename basic_tcp_socket<Exec>::asio_socket &basic_tcp_socket<Exec>::native_object()
+const typename basic_tcp_socket<Exec>::asio_socket_type &basic_tcp_socket<Exec>::native_object() const
 {
-	return *reinterpret_cast<asio_socket*>(m_sock);
+	return remove_const(this)->native_object();
 }
 
 template <concept_execution Exec>
@@ -366,13 +364,10 @@ awaitable<size_t> basic_tcp_socket<Exec>::write_data(buffer<std::string_view> bu
 
 template <concept_execution Exec>
 basic_tcp_socket<Exec>::basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock) : 
-	base_type(asio_sock->get_executor()),
-	m_sock(asio_sock),
-	m_del_sock(std::forward<std::decay_t<decltype(del_sock)>>(del_sock)),
+	base_type(asio_sock, [this]{ delete reinterpret_cast<asio_socket_type*>(this->m_handel); }),
 	m_resolver(asio_sock->get_executor())
 {
-	assert(asio_sock);
-	assert(m_del_sock);
+
 }
 
 template <concept_execution Exec, typename...Args>

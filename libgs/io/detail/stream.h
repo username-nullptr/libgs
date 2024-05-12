@@ -260,6 +260,16 @@ awaitable<size_t> basic_stream<Exec>::write(buffer<std::string_view> buf, opt_to
 	co_return size;
 }
 
+template <concept_execution Exec>
+basic_stream<Exec>::basic_stream(auto *handle, concept_callable auto &&del_handle) :
+	base_type(handle->get_executor()),
+	m_handle(handle),
+	m_del_handle(std::forward<std::decay_t<decltype(del_handle)>>(del_handle))
+{
+	assert(m_handle);
+	assert(m_del_handle);
+}
+
 } //namespace libgs::io
 
 
