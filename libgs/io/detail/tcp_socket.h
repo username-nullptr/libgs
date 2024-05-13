@@ -35,8 +35,12 @@ namespace libgs::io
 template <concept_execution Exec>
 template <concept_execution_context Context>
 basic_tcp_socket<Exec>::basic_tcp_socket(Context &context) :
-	base_type(context.get_executor()),
-	m_sock(new asio_socket_type(context)),
+	base_type(new asio_socket_type(context), [this]
+	{
+		error_code error;
+		native_object().shutdown(shutdown_type::shutdown_both, error);
+		native_object().close(error);
+	}),
 	m_resolver(context)
 {
 
@@ -45,32 +49,28 @@ basic_tcp_socket<Exec>::basic_tcp_socket(Context &context) :
 template <concept_execution Exec>
 template <concept_execution Exec0>
 basic_tcp_socket<Exec>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock) :
-	base_type(sock.get_executor()),
-	m_resolver(sock.get_executor())
+	base_type(new asio_socket_type(std::move(sock)), [this]
+	{
+		error_code error;
+		native_object().shutdown(shutdown_type::shutdown_both, error);
+		native_object().close(error);
+	}),
+	m_resolver(reinterpret_cast<asio_socket_type*>(this->m_sock)->get_executor())
 {
-	m_sock = new asio_socket_type(std::move(sock));
+
 }
 
 template <concept_execution Exec>
 basic_tcp_socket<Exec>::basic_tcp_socket(const executor_type &exec) :
-	base_type(exec),
-	m_resolver(exec.get_executor())
+	base_type(new asio_socket_type(exec), [this]
+	{
+		error_code error;
+		native_object().shutdown(shutdown_type::shutdown_both, error);
+		native_object().close(error);
+	}),
+	m_resolver(reinterpret_cast<asio_socket_type*>(this->m_sock)->get_executor())
 {
-	m_sock = new asio_socket_type(exec);
-}
 
-template <concept_execution Exec>
-basic_tcp_socket<Exec>::~basic_tcp_socket()
-{
-	if( m_sock == nullptr )
-		return ;
-
-	error_code error;
-	native_object().shutdown(shutdown_type::shutdown_both, error);
-	native_object().close(error);
-
-	if( m_del_sock )
-		m_del_sock();
 }
 
 template <concept_execution Exec>
@@ -211,7 +211,7 @@ void basic_tcp_socket<Exec>::get_option(socket_option op, error_code &error) con
 template <concept_execution Exec>
 typename basic_tcp_socket<Exec>::asio_socket_type &basic_tcp_socket<Exec>::native_object()
 {
-	return *reinterpret_cast<asio_socket_type*>(m_sock);
+	return *reinterpret_cast<asio_socket_type*>(this->m_handle);
 }
 
 template <concept_execution Exec>
@@ -364,7 +364,7 @@ awaitable<size_t> basic_tcp_socket<Exec>::write_data(buffer<std::string_view> bu
 
 template <concept_execution Exec>
 basic_tcp_socket<Exec>::basic_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock) : 
-	base_type(asio_sock, [this]{ delete reinterpret_cast<asio_socket_type*>(this->m_handel); }),
+	base_type(asio_sock, std::forward<decltype(del_sock)>(del_sock)),
 	m_resolver(asio_sock->get_executor())
 {
 

@@ -49,7 +49,7 @@ namespace io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_CORE_TAPI basic_tcp_socket : public basic_socket<Exec>
+class LIBGS_IO_TAPI basic_tcp_socket : public basic_socket<Exec>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_tcp_socket)
 	using base_type = basic_socket<Exec>;
@@ -71,7 +71,7 @@ public:
 	basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock);
 
 	explicit basic_tcp_socket(const executor_type &exec);
-	~basic_tcp_socket() override;
+	~basic_tcp_socket() override = default;
 
 public:
 	[[nodiscard]] ip_endpoint remote_endpoint(error_code &error) const noexcept override;

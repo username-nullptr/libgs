@@ -48,7 +48,7 @@ namespace io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_CORE_TAPI basic_timer : public device_base<Exec>
+class LIBGS_IO_TAPI basic_timer : public device_base<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_timer)
 	using base_type = device_base<Exec>;

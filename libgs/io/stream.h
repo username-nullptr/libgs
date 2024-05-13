@@ -36,15 +36,15 @@ namespace libgs::io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_CORE_TAPI basic_stream : public device_base<Exec>
+class LIBGS_IO_TAPI basic_stream : public device_base<Exec>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_stream)
 	using base_type = device_base<Exec>;
 
 public:
 	using executor_type = base_type::executor_type;
-	using base_type::base_type;
-	~basic_stream() override = default;
+	explicit basic_stream(auto *handle, concept_callable auto &&del_handle);
+	~basic_stream() override;
 
 public:
 	[[nodiscard]] virtual bool is_open() const noexcept = 0;
@@ -80,7 +80,6 @@ protected:
 	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
 
 protected:
-	explicit basic_stream(auto *handle, concept_callable auto &&del_handle);
 	void *m_handle;
 	std::function<void()> m_del_handle;
 };

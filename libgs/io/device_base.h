@@ -35,7 +35,7 @@ namespace libgs::io
 {
 
 template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_CORE_TAPI device_base
+class LIBGS_IO_TAPI device_base
 {
 	LIBGS_DISABLE_COPY_MOVE(device_base)
 

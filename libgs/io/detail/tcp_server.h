@@ -33,7 +33,7 @@ namespace libgs::io
 {
 
 template <concept_execution Exec>
-class LIBGS_CORE_TAPI basic_tcp_server<Exec>::client_socket_type : public tcp_socket
+class LIBGS_IO_TAPI basic_tcp_server<Exec>::client_socket_type : public tcp_socket
 {
 	LIBGS_DISABLE_COPY_MOVE(client_socket_type)
 	using base_type = tcp_socket;

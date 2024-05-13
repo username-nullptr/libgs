@@ -16,9 +16,23 @@ function(set_target)
 		math(EXPR s_index "${s_index} + 1")
 
 		string(SUBSTRING ${target_name} ${s_index} -1 target_name)
-		add_executable(${target_name} ${cpp_file})
+		set(headers ../../libgs)
+		set(lib_path)
 
-		target_include_directories(${target_name} PRIVATE ../../libgs)
+		if (${target_name} MATCHES ssl)
+			if (NOT OpenSSL_DIR)
+				math(EXPR INDEX "${INDEX} + 1")
+				continue ()
+			endif()
+
+			list(APPEND headers ${OpenSSL_DIR}/include)
+			list(APPEND lib_path ${OpenSSL_DIR}/lib)
+			list(APPEND lib_file crypto ssl)
+		endif ()
+
+		add_executable(${target_name} ${cpp_file})
+		target_include_directories(${target_name} PRIVATE ${headers})
+		target_link_directories(${target_name} PRIVATE ${lib_path})
 		target_link_libraries(${target_name} PRIVATE ${lib_file})
 
 		set_target_properties(${target_name} PROPERTIES
@@ -46,6 +60,7 @@ set_target(gs_core ${core_sources})
 set(io_sources
 	io/timer.cpp
 	io/tcp_socket.cpp
+	io/ssl_tcp_socket.cpp
 	io/udp_socket.cpp
 	io/tcp_server.cpp
 )
