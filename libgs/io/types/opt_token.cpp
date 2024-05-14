@@ -34,8 +34,11 @@ namespace libgs::io::detail
 bool check_error(error_code *tk_error, const error_code &error, const char *header)
 {
 	if( not error )
+	{
+		if( tk_error )
+			*tk_error = {};
 		return true;
-
+	}
 	else if( tk_error )
 		*tk_error = error;
 	else

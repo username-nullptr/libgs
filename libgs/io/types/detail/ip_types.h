@@ -32,10 +32,22 @@
 namespace libgs::io
 {
 
-host_endpoint::host_endpoint(string_wrapper host, uint16_t port)
+host_endpoint::host_endpoint(string_wrapper host, uint16_t port) :
+	host(std::move(host)), port(port)
 {
-	this->host = std::move(host);
-	this->port = port;
+
+}
+
+host_endpoint::host_endpoint(string_wrapper host) :
+	host(std::move(host))
+{
+
+}
+
+ip_endpoint::ip_endpoint(concept_ip_endpoint auto &&ep) :
+	ip_endpoint(ep.address(), ep.port())
+{
+
 }
 
 ip_endpoint::ip_endpoint(ip_address addr, uint16_t port) :
@@ -44,8 +56,8 @@ ip_endpoint::ip_endpoint(ip_address addr, uint16_t port) :
 
 }
 
-ip_endpoint::ip_endpoint(concept_ip_endpoint auto &&ep) :
-	ip_endpoint(ep.address(), ep.port())
+ip_endpoint::ip_endpoint(ip_address addr) :
+	addr(std::move(addr))
 {
 
 }

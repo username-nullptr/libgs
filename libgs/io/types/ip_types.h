@@ -43,8 +43,9 @@ using address_v6 = asio::ip::address_v6;
 struct LIBGS_CORE_VAPI host_endpoint
 {
 	std::string host;
-	uint16_t port;
+	uint16_t port = 80;
 	host_endpoint(string_wrapper host, uint16_t port);
+	host_endpoint(string_wrapper host);
 };
 
 template <typename Endpoint>
@@ -58,10 +59,11 @@ concept concept_ip_endpoint = requires(Endpoint &&ep)
 struct LIBGS_CORE_VAPI ip_endpoint
 {
 	ip_address addr;
-	uint16_t port;
+	uint16_t port = 80;
 
-	ip_endpoint(ip_address addr, uint16_t port);
 	ip_endpoint(concept_ip_endpoint auto &&ep);
+	ip_endpoint(ip_address addr, uint16_t port);
+	ip_endpoint(ip_address addr);
 };
 
 struct LIBGS_CORE_VAPI socket_option

@@ -29,12 +29,10 @@
 #ifndef LIBGS_IO_SSL_TCP_SOCKET_H
 #define LIBGS_IO_SSL_TCP_SOCKET_H
 
-// TODO ...
-
 #include <libgs/io/tcp_socket.h>
 #include <asio/ssl.hpp>
 
-namespace libgs::io
+namespace libgs
 {
 
 template <concept_execution Exec = asio::any_io_executor>
@@ -48,6 +46,9 @@ using asio_ssl_tcp_socket_ptr = asio_basic_tcp_socket_ptr<>;
 
 using ssl_context = asio::ssl::context;
 
+namespace io
+{
+
 template <concept_execution Exec = asio::any_io_executor>
 class LIBGS_IO_TAPI basic_ssl_tcp_socket : public basic_tcp_socket<Exec>
 {
@@ -58,10 +59,12 @@ public:
 	using executor_type = base_type::executor_type;
 	using address_vector = base_type::address_vector;
 	using shutdown_type = base_type::shutdown_type;
-
-	using asio_socket_type = asio_basic_ssl_tcp_socket<Exec>;
-	using asio_socket_ptr = asio_basic_ssl_tcp_socket_ptr<Exec>;
 	using resolver = base_type::resolver;
+
+	using asio_socket_type = base_type::asio_socket_type;
+	using asio_socket_ptr = base_type::asio_socket_ptr;
+	using asio_ssl_socket_type = asio_basic_ssl_tcp_socket<Exec>;
+	using asio_ssl_socket_ptr = asio_basic_ssl_tcp_socket_ptr<Exec>;
 
 public:
 	template <concept_execution_context Context>
@@ -89,94 +92,6 @@ protected:
 	explicit basic_ssl_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock);
 };
 
-template <concept_execution Exec>
-template <concept_execution_context Context>
-basic_ssl_tcp_socket<Exec>::basic_ssl_tcp_socket(Context &context, ssl_context &ssl) :
-	base_type(new asio_socket_type(asio_basic_tcp_socket<Exec>(context), ssl), [this]
-	{
-		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
-	})
-{
-
-}
-
-template <concept_execution Exec>
-template <concept_execution Exec0>
-basic_ssl_tcp_socket<Exec>::basic_ssl_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock, ssl_context &ssl) :
-	base_type(new asio_socket_type(std::move(sock), ssl), [this]
-	{
-		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
-	})
-{
-
-}
-
-template <concept_execution Exec>
-basic_ssl_tcp_socket<Exec>::basic_ssl_tcp_socket(const executor_type &exec, ssl_context &ssl) :
-	base_type(new asio_socket_type(asio_basic_tcp_socket<Exec>(exec), ssl), [this]
-	{
-		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
-	})
-{
-
-}
-
-template <concept_execution Exec>
-basic_ssl_tcp_socket<Exec>::basic_ssl_tcp_socket(ssl_context &ssl) :
-	base_type(new asio_socket_type(asio_basic_tcp_socket<Exec>(execution::io_context()), ssl), [this]
-	{
-		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
-	})
-{
-
-}
-
-template <concept_execution Exec>
-typename basic_ssl_tcp_socket<Exec>::asio_socket_type &basic_ssl_tcp_socket<Exec>::native_object()
-{
-	return reinterpret_cast<asio_socket_type*>(this->m_handle)->next_layer();
-}
-
-template <concept_execution Exec>
-awaitable<error_code> basic_ssl_tcp_socket<Exec>::do_connect
-(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept
-{
-	auto error = co_await base_type::do_connect(ep, cnl_sig);
-	if( error )
-		co_return error;
-	// TODO ...
-}
-
-template <concept_execution Exec>
-awaitable<size_t> basic_ssl_tcp_socket<Exec>::read_data
-(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept
-{
-	// TODO ...
-}
-
-template <concept_execution Exec>
-awaitable<size_t> basic_ssl_tcp_socket<Exec>::write_data
-(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept
-{
-	// TODO ...
-}
-
-template <concept_execution Exec>
-basic_ssl_tcp_socket<Exec>::basic_ssl_tcp_socket(auto *asio_sock, concept_callable auto &&del_sock) :
-	base_type(asio_sock, std::forward<decltype(del_sock)>(del_sock))
-{
-
-}
-
-
 using ssl_tcp_socket = basic_ssl_tcp_socket<>;
 
 template <concept_execution Exec = asio::any_io_executor>
@@ -190,7 +105,7 @@ basic_ssl_tcp_socket_ptr<Exec> make_basic_ssl_tcp_socket(Args&&...args);
 template <typename...Args>
 ssl_tcp_socket_ptr make_ssl_tcp_socket(Args&&...args);
 
-} //namespace libgs::io
+}} //namespace libgs::io
 #include <libgs/io/detail/ssl_tcp_socket.h>
 
 

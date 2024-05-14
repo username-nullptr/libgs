@@ -38,8 +38,10 @@ basic_tcp_socket<Exec>::basic_tcp_socket(Context &context) :
 	base_type(new asio_socket_type(context), [this]
 	{
 		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
+		auto sock = reinterpret_cast<asio_socket_type*>(this->m_handle);
+		sock->shutdown(shutdown_type::shutdown_both, error);
+		sock->close(error);
+		delete sock;
 	}),
 	m_resolver(context)
 {
@@ -52,8 +54,10 @@ basic_tcp_socket<Exec>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&sock) :
 	base_type(new asio_socket_type(std::move(sock)), [this]
 	{
 		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
+		auto sock = reinterpret_cast<asio_socket_type*>(this->m_handle);
+		sock->shutdown(shutdown_type::shutdown_both, error);
+		sock->close(error);
+		delete sock;
 	}),
 	m_resolver(reinterpret_cast<asio_socket_type*>(this->m_sock)->get_executor())
 {
@@ -65,8 +69,10 @@ basic_tcp_socket<Exec>::basic_tcp_socket(const executor_type &exec) :
 	base_type(new asio_socket_type(exec), [this]
 	{
 		error_code error;
-		native_object().shutdown(shutdown_type::shutdown_both, error);
-		native_object().close(error);
+		auto sock = reinterpret_cast<asio_socket_type*>(this->m_handle);
+		sock->shutdown(shutdown_type::shutdown_both, error);
+		sock->close(error);
+		delete sock;
 	}),
 	m_resolver(reinterpret_cast<asio_socket_type*>(this->m_sock)->get_executor())
 {
@@ -238,8 +244,10 @@ awaitable<error_code> basic_tcp_socket<Exec>::do_connect(const ip_endpoint &ep, 
 		.async_connect({ep.addr, ep.port}, asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
 	}
 	else
-		co_await native_object().async_connect({ep.addr, ep.port}, use_awaitable_e[error]);
-
+	{
+		co_await native_object()
+		.async_connect({ep.addr, ep.port}, use_awaitable_e[error]);
+	}
 	if( m_connect_cancel )
 	{
 		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
@@ -258,12 +266,14 @@ awaitable<typename basic_tcp_socket<Exec>::address_vector> basic_tcp_socket<Exec
 
 	if( cnl_sig )
 	{
-		results = co_await m_resolver
-				.async_resolve(domain, "0", asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+		results = co_await m_resolver.async_resolve
+				(domain, "0", asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
 	}
 	else
-		results = co_await m_resolver.async_resolve(domain, "0", use_awaitable_e[error]);
-
+	{
+		results = co_await m_resolver.async_resolve
+				(domain, "0", use_awaitable_e[error]);
+	}
 	if( m_dns_cancel )
 	{
 		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
@@ -349,11 +359,14 @@ awaitable<size_t> basic_tcp_socket<Exec>::write_data(buffer<std::string_view> bu
 	if( cnl_sig )
 	{
 		buf.size = co_await native_object().async_write_some
-				(asio::buffer(buf.data.data(), buf.size), asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+				(asio::buffer(buf.data.data(), buf.size),
+				 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
 	}
 	else
-		buf.size = co_await native_object().async_write_some(asio::buffer(buf.data.data(), buf.size), use_awaitable_e[error]);
-
+	{
+		buf.size = co_await native_object().async_write_some
+				(asio::buffer(buf.data.data(), buf.size), use_awaitable_e[error]);
+	}
 	if( m_write_cancel )
 	{
 		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));

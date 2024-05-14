@@ -252,7 +252,7 @@ awaitable<typename basic_socket<Exec>::address_vector> basic_socket<Exec>::dns(s
 	error_code error;
 
 	if( tk.rtime == 0s )
-		co_await do_dns(domain, tk.cnl_sig, error);
+		vector = co_await do_dns(domain, tk.cnl_sig, error);
 	else
 	{
 		auto var = co_await (do_dns(domain, tk.cnl_sig, error) or co_sleep_for(tk.rtime));
