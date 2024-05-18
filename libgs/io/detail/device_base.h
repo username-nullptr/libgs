@@ -32,24 +32,36 @@
 namespace libgs::io
 {
 
-template <concept_execution Exec>
-device_base<Exec>::device_base(const executor_type &exec) :
+template <typename CC, concept_execution Exec>
+device_base<CC,Exec>::device_base(const executor_type &exec) :
 	m_exec(exec),
-	m_valid(new bool(true))
+	m_valid(new std::atomic_bool(true))
 {
 
 }
 
-template <concept_execution Exec>
-device_base<Exec>::~device_base() 
+template <typename CC, concept_execution Exec>
+device_base<CC,Exec>::~device_base()
 {
 	*m_valid = false;
 }
 
-template <concept_execution Exec>
-typename device_base<Exec>::executor_type &device_base<Exec>::executor() const
+template <typename CC, concept_execution Exec>
+typename device_base<CC,Exec>::executor_type &device_base<CC,Exec>::executor() const
 {
 	return m_exec;
+}
+
+template <typename CC, concept_execution Exec>
+const typename device_base<CC,Exec>::derived_type &device_base<CC,Exec>::derived() const
+{
+	return reinterpret_cast<const derived_type&>(*this);
+}
+
+template <typename CC, concept_execution Exec>
+typename device_base<CC,Exec>::derived_type &device_base<CC,Exec>::derived()
+{
+	return reinterpret_cast<derived_type&>(*this);
 }
 
 } //namespace libgs::io

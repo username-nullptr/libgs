@@ -40,7 +40,7 @@ using address_v4 = asio::ip::address_v4;
 
 using address_v6 = asio::ip::address_v6;
 
-struct LIBGS_CORE_VAPI host_endpoint
+struct LIBGS_IO_VAPI host_endpoint
 {
 	std::string host;
 	uint16_t port = 80;
@@ -56,7 +56,7 @@ concept concept_ip_endpoint = requires(Endpoint &&ep)
 	sizeof(decltype(ep.port())) == 2;
 };
 
-struct LIBGS_CORE_VAPI ip_endpoint
+struct LIBGS_IO_VAPI ip_endpoint
 {
 	ip_address addr;
 	uint16_t port = 80;
@@ -66,7 +66,7 @@ struct LIBGS_CORE_VAPI ip_endpoint
 	ip_endpoint(ip_address addr);
 };
 
-struct LIBGS_CORE_VAPI socket_option
+struct LIBGS_IO_VAPI socket_option
 {
 	std_type_id id;
 	void *data;

@@ -12,10 +12,10 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(io)
-add_subdirectory(http)
-add_subdirectory(web)
-add_subdirectory(dbi)
-add_subdirectory(utils)
+#add_subdirectory(http)
+#add_subdirectory(web)
+#add_subdirectory(dbi)
+#add_subdirectory(utils)
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	core.h  io.h  http.h

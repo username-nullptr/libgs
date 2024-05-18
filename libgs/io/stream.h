@@ -35,61 +35,67 @@
 namespace libgs::io
 {
 
-template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_IO_TAPI basic_stream : public device_base<Exec>
+template <typename Derived, concept_execution Exec = asio::any_io_executor>
+class LIBGS_IO_TAPI basic_stream : public device_base<crtp_derived<Derived,basic_stream<Exec,Derived>>,Exec>
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_stream)
-	using base_type = device_base<Exec>;
+	LIBGS_DISABLE_COPY(basic_stream)
+	using base_type = device_base<crtp_derived<Derived,basic_stream>,Exec>;
 
 public:
 	using executor_type = base_type::executor_type;
-	explicit basic_stream(auto *handle, concept_callable auto &&del_handle);
-	~basic_stream() override;
+	using derived_type = crtp_derived_t<Derived, basic_stream>;
 
 public:
-	[[nodiscard]] virtual bool is_open() const noexcept = 0;
-	virtual void close(error_code &error) noexcept = 0;
-	void close();
+	using base_type::device_base;
+	~basic_stream() override = 0;
+
+	basic_stream(basic_stream &&other) noexcept = default;
+	basic_stream &operator=(basic_stream &&other) noexcept = default;
 
 public:
-	void read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	void read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_type &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_type &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
 
-	void read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	void read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-	void read(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
-	void read(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
+	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
+	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
 
+	derived_type &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_type &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+
+	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
+	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
+
+	[[nodiscard]] awaitable<size_t> read_some(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read_some(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
+
 public:
-	void write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	void write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
+	derived_type &write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_type &write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
-public:
-	[[nodiscard]] virtual size_t read_buffer_size() const noexcept = 0;
-	[[nodiscard]] virtual size_t write_buffer_size() const noexcept = 0;
+	derived_type &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_type &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
+	[[nodiscard]] awaitable<size_t> write_some(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
-protected:
-	[[nodiscard]] virtual awaitable<size_t> read_data
-	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
-
-	[[nodiscard]] virtual awaitable<size_t> write_data
-	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept = 0;
-
-protected:
-	void *m_handle;
-	std::function<void()> m_del_handle;
+/*** Derived class implementation required:
+ *
+ *  [[nodiscard]] size_t read_buffer_size() const noexcept;
+ *  [[nodiscard]] size_t write_buffer_size() const noexcept;
+ *
+ *  [[nodiscard]] awaitable<size_t> _read_some
+ *  (buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept;
+ *
+ *  [[nodiscard]] awaitable<size_t> _write_some
+ *  (buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept;
+**/
 };
-
-using stream = basic_stream<>;
-
-template <concept_execution Exec = asio::any_io_executor>
-using basic_stream_ptr = std::shared_ptr<basic_stream<Exec>>;
-
-using stream_ptr = basic_stream_ptr<>;
 
 } //namespace libgs::io
 #include <libgs/io/detail/stream.h>

@@ -44,7 +44,7 @@ using match_continue = std::function <
 	)
 >;
 
-struct LIBGS_CORE_VAPI read_condition
+struct LIBGS_IO_VAPI read_condition
 {
 	std::variant<std::string_view, match_continue> var;
 	read_condition();

@@ -34,77 +34,58 @@
 namespace libgs::io
 {
 
-template <concept_execution Exec>
+template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
-basic_timer<Exec>::basic_timer(Context &context) :
+basic_timer<Exec,Derived>::basic_timer(Context &context) :
 	base_type(context.get_executor()),
 	m_timer(context)
 {
 
 }
 
-template <concept_execution Exec>
+template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
-basic_timer<Exec>::basic_timer(const duration &rtime, Context &context) :
+basic_timer<Exec,Derived>::basic_timer(const duration &rtime, Context &context) :
 	base_type(context.get_executor()),
 	m_timer(context)
 {
 	expires_after(rtime);
 }
 
-template <concept_execution Exec>
+template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
-basic_timer<Exec>::basic_timer(const time_point &atime, Context &context) :
+basic_timer<Exec,Derived>::basic_timer(const time_point &atime, Context &context) :
 	base_type(context.get_executor()),
 	m_timer(context)
 {
 	expires_at(atime);
 }
 
-template <concept_execution Exec>
-basic_timer<Exec>::basic_timer(basic_timer<Exec> &&other) noexcept :
-	m_timer(std::move(other.m_timer)),
-	m_run(other.m_run)
-{
-	this->m_exec = std::move(other.m_exec);
-	this->m_valid = std::move(other.m_valid);
-}
-
-template <concept_execution Exec>
-basic_timer<Exec> &basic_timer<Exec>::operator=(basic_timer<Exec> &&other) noexcept
-{
-	this->m_exec = std::move(other.m_exec);
-	this->m_valid = std::move(other.m_valid);
-
-	m_timer = std::move(other.m_timer);
-	m_run = other.m_run;
-
-	return *this;
-}
-
-template <concept_execution Exec>
-basic_timer<Exec>::~basic_timer()
+template <concept_execution Exec, typename Derived>
+basic_timer<Exec,Derived>::~basic_timer()
 {
 	m_run = false;
 	m_timer.cancel();
 }
 
-template <concept_execution Exec>
-void basic_timer<Exec>::expires_after(const duration &rtime) noexcept
+template <concept_execution Exec, typename Derived>
+typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::expires_after(const duration &rtime) noexcept
 {
 	m_run = true;
 	m_timer.expires_after(rtime);
+	return this->derived();
 }
 
-template <concept_execution Exec>
-void basic_timer<Exec>::expires_at(const time_point &atime) noexcept
+template <concept_execution Exec, typename Derived>
+typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::expires_at(const time_point &atime) noexcept
 {
 	m_run = true;
 	m_timer.expires_at(atime);
+	return this->derived();
 }
 
-template <concept_execution Exec>
-void basic_timer<Exec>::wait(opt_token<callback_t<error_code>> tk) noexcept
+template <concept_execution Exec, typename Derived>
+typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::wait(opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
@@ -125,10 +106,11 @@ void basic_timer<Exec>::wait(opt_token<callback_t<error_code>> tk) noexcept
 		co_return ;
 	},
 	this->m_exec);
+	return this->derived();
 }
 
-template <concept_execution Exec>
-void basic_timer<Exec>::wait(opt_token<callback_t<>> tk) noexcept
+template <concept_execution Exec, typename Derived>
+typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::wait(opt_token<callback_t<>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
 	auto _callback = [callback = std::move(tk.callback)](const error_code&){
@@ -138,10 +120,11 @@ void basic_timer<Exec>::wait(opt_token<callback_t<>> tk) noexcept
 		wait({tk.rtime, *tk.cnl_sig, std::move(_callback)});
 	else
 		wait({tk.rtime, std::move(_callback)});
+	return this->derived();
 }
 
-template <concept_execution Exec>
-awaitable<void> basic_timer<Exec>::wait(opt_token<error_code&> tk)
+template <concept_execution Exec, typename Derived>
+awaitable<void> basic_timer<Exec,Derived>::wait(opt_token<error_code&> tk)
 {
 	using namespace std::chrono_literals;
 	error_code error;
@@ -170,29 +153,18 @@ awaitable<void> basic_timer<Exec>::wait(opt_token<error_code&> tk)
 	co_return ;
 }
 
-template <concept_execution Exec>
-void basic_timer<Exec>::cancel() noexcept
+template <concept_execution Exec, typename Derived>
+typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::cancel() noexcept
 {
 	m_run = false;
 	m_timer.cancel();
+	return this->derived();
 }
 
-template <concept_execution Exec>
-bool basic_timer<Exec>::is_run() const
+template <concept_execution Exec, typename Derived>
+bool basic_timer<Exec,Derived>::is_run() const
 {
 	return m_run;
-}
-
-template <concept_execution Exec, typename...Args>
-basic_timer_ptr<Exec> make_basic_timer(Args&&...args)
-{
-	return std::make_shared<basic_timer<Exec>>(std::forward<Args>(args)...);
-}
-
-template <typename...Args>
-timer_ptr make_timer(Args&&...args)
-{
-	return std::make_shared<timer>(std::forward<Args>(args)...);
 }
 
 } //namespace libgs::io

@@ -177,6 +177,15 @@ concept concept_movable = std::movable<T>;
 template <typename T>
 concept concept_copymovable = concept_copyable<T> and concept_movable<T>;
 
+template <typename Derived, typename Base>
+struct crtp_derived { using type = Derived; };
+
+template <typename Base>
+struct crtp_derived<void,Base> { using type = Base; };
+
+template <typename Derived, typename Base>
+using crtp_derived_t = crtp_derived<Derived, Base>::type;
+
 } //namespace libgs
 
 

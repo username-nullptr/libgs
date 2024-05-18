@@ -34,34 +34,32 @@
 namespace libgs::io
 {
 
-template <concept_execution Exec = asio::any_io_executor>
+template <typename Derived, concept_execution Exec = asio::any_io_executor>
 class LIBGS_IO_TAPI device_base
 {
-	LIBGS_DISABLE_COPY_MOVE(device_base)
+	LIBGS_DISABLE_COPY(device_base)
 
 public:
 	using executor_type = Exec;
-	using bool_ptr = std::shared_ptr<bool>;
+	using derived_type = crtp_derived_t<Derived, device_base>;
+	using bool_ptr = std::shared_ptr<std::atomic_bool>;
 
 public:
 	explicit device_base(const executor_type &exec);
 	virtual ~device_base() = 0;
 
+	device_base(device_base &&other) noexcept = default;
+	device_base &operator=(device_base &&other) noexcept = default;
+
 public:
-	virtual void cancel() noexcept = 0;
 	executor_type &executor() const;
+	const derived_type &derived() const;
+	derived_type &derived();
 
 protected:
 	mutable Exec m_exec;
 	bool_ptr m_valid;
 };
-
-using device = device_base<>;
-
-template <concept_execution Exec = asio::any_io_executor>
-using device_base_ptr = std::shared_ptr<device_base<Exec>>;
-
-using device_ptr = device_base_ptr<>;
 
 } //namespace libgs::io
 #include <libgs/io/detail/device_base.h>

@@ -44,7 +44,7 @@ template <typename...Token>
 struct opt_token;
 
 template <>
-struct LIBGS_CORE_VAPI opt_token<void>
+struct LIBGS_IO_VAPI opt_token<void>
 {
 	std::chrono::nanoseconds rtime {0};
 	cancellation_signal *cnl_sig = nullptr;
@@ -71,7 +71,7 @@ concept concept_opt_token = requires(Args&&...value) {
 };
 
 template <typename...Args>
-struct LIBGS_CORE_VAPI opt_token<callback_t<Args...>> : opt_token<void>
+struct LIBGS_IO_VAPI opt_token<callback_t<Args...>> : opt_token<void>
 {
 	using callback_t = callback_t<Args...>;
 	callback_t callback {};
@@ -89,7 +89,7 @@ struct LIBGS_CORE_VAPI opt_token<callback_t<Args...>> : opt_token<void>
 };
 
 template <>
-struct LIBGS_CORE_VAPI opt_token<error_code&> : opt_token<void>
+struct LIBGS_IO_VAPI opt_token<error_code&> : opt_token<void>
 {
 	using opt_token<void>::opt_token;
 	error_code *error = nullptr;
@@ -106,7 +106,7 @@ struct LIBGS_CORE_VAPI opt_token<error_code&> : opt_token<void>
 };
 
 template <typename T>
-struct LIBGS_CORE_VAPI opt_token<read_condition,T> : opt_token<T>
+struct LIBGS_IO_VAPI opt_token<read_condition,T> : opt_token<T>
 {
 	using opt_token<T>::opt_token;
 	read_condition rc {};

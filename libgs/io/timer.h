@@ -47,14 +47,16 @@ using asio_steady_timer = asio_basic_waitable_timer<>;
 namespace io
 {
 
-template <concept_execution Exec = asio::any_io_executor>
-class LIBGS_IO_TAPI basic_timer : public device_base<Exec>
+template <concept_execution Exec, typename Derived = void>
+class LIBGS_IO_TAPI basic_timer : public device_base<crtp_derived<Derived,basic_timer<Exec,Derived>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_timer)
-	using base_type = device_base<Exec>;
+	using base_type = device_base<crtp_derived<Derived,basic_timer>,Exec>;
 
 public:
 	using executor_type = base_type::executor_type;
+	using derived_type = crtp_derived_t<Derived, basic_timer>;
+
 	using time_point = asio_steady_timer::time_point;
 	using duration = asio_steady_timer::duration;
 
@@ -68,42 +70,31 @@ public:
 	template <concept_execution_context Context = asio::io_context>
 	explicit basic_timer(const time_point &atime, Context &context = execution::io_context());
 
-	basic_timer(basic_timer &&other) noexcept;
-	basic_timer &operator=(basic_timer &&other) noexcept;
+	basic_timer(basic_timer &&other) noexcept = default;
+	basic_timer &operator=(basic_timer &&other) noexcept = default;
 
 	using base_type::base_type;
 	~basic_timer() override;
 
 public:
-	void expires_after(const duration &rtime) noexcept;
-	void expires_at(const time_point &atime) noexcept;
+	derived_type &expires_after(const duration &rtime) noexcept;
+	derived_type &expires_at(const time_point &atime) noexcept;
 
 public:
-	void wait(opt_token<callback_t<error_code>> tk) noexcept;
-	void wait(opt_token<callback_t<>> tk) noexcept;
+	derived_type &wait(opt_token<callback_t<error_code>> tk) noexcept;
+	derived_type &wait(opt_token<callback_t<>> tk) noexcept;
 	[[nodiscard]] awaitable<void> wait(opt_token<error_code&> tk = {});
 
 public:
-	void cancel() noexcept override;
+	derived_type &cancel() noexcept;
 	[[nodiscard]] bool is_run() const;
 
-private:
+protected:
 	asio_steady_timer m_timer;
 	std::atomic_bool m_run {false};
 };
 
-using timer = basic_timer<>;
-
-template <concept_execution Exec = asio::any_io_executor>
-using basic_timer_ptr = std::shared_ptr<basic_timer<Exec>>;
-
-using timer_ptr = basic_timer_ptr<>;
-
-template <concept_execution Exec, typename...Args>
-basic_timer_ptr<Exec> make_basic_timer(Args&&...args);
-
-template <typename...Args>
-timer_ptr make_timer(Args&&...args);
+using timer = basic_timer<asio::any_io_executor>;
 
 }} //namespace libgs::io
 #include <libgs/io/detail/timer.h>
