@@ -26,79 +26,85 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_TIMER_H
-#define LIBGS_IO_TIMER_H
+#ifndef LIBGS_IO_TCP_SOCKET_H
+#define LIBGS_IO_TCP_SOCKET_H
 
-#include <libgs/io/device_base.h>
+#include <libgs/io/socket.h>
 
 namespace libgs
 {
 
-template <concept_execution Exec = asio::any_io_executor>
-using asio_basic_waitable_timer = asio::basic_waitable_timer
-<
-	asio::chrono::steady_clock, 
-	asio::wait_traits<asio::chrono::steady_clock>,
-	Exec
->;
+template <concept_execution Exec>
+using asio_basic_tcp_socket = asio::basic_stream_socket<asio::ip::tcp, Exec>;
 
-using asio_steady_timer = asio_basic_waitable_timer<>;
+using asio_tcp_socket = asio_basic_tcp_socket<asio::any_io_executor>;
+using tcp_handle_type = asio::ip::tcp::socket::native_handle_type;
 
 namespace io
 {
 
 template <concept_execution Exec, typename Derived = void>
-class LIBGS_IO_TAPI basic_timer : public device_base<crtp_derived_t<Derived,basic_timer<Exec,Derived>>,Exec>
+class LIBGS_IO_TAPI basic_tcp_socket : public basic_socket<crtp_derived_t<Derived,basic_tcp_socket<Exec,Derived>>,Exec>
 {
-	LIBGS_DISABLE_COPY(basic_timer)
-	using base_type = device_base<crtp_derived_t<Derived,basic_timer>,Exec>;
+	LIBGS_DISABLE_COPY(basic_tcp_socket)
+	using base_type = basic_socket<crtp_derived_t<Derived,basic_tcp_socket>,Exec>;
 
 public:
 	using executor_t = base_type::executor_t;
-	using derived_t = crtp_derived_t<Derived, basic_timer>;
+	using derived_t = crtp_derived_t<Derived, basic_tcp_socket>;
+	using address_vector = base_type::address_vector;
 
-	using time_point = asio_steady_timer::time_point;
-	using duration = asio_steady_timer::duration;
+	using native_t = asio_basic_tcp_socket<Exec>;
+	using resolver_t = asio::ip::tcp::resolver;
 
 public:
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_timer(Context &context = execution::io_context());
+	explicit basic_tcp_socket(Context &context = execution::io_context());
 
-	template <concept_execution_context Context = asio::io_context>
-	explicit basic_timer(const duration &rtime, Context &context = execution::io_context());
+	template <concept_execution Exec0>
+	basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native);
 
-	template <concept_execution_context Context = asio::io_context>
-	explicit basic_timer(const time_point &atime, Context &context = execution::io_context());
-
-	basic_timer(basic_timer &&other) noexcept = default;
-	basic_timer &operator=(basic_timer &&other) noexcept = default;
-
-	using base_type::device_base;
-	~basic_timer() override;
+	explicit basic_tcp_socket(const executor_t &exec);
+	~basic_tcp_socket() override;
 
 public:
-	derived_t &expires_after(const duration &rtime) noexcept;
-	derived_t &expires_at(const time_point &atime) noexcept;
+	basic_tcp_socket(basic_tcp_socket &&other) noexcept = default;
+	basic_tcp_socket &operator=(basic_tcp_socket &&other) noexcept = default;
+
+	template <concept_execution Exec0>
+	basic_tcp_socket &operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept;
 
 public:
-	derived_t &wait(opt_token<callback_t<error_code>> tk) noexcept;
-	derived_t &wait(opt_token<callback_t<>> tk) noexcept;
-	[[nodiscard]] awaitable<void> wait(opt_token<error_code&> tk = {});
-
-public:
+	[[nodiscard]] bool is_open() const noexcept;
+	derived_t &close(no_time_token tk = {});
 	derived_t &cancel() noexcept;
-	[[nodiscard]] bool is_run() const;
+
+public:
+	[[nodiscard]] ip_endpoint remote_endpoint(no_time_token tk = {}) const;
+	[[nodiscard]] ip_endpoint local_endpoint(no_time_token tk = {}) const;
+
+public:
+	derived_t &set_option(const socket_option &op, no_time_token tk = {});
+	derived_t &get_option(socket_option op, no_time_token tk = {}) const;
+
+	[[nodiscard]] size_t read_buffer_size() const noexcept;
+	[[nodiscard]] size_t write_buffer_size() const noexcept;
+
+public:
+	[[nodiscard]] const native_t &native() const noexcept;
+	[[nodiscard]] native_t &native() noexcept;
+
+	[[nodiscard]] const resolver_t &resolver() const noexcept;
+	[[nodiscard]] resolver_t &resolver() noexcept;
 
 protected:
-	asio_steady_timer m_timer;
-	std::atomic_bool m_run {false};
+	resolver_t m_resolver;
 };
 
-using timer = basic_timer<asio::any_io_executor>;
+using tcp_socket = basic_tcp_socket<asio::any_io_executor>;
 
 }} //namespace libgs::io
-#include <libgs/io/detail/timer.h>
+#include <libgs/io/detail/tcp_socket.h>
 
 
-#endif //LIBGS_IO_TIMER_H
-
+#endif //LIBGS_IO_TCP_SOCKET_H

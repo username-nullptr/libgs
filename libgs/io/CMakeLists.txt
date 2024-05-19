@@ -15,7 +15,9 @@ set(core_headers
 	device_base.h
 	timer.h
 	stream.h
+	ssl_stream.h
 	socket.h
+	tcp_socket.h
 )
 
 set(core_detail_headers
@@ -26,7 +28,9 @@ set(core_detail_headers
 	detail/device_base.h
 	detail/timer.h
 	detail/stream.h
+	detail/ssl_stream.h
 	detail/socket.h
+	detail/tcp_socket.h
 )
 
 set(all_files

@@ -36,62 +36,48 @@ namespace libgs::io
 {
 
 template <typename Derived, concept_execution Exec = asio::any_io_executor>
-class LIBGS_IO_TAPI basic_socket : public basic_stream<crtp_derived<Derived,basic_socket<Exec,Derived>>,Exec>
+class LIBGS_IO_TAPI basic_socket : public basic_stream<crtp_derived_t<Derived,basic_socket<Derived,Exec>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_socket)
-	using base_type = basic_stream<crtp_derived<Derived,basic_socket>,Exec>;
+	using base_type = basic_stream<crtp_derived_t<Derived,basic_socket>,Exec>;
 
 public:
-	using executor_type = base_type::executor_type;
-	using derived_type = crtp_derived_t<Derived, basic_socket>;
-
+	using executor_t = base_type::executor_t;
+	using derived_t = crtp_derived_t<Derived, basic_socket>;
 	using address_vector = std::vector<ip_address>;
-	using shutdown_type = asio::socket_base::shutdown_type;
 
 public:
-	using base_type::base_type;
+	using base_type::basic_stream;
 	~basic_socket() override = 0;
 
 	basic_socket(basic_socket &&other) noexcept = default;
 	basic_socket &operator=(basic_socket &&other) noexcept = default;
 
 public:
-	derived_type &connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
+	derived_t &connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<void> connect(host_endpoint ep, opt_token<error_code&> tk = {});
 
-	derived_type &connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
+	derived_t &connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<error_code&> tk = {});
 
 public:
-	[[nodiscard]] ip_endpoint remote_endpoint() const requires requires
-	{ static_cast<ip_endpoint(derived_type::*)(error_code&)>(derived_type::remote_endpoint); };
-
-	[[nodiscard]] ip_endpoint local_endpoint() const requires requires
-	{ static_cast<ip_endpoint(derived_type::*)(error_code&)>(derived_type::remote_endpoint); };
-
-public:
-	derived_type &set_option(const auto &op);
-	derived_type &get_option(auto &op) const;
-
-public:
-	derived_type &dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept;
+	derived_t &dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<error_code&> tk = {});
-
-public:
-	[[nodiscard]] size_t read_buffer_size() const noexcept;
-	[[nodiscard]] size_t write_buffer_size() const noexcept;
 
 /*** Derived class implementation required:
  *
- *  derived_type &set_option(const auto &op, error_code &error) noexcept;
- *  derived_type &get_option(auto &op, error_code &error) const noexcept;
- *
- *  [[nodiscard]] awaitable<error_code> _connect
- *  (const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept;
- *
- *  [[nodiscard]] awaitable<address_vector> _dns
- *  (const std::string &domain, cancellation_signal *cnl_sig, error_code &error) noexcept;
+ *  [[nodiscard]] const resolver_type &resolver() const noexcept;
+ *  [[nodiscard]] resolver_type &resolver() noexcept;
 **/
+protected:
+	[[nodiscard]] awaitable<error_code> _connect
+	(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept;
+
+	[[nodiscard]] awaitable<address_vector> _dns
+	(const std::string &domain, cancellation_signal *cnl_sig, error_code &error) noexcept;
+
+	bool m_connect_cancel = false;
+	bool m_dns_cancel = false;
 };
 
 } //namespace libgs::io

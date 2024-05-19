@@ -35,10 +35,17 @@ namespace libgs::io
 {
 
 template <typename Derived, concept_execution Exec>
+basic_stream<Derived,Exec>::basic_stream(auto *native, const executor_t &exec) :
+	m_native(native)
+{
+
+}
+
+template <typename Derived, concept_execution Exec>
 basic_stream<Derived,Exec>::~basic_stream() = default;
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
@@ -65,7 +72,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -78,7 +85,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
 	if( buf.size == 0 )
@@ -98,7 +105,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -111,7 +118,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -124,7 +131,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -149,7 +156,8 @@ awaitable<size_t> basic_stream<Derived,Exec>::read(buffer<void*> buf, opt_token<
 	auto _read = [&]() -> awaitable<size_t>
 	{
 		do {
-			auto res = co_await this->derived().read_data({reinterpret_cast<char*>(buf.data) + size, buf.size - size}, std::move(tk.rc), tk.cnl_sig, error);
+			auto res = co_await this->derived()._read_data
+					({reinterpret_cast<char*>(buf.data) + size, buf.size - size}, std::move(tk.rc), tk.cnl_sig, error);
 			if( error and error.value() != errc::try_again and error.value() != errc::interrupted )
 				break;
 			size += res;
@@ -158,7 +166,7 @@ awaitable<size_t> basic_stream<Derived,Exec>::read(buffer<void*> buf, opt_token<
 		co_return size;
 	};
 	if( tk.rtime == 0s )
-		_read();
+		co_await _read();
 	else
 	{
 		auto var = co_await(_read() or co_sleep_for(tk.rtime));
@@ -185,7 +193,7 @@ awaitable<size_t> basic_stream<Derived,Exec>::read(buffer<std::string&> buf, opt
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
@@ -212,7 +220,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -225,7 +233,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
 	if( buf.size == 0 )
@@ -245,7 +253,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -258,7 +266,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -271,7 +279,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::r
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::read_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -294,10 +302,10 @@ awaitable<size_t> basic_stream<Derived,Exec>::read_some(buffer<void*> buf, opt_t
 	error_code error;
 
 	if( tk.rtime == 0s )
-		size = co_await this->derived().read_data(buf, std::move(tk.rc), tk.cnl_sig, error);
+		size = co_await this->derived()._read_data(buf, std::move(tk.rc), tk.cnl_sig, error);
 	else
 	{
-		auto var = co_await(this->derived().read_data(buf, std::move(tk.rc), tk.cnl_sig, error) or co_sleep_for(tk.rtime));
+		auto var = co_await(this->derived()._read_data(buf, std::move(tk.rc), tk.cnl_sig, error) or co_sleep_for(tk.rtime));
 		if( var.index() == 0 )
 			size = std::get<0>(var);
 		else
@@ -321,7 +329,7 @@ awaitable<size_t> basic_stream<Derived,Exec>::read_some(buffer<std::string&> buf
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::write
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write
 (buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
 	auto size = buf.size;
@@ -352,7 +360,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::w
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::write
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write
 (buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -380,7 +388,7 @@ awaitable<size_t> basic_stream<Derived,Exec>::write(buffer<std::string_view> buf
 	auto _write = [&]() -> awaitable<size_t>
 	{
 		do {
-			auto res = co_await this->derived().write_data({_buf.get() + size, buf.size - size}, tk.cnl_sig, error);
+			auto res = co_await this->derived()._write_data({_buf.get() + size, buf.size - size}, tk.cnl_sig, error);
 			if( error and error.value() != errc::try_again and error.value() != errc::interrupted )
 				break;
 			size += res;
@@ -389,7 +397,7 @@ awaitable<size_t> basic_stream<Derived,Exec>::write(buffer<std::string_view> buf
 		co_return size;
 	};
 	if( tk.rtime == 0s )
-		_write();
+		co_await _write();
 	else
 	{
 		auto var = co_await (_write() or co_sleep_for(tk.rtime));
@@ -400,10 +408,8 @@ awaitable<size_t> basic_stream<Derived,Exec>::write(buffer<std::string_view> buf
 	co_return size;
 }
 
-
-
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::write_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write_some
 (buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
 	auto size = buf.size;
@@ -434,7 +440,7 @@ typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::w
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_type &basic_stream<Derived,Exec>::write_some
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write_some
 (buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
@@ -460,10 +466,10 @@ awaitable<size_t> basic_stream<Derived,Exec>::write_some(buffer<std::string_view
 	error_code error;
 
 	if( tk.rtime == 0s )
-		size = co_await this->derived().write_data({_buf.get(), buf.size}, tk.cnl_sig, error);
+		size = co_await this->derived()._write_data({_buf.get(), buf.size}, tk.cnl_sig, error);
 	else
 	{
-		auto var = co_await (this->derived().write_data({_buf.get(), buf.size}, tk.cnl_sig, error) or co_sleep_for(tk.rtime));
+		auto var = co_await (this->derived()._write_data({_buf.get(), buf.size}, tk.cnl_sig, error) or co_sleep_for(tk.rtime));
 		if( var.index() == 0 )
 			size = std::get<0>(var);
 		else
@@ -471,6 +477,104 @@ awaitable<size_t> basic_stream<Derived,Exec>::write_some(buffer<std::string_view
 	}
 	detail::check_error(tk.error, error, "libgs::io::stream::write");
 	co_return size;
+}
+
+template <typename Derived, concept_execution Exec>
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::external_reference(auto *native)
+{
+	m_ext_ref = true;
+	delete &this->derived().native();
+	m_native = native;
+	return this->derived();
+}
+
+template <typename Derived, concept_execution Exec>
+awaitable<size_t> basic_stream<Derived,Exec>::_read_data
+(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept
+{
+	m_read_cancel = false;
+	if( rc.var.index() == 0 )
+	{
+		auto delim = std::get<0>(rc.var);
+		if( delim.empty() )
+		{
+			if( cnl_sig )
+			{
+				buf.size = co_await this->derived().native()
+						.async_read_some(asio::buffer(buf.data, buf.size),
+										 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+			}
+			else
+			{
+				buf.size = co_await this->derived().native()
+						.async_read_some(asio::buffer(buf.data, buf.size), use_awaitable_e[error]);
+			}
+		}
+		else
+		{
+			std::string _buf;
+			if( cnl_sig )
+			{
+				buf.size = co_await asio::async_read_until
+						(this->derived().native(), asio::dynamic_buffer(_buf, buf.size), delim,
+						 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+			}
+			else
+			{
+				buf.size = co_await asio::async_read_until
+						(this->derived().native(), asio::dynamic_buffer(_buf, buf.size), delim, use_awaitable_e[error]);
+			}
+			if( buf.size > 0 )
+				memcpy(buf.data, _buf.c_str(), buf.size);
+		}
+	}
+	else
+	{
+		std::string _buf;
+		if( cnl_sig )
+		{
+			buf.size = co_await asio::async_read_until
+					(this->derived().native(), asio::dynamic_buffer(_buf, buf.size), std::get<1>(rc.var),
+					 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+		}
+		else
+		{
+			buf.size = co_await asio::async_read_until
+					(this->derived().native(), asio::dynamic_buffer(_buf, buf.size), std::get<1>(rc.var), use_awaitable_e[error]);
+		}
+		if( buf.size > 0 )
+			memcpy(buf.data, _buf.c_str(), buf.size);
+	}
+	if( m_read_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		m_read_cancel = false;
+	}
+	co_return buf.size;
+}
+
+template <typename Derived, concept_execution Exec>
+awaitable<size_t> basic_stream<Derived,Exec>::_write_data
+(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept
+{
+	m_write_cancel = false;
+	if( cnl_sig )
+	{
+		buf.size = co_await this->derived().native().async_write_some
+				(asio::buffer(buf.data.data(), buf.size),
+				 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	}
+	else
+	{
+		buf.size = co_await this->derived().native().async_write_some
+				(asio::buffer(buf.data.data(), buf.size), use_awaitable_e[error]);
+	}
+	if( m_write_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		m_write_cancel = false;
+	}
+	co_return buf.size;
 }
 
 } //namespace libgs::io

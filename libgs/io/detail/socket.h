@@ -33,7 +33,10 @@ namespace libgs::io
 {
 
 template <typename Derived, concept_execution Exec>
-typename basic_socket<Derived,Exec>::derived_type &basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
+basic_socket<Derived,Exec>::~basic_socket() = default;
+
+template <typename Derived, concept_execution Exec>
+typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -96,7 +99,7 @@ awaitable<void> basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_socket<Derived,Exec>::derived_type &basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
+typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
@@ -127,10 +130,10 @@ awaitable<void> basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<er
 	error_code error;
 
 	if( tk.rtime == 0s )
-		error = co_await this->derived().do_connect(ep, tk.cnl_sig);
+		error = co_await this->derived()._connect(ep, tk.cnl_sig);
 	else
 	{
-		auto var = co_await (this->derived().do_connect(ep, tk.cnl_sig) or co_sleep_for(tk.rtime));
+		auto var = co_await (this->derived()._connect(ep, tk.cnl_sig) or co_sleep_for(tk.rtime));
 		if( var.index() == 0 )
 			error = std::get<0>(var);
 		else if( var.index() == 1 )
@@ -141,53 +144,7 @@ awaitable<void> basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<er
 }
 
 template <typename Derived, concept_execution Exec>
-ip_endpoint basic_socket<Derived,Exec>::remote_endpoint() const requires requires
-{ static_cast<ip_endpoint(derived_type::*)(error_code&)>(derived_type::remote_endpoint); }
-{
-	error_code error;
-	auto ep = this->derived().remote_endpoint(error);
-
-	if( error )
-		throw system_error(error, "libgs::io::socket::remote_endpoint");
-	return ep;
-}
-
-template <typename Derived, concept_execution Exec>
-ip_endpoint basic_socket<Derived,Exec>::local_endpoint() const requires requires
-{ static_cast<ip_endpoint(derived_type::*)(error_code&)>(derived_type::remote_endpoint); }
-{
-	error_code error;
-	auto ep = this->derived().local_endpoint(error);
-
-	if( error )
-		throw system_error(error, "libgs::io::socket::local_endpoint");
-	return ep;
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_socket<Derived,Exec>::derived_type &basic_socket<Derived,Exec>::set_option(const auto &op)
-{
-	error_code error;
-	set_option(op, error);
-
-	if( error )
-		throw system_error(error, "libgs::io::socket::set_option");
-	return this->derived();
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_socket<Derived,Exec>::derived_type &basic_socket<Derived,Exec>::get_option(auto &op) const
-{
-	error_code error;
-	get_option(op, error);
-
-	if( error )
-		throw system_error(error, "libgs::io::socket::set_option");
-	return this->derived();
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_socket<Derived,Exec>::derived_type &basic_socket<Derived,Exec>::dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept
+typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), domain = std::move(domain), tk = std::move(tk)]() -> awaitable<void>
@@ -235,21 +192,62 @@ awaitable<typename basic_socket<Derived,Exec>::address_vector> basic_socket<Deri
 }
 
 template <typename Derived, concept_execution Exec>
-size_t basic_socket<Derived,Exec>::read_buffer_size() const noexcept
+awaitable<error_code> basic_socket<Derived,Exec>::_connect
+(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept
 {
-	asio::socket_base::receive_buffer_size op;
 	error_code error;
-	get_option(op, error);
-	return op.value();
+	m_connect_cancel = false;
+
+	if( cnl_sig )
+	{
+		co_await this->derived().native()
+				.async_connect({ep.addr, ep.port}, asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	}
+	else
+	{
+		co_await this->derived().native()
+				.async_connect({ep.addr, ep.port}, use_awaitable_e[error]);
+	}
+	if( m_connect_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		m_connect_cancel = false;
+	}
+	co_return error;
 }
 
 template <typename Derived, concept_execution Exec>
-size_t basic_socket<Derived,Exec>::write_buffer_size() const noexcept
+awaitable<typename basic_socket<Derived,Exec>::address_vector> basic_socket<Derived,Exec>::_dns
+(const std::string &domain, cancellation_signal *cnl_sig, error_code &error) noexcept
 {
-	asio::socket_base::send_buffer_size op;
-	error_code error;
-	get_option(op, error);
-	return op.value();
+	using resolver_t = derived_t::resolver_t;
+	typename resolver_t::results_type results;
+
+	address_vector vector;
+	m_dns_cancel = false;
+
+	if( cnl_sig )
+	{
+		results = co_await this->derived().resolver().async_resolve
+				(domain, "0", asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	}
+	else
+	{
+		results = co_await this->derived().resolver().async_resolve
+				(domain, "0", use_awaitable_e[error]);
+	}
+	if( m_dns_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		m_dns_cancel = false;
+		co_return vector;
+	}
+	else if( error )
+		co_return vector;
+
+	for(auto &ep : results)
+		vector.emplace_back(ep.endpoint().address());
+	co_return vector;
 }
 
 } //namespace libgs::io

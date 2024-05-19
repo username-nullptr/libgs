@@ -69,7 +69,7 @@ basic_timer<Exec,Derived>::~basic_timer()
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::expires_after(const duration &rtime) noexcept
+typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::expires_after(const duration &rtime) noexcept
 {
 	m_run = true;
 	m_timer.expires_after(rtime);
@@ -77,7 +77,7 @@ typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::exp
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::expires_at(const time_point &atime) noexcept
+typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::expires_at(const time_point &atime) noexcept
 {
 	m_run = true;
 	m_timer.expires_at(atime);
@@ -85,7 +85,7 @@ typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::exp
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::wait(opt_token<callback_t<error_code>> tk) noexcept
+typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::wait(opt_token<callback_t<error_code>> tk) noexcept
 {
 	auto valid = this->m_valid;
 	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
@@ -110,7 +110,7 @@ typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::wai
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::wait(opt_token<callback_t<>> tk) noexcept
+typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::wait(opt_token<callback_t<>> tk) noexcept
 {
 	auto callback = std::move(tk.callback);
 	auto _callback = [callback = std::move(tk.callback)](const error_code&){
@@ -154,7 +154,7 @@ awaitable<void> basic_timer<Exec,Derived>::wait(opt_token<error_code&> tk)
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_timer<Exec,Derived>::derived_type &basic_timer<Exec,Derived>::cancel() noexcept
+typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::cancel() noexcept
 {
 	m_run = false;
 	m_timer.cancel();

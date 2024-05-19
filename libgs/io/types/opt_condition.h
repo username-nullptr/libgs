@@ -58,6 +58,13 @@ struct LIBGS_IO_VAPI read_condition
 	read_condition(match_continue role);
 };
 
+struct LIBGS_IO_VAPI no_time_token
+{
+	error_code *error = nullptr;
+	no_time_token(error_code &error);
+	no_time_token();
+};
+
 } //namespace libgs::io
 #include <libgs/io/types/detail/opt_condition.h>
 

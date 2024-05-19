@@ -35,53 +35,56 @@
 namespace libgs::io
 {
 
+template <typename Stream, typename Derived>
+class basic_ssl_stream;
+
 template <typename Derived, concept_execution Exec = asio::any_io_executor>
-class LIBGS_IO_TAPI basic_stream : public device_base<crtp_derived<Derived,basic_stream<Exec,Derived>>,Exec>
+class LIBGS_IO_TAPI basic_stream : public device_base<crtp_derived_t<Derived,basic_stream<Derived,Exec>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_stream)
-	using base_type = device_base<crtp_derived<Derived,basic_stream>,Exec>;
+	using base_type = device_base<crtp_derived_t<Derived,basic_stream>,Exec>;
 
 public:
-	using executor_type = base_type::executor_type;
-	using derived_type = crtp_derived_t<Derived, basic_stream>;
+	using executor_t = base_type::executor_t;
+	using derived_t = crtp_derived_t<Derived, basic_stream>;
 
 public:
-	using base_type::device_base;
+	basic_stream(auto *native, const executor_t &exec);
 	~basic_stream() override = 0;
 
 	basic_stream(basic_stream &&other) noexcept = default;
 	basic_stream &operator=(basic_stream &&other) noexcept = default;
 
 public:
-	derived_type &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_type &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_t &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
 
-	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
-	derived_type &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
+	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
+	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
 
-	derived_type &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_type &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_t &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
 
-	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
-	derived_type &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
+	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
+	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
+	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> read_some(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> read_some(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
 
 public:
-	derived_type &write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	derived_type &write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
+	derived_t &write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
-	derived_type &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	derived_type &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
+	derived_t &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write_some(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
 /*** Derived class implementation required:
@@ -89,12 +92,23 @@ public:
  *  [[nodiscard]] size_t read_buffer_size() const noexcept;
  *  [[nodiscard]] size_t write_buffer_size() const noexcept;
  *
- *  [[nodiscard]] awaitable<size_t> _read_some
- *  (buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept;
- *
- *  [[nodiscard]] awaitable<size_t> _write_some
- *  (buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept;
+ *  [[nodiscard]] const native_type &native() const noexcept;
+ *  [[nodiscard]] native_type &native() noexcept;
 **/
+public:
+	derived_t &external_reference(auto *native);
+
+protected:
+	awaitable<size_t> _read_data
+	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept;
+
+	awaitable<size_t> _write_data
+	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept;
+
+	bool m_write_cancel = false;
+	bool m_read_cancel = false;
+	bool m_ext_ref = false;
+	void *m_native;
 };
 
 } //namespace libgs::io

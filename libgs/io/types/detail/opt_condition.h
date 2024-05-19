@@ -68,6 +68,17 @@ inline read_condition::read_condition(match_continue role)
 	var = std::move(role);
 }
 
+inline no_time_token::no_time_token(error_code &error) :
+	error(&error)
+{
+
+}
+
+inline no_time_token::no_time_token()
+{
+
+}
+
 } //namespace libgs::io
 
 

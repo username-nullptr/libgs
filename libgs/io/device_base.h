@@ -38,23 +38,23 @@ template <typename Derived, concept_execution Exec = asio::any_io_executor>
 class LIBGS_IO_TAPI device_base
 {
 	LIBGS_DISABLE_COPY(device_base)
-
-public:
-	using executor_type = Exec;
-	using derived_type = crtp_derived_t<Derived, device_base>;
 	using bool_ptr = std::shared_ptr<std::atomic_bool>;
 
 public:
-	explicit device_base(const executor_type &exec);
+	using executor_t = Exec;
+	using derived_t = crtp_derived_t<Derived, device_base>;
+
+public:
+	explicit device_base(const executor_t &exec);
 	virtual ~device_base() = 0;
 
 	device_base(device_base &&other) noexcept = default;
 	device_base &operator=(device_base &&other) noexcept = default;
 
 public:
-	executor_type &executor() const;
-	const derived_type &derived() const;
-	derived_type &derived();
+	executor_t &executor() const;
+	const derived_t &derived() const;
+	derived_t &derived();
 
 protected:
 	mutable Exec m_exec;
