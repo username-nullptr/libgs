@@ -47,12 +47,13 @@ template <concept_execution Exec, typename Derived = void>
 class LIBGS_IO_TAPI basic_tcp_socket : public basic_socket<crtp_derived_t<Derived,basic_tcp_socket<Exec,Derived>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_tcp_socket)
-	using base_type = basic_socket<crtp_derived_t<Derived,basic_tcp_socket>,Exec>;
 
 public:
-	using executor_t = base_type::executor_t;
-	using derived_t = crtp_derived_t<Derived, basic_tcp_socket>;
-	using address_vector = base_type::address_vector;
+	using derived_t = crtp_derived_t<Derived,basic_tcp_socket>;
+	using base_t = basic_socket<derived_t,Exec>;
+
+	using executor_t = base_t::executor_t;
+	using address_vector = base_t::address_vector;
 
 	using native_t = asio_basic_tcp_socket<Exec>;
 	using resolver_t = asio::ip::tcp::resolver;
@@ -68,8 +69,8 @@ public:
 	~basic_tcp_socket() override;
 
 public:
-	basic_tcp_socket(basic_tcp_socket &&other) noexcept = default;
-	basic_tcp_socket &operator=(basic_tcp_socket &&other) noexcept = default;
+	basic_tcp_socket(basic_tcp_socket &&other) noexcept;
+	basic_tcp_socket &operator=(basic_tcp_socket &&other) noexcept;
 
 	template <concept_execution Exec0>
 	basic_tcp_socket &operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept;
@@ -99,6 +100,10 @@ public:
 
 protected:
 	resolver_t m_resolver;
+
+private:
+	friend class basic_stream<basic_tcp_socket,Exec>;
+	static void _delete_native(void *native);
 };
 
 using tcp_socket = basic_tcp_socket<asio::any_io_executor>;

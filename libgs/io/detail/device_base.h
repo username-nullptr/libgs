@@ -47,6 +47,22 @@ device_base<CC,Exec>::~device_base()
 }
 
 template <typename CC, concept_execution Exec>
+device_base<CC,Exec>::device_base(device_base &&other) noexcept :
+	m_exec(other.m_exec),
+	m_valid(other.m_valid)
+{
+
+}
+
+template <typename CC, concept_execution Exec>
+device_base<CC,Exec> &device_base<CC,Exec>::operator=(device_base &&other) noexcept
+{
+	m_exec = other.m_exec;
+	m_valid = other.m_valid;
+	return *this;
+}
+
+template <typename CC, concept_execution Exec>
 typename device_base<CC,Exec>::executor_t &device_base<CC,Exec>::executor() const
 {
 	return m_exec;

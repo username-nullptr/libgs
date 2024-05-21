@@ -36,13 +36,33 @@ namespace libgs::io
 
 template <typename Derived, concept_execution Exec>
 basic_stream<Derived,Exec>::basic_stream(auto *native, const executor_t &exec) :
-	m_native(native)
+	base_t(exec), m_native(native)
 {
-
+	assert(m_native);
 }
 
 template <typename Derived, concept_execution Exec>
-basic_stream<Derived,Exec>::~basic_stream() = default;
+basic_stream<Derived,Exec>::~basic_stream()
+{
+	if( m_native )
+		__delete_native();
+}
+
+template <typename Derived, concept_execution Exec>
+basic_stream<Derived,Exec>::basic_stream(basic_stream &&other) noexcept :
+	base_t(std::move(other)), m_native(other.m_native)
+{
+	other.m_native = nullptr;
+}
+
+template <typename Derived, concept_execution Exec>
+basic_stream<Derived,Exec> &basic_stream<Derived,Exec>::operator=(basic_stream &&other) noexcept
+{
+	base_t::operator=(std::move(other));
+	m_native = other.m_native;
+	other.m_native = nullptr;
+	return *this;
+}
 
 template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
@@ -480,15 +500,6 @@ awaitable<size_t> basic_stream<Derived,Exec>::write_some(buffer<std::string_view
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::external_reference(auto *native)
-{
-	m_ext_ref = true;
-	delete &this->derived().native();
-	m_native = native;
-	return this->derived();
-}
-
-template <typename Derived, concept_execution Exec>
 awaitable<size_t> basic_stream<Derived,Exec>::_read_data
 (buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept
 {
@@ -575,6 +586,12 @@ awaitable<size_t> basic_stream<Derived,Exec>::_write_data
 		m_write_cancel = false;
 	}
 	co_return buf.size;
+}
+
+template <typename Derived, concept_execution Exec>
+void basic_stream<Derived,Exec>::__delete_native()
+{
+	derived_t::_delete_native(m_native);
 }
 
 } //namespace libgs::io

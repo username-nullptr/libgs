@@ -36,24 +36,24 @@ namespace libgs::io
 {
 
 template <typename Stream, typename Derived>
-class basic_ssl_stream;
+class ssl_stream;
 
 template <typename Derived, concept_execution Exec = asio::any_io_executor>
 class LIBGS_IO_TAPI basic_stream : public device_base<crtp_derived_t<Derived,basic_stream<Derived,Exec>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_stream)
-	using base_type = device_base<crtp_derived_t<Derived,basic_stream>,Exec>;
 
 public:
-	using executor_t = base_type::executor_t;
-	using derived_t = crtp_derived_t<Derived, basic_stream>;
+	using derived_t = crtp_derived_t<Derived,basic_stream>;
+	using base_t = device_base<derived_t,Exec>;
+	using executor_t = base_t::executor_t;
 
 public:
 	basic_stream(auto *native, const executor_t &exec);
 	~basic_stream() override = 0;
 
-	basic_stream(basic_stream &&other) noexcept = default;
-	basic_stream &operator=(basic_stream &&other) noexcept = default;
+	basic_stream(basic_stream &&other) noexcept;
+	basic_stream &operator=(basic_stream &&other) noexcept;
 
 public:
 	derived_t &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
@@ -95,9 +95,6 @@ public:
  *  [[nodiscard]] const native_type &native() const noexcept;
  *  [[nodiscard]] native_type &native() noexcept;
 **/
-public:
-	derived_t &external_reference(auto *native);
-
 protected:
 	awaitable<size_t> _read_data
 	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept;
@@ -107,8 +104,14 @@ protected:
 
 	bool m_write_cancel = false;
 	bool m_read_cancel = false;
-	bool m_ext_ref = false;
+
+	std::function<void(void*)> m_delete_helper;
 	void *m_native;
+
+private:
+	template <typename Stream, typename Derived0>
+	friend class ssl_stream;
+	void __delete_native();
 };
 
 } //namespace libgs::io

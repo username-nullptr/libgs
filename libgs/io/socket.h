@@ -39,15 +39,16 @@ template <typename Derived, concept_execution Exec = asio::any_io_executor>
 class LIBGS_IO_TAPI basic_socket : public basic_stream<crtp_derived_t<Derived,basic_socket<Derived,Exec>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_socket)
-	using base_type = basic_stream<crtp_derived_t<Derived,basic_socket>,Exec>;
 
 public:
-	using executor_t = base_type::executor_t;
-	using derived_t = crtp_derived_t<Derived, basic_socket>;
+	using derived_t = crtp_derived_t<Derived,basic_socket>;
+	using base_t = basic_stream<derived_t,Exec>;
+
+	using executor_t = base_t::executor_t;
 	using address_vector = std::vector<ip_address>;
 
 public:
-	using base_type::basic_stream;
+	using basic_stream<derived_t,Exec>::basic_stream;
 	~basic_socket() override = 0;
 
 	basic_socket(basic_socket &&other) noexcept = default;

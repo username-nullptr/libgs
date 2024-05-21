@@ -67,10 +67,10 @@ awaitable<void> basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<
 	auto addr = ip_address::from_string(ep.host, error);
 
 	if( not error )
-		co_await connect({addr, ep.port}, std::move(tk));
+		co_await connect({addr, ep.port}, tk);
 	else
 	{
-		auto no_time_out = [&]() mutable -> awaitable<error_code>
+		auto _connect = [&]() mutable -> awaitable<error_code>
 		{
 			auto addrs = co_await dns(std::move(ep.host), error);
 			if( error)
@@ -86,10 +86,10 @@ awaitable<void> basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<
 		};
 		using namespace std::chrono_literals;
 		if( tk.rtime == 0s )
-			error = co_await no_time_out();
+			error = co_await _connect();
 		else
 		{
-			auto var = co_await (no_time_out() or co_sleep_for(tk.rtime));
+			auto var = co_await (_connect() or co_sleep_for(tk.rtime));
 			if( var.index() == 1 )
 				error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
 		}

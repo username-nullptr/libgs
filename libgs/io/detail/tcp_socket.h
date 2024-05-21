@@ -35,7 +35,7 @@ namespace libgs::io
 template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
 basic_tcp_socket<Exec,Derived>::basic_tcp_socket(Context &context) :
-	base_type(new native_t(context), context.get_executor()),
+	base_t(new native_t(context), context.get_executor()),
 	m_resolver(context)
 {
 
@@ -44,7 +44,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(Context &context) :
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
 basic_tcp_socket<Exec,Derived>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native) :
-	base_type(new native_t(std::move(native)), this->native().get_executor()),
+	base_t(new native_t(std::move(native)), this->native().get_executor()),
 	m_resolver(this->native().get_executor())
 {
 
@@ -52,7 +52,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&
 
 template <concept_execution Exec, typename Derived>
 basic_tcp_socket<Exec,Derived>::basic_tcp_socket(const executor_t &exec) :
-	base_type(new native_t(exec), exec),
+	base_t(new native_t(exec), exec),
 	m_resolver(exec)
 {
 
@@ -63,8 +63,23 @@ basic_tcp_socket<Exec,Derived>::~basic_tcp_socket()
 {
 	error_code error;
 	close(error);
-	if( this->m_ext_ref )
-		delete &native();
+}
+
+template <concept_execution Exec, typename Derived>
+basic_tcp_socket<Exec,Derived>::basic_tcp_socket(basic_tcp_socket &&other) noexcept :
+	base_t(std::move(other)),
+	m_resolver(std::move(other.m_resolver))
+{
+	other.m_native = new native_t(this->executor());
+}
+
+template <concept_execution Exec, typename Derived>
+basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(basic_tcp_socket &&other) noexcept
+{
+	base_t::operator=(std::move(other));
+	other.m_native = new native_t(this->executor());
+	m_resolver = std::move(other.m_resolver);
+	return *this;
 }
 
 template <concept_execution Exec, typename Derived>
@@ -118,7 +133,7 @@ ip_endpoint basic_tcp_socket<Exec,Derived>::local_endpoint(no_time_token tk) con
 {
 	error_code error;
 	auto ep = native().local_endpoint(error);
-	detail::check_error(tk.error, error, "libgs::io::tcp_socket::local_endpoint");
+	detail::check_error(tk.error, error, "libgs::io::Tcp_socket::local_endpoint");
 	return {ep.address(), ep.port()};
 }
 
@@ -237,13 +252,13 @@ size_t basic_tcp_socket<Exec,Derived>::write_buffer_size() const noexcept
 template <concept_execution Exec, typename Derived>
 const typename basic_tcp_socket<Exec,Derived>::native_t &basic_tcp_socket<Exec,Derived>::native() const noexcept
 {
-	return reinterpret_cast<const native_t&>(this->m_native);
+	return *reinterpret_cast<const native_t*>(this->m_native);
 }
 
 template <concept_execution Exec, typename Derived>
 typename basic_tcp_socket<Exec,Derived>::native_t &basic_tcp_socket<Exec,Derived>::native() noexcept
 {
-	return reinterpret_cast<native_t&>(this->m_native);
+	return *reinterpret_cast<native_t*>(this->m_native);
 }
 
 template <concept_execution Exec, typename Derived>
@@ -256,6 +271,12 @@ template <concept_execution Exec, typename Derived>
 typename basic_tcp_socket<Exec,Derived>::resolver_t &basic_tcp_socket<Exec,Derived>::resolver() noexcept
 {
 	return m_resolver;
+}
+
+template <concept_execution Exec, typename Derived>
+void basic_tcp_socket<Exec,Derived>::_delete_native(void *native)
+{
+	delete reinterpret_cast<native_t*>(native);
 }
 
 } //namespace libgs::io

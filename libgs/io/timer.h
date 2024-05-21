@@ -51,11 +51,11 @@ template <concept_execution Exec, typename Derived = void>
 class LIBGS_IO_TAPI basic_timer : public device_base<crtp_derived_t<Derived,basic_timer<Exec,Derived>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_timer)
-	using base_type = device_base<crtp_derived_t<Derived,basic_timer>,Exec>;
 
 public:
+	using derived_t = crtp_derived_t<Derived,basic_timer>;
+	using base_type = device_base<derived_t,Exec>;
 	using executor_t = base_type::executor_t;
-	using derived_t = crtp_derived_t<Derived, basic_timer>;
 
 	using time_point = asio_steady_timer::time_point;
 	using duration = asio_steady_timer::duration;

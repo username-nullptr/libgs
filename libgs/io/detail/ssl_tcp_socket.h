@@ -26,43 +26,13 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_DEVICE_BASE_H
-#define LIBGS_IO_DEVICE_BASE_H
-
-#include <libgs/io/types/opt_token.h>
+#ifndef LIBGS_IO_DETAIL_SSL_TCP_SOCKET_H
+#define LIBGS_IO_DETAIL_SSL_TCP_SOCKET_H
 
 namespace libgs::io
 {
 
-template <typename Derived, concept_execution Exec = asio::any_io_executor>
-class LIBGS_IO_TAPI device_base
-{
-	LIBGS_DISABLE_COPY(device_base)
-	using bool_ptr = std::shared_ptr<std::atomic_bool>;
-
-public:
-	using executor_t = Exec;
-	using derived_t = crtp_derived_t<Derived,device_base>;
-
-public:
-	explicit device_base(const executor_t &exec);
-	virtual ~device_base() = 0;
-
-	device_base(device_base &&other) noexcept;
-	device_base &operator=(device_base &&other) noexcept;
-
-public:
-	executor_t &executor() const;
-	const derived_t &derived() const;
-	derived_t &derived();
-
-protected:
-	mutable Exec m_exec;
-	bool_ptr m_valid;
-};
-
 } //namespace libgs::io
-#include <libgs/io/detail/device_base.h>
 
 
-#endif //LIBGS_IO_DEVICE_BASE_H
+#endif //LIBGS_IO_DETAIL_SSL_TCP_SOCKET_H

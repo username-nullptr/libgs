@@ -56,15 +56,15 @@ namespace io
 {
 
 template <typename Stream, typename Derived = void>
-class LIBGS_IO_TAPI basic_ssl_stream :
-	public basic_stream<crtp_derived_t<Derived,basic_ssl_stream<Stream,Derived>>, typename Stream::executor_t>
+class LIBGS_IO_TAPI ssl_stream :
+	public basic_stream<crtp_derived_t<Derived,ssl_stream<Stream,Derived>>, typename Stream::executor_t>
 {
-	LIBGS_DISABLE_COPY(basic_ssl_stream)
-	using base_type = basic_stream<crtp_derived_t<Derived,basic_ssl_stream>, typename Stream::executor_t>;
+	LIBGS_DISABLE_COPY(ssl_stream)
 
 public:
 	using executor_t = typename Stream::executor_t;
-	using derived_t = crtp_derived_t<Derived, basic_ssl_stream>;
+	using derived_t = crtp_derived_t<Derived,ssl_stream>;
+	using base_t = basic_stream<derived_t, typename Stream::executor_t>;
 
 	using next_layer_t = Stream;
 	using native_next_layer_t = typename next_layer_t::native_t;
@@ -74,31 +74,33 @@ public:
 
 public:
 	template <concept_execution_context Context>
-	basic_ssl_stream(Context &context, ssl::context &ssl);
+	ssl_stream(Context &context, ssl::context &ssl);
 
-	basic_ssl_stream(const executor_t &exec, ssl::context &ssl);
-	basic_ssl_stream(next_layer_t &&next_layer, ssl::context &ssl);
-	explicit basic_ssl_stream(ssl::context &ssl);
+	ssl_stream(const executor_t &exec, ssl::context &ssl);
+	ssl_stream(next_layer_t &&next_layer, ssl::context &ssl);
+	explicit ssl_stream(ssl::context &ssl);
 
 	template <typename NativeNextLayer>
-	basic_ssl_stream(NativeNextLayer &&native, ssl::context &ssl) requires requires { native_next_layer_t(std::move(native)); };
+	ssl_stream(NativeNextLayer &&native, ssl::context &ssl) requires requires { native_next_layer_t(std::move(native)); };
 
-	basic_ssl_stream(native_t &&native);
-	~basic_ssl_stream() override;
+	ssl_stream(native_t &&native);
+	~ssl_stream() override;
 
 public:
-	basic_ssl_stream(basic_ssl_stream &&other) noexcept = default;
-	basic_ssl_stream &operator=(basic_ssl_stream &&other) noexcept = default;
+	ssl_stream(ssl_stream &&other) noexcept = default;
+	ssl_stream &operator=(ssl_stream &&other) noexcept = default;
 
 	template <typename NativeNextLayer>
-	basic_ssl_stream &operator=(NativeNextLayer &&native) requires requires { (typename Stream::native_t)(std::move(native)); };
-	basic_ssl_stream &operator=(native_t &&native);
+	ssl_stream &operator=(NativeNextLayer &&native) requires requires { (typename Stream::native_t)(std::move(native)); };
+	ssl_stream &operator=(native_t &&native);
 
 public:
 	derived_t &handshake(handshake_type type, opt_token<callback_t<error_code>> tk);
 	awaitable<void> handshake(handshake_type type, opt_token<error_code&> tk = {});
 
-	derived_t &close(no_time_token tk = {});
+	derived_t &wave(opt_token<callback_t<error_code>> tk);
+	awaitable<void> wave(opt_token<error_code&> tk = {});
+
 	derived_t &cancel() noexcept;
 
 public:
@@ -120,10 +122,14 @@ public:
 
 protected:
 	bool m_handshake_cancel = false;
+	bool m_wave_cancel = false;
 	next_layer_t m_next_layer;
-};
 
-using ssl_stream = basic_ssl_stream<asio::any_io_executor>;
+private:
+	friend class basic_stream<ssl_stream,executor_t>;
+	static void _delete_native(void *native);
+	void next_layer_ext();
+};
 
 }} //namespace libgs::io
 #include <libgs/io/detail/ssl_stream.h>
