@@ -62,7 +62,7 @@ struct LIBGS_IO_VAPI no_time_token
 {
 	error_code *error = nullptr;
 	no_time_token(error_code &error);
-	no_time_token();
+	no_time_token() = default;
 };
 
 } //namespace libgs::io

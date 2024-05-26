@@ -74,33 +74,33 @@ class basic_response_helper<CharT>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 	using fpos_t = std::ifstream::pos_type;
 
-	using helper_type = basic_response_helper<CharT>;
-	using str_list_type = basic_string_list<CharT>;
+	using helper_t = basic_response_helper<CharT>;
+	using string_list_t = basic_string_list<CharT>;
 
 	using key_static_string = detail::_key_static_string<CharT>;
 	using static_string = detail::_response_helper_static_string<CharT>;
 
 public:
-	explicit impl(helper_type *q_ptr) : q_ptr(q_ptr) {}
-	impl(helper_type *q_ptr, str_view_type version, const headers_type &request_headers) :
+	explicit impl(helper_t *q_ptr) : q_ptr(q_ptr) {}
+	impl(helper_t *q_ptr, string_view_t version, const headers_t &request_headers) :
 		q_ptr(q_ptr), m_version(version), m_request_headers(request_headers) {}
 
 public:
 	[[nodiscard]] awaitable<size_t> write_header(size_t body_size, error_code &error)
 	{
 		m_headers_writed = true;
-		auto it = m_response_headers.find(header_type::content_length);
+		auto it = m_response_headers.find(header_t::content_length);
 
 		if( it == m_response_headers.end() )
 		{
 			if( stoi32(m_version) > 1.0 )
 			{
-				it = m_response_headers.find(header_type::transfer_encoding);
+				it = m_response_headers.find(header_t::transfer_encoding);
 				if( it == m_response_headers.end() or str_to_lower(it->second.to_string()) != key_static_string::chunked )
-					q_ptr->set_header(header_type::content_length, body_size);
+					q_ptr->set_header(header_t::content_length, body_size);
 			}
 			else
-				q_ptr->set_header(header_type::content_length, body_size);
+				q_ptr->set_header(header_t::content_length, body_size);
 		}
 		std::string buf;
 		buf.reserve(4096);
@@ -169,7 +169,7 @@ public:
 		try {
 			if( ranges.empty() )
 			{
-				auto it = m_request_headers.find(header_type::range);
+				auto it = m_request_headers.find(header_t::range);
 				if( it != m_request_headers.end() )
 					res = co_await range_transfer(file_name, file, it->second.to_string(), error);
 				else
@@ -177,7 +177,7 @@ public:
 			}
 			else
 			{
-				str_type range_text = static_string::bytes_start;
+				string_t range_text = static_string::bytes_start;
 				for(auto &range : ranges)
 				{
 					if( range.begin >= range.end )
@@ -207,7 +207,7 @@ private:
 		if( stoi32(m_version) < 1.1 )
 			return false;
 
-		auto it = m_request_headers.find(header_type::transfer_encoding);
+		auto it = m_request_headers.find(header_t::transfer_encoding);
 		return it != m_request_headers.end() and str_to_lower(it->second.to_string()) == key_static_string::chunked;
 	}
 
@@ -224,7 +224,7 @@ private:
 		if( file_size == 0 )
 			co_return 0;
 
-		q_ptr->set_header(header_type::content_type, mbstoxx<CharT>(mime_type));
+		q_ptr->set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
 		auto sum = co_await write_header(file_size, error);
 		if( error )
 			co_return sum;
@@ -256,10 +256,10 @@ private:
 		std::size_t size = 0;
 	};
 
-	bool range_parsing(std::string_view file_name, str_view_type range_str, range_value &rv)
+	bool range_parsing(std::string_view file_name, string_view_t range_str, range_value &rv)
 	{
 		rv.size = 0;
-		auto list = str_list_type::from_string(range_str, '-', false);
+		auto list = string_list_t::from_string(range_str, '-', false);
 
 		if( list.size() > 2 )
 		{
@@ -423,9 +423,9 @@ private:
 		co_return sum;
 	}
 
-	awaitable<size_t> range_transfer(std::string_view file_name, std::ifstream &file, str_view_type _range_str, error_code &error)
+	awaitable<size_t> range_transfer(std::string_view file_name, std::ifstream &file, string_view_t _range_str, error_code &error)
 	{
-		str_type range_str(_range_str.data(), _range_str.size());
+		string_t range_str(_range_str.data(), _range_str.size());
 		for(auto i=range_str.size(); i>0; i--)
 		{
 			if( range_str[i] == 0x20/*SPACE*/ )
@@ -453,7 +453,7 @@ private:
 		}
 
 		// (x-y) ( m-n) ( i-j) ...
-		auto range_list = str_list_type::from_string(range_list_str, 0x2C/*,*/);
+		auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
 		auto mime_type = get_mime_type(file_name);
 
 		q_ptr->set_status(status::partial_content);
@@ -469,10 +469,10 @@ private:
 				q_ptr->set_status(status::range_not_satisfiable);
 				co_return co_await m_writer(std::format("{} ({})", to_status_description(m_status), m_status), error);
 			}
-			q_ptr->set_header(header_type::accept_ranges , static_string::bytes)
-					.set_header(header_type::content_type  , mime_type)
-					.set_header(header_type::content_length, range_value.size)
-					.set_header(header_type::content_range , {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
+			q_ptr->set_header(header_t::accept_ranges , static_string::bytes)
+				  .set_header(header_t::content_type  , mime_type)
+				  .set_header(header_t::content_length, range_value.size)
+				  .set_header(header_t::content_range , {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
 
 			co_return co_await send_range(file, "", "", range_value_list, error);
 		} // if( rangeList.size() == 1 )
@@ -480,7 +480,7 @@ private:
 		using namespace std::chrono;
 		auto boundary = std::format("{}_{}", __func__, duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 
-		q_ptr->set_header(header_type::content_type, static_string::content_type_boundary + boundary);
+		q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + boundary);
 
 		auto ct_line = std::format("{}: {}", header::content_type, mime_type);
 		std::size_t content_length = 0;
@@ -519,25 +519,25 @@ private:
 		}
 		content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
 
-		q_ptr->set_header(header_type::content_length, content_length)
-				.set_header(header_type::accept_ranges , static_string::bytes);
+		q_ptr->set_header(header_t::content_length, content_length)
+			  .set_header(header_t::accept_ranges , static_string::bytes);
 
 		co_return co_await send_range(file, boundary, ct_line, range_value_list, error);
 	}
 
 public:
-	helper_type *q_ptr;
-	str_view_type m_version = key_static_string::v_1_1;
-	const headers_type &m_request_headers;
+	helper_t *q_ptr;
+	string_view_t m_version = key_static_string::v_1_1;
+	const headers_t &m_request_headers;
 
 	http::status m_status = status::ok;
-	headers_type m_response_headers {
-		{ header_type::content_type, static_string::content_type }
+	headers_t m_response_headers {
+		{ header_t::content_type, static_string::content_type }
 	};
-	cookies_type m_cookies;
-	value_list_type m_chunk_attributes;
+	cookies_t m_cookies;
+	value_list_t m_chunk_attributes;
 
-	str_type m_redirect_url;
+	string_t m_redirect_url;
 	write_callback m_writer {};
 	std::function<size_t()> m_get_write_buffer_size {};
 
@@ -546,7 +546,7 @@ public:
 };
 
 template <concept_char_type CharT>
-basic_response_helper<CharT>::basic_response_helper(str_view_type version, const headers_type &request_headers) :
+basic_response_helper<CharT>::basic_response_helper(string_view_t version, const headers_t &request_headers) :
 	m_impl(new impl(this, version, request_headers))
 {
 
@@ -590,34 +590,34 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(http::sta
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(str_view_type key, value_type value) noexcept
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(string_view_t key, value_t value) noexcept
 {
 	m_impl->m_response_headers[str_to_lower(key)] = std::move(value);
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(str_view_type key, cookie_type cookie) noexcept
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(string_view_t key, cookie_t cookie) noexcept
 {
 	m_impl->m_cookies[str_to_lower(key)] = std::move(cookie);
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect(str_view_type url, redirect_type type)
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect(string_view_t url, redirect type)
 {
 	switch(type)
 	{
-#define X_MACRO(e,v) case redirect_type::e : set_status(v); break;
+#define X_MACRO(e,v) case redirect::e : set_status(v); break;
 		LIBGS_HTTP_REDIRECT_TYPE_TABLE
 #undef X_MACRO
 		default: throw runtime_error("libgs::http::response_helper::redirect: Invalid redirect type: '{}'.", type);
 	}
-	return set_header(header_type::location, {url.data(), url.size()});
+	return set_header(header_t::location, {url.data(), url.size()});
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(value_type attribute)
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(value_t attribute)
 {
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
@@ -627,7 +627,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes(value_list_type attributes)
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes(value_list_t attributes)
 {
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
@@ -731,19 +731,19 @@ awaitable<size_t> basic_response_helper<CharT>::write(std::string_view file_name
 }
 
 template <concept_char_type CharT>
-awaitable<size_t> basic_response_helper<CharT>::chunk_end(opt_token<const headers_type&, error_code&> tk)
+awaitable<size_t> basic_response_helper<CharT>::chunk_end(opt_token<const headers_t&, error_code&> tk)
 {
 	if( not m_impl->m_headers_writed )
 		throw runtime_error("libgs::http::response_helper::chunk_end: Http header hasn't been send.");
 
-	auto it = m_impl->m_response_headers.find(header_type::content_length);
+	auto it = m_impl->m_response_headers.find(header_t::content_length);
 	if( it != m_impl->m_request_headers.end() )
 		throw runtime_error("libgs::http::response_helper::chunk_end: 'Content-Length' has been set.");
 
 	else if( m_impl->m_chunk_end_writed )
 		throw runtime_error("libgs::http::response_helper::chunk_end: Chunk has been written.");
 
-	it = m_impl->m_response_headers.find(header_type::transfer_encoding);
+	it = m_impl->m_response_headers.find(header_t::transfer_encoding);
 	if( it == m_impl->m_response_headers.end() or str_to_lower(it->second) != detail::_response_helper_static_string<CharT>::chunked )
 		throw runtime_error("libgs::http::response_helper::chunk_end: 'Transfer-Coding: chunked' not set.");
 
@@ -791,13 +791,13 @@ http::status basic_response_helper<CharT>::status() const noexcept
 }
 
 template <concept_char_type CharT>
-const typename basic_response_helper<CharT>::headers_type &basic_response_helper<CharT>::headers() const noexcept
+const typename basic_response_helper<CharT>::headers_t &basic_response_helper<CharT>::headers() const noexcept
 {
 	return m_impl->m_response_headers;
 }
 
 template <concept_char_type CharT>
-const typename basic_response_helper<CharT>::cookies_type &basic_response_helper<CharT>::cookies() const noexcept
+const typename basic_response_helper<CharT>::cookies_t &basic_response_helper<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }
@@ -815,21 +815,21 @@ bool basic_response_helper<CharT>::chunk_end_writed() const noexcept
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(str_view_type key)
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_response_headers.erase({key.data(), key.size()});
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(str_view_type key)
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(string_view_t key)
 {
 	m_impl->m_cookies.erase({key.data(), key.size()});
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(const value_type &attributes)
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(const value_t &attributes)
 {
 	m_impl->m_chunk_attributes.erase(attributes);
 	return *this;
@@ -842,7 +842,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 	m_impl->m_status = status::ok;
 
 	m_impl->m_response_headers = {
-		{ header_type::content_type, detail::_response_helper_static_string<CharT>::content_type }
+		{ header_t::content_type, detail::_response_helper_static_string<CharT>::content_type }
 	};
 	m_impl->m_cookies.clear();
 	m_impl->m_chunk_attributes.clear();

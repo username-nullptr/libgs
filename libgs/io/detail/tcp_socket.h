@@ -44,10 +44,10 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(Context &context) :
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
 basic_tcp_socket<Exec,Derived>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native) :
-	base_t(new native_t(std::move(native)), this->native().get_executor()),
-	m_resolver(this->native().get_executor())
+	base_t(new native_t(native.get_executor()), native.get_executor()),
+	m_resolver(native.get_executor())
 {
-
+	this->native() = std::move(native);
 }
 
 template <concept_execution Exec, typename Derived>
@@ -138,7 +138,8 @@ ip_endpoint basic_tcp_socket<Exec,Derived>::local_endpoint(no_time_token tk) con
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::set_option(const socket_option &op, no_time_token tk)
+typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::set_option
+(const socket_option &op, no_time_token tk)
 {
 	using namespace asio;
 	error_code error;
@@ -185,7 +186,8 @@ typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derive
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::get_option(socket_option op, no_time_token tk) const
+typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::get_option
+(socket_option op, no_time_token tk)
 {
 	using namespace asio;
 	error_code error;
@@ -229,6 +231,13 @@ typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derive
 	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
 	detail::check_error(tk.error, error, "libgs::io::tcp_socket::local_endpoint");
 	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+const typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::get_option
+(socket_option op, no_time_token tk) const
+{
+	return remove_const(this)->get_option(op,tk);
 }
 
 template <concept_execution Exec, typename Derived>

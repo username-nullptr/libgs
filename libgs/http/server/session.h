@@ -47,17 +47,17 @@ class LIBGS_HTTP_TAPI basic_session :
 	protected detail::session_base<CharT>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_session)
-	using base_type = detail::session_base<CharT>;
+	using base_t = detail::session_base<CharT>;
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
 	using duration = std::chrono::duration<Rep,Period>;
 	using time_point = decltype(std::chrono::system_clock::now());
 
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
-	using value_type = basic_value<CharT>;
-	using attributes_type = basic_session_attributes<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
+	using value_t = basic_value<CharT>;
+	using attributes_t = basic_session_attributes<CharT>;
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
@@ -67,19 +67,19 @@ public:
 	virtual ~basic_session();
 
 public:
-	[[nodiscard]] str_view_type id() const noexcept;
+	[[nodiscard]] string_view_t id() const noexcept;
 	[[nodiscard]] time_point create_time() const noexcept;
 	[[nodiscard]] bool is_valid() const noexcept;
 
 public:
-	[[nodiscard]] std::any attribute(str_view_type key) const;
-	[[nodiscard]] std::any attribute_or(str_view_type key, std::any default_value = {}) const noexcept;
-	[[nodiscard]] const attributes_type &attributes() const noexcept;
+	[[nodiscard]] std::any attribute(string_view_t key) const;
+	[[nodiscard]] std::any attribute_or(string_view_t key, std::any default_value = {}) const noexcept;
+	[[nodiscard]] const attributes_t &attributes() const noexcept;
 
 public:
-	basic_session &set_attribute(str_view_type key, const std::any &value);
-	basic_session &set_attribute(str_view_type key, std::any &&value);
-	basic_session &unset_attribute(str_view_type key);
+	basic_session &set_attribute(string_view_t key, const std::any &value);
+	basic_session &set_attribute(string_view_t key, std::any &&value);
+	basic_session &unset_attribute(string_view_t key);
 
 public:
 	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
@@ -103,32 +103,32 @@ public:
 		requires detail::can_construct<basic_session<CharT>, Args...>;
 
 	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get_or_make(str_view_type id, Args&&...args)
+	static std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
 		requires detail::can_construct<Session, Args...>;
 
 	template <typename...Args>
-	static std::shared_ptr<basic_session> get_or_make(str_view_type id, Args&&...args) noexcept
+	static std::shared_ptr<basic_session> get_or_make(string_view_t id, Args&&...args) noexcept
 		requires detail::can_construct<basic_session<CharT>, Args...>;
 
 public:
 	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get(str_view_type id);
+	static std::shared_ptr<Session> get(string_view_t id);
 
 	template <typename...Args>
-	static std::shared_ptr<basic_session> get(str_view_type id);
+	static std::shared_ptr<basic_session> get(string_view_t id);
 
 	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get_or(str_view_type id);
+	static std::shared_ptr<Session> get_or(string_view_t id);
 
 	template <typename...Args>
-	static std::shared_ptr<basic_session> get_or(str_view_type id) noexcept;
+	static std::shared_ptr<basic_session> get_or(string_view_t id) noexcept;
 
 public:
-	static void set_cookie_key(str_type key);
-	static str_view_type cookie_key() noexcept;
+	static void set_cookie_key(string_t key);
+	static string_view_t cookie_key() noexcept;
 
 private:
-	static std::shared_ptr<basic_session> _find(str_view_type id, bool _throw = true);
+	static std::shared_ptr<basic_session> _find(string_view_t id, bool _throw = true);
 	auto _emplace();
 	void _erase();
 

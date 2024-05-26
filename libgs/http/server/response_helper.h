@@ -38,67 +38,66 @@ template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_response_helper
 {
 	LIBGS_DISABLE_COPY(basic_response_helper)
-	using this_type = basic_response_helper;
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
-	using value_type = basic_value<CharT>;
-	using value_list_type = basic_value_list<CharT>;
+	using value_t = basic_value<CharT>;
+	using value_list_t = basic_value_list<CharT>;
 
-	using header_type = basic_header<CharT>;
-	using headers_type = basic_headers<CharT>;
+	using header_t = basic_header<CharT>;
+	using headers_t = basic_headers<CharT>;
 
-	using cookie_type = basic_cookie<CharT>;
-	using cookies_type = basic_cookies<CharT>;
+	using cookie_t = basic_cookie<CharT>;
+	using cookies_t = basic_cookies<CharT>;
 
 	template <typename T>
 	using buffer = io::buffer<T>;
 
 public:
-	explicit basic_response_helper(str_view_type version, const headers_type &request_headers);
+	explicit basic_response_helper(string_view_t version, const headers_t &request_headers);
 	~basic_response_helper();
 
 	basic_response_helper(basic_response_helper &&other) noexcept ;
 	basic_response_helper &operator=(basic_response_helper &&other) noexcept;
 
 public:
-	this_type &set_status(uint32_t status);
-	this_type &set_status(http::status status);
+	basic_response_helper &set_status(uint32_t status);
+	basic_response_helper &set_status(http::status status);
 
-	this_type &set_header(str_view_type key, value_type value) noexcept;
-	this_type &set_cookie(str_view_type key, cookie_type cookie) noexcept;
+	basic_response_helper &set_header(string_view_t key, value_t value) noexcept;
+	basic_response_helper &set_cookie(string_view_t key, cookie_t cookie) noexcept;
 
-	this_type &set_redirect(str_view_type url, redirect_type type = redirect_type::moved_permanently);
+	basic_response_helper &set_redirect(string_view_t url, redirect type = redirect::moved_permanently);
 
-	this_type &set_chunk_attribute(value_type attribute);
-	this_type &set_chunk_attributes(value_list_type attributes);
+	basic_response_helper &set_chunk_attribute(value_t attribute);
+	basic_response_helper &set_chunk_attributes(value_list_t attributes);
 
 public:
 	using write_callback = std::function<awaitable<size_t>(std::string_view,error_code&)>;
-	this_type &on_write(write_callback writer, std::function<size_t()> get_write_buffer_size = {});
+	basic_response_helper &on_write(write_callback writer, std::function<size_t()> get_write_buffer_size = {});
 
 	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> body, opt_token<error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> write(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_type&, error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_t&, error_code&> tk = {});
 
 public:
-	[[nodiscard]] str_view_type version() const noexcept;
+	[[nodiscard]] string_view_t version() const noexcept;
 	[[nodiscard]] http::status status() const noexcept;
 
-	[[nodiscard]] const headers_type &headers() const noexcept;
-	[[nodiscard]] const cookies_type &cookies() const noexcept;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
 	[[nodiscard]] bool headers_writed() const noexcept;
 	[[nodiscard]] bool chunk_end_writed() const noexcept;
 
 public:
-	this_type &unset_header(str_view_type key);
-	this_type &unset_cookie(str_view_type key);
-	this_type &unset_chunk_attribute(const value_type &attributes);
-	this_type &reset();
+	basic_response_helper &unset_header(string_view_t key);
+	basic_response_helper &unset_cookie(string_view_t key);
+	basic_response_helper &unset_chunk_attribute(const value_t &attributes);
+	basic_response_helper &reset();
 
 private:
 	class impl;

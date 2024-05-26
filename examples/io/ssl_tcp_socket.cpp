@@ -7,6 +7,7 @@ int main()
 {
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
+#if 0
 		libgs::ssl_context ssl(libgs::ssl_context::sslv3_client);
 		libgs::io::ssl_tcp_socket socket(ssl);
 
@@ -18,7 +19,7 @@ int main()
 			co_await socket.write("hello world");
 
 			char buf[128] = "";
-			auto size = co_await socket.read({buf,128});
+			auto size = co_await socket.read_some({buf,128});
 
 			libgs_log_debug("tcp_socket read: {}.", std::string_view(buf,size));
 			libgs::execution::exit();
@@ -28,6 +29,7 @@ int main()
 			libgs_log_error("tcp_socket error: {}.", ex);
 			libgs::execution::exit(-1);
 		}
+#endif
 		co_return ;
 	});
 	return libgs::execution::exec();

@@ -29,7 +29,7 @@ int main()
 	libgs::io::timer timer;
 	libgs_log_debug("timer start.");
 
-	timer.async_wait({2s, [](const std::error_code &error)
+	timer.wait({2s, [](const std::error_code &error)
 	{
 		libgs_log_debug("timer finished. ({})", error);
 		libgs::execution::exit(-error.value());

@@ -1,35 +1,61 @@
 #include <libgs/core/log.h>
-#include <libgs/io/ssl_tcp_socket.h>
-#include <libgs/io/timer.h>
+#include <libgs/http/server.h>
+// #include <libgs/io/ssl_tcp_socket.h>
+// #include <libgs/io/tcp_server.h>
+// #include <libgs/io/timer.h>
 
 using namespace std::chrono_literals;
 
 int main()
 {
-	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
+	libgs::http::server server;
+	server.bind({libgs::io::address_v4(),12345})
+
+	.on_request<libgs::http::method::GET>("/*",
+	[](libgs::http::server::context &context) -> libgs::awaitable<void>
 	{
-		libgs::ssl::context sslc(libgs::ssl::context::sslv23_client);
-		libgs::io::ssl_stream<libgs::io::tcp_socket> ssl_stream(sslc);
+		auto &request = context.request();
+		libgs_log_debug("Version:{} - Method:{} - Path:{}",
+						request.version(),
+						libgs::http::to_method_string(request.method()),
+						request.path());
 
-		// std::error_code error;
-		// co_await socket.co_connect({"127.0.0.1", 6688}, {10s, error});
-		try {
-			co_await ssl_stream.next_layer().connect({"192.168.10.108", 6688}, 10s);
-			co_await ssl_stream.handshake(libgs::ssl::stream_base::client, 10s);
-			co_await ssl_stream.write("hello world");
+		for(auto &[key,value] : request.parameters())
+			libgs_log_debug("Parameter: {}: {}", key, value);
 
-			char buf[128] = "";
-			auto size = co_await ssl_stream.read_some({buf,128});
+		for(auto &[key,value] : request.headers())
+			libgs_log_debug("Header: {}: {}", key, value);
 
-			libgs_log_debug("tcp_socket read: {}.", std::string_view(buf,size));
-			libgs::execution::exit();
-		}
-		catch(std::exception &ex)
-		{
-			libgs_log_error("tcp_socket error: {}.", ex);
-			libgs::execution::exit(-1);
-		}
+		for(auto &[key,value] : request.cookies())
+			libgs_log_debug("Cookie: {}: {}", key, value);
+
+		if( request.can_read_body() )
+			libgs_log_debug("partial_body: {}\n", co_await request.read_all());
+
+		// If you don't write anything, the server will write the default body for you
+		// co_await context.response().write("hello world");
 		co_return ;
-	});
+	})
+	.on_request<libgs::http::method::GET>("/hello",
+	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	{
+//		co_await context.response().write("hello world !!!");
+		co_await context.response().send_file("C:/Users/Administrator/Desktop/hello_world.txt");
+	})
+	.on_exception([](libgs::http::server::context&, std::exception &ex)
+	{
+		libgs_log_error() << "=====" << ex;
+//		return false; // Returning false will result in abort !!!
+		return true;
+	})
+	.on_system_error([](std::error_code error)
+	{
+		libgs_log_error() << "--------" << error;
+		libgs::execution::exit(-1);
+		return true;
+	})
+	.start();
+
+	libgs_log_error("Server started.");
 	return libgs::execution::exec();
 }

@@ -82,10 +82,10 @@ public:
 
 public:
 	basic_session *q_ptr = nullptr;
-	const str_type m_id = basic_uuid<CharT>::generate();
+	const string_t m_id = basic_uuid<CharT>::generate();
 	time_point m_create_time = std::chrono::system_clock::now();
 
-	attributes_type m_attributes {};
+	attributes_t m_attributes {};
 	std::atomic<uint64_t> m_second;
 
 	std::atomic_bool m_valid = false;
@@ -134,7 +134,7 @@ bool basic_session<CharT>::is_valid() const noexcept
 }
 
 template <concept_char_type CharT>
-std::any basic_session<CharT>::attribute(str_view_type key) const
+std::any basic_session<CharT>::attribute(string_view_t key) const
 {
 	auto it = m_impl->m_attributes.find({key.data(), key.size()});
 	if( it == m_impl->m_attributes.end() )
@@ -143,7 +143,7 @@ std::any basic_session<CharT>::attribute(str_view_type key) const
 }
 
 template <concept_char_type CharT>
-std::any basic_session<CharT>::attribute_or(str_view_type key, std::any default_value) const noexcept
+std::any basic_session<CharT>::attribute_or(string_view_t key, std::any default_value) const noexcept
 {
 	auto it = m_impl->m_attributes.find({key.data(), key.size()});
 	return it == m_impl->m_attributes.end() ? std::move(default_value) : it->second;
@@ -156,21 +156,21 @@ const basic_session_attributes<CharT> &basic_session<CharT>::attributes() const 
 }
 
 template <concept_char_type CharT>
-basic_session<CharT> &basic_session<CharT>::set_attribute(str_view_type key, const std::any &value)
+basic_session<CharT> &basic_session<CharT>::set_attribute(string_view_t key, const std::any &value)
 {
 	m_impl->m_attributes[{key.data(), key.size()}] = value;
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_session<CharT> &basic_session<CharT>::set_attribute(str_view_type key, std::any &&value)
+basic_session<CharT> &basic_session<CharT>::set_attribute(string_view_t key, std::any &&value)
 {
 	m_impl->m_attributes[{key.data(), key.size()}] = std::move(value);
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_session<CharT> &basic_session<CharT>::unset_attribute(str_view_type key)
+basic_session<CharT> &basic_session<CharT>::unset_attribute(string_view_t key)
 {
 	m_impl->m_attributes.erase(key);
 	return *this;
@@ -251,7 +251,7 @@ basic_session_ptr<CharT> basic_session<CharT>::make(Args&&...args) noexcept
 
 template <concept_char_type CharT>
 template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::get_or_make(str_view_type id, Args&&...args)
+std::shared_ptr<Session> basic_session<CharT>::get_or_make(string_view_t id, Args&&...args)
 	requires detail::can_construct<Session, Args...>
 {
 	auto ptr = _find(id, false);
@@ -266,7 +266,7 @@ std::shared_ptr<Session> basic_session<CharT>::get_or_make(str_view_type id, Arg
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get_or_make(str_view_type id, Args&&...args) noexcept
+basic_session_ptr<CharT> basic_session<CharT>::get_or_make(string_view_t id, Args&&...args) noexcept
 	requires detail::can_construct<basic_session<CharT>, Args...>
 {
 	auto ptr = _find(id, false);
@@ -277,7 +277,7 @@ basic_session_ptr<CharT> basic_session<CharT>::get_or_make(str_view_type id, Arg
 
 template <concept_char_type CharT>
 template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::get(str_view_type id)
+std::shared_ptr<Session> basic_session<CharT>::get(string_view_t id)
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(_find(id));
 	if( not ptr )
@@ -287,14 +287,14 @@ std::shared_ptr<Session> basic_session<CharT>::get(str_view_type id)
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get(str_view_type id)
+basic_session_ptr<CharT> basic_session<CharT>::get(string_view_t id)
 {
 	return _find(id);
 }
 
 template <concept_char_type CharT>
 template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::get_or(str_view_type id)
+std::shared_ptr<Session> basic_session<CharT>::get_or(string_view_t id)
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(_find(id, false));
 	if( not ptr )
@@ -304,32 +304,32 @@ std::shared_ptr<Session> basic_session<CharT>::get_or(str_view_type id)
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get_or(str_view_type id) noexcept
+basic_session_ptr<CharT> basic_session<CharT>::get_or(string_view_t id) noexcept
 {
 	return _find(id, false);
 }
 
 template <concept_char_type CharT>
-void basic_session<CharT>::set_cookie_key(str_type key)
+void basic_session<CharT>::set_cookie_key(string_t key)
 {
 	if( key.empty() )
 		throw runtime_error("libgs::http::session::set_cookie_key: key is empty.", xxtombs<CharT>(key));
-	base_type::cookie_key() = std::move(key);
+	base_t::cookie_key() = std::move(key);
 }
 
 template <concept_char_type CharT>
 std::basic_string_view<CharT> basic_session<CharT>::cookie_key() noexcept
 {
-	return base_type::cookie_key();
+	return base_t::cookie_key();
 }
 
 template <concept_char_type CharT>
-basic_session_ptr<CharT> basic_session<CharT>::_find(str_view_type id, bool _throw)
+basic_session_ptr<CharT> basic_session<CharT>::_find(string_view_t id, bool _throw)
 {
-	shared_lock locker(base_type::map_rwlock()); LIBGS_UNUSED(locker);
-	auto it = base_type::session_map().find(id);
+	shared_lock locker(base_t::map_rwlock()); LIBGS_UNUSED(locker);
+	auto it = base_t::session_map().find(id);
 
-	if( it == base_type::session_map().end() )
+	if( it == base_t::session_map().end() )
 	{
 		if( _throw )
 			throw runtime_error("libgs::http::session: <map>: id '{}' not exists.", xxtombs<CharT>(id));
@@ -342,18 +342,18 @@ basic_session_ptr<CharT> basic_session<CharT>::_find(str_view_type id, bool _thr
 template <concept_char_type CharT>
 auto basic_session<CharT>::_emplace()
 {
-	base_type::map_rwlock().lock();
-	auto pair = base_type::session_map().emplace(id(), this->shared_from_this());
-	base_type::map_rwlock().unlock();
+	base_t::map_rwlock().lock();
+	auto pair = base_t::session_map().emplace(id(), this->shared_from_this());
+	base_t::map_rwlock().unlock();
 	return pair;
 }
 
 template <concept_char_type CharT>
 void basic_session<CharT>::_erase()
 {
-	base_type::map_rwlock().lock();
-	base_type::session_map().erase(id());
-	base_type::map_rwlock().unlock();
+	base_t::map_rwlock().lock();
+	base_t::session_map().erase(id());
+	base_t::map_rwlock().unlock();
 }
 
 } //namespace libgs::http

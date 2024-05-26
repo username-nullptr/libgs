@@ -40,13 +40,13 @@ class LIBGS_HTTP_TAPI basic_request_parser
 	LIBGS_DISABLE_COPY(basic_request_parser)
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
-	using cookies_type = basic_cookie_values<CharT>;
-	using header_type = basic_header<CharT>;
-	using headers_type = basic_headers<CharT>;
-	using parameters_type = basic_parameters<CharT>;
+	using cookies_t = basic_cookie_values<CharT>;
+	using header_t = basic_header<CharT>;
+	using headers_t = basic_headers<CharT>;
+	using parameters_t = basic_parameters<CharT>;
 
 public:
 	explicit basic_request_parser(size_t init_buf_size = 0xFFFF);
@@ -62,13 +62,13 @@ public:
 
 public:
 	[[nodiscard]] http::method method() const noexcept;
-	[[nodiscard]] str_view_type path() const noexcept;
-	[[nodiscard]] str_view_type version() const noexcept;
+	[[nodiscard]] string_view_t path() const noexcept;
+	[[nodiscard]] string_view_t version() const noexcept;
 
 public:
-	[[nodiscard]] const parameters_type &parameters() const noexcept;
-	[[nodiscard]] const headers_type &headers() const noexcept;
-	[[nodiscard]] const cookies_type &cookies() const noexcept;
+	[[nodiscard]] const parameters_t &parameters() const noexcept;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
 public:
 	[[nodiscard]] bool keep_alive() const;

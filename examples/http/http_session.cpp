@@ -9,13 +9,13 @@ int main()
 	server.bind({libgs::io::address_v4(),12345})
 
 	.on_request<libgs::http::method::GET>("/*",
-	[](libgs::http::service_context &context) -> libgs::awaitable<void>
+	[](libgs::http::server::context &context) -> libgs::awaitable<void>
 	{
 		auto session = context.session();
 		libgs_log_debug("session: '{}': <{}>", session->id(), session);
 		co_return ;
 	})
-	.on_exception([](libgs::http::service_context&, std::exception &ex)
+	.on_exception([](libgs::http::server::context&, std::exception &ex)
 	{
 		libgs_log_error() << ex;
 		return true;

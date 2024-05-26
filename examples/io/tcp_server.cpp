@@ -2,10 +2,10 @@
 #include <libgs/io/tcp_server.h>
 
 #if 0
-void do_read(libgs::io::tcp_socket_ptr socket, libgs::io::ip_endpoint ep)
+void do_read(libgs::io::tcp_server::socket_ptr socket, libgs::io::ip_endpoint ep)
 {
 	auto buf = std::make_shared<char[4096]>();
-	socket->read({buf.get(),4096}, [
+	socket->read_some({buf.get(),4096}, [
 		socket = std::move(socket), ep = std::move(ep), buf = std::move(buf)
 	](std::size_t size, const std::error_code &error)
 	{
@@ -21,7 +21,7 @@ void do_read(libgs::io::tcp_socket_ptr socket, libgs::io::ip_endpoint ep)
 
 void do_accept(libgs::io::tcp_server &server)
 {
-	server.accept([&server](libgs::io::tcp_socket_ptr socket, const std::error_code &error)
+	server.accept([&server](libgs::io::tcp_server::socket_ptr socket, const std::error_code &error)
 	{
 		if( error )
 		{
@@ -57,7 +57,7 @@ int main()
 						char buf[4096] = "";
 						for(;;)
 						{
-							auto res = co_await socket->read({buf,4096});
+							auto res = co_await socket->read_some({buf,4096});
 							if( res == 0 )
 								break;
 							libgs_log_debug("read ({}): {}", res, std::string_view(buf, res));

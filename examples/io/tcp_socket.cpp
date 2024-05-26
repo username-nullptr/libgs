@@ -17,7 +17,7 @@ int main()
 			co_await socket.write("hello world");
 
 			char buf[128] = "";
-			auto size = co_await socket.read({buf,128});
+			auto size = co_await socket.read_some({buf,128});
 
 			libgs_log_debug("tcp_socket read: {}.", std::string_view(buf,size));
 			libgs::execution::exit();
@@ -46,7 +46,7 @@ int main()
 				libgs::execution::exit(-error.value());
 			}
 			auto buf = std::make_shared<char[128]>();
-			socket.read({buf.get(),128}, [buf = std::move(buf)](size_t size, const std::error_code &error)
+			socket.read_some({buf.get(),128}, [buf = std::move(buf)](size_t size, const std::error_code &error)
 			{
 				if( error )
 				{

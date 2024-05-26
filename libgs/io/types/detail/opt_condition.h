@@ -74,11 +74,6 @@ inline no_time_token::no_time_token(error_code &error) :
 
 }
 
-inline no_time_token::no_time_token()
-{
-
-}
-
 } //namespace libgs::io
 
 

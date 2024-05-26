@@ -78,7 +78,7 @@ class LIBGS_HTTP_API session_base<char> : public session_duration_base
 	using ptr = std::shared_ptr<basic_session<char>>;
 	friend class basic_session<char>;
 
-private: //
+private: 
 	session_base() = default;
 	static std::string &cookie_key() noexcept;
 	static std::map<std::string_view, ptr> &session_map() noexcept;
@@ -91,7 +91,7 @@ template <> class LIBGS_HTTP_API session_base<wchar_t> : public session_duration
 	using ptr = std::shared_ptr<basic_session<wchar_t>>;
 	friend class basic_session<wchar_t>;
 
-private: //
+private: 
 	session_base() = default;
 	static std::wstring &cookie_key() noexcept;
 	static std::map<std::wstring_view, ptr> &session_map() noexcept;

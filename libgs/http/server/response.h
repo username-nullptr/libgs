@@ -36,86 +36,93 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class LIBGS_HTTP_VAPI basic_server_response : public io::device_base<Exec>
+template <typename Request, concept_char_type CharT, typename Derived = void>
+class LIBGS_HTTP_VAPI basic_server_response :
+	public io::device_base<crtp_derived_t<Derived,basic_server_response<Request,CharT,Derived>>, typename Request::executor_t>
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_server_response)
-	using base_type = io::device_base<Exec>;
-	using this_type = basic_server_response;
+	LIBGS_DISABLE_COPY(basic_server_response)
 
 public:
-	using executor_type = typename base_type::executor_type;
-	using request = basic_server_request<CharT,Exec>;
-	using request_ptr = basic_server_request_ptr<CharT,Exec>;
-	using helper_type = basic_response_helper<CharT>;
+	using next_layer_t = Request;
+	using executor_t = typename next_layer_t::executor_t;
 
-	using str_type = typename request::str_type;
-	using str_view_type = typename request::str_view_type;
-	using socket_ptr = typename request::socket_ptr;
+	using derived_t = crtp_derived_t<Derived,basic_server_response>;
+	using base_t = io::device_base<derived_t,executor_t>;
 
-	using headers_type = typename request::headers_type;
-	using cookie_type = basic_cookie<CharT>;
-	using cookies_type = basic_cookies<CharT>;
+	using helper_t = basic_response_helper<CharT>;
+	using string_t = typename next_layer_t::string_t;
+	using string_view_t = typename next_layer_t::string_view_t;
 
-	using value_type = typename request::value_type;
-	using value_list_type = basic_value_list<CharT>;
+	using headers_t = typename next_layer_t::headers_t;
+	using cookie_t = basic_cookie<CharT>;
+	using cookies_t = basic_cookies<CharT>;
+
+	using value_t = typename next_layer_t::value_t;
+	using value_list_t = basic_value_list<CharT>;
 
 	template <typename T>
 	using buffer = io::buffer<T>;
 
 public:
-	explicit basic_server_response(request_ptr request);
+	explicit basic_server_response(next_layer_t &&next_layer);
 	~basic_server_response();
 
-public:
-	this_type &set_status(uint32_t status);
-	this_type &set_status(http::status status);
+	basic_server_response(basic_server_response &&other) noexcept;
+	basic_server_response &operator=(basic_server_response &&other) noexcept;
 
-	this_type &set_header(str_view_type key, value_type value);
-	this_type &set_cookie(str_view_type key, cookie_type cookie);
+public:
+	derived_t &set_status(uint32_t status);
+	derived_t &set_status(http::status status);
+
+	derived_t &set_header(string_view_t key, value_t value);
+	derived_t &set_cookie(string_view_t key, cookie_t cookie);
 
 public:
 	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
-	[[nodiscard]] awaitable<size_t> redirect(str_view_type url, opt_token<redirect_type,error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> redirect(string_view_t url, opt_token<http::redirect,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> send_file(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
 
 public:
-	this_type &set_chunk_attribute(value_type attribute);
-	this_type &set_chunk_attributes(value_list_type attributes);
-	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_type&, error_code&> tk = {});
+	derived_t &set_chunk_attribute(value_t attribute);
+	derived_t &set_chunk_attributes(value_list_t attributes);
+	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_t&, error_code&> tk = {});
 
 public:
-	[[nodiscard]] str_view_type version() const noexcept;
+	[[nodiscard]] string_view_t version() const noexcept;
 	[[nodiscard]] http::status status() const noexcept;
 
-	[[nodiscard]] const headers_type &headers() const noexcept;
-	[[nodiscard]] const cookies_type &cookies() const noexcept;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
 	[[nodiscard]] bool headers_writed() const noexcept;
 	[[nodiscard]] bool chunk_end_writed() const noexcept;
 
-	void cancel() noexcept override;
+	derived_t &cancel() noexcept;
 
 public:
-	this_type &unset_header(str_view_type key);
-	this_type &unset_cookie(str_view_type key);
-	this_type &unset_chunk_attribute(const value_type &attribute);
+	derived_t &unset_header(string_view_t key);
+	derived_t &unset_cookie(string_view_t key);
+	derived_t &unset_chunk_attribute(const value_t &attribute);
+
+public:
+	const next_layer_t &next_layer() const noexcept;
+	next_layer_t &next_layer() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using server_response = basic_server_response<char>;
-using server_wresponse = basic_server_response<wchar_t>;
+template <concept_execution Exec>
+using basic_tcp_server_response = basic_server_response<basic_tcp_server_request<Exec>,char>;
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_server_response_ptr = std::shared_ptr<basic_server_response<CharT,Exec>>;
+template <concept_execution Exec>
+using basic_tcp_server_wresponse = basic_server_response<basic_tcp_server_request<Exec>,wchar_t>;
 
-using server_response_ptr = std::shared_ptr<basic_server_response<char>>;
-using server_wresponse_ptr = std::shared_ptr<basic_server_response<char>>;
+using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
+using tcp_server_wresponse = basic_tcp_server_wresponse<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/response.h>

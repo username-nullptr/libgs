@@ -75,14 +75,14 @@ template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_cookie
 {
 public:
-	using str_type = std::basic_string<CharT>;
-	using value_type = basic_value<CharT>;
-	using attribute_type = basic_cookie_attribute<CharT>;
-	using attributes_type = basic_cookie_attributes<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using value_t = basic_value<CharT>;
+	using attribute_t = basic_cookie_attribute<CharT>;
+	using attributes_t = basic_cookie_attributes<CharT>;
 
 public:
 	basic_cookie();
-	basic_cookie(value_type v);
+	basic_cookie(value_t v);
 
 	basic_cookie(const basic_cookie &other) = default;
 	basic_cookie &operator=(const basic_cookie &other) = default;
@@ -91,19 +91,19 @@ public:
 	virtual ~basic_cookie() = default;
 
 public:
-	basic_cookie &set_value(value_type v) noexcept;
-	basic_cookie &operator=(value_type v) noexcept;
+	basic_cookie &set_value(value_t v) noexcept;
+	basic_cookie &operator=(value_t v) noexcept;
 
 public:
-	[[nodiscard]] const value_type &value() const noexcept;
-	[[nodiscard]] value_type &value() noexcept;
+	[[nodiscard]] const value_t &value() const noexcept;
+	[[nodiscard]] value_t &value() noexcept;
 
-	operator const value_type&() const noexcept;
-	operator value_type&() noexcept;
+	operator const value_t&() const noexcept;
+	operator value_t&() noexcept;
 
 public:
-	[[nodiscard]] str_type domain() const;
-	[[nodiscard]] str_type path() const;
+	[[nodiscard]] string_t domain() const;
+	[[nodiscard]] string_t path() const;
 	[[nodiscard]] size_t size() const;
 
 	[[nodiscard]] uint64_t expires() const;
@@ -112,12 +112,12 @@ public:
 	[[nodiscard]] bool http_only() const;
 	[[nodiscard]] bool secure() const;
 
-	[[nodiscard]] str_type same_site() const;
-	[[nodiscard]] str_type priority() const;
+	[[nodiscard]] string_t same_site() const;
+	[[nodiscard]] string_t priority() const;
 
 public:
-	[[nodiscard]] str_type domain_or(str_type default_value = {}) const noexcept;
-	[[nodiscard]] str_type path_or(str_type default_value = {}) const noexcept;
+	[[nodiscard]] string_t domain_or(string_t default_value = {}) const noexcept;
+	[[nodiscard]] string_t path_or(string_t default_value = {}) const noexcept;
 	[[nodiscard]] size_t size_or(size_t default_value = 0) const noexcept;
 
 	[[nodiscard]] uint64_t expires_or(uint64_t default_value = 0) const noexcept;
@@ -126,12 +126,12 @@ public:
 	[[nodiscard]] bool http_only_or(bool default_value = false) const noexcept;
 	[[nodiscard]] bool secure_or(bool default_value = false) const noexcept;
 
-	[[nodiscard]] str_type same_site_or(str_type default_value = {}) const noexcept;
-	[[nodiscard]] str_type priority_or(str_type default_value = {}) const noexcept;
+	[[nodiscard]] string_t same_site_or(string_t default_value = {}) const noexcept;
+	[[nodiscard]] string_t priority_or(string_t default_value = {}) const noexcept;
 
 public:
-	basic_cookie &set_domain(str_type domain);
-	basic_cookie &set_path(str_type path);
+	basic_cookie &set_domain(string_t domain);
+	basic_cookie &set_path(string_t path);
 	basic_cookie &set_size(size_t size);
 
 	basic_cookie &set_expires(uint64_t seconds);
@@ -140,8 +140,8 @@ public:
 	basic_cookie &set_http_only(bool flag);
 	basic_cookie &set_secure(bool flag);
 
-	basic_cookie &set_same_site(str_type sst);
-	basic_cookie &set_priority(str_type pt);
+	basic_cookie &set_same_site(string_t sst);
+	basic_cookie &set_priority(string_t pt);
 
 public:
 	basic_cookie &unset_domain();
@@ -158,24 +158,24 @@ public:
 	basic_cookie &unset_priority();
 
 public:
-	[[nodiscard]] value_type attributes(const str_type &key) const;
-	[[nodiscard]] value_type attributes_or(const str_type &key, value_type default_value = {}) const noexcept;
-	basic_cookie &set_attribute(str_type key, value_type v);
-	basic_cookie &unset_attribute(const str_type &key);
+	[[nodiscard]] value_t attributes(const string_t &key) const;
+	[[nodiscard]] value_t attributes_or(const string_t &key, value_t default_value = {}) const noexcept;
+	basic_cookie &set_attribute(string_t key, value_t v);
+	basic_cookie &unset_attribute(const string_t &key);
 
 	template <typename T>
-	[[nodiscard]] T attributes(const str_type &key) const
-		requires std::is_arithmetic_v<T> or std::is_same_v<T,str_type>;
+	[[nodiscard]] T attributes(const string_t &key) const
+		requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>;
 
 	template <typename T>
-	[[nodiscard]] T attributes_or(const str_type &key, T default_value = {}) const noexcept
-		requires std::is_arithmetic_v<T> or std::is_same_v<T,str_type>;
+	[[nodiscard]] T attributes_or(const string_t &key, T default_value = {}) const noexcept
+		requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>;
 
-	[[nodiscard]] attributes_type attributes() const noexcept;
+	[[nodiscard]] attributes_t attributes() const noexcept;
 
 protected:
-	value_type m_value;
-	attributes_type m_attributes;
+	value_t m_value;
+	attributes_t m_attributes;
 };
 
 using cookie = basic_cookie<char>;

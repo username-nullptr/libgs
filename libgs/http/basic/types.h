@@ -139,14 +139,14 @@ X_MACRO( temporary_redirect , static_cast<int>(status::temporary_redirect) ) \
 X_MACRO( multiple_choices   , static_cast<int>(status::multiple_choices  ) ) \
 X_MACRO( not_modified       , static_cast<int>(status::not_modified      ) )
 
-enum class redirect_type
+enum class redirect
 {
 #define X_MACRO(e,v) e=(v),
 	LIBGS_HTTP_REDIRECT_TYPE_TABLE
 #undef X_MACRO
 };
-LIBGS_HTTP_VAPI void redirect_type_check(uint32_t type);
-LIBGS_HTTP_VAPI void redirect_type_check(redirect_type type);
+LIBGS_HTTP_VAPI void redirect_check(uint32_t type);
+LIBGS_HTTP_VAPI void redirect_check(redirect type);
 
 template <status>
 struct status_description

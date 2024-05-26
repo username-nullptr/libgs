@@ -78,13 +78,13 @@ struct opt_token<begin_t,total_t,T> : opt_token<T>
 };
 
 template <typename T>
-struct opt_token<http::redirect_type,T> : opt_token<T>
+struct opt_token<http::redirect,T> : opt_token<T>
 {
 	using opt_token<T>::opt_token;
-	http::redirect_type type = http::redirect_type::moved_permanently;
+	http::redirect type = http::redirect::moved_permanently;
 
 	template <typename...Args>
-	opt_token(http::redirect_type type, Args&&...args) requires io::concept_opt_token<T,Args...>;
+	opt_token(http::redirect type, Args&&...args) requires io::concept_opt_token<T,Args...>;
 };
 
 template <typename T>

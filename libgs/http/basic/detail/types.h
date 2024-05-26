@@ -68,21 +68,21 @@ inline void method_check(method m)
 	}
 }
 
-inline void redirect_type_check(uint32_t type)
+inline void redirect_check(uint32_t type)
 {
-	redirect_type_check(static_cast<redirect_type>(type));
+	redirect_check(static_cast<redirect>(type));
 }
 
-inline void redirect_type_check(redirect_type type)
+inline void redirect_check(redirect type)
 {
 	switch(type)
 	{
-#define X_MACRO(e,v) case redirect_type::e:
+#define X_MACRO(e,v) case redirect::e:
 		LIBGS_HTTP_REDIRECT_TYPE_TABLE
 #undef X_MACRO
 			break;
 		default:
-			throw runtime_error("libgs::http::redirect_type_check: Invalid redirect type: '{}'.", type);
+			throw runtime_error("libgs::http::redirect_check: Invalid redirect type: '{}'.", type);
 	}
 }
 

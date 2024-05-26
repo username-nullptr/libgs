@@ -40,8 +40,8 @@ namespace libgs::http
 template <concept_char_type CharT>
 struct LIBGS_HTTP_TAPI basic_less_case_insensitive
 {
-	using str_type = std::basic_string<CharT>;
-	bool operator()(const str_type &v1, const str_type &v2) const;
+	using string_t = std::basic_string<CharT>;
+	bool operator()(const string_t &v1, const string_t &v2) const;
 };
 
 using less_case_insensitive = basic_less_case_insensitive<char>;

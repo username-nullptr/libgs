@@ -32,25 +32,25 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_aop<CharT,Exec>::~basic_aop() = default;
+template <typename Stream, concept_char_type CharT>
+basic_aop<Stream,CharT>::~basic_aop() = default;
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<bool> basic_aop<CharT,Exec>::before(context_type &context)
+template <typename Stream, concept_char_type CharT>
+awaitable<bool> basic_aop<Stream,CharT>::before(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<bool> basic_aop<CharT,Exec>::after(context_type &context)
+template <typename Stream, concept_char_type CharT>
+awaitable<bool> basic_aop<Stream,CharT>::after(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_aop<CharT,Exec>::exception(context_type &context, std::exception &ex)
+template <typename Stream, concept_char_type CharT>
+bool basic_aop<Stream,CharT>::exception(context_t &context, std::exception &ex)
 {
 	ignore_unused(context, ex);
 	return false;
@@ -59,18 +59,18 @@ bool basic_aop<CharT,Exec>::exception(context_type &context, std::exception &ex)
 namespace detail
 {
 
-template <typename CharT, typename Exec, typename...Args>
+template <typename Stream, typename CharT, typename...Args>
 concept concept_aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_aop_ptr<CharT,Exec>> { basic_aop_ptr<CharT,Exec>(std::forward<Args>(args))... };
+	std::vector<basic_aop_ptr<Stream,CharT>> { basic_aop_ptr<Stream,CharT>(std::forward<Args>(args))... };
 };
 
-template <typename CharT, typename Exec, typename...Args>
+template <typename Stream, typename CharT, typename...Args>
 concept concept_ctrlr_aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_ctrlr_aop_ptr<CharT,Exec>> { basic_ctrlr_aop_ptr<CharT,Exec>(std::forward<Args>(args))... };
+	std::vector<basic_ctrlr_aop_ptr<Stream,CharT>> { basic_ctrlr_aop_ptr<Stream,CharT>(std::forward<Args>(args))... };
 };
 
-template <typename Func, typename CharT, typename Exec>
-concept concept_request_handler = requires(Func &&func, basic_service_context<CharT,Exec> &context) {
+template <typename Func, typename Stream, typename CharT>
+concept concept_request_handler = requires(Func &&func, basic_service_context<Stream,CharT> &context) {
 	std::is_same_v<awaitable_return_type_t<decltype(func(context))>,void>;
 };
 

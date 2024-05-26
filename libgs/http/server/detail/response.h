@@ -32,177 +32,219 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec>
-class basic_server_response<CharT, Exec>::impl
+template <typename Request, concept_char_type CharT, typename Derived>
+class basic_server_response<Request,CharT,Derived>::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(impl)
 
 public:
-	explicit impl(request_ptr request) :
-		m_helper(request->version(), request->headers()),
-		m_request(std::move(request))
-	{
+	explicit impl(next_layer_t &&next_layer) :
+		m_helper(next_layer.version(), next_layer.headers()),
+		m_next_layer(std::move(next_layer)) {}
 
-	}
+	impl(impl &&other) noexcept = default;
+	impl &operator=(impl &&other) noexcept = default;
 
 public:
-	helper_type m_helper;
-	request_ptr m_request {};
+	helper_t m_helper;
+	next_layer_t m_next_layer;
 };
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec>::basic_server_response(request_ptr request) :
-	io::device_base<Exec>(request->executor())
+template <typename Request, concept_char_type CharT, typename Derived>
+basic_server_response<Request,CharT,Derived>::basic_server_response(next_layer_t &&next_layer) :
+	base_t(next_layer.executor()), m_impl(new impl(std::move(next_layer)))
 {
-	if( request->m_impl->m_bound )
-		throw runtime_error("libgs::http::server::response: The 'request' has been occupied by another 'response'");
-
-	m_impl = new impl(std::move(request));
 	m_impl->m_helper.on_write([this](std::string_view buf, error_code &error) -> awaitable<size_t> {
-		co_return co_await m_impl->m_request->m_impl->m_socket->write(buf, error);
+		co_return co_await m_impl->m_next_layer.next_layer().write(buf, error);
 	});
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec>::~basic_server_response()
+template <typename Request, concept_char_type CharT, typename Derived>
+basic_server_response<Request,CharT,Derived>::~basic_server_response()
 {
-	m_impl->m_request->m_impl->m_bound = false;
 	delete m_impl;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_status(uint32_t status)
+template <typename Request, concept_char_type CharT, typename Derived>
+basic_server_response<Request,CharT,Derived>::basic_server_response(basic_server_response &&other) noexcept :
+	base_t(std::move(other)), m_impl(new impl(std::move(*other.m_impl)))
 {
-	m_impl->m_helper.set_status(status);
-	return *this;
+
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_status(http::status status)
+template <typename Request, concept_char_type CharT, typename Derived>
+basic_server_response<Request,CharT,Derived> &basic_server_response<Request,CharT,Derived>::operator=
+(basic_server_response &&other) noexcept
 {
-	m_impl->m_helper.set_status(status);
-	return *this;
+	base_t::operator=(std::move(other));
+	*m_impl = std::move(*other.m_impl);
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_header(str_view_type key, value_type value)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::set_status(uint32_t status)
+{
+	m_impl->m_helper.set_status(status);
+	return this->derived();
+}
+
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::set_status(http::status status)
+{
+	m_impl->m_helper.set_status(status);
+	return this->derived();
+}
+
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::set_header(string_view_t key, value_t value)
 {
 	m_impl->m_helper.set_header(key, std::move(value));
-	return *this;
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_cookie(str_view_type key, cookie_type cookie)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::set_cookie(string_view_t key, cookie_t cookie)
 {
 	m_impl->m_helper.set_cookie(key, std::move(cookie));
-	return *this;
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::write(opt_token<error_code&> tk)
+template <typename Request, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_response<Request,CharT,Derived>::write(opt_token<error_code&> tk)
 {
 	co_return co_await m_impl->m_helper.write(tk);
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::write(buffer<std::string_view> buf, opt_token<error_code&> tk)
+template <typename Request, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_response<Request,CharT,Derived>::write
+(buffer<std::string_view> buf, opt_token<error_code&> tk)
 {
 	co_return co_await m_impl->m_helper.write(buf, tk);
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::redirect(str_view_type url, opt_token<redirect_type,error_code&> tk)
+template <typename Request, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_response<Request,CharT,Derived>::redirect
+(string_view_t url, opt_token<http::redirect,error_code&> tk)
 {
 	co_return co_await m_impl->m_helper.set_redirect(url, tk.type).write(static_cast<opt_token<error_code&>&>(tk));
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_response<CharT,Exec>::send_file(std::string_view file_name, opt_token<ranges,error_code&> tk)
+template <typename Request, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_response<Request,CharT,Derived>::send_file
+(std::string_view file_name, opt_token<ranges,error_code&> tk)
 {
 	co_return co_await m_impl->m_helper.write(file_name, std::move(tk));
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_chunk_attribute(value_type attribute)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::set_chunk_attribute(value_t attribute)
 {
 	m_impl->m_helper.set_chunk_attribute(std::move(attribute));
-	return *this;
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::set_chunk_attributes(value_list_type attributes)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::set_chunk_attributes(value_list_t attributes)
 {
 	m_impl->m_helper.set_chunk_attributes(std::move(attributes));
-	return *this;
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-[[nodiscard]] awaitable<size_t> basic_server_response<CharT,Exec>::chunk_end(opt_token<const headers_type&, error_code&> tk)
+template <typename Request, concept_char_type CharT, typename Derived>
+[[nodiscard]] awaitable<size_t> basic_server_response<Request,CharT,Derived>::chunk_end(opt_token<const headers_t&, error_code&> tk)
 {
 	co_return co_await m_impl->m_helper.chunk_end(tk);
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-typename basic_server_response<CharT,Exec>::str_view_type basic_server_response<CharT,Exec>::version() const noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::string_view_t
+basic_server_response<Request,CharT,Derived>::version() const noexcept
 {
 	return m_impl->m_helper.version();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-http::status basic_server_response<CharT,Exec>::status() const noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+http::status basic_server_response<Request,CharT,Derived>::status() const noexcept
 {
 	return m_impl->m_helper.status();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_response<CharT,Exec>::headers_type &basic_server_response<CharT,Exec>::headers() const noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+const typename basic_server_response<Request,CharT,Derived>::headers_t&
+basic_server_response<Request,CharT,Derived>::headers() const noexcept
 {
 	return m_impl->m_helper.headers();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_response<CharT,Exec>::cookies_type &basic_server_response<CharT,Exec>::cookies() const noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+const typename basic_server_response<Request,CharT,Derived>::cookies_t&
+basic_server_response<Request,CharT,Derived>::cookies() const noexcept
 {
 	return m_impl->m_helper.cookies();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_response<CharT,Exec>::headers_writed() const noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+bool basic_server_response<Request,CharT,Derived>::headers_writed() const noexcept
 {
 	return m_impl->m_helper.headers_writed();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_response<CharT,Exec>::chunk_end_writed() const noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+bool basic_server_response<Request,CharT,Derived>::chunk_end_writed() const noexcept
 {
 	return m_impl->m_helper.chunk_end_writed();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_response<CharT,Exec>::cancel() noexcept
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::cancel() noexcept
 {
-	m_impl->m_request->m_impl->m_socket->cancel();
+	m_impl->m_next_layer->m_impl->m_socket->cancel();
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_header(str_view_type key)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::unset_header(string_view_t key)
 {
 	m_impl->m_helper.unset_header(key);
-	return *this;
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_cookie(str_view_type key)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::unset_cookie(string_view_t key)
 {
 	m_impl->m_helper.unset_cookie(key);
-	return *this;
+	return this->derived();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_response<CharT,Exec> &basic_server_response<CharT,Exec>::unset_chunk_attribute(const value_type &attribute)
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::derived_t&
+basic_server_response<Request,CharT,Derived>::unset_chunk_attribute(const value_t &attribute)
 {
 	m_impl->m_helper.unset_chunk_attribute(std::move(attribute));
-	return *this;
+	return this->derived();
+}
+
+template <typename Request, concept_char_type CharT, typename Derived>
+const typename basic_server_response<Request,CharT,Derived>::next_layer_t&
+basic_server_response<Request,CharT,Derived>::next_layer() const noexcept
+{
+	return m_impl->m_next_layer;
+}
+
+template <typename Request, concept_char_type CharT, typename Derived>
+typename basic_server_response<Request,CharT,Derived>::next_layer_t&
+basic_server_response<Request,CharT,Derived>::next_layer() noexcept
+{
+	return m_impl->m_next_layer;
 }
 
 } //namespace libgs::http

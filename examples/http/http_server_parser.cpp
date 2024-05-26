@@ -4,14 +4,14 @@
 
 using namespace std::chrono_literals;
 
-libgs::awaitable<void> service(libgs::io::socket_ptr socket, libgs::io::ip_endpoint ep)
+libgs::awaitable<void> service(libgs::io::tcp_server::socket_ptr socket, libgs::io::ip_endpoint ep)
 {
 	libgs::http::request_parser parser;
 	try {
 		char rbuf[4096] = "";
 		for(;;)
 		{
-			auto res = co_await socket->read({rbuf,4096}, 5s);
+			auto res = co_await socket->read_some({rbuf,4096}, 5s);
 			if( res == 0 )
 				break;
 

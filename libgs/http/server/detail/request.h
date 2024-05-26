@@ -37,73 +37,100 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec>
-class basic_server_request<CharT,Exec>::impl
+template <typename Stream, concept_char_type CharT, typename Derived>
+class basic_server_request<Stream,CharT,Derived>::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(impl)
 
 public:
-	template <typename Socket>
-	impl(Socket &&socket, parser_type &parser) :
-		m_socket(std::forward<Socket>(socket)), m_parser(parser) {}
+	template <typename Native>
+	impl(Native &&next_layer, parser_t &parser) :
+		m_next_layer(std::forward<Native>(next_layer)), m_parser(parser) {}
+
+	impl(impl &&other) noexcept :
+		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
+
+	impl &operator=(impl &&other) noexcept
+	{
+		m_next_layer = std::move(other.m_next_layer);
+		return *this;
+	}
 
 public:
-	socket_ptr m_socket {};
-	parser_type &m_parser;
-	bool m_bound = false;
+	next_layer_t m_next_layer;
+	parser_t &m_parser;
 };
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_request<CharT,Exec>::basic_server_request(io::basic_socket_ptr<Exec> socket, parser_type &parser) :
-	base_type(socket->executor()), m_impl(new impl(std::move(socket), parser))
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_server_request<Stream,CharT,Derived>::basic_server_request(next_layer_t &&next_layer, parser_t &parser) :
+	base_t(next_layer.executor()), m_impl(new impl(std::move(next_layer), parser))
 {
 
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_server_request<CharT,Exec>::~basic_server_request()
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_server_request<Stream,CharT,Derived>::~basic_server_request()
 {
 	delete m_impl;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-http::method basic_server_request<CharT,Exec>::method() const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_server_request<Stream,CharT,Derived>::basic_server_request(basic_server_request &&other) noexcept :
+	base_t(std::move(other)), m_impl(new impl(std::move(*other.m_impl)))
+{
+
+}
+
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_server_request<Stream,CharT,Derived> &basic_server_request<Stream,CharT,Derived>::operator=
+(basic_server_request &&other) noexcept
+{
+	base_t::operator=(std::move(other));
+	*m_impl = std::move(*other.m_impl);
+	return this->derived();
+}
+
+template <typename Stream, concept_char_type CharT, typename Derived>
+http::method basic_server_request<Stream,CharT,Derived>::method() const noexcept
 {
 	return m_impl->m_parser.method();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-std::basic_string_view<CharT> basic_server_request<CharT,Exec>::version() const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+std::basic_string_view<CharT> basic_server_request<Stream,CharT,Derived>::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-std::basic_string_view<CharT> basic_server_request<CharT,Exec>::path() const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+std::basic_string_view<CharT> basic_server_request<Stream,CharT,Derived>::path() const noexcept
 {
 	return m_impl->m_parser.path();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_request<CharT,Exec>::parameters_type &basic_server_request<CharT,Exec>::parameters() const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+const typename basic_server_request<Stream,CharT,Derived>::parameters_t&
+basic_server_request<Stream,CharT,Derived>::parameters() const noexcept
 {
 	return m_impl->m_parser.parameters();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_request<CharT,Exec>::headers_type &basic_server_request<CharT,Exec>::headers() const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+const typename basic_server_request<Stream,CharT,Derived>::headers_t&
+basic_server_request<Stream,CharT,Derived>::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const typename basic_server_request<CharT,Exec>::cookies_type &basic_server_request<CharT,Exec>::cookies() const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+const typename basic_server_request<Stream,CharT,Derived>::cookies_t&
+basic_server_request<Stream,CharT,Derived>::cookies() const noexcept
 {
 	return m_impl->m_parser.cookies();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const basic_value<CharT> &basic_server_request<CharT,Exec>::parameter(str_view_type key) const
+template <typename Stream, concept_char_type CharT, typename Derived>
+const basic_value<CharT> &basic_server_request<Stream,CharT,Derived>::parameter(string_view_t key) const
 {
 	auto map = m_impl->m_parser.parameters();
 	auto it = map.find({key.data(), key.size()});
@@ -112,8 +139,8 @@ const basic_value<CharT> &basic_server_request<CharT,Exec>::parameter(str_view_t
 	return it->second;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const basic_value<CharT> &basic_server_request<CharT,Exec>::header(str_view_type key) const
+template <typename Stream, concept_char_type CharT, typename Derived>
+const basic_value<CharT> &basic_server_request<Stream,CharT,Derived>::header(string_view_t key) const
 {
 	auto map = m_impl->m_parser.headers();
 	auto it = map.find({key.data(), key.size()});
@@ -122,8 +149,8 @@ const basic_value<CharT> &basic_server_request<CharT,Exec>::header(str_view_type
 	return it->second;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-const basic_value<CharT> &basic_server_request<CharT,Exec>::cookie(str_view_type key) const
+template <typename Stream, concept_char_type CharT, typename Derived>
+const basic_value<CharT> &basic_server_request<Stream,CharT,Derived>::cookie(string_view_t key) const
 {
 	auto map = m_impl->m_parser.cookies();
 	auto it = map.find({key.data(), key.size()});
@@ -132,32 +159,32 @@ const basic_value<CharT> &basic_server_request<CharT,Exec>::cookie(str_view_type
 	return it->second;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_value<CharT> basic_server_request<CharT,Exec>::parameter_or(str_view_type key, value_type def_value) const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_value<CharT> basic_server_request<Stream,CharT,Derived>::parameter_or(string_view_t key, value_t def_value) const noexcept
 {
 	auto map = m_impl->m_parser.parameters();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_value<CharT> basic_server_request<CharT,Exec>::header_or(str_view_type key, value_type def_value) const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_value<CharT> basic_server_request<Stream,CharT,Derived>::header_or(string_view_t key, value_t def_value) const noexcept
 {
 	auto map = m_impl->m_parser.headers();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-basic_value<CharT> basic_server_request<CharT,Exec>::cookie_or(str_view_type key, value_type def_value) const noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+basic_value<CharT> basic_server_request<Stream,CharT,Derived>::cookie_or(string_view_t key, value_t def_value) const noexcept
 {
 	auto map = m_impl->m_parser.cookies();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_token<error_code&> tk)
+template <typename Stream, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_request<Stream,CharT,Derived>::read(buffer<void*> buf, opt_token<error_code&> tk)
 {
 	error_code error;
 	if( not can_read_body() )
@@ -173,7 +200,7 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_
 	auto lambda_read = [&]() mutable -> awaitable<size_t>
 	{
 		auto dst_buf = reinterpret_cast<char*>(buf.data);
-		auto buf_size = m_impl->m_socket->read_buffer_size();
+		auto buf_size = m_impl->m_next_layer.read_buffer_size();
 		do {
 			auto body = m_impl->m_parser.take_partial_body(buf.size);
 			sum += body.size();
@@ -183,9 +210,9 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_
 				break;
 
 			if( tk.cnl_sig )
-				sum += co_await m_impl->m_socket->read({body, buf_size}, {*tk.cnl_sig, error});
+				sum += co_await m_impl->m_next_layer.read_some({body, buf_size}, {*tk.cnl_sig, error});
 			else
-				sum += co_await m_impl->m_socket->read({body, buf_size}, error);
+				sum += co_await m_impl->m_next_layer.read_some({body, buf_size}, error);
 
 			io::detail::check_error(tk.error, error, "libgs::http::request::read");
 			if( body.empty() or not m_impl->m_parser.append(body) )
@@ -205,8 +232,8 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<void*> buf, opt_
 	co_return sum;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<std::string&> buf, opt_token<error_code&> tk)
+template <typename Stream, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_request<Stream,CharT,Derived>::read(buffer<std::string&> buf, opt_token<error_code&> tk)
 {
 	error_code error;
 	if( not can_read_body() )
@@ -231,9 +258,9 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<std::string&> bu
 
 			body.clear();
 			if( tk.cnl_sig )
-				sum += co_await m_impl->m_socket->read(body, {*tk.cnl_sig, error});
+				sum += co_await m_impl->m_next_layer.read_some(body, {*tk.cnl_sig, error});
 			else
-				sum += co_await m_impl->m_socket->read(body, error);
+				sum += co_await m_impl->m_next_layer.read_some(body, error);
 
 			if( body.empty() or not m_impl->m_parser.append(body) )
 				break;
@@ -252,8 +279,8 @@ awaitable<size_t> basic_server_request<CharT,Exec>::read(buffer<std::string&> bu
 	co_return sum;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<error_code&> tk)
+template <typename Stream, concept_char_type CharT, typename Derived>
+awaitable<std::string> basic_server_request<Stream,CharT,Derived>::read_all(opt_token<error_code&> tk)
 {
 	error_code error;
 	if( not can_read_body() )
@@ -266,13 +293,13 @@ awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<erro
 		*tk.error = std::error_code();
 
 	auto &headers = m_impl->m_parser.headers();
-	auto it = headers.find(header_type::content_length);
+	auto it = headers.find(header_t::content_length);
 
 	size_t buf_size = 0;
 	if( it != headers.end() )
 		buf_size = it->second.template get<size_t>();
 	else
-		buf_size = m_impl->m_socket->read_buffer_size();
+		buf_size = m_impl->m_next_layer.read_buffer_size();
 
 	std::string buf;
 	auto lambda_read = [&]() mutable -> awaitable<size_t>
@@ -283,9 +310,9 @@ awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<erro
 
 			body.clear();
 			if( tk.cnl_sig )
-				co_await m_impl->m_socket->read(body, {*tk.cnl_sig, error});
+				co_await m_impl->m_next_layer.read_some(body, {*tk.cnl_sig, error});
 			else
-				co_await m_impl->m_socket->read(body, error);
+				co_await m_impl->m_next_layer.read_some(body, error);
 
 			if( body.empty() or not m_impl->m_parser.append(body) )
 				break;
@@ -305,8 +332,8 @@ awaitable<std::string> basic_server_request<CharT,Exec>::read_all(opt_token<erro
 	co_return buf;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-awaitable<size_t> basic_server_request<CharT,Exec>::save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk)
+template <typename Stream, concept_char_type CharT, typename Derived>
+awaitable<size_t> basic_server_request<Stream,CharT,Derived>::save_file(const std::string &file_name, opt_token<size_t,size_t,error_code&> tk)
 {
 	if( file_name.empty() )
 	{
@@ -377,49 +404,65 @@ awaitable<size_t> basic_server_request<CharT,Exec>::save_file(const std::string 
 	co_return sum;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_request<CharT,Exec>::keep_alive() const
+template <typename Stream, concept_char_type CharT, typename Derived>
+bool basic_server_request<Stream,CharT,Derived>::keep_alive() const
 {
 	return m_impl->m_parser.keep_alive();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_request<CharT,Exec>::support_gzip() const
+template <typename Stream, concept_char_type CharT, typename Derived>
+bool basic_server_request<Stream,CharT,Derived>::support_gzip() const
 {
 	return m_impl->m_parser.support_gzip();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_request<CharT,Exec>::is_chunked() const
+template <typename Stream, concept_char_type CharT, typename Derived>
+bool basic_server_request<Stream,CharT,Derived>::is_chunked() const
 {
 	if( stoi32(version()) < 1.1 )
 		return false;
-	auto it = m_impl->m_headers.find(header_type::transfer_encoding);
+	auto it = m_impl->m_headers.find(header_t::transfer_encoding);
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::_key_static_string<CharT>::chunked;
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-bool basic_server_request<CharT,Exec>::can_read_body() const
+template <typename Stream, concept_char_type CharT, typename Derived>
+bool basic_server_request<Stream,CharT,Derived>::can_read_body() const
 {
 	return m_impl->m_parser.can_read_body();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-io::ip_endpoint basic_server_request<CharT,Exec>::remote_endpoint() const
+template <typename Stream, concept_char_type CharT, typename Derived>
+io::ip_endpoint basic_server_request<Stream,CharT,Derived>::remote_endpoint() const
 {
-	return m_impl->m_socket->remote_endpoint();
+	return m_impl->m_next_layer.remote_endpoint();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-io::ip_endpoint basic_server_request<CharT,Exec>::local_endpoint() const
+template <typename Stream, concept_char_type CharT, typename Derived>
+io::ip_endpoint basic_server_request<Stream,CharT,Derived>::local_endpoint() const
 {
-	return m_impl->m_socket->local_endpoint();
+	return m_impl->m_next_layer.local_endpoint();
 }
 
-template <concept_char_type CharT, concept_execution Exec>
-void basic_server_request<CharT,Exec>::cancel() noexcept
+template <typename Stream, concept_char_type CharT, typename Derived>
+typename basic_server_request<Stream,CharT,Derived>::derived_t&
+basic_server_request<Stream,CharT,Derived>::cancel() noexcept
 {
-	m_impl->m_socket->cancel();
+	m_impl->m_next_layer.cancel();
+	return this->derived();
+}
+
+template <typename Stream, concept_char_type CharT, typename Derived>
+const typename basic_server_request<Stream,CharT,Derived>::next_layer_t&
+basic_server_request<Stream,CharT,Derived>::next_layer() const noexcept
+{
+	return m_impl->m_next_layer;
+}
+
+template <typename Stream, concept_char_type CharT, typename Derived>
+typename basic_server_request<Stream,CharT,Derived>::next_layer_t&
+basic_server_request<Stream,CharT,Derived>::next_layer() noexcept
+{
+	return m_impl->m_next_layer;
 }
 
 } //namespace libgs::http

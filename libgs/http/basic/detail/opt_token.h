@@ -50,7 +50,7 @@ opt_token<begin_t,total_t,T>::opt_token(size_t begin, size_t total, Args&&...arg
 
 template <typename T>
 template <typename...Args>
-opt_token<http::redirect_type,T>::opt_token(http::redirect_type type, Args&&...args) requires io::concept_opt_token<T,Args...> :
+opt_token<http::redirect,T>::opt_token(http::redirect type, Args&&...args) requires io::concept_opt_token<T,Args...> :
 	opt_token<T>(std::forward<Args>(args)...), type(type)
 {
 

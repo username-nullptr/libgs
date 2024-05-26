@@ -72,11 +72,11 @@ class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 	using static_string = detail::_key_static_string<CharT>;
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using headers_type = basic_headers<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using headers_t = basic_headers<CharT>;
 
-	using cookies_type = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
-	using parameters_type = basic_parameters<CharT>;
+	using cookies_t = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
+	using parameters_t = basic_parameters<CharT>;
 
 public:
 	explicit impl(size_t init_buf_size)
@@ -369,12 +369,12 @@ public:
 	std::string m_src_buf;
 
 	http::method m_method = http::method::GET;
-	str_type m_path;
-	parameters_type m_parameters;
-	str_type m_version;
+	string_t m_path;
+	parameters_t m_parameters;
+	string_t m_version;
 
-	headers_type m_headers;
-	cookies_type m_cookies;
+	headers_t m_headers;
+	cookies_t m_cookies;
 	std::string m_partial_body;
 
 	bool m_keep_alive = true;
@@ -396,7 +396,7 @@ basic_request_parser<CharT>::~basic_request_parser()
 
 template <concept_char_type CharT>
 basic_request_parser<CharT>::basic_request_parser(basic_request_parser &&other) noexcept :
-		m_impl(other.m_impl)
+	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
@@ -494,19 +494,19 @@ std::basic_string_view<CharT> basic_request_parser<CharT>::version() const noexc
 }
 
 template <concept_char_type CharT>
-const typename basic_request_parser<CharT>::parameters_type &basic_request_parser<CharT>::parameters() const noexcept
+const typename basic_request_parser<CharT>::parameters_t &basic_request_parser<CharT>::parameters() const noexcept
 {
 	return m_impl->m_parameters;
 }
 
 template <concept_char_type CharT>
-const typename basic_request_parser<CharT>::headers_type &basic_request_parser<CharT>::headers() const noexcept
+const typename basic_request_parser<CharT>::headers_t &basic_request_parser<CharT>::headers() const noexcept
 {
 	return m_impl->m_headers;
 }
 
 template <concept_char_type CharT>
-const typename basic_request_parser<CharT>::cookies_type &basic_request_parser<CharT>::cookies() const noexcept
+const typename basic_request_parser<CharT>::cookies_t &basic_request_parser<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }

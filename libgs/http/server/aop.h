@@ -34,42 +34,66 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
+template <typename Stream, concept_char_type CharT>
 class basic_aop
 {
 public:
-	using context_type = basic_service_context<CharT,Exec>;
+	using context_t = basic_service_context<Stream,CharT>;
 	virtual ~basic_aop() = 0;
-	virtual awaitable<bool> before(context_type &context);
-	virtual awaitable<bool> after(context_type &context);
-	virtual bool exception(context_type &context, std::exception &ex);
+	virtual awaitable<bool> before(context_t &context);
+	virtual awaitable<bool> after(context_t &context);
+	virtual bool exception(context_t &context, std::exception &ex);
 };
 
-using aop = basic_aop<char>;
-using waop = basic_aop<wchar_t>;
+template <concept_execution Exec>
+using basic_tcp_aop = basic_aop<io::basic_tcp_socket<Exec>,char>;
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_aop_ptr = std::shared_ptr<basic_aop<CharT,Exec>>;
+template <concept_execution Exec>
+using basic_tcp_waop = basic_aop<io::basic_tcp_socket<Exec>,wchar_t>;
 
-using aop_ptr = basic_aop_ptr<char>;
-using waop_ptr = basic_aop_ptr<wchar_t>;
+using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
+using tcp_waop = basic_tcp_waop<asio::any_io_executor>;
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class basic_ctrlr_aop : public basic_aop<CharT, Exec>
+template <typename Stream, concept_char_type CharT>
+using basic_aop_ptr = std::shared_ptr<basic_aop<Stream,CharT>>;
+
+template <concept_execution Exec>
+using basic_tcp_aop_ptr = basic_aop_ptr<io::basic_tcp_socket<Exec>,char>;
+
+template <concept_execution Exec>
+using basic_tcp_waop_ptr = basic_aop_ptr<io::basic_tcp_socket<Exec>,wchar_t>;
+
+using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
+using tcp_waop_ptr = basic_tcp_waop_ptr<asio::any_io_executor>;
+
+template <typename Stream, concept_char_type CharT>
+class basic_ctrlr_aop : public basic_aop<Stream,CharT>
 {
 public:
-	using context_type = basic_service_context<CharT,Exec>;
-	virtual awaitable<void> service(context_type &context) = 0;
+	using context_t = basic_service_context<Stream,CharT>;
+	virtual awaitable<void> service(context_t &context) = 0;
 };
 
-using ctrlr_aop = basic_ctrlr_aop<char>;
-using wctrlr_aop = basic_ctrlr_aop<wchar_t>;
+template <concept_execution Exec>
+using basic_tcp_ctrlr_aop = basic_ctrlr_aop<io::basic_tcp_socket<Exec>,char>;
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<CharT,Exec>>;
+template <concept_execution Exec>
+using basic_tcp_wctrlr_aop = basic_ctrlr_aop<io::basic_tcp_socket<Exec>,wchar_t>;
 
-using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<char>;
-using wctrlr_aop_ptr = basic_ctrlr_aop_ptr<wchar_t>;
+using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
+using tcp_wctrlr_aop = basic_tcp_wctrlr_aop<asio::any_io_executor>;
+
+template <typename Stream, concept_char_type CharT>
+using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Stream,CharT>>;
+
+template <concept_execution Exec>
+using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<io::basic_tcp_socket<Exec>,char>;
+
+template <concept_execution Exec>
+using basic_tcp_wctrlr_aop_ptr = basic_ctrlr_aop_ptr<io::basic_tcp_socket<Exec>,wchar_t>;
+
+using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;
+using tcp_wctrlr_aop_ptr = basic_tcp_wctrlr_aop_ptr<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/aop.h>

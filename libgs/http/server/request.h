@@ -31,58 +31,61 @@
 
 #include <libgs/http/server/request_parser.h>
 #include <libgs/http/basic/opt_token.h>
-#include <libgs/io/socket.h>
+#include <libgs/io/tcp_socket.h>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_execution Exec>
-class basic_server_response;
-
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-class LIBGS_HTTP_TAPI basic_server_request : public io::device_base<Exec>
+template <typename Stream, concept_char_type CharT, typename Derived = void>
+class LIBGS_HTTP_TAPI basic_server_request :
+	public io::device_base<crtp_derived_t<Derived,basic_server_request<Stream,CharT,Derived>>, typename Stream::executor_t>
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_server_request)
-	using base_type = io::device_base<Exec>;
+	LIBGS_DISABLE_COPY(basic_server_request)
 
 public:
-	using executor_type = typename base_type::executor_type;
-	using socket_ptr = io::basic_socket_ptr<Exec>;
-	using parser_type = basic_request_parser<CharT>;
+	using next_layer_t = Stream;
+	using executor_t = typename next_layer_t::executor_t;
 
-	using str_type = typename parser_type::str_type;
-	using str_view_type = std::basic_string_view<CharT>;
-	using value_type = basic_value<CharT>;
+	using derived_t = crtp_derived_t<Derived,basic_server_request>;
+	using base_t = io::device_base<derived_t,executor_t>;
 
-	using header_type = typename parser_type::header_type;
-	using headers_type = typename parser_type::headers_type;
-	using cookies_type = typename parser_type::cookies_type;
-	using parameters_type = typename parser_type::parameters_type;
+	using parser_t = basic_request_parser<CharT>;
+	using string_t = typename parser_t::string_t;
+	using string_view_t = std::basic_string_view<CharT>;
+	using value_t = basic_value<CharT>;
+
+	using header_t = typename parser_t::header_t;
+	using headers_t = typename parser_t::headers_t;
+	using cookies_t = typename parser_t::cookies_t;
+	using parameters_t = typename parser_t::parameters_t;
 
 	template <typename T>
 	using buffer = io::buffer<T>;
 
 public:
-	basic_server_request(socket_ptr socket, parser_type &parser);
+	basic_server_request(next_layer_t &&next_layer, parser_t &parser);
 	~basic_server_request() override;
+
+	basic_server_request(basic_server_request &&other) noexcept;
+	basic_server_request &operator=(basic_server_request &&other) noexcept;
 
 public:
 	[[nodiscard]] http::method method() const noexcept;
-	[[nodiscard]] str_view_type version() const noexcept;
-	[[nodiscard]] str_view_type path() const noexcept;
+	[[nodiscard]] string_view_t version() const noexcept;
+	[[nodiscard]] string_view_t path() const noexcept;
 
-	[[nodiscard]] const parameters_type &parameters() const noexcept;
-	[[nodiscard]] const headers_type &headers() const noexcept;
-	[[nodiscard]] const cookies_type &cookies() const noexcept;
+	[[nodiscard]] const parameters_t &parameters() const noexcept;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
 public:
-	[[nodiscard]] const value_type &parameter(str_view_type key) const;
-	[[nodiscard]] const value_type &header(str_view_type key) const;
-	[[nodiscard]] const value_type &cookie(str_view_type key) const;
+	[[nodiscard]] const value_t &parameter(string_view_t key) const;
+	[[nodiscard]] const value_t &header(string_view_t key) const;
+	[[nodiscard]] const value_t &cookie(string_view_t key) const;
 
-	[[nodiscard]] value_type parameter_or(str_view_type key, value_type def_value = {}) const noexcept;
-	[[nodiscard]] value_type header_or(str_view_type key, value_type def_value = {}) const noexcept;
-	[[nodiscard]] value_type cookie_or(str_view_type key, value_type def_value = {}) const noexcept;
+	[[nodiscard]] value_t parameter_or(string_view_t key, value_t def_value = {}) const noexcept;
+	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
+	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
 
 public:
 	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<error_code&> tk = {});
@@ -100,22 +103,25 @@ public:
 public:
 	[[nodiscard]] io::ip_endpoint remote_endpoint() const;
 	[[nodiscard]] io::ip_endpoint local_endpoint() const;
-	void cancel() noexcept override;
+	derived_t &cancel() noexcept;
+
+public:
+	const next_layer_t &next_layer() const noexcept;
+	next_layer_t &next_layer() noexcept;
 
 private:
-	friend class basic_server_response<CharT,Exec>;
 	class impl;
 	impl *m_impl;
 };
 
-using server_request = basic_server_request<char>;
-using server_wrequest = basic_server_request<wchar_t>;
+template <concept_execution Exec>
+using basic_tcp_server_request = basic_server_request<io::basic_tcp_socket<Exec>,char>;
 
-template <concept_char_type CharT, concept_execution Exec = asio::any_io_executor>
-using basic_server_request_ptr = std::shared_ptr<basic_server_request<CharT,Exec>>;
+template <concept_execution Exec>
+using basic_tcp_server_wrequest = basic_server_request<io::basic_tcp_socket<Exec>,wchar_t>;
 
-using server_request_ptr = std::shared_ptr<basic_server_request<char>>;
-using server_wrequest_ptr = std::shared_ptr<basic_server_request<char>>;
+using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
+using tcp_server_wrequest = basic_tcp_server_wrequest<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/request.h>

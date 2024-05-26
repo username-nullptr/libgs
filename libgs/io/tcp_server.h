@@ -26,91 +26,101 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_TCP_SOCKET_H
-#define LIBGS_IO_TCP_SOCKET_H
+#ifndef LIBGS_IO_TCP_SERVER_H
+#define LIBGS_IO_TCP_SERVER_H
 
-#include <libgs/io/socket.h>
+#include <libgs/io/tcp_socket.h>
+#include <memory>
+#include <set>
 
 namespace libgs
 {
 
-template <concept_execution Exec>
-using asio_basic_tcp_socket = asio::basic_stream_socket<asio::ip::tcp, Exec>;
+template <concept_execution Exec = asio::any_io_executor>
+using asio_basic_tcp_acceptor = asio::basic_socket_acceptor<asio::ip::tcp, Exec>;
 
-using asio_tcp_socket = asio_basic_tcp_socket<asio::any_io_executor>;
-using tcp_handle_type = asio::ip::tcp::socket::native_handle_type;
+using asio_tcp_acceptor = asio_basic_tcp_acceptor<>;
 
 namespace io
 {
 
 template <concept_execution Exec, typename Derived = void>
-class LIBGS_IO_TAPI basic_tcp_socket : public basic_socket<crtp_derived_t<Derived,basic_tcp_socket<Exec,Derived>>,Exec>
+class LIBGS_IO_TAPI basic_tcp_server : public device_base<crtp_derived_t<Derived,basic_tcp_server<Exec,Derived>>,Exec>
 {
-	LIBGS_DISABLE_COPY(basic_tcp_socket)
+	LIBGS_DISABLE_COPY(basic_tcp_server)
+	class cs_socket_t;
 
 public:
-	using derived_t = crtp_derived_t<Derived,basic_tcp_socket>;
-	using base_t = basic_socket<derived_t,Exec>;
+	using derived_t = crtp_derived_t<Derived,basic_tcp_server>;
+	using base_t = device_base<derived_t,Exec>;
 
 	using executor_t = base_t::executor_t;
-	using address_vector = base_t::address_vector;
+	using socket_t = tcp_socket;
+	using socket_ptr = std::shared_ptr<socket_t>;
+	using native_t = asio_basic_tcp_acceptor<executor_t>;
 
-	using native_t = asio_basic_tcp_socket<executor_t>;
-	using resolver_t = asio::ip::tcp::resolver;
+	struct start_token : no_time_token
+	{
+		size_t max = asio::socket_base::max_listen_connections;
+		using no_time_token::no_time_token;
+		start_token(size_t max, error_code &error);
+		start_token(size_t max);
+	};
 
 public:
-	template <concept_execution_context Context = asio::io_context>
-	explicit basic_tcp_socket(Context &context = execution::io_context());
+	explicit basic_tcp_server(size_t tcount = 0);
+
+	template <concept_execution_context Context>
+	explicit basic_tcp_server(Context &context, size_t tcount = 0);
 
 	template <concept_execution Exec0>
-	basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native);
+	explicit basic_tcp_server(asio_basic_tcp_acceptor<Exec0> &&native, size_t tcount = 0);
 
-	explicit basic_tcp_socket(const executor_t &exec);
-	~basic_tcp_socket() override;
-
-public:
-	basic_tcp_socket(basic_tcp_socket &&other) noexcept;
-	basic_tcp_socket &operator=(basic_tcp_socket &&other) noexcept;
-
-	template <concept_execution Exec0>
-	basic_tcp_socket &operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept;
+	explicit basic_tcp_server(const executor_t &exec, size_t tcount = 0);
+	~basic_tcp_server() override;
 
 public:
-	[[nodiscard]] bool is_open() const noexcept;
-	derived_t &close(no_time_token tk = {});
+	basic_tcp_server(basic_tcp_server &&other) noexcept = default;
+	basic_tcp_server &operator=(basic_tcp_server &&other) noexcept = default;
+	basic_tcp_server &operator=(native_t &&native) noexcept;
+
+public:
+	derived_t &bind(ip_endpoint ep, opt_token<error_code&> tk = {});
+	derived_t &start(start_token tk = {});
+
+	derived_t &accept(opt_token<callback_t<socket_ptr,error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<socket_ptr> accept(opt_token<error_code&> tk = {});
+
+public:
+	derived_t &set_option(const auto &op, no_time_token tk = {});
+	derived_t &get_option(auto &op, no_time_token tk = {});
+	const derived_t &get_option(auto &op, no_time_token tk = {}) const;
+
+public:
+	awaitable<void> co_wait() noexcept;
+	derived_t &wait() noexcept;
+
+	awaitable<void> co_cancel() noexcept;
 	derived_t &cancel() noexcept;
 
-public:
-	[[nodiscard]] ip_endpoint remote_endpoint(no_time_token tk = {}) const;
-	[[nodiscard]] ip_endpoint local_endpoint(no_time_token tk = {}) const;
+	const asio::thread_pool &pool() const noexcept;
+	asio::thread_pool &pool() noexcept;
 
 public:
-	derived_t &set_option(const socket_option &op, no_time_token tk = {});
-	derived_t &get_option(socket_option op, no_time_token tk = {});
-	const derived_t &get_option(socket_option op, no_time_token tk = {}) const;
-
-	[[nodiscard]] size_t read_buffer_size() const noexcept;
-	[[nodiscard]] size_t write_buffer_size() const noexcept;
-
-public:
-	[[nodiscard]] const native_t &native() const noexcept;
-	[[nodiscard]] native_t &native() noexcept;
-
-	[[nodiscard]] const resolver_t &resolver() const noexcept;
-	[[nodiscard]] resolver_t &resolver() noexcept;
+	const native_t &native() const noexcept;
+	native_t &native() noexcept;
 
 protected:
-	resolver_t m_resolver;
-
-private:
-	friend class basic_stream<basic_tcp_socket,Exec>;
-	static void _delete_native(void *native);
+	static size_t _tcount(size_t c) noexcept;
+	native_t m_native;
+	asio::thread_pool m_pool;
+	std::set<socket_t*> m_sock_set;
 };
 
-using tcp_socket = basic_tcp_socket<asio::any_io_executor>;
+using tcp_server = basic_tcp_server<asio::any_io_executor>;
 
 }} //namespace libgs::io
-#include <libgs/io/detail/tcp_socket.h>
+#include <libgs/io/detail/tcp_server.h>
 
 
-#endif //LIBGS_IO_TCP_SOCKET_H
+#endif //LIBGS_IO_TCP_SERVER_H
