@@ -163,79 +163,79 @@ void basic_logger<CharT>::fatal(T &&msg)
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_buffer<CharT> basic_logger<CharT>::cdebug(str_type category, format_string<Args...> fmt, Args&&...args) {
+basic_buffer<CharT> basic_logger<CharT>::cdebug(string_t category, format_string<Args...> fmt, Args&&...args) {
 	return std::move(cdebug(std::move(category)) << std::format(fmt, std::forward<Args>(args)...));
 }
 
 template <concept_char_type CharT>
 template <typename T>
-basic_buffer<CharT> basic_logger<CharT>::cdebug(str_type category, T &&msg) {
+basic_buffer<CharT> basic_logger<CharT>::cdebug(string_t category, T &&msg) {
 	return std::move(cdebug(std::move(category)) << std::forward<T>(msg));
 }
 
 template <concept_char_type CharT>
-basic_buffer<CharT> basic_logger<CharT>::cdebug(str_type category)
+basic_buffer<CharT> basic_logger<CharT>::cdebug(string_t category)
 {
 	return _output(output_type::debug, std::move(category));
 }
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_buffer<CharT> basic_logger<CharT>::cinfo(str_type category, format_string<Args...> fmt, Args&&...args) {
+basic_buffer<CharT> basic_logger<CharT>::cinfo(string_t category, format_string<Args...> fmt, Args&&...args) {
 	return std::move(cinfo(std::move(category)) << std::format(fmt, std::forward<Args>(args)...));
 }
 
 template <concept_char_type CharT>
 template <typename T>
-basic_buffer<CharT> basic_logger<CharT>::cinfo(str_type category, T &&msg) {
+basic_buffer<CharT> basic_logger<CharT>::cinfo(string_t category, T &&msg) {
 	return std::move(cinfo(std::move(category)) << std::forward<T>(msg));
 }
 
 template <concept_char_type CharT>
-basic_buffer<CharT> basic_logger<CharT>::cinfo(str_type category)
+basic_buffer<CharT> basic_logger<CharT>::cinfo(string_t category)
 {
 	return _output(output_type::info, std::move(category));
 }
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_buffer<CharT> basic_logger<CharT>::cwarning(str_type category, format_string<Args...> fmt, Args&&...args) {
+basic_buffer<CharT> basic_logger<CharT>::cwarning(string_t category, format_string<Args...> fmt, Args&&...args) {
 	return std::move(cwarning(std::move(category)) << std::format(fmt, std::forward<Args>(args)...));
 }
 
 template <concept_char_type CharT>
 template <typename T>
-basic_buffer<CharT> basic_logger<CharT>::cwarning(str_type category, T &&msg) {
+basic_buffer<CharT> basic_logger<CharT>::cwarning(string_t category, T &&msg) {
 	return std::move(cwarning(std::move(category)) << std::forward<T>(msg));
 }
 
 template <concept_char_type CharT>
-basic_buffer<CharT> basic_logger<CharT>::cwarning(str_type category)
+basic_buffer<CharT> basic_logger<CharT>::cwarning(string_t category)
 {
 	return _output(output_type::warning, std::move(category));
 }
 
 template <concept_char_type CharT>
 template <typename...Args>
-basic_buffer<CharT> basic_logger<CharT>::cerror(str_type category, format_string<Args...> fmt, Args&&...args) {
+basic_buffer<CharT> basic_logger<CharT>::cerror(string_t category, format_string<Args...> fmt, Args&&...args) {
 	return std::move(cerror(std::move(category)) << std::format(fmt, std::forward<Args>(args)...));
 }
 
 template <concept_char_type CharT>
 template <typename T>
-basic_buffer<CharT> basic_logger<CharT>::cerror(str_type category, T &&msg) {
+basic_buffer<CharT> basic_logger<CharT>::cerror(string_t category, T &&msg) {
 	return std::move(cerror(std::move(category)) << std::forward<T>(msg));
 }
 
 template <concept_char_type CharT>
-basic_buffer<CharT> basic_logger<CharT>::cerror(str_type category)
+basic_buffer<CharT> basic_logger<CharT>::cerror(string_t category)
 {
 	return _output(output_type::error, std::move(category));
 }
 
 template <concept_char_type CharT>
 template <typename...Args>
-void basic_logger<CharT>::cfatal(str_type category, format_string<Args...> fmt_value, Args&&...args) 
+void basic_logger<CharT>::cfatal(string_t category, format_string<Args...> fmt_value, Args&&...args)
 {
 	m_runtime_context.category = std::move(category);
 	scheduler::fatal(std::move(m_runtime_context), std::format(fmt_value, std::forward<Args>(args)...));
@@ -243,14 +243,14 @@ void basic_logger<CharT>::cfatal(str_type category, format_string<Args...> fmt_v
 
 template <concept_char_type CharT>
 template <typename T>
-void basic_logger<CharT>::cfatal(str_type category, T &&msg)
+void basic_logger<CharT>::cfatal(string_t category, T &&msg)
 {
 	m_runtime_context.category = std::move(category);
 	scheduler::fatal(std::move(m_runtime_context), std::format(default_format_v<CharT>, std::forward<T>(msg)));
 }
 
 template <concept_char_type CharT>
-inline basic_buffer<CharT> basic_logger<CharT>::_output(output_type type, str_type category) const
+inline basic_buffer<CharT> basic_logger<CharT>::_output(output_type type, string_t category) const
 {
 #ifdef __NO_DEBUG__
 	return buffer(type);

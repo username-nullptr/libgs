@@ -54,37 +54,35 @@ template <>
 struct LIBGS_CORE_VAPI basic_message_node<char> : basic_message_node<void>
 {
 	using rt_context = output_context;
-	using str_type = std::string;
+	using string_t = std::string;
 
 	rt_context runtime_context;
-	str_type msg;
+	string_t msg;
 
 	basic_message_node
-	(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg);
+	(output_type type, context_ptr context, rt_context &&runtime_context, string_t &&msg);
 };
 
 template <>
 struct LIBGS_CORE_VAPI basic_message_node<wchar_t> : basic_message_node<void>
 {
 	using rt_context = output_wcontext;
-	using str_type = std::wstring;
+	using string_t = std::wstring;
 
 	rt_context runtime_context;
-	str_type msg;
+	string_t msg;
 
 	basic_message_node
-	(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg);
+	(output_type type, context_ptr context, rt_context &&runtime_context, string_t &&msg);
 };
 
 using message_node = basic_message_node<char>;
-
 using wmessage_node = basic_message_node<wchar_t>;
 
 template <concept_char_type CharT>
 using basic_msg_node_ptr = std::shared_ptr<basic_message_node<CharT>>;
 
 using msg_node_ptr = basic_msg_node_ptr<char>;
-
 using wmsg_node_ptr = basic_msg_node_ptr<wchar_t>;
 
 using msg_node_base_ptr = std::shared_ptr<basic_message_node<void>>;

@@ -68,10 +68,9 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), buf, tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, buf, tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		size_t size;
@@ -82,7 +81,7 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 		else
 			size = co_await read(buf, {tk.rc, tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(size, error);
@@ -95,8 +94,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )
@@ -110,11 +108,9 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 {
 	if( buf.size == 0 )
 		buf.size = this->derived().read_buffer_size();
-
 	auto _buf = std::make_shared<char[]>(buf.size);
-	auto callback = std::move(tk.callback);
 
-	auto _callback = [buf, _buf, callback = std::move(callback)](size_t size, const error_code &error)
+	auto _callback = [buf, _buf, callback = std::move(tk.callback)](size_t size, const error_code &error)
 	{
 		buf.data = std::string(_buf.get(), size);
 		callback(size, error);
@@ -128,8 +124,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )
@@ -141,8 +136,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t, const error_code &error){
+	auto _callback = [callback = std::move(tk.callback)](size_t, const error_code &error){
 		callback(error);
 	};
 	if( tk.cnl_sig )
@@ -154,8 +148,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](const error_code&){
 		callback();
 	};
 	if( tk.cnl_sig )
@@ -216,10 +209,9 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), buf, tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, buf, tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		size_t size;
@@ -230,7 +222,7 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 		else
 			size = co_await read_some(buf, {tk.rc, tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(size, error);
@@ -243,8 +235,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )
@@ -258,11 +249,9 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 {
 	if( buf.size == 0 )
 		buf.size = this->derived().read_buffer_size();
-	
 	auto _buf = std::make_shared<char[]>(buf.size);
-	auto callback = std::move(tk.callback);
 
-	auto _callback = [buf, _buf, callback = std::move(callback)](size_t size, const error_code &error)
+	auto _callback = [buf, _buf, callback = std::move(tk.callback)](size_t size, const error_code &error)
 	{
 		buf.data = std::string(_buf.get(), size);
 		callback(size, error);
@@ -276,8 +265,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )
@@ -289,8 +277,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t, const error_code &error){
+	auto _callback = [callback = std::move(tk.callback)](size_t, const error_code &error){
 		callback(error);
 	};
 	if( tk.cnl_sig )
@@ -302,8 +289,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](const error_code&){
 		callback();
 	};
 	if( tk.cnl_sig )
@@ -354,13 +340,11 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::writ
 {
 	auto size = buf.size;
 	auto _buf = std::make_shared<char[]>(size);
-
 	memcpy(_buf.get(), buf.data.data(), size);
-	auto valid = this->m_valid;
 
-	co_spawn_detached([this, valid = std::move(valid), buf = std::move(_buf), size, tk = std::move(tk)]() mutable -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, buf = std::move(_buf), size, tk = std::move(tk)]() mutable -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 		error_code error;
 
@@ -369,7 +353,7 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::writ
 		else
 			size = co_await write({buf.get(), size}, {tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(size, error);
@@ -383,8 +367,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write
 (buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )
@@ -434,13 +417,11 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::writ
 {
 	auto size = buf.size;
 	auto _buf = std::make_shared<char[]>(size);
-
 	memcpy(_buf.get(), buf.data.data(), size);
-	auto valid = this->m_valid;
 
-	co_spawn_detached([this, valid = std::move(valid), buf = std::move(_buf), size, tk = std::move(tk)]() mutable -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, buf = std::move(_buf), size, tk = std::move(tk)]() mutable -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 		error_code error;
 
@@ -449,7 +430,7 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::writ
 		else
 			size = co_await write_some({buf.get(), size}, {tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(size, error);
@@ -463,8 +444,7 @@ template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write_some
 (buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
-	auto _callback = [callback = std::move(callback)](size_t size, const error_code&){
+	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
 		callback(size);
 	};
 	if( tk.cnl_sig )

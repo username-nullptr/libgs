@@ -43,36 +43,35 @@ public:
 	template <typename...Args>
 	using format_string = libgs::format_string<CharT, Args...>;
 
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
-	static constexpr const CharT *default_format_v =
-		libgs::default_format_v<CharT>;
+	static constexpr const CharT *default_format_v = libgs::default_format_v<CharT>;
 
 public:
 	basic_value() = default;
 	basic_value(const CharT *str);
 
-	basic_value(str_type str);
-	basic_value(str_view_type str);
+	basic_value(string_t str);
+	basic_value(string_view_t str);
 
 	template <typename Arg0, typename...Args>
 	basic_value(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename T>
 	basic_value(T &&v) requires (
-		not requires(T &&rv) { str_type(std::forward<T>(rv)); }
+		not requires(T &&rv) { string_t(std::forward<T>(rv)); }
 	);
 
 	basic_value(const basic_value&) = default;
 	basic_value(basic_value&&) noexcept = default;
 
 public:
-	[[nodiscard]] str_type &to_string() noexcept;
-	[[nodiscard]] const str_type &to_string() const noexcept;
+	[[nodiscard]] string_t &to_string() noexcept;
+	[[nodiscard]] const string_t &to_string() const noexcept;
 
-	operator str_type&();
-	operator const str_type&() const;
+	operator string_t&();
+	operator const string_t&() const;
 
 public:
 	template <concept_integral_type T>
@@ -117,15 +116,15 @@ public:
 public:
 	basic_value &set(const CharT *str);
 
-	basic_value &set(str_type str);
-	basic_value &set(str_view_type str);
+	basic_value &set(string_t str);
+	basic_value &set(string_view_t str);
 
 	template <typename Arg0, typename...Args>
 	basic_value &set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename T>
 	basic_value &set(T &&v) requires (
-		not requires(T &&rv) { str_type(std::forward<T>(rv)); }
+		not requires(T &&rv) { string_t(std::forward<T>(rv)); }
 	);
 
 public:
@@ -133,13 +132,13 @@ public:
 	basic_value &operator=(basic_value&&) noexcept = default;
 
 	bool operator<=>(const basic_value &other) const;
-	bool operator<=>(const str_view_type &tr) const;
-	bool operator<=>(const str_type &str) const;
+	bool operator<=>(const string_view_t &tr) const;
+	bool operator<=>(const string_t &str) const;
 
 public:
 	basic_value &operator=(const CharT *str);
-	basic_value &operator=(str_type str);
-	basic_value &operator=(str_view_type str);
+	basic_value &operator=(string_t str);
+	basic_value &operator=(string_view_t str);
 
 protected:
 	std::basic_string<CharT> m_str;

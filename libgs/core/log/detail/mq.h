@@ -40,7 +40,7 @@ inline basic_message_node<void>::basic_message_node(output_type type, context_pt
 }
 
 inline basic_message_node<char>::basic_message_node
-(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
+(output_type type, context_ptr context, rt_context &&runtime_context, string_t &&msg) :
 	basic_message_node<void>(type, std::move(context)),
 	runtime_context(runtime_context),
 	msg(msg)
@@ -49,7 +49,7 @@ inline basic_message_node<char>::basic_message_node
 }
 
 inline basic_message_node<wchar_t>::basic_message_node
-(output_type type, context_ptr context, rt_context &&runtime_context, str_type &&msg) :
+(output_type type, context_ptr context, rt_context &&runtime_context, string_t &&msg) :
 	basic_message_node<void>(type, std::move(context)),
 	runtime_context(runtime_context),
 	msg(msg)

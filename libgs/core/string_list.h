@@ -73,25 +73,25 @@ class LIBGS_CORE_TAPI basic_string_list : public basic_string_deque<CharT>
 	static constexpr CharT default_splits_argument_c = detail::_default_splits_argument<CharT>::c;
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
-	using base_type = basic_string_deque<CharT>;
-	using base_type::base_type;
+	using base_t = basic_string_deque<CharT>;
+	using base_t::base_t;
 
 public:
-	[[nodiscard]] std::vector<str_type> to_vector() const;
+	[[nodiscard]] std::vector<string_t> to_vector() const;
 	[[nodiscard]] std::vector<const CharT*> c_str_vector() const;
 
 public:
-	[[nodiscard]] str_type join(const str_type &splits = default_splits_argument_s);
+	[[nodiscard]] string_t join(const string_t &splits = default_splits_argument_s);
 
 	[[nodiscard]] static basic_string_list<CharT>
-		from_string(str_view_type str, str_view_type splits = default_splits_argument_s,
+		from_string(string_view_t str, string_view_t splits = default_splits_argument_s,
 					bool ignore_empty = true);
 
 	[[nodiscard]] static basic_string_list<CharT>
-		from_string(str_view_type str, CharT splits, bool ignore_empty = true);
+		from_string(string_view_t str, CharT splits, bool ignore_empty = true);
 };
 
 using string_list = basic_string_list<char>;

@@ -54,8 +54,8 @@ class LIBGS_IO_TAPI basic_timer : public device_base<crtp_derived_t<Derived,basi
 
 public:
 	using derived_t = crtp_derived_t<Derived,basic_timer>;
-	using base_type = device_base<derived_t,Exec>;
-	using executor_t = base_type::executor_t;
+	using base_t = device_base<derived_t,Exec>;
+	using executor_t = base_t::executor_t;
 
 	using time_point = asio_steady_timer::time_point;
 	using duration = asio_steady_timer::duration;
@@ -73,7 +73,7 @@ public:
 	basic_timer(basic_timer &&other) noexcept = default;
 	basic_timer &operator=(basic_timer &&other) noexcept = default;
 
-	using base_type::device_base;
+	using device_base<derived_t,Exec>::device_base;
 	~basic_timer() override;
 
 public:

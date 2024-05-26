@@ -35,11 +35,11 @@ namespace libgs
 template <concept_char_type CharT>
 std::vector<std::basic_string<CharT>> basic_string_list<CharT>::to_vector() const
 {
-	std::vector<str_type> result;
+	std::vector<string_t> result;
 	result.reserve(this->size());
 
 	for(size_t i=0; i<this->size(); i++)
-		result[i] = base_type::operator[](i);
+		result[i] = base_t::operator[](i);
 	return result;
 }
 
@@ -50,25 +50,25 @@ std::vector<const CharT*> basic_string_list<CharT>::c_str_vector() const
 	result.reserve(this->size());
 
 	for(size_t i=0; i<this->size(); i++)
-		result[i] = base_type::operator[](i).c_str();
+		result[i] = base_t::operator[](i).c_str();
 	return result;
 }
 
 template <concept_char_type CharT>
-std::basic_string<CharT> basic_string_list<CharT>::join(const str_type &splits)
+std::basic_string<CharT> basic_string_list<CharT>::join(const string_t &splits)
 {
 	return str_list_join(*this, splits);
 }
 
 template <concept_char_type CharT>
 basic_string_list<CharT> basic_string_list<CharT>::from_string
-(str_view_type str, str_view_type splits, bool ignore_empty)
+(string_view_t str, string_view_t splits, bool ignore_empty)
 {
 	basic_string_list<CharT> result;
 	if( str.empty() )
 		return result;
 
-	auto strs = str_type(str.data(), str.size()) + str_type(splits.data(), splits.size());
+	auto strs = string_t(str.data(), str.size()) + string_t(splits.data(), splits.size());
 	auto pos = strs.find(splits);
 	auto step = splits.size();
 
@@ -86,9 +86,9 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 
 template <concept_char_type CharT>
 basic_string_list<CharT> basic_string_list<CharT>::from_string
-(str_view_type str, CharT splits, bool ignore_empty)
+(string_view_t str, CharT splits, bool ignore_empty)
 {
-	return from_string(str, str_type(1,splits), ignore_empty);
+	return from_string(str, string_t(1,splits), ignore_empty);
 }
 
 } //namespace libgs

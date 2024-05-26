@@ -53,41 +53,41 @@ class LIBGS_CORE_TAPI basic_ini_keys
 	LIBGS_DISABLE_COPY_MOVE(basic_ini_keys)
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using value_type = basic_value<CharT>;
-	using key_map = std::map<str_type, value_type>;
+	using string_t = std::basic_string<CharT>;
+	using value_t = basic_value<CharT>;
+	using key_map = std::map<string_t, value_t>;
 
 public:
 	basic_ini_keys() = default;
 	virtual ~basic_ini_keys() = default;
 
 public:
-	template <ini_read_type<CharT> T = value_type>
-	[[nodiscard]] auto read_or(const str_type &key, T default_value = T()) const noexcept;
+	template <ini_read_type<CharT> T = value_t>
+	[[nodiscard]] auto read_or(const string_t &key, T default_value = T()) const noexcept;
 
-	template <ini_read_type<CharT> T = value_type>
-	[[nodiscard]] auto read(const str_type &key) const noexcept(false);
-
-	template <typename T>
-	basic_ini_keys &write(const str_type &key, T &&value) noexcept;
+	template <ini_read_type<CharT> T = value_t>
+	[[nodiscard]] auto read(const string_t &key) const noexcept(false);
 
 	template <typename T>
-	basic_ini_keys &write(str_type &&key, T &&value) noexcept;
+	basic_ini_keys &write(const string_t &key, T &&value) noexcept;
+
+	template <typename T>
+	basic_ini_keys &write(string_t &&key, T &&value) noexcept;
 
 public:
-	[[nodiscard]] value_type operator[](const str_type &key) const noexcept(false);
-	[[nodiscard]] value_type &operator[](const str_type &key) noexcept;
-	[[nodiscard]] value_type &operator[](str_type &&key) noexcept;
+	[[nodiscard]] value_t operator[](const string_t &key) const noexcept(false);
+	[[nodiscard]] value_t &operator[](const string_t &key) noexcept;
+	[[nodiscard]] value_t &operator[](string_t &&key) noexcept;
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
 	template <ini_read_type<CharT> T>
-	value_type operator[](const str_type &key, T default_value) const noexcept;
+	value_t operator[](const string_t &key, T default_value) const noexcept;
 
 	template <ini_read_type<CharT> T>
-	value_type &operator[](const str_type &key, T default_value) noexcept;
+	value_t &operator[](const string_t &key, T default_value) noexcept;
 
 	template <ini_read_type<CharT> T>
-	value_type &operator[](str_type &&key, T default_value) noexcept;
+	value_t &operator[](string_t &&key, T default_value) noexcept;
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:
@@ -123,12 +123,12 @@ class LIBGS_CORE_TAPI basic_ini
 	LIBGS_DISABLE_COPY(basic_ini)
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using value_type = basic_value<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using value_t = basic_value<CharT>;
 	using str_list_type = basic_string_list<CharT>;
 
 	using ini_keys = basic_ini_keys<CharT>;
-	using group_map = std::map<str_type, ini_keys>;
+	using group_map = std::map<string_t, ini_keys>;
 
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
@@ -146,54 +146,54 @@ public:
 	[[nodiscard]] std::string file_name() const noexcept;
 
 public:
-	template <ini_read_type<CharT> T = value_type>
-	[[nodiscard]] auto read_or(const str_type &group, const str_type &key, T default_value = T()) const noexcept;
+	template <ini_read_type<CharT> T = value_t>
+	[[nodiscard]] auto read_or(const string_t &group, const string_t &key, T default_value = T()) const noexcept;
 
-	template <ini_read_type<CharT> T = value_type>
-	[[nodiscard]] auto read(const str_type &group, const str_type &key) const noexcept(false);
-
-	template <typename T>
-	basic_ini &write(const str_type &group, const str_type &key, T &&value) noexcept;
+	template <ini_read_type<CharT> T = value_t>
+	[[nodiscard]] auto read(const string_t &group, const string_t &key) const noexcept(false);
 
 	template <typename T>
-	basic_ini &write(const str_type &group, str_type &&key, T &&value) noexcept;
+	basic_ini &write(const string_t &group, const string_t &key, T &&value) noexcept;
 
 	template <typename T>
-	basic_ini &write(str_type &&group, const str_type &key, T &&value) noexcept;
+	basic_ini &write(const string_t &group, string_t &&key, T &&value) noexcept;
 
 	template <typename T>
-	basic_ini &write(str_type &&group, str_type &&key, T &&value) noexcept;
+	basic_ini &write(string_t &&group, const string_t &key, T &&value) noexcept;
+
+	template <typename T>
+	basic_ini &write(string_t &&group, string_t &&key, T &&value) noexcept;
 
 public:
-	[[nodiscard]] const ini_keys &group(const str_type &group) const noexcept(false);
-	[[nodiscard]] ini_keys &group(const str_type &group) noexcept(false);
+	[[nodiscard]] const ini_keys &group(const string_t &group) const noexcept(false);
+	[[nodiscard]] ini_keys &group(const string_t &group) noexcept(false);
 
 public:
-	[[nodiscard]] const ini_keys &operator[](const str_type &group) const noexcept(false);
-	[[nodiscard]] ini_keys &operator[](const str_type &group) noexcept;
-	[[nodiscard]] ini_keys &operator[](str_type &&group) noexcept;
+	[[nodiscard]] const ini_keys &operator[](const string_t &group) const noexcept(false);
+	[[nodiscard]] ini_keys &operator[](const string_t &group) noexcept;
+	[[nodiscard]] ini_keys &operator[](string_t &&group) noexcept;
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
-	[[nodiscard]] value_type operator[](const str_type &group, const str_type &key) const noexcept(false);
-	[[nodiscard]] value_type &operator[](const str_type &group, const str_type &key) noexcept;
-	[[nodiscard]] value_type &operator[](const str_type &group, str_type &&key) noexcept;
-	[[nodiscard]] value_type &operator[](str_type &&group, const str_type &key) noexcept;
-	[[nodiscard]] value_type &operator[](str_type &&group, str_type &&key) noexcept;
+	[[nodiscard]] value_t operator[](const string_t &group, const string_t &key) const noexcept(false);
+	[[nodiscard]] value_t &operator[](const string_t &group, const string_t &key) noexcept;
+	[[nodiscard]] value_t &operator[](const string_t &group, string_t &&key) noexcept;
+	[[nodiscard]] value_t &operator[](string_t &&group, const string_t &key) noexcept;
+	[[nodiscard]] value_t &operator[](string_t &&group, string_t &&key) noexcept;
 
 	template <ini_read_type<CharT> T>
-	[[nodiscard]] value_type operator[](const str_type &group, const str_type &key, T default_value) const noexcept;
+	[[nodiscard]] value_t operator[](const string_t &group, const string_t &key, T default_value) const noexcept;
 
 	template <ini_read_type<CharT> T>
-	[[nodiscard]] value_type &operator[](const str_type &group, const str_type &key, T default_value) noexcept;
+	[[nodiscard]] value_t &operator[](const string_t &group, const string_t &key, T default_value) noexcept;
 
 	template <ini_read_type<CharT> T>
-	[[nodiscard]] value_type &operator[](const str_type &group, str_type &&key, T default_value) noexcept;
+	[[nodiscard]] value_t &operator[](const string_t &group, string_t &&key, T default_value) noexcept;
 
 	template <ini_read_type<CharT> T>
-	[[nodiscard]] value_type &operator[](str_type &&group, const str_type &key, T default_value) noexcept;
+	[[nodiscard]] value_t &operator[](string_t &&group, const string_t &key, T default_value) noexcept;
 
 	template <ini_read_type<CharT> T>
-	[[nodiscard]] value_type &operator[](str_type &&group, str_type &&key, T default_value) noexcept;
+	[[nodiscard]] value_t &operator[](string_t &&group, string_t &&key, T default_value) noexcept;
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:
@@ -226,8 +226,8 @@ public:
 	[[nodiscard]] bool sync_on_delete() const noexcept;
 
 protected:
-	[[nodiscard]] str_type parsing_group(const str_type &str, size_t line);
-	[[nodiscard]] bool parsing_key_value(const str_type &curr_group, const str_type &str, size_t line);
+	[[nodiscard]] string_t parsing_group(const string_t &str, size_t line);
+	[[nodiscard]] bool parsing_key_value(const string_t &curr_group, const string_t &str, size_t line);
 
 protected:
 	struct data
