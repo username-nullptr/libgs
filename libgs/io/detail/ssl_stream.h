@@ -111,7 +111,7 @@ ssl_stream<Stream,Derived> &ssl_stream<Stream,Derived>::operator=(native_t &&nat
 
 template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::handshake
-(handshake_type type, opt_token<callback_t<error_code>> tk)
+(handshake_t type, opt_token<callback_t<error_code>> tk)
 {
 	co_spawn_detached([this, valid = this->m_valid, type, tk = std::move(tk)]() mutable -> awaitable<void>
 	{
@@ -135,7 +135,7 @@ typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::hand
 }
 
 template <typename Stream, typename Derived>
-awaitable<void> ssl_stream<Stream,Derived>::handshake(handshake_type type, opt_token<error_code&> tk)
+awaitable<void> ssl_stream<Stream,Derived>::handshake(handshake_t type, opt_token<error_code&> tk)
 {
 	error_code error;
 	auto _handshake = [&]() -> awaitable<void>

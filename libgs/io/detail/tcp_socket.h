@@ -44,10 +44,10 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(Context &context) :
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
 basic_tcp_socket<Exec,Derived>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native) :
-	base_t(new native_t(native.get_executor()), native.get_executor()),
+	base_t(reinterpret_cast<void*>(1), native.get_executor()),
 	m_resolver(native.get_executor())
 {
-	this->native() = std::move(native);
+	this->m_native = new native_t(std::move(native));
 }
 
 template <concept_execution Exec, typename Derived>

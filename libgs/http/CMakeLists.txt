@@ -11,6 +11,7 @@ set(http_headers
 	parser.h
 	client.h
 	server.h
+	ssl_server.h
 	basic/container.h
 	basic/cookie.h
 	basic/header.h
@@ -26,6 +27,7 @@ set(http_headers
 	server/aop.h
 	server/context.h
 	server/server.h
+	server/ssl_server.h
 )
 
 set(http_detail_headers

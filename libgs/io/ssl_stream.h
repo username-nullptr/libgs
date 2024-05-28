@@ -70,7 +70,7 @@ public:
 	using native_next_layer_t = typename next_layer_t::native_t;
 
 	using native_t = ssl::stream<native_next_layer_t>;
-	using handshake_type = ssl::stream_base::handshake_type;
+	using handshake_t = ssl::stream_base::handshake_type;
 
 public:
 	template <concept_execution_context Context>
@@ -95,8 +95,8 @@ public:
 	ssl_stream &operator=(native_t &&native);
 
 public:
-	derived_t &handshake(handshake_type type, opt_token<callback_t<error_code>> tk);
-	awaitable<void> handshake(handshake_type type, opt_token<error_code&> tk = {});
+	derived_t &handshake(handshake_t type, opt_token<callback_t<error_code>> tk);
+	awaitable<void> handshake(handshake_t type, opt_token<error_code&> tk = {});
 
 	derived_t &wave(opt_token<callback_t<error_code>> tk);
 	awaitable<void> wave(opt_token<error_code&> tk = {});

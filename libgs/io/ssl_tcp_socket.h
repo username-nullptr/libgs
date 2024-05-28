@@ -26,58 +26,49 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_TCP_SOCKET_H
-#define LIBGS_IO_TCP_SOCKET_H
+#ifndef LIBGS_IO_SSL_TCP_SOCKET_H
+#define LIBGS_IO_SSL_TCP_SOCKET_H
 
-#include <libgs/io/socket.h>
+#include <libgs/io/tcp_socket.h>
+#include <libgs/io/ssl_stream.h>
 
-namespace libgs
-{
-
-template <concept_execution Exec>
-using asio_basic_tcp_socket = asio::basic_stream_socket<asio::ip::tcp, Exec>;
-
-using asio_tcp_socket = asio_basic_tcp_socket<asio::any_io_executor>;
-using tcp_handle_type = asio::ip::tcp::socket::native_handle_type;
-
-namespace io
+namespace libgs::io
 {
 
 template <concept_execution Exec, typename Derived = void>
-class LIBGS_IO_TAPI basic_tcp_socket : public basic_socket<crtp_derived_t<Derived,basic_tcp_socket<Exec,Derived>>,Exec>
+class LIBGS_IO_TAPI basic_ssl_tcp_socket :
+	public basic_socket<crtp_derived_t<Derived,basic_ssl_tcp_socket<Exec,Derived>>,Exec>
 {
-	LIBGS_DISABLE_COPY(basic_tcp_socket)
+	LIBGS_DISABLE_COPY(basic_ssl_tcp_socket)
 
 public:
-	using derived_t = crtp_derived_t<Derived,basic_tcp_socket>;
+	using derived_t = crtp_derived_t<Derived,basic_ssl_tcp_socket>;
 	using base_t = basic_socket<derived_t,Exec>;
 
 	using executor_t = base_t::executor_t;
 	using address_vector = base_t::address_vector;
 
-	using native_t = asio_basic_tcp_socket<executor_t>;
-	using resolver_t = asio::ip::tcp::resolver;
+	using tcp_socket_t = basic_tcp_socket<executor_t>;
+	using native_t = ssl_stream<tcp_socket_t>;
+	using resolver_t = typename tcp_socket_t::resolver;
 
 public:
 	template <concept_execution_context Context = asio::io_context>
-	explicit basic_tcp_socket(Context &context = execution::io_context());
+	explicit basic_ssl_tcp_socket(Context &context = execution::io_context());
 
-	template <concept_execution Exec0>
-	basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native);
-
-	explicit basic_tcp_socket(const executor_t &exec);
-	~basic_tcp_socket() override;
+	explicit basic_ssl_tcp_socket(const executor_t &exec);
+	basic_ssl_tcp_socket(native_t &&native);
+	~basic_ssl_tcp_socket() override = default;
 
 public:
-	basic_tcp_socket(basic_tcp_socket &&other) noexcept;
-	basic_tcp_socket &operator=(basic_tcp_socket &&other) noexcept;
-
-	template <concept_execution Exec0>
-	basic_tcp_socket &operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept;
+	basic_ssl_tcp_socket(basic_ssl_tcp_socket &&other) noexcept;
+	basic_ssl_tcp_socket &operator=(basic_ssl_tcp_socket &&other) noexcept;
+	basic_ssl_tcp_socket &operator=(native_t &&native) noexcept;
 
 public:
 	[[nodiscard]] bool is_open() const noexcept;
-	derived_t &close(no_time_token tk = {});
+	awaitable<void> close(opt_token<error_code&> tk = {});
+	derived_t &close(opt_token<callback_t<error_code>> tk);
 	derived_t &cancel() noexcept;
 
 public:
@@ -99,18 +90,15 @@ public:
 	[[nodiscard]] const resolver_t &resolver() const noexcept;
 	[[nodiscard]] resolver_t &resolver() noexcept;
 
-protected:
-	resolver_t m_resolver;
-
 private:
-	friend class basic_stream<basic_tcp_socket,executor_t>;
+	friend class basic_stream<basic_ssl_tcp_socket,executor_t>;
 	static void _delete_native(void *native);
 };
 
-using tcp_socket = basic_tcp_socket<asio::any_io_executor>;
+using ssl_tcp_socket = basic_ssl_tcp_socket<asio::any_io_executor>;
 
-}} //namespace libgs::io
-#include <libgs/io/detail/tcp_socket.h>
+} //namespace libgs::io
+#include <libgs/io/detail/ssl_tcp_socket.h>
 
 
-#endif //LIBGS_IO_TCP_SOCKET_H
+#endif //LIBGS_IO_SSL_TCP_SOCKET_H

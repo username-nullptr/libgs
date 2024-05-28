@@ -35,7 +35,7 @@
 namespace libgs::io
 {
 
-template <typename Stream, typename Derived>
+template <typename Stream, typename Derived = void>
 class ssl_stream;
 
 template <typename Derived, concept_execution Exec = asio::any_io_executor>
