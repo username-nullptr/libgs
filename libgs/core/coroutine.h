@@ -95,6 +95,11 @@ LIBGS_CORE_TAPI awaitable<T> co_wait(const std::future<T> &future);
 LIBGS_CORE_VAPI awaitable<void> co_wait(const asio::thread_pool &pool);
 LIBGS_CORE_VAPI awaitable<void> co_wait(const std::thread &thread);
 
+template <concept_schedulable Exec = asio::io_context>
+LIBGS_CORE_TAPI awaitable<void> co_to_exec(Exec &exec = execution::io_context());
+
+LIBGS_CORE_VAPI awaitable<void> co_to_thread();
+
 } //namespace libgs
 #include <libgs/core/detail/coroutine.h>
 

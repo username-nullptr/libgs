@@ -247,6 +247,31 @@ inline awaitable<void> co_wait(const std::thread &thread)
 	});
 }
 
+template <concept_schedulable Exec>
+awaitable<void> co_to_exec(Exec &exec)
+{
+	return asio::async_initiate<decltype(asio::use_awaitable), void()>([&exec](auto handler)
+	{
+	    auto work = asio::make_work_guard(handler);
+	    asio::post(exec, [handler = std::move(handler), work = std::move(work)]() mutable {
+			std::move(handler)();
+		});
+	},
+	asio::use_awaitable);
+}
+
+LIBGS_CORE_VAPI awaitable<void> co_to_thread()
+{
+	return asio::async_initiate<decltype(asio::use_awaitable), void()>([](auto handler)
+	{
+	    auto work = asio::make_work_guard(handler);
+		std::thread([handler = std::move(handler), work = std::move(work)]() mutable {
+			std::move(handler)();
+		}).detach();
+	},
+	asio::use_awaitable);
+}
+
 } //namespace libgs
 
 

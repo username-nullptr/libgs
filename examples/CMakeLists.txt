@@ -60,7 +60,7 @@ set_target(gs_core ${core_sources})
 set(io_sources
 	io/timer.cpp
 	io/tcp_socket.cpp
-	io/ssl_tcp_socket.cpp
+	io/ssl_stream.cpp
 	io/udp_socket.cpp
 	io/tcp_server.cpp
 )

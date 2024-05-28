@@ -5,7 +5,8 @@ using namespace std::chrono_literals;
 
 int main()
 {
-	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
+	asio::thread_pool pool;
+	libgs::co_spawn_detached([&]() -> libgs::awaitable<void>
 	{
 		libgs_log_debug() << "Start <0>...";
 		co_await libgs::co_sleep_for(1s);
@@ -37,7 +38,19 @@ int main()
 		});
 		co_await libgs::co_wait(future);
 
+		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+
+		co_await libgs::co_to_thread();
+		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+
+		co_await libgs::co_to_exec(pool);
+		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+
+		co_await libgs::co_to_exec();
+		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+
 		libgs_log_debug() << "example finished...";
+		co_await libgs::co_sleep_for(60s);
 		libgs::execution::exit();
 	});
 	return libgs::execution::exec();

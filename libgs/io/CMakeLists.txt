@@ -18,7 +18,6 @@ set(core_headers
 	ssl_stream.h
 	socket.h
 	tcp_socket.h
-	ssl_tcp_socket.h
 )
 
 set(core_detail_headers
@@ -32,7 +31,6 @@ set(core_detail_headers
 	detail/ssl_stream.h
 	detail/socket.h
 	detail/tcp_socket.h
-	detail/ssl_tcp_socket.h
 )
 
 set(all_files
