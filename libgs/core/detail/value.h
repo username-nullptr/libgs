@@ -53,14 +53,14 @@ basic_value<CharT>::basic_value(const CharT *str) :
 }
 
 template <concept_char_type CharT>
-basic_value<CharT>::basic_value(str_type str) :
+basic_value<CharT>::basic_value(string_t str) :
 	m_str(std::move(str))
 {
 
 }
 
 template <concept_char_type CharT>
-basic_value<CharT>::basic_value(str_view_type str) :
+basic_value<CharT>::basic_value(string_view_t str) :
 	m_str(str.data(), str.size())
 {
 
@@ -77,7 +77,7 @@ basic_value<CharT>::basic_value(format_string<Arg0, Args...> fmt, Arg0 &&arg0, A
 template <concept_char_type CharT>
 template <typename T>
 basic_value<CharT>::basic_value(T &&v) requires (
-	not requires(T &&rv) { str_type(std::forward<T>(rv)); }
+	not requires(T &&rv) { string_t(std::forward<T>(rv)); }
 ) : basic_value<CharT>(default_format_v, std::forward<T>(v))
 {
 
@@ -86,13 +86,13 @@ basic_value<CharT>::basic_value(T &&v) requires (
 template <concept_char_type CharT>
 std::basic_string<CharT> &basic_value<CharT>::to_string() noexcept
 {
-	return get<str_type>();
+	return get<string_t>();
 }
 
 template <concept_char_type CharT>
 const std::basic_string<CharT> &basic_value<CharT>::to_string() const noexcept
 {
-	return get<str_type>();
+	return get<string_t>();
 }
 
 template <concept_char_type CharT>
@@ -255,16 +255,16 @@ basic_value<CharT> &basic_value<CharT>::set(const CharT *str)
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> &basic_value<CharT>::set(str_type str)
+basic_value<CharT> &basic_value<CharT>::set(string_t str)
 {
 	m_str = std::move(str);
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> &basic_value<CharT>::set(str_view_type str)
+basic_value<CharT> &basic_value<CharT>::set(string_view_t str)
 {
-	m_str = str_type(str.data(), str.size());
+	m_str = string_t(str.data(), str.size());
 	return *this;
 }
 
@@ -279,7 +279,7 @@ basic_value<CharT> &basic_value<CharT>::set(format_string<Arg0, Args...> fmt, Ar
 template <concept_char_type CharT>
 template <typename T>
 basic_value<CharT> &basic_value<CharT>::set(T &&v) requires (
-	not requires(T &&rv) { str_type(std::forward<T>(rv)); } )
+	not requires(T &&rv) { string_t(std::forward<T>(rv)); } )
 {
 	return set(default_format_v, v);
 }
@@ -291,13 +291,13 @@ bool basic_value<CharT>::operator<=>(const basic_value &other) const
 }
 
 template <concept_char_type CharT>
-bool basic_value<CharT>::operator<=>(const str_view_type &str) const
+bool basic_value<CharT>::operator<=>(const string_view_t &str) const
 {
 	return m_str <=> str;
 }
 
 template <concept_char_type CharT>
-bool basic_value<CharT>::operator<=>(const str_type &str) const
+bool basic_value<CharT>::operator<=>(const string_t &str) const
 {
 	return m_str <=> str;
 }
@@ -309,13 +309,13 @@ basic_value<CharT> &basic_value<CharT>::operator=(const CharT *str)
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> &basic_value<CharT>::operator=(str_type str)
+basic_value<CharT> &basic_value<CharT>::operator=(string_t str)
 {
 	return set(std::move(str));
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> &basic_value<CharT>::operator=(str_view_type str)
+basic_value<CharT> &basic_value<CharT>::operator=(string_view_t str)
 {
 	return set(std::move(str));
 }

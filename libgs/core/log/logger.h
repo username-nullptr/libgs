@@ -45,7 +45,7 @@ class LIBGS_CORE_TAPI basic_logger
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
 	using buffer = basic_buffer<CharT>;
-	using str_type = std::basic_string<CharT>;
+	using string_t = std::basic_string<CharT>;
 
 	template <typename...Args>
 	using format_string = libgs::format_string<CharT,Args...>;
@@ -90,41 +90,41 @@ public:
 
 public:
 	template <typename...Args>
-	buffer cdebug(str_type category, format_string<Args...> fmt, Args&&...args);
+	buffer cdebug(string_t category, format_string<Args...> fmt, Args&&...args);
 
 	template <typename T>
-	buffer cdebug(str_type category, T &&msg);
-	buffer cdebug(str_type category);
+	buffer cdebug(string_t category, T &&msg);
+	buffer cdebug(string_t category);
 
 	template <typename...Args>
-	buffer cinfo(str_type category, format_string<Args...> fmt, Args&&...args);
+	buffer cinfo(string_t category, format_string<Args...> fmt, Args&&...args);
 
 	template <typename T>
-	buffer cinfo(str_type category, T &&msg);
-	buffer cinfo(str_type category);
+	buffer cinfo(string_t category, T &&msg);
+	buffer cinfo(string_t category);
 
 	template <typename...Args>
-	buffer cwarning(str_type category, format_string<Args...> fmt, Args&&...args);
+	buffer cwarning(string_t category, format_string<Args...> fmt, Args&&...args);
 
 	template <typename T>
-	buffer cwarning(str_type category, T &&msg);
-	buffer cwarning(str_type category);
+	buffer cwarning(string_t category, T &&msg);
+	buffer cwarning(string_t category);
 
 	template <typename...Args>
-	buffer cerror(str_type category, format_string<Args...> fmt, Args&&...args);
+	buffer cerror(string_t category, format_string<Args...> fmt, Args&&...args);
 
 	template <typename T>
-	buffer cerror(str_type category, T &&msg);
-	buffer cerror(str_type category);
+	buffer cerror(string_t category, T &&msg);
+	buffer cerror(string_t category);
 
 	template <typename...Args>
-	void cfatal(str_type category, format_string<Args...> fmt, Args&&...args);
+	void cfatal(string_t category, format_string<Args...> fmt, Args&&...args);
 
 	template <typename T>
-	void cfatal(str_type category, T &&msg);
+	void cfatal(string_t category, T &&msg);
 
 private:
-	buffer _output(output_type type, str_type category) const;
+	buffer _output(output_type type, string_t category) const;
 	basic_output_context<CharT> m_runtime_context;
 };
 

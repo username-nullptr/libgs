@@ -138,7 +138,7 @@ private:
 				call_on_system_error(ex.code());
 				continue;
 			}
-			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = std::move(m_keepalive_timeout)]() -> awaitable<void>
+			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() -> awaitable<void>
 			{
 				bool abd = false;
 				try {

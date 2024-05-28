@@ -41,21 +41,21 @@ class LIBGS_HTTP_TAPI basic_request_helper
 	using this_type = basic_request_helper;
 
 public:
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
-	using value_type = basic_value<CharT>;
-	using value_list_type = basic_value_list<CharT>;
+	using value_t = basic_value<CharT>;
+	using value_list_t = basic_value_list<CharT>;
 
 public:
-	explicit basic_request_helper(str_view_type version);
+	explicit basic_request_helper(string_view_t version);
 	~basic_request_helper();
 
 	basic_request_helper(basic_request_helper &&other) noexcept ;
 	basic_request_helper &operator=(basic_request_helper &&other) noexcept;
 
 public:
-	this_type &set_header(str_view_type key, value_type value) noexcept;
+	this_type &set_header(string_view_t key, value_t value) noexcept;
 };
 
 } //namespace libgs::http

@@ -37,12 +37,12 @@ namespace libgs
 template <concept_char_type CharT>
 union LIBGS_CORE_TAPI basic_uuid // version 4
 {
-	using str_type = std::basic_string<CharT>;
-	using str_view_type = std::basic_string_view<CharT>;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
 public:
-	basic_uuid(str_view_type basic_uuid);
+	basic_uuid(string_view_t basic_uuid);
 	basic_uuid(const basic_uuid &other) = default;
 
 public:
@@ -50,7 +50,7 @@ public:
 
 public:
 	basic_uuid &operator=(const basic_uuid &other) = default;
-	basic_uuid &operator=(str_view_type basic_uuid);
+	basic_uuid &operator=(string_view_t basic_uuid);
 
 public:
 	bool operator==(const basic_uuid &other) const;
@@ -60,8 +60,8 @@ public:
 
 public:
 	// aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
-	[[nodiscard]] str_type to_string(bool parcel = false) const;
-	operator str_type() const { return to_string(); }
+	[[nodiscard]] string_t to_string(bool parcel = false) const;
+	operator string_t() const { return to_string(); }
 
 public:
 	uint64_t _wide_integers[2];
@@ -86,7 +86,6 @@ public:
 };
 
 using uuid = basic_uuid<char>;
-
 using wuuid = basic_uuid<wchar_t>;
 
 } //namespace libgs

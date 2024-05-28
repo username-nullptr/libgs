@@ -163,9 +163,9 @@ template <concept_execution Exec, typename Derived>
 typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derived>::accept
 (opt_token<callback_t<socket_ptr,error_code>> tk) noexcept
 {
-	co_spawn_detached([this, valid = std::move(this->m_valid), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		socket_ptr socket;
@@ -176,7 +176,7 @@ typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derive
 		else
 			socket = co_await accept({tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(socket, error);
@@ -209,14 +209,14 @@ basic_tcp_server<Exec,Derived>::accept(opt_token<error_code&> tk)
 	auto _sock_ptr = sock_ptr.get();
 	m_sock_set.emplace(_sock_ptr);
 
-	sock_ptr->set_delete_callback([this, valid = std::move(this->m_valid), _sock_ptr]
+	sock_ptr->set_delete_callback([this, valid = this->m_valid, _sock_ptr]
 	{
-		if( not valid )
+		if( not *valid )
 			return ;
 
 		asio::post(this->m_exec, [this, valid = std::move(valid), _sock_ptr]
 		{
-			if( valid )
+			if( *valid )
 				m_sock_set.erase(_sock_ptr);
 		});
 	});

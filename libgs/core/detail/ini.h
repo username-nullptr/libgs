@@ -40,28 +40,28 @@ namespace libgs
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-auto basic_ini_keys<CharT>::read_or(const str_type &key, T default_value) const noexcept
+auto basic_ini_keys<CharT>::read_or(const string_t &key, T default_value) const noexcept
 {
-	if constexpr( is_dsame_v<T, value_type> )
+	if constexpr( is_dsame_v<T, value_t> )
 	{
 		auto it = m_keys.find(key);
 		if( it == m_keys.end() )
 			return default_value;
-		return value_type(it->second);
+		return value_t(it->second);
 	}
 	else
-		return read<value_type>(key).template get<T>();
+		return read<value_t>(key).template get<T>();
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-auto basic_ini_keys<CharT>::read(const str_type &key) const noexcept(false)
+auto basic_ini_keys<CharT>::read(const string_t &key) const noexcept(false)
 {
-	if constexpr( is_dsame_v<T, value_type> )
+	if constexpr( is_dsame_v<T, value_t> )
 	{
 		auto it = m_keys.find(key);
 		if( it != m_keys.end() )
-			return value_type(it->second);
+			return value_t(it->second);
 
 		if constexpr( is_char_v<CharT> )
 			throw ini_exception("basic_ini_keys: read: The key '{}' is not exists.", key);
@@ -69,12 +69,12 @@ auto basic_ini_keys<CharT>::read(const str_type &key) const noexcept(false)
 			throw ini_exception("basic_ini_keys: read: The key '{}' is not exists.", libgs::wcstombs(key));
 	}
 	else
-		return read<value_type>(key).template get<T>();
+		return read<value_t>(key).template get<T>();
 }
 
 template <concept_char_type CharT>
 template <typename T>
-basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(const str_type &key, T &&value) noexcept
+basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(const string_t &key, T &&value) noexcept
 {
 	m_keys[key] = std::forward<T>(value);
 	return *this;
@@ -82,26 +82,26 @@ basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(const str_type &key, T &&val
 
 template <concept_char_type CharT>
 template <typename T>
-basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(str_type &&key, T &&value) noexcept
+basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(string_t &&key, T &&value) noexcept
 {
 	m_keys[std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> basic_ini_keys<CharT>::operator[](const str_type &key) const noexcept(false)
+basic_value<CharT> basic_ini_keys<CharT>::operator[](const string_t &key) const noexcept(false)
 {
-	return read<value_type>(key);
+	return read<value_t>(key);
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> &basic_ini_keys<CharT>::operator[](const str_type &key) noexcept
+basic_value<CharT> &basic_ini_keys<CharT>::operator[](const string_t &key) noexcept
 {
 	return m_keys[key];
 }
 
 template <concept_char_type CharT>
-basic_value<CharT> &basic_ini_keys<CharT>::operator[](str_type &&key) noexcept
+basic_value<CharT> &basic_ini_keys<CharT>::operator[](string_t &&key) noexcept
 {
 	return m_keys[std::move(key)];
 }
@@ -110,21 +110,21 @@ basic_value<CharT> &basic_ini_keys<CharT>::operator[](str_type &&key) noexcept
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_value<CharT> basic_ini_keys<CharT>::operator[](const str_type &key, T default_value) const noexcept
+basic_value<CharT> basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) const noexcept
 {
-	return read_or<value_type>(key, default_value);
+	return read_or<value_t>(key, default_value);
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_value<CharT> &basic_ini_keys<CharT>::operator[](const str_type &key, T default_value) noexcept
+basic_value<CharT> &basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) noexcept
 {
 	return *m_keys.emplace(std::make_pair(key, default_value)).first;
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_value<CharT> &basic_ini_keys<CharT>::operator[](str_type &&key, T default_value) noexcept
+basic_value<CharT> &basic_ini_keys<CharT>::operator[](string_t &&key, T default_value) noexcept
 {
 	return *m_keys.emplace(std::make_pair(std::move(key), default_value)).first;
 }
@@ -264,9 +264,9 @@ std::string basic_ini<CharT>::file_name() const noexcept
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-auto basic_ini<CharT>::read_or(const str_type &group, const str_type &key, T default_value) const noexcept
+auto basic_ini<CharT>::read_or(const string_t &group, const string_t &key, T default_value) const noexcept
 {
-	if constexpr( is_dsame_v<T, value_type> )
+	if constexpr( is_dsame_v<T, value_t> )
 	{
 		auto it = m_data->groups.find(group);
 		if( it == m_data->groups.end() )
@@ -274,14 +274,14 @@ auto basic_ini<CharT>::read_or(const str_type &group, const str_type &key, T def
 		return it->second.template read_or<T>(key, default_value);
 	}
 	else
-		return read<value_type>(group, key, default_value).template get<T>();
+		return read<value_t>(group, key, default_value).template get<T>();
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-auto basic_ini<CharT>::read(const str_type &group, const str_type &key) const noexcept(false)
+auto basic_ini<CharT>::read(const string_t &group, const string_t &key) const noexcept(false)
 {
-	if constexpr( is_dsame_v<T, value_type> )
+	if constexpr( is_dsame_v<T, value_t> )
 	{
 		auto it = m_data->groups.find(group);
 		if( it != m_data->groups.end() )
@@ -293,12 +293,12 @@ auto basic_ini<CharT>::read(const str_type &group, const str_type &key) const no
 			throw ini_exception("basic_ini: read: The group '{}' is not exists.", libgs::wcstombs(group));
 	}
 	else
-		return read<value_type>(group, key).template get<T>();
+		return read<value_t>(group, key).template get<T>();
 }
 
 template <concept_char_type CharT>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(const str_type &group, const str_type &key, T &&value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::write(const string_t &group, const string_t &key, T &&value) noexcept
 {
 	m_data->groups[group][key] = std::forward<T>(value);
 	return *this;
@@ -306,7 +306,7 @@ basic_ini<CharT> &basic_ini<CharT>::write(const str_type &group, const str_type 
 
 template <concept_char_type CharT>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(const str_type &group, str_type &&key, T &&value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::write(const string_t &group, string_t &&key, T &&value) noexcept
 {
 	m_data->groups[group][std::move(key)] = std::forward<T>(value);
 	return *this;
@@ -314,7 +314,7 @@ basic_ini<CharT> &basic_ini<CharT>::write(const str_type &group, str_type &&key,
 
 template <concept_char_type CharT>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(str_type &&group, const str_type &key, T &&value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::write(string_t &&group, const string_t &key, T &&value) noexcept
 {
 	m_data->groups[group][std::move(key)] = std::forward<T>(value);
 	return *this;
@@ -322,14 +322,14 @@ basic_ini<CharT> &basic_ini<CharT>::write(str_type &&group, const str_type &key,
 
 template <concept_char_type CharT>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(str_type &&group, str_type &&key, T &&value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::write(string_t &&group, string_t &&key, T &&value) noexcept
 {
 	m_data->groups[std::move(group)][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
 template <concept_char_type CharT>
-const basic_ini_keys<CharT> &basic_ini<CharT>::group(const str_type &group) const noexcept(false)
+const basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group) const noexcept(false)
 {
 	auto it = m_data->groups.find(group);
 	if( it != m_data->groups.end() )
@@ -342,7 +342,7 @@ const basic_ini_keys<CharT> &basic_ini<CharT>::group(const str_type &group) cons
 }
 
 template <concept_char_type CharT>
-basic_ini_keys<CharT> &basic_ini<CharT>::group(const str_type &group) noexcept(false)
+basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group) noexcept(false)
 {
 	auto it = m_data->groups.find(group);
 	if( it != m_data->groups.end() )
@@ -355,19 +355,19 @@ basic_ini_keys<CharT> &basic_ini<CharT>::group(const str_type &group) noexcept(f
 }
 
 template <concept_char_type CharT>
-const basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const str_type &group) const noexcept(false)
+const basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const string_t &group) const noexcept(false)
 {
 	return this->group(group);
 }
 
 template <concept_char_type CharT>
-basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const str_type &group) noexcept
+basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const string_t &group) noexcept
 {
 	return m_data->groups[group];
 }
 
 template <concept_char_type CharT>
-basic_ini_keys<CharT> &basic_ini<CharT>::operator[](str_type &&group) noexcept
+basic_ini_keys<CharT> &basic_ini<CharT>::operator[](string_t &&group) noexcept
 {
 	return m_data->groups[std::move(group)];
 }
@@ -375,52 +375,52 @@ basic_ini_keys<CharT> &basic_ini<CharT>::operator[](str_type &&group) noexcept
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
 
 template <concept_char_type CharT>
-basic_ini<CharT> basic_ini<CharT>::operator[](const str_type &group, const str_type &key) const noexcept(false)
+basic_ini<CharT> basic_ini<CharT>::operator[](const string_t &group, const string_t &key) const noexcept(false)
 {
 	return (*this)[group][key];
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, const str_type &key) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, const string_t &key) noexcept
 {
 	return (*this)[group][key];
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, str_type &&key) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, string_t &&key) noexcept
 {
 	return (*this)[group][std::move(key)];
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, const str_type &key) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, const string_t &key) noexcept
 {
 	return (*this)[std::move(group)][key];
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, str_type &&key) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, string_t &&key) noexcept
 {
 	return (*this)[std::move(group)][std::move(key)];
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_ini<CharT> basic_ini<CharT>::operator[](const str_type &group, const str_type &key, T default_value) const noexcept
+basic_ini<CharT> basic_ini<CharT>::operator[](const string_t &group, const string_t &key, T default_value) const noexcept
 {
-	return read_or<value_type>(group, key, default_value];
+	return read_or<value_t>(group, key, default_value];
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, const str_type &key, T default_value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, const string_t &key, T default_value) noexcept
 {
 	return (*this)[group][key, default_value];
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, str_type &&key, T default_value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, string_t &&key, T default_value) noexcept
 {
 
 	return (*this)[group][std::move(key), default_value];
@@ -428,14 +428,14 @@ basic_ini<CharT> &basic_ini<CharT>::operator[](const str_type &group, str_type &
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, const str_type &key, T default_value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, const string_t &key, T default_value) noexcept
 {
 	return (*this)[std::move(group)][key, default_value];
 }
 
 template <concept_char_type CharT>
 template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](str_type &&group, str_type &&key, T default_value) noexcept
+basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, string_t &&key, T default_value) noexcept
 {
 	return (*this)[std::move(group)][std::move(key), default_value];
 }
@@ -554,8 +554,8 @@ basic_ini<CharT> &basic_ini<CharT>::load()
 		libgs_log_error("file '{}' open failed.", m_data->file_name);
 		return *this;
 	}
-	str_type buf;
-	str_type curr_group;
+	string_t buf;
+	string_t curr_group;
 
 	for(size_t line=1; std::getline(file, buf); line++)
 	{
@@ -629,7 +629,7 @@ bool basic_ini<CharT>::sync_on_delete() const noexcept
 }
 
 template <concept_char_type CharT>
-std::basic_string<CharT> basic_ini<CharT>::parsing_group(const str_type &str, size_t line)
+std::basic_string<CharT> basic_ini<CharT>::parsing_group(const string_t &str, size_t line)
 {
 	if( str.size() < 3 or not str.ends_with(ini_keyword_char<CharT>::right_bracket) )
 	{
@@ -639,7 +639,7 @@ std::basic_string<CharT> basic_ini<CharT>::parsing_group(const str_type &str, si
 			libgs_log_werror(L"Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
 		return {};
 	}
-	auto group = from_percent_encoding(str_trimmed(str_type(str.c_str() + 1, str.size() - 2)));
+	auto group = from_percent_encoding(str_trimmed(string_t(str.c_str() + 1, str.size() - 2)));
 	if( group.empty() )
 	{
 		if constexpr( is_char_v )
@@ -653,7 +653,7 @@ std::basic_string<CharT> basic_ini<CharT>::parsing_group(const str_type &str, si
 }
 
 template <concept_char_type CharT>
-bool basic_ini<CharT>::parsing_key_value(const str_type &curr_group, const str_type &str, size_t line)
+bool basic_ini<CharT>::parsing_key_value(const string_t &curr_group, const string_t &str, size_t line)
 {
 	if( curr_group.empty() )
 	{
@@ -680,7 +680,7 @@ bool basic_ini<CharT>::parsing_key_value(const str_type &curr_group, const str_t
 			libgs_log_werror(L"Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
 		return false;
 	}
-	else if( pos == str_type::npos )
+	else if( pos == string_t::npos )
 	{
 		if constexpr( is_char_v )
 			libgs_log_error("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);

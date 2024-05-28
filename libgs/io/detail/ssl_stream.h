@@ -113,10 +113,9 @@ template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::handshake
 (handshake_type type, opt_token<callback_t<error_code>> tk)
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), type, tk = std::move(tk)]() mutable -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, type, tk = std::move(tk)]() mutable -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 		error_code error;
 
@@ -125,7 +124,7 @@ typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::hand
 		else
 			co_await handshake(type, {tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(error);
@@ -170,9 +169,9 @@ awaitable<void> ssl_stream<Stream,Derived>::handshake(handshake_type type, opt_t
 template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::wave(opt_token<callback_t<error_code>> tk)
 {
-	co_spawn_detached([this, valid = std::move(this->m_valid), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		error_code error;
@@ -182,7 +181,7 @@ typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::wave
 		else
 			co_await wave({tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(error);

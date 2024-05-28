@@ -37,7 +37,7 @@ namespace libgs::io
 template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
 basic_timer<Exec,Derived>::basic_timer(Context &context) :
-	base_type(context.get_executor()),
+	base_t(context.get_executor()),
 	m_timer(context)
 {
 
@@ -46,7 +46,7 @@ basic_timer<Exec,Derived>::basic_timer(Context &context) :
 template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
 basic_timer<Exec,Derived>::basic_timer(const duration &rtime, Context &context) :
-	base_type(context.get_executor()),
+	base_t(context.get_executor()),
 	m_timer(context)
 {
 	expires_after(rtime);
@@ -55,7 +55,7 @@ basic_timer<Exec,Derived>::basic_timer(const duration &rtime, Context &context) 
 template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
 basic_timer<Exec,Derived>::basic_timer(const time_point &atime, Context &context) :
-	base_type(context.get_executor()),
+	base_t(context.get_executor()),
 	m_timer(context)
 {
 	expires_at(atime);
@@ -87,10 +87,9 @@ typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::expire
 template <concept_execution Exec, typename Derived>
 typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::wait(opt_token<callback_t<error_code>> tk) noexcept
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 		error_code error;
 
@@ -99,7 +98,7 @@ typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::wait(o
 		else
 			co_await wait({tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(error);
@@ -112,7 +111,6 @@ typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::wait(o
 template <concept_execution Exec, typename Derived>
 typename basic_timer<Exec,Derived>::derived_t &basic_timer<Exec,Derived>::wait(opt_token<callback_t<>> tk) noexcept
 {
-	auto callback = std::move(tk.callback);
 	auto _callback = [callback = std::move(tk.callback)](const error_code&){
 		callback();
 	};

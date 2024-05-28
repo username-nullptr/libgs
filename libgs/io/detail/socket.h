@@ -38,10 +38,9 @@ basic_socket<Derived,Exec>::~basic_socket() = default;
 template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 		error_code error;
 
@@ -50,7 +49,7 @@ typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::conn
 		else
 			co_await connect(ep, {tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(error);
@@ -101,10 +100,9 @@ awaitable<void> basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<
 template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 		error_code error;
 
@@ -113,7 +111,7 @@ typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::conn
 		else
 			co_await connect(ep, {tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(error);
@@ -146,10 +144,9 @@ awaitable<void> basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<er
 template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept
 {
-	auto valid = this->m_valid;
-	co_spawn_detached([this, valid = std::move(valid), domain = std::move(domain), tk = std::move(tk)]() -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, domain = std::move(domain), tk = std::move(tk)]() -> awaitable<void>
 	{
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		address_vector vector;
@@ -160,7 +157,7 @@ typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::dns(
 		else
 			vector = co_await dns(domain, {tk.rtime, error});
 
-		if( not valid )
+		if( not *valid )
 			co_return ;
 
 		tk.callback(std::move(vector), error);

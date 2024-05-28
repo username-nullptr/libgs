@@ -35,7 +35,7 @@ namespace libgs
 {
 
 template <concept_char_type CharT>
-basic_uuid<CharT>::basic_uuid(str_view_type basic_uuid) :
+basic_uuid<CharT>::basic_uuid(string_view_t basic_uuid) :
 	_wide_integers{0}
 {
 	operator=(basic_uuid);
@@ -52,7 +52,7 @@ basic_uuid<CharT> basic_uuid<CharT>::generate()
 	thread_local std::mt19937_64 gen(rd());
 #endif
 	std::uniform_int_distribution<uint64_t> dis64;
-	basic_uuid<CharT> obj {str_type()};
+	basic_uuid<CharT> obj {string_t()};
 
 	obj._wide_integers[0] = dis64(gen);
 	obj._wide_integers[1] = dis64(gen);
@@ -63,7 +63,7 @@ basic_uuid<CharT> basic_uuid<CharT>::generate()
 }
 
 template <concept_char_type CharT>
-basic_uuid<CharT> &basic_uuid<CharT>::operator=(str_view_type basic_uuid)
+basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 {
 	if constexpr( is_char_v )
 	{
