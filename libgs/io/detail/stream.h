@@ -49,18 +49,18 @@ basic_stream<Derived,Exec>::~basic_stream()
 }
 
 template <typename Derived, concept_execution Exec>
-basic_stream<Derived,Exec>::basic_stream(basic_stream &&other) noexcept :
-	base_t(std::move(other)), m_native(other.m_native)
+template <concept_execution Exec0>
+basic_stream<Derived,Exec>::basic_stream(basic_stream<Derived,Exec0> &&other) noexcept :
+	base_t(std::move(other))
 {
-	other.m_native = nullptr;
+
 }
 
 template <typename Derived, concept_execution Exec>
-basic_stream<Derived,Exec> &basic_stream<Derived,Exec>::operator=(basic_stream &&other) noexcept
+template <concept_execution Exec0>
+basic_stream<Derived,Exec> &basic_stream<Derived,Exec>::operator=(basic_stream<Derived,Exec0> &&other) noexcept
 {
 	base_t::operator=(std::move(other));
-	m_native = other.m_native;
-	other.m_native = nullptr;
 	return *this;
 }
 
@@ -480,6 +480,57 @@ awaitable<size_t> basic_stream<Derived,Exec>::write_some(buffer<std::string_view
 }
 
 template <typename Derived, concept_execution Exec>
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::close(opt_token<callback_t<error_code>> tk)
+{
+	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() mutable -> awaitable<void>
+	{
+		if( not *valid )
+			co_return ;
+		error_code error;
+
+		if( tk.cnl_sig )
+			co_await close({tk.rtime, *tk.cnl_sig, error});
+		else
+			co_await close({tk.rtime, error});
+
+		if( not *valid )
+			co_return ;
+
+		tk.callback(error);
+		co_return ;
+	},
+	this->m_exec);
+	return this->derived();
+}
+
+template <typename Derived, concept_execution Exec>
+awaitable<void> basic_stream<Derived,Exec>::close(opt_token<error_code&> tk)
+{
+	using namespace std::chrono_literals;
+	error_code error;
+
+	if( tk.rtime == 0s )
+		error = co_await this->derived()._close(tk.cnl_sig);
+	else
+	{
+		auto var = co_await (this->derived()._close(tk.cnl_sig) or co_sleep_for(tk.rtime));
+		if( var.index() == 0 )
+			error = std::get<0>(var);
+		else
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	detail::check_error(tk.error, error, "libgs::io::stream::close");
+	co_return ;
+}
+
+template <typename Derived, concept_execution Exec>
+typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::cancel() noexcept
+{
+	_cancel();
+	return this->derived();
+}
+
+template <typename Derived, concept_execution Exec>
 awaitable<size_t> basic_stream<Derived,Exec>::_read_data
 (buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept
 {
@@ -566,6 +617,23 @@ awaitable<size_t> basic_stream<Derived,Exec>::_write_data
 		m_write_cancel = false;
 	}
 	co_return buf.size;
+}
+
+template <typename Derived, concept_execution Exec>
+awaitable<error_code> basic_stream<Derived,Exec>::_close(cancellation_signal*) noexcept
+{
+	error_code error;
+	this->derived().native().close(error);
+	co_return error;
+}
+
+template <typename Derived, concept_execution Exec>
+void basic_stream<Derived,Exec>::_cancel() noexcept
+{
+	m_write_cancel = true;
+	m_read_cancel = true;
+	m_close_cancel = true;
+	this->derived().native().cancel();
 }
 
 template <typename Derived, concept_execution Exec>

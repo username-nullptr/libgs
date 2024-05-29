@@ -33,32 +33,6 @@ namespace libgs::io
 {
 
 template <concept_execution Exec, typename Derived>
-class LIBGS_IO_TAPI basic_tcp_server<Exec,Derived>::cs_socket_t : public basic_tcp_server<Exec,Derived>::socket_t
-{
-	LIBGS_DISABLE_COPY_MOVE(cs_socket_t)
-	using native_t = asio_tcp_socket;
-
-public:
-	explicit cs_socket_t(native_t &&native) :
-		basic_tcp_server<Exec,Derived>::socket_t(std::move(native)) {}
-
-	~cs_socket_t() override 
-	{
-		assert(m_del_cb);
-		m_del_cb();
-	}
-
-	void set_delete_callback(callback_t<> del_cb) 
-	{
-		assert(del_cb);
-		m_del_cb = std::move(del_cb);
-	}
-
-private:
-	callback_t<> m_del_cb;
-};
-
-template <concept_execution Exec, typename Derived>
 basic_tcp_server<Exec,Derived>::start_token::start_token(size_t max, error_code &error) :
 	no_time_token(error), max(max)
 {
@@ -161,14 +135,14 @@ typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derive
 
 template <concept_execution Exec, typename Derived>
 typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derived>::accept
-(opt_token<callback_t<socket_ptr,error_code>> tk) noexcept
+(opt_token<callback_t<socket_t,error_code>> tk) noexcept
 {
 	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() -> awaitable<void>
 	{
 		if( not *valid )
 			co_return ;
 
-		socket_ptr socket;
+		socket_t socket;
 		error_code error;
 
 		if( tk.cnl_sig )
@@ -179,7 +153,7 @@ typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derive
 		if( not *valid )
 			co_return ;
 
-		tk.callback(socket, error);
+		tk.callback(std::move(socket), error);
 		co_return ;
 	},
 	this->m_exec);
@@ -187,11 +161,11 @@ typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derive
 }
 
 template <concept_execution Exec, typename Derived>
-awaitable<typename basic_tcp_server<Exec,Derived>::socket_ptr> 
+awaitable<typename basic_tcp_server<Exec,Derived>::socket_t> 
 basic_tcp_server<Exec,Derived>::accept(opt_token<error_code&> tk)
 {
 	error_code error;
-	asio_tcp_socket socket(pool());
+	socket_t socket(pool());
 
 	if( tk.cnl_sig )
 	{
@@ -201,26 +175,8 @@ basic_tcp_server<Exec,Derived>::accept(opt_token<error_code&> tk)
 	else
 		socket = co_await m_native.async_accept(m_pool, use_awaitable_e[error]);
 
-	std::shared_ptr<cs_socket_t> sock_ptr;
-	if( not detail::check_error(tk.error, error, "libgs::io::tcp_server::accept") )
-		co_return sock_ptr;
-
-	sock_ptr = std::make_shared<cs_socket_t>(std::move(socket));	
-	auto _sock_ptr = sock_ptr.get();
-	m_sock_set.emplace(_sock_ptr);
-
-	sock_ptr->set_delete_callback([this, valid = this->m_valid, _sock_ptr]
-	{
-		if( not *valid )
-			return ;
-
-		asio::post(this->m_exec, [this, valid = std::move(valid), _sock_ptr]
-		{
-			if( *valid )
-				m_sock_set.erase(_sock_ptr);
-		});
-	});
-	co_return sock_ptr;
+	detail::check_error(tk.error, error, "libgs::io::tcp_server::accept");
+	co_return std::move(socket);
 }
 
 template <concept_execution Exec, typename Derived>
@@ -265,9 +221,18 @@ typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derive
 }
 
 template <concept_execution Exec, typename Derived>
-awaitable<void> basic_tcp_server<Exec,Derived>::co_cancel() noexcept
+awaitable<void> basic_tcp_server<Exec,Derived>::co_stop() noexcept
 {
-	co_return co_await co_thread([this]{cancel();});
+	co_return co_await co_thread([this]{stop();});
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derived>::stop() noexcept
+{
+	cancel();
+	error_code error;
+	m_native.close(error);
+	return wait();
 }
 
 template <concept_execution Exec, typename Derived>
@@ -275,12 +240,7 @@ typename basic_tcp_server<Exec,Derived>::derived_t &basic_tcp_server<Exec,Derive
 {
 	error_code error;
 	m_native.cancel(error);
-	m_native.close(error);
-
-	auto sock_set = std::move(m_sock_set);
-	for(auto &sock : sock_set)
-		sock->close(error);
-	return wait();
+	return this->derived();
 }
 
 template <concept_execution Exec, typename Derived>

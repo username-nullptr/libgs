@@ -42,14 +42,6 @@ ssl_stream<Stream,Derived>::ssl_stream(Context &context, ssl::context &ssl) :
 }
 
 template <typename Stream, typename Derived>
-ssl_stream<Stream,Derived>::ssl_stream(next_layer_t &&next_layer, ssl::context &ssl) :
-	base_t(new native_t(std::move(next_layer.native()), ssl), next_layer.executor()),
-	m_next_layer(std::move(next_layer))
-{
-	next_layer_ext();
-}
-
-template <typename Stream, typename Derived>
 ssl_stream<Stream,Derived>::ssl_stream(const executor_t &exec, ssl::context &ssl) :
 	base_t(new native_t(native_next_layer_t(exec), ssl), exec),
 	m_next_layer(exec)
@@ -66,11 +58,14 @@ ssl_stream<Stream,Derived>::ssl_stream(ssl::context &ssl) :
 }
 
 template <typename Stream, typename Derived>
-template <typename NativeNextLayer>
-ssl_stream<Stream,Derived>::ssl_stream(NativeNextLayer &&native, ssl::context &ssl)
-requires requires { native_next_layer_t(std::move(native)); } :
-	base_t(new native_t(native_next_layer_t(std::move(native)), ssl), native.get_executor()),
-	m_next_layer(this->native().get_executor())
+template <typename NextLayer>
+ssl_stream<Stream,Derived>::ssl_stream(NextLayer &&next_layer, ssl::context &ssl) requires requires
+{ 
+	native_t(std::move(next_layer.native()), ssl);
+	next_layer_t(std::move(next_layer)); 
+}:
+	base_t(new native_t(std::move(next_layer.native()), ssl), next_layer.executor()),
+	m_next_layer(std::move(next_layer))
 {
 	next_layer_ext();
 }
@@ -94,18 +89,9 @@ ssl_stream<Stream,Derived>::~ssl_stream()
 }
 
 template <typename Stream, typename Derived>
-template <typename NativeNextLayer>
-ssl_stream<Stream,Derived> &ssl_stream<Stream,Derived>::operator=(NativeNextLayer &&native)
-requires requires { (typename Stream::native_t)(std::move(native)); }
-{
-	this->m_native.next_layer() = std::move(native);
-	return *this;
-}
-
-template <typename Stream, typename Derived>
 ssl_stream<Stream,Derived> &ssl_stream<Stream,Derived>::operator=(native_t &&native)
 {
-	this->m_native = std::move(native);
+	this->native() = std::move(native);
 	return *this;
 }
 

@@ -77,60 +77,6 @@ basic_ssl_tcp_socket<Exec,Derived> &basic_ssl_tcp_socket<Exec,Derived>::operator
 }
 
 template <concept_execution Exec, typename Derived>
-bool basic_ssl_tcp_socket<Exec,Derived>::is_open() const noexcept
-{
-	return native().next_layer().is_open();
-}
-
-template <concept_execution Exec, typename Derived>
-awaitable<void> basic_ssl_tcp_socket<Exec,Derived>::close(opt_token<error_code&> tk)
-{
-	error_code error;
-	if( tk.cnl_sig )
-		co_await native().wave({tk.rtime, *tk.cnl_sig, error});
-	else
-		co_await native().wave({tk.rtime, error});
-
-	detail::check_error(tk.error, error, "libgs::io::ssl_tcp_socket::close");
-	if( not error )
-	{
-		native().next_layer().close(error);
-		detail::check_error(tk.error, error, "libgs::io::ssl_tcp_socket::close");
-	}
-	co_return ;
-}
-
-template <concept_execution Exec, typename Derived>
-typename basic_ssl_tcp_socket<Exec,Derived>::derived_t&
-basic_ssl_tcp_socket<Exec,Derived>::close(opt_token<callback_t<error_code>> tk)
-{
-	co_spawn_detached([this, valid = this->m_valid, buf, tk = std::move(tk)]() -> awaitable<void>
-	{
-		if( not *valid )
-			co_return ;
-
-		error_code error;
-		if( tk.cnl_sig )
-			co_await close(buf, {tk.rtime, *tk.cnl_sig, error});
-		else
-			co_await close(buf, {tk.rtime, error});
-
-		if( not *valid )
-			co_return ;
-
-		tk.callback(size, error);
-		co_return ;
-	},
-	this->m_exec);
-}
-
-template <concept_execution Exec, typename Derived>
-typename basic_ssl_tcp_socket<Exec,Derived>::derived_t &basic_ssl_tcp_socket<Exec,Derived>::cancel() noexcept
-{
-	native().close(error);
-}
-
-template <concept_execution Exec, typename Derived>
 ip_endpoint basic_ssl_tcp_socket<Exec,Derived>::remote_endpoint(no_time_token tk) const
 {
 	error_code error;
@@ -212,6 +158,27 @@ template <concept_execution Exec, typename Derived>
 typename basic_ssl_tcp_socket<Exec,Derived>::resolver_t &basic_ssl_tcp_socket<Exec,Derived>::resolver() noexcept
 {
 	return native().next_layer().resolver();
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<error_code> basic_ssl_tcp_socket<Exec,Derived>::_close(cancellation_signal *cnl_sig)
+{
+	error_code error;
+	if( cnl_sig )
+		co_await native().wave({*tk.cnl_sig, error});
+	else
+		co_await native().wave(error);
+
+	if( not error )
+		native().next_layer().close(error);
+	co_return error;
+}
+
+template <concept_execution Exec, typename Derived>
+void basic_ssl_tcp_socket<Exec,Derived>::_cancel() noexcept
+{
+	base_t::_cancel();
+	native().cancel();
 }
 
 template <concept_execution Exec, typename Derived>

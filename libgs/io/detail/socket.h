@@ -36,6 +36,22 @@ template <typename Derived, concept_execution Exec>
 basic_socket<Derived,Exec>::~basic_socket() = default;
 
 template <typename Derived, concept_execution Exec>
+template <concept_execution Exec0>
+basic_socket<Derived,Exec>::basic_socket(basic_socket<Derived,Exec0> &&other) noexcept :
+	base_t(std::move(other))
+{
+
+}
+
+template <typename Derived, concept_execution Exec>
+template <concept_execution Exec0>
+basic_socket<Derived,Exec> &basic_socket<Derived,Exec>::operator=(basic_socket<Derived,Exec0> &&other) noexcept
+{
+	base_t::operator=(std::move(other));
+	return *this;
+}
+
+template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept
 {
 	co_spawn_detached([this, valid = this->m_valid, ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>

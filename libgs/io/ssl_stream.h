@@ -77,21 +77,20 @@ public:
 	ssl_stream(Context &context, ssl::context &ssl);
 
 	ssl_stream(const executor_t &exec, ssl::context &ssl);
-	ssl_stream(next_layer_t &&next_layer, ssl::context &ssl);
 	explicit ssl_stream(ssl::context &ssl);
 
-	template <typename NativeNextLayer>
-	ssl_stream(NativeNextLayer &&native, ssl::context &ssl) requires requires { native_next_layer_t(std::move(native)); };
-
+	template <typename NextLayer>
+	ssl_stream(NextLayer &&next_layer, ssl::context &ssl) requires requires 
+	{ 
+		native_t(std::move(next_layer.native()), ssl);
+		next_layer_t(std::move(next_layer)); 
+	};
 	ssl_stream(native_t &&native);
 	~ssl_stream() override;
 
 public:
 	ssl_stream(ssl_stream &&other) noexcept = default;
 	ssl_stream &operator=(ssl_stream &&other) noexcept = default;
-
-	template <typename NativeNextLayer>
-	ssl_stream &operator=(NativeNextLayer &&native) requires requires { (typename Stream::native_t)(std::move(native)); };
 	ssl_stream &operator=(native_t &&native);
 
 public:

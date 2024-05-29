@@ -38,7 +38,7 @@ template <concept_char_type CharT, concept_execution Exec, typename Derived>
 class basic_server<CharT,Exec,Derived>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
-	using socket_ptr = typename next_layer_t::socket_ptr;
+	using socket_t = typename next_layer_t::socket_t;
 
 public:
 	template <typename...Args>
@@ -101,7 +101,7 @@ public:
 				libgs_log_error("libgs::http::server: Unknown exception.");
 				abd = true;
 			}
-			co_await m_next_layer.co_cancel();
+			co_await m_next_layer.co_stop();
 			m_is_start = false;
 			if( abd )
 				forced_termination();
@@ -127,7 +127,7 @@ private:
 	[[nodiscard]] awaitable<void> do_tcp_accept(size_t max)
 	{
 		m_next_layer.start(max);
-		socket_ptr socket;
+		socket_t socket;
 		for(;;)
 		{
 			try {
@@ -138,7 +138,7 @@ private:
 				call_on_system_error(ex.code());
 				continue;
 			}
-			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() -> awaitable<void>
+			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
 			{
 				bool abd = false;
 				try {
@@ -155,7 +155,7 @@ private:
 					abd = true;
 				}
 				error_code error;
-				socket->close(error);
+				socket.close(error);
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -165,14 +165,14 @@ private:
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> do_tcp_service(socket_ptr socket, const std::chrono::milliseconds &keepalive_time)
+	[[nodiscard]] awaitable<void> do_tcp_service(socket_t socket, const std::chrono::milliseconds &keepalive_time)
 	{
 		basic_server::parser parser;
 		char buf[65536] = {0};
 		for(;;)
 		{
 			try {
-				auto size = co_await socket->read_some({buf, 65536}, {keepalive_time});
+				auto size = co_await socket.read_some({buf, 65536}, {keepalive_time});
 				if( size == 0 )
 					break;
 
@@ -187,7 +187,7 @@ private:
 					break;
 				call_on_system_error(ex.code());
 			}
-			context _context(std::move(*socket), parser);
+			context _context(std::move(socket), parser);
 			co_await call_on_request(parser, _context);
 
 			if( not _context.response().headers_writed() )

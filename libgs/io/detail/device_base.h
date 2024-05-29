@@ -32,50 +32,52 @@
 namespace libgs::io
 {
 
-template <typename CC, concept_execution Exec>
-device_base<CC,Exec>::device_base(const executor_t &exec) :
+template <typename Derived, concept_execution Exec>
+device_base<Derived,Exec>::device_base(const executor_t &exec) :
 	m_exec(exec),
 	m_valid(new std::atomic_bool(true))
 {
 
 }
 
-template <typename CC, concept_execution Exec>
-device_base<CC,Exec>::~device_base()
+template <typename Derived, concept_execution Exec>
+device_base<Derived,Exec>::~device_base()
 {
 	*m_valid = false;
 }
 
-template <typename CC, concept_execution Exec>
-device_base<CC,Exec>::device_base(device_base &&other) noexcept :
+template <typename Derived, concept_execution Exec>
+template <concept_execution Exec0>
+device_base<Derived,Exec>::device_base(device_base<Derived,Exec0> &&other) noexcept :
 	m_exec(other.m_exec),
 	m_valid(other.m_valid)
 {
 
 }
 
-template <typename CC, concept_execution Exec>
-device_base<CC,Exec> &device_base<CC,Exec>::operator=(device_base &&other) noexcept
+template <typename Derived, concept_execution Exec>
+template <concept_execution Exec0>
+device_base<Derived,Exec> &device_base<Derived,Exec>::operator=(device_base<Derived,Exec0> &&other) noexcept
 {
 	m_exec = other.m_exec;
 	m_valid = other.m_valid;
 	return *this;
 }
 
-template <typename CC, concept_execution Exec>
-typename device_base<CC,Exec>::executor_t &device_base<CC,Exec>::executor() const
+template <typename Derived, concept_execution Exec>
+typename device_base<Derived,Exec>::executor_t &device_base<Derived,Exec>::executor() const
 {
 	return m_exec;
 }
 
-template <typename CC, concept_execution Exec>
-const typename device_base<CC,Exec>::derived_t &device_base<CC,Exec>::derived() const
+template <typename Derived, concept_execution Exec>
+const typename device_base<Derived,Exec>::derived_t &device_base<Derived,Exec>::derived() const
 {
 	return reinterpret_cast<const derived_t&>(*this);
 }
 
-template <typename CC, concept_execution Exec>
-typename device_base<CC,Exec>::derived_t &device_base<CC,Exec>::derived()
+template <typename Derived, concept_execution Exec>
+typename device_base<Derived,Exec>::derived_t &device_base<Derived,Exec>::derived()
 {
 	return reinterpret_cast<derived_t&>(*this);
 }

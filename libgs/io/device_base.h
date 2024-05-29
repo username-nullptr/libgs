@@ -48,8 +48,11 @@ public:
 	explicit device_base(const executor_t &exec);
 	virtual ~device_base() = 0;
 
-	device_base(device_base &&other) noexcept;
-	device_base &operator=(device_base &&other) noexcept;
+	template <concept_execution Exec0>
+	device_base(device_base<Derived,Exec0> &&other) noexcept;
+
+	template <concept_execution Exec0>
+	device_base &operator=(device_base<Derived,Exec0> &&other) noexcept;
 
 public:
 	executor_t &executor() const;

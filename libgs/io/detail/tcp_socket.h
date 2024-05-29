@@ -62,23 +62,25 @@ template <concept_execution Exec, typename Derived>
 basic_tcp_socket<Exec,Derived>::~basic_tcp_socket()
 {
 	error_code error;
-	close(error);
+	native().close(error);
 }
 
 template <concept_execution Exec, typename Derived>
-basic_tcp_socket<Exec,Derived>::basic_tcp_socket(basic_tcp_socket &&other) noexcept :
+template <concept_execution Exec0>
+basic_tcp_socket<Exec,Derived>::basic_tcp_socket(basic_tcp_socket<Exec0,Derived> &&other) noexcept :
 	base_t(std::move(other)),
 	m_resolver(std::move(other.m_resolver))
 {
-	other.m_native = new native_t(this->executor());
+	native() = std::move(other.native());
 }
 
 template <concept_execution Exec, typename Derived>
-basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(basic_tcp_socket &&other) noexcept
+template <concept_execution Exec0>
+basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(basic_tcp_socket<Exec0,Derived> &&other) noexcept
 {
 	base_t::operator=(std::move(other));
-	other.m_native = new native_t(this->executor());
 	m_resolver = std::move(other.m_resolver);
+	native() = std::move(other.native());
 	return *this;
 }
 
@@ -88,35 +90,6 @@ basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(asio_b
 {
 	this->native() = std::move(native);
 	return *this;
-}
-
-template <concept_execution Exec, typename Derived>
-bool basic_tcp_socket<Exec,Derived>::is_open() const noexcept
-{
-	return native().is_open();
-}
-
-template <concept_execution Exec, typename Derived>
-typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::close(no_time_token tk)
-{
-	error_code error;
-	native().close(error);
-	detail::check_error(tk.error, error, "libgs::io::tcp_socket::close");
-	return this->derived();
-}
-
-template <concept_execution Exec, typename Derived>
-typename basic_tcp_socket<Exec,Derived>::derived_t &basic_tcp_socket<Exec,Derived>::cancel() noexcept
-{
-	this->m_write_cancel = true;
-	this->m_read_cancel = true;
-
-	this->m_connect_cancel = true;
-	this->m_dns_cancel = true;
-
-	m_resolver.cancel();
-	native().cancel();
-	return this->derived();
 }
 
 template <concept_execution Exec, typename Derived>
@@ -280,6 +253,14 @@ template <concept_execution Exec, typename Derived>
 typename basic_tcp_socket<Exec,Derived>::resolver_t &basic_tcp_socket<Exec,Derived>::resolver() noexcept
 {
 	return m_resolver;
+}
+
+template <concept_execution Exec, typename Derived>
+void basic_tcp_socket<Exec,Derived>::_cancel() noexcept
+{
+	base_t::_cancel();
+	this->m_dns_cancel = true;
+	m_resolver.cancel();
 }
 
 template <concept_execution Exec, typename Derived>

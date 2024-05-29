@@ -51,8 +51,11 @@ public:
 	using basic_stream<derived_t,Exec>::basic_stream;
 	~basic_socket() override = 0;
 
-	basic_socket(basic_socket &&other) noexcept = default;
-	basic_socket &operator=(basic_socket &&other) noexcept = default;
+	template <concept_execution Exec0>
+	basic_socket(basic_socket<Derived,Exec0> &&other) noexcept;
+
+	template <concept_execution Exec0>
+	basic_socket &operator=(basic_socket<Derived,Exec0> &&other) noexcept;
 
 public:
 	derived_t &connect(host_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;

@@ -30,8 +30,6 @@
 #define LIBGS_IO_TCP_SERVER_H
 
 #include <libgs/io/tcp_socket.h>
-#include <memory>
-#include <set>
 
 namespace libgs
 {
@@ -48,7 +46,6 @@ template <concept_execution Exec, typename Derived = void>
 class LIBGS_IO_TAPI basic_tcp_server : public device_base<crtp_derived_t<Derived,basic_tcp_server<Exec,Derived>>,Exec>
 {
 	LIBGS_DISABLE_COPY(basic_tcp_server)
-	class cs_socket_t;
 
 public:
 	using derived_t = crtp_derived_t<Derived,basic_tcp_server>;
@@ -56,7 +53,6 @@ public:
 
 	using executor_t = base_t::executor_t;
 	using socket_t = tcp_socket;
-	using socket_ptr = std::shared_ptr<socket_t>;
 	using native_t = asio_basic_tcp_acceptor<executor_t>;
 
 	struct start_token : no_time_token
@@ -88,8 +84,8 @@ public:
 	derived_t &bind(ip_endpoint ep, opt_token<error_code&> tk = {});
 	derived_t &start(start_token tk = {});
 
-	derived_t &accept(opt_token<callback_t<socket_ptr,error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<socket_ptr> accept(opt_token<error_code&> tk = {});
+	derived_t &accept(opt_token<callback_t<socket_t,error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<socket_t> accept(opt_token<error_code&> tk = {});
 
 public:
 	derived_t &set_option(const auto &op, no_time_token tk = {});
@@ -100,7 +96,8 @@ public:
 	awaitable<void> co_wait() noexcept;
 	derived_t &wait() noexcept;
 
-	awaitable<void> co_cancel() noexcept;
+	awaitable<void> co_stop() noexcept;
+	derived_t &stop() noexcept;
 	derived_t &cancel() noexcept;
 
 	const asio::thread_pool &pool() const noexcept;
@@ -114,7 +111,6 @@ protected:
 	static size_t _tcount(size_t c) noexcept;
 	native_t m_native;
 	asio::thread_pool m_pool;
-	std::set<socket_t*> m_sock_set;
 };
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;

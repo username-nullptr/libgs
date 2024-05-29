@@ -52,8 +52,11 @@ public:
 	basic_stream(auto *native, const executor_t &exec);
 	~basic_stream() override = 0;
 
-	basic_stream(basic_stream &&other) noexcept;
-	basic_stream &operator=(basic_stream &&other) noexcept;
+	template <concept_execution Exec0>
+	basic_stream(basic_stream<Derived,Exec0> &&other) noexcept;
+
+	template <concept_execution Exec0>
+	basic_stream &operator=(basic_stream<Derived,Exec0> &&other) noexcept;
 
 public:
 	derived_t &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
@@ -87,6 +90,11 @@ public:
 	derived_t &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write_some(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
+public:
+	derived_t &close(opt_token<callback_t<error_code>> tk);
+	awaitable<void> close(opt_token<error_code&> tk = {});
+	derived_t &cancel() noexcept;
+
 /*** Derived class implementation required:
  *
  *  [[nodiscard]] size_t read_buffer_size() const noexcept;
@@ -102,8 +110,12 @@ protected:
 	awaitable<size_t> _write_data
 	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept;
 
+	awaitable<error_code> _close(cancellation_signal *cnl_sig) noexcept;
+	void _cancel() noexcept;
+
 	bool m_write_cancel = false;
 	bool m_read_cancel = false;
+	bool m_close_cancel = false;
 
 	std::function<void(void*)> m_delete_helper;
 	void *m_native;

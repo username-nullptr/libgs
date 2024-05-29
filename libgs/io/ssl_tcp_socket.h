@@ -66,12 +66,6 @@ public:
 	basic_ssl_tcp_socket &operator=(native_t &&native) noexcept;
 
 public:
-	[[nodiscard]] bool is_open() const noexcept;
-	awaitable<void> close(opt_token<error_code&> tk = {});
-	derived_t &close(opt_token<callback_t<error_code>> tk);
-	derived_t &cancel() noexcept;
-
-public:
 	[[nodiscard]] ip_endpoint remote_endpoint(no_time_token tk = {}) const;
 	[[nodiscard]] ip_endpoint local_endpoint(no_time_token tk = {}) const;
 
@@ -89,6 +83,10 @@ public:
 
 	[[nodiscard]] const resolver_t &resolver() const noexcept;
 	[[nodiscard]] resolver_t &resolver() noexcept;
+
+protected:
+	awaitable<error_code> _close(cancellation_signal *cnl_sig);
+	void _cancel() noexcept;
 
 private:
 	friend class basic_stream<basic_ssl_tcp_socket,executor_t>;

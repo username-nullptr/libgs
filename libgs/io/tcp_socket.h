@@ -69,16 +69,14 @@ public:
 	~basic_tcp_socket() override;
 
 public:
-	basic_tcp_socket(basic_tcp_socket &&other) noexcept;
-	basic_tcp_socket &operator=(basic_tcp_socket &&other) noexcept;
+	template <concept_execution Exec0>
+	basic_tcp_socket(basic_tcp_socket<Exec0,Derived> &&other) noexcept;
+
+	template <concept_execution Exec0>
+	basic_tcp_socket &operator=(basic_tcp_socket<Exec0,Derived> &&other) noexcept;
 
 	template <concept_execution Exec0>
 	basic_tcp_socket &operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept;
-
-public:
-	[[nodiscard]] bool is_open() const noexcept;
-	derived_t &close(no_time_token tk = {});
-	derived_t &cancel() noexcept;
 
 public:
 	[[nodiscard]] ip_endpoint remote_endpoint(no_time_token tk = {}) const;
@@ -100,6 +98,7 @@ public:
 	[[nodiscard]] resolver_t &resolver() noexcept;
 
 protected:
+	void _cancel() noexcept;
 	resolver_t m_resolver;
 
 private:

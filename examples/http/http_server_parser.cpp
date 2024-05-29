@@ -4,14 +4,14 @@
 
 using namespace std::chrono_literals;
 
-libgs::awaitable<void> service(libgs::io::tcp_server::socket_ptr socket, libgs::io::ip_endpoint ep)
+libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io::ip_endpoint ep)
 {
 	libgs::http::request_parser parser;
 	try {
 		char rbuf[4096] = "";
 		for(;;)
 		{
-			auto res = co_await socket->read_some({rbuf,4096}, 5s);
+			auto res = co_await socket.read_some({rbuf,4096}, 5s);
 			if( res == 0 )
 				break;
 
@@ -41,8 +41,8 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_ptr socket, libgs::
 									"Hello world",
 									libgs::http::header::connection,
 									libgs::http::header::content_length);
-			co_await socket->write(wbuf);
-			socket->close();
+			co_await socket.write(wbuf);
+			socket.close();
 			break;
 		}
 	}
@@ -63,7 +63,7 @@ int main()
 			for(;;)
 			{
 				auto socket = co_await server.accept();
-				auto ep = socket->remote_endpoint();
+				auto ep = socket.remote_endpoint();
 
 				libgs_log_debug("new connction: {}", ep);
 				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)), server.pool());
