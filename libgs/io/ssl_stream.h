@@ -79,8 +79,7 @@ public:
 	ssl_stream(const executor_t &exec, ssl::context &ssl);
 	explicit ssl_stream(ssl::context &ssl);
 
-	template <typename NextLayer>
-	ssl_stream(NextLayer &&next_layer, ssl::context &ssl) requires requires 
+	ssl_stream(auto next_layer, ssl::context &ssl) requires requires
 	{ 
 		native_t(std::move(next_layer.native()), ssl);
 		next_layer_t(std::move(next_layer)); 
@@ -97,10 +96,8 @@ public:
 	derived_t &handshake(handshake_t type, opt_token<callback_t<error_code>> tk);
 	awaitable<void> handshake(handshake_t type, opt_token<error_code&> tk = {});
 
-	derived_t &wave(opt_token<callback_t<error_code>> tk);
-	awaitable<void> wave(opt_token<error_code&> tk = {});
-
-	derived_t &cancel() noexcept;
+	derived_t &wave(opt_token<callback_t<error_code>> tk); //close
+	awaitable<void> wave(opt_token<error_code&> tk = {}); //close
 
 public:
 	derived_t &set_verify_mode(ssl::verify_mode mode, no_time_token tk = {});
@@ -120,8 +117,10 @@ public:
 	[[nodiscard]] next_layer_t &next_layer() noexcept;
 
 protected:
+	[[nodiscard]] awaitable<error_code> _close(cancellation_signal *cnl_sig) noexcept;
+	void _cancel() noexcept;
+
 	bool m_handshake_cancel = false;
-	bool m_wave_cancel = false;
 	next_layer_t m_next_layer;
 
 private:

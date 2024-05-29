@@ -58,8 +58,7 @@ ssl_stream<Stream,Derived>::ssl_stream(ssl::context &ssl) :
 }
 
 template <typename Stream, typename Derived>
-template <typename NextLayer>
-ssl_stream<Stream,Derived>::ssl_stream(NextLayer &&next_layer, ssl::context &ssl) requires requires
+ssl_stream<Stream,Derived>::ssl_stream(auto next_layer, ssl::context &ssl) requires requires
 { 
 	native_t(std::move(next_layer.native()), ssl);
 	next_layer_t(std::move(next_layer)); 
@@ -155,67 +154,14 @@ awaitable<void> ssl_stream<Stream,Derived>::handshake(handshake_t type, opt_toke
 template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::wave(opt_token<callback_t<error_code>> tk)
 {
-	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() -> awaitable<void>
-	{
-		if( not *valid )
-			co_return ;
-
-		error_code error;
-
-		if( tk.cnl_sig )
-			co_await wave({tk.rtime, *tk.cnl_sig, error});
-		else
-			co_await wave({tk.rtime, error});
-
-		if( not *valid )
-			co_return ;
-
-		tk.callback(error);
-		co_return ;
-	},
-	this->m_exec);
+	this->close(tk);
 	return this->derived();
 }
 
 template <typename Stream, typename Derived>
 awaitable<void> ssl_stream<Stream,Derived>::wave(opt_token<error_code&> tk)
 {
-	error_code error;
-	auto _wave = [&]() -> awaitable<void>
-	{
-		m_wave_cancel = false;
-		if( tk.cnl_sig )
-			co_await native().async_shutdown(asio::bind_cancellation_slot(tk.cnl_sig->slot(), use_awaitable_e[error]));
-		else
-			co_await native().async_shutdown(use_awaitable_e[error]);
-
-		if( m_wave_cancel )
-		{
-			error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
-			m_wave_cancel = false;
-		}
-		co_return ;
-	};
-	using namespace std::chrono_literals;
-	if( tk.rtime == 0s )
-		co_await _wave();
-	else
-	{
-		auto var = co_await (_wave() or co_sleep_for(tk.rtime));
-		if( var.index() == 1 )
-			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
-	}
-	detail::check_error(tk.error, error, "libgs::io::ssl_stream::wave");
-	co_return ;
-}
-
-template <typename Stream, typename Derived>
-typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::cancel() noexcept
-{
-	m_handshake_cancel = true;
-	m_wave_cancel = true;
-	next_layer().cancel();
-	return this->derived();
+	co_return co_await this->close(tk);
 }
 
 template <typename Stream, typename Derived>
@@ -280,6 +226,24 @@ template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::next_layer_t &ssl_stream<Stream,Derived>::next_layer() noexcept
 {
 	return m_next_layer;
+}
+
+template <typename Stream, typename Derived>
+awaitable<error_code> ssl_stream<Stream,Derived>::_close(cancellation_signal *cnl_sig) noexcept
+{
+	error_code error;
+	if( cnl_sig )
+		co_await native().async_shutdown(asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	else
+		co_await native().async_shutdown(use_awaitable_e[error]);
+	co_return error;
+}
+
+template <typename Stream, typename Derived>
+void ssl_stream<Stream,Derived>::_cancel() noexcept
+{
+	m_handshake_cancel = true;
+	next_layer().cancel();
 }
 
 template <typename Stream, typename Derived>

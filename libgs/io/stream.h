@@ -35,7 +35,7 @@
 namespace libgs::io
 {
 
-template <typename Stream, typename Derived = void>
+template <typename Stream, typename Derived>
 class ssl_stream;
 
 template <typename Derived, concept_execution Exec = asio::any_io_executor>
@@ -92,7 +92,7 @@ public:
 
 public:
 	derived_t &close(opt_token<callback_t<error_code>> tk);
-	awaitable<void> close(opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<void> close(opt_token<error_code&> tk = {});
 	derived_t &cancel() noexcept;
 
 /*** Derived class implementation required:
@@ -104,13 +104,13 @@ public:
  *  [[nodiscard]] native_type &native() noexcept;
 **/
 protected:
-	awaitable<size_t> _read_data
+	[[nodiscard]] awaitable<size_t> _read_data
 	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept;
 
-	awaitable<size_t> _write_data
+	[[nodiscard]] awaitable<size_t> _write_data
 	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept;
 
-	awaitable<error_code> _close(cancellation_signal *cnl_sig) noexcept;
+	[[nodiscard]] awaitable<error_code> _close(cancellation_signal *cnl_sig) noexcept;
 	void _cancel() noexcept;
 
 	bool m_write_cancel = false;

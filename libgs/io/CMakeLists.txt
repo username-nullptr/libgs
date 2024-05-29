@@ -35,7 +35,9 @@ set(core_detail_headers
 	detail/socket.h
 	detail/tcp_socket.h
 	detail/ssl_tcp_socket.h
+	detail/tcp_server_base.h
 	detail/tcp_server.h
+	detail/ssl_tcp_server.h
 )
 
 set(all_files

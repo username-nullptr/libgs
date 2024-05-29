@@ -32,7 +32,7 @@
 #include <libgs/http/server/aop.h>
 #include <libgs/io/tcp_server.h>
 
-namespace libgs { namespace http
+namespace libgs::http
 {
 
 template <concept_char_type CharT, concept_execution Exec, typename Derived = void>
@@ -127,13 +127,7 @@ private:
 using server = basic_server<char,asio::any_io_executor>;
 using wserver = basic_server<wchar_t,asio::any_io_executor>;
 
-} //namespace http
-
-namespace https
-{
-
-
-}} //namespace libgs
+} //namespace libgs::http
 #include <libgs/http/server/detail/server.h>
 
 

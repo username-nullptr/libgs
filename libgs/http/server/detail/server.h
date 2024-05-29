@@ -155,7 +155,7 @@ private:
 					abd = true;
 				}
 				error_code error;
-				socket.close(error);
+				co_await socket.close(error);
 				if( abd )
 					forced_termination();
 				co_return ;

@@ -85,7 +85,7 @@ public:
 	[[nodiscard]] resolver_t &resolver() noexcept;
 
 protected:
-	awaitable<error_code> _close(cancellation_signal *cnl_sig);
+	[[nodiscard]] awaitable<error_code> _close(cancellation_signal *cnl_sig);
 	void _cancel() noexcept;
 
 private:

@@ -15,6 +15,7 @@ int main()
 		// co_await stream.next_layer().co_connect({"127.0.0.1", 6688}, {10s, error});
 		try {
 //			co_await stream.next_layer().connect({"127.0.0.1", 6688}, 10s);
+			co_await stream.handshake(libgs::ssl::stream_base::client, 10s);
 			co_await stream.write("hello world");
 
 			char buf[128] = "";
