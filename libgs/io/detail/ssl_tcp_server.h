@@ -29,22 +29,35 @@
 #ifndef LIBGS_IO_DETAIL_SSL_TCP_SERVER_H
 #define LIBGS_IO_DETAIL_SSL_TCP_SERVER_H
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 namespace libgs::io
 {
 
 template <concept_execution Exec, typename Derived>
-template <concept_execution Exec0>
-basic_ssl_tcp_server<Exec,Derived>::basic_ssl_tcp_server(basic_ssl_tcp_server<Exec0,Derived> &&other) noexcept :
-	base_t(std::move(other))
+template <typename...Args>
+basic_ssl_tcp_server<Exec,Derived>::basic_ssl_tcp_server(ssl::context &ssl, Args&&...args) requires requires {
+	base_t(std::forward<Args>(args)...);
+} : base_t(std::forward<Args>(args)...), m_ssl(&ssl)
 {
 
 }
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
-basic_ssl_tcp_server<Exec,Derived> &basic_ssl_tcp_server<Exec,Derived>::operator=(basic_ssl_tcp_server<Exec0,Derived> &&other) noexcept
+basic_ssl_tcp_server<Exec,Derived>::basic_ssl_tcp_server(basic_ssl_tcp_server<Exec0,Derived> &&other) noexcept :
+	base_t(std::move(other)), m_ssl(&other.m_ssl)
+{
+
+}
+
+template <concept_execution Exec, typename Derived>
+template <concept_execution Exec0>
+basic_ssl_tcp_server<Exec,Derived> &basic_ssl_tcp_server<Exec,Derived>::operator=
+(basic_ssl_tcp_server<Exec0,Derived> &&other) noexcept
 {
 	base_t::operator=(std::move(other));
+	m_ssl = &other.m_ssl;
 	return *this;
 }
 
@@ -58,9 +71,9 @@ basic_ssl_tcp_server<Exec,Derived> &basic_ssl_tcp_server<Exec,Derived>::operator
 
 template <concept_execution Exec, typename Derived>
 typename basic_ssl_tcp_server<Exec,Derived>::derived_t &basic_ssl_tcp_server<Exec,Derived>::accept
-(ssl::context &ssl, opt_token<callback_t<socket_t,error_code>> tk) noexcept
+(opt_token<callback_t<socket_t,error_code>> tk) noexcept
 {
-	co_spawn_detached([this, valid = this->m_valid, &ssl, tk = std::move(tk)]() mutable -> awaitable<void>
+	co_spawn_detached([this, valid = this->m_valid, tk = std::move(tk)]() mutable -> awaitable<void>
 	{
 		if( not *valid )
 			co_return ;
@@ -69,9 +82,9 @@ typename basic_ssl_tcp_server<Exec,Derived>::derived_t &basic_ssl_tcp_server<Exe
 		error_code error;
 
 		if( tk.cnl_sig )
-			socket = co_await accept(ssl, {tk.rtime, *tk.cnl_sig, error});
+			socket = co_await accept(m_ssl, {tk.rtime, *tk.cnl_sig, error});
 		else
-			socket = co_await accept(ssl, {tk.rtime, error});
+			socket = co_await accept(m_ssl, {tk.rtime, error});
 
 		if( not *valid )
 			co_return ;
@@ -85,10 +98,10 @@ typename basic_ssl_tcp_server<Exec,Derived>::derived_t &basic_ssl_tcp_server<Exe
 
 template <concept_execution Exec, typename Derived>
 awaitable<typename basic_ssl_tcp_server<Exec,Derived>::socket_t>
-basic_ssl_tcp_server<Exec,Derived>::accept(ssl::context &ssl, opt_token<error_code&> tk)
+basic_ssl_tcp_server<Exec,Derived>::accept(opt_token<error_code&> tk)
 {
 	error_code error;
-	socket_t socket(this->pool(), ssl);
+	socket_t socket(this->pool(), m_ssl);
 
 	auto _accept = [&]() mutable -> awaitable<void>
 	{
@@ -120,5 +133,5 @@ basic_ssl_tcp_server<Exec,Derived>::accept(ssl::context &ssl, opt_token<error_co
 
 } //namespace libgs::io
 
-
+#endif //LIBGS_ENABLE_OPENSSL
 #endif //LIBGS_IO_DETAIL_SSL_TCP_SERVER_H

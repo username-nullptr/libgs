@@ -29,6 +29,8 @@
 #ifndef LIBGS_IO_SSL_TCP_SERVER_H
 #define LIBGS_IO_SSL_TCP_SERVER_H
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 #include <libgs/io/detail/tcp_server_base.h>
 #include <libgs/io/ssl_tcp_socket.h>
 
@@ -47,13 +49,16 @@ public:
 
 	using executor_t = base_t::executor_t;
 	using socket_base_t = base_t::socket_base_t;
-	using socket_t = ssl_stream<socket_base_t>;
+	using socket_t = basic_ssl_tcp_socket<executor_t>;
 
 	using native_t = base_t::native_t;
 	using start_token = base_t::start_token;
 
 public:
-	using tcp_server_base<derived_t,executor_t>::tcp_server_base;
+	template <typename...Args>
+	basic_ssl_tcp_server(ssl::context &ssl, Args&&...args) requires requires {
+		base_t(std::forward<Args>(args)...);
+	};
 	~basic_ssl_tcp_server() override = default;
 
 public:
@@ -67,8 +72,11 @@ public:
 	basic_ssl_tcp_server &operator=(asio_basic_tcp_acceptor<Exec0> &&native) noexcept;
 
 public:
-	derived_t &accept(ssl::context &ssl, opt_token<callback_t<socket_t,error_code>> tk) noexcept;
-	[[nodiscard]] awaitable<socket_t> accept(ssl::context &ssl, opt_token<error_code&> tk = {});
+	derived_t &accept(opt_token<callback_t<socket_t,error_code>> tk) noexcept;
+	[[nodiscard]] awaitable<socket_t> accept(opt_token<error_code&> tk = {});
+
+protected:
+	ssl::context *m_ssl;
 };
 
 using ssl_tcp_server = basic_ssl_tcp_server<asio::any_io_executor>;
@@ -76,5 +84,5 @@ using ssl_tcp_server = basic_ssl_tcp_server<asio::any_io_executor>;
 } //namespace libgs::io
 #include <libgs/io/detail/ssl_tcp_server.h>
 
-
+#endif //LIBGS_ENABLE_OPENSSL
 #endif //LIBGS_IO_SSL_TCP_SERVER_H

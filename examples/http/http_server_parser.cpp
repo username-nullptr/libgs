@@ -42,7 +42,7 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io
 									libgs::http::header::connection,
 									libgs::http::header::content_length);
 			co_await socket.write(wbuf);
-			socket.close();
+			co_await socket.close();
 			break;
 		}
 	}

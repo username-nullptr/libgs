@@ -260,7 +260,7 @@ awaitable<void> co_to_exec(Exec &exec)
 	asio::use_awaitable);
 }
 
-LIBGS_CORE_VAPI awaitable<void> co_to_thread()
+LIBGS_CORE_VAPI inline awaitable<void> co_to_thread()
 {
 	return asio::async_initiate<decltype(asio::use_awaitable), void()>([](auto handler)
 	{

@@ -29,6 +29,8 @@
 #ifndef LIBGS_IO_DETAIL_SSL_STREAM_H
 #define LIBGS_IO_DETAIL_SSL_STREAM_H
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 namespace libgs::io
 {
 
@@ -261,5 +263,5 @@ void ssl_stream<Stream,Derived>::next_layer_ext()
 
 } //namespace libgs::io
 
-
+#endif //LIBGS_ENABLE_OPENSSL
 #endif //LIBGS_IO_DETAIL_SSL_STREAM_H

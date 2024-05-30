@@ -3,6 +3,7 @@ function(set_target)
 	math(EXPR MAX "${ARGC}")
 
 	set(lib_file ${ARGV0})
+	set(defines)
 	set(sources)
 
 	while (INDEX LESS ${MAX})
@@ -25,13 +26,16 @@ function(set_target)
 				continue ()
 			endif()
 
+			list(APPEND defines LIBGS_ENABLE_OPENSSL)
 			list(APPEND headers ${OpenSSL_DIR}/include)
 			list(APPEND lib_path ${OpenSSL_DIR}/lib)
 			list(APPEND lib_file crypto ssl)
 		endif ()
-
 		add_executable(${target_name} ${cpp_file})
+
+		target_compile_definitions(${target_name} PRIVATE ${defines})
 		target_include_directories(${target_name} PRIVATE ${headers})
+
 		target_link_directories(${target_name} PRIVATE ${lib_path})
 		target_link_libraries(${target_name} PRIVATE ${lib_file})
 

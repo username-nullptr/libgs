@@ -29,6 +29,8 @@
 #ifndef LIBGS_IO_SSL_TCP_SOCKET_H
 #define LIBGS_IO_SSL_TCP_SOCKET_H
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 #include <libgs/io/tcp_socket.h>
 #include <libgs/io/ssl_stream.h>
 
@@ -48,15 +50,29 @@ public:
 	using executor_t = base_t::executor_t;
 	using address_vector = base_t::address_vector;
 
-	using tcp_socket_t = basic_tcp_socket<executor_t>;
-	using native_t = ssl_stream<tcp_socket_t>;
-	using resolver_t = typename tcp_socket_t::resolver;
+	using next_layer_t = basic_tcp_socket<executor_t>;
+	using native_t = ssl_stream<next_layer_t>;
+	using resolver_t = typename next_layer_t::resolver;
 
 public:
-	template <concept_execution_context Context = asio::io_context>
-	explicit basic_ssl_tcp_socket(Context &context = execution::io_context());
+//	template <concept_execution_context Context = asio::io_context>
+//	explicit basic_ssl_tcp_socket(Context &context = execution::io_context());
 
-	explicit basic_ssl_tcp_socket(const executor_t &exec);
+//	explicit basic_ssl_tcp_socket(const executor_t &exec);
+//	basic_ssl_tcp_socket(native_t &&native);
+
+
+	template <concept_execution_context Context>
+	basic_ssl_tcp_socket(Context &context, ssl::context &ssl);
+
+	basic_ssl_tcp_socket(const executor_t &exec, ssl::context &ssl);
+	explicit basic_ssl_tcp_socket(ssl::context &ssl);
+
+	basic_ssl_tcp_socket(auto next_layer, ssl::context &ssl) requires requires
+	{
+		native_t(std::move(next_layer.native()), ssl);
+		next_layer_t(std::move(next_layer));
+	};
 	basic_ssl_tcp_socket(native_t &&native);
 	~basic_ssl_tcp_socket() override = default;
 
@@ -98,5 +114,5 @@ using ssl_tcp_socket = basic_ssl_tcp_socket<asio::any_io_executor>;
 } //namespace libgs::io
 #include <libgs/io/detail/ssl_tcp_socket.h>
 
-
+#endif //LIBGS_ENABLE_OPENSSL
 #endif //LIBGS_IO_SSL_TCP_SOCKET_H

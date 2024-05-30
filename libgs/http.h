@@ -29,8 +29,8 @@
 #ifndef LIBGS_HTTP_HPP
 #define LIBGS_HTTP_HPP
 
-#include <libgs/http/server.hpp>
-#include <libgs/http/client.hpp>
+#include <libgs/http/server.h>
+#include <libgs/http/client.h>
 
 #endif //LIBGS_HTTP_HPP
 

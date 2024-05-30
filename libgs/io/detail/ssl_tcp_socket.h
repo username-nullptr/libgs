@@ -29,34 +29,54 @@
 #ifndef LIBGS_IO_DETAIL_SSL_TCP_SOCKET_H
 #define LIBGS_IO_DETAIL_SSL_TCP_SOCKET_H
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 namespace libgs::io
 {
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
-basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(Context &context) :
-	base_t(new native_t(context), context.get_executor())
+basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(Context &context, ssl::context &ssl) :
+	base_t(new native_t(context, ssl), context.get_executor())
 {
 
 }
 
 template <concept_execution Exec, typename Derived>
-basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(const executor_t &exec) :
-	base_t(new native_t(exec), exec)
+basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(const executor_t &exec, ssl::context &ssl) :
+	base_t(new native_t(exec, ssl), exec)
 {
 
+}
+
+template <concept_execution Exec, typename Derived>
+basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(ssl::context &ssl) :
+	base_t(new native_t(ssl), execution::io_context().get_executor())
+{
+
+}
+
+template <concept_execution Exec, typename Derived>
+basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(auto next_layer, ssl::context &ssl) requires requires
+{
+	native_t(std::move(next_layer.native()), ssl);
+	next_layer_t(std::move(next_layer));
+}:
+	base_t(reinterpret_cast<void*>(1), next_layer.get_executor())
+{
+	this->m_native = new native_t(std::move(next_layer), ssl);
 }
 
 template <concept_execution Exec, typename Derived>
 basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(native_t &&native) :
-	base_t(reinterpret_cast<void*>(1), native.get_executor()),
+	base_t(reinterpret_cast<void*>(1), native.get_executor())
 {
 	this->m_native = new native_t(std::move(native));
 }
 
 template <concept_execution Exec, typename Derived>
 basic_ssl_tcp_socket<Exec,Derived>::basic_ssl_tcp_socket(basic_ssl_tcp_socket &&other) noexcept :
-	base_t(std::move(other)),
+	base_t(std::move(other))
 {
 	other.m_native = new native_t(this->executor());
 }
@@ -127,13 +147,13 @@ basic_ssl_tcp_socket<Exec,Derived>::get_option(socket_option op, no_time_token t
 template <concept_execution Exec, typename Derived>
 size_t basic_ssl_tcp_socket<Exec,Derived>::read_buffer_size() const noexcept
 {
-	return native().next_layer().read_buffer_size(error);
+	return native().read_buffer_size();
 }
 
 template <concept_execution Exec, typename Derived>
 size_t basic_ssl_tcp_socket<Exec,Derived>::write_buffer_size() const noexcept
 {
-	return native().next_layer().read_buffer_size(error);
+	return native().read_buffer_size();
 }
 
 template <concept_execution Exec, typename Derived>
@@ -189,5 +209,5 @@ void basic_ssl_tcp_socket<Exec,Derived>::_delete_native(void *native)
 
 } //namespace libgs::io
 
-
+#endif //LIBGS_ENABLE_OPENSSL
 #endif //LIBGS_IO_DETAIL_SSL_TCP_SOCKET_H

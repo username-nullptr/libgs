@@ -29,6 +29,8 @@
 #ifndef LIBGS_IO_SSL_STREAM_H
 #define LIBGS_IO_SSL_STREAM_H
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 #include <libgs/io/stream.h>
 #include <asio/ssl.hpp>
 
@@ -132,5 +134,5 @@ private:
 }} //namespace libgs::io
 #include <libgs/io/detail/ssl_stream.h>
 
-
+#endif //LIBGS_ENABLE_OPENSSL
 #endif //LIBGS_IO_SSL_STREAM_H
