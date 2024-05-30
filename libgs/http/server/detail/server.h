@@ -428,7 +428,7 @@ basic_server<CharT,Exec,Derived> &basic_server<CharT,Exec,Derived>::operator=(ba
 
 template <concept_char_type CharT, concept_execution Exec, typename Derived>
 typename basic_server<CharT,Exec,Derived>::derived_t &basic_server<CharT,Exec,Derived>::bind
-(io::ip_endpoint ep, opt_token<error_code&> tk)
+(io::ip_endpoint ep, io::no_time_token tk)
 {
 	m_impl->m_next_layer.bind(std::move(ep), tk);
 	return this->derived();

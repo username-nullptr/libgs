@@ -44,7 +44,9 @@ int main()
 	{
 		libgs::io::tcp_server server;
 		try {
-			server.bind({libgs::io::address_v4(),12345});
+			server.bind({libgs::io::address_v4(),12345}).start();
+			libgs_log_info("Server started.");
+
 			for(;;)
 			{
 				auto socket = co_await server.accept();
@@ -60,7 +62,12 @@ int main()
 							auto res = co_await socket.read_some({buf,4096});
 							if( res == 0 )
 								break;
+
 							libgs_log_debug("read ({}): {}", res, std::string_view(buf, res));
+							co_await socket.write("HTTP/1.1 200 OK\r\n"
+												  "Content-Length: 2\r\n"
+												  "\r\n"
+												  "Yh");
 						}
 					}
 					catch( std::exception &ex ) {
@@ -83,13 +90,14 @@ int main()
 	libgs::io::tcp_server server;
 	std::error_code error;
 
-	server.bind({libgs::io::address_v4(),12345}, error);
+	server.bind({libgs::io::address_v4(),12345}, error).start();
 	if( error )
 	{
 		libgs_log_error("server error: {}", error);
 		return -1;
 	}
 	do_accept(server);
+	libgs_log_info("Server started.");
 #endif
 	return libgs::execution::exec();
 }

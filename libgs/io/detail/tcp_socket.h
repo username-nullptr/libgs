@@ -71,7 +71,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(basic_tcp_socket<Exec0,Derived>
 	base_t(std::move(other)),
 	m_resolver(std::move(other.m_resolver))
 {
-	native() = std::move(other.native());
+	this->m_native = new native_t(std::move(other.native()));
 }
 
 template <concept_execution Exec, typename Derived>

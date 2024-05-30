@@ -84,7 +84,7 @@ public:
 	basic_server &operator=(basic_server &&other) noexcept;
 
 public:
-	derived_t &bind(io::ip_endpoint ep, opt_token<error_code&> tk = {});
+	derived_t &bind(io::ip_endpoint ep, io::no_time_token tk = {});
 	derived_t &start(start_token tk = {});
 
 public:

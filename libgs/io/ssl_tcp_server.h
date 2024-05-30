@@ -53,7 +53,7 @@ public:
 	using start_token = base_t::start_token;
 
 public:
-	using device_base<derived_t,Exec>::tcp_server_base;
+	using tcp_server_base<derived_t,executor_t>::tcp_server_base;
 	~basic_ssl_tcp_server() override = default;
 
 public:
