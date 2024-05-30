@@ -55,13 +55,6 @@ public:
 	using resolver_t = typename next_layer_t::resolver;
 
 public:
-//	template <concept_execution_context Context = asio::io_context>
-//	explicit basic_ssl_tcp_socket(Context &context = execution::io_context());
-
-//	explicit basic_ssl_tcp_socket(const executor_t &exec);
-//	basic_ssl_tcp_socket(native_t &&native);
-
-
 	template <concept_execution_context Context>
 	basic_ssl_tcp_socket(Context &context, ssl::context &ssl);
 
@@ -101,6 +94,9 @@ public:
 	[[nodiscard]] resolver_t &resolver() noexcept;
 
 protected:
+	[[nodiscard]] awaitable<error_code> _connect
+	(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept;
+
 	[[nodiscard]] awaitable<error_code> _close(cancellation_signal *cnl_sig);
 	void _cancel() noexcept;
 

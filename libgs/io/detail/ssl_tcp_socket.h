@@ -181,6 +181,33 @@ typename basic_ssl_tcp_socket<Exec,Derived>::resolver_t &basic_ssl_tcp_socket<Ex
 }
 
 template <concept_execution Exec, typename Derived>
+awaitable<error_code> basic_ssl_tcp_socket<Exec,Derived>::_connect
+(const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept
+{
+	error_code error;
+	this->m_connect_cancel = false;
+
+	if( cnl_sig )
+		co_await native().next_layer().connect(std::move(ep), {*cnl_sig, error});
+	else
+		co_await native().next_layer().connect(std::move(ep), error);
+
+	if( not error and not this->m_connect_cancel )
+	{
+		if( cnl_sig )
+			co_await native().handshake({*cnl_sig, error});
+		else
+			co_await native().handshake(error);
+	}
+	if( this->m_connect_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		this->m_connect_cancel = false;
+	}
+	co_return error;
+}
+
+template <concept_execution Exec, typename Derived>
 awaitable<error_code> basic_ssl_tcp_socket<Exec,Derived>::_close(cancellation_signal *cnl_sig)
 {
 	error_code error;
