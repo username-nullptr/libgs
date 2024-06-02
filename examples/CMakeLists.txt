@@ -20,7 +20,7 @@ function(set_target)
 		set(headers ../../libgs)
 		set(lib_path)
 
-		if (${target_name} MATCHES ssl)
+		if (${target_name} MATCHES ssl OR ${target_name} MATCHES https)
 			if (NOT OpenSSL_DIR)
 				math(EXPR INDEX "${INDEX} + 1")
 				continue ()

@@ -22,9 +22,6 @@ if (CMAKE_BUILD_TYPE AND (CMAKE_BUILD_TYPE STREQUAL "Debug"))
 	add_definitions(-DLIBGS_DEBUG)
 endif()
 
-# tmp
-add_definitions(-DLIBGS_ENABLE_OPENSSL)
-
 include_directories(.)
 add_subdirectory(libgs)
 add_subdirectory(test)
