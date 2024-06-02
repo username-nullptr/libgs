@@ -56,9 +56,8 @@ public:
 
 public:
 	template <typename...Args>
-	basic_ssl_tcp_server(ssl::context &ssl, Args&&...args) requires requires {
-		base_t(std::forward<Args>(args)...);
-	};
+	basic_ssl_tcp_server(ssl::context &ssl, Args&&...args) requires
+		detail::concept_tcp_server_base<derived_t,executor_t,Args...>;
 	~basic_ssl_tcp_server() override = default;
 
 public:

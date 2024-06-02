@@ -22,7 +22,7 @@ public:
 	}
 	bool exception(context_t &context, std::exception &ex) override
 	{
-		libgs_log_error("request throw <{}> log: '{}'.", ex, context.request().path());
+		libgs_log_error("request throw [{}] log: '{}'.", ex, context.request().path());
 		// Returning true terminates the chain of calls,
 		// otherwise the next 'exception' is called until 'on_exception' of the server,
 		// causing abort if 'on_exception' of the server also returns false.
@@ -49,7 +49,7 @@ public:
 	}
 	bool exception(context_t &context, std::exception &ex) override
 	{
-		libgs_log_error("request throw <{}> log (controller): '{}'.", ex, context.request().path());
+		libgs_log_error("request throw [{}] log (controller): '{}'.", ex, context.request().path());
 		// Returning true terminates the chain of calls,
 		// otherwise the next 'exception' is called until 'on_exception' of the server,
 		// causing abort if 'on_exception' of the server also returns false.

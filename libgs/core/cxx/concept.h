@@ -155,6 +155,9 @@ constexpr bool is_string_v = is_string<T>::value;
 template <typename T>
 concept concept_string_type = is_string_v<T>;
 
+template <typename T>
+concept concept_rvalue = std::is_rvalue_reference_v<T>;
+
 template <typename Res, typename Func, typename...Args>
 concept concept_basic_callable = requires(Func &&func, Args&&...args) {
 	std::is_same_v<decltype(func(std::forward<Args>(args)...)), Res>;
@@ -166,6 +169,11 @@ concept concept_void_callable = concept_basic_callable<void, Func, Args...>;
 template <typename Func, typename...Args>
 concept concept_callable = requires(Func &&func, Args&&...args) {
 	func(std::forward<Args>(args)...);
+};
+
+template <typename Struct, typename...Args>
+concept concept_constructible = requires(Args&&...args) {
+	Struct(std::forward<Args>(args)...);
 };
 
 template <typename T>

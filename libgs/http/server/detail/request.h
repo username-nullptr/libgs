@@ -75,15 +75,20 @@ basic_server_request<Stream,CharT,Derived>::~basic_server_request()
 }
 
 template <typename Stream, concept_char_type CharT, typename Derived>
-basic_server_request<Stream,CharT,Derived>::basic_server_request(basic_server_request &&other) noexcept :
+template <typename Stream0>
+basic_server_request<Stream,CharT,Derived>::basic_server_request
+(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
+	requires concept_constructible<Stream,Stream0&&> :
 	base_t(std::move(other)), m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
 template <typename Stream, concept_char_type CharT, typename Derived>
+template <typename Stream0>
 basic_server_request<Stream,CharT,Derived> &basic_server_request<Stream,CharT,Derived>::operator=
-(basic_server_request &&other) noexcept
+(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
+	requires concept_constructible<Stream,Stream0&&>
 {
 	base_t::operator=(std::move(other));
 	*m_impl = std::move(*other.m_impl);

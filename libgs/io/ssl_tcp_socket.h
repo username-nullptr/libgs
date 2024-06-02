@@ -50,29 +50,40 @@ public:
 	using executor_t = base_t::executor_t;
 	using address_vector = base_t::address_vector;
 
-	using next_layer_t = basic_tcp_socket<executor_t>;
-	using native_t = ssl_stream<next_layer_t>;
-	using resolver_t = typename next_layer_t::resolver;
+	using tcp_socket_t = basic_tcp_socket<executor_t>;
+	using ssl_stream_t = ssl_stream<tcp_socket_t>;
+	using native_t = ssl_stream_t::native_t;
+
+	using handshake_t = ssl_stream_t::handshake_t;
+	using resolver_t = tcp_socket_t::resolver_t;
 
 public:
 	template <concept_execution_context Context>
-	basic_ssl_tcp_socket(Context &context, ssl::context &ssl);
+	basic_ssl_tcp_socket(Context &context, ssl::context &ssl, handshake_t type = handshake_t::client);
 
-	basic_ssl_tcp_socket(const executor_t &exec, ssl::context &ssl);
-	explicit basic_ssl_tcp_socket(ssl::context &ssl);
+	basic_ssl_tcp_socket(const executor_t &exec, ssl::context &ssl, handshake_t type = handshake_t::client);
+	explicit basic_ssl_tcp_socket(ssl::context &ssl, handshake_t type = handshake_t::client);
 
-	basic_ssl_tcp_socket(auto next_layer, ssl::context &ssl) requires requires
-	{
-		native_t(std::move(next_layer.native()), ssl);
-		next_layer_t(std::move(next_layer));
+	basic_ssl_tcp_socket(auto next_layer, ssl::context &ssl, handshake_t type = handshake_t::client)
+	requires requires {
+		ssl_stream_t(std::move(next_layer.native()), ssl);
+		tcp_socket_t(std::move(next_layer));
 	};
-	basic_ssl_tcp_socket(native_t &&native);
+	basic_ssl_tcp_socket(ssl_stream_t &&native, handshake_t type = handshake_t::client);
 	~basic_ssl_tcp_socket() override = default;
 
 public:
-	basic_ssl_tcp_socket(basic_ssl_tcp_socket &&other) noexcept;
-	basic_ssl_tcp_socket &operator=(basic_ssl_tcp_socket &&other) noexcept;
-	basic_ssl_tcp_socket &operator=(native_t &&native) noexcept;
+	template <concept_execution Exec0>
+	basic_ssl_tcp_socket(basic_ssl_tcp_socket<Exec0,Derived> &&other) noexcept;
+
+	template <concept_execution Exec0>
+	basic_ssl_tcp_socket &operator=(basic_ssl_tcp_socket<Exec0,Derived> &&other) noexcept;
+
+	template <concept_execution Exec0>
+	using other_ssl_stream_t = ssl_stream<basic_tcp_socket<Exec0>>;
+
+	template <concept_execution Exec0>
+	basic_ssl_tcp_socket &operator=(other_ssl_stream_t<Exec0> &&native) noexcept;
 
 public:
 	[[nodiscard]] ip_endpoint remote_endpoint(no_time_token tk = {}) const;
@@ -87,6 +98,9 @@ public:
 	[[nodiscard]] size_t write_buffer_size() const noexcept;
 
 public:
+	[[nodiscard]] const ssl_stream_t &ssl_stream() const noexcept;
+	[[nodiscard]] ssl_stream_t &ssl_stream() noexcept;
+
 	[[nodiscard]] const native_t &native() const noexcept;
 	[[nodiscard]] native_t &native() noexcept;
 
@@ -99,6 +113,9 @@ protected:
 
 	[[nodiscard]] awaitable<error_code> _close(cancellation_signal *cnl_sig);
 	void _cancel() noexcept;
+
+	friend class basic_socket<crtp_derived_t<Derived,basic_ssl_tcp_socket<Exec,Derived>>,Exec>;
+	handshake_t m_type;
 
 private:
 	friend class basic_stream<basic_ssl_tcp_socket,executor_t>;

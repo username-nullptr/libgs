@@ -65,10 +65,15 @@ public:
 
 public:
 	explicit basic_server_response(next_layer_t &&next_layer);
-	~basic_server_response();
+	~basic_server_response() override;
 
-	basic_server_response(basic_server_response &&other) noexcept;
-	basic_server_response &operator=(basic_server_response &&other) noexcept;
+	template <typename Request0>
+	basic_server_response(basic_server_response<Request0,CharT,Derived> &&other) noexcept
+		requires concept_constructible<Request0,Request0&&>;
+
+	template <typename Request0>
+	basic_server_response &operator=(basic_server_response<Request0,CharT,Derived> &&other) noexcept
+		requires concept_constructible<Request0,Request0&&>;
 
 public:
 	derived_t &set_status(uint32_t status);

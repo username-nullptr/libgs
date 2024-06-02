@@ -39,6 +39,16 @@
 namespace libgs::http
 {
 
+namespace detail
+{
+
+template <typename TcpServer, typename TcpServer0>
+concept concept_server_next_layer_move = requires(TcpServer0 &&s0) {
+	TcpServer(std::move(s0));
+};
+
+} //namespace detail
+
 template <typename TcpServer, concept_char_type CharT, typename Derived = void>
 class LIBGS_HTTP_TAPI basic_server :
 	public io::device_base<crtp_derived_t<Derived,basic_server<TcpServer,CharT,Derived>>, typename TcpServer::executor_t>
@@ -72,20 +82,18 @@ public:
 	using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<socket_t,CharT>;
 
 public:
-	explicit basic_server(size_t tcount = 0);
-
-	template <concept_execution_context Context>
-	explicit basic_server(Context &context, size_t tcount = 0);
-
-	template <concept_execution Exec0>
-	explicit basic_server(io::basic_tcp_server<executor_t> &&next_layer, size_t tcount = 0);
-
-	explicit basic_server(const executor_t &exec, size_t tcount = 0);
+	template <typename...Args>
+	basic_server(Args&&...args) requires concept_constructible<next_layer_t,Args...>;
 	~basic_server() override;
 
 public:
-	basic_server(basic_server &&other) noexcept;
-	basic_server &operator=(basic_server &&other) noexcept;
+	template <typename TcpServer0>
+	basic_server(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
+		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
+
+	template <typename TcpServer0>
+	basic_server &operator=(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
+		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
 
 public:
 	derived_t &bind(io::ip_endpoint ep, io::no_time_token tk = {});

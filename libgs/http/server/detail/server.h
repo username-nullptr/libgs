@@ -45,9 +45,6 @@ public:
 	explicit impl(Args&&...args) requires requires { next_layer_t(std::forward<Args>(args)...); } :
 		m_next_layer(std::forward<Args>(args)...) {}
 
-	explicit impl(io::basic_tcp_server<executor_t> &&next_layer) :
-		m_next_layer(std::move(next_layer)) {}
-
 	impl(impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)),
 		m_request_handler_map(std::move(other.m_next_layer)),
@@ -127,22 +124,14 @@ private:
 	[[nodiscard]] awaitable<void> do_tcp_accept(size_t max)
 	{
 		m_next_layer.start(max);
-		socket_t socket;
-		for(;;)
+		do try
 		{
-			try {
-				socket = co_await m_next_layer.accept();
-			}
-			catch(std::system_error &ex)
-			{
-				call_on_system_error(ex.code());
-				continue;
-			}
+			auto socket = co_await m_next_layer.accept();
 			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
 			{
 				bool abd = false;
 				try {
-					co_await do_tcp_service(std::move(socket), ktime);
+					co_await do_tcp_service(socket, ktime);
 				}
 				catch(std::exception &ex)
 				{
@@ -162,10 +151,16 @@ private:
 			},
 			m_next_layer.pool());
 		}
+		catch(std::system_error &ex)
+		{
+			call_on_system_error(ex.code());
+			continue;
+		}
+		while(true);
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> do_tcp_service(socket_t socket, const std::chrono::milliseconds &keepalive_time)
+	[[nodiscard]] awaitable<void> do_tcp_service(socket_t &socket, const std::chrono::milliseconds &keepalive_time)
 	{
 		basic_server::parser parser;
 		char buf[65536] = {0};
@@ -192,7 +187,9 @@ private:
 
 			if( not _context.response().headers_writed() )
 				co_await call_on_default(_context);
+
 			parser.reset();
+			socket = std::move(_context.request().next_layer());
 		}
 		co_return ;
 	}
@@ -373,37 +370,13 @@ public:
 };
 
 template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>::basic_server(size_t tcount) :
-	base_t(execution::io_context().get_executor()),
-	m_impl(new impl(tcount))
+template <typename...Args>
+basic_server<TcpServer,CharT,Derived>::basic_server(Args&&...args)
+	requires concept_constructible<next_layer_t,Args...> :
+	base_t(asio::any_io_executor()),
+	m_impl(new impl(std::forward<Args>(args)...))
 {
-
-}
-
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-template <concept_execution_context Context>
-basic_server<TcpServer,CharT,Derived>::basic_server(Context &context, size_t tcount) :
-	base_t(context.get_executor()),
-	m_impl(new impl(context, tcount))
-{
-
-}
-
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-template <concept_execution Exec0>
-basic_server<TcpServer,CharT,Derived>::basic_server(io::basic_tcp_server<executor_t> &&next_layer, size_t tcount) :
-	base_t(next_layer.executor()),
-	m_impl(new impl(std::move(next_layer), tcount))
-{
-
-}
-
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>::basic_server(const executor_t &exec, size_t tcount) :
-	base_t(exec),
-	m_impl(new impl(exec, tcount))
-{
-
+	this->m_exec = m_impl->m_next_layer.executor();
 }
 
 template <typename TcpServer, concept_char_type CharT, typename Derived>
@@ -413,14 +386,19 @@ basic_server<TcpServer,CharT,Derived>::~basic_server()
 }
 
 template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>::basic_server(basic_server &&other) noexcept :
+template <typename TcpServer0>
+basic_server<TcpServer,CharT,Derived>::basic_server(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
+	requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0> :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
 template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::operator=(basic_server &&other) noexcept
+template <typename TcpServer0>
+basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::operator=
+(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
+	requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>
 {
 	*m_impl = std::move(*other.m_impl);
 	return *this;

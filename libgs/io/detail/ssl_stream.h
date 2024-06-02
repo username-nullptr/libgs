@@ -82,11 +82,37 @@ ssl_stream<Stream,Derived>::ssl_stream(native_t &&native) :
 template <typename Stream, typename Derived>
 ssl_stream<Stream,Derived>::~ssl_stream()
 {
-	error_code error;
-	native().next_layer().non_blocking(false, error);
-	native().shutdown(error);
-	native().next_layer().non_blocking(true, error);
+	if( native().native_handle() )
+	{
+		error_code error;
+		native().next_layer().non_blocking(false, error);
+		native().shutdown(error);
+		native().next_layer().non_blocking(true, error);
+	}
 	m_next_layer.m_native = new native_next_layer_t(std::move(native().next_layer()));
+}
+
+template <typename Stream, typename Derived>
+template <typename Stream0>
+ssl_stream<Stream,Derived>::ssl_stream(ssl_stream<Stream0> &&other) noexcept
+	requires concept_constructible<Stream,Stream0&&> :
+	base_t(std::move(other)),
+	m_handshake_cancel(other.m_handshake_cancel)
+{
+	this->m_native = new native_t(std::move(other.native()));
+	next_layer_ext();
+}
+
+template <typename Stream, typename Derived>
+template <typename Stream0>
+ssl_stream<Stream,Derived> &ssl_stream<Stream,Derived>::operator=(ssl_stream<Stream0> &&other) noexcept
+	requires concept_constructible<Stream,Stream0&&>
+{
+	base_t::operator=(std::move(other));
+	m_handshake_cancel = other.m_handshake_cancel;
+	native() = std::move(other.native());
+	m_next_layer.m_native = &native().next_layer();
+	return *this;
 }
 
 template <typename Stream, typename Derived>
@@ -124,6 +150,11 @@ typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::hand
 template <typename Stream, typename Derived>
 awaitable<void> ssl_stream<Stream,Derived>::handshake(handshake_t type, opt_token<error_code&> tk)
 {
+	if( not native().native_handle() )
+	{
+		detail::check_error(tk.error, std::make_error_code(std::errc::invalid_argument), "libgs::io::ssl_stream::handshake");
+		co_return ;
+	}
 	error_code error;
 	auto _handshake = [&]() -> awaitable<void>
 	{
@@ -170,7 +201,11 @@ template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::set_verify_mode(ssl::verify_mode mode, no_time_token tk)
 {
 	error_code error;
-	native().set_verify_mode(mode, error);
+	if( native().native_handle() )
+		error =  std::make_error_code(std::errc::invalid_argument);
+	else
+		native().set_verify_mode(mode, error);
+
 	detail::check_error(tk.error, error, "libgs::io::ssl_stream::set_verify_mode");
 	return this->derived();
 }
@@ -179,7 +214,11 @@ template <typename Stream, typename Derived>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::set_verify_depth(int depth, no_time_token tk)
 {
 	error_code error;
-	native().set_verify_depth(depth, error);
+	if( native().native_handle() )
+		error =  std::make_error_code(std::errc::invalid_argument);
+	else
+		native().set_verify_depth(depth, error);
+
 	detail::check_error(tk.error, error, "libgs::io::ssl_stream::set_verify_depth");
 	return this->derived();
 }
@@ -189,7 +228,11 @@ template <ssl::concept_verify_callback Func>
 typename ssl_stream<Stream,Derived>::derived_t &ssl_stream<Stream,Derived>::set_verify_callback(Func &&func, no_time_token tk)
 {
 	error_code error;
-	native().set_verify_callback(std::forward<Func>(func), error);
+	if( native().native_handle() )
+		error =  std::make_error_code(std::errc::invalid_argument);
+	else
+		native().set_verify_callback(std::forward<Func>(func), error);
+
 	detail::check_error(tk.error, error, "libgs::io::ssl_stream::set_verify_callback");
 	return this->derived();
 }
@@ -231,13 +274,42 @@ typename ssl_stream<Stream,Derived>::next_layer_t &ssl_stream<Stream,Derived>::n
 }
 
 template <typename Stream, typename Derived>
+awaitable<size_t> ssl_stream<Stream,Derived>::_read_data
+(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept
+{
+	if( native().native_handle() )
+	{
+		error = std::make_error_code(std::errc::invalid_argument);
+		co_return 0;
+	}
+	co_return co_await base_t::_read_data(buf, rc, cnl_sig, error);
+}
+
+template <typename Stream, typename Derived>
+awaitable<size_t> ssl_stream<Stream,Derived>::_write_data
+(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept
+{
+	if( native().native_handle() )
+	{
+		error = std::make_error_code(std::errc::invalid_argument);
+		co_return 0;
+	}
+	co_return co_await base_t::_write_data(buf, cnl_sig, error);
+}
+
+template <typename Stream, typename Derived>
 awaitable<error_code> ssl_stream<Stream,Derived>::_close(cancellation_signal *cnl_sig) noexcept
 {
 	error_code error;
-	if( cnl_sig )
-		co_await native().async_shutdown(asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	if( native().native_handle() )
+		error =  std::make_error_code(std::errc::invalid_argument);
 	else
-		co_await native().async_shutdown(use_awaitable_e[error]);
+	{
+		if( cnl_sig )
+			co_await native().async_shutdown(asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+		else
+			co_await native().async_shutdown(use_awaitable_e[error]);
+	}
 	co_return error;
 }
 

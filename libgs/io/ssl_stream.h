@@ -90,8 +90,14 @@ public:
 	~ssl_stream() override;
 
 public:
-	ssl_stream(ssl_stream &&other) noexcept = default;
-	ssl_stream &operator=(ssl_stream &&other) noexcept = default;
+	template <typename Stream0>
+	ssl_stream(ssl_stream<Stream0> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
+
+	template <typename Stream0>
+	ssl_stream &operator=(ssl_stream<Stream0> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
+
 	ssl_stream &operator=(native_t &&native);
 
 public:
@@ -119,6 +125,12 @@ public:
 	[[nodiscard]] next_layer_t &next_layer() noexcept;
 
 protected:
+	[[nodiscard]] awaitable<size_t> _read_data
+	(buffer<void*> buf, read_condition rc, cancellation_signal *cnl_sig, error_code &error) noexcept;
+
+	[[nodiscard]] awaitable<size_t> _write_data
+	(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept;
+
 	[[nodiscard]] awaitable<error_code> _close(cancellation_signal *cnl_sig) noexcept;
 	void _cancel() noexcept;
 

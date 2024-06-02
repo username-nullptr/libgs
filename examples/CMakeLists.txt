@@ -67,6 +67,7 @@ set(io_sources
 	io/ssl_stream.cpp
 	io/udp_socket.cpp
 	io/tcp_server.cpp
+	io/ssl_tcp_server.cpp
 )
 set_target(gs_io ${io_sources})
 
@@ -75,5 +76,6 @@ set(http_sources
 	http/http_server.cpp
 	http/http_server_aop.cpp
 	http/http_session.cpp
+	http/https_server.cpp
 )
 set_target(gs_http ${http_sources})

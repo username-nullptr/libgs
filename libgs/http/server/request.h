@@ -66,8 +66,13 @@ public:
 	basic_server_request(next_layer_t &&next_layer, parser_t &parser);
 	~basic_server_request() override;
 
-	basic_server_request(basic_server_request &&other) noexcept;
-	basic_server_request &operator=(basic_server_request &&other) noexcept;
+	template <typename Stream0>
+	basic_server_request(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
+
+	template <typename Stream0>
+	basic_server_request &operator=(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
 
 public:
 	[[nodiscard]] http::method method() const noexcept;

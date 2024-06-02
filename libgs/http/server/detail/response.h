@@ -66,15 +66,20 @@ basic_server_response<Request,CharT,Derived>::~basic_server_response()
 }
 
 template <typename Request, concept_char_type CharT, typename Derived>
-basic_server_response<Request,CharT,Derived>::basic_server_response(basic_server_response &&other) noexcept :
+template <typename Request0>
+basic_server_response<Request,CharT,Derived>::basic_server_response
+(basic_server_response<Request0,CharT,Derived> &&other) noexcept
+	requires concept_constructible<Request0,Request0&&> :
 	base_t(std::move(other)), m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
 template <typename Request, concept_char_type CharT, typename Derived>
+template <typename Request0>
 basic_server_response<Request,CharT,Derived> &basic_server_response<Request,CharT,Derived>::operator=
-(basic_server_response &&other) noexcept
+(basic_server_response<Request0,CharT,Derived> &&other) noexcept
+	requires concept_constructible<Request0,Request0&&>
 {
 	base_t::operator=(std::move(other));
 	*m_impl = std::move(*other.m_impl);

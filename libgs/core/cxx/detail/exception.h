@@ -59,14 +59,16 @@ namespace std
 {
 
 template <>
-class formatter<std::exception, char> 
+class formatter<std::exception, char>
 {
 public:
-	auto format(const std::exception &ex, auto &context) const {
+	auto format(const std::exception &ex, auto &context) const
+	{
 		return m_formatter.format(ex.what(), context);
 	}
 
-	constexpr auto parse(auto &context) noexcept {
+	constexpr auto parse(auto &context) noexcept
+	{
 		return m_formatter.parse(context);
 	}
 
@@ -74,16 +76,13 @@ private:
 	formatter<const char*, char> m_formatter;
 };
 
-template <libgs::concept_char_type CharT>
-class formatter<libgs::system_error, CharT> : public libgs::no_parse_formatter<CharT>
+template <>
+class formatter<libgs::system_error, char> : public libgs::no_parse_formatter<char>
 {
 public:
 	auto format(const libgs::system_error &ex, auto &context) const
 	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{} ({})", ex.what(), ex.code().value());
-		else
-			return format_to(context.out(), L"{} ({})", ex.what(), ex.code().value());
+		return format_to(context.out(), "{} ({})", ex.what(), ex.code().value());
 	}
 };
 

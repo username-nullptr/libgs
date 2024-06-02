@@ -36,9 +36,9 @@ namespace libgs::io
 
 template <concept_execution Exec, typename Derived>
 template <typename...Args>
-basic_ssl_tcp_server<Exec,Derived>::basic_ssl_tcp_server(ssl::context &ssl, Args&&...args) requires requires {
-	base_t(std::forward<Args>(args)...);
-} : base_t(std::forward<Args>(args)...), m_ssl(&ssl)
+basic_ssl_tcp_server<Exec,Derived>::basic_ssl_tcp_server(ssl::context &ssl, Args&&...args)
+	requires detail::concept_tcp_server_base<derived_t,executor_t,Args...> :
+	base_t(std::forward<Args>(args)...), m_ssl(&ssl)
 {
 
 }
@@ -82,9 +82,9 @@ typename basic_ssl_tcp_server<Exec,Derived>::derived_t &basic_ssl_tcp_server<Exe
 		error_code error;
 
 		if( tk.cnl_sig )
-			socket = co_await accept(m_ssl, {tk.rtime, *tk.cnl_sig, error});
+			socket = co_await accept({tk.rtime, *tk.cnl_sig, error});
 		else
-			socket = co_await accept(m_ssl, {tk.rtime, error});
+			socket = co_await accept({tk.rtime, error});
 
 		if( not *valid )
 			co_return ;
@@ -101,21 +101,21 @@ awaitable<typename basic_ssl_tcp_server<Exec,Derived>::socket_t>
 basic_ssl_tcp_server<Exec,Derived>::accept(opt_token<error_code&> tk)
 {
 	error_code error;
-	socket_t socket(this->pool(), m_ssl);
+	socket_t socket(this->pool(), *m_ssl, socket_t::handshake_t::server);
 
 	auto _accept = [&]() mutable -> awaitable<void>
 	{
 		if( tk.cnl_sig )
-			socket = co_await this->_accept({*tk.cnl_sig, error});
+			socket = ssl_stream<socket_base_t>(co_await this->_accept({*tk.cnl_sig, error}), *m_ssl);
 		else
-			socket = co_await this->_accept(error);
+			socket = ssl_stream<socket_base_t>(co_await this->_accept(error), *m_ssl);
 
 		if( error )
 			co_return ;
 		else if( tk.cnl_sig )
-			co_await socket.handshake(socket_t::handshake_t::server, {*tk.cnl_sig, error});
+			co_await socket.ssl_stream().handshake(socket_t::handshake_t::server, {*tk.cnl_sig, error});
 		else
-			co_await socket.handshake(error);
+			co_await socket.ssl_stream().handshake(socket_t::handshake_t::server, error);
 		co_return ;
 	};
 	using namespace std::chrono_literals;

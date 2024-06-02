@@ -381,6 +381,19 @@ size_t tcp_server_base<Derived,Exec>::_tcount(size_t c) noexcept
 	return c == 0 ? std::thread::hardware_concurrency() << 1 : c;
 }
 
+namespace detail
+{
+
+template <typename Derived, typename Exec>
+class _tcp_server_base : public tcp_server_base<Derived,Exec> {
+public: using tcp_server_base<Derived,Exec>::tcp_server_base;
+};
+
+template <typename Derived, typename Exec, typename...Args>
+concept concept_tcp_server_base = concept_constructible<_tcp_server_base<Derived,Exec>,Args...>;
+
+} //namespace detail
+
 }} //namespace libgs::io
 
 

@@ -42,7 +42,7 @@ std::string version_string()
 	return LIBGS_VERSION_STR;
 }
 
-inline std::thread::id this_thread_id()
+std::thread::id this_thread_id()
 {
 	return std::this_thread::get_id();
 }
