@@ -1,6 +1,6 @@
 set(target_name gs_core)
 
-set(core_sources
+set(${target_name}_sources
 	algorithm/base.cpp
 	algorithm/byte_order.cpp
 	algorithm/mime_type.cpp
@@ -14,7 +14,7 @@ set(core_sources
 	log/scheduler.cpp
 )
 
-set(core_headers
+set(${target_name}_headers
 	cxx/cplusplus.h
 	cxx/attributes.h
 	cxx/concept.h
@@ -50,7 +50,7 @@ set(core_headers
 	coroutine.h
 )
 
-set(core_detail_headers
+set(${target_name}_detail_headers
 	cxx/detail/utilities.h
 	cxx/detail/exception.h
 	cxx/detail/flags.h
@@ -72,9 +72,9 @@ set(core_detail_headers
 )
 
 set(all_files
-	${core_sources}
-	${core_headers}
-	${core_detail_headers}
+	${${target_name}_sources}
+	${${target_name}_headers}
+	${${target_name}_detail_headers}
 )
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 

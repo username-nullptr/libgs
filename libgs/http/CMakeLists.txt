@@ -1,12 +1,12 @@
 set(target_name gs_http)
 
-set(http_sources
+set(${target_name}_sources
 	global.cpp
 	parser.cpp
 	server/detail/session_base.cpp
 )
 
-set(http_headers
+set(${target_name}_headers
 	global.h
 	parser.h
 	client.h
@@ -28,7 +28,7 @@ set(http_headers
 	server/server.h
 )
 
-set(http_detail_headers
+set(${target_name}_detail_headers
 	basic/detail/container.h
 	basic/detail/cookie.h
 	basic/detail/types.h
@@ -45,9 +45,9 @@ set(http_detail_headers
 )
 
 set(all_files
-	${http_sources}
-	${http_headers}
-	${http_detail_headers}
+	${${target_name}_sources}
+	${${target_name}_headers}
+	${${target_name}_detail_headers}
 )
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 

@@ -67,11 +67,15 @@ public:
 	basic_value(basic_value&&) noexcept = default;
 
 public:
-	[[nodiscard]] string_t &to_string() noexcept;
-	[[nodiscard]] const string_t &to_string() const noexcept;
+	[[nodiscard]] string_t &to_string() & noexcept;
+	[[nodiscard]] const string_t &to_string() const & noexcept;
+	[[nodiscard]] string_t &&to_string() && noexcept;
+	[[nodiscard]] const string_t &&to_string() const && noexcept;
 
-	operator string_t&();
-	operator const string_t&() const;
+	operator string_t&() & noexcept;
+	operator const string_t&() const & noexcept;
+	operator string_t&&() && noexcept;
+	operator const string_t&&() const && noexcept;
 
 public:
 	template <concept_integral_type T>
@@ -87,12 +91,26 @@ public:
 	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
 	template <typename T>
-	[[nodiscard]] const std::basic_string<CharT> &get() const noexcept requires 
+	[[nodiscard]] const string_t &get() const & noexcept
+		requires is_dsame_v<T,std::basic_string<CharT>>;
+
+	template <typename T>
+	[[nodiscard]] string_t &get() & noexcept
+		requires is_dsame_v<T,std::basic_string<CharT>>;
+
+	template <typename T>
+	[[nodiscard]] const string_t &&get() const && noexcept requires 
 		is_dsame_v<T,std::basic_string<CharT>>;
 
 	template <typename T>
-	[[nodiscard]] std::basic_string<CharT> &get() noexcept requires 
+	[[nodiscard]] string_t &&get() && noexcept requires 
 		is_dsame_v<T,std::basic_string<CharT>>;
+
+	[[nodiscard]] const string_t &get() const & noexcept;
+	[[nodiscard]] string_t &get() & noexcept;
+
+	[[nodiscard]] const string_t &&get() const && noexcept;
+	[[nodiscard]] string_t &&get() && noexcept;
 
 public:
 	[[nodiscard]] bool to_bool(size_t base = 10) const;
@@ -141,11 +159,10 @@ public:
 	basic_value &operator=(string_view_t str);
 
 protected:
-	std::basic_string<CharT> m_str;
+	string_t m_str;
 };
 
 using value = basic_value<char>;
-
 using wvalue = basic_value<wchar_t>;
 
 template <concept_char_type CharT>

@@ -84,25 +84,49 @@ basic_value<CharT>::basic_value(T &&v) requires (
 }
 
 template <concept_char_type CharT>
-std::basic_string<CharT> &basic_value<CharT>::to_string() noexcept
+std::basic_string<CharT> &basic_value<CharT>::to_string() & noexcept
 {
 	return get<string_t>();
 }
 
 template <concept_char_type CharT>
-const std::basic_string<CharT> &basic_value<CharT>::to_string() const noexcept
+const std::basic_string<CharT> &basic_value<CharT>::to_string() const & noexcept
 {
 	return get<string_t>();
 }
 
 template <concept_char_type CharT>
-basic_value<CharT>::operator std::basic_string<CharT>&()
+std::basic_string<CharT> &&basic_value<CharT>::to_string() && noexcept
+{
+	return std::move(get<string_t>());
+}
+
+template <concept_char_type CharT>
+const std::basic_string<CharT> &&basic_value<CharT>::to_string() const && noexcept
+{
+	return std::move(get<string_t>());
+}
+
+template <concept_char_type CharT>
+basic_value<CharT>::operator std::basic_string<CharT>&() & noexcept
 {
 	return to_string();
 }
 
 template <concept_char_type CharT>
-basic_value<CharT>::operator const std::basic_string<CharT>&() const
+basic_value<CharT>::operator const std::basic_string<CharT>&() const & noexcept
+{
+	return to_string();
+}
+
+template <concept_char_type CharT>
+basic_value<CharT>::operator std::basic_string<CharT>&&() && noexcept
+{
+	return to_string();
+}
+
+template <concept_char_type CharT>
+basic_value<CharT>::operator const std::basic_string<CharT>&&() const && noexcept
 {
 	return to_string();
 }
@@ -137,18 +161,58 @@ T basic_value<CharT>::get_or(T default_value) const noexcept
 
 template <concept_char_type CharT>
 template <typename T>
-const std::basic_string<CharT> &basic_value<CharT>::get() const noexcept requires
-	is_dsame_v<T,std::basic_string<CharT>>
+const std::basic_string<CharT> &basic_value<CharT>::get() const & noexcept 
+	requires is_dsame_v<T,std::basic_string<CharT>>
 {
 	return m_str;
 }
 
 template <concept_char_type CharT>
 template <typename T>
-std::basic_string<CharT> &basic_value<CharT>::get() noexcept requires
-	is_dsame_v<T,std::basic_string<CharT>>
+std::basic_string<CharT> &basic_value<CharT>::get() & noexcept
+	requires is_dsame_v<T,std::basic_string<CharT>>
 {
 	return m_str;
+}
+
+template <concept_char_type CharT>
+template <typename T>
+const std::basic_string<CharT> &&basic_value<CharT>::get() const && noexcept 
+	requires is_dsame_v<T,std::basic_string<CharT>>
+{
+	return std::move(m_str);
+}
+
+template <concept_char_type CharT>
+template <typename T>
+std::basic_string<CharT> &&basic_value<CharT>::get() && noexcept
+	requires is_dsame_v<T,std::basic_string<CharT>>
+{
+	return std::move(m_str);
+}
+
+template <concept_char_type CharT>
+const std::basic_string<CharT> &basic_value<CharT>::get() const & noexcept
+{
+	return m_str;
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> &basic_value<CharT>::get() & noexcept
+{
+	return m_str;
+}
+
+template <concept_char_type CharT>
+const std::basic_string<CharT> &&basic_value<CharT>::get() const && noexcept
+{
+	return std::move(m_str);
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> &&basic_value<CharT>::get() && noexcept
+{
+	return std::move(m_str);
 }
 
 template <concept_char_type CharT>

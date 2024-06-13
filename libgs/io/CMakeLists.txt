@@ -1,11 +1,11 @@
 set(target_name gs_io)
 
-set(core_sources
+set(${target_name}_sources
 	global.cpp
 	types/opt_token.cpp
 )
 
-set(core_headers
+set(${target_name}_headers
 	cxx/concept.h
 	types/ip_types.h
 	types/opt_token.h
@@ -23,7 +23,7 @@ set(core_headers
 	ssl_tcp_server.h
 )
 
-set(core_detail_headers
+set(${target_name}_detail_headers
 	types/detail/ip_types.h
 	types/detail/opt_token.h
 	types/detail/opt_condition.h
@@ -41,9 +41,9 @@ set(core_detail_headers
 )
 
 set(all_files
-	${core_sources}
-	${core_headers}
-	${core_detail_headers}
+	${${target_name}_sources}
+	${${target_name}_headers}
+	${${target_name}_detail_headers}
 )
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 
