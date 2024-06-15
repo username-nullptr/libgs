@@ -12,6 +12,7 @@ set(${target_name}_headers
 )
 
 set(${target_name}_detail_headers
+	detail/cell.h
 )
 
 set(all_files

@@ -36,6 +36,9 @@
 namespace libgs
 {
 
+template <typename T, typename CharT>
+concept concept_vgs = is_dsame_v<T,std::basic_string<CharT>>;
+
 template <concept_char_type CharT>
 class LIBGS_CORE_TAPI basic_value
 {
@@ -90,21 +93,17 @@ public:
 	template <concept_float_type T>
 	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
-	template <typename T>
-	[[nodiscard]] const string_t &get() const & noexcept
-		requires is_dsame_v<T,std::basic_string<CharT>>;
+	template <concept_vgs<CharT> T>
+	[[nodiscard]] const string_t &get() const & noexcept;
 
-	template <typename T>
-	[[nodiscard]] string_t &get() & noexcept
-		requires is_dsame_v<T,std::basic_string<CharT>>;
+	template <concept_vgs<CharT> T>
+	[[nodiscard]] string_t &get() & noexcept;
 
-	template <typename T>
-	[[nodiscard]] const string_t &&get() const && noexcept requires 
-		is_dsame_v<T,std::basic_string<CharT>>;
+	template <concept_vgs<CharT> T>
+	[[nodiscard]] const string_t &&get() const && noexcept;
 
-	template <typename T>
-	[[nodiscard]] string_t &&get() && noexcept requires 
-		is_dsame_v<T,std::basic_string<CharT>>;
+	template <concept_vgs<CharT> T>
+	[[nodiscard]] string_t &&get() && noexcept;
 
 	[[nodiscard]] const string_t &get() const & noexcept;
 	[[nodiscard]] string_t &get() & noexcept;
