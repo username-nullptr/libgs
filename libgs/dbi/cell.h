@@ -56,15 +56,16 @@ concept concept_cgb =
 	not is_char_string_v<T>;
 
 template <concept_char_type CharT>
-class LIBGS_DBI_API basic_cell
+class LIBGS_DBI_TAPI basic_cell
 {
 public:
 	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
 public:
-	basic_cell() = default;
-	basic_cell(string_t column_name, void *data, size_t len);
-	basic_cell(string_t column_name, const char *data);
+	explicit basic_cell(string_view_t column_name);
+	basic_cell(string_view_t column_name, void *data, size_t len);
+	basic_cell(string_view_t column_name, const char *data);
 
 	basic_cell(const basic_cell &other) = default;
 	basic_cell(basic_cell &&other) noexcept;
@@ -73,7 +74,7 @@ public:
 	basic_cell &operator=(basic_cell &&other) noexcept;
 
 public:
-	[[nodiscard]] string_t column_name() const noexcept;
+	[[nodiscard]] string_view_t column_name() const noexcept;
 	[[nodiscard]] bool has_value() const noexcept;
 	[[nodiscard]] bool is_valid() const noexcept;
 	[[nodiscard]] bool not_has_value() const noexcept;
@@ -92,45 +93,46 @@ public:
 	template <concept_float_type T>
 	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
-	template <concept_vgs<CharT> T>
-	[[nodiscard]] string_t get() const noexcept;
+	template <concept_vgs<CharT> T = string_t>
+	[[nodiscard]] string_t get() const;
 
-	template <concept_vgs<CharT> T>
-	[[nodiscard]] string_t get_or() const noexcept;
-
-	template <concept_cgb T>
-	[[nodiscard]] T get();
+	template <concept_vgs<CharT> T = string_t>
+	[[nodiscard]] string_t get_or(string_view_t default_value = {}) const noexcept;
 
 	template <concept_cgb T>
-	[[nodiscard]] T get_or(T default_value = {});
+	[[nodiscard]] T get() const;
+
+	template <concept_cgb T>
+	[[nodiscard]] T get_or(T default_value = {}) const;
 
 public:
-	[[nodiscard]] bool to_bool() const;
-	[[nodiscard]] int32_t to_int() const;
-	[[nodiscard]] uint32_t to_uint() const;
-	[[nodiscard]] int64_t to_long() const;
-	[[nodiscard]] uint64_t to_ulong() const;
+	[[nodiscard]] bool to_bool(size_t base = 10) const;
+	[[nodiscard]] int32_t to_int(size_t base = 10) const;
+	[[nodiscard]] uint32_t to_uint(size_t base = 10) const;
+	[[nodiscard]] int64_t to_long(size_t base = 10) const;
+	[[nodiscard]] uint64_t to_ulong(size_t base = 10) const;
 	[[nodiscard]] float to_float() const;
 	[[nodiscard]] double to_double() const;
 	[[nodiscard]] long double to_long_double() const;
 	[[nodiscard]] string_t to_string() const;
 
 public:
-	[[nodiscard]] bool to_bool_or(bool default_value = false) const noexcept;
-	[[nodiscard]] int32_t to_int_or(int32_t default_value = 0) const noexcept;
-	[[nodiscard]] uint32_t to_uint_or(uint32_t default_value = 0) const noexcept;
-	[[nodiscard]] int64_t to_long_or(int64_t default_value = 0) const noexcept;
-	[[nodiscard]] uint64_t to_ulong_or(uint64_t default_value = 0) const noexcept;
+	[[nodiscard]] bool to_bool_or(size_t base = 10, bool default_value = false) const noexcept;
+	[[nodiscard]] int32_t to_int_or(size_t base = 10, int32_t default_value = 0) const noexcept;
+	[[nodiscard]] uint32_t to_uint_or(size_t base = 10, uint32_t default_value = 0) const noexcept;
+	[[nodiscard]] int64_t to_long_or(size_t base = 10, int64_t default_value = 0) const noexcept;
+	[[nodiscard]] uint64_t to_ulong_or(size_t base = 10, uint64_t default_value = 0) const noexcept;
 	[[nodiscard]] float to_float_or(float default_value = 0.0) const noexcept;
 	[[nodiscard]] double to_double_or(double default_value = 0.0) const noexcept;
 	[[nodiscard]] long double to_long_double_or(long double default_value = 0.0) const noexcept;
-	[[nodiscard]] string_t to_string_or(string_t default_value = {}) const noexcept;
+	[[nodiscard]] string_t to_string_or(string_view_t default_value = {}) const noexcept;
 
 public:
-	[[nodiscard]] std::string &blob() & noexcept;
-	[[nodiscard]] const std::string &blob() const & noexcept;
-	[[nodiscard]] std::string &&blob() && noexcept;
-	[[nodiscard]] const std::string &&blob() const && noexcept;
+	[[nodiscard]] std::string &blob() &;
+	[[nodiscard]] const std::string &blob() const &;
+	[[nodiscard]] std::string &&blob() &&;
+	[[nodiscard]] const std::string &&blob() const &&;
+	[[nodiscard]] std::string blob_or(std::string_view default_value = {}) const noexcept;
 
 public:
 	[[nodiscard]] bool operator==(const basic_cell &other) const noexcept;

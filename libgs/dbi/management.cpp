@@ -31,4 +31,8 @@
 namespace libgs::dbi
 {
 
+LIBGS_DBI_API int __tmp(int i) {
+	return  i;
+}
+
 } //namespace libgs::dbi

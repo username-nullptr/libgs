@@ -122,13 +122,13 @@ basic_value<CharT>::operator const std::basic_string<CharT>&() const & noexcept
 template <concept_char_type CharT>
 basic_value<CharT>::operator std::basic_string<CharT>&&() && noexcept
 {
-	return to_string();
+	return std::move(to_string());
 }
 
 template <concept_char_type CharT>
 basic_value<CharT>::operator const std::basic_string<CharT>&&() const && noexcept
 {
-	return to_string();
+	return std::move(to_string());
 }
 
 template <concept_char_type CharT>
@@ -342,6 +342,42 @@ basic_value<CharT> &basic_value<CharT>::set(T &&v) requires (
 	not requires(T &&rv) { string_t(std::forward<T>(rv)); } )
 {
 	return set(default_format_v, v);
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> &basic_value<CharT>::operator*() & noexcept
+{
+	return get();
+}
+
+template <concept_char_type CharT>
+const std::basic_string<CharT> &basic_value<CharT>::operator*() const & noexcept
+{
+	return get();
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> &&basic_value<CharT>::operator*() && noexcept
+{
+	return std::move(get());
+}
+
+template <concept_char_type CharT>
+const std::basic_string<CharT> &&basic_value<CharT>::operator*() const && noexcept
+{
+	return std::move(get());
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> *basic_value<CharT>::operator->() noexcept
+{
+	return &get();
+}
+
+template <concept_char_type CharT>
+const std::basic_string<CharT> *basic_value<CharT>::operator->() const noexcept
+{
+	return &get();
 }
 
 template <concept_char_type CharT>

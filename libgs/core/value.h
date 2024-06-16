@@ -93,16 +93,16 @@ public:
 	template <concept_float_type T>
 	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
-	template <concept_vgs<CharT> T>
+	template <concept_vgs<CharT> T = string_t>
 	[[nodiscard]] const string_t &get() const & noexcept;
 
-	template <concept_vgs<CharT> T>
+	template <concept_vgs<CharT> T = string_t>
 	[[nodiscard]] string_t &get() & noexcept;
 
-	template <concept_vgs<CharT> T>
+	template <concept_vgs<CharT> T = string_t>
 	[[nodiscard]] const string_t &&get() const && noexcept;
 
-	template <concept_vgs<CharT> T>
+	template <concept_vgs<CharT> T = string_t>
 	[[nodiscard]] string_t &&get() && noexcept;
 
 	[[nodiscard]] const string_t &get() const & noexcept;
@@ -143,6 +143,15 @@ public:
 	basic_value &set(T &&v) requires (
 		not requires(T &&rv) { string_t(std::forward<T>(rv)); }
 	);
+
+public:
+	string_t &operator*() & noexcept;
+	const string_t &operator*() const & noexcept;
+	string_t &&operator*() && noexcept;
+	const string_t &&operator*() const && noexcept;
+
+	string_t *operator->() noexcept;
+	const string_t *operator->() const noexcept;
 
 public:
 	basic_value &operator=(const basic_value&) = default;
