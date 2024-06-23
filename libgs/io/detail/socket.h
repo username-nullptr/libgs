@@ -205,6 +205,150 @@ awaitable<typename basic_socket<Derived,Exec>::address_vector> basic_socket<Deri
 }
 
 template <typename Derived, concept_execution Exec>
+ip_endpoint basic_socket<Derived,Exec>::remote_endpoint(no_time_token tk) const
+{
+	error_code error;
+	auto ep = this->derived().native().remote_endpoint(error);
+	detail::check_error(tk.error, error, "libgs::io::socket::remote_endpoint");
+	return {ep.address(), ep.port()};
+}
+
+template <typename Derived, concept_execution Exec>
+ip_endpoint basic_socket<Derived,Exec>::local_endpoint(no_time_token tk) const
+{
+	asio::ip::udp::socket sss;
+	sss.remote_endpoint();
+
+	error_code error;
+	auto ep = this->derived().native().local_endpoint(error);
+	detail::check_error(tk.error, error, "libgs::io::socket::local_endpoint");
+	return {ep.address(), ep.port()};
+}
+
+template <typename Derived, concept_execution Exec>
+typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::set_option
+(const socket_option &op, no_time_token tk)
+{
+	using namespace asio;
+	auto &_derived = this->derived();
+	error_code error;
+
+	if( op.id == typeid(socket_base::broadcast).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
+
+	else if( op.id == typeid(socket_base::debug).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::do_not_route).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::enable_connection_aborted).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::keep_alive).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::linger).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::receive_buffer_size).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::receive_low_watermark).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::reuse_address).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::send_buffer_size).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::send_low_watermark).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
+	
+	else if( op.id == typeid(ip::v6_only).hash_code() )
+		_derived.native().set_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+
+	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
+	detail::check_error(tk.error, error, "libgs::io::socket::set_option");
+	return _derived;
+}
+
+template <typename Derived, concept_execution Exec>
+typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::get_option
+(socket_option op, no_time_token tk)
+{
+	using namespace asio;
+	auto &_derived = this->derived();
+	error_code error;
+
+	if( op.id == typeid(socket_base::broadcast).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
+
+	else if( op.id == typeid(socket_base::debug).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::do_not_route).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::enable_connection_aborted).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::keep_alive).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::linger).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::receive_buffer_size).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::receive_low_watermark).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::reuse_address).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::send_buffer_size).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
+	
+	else if( op.id == typeid(socket_base::send_low_watermark).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
+	
+	else if( op.id == typeid(ip::v6_only).hash_code() )
+		_derived.native().get_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+
+	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
+	detail::check_error(tk.error, error, "libgs::io::socket::get_option");
+	return _derived;
+}
+
+template <typename Derived, concept_execution Exec>
+const typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::get_option
+(socket_option op, no_time_token tk) const
+{
+	return remove_const(this)->get_option(op,tk);
+}
+
+template <typename Derived, concept_execution Exec>
+size_t basic_socket<Derived,Exec>::read_buffer_size() const noexcept
+{
+	asio::socket_base::receive_buffer_size op;
+	error_code error;
+	this->derived().get_option(op, error);
+	return op.value();
+}
+
+template <typename Derived, concept_execution Exec>
+size_t basic_socket<Derived,Exec>::write_buffer_size() const noexcept
+{
+	asio::socket_base::send_buffer_size op;
+	error_code error;
+	this->derived().get_option(op, error);
+	return op.value();
+}
+
+template <typename Derived, concept_execution Exec>
 awaitable<error_code> basic_socket<Derived,Exec>::_connect
 (const ip_endpoint &ep, cancellation_signal *cnl_sig) noexcept
 {

@@ -26,15 +26,15 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_DETAIL_TCP_SOCKET_H
-#define LIBGS_IO_DETAIL_TCP_SOCKET_H
+#ifndef LIBGS_IO_DETAIL_UDP_SOCKET_H
+#define LIBGS_IO_DETAIL_UDP_SOCKET_H
 
 namespace libgs::io
 {
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution_context Context>
-basic_tcp_socket<Exec,Derived>::basic_tcp_socket(Context &context) :
+basic_udp_socket<Exec,Derived>::basic_udp_socket(Context &context) :
 	base_t(new native_t(context), context.get_executor()),
 	m_resolver(context)
 {
@@ -43,7 +43,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(Context &context) :
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
-basic_tcp_socket<Exec,Derived>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&native) :
+basic_udp_socket<Exec,Derived>::basic_udp_socket(asio_basic_udp_socket<Exec0> &&native) :
 	base_t(reinterpret_cast<void*>(1), native.get_executor()),
 	m_resolver(native.get_executor())
 {
@@ -51,7 +51,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(asio_basic_tcp_socket<Exec0> &&
 }
 
 template <concept_execution Exec, typename Derived>
-basic_tcp_socket<Exec,Derived>::basic_tcp_socket(const executor_t &exec) :
+basic_udp_socket<Exec,Derived>::basic_udp_socket(const executor_t &exec) :
 	base_t(new native_t(exec), exec),
 	m_resolver(exec)
 {
@@ -59,7 +59,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(const executor_t &exec) :
 }
 
 template <concept_execution Exec, typename Derived>
-basic_tcp_socket<Exec,Derived>::~basic_tcp_socket()
+basic_udp_socket<Exec,Derived>::~basic_udp_socket()
 {
 	error_code error;
 	native().close(error);
@@ -67,7 +67,7 @@ basic_tcp_socket<Exec,Derived>::~basic_tcp_socket()
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
-basic_tcp_socket<Exec,Derived>::basic_tcp_socket(basic_tcp_socket<Exec0,Derived> &&other) noexcept :
+basic_udp_socket<Exec,Derived>::basic_udp_socket(basic_udp_socket<Exec0,Derived> &&other) noexcept :
 	base_t(std::move(other)),
 	m_resolver(std::move(other.m_resolver))
 {
@@ -76,7 +76,7 @@ basic_tcp_socket<Exec,Derived>::basic_tcp_socket(basic_tcp_socket<Exec0,Derived>
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
-basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(basic_tcp_socket<Exec0,Derived> &&other) noexcept
+basic_udp_socket<Exec,Derived> &basic_udp_socket<Exec,Derived>::operator=(basic_udp_socket<Exec0,Derived> &&other) noexcept
 {
 	base_t::operator=(std::move(other));
 	m_resolver = std::move(other.m_resolver);
@@ -86,38 +86,89 @@ basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(basic_
 
 template <concept_execution Exec, typename Derived>
 template <concept_execution Exec0>
-basic_tcp_socket<Exec,Derived> &basic_tcp_socket<Exec,Derived>::operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept
+basic_udp_socket<Exec,Derived> &basic_udp_socket<Exec,Derived>::operator=(asio_basic_udp_socket<Exec0> &&native) noexcept
 {
 	this->native() = std::move(native);
 	return *this;
 }
 
+// TODO ...
+
 template <concept_execution Exec, typename Derived>
-const typename basic_tcp_socket<Exec,Derived>::native_t &basic_tcp_socket<Exec,Derived>::native() const noexcept
+const typename basic_udp_socket<Exec,Derived>::native_t &basic_udp_socket<Exec,Derived>::native() const noexcept
 {
 	return *reinterpret_cast<const native_t*>(this->m_native);
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_tcp_socket<Exec,Derived>::native_t &basic_tcp_socket<Exec,Derived>::native() noexcept
+typename basic_udp_socket<Exec,Derived>::native_t &basic_udp_socket<Exec,Derived>::native() noexcept
 {
 	return *reinterpret_cast<native_t*>(this->m_native);
 }
 
 template <concept_execution Exec, typename Derived>
-const typename basic_tcp_socket<Exec,Derived>::resolver_t &basic_tcp_socket<Exec,Derived>::resolver() const noexcept
+const typename basic_udp_socket<Exec,Derived>::resolver_t &basic_udp_socket<Exec,Derived>::resolver() const noexcept
 {
 	return m_resolver;
 }
 
 template <concept_execution Exec, typename Derived>
-typename basic_tcp_socket<Exec,Derived>::resolver_t &basic_tcp_socket<Exec,Derived>::resolver() noexcept
+typename basic_udp_socket<Exec,Derived>::resolver_t &basic_udp_socket<Exec,Derived>::resolver() noexcept
 {
 	return m_resolver;
 }
 
 template <concept_execution Exec, typename Derived>
-void basic_tcp_socket<Exec,Derived>::_cancel() noexcept
+awaitable<size_t> basic_udp_socket<Exec,Derived>::_read_data
+(buffer<void*> buf, read_condition, cancellation_signal *cnl_sig, error_code &error) noexcept
+{
+	this->m_read_cancel = false;
+	if( cnl_sig )
+	{
+		buf.size = co_await this->derived().native()
+				.async_receive(asio::buffer(buf.data, buf.size),
+								 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	}
+	else
+	{
+		buf.size = co_await this->derived().native()
+				.async_read_some(asio::buffer(buf.data, buf.size), use_awaitable_e[error]);
+	}
+	if( this->m_read_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		this->m_read_cancel = false;
+	}
+	co_return buf.size;
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::_write_data
+(buffer<std::string_view> buf, cancellation_signal *cnl_sig, error_code &error) noexcept
+{
+	this->m_write_cancel = false;
+	if( cnl_sig )
+	{
+
+		buf.size = co_await this->derived().native().async_send
+				(asio::buffer(buf.data.data(), buf.size),
+				 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+	}
+	else
+	{
+		buf.size = co_await this->derived().native().async_send
+				(asio::buffer(buf.data.data(), buf.size), use_awaitable_e[error]);
+	}
+	if( this->m_write_cancel )
+	{
+		error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+		this->m_write_cancel = false;
+	}
+	co_return buf.size;
+}
+
+template <concept_execution Exec, typename Derived>
+void basic_udp_socket<Exec,Derived>::_cancel() noexcept
 {
 	base_t::_cancel();
 	this->m_dns_cancel = true;
@@ -125,7 +176,7 @@ void basic_tcp_socket<Exec,Derived>::_cancel() noexcept
 }
 
 template <concept_execution Exec, typename Derived>
-void basic_tcp_socket<Exec,Derived>::_delete_native(void *native)
+void basic_udp_socket<Exec,Derived>::_delete_native(void *native)
 {
 	delete reinterpret_cast<native_t*>(native);
 }
@@ -133,4 +184,4 @@ void basic_tcp_socket<Exec,Derived>::_delete_native(void *native)
 } //namespace libgs::io
 
 
-#endif //LIBGS_IO_DETAIL_TCP_SOCKET_H
+#endif //LIBGS_IO_DETAIL_UDP_SOCKET_H

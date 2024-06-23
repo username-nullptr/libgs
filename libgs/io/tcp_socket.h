@@ -79,18 +79,6 @@ public:
 	basic_tcp_socket &operator=(asio_basic_tcp_socket<Exec0> &&native) noexcept;
 
 public:
-	[[nodiscard]] ip_endpoint remote_endpoint(no_time_token tk = {}) const;
-	[[nodiscard]] ip_endpoint local_endpoint(no_time_token tk = {}) const;
-
-public:
-	derived_t &set_option(const socket_option &op, no_time_token tk = {});
-	derived_t &get_option(socket_option op, no_time_token tk = {});
-	const derived_t &get_option(socket_option op, no_time_token tk = {}) const;
-
-	[[nodiscard]] size_t read_buffer_size() const noexcept;
-	[[nodiscard]] size_t write_buffer_size() const noexcept;
-
-public:
 	[[nodiscard]] const native_t &native() const noexcept;
 	[[nodiscard]] native_t &native() noexcept;
 
