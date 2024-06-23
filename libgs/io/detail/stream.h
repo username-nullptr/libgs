@@ -92,18 +92,6 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 
 template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
-(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		return read(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
 	if( buf.size == 0 )
@@ -118,42 +106,6 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 	if( tk.cnl_sig )
 		return read({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
 	return read({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
-(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		return read(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
-(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t, const error_code &error){
-		callback(error);
-	};
-	if( tk.cnl_sig )
-		return read(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
-(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](const error_code&){
-		callback();
-	};
-	if( tk.cnl_sig )
-		return read(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
 }
 
 template <typename Derived, concept_execution Exec>
@@ -233,18 +185,6 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 
 template <typename Derived, concept_execution Exec>
 typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
-(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		return read_some(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read_some(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
 (buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept
 {
 	if( buf.size == 0 )
@@ -259,42 +199,6 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read
 	if( tk.cnl_sig )
 		return read_some({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
 	return read_some({_buf.get(), buf.size}, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
-(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		return read_some(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read_some(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
-(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t, const error_code &error){
-		callback(error);
-	};
-	if( tk.cnl_sig )
-		return read_some(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read_some(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::read_some
-(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](const error_code&){
-		callback();
-	};
-	if( tk.cnl_sig )
-		return read_some(buf, {std::move(tk.rc), tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return read_some(buf, {std::move(tk.rc), tk.rtime, std::move(_callback)});
 }
 
 template <typename Derived, concept_execution Exec>
@@ -364,18 +268,6 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::writ
 }
 
 template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write
-(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		return write(buf, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return write(buf, {tk.rtime, std::move(_callback)});
-}
-
-template <typename Derived, concept_execution Exec>
 awaitable<size_t> basic_stream<Derived,Exec>::write(buffer<std::string_view> buf, opt_token<error_code&> tk)
 {
 	using namespace std::chrono_literals;
@@ -438,18 +330,6 @@ typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::writ
 	},
 	this->m_exec);
 	return this->derived();
-}
-
-template <typename Derived, concept_execution Exec>
-typename basic_stream<Derived,Exec>::derived_t &basic_stream<Derived,Exec>::write_some
-(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept
-{
-	auto _callback = [callback = std::move(tk.callback)](size_t size, const error_code&){
-		callback(size);
-	};
-	if( tk.cnl_sig )
-		return write_some(buf, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
-	return write_some(buf, {tk.rtime, std::move(_callback)});
 }
 
 template <typename Derived, concept_execution Exec>

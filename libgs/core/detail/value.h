@@ -381,9 +381,15 @@ const std::basic_string<CharT> *basic_value<CharT>::operator->() const noexcept
 }
 
 template <concept_char_type CharT>
-bool basic_value<CharT>::operator<=>(const basic_value &other) const
+bool basic_value<CharT>::operator==(const string_view_t &str) const
 {
-	return m_str <=> other.m_str;
+	return m_str == str;
+}
+
+template <concept_char_type CharT>
+bool basic_value<CharT>::operator==(const string_t &str) const
+{
+	return m_str == str;
 }
 
 template <concept_char_type CharT>

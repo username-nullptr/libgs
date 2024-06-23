@@ -145,23 +145,27 @@ public:
 	);
 
 public:
-	string_t &operator*() & noexcept;
-	const string_t &operator*() const & noexcept;
-	string_t &&operator*() && noexcept;
-	const string_t &&operator*() const && noexcept;
+	[[nodiscard]] string_t &operator*() & noexcept;
+	[[nodiscard]] const string_t &operator*() const & noexcept;
+	[[nodiscard]] string_t &&operator*() && noexcept;
+	[[nodiscard]] const string_t &&operator*() const && noexcept;
 
 	string_t *operator->() noexcept;
 	const string_t *operator->() const noexcept;
 
 public:
+	[[nodiscard]] bool operator==(const basic_value &other) const = default;
+	[[nodiscard]] bool operator==(const string_view_t &tr) const;
+	[[nodiscard]] bool operator==(const string_t &str) const;
+
+	[[nodiscard]] bool operator<=>(const basic_value &other) const = default;
+	[[nodiscard]] bool operator<=>(const string_view_t &tr) const;
+	[[nodiscard]] bool operator<=>(const string_t &str) const;
+
+public:
 	basic_value &operator=(const basic_value&) = default;
 	basic_value &operator=(basic_value&&) noexcept = default;
 
-	bool operator<=>(const basic_value &other) const;
-	bool operator<=>(const string_view_t &tr) const;
-	bool operator<=>(const string_t &str) const;
-
-public:
 	basic_value &operator=(const CharT *str);
 	basic_value &operator=(string_t str);
 	basic_value &operator=(string_view_t str);

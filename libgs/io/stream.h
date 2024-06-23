@@ -60,34 +60,22 @@ public:
 
 public:
 	derived_t &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &read(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-
 	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
-	derived_t &read(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
 
 	derived_t &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &read_some(buffer<void*> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-
 	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<size_t>> tk) noexcept;
-	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<error_code>> tk) noexcept;
-	derived_t &read_some(buffer<std::string&> buf, opt_token<read_condition,callback_t<>> tk) noexcept;
 
 	[[nodiscard]] awaitable<size_t> read_some(buffer<void*> buf, opt_token<read_condition,error_code&> tk = {});
 	[[nodiscard]] awaitable<size_t> read_some(buffer<std::string&> buf, opt_token<read_condition,error_code&> tk = {});
 
 public:
 	derived_t &write(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &write(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
 	derived_t &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &write_some(buffer<std::string_view> buf, opt_token<callback_t<size_t>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write_some(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
 
 public:

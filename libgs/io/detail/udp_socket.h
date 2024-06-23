@@ -92,7 +92,89 @@ basic_udp_socket<Exec,Derived> &basic_udp_socket<Exec,Derived>::operator=(asio_b
 	return *this;
 }
 
-// TODO ...
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
+(host_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
+(host_endpoint ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::read
+(host_endpoint ep, buffer<void*> buf, opt_token<error_code&> tk)
+{
+
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::read
+(host_endpoint ep, buffer<std::string&> buf, opt_token<error_code&> tk)
+{
+
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
+(ip_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
+(ip_endpoint ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::read
+(ip_endpoint ep, buffer<void*> buf, opt_token<error_code&> tk)
+{
+
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::read
+(ip_endpoint ep, buffer<std::string&> buf, opt_token<error_code&> tk)
+{
+
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::write
+(host_endpoint ep, buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::write
+(host_endpoint ep, buffer<std::string_view> buf, opt_token<error_code&> tk)
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::write
+(ip_endpoint ep, buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
+{
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+awaitable<size_t> basic_udp_socket<Exec,Derived>::write
+(ip_endpoint ep, buffer<std::string_view> buf, opt_token<error_code&> tk)
+{
+
+}
 
 template <concept_execution Exec, typename Derived>
 const typename basic_udp_socket<Exec,Derived>::native_t &basic_udp_socket<Exec,Derived>::native() const noexcept
@@ -127,12 +209,12 @@ awaitable<size_t> basic_udp_socket<Exec,Derived>::_read_data
 	{
 		buf.size = co_await this->derived().native()
 				.async_receive(asio::buffer(buf.data, buf.size),
-								 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
+							   asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
 	}
 	else
 	{
 		buf.size = co_await this->derived().native()
-				.async_read_some(asio::buffer(buf.data, buf.size), use_awaitable_e[error]);
+				.async_receive(asio::buffer(buf.data, buf.size), use_awaitable_e[error]);
 	}
 	if( this->m_read_cancel )
 	{
@@ -149,7 +231,6 @@ awaitable<size_t> basic_udp_socket<Exec,Derived>::_write_data
 	this->m_write_cancel = false;
 	if( cnl_sig )
 	{
-
 		buf.size = co_await this->derived().native().async_send
 				(asio::buffer(buf.data.data(), buf.size),
 				 asio::bind_cancellation_slot(cnl_sig->slot(), use_awaitable_e[error]));
