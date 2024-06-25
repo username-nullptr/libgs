@@ -158,6 +158,35 @@ awaitable<void> basic_socket<Derived,Exec>::connect(ip_endpoint ep, opt_token<er
 }
 
 template <typename Derived, concept_execution Exec>
+typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::bind(ip_endpoint ep, no_time_token tk)
+{
+	error_code error;
+	auto &native = this->derived().native();
+
+	auto check_error = [&]() -> derived_t&
+	{
+		detail::check_error(tk.error, error, "libgs::io::basic_socket::bind");
+		return this->derived();
+	};
+	if( not native.is_open() )
+	{
+		if( ep.addr.is_v4())
+			native.open(asio::ip::tcp::v4(), error);
+		else
+			native.open(asio::ip::tcp::v6(), error);
+
+		if( error )
+			return check_error();
+	}
+	native.set_option(asio::socket_base::reuse_address(true), error);
+	if( error )
+		return check_error();
+
+	native.bind({std::move(ep.addr), ep.port}, error);
+	return check_error();
+}
+
+template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept
 {
 	co_spawn_detached([this, valid = this->m_valid, domain = std::move(domain), tk = std::move(tk)]() -> awaitable<void>
@@ -216,9 +245,6 @@ ip_endpoint basic_socket<Derived,Exec>::remote_endpoint(no_time_token tk) const
 template <typename Derived, concept_execution Exec>
 ip_endpoint basic_socket<Derived,Exec>::local_endpoint(no_time_token tk) const
 {
-	asio::ip::udp::socket sss;
-	sss.remote_endpoint();
-
 	error_code error;
 	auto ep = this->derived().native().local_endpoint(error);
 	detail::check_error(tk.error, error, "libgs::io::socket::local_endpoint");

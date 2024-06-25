@@ -224,7 +224,7 @@ typename tcp_server_base<Derived,Exec>::derived_t &tcp_server_base<Derived,Exec>
 		if( error )
 			return check_error();
 	}
-	m_native.set_option(asio_tcp_acceptor::reuse_address(true), error);
+	m_native.set_option(asio::socket_base::reuse_address(true), error);
 	if( error )
 		return check_error();
 

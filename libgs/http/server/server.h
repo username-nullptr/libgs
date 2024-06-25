@@ -124,7 +124,8 @@ public:
 	derived_t &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
 
 public:
-	awaitable<void> co_cancel() noexcept;
+	[[nodiscard]] awaitable<void> co_stop() noexcept;
+	derived_t &stop() noexcept;
 	derived_t &cancel() noexcept;
 
 public:

@@ -542,10 +542,18 @@ basic_server<TcpServer,CharT,Derived>::set_keepalive_time(const std::chrono::dur
 }
 
 template <typename TcpServer, concept_char_type CharT, typename Derived>
-awaitable<void> basic_server<TcpServer,CharT,Derived>::co_cancel() noexcept
+awaitable<void> basic_server<TcpServer,CharT,Derived>::co_stop() noexcept
 {
 	m_impl->m_is_start = false;
-	co_await m_impl->m_next_layer.co_cancel();
+	co_return co_await m_impl->m_next_layer.co_stop();
+}
+
+template <typename TcpServer, concept_char_type CharT, typename Derived>
+typename basic_server<TcpServer,CharT,Derived>::derived_t &basic_server<TcpServer,CharT,Derived>::stop() noexcept
+{
+	m_impl->m_is_start = false;
+	m_impl->m_next_layer.stop();
+	return this->derived();
 }
 
 template <typename TcpServer, concept_char_type CharT, typename Derived>

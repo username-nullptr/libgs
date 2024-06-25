@@ -64,6 +64,8 @@ public:
 	derived_t &connect(ip_endpoint ep, opt_token<callback_t<error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<void> connect(ip_endpoint ep, opt_token<error_code&> tk = {});
 
+	derived_t &bind(ip_endpoint ep, no_time_token tk = {});
+
 public:
 	derived_t &dns(string_wrapper domain, opt_token<callback_t<address_vector,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<address_vector> dns(string_wrapper domain, opt_token<error_code&> tk = {});

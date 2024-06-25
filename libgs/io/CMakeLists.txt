@@ -21,7 +21,6 @@ set(${target_name}_headers
 	udp_socket.h
 	ssl_tcp_socket.h
 	tcp_server.h
-	udp_server.h
 	ssl_tcp_server.h
 )
 
@@ -40,7 +39,6 @@ set(${target_name}_detail_headers
 	detail/ssl_tcp_socket.h
 	detail/tcp_server_base.h
 	detail/tcp_server.h
-	detail/udp_server.h
 	detail/ssl_tcp_server.h
 )
 
