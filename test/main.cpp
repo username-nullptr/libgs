@@ -5,7 +5,20 @@ using namespace std::chrono_literals;
 
 int main()
 {
-	libgs::io::udp_socket socket;
+	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
+	{
+		try {
+			libgs::io::udp_socket socket;
+			auto res = co_await socket.open().write({"127.0.0.1", 22222}, "hello world", 5s);
 
-	return 0;
+			libgs_log_info("res = {}", res);
+			libgs::execution::exit(0);
+		}
+		catch(std::exception &ex)
+		{
+			libgs_log_error("======== : {}", ex);
+			libgs::execution::exit(-1);
+		}
+	});
+	return libgs::execution::exec();
 }

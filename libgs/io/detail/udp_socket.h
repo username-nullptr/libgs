@@ -93,9 +93,50 @@ basic_udp_socket<Exec,Derived> &basic_udp_socket<Exec,Derived>::operator=(asio_b
 }
 
 template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::open
+(typename native_t::protocol_type type, no_time_token tk)
+{
+	auto &native = this->derived().native();
+	if( native.is_open() )
+		return this->derived();
+
+	error_code error;
+	native.open(type, error);
+
+	detail::check_error(tk.error, error, "libgs::io::udp_socket::open");
+	return this->derived();
+}
+
+template <concept_execution Exec, typename Derived>
+typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::open(no_time_token tk)
+{
+	return open(asio::ip::udp::v4(), tk);
+}
+
+template <concept_execution Exec, typename Derived>
 typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
 (host_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
+	co_spawn_detached([this, valid = this->m_valid, ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
+	{
+		if( not *valid )
+			co_return ;
+
+		error_code error;
+		size_t res;
+
+		if( tk.cnl_sig )
+			res = co_await read(std::move(ep), {tk.rtime, *tk.cnl_sig, error});
+		else
+			res = co_await read(std::move(ep), {tk.rtime, error});
+
+		if( not *valid )
+			co_return ;
+
+		tk.callback(res, error);
+		co_return ;
+	},
+	this->m_exec);
 	return this->derived();
 }
 
@@ -103,27 +144,100 @@ template <concept_execution Exec, typename Derived>
 typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
 (host_endpoint ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
-	return this->derived();
+	if( buf.size == 0 )
+		buf.size = this->derived().read_buffer_size();
+	auto _buf = std::make_shared<char[]>(buf.size);
+
+	auto _callback = [buf, _buf, callback = std::move(tk.callback)](size_t size, const error_code &error)
+	{
+		buf.data = std::string(_buf.get(), size);
+		callback(size, error);
+	};
+	if( tk.cnl_sig )
+		return read(std::move(ep), {_buf.get(), buf.size}, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
+	return read(std::move(ep), {_buf.get(), buf.size}, {tk.rtime, std::move(_callback)});
 }
 
 template <concept_execution Exec, typename Derived>
 awaitable<size_t> basic_udp_socket<Exec,Derived>::read
 (host_endpoint ep, buffer<void*> buf, opt_token<error_code&> tk)
 {
+	error_code error;
+	auto addr = ip_address::from_string(ep.host, error);
 
+	if( not error )
+		co_return co_await read({std::move(addr), ep.port}, buf, tk);
+
+	using namespace std::chrono_literals;
+	size_t res = 0;
+
+	auto _read = [&]() mutable -> awaitable<size_t>
+	{
+		auto addrs = co_await this->dns(std::move(ep.host), error);
+		if( error)
+			co_return res;
+
+		auto _tk = tk;
+		_tk.rtime = 0s;
+
+		for(auto &addr : addrs)
+		{
+			res = co_await read({std::move(addr), ep.port}, buf, _tk);
+			if( not error or error.value() == asio::error::operation_aborted )
+				break ;
+		}
+		co_return res;
+	};
+	if( tk.rtime == 0s )
+		co_await _read();
+	else
+	{
+		auto var = co_await (_read() or co_sleep_for(tk.rtime));
+		if( var.index() == 1 )
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	detail::check_error(tk.error, error, "libgs::io::udp_socket::read");
+	co_return res;
 }
 
 template <concept_execution Exec, typename Derived>
 awaitable<size_t> basic_udp_socket<Exec,Derived>::read
 (host_endpoint ep, buffer<std::string&> buf, opt_token<error_code&> tk)
 {
+	if( buf.size == 0 )
+		buf.size = this->derived().read_buffer_size();
 
+	auto _buf = std::make_shared<char[]>(buf.size);
+	auto size = co_await read(std::move(ep), {_buf.get(), buf.size}, std::move(tk));
+
+	buf.data = std::string(_buf.get(), size);
+	co_return size;
 }
 
 template <concept_execution Exec, typename Derived>
 typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
 (ip_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
+	co_spawn_detached([this, valid = this->m_valid, ep = std::move(ep), tk = std::move(tk)]() -> awaitable<void>
+	{
+		if( not *valid )
+			co_return ;
+
+		error_code error;
+		size_t res;
+
+		if( tk.cnl_sig )
+			res = co_await read(std::move(ep), {tk.rtime, *tk.cnl_sig, error});
+		else
+			res = co_await read(std::move(ep), {tk.rtime, error});
+
+		if( not *valid )
+			co_return ;
+
+		tk.callback(res, error);
+		co_return ;
+	},
+	this->m_exec);
 	return this->derived();
 }
 
@@ -131,27 +245,100 @@ template <concept_execution Exec, typename Derived>
 typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::read
 (ip_endpoint ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
-	return this->derived();
+	if( buf.size == 0 )
+		buf.size = this->derived().read_buffer_size();
+	auto _buf = std::make_shared<char[]>(buf.size);
+
+	auto _callback = [buf, _buf, callback = std::move(tk.callback)](size_t size, const error_code &error)
+	{
+		buf.data = std::string(_buf.get(), size);
+		callback(size, error);
+	};
+	if( tk.cnl_sig )
+		return read(std::move(ep), {_buf.get(), buf.size}, {tk.rtime, *tk.cnl_sig, std::move(_callback)});
+	return read(std::move(ep), {_buf.get(), buf.size}, {tk.rtime, std::move(_callback)});
 }
 
 template <concept_execution Exec, typename Derived>
 awaitable<size_t> basic_udp_socket<Exec,Derived>::read
 (ip_endpoint ep, buffer<void*> buf, opt_token<error_code&> tk)
 {
-
+	error_code error;
+	auto _read = [&]() mutable -> awaitable<size_t>
+	{
+		this->m_read_cancel = false;
+		if( tk.cnl_sig )
+		{
+			buf.size = co_await this->derived().native()
+					.async_receive_from(asio::buffer(buf.data, buf.size), {ep.addr, ep.port},
+								   asio::bind_cancellation_slot(tk.cnl_sig->slot(), use_awaitable_e[error]));
+		}
+		else
+		{
+			buf.size = co_await this->derived().native()
+					.async_receive_from(asio::buffer(buf.data, buf.size), {ep.addr, ep.port}, use_awaitable_e[error]);
+		}
+		if( this->m_read_cancel )
+		{
+			error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+			this->m_read_cancel = false;
+		}
+		detail::check_error(tk.error, error, "libgs::io::udp_socket::read");
+		co_return buf.size;
+	};
+	using namespace std::chrono_literals;
+	if( tk.rtime == 0s )
+		co_await _read();
+	else
+	{
+		auto var = co_await (_read() or co_sleep_for(tk.rtime));
+		if( var.index() == 1 )
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	detail::check_error(tk.error, error, "libgs::io::udp_socket::read");
+	co_return buf.size;
 }
 
 template <concept_execution Exec, typename Derived>
 awaitable<size_t> basic_udp_socket<Exec,Derived>::read
 (ip_endpoint ep, buffer<std::string&> buf, opt_token<error_code&> tk)
 {
+	if( buf.size == 0 )
+		buf.size = this->derived().read_buffer_size();
 
+	auto _buf = std::make_shared<char[]>(buf.size);
+	auto size = co_await read(std::move(ep), {_buf.get(), buf.size}, std::move(tk));
+
+	buf.data = std::string(_buf.get(), size);
+	co_return size;
 }
 
 template <concept_execution Exec, typename Derived>
 typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::write
 (host_endpoint ep, buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
+	auto size = buf.size;
+	auto _buf = std::make_shared<char[]>(size);
+	memcpy(_buf.get(), buf.data.data(), size);
+
+	co_spawn_detached([this, valid = this->m_valid, buf = std::move(_buf), size, ep = std::move(ep), tk = std::move(tk)]() mutable -> awaitable<void>
+	{
+		if( not *valid )
+			co_return ;
+		error_code error;
+
+		if( tk.cnl_sig )
+			size = co_await write(std::move(ep), {buf.get(), size}, {tk.rtime, *tk.cnl_sig, error});
+		else
+			size = co_await write(std::move(ep), {buf.get(), size}, {tk.rtime, error});
+
+		if( not *valid )
+			co_return ;
+
+		tk.callback(size, error);
+		co_return ;
+	},
+	this->m_exec);
 	return this->derived();
 }
 
@@ -159,13 +346,70 @@ template <concept_execution Exec, typename Derived>
 awaitable<size_t> basic_udp_socket<Exec,Derived>::write
 (host_endpoint ep, buffer<std::string_view> buf, opt_token<error_code&> tk)
 {
-	return this->derived();
+	error_code error;
+	auto addr = ip_address::from_string(ep.host, error);
+
+	if( not error )
+		co_return co_await write({std::move(addr), ep.port}, buf, tk);
+
+	using namespace std::chrono_literals;
+	size_t res = 0;
+
+	auto _write = [&]() mutable -> awaitable<size_t>
+	{
+		auto addrs = co_await this->dns(std::move(ep.host), error);
+		if( error)
+			co_return res;
+
+		auto _tk = tk;
+		_tk.rtime = 0s;
+
+		for(auto &addr : addrs)
+		{
+			res = co_await write({std::move(addr), ep.port}, buf, _tk);
+			if( not error or error.value() == asio::error::operation_aborted )
+				break ;
+		}
+		co_return res;
+	};
+	if( tk.rtime == 0s )
+		co_await _write();
+	else
+	{
+		auto var = co_await (_write() or co_sleep_for(tk.rtime));
+		if( var.index() == 1 )
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	detail::check_error(tk.error, error, "libgs::io::udp_socket::write");
+	co_return res;
 }
 
 template <concept_execution Exec, typename Derived>
 typename basic_udp_socket<Exec,Derived>::derived_t &basic_udp_socket<Exec,Derived>::write
 (ip_endpoint ep, buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept
 {
+	auto size = buf.size;
+	auto _buf = std::make_shared<char[]>(size);
+	memcpy(_buf.get(), buf.data.data(), size);
+
+	co_spawn_detached([this, valid = this->m_valid, buf = std::move(_buf), size, ep = std::move(ep), tk = std::move(tk)]() mutable -> awaitable<void>
+	{
+		if( not *valid )
+			co_return ;
+		error_code error;
+
+		if( tk.cnl_sig )
+			size = co_await write(std::move(ep), {buf.get(), size}, {tk.rtime, *tk.cnl_sig, error});
+		else
+			size = co_await write(std::move(ep), {buf.get(), size}, {tk.rtime, error});
+
+		if( not *valid )
+			co_return ;
+
+		tk.callback(size, error);
+		co_return ;
+	},
+	this->m_exec);
 	return this->derived();
 }
 
@@ -173,7 +417,39 @@ template <concept_execution Exec, typename Derived>
 awaitable<size_t> basic_udp_socket<Exec,Derived>::write
 (ip_endpoint ep, buffer<std::string_view> buf, opt_token<error_code&> tk)
 {
-
+	error_code error;
+	auto _write = [&]() mutable -> awaitable<size_t>
+	{
+		this->m_write_cancel = false;
+		if( tk.cnl_sig )
+		{
+			buf.size = co_await this->derived().native().async_send_to
+					(asio::buffer(buf.data.data(), buf.size), {ep.addr, ep.port},
+					 asio::bind_cancellation_slot(tk.cnl_sig->slot(), use_awaitable_e[error]));
+		}
+		else
+		{
+			buf.size = co_await this->derived().native().async_send_to
+					(asio::buffer(buf.data.data(), buf.size), {ep.addr, ep.port}, use_awaitable_e[error]);
+		}
+		if( this->m_write_cancel )
+		{
+			error = std::make_error_code(static_cast<std::errc>(errc::operation_aborted));
+			this->m_write_cancel = false;
+		}
+		co_return buf.size;
+	};
+	using namespace std::chrono_literals;
+	if( tk.rtime == 0s )
+		co_await _write();
+	else
+	{
+		auto var = co_await (_write() or co_sleep_for(tk.rtime));
+		if( var.index() == 1 )
+			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
+	}
+	detail::check_error(tk.error, error, "libgs::io::udp_socket::write");
+	co_return buf.size;
 }
 
 template <concept_execution Exec, typename Derived>

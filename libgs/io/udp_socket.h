@@ -35,7 +35,7 @@ namespace libgs
 {
 
 template <concept_execution Exec>
-using asio_basic_udp_socket = asio::basic_stream_socket<asio::ip::udp, Exec>;
+using asio_basic_udp_socket = asio::basic_datagram_socket<asio::ip::udp, Exec>;
 
 using asio_udp_socket = asio_basic_udp_socket<asio::any_io_executor>;
 using udp_handle_type = asio::ip::udp::socket::native_handle_type;
@@ -77,6 +77,10 @@ public:
 
 	template <concept_execution Exec0>
 	basic_udp_socket &operator=(asio_basic_udp_socket<Exec0> &&native) noexcept;
+
+public:
+	derived_t &open(typename native_t::protocol_type type, no_time_token tk = {});
+	derived_t &open(no_time_token tk = {});
 
 public:
 	derived_t &read(host_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;

@@ -82,7 +82,7 @@ awaitable<void> basic_socket<Derived,Exec>::connect(host_endpoint ep, opt_token<
 	auto addr = ip_address::from_string(ep.host, error);
 
 	if( not error )
-		co_await connect({addr, ep.port}, tk);
+		co_await connect({std::move(addr), ep.port}, tk);
 	else
 	{
 		auto _connect = [&]() mutable -> awaitable<error_code>
