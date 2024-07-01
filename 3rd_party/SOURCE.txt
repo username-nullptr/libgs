@@ -2,5 +2,7 @@ Source of the third-party library:
 
 asio           https://github.com/chriskohlhoff/asio.git
 
+spdlog         https://github.com/gabime/spdlog.git
+
 nlohmann.json  https://github.com/nlohmann/json.git
                https://gitee.com/ws-mirror-github/nlohmann.json.git

@@ -27,18 +27,105 @@
 *************************************************************************************/
 
 #include "app_utls.h"
-#include "log.h"
 
 namespace libgs::app
 {
 
+std::string file_path()
+{
+	error_code error;
+	auto res = file_path(error);
+	if( error )
+		throw system_error(error, "libgs::app::file_path");
+	return res;
+}
+
 std::string dir_path()
 {
-	auto file_name = file_path();
+	error_code error;
+	auto res = dir_path(error);
+	if( error )
+		throw system_error(error, "libgs::app::dir_path");
+	return res;
+}
+
+std::string dir_path(error_code &error) noexcept
+{
+	auto file_name = file_path(error);
+	if( error )
+		return {};
+
 	auto index = file_name.find_last_of('/');
 	if( index == std::string::npos or index == file_name.size() - 1 )
 		return "./";
 	return file_name.erase(index+1);
+}
+
+bool set_current_directory(std::string_view path)
+{
+	error_code error;
+	bool res = set_current_directory(error, path);
+	if( error )
+		throw system_error(error, "libgs::app::set_current_directory");
+	return res;
+}
+
+std::string current_directory()
+{
+	error_code error;
+	auto res = current_directory(error);
+	if( error )
+		throw system_error(error, "libgs::app::current_directory");
+	return res;
+}
+
+std::string absolute_path(std::string_view path)
+{
+	error_code error;
+	auto res = absolute_path(error, path);
+	if( error )
+		throw system_error(error, "libgs::app::absolute_path");
+	return res;
+}
+
+using optional_string = std::optional<std::string>;
+
+using envs_t = std::map<std::string, std::string>;
+
+optional_string getenv(std::string_view key)
+{
+	error_code error;
+	auto res = getenv(error, key);
+	if( error )
+		throw system_error(error, "libgs::app::getenv");
+	return res;
+}
+
+envs_t getenvs()
+{
+	error_code error;
+	auto res = getenvs(error);
+	if( error )
+		throw system_error(error, "libgs::app::getenvs");
+	return res;
+}
+
+bool setenv(std::string_view key, std::string_view value, bool overwrite)
+{
+	error_code error;
+	auto res = setenv(error, key, value, overwrite);
+	if( error )
+		throw system_error(error, "libgs::app::setenv");
+	return res;
+}
+
+bool unsetenv(std::string_view key)
+{
+	error_code error;
+	auto res = unsetenv(error, key);
+	if( error )
+		throw system_error(error, "libgs::app::unsetenv");
+	return res;
 }
 
 } //namespace libgs::app

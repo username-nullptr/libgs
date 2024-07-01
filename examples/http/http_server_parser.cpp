@@ -1,6 +1,6 @@
 #include <libgs/http/server/request_parser.h>
 #include <libgs/io/tcp_server.h>
-#include <libgs/core/log.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
@@ -18,21 +18,21 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io
 			if( not parser.append({rbuf,res}) or parser.can_read_body() )
 				continue;
 
-			libgs_log_debug("Version:{} - Method:{} - Path:{}",
+			spdlog::debug("Version:{} - Method:{} - Path:{}",
 							parser.version(),
 							libgs::http::to_method_string(parser.method()),
 							parser.path());
 
 			for(auto &[key,value] : parser.parameters())
-				libgs_log_debug("Parameter: {}: {}", key, value);
+				spdlog::debug("Parameter: {}: {}", key, value);
 
 			for(auto &[key,value] : parser.headers())
-				libgs_log_debug("Header: {}: {}", key, value);
+				spdlog::debug("Header: {}: {}", key, value);
 
 			for(auto &[key,value] : parser.cookies())
-				libgs_log_debug("Cookie: {}: {}", key, value);
+				spdlog::debug("Cookie: {}: {}", key, value);
 
-			libgs_log_debug("partial_body: {}\n", parser.take_partial_body());
+			spdlog::debug("partial_body: {}\n", parser.take_partial_body());
 
 			auto wbuf = std::format("HTTP/1.1 200 OK\r\n"
 									"{}:close\r\n"
@@ -47,14 +47,15 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io
 		}
 	}
 	catch( std::exception &ex ) {
-		libgs_log_error("socket error: {}", ex);
+		spdlog::error("socket error: {}", ex);
 	}
-	libgs_log_error("disconnected: {}", ep);
+	spdlog::error("disconnected: {}", ep);
 	co_return ;
 }
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
 		libgs::io::tcp_server server;
@@ -65,13 +66,13 @@ int main()
 				auto socket = co_await server.accept();
 				auto ep = socket.remote_endpoint();
 
-				libgs_log_debug("new connction: {}", ep);
+				spdlog::debug("new connction: {}", ep);
 				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)), server.pool());
 			}
 		}
 		catch(std::exception &ex)
 		{
-			libgs_log_error("server error: {}", ex);
+			spdlog::error("server error: {}", ex);
 			libgs::execution::exit(-1);
 		}
 	});

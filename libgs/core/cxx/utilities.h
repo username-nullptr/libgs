@@ -31,7 +31,6 @@
 
 #include <libgs/core/cxx/remove_repeat.h>
 #include <libgs/core/cxx/type_traits.h>
-// #include <rttr/type>
 #include <utility>
 
 #ifdef __GNUC__
@@ -90,15 +89,6 @@ const char *type_name(T &&t);
 
 template <typename T>
 const char *type_name();
-
-#if 0
-
-template <typename T>
-auto type_id();
-
-auto type_id(const std::string &name);
-
-#endif //rttr
 
 std::string wcstombs(std::wstring_view str);
 char wcstombs(wchar_t c);

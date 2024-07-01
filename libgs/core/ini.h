@@ -37,6 +37,20 @@
 namespace libgs
 {
 
+namespace detail
+{
+
+struct LIBGS_CORE_API ini_data_base
+{
+	LIBGS_DISABLE_COPY(ini_data_base)
+
+protected:
+	ini_data_base() = default;
+	static shared_mutex m_rw_lock;
+};
+
+} //namespace detail
+
 class ini_exception : public runtime_error {
 public: using runtime_error::runtime_error;
 };
@@ -66,7 +80,9 @@ public:
 	[[nodiscard]] auto read_or(const string_t &key, T default_value = T()) const noexcept;
 
 	template <ini_read_type<CharT> T = value_t>
-	[[nodiscard]] auto read(const string_t &key) const noexcept(false);
+	[[nodiscard]] auto read(const string_t &key) const;
+
+	[[nodiscard]] value_t read(const string_t &key) const;
 
 	template <typename T>
 	basic_ini_keys &write(const string_t &key, T &&value) noexcept;
@@ -75,7 +91,7 @@ public:
 	basic_ini_keys &write(string_t &&key, T &&value) noexcept;
 
 public:
-	[[nodiscard]] value_t operator[](const string_t &key) const noexcept(false);
+	[[nodiscard]] value_t operator[](const string_t &key) const;
 	[[nodiscard]] value_t &operator[](const string_t &key) noexcept;
 	[[nodiscard]] value_t &operator[](string_t &&key) noexcept;
 
@@ -113,6 +129,13 @@ public:
 	[[nodiscard]] const_reverse_iterator crend() const noexcept;
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
+public:
+	[[nodiscard]] iterator find(const string_t &key) noexcept;
+	[[nodiscard]] const_iterator find(const string_t &key) const noexcept;
+
+	basic_ini_keys &clear() noexcept;
+	[[nodiscard]] size_t size() const noexcept;
+
 protected:
 	key_map m_keys;
 };
@@ -125,15 +148,15 @@ class LIBGS_CORE_TAPI basic_ini
 public:
 	using string_t = std::basic_string<CharT>;
 	using value_t = basic_value<CharT>;
-	using str_list_type = basic_string_list<CharT>;
+	using string_list_t = basic_string_list<CharT>;
 
-	using ini_keys = basic_ini_keys<CharT>;
-	using group_map = std::map<string_t, ini_keys>;
+	using ini_keys_t = basic_ini_keys<CharT>;
+	using group_map = std::map<string_t, ini_keys_t>;
 
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
 public:
-	explicit basic_ini(std::string file_name = {});
+	explicit basic_ini(std::string_view file_name = {});
 	virtual ~basic_ini();
 
 	basic_ini(basic_ini &&other) noexcept;
@@ -142,7 +165,7 @@ public:
 	static basic_ini &global_instance();
 
 public:
-	basic_ini &set_file_nmae(const std::string &file_name);
+	basic_ini &set_file_nmae(std::string_view file_name);
 	[[nodiscard]] std::string file_name() const noexcept;
 
 public:
@@ -150,7 +173,9 @@ public:
 	[[nodiscard]] auto read_or(const string_t &group, const string_t &key, T default_value = T()) const noexcept;
 
 	template <ini_read_type<CharT> T = value_t>
-	[[nodiscard]] auto read(const string_t &group, const string_t &key) const noexcept(false);
+	[[nodiscard]] auto read(const string_t &group, const string_t &key) const;
+
+	[[nodiscard]] value_t read(const string_t &group, const string_t &key) const;
 
 	template <typename T>
 	basic_ini &write(const string_t &group, const string_t &key, T &&value) noexcept;
@@ -165,13 +190,13 @@ public:
 	basic_ini &write(string_t &&group, string_t &&key, T &&value) noexcept;
 
 public:
-	[[nodiscard]] const ini_keys &group(const string_t &group) const noexcept(false);
-	[[nodiscard]] ini_keys &group(const string_t &group) noexcept(false);
+	[[nodiscard]] const ini_keys_t &group(const string_t &group) const;
+	[[nodiscard]] ini_keys_t &group(const string_t &group) noexcept(false);
 
 public:
-	[[nodiscard]] const ini_keys &operator[](const string_t &group) const noexcept(false);
-	[[nodiscard]] ini_keys &operator[](const string_t &group) noexcept;
-	[[nodiscard]] ini_keys &operator[](string_t &&group) noexcept;
+	[[nodiscard]] const ini_keys_t &operator[](const string_t &group) const;
+	[[nodiscard]] ini_keys_t &operator[](const string_t &group) noexcept;
+	[[nodiscard]] ini_keys_t &operator[](string_t &&group) noexcept;
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
 	[[nodiscard]] value_t operator[](const string_t &group, const string_t &key) const noexcept(false);
@@ -220,24 +245,38 @@ public:
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
 public:
+	bool load(std::string &errmsg) noexcept;
 	basic_ini &load();
+
+	bool sync(std::string &errmsg) noexcept;
 	basic_ini &sync();
+
 	basic_ini &set_sync_on_delete(bool enable = true) noexcept;
 	[[nodiscard]] bool sync_on_delete() const noexcept;
 
-protected:
-	[[nodiscard]] string_t parsing_group(const string_t &str, size_t line);
-	[[nodiscard]] bool parsing_key_value(const string_t &curr_group, const string_t &str, size_t line);
+public:
+	[[nodiscard]] iterator find(const string_t &group) noexcept;
+	[[nodiscard]] const_iterator find(const string_t &group) const noexcept;
+
+	basic_ini &clear() noexcept;
+	[[nodiscard]] size_t size() const noexcept;
 
 protected:
-	struct data
+	[[nodiscard]] string_t parsing_group
+	(const string_t &str, size_t line, std::string &errmsg) noexcept;
+
+	[[nodiscard]] bool parsing_key_value
+	(const string_t &curr_group, const string_t &str, size_t line, std::string &errmsg) noexcept;
+
+protected:
+	struct data : detail::ini_data_base
 	{
 		std::string file_name;
 		group_map groups;
 		bool m_sync_on_delete = false;
+		friend class basic_ini;
 	}
 	*m_data;
-	inline static shared_mutex m_rw_lock;
 };
 
 using ini = basic_ini<char>;

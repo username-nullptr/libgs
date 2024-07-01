@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_DETAIL_SERVER_H
 
 #include <libgs/core/lock_free_queue.h>
+#include <spdlog/spdlog.h>
 
 namespace libgs::http
 {
@@ -90,12 +91,12 @@ public:
 			}
 			catch(std::exception &ex)
 			{
-				libgs_log_error("libgs::http::server: Unhandled exception: {}.", ex);
+				spdlog::error("libgs::http::server: Unhandled exception: {}.", ex);
 				abd = true;
 			}
 			catch(...)
 			{
-				libgs_log_error("libgs::http::server: Unknown exception.");
+				spdlog::error("libgs::http::server: Unknown exception.");
 				abd = true;
 			}
 			co_await m_next_layer.co_stop();
@@ -135,12 +136,12 @@ private:
 				}
 				catch(std::exception &ex)
 				{
-					libgs_log_error("libgs::http::server: service: Unhandled exception: {}.", ex);
+					spdlog::error("libgs::http::server: service: Unhandled exception: {}.", ex);
 					abd = true;
 				}
 				catch(...)
 				{
-					libgs_log_error("libgs::http::server: service: Unknown exception.");
+					spdlog::error("libgs::http::server: service: Unknown exception.");
 					abd = true;
 				}
 				error_code error;

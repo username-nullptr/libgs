@@ -1,5 +1,5 @@
-#include <libgs/core/log.h>
 #include <libgs/io/tcp_server.h>
+#include <spdlog/spdlog.h>
 
 #if 0
 void do_read(libgs::io::tcp_server::socket_t socket, libgs::io::ip_endpoint ep)
@@ -10,10 +10,10 @@ void do_read(libgs::io::tcp_server::socket_t socket, libgs::io::ip_endpoint ep)
 	](std::size_t size, const std::error_code &error) mutable
 	{
 		if( size == 0 )
-			libgs_log_error("disconnected: {}", ep);
+			spdlog::error("disconnected: {}", ep);
 		else
 		{
-			libgs_log_debug("read ({}): {}", size, std::string_view(buf.get(), size));
+			spdlog::debug("read ({}): {}", size, std::string_view(buf.get(), size));
 			do_read(std::move(socket), std::move(ep));
 		}
 	});
@@ -25,11 +25,11 @@ void do_accept(libgs::io::tcp_server &server)
 	{
 		if( error )
 		{
-			libgs_log_error("server error: {}", error);
+			spdlog::error("server error: {}", error);
 			return libgs::execution::exit(-1);
 		}
 		auto ep = socket.remote_endpoint();
-		libgs_log_debug("new connction: {}", ep);
+		spdlog::debug("new connction: {}", ep);
 
 		do_read(std::move(socket), std::move(ep));
 		do_accept(server);
@@ -39,19 +39,20 @@ void do_accept(libgs::io::tcp_server &server)
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
 #if 1
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
 		libgs::io::tcp_server server;
 		try {
 			server.bind({libgs::io::address_v4(),12345}).start();
-			libgs_log_info("Server started.");
+			spdlog::info("Server started.");
 
 			for(;;)
 			{
 				auto socket = co_await server.accept();
 				auto ep = socket.remote_endpoint();
-				libgs_log_debug("new connction: {}", ep);
+				spdlog::debug("new connction: {}", ep);
 
 				libgs::co_spawn_detached([socket = std::move(socket), ep = std::move(ep)]() mutable ->libgs::awaitable<void>
 				{
@@ -63,7 +64,7 @@ int main()
 							if( res == 0 )
 								break;
 
-							libgs_log_debug("read ({}): {}", res, std::string_view(buf, res));
+							spdlog::debug("read ({}): {}", res, std::string_view(buf, res));
 							co_await socket.write("HTTP/1.1 200 OK\r\n"
 												  "Content-Length: 2\r\n"
 												  "\r\n"
@@ -71,9 +72,9 @@ int main()
 						}
 					}
 					catch( std::exception &ex ) {
-						libgs_log_error("socket error: {}", ex);
+						spdlog::error("socket error: {}", ex);
 					}
-					libgs_log_error("disconnected: {}", ep);
+					spdlog::error("disconnected: {}", ep);
 					co_return ;
 				},
 				server.pool());
@@ -81,7 +82,7 @@ int main()
 		}
 		catch(std::exception &ex)
 		{
-			libgs_log_error("server error: {}", ex);
+			spdlog::error("server error: {}", ex);
 			libgs::execution::exit(-1);
 		}
 		co_return ;
@@ -93,11 +94,11 @@ int main()
 	server.bind({libgs::io::address_v4(),12345}, error).start();
 	if( error )
 	{
-		libgs_log_error("server error: {}", error);
+		spdlog::error("server error: {}", error);
 		return -1;
 	}
 	do_accept(server);
-	libgs_log_info("Server started.");
+	spdlog::info("Server started.");
 #endif
 	return libgs::execution::exec();
 }

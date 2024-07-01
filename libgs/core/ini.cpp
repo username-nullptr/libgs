@@ -31,6 +31,10 @@
 namespace libgs
 {
 
+namespace detail {
+shared_mutex ini_data_base::m_rw_lock;
+} //namespace detail
+
 ini &ini_global_instance() noexcept
 {
 	static ini obj;

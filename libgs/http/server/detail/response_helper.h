@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 
 #include <libgs/core/algorithm/mime_type.h>
-#include <libgs/core/log.h>
+#include <spdlog/spdlog.h>
 #include <filesystem>
 #include <list>
 
@@ -218,7 +218,7 @@ private:
 		namespace fs = std::filesystem;
 
 		auto mime_type = get_mime_type(file_name);
-		libgs_log_debug("resource mime-type: {}.", mime_type);
+		spdlog::debug("resource mime-type: {}.", mime_type);
 
 		auto file_size = fs::file_size(file_name);
 		if( file_size == 0 )
@@ -263,7 +263,7 @@ private:
 
 		if( list.size() > 2 )
 		{
-			libgs_log_debug("Range format error: {}.", range_str);
+			spdlog::debug("Range format error: {}.", range_str);
 			return false;
 		}
 		namespace fs = std::filesystem;
@@ -273,14 +273,14 @@ private:
 		{
 			if( list[1].empty() )
 			{
-				libgs_log_debug("Range format error.");
+				spdlog::debug("Range format error.");
 				return false;
 			}
 			rv.size = ston_or<size_t>(list[1]);
 
 			if( rv.size == 0 or rv.size > file_size )
 			{
-				libgs_log_debug("Range size is invalid.");
+				spdlog::debug("Range size is invalid.");
 				return false;
 			}
 			rv.end = file_size - 1;
@@ -290,7 +290,7 @@ private:
 		{
 			if( list[0].empty() )
 			{
-				libgs_log_debug("Range format error.");
+				spdlog::debug("Range format error.");
 				return false;
 			}
 			rv.begin = ston_or<size_t>(list[0]);
@@ -298,7 +298,7 @@ private:
 
 			if( rv.begin > rv.end )
 			{
-				libgs_log_debug("Range is invalid.");
+				spdlog::debug("Range is invalid.");
 				return false;
 			}
 			rv.size = file_size - rv.begin;
@@ -310,7 +310,7 @@ private:
 
 			if( rv.begin > rv.end or rv.end >= file_size )
 			{
-				libgs_log_debug("Range is invalid.");
+				spdlog::debug("Range is invalid.");
 				return false;
 			}
 			rv.size = rv.end - rv.begin + 1;

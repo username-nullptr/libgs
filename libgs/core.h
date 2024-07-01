@@ -29,13 +29,13 @@
 #ifndef LIBGS_CORE_HPP
 #define LIBGS_CORE_HPP
 
+#include <libgs/core/cxx/flags.h>
 #include <libgs/core/algorithm.h>
 #include <libgs/core/app_utls.h>
 #include <libgs/core/args_parser.h>
 #include <libgs/core/coroutine.h>
-#include <libgs/core/flags.h>
 #include <libgs/core/ini.h>
-#include <libgs/core/log.h>
+// #include <libgs/core/log.h>
 #include <libgs/core/shared_mutex.h>
 #include <libgs/core/string_list.h>
 

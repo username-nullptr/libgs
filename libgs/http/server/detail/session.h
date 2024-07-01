@@ -31,8 +31,8 @@
 
 #include <libgs/core/algorithm/uuid.h>
 #include <libgs/core/coroutine.h>
-#include <libgs/core/log.h>
 #include <libgs/io/timer.h>
+#include <spdlog/spdlog.h>
 
 namespace libgs::http
 {
@@ -68,7 +68,7 @@ public:
 				co_await m_timer.wait({std::chrono::seconds(m_second), error});
 
 				if( error and error.value() != errc::operation_aborted )
-					libgs_log_error("libgs::http::session: timer error: '{}'.", error);
+					spdlog::error("libgs::http::session: timer error: '{}'.", error);
 				if( m_restart )
 					continue;
 
@@ -111,7 +111,7 @@ basic_session<CharT>::basic_session() :
 template <concept_char_type CharT>
 basic_session<CharT>::~basic_session()
 {
-	libgs_log_debug("~session: '{}'", xxtombs<CharT>(id()));
+	spdlog::debug("~session: '{}'", xxtombs<CharT>(id()));
 	delete m_impl;
 }
 

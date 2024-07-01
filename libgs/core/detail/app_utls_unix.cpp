@@ -31,7 +31,6 @@
 #include "libgs/core/app_utls.h"
 #include "libgs/core/shared_mutex.h"
 #include "libgs/core/algorithm/base.h"
-#include "libgs/core/log.h"
 #include <unistd.h>
 
 /* extern char **environ; */
@@ -39,36 +38,47 @@
 namespace libgs::app
 {
 
-std::string file_path()
+static inline void set_error(error_code &error)
 {
+	error.assign(errno, std::system_category());
+}
+
+std::string file_path(error_code &error) noexcept
+{
+	error = error_code();
 	char exe_name[1024] = "";
+
 	if( readlink("/proc/self/exe", exe_name, sizeof(exe_name)) < 0 )
-		libgs_log_error("libgs::app::file_path: readlink: {}. ({})", strerror(errno), errno);
+		set_error(error);
 	return exe_name;
 }
 
-bool set_current_directory(std::string_view path)
+bool set_current_directory(error_code &error, std::string_view path) noexcept
 {
+	error = error_code();
 	if( chdir(path.data()) < 0 )
 	{
-		libgs_log_error("libgs::app::set_current_directory: chdir: {}. ({})", strerror(errno), errno);
+		set_error(error);
 		return false;
 	}
 	return true;
 }
 
-std::string current_directory()
+std::string current_directory(error_code &error) noexcept
 {
+	error = error_code();
 	char buf[1024] = "";
+
 	if( getcwd(buf, sizeof(buf)) == nullptr )
-		libgs_log_error("libgs::app::current_directory: getcwd: {}. ({})", strerror(errno), errno);
+		set_error(error);
+
 	std::string str(buf);
 	if( not str.ends_with("/") )
 		str += "/";
 	return str;
 }
 
-bool is_absolute_path(std::string_view path)
+bool is_absolute_path(std::string_view path) noexcept
 {
 	if( path.starts_with("/") )
 		return true;
@@ -77,9 +87,11 @@ bool is_absolute_path(std::string_view path)
 	return false;
 }
 
-std::string absolute_path(std::string_view path)
+std::string absolute_path(error_code &error, std::string_view path) noexcept
 {
+	error = error_code();
 	std::string result(path.data(), path.size());
+
 	if( not is_absolute_path(path) )
 		result = dir_path() + result;
 
@@ -87,7 +99,7 @@ std::string absolute_path(std::string_view path)
 	{
 		auto tmp = ::getenv("HOME");
 		if( tmp == nullptr )
-			libgs_log_fatal("libgs::app::absolute_path: System environment 'HOME' is null.");
+			set_error(error);
 
 		std::string home(tmp);
 		if( home.ends_with("/") )
@@ -109,17 +121,25 @@ using envs_t = std::map<std::string, std::string>;
 
 static shared_mutex g_env_mutex;
 
-optional_string getenv(std::string_view key)
+optional_string getenv(error_code &error, std::string_view key) noexcept
 {
+	error = error_code();
+
 	g_env_mutex.lock_shared();
 	auto value = ::getenv(key.data());
 
 	g_env_mutex.unlock_shared();
-	return value? optional_string(value) : optional_string();
+	if( value )
+		return optional_string(value);
+
+	set_error(error);
+	return {};
 }
 
-envs_t getenvs()
+envs_t getenvs(error_code &error) noexcept
 {
+	error = error_code();
+
 	envs_t envs;
 	g_env_mutex.lock_shared();
 
@@ -137,23 +157,27 @@ envs_t getenvs()
 	return envs;
 }
 
-bool setenv(std::string_view key, std::string_view value, bool overwrite)
+bool setenv(error_code &error, std::string_view key, std::string_view value, bool overwrite) noexcept
 {
+	error = error_code();
 	unique_lock locker(g_env_mutex);
+
 	if( ::setenv(key.data(), value.data(), overwrite) != 0 )
 	{
-		libgs_log_error("libgs::appinfo::setenv: setenv: {}. ({})", strerror(errno), errno);
+		set_error(error);
 		return false;
 	}
 	return true;
 }
 
-bool unsetenv(std::string_view key)
+bool unsetenv(error_code &error, std::string_view key) noexcept
 {
+	error = error_code();
 	unique_lock locker(g_env_mutex);
+
 	if( ::unsetenv(key.data()) != 0 )
 	{
-		libgs_log_error("libgs::appinfo::unsetenv: unsetenv: {}. ({})", strerror(errno), errno);
+		set_error(error);
 		return false;
 	}
 	return true;

@@ -11,7 +11,6 @@ set(${target_name}_sources
 	args_parser.cpp
 	ini.cpp
 	execution.cpp
-	log/scheduler.cpp
 )
 
 set(${target_name}_headers
@@ -36,12 +35,6 @@ set(${target_name}_headers
 	algorithm/sha1.h
 	app_utls.h
 	lock_free_queue.h
-	log.h
-	log/logger.h
-	log/buffer.h
-	log/scheduler.h
-	log/mq.h
-	log/context.h
 	string_list.h
 	value.h
 	args_parser.h
@@ -60,11 +53,6 @@ set(${target_name}_detail_headers
 	algorithm/detail/uuid.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
-	log/detail/logger.h
-	log/detail/buffer.h
-	log/detail/scheduler.h
-	log/detail/mq.h
-	log/detail/context.h
 	detail/string_list.h
 	detail/value.h
 	detail/ini.h
@@ -80,8 +68,6 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 
 add_library(${target_name} SHARED ${all_files})
 target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
-
-# target_link_libraries(${target_name} PUBLIC rttr_core)
 
 if (UNIX)
 	target_link_libraries(${target_name} PUBLIC pthread)

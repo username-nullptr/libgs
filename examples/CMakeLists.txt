@@ -39,6 +39,9 @@ function(set_target)
 		target_link_directories(${target_name} PRIVATE ${lib_path})
 		target_link_libraries(${target_name} PRIVATE ${lib_file})
 
+		if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+			target_link_options(${target_name} PRIVATE -Wl,--default-image-base-low)
+		endif ()
 		set_target_properties(${target_name} PROPERTIES
 			RUNTIME_OUTPUT_DIRECTORY ${output_dir}/examples/${path}/
 		)
@@ -53,7 +56,6 @@ set(core_sources
 	core/algorithm.cpp
 	core/app_utls.cpp
 	core/lock_free_queue.cpp
-	core/log.cpp
 	core/value.cpp
 	core/ini.cpp
 	core/argv_parse.cpp

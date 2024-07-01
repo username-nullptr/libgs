@@ -1,10 +1,11 @@
-#include <libgs/core/log.h>
 #include <libgs/io/ssl_tcp_server.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
 		libgs::ssl::context ssl(libgs::ssl::context::sslv23_server);
@@ -24,7 +25,7 @@ int main()
 		libgs::io::ssl_tcp_server server(ssl);
 		try {
 			server.bind({libgs::io::address_v4(),12345}).start();
-			libgs_log_info("Server started.");
+			spdlog::info("Server started.");
 
 			for(;;)
 			{
@@ -34,14 +35,14 @@ int main()
 				{
 					if( error.value() == 336151574 ) // The client does not recognize the certificate.
 					{
-						libgs_log_error() << error;
+						spdlog::error(error);
 						continue;
 					}
 					else
 						throw std::system_error(error, "ssl_tcp_server::accept");
 				}
 				auto ep = socket.remote_endpoint();
-				libgs_log_debug("new connction: {}", ep);
+				spdlog::debug("new connction: {}", ep);
 
 				libgs::co_spawn_detached([socket = std::move(socket), ep = std::move(ep)]() mutable ->libgs::awaitable<void>
 				{
@@ -53,7 +54,7 @@ int main()
 							if( res == 0 )
 								break;
 
-							libgs_log_debug("read ({}): {}", res, std::string_view(buf, res));
+							spdlog::debug("read ({}): {}", res, std::string_view(buf, res));
 							co_await socket.write("HTTP/1.1 200 OK\r\n"
 							                      "Content-Length: 3\r\n"
 							                      "\r\n"
@@ -61,9 +62,9 @@ int main()
 						}
 					}
 					catch( std::exception &ex ) {
-						libgs_log_error("socket error: {}", ex);
+						spdlog::error("socket error: {}", ex);
 					}
-					libgs_log_error("disconnected: {}", ep);
+					spdlog::error("disconnected: {}", ep);
 					co_return ;
 				},
 				server.pool());
@@ -71,7 +72,7 @@ int main()
 		}
 		catch(std::exception &ex)
 		{
-			libgs_log_error("server error: {}", ex);
+			spdlog::error("server error: {}", ex);
 			libgs::execution::exit(-1);
 		}
 		co_return ;

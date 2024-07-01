@@ -1,5 +1,5 @@
 #include <libgs/core/lock_free_queue.h>
-#include <libgs/core/log.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
@@ -32,7 +32,7 @@ void consumer_0()
 	{
 		auto op = queue.dequeue();
 		if( op )
-			std::cout << i << " : " << *op << std::endl;
+			spdlog::debug("{} : {}", i, *op);
 		else
 			break;
 	}
@@ -40,6 +40,8 @@ void consumer_0()
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
+
 	std::thread t0(producer_0);
 	std::thread t1(producer_1);
 	std::thread t2(producer_2);

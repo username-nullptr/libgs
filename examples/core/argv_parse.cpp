@@ -1,8 +1,9 @@
 #include <libgs/core/args_parser.h>
-#include <libgs/core/log.h>
+#include <spdlog/spdlog.h>
 
 int main(int argc, const char *argv[])
 {
+	spdlog::set_level(spdlog::level::trace);
 	libgs::string_list others;
 
 	auto args = libgs::cmdline::args_parser("help:")
@@ -16,9 +17,9 @@ int main(int argc, const char *argv[])
 		.parsing(argc, argv, others);
 
 	for(auto &[key,value] : args)
-		libgs_log_debug("===== : {} - {}", key, value);
+		spdlog::debug("===== : {} - {}", key, value);
 
 	for(auto &arg : others)
-		libgs_log_debug("other : {}", arg);
+		spdlog::debug("other : {}", arg);
 	return 0;
 }

@@ -1,10 +1,11 @@
-#include <libgs/core/log.h>
 #include <libgs/io/ssl_tcp_socket.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
 		libgs::ssl::context ssl(libgs::ssl::context::sslv23_client);
@@ -20,12 +21,12 @@ int main()
 			char buf[128] = "";
 			auto size = co_await stream.read_some({buf,128});
 
-			libgs_log_debug("ssl_stream<tcp_socket> read: {}.", std::string_view(buf,size));
+			spdlog::debug("ssl_stream<tcp_socket> read: {}.", std::string_view(buf,size));
 			libgs::execution::exit();
 		}
 		catch(std::exception &ex)
 		{
-			libgs_log_error("tcp_socket<tcp_socket> error: {}.", ex);
+			spdlog::error("tcp_socket<tcp_socket> error: {}.", ex);
 			libgs::execution::exit(-1);
 		}
 #else
@@ -39,12 +40,12 @@ int main()
 		    char buf[128] = "";
 		    auto size = co_await socket.read_some({buf,128});
 
-		    libgs_log_debug("ssl_stream<tcp_socket> read: {}.", std::string_view(buf,size));
+		    spdlog::debug("ssl_stream<tcp_socket> read: {}.", std::string_view(buf,size));
 		    libgs::execution::exit();
 		}
 		catch(std::exception &ex)
 		{
-		    libgs_log_error("tcp_socket<tcp_socket> error: {}.", ex);
+		    spdlog::error("tcp_socket<tcp_socket> error: {}.", ex);
 		    libgs::execution::exit(-1);
 		}
 #endif

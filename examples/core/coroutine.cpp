@@ -1,55 +1,57 @@
-#include <libgs/core/log.h>
 #include <libgs/core/coroutine.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
 	asio::thread_pool pool;
+
 	libgs::co_spawn_detached([&]() -> libgs::awaitable<void>
 	{
-		libgs_log_debug() << "Start <0>...";
+		spdlog::debug("Start <0>...");
 		co_await libgs::co_sleep_for(1s);
 
-		libgs_log_debug() << "1 second passed...";
+		spdlog::debug("1 second passed...");
 		co_await libgs::co_sleep_for(2s);
 
-		libgs_log_debug() << "Another 2 seconds passed...";
-		libgs_log_debug() << "End <0>...";
+		spdlog::debug("Another 2 seconds passed...");
+		spdlog::debug("End <0>...");
 
-		libgs_log_debug("await thread task: {} ...", libgs::this_thread_id());
+		spdlog::debug("await thread task: {} ...", libgs::this_thread_id());
 		co_await libgs::co_thread([]
 		{
-			libgs_log_debug("Thread <1>: {} ...", libgs::this_thread_id());
+			spdlog::debug("Thread <1>: {} ...", libgs::this_thread_id());
 			libgs::sleep_for(2s);
 
-			libgs_log_debug() << "2 second passed...";
-			libgs_log_debug() << "End <1>...";
+			spdlog::debug("2 second passed...");
+			spdlog::debug("End <1>...");
 		});
 
-		libgs_log_debug("await std::future: {} ...", libgs::this_thread_id());
+		spdlog::debug("await std::future: {} ...", libgs::this_thread_id());
 		auto future = std::async(std::launch::async,[]
 		{
-			libgs_log_debug("Thread <2>: {} ...", libgs::this_thread_id());
+			spdlog::debug("Thread <2>: {} ...", libgs::this_thread_id());
 			libgs::sleep_for(1.5s);
 
-			libgs_log_debug() << "1.5 second passed...";
-			libgs_log_debug() << "End <2>...";
+			spdlog::debug("1.5 second passed...");
+			spdlog::debug("End <2>...");
 		});
 		co_await libgs::co_wait(future);
 
-		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		co_await libgs::co_to_thread();
-		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		co_await libgs::co_to_exec(pool);
-		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		co_await libgs::co_to_exec();
-		libgs_log_debug() << "run in thread:" << libgs::this_thread_id();
+		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
-		libgs_log_debug() << "example finished...";
+		spdlog::debug("example finished...");
 		co_await libgs::co_sleep_for(60s);
 		libgs::execution::exit();
 	});

@@ -33,11 +33,11 @@
 
 #include "libgs/core/algorithm/base.h"
 #include "libgs/core/app_utls.h"
-#include "libgs/core/log.h"
 
 namespace libgs::app
 {
 
+#if 0
 static LPSTR convert_error_code_to_string(DWORD errc)
 {
 	HLOCAL local_address = nullptr;
@@ -45,45 +45,50 @@ static LPSTR convert_error_code_to_string(DWORD errc)
 				  nullptr, errc, 0, reinterpret_cast<PTSTR>(&local_address), 0, nullptr);
 	return reinterpret_cast<LPSTR>(local_address);
 }
+#endif
 
-std::string file_path()
+static inline void set_error(error_code &error)
+{
+	error.assign(static_cast<int>(GetLastError()), std::system_category());
+}
+
+std::string file_path(error_code &error) noexcept
 {
 	TCHAR buf[MAX_PATH] = {0};
 	auto len = GetModuleFileName(nullptr, buf, _countof(buf));
 
 	if( len == 0 )
-	{
-		auto errc = GetLastError();
-		libgs_log_error("libgs::app::file_path: GetModuleFileName: {}. ({})", convert_error_code_to_string(errc), errc);
-	}
+		set_error(error);
+
 	std::string path(buf, len);
 	str_replace(path, "\\", "/");
 	return path;
 }
 
-bool set_current_directory(std::string_view path)
+bool set_current_directory(error_code &error, std::string_view path) noexcept
 {
+	error = error_code();
+
 	std::string _path(path.data(), path.size());
 	str_replace(_path, "/", "\\");
 
 	if( SetCurrentDirectory(_path.c_str()) )
 		return true;
 
-	auto errc = GetLastError();
-	libgs_log_error("libgs::app::set_current_directory: SetCurrentDirectory: {}. ({})", convert_error_code_to_string(errc), errc);
+	set_error(error);
 	return false;
 }
 
-std::string current_directory()
+std::string current_directory(error_code &error) noexcept
 {
+	error = error_code();
+
 	char buf[1024] = "";
 	auto len = GetCurrentDirectory(1023, buf);
 
 	if( len == 0 )
-	{
-		auto errc = GetLastError();
-		libgs_log_error("libgs::app::current_directory: GetCurrentDirectory: {}. ({})", convert_error_code_to_string(errc), errc);
-	}
+		set_error(error);
+
 	std::string path(buf, len);
 	str_replace(path, "\\", "/");
 
@@ -92,7 +97,7 @@ std::string current_directory()
 	return buf;
 }
 
-bool is_absolute_path(std::string_view path)
+bool is_absolute_path(std::string_view path) noexcept
 {
 	if( path.starts_with("/") )
 		return true;
@@ -113,9 +118,11 @@ bool is_absolute_path(std::string_view path)
 
 constexpr size_t g_max_buf_size = 4096;
 
-std::string absolute_path(std::string_view path)
+std::string absolute_path(error_code &error, std::string_view path) noexcept
 {
+	error = error_code();
 	std::string result(path.data(), path.size());
+
 	if( not is_absolute_path(path) )
 		result = dir_path() + result;
 
@@ -126,9 +133,7 @@ std::string absolute_path(std::string_view path)
 
 		if( len == 0 or len > g_max_buf_size )
 		{
-			auto errc = GetLastError();
-			libgs_log_error("libgs::app::absolute_path: GetEnvironmentVariable: {}. ({})", convert_error_code_to_string(errc), errc);
-
+			set_error(error);
 			result.clear();
 			return result;
 		}
@@ -152,29 +157,31 @@ using optional_string = std::optional<std::string>;
 
 using envs_t = std::map<std::string, std::string>;
 
-optional_string getenv(std::string_view key)
+optional_string getenv(error_code &error, std::string_view key) noexcept
 {
+	error = error_code();
+
 	char buf[g_max_buf_size] = "";
 	auto len = GetEnvironmentVariable(key.data(), buf, g_max_buf_size);
 
 	if( len == 0 )
 	{
-		auto errc = GetLastError();
-		libgs_log_error("libgs::app::getenv: GetEnvironmentVariable: {}. ({})", convert_error_code_to_string(errc), errc);
+		set_error(error);
 		return {};
 	}
 	return std::string(buf,len);
 }
 
-envs_t getenvs()
+envs_t getenvs(error_code &error) noexcept
 {
+	error = error_code();
+
 	envs_t envs;
 	auto buf = GetEnvironmentStrings();
 
 	if( buf == nullptr )
 	{
-		auto errc = GetLastError();
-		libgs_log_error("libgs::app::getenvs: GetEnvironmentStrings: {}. ({})", convert_error_code_to_string(errc), errc);
+		set_error(error);
 		return envs;
 	}
 	size_t start = 0;
@@ -194,16 +201,25 @@ envs_t getenvs()
 	return envs;
 }
 
-bool setenv(std::string_view key, std::string_view value, bool overwrite)
+bool setenv(error_code &error, std::string_view key, std::string_view value, bool overwrite) noexcept
 {
-	if( not overwrite and libgs::app::getenv(key).has_value() )
+	error = error_code();
+	if( (not overwrite and libgs::app::getenv(key).has_value()) or
+		SetEnvironmentVariable(key.data(), value.data()) )
 		return true;
-	return SetEnvironmentVariable(key.data(), value.data());
+
+	set_error(error);
+	return false;
 }
 
-bool unsetenv(std::string_view key)
+bool unsetenv(error_code &error, std::string_view key) noexcept
 {
-	return SetEnvironmentVariable(key.data(), nullptr);
+	error = error_code();
+	 if( SetEnvironmentVariable(key.data(), nullptr) )
+		 return true;
+
+	set_error(error);
+	return false;
 }
 
 } //namespace libgs::app

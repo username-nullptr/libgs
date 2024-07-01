@@ -1,8 +1,9 @@
 #include <libgs/core/ini.h>
-#include <libgs/core/log.h>
+#include <spdlog/spdlog.h>
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
 	libgs::ini ini("./test.ini");
 
 #if 0
@@ -16,12 +17,12 @@ int main()
 	ini.sync();
 #endif
 
-	libgs_log_debug("hello-hello: {}", ini["hello"]["hello"]);
-	libgs_log_debug("hello-world: {}", ini["hello"]["world"]);
-	libgs_log_debug("hello-aaa: {}", ini["hello"]["aaa"]);
+	spdlog::debug("hello-hello: {}", ini["hello"]["hello"]);
+	spdlog::debug("hello-world: {}", ini["hello"]["world"]);
+	spdlog::debug("hello-aaa: {}", ini["hello"]["aaa"]);
 
-	libgs_log_debug("test-aaa: {}", ini["test"]["aaa"]);
-	libgs_log_debug("test-bbb: {}", ini["test"]["bbb"]);
+	spdlog::debug("test-aaa: {}", ini["test"]["aaa"]);
+	spdlog::debug("test-bbb: {}", ini["test"]["bbb"]);
 
 	return 0;
 }

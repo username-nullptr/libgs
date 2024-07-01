@@ -1,10 +1,12 @@
-#include <libgs/core/log.h>
 #include <libgs/http/server.h>
+#include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
 int main()
 {
+	spdlog::set_level(spdlog::level::trace);
+
 	libgs::ssl::context ssl(libgs::ssl::context::sslv23_server);
 	ssl.set_default_verify_paths();
 
@@ -26,22 +28,22 @@ int main()
 	[](libgs::https::server::context &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
-		libgs_log_debug("Version:{} - Method:{} - Path:{}",
+		spdlog::debug("Version:{} - Method:{} - Path:{}",
 		                request.version(),
 		                libgs::http::to_method_string(request.method()),
 		                request.path());
 
 		for(auto &[key,value] : request.parameters())
-			libgs_log_debug("Parameter: {}: {}", key, value);
+			spdlog::debug("Parameter: {}: {}", key, value);
 
 		for(auto &[key,value] : request.headers())
-			libgs_log_debug("Header: {}: {}", key, value);
+			spdlog::debug("Header: {}: {}", key, value);
 
 		for(auto &[key,value] : request.cookies())
-			libgs_log_debug("Cookie: {}: {}", key, value);
+			spdlog::debug("Cookie: {}: {}", key, value);
 
 		if( request.can_read_body() )
-			libgs_log_debug("partial_body: {}\n", co_await request.read_all());
+			spdlog::debug("partial_body: {}\n", co_await request.read_all());
 
 		// If you don't write anything, the server will write the default body for you
 		// co_await context.response().write("hello world");
@@ -55,18 +57,18 @@ int main()
 	})
 	.on_exception([](libgs::https::server::context&, std::exception &ex)
 	{
-		libgs_log_error() << ex;
+		spdlog::error(ex);
 //		return false; // Returning false will result in abort !!!
 		return true;
 	})
 	.on_system_error([](std::error_code error)
 	{
-		libgs_log_error() << error;
+		spdlog::error(error);
 		if( error.value() != 336151574 ) // The client does not recognize the certificate.
 			libgs::execution::exit(-1);
 		return true;
 	})
 	.start();
-	libgs_log_info("Server started.");
+	spdlog::info("Server started.");
 	return libgs::execution::exec();
 }
