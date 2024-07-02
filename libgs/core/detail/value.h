@@ -393,13 +393,19 @@ bool basic_value<CharT>::operator==(const string_t &str) const
 }
 
 template <concept_char_type CharT>
-bool basic_value<CharT>::operator<=>(const string_view_t &str) const
+auto basic_value<CharT>::operator<=>(const basic_value &str) const
+{
+	return m_str <=> str.to_string();
+}
+
+template <concept_char_type CharT>
+auto basic_value<CharT>::operator<=>(const string_view_t &str) const
 {
 	return m_str <=> str;
 }
 
 template <concept_char_type CharT>
-bool basic_value<CharT>::operator<=>(const string_t &str) const
+auto basic_value<CharT>::operator<=>(const string_t &str) const
 {
 	return m_str <=> str;
 }

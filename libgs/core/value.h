@@ -158,9 +158,9 @@ public:
 	[[nodiscard]] bool operator==(const string_view_t &tr) const;
 	[[nodiscard]] bool operator==(const string_t &str) const;
 
-	[[nodiscard]] bool operator<=>(const basic_value &other) const = default;
-	[[nodiscard]] bool operator<=>(const string_view_t &tr) const;
-	[[nodiscard]] bool operator<=>(const string_t &str) const;
+	[[nodiscard]] auto operator<=>(const basic_value &other) const;
+	[[nodiscard]] auto operator<=>(const string_view_t &tr) const;
+	[[nodiscard]] auto operator<=>(const string_t &str) const;
 
 public:
 	basic_value &operator=(const basic_value&) = default;
