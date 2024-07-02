@@ -40,6 +40,7 @@ function(set_target)
 		target_link_libraries(${target_name} PRIVATE ${lib_file})
 
 		if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+			target_compile_options(${target_name} PRIVATE -Wl,--default-image-base-low)
 			target_link_options(${target_name} PRIVATE -Wl,--default-image-base-low)
 		endif ()
 		set_target_properties(${target_name} PROPERTIES
