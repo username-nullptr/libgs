@@ -62,12 +62,6 @@ ip_endpoint::ip_endpoint(ip_address addr) :
 
 }
 
-socket_option::socket_option(auto &data) :
-	id(typeid(data).hash_code()), data(&data) 
-{
-
-}
-
 } //namespace libgs::io
 
 namespace std

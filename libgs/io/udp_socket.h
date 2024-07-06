@@ -83,17 +83,17 @@ public:
 	derived_t &open(no_time_token tk = {});
 
 public:
-	derived_t &read(host_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &read(host_endpoint ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read(host_endpoint &ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read(host_endpoint &ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
 
-	[[nodiscard]] awaitable<size_t> read(host_endpoint ep, buffer<void*> buf, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> read(host_endpoint ep, buffer<std::string&> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read(host_endpoint &ep, buffer<void*> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read(host_endpoint &ep, buffer<std::string&> buf, opt_token<error_code&> tk = {});
 
-	derived_t &read(ip_endpoint ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
-	derived_t &read(ip_endpoint ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read(ip_endpoint &ep, buffer<void*> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
+	derived_t &read(ip_endpoint &ep, buffer<std::string&> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
 
-	[[nodiscard]] awaitable<size_t> read(ip_endpoint ep, buffer<void*> buf, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> read(ip_endpoint ep, buffer<std::string&> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read(ip_endpoint &ep, buffer<void*> buf, opt_token<error_code&> tk = {});
+	[[nodiscard]] awaitable<size_t> read(ip_endpoint &ep, buffer<std::string&> buf, opt_token<error_code&> tk = {});
 
 public:
 	derived_t &write(host_endpoint ep, buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
@@ -101,6 +101,10 @@ public:
 
 	derived_t &write(ip_endpoint ep, buffer<std::string_view> buf, opt_token<callback_t<size_t,error_code>> tk) noexcept;
 	[[nodiscard]] awaitable<size_t> write(ip_endpoint ep, buffer<std::string_view> buf, opt_token<error_code&> tk = {});
+
+public: // TODO ...
+	derived_t &join_multicast_group(/*...*/);
+	derived_t &leave_multicast_group(/*...*/);
 
 public:
 	[[nodiscard]] const native_t &native() const noexcept;

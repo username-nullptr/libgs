@@ -75,9 +75,9 @@ public:
 	[[nodiscard]] ip_endpoint local_endpoint(no_time_token tk = {}) const;
 
 public:
-	derived_t &set_option(const socket_option &op, no_time_token tk = {});
-	derived_t &get_option(socket_option op, no_time_token tk = {});
-	const derived_t &get_option(socket_option op, no_time_token tk = {}) const;
+	derived_t &set_option(const concept_socket_option auto &op, no_time_token tk = {});
+	derived_t &get_option(concept_socket_option auto &op, no_time_token tk = {});
+	const derived_t &get_option(concept_socket_option auto &op, no_time_token tk = {}) const;
 
 public:
 	[[nodiscard]] size_t read_buffer_size() const noexcept;

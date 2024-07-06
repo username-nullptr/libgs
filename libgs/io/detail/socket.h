@@ -170,10 +170,11 @@ typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::bind
 	};
 	if( not native.is_open() )
 	{
+		using protocol_t = typename derived_t::native_t::protocol_type;
 		if( ep.addr.is_v4())
-			native.open(asio::ip::tcp::v4(), error);
+			native.open(protocol_t::v4(), error);
 		else
-			native.open(asio::ip::tcp::v6(), error);
+			native.open(protocol_t::v6(), error);
 
 		if( error )
 			return check_error();
@@ -253,47 +254,49 @@ ip_endpoint basic_socket<Derived,Exec>::local_endpoint(no_time_token tk) const
 
 template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::set_option
-(const socket_option &op, no_time_token tk)
+(const concept_socket_option auto &op, no_time_token tk)
 {
 	using namespace asio;
+	using option_t = std::decay_t<decltype(op)>;
+
 	auto &_derived = this->derived();
 	error_code error;
 
-	if( op.id == typeid(socket_base::broadcast).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
+	if constexpr( std::is_same_v<option_t, socket_base::broadcast> )
+		_derived.native().set_option(op, error);
 
-	else if( op.id == typeid(socket_base::debug).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::debug> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::do_not_route).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::do_not_route> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::enable_connection_aborted).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::enable_connection_aborted> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::keep_alive).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::keep_alive> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::linger).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::linger> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::receive_buffer_size).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::receive_buffer_size> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::receive_low_watermark).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::receive_low_watermark> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::reuse_address).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::reuse_address> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::send_buffer_size).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::send_buffer_size> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(socket_base::send_low_watermark).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::send_low_watermark> )
+		_derived.native().set_option(op, error);
 	
-	else if( op.id == typeid(ip::v6_only).hash_code() )
-		_derived.native().set_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, ip::v6_only> )
+		_derived.native().set_option(op, error);
 
 	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
 	detail::check_error(tk.error, error, "libgs::io::socket::set_option");
@@ -302,47 +305,49 @@ typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::set_
 
 template <typename Derived, concept_execution Exec>
 typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::get_option
-(socket_option op, no_time_token tk)
+(concept_socket_option auto &op, no_time_token tk)
 {
 	using namespace asio;
+	using option_t = std::decay_t<decltype(op)>;
+
 	auto &_derived = this->derived();
 	error_code error;
 
-	if( op.id == typeid(socket_base::broadcast).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::broadcast*>(op.data), error);
+	if constexpr( std::is_same_v<option_t, socket_base::broadcast> )
+		_derived.native().get_option(op, error);
 
-	else if( op.id == typeid(socket_base::debug).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::debug*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::do_not_route).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::do_not_route*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::enable_connection_aborted).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::enable_connection_aborted*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::keep_alive).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::keep_alive*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::linger).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::linger*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::receive_buffer_size).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::receive_buffer_size*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::receive_low_watermark).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::receive_low_watermark*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::reuse_address).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::reuse_address*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::send_buffer_size).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::send_buffer_size*>(op.data), error);
-	
-	else if( op.id == typeid(socket_base::send_low_watermark).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<socket_base::send_low_watermark*>(op.data), error);
-	
-	else if( op.id == typeid(ip::v6_only).hash_code() )
-		_derived.native().get_option(*reinterpret_cast<ip::v6_only*>(op.data), error);
+	else if constexpr( std::is_same_v<option_t, socket_base::debug> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::do_not_route> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::enable_connection_aborted> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::keep_alive> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::linger> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::receive_buffer_size> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::receive_low_watermark> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::reuse_address> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::send_buffer_size> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, socket_base::send_low_watermark> )
+		_derived.native().get_option(op, error);
+
+	else if constexpr( std::is_same_v<option_t, ip::v6_only> )
+		_derived.native().get_option(op, error);
 
 	else error = std::make_error_code(static_cast<std::errc>(errc::invalid_argument));
 	detail::check_error(tk.error, error, "libgs::io::socket::get_option");
@@ -351,7 +356,7 @@ typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::get_
 
 template <typename Derived, concept_execution Exec>
 const typename basic_socket<Derived,Exec>::derived_t &basic_socket<Derived,Exec>::get_option
-(socket_option op, no_time_token tk) const
+(concept_socket_option auto &op, no_time_token tk) const
 {
 	return remove_const(this)->get_option(op,tk);
 }

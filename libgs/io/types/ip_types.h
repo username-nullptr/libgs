@@ -46,6 +46,7 @@ struct LIBGS_IO_VAPI host_endpoint
 	uint16_t port = 80;
 	host_endpoint(string_wrapper host, uint16_t port);
 	host_endpoint(string_wrapper host);
+	host_endpoint() = default;
 };
 
 template <typename Endpoint>
@@ -64,13 +65,7 @@ struct LIBGS_IO_VAPI ip_endpoint
 	ip_endpoint(concept_ip_endpoint auto &&ep);
 	ip_endpoint(ip_address addr, uint16_t port);
 	ip_endpoint(ip_address addr);
-};
-
-struct LIBGS_IO_VAPI socket_option
-{
-	std_type_id id;
-	void *data;
-	socket_option(auto &data);
+	ip_endpoint() = default;
 };
 
 } //namespace libgs::io

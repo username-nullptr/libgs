@@ -77,6 +77,7 @@ set(io_sources
 	io/udp_socket.cpp
 	io/tcp_server.cpp
 	io/ssl_tcp_server.cpp
+	io/udp_server.cpp
 )
 set_target(gs_io ${io_sources})
 
