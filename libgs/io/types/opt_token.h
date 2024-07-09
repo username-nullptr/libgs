@@ -71,9 +71,9 @@ concept concept_opt_token = requires(Args&&...value) {
 };
 
 template <typename...Args>
-struct LIBGS_IO_VAPI opt_token<callback_t<Args...>> : opt_token<void>
+struct LIBGS_IO_VAPI opt_token<io::callback_t<Args...>> : opt_token<void>
 {
-	using callback_t = callback_t<Args...>;
+	using callback_t = io::callback_t<Args...>;
 	callback_t callback {};
 
 	template <typename Func>

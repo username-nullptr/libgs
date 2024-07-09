@@ -30,7 +30,6 @@
 #define LIBGS_CORE_CXX_FORMATTER_H
 
 #include <libgs/core/cxx/utilities.h>
-// #include <rttr/type>
 #include <asio.hpp>
 
 #include <optional>
@@ -54,7 +53,17 @@ public:
 	}
 };
 
-} //namespace libgs
+namespace detail
+{
+
+inline uint64_t thread_id_helper(void *id) {
+	return reinterpret_cast<uint64_t>(id);
+}
+inline uint64_t thread_id_helper(uint64_t id) {
+	return id;
+}
+
+}} //namespace libgs::detail
 
 namespace std
 {
@@ -81,8 +90,8 @@ class formatter<std::thread::id, CharT>
 public:
 	auto format(const std::thread::id &tid, auto &context) const 
 	{
-		auto handle = *reinterpret_cast<const std::thread::native_handle_type *>(&tid);
-		return m_formatter.format(reinterpret_cast<uint64_t>(handle), context);
+		auto handle = *reinterpret_cast<const std::thread::native_handle_type*>(&tid);
+		return m_formatter.format(libgs::detail::thread_id_helper(handle), context);
 	}
 
 	constexpr auto parse(auto &context) noexcept {
