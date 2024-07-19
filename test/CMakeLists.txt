@@ -11,7 +11,7 @@ endif ()
 
 target_include_directories(${target_name} PRIVATE ${OpenSSL_DIR}/include)
 target_link_directories(${target_name} PRIVATE ${OpenSSL_DIR}/lib)
-target_link_libraries(${target_name} PRIVATE gs_io)
+target_link_libraries(${target_name} PRIVATE gs_core)
 
 target_compile_options(${target_name} PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/bigobj>

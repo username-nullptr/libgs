@@ -2,30 +2,30 @@ set(target_name gs_http)
 
 set(${target_name}_sources
 	global.cpp
-	parser.cpp
-	server/detail/session_base.cpp
+#	parser.cpp
+#	server/detail/session_base.cpp
 )
 
 set(${target_name}_headers
 	global.h
-	parser.h
-	client.h
-	server.h
+#	parser.h
+#	client.h
+#	server.h
 	basic/container.h
 	basic/cookie.h
 	basic/header.h
 	basic/types.h
 	basic/opt_token.h
-	client/request_helper.h
-	client/request.h
-	server/request.h
-	server/request_parser.h
-	server/response_helper.h
-	server/response.h
-	server/session.h
-	server/aop.h
-	server/context.h
-	server/server.h
+#	client/request_helper.h
+#	client/request.h
+#	server/request.h
+#	server/request_parser.h
+#	server/response_helper.h
+#	server/response.h
+#	server/session.h
+#	server/aop.h
+#	server/context.h
+#	server/server.h
 )
 
 set(${target_name}_detail_headers
@@ -33,15 +33,15 @@ set(${target_name}_detail_headers
 	basic/detail/cookie.h
 	basic/detail/types.h
 	basic/detail/opt_token.h
-	server/detail/request_parser.h
-	server/detail/request.h
-	server/detail/response_helper.h
-	server/detail/response.h
-	server/detail/session_base.h
-	server/detail/session.h
-	server/detail/aop.h
-	server/detail/context.h
-	server/detail/server.h
+#	server/detail/request_parser.h
+#	server/detail/request.h
+#	server/detail/response_helper.h
+#	server/detail/response.h
+#	server/detail/session_base.h
+#	server/detail/session.h
+#	server/detail/aop.h
+#	server/detail/context.h
+#	server/detail/server.h
 )
 
 set(all_files
