@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_ALGORITHM_BASE_H
 #define LIBGS_CORE_ALGORITHM_BASE_H
 
-#include <libgs/core/algorithm/detail/base.h>
+#include <libgs/core/algorithm/detail/basic_base.h>
 
 namespace libgs
 {

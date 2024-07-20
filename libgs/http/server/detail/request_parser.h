@@ -512,19 +512,19 @@ const typename basic_request_parser<CharT>::cookies_t &basic_request_parser<Char
 }
 
 template <concept_char_type CharT>
-bool basic_request_parser<CharT>::keep_alive() const
+bool basic_request_parser<CharT>::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
 }
 
 template <concept_char_type CharT>
-bool basic_request_parser<CharT>::support_gzip() const
+bool basic_request_parser<CharT>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
 }
 
 template <concept_char_type CharT>
-bool basic_request_parser<CharT>::can_read_body() const
+bool basic_request_parser<CharT>::can_read_body() const noexcept
 {
 	return m_impl->m_state > impl::state::reading_headers and
 		   m_impl->m_state < impl::state::finished;

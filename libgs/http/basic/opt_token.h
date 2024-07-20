@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_BASIC_OPT_TOKEN_H
 
 #include <libgs/http/basic/types.h>
-#include <libgs/io/types/opt_token.h>
 
 namespace libgs { namespace http
 {
@@ -39,13 +38,8 @@ using begin_t = size_t;
 using total_t = size_t;
 using end_t   = size_t;
 
-using read_condition = io::read_condition;
-
 template <typename...Args>
-using callback_t = io::callback_t<Args...>;
-
-template <typename...Token>
-using opt_token = io::opt_token<Token...>;
+using callback_t = std::function<void(Args...)>;
 
 struct range
 {
@@ -54,8 +48,19 @@ struct range
 };
 using ranges = std::vector<range>;
 
+struct file_range
+{
+	size_t begin = 0;
+	size_t total = 0;
+
+	constexpr file_range();
+	file_range(size_t total);
+	file_range(size_t begin, size_t total);
+};
+
 } //namespace http
 
+#if 0
 namespace io
 {
 
@@ -111,6 +116,9 @@ struct opt_token<http::basic_headers<CharT>,T> : opt_token<T>
 };
 
 }} //namespace libgs::io
+#else
+} //namespace libgs::http
+#endif
 #include <libgs/http/basic/detail/opt_token.h>
 
 

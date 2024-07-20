@@ -31,23 +31,20 @@
 
 #include <libgs/http/server/request_parser.h>
 #include <libgs/http/basic/opt_token.h>
-#include <libgs/io/tcp_socket.h>
+#include <libgs/core/coroutine.h>
 
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT, typename Derived = void>
-class LIBGS_HTTP_TAPI basic_server_request :
-	public io::device_base<crtp_derived_t<Derived,basic_server_request<Stream,CharT,Derived>>, typename Stream::executor_t>
+template <typename Stream, concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_server_request
 {
 	LIBGS_DISABLE_COPY(basic_server_request)
 
 public:
 	using next_layer_t = Stream;
-	using executor_t = typename next_layer_t::executor_t;
-
-	using derived_t = crtp_derived_t<Derived,basic_server_request>;
-	using base_t = io::device_base<derived_t,executor_t>;
+	using executor_t = typename next_layer_t::executor_type;
+	using endpoint_t = typename next_layer_t::endpoint;
 
 	using parser_t = basic_request_parser<CharT>;
 	using string_t = typename parser_t::string_t;
@@ -59,20 +56,30 @@ public:
 	using cookies_t = typename parser_t::cookies_t;
 	using parameters_t = typename parser_t::parameters_t;
 
-	template <typename T>
-	using buffer = io::buffer<T>;
+	void ffff()
+	{
+		asio::ip::udp::socket u;
+		u.async_receive_from();
+
+		asio::ip::tcp::socket t;
+		t.get_executor();
+
+		char b[1111];
+		error_code error;
+		t.async_read_some(buffer(b,1111), use_awaitable|error);
+
+//		asio::ssl::stream<asio::ip::tcp::socket> ss;
+//		ss.get_executor();
+	}
 
 public:
-	basic_server_request(next_layer_t &&next_layer, parser_t &parser);
-	~basic_server_request() override;
+	template <typename NextLayer>
+	basic_server_request(NextLayer &&next_layer, parser_t &parser)
+		requires concept_constructible<next_layer_t, NextLayer>;
+	~basic_server_request();
 
-	template <typename Stream0>
-	basic_server_request(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
-		requires concept_constructible<Stream,Stream0&&>;
-
-	template <typename Stream0>
-	basic_server_request &operator=(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
-		requires concept_constructible<Stream,Stream0&&>;
+	basic_server_request(basic_server_request &&other) noexcept;
+	basic_server_request &operator=(basic_server_request &&other) noexcept;
 
 public:
 	[[nodiscard]] http::method method() const noexcept;
@@ -93,22 +100,59 @@ public:
 	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
 
 public:
-	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
+	size_t read(const mutable_buffer &buf);
+	size_t read(const mutable_buffer &buf, error_code &error) noexcept;
 
-	[[nodiscard]] awaitable<std::string> read_all(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> save_file(const std::string &file_name, opt_token<begin_t,total_t,error_code&> tk = {});
+	template <concept_callable<std::string,error_code> Func>
+	void async_read(const mutable_buffer &buf, Func &&callback) noexcept;
+
+	template <asio::completion_token_for<void> Token>
+	[[nodiscard]] awaitable<size_t> async_read(const mutable_buffer &buf, Token &&token);
+
+	size_t async_read(const mutable_buffer &buf, asio::yield_context &yc);
 
 public:
-	[[nodiscard]] bool keep_alive() const;
-	[[nodiscard]] bool support_gzip() const;
-	[[nodiscard]] bool is_chunked() const;
-	[[nodiscard]] bool can_read_body() const;
+	[[nodiscard]] std::string read_all();
+	[[nodiscard]] std::string read_all(error_code &error) noexcept;
+
+	template <concept_callable<size_t,error_code> Func>
+	void async_read_all(Func &&callback) noexcept;
+
+	template <asio::completion_token_for<void> Token>
+	[[nodiscard]] awaitable<std::string> async_read_all(Token &&token);
+
+	[[nodiscard]] std::string async_read_all(asio::yield_context &yc);
 
 public:
-	[[nodiscard]] io::ip_endpoint remote_endpoint() const;
-	[[nodiscard]] io::ip_endpoint local_endpoint() const;
-	derived_t &cancel() noexcept;
+	size_t save_file(const std::string &file_name, const file_range &range = {});
+	size_t save_file(const std::string &file_name, const file_range &range, error_code &error) noexcept;
+	size_t save_file(const std::string &file_name, error_code &error) noexcept;
+
+	template <concept_callable<size_t,error_code> Func>
+	void async_save_file(const std::string &file_name, const file_range &range, Func &&callback) noexcept;
+
+	template <concept_callable<size_t,error_code> Func>
+	void async_save_file(const std::string &file_name, Func &&callback) noexcept;
+
+	template <asio::completion_token_for<void> Token>
+	[[nodiscard]] awaitable<size_t> async_save_file(const mutable_buffer &buf, const file_range &range, Token &&token);
+
+	template <asio::completion_token_for<void> Token>
+	[[nodiscard]] awaitable<size_t> async_save_file(const mutable_buffer &buf, Token &&token);
+
+	size_t async_save_file(const mutable_buffer &buf, const file_range &range, asio::yield_context &yc);
+	size_t async_save_file(const mutable_buffer &buf, asio::yield_context &yc);
+
+public:
+	[[nodiscard]] bool keep_alive() const noexcept;
+	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool is_chunked() const noexcept;
+	[[nodiscard]] bool can_read_body() const noexcept;
+
+public:
+	[[nodiscard]] endpoint_t remote_endpoint() const;
+	[[nodiscard]] endpoint_t local_endpoint() const;
+	void cancel() noexcept;
 
 public:
 	const next_layer_t &next_layer() const noexcept;
@@ -120,10 +164,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_server_request = basic_server_request<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_server_request = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_server_wrequest = basic_server_request<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_server_wrequest = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
 using tcp_server_wrequest = basic_tcp_server_wrequest<asio::any_io_executor>;

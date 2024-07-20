@@ -30,10 +30,16 @@
 #define LIBGS_CORE_COROUTINE_H
 
 #include <libgs/core/execution.h>
-#include <asio/experimental/awaitable_operators.hpp>
-#include <asio/spawn.hpp>
 
-using namespace  asio::experimental::awaitable_operators;
+#ifdef LIBGS_USING_BOOST_ASIO
+# include <boost/asio/experimental/awaitable_operators.hpp>
+# include <boost/asio/spawn.hpp>
+#else
+# include <asio/experimental/awaitable_operators.hpp>
+# include <asio/spawn.hpp>
+#endif //LIBGS_USING_BOOST_ASIO
+
+using namespace asio::experimental::awaitable_operators;
 
 namespace libgs
 {
@@ -63,6 +69,7 @@ constexpr auto use_awaitable = asio::use_awaitable;
 
 using use_awaitable_t = decltype(use_awaitable);
 
+#if 0
 struct LIBGS_CORE_VAPI use_awaitable_e_t
 {
 	auto operator[](error_code &error) const noexcept {
@@ -72,6 +79,7 @@ struct LIBGS_CORE_VAPI use_awaitable_e_t
 constexpr use_awaitable_e_t use_awaitable_e;
 
 using ua_redirect_error_t = typename function_traits<decltype(asio::redirect_error<use_awaitable_t>)>::return_type;
+#endif
 
 template <typename Exec, typename Func>
 LIBGS_CORE_TAPI auto co_post(Exec &exec, Func &&func) requires concept_callable<Func>;

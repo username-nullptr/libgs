@@ -31,6 +31,39 @@
 
 #include <thread>
 
+inline auto operator|(libgs::use_awaitable_t &ua, std::error_code &error) {
+	return redirect_error(ua, error);
+}
+
+inline auto operator|(std::error_code &error, libgs::use_awaitable_t &ua) {
+	return redirect_error(ua, error);
+}
+
+inline auto operator|(libgs::use_awaitable_t &ua, const asio::cancellation_slot &slot) {
+	return asio::bind_cancellation_slot(slot, ua);
+}
+
+inline auto operator|(const asio::cancellation_slot &slot, libgs::use_awaitable_t &ua) {
+	asio::cancellation_signal sss;
+	return asio::bind_cancellation_slot(slot, ua);
+}
+
+inline auto operator|(const asio::redirect_error_t<typename std::decay<libgs::use_awaitable_t>::type> &re, const asio::cancellation_slot &slot) {
+	return asio::bind_cancellation_slot(slot, re);
+}
+
+inline auto operator|(const asio::cancellation_slot &slot, const asio::redirect_error_t<typename std::decay<libgs::use_awaitable_t>::type> &re) {
+	return asio::bind_cancellation_slot(slot, re);
+}
+
+inline auto operator|(const asio::cancellation_slot_binder<typename std::decay<libgs::use_awaitable_t>::type, asio::cancellation_slot> &csb, std::error_code &error) {
+	return redirect_error(csb, error);
+}
+
+inline auto operator|(std::error_code &error, const asio::cancellation_slot_binder<typename std::decay<libgs::use_awaitable_t>::type, asio::cancellation_slot> &csb){
+	return redirect_error(csb, error);
+}
+
 namespace libgs
 {
 
@@ -328,7 +361,7 @@ awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtim
 {
 	error_code error;
 	asio::steady_timer timer(exec, rtime);
-	co_await timer.async_wait(use_awaitable_e[error]);
+	co_await timer.async_wait(use_awaitable|error);
 	co_return error;
 }
 
@@ -346,7 +379,7 @@ awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duratio
 {
 	error_code error;
 	asio::steady_timer timer(exec, atime);
-	co_await timer.async_wait(use_awaitable_e[error]);
+	co_await timer.async_wait(use_awaitable|error);
 	co_return error;
 }
 

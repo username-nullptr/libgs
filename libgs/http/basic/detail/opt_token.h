@@ -29,9 +29,29 @@
 #ifndef LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
 #define LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
 
-namespace libgs::io
+namespace libgs::http
 {
 
+inline constexpr file_range::file_range()
+{
+
+}
+
+inline file_range::file_range(size_t total) :
+	total(total)
+{
+
+}
+
+inline file_range::file_range(size_t begin, size_t total) :
+	begin(begin), total(total)
+{
+
+}
+
+} //namespace libgs::http
+
+#if 0
 template <typename T>
 template <typename...Args>
 opt_token<begin_t,total_t,T>::opt_token(size_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
@@ -82,6 +102,7 @@ opt_token<http::basic_headers<CharT>,T>::opt_token(http::basic_headers<CharT> he
 }
 
 } //namespace libgs::io
+#endif
 
 
 #endif //LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H

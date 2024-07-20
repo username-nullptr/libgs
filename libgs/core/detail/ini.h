@@ -232,9 +232,107 @@ size_t basic_ini_keys<CharT>::size() const noexcept
 	return m_keys.size();
 }
 
+namespace detail
+{
+
+template <typename T>
+struct ini_keyword_char {};
+
+template <>
+struct ini_keyword_char<char>
+{
+	static constexpr char left_bracket = '[';
+	static constexpr char right_bracket = ']';
+	static constexpr char assigning = '=';
+	static constexpr char sharp = '#';
+	static constexpr char semicolon = ';';
+	static constexpr char line_break = '\n';
+};
+
+template <>
+struct ini_keyword_char<wchar_t>
+{
+	static constexpr char left_bracket = L'[';
+	static constexpr char right_bracket = L']';
+	static constexpr char assigning = L'=';
+	static constexpr char sharp = L'#';
+	static constexpr char semicolon = L';';
+	static constexpr char line_break = L'\n';
+};
+
+} //namespace detail
+
+template <concept_char_type CharT>
+class basic_ini<CharT>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	impl() = default;
+
+public:
+	[[nodiscard]] string_t parsing_group
+	(const string_t &str, size_t line, std::string &errmsg) noexcept
+	{
+		if( str.size() < 3 or not str.ends_with(detail::ini_keyword_char<CharT>::right_bracket) )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
+			return {};
+		}
+		auto group = from_percent_encoding(str_trimmed(string_t(str.c_str() + 1, str.size() - 2)));
+		if( group.empty() )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
+			return {};
+		}
+		groups[group];
+		return group;
+	}
+
+	[[nodiscard]] bool parsing_key_value
+	(const string_t &curr_group, const string_t &str, size_t line, std::string &errmsg) noexcept
+	{
+		if( curr_group.empty() )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: No group specified.", line);
+			return false;
+		}
+		else if( str.size() < 2 )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
+			return false;
+		}
+		auto pos = str.find(detail::ini_keyword_char<CharT>::assigning);
+		if( pos == 0 )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
+			return false;
+		}
+		else if( pos == string_t::npos )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
+			return false;
+		}
+		auto key = from_percent_encoding(str_trimmed(str.substr(0,pos)));
+		if( key.empty() )
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
+			return false;
+		}
+		groups[curr_group][key] = from_percent_encoding(str_trimmed(str.substr(pos+1)));
+		return true;
+	}
+
+public:
+	std::string file_name;
+	group_map groups {};
+	bool m_sync_on_delete = false;
+	friend class basic_ini;
+};
+
 template <concept_char_type CharT>
 basic_ini<CharT>::basic_ini(std::string_view file_name) :
-	m_data(new data())
+	m_impl(new impl())
 {
 	set_file_nmae(file_name);
 }
@@ -252,43 +350,34 @@ basic_ini<CharT>::~basic_ini()
 
 template <concept_char_type CharT>
 basic_ini<CharT>::basic_ini(basic_ini &&other) noexcept :
-	m_data(other.m_data)
+	m_impl(other.m_impl)
 {
-	other.m_data = new data();
+	other.m_impl = new impl();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT> &basic_ini<CharT>::operator=(basic_ini &&other) noexcept
 {
-	m_data = other.m_data;
-	other.m_data = new data();
+	m_impl = other.m_impl;
+	other.m_impl = new impl();
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::global_instance()
-{
-	if constexpr( is_char_v )
-		return ini_global_instance();
-	else
-		return wini_global_instance();
-}
-
-template <concept_char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::set_file_nmae(std::string_view file_name)
+basic_ini<CharT> &basic_ini<CharT>::set_file_name(std::string_view file_name)
 {
 	auto _name = app::absolute_path(file_name);
-	if( m_data->file_name == _name )
+	if( m_impl->file_name == _name )
 		return *this;
 
-	m_data->file_name = std::move(_name);
+	m_impl->file_name = std::move(_name);
 	return *this;
 }
 
 template <concept_char_type CharT>
 std::string basic_ini<CharT>::file_name() const noexcept
 {
-	return m_data->file_name;
+	return m_impl->file_name;
 }
 
 template <concept_char_type CharT>
@@ -297,8 +386,8 @@ auto basic_ini<CharT>::read_or(const string_t &group, const string_t &key, T def
 {
 	if constexpr( is_dsame_v<T, value_t> )
 	{
-		auto it = m_data->groups.find(group);
-		if( it == m_data->groups.end() )
+		auto it = m_impl->groups.find(group);
+		if( it == m_impl->groups.end() )
 			return default_value;
 		return it->second.template read_or<T>(key, default_value);
 	}
@@ -312,8 +401,8 @@ auto basic_ini<CharT>::read(const string_t &group, const string_t &key) const no
 {
 	if constexpr( is_dsame_v<T, value_t> )
 	{
-		auto it = m_data->groups.find(group);
-		if( it != m_data->groups.end() )
+		auto it = m_impl->groups.find(group);
+		if( it != m_impl->groups.end() )
 			return it->second.template read<T>(key);
 
 		if constexpr( is_char_v )
@@ -335,7 +424,7 @@ template <concept_char_type CharT>
 template <typename T>
 basic_ini<CharT> &basic_ini<CharT>::write(const string_t &group, const string_t &key, T &&value) noexcept
 {
-	m_data->groups[group][key] = std::forward<T>(value);
+	m_impl->groups[group][key] = std::forward<T>(value);
 	return *this;
 }
 
@@ -343,7 +432,7 @@ template <concept_char_type CharT>
 template <typename T>
 basic_ini<CharT> &basic_ini<CharT>::write(const string_t &group, string_t &&key, T &&value) noexcept
 {
-	m_data->groups[group][std::move(key)] = std::forward<T>(value);
+	m_impl->groups[group][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
@@ -351,7 +440,7 @@ template <concept_char_type CharT>
 template <typename T>
 basic_ini<CharT> &basic_ini<CharT>::write(string_t &&group, const string_t &key, T &&value) noexcept
 {
-	m_data->groups[group][std::move(key)] = std::forward<T>(value);
+	m_impl->groups[group][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
@@ -359,15 +448,15 @@ template <concept_char_type CharT>
 template <typename T>
 basic_ini<CharT> &basic_ini<CharT>::write(string_t &&group, string_t &&key, T &&value) noexcept
 {
-	m_data->groups[std::move(group)][std::move(key)] = std::forward<T>(value);
+	m_impl->groups[std::move(group)][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
 template <concept_char_type CharT>
 const basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group) const
 {
-	auto it = m_data->groups.find(group);
-	if( it != m_data->groups.end() )
+	auto it = m_impl->groups.find(group);
+	if( it != m_impl->groups.end() )
 		return it->second;
 
 	if constexpr( is_char_v )
@@ -379,8 +468,8 @@ const basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group) cons
 template <concept_char_type CharT>
 basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group)
 {
-	auto it = m_data->groups.find(group);
-	if( it != m_data->groups.end() )
+	auto it = m_impl->groups.find(group);
+	if( it != m_impl->groups.end() )
 		return it->second;
 
 	if constexpr( is_char_v )
@@ -398,13 +487,13 @@ const basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const string_t &group)
 template <concept_char_type CharT>
 basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const string_t &group) noexcept
 {
-	return m_data->groups[group];
+	return m_impl->groups[group];
 }
 
 template <concept_char_type CharT>
 basic_ini_keys<CharT> &basic_ini<CharT>::operator[](string_t &&group) noexcept
 {
-	return m_data->groups[std::move(group)];
+	return m_impl->groups[std::move(group)];
 }
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
@@ -480,115 +569,90 @@ basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, string_t &&key,
 template <concept_char_type CharT>
 basic_ini<CharT>::iterator basic_ini<CharT>::begin() noexcept
 {
-	return m_data->groups.begin();
+	return m_impl->groups.begin();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_iterator basic_ini<CharT>::cbegin() const noexcept
 {
-	return m_data->groups.cbegin();
+	return m_impl->groups.cbegin();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_iterator basic_ini<CharT>::begin() const noexcept
 {
-	return m_data->groups.begin();
+	return m_impl->groups.begin();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::iterator basic_ini<CharT>::end() noexcept
 {
-	return m_data->groups.end();
+	return m_impl->groups.end();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_iterator basic_ini<CharT>::cend() const noexcept
 {
-	return m_data->groups.cend();
+	return m_impl->groups.cend();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_iterator basic_ini<CharT>::end() const noexcept
 {
-	return m_data->groups.end();
+	return m_impl->groups.end();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::reverse_iterator basic_ini<CharT>::rbegin() noexcept
 {
-	return m_data->groups.rbegin();
+	return m_impl->groups.rbegin();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::crbegin() const noexcept
 {
-	return m_data->groups.crbegin();
+	return m_impl->groups.crbegin();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::rbegin() const noexcept
 {
-	return m_data->groups.rbegin();
+	return m_impl->groups.rbegin();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::reverse_iterator basic_ini<CharT>::rend() noexcept
 {
-	return m_data->groups.rend();
+	return m_impl->groups.rend();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::crend() const noexcept
 {
-	return m_data->groups.crend();
+	return m_impl->groups.crend();
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::rend() const noexcept
 {
-	return m_data->groups.rend();
+	return m_impl->groups.rend();
 }
-
-template <typename T>
-struct ini_keyword_char {};
-
-template <>
-struct ini_keyword_char<char>
-{
-	static constexpr char left_bracket = '[';
-	static constexpr char right_bracket = ']';
-	static constexpr char assigning = '=';
-	static constexpr char sharp = '#';
-	static constexpr char semicolon = ';';
-	static constexpr char line_break = '\n';
-};
-
-template <>
-struct ini_keyword_char<wchar_t>
-{
-	static constexpr char left_bracket = L'[';
-	static constexpr char right_bracket = L']';
-	static constexpr char assigning = L'=';
-	static constexpr char sharp = L'#';
-	static constexpr char semicolon = L';';
-	static constexpr char line_break = L'\n';
-};
 
 template <concept_char_type CharT>
 bool basic_ini<CharT>::load(std::string &errmsg) noexcept
 {
-	if( not std::filesystem::exists(m_data->file_name) )
+	if( not std::filesystem::exists(m_impl->file_name) )
 	{
-		errmsg = std::format("No such file: '{}'", m_data->file_name);
+		errmsg = std::format("No such file: '{}'", m_impl->file_name);
 		return false;
 	}
-	std::shared_lock locker(m_data->m_rw_lock);
+	std::shared_lock locker(m_impl->m_rw_lock);
 	LIBGS_UNUSED(locker);
 
-	std::basic_ifstream<CharT> file(m_data->file_name);
+	std::basic_ifstream<CharT> file(m_impl->file_name);
 	if( not file.is_open() )
 	{
-		errmsg = std::format("file '{}' open failed.", m_data->file_name);
+		errmsg = std::format("file '{}' open failed.", m_impl->file_name);
 		return false;
 	}
 	string_t buf;
@@ -598,23 +662,23 @@ bool basic_ini<CharT>::load(std::string &errmsg) noexcept
 	{
 		buf = str_trimmed(buf);
 		if( buf.empty() or
-		    buf[0] == ini_keyword_char<CharT>::sharp or
-		    buf[0] == ini_keyword_char<CharT>::semicolon )
+		    buf[0] == detail::ini_keyword_char<CharT>::sharp or
+		    buf[0] == detail::ini_keyword_char<CharT>::semicolon )
 			continue;
 		
-		auto list = string_list_t::from_string(buf, ini_keyword_char<CharT>::sharp);
+		auto list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::sharp);
 		buf = str_trimmed(list[0]);
 
-		list = string_list_t::from_string(buf, ini_keyword_char<CharT>::semicolon);
+		list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::semicolon);
 		buf = str_trimmed(list[0]);
 
-		if( buf.starts_with(ini_keyword_char<CharT>::left_bracket) )
+		if( buf.starts_with(detail::ini_keyword_char<CharT>::left_bracket) )
 		{
-			curr_group = parsing_group(buf, line, errmsg);
+			curr_group = m_impl->parsing_group(buf, line, errmsg);
 			if( curr_group.empty() )
 				return false;
 		}
-		else if( not parsing_key_value(curr_group, buf, line, errmsg) )
+		else if( not m_impl->parsing_key_value(curr_group, buf, line, errmsg) )
 			return false;
 	}
 	return true;
@@ -633,32 +697,32 @@ basic_ini<CharT> &basic_ini<CharT>::load()
 template <concept_char_type CharT>
 bool basic_ini<CharT>::sync(std::string &errmsg) noexcept
 {
-	if( m_data->file_name.empty() )
+	if( m_impl->file_name.empty() )
 	{
 		errmsg = std::format("File name is empty.");
 		return false;
 	}
-	std::unique_lock locker(m_data->m_rw_lock);
-	std::basic_ofstream<CharT> file(m_data->file_name, std::ios_base::out | std::ios_base::trunc);
+	std::unique_lock locker(m_impl->m_rw_lock);
+	std::basic_ofstream<CharT> file(m_impl->file_name, std::ios_base::out | std::ios_base::trunc);
 
 	if( not file.is_open() )
 	{
-		errmsg = std::format("file '{}' open failed.", m_data->file_name);
+		errmsg = std::format("file '{}' open failed.", m_impl->file_name);
 		return false;
 	}
 	for(auto &[group, keys] : *this)
 	{
-		file << ini_keyword_char<CharT>::left_bracket
+		file << detail::ini_keyword_char<CharT>::left_bracket
 			 << to_percent_encoding(group)
-			 << ini_keyword_char<CharT>::right_bracket 
-			 << ini_keyword_char<CharT>::line_break;
+			 << detail::ini_keyword_char<CharT>::right_bracket
+			 << detail::ini_keyword_char<CharT>::line_break;
 
 		for(auto &[key, value] : keys)
 		{
 			file << to_percent_encoding(key)
-				 << ini_keyword_char<CharT>::assigning
+				 << detail::ini_keyword_char<CharT>::assigning
 				 << to_percent_encoding(value.to_string())
-				 << ini_keyword_char<CharT>::line_break;
+				 << detail::ini_keyword_char<CharT>::line_break;
 		}
 	}
 	file.close();
@@ -678,92 +742,38 @@ basic_ini<CharT> &basic_ini<CharT>::sync()
 template <concept_char_type CharT>
 basic_ini<CharT> &basic_ini<CharT>::set_sync_on_delete(bool enable) noexcept
 {
-	m_data->m_sync_on_delete = enable;
+	m_impl->m_sync_on_delete = enable;
 }
 
 template <concept_char_type CharT>
 bool basic_ini<CharT>::sync_on_delete() const noexcept
 {
-	return m_data->m_sync_on_delete;
+	return m_impl->m_sync_on_delete;
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::iterator basic_ini<CharT>::find(const string_t &group) noexcept
 {
-	return m_data->groups.find(group);
+	return m_impl->groups.find(group);
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT>::const_iterator basic_ini<CharT>::find(const string_t &group) const noexcept
 {
-	return m_data->groups.find(group);
+	return m_impl->groups.find(group);
 }
 
 template <concept_char_type CharT>
 basic_ini<CharT> &basic_ini<CharT>::clear() noexcept
 {
-	m_data->groups.clear();
+	m_impl->groups.clear();
 	return *this;
 }
 
 template <concept_char_type CharT>
 size_t basic_ini<CharT>::size() const noexcept
 {
-	return m_data->groups.size();
-}
-
-template <concept_char_type CharT>
-std::basic_string<CharT> basic_ini<CharT>::parsing_group
-(const string_t &str, size_t line, std::string &errmsg) noexcept
-{
-	if( str.size() < 3 or not str.ends_with(ini_keyword_char<CharT>::right_bracket) )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
-		return {};
-	}
-	auto group = from_percent_encoding(str_trimmed(string_t(str.c_str() + 1, str.size() - 2)));
-	if( group.empty() )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
-		return {};
-	}
-	m_data->groups[group];
-	return group;
-}
-
-template <concept_char_type CharT>
-bool basic_ini<CharT>::parsing_key_value
-(const string_t &curr_group, const string_t &str, size_t line, std::string &errmsg) noexcept
-{
-	if( curr_group.empty() )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: No group specified.", line);
-		return false;
-	}
-	else if( str.size() < 2 )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
-		return false;
-	}
-	auto pos = str.find(ini_keyword_char<CharT>::assigning);
-	if( pos == 0 )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
-		return false;
-	}
-	else if( pos == string_t::npos )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
-		return false;
-	}
-	auto key = from_percent_encoding(str_trimmed(str.substr(0,pos)));
-	if( key.empty() )
-	{
-		errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
-		return false;
-	}
-	m_data->groups[curr_group][key] = from_percent_encoding(str_trimmed(str.substr(pos+1)));
-	return true;
+	return m_impl->groups.size();
 }
 
 } //namespace libgs

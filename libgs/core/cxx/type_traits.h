@@ -64,6 +64,14 @@ using format_string = std::basic_format_string<CharT, std::type_identity_t<Args>
 template <concept_char_type CharT>
 static constexpr const CharT *default_format_v = default_format<CharT>::value;
 
+using mutable_buffer = asio::ASIO_MUTABLE_BUFFER;
+using const_buffer = asio::ASIO_CONST_BUFFER;
+
+template <typename...Args>
+inline auto buffer(Args&&...args) {
+	return asio::buffer(std::forward<Args>(args)...);
+}
+
 } //namespace libgs
 
 

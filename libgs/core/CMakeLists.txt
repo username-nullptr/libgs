@@ -9,7 +9,6 @@ set(${target_name}_sources
 	detail/app_utls_${OS_CPP}.cpp
 	global.cpp
 	args_parser.cpp
-	ini.cpp
 	execution.cpp
 )
 
@@ -48,7 +47,7 @@ set(${target_name}_detail_headers
 	cxx/detail/exception.h
 	cxx/detail/flags.h
 	detail/execution.h
-	algorithm/detail/base.h
+	algorithm/detail/basic_base.h
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h
 	detail/app_utls.h

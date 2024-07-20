@@ -71,9 +71,9 @@ public:
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
 public:
-	[[nodiscard]] bool keep_alive() const;
-	[[nodiscard]] bool support_gzip() const;
-	[[nodiscard]] bool can_read_body() const;
+	[[nodiscard]] bool keep_alive() const noexcept;
+	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool can_read_body() const noexcept;
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size = 0);
