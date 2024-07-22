@@ -58,15 +58,15 @@ public:
 
 	void ffff()
 	{
-		asio::ip::udp::socket u;
-		u.async_receive_from();
+//		asio::ip::udp::socket u;
+//		u.async_receive_from();
 
-		asio::ip::tcp::socket t;
-		t.get_executor();
+//		asio::ip::tcp::socket t;
+//		t.get_executor();
 
-		char b[1111];
-		error_code error;
-		t.async_read_some(buffer(b,1111), use_awaitable|error);
+//		char b[1111];
+//		error_code error;
+//		t.async_read_some(buffer(b,1111), use_awaitable|error);
 
 //		asio::ssl::stream<asio::ip::tcp::socket> ss;
 //		ss.get_executor();
@@ -148,10 +148,13 @@ public:
 	[[nodiscard]] bool support_gzip() const noexcept;
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool can_read_body() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
 
 public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;
 	[[nodiscard]] endpoint_t local_endpoint() const;
+
+	const executor_t &get_executor() noexcept;
 	void cancel() noexcept;
 
 public:
