@@ -16,7 +16,7 @@ set(${target_name}_headers
 	basic/header.h
 	basic/types.h
 	basic/opt_token.h
-#	client/request_helper.h
+	client/request_helper.h
 #	client/request.h
 	server/request_parser.h
 	server/request.h
@@ -35,7 +35,7 @@ set(${target_name}_detail_headers
 	basic/detail/opt_token.h
 	server/detail/request_parser.h
 	server/detail/request.h
-#	server/detail/response_helper.h
+	server/detail/response_helper.h
 #	server/detail/response.h
 #	server/detail/session_base.h
 #	server/detail/session.h

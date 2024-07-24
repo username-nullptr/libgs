@@ -44,7 +44,7 @@ class LIBGS_HTTP_TAPI basic_server_request
 public:
 	using next_layer_t = Stream;
 	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = typename next_layer_t::endpoint;
+	using endpoint_t = typename next_layer_t::endpoint_type;
 
 	using parser_t = basic_request_parser<CharT>;
 	using string_t = typename parser_t::string_t;
@@ -55,22 +55,6 @@ public:
 	using headers_t = typename parser_t::headers_t;
 	using cookies_t = typename parser_t::cookies_t;
 	using parameters_t = typename parser_t::parameters_t;
-
-	void ffff()
-	{
-//		asio::ip::udp::socket u;
-//		u.async_receive_from();
-
-//		asio::ip::tcp::socket t;
-//		t.get_executor();
-
-//		char b[1111];
-//		error_code error;
-//		t.async_read_some(buffer(b,1111), use_awaitable|error);
-
-//		asio::ssl::stream<asio::ip::tcp::socket> ss;
-//		ss.get_executor();
-	}
 
 public:
 	template <typename NextLayer>
@@ -103,45 +87,26 @@ public:
 	size_t read(const mutable_buffer &buf);
 	size_t read(const mutable_buffer &buf, error_code &error) noexcept;
 
-	template <concept_callable<std::string,error_code> Func>
-	void async_read(const mutable_buffer &buf, Func &&callback) noexcept;
-
-	template <asio::completion_token_for<void> Token>
-	[[nodiscard]] awaitable<size_t> async_read(const mutable_buffer &buf, Token &&token);
-
-	size_t async_read(const mutable_buffer &buf, asio::yield_context &yc);
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_read(const mutable_buffer &buf, Token &&token);
 
 public:
 	[[nodiscard]] std::string read_all();
 	[[nodiscard]] std::string read_all(error_code &error) noexcept;
 
-	template <concept_callable<size_t,error_code> Func>
-	void async_read_all(Func &&callback) noexcept;
-
-	template <asio::completion_token_for<void> Token>
-	[[nodiscard]] awaitable<std::string> async_read_all(Token &&token);
-
-	[[nodiscard]] std::string async_read_all(asio::yield_context &yc);
+	template <asio::completion_token_for<void(std::string_view,error_code)> Token>
+	auto async_read_all(Token &&token);
 
 public:
-	size_t save_file(const std::string &file_name, const file_range &range = {});
-	size_t save_file(const std::string &file_name, const file_range &range, error_code &error) noexcept;
-	size_t save_file(const std::string &file_name, error_code &error) noexcept;
+	size_t save_file(std::string_view file_name, const file_range &range = {});
+	size_t save_file(std::string_view file_name, const file_range &range, error_code &error) noexcept;
+	size_t save_file(std::string_view file_name, error_code &error) noexcept;
 
-	template <concept_callable<size_t,error_code> Func>
-	void async_save_file(const std::string &file_name, const file_range &range, Func &&callback) noexcept;
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_save_file(std::string_view file_name, const file_range &range, Token &&token);
 
-	template <concept_callable<size_t,error_code> Func>
-	void async_save_file(const std::string &file_name, Func &&callback) noexcept;
-
-	template <asio::completion_token_for<void> Token>
-	[[nodiscard]] awaitable<size_t> async_save_file(const mutable_buffer &buf, const file_range &range, Token &&token);
-
-	template <asio::completion_token_for<void> Token>
-	[[nodiscard]] awaitable<size_t> async_save_file(const mutable_buffer &buf, Token &&token);
-
-	size_t async_save_file(const mutable_buffer &buf, const file_range &range, asio::yield_context &yc);
-	size_t async_save_file(const mutable_buffer &buf, asio::yield_context &yc);
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_save_file(std::string_view file_name, Token &&token);
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;

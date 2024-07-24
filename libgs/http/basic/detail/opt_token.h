@@ -49,6 +49,23 @@ inline file_range::file_range(size_t begin, size_t total) :
 
 }
 
+namespace detail
+{
+
+template <typename T>
+concept concept_has_ec_ = requires(T &&t) {
+	t.ec_;
+};
+
+template <typename T>
+concept concept_has_get = requires(T &&t)
+{
+	t.get_cancellation_slot();
+	t.get();
+};
+
+}; //namespace detail
+
 } //namespace libgs::http
 
 #if 0

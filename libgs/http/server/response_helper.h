@@ -52,9 +52,6 @@ public:
 	using cookie_t = basic_cookie<CharT>;
 	using cookies_t = basic_cookies<CharT>;
 
-	template <typename T>
-	using buffer = io::buffer<T>;
-
 public:
 	explicit basic_response_helper(string_view_t version, const headers_t &request_headers);
 	~basic_response_helper();
