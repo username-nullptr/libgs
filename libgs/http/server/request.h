@@ -98,12 +98,12 @@ public:
 	auto async_read_all(Token &&token);
 
 public:
-	size_t save_file(std::string_view file_name, const file_range &range = {});
-	size_t save_file(std::string_view file_name, const file_range &range, error_code &error) noexcept;
+	size_t save_file(std::string_view file_name, const req_range &range = {});
+	size_t save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept;
 	size_t save_file(std::string_view file_name, error_code &error) noexcept;
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_save_file(std::string_view file_name, const file_range &range, Token &&token);
+	auto async_save_file(std::string_view file_name, const req_range &range, Token &&token);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	auto async_save_file(std::string_view file_name, Token &&token);

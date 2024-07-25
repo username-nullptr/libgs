@@ -32,19 +32,36 @@
 namespace libgs::http
 {
 
-inline constexpr file_range::file_range()
+inline constexpr req_range::req_range()
 {
 
 }
 
-inline file_range::file_range(size_t total) :
+inline req_range::req_range(size_t total) :
 	total(total)
 {
 
 }
 
-inline file_range::file_range(size_t begin, size_t total) :
+inline req_range::req_range(size_t begin, size_t total) :
 	begin(begin), total(total)
+{
+
+}
+
+inline constexpr resp_range::resp_range()
+{
+
+}
+
+inline resp_range::resp_range(size_t end) :
+	end(end)
+{
+
+}
+
+inline resp_range::resp_range(size_t begin, size_t end) :
+	begin(begin), end(end)
 {
 
 }

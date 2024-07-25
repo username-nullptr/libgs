@@ -509,7 +509,7 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 }
 
 template <typename Stream, concept_char_type CharT>
-size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const file_range &range)
+size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const req_range &range)
 {
 	error_code error;
 	auto buf = save_file(file_name, range, error);
@@ -519,7 +519,7 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 }
 
 template <typename Stream, concept_char_type CharT>
-size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const file_range &range, error_code &error) noexcept
+size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept
 {
 	std::size_t sum = 0;
 	if( file_name.empty() )
@@ -585,7 +585,7 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 
 template <typename Stream, concept_char_type CharT>
 template <asio::completion_token_for<void(size_t,error_code)> Token>
-auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_name, const file_range &range, Token &&token)
+auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_name, const req_range &range, Token &&token)
 {
 	if constexpr( is_function_v<Token> )
 	{

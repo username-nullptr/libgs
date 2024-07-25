@@ -20,8 +20,8 @@ set(${target_name}_headers
 #	client/request.h
 	server/request_parser.h
 	server/request.h
-#	server/response_helper.h
-#	server/response.h
+	server/response_helper.h
+	server/response.h
 #	server/session.h
 #	server/aop.h
 #	server/context.h
@@ -36,7 +36,7 @@ set(${target_name}_detail_headers
 	server/detail/request_parser.h
 	server/detail/request.h
 	server/detail/response_helper.h
-#	server/detail/response.h
+	server/detail/response.h
 #	server/detail/session_base.h
 #	server/detail/session.h
 #	server/detail/aop.h

@@ -41,22 +41,26 @@ using end_t   = size_t;
 template <typename...Args>
 using callback_t = std::function<void(Args...)>;
 
-struct range
-{
-	size_t begin = 0;
-	size_t end = 0;
-};
-using ranges = std::vector<range>;
-
-struct file_range
+struct req_range
 {
 	size_t begin = 0;
 	size_t total = 0;
 
-	constexpr file_range();
-	file_range(size_t total);
-	file_range(size_t begin, size_t total);
+	constexpr req_range();
+	req_range(size_t total);
+	req_range(size_t begin, size_t total);
 };
+
+struct resp_range
+{
+	size_t begin = 0;
+	size_t end = 0;
+
+	constexpr resp_range();
+	resp_range(size_t end);
+	resp_range(size_t begin, size_t end);
+};
+using resp_ranges = std::vector<resp_range>;
 
 } //namespace http
 

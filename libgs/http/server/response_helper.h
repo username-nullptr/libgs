@@ -72,13 +72,9 @@ public:
 	basic_response_helper &set_chunk_attributes(value_list_t attributes);
 
 public:
-	using write_callback = std::function<awaitable<size_t>(std::string_view,error_code&)>;
-	basic_response_helper &on_write(write_callback writer, std::function<size_t()> get_write_buffer_size = {});
-
-	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> body, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_t&, error_code&> tk = {});
+	[[nodiscard]] std::string header_data(size_t body_size = 0) const;
+	[[nodiscard]] std::string body_data(const const_buffer &buffer) const;
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {}) const;
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
