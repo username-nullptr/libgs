@@ -78,11 +78,15 @@ public:
 	basic_server_response &set_cookie(string_view_t key, cookie_t cookie);
 
 public:
-	size_t write();
+	size_t write(const const_buffer &body = {nullptr,0});
+	size_t write(const const_buffer &body, error_code &error);
 	size_t write(error_code &error) noexcept;
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(const const_buffer &buf, Token &&token);
+	auto async_write(const const_buffer &body, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(Token &&token);
 
 public:
 	size_t redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
@@ -126,6 +130,7 @@ public:
 	[[nodiscard]] bool headers_writed() const noexcept;
 	[[nodiscard]] bool chunk_end_writed() const noexcept;
 
+	const executor_t &get_executor() noexcept;
 	basic_server_response &cancel() noexcept;
 
 public:

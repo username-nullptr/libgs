@@ -177,9 +177,6 @@ public:
 	cookies_t m_cookies;
 	value_list_t m_chunk_attributes;
 	string_t m_redirect_url;
-
-//	bool m_headers_writed = false;
-//	bool m_chunk_end_writed = false;
 };
 
 template <concept_char_type CharT>

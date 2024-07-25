@@ -171,7 +171,7 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::parameter(string_v
 	auto map = m_impl->m_parser.parameters();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
 }
 
@@ -181,7 +181,7 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::header(string_view
 	auto map = m_impl->m_parser.headers();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::request::header: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
 }
 
@@ -191,7 +191,7 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::cookie(string_view
 	auto map = m_impl->m_parser.cookies();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
 	return it->second;
 }
 
@@ -225,7 +225,7 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf)
 	error_code error;
 	auto res = read(buf, error);
 	if( error )
-		throw system_error(error, "libgs::http::request::read");
+		throw system_error(error, "libgs::http::server_request::read");
 	return res;
 }
 
@@ -263,11 +263,8 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error
 		do {
 			tmp_sum += m_impl->m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
 			sum += tmp_sum;
-			if( error )
-			{
-				if( error == errc::interrupted )
-					continue;
-			}
+			if( error and error.value() == errc::interrupted )
+				continue;
 		}
 		while(false);
 		if( tmp_sum == 0 or not m_impl->m_parser.append({body.c_str(), tmp_sum}, error) )
@@ -298,8 +295,8 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 		error_code error;
 		size_t sum = 0;
 
-		if( yc.ec_ )
-			*yc.ec_ = error;
+		if( token.ec_ )
+			*token.ec_ = error;
 		do {
 			error.assign(0, std::system_category());
 			const size_t buf_size = buf.size();
@@ -329,9 +326,10 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 				auto tmp_buf = const_cast<char*>(body.c_str());
 				size_t tmp_sum = 0;
 				do {
-					tmp_sum += m_impl->m_next_layer.async_read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), yc[error]);
+					tmp_sum += m_impl->m_next_layer.async_read_some
+							(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), token[error]);
 					sum += tmp_sum;
-					if( error and error == errc::interrupted )
+					if( error and error.value() == errc::interrupted )
 						continue;
 				}
 				while(false);
@@ -344,18 +342,18 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 
 		if( not error )
 			return sum;
-		else if( yc.ec_ )
-			*yc.ec_ = error;
+		else if( token.ec_ )
+			*token.ec_ = error;
 		else
-			throw system_error(error, "libgs::http::request::async_read");
+			throw system_error(error, "libgs::http::server_request::async_read");
 		return sum;
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
+		m_impl->token_reset(token);
 		return [=,this]() mutable -> awaitable<size_t>
 		{
-			m_impl->token_reset(token);
 			const size_t buf_size = buf.size();
 			error_code error;
 			size_t sum = 0;
@@ -387,12 +385,17 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 					do {
 						auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
 						if constexpr( detail::concept_has_get<Token> )
-							tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error|token.get_cancellation_slot());
+						{
+							tmp_sum += co_await m_impl->m_next_layer.async_read_some
+									(read_buf, use_awaitable|error|token.get_cancellation_slot());
+						}
 						else
-							tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error);
-
+						{
+							tmp_sum += co_await m_impl->m_next_layer.async_read_some
+									(read_buf, use_awaitable|error);
+						}
 						sum += tmp_sum;
-						if( error and error == errc::interrupted )
+						if( error and error.value() == errc::interrupted )
 							continue;
 					}
 					while(false);
@@ -402,7 +405,7 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 				while(true);
 			}
 			while(false);
-			m_impl->token_handle(token, error, "libgs::http::request::async_read");
+			m_impl->token_handle(token, error, "libgs::http::server_request::async_read");
 			co_return sum;
 		}();
 	}
@@ -414,7 +417,7 @@ std::string basic_server_request<Stream,CharT>::read_all()
 	error_code error;
 	auto buf = read_all(error);
 	if( error )
-		throw system_error(error, "libgs::http::request::read_all");
+		throw system_error(error, "libgs::http::server_request::read_all");
 	return buf;
 }
 
@@ -454,30 +457,28 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if( std::is_same_v<std::decay_t<Token>, yield_context> )
 	{
-		auto pre_error = yc.ec_;
 		error_code error;
 		std::string sum;
 
-		if( pre_error )
-			*pre_error = error;
+		if( token.ec_ )
+			*token.ec_ = error;
 		do {
 			constexpr size_t buf_size = 0xFFFF;
 			char buf[buf_size] {0};
 
-			auto res = async_read(buffer(buf,buf_size), yc[error]);
+			auto res = async_read(buffer(buf,buf_size), token[error]);
 			sum += std::string(buf,res);
 			if( error )
 				break;
 		}
 		while( can_read_body() );
-		yc.ec_ = nullptr;
 
 		if( not error )
 			return sum;
-		else if( pre_error )
-			*pre_error = error;
+		else if( token.ec_ )
+			*token.ec_ = error;
 		else
-			throw system_error(error, "libgs::http::request::async_read_all");
+			throw system_error(error, "libgs::http::server_request::async_read_all");
 		return sum;
 	}
 #endif //LIBGS_USING_BOOST_ASIO
@@ -502,7 +503,7 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 					break;
 			}
 			while( can_read_body() );
-			m_impl->token_handle(token, error, "libgs::http::request::async_read_all");
+			m_impl->token_handle(token, error, "libgs::http::server_request::async_read_all");
 			co_return sum;
 		}();
 	}
@@ -514,7 +515,7 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 	error_code error;
 	auto buf = save_file(file_name, range, error);
 	if( error )
-		throw system_error(error, "libgs::http::request::save_file");
+		throw system_error(error, "libgs::http::server_request::save_file");
 	return buf;
 }
 
@@ -589,10 +590,11 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 {
 	if constexpr( is_function_v<Token> )
 	{
-		co_spawn_detached([this, file_name, range, callback = std::move(token)]() -> awaitable<void>
+		auto _file_name = std::string(file_name.data(), file_name.size());
+		co_spawn_detached([this, _file_name = std::move(_file_name), range, callback = std::move(token)]() -> awaitable<void>
 		{
 			error_code error;
-			auto res = co_await async_save_file(file_name, range, use_awaitable|error);
+			auto res = co_await async_save_file(_file_name, range, use_awaitable|error);
 			callback(res, error);
 			co_return ;
 		},
@@ -601,12 +603,11 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if( std::is_same_v<std::decay_t<Token>, yield_context> )
 	{
-		auto pre_error = yc.ec_;
 		std::size_t sum = 0;
 		error_code error;
 
-		if( pre_error )
-			*pre_error = error;
+		if( token.ec_ )
+			*token.ec_ = error;
 		do {
 			if( file_name.empty() )
 			{
@@ -639,7 +640,7 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 
 			while( can_read_body() )
 			{
-				size = async_read(buffer(buf, tcp_buf_size), yc[error]);
+				size = async_read(buffer(buf, tcp_buf_size), token[error]);
 				if( error )
 					break;
 
@@ -662,22 +663,21 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 			file.close();
 		}
 		while(false);
-		yc.ec_ = nullptr;
 
 		if( not error )
 			return sum;
-		else if( pre_error )
-			*pre_error = error;
+		else if( token.ec_ )
+			*token.ec_ = error;
 		else
-			throw system_error(error, "libgs::http::request::async_save_file");
+			throw system_error(error, "libgs::http::server_request::async_save_file");
 		return sum;
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
+		m_impl->token_reset(token);
 		return [=,this]() mutable -> awaitable<size_t>
 		{
-			m_impl->token_reset(token);
 			error_code error;
 			size_t sum = 0;
 			do {
