@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_SHARED_MUTEX_H
-#define LIBGS_CORE_SHARED_MUTEX_H
+#ifndef LIBGS_CORE_DETAIL_SHARED_MUTEX_H
+#define LIBGS_CORE_DETAIL_SHARED_MUTEX_H
 
 #include <libgs/core/spin_mutex.h>
 #include <shared_mutex>
@@ -36,49 +36,52 @@
 namespace libgs
 {
 
-using shared_mutex = std::shared_mutex;
-using shared_timed_mutex = std::shared_timed_mutex;
-
-using shared_shared_lock = std::shared_lock<shared_mutex>;
-using shared_shared_timed_lock = std::shared_lock<shared_timed_mutex>;
-
-using shared_unique_lock = std::unique_lock<shared_mutex>;
-using shared_unique_timed_lock = std::unique_lock<shared_timed_mutex>;
-
-class LIBGS_CORE_VAPI spin_shared_mutex
+inline spin_shared_mutex::~spin_shared_mutex() noexcept(false)
 {
-	LIBGS_DISABLE_COPY_MOVE(spin_shared_mutex)
+	if( m_read_count > 0 )
+		throw runtime_error("libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared.");
+}
 
-public:
-	using native_handle_t = spin_mutex;
+inline void spin_shared_mutex::lock()
+{
+	m_native_handle.lock();
+}
 
-public:
-	spin_shared_mutex() = default;
-	~spin_shared_mutex() noexcept(false);
+inline bool spin_shared_mutex::try_lock()
+{
+	return m_native_handle.try_lock();
+}
 
-public:
-	void lock();
-	[[nodiscard]] bool try_lock();
-	void unlock();
+inline void spin_shared_mutex::unlock()
+{
+	m_native_handle.unlock();
+}
 
-public:
-	void lock_shared();
-	[[nodiscard]] bool try_lock_shared();
-	void unlock_shared();
+inline void spin_shared_mutex::lock_shared()
+{
+	if( ++m_read_count == 1 )
+		m_native_handle.lock();
+}
 
-public:
-	native_handle_t &native_handle() noexcept;
+inline bool spin_shared_mutex::try_lock_shared()
+{
+	if( ++m_read_count == 1 )
+		return m_native_handle.try_lock();
+	return true;
+}
 
-private:
-	std::atomic_uint m_read_count {0};
-	native_handle_t m_native_handle;
-};
+inline void spin_shared_mutex::unlock_shared()
+{
+	if( --m_read_count == 0 )
+		m_native_handle.unlock();
+}
 
-using spin_shared_shared_lock = std::shared_lock<spin_shared_mutex>;
-using spin_shared_unique_lock = std::unique_lock<spin_shared_mutex>;
+inline typename spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept
+{
+	return m_native_handle;
+}
 
 } //namesapace libgs
-#include <libgs/core/detail/shared_mutex.h>
 
 
-#endif //LIBGS_CORE_SHARED_MUTEX_H
+#endif //LIBGS_CORE_DETAIL_SHARED_MUTEX_H

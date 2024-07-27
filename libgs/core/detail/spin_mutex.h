@@ -26,86 +26,53 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
-#define LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
+#ifndef LIBGS_CORE_DETAIL_SPIN_MUTEX_H
+#define LIBGS_CORE_DETAIL_SPIN_MUTEX_H
 
-#include <libgs/http/global.h>
-#include <libgs/core/shared_mutex.h>
-#include <map>
-
-namespace libgs::http
+namespace libgs
 {
 
-template <concept_char_type CharT>
-class basic_session;
-
-namespace detail
+inline spin_mutex::~spin_mutex() noexcept(false)
 {
+	if( m_native_handle )
+		throw runtime_error("libgs::spin_mutex: Destruct a spin mutex that has not yet been unlocked.");
+}
 
-class LIBGS_HTTP_API session_duration_base
+void spin_mutex::lock()
 {
-	LIBGS_DISABLE_COPY_MOVE(session_duration_base)
+	while( m_native_handle );
+	m_native_handle = true;
+}
 
-public:
-	template<typename Rep, typename Period = std::ratio<1>>
-	using duration = std::chrono::duration<Rep,Period>;
-	session_duration_base() = default;
-
-public:
-	[[nodiscard]] static std::chrono::seconds global_lifecycle() noexcept;
-
-	template <typename Rep, typename Period = std::ratio<1>>
-	static void set_global_lifecycle(const duration<Rep,Period> &seconds) noexcept
-	{
-		namespace sc = std::chrono;
-		auto &lv = _lifecycle();
-		lv = sc::duration_cast<sc::seconds>(seconds).count();
-		if( lv == 0 )
-			lv = 1;
-	}
-
-private:
-	static std::atomic<uint64_t> &_lifecycle() noexcept;
-};
-
-template <concept_char_type CharT>
-class session_base;
-
-template <>
-class LIBGS_HTTP_API session_base<char> : public session_duration_base
+bool spin_mutex::try_lock()
 {
-	LIBGS_DISABLE_COPY_MOVE(session_base)
-	using ptr = std::shared_ptr<basic_session<char>>;
-	friend class basic_session<char>;
+	bool flag = false;
+	/*
+		if( m_native_handle == flag )
+	 	{
+	 		m_native_handle = true;
+	 		return true;
+		}
+	 	else
+	 	{
+	 		flag = m_native_handle;
+			return false;
+	 	}
+	*/
+	return m_native_handle.compare_exchange_weak(flag, true);
+}
 
-private: 
-	session_base() = default;
-	static std::string &cookie_key() noexcept;
-	static std::map<std::string_view, ptr> &session_map() noexcept;
-	static shared_mutex &map_rwlock() noexcept;
-};
-
-template <> class LIBGS_HTTP_API session_base<wchar_t> : public session_duration_base
+void spin_mutex::unlock()
 {
-	LIBGS_DISABLE_COPY_MOVE(session_base)
-	using ptr = std::shared_ptr<basic_session<wchar_t>>;
-	friend class basic_session<wchar_t>;
+	m_native_handle	= false;
+}
 
-private: 
-	session_base() = default;
-	static std::wstring &cookie_key() noexcept;
-	static std::map<std::wstring_view, ptr> &session_map() noexcept;
-	static shared_mutex &map_rwlock() noexcept;
-};
+inline typename spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
+{
+	return m_native_handle;
+}
 
-template <typename CharT, typename Session>
-concept base_of_session = std::is_base_of_v<basic_session<CharT>, Session>;
-
-template <typename Session, typename...Args>
-concept can_construct = requires { Session(std::declval<Args>()...); };
-
-}} //namespace libgs::http::detail
+} //namespace libgs
 
 
-#endif //LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
-
+#endif //LIBGS_CORE_DETAIL_SPIN_MUTEX_H

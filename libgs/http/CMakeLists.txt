@@ -23,6 +23,7 @@ set(${target_name}_headers
 	server/response_helper.h
 	server/response.h
 	server/session.h
+	server/session_set.h
 #	server/aop.h
 #	server/context.h
 #	server/server.h
@@ -39,6 +40,7 @@ set(${target_name}_detail_headers
 	server/detail/response.h
 #	server/detail/session_base.h
 	server/detail/session.h
+	server/detail/session_set.h
 #	server/detail/aop.h
 #	server/detail/context.h
 #	server/detail/server.h

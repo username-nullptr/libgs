@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_SERVER_SESSION_H
 
 #include <libgs/http/basic/types.h>
-#include <libgs/http/server/detail/session_base.h>
 
 namespace libgs::http
 {
@@ -43,16 +42,15 @@ using wsession_attributes = basic_session_attributes<wchar_t>;
 
 template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_session :
-	public std::enable_shared_from_this<basic_session<CharT>>,
-	protected detail::session_base<CharT>
+	public std::enable_shared_from_this<basic_session<CharT>>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_session)
-	using base_t = detail::session_base<CharT>;
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
 	using duration = std::chrono::duration<Rep,Period>;
 	using time_point = decltype(std::chrono::system_clock::now());
+	using executor_t = asio::any_io_executor;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -61,9 +59,9 @@ public:
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	explicit basic_session(const duration<Rep,Period> &seconds);
+	explicit basic_session(const duration<Rep,Period> &seconds, const executor_t &exec = execution::get_executor());
 
-	basic_session();
+	explicit basic_session(const executor_t &exec = execution::get_executor());
 	virtual ~basic_session();
 
 public:
@@ -87,50 +85,15 @@ public:
 
 	template <typename Rep, typename Period = std::ratio<1>>
 	basic_session &set_lifecycle(const duration<Rep,Period> &seconds);
-	basic_session &set_lifecycle();
 
 	template <typename Rep, typename Period = std::ratio<1>>
 	basic_session &expand(const duration<Rep,Period> &seconds);
 	basic_session &expand();
 
 public:
-	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> make(Args&&...args) noexcept
-		requires detail::can_construct<Session, Args...>;
-
-	template <typename...Args>
-	static std::shared_ptr<basic_session> make(Args&&...args) noexcept
-		requires detail::can_construct<basic_session<CharT>, Args...>;
-
-	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
-		requires detail::can_construct<Session, Args...>;
-
-	template <typename...Args>
-	static std::shared_ptr<basic_session> get_or_make(string_view_t id, Args&&...args) noexcept
-		requires detail::can_construct<basic_session<CharT>, Args...>;
-
-public:
-	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get(string_view_t id);
-
-	template <typename...Args>
-	static std::shared_ptr<basic_session> get(string_view_t id);
-
-	template <detail::base_of_session<CharT> Session, typename...Args>
-	static std::shared_ptr<Session> get_or(string_view_t id);
-
-	template <typename...Args>
-	static std::shared_ptr<basic_session> get_or(string_view_t id) noexcept;
-
-public:
-	static void set_cookie_key(string_t key);
-	static string_view_t cookie_key() noexcept;
-
-private:
-	static std::shared_ptr<basic_session> _find(string_view_t id, bool _throw = true);
-	auto _emplace();
-	void _erase();
+	template <concept_callable Func>
+	basic_session &on_timeout(Func &&func);
+	basic_session &unbind_timeout();
 
 private:
 	class impl;

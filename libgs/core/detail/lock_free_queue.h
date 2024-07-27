@@ -33,9 +33,38 @@ namespace libgs
 {
 
 template <concept_copymovable T>
+class lock_free_queue<T>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	impl() : m_head(new node(T())), m_tail(m_head.load()) {}
+	~impl()
+	{
+		do {
+			auto n = m_head.load();
+			m_head.store(n->next.load());
+			delete n;
+		}
+		while( m_head.load() );
+	}
+
+public:
+	struct node
+	{
+		T data;
+		std::atomic<node*> next {nullptr};
+
+		template <typename...Args>
+		explicit node(Args&&...args) : data(std::forward<Args>(args)...) {}
+	};
+	std::atomic<node*> m_head {};
+	std::atomic<node*> m_tail {};
+};
+
+template <concept_copymovable T>
 lock_free_queue<T>::lock_free_queue() :
-	m_head(new node(T())),
-	m_tail(m_head.load())
+	m_impl(new impl())
 {
 
 }
@@ -43,12 +72,7 @@ lock_free_queue<T>::lock_free_queue() :
 template <concept_copymovable T>
 lock_free_queue<T>::~lock_free_queue()
 {
-	do {
-		auto n = m_head.load();
-		m_head.store(n->next.load());
-		delete n;
-	}
-	while( m_head.load() );
+	delete m_impl;
 }
 
 template <concept_copymovable T>
@@ -66,15 +90,15 @@ void lock_free_queue<T>::enqueue(T &&data)
 template <concept_copymovable T>
 std::optional<T> lock_free_queue<T>::dequeue()
 {
-	node *head = nullptr;
+	typename impl::node *head = nullptr;
 	std::optional<T> data;
 	for(;;)
 	{
-		head = m_head.load();
-		auto tail = m_tail.load();
+		head = m_impl->m_head.load();
+		auto tail = m_impl->m_tail.load();
 		auto next = head->next.load();
 
-		if( head == m_head.load() )
+		if( head == m_impl->m_head.load() )
 		{
 			if( head == tail ) // Queue may be empty.
 			{
@@ -82,12 +106,12 @@ std::optional<T> lock_free_queue<T>::dequeue()
 					return data;
 
 				// Another thread is inserting.
-				m_tail.compare_exchange_weak(tail, next);
+				m_impl->m_tail.compare_exchange_weak(tail, next);
 			}
 			else // pop front
 			{
 				data = std::move(next->data);
-				if( m_head.compare_exchange_weak(head, next) )
+				if( m_impl->m_head.compare_exchange_weak(head, next) )
 					break;
 			}
 		}
@@ -112,8 +136,8 @@ template <concept_copymovable T>
 template <typename...Args>
 void lock_free_queue<T>::emplace(Args&&...args)
 {
-	auto n = new node(std::forward<Args>(args)...);
-	auto tail = m_tail.load(std::memory_order_relaxed);
+	auto n = new typename impl::node(std::forward<Args>(args)...);
+	auto tail = m_impl->m_tail.load(std::memory_order_relaxed);
 	for(;;)
 	{
 		auto next = tail->next.load();
@@ -121,14 +145,14 @@ void lock_free_queue<T>::emplace(Args&&...args)
 		{
 			if( tail->next.compare_exchange_weak(next, n) )
 			{
-				m_tail.compare_exchange_strong(tail, n);
+				m_impl->m_tail.compare_exchange_strong(tail, n);
 				return ;
 			}
 		}
 		// The 'next' is not empty,
 		// which means that another thread is also being inserted
 		// and the temporary tail node needs to be updated.
-		else m_tail.compare_exchange_strong(tail, next);
+		else m_impl->m_tail.compare_exchange_strong(tail, next);
 	}
 }
 

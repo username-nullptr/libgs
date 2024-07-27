@@ -26,40 +26,80 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_LOCK_FREE_QUEUE_H
-#define LIBGS_CORE_LOCK_FREE_QUEUE_H
+#ifndef LIBGS_HTTP_SERVER_SESSION_SET_H
+#define LIBGS_HTTP_SERVER_SESSION_SET_H
 
-#include <libgs/core/global.h>
+#include <libgs/http/server/session.h>
+#include <libgs/core/shared_mutex.h>
 
-namespace libgs
+namespace libgs::http
 {
 
-template <concept_copymovable T>
-class LIBGS_CORE_TAPI lock_free_queue
+template <typename Session, typename CharT>
+concept base_of_session = std::is_base_of_v<basic_session<CharT>, Session>;
+
+template <concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_session_set
 {
-	LIBGS_DISABLE_COPY_MOVE(lock_free_queue)
+	LIBGS_DISABLE_COPY(basic_session_set)
 
 public:
-	lock_free_queue();
-	~lock_free_queue();
+	using session_t = basic_session<CharT>;
+	using string_t = std::basic_string_view<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
 
 public:
-	void enqueue(const T &data);
-	void enqueue(T &&data);
+	basic_session_set();
+	~basic_session_set();
+
+public:
+	template <base_of_session<CharT> Session, typename...Args>
+	std::shared_ptr<Session> make(Args&&...args) noexcept
+		requires concept_constructible<Session, Args...>;
 
 	template <typename...Args>
-	void emplace(Args&&...args);
+	std::shared_ptr<session_t> make(Args&&...args) noexcept
+		requires concept_constructible<basic_session<CharT>, Args...>;
 
-	std::optional<T> dequeue();
-	bool dequeue(T &data);
+	template <base_of_session<CharT> Session, typename...Args>
+	std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
+		requires concept_constructible<Session, Args...>;
+
+	template <typename...Args>
+	std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
+		requires concept_constructible<basic_session<CharT>, Args...>;
+
+public:
+	template <base_of_session<CharT> Session, typename...Args>
+	std::shared_ptr<Session> get(string_view_t id);
+
+	template <typename...Args>
+	std::shared_ptr<session_t> get(string_view_t id);
+
+	template <base_of_session<CharT> Session, typename...Args>
+	std::shared_ptr<Session> get_or(string_view_t id);
+
+	template <typename...Args>
+	std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
+
+public:
+	template <typename Rep, typename Period>
+	basic_session_set &set_lifecycle(const duration<Rep,Period> &seconds);
+	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
+
+	void set_cookie_key(string_view_t key);
+	string_view_t cookie_key() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-} //namespace libgs
-#include <libgs/core/detail/lock_free_queue.h>
+using session_set = basic_session_set<char>;
+using wsession_set = basic_session_set<wchar_t>;
+
+} //namespace libgs::http
+#include <libgs/http/server/detail/session_set.h>
 
 
-#endif //LIBGS_CORE_LOCK_FREE_QUEUE_H
+#endif //LIBGS_HTTP_SERVER_SESSION_SET_H

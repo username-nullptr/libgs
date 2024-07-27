@@ -26,60 +26,41 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session_base.h"
+#ifndef LIBGS_CORE_SPIN_MUTEX_H
+#define LIBGS_CORE_SPIN_MUTEX_H
 
-namespace libgs::http::detail
+#include <libgs/core/global.h>
+
+namespace libgs
 {
 
-static std::atomic<uint64_t> g_lifecycle = 60;
-
-std::chrono::seconds session_duration_base::global_lifecycle() noexcept
+class LIBGS_CORE_VAPI spin_mutex
 {
-	return std::chrono::seconds(g_lifecycle);
-}
+	LIBGS_DISABLE_COPY_MOVE(spin_mutex)
 
-std::atomic<uint64_t> &session_duration_base::_lifecycle() noexcept
-{
-	return g_lifecycle;
-}
+public:
+	using native_handle_t = std::atomic_bool;
 
-template <concept_char_type CharT>
-using ptr = std::shared_ptr<basic_session<CharT>>;
+public:
+	spin_mutex() = default;
+	~spin_mutex() noexcept(false);
 
-std::string &session_base<char>::cookie_key() noexcept
-{
-	static std::string key = "session";
-	return key;
-}
+public:
+	void lock();
+	[[nodiscard]] bool try_lock();
+	void unlock();
 
-std::map<std::string_view, ptr<char>> &session_base<char>::session_map() noexcept
-{
-	static std::map<std::string_view, ptr> map;
-	return map;
-}
+public:
+	native_handle_t &native_handle() noexcept;
 
-shared_mutex &session_base<char>::map_rwlock() noexcept
-{
-	static shared_mutex rwlock;
-	return rwlock;
-}
+private:
+	native_handle_t m_native_handle {false};
+};
 
-std::wstring &session_base<wchar_t>::cookie_key() noexcept
-{
-	static std::wstring key = L"session";
-	return key;
-}
+using spin_unique_lock = std::unique_lock<spin_mutex>;
 
-std::map<std::wstring_view, ptr<wchar_t>> &session_base<wchar_t>::session_map() noexcept
-{
-	static std::map<std::wstring_view, ptr> map;
-	return map;
-}
+} //namespace libgs
+#include <libgs/core/detail/spin_mutex.h>
 
-shared_mutex &session_base<wchar_t>::map_rwlock() noexcept
-{
-	static shared_mutex rwlock;
-	return rwlock;
-}
 
-} //namespace libgs::http::detail
+#endif //LIBGS_CORE_SPIN_MUTEX_H

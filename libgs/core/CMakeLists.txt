@@ -25,6 +25,7 @@ set(${target_name}_headers
 	cxx/exception.h
 	cxx/flags.h
 	global.h
+	spin_mutex.h
 	shared_mutex.h
 	algorithm.h
 	algorithm/base.h
@@ -46,7 +47,9 @@ set(${target_name}_detail_headers
 	cxx/detail/utilities.h
 	cxx/detail/exception.h
 	cxx/detail/flags.h
-	detail/execution.h
+	detail/global.h
+	detail/spin_mutex.h
+	detail/shared_mutex.h
 	algorithm/detail/basic_base.h
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h
@@ -55,6 +58,7 @@ set(${target_name}_detail_headers
 	detail/string_list.h
 	detail/value.h
 	detail/ini.h
+	detail/execution.h
 	detail/coroutine.h
 )
 
