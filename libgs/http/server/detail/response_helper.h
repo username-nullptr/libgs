@@ -83,7 +83,7 @@ public:
 		q_ptr(q_ptr), m_version(version), m_request_headers(request_headers) {}
 
 public:
-	[[nodiscard]] std::string header_data(size_t body_size) const
+	[[nodiscard]] std::string header_data(size_t body_size)
 	{
 		auto it = m_response_headers.find(header_t::content_length);
 		if( it == m_response_headers.end() )
@@ -118,7 +118,7 @@ public:
 		return buf + "\r\n";
 	}
 
-	[[nodiscard]] std::string body_data(const void *buf, size_t size) const
+	[[nodiscard]] std::string body_data(const void *buf, size_t size)
 	{
 		if( not is_chunked() )
 			return {static_cast<const char*>(buf), size};
@@ -139,7 +139,7 @@ public:
 		return sum + std::string(static_cast<const char*>(buf), size) + "\r\n";
 	}
 
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers) const
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers)
 	{
 		auto it = m_response_headers.find(header_t::content_length);
 		if( it != m_request_headers.end() )
@@ -182,6 +182,13 @@ public:
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(string_view_t version, const headers_t &request_headers) :
 	m_impl(new impl(this, version, request_headers))
+{
+
+}
+
+template <concept_char_type CharT>
+basic_response_helper<CharT>::basic_response_helper(const headers_t &request_headers) :
+	m_impl(new impl(this, "1.1", request_headers))
 {
 
 }
@@ -247,7 +254,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect(string_
 #undef X_MACRO
 		default: throw runtime_error("libgs::http::response_helper::redirect: Invalid redirect type: '{}'.", type);
 	}
-	return set_header(header_t::location, {url.data(), url.size()});
+	return set_header(header_t::location, url);
 }
 
 template <concept_char_type CharT>
@@ -272,146 +279,21 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 }
 
 template <concept_char_type CharT>
-std::string basic_response_helper<CharT>::header_data(size_t body_size) const
+std::string basic_response_helper<CharT>::header_data(size_t body_size)
 {
 	return m_impl->header_data(body_size);
 }
 
 template <concept_char_type CharT>
-std::string basic_response_helper<CharT>::body_data(const const_buffer &buffer) const
+std::string basic_response_helper<CharT>::body_data(const const_buffer &buffer)
 {
 	return m_impl->body_data(buffer.data(), buffer.size());
 }
 
 template <concept_char_type CharT>
-std::string basic_response_helper<CharT>::chunk_end_data(const headers_t &headers) const
+std::string basic_response_helper<CharT>::chunk_end_data(const headers_t &headers)
 {
 	return m_impl->chunk_end_data(headers);
-}
-
-
-
-
-
-template <concept_char_type CharT>
-awaitable<size_t> basic_response_helper<CharT>::write(buffer<std::string_view> body, opt_token<error_code&> tk)
-{
-	error_code error;
-	std::variant<size_t,error_code> var;
-
-	using namespace std::chrono_literals;
-	if( m_impl->m_headers_writed )
-	{
-		if( body.size == 0 )
-			throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
-		else if( m_impl->m_chunk_end_writed )
-			throw runtime_error("libgs::http::response_helper::write: Chunk has been written.");
-
-		if( tk.rtime == 0ns )
-			var = co_await m_impl->write_body(body.data.data(), body.size, error);
-		else
-			var = co_await (m_impl->write_body(body.data.data(), body.size, error) or co_sleep_for(tk.rtime));
-	}
-	else
-	{
-		auto lambda_write = [&]() mutable -> awaitable<size_t>
-		{
-			auto sum = co_await m_impl->write_header(body.size, error);
-			if( error )
-				co_return sum;
-			else if( body.size > 0 )
-				sum += co_await m_impl->write_body(body.data.data(), body.size, error);
-			co_return sum;
-		};
-		if( tk.rtime == 0ns )
-			var = co_await lambda_write();
-		else
-			var = co_await (lambda_write() or co_sleep_for(tk.rtime));
-	}
-	size_t sum = 0;
-	if( var.index() == 1 )
-		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
-	else
-		sum = std::get<0>(var);
-
-	io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
-	co_return sum;
-}
-
-template <concept_char_type CharT>
-awaitable<size_t> basic_response_helper<CharT>::write(std::string_view file_name, opt_token<ranges,error_code&> tk)
-{
-	if( not m_impl->m_writer )
-		throw runtime_error("libgs::http::response_helper::write: No writer");
-	else if( m_impl->m_headers_writed )
-		throw runtime_error("libgs::http::response_helper::write: The http protocol header is sent repeatedly.");
-	else if( m_impl->m_chunk_end_writed )
-		throw runtime_error("libgs::http::response_helper::chunk_end: Chunk has been written.");
-
-	using namespace std::chrono_literals;
-	error_code error;
-	size_t sum = 0;
-
-	if( tk.rtime == 0ns )
-		sum = co_await m_impl->send_file(file_name, tk.ranges, error);
-	else
-	{
-		auto var = co_await (m_impl->send_file(file_name, tk.ranges, error) or co_sleep_for(tk.rtime));
-		if( var.index() == 1 )
-			error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
-		else
-			sum = std::get<0>(var);
-	}
-	io::detail::check_error(tk.error, error, "libgs::http::response_helper::write");
-	co_return sum;
-}
-
-template <concept_char_type CharT>
-awaitable<size_t> basic_response_helper<CharT>::chunk_end(opt_token<const headers_t&, error_code&> tk)
-{
-	if( not m_impl->m_headers_writed )
-		throw runtime_error("libgs::http::response_helper::chunk_end: Http header hasn't been send.");
-
-	auto it = m_impl->m_response_headers.find(header_t::content_length);
-	if( it != m_impl->m_request_headers.end() )
-		throw runtime_error("libgs::http::response_helper::chunk_end: 'Content-Length' has been set.");
-
-	else if( m_impl->m_chunk_end_writed )
-		throw runtime_error("libgs::http::response_helper::chunk_end: Chunk has been written.");
-
-	it = m_impl->m_response_headers.find(header_t::transfer_encoding);
-	if( it == m_impl->m_response_headers.end() or str_to_lower(it->second) != detail::_response_helper_static_string<CharT>::chunked )
-		throw runtime_error("libgs::http::response_helper::chunk_end: 'Transfer-Coding: chunked' not set.");
-
-	m_impl->m_chunk_end_writed = true;
-	error_code error;
-	size_t sum = 0;
-
-	auto lambda_write = [&]() mutable -> awaitable<size_t>
-	{
-		sum += co_await m_impl->writer("0\r\n", error);
-		if( error )
-			co_return sum;
-
-		std::string buf;
-		if( tk.headers )
-		{
-			for(auto &[key,value] : tk.headers)
-				buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
-		}
-		sum += co_await m_impl->writer(buf + "\r\n", error);
-		co_return sum;
-	};
-	using namespace std::chrono_literals;
-	if( tk.rtime == 0ns )
-		co_await lambda_write();
-
-	auto var = co_await (lambda_write() or co_sleep_for(tk.rtime));
-	if( var.index() == 1 )
-		error = std::make_error_code(static_cast<std::errc>(errc::timed_out));
-
-	io::detail::check_error(tk.error, error, "libgs::http::response_helper::chunk_end");
-	co_return sum;
 }
 
 template <concept_char_type CharT>

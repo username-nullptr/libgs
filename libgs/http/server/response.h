@@ -80,7 +80,7 @@ public:
 public:
 	size_t write(const const_buffer &body = {nullptr,0});
 	size_t write(const const_buffer &body, error_code &error);
-	size_t write(error_code &error) noexcept;
+	size_t write(error_code &error);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	auto async_write(const const_buffer &body, Token &&token);
@@ -90,8 +90,8 @@ public:
 
 public:
 	size_t redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
-	size_t redirect(string_view_t url, http::redirect redi, error_code &error) noexcept;
-	size_t redirect(string_view_t url, error_code &error) noexcept;
+	size_t redirect(string_view_t url, http::redirect redi, error_code &error);
+	size_t redirect(string_view_t url, error_code &error);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	auto async_redirect(string_view_t url, http::redirect redi, Token &&token);
@@ -101,8 +101,8 @@ public:
 
 public:
 	size_t send_file(std::string_view file_name, const resp_ranges &ranges = {});
-	size_t send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error) noexcept;
-	size_t send_file(std::string_view file_name, error_code &error) noexcept;
+	size_t send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error);
+	size_t send_file(std::string_view file_name, error_code &error);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	auto async_send_file(std::string_view file_name, const resp_ranges &ranges, Token &&token);
@@ -114,11 +114,15 @@ public:
 	basic_server_response &set_chunk_attribute(value_t attribute);
 	basic_server_response &set_chunk_attributes(value_list_t attributes);
 
-	size_t chunk_end(const headers_t &headers);
-	size_t chunk_end(const headers_t &headers, error_code &error) noexcept;
+	size_t chunk_end(const headers_t &headers = {});
+	size_t chunk_end(const headers_t &headers, error_code &error);
+	size_t chunk_end(error_code &error);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	auto async_chunk_end(const headers_t &headers, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_chunk_end(Token &&token);
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;

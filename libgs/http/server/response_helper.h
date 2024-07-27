@@ -53,7 +53,8 @@ public:
 	using cookies_t = basic_cookies<CharT>;
 
 public:
-	explicit basic_response_helper(string_view_t version, const headers_t &request_headers);
+	explicit basic_response_helper(string_view_t version, const headers_t &request_headers = {});
+	explicit basic_response_helper(const headers_t &request_headers = {}); // default V1.1
 	~basic_response_helper();
 
 	basic_response_helper(basic_response_helper &&other) noexcept ;
@@ -72,9 +73,9 @@ public:
 	basic_response_helper &set_chunk_attributes(value_list_t attributes);
 
 public:
-	[[nodiscard]] std::string header_data(size_t body_size = 0) const;
-	[[nodiscard]] std::string body_data(const const_buffer &buffer) const;
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {}) const;
+	[[nodiscard]] std::string header_data(size_t body_size = 0);
+	[[nodiscard]] std::string body_data(const const_buffer &buffer);
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
