@@ -44,10 +44,7 @@ class basic_session<CharT>::impl
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
 	impl(basic_session *q_ptr, const duration<Rep,Period> &seconds, const executor_t &exec) :
-		q_ptr(q_ptr), m_second(seconds.count()), m_timer(exec)
-	{
-		start();
-	}
+		q_ptr(q_ptr), m_second(seconds.count()), m_timer(exec) {}
 
 public:
 	void start()
@@ -60,25 +57,27 @@ public:
 		else if( m_valid )
 			return ;
 
-		q_ptr->_emplace();
-		co_spawn_detached([this]() -> awaitable<void>
+		co_spawn_detached([_self = this->q_ptr]() -> awaitable<void>
 		{
+			auto self = _self->shared_from_this();
 			error_code error;
-			for(;;)
-			{
-				m_restart = false;
-				m_timer.expires_after(std::chrono::seconds(m_second));
-				co_await m_timer.async_wait(use_awaitable|error);
+			do {
+				self->m_impl->m_restart = false;
+				self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
+
+				co_await self->m_impl->m_timer.async_wait(use_awaitable|error);
+				if( self.use_count() == 1 )
+					break;
 
 				if( error and error.value() != errc::operation_aborted )
 					spdlog::error("libgs::http::session: timer error: '{}'.", error);
-				if( m_restart )
+				if( self->m_impl->m_restart )
 					continue;
 
-				m_valid = false;
-				m_timeout_handle();
-				break;
+				self->m_impl->m_valid = false;
+				self->m_impl->m_timeout_handle();
 			}
+			while(false);
 			co_return ;
 		});
 	}
@@ -101,9 +100,9 @@ public:
 template <concept_char_type CharT>
 template <typename Rep, typename Period>
 basic_session<CharT>::basic_session(const duration<Rep,Period> &seconds, const executor_t &exec) :
-	m_impl(new impl(this, seconds))
+	m_impl(new impl(this, seconds, exec))
 {
-
+	m_impl->start();
 }
 
 template <concept_char_type CharT>
@@ -116,7 +115,7 @@ basic_session<CharT>::basic_session(const executor_t &exec) :
 template <concept_char_type CharT>
 basic_session<CharT>::~basic_session()
 {
-	spdlog::debug("~session: '{}'", xxtombs<CharT>(id()));
+	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs<CharT>(id()));
 	delete m_impl;
 }
 
@@ -199,9 +198,9 @@ template <typename Rep, typename Period>
 basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
-	m_impl->m_second = sc::duration_cast<sc::seconds>(seconds);
+	m_impl->m_second = sc::duration_cast<sc::seconds>(seconds).count();
 	if( m_impl->m_second == 0 )
-		m_impl->m_second == 1;
+		m_impl->m_second = 1;
 	m_impl->m_restart = true;
 	m_impl->start();
 	return *this;
@@ -212,7 +211,7 @@ template <typename Rep, typename Period>
 basic_session<CharT> &basic_session<CharT>::expand(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
-	m_impl->m_second += sc::duration_cast<sc::seconds>(seconds);
+	m_impl->m_second += sc::duration_cast<sc::seconds>(seconds).count();
 	return expand();
 }
 
@@ -228,13 +227,15 @@ template <concept_char_type CharT>
 template <concept_callable Func>
 basic_session<CharT> &basic_session<CharT>::on_timeout(Func &&func)
 {
-	m_impl->timeout_handle = std::forward<Func>(func);
+	m_impl->m_timeout_handle = std::forward<Func>(func);
+	return *this;
 }
 
 template <concept_char_type CharT>
 basic_session<CharT> &basic_session<CharT>::unbind_timeout()
 {
-	m_impl->timeout_handle = nullptr;
+	m_impl->m_timeout_handle = nullptr;
+	return *this;
 }
 
 } //namespace libgs::http

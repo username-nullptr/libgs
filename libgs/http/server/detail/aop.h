@@ -74,9 +74,7 @@ concept concept_request_handler = requires(Func &&func, basic_service_context<St
 	std::is_same_v<awaitable_return_type_t<decltype(func(context))>,void>;
 };
 
-} //namespace detail
-
-} //namespace libgs::http
+}} //namespace libgs::http::detail
 
 
 #endif //LIBGS_HTTP_SERVER_DETAIL_AOP_H

@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_SERVER_SERVER_H
 
 #include <libgs/http/server/aop.h>
-#include <libgs/io/tcp_server.h>
 
 #ifdef LIBGS_ENABLE_OPENSSL
 # include <libgs/io/ssl_tcp_server.h>
@@ -50,18 +49,15 @@ concept concept_server_next_layer_move = requires(TcpServer0 &&s0) {
 } //namespace detail
 
 template <typename TcpServer, concept_char_type CharT, typename Derived = void>
-class LIBGS_HTTP_TAPI basic_server :
-	public io::device_base<crtp_derived_t<Derived,basic_server<TcpServer,CharT,Derived>>, typename TcpServer::executor_t>
+class LIBGS_HTTP_TAPI basic_server
 {
 	LIBGS_DISABLE_COPY(basic_server)
 
 public:
 	using next_layer_t = TcpServer;
-	using executor_t = typename next_layer_t::executor_t;
-	using socket_t = typename next_layer_t::socket_t;
-
-	using derived_t = crtp_derived_t<Derived,basic_server>;
-	using base_t = io::device_base<derived_t,executor_t>;
+	using executor_t = typename next_layer_t::executor_type;
+	using endpoint_t = typename next_layer_t::endpoint_type;
+	using socket_t = asio::basic_socket<asio::ip::tcp,endpoint_t>;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -71,7 +67,6 @@ public:
 	using system_error_handler = std::function<bool(error_code)>;
 	using exception_handler = std::function<bool(context&, std::exception&)>;
 
-	using start_token = typename next_layer_t::start_token;
 	using parser = basic_request_parser<CharT>;
 	using request = basic_server_request<socket_t,CharT>;
 	using response = basic_server_response<request,CharT>;
@@ -84,7 +79,7 @@ public:
 public:
 	template <typename...Args>
 	basic_server(Args&&...args) requires concept_constructible<next_layer_t,Args...>;
-	~basic_server() override;
+	~basic_server();
 
 public:
 	template <typename TcpServer0>
@@ -96,37 +91,42 @@ public:
 		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
 
 public:
-	derived_t &bind(io::ip_endpoint ep, io::no_time_token tk = {});
-	derived_t &start(start_token tk = {});
+	basic_server &bind(endpoint_t ep);
+	basic_server &bind(endpoint_t ep, error_code &error) noexcept;
+
+	basic_server &start(size_t max = asio::socket_base::max_listen_connections);
+	basic_server &start(size_t max, error_code &error) noexcept;
+	basic_server &start(error_code &error) noexcept;
 
 public:
 	template <http::method...method, typename Func, typename...AopPtr>
-	derived_t &on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
+	basic_server &on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
 		detail::concept_request_handler<Func,socket_t,CharT> and detail::concept_aop_ptr_list<socket_t,CharT,AopPtr...>;
 
 	template <http::method...method>
-	derived_t &on_request(string_view_t path_rule, ctrlr_aop_ptr ctrlr);
+	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr ctrlr);
 
 	template <http::method...method>
-	derived_t &on_request(string_view_t path_rule, ctrlr_aop *ctrlr);
+	basic_server &on_request(string_view_t path_rule, ctrlr_aop *ctrlr);
 
 	template <typename Func>
-	derived_t &on_default(Func &&func) requires detail::concept_request_handler<Func,socket_t,CharT>;
+	basic_server &on_default(Func &&func) requires detail::concept_request_handler<Func,socket_t,CharT>;
 
-	derived_t &on_system_error(system_error_handler func);
-	derived_t &on_exception(exception_handler func);
+	basic_server &on_system_error(system_error_handler func);
+	basic_server &on_exception(exception_handler func);
 
-	derived_t &unbound_request(string_view_t path_rule = {});
-	derived_t &unbound_system_error();
-	derived_t &unbound_exception();
+	basic_server &unbound_request(string_view_t path_rule = {});
+	basic_server &unbound_system_error();
+	basic_server &unbound_exception();
 
 	template <typename Rep, typename Period>
-	derived_t &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
+	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
 
 public:
+	[[nodiscard]] const executor_t &get_executor() noexcept;
 	[[nodiscard]] awaitable<void> co_stop() noexcept;
-	derived_t &stop() noexcept;
-	derived_t &cancel() noexcept;
+	basic_server &stop() noexcept;
+	basic_server &cancel() noexcept;
 
 public:
 	[[nodiscard]] const next_layer_t &next_layer() const;
@@ -138,10 +138,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_server = basic_server<io::basic_tcp_server<Exec>,char>;
+using basic_tcp_server = basic_server<asio::basic_socket_acceptor<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_wtcp_server = basic_server<io::basic_tcp_server<Exec>,wchar_t>;
+using basic_wtcp_server = basic_server<asio::basic_socket_acceptor<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
 using wtcp_server = basic_wtcp_server<asio::any_io_executor>;

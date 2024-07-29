@@ -119,8 +119,8 @@ public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;
 	[[nodiscard]] endpoint_t local_endpoint() const;
 
-	const executor_t &get_executor() noexcept;
-	void cancel() noexcept;
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	basic_server_request &cancel() noexcept;
 
 public:
 	const next_layer_t &next_layer() const noexcept;

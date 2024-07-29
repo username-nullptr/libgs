@@ -134,7 +134,7 @@ public:
 	[[nodiscard]] bool headers_writed() const noexcept;
 	[[nodiscard]] bool chunk_end_writed() const noexcept;
 
-	const executor_t &get_executor() noexcept;
+	[[nodiscard]] const executor_t &get_executor() noexcept;
 	basic_server_response &cancel() noexcept;
 
 public:

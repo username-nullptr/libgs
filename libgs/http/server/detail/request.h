@@ -34,6 +34,10 @@
 #include <filesystem>
 #include <fstream>
 
+#ifdef LIBGS_ENABLE_OPENSSL
+#include <asio/ssl.hpp>
+#endif //LIBGS_ENABLE_OPENSSL
+
 namespace libgs::http
 {
 
@@ -54,6 +58,15 @@ public:
 	{
 		m_next_layer = std::move(other.m_next_layer);
 		return *this;
+	}
+
+	~impl()
+	{
+		error_code error;
+#ifdef LIBGS_ENABLE_OPENSSL
+		m_next_layer.shutdown(error);
+#endif //LIBGS_ENABLE_OPENSSL
+		m_next_layer.close(error);
 	}
 
 public:
@@ -802,10 +815,10 @@ const typename basic_server_request<Stream,CharT>::executor_t &basic_server_requ
 }
 
 template <typename Stream, concept_char_type CharT>
-void basic_server_request<Stream,CharT>::cancel() noexcept
+basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::cancel() noexcept
 {
 	m_impl->m_next_layer.cancel();
-	return this->derived();
+	return *this;
 }
 
 template <typename Stream, concept_char_type CharT>

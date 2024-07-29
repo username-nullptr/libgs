@@ -97,7 +97,6 @@ public:
 
 private:
 	class impl;
-	friend class impl;
 	impl *m_impl;
 };
 

@@ -52,42 +52,41 @@ public:
 	basic_session_set();
 	~basic_session_set();
 
-public:
-	template <base_of_session<CharT> Session, typename...Args>
-	std::shared_ptr<Session> make(Args&&...args) noexcept
-		requires concept_constructible<Session, Args...>;
-
-	template <typename...Args>
-	std::shared_ptr<session_t> make(Args&&...args) noexcept
-		requires concept_constructible<basic_session<CharT>, Args...>;
-
-	template <base_of_session<CharT> Session, typename...Args>
-	std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
-		requires concept_constructible<Session, Args...>;
-
-	template <typename...Args>
-	std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
-		requires concept_constructible<basic_session<CharT>, Args...>;
+	basic_session_set(basic_session_set &&other) noexcept;
+	basic_session_set &operator=(basic_session_set &&other) noexcept;
 
 public:
 	template <base_of_session<CharT> Session, typename...Args>
-	std::shared_ptr<Session> get(string_view_t id);
+	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept
+		requires concept_constructible<Session, Args...>;
 
 	template <typename...Args>
-	std::shared_ptr<session_t> get(string_view_t id);
+	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept
+		requires concept_constructible<basic_session<CharT>, Args...>;
 
 	template <base_of_session<CharT> Session, typename...Args>
-	std::shared_ptr<Session> get_or(string_view_t id);
+	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
+		requires concept_constructible<Session, Args...>;
 
 	template <typename...Args>
-	std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
+	[[nodiscard]] std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
+		requires concept_constructible<basic_session<CharT>, Args...>;
+
+public:
+	template <base_of_session<CharT> Session>
+	[[nodiscard]] std::shared_ptr<Session> get(string_view_t id);
+	[[nodiscard]] std::shared_ptr<session_t> get(string_view_t id);
+
+	template <base_of_session<CharT> Session>
+	[[nodiscard]] std::shared_ptr<Session> get_or(string_view_t id);
+	[[nodiscard]] std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
 
 public:
 	template <typename Rep, typename Period>
 	basic_session_set &set_lifecycle(const duration<Rep,Period> &seconds);
 	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
 
-	void set_cookie_key(string_view_t key);
+	basic_session_set &set_cookie_key(string_view_t key);
 	string_view_t cookie_key() noexcept;
 
 private:

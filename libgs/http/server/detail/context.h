@@ -38,18 +38,19 @@ class basic_service_context<Stream,CharT>::impl
 	LIBGS_DISABLE_COPY(impl)
 
 public:
-	impl(stream_t &&stream, parser_t &parser) :
-		m_response(request_t(std::move(stream), parser)) {}
+	impl(stream_t &&stream, parser_t &parser, session_set &sss) :
+		m_response(request_t(std::move(stream), parser)), m_sss(sss) {}
 
 	impl(impl &&other) noexcept = default;
 	impl &operator=(impl &&other) noexcept = default;
 
 public:
 	response_t m_response;
+	session_set &m_sss;
 };
 
 template <typename Stream, concept_char_type CharT>
-basic_service_context<Stream,CharT>::basic_service_context(stream_t &&stream, parser_t &parser) :
+basic_service_context<Stream,CharT>::basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss) :
 	m_impl(new impl(std::move(stream), parser))
 {
 
@@ -102,9 +103,9 @@ basic_service_context<Stream,CharT>::response() noexcept
 }
 
 template <typename Stream, concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
+template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...args)
-	requires detail::can_construct<Session, Args...>
+	requires concept_constructible<Session, Args...>
 {
 	auto session_cookie = session_t::cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
@@ -116,7 +117,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...a
 template <typename Stream, concept_char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...args) noexcept
-	requires detail::can_construct<basic_session<CharT>, Args...>
+	requires concept_constructible<basic_session<CharT>, Args...>
 {
 	auto session_cookie = session_t::cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
@@ -126,7 +127,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...a
 }
 
 template <typename Stream, concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
+template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
 {
 	auto session_cookie = session_t::cookie_key();
@@ -137,7 +138,6 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
 }
 
 template <typename Stream, concept_char_type CharT>
-template <typename...Args>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 {
 	auto session_cookie = session_t::cookie_key();
@@ -148,7 +148,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 }
 
 template <typename Stream, concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
+template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
 {
 	auto session_cookie = session_t::cookie_key();
@@ -159,7 +159,6 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
 }
 
 template <typename Stream, concept_char_type CharT>
-template <typename...Args>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session_or() noexcept
 {
 	auto session_cookie = session_t::cookie_key();

@@ -51,12 +51,12 @@ public:
 	}
 
 public:
-	session_ptr find(string_view_t id, bool _throw)
+	session_ptr find(string_view_t id, bool _throw = true)
 	{
 		spin_shared_shared_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
 		auto it = m_session_map.find(id);
 
-		if( it == m_session_map().end() )
+		if( it == m_session_map.end() )
 		{
 			if( _throw )
 				throw runtime_error("libgs::http::session_set: <map>: id '{}' not exists.", xxtombs<CharT>(id));
@@ -77,7 +77,7 @@ public:
 	void erase(string_view_t id)
 	{
 		m_map_mutex.lock();
-		m_session_map().erase(string_t(id.data(), id.size()));
+		m_session_map.erase(string_t(id.data(), id.size()));
 		m_map_mutex.unlock();
 	}
 
@@ -90,7 +90,7 @@ public:
 
 template <concept_char_type CharT>
 basic_session_set<CharT>::basic_session_set() :
-		m_impl(new impl())
+	m_impl(new impl())
 {
 
 }
@@ -102,14 +102,32 @@ basic_session_set<CharT>::~basic_session_set()
 }
 
 template <concept_char_type CharT>
+basic_session_set<CharT>::basic_session_set(basic_session_set &&other) noexcept :
+	m_impl(other.m_impl)
+{
+	other.m_impl = new impl();
+}
+
+template <concept_char_type CharT>
+basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set &&other) noexcept
+{
+	delete m_impl;
+	m_impl = other.m_impl;
+	other.m_impl = new impl();
+	return *this;
+}
+
+template <concept_char_type CharT>
 template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept
 	requires concept_constructible<Session, Args...>
 {
 	auto session = std::make_shared<Session>(std::forward<Args>(args)...);
 	m_impl->emplace(session);
-	session->on_timeout([this, session]{
-		m_impl->erase(session->id());
+	auto id = session->id();
+
+	session->on_timeout([this, id = std::move(id)]{
+		m_impl->erase(id);
 	});
 	session->set_lifecycle(lifecycle());
 	return session;
@@ -122,8 +140,10 @@ basic_session_ptr<CharT> basic_session_set<CharT>::make(Args&&...args) noexcept
 {
 	auto session = std::make_shared<session_t>(std::forward<Args>(args)...);
 	m_impl->emplace(session);
-	session->on_timeout([this, session]{
-		m_impl->erase(session->id());
+	auto id = session->id();
+
+	session->on_timeout([this, id = std::move(id)]{
+		m_impl->erase(id);
 	});
 	session->set_lifecycle(lifecycle());
 	return session;
@@ -156,7 +176,7 @@ basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id,
 }
 
 template <concept_char_type CharT>
-template <base_of_session<CharT> Session, typename...Args>
+template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id));
@@ -166,24 +186,22 @@ std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
 }
 
 template <concept_char_type CharT>
-template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::get(string_view_t id)
 {
 	return m_impl->find(id);
 }
 
 template <concept_char_type CharT>
-template <base_of_session<CharT> Session, typename...Args>
+template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_session_set<CharT>::get_or(string_view_t id)
 {
-	auto ptr = std::dynamic_pointer_cast<Session>(_find(id, false));
+	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id, false));
 	if( not ptr )
 		throw runtime_error("libgs::http::session_set::get_or: type error.", xxtombs<CharT>(id));
 	return ptr;
 }
 
 template <concept_char_type CharT>
-template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::get_or(string_view_t id) noexcept
 {
 	return m_impl->find(id, false);
@@ -196,7 +214,7 @@ basic_session_set<CharT> &basic_session_set<CharT>::set_lifecycle(const duration
 	namespace sc = std::chrono;
 	m_impl->m_lifecycle = sc::duration_cast<sc::seconds>(seconds);
 	if( m_impl->m_lifecycle == 0 )
-		m_impl->m_lifecycle == 1;
+		m_impl->m_lifecycle = 1;
 	m_impl->m_restart = true;
 	m_impl->start();
 	return *this;
@@ -209,11 +227,12 @@ std::chrono::seconds basic_session_set<CharT>::lifecycle() const noexcept
 }
 
 template <concept_char_type CharT>
-void basic_session_set<CharT>::set_cookie_key(string_view_t key)
+basic_session_set<CharT> &basic_session_set<CharT>::set_cookie_key(string_view_t key)
 {
 	if( key.empty() )
 		throw runtime_error("libgs::http::session::set_cookie_key: key is empty.", xxtombs<CharT>(key));
 	m_impl->m_cookie_key = std::string(key.data(), key.size());
+	return *this;
 }
 
 template <concept_char_type CharT>

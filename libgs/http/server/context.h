@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_SERVER_CONTEXT_H
 
 #include <libgs/http/server/response.h>
-#include <libgs/http/server/session.h>
+#include <libgs/http/server/session_set.h>
 
 namespace libgs::http
 {
@@ -51,7 +51,7 @@ public:
 	using session_ptr = basic_session_ptr<CharT>;
 
 public:
-	basic_service_context(stream_t &&stream, parser_t &parser);
+	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);
 	~basic_service_context();
 
 	basic_service_context(basic_service_context &&other) noexcept;
@@ -65,24 +65,20 @@ public:
 	response_t &response() noexcept;
 
 public:
-	template <detail::base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<CharT> Session, typename...Args>
 	std::shared_ptr<Session> session(Args&&...args)
-		requires detail::can_construct<Session, Args...>;
+		requires concept_constructible<Session, Args...>;
 
 	template <typename...Args>
 	session_ptr session(Args&&...args) noexcept
-		requires detail::can_construct<basic_session<CharT>, Args...>;
+		requires concept_constructible<basic_session<CharT>, Args...>;
 
-	template <detail::base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<CharT> Session>
 	std::shared_ptr<Session> session() const;
-
-	template <typename...Args>
 	session_ptr session() const;
 
-	template <detail::base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<CharT> Session>
 	std::shared_ptr<Session> session_or();
-
-	template <typename...Args>
 	session_ptr session_or() noexcept;
 
 private:
@@ -91,10 +87,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_service_context = basic_service_context<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_service_context = basic_service_context<asio::basic_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_service_wcontext = basic_service_context<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_service_wcontext = basic_service_context<asio::basic_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;
 using tcp_service_wcontext = basic_tcp_service_wcontext<asio::any_io_executor>;
