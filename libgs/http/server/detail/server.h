@@ -262,6 +262,7 @@ private:
 					break;
 				call_on_system_error(ex.code());
 			}
+
 			context _context(std::move(socket), parser, m_sss);
 			co_await call_on_request(parser, _context);
 

@@ -1186,32 +1186,51 @@ public:
 
 private:
 	template <typename Token>
-	auto write_header_x(size_t size, Token &&token, const char *func) {
-		return write_funcdata_x([this, size]
-		{
-			return m_helper.header_data(size);
-		},
-		true, std::forward<Token>(token), func);
+	auto write_header_x(size_t size, Token &&token, const char *func)
+	{
+		std::string data;
+
+			try {
+		data = m_helper.header_data(size);
+			}
+			catch(std::exception &ex)
+			{
+				spdlog::error("cccccccccccccccccccccccc: {}.", ex);
+				throw ex;
+			}
+
+		return write_funcdata_x(std::move(data), true, std::forward<Token>(token), func);
 	}
 
 	template <typename Token>
-	auto write_body_x(const const_buffer &body, Token &&token, const char *func) {
-		return write_funcdata_x([this,body]{return m_helper.body_data(body);}, false, std::forward<Token>(token), func);
+	auto write_body_x(const const_buffer &body, Token &&token, const char *func)
+	{
+		std::string data;
+
+			try {
+		m_helper.body_data(body);
+				}
+			catch(std::exception &ex)
+			{
+				spdlog::error("dddddddddddddddddddddddddd: {}.", ex);
+				throw ex;
+			}
+
+		return write_funcdata_x(std::move(data), false, std::forward<Token>(token), func);
 	}
 
-	template <typename Func, typename Token>
-	auto write_funcdata_x(Func &&func, bool wheader, Token &&token, const char *efuncname)
+	template <typename Token>
+	auto write_funcdata_x(std::string &&data, bool wheader, Token &&token, const char *efuncname)
 	{
 		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
 		{
-			auto header_data = func();
 			size_t sum = 0;
 			do {
 				m_next_layer.next_layer().non_blocking(false, token);
 				if( token )
 					break;
 
-				sum += asio::write(m_next_layer.next_layer(), buffer(header_data.c_str() + sum, header_data.size() - sum), token);
+				sum += asio::write(m_next_layer.next_layer(), buffer(data.c_str() + sum, data.size() - sum), token);
 				if( token and token.value() == errc::interrupted )
 					continue;
 			}
@@ -1228,10 +1247,9 @@ private:
 				*token.ec_ = error;
 
 			size_t sum = 0;
-			auto header_data = func();
 			do {
 				sum += asio::async_write(m_next_layer.next_layer(),
-										 buffer(header_data.c_str() + sum, header_data.size() - sum),
+										 buffer(data.c_str() + sum, data.size() - sum),
 										 token[error]);
 				if( error and error.value() == errc::interrupted )
 					continue;
@@ -1252,24 +1270,23 @@ private:
 		else
 		{
 			token_reset(token);
-			return [this](auto func, bool wheader, Token &&token, const char *efuncname) mutable -> awaitable<size_t>
+			return [this, data = std::move(data), wheader, token, efuncname]() mutable -> awaitable<size_t>
 			{
 				size_t sum = 0;
-				error_code error;
-				auto header_data = func();
+				error_code error;	
 				do {
 					if constexpr( detail::concept_has_get<Token> )
 					{
 						sum += co_await asio::async_write(
 								m_next_layer.next_layer(),
-								buffer(header_data.c_str() + sum, header_data.size() - sum),
+								buffer(data.c_str() + sum, data.size() - sum),
 								use_awaitable|error|token.get_cancellation_slot());
 					}
 					else
 					{
 						sum += co_await asio::async_write(
 								m_next_layer.next_layer(),
-								buffer(header_data.c_str() + sum, header_data.size() - sum),
+								buffer(data.c_str() + sum, data.size() - sum),
 								use_awaitable|error);
 					}
 					if( error and error.value() == errc::interrupted )
@@ -1279,8 +1296,7 @@ private:
 				if( token_check(token, error, efuncname) and wheader )
 					m_headers_writed = true;
 				co_return sum;
-			}
-			(std::move(func), wheader, std::forward<Token>(token), efuncname);
+			}();
 		}
 	}
 
