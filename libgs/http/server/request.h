@@ -31,23 +31,20 @@
 
 #include <libgs/http/server/request_parser.h>
 #include <libgs/http/basic/opt_token.h>
-#include <libgs/io/tcp_socket.h>
+#include <libgs/core/coroutine.h>
 
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT, typename Derived = void>
-class LIBGS_HTTP_TAPI basic_server_request :
-	public io::device_base<crtp_derived_t<Derived,basic_server_request<Stream,CharT,Derived>>, typename Stream::executor_t>
+template <concept_tcp_stream Stream, concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_server_request
 {
 	LIBGS_DISABLE_COPY(basic_server_request)
 
 public:
 	using next_layer_t = Stream;
-	using executor_t = typename next_layer_t::executor_t;
-
-	using derived_t = crtp_derived_t<Derived,basic_server_request>;
-	using base_t = io::device_base<derived_t,executor_t>;
+	using executor_t = typename next_layer_t::executor_type;
+	using endpoint_t = typename next_layer_t::endpoint_type;
 
 	using parser_t = basic_request_parser<CharT>;
 	using string_t = typename parser_t::string_t;
@@ -59,20 +56,19 @@ public:
 	using cookies_t = typename parser_t::cookies_t;
 	using parameters_t = typename parser_t::parameters_t;
 
-	template <typename T>
-	using buffer = io::buffer<T>;
-
 public:
-	basic_server_request(next_layer_t &&next_layer, parser_t &parser);
-	~basic_server_request() override;
+	template <typename NextLayer>
+	basic_server_request(NextLayer &&next_layer, parser_t &parser)
+		requires concept_constructible<next_layer_t,NextLayer&&>;
+	~basic_server_request();
 
 	template <typename Stream0>
-	basic_server_request(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
+	basic_server_request(basic_server_request<Stream0,CharT> &&other) noexcept
 		requires concept_constructible<Stream,Stream0&&>;
 
 	template <typename Stream0>
-	basic_server_request &operator=(basic_server_request<Stream0,CharT,Derived> &&other) noexcept
-		requires concept_constructible<Stream,Stream0&&>;
+	basic_server_request &operator=(basic_server_request<Stream0,CharT> &&other) noexcept
+		requires concept_assignable<Stream,Stream0&&>;
 
 public:
 	[[nodiscard]] http::method method() const noexcept;
@@ -93,22 +89,43 @@ public:
 	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
 
 public:
-	[[nodiscard]] awaitable<size_t> read(buffer<void*> buf, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> read(buffer<std::string&> buf, opt_token<error_code&> tk = {});
+	size_t read(const mutable_buffer &buf);
+	size_t read(const mutable_buffer &buf, error_code &error) noexcept;
 
-	[[nodiscard]] awaitable<std::string> read_all(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> save_file(const std::string &file_name, opt_token<begin_t,total_t,error_code&> tk = {});
-
-public:
-	[[nodiscard]] bool keep_alive() const;
-	[[nodiscard]] bool support_gzip() const;
-	[[nodiscard]] bool is_chunked() const;
-	[[nodiscard]] bool can_read_body() const;
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_read(const mutable_buffer &buf, Token &&token);
 
 public:
-	[[nodiscard]] io::ip_endpoint remote_endpoint() const;
-	[[nodiscard]] io::ip_endpoint local_endpoint() const;
-	derived_t &cancel() noexcept;
+	[[nodiscard]] std::string read_all();
+	[[nodiscard]] std::string read_all(error_code &error) noexcept;
+
+	template <asio::completion_token_for<void(std::string_view,error_code)> Token>
+	auto async_read_all(Token &&token);
+
+public:
+	size_t save_file(std::string_view file_name, const req_range &range = {});
+	size_t save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept;
+	size_t save_file(std::string_view file_name, error_code &error) noexcept;
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_save_file(std::string_view file_name, const req_range &range, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_save_file(std::string_view file_name, Token &&token);
+
+public:
+	[[nodiscard]] bool keep_alive() const noexcept;
+	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool is_chunked() const noexcept;
+	[[nodiscard]] bool can_read_body() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
+
+public:
+	[[nodiscard]] endpoint_t remote_endpoint() const;
+	[[nodiscard]] endpoint_t local_endpoint() const;
+
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	basic_server_request &cancel() noexcept;
 
 public:
 	const next_layer_t &next_layer() const noexcept;
@@ -120,10 +137,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_server_request = basic_server_request<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_server_request = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_server_wrequest = basic_server_request<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_server_wrequest = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
 using tcp_server_wrequest = basic_tcp_server_wrequest<asio::any_io_executor>;

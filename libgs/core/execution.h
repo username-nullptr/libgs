@@ -34,10 +34,10 @@
 namespace libgs::execution
 {
 
-using executor_type = typename asio::io_context::executor_type;
+using executor_t = typename asio::io_context::executor_type;
 
 [[nodiscard]] LIBGS_CORE_API asio::io_context &io_context();
-[[nodiscard]] LIBGS_CORE_API executor_type get_executor() noexcept;
+[[nodiscard]] LIBGS_CORE_API executor_t get_executor() noexcept;
 
 LIBGS_CORE_API int exec();
 LIBGS_CORE_API void exit(int code = 0);

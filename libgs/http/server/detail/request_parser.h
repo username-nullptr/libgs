@@ -356,12 +356,12 @@ private:
 public:
 	enum class state
 	{
-		waiting_request,
-		reading_headers,
-		reading_length,
-		chunked_wait_size,
-		chunked_wait_content,
-		chunked_wait_headers,
+		waiting_request,      // HTTP/1.1 GET /path\r\n
+		reading_headers,      // Key: Value\r\n
+		reading_length,       // Fixed length (Content-Length: 9\r\n).
+		chunked_wait_size,    // 9\r\n
+		chunked_wait_content, // body\r\n
+		chunked_wait_headers, // Key: Value\r\n
 		finished
 	}
 	m_state = state::waiting_request;
@@ -442,7 +442,7 @@ bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error
 			std::string m_what;
 		}
 		error_category;
-		error = error_code(std::errc::protocol_error, error_category.set_message(ex));
+		error = error_code(static_cast<int>(std::errc::protocol_error), error_category.set_message(ex));
 	}
 	return res;
 }
@@ -512,19 +512,19 @@ const typename basic_request_parser<CharT>::cookies_t &basic_request_parser<Char
 }
 
 template <concept_char_type CharT>
-bool basic_request_parser<CharT>::keep_alive() const
+bool basic_request_parser<CharT>::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
 }
 
 template <concept_char_type CharT>
-bool basic_request_parser<CharT>::support_gzip() const
+bool basic_request_parser<CharT>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
 }
 
 template <concept_char_type CharT>
-bool basic_request_parser<CharT>::can_read_body() const
+bool basic_request_parser<CharT>::can_read_from_device() const noexcept
 {
 	return m_impl->m_state > impl::state::reading_headers and
 		   m_impl->m_state < impl::state::finished;
@@ -534,9 +534,8 @@ template <concept_char_type CharT>
 std::string basic_request_parser<CharT>::take_partial_body(size_t size)
 {
 	if( size == 0 )
-		return std::move(m_impl->m_partial_body);
-
-	else if( size < m_impl->m_partial_body.size() )
+		return {};
+	else if( size > m_impl->m_partial_body.size() )
 		size = m_impl->m_partial_body.size();
 
 	auto res = m_impl->m_partial_body.substr(0,size);
@@ -545,9 +544,21 @@ std::string basic_request_parser<CharT>::take_partial_body(size_t size)
 }
 
 template <concept_char_type CharT>
+std::string basic_request_parser<CharT>::take_body()
+{
+	return std::move(m_impl->m_partial_body);
+}
+
+template <concept_char_type CharT>
 bool basic_request_parser<CharT>::is_finished() const noexcept
 {
 	return m_impl->m_state == impl::state::finished;
+}
+
+template <concept_char_type CharT>
+bool basic_request_parser<CharT>::is_eof() const noexcept
+{
+	return m_impl->m_partial_body.empty() and not can_read_from_device();
 }
 
 template <concept_char_type CharT>

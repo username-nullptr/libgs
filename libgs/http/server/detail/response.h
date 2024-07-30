@@ -32,222 +32,1630 @@
 namespace libgs::http
 {
 
-template <typename Request, concept_char_type CharT, typename Derived>
-class basic_server_response<Request,CharT,Derived>::impl
+template <concept_tcp_stream Stream, concept_char_type CharT>
+class basic_server_response<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
+	using response_t = basic_server_response<Stream, CharT>;
+	using string_list_t = basic_string_list<CharT>;
+	using static_string = detail::_response_helper_static_string<CharT>;
+
 public:
-	explicit impl(next_layer_t &&next_layer) :
-		m_helper(next_layer.version(), next_layer.headers()),
+	impl(response_t *q_ptr, next_layer_t &&next_layer) :
+		q_ptr(q_ptr), m_helper(next_layer.version(), next_layer.headers()),
 		m_next_layer(std::move(next_layer)) {}
 
-	impl(impl &&other) noexcept = default;
-	impl &operator=(impl &&other) noexcept = default;
+	template <typename Stream0>
+	impl(response_t *q_ptr, typename basic_server_response<Stream0,CharT>::impl &&other) noexcept :
+		q_ptr(q_ptr),
+		m_helper(std::move(other.m_helper)),
+		m_next_layer(std::move(other.m_next_layer)),
+		m_headers_writed(other.m_headers_writed),
+		m_chunk_end_writed(other.m_chunk_end_writed)
+	{
+		other.m_headers_writed = false;
+		other.m_chunk_end_writed = false;
+	}
+
+	impl(response_t *q_ptr, impl &&other) noexcept :
+		q_ptr(q_ptr),
+		m_helper(std::move(other.m_helper)),
+		m_next_layer(std::move(other.m_next_layer)),
+		m_headers_writed(other.m_headers_writed),
+		m_chunk_end_writed(other.m_chunk_end_writed)
+	{
+		other.m_headers_writed = false;
+		other.m_chunk_end_writed = false;
+	}
+
+	template <typename Stream0>
+	impl &operator=(typename basic_server_response<Stream0,CharT>::impl &&other) noexcept
+	{
+		m_helper = std::move(other.m_helper);
+		m_next_layer = std::move(other.m_next_layer);
+		m_headers_writed = other.m_headers_writed;
+		m_chunk_end_writed = other.m_chunk_end_writed;
+
+		other.m_headers_writed = false;
+		other.m_chunk_end_writed = false;
+		return *this;
+	}
+
+	impl &operator=(impl &&other) noexcept
+	{
+		m_helper = std::move(other.m_helper);
+		m_next_layer = std::move(other.m_next_layer);
+		m_headers_writed = other.m_headers_writed;
+		m_chunk_end_writed = other.m_chunk_end_writed;
+
+		other.m_headers_writed = false;
+		other.m_chunk_end_writed = false;
+		return *this;
+	}
 
 public:
+	template <typename Token>
+	auto write_x(const const_buffer &body, Token &&token, const char *func)
+	{
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			token.assign(0, std::system_category());
+			if( m_headers_writed )
+			{
+				write_runtime_error_check(body, func);
+				return write_body_x(body, token, func);
+			}
+			auto sum = write_header_x(body.size(), token, func);
+			if( body.size() > 0 )
+				sum += write_body_x(body, token, func);
+			return sum;
+		}
+		else if constexpr( is_function_v<Token> )
+		{
+			co_spawn_detached([this, body, callback = std::move(token), func]() -> awaitable<void>
+			{
+				error_code error;
+				auto buf = co_await write_x(body, use_awaitable|error, func);
+				callback(buf, error);
+				co_return;
+			},
+			q_ptr->get_executor());
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			if( token.ec_ )
+				*token.ec_ = error_code();
+
+			if( m_headers_writed )
+			{
+				write_runtime_error_check(body, "async_write");
+				return write_body_x(body, std::forward<Token>(token), func);
+			}
+			size_t sum = write_header_x(body.size(), std::forward<Token>(token), func);
+			if( body.size() > 0 )
+				sum += write_body_x(body, std::forward<Token>(token), func);
+			return sum;
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			token_reset(token);
+			return [=, this]() mutable -> awaitable<size_t>
+			{
+				if( m_headers_writed )
+				{
+					write_runtime_error_check(body, func);
+					co_return co_await write_body_x(body, std::forward<Token>(token), func);
+				}
+				size_t sum = co_await write_header_x(body.size(), std::forward<Token>(token), func);
+				if( body.size() > 0 )
+					sum += co_await write_body_x(body, std::forward<Token>(token), func);
+				co_return sum;
+			}();
+		}
+	}
+
+	template <typename Token>
+	auto send_file_x(std::string_view file_name, const resp_ranges &ranges, Token &&token, const char *func)
+	{
+		namespace fs = std::filesystem;
+		if( m_headers_writed )
+			throw runtime_error("libgs::http::response::{}: The http protocol header is sent repeatedly.", func);
+
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			size_t sum = 0;
+			if( not fs::exists(file_name))
+			{
+				token = std::make_error_code(std::errc::no_such_file_or_directory);
+				return sum;
+			}
+			std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+			if( not file.is_open())
+			{
+				token = std::make_error_code(static_cast<std::errc>(errno));
+				return sum;
+			}
+			else if( ranges.empty() )
+			{
+				auto it = m_helper.headers().find(header_t::range);
+				if( it != m_helper.headers().end())
+					sum = range_transfer_x(file_name, file, it->second.to_string(), token, func);
+				else
+					sum = default_transfer_x(file_name, file, token, func);
+			}
+			else
+			{
+				string_t range_text = static_string::bytes_start;
+				for(auto &range: ranges)
+				{
+					if( range.begin >= range.end )
+						range_text += std::format(static_string::range_format, range.begin, range.end);
+					else
+						throw runtime_error("libgs::http::response::{}: range error: begin > end", func);
+				}
+				range_text.pop_back();
+				sum = range_transfer_x(file_name, file, range_text, token, func);
+			}
+			file.close();
+			return sum;
+		}
+		else if constexpr( is_function_v<Token> )
+		{
+			auto _file_name = std::string(file_name.data(), file_name.size());
+			co_spawn_detached([this, _file_name = std::move(_file_name), ranges, callback = std::move(token), func]() -> awaitable<void>
+			{
+				error_code error;
+				auto buf = co_await send_file_x(_file_name, ranges, use_awaitable|error, func);
+				callback(buf, error);
+				co_return;
+			},
+			q_ptr->get_executor());
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			size_t sum = 0;
+			if( not fs::exists(file_name))
+			{
+				token_handle(token, std::make_error_code(std::errc::no_such_file_or_directory), func);
+				return sum;
+			}
+			std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+			if( not file.is_open() )
+			{
+				token_handle(token, std::make_error_code(static_cast<std::errc>(errno)), func);
+				return sum;
+			}
+			else if( ranges.empty())
+			{
+				auto it = m_helper.headers().find(header_t::range);
+				if( it != m_helper.headers().end())
+					sum = range_transfer_x(file_name, file, it->second.to_string(), std::forward<Token>(token), func);
+				else
+					sum = default_transfer_x(file_name, file, std::forward<Token>(token), func);
+			}
+			else
+			{
+				string_t range_text = static_string::bytes_start;
+				for(auto &range: ranges)
+				{
+					if( range.begin >= range.end )
+						range_text += std::format(static_string::range_format, range.begin, range.end);
+					else
+						throw runtime_error("libgs::http::response::{}: range error: begin > end", func);
+				}
+				range_text.pop_back();
+				sum = range_transfer_x(file_name, file, range_text, std::forward<Token>(token), func);
+			}
+			file.close();
+			return sum;
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			return [=,this]() mutable -> awaitable<size_t>
+			{
+				size_t sum = 0;
+				if( not fs::exists(file_name))
+				{
+					token_check(token, std::make_error_code(std::errc::no_such_file_or_directory), func);
+					co_return sum;
+				}
+				std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+				if( not file.is_open())
+				{
+					token_check(token, std::make_error_code(static_cast<std::errc>(errno)), func);
+					co_return sum;
+				}
+				else if( ranges.empty() )
+				{
+					auto it = m_helper.headers().find(header_t::range);
+					if( it != m_helper.headers().end())
+						sum = co_await range_transfer_x(file_name, file, it->second.to_string(), std::forward<Token>(token), func);
+					else
+						sum = co_await default_transfer_x(file_name, file, std::forward<Token>(token), func);
+				}
+				else
+				{
+					string_t range_text = static_string::bytes_start;
+					for(auto &range: ranges)
+					{
+						if( range.begin >= range.end )
+							range_text += std::format(static_string::range_format, range.begin, range.end);
+						else
+							throw runtime_error("libgs::http::response::{}: range error: begin > end", func);
+					}
+					range_text.pop_back();
+					sum = co_await range_transfer_x(file_name, file, range_text, std::forward<Token>(token), func);
+				}
+				file.close();
+				co_return sum;
+			}();
+		}
+	}
+
+	template <typename Token>
+	auto chunk_end_x(const headers_t &headers, Token &&token, const char *func)
+	{
+		if( not m_headers_writed )
+			throw runtime_error("libgs::http::server_response::{}: Http header hasn't been send.", func);
+
+		auto it = m_helper.headers().find(header_t::content_length);
+		if( it != m_helper.headers().end() )
+			throw runtime_error("libgs::http::server_response::{}: 'Content-Length' has been set.", func);
+
+		else if( m_chunk_end_writed )
+			throw runtime_error("libgs::http::server_response::{}: Chunk has been written.", func);
+
+		it = m_helper.headers().find(header_t::transfer_encoding);
+		if( it == m_helper.headers().end() or
+			str_to_lower(it->second.to_string()) != detail::_key_static_string<CharT>::chunked )
+			throw runtime_error("libgs::http::server_response::{}: 'Transfer-Coding: chunked' not set.", func);
+
+		std::string buf = "0\r\n";
+		for(auto &[key,value] : headers)
+			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
+		buf += "\r\n";
+
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			auto res = write_body_x(buffer(buf, buf.size()), token, func);
+			if( not token )
+				m_chunk_end_writed = true;
+			return res;
+		}
+		else if constexpr( is_function_v<Token> )
+		{
+			co_spawn_detached([this, buf, callback = std::move(token), func]() -> awaitable<void>
+			{
+				error_code error;
+				auto res = co_await write_body_x(buffer(buf, buf.size()), use_awaitable|error, func);
+				if( not error )
+					m_chunk_end_writed = true;
+				callback(res, error);
+				co_return ;
+			},
+			q_ptr->get_executor());
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			auto res = write_body_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+			if( not token.ec_ or not *token.ec_ )
+				m_chunk_end_writed = true;
+			return res;
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			return [=,this]() mutable -> awaitable<size_t>
+			{
+				auto res = co_await write_body_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+				if( check_token_error(token) )
+					m_chunk_end_writed = true;
+				co_return res;
+			}();
+		}
+	}
+
+private:
+	template <typename Token>
+	auto default_transfer_x(std::string_view file_name, std::ifstream &file, Token &&token, const char *func)
+	{
+		using namespace std::chrono_literals;
+		namespace fs = std::filesystem;
+
+		auto mime_type = get_mime_type(file_name);
+		spdlog::debug("resource mime-type: {}.", mime_type);
+
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			size_t sum = 0;
+			auto file_size = fs::file_size(file_name);
+
+			if( file_size == 0 )
+				return sum;
+
+			q_ptr->set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+			sum += write_header_x(file_size, token, func);
+			if( token )
+				return sum;
+
+			constexpr size_t buf_size = 0xFFFF;
+			char fr_buf[buf_size]{0};
+
+			while(not file.eof())
+			{
+				file.read(fr_buf, buf_size);
+				auto size = file.gcount();
+				if( size == 0 )
+					break;
+
+				sum += write_body_x(buffer(fr_buf, size), token, func);
+				if( token )
+					break;
+
+				sleep_for(512us);
+			}
+			return sum;
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			auto file_size = fs::file_size(file_name);
+			if( file_size == 0 )
+				return 0;
+
+			q_ptr->set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+			auto sum = write_header_x(file_size, std::forward<Token>(token), func);
+
+			if( token.ec_ and *token.ec_ )
+				return sum;
+
+			constexpr size_t buf_size = 0xFFFF;
+			char fr_buf[buf_size]{0};
+
+			while(not file.eof())
+			{
+				file.read(fr_buf, buf_size);
+				auto size = file.gcount();
+				if( size == 0 )
+					break;
+
+				sum += write_body_x(buffer(fr_buf, size), std::forward<Token>(token), func);
+				if( token.ec_ and *token.ec_ )
+					break;
+
+				co_sleep_for(512us, std::forward<Token>(token), q_ptr->get_executor());
+			}
+			return sum;
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			return [=, &file, this]() mutable -> awaitable<size_t>
+			{
+				auto mime_type = get_mime_type(file_name);
+				spdlog::debug("resource mime-type: {}.", mime_type);
+
+				size_t sum = 0;
+				auto file_size = fs::file_size(file_name);
+
+				if( file_size == 0 )
+					co_return sum;
+
+				q_ptr->set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+				sum += co_await write_header_x(file_size, std::forward<Token>(token), func);
+
+				if( not check_token_error(token) )
+					co_return sum;
+
+				constexpr size_t buf_size = 0xFFFF;
+				char fr_buf[buf_size]{0};
+
+				while(not file.eof())
+				{
+					file.read(fr_buf, buf_size);
+					auto size = file.gcount();
+					if( size == 0 )
+						break;
+
+					sum += co_await write_body_x(buffer(fr_buf, size), std::forward<Token>(token), func);
+					if( not check_token_error(token) )
+						break;
+
+					co_await co_sleep_for(512us, q_ptr->get_executor());
+				}
+				co_return sum;
+			}();
+		}
+	}
+
+	template <typename Token> auto range_transfer_x
+	(std::string_view file_name, std::ifstream &file, string_view_t _range_str, Token &&token, const char *func)
+	{
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			string_t range_str(_range_str.data(), _range_str.size());
+			for(auto i=range_str.size(); i>0; i--)
+			{
+				if( range_str[i] == 0x20/*SPACE*/ )
+					range_str.erase(i,1);
+			}
+			auto status = m_helper.status();
+			if( range_str.empty())
+			{
+				q_ptr->set_status(status::bad_request);
+				auto buf = std::format("{} ({})", to_status_description(status), status);
+				return write_x(buffer(buf, buf.size()), token, func);
+			}
+
+			// bytes=x-y, m-n, i-j ...
+			else if( range_str.substr(0, 6) != static_string::bytes_start )
+			{
+				q_ptr->set_status(status::range_not_satisfiable);
+				auto buf = std::format("{} ({})", to_status_description(status), status);
+				return write_x(buffer(buf, buf.size()), token, func);
+			}
+
+			// x-y, m-n, i-j ...
+			auto range_list_str = range_str.substr(6);
+			if( range_list_str.empty())
+			{
+				q_ptr->set_status(status::range_not_satisfiable);
+				auto buf = std::format("{} ({})", to_status_description(status), status);
+				return write_x(buffer(buf, buf.size()), token, func);
+			}
+
+			// (x-y) ( m-n) ( i-j) ...
+			auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
+			auto mime_type = get_mime_type(file_name);
+
+			q_ptr->set_status(status::partial_content);
+			std::list<range_value> range_value_list;
+
+			if( range_list.size() == 1 )
+			{
+				range_value_list.emplace_back();
+				auto &range_value = range_value_list.back();
+
+				if( not range_parsing(file_name, range_list[0], range_value))
+				{
+					q_ptr->set_status(status::range_not_satisfiable);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					return write_x(buffer(buf, buf.size()), token, func);
+				}
+				q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
+					  .set_header(header_t::content_type, mime_type)
+					  .set_header(header_t::content_length, range_value.size)
+					  .set_header(header_t::content_range,
+								  {static_string::content_range_format, range_value.begin, range_value.end,
+								   range_value.size});
+
+				return send_range_x(file, "", "", range_value_list, token, func);
+			} // if( rangeList.size() == 1 )
+
+			using namespace std::chrono;
+			auto boundary = std::format("{}_{}", __func__,
+										duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+
+			q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + boundary);
+
+			auto ct_line = std::format("{}: {}", header::content_type, mime_type);
+			std::size_t content_length = 0;
+
+			for(auto &str: range_list)
+			{
+				range_value_list.emplace_back();
+				auto &range_value = range_value_list.back();
+
+				if( not range_parsing(file_name, str_trimmed(str), range_value))
+				{
+					q_ptr->set_status(status::range_not_satisfiable);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					return write_x(buffer(buf, buf.size()), token, func);
+				}
+				namespace fs = std::filesystem;
+				range_value.cr_line = std::format("{}: bytes {}-{}/{}", header::content_range,
+												  range_value.begin, range_value.end, fs::file_size(file_name));
+				/*
+					--boundary<CR><LF>
+					Content-Type: xxx<CR><LF>
+					Content-Range: bytes 3-11/96<CR><LF>
+					<CR><LF>
+					012345678<CR><LF>
+					--boundary<CR><LF>
+					Content-Type: xxx<CR><LF>
+					Content-Range: bytes 0-7/96<CR><LF>
+					<CR><LF>
+					01235467<CR><LF>
+					--boundary--<CR><LF>
+				*/
+				content_length += 2 + boundary.size() + 2 +        // --boundary<CR><LF>
+								  ct_line.size() + 2 +             // Content-Type: xxx<CR><LF>
+								  range_value.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+								  2 +                              // <CR><LF>
+								  range_value.size + 2;            // 012345678<CR><LF>
+			}
+			content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
+
+			q_ptr->set_header(header_t::content_length, content_length)
+				  .set_header(header_t::accept_ranges, static_string::bytes);
+
+			return send_range_x(file, boundary, ct_line, range_value_list, token, func);
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			string_t range_str(_range_str.data(), _range_str.size());
+			for(auto i=range_str.size(); i>0; i--)
+			{
+				if( range_str[i] == 0x20/*SPACE*/ )
+					range_str.erase(i,1);
+			}
+			auto status = m_helper.status();
+			if( range_str.empty())
+			{
+				q_ptr->set_status(status::bad_request);
+				auto buf = std::format("{} ({})", to_status_description(status), status);
+				return write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+			}
+
+			// bytes=x-y, m-n, i-j ...
+			else if( range_str.substr(0, 6) != static_string::bytes_start )
+			{
+				q_ptr->set_status(status::range_not_satisfiable);
+				auto buf = std::format("{} ({})", to_status_description(status), status);
+				return write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+			}
+
+			// x-y, m-n, i-j ...
+			auto range_list_str = range_str.substr(6);
+			if( range_list_str.empty())
+			{
+				q_ptr->set_status(status::range_not_satisfiable);
+				auto buf = std::format("{} ({})", to_status_description(status), status);
+				return write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+			}
+
+			// (x-y) ( m-n) ( i-j) ...
+			auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
+			auto mime_type = get_mime_type(file_name);
+
+			q_ptr->set_status(status::partial_content);
+			std::list<range_value> range_value_list;
+
+			if( range_list.size() == 1 )
+			{
+				range_value_list.emplace_back();
+				auto &range_value = range_value_list.back();
+
+				if( not range_parsing(file_name, range_list[0], range_value))
+				{
+					q_ptr->set_status(status::range_not_satisfiable);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					return write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+				}
+				q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
+					  .set_header(header_t::content_type, mime_type)
+					  .set_header(header_t::content_length, range_value.size)
+					  .set_header(header_t::content_range,
+								  {static_string::content_range_format, range_value.begin, range_value.end,
+								   range_value.size});
+
+				return send_range_x(file, "", "", range_value_list, std::forward<Token>(token), func);
+			} // if( rangeList.size() == 1 )
+
+			using namespace std::chrono;
+			auto boundary = std::format("{}_{}", __func__,
+										duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+
+			q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + boundary);
+
+			auto ct_line = std::format("{}: {}", header::content_type, mime_type);
+			std::size_t content_length = 0;
+
+			for(auto &str: range_list)
+			{
+				range_value_list.emplace_back();
+				auto &range_value = range_value_list.back();
+
+				if( not range_parsing(file_name, str_trimmed(str), range_value))
+				{
+					q_ptr->set_status(status::range_not_satisfiable);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					return write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+				}
+				namespace fs = std::filesystem;
+				range_value.cr_line = std::format("{}: bytes {}-{}/{}", header::content_range,
+												  range_value.begin, range_value.end, fs::file_size(file_name));
+				/*
+					--boundary<CR><LF>
+					Content-Type: xxx<CR><LF>
+					Content-Range: bytes 3-11/96<CR><LF>
+					<CR><LF>
+					012345678<CR><LF>
+					--boundary<CR><LF>
+					Content-Type: xxx<CR><LF>
+					Content-Range: bytes 0-7/96<CR><LF>
+					<CR><LF>
+					01235467<CR><LF>
+					--boundary--<CR><LF>
+				*/
+				content_length += 2 + boundary.size() + 2 +        // --boundary<CR><LF>
+								  ct_line.size() + 2 +             // Content-Type: xxx<CR><LF>
+								  range_value.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+								  2 +                              // <CR><LF>
+								  range_value.size + 2;            // 012345678<CR><LF>
+			}
+			content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
+
+			q_ptr->set_header(header_t::content_length, content_length)
+				  .set_header(header_t::accept_ranges, static_string::bytes);
+
+			return send_range_x(file, boundary, ct_line, range_value_list, std::forward<Token>(token), func);
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			return [=, &file, this]() mutable -> awaitable<size_t>
+			{
+				string_t range_str(_range_str.data(), _range_str.size());
+				for(auto i=range_str.size(); i>0; i--)
+				{
+					if( range_str[i] == 0x20/*SPACE*/ )
+						range_str.erase(i,1);
+				}
+				auto status = m_helper.status();
+				if( range_str.empty())
+				{
+					q_ptr->set_status(status::bad_request);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+				}
+
+				// bytes=x-y, m-n, i-j ...
+				else if( range_str.substr(0, 6) != static_string::bytes_start )
+				{
+					q_ptr->set_status(status::range_not_satisfiable);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+				}
+
+				// x-y, m-n, i-j ...
+				auto range_list_str = range_str.substr(6);
+				if( range_list_str.empty())
+				{
+					q_ptr->set_status(status::range_not_satisfiable);
+					auto buf = std::format("{} ({})", to_status_description(status), status);
+					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+				}
+
+				// (x-y) ( m-n) ( i-j) ...
+				auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
+				auto mime_type = get_mime_type(file_name);
+
+				q_ptr->set_status(status::partial_content);
+				std::list<range_value> range_value_list;
+
+				if( range_list.size() == 1 )
+				{
+					range_value_list.emplace_back();
+					auto &range_value = range_value_list.back();
+
+					if( not range_parsing(file_name, range_list[0], range_value))
+					{
+						q_ptr->set_status(status::range_not_satisfiable);
+						auto buf = std::format("{} ({})", to_status_description(status), status);
+						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+					}
+					q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
+						  .set_header(header_t::content_type, mime_type)
+						  .set_header(header_t::content_length, range_value.size)
+						  .set_header(header_t::content_range,
+									  {static_string::content_range_format, range_value.begin, range_value.end,
+									   range_value.size});
+
+					co_return co_await send_range_x(file, "", "", range_value_list, std::forward<Token>(token), func);
+				} // if( rangeList.size() == 1 )
+
+				using namespace std::chrono;
+				auto boundary = std::format("{}_{}", __func__,
+											duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
+
+				q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + boundary);
+
+				auto ct_line = std::format("{}: {}", header::content_type, mime_type);
+				std::size_t content_length = 0;
+
+				for(auto &str: range_list)
+				{
+					range_value_list.emplace_back();
+					auto &range_value = range_value_list.back();
+
+					if( not range_parsing(file_name, str_trimmed(str), range_value))
+					{
+						q_ptr->set_status(status::range_not_satisfiable);
+						auto buf = std::format("{} ({})", to_status_description(status), status);
+						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+					}
+					namespace fs = std::filesystem;
+					range_value.cr_line = std::format("{}: bytes {}-{}/{}", header::content_range,
+													  range_value.begin, range_value.end, fs::file_size(file_name));
+					/*
+						--boundary<CR><LF>
+						Content-Type: xxx<CR><LF>
+						Content-Range: bytes 3-11/96<CR><LF>
+						<CR><LF>
+						012345678<CR><LF>
+						--boundary<CR><LF>
+						Content-Type: xxx<CR><LF>
+						Content-Range: bytes 0-7/96<CR><LF>
+						<CR><LF>
+						01235467<CR><LF>
+						--boundary--<CR><LF>
+					*/
+					content_length += 2 + boundary.size() + 2 +        // --boundary<CR><LF>
+									  ct_line.size() + 2 +             // Content-Type: xxx<CR><LF>
+									  range_value.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+									  2 +                              // <CR><LF>
+									  range_value.size + 2;            // 012345678<CR><LF>
+				}
+				content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
+
+				q_ptr->set_header(header_t::content_length, content_length)
+					  .set_header(header_t::accept_ranges, static_string::bytes);
+
+				co_return co_await send_range_x(file, boundary, ct_line, range_value_list, std::forward<Token>(token), func);
+			}();
+		}
+	}
+
+private:
+	struct range_value : resp_range
+	{
+		std::string cr_line{};
+		std::size_t size = 0;
+	};
+
+	bool range_parsing(std::string_view file_name, string_view_t range_str, range_value &rv)
+	{
+		rv.size = 0;
+		auto list = string_list_t::from_string(range_str, '-', false);
+
+		if( list.size() > 2 )
+		{
+			spdlog::debug("Range format error: {}.", range_str);
+			return false;
+		}
+		namespace fs = std::filesystem;
+		auto file_size = fs::file_size(file_name);
+
+		if( list[0].empty())
+		{
+			if( list[1].empty())
+			{
+				spdlog::debug("Range format error.");
+				return false;
+			}
+			rv.size = ston_or<size_t>(list[1]);
+
+			if( rv.size == 0 or rv.size > file_size )
+			{
+				spdlog::debug("Range size is invalid.");
+				return false;
+			}
+			rv.end = file_size - 1;
+			rv.begin = file_size - rv.size;
+		}
+		else if( list[1].empty())
+		{
+			if( list[0].empty())
+			{
+				spdlog::debug("Range format error.");
+				return false;
+			}
+			rv.begin = ston_or<size_t>(list[0]);
+			rv.end = file_size - 1;
+
+			if( rv.begin > rv.end )
+			{
+				spdlog::debug("Range is invalid.");
+				return false;
+			}
+			rv.size = file_size - rv.begin;
+		}
+		else
+		{
+			rv.begin = ston_or<size_t>(list[0]);
+			rv.end = ston_or<size_t>(list[1]);
+
+			if( rv.begin > rv.end or rv.end >= file_size )
+			{
+				spdlog::debug("Range is invalid.");
+				return false;
+			}
+			rv.size = rv.end - rv.begin + 1;
+		}
+		return true;
+	}
+
+public:
+	template <typename Token>
+	auto send_range_x(std::ifstream &file,
+					  std::string_view boundary,
+					  std::string_view ct_line,
+					  std::list<range_value> &range_value_queue,
+					  Token &&token,
+					  const char *func)
+	{
+		using namespace std::chrono_literals;
+		assert(not range_value_queue.empty());
+
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			auto sum = write_header_x(0, token, func);
+			constexpr size_t buf_size = 0xFFFF;
+
+			if( range_value_queue.size() == 1 )
+			{
+				auto &value = range_value_queue.back();
+				file.seekg(value.begin, std::ios_base::beg);
+
+				char buf[buf_size]{0};
+				while(not file.eof())
+				{
+					if( value.size <= static_cast<size_t>(buf_size))
+					{
+						file.read(buf, value.size);
+						auto size = file.gcount();
+
+						sum += write_body_x(buffer(buf,size), token, func);
+						if( token )
+							break;
+
+						sleep_for(512us);
+						break;
+					}
+					file.read(buf, buf_size);
+					auto size = file.gcount();
+
+					sum += write_body_x(buffer(buf,size), token, func);
+					if( token )
+						break;
+
+					value.size -= buf_size;
+					sleep_for(512us);
+				}
+				return sum;
+			}
+			else if( range_value_queue.empty())
+				return sum;
+
+			char buf[buf_size] {0};
+			for(auto &value: range_value_queue)
+			{
+				std::string body;
+				body.reserve(2 + boundary.size() + 2 +
+							 ct_line.size() + 2 +
+							 value.cr_line.size() + 2 +
+							 2);
+
+				body.append("--").append(boundary).append("\r\n")
+					.append(ct_line).append("\r\n")
+					.append(value.cr_line).append("\r\n"
+												  "\r\n");
+
+				sum += write_body_x(buffer(body, body.size()), token, func);
+				if( token )
+					return sum;
+
+				file.seekg(value.begin, std::ios_base::beg);
+				while(not file.eof())
+				{
+					if( value.size <= static_cast<size_t>(buf_size))
+					{
+						file.read(buf, value.size);
+						auto size = file.gcount();
+
+						if( size == 0 )
+							break;
+
+						buf[size + 0] = '\r';
+						buf[size + 1] = '\n';
+
+						sum += write_body_x(buffer(buf, size + 2), token, func);
+						if( token )
+							return sum;
+
+						sleep_for(512us);
+						break;
+					}
+					file.read(buf, buf_size);
+					auto size = file.gcount();
+
+					sum += write_body_x(buffer(buf,size), token, func);
+					if( token )
+						return sum;
+
+					value.size -= buf_size;
+					sleep_for(512us);
+				}
+			}
+			auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
+			sum += write_body_x(buffer(abuf, abuf.size()), token, func);
+			return sum;
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			auto sum = write_header_x(0, std::forward<Token>(token), func);
+			constexpr size_t buf_size = 0xFFFF;
+
+			if( range_value_queue.size() == 1 )
+			{
+				auto &value = range_value_queue.back();
+				file.seekg(value.begin, std::ios_base::beg);
+
+				char buf[buf_size]{0};
+				while(not file.eof())
+				{
+					if( value.size <= static_cast<size_t>(buf_size))
+					{
+						file.read(buf, value.size);
+						auto size = file.gcount();
+
+						sum += write_body_x(buffer(buf,size), std::forward<Token>(token), func);
+						if( token.ec_ and *token.ec_ )
+							break;
+
+						co_sleep_for(512us, std::forward<Token>(token), q_ptr->get_executor());
+						break;
+					}
+					file.read(buf, buf_size);
+					auto size = file.gcount();
+
+					sum += write_body_x(buffer(buf,size), std::forward<Token>(token), func);
+					if( token.ec_ and *token.ec_ )
+						break;
+
+					value.size -= buf_size;
+					co_sleep_for(512us, std::forward<Token>(token), q_ptr->get_executor());
+				}
+				return sum;
+			}
+			else if( range_value_queue.empty())
+				return sum;
+
+			char buf[buf_size] {0};
+			for(auto &value: range_value_queue)
+			{
+				std::string body;
+				body.reserve(2 + boundary.size() + 2 +
+							 ct_line.size() + 2 +
+							 value.cr_line.size() + 2 +
+							 2);
+
+				body.append("--").append(boundary).append("\r\n")
+					.append(ct_line).append("\r\n")
+					.append(value.cr_line).append("\r\n"
+												  "\r\n");
+
+				sum += write_body_x(buffer(body, body.size()), std::forward<Token>(token), func);
+				if( token.ec_ and *token.ec_ )
+					return sum;
+
+				file.seekg(value.begin, std::ios_base::beg);
+				while(not file.eof())
+				{
+					if( value.size <= static_cast<size_t>(buf_size))
+					{
+						file.read(buf, value.size);
+						auto size = file.gcount();
+
+						if( size == 0 )
+							break;
+
+						buf[size + 0] = '\r';
+						buf[size + 1] = '\n';
+
+						sum += write_body_x(buffer(buf, size + 2), std::forward<Token>(token), func);
+						if( token.ec_ and *token.ec_ )
+							return sum;
+
+						co_sleep_for(512us, std::forward<Token>(token), q_ptr->get_executor());
+						break;
+					}
+					file.read(buf, buf_size);
+					auto size = file.gcount();
+
+					sum += write_body_x(buffer(buf,size), std::forward<Token>(token), func);
+					if( token.ec_ and *token.ec_ )
+						return sum;
+
+					value.size -= buf_size;
+					co_sleep_for(512us, std::forward<Token>(token), q_ptr->get_executor());
+				}
+			}
+			auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
+			sum += write_body_x(buffer(abuf, abuf.size()), std::forward<Token>(token), func);
+			return sum;
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			return [=, &file, this]() mutable -> awaitable<size_t>
+			{
+				auto sum = co_await write_header_x(0, std::forward<Token>(token), func);
+				constexpr size_t buf_size = 0xFFFF;
+
+				if( range_value_queue.size() == 1 )
+				{
+					auto &value = range_value_queue.back();
+					file.seekg(value.begin, std::ios_base::beg);
+
+					char buf[buf_size]{0};
+					while(not file.eof())
+					{
+						if( value.size <= static_cast<size_t>(buf_size))
+						{
+							file.read(buf, value.size);
+							auto size = file.gcount();
+
+							sum += co_await write_body_x(buffer(buf,size), std::forward<Token>(token), func);
+							if( not check_token_error(token) )
+								break;
+
+							co_await co_sleep_for(512us, q_ptr->get_executor());
+							break;
+						}
+						file.read(buf, buf_size);
+						auto size = file.gcount();
+
+						sum += co_await write_body_x(buffer(buf,size), std::forward<Token>(token), func);
+						if( not check_token_error(token) )
+							break;
+
+						value.size -= buf_size;
+						co_await co_sleep_for(512us, q_ptr->get_executor());
+					}
+					co_return sum;
+				}
+				else if( range_value_queue.empty())
+					co_return sum;
+
+				char buf[buf_size] {0};
+				for(auto &value: range_value_queue)
+				{
+					std::string body;
+					body.reserve(2 + boundary.size() + 2 +
+								 ct_line.size() + 2 +
+								 value.cr_line.size() + 2 +
+								 2);
+
+					body.append("--").append(boundary).append("\r\n")
+						.append(ct_line).append("\r\n")
+						.append(value.cr_line).append("\r\n"
+													  "\r\n");
+
+					sum += co_await write_body_x(buffer(body, body.size()), std::forward<Token>(token), func);
+					if( not check_token_error(token) )
+						co_return sum;
+
+					file.seekg(value.begin, std::ios_base::beg);
+					while(not file.eof())
+					{
+						if( value.size <= static_cast<size_t>(buf_size))
+						{
+							file.read(buf, value.size);
+							auto size = file.gcount();
+
+							if( size == 0 )
+								break;
+
+							buf[size + 0] = '\r';
+							buf[size + 1] = '\n';
+
+							sum += co_await write_body_x(buffer(buf, size + 2), std::forward<Token>(token), func);
+							if( not check_token_error(token) )
+								co_return sum;
+
+							co_await co_sleep_for(512us, q_ptr->get_executor());
+							break;
+						}
+						file.read(buf, buf_size);
+						auto size = file.gcount();
+
+						sum += co_await write_body_x(buffer(buf,size), std::forward<Token>(token), func);
+						if( not check_token_error(token) )
+							co_return sum;
+
+						value.size -= buf_size;
+						co_await co_sleep_for(512us, q_ptr->get_executor());
+					}
+				}
+				auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
+				sum += co_await write_body_x(buffer(abuf, abuf.size()), std::forward<Token>(token), func);
+				co_return sum;
+			}();
+		}
+	}
+
+private:
+	template <typename Token>
+	auto write_header_x(size_t size, Token &&token, const char *func) {
+		return write_funcdata_x([this,size]{return m_helper.header_data(size);}, true, std::forward<Token>(token), func);
+	}
+
+	template <typename Token>
+	auto write_body_x(const const_buffer &body, Token &&token, const char *func) {
+		return write_funcdata_x([this,body]{return m_helper.body_data(body);}, false, std::forward<Token>(token), func);
+	}
+
+	template <typename Func, typename Token>
+	auto write_funcdata_x(Func &&func, bool wheader, Token &&token, const char *efuncname)
+	{
+		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
+		{
+			auto header_data = func();
+			size_t sum = 0;
+			do {
+				m_next_layer.next_layer().non_blocking(false, token);
+				if( token )
+					break;
+
+				sum += asio::write(m_next_layer.next_layer(), buffer(header_data.c_str() + sum, header_data.size() - sum), token);
+				if( token and token.value() == errc::interrupted )
+					continue;
+			}
+			while(false);
+			if( wheader and not token )
+				m_headers_writed = true;
+			return sum;
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if( std::is_same_v<std::decay_t<Token>, yield_context> )
+		{
+			error_code error;
+			if( token.ec_ )
+				*token.ec_ = error;
+
+			size_t sum = 0;
+			auto header_data = func();
+			do {
+				sum += asio::async_write(m_next_layer.next_layer(),
+										 buffer(header_data.c_str() + sum, header_data.size() - sum),
+										 token[error]);
+				if( error and error.value() == errc::interrupted )
+					continue;
+			}
+			while(false);
+			if( error )
+			{
+				if( token.ec_ )
+					*token.ec_ = error;
+				else
+					throw system_error(error, "libgs::http::server_response::{}", func);
+			}
+			else if( wheader )
+				m_headers_writed = true;
+			return sum;
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else
+		{
+			token_reset(token);
+			return [=,this]() mutable -> awaitable<size_t>
+			{
+				size_t sum = 0;
+				error_code error;
+				auto header_data = func();
+				do {
+					if constexpr( detail::concept_has_get<Token> )
+					{
+						sum += co_await asio::async_write(
+								m_next_layer.next_layer(),
+								buffer(header_data.c_str() + sum, header_data.size() - sum),
+								use_awaitable|error|token.get_cancellation_slot());
+					}
+					else
+					{
+						sum += co_await asio::async_write(
+								m_next_layer.next_layer(),
+								buffer(header_data.c_str() + sum, header_data.size() - sum),
+								use_awaitable|error);
+					}
+					if( error and error.value() == errc::interrupted )
+						continue;
+				}
+				while(false);
+				if( token_check(token, error, efuncname) and wheader )
+					m_headers_writed = true;
+				co_return sum;
+			}();
+		}
+	}
+
+private:
+	template<typename Token>
+	void token_reset(Token &token) noexcept
+	{
+		if constexpr( detail::concept_has_ec_<Token> )
+			token.ec_ = error_code();
+		else if constexpr( detail::concept_has_get<Token> )
+		{
+			if constexpr( detail::concept_has_ec_<decltype(token.get())> )
+				token.get().ec_ = error_code();
+		}
+	}
+
+	template<typename Token>
+	bool token_check(Token &token, const error_code &error, const char *func)
+	{
+		if( not error )
+			return true;
+		if constexpr( detail::concept_has_ec_<Token> )
+		{
+			token.ec_ = error;
+			return false;
+		}
+		else if constexpr( detail::concept_has_get<Token> )
+		{
+			if constexpr( detail::concept_has_ec_<decltype(token.get())> )
+			{
+				token.get().ec_ = error;
+				return false;
+			}
+		}
+		throw system_error(error, "libgs::http::server_response::{}", func);
+		// return false;
+	}
+
+	template <typename Token>
+	[[nodiscard]] bool check_token_error(Token &token)
+	{
+		if constexpr( detail::concept_has_ec_<Token> )
+		{
+			if( token.ec_ )
+				return false;
+		}
+		else if constexpr( detail::concept_has_get<Token> )
+		{
+			if constexpr( detail::concept_has_ec_<decltype(token.get())> )
+			{
+				if( token.get().ec_ )
+					return false;
+			}
+		}
+		return true;
+	}
+
+	void write_runtime_error_check(const const_buffer &body, const char *func)
+	{
+		if( body.size() == 0 )
+			throw runtime_error("libgs::http::response::{}: The http protocol header is sent repeatedly.", func);
+		else if( m_chunk_end_writed )
+			throw runtime_error("libgs::http::response::{}: Chunk has been written.", func);
+	}
+
+public:
+	response_t *q_ptr;
 	helper_t m_helper;
 	next_layer_t m_next_layer;
+
+	bool m_headers_writed = false;
+	bool m_chunk_end_writed = false;
 };
 
-template <typename Request, concept_char_type CharT, typename Derived>
-basic_server_response<Request,CharT,Derived>::basic_server_response(next_layer_t &&next_layer) :
-	base_t(next_layer.executor()), m_impl(new impl(std::move(next_layer)))
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT>::basic_server_response(next_layer_t &&next_layer) :
+	m_impl(new impl(this, std::move(next_layer)))
 {
-	m_impl->m_helper.on_write([this](std::string_view buf, error_code &error) -> awaitable<size_t> {
-		co_return co_await m_impl->m_next_layer.next_layer().write(buf, error);
-	});
+
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-basic_server_response<Request,CharT,Derived>::~basic_server_response()
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT>::~basic_server_response()
 {
 	delete m_impl;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-template <typename Request0>
-basic_server_response<Request,CharT,Derived>::basic_server_response
-(basic_server_response<Request0,CharT,Derived> &&other) noexcept
-	requires concept_constructible<Request0,Request0&&> :
-	base_t(std::move(other)), m_impl(new impl(std::move(*other.m_impl)))
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <typename Stream0>
+basic_server_response<Stream,CharT>::basic_server_response
+(basic_server_response<Stream0,CharT> &&other) noexcept
+	requires concept_constructible<next_layer_t,basic_server_request<Stream0,CharT>&&> :
+	m_impl(new impl(this, std::move(*other.m_impl)))
 {
 
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-template <typename Request0>
-basic_server_response<Request,CharT,Derived> &basic_server_response<Request,CharT,Derived>::operator=
-(basic_server_response<Request0,CharT,Derived> &&other) noexcept
-	requires concept_constructible<Request0,Request0&&>
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <typename Stream0>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operator=
+(basic_server_response<Stream0,CharT> &&other) noexcept requires concept_assignable<Stream,Stream0&&>
 {
-	base_t::operator=(std::move(other));
 	*m_impl = std::move(*other.m_impl);
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::set_status(uint32_t status)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(uint32_t status)
 {
 	m_impl->m_helper.set_status(status);
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::set_status(http::status status)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(http::status status)
 {
 	m_impl->m_helper.set_status(status);
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::set_header(string_view_t key, value_t value)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_header(string_view_t key, value_t value)
 {
 	m_impl->m_helper.set_header(key, std::move(value));
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::set_cookie(string_view_t key, cookie_t cookie)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_cookie(string_view_t key, cookie_t cookie)
 {
 	m_impl->m_helper.set_cookie(key, std::move(cookie));
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-awaitable<size_t> basic_server_response<Request,CharT,Derived>::write(opt_token<error_code&> tk)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::write(const const_buffer &body)
 {
-	co_return co_await m_impl->m_helper.write(tk);
+	error_code error;
+	auto res = write(body, error);
+	if( error )
+		throw system_error(error, "libgs::http::server_response::write");
+	return res;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-awaitable<size_t> basic_server_response<Request,CharT,Derived>::write
-(buffer<std::string_view> buf, opt_token<error_code&> tk)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::write(const const_buffer &body, error_code &error)
 {
-	co_return co_await m_impl->m_helper.write(buf, tk);
+	return m_impl->write_x(body, error, "write");
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-awaitable<size_t> basic_server_response<Request,CharT,Derived>::redirect
-(string_view_t url, opt_token<http::redirect,error_code&> tk)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::write(error_code &error)
 {
-	co_return co_await m_impl->m_helper.set_redirect(url, tk.type).write(static_cast<opt_token<error_code&>&>(tk));
+	return write({nullptr,0}, error);
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-awaitable<size_t> basic_server_response<Request,CharT,Derived>::send_file
-(std::string_view file_name, opt_token<ranges,error_code&> tk)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_write(const const_buffer &body, Token &&token)
 {
-	co_return co_await m_impl->m_helper.write(file_name, std::move(tk));
+	return m_impl->write_x(body, std::forward<Token>(token), "async_write");
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::set_chunk_attribute(value_t attribute)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_write(Token &&token)
+{
+	return async_write({nullptr,0}, std::forward<Token>(token));
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi)
+{
+	error_code error;
+	auto res = redirect(url, redi, error);
+	if( error )
+		throw system_error(error, "libgs::http::server_response::redirect");
+	return res;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi, error_code &error)
+{
+	m_impl->m_helper.set_redirect(url, redi);
+	return m_impl->write_x({nullptr,0}, error, "redirect");
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, error_code &error)
+{
+	return redirect(url, http::redirect::moved_permanently, error);
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_redirect(string_view_t url, http::redirect redi, Token &&token)
+{
+	m_impl->m_helper.set_redirect(url, redi);
+	return m_impl->write_x({nullptr,0}, std::forward<Token>(token), "async_redirect");
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_redirect(string_view_t url, Token &&token)
+{
+	return async_redirect(url, http::redirect::moved_permanently, std::forward<Token>(token));
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::send_file(std::string_view file_name, const resp_ranges &ranges)
+{
+	error_code error;
+	auto res = send_file(file_name, ranges, error);
+	if( error )
+		throw system_error(error, "libgs::http::server_response::send_file");
+	return res;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::send_file
+(std::string_view file_name, const resp_ranges &ranges, error_code &error)
+{
+	return m_impl->send_file_x(file_name, ranges, error, "send_file");
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::send_file(std::string_view file_name, error_code &error)
+{
+	return send_file(file_name, {}, error);
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_send_file
+(std::string_view file_name, const resp_ranges &ranges, Token &&token)
+{
+	return m_impl->send_file_x(file_name, ranges, std::forward<Token>(token), "send_file");
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_send_file(std::string_view file_name, Token &&token)
+{
+	return async_send_file(file_name, {}, std::forward<Token>(token));
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attribute(value_t attribute)
 {
 	m_impl->m_helper.set_chunk_attribute(std::move(attribute));
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::set_chunk_attributes(value_list_t attributes)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attributes(value_list_t attributes)
 {
 	m_impl->m_helper.set_chunk_attributes(std::move(attributes));
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-[[nodiscard]] awaitable<size_t> basic_server_response<Request,CharT,Derived>::chunk_end(opt_token<const headers_t&, error_code&> tk)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers)
 {
-	co_return co_await m_impl->m_helper.chunk_end(tk);
+	error_code error;
+	auto res = chunk_end(headers, error);
+	if( error )
+		throw system_error(error, "libgs::http::server_response::chunk_end");
+	return res;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::string_view_t
-basic_server_response<Request,CharT,Derived>::version() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, error_code &error)
+{
+	return m_impl->chunk_end_x(headers, error, "chunk_end");
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+size_t basic_server_response<Stream,CharT>::chunk_end(error_code &error)
+{
+	return chunk_end({}, error);
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_chunk_end(const headers_t &headers, Token &&token)
+{
+	return m_impl->chunk_end_x(headers, std::forward<Token>(token), "async_chunk_end");
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template <asio::completion_token_for<void(size_t,error_code)> Token>
+auto basic_server_response<Stream,CharT>::async_chunk_end(Token &&token)
+{
+	return async_chunk_end({}, std::forward<Token>(token));
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT>::string_view_t
+basic_server_response<Stream,CharT>::version() const noexcept
 {
 	return m_impl->m_helper.version();
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-http::status basic_server_response<Request,CharT,Derived>::status() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+http::status basic_server_response<Stream,CharT>::status() const noexcept
 {
 	return m_impl->m_helper.status();
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-const typename basic_server_response<Request,CharT,Derived>::headers_t&
-basic_server_response<Request,CharT,Derived>::headers() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+const typename basic_server_response<Stream,CharT>::headers_t&
+basic_server_response<Stream,CharT>::headers() const noexcept
 {
 	return m_impl->m_helper.headers();
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-const typename basic_server_response<Request,CharT,Derived>::cookies_t&
-basic_server_response<Request,CharT,Derived>::cookies() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+const typename basic_server_response<Stream,CharT>::cookies_t&
+basic_server_response<Stream,CharT>::cookies() const noexcept
 {
 	return m_impl->m_helper.cookies();
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-bool basic_server_response<Request,CharT,Derived>::headers_writed() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+bool basic_server_response<Stream,CharT>::headers_writed() const noexcept
 {
-	return m_impl->m_helper.headers_writed();
+	return m_impl->m_headers_writed;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-bool basic_server_response<Request,CharT,Derived>::chunk_end_writed() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+bool basic_server_response<Stream,CharT>::chunk_end_writed() const noexcept
 {
-	return m_impl->m_helper.chunk_end_writed();
+	return m_impl->m_chunk_end_writed;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::cancel() noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+const typename basic_server_response<Stream,CharT>::executor_t&
+basic_server_response<Stream,CharT>::get_executor() noexcept
+{
+	return m_impl->m_next_layer.get_executor();
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::cancel() noexcept
 {
 	m_impl->m_next_layer->m_impl->m_socket->cancel();
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::unset_header(string_view_t key)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_helper.unset_header(key);
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::unset_cookie(string_view_t key)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_cookie(string_view_t key)
 {
 	m_impl->m_helper.unset_cookie(key);
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::derived_t&
-basic_server_response<Request,CharT,Derived>::unset_chunk_attribute(const value_t &attribute)
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_chunk_attribute(const value_t &attribute)
 {
 	m_impl->m_helper.unset_chunk_attribute(std::move(attribute));
-	return this->derived();
+	return *this;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-const typename basic_server_response<Request,CharT,Derived>::next_layer_t&
-basic_server_response<Request,CharT,Derived>::next_layer() const noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+const basic_server_response<Stream,CharT>::next_layer_t&
+basic_server_response<Stream,CharT>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
-template <typename Request, concept_char_type CharT, typename Derived>
-typename basic_server_response<Request,CharT,Derived>::next_layer_t&
-basic_server_response<Request,CharT,Derived>::next_layer() noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT>::next_layer_t&
+basic_server_response<Stream,CharT>::next_layer() noexcept
 {
 	return m_impl->m_next_layer;
 }

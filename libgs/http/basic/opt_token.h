@@ -30,87 +30,63 @@
 #define LIBGS_HTTP_BASIC_OPT_TOKEN_H
 
 #include <libgs/http/basic/types.h>
-#include <libgs/io/types/opt_token.h>
 
-namespace libgs { namespace http
+#ifdef LIBGS_ENABLE_OPENSSL
+#include <asio/ssl.hpp>
+#endif //LIBGS_ENABLE_OPENSSL
+
+namespace libgs::http
 {
+
+template <typename Stream>
+struct stream_requires : std::false_type {};
+
+template <>
+struct stream_requires<asio::basic_stream_socket<asio::ip::tcp>> : std::true_type {};
+
+template <>
+struct stream_requires<asio::basic_stream_socket<asio::ip::tcp, asio::thread_pool::executor_type>> : std::true_type {};
+
+#ifdef LIBGS_ENABLE_OPENSSL
+template <typename Stream>
+struct stream_requires<asio::ssl::stream<Stream>> : std::true_type {};
+#endif //LIBGS_ENABLE_OPENSSL
+
+template <typename Stream>
+constexpr bool stream_requires_v = stream_requires<Stream>::value;
+
+template <typename Stream>
+concept concept_tcp_stream = stream_requires_v<Stream>;
 
 using begin_t = size_t;
 using total_t = size_t;
 using end_t   = size_t;
 
-using read_condition = io::read_condition;
-
 template <typename...Args>
-using callback_t = io::callback_t<Args...>;
+using callback_t = std::function<void(Args...)>;
 
-template <typename...Token>
-using opt_token = io::opt_token<Token...>;
-
-struct range
+struct req_range
 {
-	size_t begin = 0;
-	size_t end = 0;
-};
-using ranges = std::vector<range>;
-
-} //namespace http
-
-namespace io
-{
-
-using begin_t = http::begin_t;
-using total_t = http::total_t;
-using end_t   = http::end_t;
-
-template <typename T>
-struct opt_token<begin_t,total_t,T> : opt_token<T>
-{
-	using opt_token<T>::opt_token;
 	size_t begin = 0;
 	size_t total = 0;
 
-	template <typename...Args>
-	opt_token(size_t total, Args&&...args) requires io::concept_opt_token<T,Args...>;
-
-	template <typename...Args>
-	opt_token(size_t begin, size_t total, Args&&...args) requires io::concept_opt_token<T,Args...>;
+	constexpr req_range();
+	req_range(size_t total);
+	req_range(size_t begin, size_t total);
 };
 
-template <typename T>
-struct opt_token<http::redirect,T> : opt_token<T>
+struct resp_range
 {
-	using opt_token<T>::opt_token;
-	http::redirect type = http::redirect::moved_permanently;
+	size_t begin = 0;
+	size_t end = 0;
 
-	template <typename...Args>
-	opt_token(http::redirect type, Args&&...args) requires io::concept_opt_token<T,Args...>;
+	constexpr resp_range();
+	resp_range(size_t end);
+	resp_range(size_t begin, size_t end);
 };
+using resp_ranges = std::vector<resp_range>;
 
-template <typename T>
-struct opt_token<http::ranges,T> : opt_token<T>
-{
-	using opt_token<T>::opt_token;
-	http::ranges ranges;
-
-	template <typename...Args>
-	opt_token(size_t begin, size_t end, Args&&...args) requires io::concept_opt_token<T,Args...>;
-
-	template <typename...Args>
-	opt_token(http::ranges ranges, Args&&...args) requires io::concept_opt_token<T,Args...>;
-};
-
-template <concept_char_type CharT, typename T>
-struct opt_token<http::basic_headers<CharT>,T> : opt_token<T>
-{
-	using opt_token<T>::opt_token;
-	http::basic_headers<CharT> headers;
-
-	template <typename...Args>
-	opt_token(http::basic_headers<CharT> headers, Args&&...args) requires io::concept_opt_token<T,Args...>;
-};
-
-}} //namespace libgs::io
+} //namespace libgs::http
 #include <libgs/http/basic/detail/opt_token.h>
 
 

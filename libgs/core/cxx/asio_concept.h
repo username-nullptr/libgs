@@ -30,8 +30,14 @@
 #define LIBGS_CORE_CXX_ASIO_CONCEPT_H
 
 #include <libgs/core/cxx/function_traits.h>
-#include <asio.hpp>
 #include <concepts>
+
+#ifdef LIBGS_USING_BOOST_ASIO
+# include <boost/asio.hpp>
+namespace asio = boost::asio;
+#else
+# include <asio.hpp>
+#endif //LIBGS_USING_BOOST_ASIO
 
 namespace libgs
 {

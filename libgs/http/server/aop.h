@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_aop
 {
 public:
@@ -46,27 +46,27 @@ public:
 };
 
 template <concept_execution Exec>
-using basic_tcp_aop = basic_aop<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_aop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_waop = basic_aop<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_waop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
 using tcp_waop = basic_tcp_waop<asio::any_io_executor>;
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 using basic_aop_ptr = std::shared_ptr<basic_aop<Stream,CharT>>;
 
 template <concept_execution Exec>
-using basic_tcp_aop_ptr = basic_aop_ptr<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_aop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_waop_ptr = basic_aop_ptr<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_waop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
 using tcp_waop_ptr = basic_tcp_waop_ptr<asio::any_io_executor>;
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_ctrlr_aop : public basic_aop<Stream,CharT>
 {
 public:
@@ -75,22 +75,22 @@ public:
 };
 
 template <concept_execution Exec>
-using basic_tcp_ctrlr_aop = basic_ctrlr_aop<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_ctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_wctrlr_aop = basic_ctrlr_aop<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_wctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
 using tcp_wctrlr_aop = basic_tcp_wctrlr_aop<asio::any_io_executor>;
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Stream,CharT>>;
 
 template <concept_execution Exec>
-using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_wctrlr_aop_ptr = basic_ctrlr_aop_ptr<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_wctrlr_aop_ptr = basic_ctrlr_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;
 using tcp_wctrlr_aop_ptr = basic_tcp_wctrlr_aop_ptr<asio::any_io_executor>;

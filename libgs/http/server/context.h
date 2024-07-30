@@ -30,12 +30,12 @@
 #define LIBGS_HTTP_SERVER_CONTEXT_H
 
 #include <libgs/http/server/response.h>
-#include <libgs/http/server/session.h>
+#include <libgs/http/server/session_set.h>
 
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_service_context
 {
 	LIBGS_DISABLE_COPY(basic_service_context)
@@ -45,17 +45,22 @@ public:
 	using parser_t = basic_request_parser<CharT>;
 
 	using request_t = basic_server_request<stream_t,CharT>;
-	using response_t = basic_server_response<request_t,CharT>;
+	using response_t = basic_server_response<stream_t,CharT>;
 
 	using session_t = basic_session<CharT>;
 	using session_ptr = basic_session_ptr<CharT>;
 
 public:
-	basic_service_context(stream_t &&stream, parser_t &parser);
+	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);
 	~basic_service_context();
 
-	basic_service_context(basic_service_context &&other) noexcept;
-	basic_service_context &operator=(basic_service_context &&other) noexcept;
+	template<typename Stream0>
+	basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
+
+	template<typename Stream0>
+	basic_service_context &operator=(basic_service_context<Stream0,CharT> &&other) noexcept
+		requires concept_assignable<Stream,Stream0&&>;
 
 public:
 	const request_t &request() const noexcept;
@@ -65,24 +70,20 @@ public:
 	response_t &response() noexcept;
 
 public:
-	template <detail::base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<CharT> Session, typename...Args>
 	std::shared_ptr<Session> session(Args&&...args)
-		requires detail::can_construct<Session, Args...>;
+		requires concept_constructible<Session, Args...>;
 
 	template <typename...Args>
 	session_ptr session(Args&&...args) noexcept
-		requires detail::can_construct<basic_session<CharT>, Args...>;
+		requires concept_constructible<basic_session<CharT>, Args...>;
 
-	template <detail::base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<CharT> Session>
 	std::shared_ptr<Session> session() const;
-
-	template <typename...Args>
 	session_ptr session() const;
 
-	template <detail::base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<CharT> Session>
 	std::shared_ptr<Session> session_or();
-
-	template <typename...Args>
 	session_ptr session_or() noexcept;
 
 private:
@@ -91,10 +92,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_service_context = basic_service_context<io::basic_tcp_socket<Exec>,char>;
+using basic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_service_wcontext = basic_service_context<io::basic_tcp_socket<Exec>,wchar_t>;
+using basic_tcp_service_wcontext = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;
 using tcp_service_wcontext = basic_tcp_service_wcontext<asio::any_io_executor>;

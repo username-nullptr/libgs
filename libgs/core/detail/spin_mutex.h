@@ -26,27 +26,53 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "opt_token.h"
+#ifndef LIBGS_CORE_DETAIL_SPIN_MUTEX_H
+#define LIBGS_CORE_DETAIL_SPIN_MUTEX_H
 
-namespace libgs::io::detail
+namespace libgs
 {
 
-bool check_error(error_code *tk_error, const error_code &error, const char *header)
+inline spin_mutex::~spin_mutex() noexcept(false)
 {
-	if( not error )
-	{
-		if( tk_error )
-			*tk_error = {};
-		return true;
-	}
-	else if( tk_error )
-		*tk_error = error;
-	else
-	{
-		if( error != errc::operation_aborted )
-			throw system_error(error, header);
-	}
-	return false;
+	if( m_native_handle )
+		throw runtime_error("libgs::spin_mutex: Destruct a spin mutex that has not yet been unlocked.");
 }
 
-} //namespace libgs::io::detail
+void spin_mutex::lock()
+{
+	while( m_native_handle );
+	m_native_handle = true;
+}
+
+bool spin_mutex::try_lock()
+{
+	bool flag = false;
+	/*
+		if( m_native_handle == flag )
+	 	{
+	 		m_native_handle = true;
+	 		return true;
+		}
+	 	else
+	 	{
+	 		flag = m_native_handle;
+			return false;
+	 	}
+	*/
+	return m_native_handle.compare_exchange_weak(flag, true);
+}
+
+void spin_mutex::unlock()
+{
+	m_native_handle	= false;
+}
+
+inline typename spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
+{
+	return m_native_handle;
+}
+
+} //namespace libgs
+
+
+#endif //LIBGS_CORE_DETAIL_SPIN_MUTEX_H

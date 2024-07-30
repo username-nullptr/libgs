@@ -31,7 +31,6 @@
 
 #include <libgs/core/algorithm/uuid.h>
 #include <libgs/core/coroutine.h>
-#include <libgs/io/timer.h>
 #include <spdlog/spdlog.h>
 
 namespace libgs::http
@@ -44,8 +43,8 @@ class basic_session<CharT>::impl
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	impl(basic_session *q_ptr, const duration<Rep,Period> &seconds) :
-		q_ptr(q_ptr), m_second(seconds.count()) {}
+	impl(basic_session *q_ptr, const duration<Rep,Period> &seconds, const executor_t &exec) :
+		q_ptr(q_ptr), m_second(seconds.count()), m_timer(exec) {}
 
 public:
 	void start()
@@ -58,24 +57,27 @@ public:
 		else if( m_valid )
 			return ;
 
-		q_ptr->_emplace();
-		co_spawn_detached([this]() -> awaitable<void>
+		co_spawn_detached([_self = this->q_ptr]() -> awaitable<void>
 		{
+			auto self = _self->shared_from_this();
 			error_code error;
-			for(;;)
-			{
-				m_restart = false;
-				co_await m_timer.wait({std::chrono::seconds(m_second), error});
+			do {
+				self->m_impl->m_restart = false;
+				self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
+
+				co_await self->m_impl->m_timer.async_wait(use_awaitable|error);
+				if( self.use_count() == 1 )
+					break;
 
 				if( error and error.value() != errc::operation_aborted )
 					spdlog::error("libgs::http::session: timer error: '{}'.", error);
-				if( m_restart )
+				if( self->m_impl->m_restart )
 					continue;
 
-				m_valid = false;
-				q_ptr->_erase();
-				break;
+				self->m_impl->m_valid = false;
+				self->m_impl->m_timeout_handle();
 			}
+			while(false);
 			co_return ;
 		});
 	}
@@ -90,20 +92,22 @@ public:
 
 	std::atomic_bool m_valid = false;
 	std::atomic_bool m_restart = false;
-	io::timer m_timer;
+
+	asio::steady_timer m_timer;
+	std::function<void()> m_timeout_handle {};
 };
 
 template <concept_char_type CharT>
 template <typename Rep, typename Period>
-basic_session<CharT>::basic_session(const duration<Rep,Period> &seconds) :
-	m_impl(new impl(this, seconds))
+basic_session<CharT>::basic_session(const duration<Rep,Period> &seconds, const executor_t &exec) :
+	m_impl(new impl(this, seconds, exec))
 {
-
+	m_impl->start();
 }
 
 template <concept_char_type CharT>
-basic_session<CharT>::basic_session() :
-	basic_session(detail::session_duration_base::global_lifecycle())
+basic_session<CharT>::basic_session(const executor_t &exec) :
+	basic_session(std::chrono::seconds(60), exec)
 {
 
 }
@@ -111,7 +115,7 @@ basic_session<CharT>::basic_session() :
 template <concept_char_type CharT>
 basic_session<CharT>::~basic_session()
 {
-	spdlog::debug("~session: '{}'", xxtombs<CharT>(id()));
+	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs<CharT>(id()));
 	delete m_impl;
 }
 
@@ -194,19 +198,9 @@ template <typename Rep, typename Period>
 basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
-	m_impl->m_second = sc::duration_cast<sc::seconds>(seconds);
+	m_impl->m_second = sc::duration_cast<sc::seconds>(seconds).count();
 	if( m_impl->m_second == 0 )
-		m_impl->m_second == 1;
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
-
-template <concept_char_type CharT>
-basic_session<CharT> &basic_session<CharT>::set_lifecycle()
-{
-	namespace sc = std::chrono;
-	m_impl->m_second = detail::session_duration_base::global_lifecycle();
+		m_impl->m_second = 1;
 	m_impl->m_restart = true;
 	m_impl->start();
 	return *this;
@@ -217,7 +211,7 @@ template <typename Rep, typename Period>
 basic_session<CharT> &basic_session<CharT>::expand(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
-	m_impl->m_second += sc::duration_cast<sc::seconds>(seconds);
+	m_impl->m_second += sc::duration_cast<sc::seconds>(seconds).count();
 	return expand();
 }
 
@@ -230,130 +224,18 @@ basic_session<CharT> &basic_session<CharT>::expand()
 }
 
 template <concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::make(Args&&...args) noexcept
-	requires detail::can_construct<Session, Args...>
+template <concept_callable Func>
+basic_session<CharT> &basic_session<CharT>::on_timeout(Func &&func)
 {
-	auto ptr = std::make_shared<Session>(std::forward<Args>(args)...);
-	ptr->m_impl->start();
-	return ptr;
+	m_impl->m_timeout_handle = std::forward<Func>(func);
+	return *this;
 }
 
 template <concept_char_type CharT>
-template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::make(Args&&...args) noexcept
-	requires detail::can_construct<basic_session<CharT>, Args...>
+basic_session<CharT> &basic_session<CharT>::unbind_timeout()
 {
-	auto ptr = std::make_shared<basic_session>(std::forward<Args>(args)...);
-	ptr->m_impl->start();
-	return ptr;
-}
-
-template <concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::get_or_make(string_view_t id, Args&&...args)
-	requires detail::can_construct<Session, Args...>
-{
-	auto ptr = _find(id, false);
-	if( not ptr )
-		return make<Session>(std::forward<Args>(args)...);
-
-	auto rptr = std::dynamic_pointer_cast<Session>(ptr);
-	if( not rptr )
-		throw runtime_error("libgs::http::session::get_or_make: type error.", xxtombs<CharT>(id));
-	return rptr;
-}
-
-template <concept_char_type CharT>
-template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get_or_make(string_view_t id, Args&&...args) noexcept
-	requires detail::can_construct<basic_session<CharT>, Args...>
-{
-	auto ptr = _find(id, false);
-	if( not ptr )
-		return make(std::forward<Args>(args)...);
-	return ptr;
-}
-
-template <concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::get(string_view_t id)
-{
-	auto ptr = std::dynamic_pointer_cast<Session>(_find(id));
-	if( not ptr )
-		throw runtime_error("libgs::http::session::get: type error.", xxtombs<CharT>(id));
-	return ptr;
-}
-
-template <concept_char_type CharT>
-template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get(string_view_t id)
-{
-	return _find(id);
-}
-
-template <concept_char_type CharT>
-template <detail::base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session<CharT>::get_or(string_view_t id)
-{
-	auto ptr = std::dynamic_pointer_cast<Session>(_find(id, false));
-	if( not ptr )
-		throw runtime_error("libgs::http::session::get_or: type error.", xxtombs<CharT>(id));
-	return ptr;
-}
-
-template <concept_char_type CharT>
-template <typename...Args>
-basic_session_ptr<CharT> basic_session<CharT>::get_or(string_view_t id) noexcept
-{
-	return _find(id, false);
-}
-
-template <concept_char_type CharT>
-void basic_session<CharT>::set_cookie_key(string_t key)
-{
-	if( key.empty() )
-		throw runtime_error("libgs::http::session::set_cookie_key: key is empty.", xxtombs<CharT>(key));
-	base_t::cookie_key() = std::move(key);
-}
-
-template <concept_char_type CharT>
-std::basic_string_view<CharT> basic_session<CharT>::cookie_key() noexcept
-{
-	return base_t::cookie_key();
-}
-
-template <concept_char_type CharT>
-basic_session_ptr<CharT> basic_session<CharT>::_find(string_view_t id, bool _throw)
-{
-	shared_lock locker(base_t::map_rwlock()); LIBGS_UNUSED(locker);
-	auto it = base_t::session_map().find(id);
-
-	if( it == base_t::session_map().end() )
-	{
-		if( _throw )
-			throw runtime_error("libgs::http::session: <map>: id '{}' not exists.", xxtombs<CharT>(id));
-		return {};
-	}
-	it->second->expand();
-	return it->second;
-}
-
-template <concept_char_type CharT>
-auto basic_session<CharT>::_emplace()
-{
-	base_t::map_rwlock().lock();
-	auto pair = base_t::session_map().emplace(id(), this->shared_from_this());
-	base_t::map_rwlock().unlock();
-	return pair;
-}
-
-template <concept_char_type CharT>
-void basic_session<CharT>::_erase()
-{
-	base_t::map_rwlock().lock();
-	base_t::session_map().erase(id());
-	base_t::map_rwlock().unlock();
+	m_impl->m_timeout_handle = nullptr;
+	return *this;
 }
 
 } //namespace libgs::http

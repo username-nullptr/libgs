@@ -36,63 +36,94 @@
 namespace libgs::http
 {
 
-template <typename Request, concept_char_type CharT, typename Derived = void>
-class LIBGS_HTTP_VAPI basic_server_response :
-	public io::device_base<crtp_derived_t<Derived,basic_server_response<Request,CharT,Derived>>, typename Request::executor_t>
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+class LIBGS_HTTP_VAPI basic_server_response
 {
 	LIBGS_DISABLE_COPY(basic_server_response)
 
 public:
-	using next_layer_t = Request;
+	using next_layer_t = basic_server_request<Stream,CharT>;
 	using executor_t = typename next_layer_t::executor_t;
-
-	using derived_t = crtp_derived_t<Derived,basic_server_response>;
-	using base_t = io::device_base<derived_t,executor_t>;
 
 	using helper_t = basic_response_helper<CharT>;
 	using string_t = typename next_layer_t::string_t;
 	using string_view_t = typename next_layer_t::string_view_t;
 
+	using header_t = typename next_layer_t::header_t;
 	using headers_t = typename next_layer_t::headers_t;
+
 	using cookie_t = basic_cookie<CharT>;
 	using cookies_t = basic_cookies<CharT>;
 
 	using value_t = typename next_layer_t::value_t;
 	using value_list_t = basic_value_list<CharT>;
 
-	template <typename T>
-	using buffer = io::buffer<T>;
-
 public:
 	explicit basic_server_response(next_layer_t &&next_layer);
-	~basic_server_response() override;
+	~basic_server_response();
 
-	template <typename Request0>
-	basic_server_response(basic_server_response<Request0,CharT,Derived> &&other) noexcept
-		requires concept_constructible<Request0,Request0&&>;
+	template <typename Stream0>
+	basic_server_response(basic_server_response<Stream0,CharT> &&other) noexcept
+		requires concept_constructible<next_layer_t,basic_server_request<Stream0,CharT>&&>;
 
-	template <typename Request0>
-	basic_server_response &operator=(basic_server_response<Request0,CharT,Derived> &&other) noexcept
-		requires concept_constructible<Request0,Request0&&>;
-
-public:
-	derived_t &set_status(uint32_t status);
-	derived_t &set_status(http::status status);
-
-	derived_t &set_header(string_view_t key, value_t value);
-	derived_t &set_cookie(string_view_t key, cookie_t cookie);
+	template <typename Stream0>
+	basic_server_response &operator=(basic_server_response<Stream0,CharT> &&other) noexcept
+		requires concept_assignable<Stream,Stream0&&>;
 
 public:
-	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> buf, opt_token<error_code&> tk = {});
+	basic_server_response &set_status(uint32_t status);
+	basic_server_response &set_status(http::status status);
 
-	[[nodiscard]] awaitable<size_t> redirect(string_view_t url, opt_token<http::redirect,error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> send_file(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
+	basic_server_response &set_header(string_view_t key, value_t value);
+	basic_server_response &set_cookie(string_view_t key, cookie_t cookie);
 
 public:
-	derived_t &set_chunk_attribute(value_t attribute);
-	derived_t &set_chunk_attributes(value_list_t attributes);
-	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_t&, error_code&> tk = {});
+	size_t write(const const_buffer &body = {nullptr,0});
+	size_t write(const const_buffer &body, error_code &error);
+	size_t write(error_code &error);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(const const_buffer &body, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(Token &&token);
+
+public:
+	size_t redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
+	size_t redirect(string_view_t url, http::redirect redi, error_code &error);
+	size_t redirect(string_view_t url, error_code &error);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_redirect(string_view_t url, http::redirect redi, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_redirect(string_view_t url, Token &&token);
+
+public:
+	size_t send_file(std::string_view file_name, const resp_ranges &ranges = {});
+	size_t send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error);
+	size_t send_file(std::string_view file_name, error_code &error);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_send_file(std::string_view file_name, const resp_ranges &ranges, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_send_file(std::string_view file_name, Token &&token);
+
+public:
+	basic_server_response &set_chunk_attribute(value_t attribute);
+	basic_server_response &set_chunk_attributes(value_list_t attributes);
+
+	size_t chunk_end(const headers_t &headers = {});
+	size_t chunk_end(const headers_t &headers, error_code &error);
+	size_t chunk_end(error_code &error);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_chunk_end(const headers_t &headers, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_chunk_end(Token &&token);
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
@@ -104,12 +135,13 @@ public:
 	[[nodiscard]] bool headers_writed() const noexcept;
 	[[nodiscard]] bool chunk_end_writed() const noexcept;
 
-	derived_t &cancel() noexcept;
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	basic_server_response &cancel() noexcept;
 
 public:
-	derived_t &unset_header(string_view_t key);
-	derived_t &unset_cookie(string_view_t key);
-	derived_t &unset_chunk_attribute(const value_t &attribute);
+	basic_server_response &unset_header(string_view_t key);
+	basic_server_response &unset_cookie(string_view_t key);
+	basic_server_response &unset_chunk_attribute(const value_t &attribute);
 
 public:
 	const next_layer_t &next_layer() const noexcept;
@@ -121,10 +153,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_server_response = basic_server_response<basic_tcp_server_request<Exec>,char>;
+using basic_tcp_server_response = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_server_wresponse = basic_server_response<basic_tcp_server_request<Exec>,wchar_t>;
+using basic_tcp_server_wresponse = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
 using tcp_server_wresponse = basic_tcp_server_wresponse<asio::any_io_executor>;

@@ -54,16 +54,8 @@ public:
 	bool dequeue(T &data);
 
 private:
-	struct node
-	{
-		T data;
-		std::atomic<node*> next {nullptr};
-
-		template <typename...Args>
-		explicit node(Args&&...args) : data(std::forward<Args>(args)...) {}
-	};
-	std::atomic<node*> m_head;
-	std::atomic<node*> m_tail;
+	class impl;
+	impl *m_impl;
 };
 
 } //namespace libgs

@@ -26,74 +26,41 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_IO_TYPES_DETAIL_IP_TYPES_H
-#define LIBGS_IO_TYPES_DETAIL_IP_TYPES_H
+#ifndef LIBGS_CORE_SPIN_MUTEX_H
+#define LIBGS_CORE_SPIN_MUTEX_H
 
-namespace libgs::io
+#include <libgs/core/global.h>
+
+namespace libgs
 {
 
-host_endpoint::host_endpoint(string_wrapper host, uint16_t port) :
-	host(std::move(host)), port(port)
+class LIBGS_CORE_VAPI spin_mutex
 {
+	LIBGS_DISABLE_COPY_MOVE(spin_mutex)
 
-}
-
-host_endpoint::host_endpoint(string_wrapper host) :
-	host(std::move(host))
-{
-
-}
-
-ip_endpoint::ip_endpoint(concept_ip_endpoint auto &&ep) :
-	ip_endpoint(ep.address(), ep.port())
-{
-
-}
-
-ip_endpoint::ip_endpoint(ip_address addr, uint16_t port) :
-	addr(std::move(addr)), port(port)
-{
-
-}
-
-ip_endpoint::ip_endpoint(ip_address addr) :
-	addr(std::move(addr))
-{
-
-}
-
-} //namespace libgs::io
-
-namespace std
-{
-
-template <libgs::concept_char_type CharT>
-class formatter<libgs::io::host_endpoint, CharT> : public libgs::no_parse_formatter<CharT>
-{
 public:
-	auto format(const libgs::io::host_endpoint &ep, auto &context) const
-	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{}:{}", ep.host, ep.port);
-		else
-			return format_to(context.out(), L"{}:{}", ep.host, ep.port);
-	}
+	using native_handle_t = std::atomic_bool;
+
+public:
+	spin_mutex() = default;
+	~spin_mutex() noexcept(false);
+
+public:
+	void lock();
+	[[nodiscard]] bool try_lock();
+	void unlock();
+
+public:
+	native_handle_t &native_handle() noexcept;
+
+private:
+	native_handle_t m_native_handle {false};
 };
 
-template <libgs::concept_char_type CharT>
-class formatter<libgs::io::ip_endpoint, CharT> : public libgs::no_parse_formatter<CharT>
-{
-public:
-	auto format(const libgs::io::ip_endpoint &ep, auto &context) const
-	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{}:{}", ep.addr.to_string(), ep.port);
-		else
-			return format_to(context.out(), L"{}:{}", ep.addr.to_string(), ep.port);
-	}
-};
+using spin_unique_lock = std::unique_lock<spin_mutex>;
 
-} //namespace std
+} //namespace libgs
+#include <libgs/core/detail/spin_mutex.h>
 
 
-#endif //LIBGS_IO_TYPES_DETAIL_IP_TYPES_H
+#endif //LIBGS_CORE_SPIN_MUTEX_H

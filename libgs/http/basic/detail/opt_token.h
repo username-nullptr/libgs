@@ -29,59 +29,61 @@
 #ifndef LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
 #define LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H
 
-namespace libgs::io
+namespace libgs::http
+{
+
+inline constexpr req_range::req_range()
+{
+
+}
+
+inline req_range::req_range(size_t total) :
+	total(total)
+{
+
+}
+
+inline req_range::req_range(size_t begin, size_t total) :
+	begin(begin), total(total)
+{
+
+}
+
+inline constexpr resp_range::resp_range()
+{
+
+}
+
+inline resp_range::resp_range(size_t end) :
+	end(end)
+{
+
+}
+
+inline resp_range::resp_range(size_t begin, size_t end) :
+	begin(begin), end(end)
+{
+
+}
+
+namespace detail
 {
 
 template <typename T>
-template <typename...Args>
-opt_token<begin_t,total_t,T>::opt_token(size_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
-	opt_token<T>(std::forward<Args>(args)...), total(total)
-{
-
-}
+concept concept_has_ec_ = requires(T &&t) {
+	t.ec_;
+};
 
 template <typename T>
-template <typename...Args>
-opt_token<begin_t,total_t,T>::opt_token(size_t begin, size_t total, Args&&...args) requires io::concept_opt_token<T,Args...> :
-	opt_token<T>(std::forward<Args>(args)...), begin(begin), total(total)
+concept concept_has_get = requires(T &&t)
 {
+	t.get_cancellation_slot();
+	t.get();
+};
 
-}
+}; //namespace detail
 
-template <typename T>
-template <typename...Args>
-opt_token<http::redirect,T>::opt_token(http::redirect type, Args&&...args) requires io::concept_opt_token<T,Args...> :
-	opt_token<T>(std::forward<Args>(args)...), type(type)
-{
-
-}
-
-template <typename T>
-template <typename...Args>
-opt_token<http::ranges,T>::opt_token(size_t begin, size_t end, Args&&...args) requires io::concept_opt_token<T,Args...> :
-	opt_token<T>(std::forward<Args>(args)...)
-{
-	ranges.emplace_back(http::range{begin, end});
-}
-
-template <typename T>
-template <typename...Args>
-opt_token<http::ranges,T>::opt_token(http::ranges ranges, Args&&...args) requires io::concept_opt_token<T,Args...> :
-	opt_token<T>(std::forward<Args>(args)...), ranges(std::move(ranges))
-{
-
-}
-
-template <concept_char_type CharT, typename T>
-template <typename...Args>
-opt_token<http::basic_headers<CharT>,T>::opt_token(http::basic_headers<CharT> headers, Args&&...args)
-	requires io::concept_opt_token<T,Args...> :
-	opt_token<T>(std::forward<Args>(args)...), headers(std::move(headers))
-{
-
-}
-
-} //namespace libgs::io
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_BASIC_DETAIL_OPT_TOKEN_H

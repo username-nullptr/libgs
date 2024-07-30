@@ -26,9 +26,62 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "global.h"
+#ifndef LIBGS_CORE_DETAIL_SHARED_MUTEX_H
+#define LIBGS_CORE_DETAIL_SHARED_MUTEX_H
 
-namespace libgs::io
+#include <libgs/core/spin_mutex.h>
+#include <shared_mutex>
+#include <mutex>
+
+namespace libgs
 {
 
-} //namespace libgs::io
+inline spin_shared_mutex::~spin_shared_mutex() noexcept(false)
+{
+	if( m_read_count > 0 )
+		throw runtime_error("libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared.");
+}
+
+inline void spin_shared_mutex::lock()
+{
+	m_native_handle.lock();
+}
+
+inline bool spin_shared_mutex::try_lock()
+{
+	return m_native_handle.try_lock();
+}
+
+inline void spin_shared_mutex::unlock()
+{
+	m_native_handle.unlock();
+}
+
+inline void spin_shared_mutex::lock_shared()
+{
+	if( ++m_read_count == 1 )
+		m_native_handle.lock();
+}
+
+inline bool spin_shared_mutex::try_lock_shared()
+{
+	if( ++m_read_count == 1 )
+		return m_native_handle.try_lock();
+	return true;
+}
+
+inline void spin_shared_mutex::unlock_shared()
+{
+	if( --m_read_count == 0 )
+		m_native_handle.unlock();
+}
+
+inline typename spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept
+{
+	return m_native_handle;
+}
+
+} //namesapace libgs
+
+
+#endif //LIBGS_CORE_DETAIL_SHARED_MUTEX_H

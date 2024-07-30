@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_SERVER_SERVER_H
 
 #include <libgs/http/server/aop.h>
-#include <libgs/io/tcp_server.h>
 
 #ifdef LIBGS_ENABLE_OPENSSL
 # include <libgs/io/ssl_tcp_server.h>
@@ -39,29 +38,20 @@
 namespace libgs::http
 {
 
-namespace detail
-{
-
-template <typename TcpServer, typename TcpServer0>
-concept concept_server_next_layer_move = requires(TcpServer0 &&s0) {
-	TcpServer(std::move(s0));
-};
-
-} //namespace detail
-
-template <typename TcpServer, concept_char_type CharT, typename Derived = void>
-class LIBGS_HTTP_TAPI basic_server :
-	public io::device_base<crtp_derived_t<Derived,basic_server<TcpServer,CharT,Derived>>, typename TcpServer::executor_t>
+template <concept_char_type CharT,
+		  concept_execution MainExec = asio::any_io_executor,
+		  concept_execution ServiceExec = asio::any_io_executor>
+class LIBGS_HTTP_TAPI basic_server
 {
 	LIBGS_DISABLE_COPY(basic_server)
 
 public:
-	using next_layer_t = TcpServer;
-	using executor_t = typename next_layer_t::executor_t;
-	using socket_t = typename next_layer_t::socket_t;
+	using executor_t = MainExec;
+	using service_exec_t = ServiceExec;
+	using next_layer_t = asio::basic_socket_acceptor<asio::ip::tcp,executor_t>;
 
-	using derived_t = crtp_derived_t<Derived,basic_server>;
-	using base_t = io::device_base<derived_t,executor_t>;
+	using endpoint_t = typename next_layer_t::endpoint_type;
+	using socket_t = asio::basic_stream_socket<asio::ip::tcp,service_exec_t>;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -71,10 +61,9 @@ public:
 	using system_error_handler = std::function<bool(error_code)>;
 	using exception_handler = std::function<bool(context&, std::exception&)>;
 
-	using start_token = typename next_layer_t::start_token;
 	using parser = basic_request_parser<CharT>;
 	using request = basic_server_request<socket_t,CharT>;
-	using response = basic_server_response<request,CharT>;
+	using response = basic_server_response<socket_t,CharT>;
 
 	using aop = basic_aop<socket_t,CharT>;
 	using ctrlr_aop = basic_ctrlr_aop<socket_t,CharT>;
@@ -82,51 +71,59 @@ public:
 	using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<socket_t,CharT>;
 
 public:
-	template <typename...Args>
-	basic_server(Args&&...args) requires concept_constructible<next_layer_t,Args...>;
-	~basic_server() override;
+
+	template <typename NextLayer, concept_execution_context Context = asio::io_context&>
+	explicit basic_server(NextLayer &&next_layer, Context &&service_exec = execution::io_context())
+		requires concept_constructible<next_layer_t,NextLayer&&>;
+	~basic_server();
+
+	template <typename MainExec0, typename ServiceExec0>
+	basic_server(basic_server<CharT,MainExec0,ServiceExec0> &&other) noexcept
+		requires concept_constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+				 concept_constructible<service_exec_t,ServiceExec0>;
+
+	template <typename MainExec0, typename ServiceExec0>
+	basic_server &operator=(basic_server<CharT,MainExec0,ServiceExec0> &&other) noexcept
+		requires concept_assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+				 concept_assignable<service_exec_t,ServiceExec0>;
 
 public:
-	template <typename TcpServer0>
-	basic_server(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
-		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
+	basic_server &bind(endpoint_t ep);
+	basic_server &bind(endpoint_t ep, error_code &error) noexcept;
 
-	template <typename TcpServer0>
-	basic_server &operator=(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
-		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
-
-public:
-	derived_t &bind(io::ip_endpoint ep, io::no_time_token tk = {});
-	derived_t &start(start_token tk = {});
+	basic_server &start(size_t max = asio::socket_base::max_listen_connections);
+	basic_server &start(size_t max, error_code &error) noexcept;
+	basic_server &start(error_code &error) noexcept;
 
 public:
 	template <http::method...method, typename Func, typename...AopPtr>
-	derived_t &on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
+	basic_server &on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
 		detail::concept_request_handler<Func,socket_t,CharT> and detail::concept_aop_ptr_list<socket_t,CharT,AopPtr...>;
 
 	template <http::method...method>
-	derived_t &on_request(string_view_t path_rule, ctrlr_aop_ptr ctrlr);
+	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr ctrlr);
 
 	template <http::method...method>
-	derived_t &on_request(string_view_t path_rule, ctrlr_aop *ctrlr);
+	basic_server &on_request(string_view_t path_rule, ctrlr_aop *ctrlr);
 
 	template <typename Func>
-	derived_t &on_default(Func &&func) requires detail::concept_request_handler<Func,socket_t,CharT>;
+	basic_server &on_default(Func &&func) requires detail::concept_request_handler<Func,socket_t,CharT>;
 
-	derived_t &on_system_error(system_error_handler func);
-	derived_t &on_exception(exception_handler func);
+	basic_server &on_system_error(system_error_handler func);
+	basic_server &on_exception(exception_handler func);
 
-	derived_t &unbound_request(string_view_t path_rule = {});
-	derived_t &unbound_system_error();
-	derived_t &unbound_exception();
+	basic_server &unbound_request(string_view_t path_rule = {});
+	basic_server &unbound_system_error();
+	basic_server &unbound_exception();
 
 	template <typename Rep, typename Period>
-	derived_t &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
+	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
 
 public:
+	[[nodiscard]] const executor_t &get_executor() noexcept;
 	[[nodiscard]] awaitable<void> co_stop() noexcept;
-	derived_t &stop() noexcept;
-	derived_t &cancel() noexcept;
+	basic_server &stop() noexcept;
+	basic_server &cancel() noexcept;
 
 public:
 	[[nodiscard]] const next_layer_t &next_layer() const;
@@ -137,11 +134,11 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec>
-using basic_tcp_server = basic_server<io::basic_tcp_server<Exec>,char>;
+template <concept_execution MainExec, concept_execution ServiceExec = asio::any_io_executor>
+using basic_tcp_server = basic_server<char,MainExec,ServiceExec>;
 
-template <concept_execution Exec>
-using basic_wtcp_server = basic_server<io::basic_tcp_server<Exec>,wchar_t>;
+template <concept_execution MainExec, concept_execution ServiceExec = asio::any_io_executor>
+using basic_wtcp_server = basic_server<wchar_t,MainExec,ServiceExec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
 using wtcp_server = basic_wtcp_server<asio::any_io_executor>;

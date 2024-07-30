@@ -37,20 +37,6 @@
 namespace libgs
 {
 
-namespace detail
-{
-
-struct LIBGS_CORE_API ini_data_base
-{
-	LIBGS_DISABLE_COPY(ini_data_base)
-
-protected:
-	ini_data_base() = default;
-	static shared_mutex m_rw_lock;
-};
-
-} //namespace detail
-
 class ini_exception : public runtime_error {
 public: using runtime_error::runtime_error;
 };
@@ -162,10 +148,8 @@ public:
 	basic_ini(basic_ini &&other) noexcept;
 	basic_ini &operator=(basic_ini &&other) noexcept;
 
-	static basic_ini &global_instance();
-
 public:
-	basic_ini &set_file_nmae(std::string_view file_name);
+	basic_ini &set_file_name(std::string_view file_name);
 	[[nodiscard]] std::string file_name() const noexcept;
 
 public:
@@ -262,28 +246,12 @@ public:
 	[[nodiscard]] size_t size() const noexcept;
 
 protected:
-	[[nodiscard]] string_t parsing_group
-	(const string_t &str, size_t line, std::string &errmsg) noexcept;
-
-	[[nodiscard]] bool parsing_key_value
-	(const string_t &curr_group, const string_t &str, size_t line, std::string &errmsg) noexcept;
-
-protected:
-	struct data : detail::ini_data_base
-	{
-		std::string file_name;
-		group_map groups;
-		bool m_sync_on_delete = false;
-		friend class basic_ini;
-	}
-	*m_data;
+	class impl;
+	impl *m_impl;
 };
 
 using ini = basic_ini<char>;
 using wini = basic_ini<wchar_t>;
-
-[[nodiscard]] LIBGS_CORE_API ini &ini_global_instance() noexcept;
-[[nodiscard]] LIBGS_CORE_API wini &wini_global_instance() noexcept;
 
 } //namespace libgs
 #include <libgs/core/detail/ini.h>

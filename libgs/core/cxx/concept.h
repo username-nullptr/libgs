@@ -176,6 +176,11 @@ concept concept_constructible = requires(Args&&...args) {
 	Struct(std::forward<Args>(args)...);
 };
 
+template <typename T, typename Arg>
+concept concept_assignable = requires(Arg &&args) {
+	std::declval<T>() = (std::forward<Arg>(args));
+};
+
 template <typename T>
 concept concept_copyable = std::copyable<T>;
 

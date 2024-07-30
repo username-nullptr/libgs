@@ -30,8 +30,6 @@
 #define LIBGS_CORE_CXX_FORMATTER_H
 
 #include <libgs/core/cxx/utilities.h>
-#include <asio.hpp>
-
 #include <optional>
 #include <thread>
 #include <atomic>

@@ -52,11 +52,9 @@ public:
 	using cookie_t = basic_cookie<CharT>;
 	using cookies_t = basic_cookies<CharT>;
 
-	template <typename T>
-	using buffer = io::buffer<T>;
-
 public:
-	explicit basic_response_helper(string_view_t version, const headers_t &request_headers);
+	explicit basic_response_helper(string_view_t version, const headers_t &request_headers = {});
+	explicit basic_response_helper(const headers_t &request_headers = {}); // default V1.1
 	~basic_response_helper();
 
 	basic_response_helper(basic_response_helper &&other) noexcept ;
@@ -75,13 +73,9 @@ public:
 	basic_response_helper &set_chunk_attributes(value_list_t attributes);
 
 public:
-	using write_callback = std::function<awaitable<size_t>(std::string_view,error_code&)>;
-	basic_response_helper &on_write(write_callback writer, std::function<size_t()> get_write_buffer_size = {});
-
-	[[nodiscard]] awaitable<size_t> write(opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(buffer<std::string_view> body, opt_token<error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> write(std::string_view file_name, opt_token<ranges,error_code&> tk = {});
-	[[nodiscard]] awaitable<size_t> chunk_end(opt_token<const headers_t&, error_code&> tk = {});
+	[[nodiscard]] std::string header_data(size_t body_size = 0);
+	[[nodiscard]] std::string body_data(const const_buffer &buffer);
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
@@ -89,9 +83,6 @@ public:
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
-
-	[[nodiscard]] bool headers_writed() const noexcept;
-	[[nodiscard]] bool chunk_end_writed() const noexcept;
 
 public:
 	basic_response_helper &unset_header(string_view_t key);

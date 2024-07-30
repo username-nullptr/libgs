@@ -26,86 +26,79 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
-#define LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
+#ifndef LIBGS_HTTP_SERVER_SESSION_SET_H
+#define LIBGS_HTTP_SERVER_SESSION_SET_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/server/session.h>
 #include <libgs/core/shared_mutex.h>
-#include <map>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-class basic_session;
-
-namespace detail
-{
-
-class LIBGS_HTTP_API session_duration_base
-{
-	LIBGS_DISABLE_COPY_MOVE(session_duration_base)
-
-public:
-	template<typename Rep, typename Period = std::ratio<1>>
-	using duration = std::chrono::duration<Rep,Period>;
-	session_duration_base() = default;
-
-public:
-	[[nodiscard]] static std::chrono::seconds global_lifecycle() noexcept;
-
-	template <typename Rep, typename Period = std::ratio<1>>
-	static void set_global_lifecycle(const duration<Rep,Period> &seconds) noexcept
-	{
-		namespace sc = std::chrono;
-		auto &lv = _lifecycle();
-		lv = sc::duration_cast<sc::seconds>(seconds).count();
-		if( lv == 0 )
-			lv = 1;
-	}
-
-private:
-	static std::atomic<uint64_t> &_lifecycle() noexcept;
-};
-
-template <concept_char_type CharT>
-class session_base;
-
-template <>
-class LIBGS_HTTP_API session_base<char> : public session_duration_base
-{
-	LIBGS_DISABLE_COPY_MOVE(session_base)
-	using ptr = std::shared_ptr<basic_session<char>>;
-	friend class basic_session<char>;
-
-private: 
-	session_base() = default;
-	static std::string &cookie_key() noexcept;
-	static std::map<std::string_view, ptr> &session_map() noexcept;
-	static shared_mutex &map_rwlock() noexcept;
-};
-
-template <> class LIBGS_HTTP_API session_base<wchar_t> : public session_duration_base
-{
-	LIBGS_DISABLE_COPY_MOVE(session_base)
-	using ptr = std::shared_ptr<basic_session<wchar_t>>;
-	friend class basic_session<wchar_t>;
-
-private: 
-	session_base() = default;
-	static std::wstring &cookie_key() noexcept;
-	static std::map<std::wstring_view, ptr> &session_map() noexcept;
-	static shared_mutex &map_rwlock() noexcept;
-};
-
-template <typename CharT, typename Session>
+template <typename Session, typename CharT>
 concept base_of_session = std::is_base_of_v<basic_session<CharT>, Session>;
 
-template <typename Session, typename...Args>
-concept can_construct = requires { Session(std::declval<Args>()...); };
+template <concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_session_set
+{
+	LIBGS_DISABLE_COPY(basic_session_set)
 
-}} //namespace libgs::http::detail
+public:
+	using session_t = basic_session<CharT>;
+	using string_t = std::basic_string_view<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
+
+public:
+	basic_session_set();
+	~basic_session_set();
+
+	basic_session_set(basic_session_set &&other) noexcept;
+	basic_session_set &operator=(basic_session_set &&other) noexcept;
+
+public:
+	template <base_of_session<CharT> Session, typename...Args>
+	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept
+		requires concept_constructible<Session, Args...>;
+
+	template <typename...Args>
+	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept
+		requires concept_constructible<basic_session<CharT>, Args...>;
+
+	template <base_of_session<CharT> Session, typename...Args>
+	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
+		requires concept_constructible<Session, Args...>;
+
+	template <typename...Args>
+	[[nodiscard]] std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
+		requires concept_constructible<basic_session<CharT>, Args...>;
+
+public:
+	template <base_of_session<CharT> Session>
+	[[nodiscard]] std::shared_ptr<Session> get(string_view_t id);
+	[[nodiscard]] std::shared_ptr<session_t> get(string_view_t id);
+
+	template <base_of_session<CharT> Session>
+	[[nodiscard]] std::shared_ptr<Session> get_or(string_view_t id);
+	[[nodiscard]] std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
+
+public:
+	template <typename Rep, typename Period>
+	basic_session_set &set_lifecycle(const duration<Rep,Period> &seconds);
+	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
+
+	basic_session_set &set_cookie_key(string_view_t key);
+	string_view_t cookie_key() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+using session_set = basic_session_set<char>;
+using wsession_set = basic_session_set<wchar_t>;
+
+} //namespace libgs::http
+#include <libgs/http/server/detail/session_set.h>
 
 
-#endif //LIBGS_HTTP_SERVER_DETAIL_SESSION_BASE_H
-
+#endif //LIBGS_HTTP_SERVER_SESSION_SET_H

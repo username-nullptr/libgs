@@ -11,7 +11,7 @@ elseif (UNIX)
 endif()
 
 add_subdirectory(core)
-add_subdirectory(io)
+#add_subdirectory(io)
 add_subdirectory(http)
 #add_subdirectory(web)
 add_subdirectory(dbi)

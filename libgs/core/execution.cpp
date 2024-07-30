@@ -42,7 +42,7 @@ asio::io_context &io_context()
 	return g_ioc;
 }
 
-executor_type get_executor() noexcept
+executor_t get_executor() noexcept
 {
 	return io_context().get_executor();
 }
