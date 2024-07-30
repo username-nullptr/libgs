@@ -321,18 +321,6 @@ const typename basic_response_helper<CharT>::cookies_t &basic_response_helper<Ch
 }
 
 template <concept_char_type CharT>
-bool basic_response_helper<CharT>::headers_writed() const noexcept
-{
-	return m_impl->m_headers_writed;
-}
-
-template <concept_char_type CharT>
-bool basic_response_helper<CharT>::chunk_end_writed() const noexcept
-{
-	return m_impl->m_chunk_end_writed;
-}
-
-template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_response_headers.erase({key.data(), key.size()});

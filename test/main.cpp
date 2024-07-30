@@ -1,8 +1,10 @@
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <libgs/http/server/request.h>
 #include <libgs/http/server/response.h>
 #include <libgs/http/server/session_set.h>
 #include <libgs/http/server/context.h>
 #include <libgs/http/server/aop.h>
+#include <libgs/http/server/server.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
@@ -17,21 +19,56 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
-	libgs::http::session_set ss;
+	asio::ip::tcp::acceptor acceptor(libgs::execution::get_executor());
+	libgs::http::server server(std::move(acceptor));
 
-	auto session0 = ss.make();
-	auto session1 = ss.make<my_session>();
+	server.bind({asio::ip::tcp::v4(), 12345})
 
-	session0 = ss.get_or_make("aaa");
-	session1 = ss.get_or_make<my_session>("aaa");
+	.on_request<libgs::http::method::GET>("/*",
+	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	{
+		auto &request = context.request();
+		spdlog::debug("Version:{} - Method:{} - Path:{}",
+					  request.version(),
+					  libgs::http::to_method_string(request.method()),
+					  request.path());
 
-	session0 = ss.get("aaa");
-	session1 = ss.get<my_session>("aaa");
+		for(auto &[key,value] : request.parameters())
+			spdlog::debug("Parameter: {}: {}", key, value);
 
-	session0 = ss.get_or("aaa");
-	session1 = ss.get_or<my_session>("aaa");
+		for(auto &[key,value] : request.headers())
+			spdlog::debug("Header: {}: {}", key, value);
 
-	ss.set_cookie_key("123123");
+		for(auto &[key,value] : request.cookies())
+			spdlog::debug("Cookie: {}: {}", key, value);
+
+		if( request.can_read_body() )
+			spdlog::debug("partial_body: {}\n", co_await request.async_read_all(asio::use_awaitable));
+
+		// If you don't write anything, the server will write the default body for you
+		// co_await context.response().write("hello world");
+		co_return ;
+	})
+	.on_request<libgs::http::method::GET>("/hello",
+	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	{
+//		co_await context.response().write("hello world !!!");
+		co_await context.response()
+		.async_send_file("C:/Users/Administrator/Desktop/hello_world.txt", asio::use_awaitable);
+	})
+	.on_exception([](libgs::http::server::context&, std::exception &ex)
+	{
+		spdlog::error("on_exception: {}", ex);
+//		return false; // Returning false will result in abort !!!
+		return true;
+	})
+	.on_system_error([](std::error_code error)
+	{
+		spdlog::error("on_system_error: {}", error);
+		libgs::execution::exit(-1);
+		return true;
+	})
+	.start();
 
 	return libgs::execution::exec();
 }

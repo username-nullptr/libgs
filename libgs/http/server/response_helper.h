@@ -84,9 +84,6 @@ public:
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
-	[[nodiscard]] bool headers_writed() const noexcept;
-	[[nodiscard]] bool chunk_end_writed() const noexcept;
-
 public:
 	basic_response_helper &unset_header(string_view_t key);
 	basic_response_helper &unset_cookie(string_view_t key);

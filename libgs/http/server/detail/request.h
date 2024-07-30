@@ -75,16 +75,27 @@ class basic_server_request<Stream,CharT>::impl
 public:
 	template <typename Native>
 	impl(Native &&next_layer, parser_t &parser) :
-		m_next_layer(std::forward<Native>(next_layer)), m_parser(parser) {}
+		m_next_layer(std::forward<Native>(next_layer)), m_parser(&parser) {}
 
 	template <typename Stream0>
 	impl(typename basic_server_request<Stream0,CharT>::impl &&other) noexcept :
+		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
+
+	impl(impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
 
 	template <typename Stream0>
 	impl &operator=(typename basic_server_request<Stream0,CharT>::impl &&other) noexcept
 	{
 		m_next_layer = std::move(other.m_next_layer);
+		m_parser = other.m_parser;
+		return *this;
+	}
+
+	impl &operator=(impl &&other) noexcept
+	{
+		m_next_layer = std::move(other.m_next_layer);
+		m_parser = other.m_parser;
 		return *this;
 	}
 
@@ -130,13 +141,13 @@ public:
 
 public:
 	next_layer_t m_next_layer;
-	parser_t &m_parser;
+	parser_t *m_parser;
 };
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 template <typename NextLayer>
 basic_server_request<Stream,CharT>::basic_server_request(NextLayer &&next_layer, parser_t &parser)
-	requires concept_constructible<next_layer_t, NextLayer> :
+	requires concept_constructible<next_layer_t,NextLayer&&> :
 	m_impl(new impl(std::move(next_layer), parser))
 {
 
@@ -169,46 +180,46 @@ basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator
 template <concept_tcp_stream Stream, concept_char_type CharT>
 http::method basic_server_request<Stream,CharT>::method() const noexcept
 {
-	return m_impl->m_parser.method();
+	return m_impl->m_parser->method();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 std::basic_string_view<CharT> basic_server_request<Stream,CharT>::version() const noexcept
 {
-	return m_impl->m_parser.version();
+	return m_impl->m_parser->version();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 std::basic_string_view<CharT> basic_server_request<Stream,CharT>::path() const noexcept
 {
-	return m_impl->m_parser.path();
+	return m_impl->m_parser->path();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const typename basic_server_request<Stream,CharT>::parameters_t&
 basic_server_request<Stream,CharT>::parameters() const noexcept
 {
-	return m_impl->m_parser.parameters();
+	return m_impl->m_parser->parameters();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const typename basic_server_request<Stream,CharT>::headers_t&
 basic_server_request<Stream,CharT>::headers() const noexcept
 {
-	return m_impl->m_parser.headers();
+	return m_impl->m_parser->headers();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const typename basic_server_request<Stream,CharT>::cookies_t&
 basic_server_request<Stream,CharT>::cookies() const noexcept
 {
-	return m_impl->m_parser.cookies();
+	return m_impl->m_parser->cookies();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const basic_value<CharT> &basic_server_request<Stream,CharT>::parameter(string_view_t key) const
 {
-	auto map = m_impl->m_parser.parameters();
+	auto map = m_impl->m_parser->parameters();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
@@ -218,7 +229,7 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::parameter(string_v
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const basic_value<CharT> &basic_server_request<Stream,CharT>::header(string_view_t key) const
 {
-	auto map = m_impl->m_parser.headers();
+	auto map = m_impl->m_parser->headers();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs<CharT>(key));
@@ -228,7 +239,7 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::header(string_view
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const basic_value<CharT> &basic_server_request<Stream,CharT>::cookie(string_view_t key) const
 {
-	auto map = m_impl->m_parser.cookies();
+	auto map = m_impl->m_parser->cookies();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
@@ -238,7 +249,7 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::cookie(string_view
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_value<CharT> basic_server_request<Stream,CharT>::parameter_or(string_view_t key, value_t def_value) const noexcept
 {
-	auto map = m_impl->m_parser.parameters();
+	auto map = m_impl->m_parser->parameters();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
@@ -246,7 +257,7 @@ basic_value<CharT> basic_server_request<Stream,CharT>::parameter_or(string_view_
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_value<CharT> basic_server_request<Stream,CharT>::header_or(string_view_t key, value_t def_value) const noexcept
 {
-	auto map = m_impl->m_parser.headers();
+	auto map = m_impl->m_parser->headers();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
@@ -254,7 +265,7 @@ basic_value<CharT> basic_server_request<Stream,CharT>::header_or(string_view_t k
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_value<CharT> basic_server_request<Stream,CharT>::cookie_or(string_view_t key, value_t def_value) const noexcept
 {
-	auto map = m_impl->m_parser.cookies();
+	auto map = m_impl->m_parser->cookies();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
@@ -290,11 +301,11 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error
 
 	auto dst_buf = reinterpret_cast<char*>(buf.data());
 	do {
-		auto body = m_impl->m_parser.take_partial_body(buf_size);
+		auto body = m_impl->m_parser->take_partial_body(buf_size);
 		sum += body.size();
 
 		memcpy(dst_buf + sum, body.c_str(), body.size());
-		if( sum == buf_size or not m_impl->m_parser.can_read_from_device() )
+		if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
 			break;
 
 		body = std::string(op.value(),'\0');
@@ -307,7 +318,7 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error
 				continue;
 		}
 		while(false);
-		if( tmp_sum == 0 or not m_impl->m_parser.append({body.c_str(), tmp_sum}, error) )
+		if( tmp_sum == 0 or not m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
 			break;
 	}
 	while(true);
@@ -355,11 +366,11 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 
 			auto dst_buf = reinterpret_cast<char*>(buf.data());
 			do {
-				auto body = m_impl->m_parser.take_partial_body(buf_size);
+				auto body = m_impl->m_parser->take_partial_body(buf_size);
 				sum += body.size();
 
 				memcpy(dst_buf + sum, body.c_str(), body.size());
-				if( sum == buf_size or not m_impl->m_parser.can_read_body() )
+				if( sum == buf_size or not m_impl->m_parser->can_read_body() )
 					break;
 
 				body = std::string(op.value(),'\0');
@@ -373,7 +384,7 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 						continue;
 				}
 				while(false);
-				if( tmp_sum == 0 or not m_impl->m_parser.append({body.c_str(), tmp_sum}, error) )
+				if( tmp_sum == 0 or not m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
 					break;
 			}
 			while(true);
@@ -412,11 +423,11 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 
 				auto dst_buf = reinterpret_cast<char*>(buf.data());
 				do {
-					auto body = m_impl->m_parser.take_partial_body(buf_size);
+					auto body = m_impl->m_parser->take_partial_body(buf_size);
 					sum += body.size();
 
 					memcpy(dst_buf + sum, body.c_str(), body.size());
-					if( sum == buf_size or not m_impl->m_parser.can_read_from_device() )
+					if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
 						break;
 
 					body = std::string(op.value(),'\0');
@@ -439,7 +450,7 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 							continue;
 					}
 					while(false);
-					if( tmp_sum == 0 or not m_impl->m_parser.append({body.c_str(), tmp_sum}, error) )
+					if( tmp_sum == 0 or not m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
 						break;
 				}
 				while(true);
@@ -793,13 +804,13 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 template <concept_tcp_stream Stream, concept_char_type CharT>
 bool basic_server_request<Stream,CharT>::keep_alive() const noexcept
 {
-	return m_impl->m_parser.keep_alive();
+	return m_impl->m_parser->keep_alive();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 bool basic_server_request<Stream,CharT>::support_gzip() const noexcept
 {
-	return m_impl->m_parser.support_gzip();
+	return m_impl->m_parser->support_gzip();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
@@ -820,7 +831,7 @@ bool basic_server_request<Stream,CharT>::can_read_body() const noexcept
 template <concept_tcp_stream Stream, concept_char_type CharT>
 bool basic_server_request<Stream,CharT>::is_eof() const noexcept
 {
-	return m_impl->m_parser.is_eof();
+	return m_impl->m_parser->is_eof();
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>

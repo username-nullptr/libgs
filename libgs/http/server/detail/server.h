@@ -65,16 +65,33 @@ template <concept_char_type CharT, concept_execution MainExec, concept_execution
 class basic_server<CharT,MainExec,ServiceExec>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
-	using socket_t = typename next_layer_t::socket_t;
 
 public:
-	template <typename...Args>
-	explicit impl(Args&&...args, service_exec_t &service_exec)
-		requires requires { next_layer_t(std::forward<Args>(args)...); } :
-		m_next_layer(std::forward<Args>(args)...), m_service_exec(service_exec) {}
+	template <typename NextLayer, concept_execution_context Context>
+	explicit impl(NextLayer &&next_layer, Context &&service_exec) :
+		m_next_layer(std::move(next_layer)), m_service_exec(service_exec.get_executor()) {}
+
+	template <typename NextLayer>
+	explicit impl(NextLayer &&next_layer, service_exec_t &service_exec) :
+		m_next_layer(std::move(next_layer)), m_service_exec(service_exec) {}
 
 	template <typename MainExec0, typename ServiceExec0>
 	impl(typename basic_server<CharT,MainExec0,ServiceExec0>::impl &&other) noexcept :
+		m_next_layer(std::move(other.m_next_layer)),
+		m_service_exec(other.m_service_exec),
+		m_request_handler_map(std::move(other.m_next_layer)),
+		m_sss(std::move(other.m_sss)),
+		m_default_handler(std::move(other.m_default_handler)),
+		m_system_error_handler(std::move(other.m_system_error_handler)),
+		m_exception_handler(std::move(other.m_exception_handler)),
+		m_keepalive_timeout(other.m_keepalive_timeout),
+		m_is_start(other.m_is_start)
+	{
+		other.m_keepalive_timeout = std::chrono::milliseconds(5000);
+		other.m_is_start = false;
+	}
+
+	impl(impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)),
 		m_service_exec(other.m_service_exec),
 		m_request_handler_map(std::move(other.m_next_layer)),
@@ -110,6 +127,26 @@ public:
 		return *this;
 	}
 
+	impl &operator=(impl &&other) noexcept
+	{
+		m_next_layer = std::move(other.m_next_layer);
+		m_service_exec = other.m_service_exec;
+
+		m_request_handler_map = std::move(other.m_next_layer);
+		m_sss = std::move(other.m_sss);
+
+		m_default_handler = std::move(other.m_default_handler);
+		m_system_error_handler = std::move(other.m_system_error_handler);
+		m_exception_handler = std::move(other.m_exception_handler);
+
+		m_keepalive_timeout = other.m_keepalive_timeout;
+		m_is_start = other.m_is_start;
+
+		other.m_keepalive_timeout = std::chrono::milliseconds(5000);
+		other.m_is_start = false;
+		return *this;
+	}
+
 public:
 	void async_start(size_t max, error_code&) noexcept
 	{
@@ -133,13 +170,15 @@ public:
 				spdlog::error("libgs::http::server: Unknown exception.");
 				abd = true;
 			}
-			co_await m_next_layer.co_stop();
+			m_next_layer.cancel();
+			error_code error;
+			m_next_layer.close(error);
 			m_is_start = false;
 			if( abd )
 				forced_termination();
 			co_return ;
 		},
-		m_next_layer.executor());
+		m_next_layer.get_executor());
 	}
 
 	void rule_path_check(string_t &str)
@@ -182,7 +221,7 @@ private:
 					forced_termination();
 				co_return ;
 			},
-			m_next_layer.pool());
+			m_service_exec);
 		}
 		catch(std::system_error &ex)
 		{
@@ -196,12 +235,17 @@ private:
 	[[nodiscard]] awaitable<void> do_tcp_service(socket_t &socket, const std::chrono::milliseconds &keepalive_time)
 	{
 		basic_server::parser parser;
-		char buf[65536] = {0};
+		constexpr size_t buf_size = 0xFFFF;
+		char buf[buf_size] = {0};
 		for(;;)
 		{
 			try {
-				// TODO ...
-				auto size = co_await socket.read_some({buf, 65536}, {keepalive_time});
+				auto var = co_await (socket.async_read_some(buffer(buf, buf_size), use_awaitable) or
+									 co_sleep_for(keepalive_time));
+				if( var.index() == 1 )
+					break;
+
+				auto size = std::get<0>(var);
 				if( size == 0 )
 					break;
 
@@ -285,7 +329,7 @@ private:
 			if( _context.response().headers_writed() )
 				co_return ;
 		}
-		co_await _context.response().write();
+		co_await _context.response().async_write(use_awaitable);
 		co_return ;
 	}
 
@@ -407,10 +451,10 @@ public:
 };
 
 template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
-template <typename...Args>
-basic_server<CharT,MainExec,ServiceExec>::basic_server(Args&&...args, service_exec_t &service_exec)
-	requires concept_constructible<next_layer_t,Args...> :
-	m_impl(new impl(std::forward<Args>(args)..., service_exec))
+template <typename NextLayer, concept_execution_context Context>
+basic_server<CharT,MainExec,ServiceExec>::basic_server(NextLayer &&next_layer, Context &&service_exec)
+	requires concept_constructible<next_layer_t,NextLayer&&> :
+	m_impl(new impl(std::move(next_layer), std::forward<Context>(service_exec)))
 {
 
 }

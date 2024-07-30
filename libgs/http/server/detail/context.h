@@ -45,8 +45,18 @@ public:
 	impl(typename basic_service_context<Stream0,CharT>::impl &&other) noexcept :
 		m_response(std::move(other)), m_sss(other.m_sss) {}
 
+	impl(impl &&other) noexcept :
+		m_response(std::move(other)), m_sss(other.m_sss) {}
+
 	template<typename Stream0>
 	impl &operator=(typename basic_service_context<Stream0,CharT>::impl &&other) noexcept
+	{
+		m_response = std::move(other);
+		m_sss = other.m_sss;
+		return *this;
+	}
+
+	impl &operator=(impl &&other) noexcept
 	{
 		m_response = std::move(other);
 		m_sss = other.m_sss;
@@ -60,7 +70,7 @@ public:
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT>::basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss) :
-	m_impl(new impl(std::move(stream), parser))
+	m_impl(new impl(std::move(stream), parser, sss))
 {
 
 }
@@ -102,15 +112,13 @@ basic_server_request<Stream,CharT> &basic_service_context<Stream,CharT>::request
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-const basic_server_response<basic_server_request<Stream,CharT>,CharT>&
-basic_service_context<Stream,CharT>::response() const noexcept
+const basic_server_response<Stream,CharT> &basic_service_context<Stream,CharT>::response() const noexcept
 {
 	return m_impl->m_response;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-basic_server_response<basic_server_request<Stream,CharT>,CharT>&
-basic_service_context<Stream,CharT>::response() noexcept
+basic_server_response<Stream,CharT> &basic_service_context<Stream,CharT>::response() noexcept
 {
 	return m_impl->m_response;
 }

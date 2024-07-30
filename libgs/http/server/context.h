@@ -45,7 +45,7 @@ public:
 	using parser_t = basic_request_parser<CharT>;
 
 	using request_t = basic_server_request<stream_t,CharT>;
-	using response_t = basic_server_response<request_t,CharT>;
+	using response_t = basic_server_response<stream_t,CharT>;
 
 	using session_t = basic_session<CharT>;
 	using session_ptr = basic_session_ptr<CharT>;

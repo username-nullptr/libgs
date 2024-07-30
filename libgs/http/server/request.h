@@ -59,7 +59,7 @@ public:
 public:
 	template <typename NextLayer>
 	basic_server_request(NextLayer &&next_layer, parser_t &parser)
-		requires concept_constructible<next_layer_t, NextLayer>;
+		requires concept_constructible<next_layer_t,NextLayer&&>;
 	~basic_server_request();
 
 	template <typename Stream0>

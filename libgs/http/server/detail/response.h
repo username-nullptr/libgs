@@ -58,8 +58,31 @@ public:
 		other.m_chunk_end_writed = false;
 	}
 
+	impl(response_t *q_ptr, impl &&other) noexcept :
+		q_ptr(q_ptr),
+		m_helper(std::move(other.m_helper)),
+		m_next_layer(std::move(other.m_next_layer)),
+		m_headers_writed(other.m_headers_writed),
+		m_chunk_end_writed(other.m_chunk_end_writed)
+	{
+		other.m_headers_writed = false;
+		other.m_chunk_end_writed = false;
+	}
+
 	template <typename Stream0>
 	impl &operator=(typename basic_server_response<Stream0,CharT>::impl &&other) noexcept
+	{
+		m_helper = std::move(other.m_helper);
+		m_next_layer = std::move(other.m_next_layer);
+		m_headers_writed = other.m_headers_writed;
+		m_chunk_end_writed = other.m_chunk_end_writed;
+
+		other.m_headers_writed = false;
+		other.m_chunk_end_writed = false;
+		return *this;
+	}
+
+	impl &operator=(impl &&other) noexcept
 	{
 		m_helper = std::move(other.m_helper);
 		m_next_layer = std::move(other.m_next_layer);
@@ -1579,13 +1602,13 @@ basic_server_response<Stream,CharT>::cookies() const noexcept
 template <concept_tcp_stream Stream, concept_char_type CharT>
 bool basic_server_response<Stream,CharT>::headers_writed() const noexcept
 {
-	return m_impl->m_helper.headers_writed();
+	return m_impl->m_headers_writed;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 bool basic_server_response<Stream,CharT>::chunk_end_writed() const noexcept
 {
-	return m_impl->m_helper.chunk_end_writed();
+	return m_impl->m_chunk_end_writed;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>

@@ -51,7 +51,7 @@ public:
 	using next_layer_t = asio::basic_socket_acceptor<asio::ip::tcp,executor_t>;
 
 	using endpoint_t = typename next_layer_t::endpoint_type;
-	using socket_t = asio::basic_socket<asio::ip::tcp,service_exec_t>;
+	using socket_t = asio::basic_stream_socket<asio::ip::tcp,service_exec_t>;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -63,7 +63,7 @@ public:
 
 	using parser = basic_request_parser<CharT>;
 	using request = basic_server_request<socket_t,CharT>;
-	using response = basic_server_response<request,CharT>;
+	using response = basic_server_response<socket_t,CharT>;
 
 	using aop = basic_aop<socket_t,CharT>;
 	using ctrlr_aop = basic_ctrlr_aop<socket_t,CharT>;
@@ -71,9 +71,10 @@ public:
 	using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<socket_t,CharT>;
 
 public:
-	template <typename...Args>
-	basic_server(Args&&...args, service_exec_t &service_exec = execution::get_executor())
-		requires concept_constructible<next_layer_t,Args...>;
+
+	template <typename NextLayer, concept_execution_context Context = asio::io_context&>
+	explicit basic_server(NextLayer &&next_layer, Context &&service_exec = execution::io_context())
+		requires concept_constructible<next_layer_t,NextLayer&&>;
 	~basic_server();
 
 	template <typename MainExec0, typename ServiceExec0>
