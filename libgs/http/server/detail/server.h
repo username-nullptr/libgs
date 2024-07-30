@@ -29,26 +29,56 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_SERVER_H
 #define LIBGS_HTTP_SERVER_DETAIL_SERVER_H
 
-#include <libgs/core/lock_free_queue.h>
 #include <spdlog/spdlog.h>
 
 namespace libgs::http
 {
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-class basic_server<TcpServer,CharT,Derived>::impl
+namespace detail
+{
+
+template <concept_tcp_stream Stream>
+class LIBGS_HTTP_TAPI acceptor_helper
+{
+public:
+	static awaitable<Stream> accept(auto &acceptor, auto &service_exec) {
+		co_return co_await acceptor.async_accept(service_exec, use_awaitable);
+	}
+};
+
+#ifdef LIBGS_ENABLE_OPENSSL
+template <concept_tcp_stream Stream>
+class LIBGS_HTTP_TAPI acceptor_helper<asio::ssl::stream<Stream>>
+{
+public:
+	static awaitable<Stream> accept(auto &acceptor, auto &service_exec)
+	{
+		auto socket = co_await acceptor.async_accept(service_exec, use_awaitable);
+		// TODO: ssl_socket ...
+	}
+};
+#endif //LIBGS_ENABLE_OPENSSL
+
+} //namespace detail
+
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+class basic_server<CharT,MainExec,ServiceExec>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 	using socket_t = typename next_layer_t::socket_t;
 
 public:
 	template <typename...Args>
-	explicit impl(Args&&...args) requires requires { next_layer_t(std::forward<Args>(args)...); } :
-		m_next_layer(std::forward<Args>(args)...) {}
+	explicit impl(Args&&...args, service_exec_t &service_exec)
+		requires requires { next_layer_t(std::forward<Args>(args)...); } :
+		m_next_layer(std::forward<Args>(args)...), m_service_exec(service_exec) {}
 
-	impl(impl &&other) noexcept :
+	template <typename MainExec0, typename ServiceExec0>
+	impl(typename basic_server<CharT,MainExec0,ServiceExec0>::impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)),
+		m_service_exec(other.m_service_exec),
 		m_request_handler_map(std::move(other.m_next_layer)),
+		m_sss(std::move(other.m_sss)),
 		m_default_handler(std::move(other.m_default_handler)),
 		m_system_error_handler(std::move(other.m_system_error_handler)),
 		m_exception_handler(std::move(other.m_exception_handler)),
@@ -59,10 +89,14 @@ public:
 		other.m_is_start = false;
 	}
 
-	impl &operator=(impl &&other) noexcept
+	template <typename MainExec0, typename ServiceExec0>
+	impl &operator=(typename basic_server<CharT,MainExec0,ServiceExec0>::impl &&other) noexcept
 	{
 		m_next_layer = std::move(other.m_next_layer);
+		m_service_exec = other.m_service_exec;
+
 		m_request_handler_map = std::move(other.m_next_layer);
+		m_sss = std::move(other.m_sss);
 
 		m_default_handler = std::move(other.m_default_handler);
 		m_system_error_handler = std::move(other.m_system_error_handler);
@@ -77,7 +111,7 @@ public:
 	}
 
 public:
-	void async_start(size_t max) noexcept
+	void async_start(size_t max, error_code&) noexcept
 	{
 		if( m_is_start )
 			return ;
@@ -124,10 +158,9 @@ public:
 private:
 	[[nodiscard]] awaitable<void> do_tcp_accept(size_t max)
 	{
-		m_next_layer.start(max);
 		do try
 		{
-			auto socket = co_await m_next_layer.accept();
+			auto socket = co_await detail::acceptor_helper<socket_t>::accept(m_next_layer, m_service_exec);
 			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
 			{
 				bool abd = false;
@@ -144,8 +177,7 @@ private:
 					spdlog::error("libgs::http::server: service: Unknown exception.");
 					abd = true;
 				}
-				error_code error;
-				co_await socket.close(error);
+				detail::close_helper<socket_t>{socket};
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -168,6 +200,7 @@ private:
 		for(;;)
 		{
 			try {
+				// TODO ...
 				auto size = co_await socket.read_some({buf, 65536}, {keepalive_time});
 				if( size == 0 )
 					break;
@@ -183,7 +216,7 @@ private:
 					break;
 				call_on_system_error(ex.code());
 			}
-			context _context(std::move(socket), parser);
+			context _context(std::move(socket), parser, m_sss);
 			co_await call_on_request(parser, _context);
 
 			if( not _context.response().headers_writed() )
@@ -360,7 +393,10 @@ public:
 
 public:
 	next_layer_t m_next_layer;
+	service_exec_t m_service_exec;
+
 	std::map<string_t, tk_handler_ptr> m_request_handler_map;
+	session_set m_sss;
 
 	request_handler m_default_handler {};
 	system_error_handler m_system_error_handler {};
@@ -370,42 +406,44 @@ public:
 	std::atomic_bool m_is_start {false};
 };
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
 template <typename...Args>
-basic_server<TcpServer,CharT,Derived>::basic_server(Args&&...args)
+basic_server<CharT,MainExec,ServiceExec>::basic_server(Args&&...args, service_exec_t &service_exec)
 	requires concept_constructible<next_layer_t,Args...> :
-	m_impl(new impl(std::forward<Args>(args)...))
+	m_impl(new impl(std::forward<Args>(args)..., service_exec))
 {
 
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>::~basic_server()
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec>::~basic_server()
 {
 	delete m_impl;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-template <typename TcpServer0>
-basic_server<TcpServer,CharT,Derived>::basic_server(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
-	requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0> :
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+template <typename MainExec0, typename ServiceExec0>
+basic_server<CharT,MainExec,ServiceExec>::basic_server(basic_server<CharT,MainExec0,ServiceExec0> &&other) noexcept
+	requires concept_constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+			 concept_constructible<service_exec_t,ServiceExec0> :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-template <typename TcpServer0>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::operator=
-(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
-	requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+template <typename MainExec0, typename ServiceExec0>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::operator=
+(basic_server<CharT,MainExec0,ServiceExec0> &&other) noexcept
+	requires concept_assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+			 concept_assignable<service_exec_t,ServiceExec0>
 {
 	*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::bind(endpoint_t ep)
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::bind(endpoint_t ep)
 {
 	error_code error;
 	bind(std::move(ep), error);
@@ -414,16 +452,29 @@ basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::bi
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::bind
-		(endpoint_t ep, error_code &error) noexcept
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::bind
+(endpoint_t ep, error_code &error) noexcept
 {
+	if( not m_impl->m_next_layer.is_open() )
+	{
+		if( ep.address().is_v4())
+			m_impl->m_next_layer.open(asio::ip::tcp::v4(), error);
+		else
+			m_impl->m_next_layer.open(asio::ip::tcp::v6(), error);
+		if( error )
+			return *this;
+	}
+	m_impl->m_next_layer.set_option(asio::socket_base::reuse_address(true), error);
+	if( error )
+		return *this;
+
 	m_impl->m_next_layer.bind(std::move(ep), error);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::start(size_t max)
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::start(size_t max)
 {
 	error_code error;
 	start(max, error);
@@ -432,25 +483,25 @@ basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::st
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::start
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::start
 (size_t max, error_code &error) noexcept
 {
-	// TODO ...
+	m_impl->async_start(max, error);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::start
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::start
 (error_code &error) noexcept
 {
 	return start(asio::socket_base::max_listen_connections, error);
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
 template <http::method...method, typename Func, typename...AopPtr>
-basic_server<TcpServer,CharT,Derived>&
-basic_server<TcpServer,CharT,Derived>::on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
+basic_server<CharT,MainExec,ServiceExec>&
+basic_server<CharT,MainExec,ServiceExec>::on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
 	detail::concept_request_handler<Func,socket_t,CharT> and 
 	detail::concept_aop_ptr_list<socket_t,CharT,AopPtr...>
 {
@@ -470,9 +521,9 @@ basic_server<TcpServer,CharT,Derived>::on_request(string_view_t path_rule, Func 
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
 template <http::method...method>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::on_request
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::on_request
 (string_view_t path_rule, ctrlr_aop_ptr ctrlr)
 {
 	if( path_rule.empty() )
@@ -490,9 +541,9 @@ basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::on
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
 template <http::method...method>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::on_request
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::on_request
 (string_view_t path_rule, ctrlr_aop *ctrlr)
 {
 	if( path_rule.empty() )
@@ -510,34 +561,34 @@ basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::on
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
 template <typename Func>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::on_default(Func &&func)
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::on_default(Func &&func)
 	requires detail::concept_request_handler<Func,socket_t,CharT>
 {
 	m_impl->m_default_handler = std::forward<Func>(func);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>&
-basic_server<TcpServer,CharT,Derived>::on_system_error(system_error_handler func)
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec>&
+basic_server<CharT,MainExec,ServiceExec>::on_system_error(system_error_handler func)
 {
 	m_impl->m_system_error_handler = std::move(func);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>&
-basic_server<TcpServer,CharT,Derived>::on_exception(exception_handler func)
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec>&
+basic_server<CharT,MainExec,ServiceExec>::on_exception(exception_handler func)
 {
 	m_impl->m_exception_handler = std::move(func);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived>&
-basic_server<TcpServer,CharT,Derived>::unbound_request(string_view_t path_rule)
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec>&
+basic_server<CharT,MainExec,ServiceExec>::unbound_request(string_view_t path_rule)
 {
 	if( path_rule.empty() )
 		throw runtime_error("libgs::http::server::unbound_request: path_rule is empty.");
@@ -545,67 +596,70 @@ basic_server<TcpServer,CharT,Derived>::unbound_request(string_view_t path_rule)
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::unbound_system_error()
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::unbound_system_error()
 {
 	m_impl->m_system_error_handler = {};
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::unbound_exception()
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::unbound_exception()
 {
 	m_impl->m_exception_handler = {};
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
 template <typename Rep, typename Period>
-basic_server<TcpServer,CharT,Derived>&
-basic_server<TcpServer,CharT,Derived>::set_keepalive_time(const std::chrono::duration<Rep,Period> &d)
+basic_server<CharT,MainExec,ServiceExec>&
+basic_server<CharT,MainExec,ServiceExec>::set_keepalive_time(const std::chrono::duration<Rep,Period> &d)
 {
 	using namespace std::chrono;
 	m_impl->m_keepalive_timeout = duration_cast<milliseconds>(d);
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-awaitable<void> basic_server<TcpServer,CharT,Derived>::co_stop() noexcept
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+awaitable<void> basic_server<CharT,MainExec,ServiceExec>::co_stop() noexcept
 {
 	m_impl->m_is_start = false;
 	co_return co_await m_impl->m_next_layer.co_stop();
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-const typename basic_server<TcpServer,CharT,Derived>::executor_t &basic_server<TcpServer,CharT,Derived>::get_executor() noexcept
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+const typename basic_server<CharT,MainExec,ServiceExec>::executor_t&
+basic_server<CharT,MainExec,ServiceExec>::get_executor() noexcept
 {
 	return m_impl->m_next_layer.get_executor();
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::stop() noexcept
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::stop() noexcept
 {
 	m_impl->m_is_start = false;
 	m_impl->m_next_layer.stop();
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-basic_server<TcpServer,CharT,Derived> &basic_server<TcpServer,CharT,Derived>::cancel() noexcept
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+basic_server<CharT,MainExec,ServiceExec> &basic_server<CharT,MainExec,ServiceExec>::cancel() noexcept
 {
 	m_impl->m_is_start = false;
 	m_impl->m_next_layer.cancel();
 	return *this;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-const typename basic_server<TcpServer,CharT,Derived>::next_layer_t &basic_server<TcpServer,CharT,Derived>::next_layer() const
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+const typename basic_server<CharT,MainExec,ServiceExec>::next_layer_t&
+basic_server<CharT,MainExec,ServiceExec>::next_layer() const
 {
 	return m_impl->m_next_layer;
 }
 
-template <typename TcpServer, concept_char_type CharT, typename Derived>
-typename basic_server<TcpServer,CharT,Derived>::next_layer_t &basic_server<TcpServer,CharT,Derived>::next_layer()
+template <concept_char_type CharT, concept_execution MainExec, concept_execution ServiceExec>
+typename basic_server<CharT,MainExec,ServiceExec>::next_layer_t&
+basic_server<CharT,MainExec,ServiceExec>::next_layer()
 {
 	return m_impl->m_next_layer;
 }

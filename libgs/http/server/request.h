@@ -36,7 +36,7 @@
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_server_request
 {
 	LIBGS_DISABLE_COPY(basic_server_request)
@@ -62,8 +62,13 @@ public:
 		requires concept_constructible<next_layer_t, NextLayer>;
 	~basic_server_request();
 
-	basic_server_request(basic_server_request &&other) noexcept;
-	basic_server_request &operator=(basic_server_request &&other) noexcept;
+	template <typename Stream0>
+	basic_server_request(basic_server_request<Stream0,CharT> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
+
+	template <typename Stream0>
+	basic_server_request &operator=(basic_server_request<Stream0,CharT> &&other) noexcept
+		requires concept_assignable<Stream,Stream0&&>;
 
 public:
 	[[nodiscard]] http::method method() const noexcept;

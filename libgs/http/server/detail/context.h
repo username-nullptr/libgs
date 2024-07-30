@@ -32,138 +32,151 @@
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_service_context<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
 public:
 	impl(stream_t &&stream, parser_t &parser, session_set &sss) :
-		m_response(request_t(std::move(stream), parser)), m_sss(sss) {}
+		m_response(request_t(std::move(stream), parser)), m_sss(&sss) {}
 
-	impl(impl &&other) noexcept = default;
-	impl &operator=(impl &&other) noexcept = default;
+	template<typename Stream0>
+	impl(typename basic_service_context<Stream0,CharT>::impl &&other) noexcept :
+		m_response(std::move(other)), m_sss(other.m_sss) {}
+
+	template<typename Stream0>
+	impl &operator=(typename basic_service_context<Stream0,CharT>::impl &&other) noexcept
+	{
+		m_response = std::move(other);
+		m_sss = other.m_sss;
+		return *this;
+	}
 
 public:
 	response_t m_response;
-	session_set &m_sss;
+	session_set *m_sss;
 };
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT>::basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss) :
 	m_impl(new impl(std::move(stream), parser))
 {
 
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT>::~basic_service_context()
 {
 	delete m_impl;
 }
 
-template <typename Stream, concept_char_type CharT>
-basic_service_context<Stream,CharT>::basic_service_context(basic_service_context &&other) noexcept :
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template<typename Stream0>
+basic_service_context<Stream,CharT>::basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
+	requires concept_constructible<Stream,Stream0&&> :
 	m_impl(new impl(*other.m_impl))
 {
 
 }
 
-template <typename Stream, concept_char_type CharT>
-basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=(basic_service_context &&other) noexcept
+template <concept_tcp_stream Stream, concept_char_type CharT>
+template<typename Stream0>
+basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=
+(basic_service_context<Stream0,CharT> &&other) noexcept requires concept_assignable<Stream,Stream0&&>
 {
 	*m_impl = *other.m_impl;
 	return *this;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 const basic_server_request<Stream,CharT> &basic_service_context<Stream,CharT>::request() const noexcept
 {
 	return m_impl->m_response.next_layer();
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_request<Stream,CharT> &basic_service_context<Stream,CharT>::request() noexcept
 {
 	return m_impl->m_response.next_layer();
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 const basic_server_response<basic_server_request<Stream,CharT>,CharT>&
 basic_service_context<Stream,CharT>::response() const noexcept
 {
 	return m_impl->m_response;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_response<basic_server_request<Stream,CharT>,CharT>&
 basic_service_context<Stream,CharT>::response() noexcept
 {
 	return m_impl->m_response;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...args)
 	requires concept_constructible<Session, Args...>
 {
-	auto session_cookie = session_t::cookie_key();
+	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = session_t::template get_or_make<Session>(session_id, std::forward<Args>(args)...);
+	auto session = m_impl->m_sss->template get_or_make<Session>(session_id, std::forward<Args>(args)...);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...args) noexcept
 	requires concept_constructible<basic_session<CharT>, Args...>
 {
-	auto session_cookie = session_t::cookie_key();
+	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = session_t::template get_or_make(session_id, std::forward<Args>(args)...);
+	auto session = m_impl->m_sss->get_or_make(session_id, std::forward<Args>(args)...);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
 {
-	auto session_cookie = session_t::cookie_key();
+	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = session_t::template get<Session>(session_id);
+	auto session = m_impl->m_sss->template get<Session>(session_id);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 {
-	auto session_cookie = session_t::cookie_key();
+	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = session_t::template get(session_id);
+	auto session = m_impl->m_sss->get(session_id);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
 {
-	auto session_cookie = session_t::cookie_key();
+	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = session_t::template get_or<Session>(session_id);
+	auto session = m_impl->m_sss->template get_or<Session>(session_id);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session_or() noexcept
 {
-	auto session_cookie = session_t::cookie_key();
+	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = session_t::template get_or(session_id);
+	auto session = m_impl->m_sss->get_or(session_id);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }

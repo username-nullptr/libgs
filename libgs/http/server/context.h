@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_service_context
 {
 	LIBGS_DISABLE_COPY(basic_service_context)
@@ -54,8 +54,13 @@ public:
 	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);
 	~basic_service_context();
 
-	basic_service_context(basic_service_context &&other) noexcept;
-	basic_service_context &operator=(basic_service_context &&other) noexcept;
+	template<typename Stream0>
+	basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
+		requires concept_constructible<Stream,Stream0&&>;
+
+	template<typename Stream0>
+	basic_service_context &operator=(basic_service_context<Stream0,CharT> &&other) noexcept
+		requires concept_assignable<Stream,Stream0&&>;
 
 public:
 	const request_t &request() const noexcept;
@@ -87,10 +92,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_service_context = basic_service_context<asio::basic_socket<asio::ip::tcp,Exec>,char>;
+using basic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_service_wcontext = basic_service_context<asio::basic_socket<asio::ip::tcp,Exec>,wchar_t>;
+using basic_tcp_service_wcontext = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;
 using tcp_service_wcontext = basic_tcp_service_wcontext<asio::any_io_executor>;

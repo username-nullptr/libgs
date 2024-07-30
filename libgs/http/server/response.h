@@ -36,13 +36,14 @@
 namespace libgs::http
 {
 
-template <typename Request, concept_char_type CharT>
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
 class LIBGS_HTTP_VAPI basic_server_response
 {
 	LIBGS_DISABLE_COPY(basic_server_response)
 
 public:
-	using next_layer_t = Request;
+	using next_layer_t = basic_server_request<Stream,CharT>;
 	using executor_t = typename next_layer_t::executor_t;
 
 	using helper_t = basic_response_helper<CharT>;
@@ -62,13 +63,13 @@ public:
 	explicit basic_server_response(next_layer_t &&next_layer);
 	~basic_server_response();
 
-	template <typename Request0>
-	basic_server_response(basic_server_response<Request0,CharT> &&other) noexcept
-		requires concept_constructible<Request0,Request0&&>;
+	template <typename Stream0>
+	basic_server_response(basic_server_response<Stream0,CharT> &&other) noexcept
+		requires concept_constructible<next_layer_t,basic_server_request<Stream0,CharT>&&>;
 
-	template <typename Request0>
-	basic_server_response &operator=(basic_server_response<Request0,CharT> &&other) noexcept
-		requires concept_constructible<Request0,Request0&&>;
+	template <typename Stream0>
+	basic_server_response &operator=(basic_server_response<Stream0,CharT> &&other) noexcept
+		requires concept_assignable<Stream,Stream0&&>;
 
 public:
 	basic_server_response &set_status(uint32_t status);
@@ -152,10 +153,10 @@ private:
 };
 
 template <concept_execution Exec>
-using basic_tcp_server_response = basic_server_response<basic_tcp_server_request<Exec>,char>;
+using basic_tcp_server_response = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_server_wresponse = basic_server_response<basic_tcp_server_request<Exec>,wchar_t>;
+using basic_tcp_server_wresponse = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
 using tcp_server_wresponse = basic_tcp_server_wresponse<asio::any_io_executor>;

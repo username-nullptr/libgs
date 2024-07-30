@@ -38,26 +38,20 @@
 namespace libgs::http
 {
 
-namespace detail
-{
-
-template <typename TcpServer, typename TcpServer0>
-concept concept_server_next_layer_move = requires(TcpServer0 &&s0) {
-	TcpServer(std::move(s0));
-};
-
-} //namespace detail
-
-template <typename TcpServer, concept_char_type CharT, typename Derived = void>
+template <concept_char_type CharT,
+		  concept_execution MainExec = asio::any_io_executor,
+		  concept_execution ServiceExec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server
 {
 	LIBGS_DISABLE_COPY(basic_server)
 
 public:
-	using next_layer_t = TcpServer;
-	using executor_t = typename next_layer_t::executor_type;
+	using executor_t = MainExec;
+	using service_exec_t = ServiceExec;
+	using next_layer_t = asio::basic_socket_acceptor<asio::ip::tcp,executor_t>;
+
 	using endpoint_t = typename next_layer_t::endpoint_type;
-	using socket_t = asio::basic_socket<asio::ip::tcp,endpoint_t>;
+	using socket_t = asio::basic_socket<asio::ip::tcp,service_exec_t>;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -78,17 +72,19 @@ public:
 
 public:
 	template <typename...Args>
-	basic_server(Args&&...args) requires concept_constructible<next_layer_t,Args...>;
+	basic_server(Args&&...args, service_exec_t &service_exec = execution::get_executor())
+		requires concept_constructible<next_layer_t,Args...>;
 	~basic_server();
 
-public:
-	template <typename TcpServer0>
-	basic_server(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
-		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
+	template <typename MainExec0, typename ServiceExec0>
+	basic_server(basic_server<CharT,MainExec0,ServiceExec0> &&other) noexcept
+		requires concept_constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+				 concept_constructible<service_exec_t,ServiceExec0>;
 
-	template <typename TcpServer0>
-	basic_server &operator=(basic_server<TcpServer0,CharT,Derived> &&other) noexcept
-		requires detail::concept_server_next_layer_move<next_layer_t,TcpServer0>;
+	template <typename MainExec0, typename ServiceExec0>
+	basic_server &operator=(basic_server<CharT,MainExec0,ServiceExec0> &&other) noexcept
+		requires concept_assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+				 concept_assignable<service_exec_t,ServiceExec0>;
 
 public:
 	basic_server &bind(endpoint_t ep);
@@ -137,11 +133,11 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec>
-using basic_tcp_server = basic_server<asio::basic_socket_acceptor<asio::ip::tcp,Exec>,char>;
+template <concept_execution MainExec, concept_execution ServiceExec = asio::any_io_executor>
+using basic_tcp_server = basic_server<char,MainExec,ServiceExec>;
 
-template <concept_execution Exec>
-using basic_wtcp_server = basic_server<asio::basic_socket_acceptor<asio::ip::tcp,Exec>,wchar_t>;
+template <concept_execution MainExec, concept_execution ServiceExec = asio::any_io_executor>
+using basic_wtcp_server = basic_server<wchar_t,MainExec,ServiceExec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
 using wtcp_server = basic_wtcp_server<asio::any_io_executor>;

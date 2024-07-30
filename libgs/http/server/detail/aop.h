@@ -32,24 +32,24 @@
 namespace libgs::http
 {
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_aop<Stream,CharT>::~basic_aop() = default;
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<bool> basic_aop<Stream,CharT>::before(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<bool> basic_aop<Stream,CharT>::after(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <typename Stream, concept_char_type CharT>
+template <concept_tcp_stream Stream, concept_char_type CharT>
 bool basic_aop<Stream,CharT>::exception(context_t &context, std::exception &ex)
 {
 	ignore_unused(context, ex);
