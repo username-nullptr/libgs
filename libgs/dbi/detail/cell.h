@@ -47,7 +47,7 @@ basic_cell<CharT>::basic_cell(string_view_t column_name) :
 template <concept_char_type CharT>
 basic_cell<CharT>::basic_cell(string_view_t column_name, void *data, size_t len) :
 	m_column_name(column_name.data(), column_name.size()),
-	m_data(reinterpret_cast<char*>(data), len)
+	m_data(std::string(reinterpret_cast<char*>(data), len))
 {
 	if( m_column_name.empty() )
 		m_column_name = default_column_name<CharT>::value;
