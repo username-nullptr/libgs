@@ -119,7 +119,7 @@ using optional_string = std::optional<std::string>;
 
 using envs_t = std::map<std::string, std::string>;
 
-static shared_mutex g_env_mutex;
+static spin_shared_mutex g_env_mutex;
 
 optional_string getenv(error_code &error, std::string_view key) noexcept
 {
@@ -160,7 +160,7 @@ envs_t getenvs(error_code &error) noexcept
 bool setenv(error_code &error, std::string_view key, std::string_view value, bool overwrite) noexcept
 {
 	error = error_code();
-	unique_lock locker(g_env_mutex);
+	spin_shared_unique_lock locker(g_env_mutex);
 
 	if( ::setenv(key.data(), value.data(), overwrite) != 0 )
 	{
@@ -173,7 +173,7 @@ bool setenv(error_code &error, std::string_view key, std::string_view value, boo
 bool unsetenv(error_code &error, std::string_view key) noexcept
 {
 	error = error_code();
-	unique_lock locker(g_env_mutex);
+	spin_shared_unique_lock locker(g_env_mutex);
 
 	if( ::unsetenv(key.data()) != 0 )
 	{

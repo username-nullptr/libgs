@@ -157,8 +157,10 @@ public:
 		co_spawn_detached([this, max]() -> awaitable<void>
 		{
 			bool abd = false;
-			try {
-				co_await do_tcp_accept(max);
+			try
+			{
+				m_next_layer.listen(max);
+				co_await do_tcp_accept();
 			}
 			catch(std::exception &ex)
 			{
@@ -195,7 +197,7 @@ public:
 	}
 
 private:
-	[[nodiscard]] awaitable<void> do_tcp_accept(size_t max)
+	[[nodiscard]] awaitable<void> do_tcp_accept()
 	{
 		do try
 		{

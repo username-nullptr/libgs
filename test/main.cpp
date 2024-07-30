@@ -22,7 +22,8 @@ int main()
 	asio::ip::tcp::acceptor acceptor(libgs::execution::get_executor());
 	libgs::http::server server(std::move(acceptor));
 
-	server.bind({asio::ip::tcp::v4(), 12345})
+	constexpr unsigned short port = 12345;
+	server.bind({asio::ip::tcp::v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::http::server::context &context) -> libgs::awaitable<void>
@@ -70,5 +71,6 @@ int main()
 	})
 	.start();
 
+	spdlog::info("HTTP Server started ({}) ...", port);
 	return libgs::execution::exec();
 }

@@ -2,14 +2,14 @@ set(target_name gs_http)
 
 set(${target_name}_sources
 	global.cpp
-#	parser.cpp
+	# parser.cpp
 )
 
 set(${target_name}_headers
 	global.h
-#	parser.h
-#	client.h
-#	server.h
+	# parser.h
+	client.h
+	server.h
 	basic/container.h
 	basic/cookie.h
 	basic/header.h
@@ -25,7 +25,7 @@ set(${target_name}_headers
 	server/session_set.h
 	server/aop.h
 	server/context.h
-#	server/server.h
+	server/server.h
 )
 
 set(${target_name}_detail_headers
@@ -41,7 +41,7 @@ set(${target_name}_detail_headers
 	server/detail/session_set.h
 	server/detail/aop.h
 	server/detail/context.h
-#	server/detail/server.h
+	server/detail/server.h
 )
 
 set(all_files

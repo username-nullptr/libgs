@@ -30,7 +30,7 @@ option(BUILD_EXAMPLES "-- libgs: enable this to build the examples" ON)
 
 if (BUILD_EXAMPLES)
 	message(STATUS "libgs: enable this to build the examples.")
-	add_subdirectory(examples)
+	# add_subdirectory(examples)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES libgs.h)

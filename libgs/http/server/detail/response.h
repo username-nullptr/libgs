@@ -130,7 +130,7 @@ public:
 
 			if( m_headers_writed )
 			{
-				write_runtime_error_check(body, "async_write");
+				write_runtime_error_check(body, func);
 				return write_body_x(body, std::forward<Token>(token), func);
 			}
 			size_t sum = write_header_x(body.size(), std::forward<Token>(token), func);
@@ -142,7 +142,7 @@ public:
 		else
 		{
 			token_reset(token);
-			return [=, this]() mutable -> awaitable<size_t>
+			return [=,this]() mutable -> awaitable<size_t>
 			{
 				if( m_headers_writed )
 				{
@@ -1187,7 +1187,11 @@ public:
 private:
 	template <typename Token>
 	auto write_header_x(size_t size, Token &&token, const char *func) {
-		return write_funcdata_x([this,size]{return m_helper.header_data(size);}, true, std::forward<Token>(token), func);
+		return write_funcdata_x([this, size]
+		{
+			return m_helper.header_data(size);
+		},
+		true, std::forward<Token>(token), func);
 	}
 
 	template <typename Token>
@@ -1248,7 +1252,7 @@ private:
 		else
 		{
 			token_reset(token);
-			return [=,this]() mutable -> awaitable<size_t>
+			return [this](auto func, bool wheader, Token &&token, const char *efuncname) mutable -> awaitable<size_t>
 			{
 				size_t sum = 0;
 				error_code error;
@@ -1275,7 +1279,8 @@ private:
 				if( token_check(token, error, efuncname) and wheader )
 					m_headers_writed = true;
 				co_return sum;
-			}();
+			}
+			(std::move(func), wheader, std::forward<Token>(token), efuncname);
 		}
 	}
 
