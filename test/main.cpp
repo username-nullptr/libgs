@@ -39,8 +39,8 @@ int main()
 	{
 //		co_await context.response().write("hello world !!!");
 		co_await context.response()
-			.async_send_file("~/hello_world.txt", asio::use_awaitable);
-//			.async_send_file("C:/Users/Administrator/Desktop/hello_world.txt", asio::use_awaitable);
+//			.async_send_file("~/hello_world.txt", asio::use_awaitable);
+			.async_send_file("C:/Users/Administrator/Desktop/hello_world.txt", asio::use_awaitable);
 		co_return ;
 	})
 	.on_exception([](libgs::http::server::context&, std::exception &ex)

@@ -332,26 +332,34 @@ private:
 			if( _context.response().headers_writed() )
 				co_return ;
 		}
-		constexpr const char def_html[] =
-			"<!DOCTYPE html>\n"
-			"<html>\n"
-			"<head>\n"
-			"	<meta charset=\"utf-8\">\n"
-			"	<title>Welcome to LIBGS</title>\n"
-			"</head>\n"
-			"<body>\n"
-			"	<h1>Welcome to LIBGS</h1>\n"
-			"	<p>[ This is the server's default reply ]</p>\n"
-			"	<p>-----------------------------------------------</p>\n"
+		constexpr const char *def_html =
+			"<!DOCTYPE html>"
+			"<html>"
+			"<head>"
+			"	<meta charset=\"utf-8\">"
+			"	<title>{0}</title>"
+			"</head>"
+			"<body>"
+			"	<h1>{0}</h1>{1}"
+			"	<p>[ This is the server's default reply ]</p>"
+			"	<p>-----------------------------------------------</p>"
 			"	<p>This is an open source C++ (ASIO) server.</p>"
-			"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">\n"
-			"		Source code repository (Gitee)\n"
-			"	</a>\n"
-			"</body>\n"
+			"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
+			"		Source code repository (Gitee)"
+			"	</a>"
+			"</body>"
 			"</html>";
+		std::string data;
+		if( _context.response().status() == status::ok )
+			data = std::format(def_html, "Welcome to LIBGS", "");
+		else
+		{
+			auto status = std::format("<h2>{} ({})</h2>", to_status_description(_context.response().status()), _context.response().status());
+			data = std::format(def_html, "LIBGS", status);
+		}
 		co_await _context.response()
-			.set_header(header::content_type, "text/html")
-			.async_write(asio::buffer(def_html), use_awaitable);
+				.set_header(header::content_type, "text/html")
+				.async_write(asio::buffer(data, data.size()), use_awaitable);
 		co_return ;
 	}
 

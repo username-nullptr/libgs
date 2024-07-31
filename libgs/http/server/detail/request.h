@@ -408,32 +408,32 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return [this](mutable_buffer buf, Token token) mutable -> awaitable<size_t>
+		return [](basic_server_request *self, mutable_buffer buf, Token token) mutable -> awaitable<size_t>
 		{
-			m_impl->token_reset(token);
+			self->m_impl->token_reset(token);
 			const size_t buf_size = buf.size();
 			error_code error;
 			size_t sum = 0;
 			do {
 				if( buf_size == 0 )
 					co_return sum;
-				else if( is_eof() )
+				else if( self->is_eof() )
 				{
 					error = std::make_error_code(static_cast<std::errc>(errc::eof));
 					break;
 				}
 				asio::socket_base::receive_buffer_size op;
-				m_impl->m_next_layer.get_option(op, error);
+				self->m_impl->m_next_layer.get_option(op, error);
 				if( error )
 					break;
 
 				auto dst_buf = reinterpret_cast<char*>(buf.data());
 				do {
-					auto body = m_impl->m_parser->take_partial_body(buf_size);
+					auto body = self->m_impl->m_parser->take_partial_body(buf_size);
 					sum += body.size();
 
 					memcpy(dst_buf + sum, body.c_str(), body.size());
-					if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+					if( sum == buf_size or not self->m_impl->m_parser->can_read_from_device() )
 						break;
 
 					body = std::string(op.value(),'\0');
@@ -443,12 +443,12 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 						auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
 						if constexpr( detail::concept_has_get<Token> )
 						{
-							tmp_sum += co_await m_impl->m_next_layer.async_read_some
+							tmp_sum += co_await self->m_impl->m_next_layer.async_read_some
 									(read_buf, use_awaitable|error|token.get_cancellation_slot());
 						}
 						else
 						{
-							tmp_sum += co_await m_impl->m_next_layer.async_read_some
+							tmp_sum += co_await self->m_impl->m_next_layer.async_read_some
 									(read_buf, use_awaitable|error);
 						}
 						sum += tmp_sum;
@@ -456,16 +456,16 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 							continue;
 					}
 					while(false);
-					if( tmp_sum == 0 or not m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
+					if( tmp_sum == 0 or not self->m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
 						break;
 				}
 				while(true);
 			}
 			while(false);
-			m_impl->token_handle(token, error, "libgs::http::server_request::async_read");
+			self->m_impl->token_handle(token, error, "libgs::http::server_request::async_read");
 			co_return sum;
 		}
-		(buf, token);
+		(this, buf, token);
 	}
 }
 
@@ -542,7 +542,7 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return [this](Token token) mutable -> awaitable<std::string>
+		return [](basic_server_request *self, Token token) mutable -> awaitable<std::string>
 		{
 			std::string sum;
 			error_code error;
@@ -552,19 +552,19 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 
 				size_t res = 0;
 				if constexpr( detail::concept_has_get<Token> )
-					res = co_await async_read(buffer(buf,buf_size), use_awaitable|error|token.get_cancellation_slot());
+					res = co_await self->async_read(buffer(buf,buf_size), use_awaitable|error|token.get_cancellation_slot());
 				else
-					res = co_await async_read(buffer(buf,buf_size), use_awaitable|error);
+					res = co_await self->async_read(buffer(buf,buf_size), use_awaitable|error);
 
 				sum += std::string(buf,res);
 				if( error )
 					break;
 			}
-			while( can_read_body() );
-			m_impl->token_handle(token, error, "libgs::http::server_request::async_read_all");
+			while( self->can_read_body() );
+			self->m_impl->token_handle(token, error, "libgs::http::server_request::async_read_all");
 			co_return sum;
 		}
-		(token);
+		(this, token);
 	}
 }
 
@@ -734,9 +734,9 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return [this](std::string file_name, req_range range, Token token) mutable -> awaitable<size_t>
+		return [](basic_server_request *self, std::string file_name, req_range range, Token token) mutable -> awaitable<size_t>
 		{
-			m_impl->token_reset(token);
+			self->m_impl->token_reset(token);
 			error_code error;
 			size_t sum = 0;
 			do {
@@ -769,12 +769,12 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 				auto total = range.total;
 				size_t size = 0;
 
-				while( can_read_body() )
+				while( self->can_read_body() )
 				{
 					if constexpr( detail::concept_has_get<Token> )
-						size = co_await async_read(buffer(buf, tcp_buf_size), use_awaitable|error|token.get_cancellation_slot());
+						size = co_await self->async_read(buffer(buf, tcp_buf_size), use_awaitable|error|token.get_cancellation_slot());
 					else
-						size = co_await async_read(buffer(buf, tcp_buf_size), use_awaitable|error);
+						size = co_await self->async_read(buffer(buf, tcp_buf_size), use_awaitable|error);
 					if( error )
 						break;
 
@@ -799,7 +799,7 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 			while(false);
 			co_return sum;
 		}
-		({file_name.data(), file_name.size()}, range, token);
+		(this, {file_name.data(), file_name.size()}, range, token);
 	}
 }
 
