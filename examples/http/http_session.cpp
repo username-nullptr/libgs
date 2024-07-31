@@ -6,9 +6,11 @@ using namespace std::chrono_literals;
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
+	asio::ip::tcp::acceptor acceptor(libgs::execution::get_executor());
+	constexpr unsigned short port = 12345;
 
-	libgs::http::server server;
-	server.bind({libgs::io::address_v4(),12345})
+	libgs::http::server server(std::move(acceptor));
+	server.bind({asio::ip::address_v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::http::server::context &context) -> libgs::awaitable<void>
@@ -29,5 +31,7 @@ int main()
 		return true;
 	})
 	.start();
+
+	spdlog::info("HTTP Server started ({}) ...", port);
 	return libgs::execution::exec();
 }

@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_LIBGS_HPP
-#define LIBGS_LIBGS_HPP
+#ifndef LIBGS_LIBGS_H
+#define LIBGS_LIBGS_H
 
-#include <libgs/core.hpp>
-#include <libgs/io.hpp>
+#include <libgs/core.h>
+#include <libgs/http.h>
 
-#endif //LIBGS_LIBGS_HPP
+#endif //LIBGS_LIBGS_H

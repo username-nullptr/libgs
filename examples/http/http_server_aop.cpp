@@ -57,7 +57,7 @@ public:
 	}
 	libgs::awaitable<void> service(context_t &context) override
 	{
-		co_await context.response().write("hello libgs (controller)");
+		co_await context.response().async_write(asio::buffer("hello libgs (controller)"), asio::use_awaitable);
 		co_return ;
 	}
 };
@@ -65,14 +65,16 @@ public:
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
+	asio::ip::tcp::acceptor acceptor(libgs::execution::get_executor());
+	constexpr unsigned short port = 12345;
 
-	libgs::http::server server;
-	server.bind({libgs::io::address_v4(),12345})
+	libgs::http::server server(std::move(acceptor));
+	server.bind({asio::ip::address_v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::http::server::context &context) -> libgs::awaitable<void>
 	{
-		co_await context.response().write("hello libgs");
+		co_await context.response().async_write(asio::buffer("hello libgs"), asio::use_awaitable);
 		co_return ;
 	},
 	new aop(), new aop())
@@ -86,5 +88,7 @@ int main()
 		return true;
 	})
 	.start();
+
+	spdlog::info("HTTP Server started ({}) ...", port);
 	return libgs::execution::exec();
 }

@@ -26,11 +26,11 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_HPP
-#define LIBGS_HTTP_HPP
+#ifndef LIBGS_HTTP_H
+#define LIBGS_HTTP_H
 
 #include <libgs/http/server.h>
 #include <libgs/http/client.h>
 
-#endif //LIBGS_HTTP_HPP
+#endif //LIBGS_HTTP_H
 

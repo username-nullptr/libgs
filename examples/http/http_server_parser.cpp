@@ -1,27 +1,34 @@
 #include <libgs/http/server/request_parser.h>
-#include <libgs/io/tcp_server.h>
+#include <libgs/core/coroutine.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
-libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io::ip_endpoint ep)
+asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socket::endpoint_type ep)
 {
 	libgs::http::request_parser parser;
 	try {
 		char rbuf[4096] = "";
 		for(;;)
 		{
-			auto res = co_await socket.read_some({rbuf,4096}, 5s);
+			auto var = co_await (socket.async_read_some(asio::buffer(rbuf,4096), asio::use_awaitable) or
+								 libgs::co_sleep_for(5s));
+			if( var.index() == 1 )
+			{
+				spdlog::error("socket error: read timeout.");
+				break;
+			}
+			auto res = std::get<0>(var);
 			if( res == 0 )
 				break;
 
-			if( not parser.append({rbuf,res}) or parser.can_read_body() )
+			if( not parser.append({rbuf,res}) or parser.can_read_from_device() )
 				continue;
 
 			spdlog::debug("Version:{} - Method:{} - Path:{}",
-							parser.version(),
-							libgs::http::to_method_string(parser.method()),
-							parser.path());
+						  parser.version(),
+						  libgs::http::to_method_string(parser.method()),
+						  parser.path());
 
 			for(auto &[key,value] : parser.parameters())
 				spdlog::debug("Parameter: {}: {}", key, value);
@@ -32,7 +39,7 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io
 			for(auto &[key,value] : parser.cookies())
 				spdlog::debug("Cookie: {}: {}", key, value);
 
-			spdlog::debug("partial_body: {}\n", parser.take_partial_body());
+			spdlog::debug("partial_body: {}\n", parser.take_body());
 
 			auto wbuf = std::format("HTTP/1.1 200 OK\r\n"
 									"{}:close\r\n"
@@ -41,8 +48,8 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io
 									"Hello world",
 									libgs::http::header::connection,
 									libgs::http::header::content_length);
-			co_await socket.write(wbuf);
-			co_await socket.close();
+			co_await asio::async_write(socket, asio::buffer(wbuf, wbuf.size()), asio::use_awaitable);
+			socket.close();
 			break;
 		}
 	}
@@ -56,18 +63,20 @@ libgs::awaitable<void> service(libgs::io::tcp_server::socket_t socket, libgs::io
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
+	constexpr unsigned short port = 12345;
+
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
-		libgs::io::tcp_server server;
+		asio::ip::tcp::acceptor server(libgs::execution::io_context());
 		try {
-			server.bind({libgs::io::address_v4(),22222});
+			server.bind({asio::ip::tcp::v4(), port});
 			for(;;)
 			{
-				auto socket = co_await server.accept();
+				auto socket = co_await server.async_accept(asio::use_awaitable);
 				auto ep = socket.remote_endpoint();
 
 				spdlog::debug("new connction: {}", ep);
-				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)), server.pool());
+				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)));
 			}
 		}
 		catch(std::exception &ex)
@@ -76,5 +85,6 @@ int main()
 			libgs::execution::exit(-1);
 		}
 	});
+	spdlog::info("HTTP Server started ({}) ...", port);
 	return libgs::execution::exec();
 }

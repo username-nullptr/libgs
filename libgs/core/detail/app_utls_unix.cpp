@@ -107,9 +107,6 @@ std::string absolute_path(error_code &error, std::string_view path) noexcept
 
 		result = home + result.erase(0,1);
 	}
-	if( not result.ends_with("/") )
-		result += "/";
-
 	str_replace(result, "/./", "/", false);
 	str_replace(result, "//", "/", false);
 	return result;

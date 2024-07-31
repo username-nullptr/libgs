@@ -334,7 +334,7 @@ template <concept_char_type CharT>
 basic_ini<CharT>::basic_ini(std::string_view file_name) :
 	m_impl(new impl())
 {
-	set_file_nmae(file_name);
+	set_file_name(file_name);
 }
 
 template <concept_char_type CharT>
@@ -702,9 +702,7 @@ bool basic_ini<CharT>::sync(std::string &errmsg) noexcept
 		errmsg = std::format("File name is empty.");
 		return false;
 	}
-	std::unique_lock locker(m_impl->m_rw_lock);
 	std::basic_ofstream<CharT> file(m_impl->file_name, std::ios_base::out | std::ios_base::trunc);
-
 	if( not file.is_open() )
 	{
 		errmsg = std::format("file '{}' open failed.", m_impl->file_name);

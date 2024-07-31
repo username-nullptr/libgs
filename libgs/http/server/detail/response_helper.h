@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 
 #include <libgs/core/algorithm/mime_type.h>
-#include <spdlog/spdlog.h>
 #include <filesystem>
 #include <list>
 

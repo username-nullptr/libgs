@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(LibGS VERSION 0.3.0 LANGUAGES CXX)
-add_definitions(-DLIBGS_VERSION_STR="0.3.0-dev")
+project(LibGS VERSION 0.4.0 LANGUAGES CXX)
+add_definitions(-DLIBGS_VERSION_STR="0.4.0-dev")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -30,7 +30,7 @@ option(BUILD_EXAMPLES "-- libgs: enable this to build the examples" ON)
 
 if (BUILD_EXAMPLES)
 	message(STATUS "libgs: enable this to build the examples.")
-	# add_subdirectory(examples)
+	add_subdirectory(examples)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES libgs.h)

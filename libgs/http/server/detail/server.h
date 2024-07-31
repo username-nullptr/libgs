@@ -332,7 +332,26 @@ private:
 			if( _context.response().headers_writed() )
 				co_return ;
 		}
-		co_await _context.response().async_write(use_awaitable);
+		constexpr const char def_html[] =
+			"<!DOCTYPE html>\n"
+			"<html>\n"
+			"<head>\n"
+			"	<meta charset=\"utf-8\">\n"
+			"	<title>Welcome to LIBGS</title>\n"
+			"</head>\n"
+			"<body>\n"
+			"	<h1>Welcome to LIBGS</h1>\n"
+			"	<p>[ This is the server's default reply ]</p>\n"
+			"	<p>-----------------------------------------------</p>\n"
+			"	<p>This is an open source C++ (ASIO) server.</p>"
+			"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">\n"
+			"		Source code repository (Gitee)\n"
+			"	</a>\n"
+			"</body>\n"
+			"</html>";
+		co_await _context.response()
+			.set_header(header::content_type, "text/html")
+			.async_write(asio::buffer(def_html), use_awaitable);
 		co_return ;
 	}
 

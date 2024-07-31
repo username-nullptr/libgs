@@ -46,8 +46,11 @@ class LIBGS_HTTP_TAPI close_helper
 public:
 	close_helper(Stream &stream)
 	{
-		error_code error;
-		stream.close(error);
+		if( stream.is_open() )
+		{
+			error_code error;
+			stream.close(error);
+		}
 	}
 };
 
@@ -58,9 +61,12 @@ class LIBGS_HTTP_TAPI close_helper<asio::ssl::stream<Stream>>
 public:
 	close_helper(asio::ssl::stream<Stream> &stream)
 	{
-		error_code error;
-		m_next_layer.shutdown(error);
-		m_next_layer.close(error);
+		if( stream.next_layer().is_open() )
+		{
+			error_code error;
+			stream.shutdown(error);
+			stream.next_layer().close(error);
+		}
 	}
 };
 #endif //LIBGS_ENABLE_OPENSSL
@@ -402,9 +408,9 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		m_impl->token_reset(token);
-		return [=,this]() mutable -> awaitable<size_t>
+		return [this](mutable_buffer buf, Token token) mutable -> awaitable<size_t>
 		{
+			m_impl->token_reset(token);
 			const size_t buf_size = buf.size();
 			error_code error;
 			size_t sum = 0;
@@ -458,7 +464,8 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 			while(false);
 			m_impl->token_handle(token, error, "libgs::http::server_request::async_read");
 			co_return sum;
-		}();
+		}
+		(buf, token);
 	}
 }
 
@@ -535,7 +542,7 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return [=,this]() mutable -> awaitable<std::string>
+		return [this](Token token) mutable -> awaitable<std::string>
 		{
 			std::string sum;
 			error_code error;
@@ -556,7 +563,8 @@ auto basic_server_request<Stream,CharT>::async_read_all(Token &&token)
 			while( can_read_body() );
 			m_impl->token_handle(token, error, "libgs::http::server_request::async_read_all");
 			co_return sum;
-		}();
+		}
+		(token);
 	}
 }
 
@@ -726,9 +734,9 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		m_impl->token_reset(token);
-		return [=,this]() mutable -> awaitable<size_t>
+		return [this](std::string file_name, req_range range, Token token) mutable -> awaitable<size_t>
 		{
+			m_impl->token_reset(token);
 			error_code error;
 			size_t sum = 0;
 			do {
@@ -790,7 +798,8 @@ auto basic_server_request<Stream,CharT>::async_save_file(std::string_view file_n
 			}
 			while(false);
 			co_return sum;
-		}();
+		}
+		({file_name.data(), file_name.size()}, range, token);
 	}
 }
 

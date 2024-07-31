@@ -29,6 +29,9 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_RESPONSE_H
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_H
 
+#include <libgs/core/algorithm/uuid.h>
+#include <spdlog/spdlog.h>
+
 namespace libgs::http
 {
 
@@ -141,9 +144,9 @@ public:
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			token_reset(token);
-			return [=,this]() mutable -> awaitable<size_t>
+			return [this](const_buffer body, Token token, const char *func) mutable -> awaitable<size_t>
 			{
+				token_reset(token);
 				if( m_headers_writed )
 				{
 					write_runtime_error_check(body, func);
@@ -153,26 +156,30 @@ public:
 				if( body.size() > 0 )
 					sum += co_await write_body_x(body, std::forward<Token>(token), func);
 				co_return sum;
-			}();
+			}
+			(body, token, func);
 		}
 	}
 
 	template <typename Token>
-	auto send_file_x(std::string_view file_name, const resp_ranges &ranges, Token &&token, const char *func)
+	auto send_file_x(std::string_view _file_name, const resp_ranges &ranges, Token &&token, const char *func)
 	{
 		namespace fs = std::filesystem;
 		if( m_headers_writed )
-			throw runtime_error("libgs::http::response::{}: The http protocol header is sent repeatedly.", func);
+			throw runtime_error("libgs::http::server_response::{}: The http protocol header is sent repeatedly.", func);
 
 		if constexpr( std::is_same_v<std::decay_t<Token>, error_code> )
 		{
 			size_t sum = 0;
-			if( not fs::exists(file_name))
+			auto file_name = app::absolute_path(token, _file_name);
+			if( token )
+				return sum;
+			else if( not fs::exists(file_name) )
 			{
 				token = std::make_error_code(std::errc::no_such_file_or_directory);
 				return sum;
 			}
-			std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+			std::ifstream file(file_name, std::ios_base::in | std::ios_base::binary);
 			if( not file.is_open())
 			{
 				token = std::make_error_code(static_cast<std::errc>(errno));
@@ -180,8 +187,8 @@ public:
 			}
 			else if( ranges.empty() )
 			{
-				auto it = m_helper.headers().find(header_t::range);
-				if( it != m_helper.headers().end())
+				auto it = m_next_layer.headers().find(header_t::range);
+				if( it != m_next_layer.headers().end() )
 					sum = range_transfer_x(file_name, file, it->second.to_string(), token, func);
 				else
 					sum = default_transfer_x(file_name, file, token, func);
@@ -194,7 +201,7 @@ public:
 					if( range.begin >= range.end )
 						range_text += std::format(static_string::range_format, range.begin, range.end);
 					else
-						throw runtime_error("libgs::http::response::{}: range error: begin > end", func);
+						throw runtime_error("libgs::http::server_response::{}: range error: begin > end", func);
 				}
 				range_text.pop_back();
 				sum = range_transfer_x(file_name, file, range_text, token, func);
@@ -204,11 +211,11 @@ public:
 		}
 		else if constexpr( is_function_v<Token> )
 		{
-			auto _file_name = std::string(file_name.data(), file_name.size());
-			co_spawn_detached([this, _file_name = std::move(_file_name), ranges, callback = std::move(token), func]() -> awaitable<void>
+			co_spawn_detached([this, file_name = std::string(_file_name.data(), _file_name.size()),
+							   ranges, callback = std::move(token), func]() -> awaitable<void>
 			{
 				error_code error;
-				auto buf = co_await send_file_x(_file_name, ranges, use_awaitable|error, func);
+				auto buf = co_await send_file_x(file_name, ranges, use_awaitable|error, func);
 				callback(buf, error);
 				co_return;
 			},
@@ -218,12 +225,17 @@ public:
 		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
 		{
 			size_t sum = 0;
-			if( not fs::exists(file_name))
+			error_code error;
+			auto file_name = app::absolute_path(error, _file_name);
+
+			if( not token_check(token, error, func) )
+				return sum;
+			else if( not fs::exists(file_name) )
 			{
 				token_handle(token, std::make_error_code(std::errc::no_such_file_or_directory), func);
 				return sum;
 			}
-			std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+			std::ifstream file(file_name, std::ios_base::in | std::ios_base::binary);
 			if( not file.is_open() )
 			{
 				token_handle(token, std::make_error_code(static_cast<std::errc>(errno)), func);
@@ -231,8 +243,8 @@ public:
 			}
 			else if( ranges.empty())
 			{
-				auto it = m_helper.headers().find(header_t::range);
-				if( it != m_helper.headers().end())
+				auto it = m_next_layer.headers().find(header_t::range);
+				if( it != m_next_layer.headers().end() )
 					sum = range_transfer_x(file_name, file, it->second.to_string(), std::forward<Token>(token), func);
 				else
 					sum = default_transfer_x(file_name, file, std::forward<Token>(token), func);
@@ -256,15 +268,20 @@ public:
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			return [=,this]() mutable -> awaitable<size_t>
+			return [this](std::string _file_name, resp_ranges ranges, Token token, const char *func) mutable -> awaitable<size_t>
 			{
 				size_t sum = 0;
-				if( not fs::exists(file_name))
+				error_code error;
+				auto file_name = app::absolute_path(error, _file_name);
+
+				if( not token_check(token, error, func) )
+					co_return sum;
+				else if( not fs::exists(file_name) )
 				{
 					token_check(token, std::make_error_code(std::errc::no_such_file_or_directory), func);
 					co_return sum;
 				}
-				std::ifstream file(file_name.data(), std::ios_base::in | std::ios_base::binary);
+				std::ifstream file(file_name, std::ios_base::in | std::ios_base::binary);
 				if( not file.is_open())
 				{
 					token_check(token, std::make_error_code(static_cast<std::errc>(errno)), func);
@@ -272,8 +289,8 @@ public:
 				}
 				else if( ranges.empty() )
 				{
-					auto it = m_helper.headers().find(header_t::range);
-					if( it != m_helper.headers().end())
+					auto it = m_next_layer.headers().find(header_t::range);
+					if( it != m_next_layer.headers().end() )
 						sum = co_await range_transfer_x(file_name, file, it->second.to_string(), std::forward<Token>(token), func);
 					else
 						sum = co_await default_transfer_x(file_name, file, std::forward<Token>(token), func);
@@ -293,7 +310,8 @@ public:
 				}
 				file.close();
 				co_return sum;
-			}();
+			}
+			({_file_name.data(), _file_name.size()}, ranges, token, func);
 		}
 	}
 
@@ -351,13 +369,14 @@ public:
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			return [=,this]() mutable -> awaitable<size_t>
+			return [this](std::string buf, Token token, const char *func) mutable -> awaitable<size_t>
 			{
 				auto res = co_await write_body_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				if( check_token_error(token) )
 					m_chunk_end_writed = true;
 				co_return res;
-			}();
+			}
+			(std::move(buf), token, func);
 		}
 	}
 
@@ -436,7 +455,7 @@ private:
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			return [=, &file, this]() mutable -> awaitable<size_t>
+			return [this](std::string_view file_name, std::ifstream &file, Token token, const char *func) mutable -> awaitable<size_t>
 			{
 				auto mime_type = get_mime_type(file_name);
 				spdlog::debug("resource mime-type: {}.", mime_type);
@@ -470,7 +489,8 @@ private:
 					co_await co_sleep_for(512us, q_ptr->get_executor());
 				}
 				co_return sum;
-			}();
+			}
+			(file_name, file, token, func);
 		}
 	}
 
@@ -529,20 +549,20 @@ private:
 					return write_x(buffer(buf, buf.size()), token, func);
 				}
 				q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
-					  .set_header(header_t::content_type, mime_type)
+					  .set_header(header_t::content_type, mbstoxx<CharT>(mime_type))
 					  .set_header(header_t::content_length, range_value.size)
 					  .set_header(header_t::content_range,
 								  {static_string::content_range_format, range_value.begin, range_value.end,
 								   range_value.size});
 
-				return send_range_x(file, "", "", range_value_list, token, func);
+				return send_range_x(file, "", "", std::move(range_value_list), token, func);
 			} // if( rangeList.size() == 1 )
 
 			using namespace std::chrono;
-			auto boundary = std::format("{}_{}", __func__,
+			auto boundary = std::format("{}_{}", uuid::generate().to_string(),
 										duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 
-			q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + boundary);
+			q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
 
 			auto ct_line = std::format("{}: {}", header::content_type, mime_type);
 			std::size_t content_length = 0;
@@ -585,7 +605,7 @@ private:
 			q_ptr->set_header(header_t::content_length, content_length)
 				  .set_header(header_t::accept_ranges, static_string::bytes);
 
-			return send_range_x(file, boundary, ct_line, range_value_list, token, func);
+			return send_range_x(file, boundary, ct_line, std::move(range_value_list), token, func);
 		}
 #ifdef LIBGS_USING_BOOST_ASIO
 		else if constexpr( std::is_same_v<std::decay_t<Token>, yield_context> )
@@ -646,7 +666,7 @@ private:
 								  {static_string::content_range_format, range_value.begin, range_value.end,
 								   range_value.size});
 
-				return send_range_x(file, "", "", range_value_list, std::forward<Token>(token), func);
+				return send_range_x(file, "", "", std::move(range_value_list), std::forward<Token>(token), func);
 			} // if( rangeList.size() == 1 )
 
 			using namespace std::chrono;
@@ -696,12 +716,14 @@ private:
 			q_ptr->set_header(header_t::content_length, content_length)
 				  .set_header(header_t::accept_ranges, static_string::bytes);
 
-			return send_range_x(file, boundary, ct_line, range_value_list, std::forward<Token>(token), func);
+			return send_range_x(file, boundary, ct_line, std::move(range_value_list), std::forward<Token>(token), func);
 		}
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			return [=, &file, this]() mutable -> awaitable<size_t>
+			return [this]
+			(std::string_view file_name, std::ifstream &file, string_view_t _range_str, Token token, const char *func)
+			mutable -> awaitable<size_t>
 			{
 				string_t range_str(_range_str.data(), _range_str.size());
 				for(auto i=range_str.size(); i>0; i--)
@@ -753,20 +775,20 @@ private:
 						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 					}
 					q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
-						  .set_header(header_t::content_type, mime_type)
+						  .set_header(header_t::content_type, mbstoxx<CharT>(mime_type))
 						  .set_header(header_t::content_length, range_value.size)
 						  .set_header(header_t::content_range,
 									  {static_string::content_range_format, range_value.begin, range_value.end,
 									   range_value.size});
 
-					co_return co_await send_range_x(file, "", "", range_value_list, std::forward<Token>(token), func);
+					co_return co_await send_range_x(file, "", "", std::move(range_value_list), std::forward<Token>(token), func);
 				} // if( rangeList.size() == 1 )
 
 				using namespace std::chrono;
-				auto boundary = std::format("{}_{}", __func__,
+				auto boundary = std::format("{}_{}", uuid::generate().to_string(),
 											duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 
-				q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + boundary);
+				q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
 
 				auto ct_line = std::format("{}: {}", header::content_type, mime_type);
 				std::size_t content_length = 0;
@@ -809,8 +831,10 @@ private:
 				q_ptr->set_header(header_t::content_length, content_length)
 					  .set_header(header_t::accept_ranges, static_string::bytes);
 
-				co_return co_await send_range_x(file, boundary, ct_line, range_value_list, std::forward<Token>(token), func);
-			}();
+				co_return co_await send_range_x
+				(file, boundary, ct_line, std::move(range_value_list), std::forward<Token>(token), func);
+			}
+			(file_name, file, _range_str, token, func);
 		}
 	}
 
@@ -828,7 +852,7 @@ private:
 
 		if( list.size() > 2 )
 		{
-			spdlog::debug("Range format error: {}.", range_str);
+			spdlog::debug("Range format error: {}.", xxtombs<CharT>(range_str));
 			return false;
 		}
 		namespace fs = std::filesystem;
@@ -888,7 +912,7 @@ public:
 	auto send_range_x(std::ifstream &file,
 					  std::string_view boundary,
 					  std::string_view ct_line,
-					  std::list<range_value> &range_value_queue,
+					  std::list<range_value> range_value_queue,
 					  Token &&token,
 					  const char *func)
 	{
@@ -1087,7 +1111,12 @@ public:
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			return [=, &file, this]() mutable -> awaitable<size_t>
+			return [this](std::ifstream &file,
+						  std::string_view boundary,
+						  std::string_view ct_line,
+						  std::list<range_value> range_value_queue,
+						  Token token,
+						  const char *func) mutable -> awaitable<size_t>
 			{
 				auto sum = co_await write_header_x(0, std::forward<Token>(token), func);
 				constexpr size_t buf_size = 0xFFFF;
@@ -1180,43 +1209,20 @@ public:
 				auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
 				sum += co_await write_body_x(buffer(abuf, abuf.size()), std::forward<Token>(token), func);
 				co_return sum;
-			}();
+			}
+			(file, boundary, ct_line, std::move(range_value_queue), token, func);
 		}
 	}
 
 private:
 	template <typename Token>
-	auto write_header_x(size_t size, Token &&token, const char *func)
-	{
-		std::string data;
-
-			try {
-		data = m_helper.header_data(size);
-			}
-			catch(std::exception &ex)
-			{
-				spdlog::error("cccccccccccccccccccccccc: {}.", ex);
-				throw ex;
-			}
-
-		return write_funcdata_x(std::move(data), true, std::forward<Token>(token), func);
+	auto write_header_x(size_t size, Token &&token, const char *func) {
+		return write_funcdata_x(m_helper.header_data(size), true, std::forward<Token>(token), func);
 	}
 
 	template <typename Token>
-	auto write_body_x(const const_buffer &body, Token &&token, const char *func)
-	{
-		std::string data;
-
-			try {
-		m_helper.body_data(body);
-				}
-			catch(std::exception &ex)
-			{
-				spdlog::error("dddddddddddddddddddddddddd: {}.", ex);
-				throw ex;
-			}
-
-		return write_funcdata_x(std::move(data), false, std::forward<Token>(token), func);
+	auto write_body_x(const const_buffer &body, Token &&token, const char *func) {
+		return write_funcdata_x(m_helper.body_data(body), false, std::forward<Token>(token), func);
 	}
 
 	template <typename Token>
@@ -1269,11 +1275,11 @@ private:
 #endif //LIBGS_USING_BOOST_ASIO
 		else
 		{
-			token_reset(token);
-			return [this, data = std::move(data), wheader, token, efuncname]() mutable -> awaitable<size_t>
+			return [this](std::string data, bool wheader, Token token, const char *efuncname) mutable -> awaitable<size_t>
 			{
+				token_reset(token);
 				size_t sum = 0;
-				error_code error;	
+				error_code error;
 				do {
 					if constexpr( detail::concept_has_get<Token> )
 					{
@@ -1296,7 +1302,8 @@ private:
 				if( token_check(token, error, efuncname) and wheader )
 					m_headers_writed = true;
 				co_return sum;
-			}();
+			}
+			(std::move(data), wheader, token, efuncname);
 		}
 	}
 

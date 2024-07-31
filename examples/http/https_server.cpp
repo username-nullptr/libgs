@@ -6,6 +6,7 @@ using namespace std::chrono_literals;
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
+	constexpr unsigned short port = 12345;
 
 	libgs::ssl::context ssl(libgs::ssl::context::sslv23_server);
 	ssl.set_default_verify_paths();
@@ -22,7 +23,7 @@ int main()
 	ssl.use_private_key_file("/opt/openssl/install/bin/ssl.key", libgs::ssl::context::pem);
 
 	libgs::https::server server(ssl);
-	server.bind({libgs::io::address_v4(),12345})
+	server.bind({libgs::io::address_v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::https::server::context &context) -> libgs::awaitable<void>
@@ -69,6 +70,7 @@ int main()
 		return true;
 	})
 	.start();
-	spdlog::info("Server started.");
+
+	spdlog::info("HTTPS Server started ({}) ...", port);
 	return libgs::execution::exec();
 }
