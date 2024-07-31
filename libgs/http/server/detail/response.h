@@ -1675,14 +1675,14 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-const basic_server_response<Stream,CharT>::next_layer_t&
+const typename basic_server_response<Stream,CharT>::next_layer_t&
 basic_server_response<Stream,CharT>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-basic_server_response<Stream,CharT>::next_layer_t&
+typename basic_server_response<Stream,CharT>::next_layer_t&
 basic_server_response<Stream,CharT>::next_layer() noexcept
 {
 	return m_impl->m_next_layer;

@@ -159,7 +159,7 @@ public:
 			bool abd = false;
 			try
 			{
-				m_next_layer.listen(max);
+				m_next_layer.listen(static_cast<int>(max));
 				co_await do_tcp_accept();
 			}
 			catch(std::exception &ex)
