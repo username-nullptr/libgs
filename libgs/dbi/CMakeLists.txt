@@ -8,11 +8,14 @@ set(${target_name}_headers
 	global.h
 	cell.h
 	types.h
+	result_iterator.h
 	management.h
 )
 
 set(${target_name}_detail_headers
 	detail/cell.h
+	detail/result_iterator.h
+	detail/management.h
 )
 
 set(all_files

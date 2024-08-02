@@ -150,10 +150,10 @@ template <concept_execution Exec>
 using basic_tcp_server_request = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_server_wrequest = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
+using wbasic_tcp_server_request = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
-using tcp_server_wrequest = basic_tcp_server_wrequest<asio::any_io_executor>;
+using wtcp_server_request = wbasic_tcp_server_request<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/request.h>

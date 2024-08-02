@@ -29,12 +29,27 @@
 #ifndef LIBGS_DBI_MANAGEMENT_H
 #define LIBGS_DBI_MANAGEMENT_H
 
-#include <libgs/dbi/global.h>
+#include <libgs/dbi/result_iterator.h>
 
 namespace libgs::dbi
 {
 
+//template <concept_char_type CharT>
+//class LIBGS_DBI_TAPI basic_manager
+//{
+//public:
+//	static void register_driver(dbi::driver *driver, bool as_default = false) noexcept(false);
+//	static void unregister_driver(const std::string &name);
+//	static void unregister_driver(dbi::driver *driver);
+//
+//public:
+//	static dbi::driver &driver(const std::string &name = "");
+//	static void set_default_driver(dbi::driver *driver);
+//	static void set_default_driver(const std::string &name);
+//};
+
 } //namespace libgs::dbi
+#include <libgs/dbi/detail/management.h>
 
 
 #endif //LIBGS_DBI_MANAGEMENT_H

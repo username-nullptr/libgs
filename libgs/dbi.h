@@ -26,11 +26,9 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_LIBGS_H
-#define LIBGS_LIBGS_H
+#ifndef LIBGS_DBI_H
+#define LIBGS_DBI_H
 
-#include <libgs/core.h>
-#include <libgs/http.h>
-#include <libgs/dbi.h>
+#include <libgs/dbi/management.h>
 
-#endif //LIBGS_LIBGS_H
+#endif //LIBGS_DBI_H

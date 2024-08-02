@@ -156,10 +156,10 @@ template <concept_execution Exec>
 using basic_tcp_server_response = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_server_wresponse = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
+using wbasic_tcp_server_response = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
-using tcp_server_wresponse = basic_tcp_server_wresponse<asio::any_io_executor>;
+using wtcp_server_response = wbasic_tcp_server_response<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/response.h>

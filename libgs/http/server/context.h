@@ -95,10 +95,10 @@ template <concept_execution Exec>
 using basic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-using basic_tcp_service_wcontext = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
+using wbasic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;
-using tcp_service_wcontext = basic_tcp_service_wcontext<asio::any_io_executor>;
+using wtcp_service_context = wbasic_tcp_service_context<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/context.h>

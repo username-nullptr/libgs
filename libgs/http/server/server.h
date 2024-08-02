@@ -138,10 +138,10 @@ template <concept_execution MainExec, concept_execution ServiceExec = asio::any_
 using basic_tcp_server = basic_server<char,MainExec,ServiceExec>;
 
 template <concept_execution MainExec, concept_execution ServiceExec = asio::any_io_executor>
-using basic_wtcp_server = basic_server<wchar_t,MainExec,ServiceExec>;
+using wbasic_tcp_server = basic_server<wchar_t,MainExec,ServiceExec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
-using wtcp_server = basic_wtcp_server<asio::any_io_executor>;
+using wtcp_server = wbasic_tcp_server<asio::any_io_executor>;
 
 using server = tcp_server;
 using wserver = wtcp_server;
