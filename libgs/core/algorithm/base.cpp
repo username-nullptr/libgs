@@ -381,12 +381,12 @@ std::wstring to_percent_encoding(std::wstring_view str, std::wstring_view exclud
 	return algorithm_base::to_percent_encoding<wchar_t>(str, exclude, include, percent);
 }
 
-size_t wildcard_match(std::string_view rule, std::string_view str)
+int32_t wildcard_match(std::string_view rule, std::string_view str)
 {
 	return algorithm_base::wildcard_match<char>(rule, str);
 }
 
-size_t wildcard_match(std::wstring_view rule, std::wstring_view str)
+int32_t wildcard_match(std::wstring_view rule, std::wstring_view str)
 {
 	return algorithm_base::wildcard_match<wchar_t>(rule, str);
 }

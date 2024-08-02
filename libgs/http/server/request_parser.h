@@ -43,6 +43,9 @@ public:
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
 
+	using value_t = basic_value<CharT>;
+	using path_args_t = std::vector<std::pair<string_t,value_t>>;
+
 	using cookies_t = basic_cookie_values<CharT>;
 	using header_t = basic_header<CharT>;
 	using headers_t = basic_headers<CharT>;
@@ -59,6 +62,7 @@ public:
 	bool append(std::string_view buf, error_code &error);
 	bool append(std::string_view buf);
 	bool operator<<(std::string_view buf);
+	int32_t path_match(string_view_t rule);
 
 public:
 	[[nodiscard]] http::method method() const noexcept;
@@ -67,6 +71,7 @@ public:
 
 public:
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
+	[[nodiscard]] const path_args_t &path_args() const noexcept;
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 

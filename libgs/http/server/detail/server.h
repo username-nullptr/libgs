@@ -264,7 +264,7 @@ private:
 			}
 
 			context _context(std::move(socket), parser, m_sss);
-			co_await call_on_request(parser, _context);
+			co_await call_on_request(_context);
 
 			if( not _context.response().headers_writed() )
 				co_await call_on_default(_context);
@@ -276,28 +276,28 @@ private:
 	}
 
 private:
-	[[nodiscard]] awaitable<void> call_on_request(basic_server::parser &parser, context &_context)
+	[[nodiscard]] awaitable<void> call_on_request(context &_context)
 	{
 		tk_handler_ptr handler {};
-		size_t weight = 0;
+		int32_t weight = std::numeric_limits<int32_t>::max();
 
 		for(auto &[rule, _handler] : m_request_handler_map)
 		{
-			auto _weight = wildcard_match(rule, parser.path());
-			if( _weight == 0 )
+			auto _weight = _context.request().path_match(rule);
+			if( _weight < 0 )
 				continue;
-			else if( _weight > weight )
+			else if( _weight < weight )
 			{
 				handler = _handler;
 				weight = _weight;
 			}
 		}
-		if( weight == 0 )
+		if( weight < 0 )
 		{
 			_context.response().set_status(status::not_found);
 			co_return ;
 		}
-		else if( (handler->method & parser.method()) == 0 )
+		else if( (handler->method & _context.request().method()) == 0 )
 		{
 			_context.response().set_status(status::method_not_allowed);
 			co_return ;

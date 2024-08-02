@@ -209,6 +209,13 @@ basic_server_request<Stream,CharT>::parameters() const noexcept
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
+const typename basic_server_request<Stream,CharT>::path_args_t&
+basic_server_request<Stream,CharT>::path_args() const noexcept
+{
+	return m_impl->m_parser->path_args();
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
 const typename basic_server_request<Stream,CharT>::headers_t&
 basic_server_request<Stream,CharT>::headers() const noexcept
 {
@@ -223,9 +230,10 @@ basic_server_request<Stream,CharT>::cookies() const noexcept
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-const basic_value<CharT> &basic_server_request<Stream,CharT>::parameter(string_view_t key) const
+const typename basic_server_request<Stream,CharT>::value_t&
+basic_server_request<Stream,CharT>::parameter(string_view_t key) const
 {
-	auto map = m_impl->m_parser->parameters();
+	auto &map = m_impl->m_parser->parameters();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
@@ -233,9 +241,10 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::parameter(string_v
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-const basic_value<CharT> &basic_server_request<Stream,CharT>::header(string_view_t key) const
+const typename basic_server_request<Stream,CharT>::value_t&
+basic_server_request<Stream,CharT>::header(string_view_t key) const
 {
-	auto map = m_impl->m_parser->headers();
+	auto &map = m_impl->m_parser->headers();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs<CharT>(key));
@@ -243,9 +252,10 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::header(string_view
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-const basic_value<CharT> &basic_server_request<Stream,CharT>::cookie(string_view_t key) const
+const typename basic_server_request<Stream,CharT>::value_t&
+basic_server_request<Stream,CharT>::cookie(string_view_t key) const
 {
-	auto map = m_impl->m_parser->cookies();
+	auto &map = m_impl->m_parser->cookies();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
 		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
@@ -253,27 +263,73 @@ const basic_value<CharT> &basic_server_request<Stream,CharT>::cookie(string_view
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-basic_value<CharT> basic_server_request<Stream,CharT>::parameter_or(string_view_t key, value_t def_value) const noexcept
+typename basic_server_request<Stream,CharT>::value_t
+basic_server_request<Stream,CharT>::parameter_or(string_view_t key, value_t def_value) const noexcept
 {
-	auto map = m_impl->m_parser->parameters();
+	auto &map = m_impl->m_parser->parameters();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-basic_value<CharT> basic_server_request<Stream,CharT>::header_or(string_view_t key, value_t def_value) const noexcept
+typename basic_server_request<Stream,CharT>::value_t
+basic_server_request<Stream,CharT>::header_or(string_view_t key, value_t def_value) const noexcept
 {
-	auto map = m_impl->m_parser->headers();
+	auto &map = m_impl->m_parser->headers();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
-basic_value<CharT> basic_server_request<Stream,CharT>::cookie_or(string_view_t key, value_t def_value) const noexcept
+typename basic_server_request<Stream,CharT>::value_t
+basic_server_request<Stream,CharT>::cookie_or(string_view_t key, value_t def_value) const noexcept
 {
-	auto map = m_impl->m_parser->cookies();
+	auto &map = m_impl->m_parser->cookies();
 	auto it = map.find({key.data(), key.size()});
 	return it == map.end() ? def_value : it->second;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+const typename basic_server_request<Stream,CharT>::value_t
+basic_server_request<Stream,CharT>::path_arg(size_t index) const
+{
+	auto &vector = m_impl->m_parser->path_args();
+	if( index >= vector.size() )
+		throw runtime_error("libgs::http::server_request::path_arg: Index '{}' out-of-bounds access.", index);
+	return vector[index].second;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+const typename basic_server_request<Stream,CharT>::value_t
+basic_server_request<Stream,CharT>::path_arg(string_view_t key) const
+{
+	auto &vector = m_impl->m_parser->path_args();
+	for(const auto &[_key,value] : vector)
+	{
+		if( _key == key )
+			return value;
+	}
+	throw runtime_error("libgs::http::server_request::path_arg: key '{}' not exists.", xxtombs<CharT>(key));
+//	return {};
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+typename basic_server_request<Stream,CharT>::value_t
+basic_server_request<Stream,CharT>::path_arg_or(string_view_t key, value_t def_value) const noexcept
+{
+	auto &vector = m_impl->m_parser->path_args();
+	for(const auto &[_key,value] : vector)
+	{
+		if( _key == key )
+			return value;
+	}
+	return def_value;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+int32_t basic_server_request<Stream,CharT>::path_match(string_view_t rule)
+{
+	return m_impl->m_parser->path_match(rule);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>

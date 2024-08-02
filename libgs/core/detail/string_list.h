@@ -57,7 +57,48 @@ std::vector<const CharT*> basic_string_list<CharT>::c_str_vector() const
 template <concept_char_type CharT>
 std::basic_string<CharT> basic_string_list<CharT>::join(const string_t &splits)
 {
-	return str_list_join(*this, splits);
+	string_t result;
+	for(auto &str : *this)
+		result += str + splits;
+	result.erase(result.size() - splits.size(), splits.size());
+	return result;
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, size_t length, const string_t &splits)
+{
+	string_t result;
+	auto end = index + length;
+
+	if( end > this->size() )
+	{
+		end = this->size();
+		if( end <= index )
+			return result;
+	}
+	while( index < end )
+		result += (*this)[index++] + splits;
+	result.erase(result.size() - splits.size(), splits.size());
+	return result;
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, const string_t &splits)
+{
+	return join(index, this->size(), splits);
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> basic_string_list<CharT>::join
+(detail::concept_string_list_iterator<CharT> auto begin,
+ detail::concept_string_list_iterator<CharT> auto end,
+ const string_t &splits)
+{
+	string_t result;
+	for(auto it=begin; it!=end; ++it)
+		result += *it + splits;
+	result.erase(result.size() - splits.size(), splits.size());
+	return result;
 }
 
 template <concept_char_type CharT>
@@ -92,6 +133,48 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 }
 
 } //namespace libgs
+
+namespace std
+{
+
+template <libgs::concept_char_type CharT>
+class formatter<libgs::basic_string_list<CharT>, CharT>
+{
+public:
+	auto format(const libgs::basic_string_list<CharT> &slist, auto &context) const
+	{
+		if( slist.empty() )
+			return m_formatter.format("[]", context);
+
+		if constexpr( libgs::is_char_v<CharT> )
+		{
+			std::string buf = "[";
+			for(auto &str : slist)
+				buf += "'" + str + "', ";
+			buf.erase(buf.size() - 2, 2);
+			buf += "]";
+			return m_formatter.format(buf, context);
+		}
+		else
+		{
+			std::wstring buf = L"[";
+			for(auto &str : slist)
+				buf += L"'" + str + L"', ";
+			buf.erase(buf.size() - 2, 2);
+			buf += L"]";
+			return m_formatter.format(buf, context);
+		}
+	}
+
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<std::basic_string<CharT>, CharT> m_formatter;
+};
+
+} //namespace std
 
 
 #endif //LIBGS_CORE_DETAIL_STRING_LIST_H

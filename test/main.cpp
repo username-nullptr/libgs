@@ -34,6 +34,23 @@ int main()
 		// co_await context.response().write("hello world");
 		co_return ;
 	})
+	.on_request<libgs::http::method::GET>("/aa*bb?cc/{arg0}/{arg1}",
+	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	{
+		auto &request = context.request();
+		for(auto &[key,value] : request.path_args())
+			spdlog::debug("Path arg: {}: {}", key, value);
+
+		spdlog::debug("Path arg0: {}", request.path_arg("arg0"));
+		spdlog::debug("Path arg[0]: {}", request.path_arg(0));
+
+		spdlog::debug("Path arg1: {}", request.path_arg("arg1"));
+		spdlog::debug("Path arg[1]: {}", request.path_arg(1));
+
+		// If you don't write anything, the server will write the default body for you
+		// co_await context.response().write("hello world");
+		co_return ;
+	})
 	.on_request<libgs::http::method::GET>("/hello",
 	[](libgs::http::server::context &context) -> libgs::awaitable<void>
 	{

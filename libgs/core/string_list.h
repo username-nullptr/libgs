@@ -64,6 +64,13 @@ struct _default_splits_argument<wchar_t>
 	static constexpr wchar_t c = L' ';
 };
 
+template <typename T, typename CharT>
+concept concept_string_list_iterator =
+	std::is_same_v<T, typename basic_string_deque<CharT>::iterator> and
+	std::is_same_v<T, typename basic_string_deque<CharT>::const_iterator> and
+	std::is_same_v<T, typename basic_string_deque<CharT>::reverse_iterator> and
+	std::is_same_v<T, typename basic_string_deque<CharT>::const_reverse_iterator>;
+
 } //namespace detail
 
 template <concept_char_type CharT>
@@ -85,6 +92,12 @@ public:
 
 public:
 	[[nodiscard]] string_t join(const string_t &splits = default_splits_argument_s);
+	[[nodiscard]] string_t join(size_t index, size_t length, const string_t &splits = default_splits_argument_s);
+	[[nodiscard]] string_t join(size_t index, const string_t &splits = default_splits_argument_s);
+
+	[[nodiscard]] static string_t join(detail::concept_string_list_iterator<CharT> auto begin,
+									   detail::concept_string_list_iterator<CharT> auto end,
+									   const string_t &splits = default_splits_argument_s);
 
 	[[nodiscard]] static basic_string_list<CharT>
 		from_string(string_view_t str, string_view_t splits = default_splits_argument_s,
@@ -95,7 +108,6 @@ public:
 };
 
 using string_list = basic_string_list<char>;
-
 using wstring_list = basic_string_list<wchar_t>;
 
 } //namespace libgs

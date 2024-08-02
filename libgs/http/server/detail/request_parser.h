@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 
 #include <libgs/core/string_list.h>
+#include <ranges>
 
 namespace libgs::http
 {
@@ -371,6 +372,7 @@ public:
 	http::method m_method = http::method::GET;
 	string_t m_path;
 	parameters_t m_parameters;
+	path_args_t m_path_args;
 	string_t m_version;
 
 	headers_t m_headers;
@@ -476,6 +478,73 @@ bool basic_request_parser<CharT>::operator<<(std::string_view buf)
 }
 
 template <concept_char_type CharT>
+int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
+{
+	constexpr const char *root = detail::_key_static_string<CharT>::root;
+	using string_list_t = basic_string_list<CharT>;
+
+	auto rule_list = string_list_t::from_string(rule, root/*/*/);
+	auto path_list = string_list_t::from_string(m_impl->m_path, root/*/*/);
+
+	if( path_list.empty() )
+		path_list.emplace_back("/");
+	if( path_list.size() < rule_list.size() )
+		return -1;
+
+	path_args_t vector;
+	size_t index = rule_list.size();
+
+	for(auto &format : std::ranges::reverse_view(rule_list))
+	{
+		if( not format.starts_with(0x7B/*{*/) or not format.ends_with(0x7D/*}*/)  )
+			break;
+		else if( format.size() == 2 )
+		{
+			vector.emplace_back();
+			--index;
+			continue;
+		}
+		bool res = true;
+		for(size_t i=1; i<format.size()-1; i++)
+		{
+			if( format[i] == 0x7B/*{*/ or format[i] == 0x7D/*}*/ )
+			{
+				res = false;
+				break;
+			}
+		}
+		if( res )
+		{
+			string_t key(format.c_str() + 1, format.size() - 2);
+			vector.emplace_back(std::make_pair(std::move(key), value_t()));
+			--index;
+		}
+	}
+	std::reverse(vector.begin(), vector.end());
+
+	auto rule_before = rule_list.join(0, index, root/*/*/);
+	string_t path_before;
+
+	index = path_list.size() - vector.size();
+	if( vector.empty() )
+		path_before = path_list.join(root/*/*/);
+	else
+		path_before = path_list.join(0, index, root/*/*/);
+
+	auto weight = wildcard_match(rule_before, path_before);
+	if( weight < 0 )
+		return -1;
+
+	for(auto &[key,value] : vector)
+	{
+		ignore_unused(key);
+		value = path_list[index++];
+	}
+	m_impl->m_path_args = std::move(vector);
+	return weight;
+}
+
+template <concept_char_type CharT>
 http::method basic_request_parser<CharT>::method() const noexcept
 {
 	return m_impl->m_method;
@@ -497,6 +566,12 @@ template <concept_char_type CharT>
 const typename basic_request_parser<CharT>::parameters_t &basic_request_parser<CharT>::parameters() const noexcept
 {
 	return m_impl->m_parameters;
+}
+
+template <concept_char_type CharT>
+const typename basic_request_parser<CharT>::path_args_t &basic_request_parser<CharT>::path_args() const noexcept
+{
+	return m_impl->m_path_args;
 }
 
 template <concept_char_type CharT>

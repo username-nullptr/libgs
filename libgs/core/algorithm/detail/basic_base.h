@@ -484,11 +484,11 @@ template <concept_char_type CharT>
 }
 
 template <concept_char_type CharT>
-[[nodiscard]] size_t wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
+[[nodiscard]] int32_t wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
 {
-	size_t rule_len = static_cast<int>(rule.size());
-	size_t str_len = static_cast<int>(str.size());
-	size_t weight = rule_len;
+	size_t rule_len = rule.size();
+	size_t str_len = str.size();
+	int32_t weight = 0;
 
 	std::vector<std::vector<bool>> dp(str_len + 1, std::vector<bool>(rule_len + 1, false));
 	dp[0][0] = true;
@@ -496,10 +496,7 @@ template <concept_char_type CharT>
 	for(size_t j=1; j<rule_len+1; j++)
 	{
 		if( rule[j-1] == 0x2A/***/ )
-		{
 			dp[0][j] = dp[0][j-1];
-			weight++;
-		}
 	}
 	for(size_t i=1; i<str_len+1; i++)
 	{
@@ -508,7 +505,7 @@ template <concept_char_type CharT>
 			if( rule[j-1] == 0x3F/*?*/ )
 			{
 				dp[i][j] = dp[i-1][j-1];
-				weight += 2;
+				weight++;
 			}
 			else if( rule[j-1] == str[i-1] )
 				dp[i][j] = dp[i-1][j-1];
@@ -516,11 +513,11 @@ template <concept_char_type CharT>
 			else if( rule[j-1] == 0x2A/***/ )
 			{
 				dp[i][j] = dp[i-1][j] or dp[i][j-1];
-				weight++;
+				weight += 2;
 			}
 		}
 	}
-	return dp.back().back() ? weight == rule_len ? (std::numeric_limits<size_t>::max)() : weight : 0;
+	return dp.back().back() ? weight : -1;
 }
 
 template <concept_char_type CharT>

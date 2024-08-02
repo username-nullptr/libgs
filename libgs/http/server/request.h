@@ -49,7 +49,9 @@ public:
 	using parser_t = basic_request_parser<CharT>;
 	using string_t = typename parser_t::string_t;
 	using string_view_t = std::basic_string_view<CharT>;
-	using value_t = basic_value<CharT>;
+
+	using value_t = typename parser_t::value_t;
+	using path_args_t = typename parser_t::path_args_t;
 
 	using header_t = typename parser_t::header_t;
 	using headers_t = typename parser_t::headers_t;
@@ -76,6 +78,7 @@ public:
 	[[nodiscard]] string_view_t path() const noexcept;
 
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
+	[[nodiscard]] const path_args_t &path_args() const noexcept;
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
@@ -87,6 +90,13 @@ public:
 	[[nodiscard]] value_t parameter_or(string_view_t key, value_t def_value = {}) const noexcept;
 	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
 	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
+
+	[[nodiscard]] const value_t path_arg(size_t index) const;
+	[[nodiscard]] const value_t path_arg(string_view_t key) const;
+	[[nodiscard]] value_t path_arg_or(string_view_t key, value_t def_value = {}) const noexcept;
+
+public:
+	int32_t path_match(string_view_t rule);
 
 public:
 	size_t read(const mutable_buffer &buf);
