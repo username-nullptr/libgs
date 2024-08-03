@@ -29,7 +29,7 @@
 #ifndef LIBGS_DBI_MANAGEMENT_H
 #define LIBGS_DBI_MANAGEMENT_H
 
-#include <libgs/dbi/result_iterator.h>
+#include <libgs/dbi/connection.h>
 
 namespace libgs::dbi
 {

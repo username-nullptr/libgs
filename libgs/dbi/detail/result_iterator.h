@@ -38,6 +38,12 @@ inline basic_result_iterator<CharT>::~basic_result_iterator()
 
 }
 
+template <concept_char_type CharT>
+std::optional<std::basic_string<CharT>> basic_result_iterator<CharT>::get_opt_string(size_t column) const
+{
+	return get_opt_string(column, 1024);
+}
+
 #define GET_XX_BY_NAME(_return, _func_name) \
 	template <concept_char_type CharT> \
 	_return basic_result_iterator<CharT>::_func_name(string_view_t column_name) const { \
@@ -73,6 +79,12 @@ std::optional<std::basic_string<CharT>> basic_result_iterator<CharT>::get_opt_st
 	// return {};
 }
 
+template <concept_char_type CharT>
+std::optional<std::basic_string<CharT>> basic_result_iterator<CharT>::get_opt_string(string_view_t column_name) const
+{
+	return get_opt_string(column_name, 1024);
+}
+
 #define GET_XX_BY_INDEX(_return, _basic_func_name) \
 	template <concept_char_type CharT> \
 	_return basic_result_iterator<CharT>::get_##_basic_func_name(size_t column) const { \
@@ -106,6 +118,12 @@ std::basic_string<CharT> basic_result_iterator<CharT>::get_string(size_t column,
 	// return {};
 }
 
+template <concept_char_type CharT>
+std::basic_string<CharT> basic_result_iterator<CharT>::get_string(size_t column) const
+{
+	return get_string(column, 1024);
+}
+
 GET_XX_BY_NAME(bool    , get_bool  )
 GET_XX_BY_NAME(int8_t  , get_char  )
 GET_XX_BY_NAME(uint8_t , get_uchar )
@@ -128,6 +146,12 @@ std::basic_string<CharT> basic_result_iterator<CharT>::get_string(string_view_t 
 	}
 	throw runtime_error("dbi::result_set::get_string: Invalid column name.");
 	// return {};
+}
+
+template <concept_char_type CharT>
+std::basic_string<CharT> basic_result_iterator<CharT>::get_string(string_view_t column_name) const
+{
+	return get_string(column_name, 1024);
 }
 
 template <concept_char_type CharT>

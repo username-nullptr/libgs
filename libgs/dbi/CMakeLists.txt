@@ -9,12 +9,14 @@ set(${target_name}_headers
 	cell.h
 	types.h
 	result_iterator.h
+	connection.h
 	management.h
 )
 
 set(${target_name}_detail_headers
 	detail/cell.h
 	detail/result_iterator.h
+	detail/connection.h
 	detail/management.h
 )
 
