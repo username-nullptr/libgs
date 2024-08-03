@@ -78,8 +78,3 @@ set(http_sources
 	http/https_server.cpp
 )
 set_target(gs_core ${http_sources})
-
-set(dbi_sources
-	dbi/cell.cpp
-)
-set_target(gs_dbi ${dbi_sources})

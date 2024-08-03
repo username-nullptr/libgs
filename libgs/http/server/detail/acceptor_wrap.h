@@ -29,6 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_ACCEPTOR_WRAP_H
 #define LIBGS_HTTP_SERVER_DETAIL_ACCEPTOR_WRAP_H
 
+#include <libgs/http/basic/socket_operation_helper.h>
 #include <spdlog/spdlog.h>
 
 namespace libgs::http
@@ -167,8 +168,7 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	if( error )
 	{
 		spdlog::warn("libgs::http::server(SSL): SSL handshake failed: {}.", error);
-		ssl_socket.next_layer().shutdown(asio::socket_base::shutdown_both, error);
-		ssl_socket.next_layer().close(error);
+		socket_operation_helper<socket_t>::close(ssl_socket);
 	}
 	co_return ssl_socket;
 }

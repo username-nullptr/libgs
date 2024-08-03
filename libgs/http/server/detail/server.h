@@ -29,8 +29,6 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_SERVER_H
 #define LIBGS_HTTP_SERVER_DETAIL_SERVER_H
 
-#include <spdlog/spdlog.h>
-
 namespace libgs::http
 {
 

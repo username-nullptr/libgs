@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_ACCEPTOR_WRAP_H
 
 #include <libgs/http/global.h>
+#include <libgs/core/coroutine.h>
 
 namespace libgs::http
 {
