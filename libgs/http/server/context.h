@@ -54,6 +54,9 @@ public:
 	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);
 	~basic_service_context();
 
+	basic_service_context(basic_service_context &&other) noexcept;
+	basic_service_context &operator=(basic_service_context &&other) noexcept;
+
 	template<typename Stream0>
 	basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
 		requires concept_constructible<Stream,Stream0&&>;

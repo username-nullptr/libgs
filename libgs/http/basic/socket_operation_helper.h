@@ -26,41 +26,59 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_APP_UTILS_H
-#define LIBGS_CORE_DETAIL_APP_UTILS_H
+#ifndef LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
+#define LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
 
-namespace libgs::app
+#include <libgs/http/global.h>
+
+namespace libgs::http
 {
 
-template <typename Arg0, typename...Args>
-bool setenv(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+template <typename Stream>
+class socket_operation_helper;
+
+template <concept_execution Exec>
+class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 {
-	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...));
-}
+	using socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec>;
+	using executor_t = typename socket_t::executor_type;
+	using endpoint_t = asio::ip::tcp::endpoint;
 
-template <typename Arg0, typename...Args>
-bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+public:
+	static void get_option(socket_t &socket, auto &option, error_code &error);
+	static void close(socket_t &socket);
+
+	static endpoint_t remote_endpoint(socket_t &socket);
+	static endpoint_t local_endpoint(socket_t &socket);
+
+	static const executor_t &get_executor(socket_t &socket) noexcept;
+	static bool is_open(socket_t &socket) noexcept;
+};
+
+#ifdef LIBGS_ENABLE_OPENSSL
+
+template <concept_execution Exec>
+class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
 {
-	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...), overwrite);
-}
+	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+	using executor_t = typename asio::basic_stream_socket<asio::ip::tcp,Exec>::executor_type;
+	using endpoint_t = asio::ip::tcp::endpoint;
 
-template <concept_char_string_type T>
-bool setenv(std::string_view key, T &&value, bool overwrite)
-{
-	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
-}
+public:
+	static void get_option(socket_t &socket, auto &option, error_code &error);
+	static void close(socket_t &socket);
 
-inline namespace literals
-{
+	static endpoint_t remote_endpoint(socket_t &socket);
+	static endpoint_t local_endpoint(socket_t &socket);
 
-inline std::string operator""_abs(const char *path, size_t len)
-{
-	return absolute_path(path);
-}
+	static const executor_t &get_executor(socket_t &socket) noexcept;
+	static bool is_open(socket_t &socket) noexcept;
+};
 
-} //inline namespace app_literals
+#endif //LIBGS_ENABLE_OPENSSL
 
-} //namespace libgs::app
+} //namespace libgs::http
+#include <libgs/http/basic/detail/socket_operation_helper.h>
 
 
-#endif //LIBGS_CORE_DETAIL_APP_UTILS_H
+#endif //LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H

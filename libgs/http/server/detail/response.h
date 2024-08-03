@@ -1393,6 +1393,21 @@ basic_server_response<Stream,CharT>::~basic_server_response()
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT>::basic_server_response(basic_server_response &&other) noexcept :
+	m_impl(new impl(this, std::move(*other.m_impl)))
+{
+
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operator=
+(basic_server_response &&other) noexcept
+{
+	*m_impl = std::move(*other.m_impl);
+	return *this;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
 template <typename Stream0>
 basic_server_response<Stream,CharT>::basic_server_response
 (basic_server_response<Stream0,CharT> &&other) noexcept

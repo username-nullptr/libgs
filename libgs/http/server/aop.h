@@ -37,9 +37,14 @@ namespace libgs::http
 template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_aop
 {
+	LIBGS_DISABLE_COPY_MOVE(basic_aop)
+
 public:
 	using context_t = basic_service_context<Stream,CharT>;
+	basic_aop() = default;
 	virtual ~basic_aop() = 0;
+
+public:
 	virtual awaitable<bool> before(context_t &context);
 	virtual awaitable<bool> after(context_t &context);
 	virtual bool exception(context_t &context, std::exception &ex);

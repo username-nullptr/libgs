@@ -31,6 +31,5 @@
 
 #include <libgs/core.h>
 #include <libgs/http.h>
-#include <libgs/dbi.h>
 
 #endif //LIBGS_LIBGS_H

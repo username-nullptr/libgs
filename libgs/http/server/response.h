@@ -63,6 +63,9 @@ public:
 	explicit basic_server_response(next_layer_t &&next_layer);
 	~basic_server_response();
 
+	basic_server_response(basic_server_response &&other) noexcept;
+	basic_server_response &operator=(basic_server_response &&other) noexcept;
+
 	template <typename Stream0>
 	basic_server_response(basic_server_response<Stream0,CharT> &&other) noexcept
 		requires concept_constructible<next_layer_t,basic_server_request<Stream0,CharT>&&>;

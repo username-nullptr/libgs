@@ -33,10 +33,21 @@
 #include <concepts>
 
 #ifdef LIBGS_USING_BOOST_ASIO
+
 # include <boost/asio.hpp>
+# ifdef LIBGS_ENABLE_OPENSSL
+#  include <boost/asio/ssl.hpp>
+# endif //LIBGS_ENABLE_OPENSSL
+
 namespace asio = boost::asio;
+
 #else
+
 # include <asio.hpp>
+# ifdef LIBGS_ENABLE_OPENSSL
+#  include <asio/ssl.hpp>
+# endif //LIBGS_ENABLE_OPENSSL
+
 #endif //LIBGS_USING_BOOST_ASIO
 
 namespace libgs

@@ -82,6 +82,21 @@ basic_service_context<Stream,CharT>::~basic_service_context()
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_service_context<Stream,CharT>::basic_service_context(basic_service_context &&other) noexcept :
+	m_impl(new impl(*other.m_impl))
+{
+
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=
+(basic_service_context &&other) noexcept
+{
+	*m_impl = *other.m_impl;
+	return *this;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
 template<typename Stream0>
 basic_service_context<Stream,CharT>::basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
 	requires concept_constructible<Stream,Stream0&&> :

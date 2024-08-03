@@ -29,6 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 
+#include <libgs/http/basic/socket_operation_helper.h>
 #include <libgs/core/string_list.h>
 #include <libgs/core/app_utls.h>
 #include <filesystem>
@@ -36,42 +37,6 @@
 
 namespace libgs::http
 {
-
-namespace detail
-{
-
-template <concept_tcp_stream Stream>
-class LIBGS_HTTP_TAPI close_helper
-{
-public:
-	close_helper(Stream &stream)
-	{
-		if( stream.is_open() )
-		{
-			error_code error;
-			stream.close(error);
-		}
-	}
-};
-
-#ifdef LIBGS_ENABLE_OPENSSL
-template <concept_tcp_stream Stream>
-class LIBGS_HTTP_TAPI close_helper<asio::ssl::stream<Stream>>
-{
-public:
-	close_helper(asio::ssl::stream<Stream> &stream)
-	{
-		if( stream.next_layer().is_open() )
-		{
-			error_code error;
-			stream.shutdown(error);
-			stream.next_layer().close(error);
-		}
-	}
-};
-#endif //LIBGS_ENABLE_OPENSSL
-
-} //namespace detail
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 class basic_server_request<Stream,CharT>::impl
@@ -106,7 +71,7 @@ public:
 	}
 
 	~impl() {
-		detail::close_helper<Stream>{m_next_layer};
+		socket_operation_helper<next_layer_t>::close(m_next_layer);
 	}
 
 public:
@@ -163,6 +128,20 @@ template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_request<Stream,CharT>::~basic_server_request()
 {
 	delete m_impl;
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_request<Stream,CharT>::basic_server_request(basic_server_request &&other) noexcept :
+	m_impl(new impl(std::move(*other.m_impl)))
+{
+
+}
+
+template <concept_tcp_stream Stream, concept_char_type CharT>
+basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator=(basic_server_request &&other) noexcept
+{
+	*m_impl = std::move(*other.m_impl);
+	return *this;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
@@ -357,7 +336,7 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error
 		return sum;
 	}
 	asio::socket_base::receive_buffer_size op;
-	m_impl->m_next_layer.get_option(op, error);
+	socket_operation_helper<next_layer_t>::get_option(m_impl->m_next_layer, op, error);
 	if( error )
 		return sum;
 
@@ -422,7 +401,7 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 				break;
 			}
 			asio::socket_base::receive_buffer_size op;
-			m_impl->m_next_layer.get_option(op, error);
+			socket_operation_helper<next_layer_t>::get_option(m_impl->m_next_layer, op, error);
 			if( error )
 				break;
 
@@ -479,7 +458,7 @@ auto basic_server_request<Stream,CharT>::async_read(const mutable_buffer &buf, T
 					break;
 				}
 				asio::socket_base::receive_buffer_size op;
-				self->m_impl->m_next_layer.get_option(op, error);
+				socket_operation_helper<next_layer_t>::get_option(self->m_impl->m_next_layer, op, error);
 				if( error )
 					break;
 
@@ -902,19 +881,19 @@ bool basic_server_request<Stream,CharT>::is_eof() const noexcept
 template <concept_tcp_stream Stream, concept_char_type CharT>
 typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Stream,CharT>::remote_endpoint() const
 {
-	return m_impl->m_next_layer.remote_endpoint();
+	return socket_operation_helper<next_layer_t>::remote_endpoint(m_impl->m_next_layer);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Stream,CharT>::local_endpoint() const
 {
-	return m_impl->m_next_layer.local_endpoint();
+	return socket_operation_helper<next_layer_t>::local_endpoint(m_impl->m_next_layer);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 const typename basic_server_request<Stream,CharT>::executor_t &basic_server_request<Stream,CharT>::get_executor() noexcept
 {
-	return m_impl->m_next_layer.get_executor();
+	return socket_operation_helper<next_layer_t>::get_executor(m_impl->m_next_layer);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>

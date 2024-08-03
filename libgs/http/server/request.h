@@ -44,7 +44,7 @@ class LIBGS_HTTP_TAPI basic_server_request
 public:
 	using next_layer_t = Stream;
 	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = typename next_layer_t::endpoint_type;
+	using endpoint_t = asio::ip::tcp::endpoint;
 
 	using parser_t = basic_request_parser<CharT>;
 	using string_t = typename parser_t::string_t;
@@ -63,6 +63,9 @@ public:
 	basic_server_request(NextLayer &&next_layer, parser_t &parser)
 		requires concept_constructible<next_layer_t,NextLayer&&>;
 	~basic_server_request();
+
+	basic_server_request(basic_server_request &&other) noexcept;
+	basic_server_request &operator=(basic_server_request &&other) noexcept;
 
 	template <typename Stream0>
 	basic_server_request(basic_server_request<Stream0,CharT> &&other) noexcept
