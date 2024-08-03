@@ -1,4 +1,4 @@
-#define LIBGS_ENABLE_OPENSSL
+//#define LIBGS_ENABLE_OPENSSL
 #include <libgs.h>
 
 int main()
@@ -6,7 +6,7 @@ int main()
 	spdlog::set_level(spdlog::level::trace);
 	asio::ip::tcp::acceptor acceptor(libgs::execution::get_executor());
 	constexpr unsigned short port = 12345;
-#if 0
+#if 1
 	libgs::http::server server(std::move(acceptor));
 	server.bind({asio::ip::tcp::v4(), port})
 

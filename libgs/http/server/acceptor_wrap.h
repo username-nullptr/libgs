@@ -31,8 +31,6 @@
 
 #include <libgs/http/global.h>
 
-#include <asio/ssl.hpp>
-
 namespace libgs::http
 {
 

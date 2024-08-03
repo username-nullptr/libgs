@@ -107,6 +107,8 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept(conce
 	co_return co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 }
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 template <concept_execution Exec>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl) :
@@ -170,6 +172,8 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	}
 	co_return ssl_socket;
 }
+
+#endif //LIBGS_ENABLE_OPENSSL
 
 } //namespace libgs::http
 

@@ -76,6 +76,8 @@ inline bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec
 	return socket.is_open();
 }
 
+#ifdef LIBGS_ENABLE_OPENSSL
+
 template <concept_execution Exec>
 inline void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::get_option
 (socket_t &socket, auto &option, error_code &error)
@@ -121,6 +123,8 @@ inline bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<
 {
 	return socket.next_layer().is_open();
 }
+
+#endif //LIBGS_ENABLE_OPENSSL
 
 } //namespace libgs::http
 
