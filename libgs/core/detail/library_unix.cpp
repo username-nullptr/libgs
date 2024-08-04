@@ -26,17 +26,13 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_H
-#define LIBGS_CORE_H
+#include "library_impl.hii"
 
-#include <libgs/core/cxx/flags.h>
-#include <libgs/core/algorithm.h>
-#include <libgs/core/app_utls.h>
-#include <libgs/core/args_parser.h>
-#include <libgs/core/coroutine.h>
-#include <libgs/core/shared_mutex.h>
-#include <libgs/core/string_list.h>
-#include <libgs/core/library.h>
-#include <libgs/core/ini.h>
+#ifdef __unix__
 
-#endif //LIBGS_CORE_H
+namespace libgs
+{
+
+} //namespace libgs
+
+#endif //__unix__

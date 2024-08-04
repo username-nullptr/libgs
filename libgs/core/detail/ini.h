@@ -646,9 +646,6 @@ bool basic_ini<CharT>::load(std::string &errmsg) noexcept
 		errmsg = std::format("No such file: '{}'", m_impl->file_name);
 		return false;
 	}
-	std::shared_lock locker(m_impl->m_rw_lock);
-	LIBGS_UNUSED(locker);
-
 	std::basic_ifstream<CharT> file(m_impl->file_name);
 	if( not file.is_open() )
 	{

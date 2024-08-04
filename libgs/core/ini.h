@@ -31,7 +31,6 @@
 
 #include <libgs/core/value.h>
 #include <libgs/core/string_list.h>
-#include <libgs/core/shared_mutex.h>
 #include <map>
 
 namespace libgs

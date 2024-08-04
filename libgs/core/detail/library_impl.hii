@@ -26,17 +26,74 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_H
-#define LIBGS_CORE_H
+#ifndef LIBGS_CORE_DETAIL_LIBRARY_IMPL_H
+#define LIBGS_CORE_DETAIL_LIBRARY_IMPL_H
 
-#include <libgs/core/cxx/flags.h>
-#include <libgs/core/algorithm.h>
-#include <libgs/core/app_utls.h>
-#include <libgs/core/args_parser.h>
-#include <libgs/core/coroutine.h>
-#include <libgs/core/shared_mutex.h>
-#include <libgs/core/string_list.h>
 #include <libgs/core/library.h>
-#include <libgs/core/ini.h>
 
-#endif //LIBGS_CORE_H
+#if defined(__WINNT__) || defined(_WINDOWS)
+# define WIN32_LEAN_AND_MEAN
+# include <Windows.h>
+#endif //Windows
+
+namespace libgs
+{
+
+class library::impl
+{
+public:
+	impl(std::string_view file_name, std::string_view version) :
+		m_file_name(file_name), m_version(version) {}
+
+public:
+	void load(error_code &error)
+	{
+		error = error_code();
+		if( m_handle )
+		{
+			++m_load_count;
+			return ;
+		}
+		load_native(error);
+		if( not error )
+			++m_load_count;
+	}
+
+	void unload(error_code &error)
+	{
+		if( not m_handle )
+			return ;
+		--m_load_count;
+
+		if( not m_load_count )
+		{
+			unload_native(error);
+			if( not error )
+				m_handle = nullptr;
+		}
+	}
+
+private:
+	void load_native(error_code &error);
+	void unload_native(error_code &error);
+
+public:
+	std::string m_file_name;
+	std::string m_version;
+	std::string m_qualifed_file_name;
+
+	std::atomic_int m_load_count {0};
+	std::atomic_bool m_is_loaded;
+
+#if defined(__WINNT__) || defined(_WINDOWS)
+	HMODULE
+#else // Unix/Linux
+	void*
+#endif //OS
+	m_handle = nullptr;
+};
+
+} //namespace libgs
+
+
+#endif //LIBGS_CORE_DETAIL_LIBRARY_IMPL_H

@@ -26,17 +26,69 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_H
-#define LIBGS_CORE_H
+#include "detail/library_impl.hii"
 
-#include <libgs/core/cxx/flags.h>
-#include <libgs/core/algorithm.h>
-#include <libgs/core/app_utls.h>
-#include <libgs/core/args_parser.h>
-#include <libgs/core/coroutine.h>
-#include <libgs/core/shared_mutex.h>
-#include <libgs/core/string_list.h>
-#include <libgs/core/library.h>
-#include <libgs/core/ini.h>
+namespace libgs
+{
 
-#endif //LIBGS_CORE_H
+library::library(std::string_view file_name, std::string_view version) :
+	m_impl(new impl(file_name, version))
+{
+
+}
+
+library::~library()
+{
+	delete m_impl;
+}
+
+library::library(library &&other) noexcept :
+	m_impl(other.m_impl)
+{
+	other.m_impl = new impl(file_name(), m_impl->m_version);
+}
+
+library &library::operator=(library &&other) noexcept
+{
+	m_impl = other.m_impl;
+	other.m_impl = new impl(file_name(), m_impl->m_version);
+	return *this;
+}
+
+void library::load(error_code &error) noexcept
+{
+	m_impl->load(error);
+}
+
+void library::load()
+{
+	error_code error;
+	load(error);
+	if( error )
+		throw system_error(error, "Cannot load library: '{}'", file_name());
+}
+
+void library::unload(error_code &error) noexcept
+{
+	m_impl->load(error);
+}
+
+void library::unload()
+{
+	error_code error;
+	unload(error);
+	if( error )
+		throw system_error(error, "Cannot unload library: '{}'", file_name());
+}
+
+bool library::is_loaded() const noexcept
+{
+	return m_impl->m_handle != nullptr;
+}
+
+std::string_view library::file_name() const noexcept
+{
+	return m_impl->m_file_name;
+}
+
+} //namespace libgs

@@ -10,6 +10,8 @@ set(${target_name}_sources
 	global.cpp
 	args_parser.cpp
 	execution.cpp
+	library.cpp
+	detail/library_${OS_CPP}.cpp
 )
 
 set(${target_name}_headers
@@ -41,6 +43,7 @@ set(${target_name}_headers
 	ini.h
 	execution.h
 	coroutine.h
+	library.h
 )
 
 set(${target_name}_detail_headers
@@ -60,6 +63,7 @@ set(${target_name}_detail_headers
 	detail/ini.h
 	detail/execution.h
 	detail/coroutine.h
+	detail/library_impl.hii
 )
 
 set(all_files

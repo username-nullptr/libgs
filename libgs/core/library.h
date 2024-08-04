@@ -26,17 +26,42 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_H
-#define LIBGS_CORE_H
+#ifndef LIBGS_CORE_LIBRARY_H
+#define LIBGS_CORE_LIBRARY_H
 
-#include <libgs/core/cxx/flags.h>
-#include <libgs/core/algorithm.h>
-#include <libgs/core/app_utls.h>
-#include <libgs/core/args_parser.h>
-#include <libgs/core/coroutine.h>
-#include <libgs/core/shared_mutex.h>
-#include <libgs/core/string_list.h>
-#include <libgs/core/library.h>
-#include <libgs/core/ini.h>
+#include <libgs/core/global.h>
 
-#endif //LIBGS_CORE_H
+namespace libgs
+{
+
+class LIBGS_CORE_API library
+{
+	LIBGS_DISABLE_COPY(library)
+
+public:
+	explicit library(std::string_view file_name, std::string_view version = {});
+	~library();
+
+	library(library &&other) noexcept;
+	library &operator=(library &&other) noexcept;
+
+public:
+	void load(error_code &error) noexcept;
+	void load();
+
+	void unload(error_code &error) noexcept;
+	void unload();
+
+public:
+	[[nodiscard]] bool is_loaded() const noexcept;
+	[[nodiscard]] std::string_view file_name() const noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+} //namespace libgs
+
+
+#endif //LIBGS_CORE_LIBRARY_H
