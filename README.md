@@ -25,10 +25,10 @@ make install
 ## Compilers :
 
 | Name  |    Version     |              Other              |
-| :---: | :------------: | :-----------------------------: |
+| :---: |:--------------:| :-----------------------------: |
 |  GNU  | 13.0 or later  |              NULL               |
 | Clang | v17.0 or later | std::format needs to be enabled |
-| MSVC  |      1930      |       Visual Studio 2022        |
+| MSVC  | 1930 or later  |       Visual Studio 2022        |
 
 ------
 

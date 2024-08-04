@@ -1,17 +1,17 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
 *                                                                                   *
-*   This file is part of LIBGS                                                      *
+*   This file is part of RTTR (Run Time Type Reflection)                            *
 *   License: MIT License                                                            *
 *                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
+*   Permission is hereby granted, free of charge, to any person obtaining           *
+*   a copy of this software and associated documentation files (the "Software"),    *
+*   to deal in the Software without restriction, including without limitation       *
+*   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
+*   and/or sell copies of the Software, and to permit persons to whom the           *
+*   Software is furnished to do so, subject to the following conditions:            *
 *                                                                                   *
 *   The above copyright notice and this permission notice shall be included in      *
 *   all copies or substantial portions of the Software.                             *
@@ -25,6 +25,9 @@
 *   SOFTWARE.                                                                       *
 *                                                                                   *
 *************************************************************************************/
+// https://github.com/rttrorg/rttr
+
+#ifdef __unix__
 
 #include "library_impl.hii"
 #include <libgs/core/app_utls.h>
@@ -32,8 +35,6 @@
 #include <dlfcn.h>
 
 namespace fs = std::filesystem;
-
-#ifdef __unix__
 
 namespace libgs
 {
