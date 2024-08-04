@@ -112,12 +112,12 @@ void library::impl::load_native(error_code &error)
 
 	if( app::is_absolute_path(m_file_name) )
 	{
-		prefix_list.insert(prefix_list.begin(), {});
-		suffix_list.insert(suffix_list.begin(), {});
+		prefix_list.insert(prefix_list.begin(), std::wstring());
+		suffix_list.insert(suffix_list.begin(), std::wstring());
 	}
 	else
 	{
-		prefix_list.insert(prefix_list.begin(), {});
+		prefix_list.insert(prefix_list.begin(), std::wstring());
 		suffix_list.emplace_back();
 	}
 	std::wstring attempt;
@@ -138,7 +138,7 @@ void library::impl::load_native(error_code &error)
 				retry = false;
 		}
 	}
-	if( not m_handle )
+	if( m_handle )
 		error = error_code(-1, g_library_category);
 	else
 		m_qualifed_file_name = convert_utf16_to_utf8(attempt);
@@ -147,7 +147,9 @@ void library::impl::load_native(error_code &error)
 void library::impl::unload_native(error_code &error)
 {
 	error = error_code();
-	if( not FreeLibrary(m_handle) )
+	if( FreeLibrary(m_handle) )
+		m_qualifed_file_name.clear();
+	else
 		error = error_code(-1, g_library_category);
 }
 
