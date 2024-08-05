@@ -51,7 +51,7 @@ int main()
 			spdlog::debug("Cookie: {}: {}", key, value);
 
 		if( request.can_read_body() )
-			spdlog::debug("partial_body: {}\n", co_await request.async_read_all(asio::use_awaitable));
+			spdlog::debug("partial_body: {}\n", co_await request.co_read_all());
 
 		// If you don't write anything, the server will write the default body for you
 		// co_await context.response().write("hello world");
@@ -79,8 +79,8 @@ int main()
 	{
 //		co_await context.response().write("hello world !!!");
 		co_await context.response()
-			.async_send_file("~/hello_world.txt", asio::use_awaitable);
-//			.async_send_file("C:/Users/Administrator/Desktop/hello_world.txt", asio::use_awaitable);
+			.co_send_file("~/hello_world.txt");
+//			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
 	.on_exception([](libgs::https::server::context&, std::exception &ex)

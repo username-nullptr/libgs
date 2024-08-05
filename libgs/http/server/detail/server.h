@@ -118,18 +118,20 @@ public:
 	}
 
 public:
-	void async_start(size_t max, error_code&) noexcept
+	void async_start(size_t max, error_code &error) noexcept
 	{
 		if( m_is_start )
 			return ;
-		m_is_start = true;
+		m_next_layer.acceptor().listen(static_cast<int>(max), error);
+		if( error )
+			return ;
+		else
+			m_is_start = true;
 
-		co_spawn_detached([this, max]() -> awaitable<void>
+		co_spawn_detached([this]() -> awaitable<void>
 		{
 			bool abd = false;
-			try
-			{
-				m_next_layer.acceptor().listen(static_cast<int>(max));
+			try {
 				co_await do_tcp_accept();
 			}
 			catch(std::exception &ex)
@@ -200,6 +202,8 @@ private:
 		}
 		catch(std::system_error &ex)
 		{
+			if( not m_is_start )
+				break;
 			call_on_system_error(ex.code());
 			continue;
 		}
@@ -330,9 +334,12 @@ private:
 			auto status = std::format("<h2>{} ({})</h2>", to_status_description(_context.response().status()), _context.response().status());
 			data = std::format(def_html, "LIBGS", status);
 		}
-		co_await _context.response()
-				.set_header(header::content_type, "text/html")
-				.async_write(asio::buffer(data, data.size()), use_awaitable);
+		if constexpr( is_char_v<CharT> )
+			_context.response().set_header(header::content_type, "text/html");
+		else
+			_context.response().set_header(wheader::content_type, L"text/html");
+
+		co_await _context.response().co_write(asio::buffer(data, data.size()));
 		co_return ;
 	}
 

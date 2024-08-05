@@ -480,14 +480,14 @@ bool basic_request_parser<CharT>::operator<<(std::string_view buf)
 template <concept_char_type CharT>
 int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 {
-	constexpr const char *root = detail::_key_static_string<CharT>::root;
+	constexpr const CharT *root = detail::_key_static_string<CharT>::root;
 	using string_list_t = basic_string_list<CharT>;
 
 	auto rule_list = string_list_t::from_string(rule, root/*/*/);
 	auto path_list = string_list_t::from_string(m_impl->m_path, root/*/*/);
 
 	if( path_list.empty() )
-		path_list.emplace_back("/");
+		path_list.emplace_back(root);
 	if( path_list.size() < rule_list.size() )
 		return -1;
 

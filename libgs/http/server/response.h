@@ -86,33 +86,27 @@ public:
 	size_t write(const const_buffer &body, error_code &error);
 	size_t write(error_code &error);
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(const const_buffer &body, Token &&token);
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(Token &&token);
+	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body = {nullptr,0});
+	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error);
+	[[nodiscard]] awaitable<size_t> co_write(error_code &error);
 
 public:
 	size_t redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
 	size_t redirect(string_view_t url, http::redirect redi, error_code &error);
 	size_t redirect(string_view_t url, error_code &error);
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_redirect(string_view_t url, http::redirect redi, Token &&token);
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_redirect(string_view_t url, Token &&token);
+	[[nodiscard]] awaitable<size_t> co_redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
+	[[nodiscard]] awaitable<size_t> co_redirect(string_view_t url, http::redirect redi, error_code &error);
+	[[nodiscard]] awaitable<size_t> co_redirect(string_view_t url, error_code &error);
 
 public:
 	size_t send_file(std::string_view file_name, const resp_ranges &ranges = {});
 	size_t send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error);
 	size_t send_file(std::string_view file_name, error_code &error);
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_send_file(std::string_view file_name, const resp_ranges &ranges, Token &&token);
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_send_file(std::string_view file_name, Token &&token);
+	[[nodiscard]] awaitable<size_t> co_send_file(std::string_view file_name, const resp_ranges &ranges = {});
+	[[nodiscard]] awaitable<size_t> co_send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error);
+	[[nodiscard]] awaitable<size_t> co_send_file(std::string_view file_name, error_code &error);
 
 public:
 	basic_server_response &set_chunk_attribute(value_t attribute);
@@ -122,11 +116,9 @@ public:
 	size_t chunk_end(const headers_t &headers, error_code &error);
 	size_t chunk_end(error_code &error);
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_chunk_end(const headers_t &headers, Token &&token);
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_chunk_end(Token &&token);
+	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers = {});
+	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error);
+	[[nodiscard]] awaitable<size_t> co_chunk_end(error_code &error);
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;

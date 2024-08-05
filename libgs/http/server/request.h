@@ -102,29 +102,27 @@ public:
 	int32_t path_match(string_view_t rule);
 
 public:
-	size_t read(const mutable_buffer &buf);
 	size_t read(const mutable_buffer &buf, error_code &error) noexcept;
+	size_t read(const mutable_buffer &buf);
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_read(const mutable_buffer &buf, Token &&token);
+	[[nodiscard]] awaitable<size_t> co_read(const mutable_buffer &buf, error_code &error) noexcept;
+	[[nodiscard]] awaitable<size_t> co_read(const mutable_buffer &buf);
 
 public:
-	[[nodiscard]] std::string read_all();
 	[[nodiscard]] std::string read_all(error_code &error) noexcept;
+	[[nodiscard]] std::string read_all();
 
-	template <asio::completion_token_for<void(std::string_view,error_code)> Token>
-	auto async_read_all(Token &&token);
+	[[nodiscard]] awaitable<std::string> co_read_all(error_code &error) noexcept;
+	[[nodiscard]] awaitable<std::string> co_read_all();
 
 public:
 	size_t save_file(std::string_view file_name, const req_range &range = {});
 	size_t save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept;
 	size_t save_file(std::string_view file_name, error_code &error) noexcept;
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_save_file(std::string_view file_name, const req_range &range, Token &&token);
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_save_file(std::string_view file_name, Token &&token);
+	[[nodiscard]] awaitable<size_t> co_save_file(std::string_view file_name, const req_range &range = {});
+	[[nodiscard]] awaitable<size_t> co_save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept;
+	[[nodiscard]] awaitable<size_t> co_save_file(std::string_view file_name, error_code &error) noexcept;
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;
