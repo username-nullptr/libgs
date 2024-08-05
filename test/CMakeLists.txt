@@ -13,6 +13,8 @@ target_include_directories(${target_name} PRIVATE ${OpenSSL_DIR}/include)
 target_link_directories(${target_name} PRIVATE ${OpenSSL_DIR}/lib)
 target_link_libraries(${target_name} PRIVATE gs_core)
 
+#target_link_libraries(${target_name} PRIVATE crypto ssl)
+
 target_compile_options(${target_name} PRIVATE
 	$<$<CXX_COMPILER_ID:MSVC>:/bigobj>
 	$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${GNU_BIG_OBJ_FLAG_ENABLE}>>:-Wa,-mbig-obj>
