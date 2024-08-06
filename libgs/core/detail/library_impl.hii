@@ -41,7 +41,7 @@ namespace libgs
 
 class library::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(impl)
 
 	using handle_t =
 #if defined(__WINNT__) || defined(_WINDOWS)
@@ -60,6 +60,25 @@ public:
 		ignore_unused(version);
 #endif //__linux__
 		set_file_name(file_name);
+	}
+
+	impl(impl &&other) noexcept :
+		m_file_name(std::move(other.m_file_name)),
+		m_load_count(other.m_load_count.load()),
+		m_handle(other.m_handle)
+#ifdef __linux__
+		, m_version(std::move(other.m_version))
+#endif //__linux__
+	{}
+	impl &operator=(impl &&other) noexcept
+	{
+		m_file_name = std::move(other.m_file_name);
+		m_load_count = other.m_load_count.load();
+		m_handle = other.m_handle;
+#ifdef __linux__
+		m_version = std::move(other.m_version);
+#endif //__linux__
+		return *this;
 	}
 
 public:

@@ -43,15 +43,14 @@ library::~library()
 }
 
 library::library(library &&other) noexcept :
-	m_impl(other.m_impl)
+	m_impl(new impl(std::move(*other.m_impl)))
 {
-	other.m_impl = new impl(file_name(), m_impl->m_version);
+
 }
 
 library &library::operator=(library &&other) noexcept
 {
-	m_impl = other.m_impl;
-	other.m_impl = new impl(file_name(), m_impl->m_version);
+	*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
