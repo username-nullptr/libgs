@@ -228,9 +228,13 @@ private:
 				if( size == 0 )
 					break;
 
-				bool parse_res = parser.append({buf, size});
-				if( not parse_res )
-					continue;
+				error_code error;
+				parser.append({buf, size}, error);
+				if( error )
+				{
+					spdlog::warn("libgs::http::server: {}.", error);
+					break;
+				}
 			}
 			catch(std::system_error &ex)
 			{
