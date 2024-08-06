@@ -67,6 +67,7 @@ set(core_sources
 	core/ini.cpp
 	core/argv_parse.cpp
 	core/coroutine.cpp
+	core/library.cpp
 )
 set_target(gs_core ${core_sources})
 

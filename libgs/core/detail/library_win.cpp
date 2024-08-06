@@ -113,19 +113,21 @@ bool library::impl::exists(std::string_view ifname) const
 void library::impl::load_native(error_code &error)
 {
 	error = error_code();
-	std::wstring wfile_name = convert_utf8_to_utf16(m_file_name);
 	std::vector<std::wstring> paths_to_try;
 
 	std::vector<std::wstring> prefix_list = {L"lib"};
 	std::vector<std::wstring> suffix_list = {L".dll"};
 
+	std::wstring wfile_name;
 	if( app::is_absolute_path(m_file_name) )
 	{
+		wfile_name = convert_utf8_to_utf16(app::absolute_path(m_file_name));
 		prefix_list.insert(prefix_list.begin(), std::wstring());
 		suffix_list.insert(suffix_list.begin(), std::wstring());
 	}
 	else
 	{
+		file_name = convert_utf8_to_utf16(m_file_name);
 		prefix_list.insert(prefix_list.begin(), std::wstring());
 		suffix_list.emplace_back();
 	}

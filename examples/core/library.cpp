@@ -1,4 +1,5 @@
-#include <libgs.h>
+#include <libgs/core/library.h>
+#include <spdlog/spdlog.h>
 
 int main()
 {

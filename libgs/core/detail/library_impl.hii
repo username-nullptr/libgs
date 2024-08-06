@@ -45,20 +45,21 @@ class library::impl
 
 	using handle_t =
 #if defined(__WINNT__) || defined(_WINDOWS)
-	HMODULE;
+	HMODULE
 #else // Unix/Linux
 	void*
 #endif //OS
+	;
 
 public:
-	impl(std::string_view file_name, std::string_view version) :
-		m_file_name(file_name)
+	impl(std::string_view file_name, std::string_view version)
 #ifdef __linux__
-		, m_version(version) {
+		: m_version(version) {
 #else
 	{
 		ignore_unused(version);
 #endif //__linux__
+		set_file_name(file_name);
 	}
 
 public:
@@ -94,12 +95,12 @@ public:
 	[[nodiscard]] bool exists(std::string_view ifname) const;
 
 private:
+	void set_file_name(std::string_view file_name);
 	void load_native(error_code &error);
 	void unload_native(error_code &error);
 
 public:
 	std::string m_file_name;
-	std::string m_qualifed_file_name;
 	std::atomic_int m_load_count {0};
 	handle_t m_handle = nullptr;
 

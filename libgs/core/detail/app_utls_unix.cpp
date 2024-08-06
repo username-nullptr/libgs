@@ -127,7 +127,7 @@ optional_string getenv(error_code &error, std::string_view key) noexcept
 
 	g_env_mutex.unlock_shared();
 	if( value )
-		return optional_string(value);
+		return {value};
 
 	set_error(error);
 	return {};
@@ -143,9 +143,9 @@ envs_t getenvs(error_code &error) noexcept
 	for(int i=0; environ[i]!=nullptr; i++)
 	{
 		std::string tmp = environ[i];
-		auto pos = tmp.find("=");
+		auto pos = tmp.find('=');
 
-		if( pos == tmp.npos )
+		if( pos == std::string::npos )
 			envs.emplace(tmp, "");
 		else
 			envs.emplace(tmp.substr(0,pos), tmp.substr(pos+1));

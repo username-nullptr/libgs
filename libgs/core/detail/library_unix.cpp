@@ -38,30 +38,7 @@ namespace fs = std::filesystem;
 namespace libgs
 {
 
-std::vector<std::string> get_suffixes_sys(std::string_view version)
-{
-	std::vector<std::string> result;
-#ifdef __APPLE__
-	if( version.empty() )
-	{
-		result.emplace_back(".bundle");
-		result.emplace_back(".dylib");
-	}
-	else
-	{
-		result.emplace_back(std::string(".") + version + ".bundle");
-		result.emplace_back(std::string(".") + version + ".dylib");
-	}
-#else
-	if( version.empty() )
-		result.emplace_back(".so");
-	else
-		result.emplace_back(std::string(".so.") + version.data());
-#endif
-	return result;
-}
-
-static class library_category : public std::error_category
+static class LIBGS_DECL_HIDDEN library_category : public std::error_category
 {
 	LIBGS_DISABLE_COPY_MOVE(library_category)
 
@@ -84,52 +61,60 @@ g_library_category;
 
 void *library::impl::interface(std::string_view ifname) const
 {
-
+	return dlsym(m_handle, ifname.data());
 }
 
 bool library::impl::exists(std::string_view ifname) const
 {
+	return dlsym(m_handle, ifname.data()) != nullptr;
+}
 
+void library::impl::set_file_name(std::string_view file_name)
+{
+	m_file_name = std::string(file_name.data(), file_name.size());
+#ifdef __APPLE__
+	std::vector<std::string> candidates
+	{
+		m_file_name + ".bundle",
+		m_file_name + ".dylib",
+		m_file_name + "." + m_version + ".bundle",
+		m_file_name + "." + m_version + ".dylib"
+	};
+#else
+	std::vector<std::string> candidates
+	{
+		m_file_name,
+		m_file_name + ".so",
+		m_file_name + ".so." + m_version
+	};
+	if( m_file_name.find('/') == std::string_view::npos )
+	{
+		candidates.emplace_back("lib" + m_file_name);
+		candidates.emplace_back("lib" + m_file_name + ".so");
+		candidates.emplace_back("lib" + m_file_name + ".so." + m_version);
+	}
+#endif
+	for(auto &name : candidates)
+	{
+		auto abs_name = app::absolute_path(name);
+		if( not fs::exists(abs_name) )
+			continue;
+
+		m_file_name = std::move(abs_name);
+		break;
+	}
 }
 
 void library::impl::load_native(error_code &error)
 {
 	error = error_code();
-	std::vector<std::string> prefix_list = {"lib"};
-	std::vector<std::string> suffix_list = get_suffixes_sys(m_version);
-
-	if( app::is_absolute_path(m_file_name) )
+	if( not fs::exists(m_file_name) )
 	{
-		suffix_list.insert(suffix_list.begin(), std::string());
-		prefix_list.insert(prefix_list.begin(), std::string());
+		error = std::make_error_code(std::errc::no_such_file_or_directory);
+		return ;
 	}
-	else
-	{
-		suffix_list.emplace_back();
-		prefix_list.emplace_back();
-	}
-	int dl_flags = RTLD_NOW;
-	auto retry = true;
-	std::string attempt;
-
-	for(auto prefix=0u; retry and not m_handle and prefix<prefix_list.size(); ++prefix)
-	{
-		for(auto suffix=0u; retry and not m_handle and suffix<suffix_list.size(); ++suffix)
-		{
-			if( (not prefix_list[prefix].empty() and m_file_name.starts_with(prefix_list[prefix])) or
-				(not suffix_list[suffix].empty() and m_file_name.ends_with(suffix_list[suffix])) )
-				continue;
-
-			attempt = prefix_list[prefix] + m_file_name + suffix_list[suffix];
-			m_handle = dlopen(attempt.c_str(), dl_flags);
-
-			if( not m_handle and app::is_absolute_path(m_file_name) and fs::exists(attempt) )
-				retry = false;
-		}
-	}
-	if( m_handle )
-		m_qualifed_file_name = attempt;
-	else
+	m_handle = dlopen(m_file_name.c_str(), RTLD_NOW);
+	if( not m_handle )
 		error = error_code(errno, g_library_category);
 }
 
@@ -138,8 +123,6 @@ void library::impl::unload_native(error_code &error)
 	error = error_code();
 	if( dlclose(m_handle) )
 		error = error_code(errno, g_library_category);
-	else
-		m_qualifed_file_name.clear();
 }
 
 } //namespace libgs
