@@ -26,50 +26,19 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_LIBRARY_H
-#define LIBGS_CORE_LIBRARY_H
-
-#include <libgs/core/global.h>
+#ifndef LIBGS_CORE_DETAIL_LIBRARY_H
+#define LIBGS_CORE_DETAIL_LIBRARY_H
 
 namespace libgs
 {
 
-class LIBGS_CORE_API library
+template <typename Ret, typename...Args>
+std::function<Ret(Args...)> library::interface(std::string_view ifname) const
 {
-	LIBGS_DISABLE_COPY(library)
-
-public:
-	explicit library(std::string_view file_name, std::string_view version = {});
-	~library();
-
-	library(library &&other) noexcept;
-	library &operator=(library &&other) noexcept;
-
-public:
-	void load(error_code &error) noexcept;
-	void load();
-
-	void unload(error_code &error) noexcept;
-	void unload();
-
-public:
-	template <typename Ret, typename...Args>
-	[[nodiscard]] std::function<Ret(Args...)> interface(std::string_view ifname) const;
-
-	[[nodiscard]] void *interface(std::string_view ifname) const;
-	[[nodiscard]] bool exists(std::string_view ifname) const;
-
-public:
-	[[nodiscard]] bool is_loaded() const noexcept;
-	[[nodiscard]] std::string_view file_name() const noexcept;
-
-private:
-	class impl;
-	impl *m_impl;
-};
+	return reinterpret_cast<Ret(*)(Args...)>(interface(ifname));
+}
 
 } //namespace libgs
-#include <libgs/core/detail/library.h>
 
 
-#endif //LIBGS_CORE_LIBRARY_H
+#endif //LIBGS_CORE_DETAIL_LIBRARY_H

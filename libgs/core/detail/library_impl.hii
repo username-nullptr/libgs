@@ -1,17 +1,17 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of RTTR (Run Time Type Reflection)                            *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining           *
-*   a copy of this software and associated documentation files (the "Software"),    *
-*   to deal in the Software without restriction, including without limitation       *
-*   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
-*   and/or sell copies of the Software, and to permit persons to whom the           *
-*   Software is furnished to do so, subject to the following conditions:            *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
 *                                                                                   *
 *   The above copyright notice and this permission notice shall be included in      *
 *   all copies or substantial portions of the Software.                             *
@@ -25,10 +25,9 @@
 *   SOFTWARE.                                                                       *
 *                                                                                   *
 *************************************************************************************/
-// https://github.com/rttrorg/rttr
 
-#ifndef LIBGS_CORE_DETAIL_LIBRARY_IMPL_H
-#define LIBGS_CORE_DETAIL_LIBRARY_IMPL_H
+#ifndef LIBGS_CORE_DETAIL_LIBRARY_IMPL_HII
+#define LIBGS_CORE_DETAIL_LIBRARY_IMPL_HII
 
 #include <libgs/core/library.h>
 
@@ -42,9 +41,25 @@ namespace libgs
 
 class library::impl
 {
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+	using handle_t =
+#if defined(__WINNT__) || defined(_WINDOWS)
+	HMODULE;
+#else // Unix/Linux
+	void*
+#endif //OS
+
 public:
 	impl(std::string_view file_name, std::string_view version) :
-		m_file_name(file_name), m_version(version) {}
+		m_file_name(file_name)
+#ifdef __linux__
+		, m_version(version) {
+#else
+	{
+		ignore_unused(version);
+#endif //__linux__
+	}
 
 public:
 	void load(error_code &error)
@@ -74,25 +89,26 @@ public:
 		}
 	}
 
+public:
+	[[nodiscard]] void *interface(std::string_view ifname) const;
+	[[nodiscard]] bool exists(std::string_view ifname) const;
+
 private:
 	void load_native(error_code &error);
 	void unload_native(error_code &error);
 
 public:
 	std::string m_file_name;
-	std::string m_version;
 	std::string m_qualifed_file_name;
 	std::atomic_int m_load_count {0};
+	handle_t m_handle = nullptr;
 
-#if defined(__WINNT__) || defined(_WINDOWS)
-	HMODULE
-#else // Unix/Linux
-	void*
-#endif //OS
-	m_handle = nullptr;
+#ifdef __linux__
+	std::string m_version;
+#endif //__linux__
 };
 
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_DETAIL_LIBRARY_IMPL_H
+#endif //LIBGS_CORE_DETAIL_LIBRARY_IMPL_HII

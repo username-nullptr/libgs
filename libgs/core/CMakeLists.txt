@@ -64,6 +64,7 @@ set(${target_name}_detail_headers
 	detail/execution.h
 	detail/coroutine.h
 	detail/library_impl.hii
+	detail/library.h
 )
 
 set(all_files
@@ -77,7 +78,7 @@ add_library(${target_name} SHARED ${all_files})
 target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
 
 if (UNIX)
-	target_link_libraries(${target_name} PUBLIC pthread)
+	target_link_libraries(${target_name} PUBLIC pthread dl)
 elseif (WIN32)
 	if (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
 		target_link_libraries(${target_name} PUBLIC ws2_32 wsock32)

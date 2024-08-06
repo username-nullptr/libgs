@@ -1,17 +1,17 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of RTTR (Run Time Type Reflection)                            *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining           *
-*   a copy of this software and associated documentation files (the "Software"),    *
-*   to deal in the Software without restriction, including without limitation       *
-*   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
-*   and/or sell copies of the Software, and to permit persons to whom the           *
-*   Software is furnished to do so, subject to the following conditions:            *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
 *                                                                                   *
 *   The above copyright notice and this permission notice shall be included in      *
 *   all copies or substantial portions of the Software.                             *
@@ -25,7 +25,6 @@
 *   SOFTWARE.                                                                       *
 *                                                                                   *
 *************************************************************************************/
-// https://github.com/rttrorg/rttr
 
 #include "detail/library_impl.hii"
 
@@ -80,6 +79,20 @@ void library::unload()
 	unload(error);
 	if( error )
 		throw system_error(error, "Cannot unload library: '{}'", file_name());
+}
+
+void *library::interface(std::string_view ifname) const
+{
+	if( not is_loaded() )
+		throw runtime_error("libgs::library::interface: dll not load.");
+	return m_impl->interface(ifname);
+}
+
+bool library::exists(std::string_view ifname) const
+{
+	if( not is_loaded() )
+		throw runtime_error("libgs::library::exists: dll not load.");
+	return m_impl->exists(ifname);
 }
 
 bool library::is_loaded() const noexcept

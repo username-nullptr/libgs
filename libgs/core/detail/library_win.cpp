@@ -1,17 +1,17 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2014 - 2018 Axel Menzel <info@rttr.org>                           *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of RTTR (Run Time Type Reflection)                            *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining           *
-*   a copy of this software and associated documentation files (the "Software"),    *
-*   to deal in the Software without restriction, including without limitation       *
-*   the rights to use, copy, modify, merge, publish, distribute, sublicense,        *
-*   and/or sell copies of the Software, and to permit persons to whom the           *
-*   Software is furnished to do so, subject to the following conditions:            *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
 *                                                                                   *
 *   The above copyright notice and this permission notice shall be included in      *
 *   all copies or substantial portions of the Software.                             *
@@ -25,7 +25,6 @@
 *   SOFTWARE.                                                                       *
 *                                                                                   *
 *************************************************************************************/
-// https://github.com/rttrorg/rttr
 
 #if defined(__WINNT__) || defined(_WINDOWS)
 
@@ -40,10 +39,10 @@ static std::wstring convert_utf8_to_utf16(std::string_view source)
 	if( source.empty() )
 		return {};
 
-	const auto size_needed = ::MultiByteToWideChar(CP_UTF8, 0, source.data(), static_cast<int>(source.size()), nullptr, 0);
+	const auto size_needed = MultiByteToWideChar(CP_UTF8, 0, source.data(), static_cast<int>(source.size()), nullptr, 0);
 	std::wstring result(size_needed, 0);
 
-	::MultiByteToWideChar(CP_UTF8, 0, source.data(), static_cast<int>(source.size()), result.data(), size_needed);
+	MultiByteToWideChar(CP_UTF8, 0, source.data(), static_cast<int>(source.size()), result.data(), size_needed);
 	return result;
 }
 
@@ -72,11 +71,10 @@ public:
 		return "libgs::library_error_category";
 	}
 
-	[[nodiscard]] std::string message(int code) const override
+	[[nodiscard]] std::string message(int) const override
 	{
 		std::string result;
-		if( code == -1 )
-			code = ::GetLastError();
+		auto code = GetLastError();
 		switch(code)
 		{
 		case 0     :                                     ; break;
@@ -101,6 +99,16 @@ public:
 	}
 }
 g_library_category;
+
+void *library::impl::interface(std::string_view ifname) const
+{
+	return reinterpret_cast<void*>(GetProcAddress(m_handle, ifname.data()));
+}
+
+bool library::impl::exists(std::string_view ifname) const
+{
+	return reinterpret_cast<void*>(GetProcAddress(m_handle, ifname.data())) != nullptr;
+}
 
 void library::impl::load_native(error_code &error)
 {
@@ -135,7 +143,7 @@ void library::impl::load_native(error_code &error)
 			attempt = prefix_list[prefix] + wfile_name + suffix_list[suffix];
 			m_handle = LoadLibraryW(attempt.c_str());
 
-			if( ::GetLastError() != ERROR_MOD_NOT_FOUND )
+			if( GetLastError() != ERROR_MOD_NOT_FOUND )
 				retry = false;
 		}
 	}
