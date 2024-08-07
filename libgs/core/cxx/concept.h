@@ -158,6 +158,9 @@ concept concept_string_type = is_string_v<T>;
 template <typename T>
 concept concept_rvalue = std::is_rvalue_reference_v<T>;
 
+template <typename Func>
+concept concept_function = is_function_v<Func>;
+
 template <typename Res, typename Func, typename...Args>
 concept concept_basic_callable = requires(Func &&func, Args&&...args) {
 	std::is_same_v<decltype(func(std::forward<Args>(args)...)), Res>;

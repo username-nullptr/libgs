@@ -46,7 +46,6 @@ struct _response_helper_static_string;
 	static constexpr const _type *colon                 = __VA_ARGS__##": "                             ; \
 	static constexpr const _type *line_break            = __VA_ARGS__##"\r\n"                           ; \
 	static constexpr const _type *content_type          = __VA_ARGS__##"text/plain; charset=utf-8"      ; \
-	static constexpr const _type *set_cookie            = __VA_ARGS__##"set-cookie"                     ; \
 	static constexpr const _type *bytes                 = __VA_ARGS__##"bytes"                          ; \
 	static constexpr const _type *bytes_start           = __VA_ARGS__##"bytes="                         ; \
 	static constexpr const _type *range_format          = __VA_ARGS__##"{}-{},"                         ; \
@@ -71,15 +70,12 @@ template <concept_char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-
-	using helper_t = basic_response_helper<CharT>;
-	using key_static_string = detail::_key_static_string<CharT>;
-	using static_string = detail::_response_helper_static_string<CharT>;
+	struct string_pool : detail::string_pool<CharT>, detail::_response_helper_static_string<CharT> {};
 
 public:
-	explicit impl(helper_t *q_ptr) : q_ptr(q_ptr) {}
-	impl(helper_t *q_ptr, string_view_t version, const headers_t &request_headers) :
-		q_ptr(q_ptr), m_version(version), m_request_headers(request_headers) {}
+	impl() = default;
+	impl(string_view_t version, const headers_t &request_headers) :
+		m_version(version), m_request_headers(request_headers) {}
 
 public:
 	[[nodiscard]] std::string header_data(size_t body_size)
@@ -90,17 +86,17 @@ public:
 			if( stoi32(m_version) > 1.0 )
 			{
 				it = m_response_headers.find(header_t::transfer_encoding);
-				if( it == m_response_headers.end() or str_to_lower(it->second.to_string()) != key_static_string::chunked )
-					q_ptr->set_header(header_t::content_length, body_size);
+				if( it == m_response_headers.end() or str_to_lower(it->second.to_string()) != string_pool::chunked )
+					set_header(header_t::content_length, body_size);
 			}
 			else
-				q_ptr->set_header(header_t::content_length, body_size);
+				set_header(header_t::content_length, body_size);
 		}
 		std::string buf;
 		buf.reserve(4096);
 
 		buf = std::format("HTTP/{} {} {}\r\n", xxtombs<CharT>(m_version), m_status, to_status_description(m_status));
-		m_response_headers.erase(static_string::set_cookie);
+		m_response_headers.erase(string_pool::set_cookie);
 
 		for(auto &[key,value] : m_response_headers)
 			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
@@ -145,13 +141,17 @@ public:
 			throw runtime_error("libgs::http::response_helper::chunk_end: 'Content-Length' has been set.");
 
 		it = m_response_headers.find(header_t::transfer_encoding);
-		if( it == m_response_headers.end() or str_to_lower(it->second) != detail::_response_helper_static_string<CharT>::chunked )
+		if( it == m_response_headers.end() or str_to_lower(it->second) != string_pool::chunked )
 			throw runtime_error("libgs::http::response_helper::chunk_end: 'Transfer-Coding: chunked' not set.");
 
 		std::string buf = "0\r\n";
 		for(auto &[key,value] : headers)
 			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
 		return buf + "\r\n";
+	}
+
+	void set_header(string_view_t key, value_t value) noexcept {
+		m_response_headers[str_to_lower(key)] = std::move(value);
 	}
 
 private:
@@ -161,17 +161,16 @@ private:
 			return false;
 
 		auto it = m_request_headers.find(header_t::transfer_encoding);
-		return it != m_request_headers.end() and str_to_lower(it->second.to_string()) == key_static_string::chunked;
+		return it != m_request_headers.end() and str_to_lower(it->second.to_string()) == string_pool::chunked;
 	}
 
 public:
-	helper_t *q_ptr;
-	string_view_t m_version = key_static_string::v_1_1;
+	string_view_t m_version = string_pool::v_1_1;
 	const headers_t &m_request_headers;
 
 	http::status m_status = status::ok;
 	headers_t m_response_headers {
-		{ header_t::content_type, static_string::content_type }
+		{ header_t::content_type, string_pool::content_type }
 	};
 	cookies_t m_cookies;
 	value_list_t m_chunk_attributes;
@@ -187,7 +186,7 @@ basic_response_helper<CharT>::basic_response_helper(string_view_t version, const
 
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(const headers_t &request_headers) :
-	m_impl(new impl(this, "1.1", request_headers))
+	m_impl(new impl(this, detail::string_pool<CharT>::v_1_1, request_headers))
 {
 
 }
@@ -232,7 +231,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(http::sta
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(string_view_t key, value_t value) noexcept
 {
-	m_impl->m_response_headers[str_to_lower(key)] = std::move(value);
+	m_impl->set_header(key, std::move(value));
 	return *this;
 }
 
@@ -262,6 +261,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
 
+	set_header(basic_header<CharT>::transfer_encoding, detail::string_pool<CharT>::chunked);
 	m_impl->m_chunk_attributes.emplace_back(std::move(attribute));
 	return *this;
 }
@@ -272,6 +272,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
 
+	set_header(basic_header<CharT>::transfer_encoding, detail::string_pool<CharT>::chunked);
 	for(auto &value : attributes)
 		m_impl->m_chunk_attributes.emplace_back(std::move(value));
 	return *this;
@@ -343,7 +344,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribut
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 {
-	m_impl->m_version = detail::_key_static_string<CharT>::v_1_1;
+	m_impl->m_version = detail::string_pool<CharT>::v_1_1;
 	m_impl->m_status = status::ok;
 
 	m_impl->m_response_headers = {

@@ -32,6 +32,37 @@
 namespace libgs::http
 {
 
+namespace detail
+{
+
+template <concept_char_type T>
+struct string_pool;
+
+#define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
+	static constexpr const _type *root       = __VA_ARGS__##"/"         ; \
+	static constexpr const _type *v_1_0      = __VA_ARGS__##"1.0"       ; \
+	static constexpr const _type *v_1_1      = __VA_ARGS__##"1.1"       ; \
+	static constexpr const _type *close      = __VA_ARGS__##"close"     ; \
+	static constexpr const _type *gzip       = __VA_ARGS__##"gzip"      ; \
+	static constexpr const _type *chunked    = __VA_ARGS__##"chunked"   ; \
+	static constexpr const _type *upgrade    = __VA_ARGS__##"upgrade"   ; \
+	static constexpr const _type *websocket  = __VA_ARGS__##"websocket" ; \
+	static constexpr const _type *set_cookie = __VA_ARGS__##"set-cookie";
+
+template <>
+struct string_pool<char> {
+	LIBGS_HTTP_DETAIL_STRING_POOL(char);
+};
+
+template <>
+struct string_pool<wchar_t> {
+	LIBGS_HTTP_DETAIL_STRING_POOL(wchar_t,L);
+};
+
+#undef LIBGS_HTTP_DETAIL_STRING_POOL
+
+} //namespace detail
+
 inline void status_check(uint32_t s)
 {
 	status_check(static_cast<status>(s));

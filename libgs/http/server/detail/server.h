@@ -163,7 +163,7 @@ public:
 		if( n_it != str.end() )
 			str.erase(n_it, str.end());
 
-		constexpr auto root = detail::_key_static_string<CharT>::root;
+		constexpr auto root = detail::string_pool<CharT>::root;
 		if( not str.starts_with(root) )
 			str = root + str;
 	}

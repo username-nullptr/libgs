@@ -15,7 +15,7 @@ int main()
 			spdlog::error("interface not found.");
 			return -1;
 		}
-		auto func = library.interface<int,int>("func");
+		auto func = library.interface<int(int)>("func");
 		int res = func(111);
 
 		spdlog::debug("call return: {}", res);

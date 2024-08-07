@@ -32,10 +32,32 @@
 namespace libgs
 {
 
-template <typename Ret, typename...Args>
-std::function<Ret(Args...)> library::interface(std::string_view ifname) const
+namespace detail
 {
-	return reinterpret_cast<Ret(*)(Args...)>(interface(ifname));
+
+template <typename T>
+struct tuple_reverse;
+
+template <typename...Args>
+struct tuple_reverse<std::tuple<Args...>>
+{
+
+};
+
+} //namespace detail
+
+template <concept_function Func>
+auto library::interface(std::string_view ifname) const
+{
+	using function_t = std::function<typename function_traits<Func>::call_type>;
+	using pointer_t = typename function_traits<Func>::pointer_type;
+	return function_t(reinterpret_cast<pointer_t>(interface(ifname)));
+}
+
+template <concept_function Func, typename Arg0, typename...Args>
+auto library::interface(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const
+{
+	return interface<Func>(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...));
 }
 
 } //namespace libgs

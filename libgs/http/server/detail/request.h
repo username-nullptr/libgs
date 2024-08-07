@@ -618,7 +618,7 @@ bool basic_server_request<Stream,CharT>::is_chunked() const noexcept
 	if( stoi32(version()) < 1.1 )
 		return false;
 	auto it = m_impl->m_headers.find(header_t::transfer_encoding);
-	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::_key_static_string<CharT>::chunked;
+	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::string_pool<CharT>::chunked;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>

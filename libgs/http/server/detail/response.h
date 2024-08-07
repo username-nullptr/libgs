@@ -245,7 +245,7 @@ public:
 
 		it = m_helper.headers().find(header_t::transfer_encoding);
 		if( it == m_helper.headers().end() or
-			str_to_lower(it->second.to_string()) != detail::_key_static_string<CharT>::chunked )
+			str_to_lower(it->second.to_string()) != detail::string_pool<CharT>::chunked )
 			throw runtime_error("libgs::http::server_response::{}: 'Transfer-Coding: chunked' not set.", func);
 
 		std::string buf = "0\r\n";

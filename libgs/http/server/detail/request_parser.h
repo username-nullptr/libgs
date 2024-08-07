@@ -38,31 +38,23 @@ namespace libgs::http
 namespace detail
 {
 
-template <typename T>
-struct _key_static_string;
+template <concept_char_type T>
+struct _request_parser_static_string;
 
-#define LIBGS_HTTP_DETAIL_STATIC_STRING(_type, ...) \
-	static constexpr const _type *root       = __VA_ARGS__##"/"         ; \
-	static constexpr const _type *v_1_0      = __VA_ARGS__##"1.0"       ; \
-	static constexpr const _type *v_1_1      = __VA_ARGS__##"1.1"       ; \
-	static constexpr const _type *close      = __VA_ARGS__##"close"     ; \
-	static constexpr const _type *comma      = __VA_ARGS__##","         ; \
-	static constexpr const _type *gzip       = __VA_ARGS__##"gzip"      ; \
-	static constexpr const _type *chunked    = __VA_ARGS__##"chunked"   ; \
-	static constexpr const _type *upgrade    = __VA_ARGS__##"upgrade"   ; \
-	static constexpr const _type *websocket  = __VA_ARGS__##"websocket" ;
+#define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
+	static constexpr const _type *comma = __VA_ARGS__##",";
 
 template <>
-struct _key_static_string<char> {
-	LIBGS_HTTP_DETAIL_STATIC_STRING(char);
+struct _request_parser_static_string<char> {
+	LIBGS_HTTP_DETAIL_STRING_POOL(char);
 };
 
 template <>
-struct _key_static_string<wchar_t> {
-	LIBGS_HTTP_DETAIL_STATIC_STRING(wchar_t,L);
+struct _request_parser_static_string<wchar_t> {
+	LIBGS_HTTP_DETAIL_STRING_POOL(wchar_t,L);
 };
 
-#undef LIBGS_HTTP_DETAIL_STATIC_STRING
+#undef LIBGS_HTTP_DETAIL_STRING_POOL
 
 } //namespace detail
 
@@ -70,7 +62,7 @@ template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using static_string = detail::_key_static_string<CharT>;
+	struct string_pool : detail::string_pool<CharT>, detail::_request_parser_static_string<CharT> {};
 
 public:
 	using string_t = std::basic_string<CharT>;
@@ -80,8 +72,7 @@ public:
 	using parameters_t = basic_parameters<CharT>;
 
 public:
-	explicit impl(size_t init_buf_size)
-	{
+	explicit impl(size_t init_buf_size) {
 		m_src_buf.reserve(init_buf_size);
 	}
 
@@ -229,15 +220,15 @@ private:
 		m_method  = method;
 		m_version = mbstoxx<CharT>(request_line_parts[2].substr(5,3));
 
-		auto resource_line = from_percent_encoding(request_line_parts[1]);
-		auto pos = resource_line.find('?');
+		auto url_line = from_percent_encoding(request_line_parts[1]);
+		auto pos = url_line.find('?');
 
 		if( pos == std::string::npos )
-			m_path = mbstoxx<CharT>(resource_line);
+			m_path = mbstoxx<CharT>(url_line);
 		else
 		{
-			m_path = mbstoxx<CharT>(resource_line.substr(0, pos));
-			auto parameters_string = resource_line.substr(pos + 1);
+			m_path = mbstoxx<CharT>(url_line.substr(0, pos));
+			auto parameters_string = url_line.substr(pos + 1);
 
 			for(auto &para_str : string_list::from_string(parameters_string, '&'))
 			{
@@ -248,7 +239,7 @@ private:
 					m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
 			}
 		}
-		if( not m_path.starts_with(static_string::root) )
+		if( not m_path.starts_with(string_pool::root) )
 		{
 			m_src_buf.clear();
 			throw runtime_error("libgs::http::server::parser: Invalid http path.");
@@ -259,7 +250,7 @@ private:
 		if( n_it != m_path.end() )
 			m_path.erase(n_it, m_path.end());
 
-		if( m_path.size() > 1 and m_path.ends_with(static_string::root) )
+		if( m_path.size() > 1 and m_path.ends_with(string_pool::root) )
 			m_path.pop_back();
 
 		m_state = state::reading_headers;
@@ -308,18 +299,18 @@ private:
 	{
 		auto it = m_headers.find(basic_header<CharT>::connection);
 		if( it == m_headers.end() )
-			m_keep_alive = m_version != static_string::v_1_0;
+			m_keep_alive = m_version != string_pool::v_1_0;
 		else
-			m_keep_alive = str_to_lower(it->second.to_string()) != static_string::close;
+			m_keep_alive = str_to_lower(it->second.to_string()) != string_pool::close;
 
 		it = m_headers.find(basic_header<CharT>::accept_encoding);
 		if( it == m_headers.end() )
 			m_support_gzip = false;
 		else
 		{
-			for(auto &str : basic_string_list<CharT>::from_string(it->second.to_string(), static_string::comma))
+			for(auto &str : basic_string_list<CharT>::from_string(it->second.to_string(), string_pool::comma))
 			{
-				if( str_to_lower(str_trimmed(str)) == static_string::gzip )
+				if( str_to_lower(str_trimmed(str)) == string_pool::gzip )
 				{
 					m_support_gzip = true;
 					break;
@@ -332,10 +323,10 @@ private:
 			m_state_context = it->second.template get<size_t>();
 			parse_length();
 		}
-		else if( m_version == static_string::v_1_1 )
+		else if( m_version == string_pool::v_1_1 )
 		{
 			it = m_headers.find(basic_header<CharT>::transfer_encoding);
-			if( it == m_headers.end() or it->second.to_string() != static_string::chunked )
+			if( it == m_headers.end() or it->second.to_string() != string_pool::chunked )
 				m_state = state::finished;
 			else
 			{
@@ -480,7 +471,7 @@ bool basic_request_parser<CharT>::operator<<(std::string_view buf)
 template <concept_char_type CharT>
 int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 {
-	constexpr const CharT *root = detail::_key_static_string<CharT>::root;
+	constexpr const CharT *root = detail::string_pool<CharT>::root;
 	using string_list_t = basic_string_list<CharT>;
 
 	auto rule_list = string_list_t::from_string(rule, root/*/*/);
