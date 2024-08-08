@@ -29,10 +29,79 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_H
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
+#include <libgs/http/basic/types.h>
+
 namespace libgs::http
 {
 
+template <concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_client_request
+{
+	LIBGS_DISABLE_COPY(basic_client_request)
+	using string_pool = detail::string_pool<CharT>;
+
+public:
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
+
+	using value_t = basic_value<CharT>;
+	using value_list_t = basic_value_list<CharT>;
+
+	using parameters_t = basic_parameters<CharT>;
+	using header_t = basic_header<CharT>;
+
+	using headers_t = basic_headers<CharT>;
+	using cookies_t = basic_cookie_values<CharT>;
+
+public:
+	template <typename Arg0, typename...Args>
+	basic_client_request(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
+	basic_client_request(string_view_t path = string_pool::root);
+	~basic_client_request();
+
+	basic_client_request(basic_client_request &&other) noexcept;
+	basic_client_request &operator=(basic_client_request &&other) noexcept;
+
+public:
+	template <typename Arg0, typename...Args>
+	basic_client_request &set_path(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) noexcept;
+	basic_client_request &set_path(string_view_t path) noexcept;
+
+	basic_client_request &set_parameter(string_view_t key, value_t value) noexcept;
+	basic_client_request &set_method(http::method method);
+	basic_client_request &set_header(string_view_t key, value_t value) noexcept;
+	basic_client_request &set_cookie(string_view_t key, value_t value) noexcept;
+
+	basic_client_request &set_chunk_attribute(value_t attribute);
+	basic_client_request &set_chunk_attributes(value_list_t attributes);
+
+public:
+	[[nodiscard]] string_view_t path() const noexcept;
+	[[nodiscard]] http::method method() const noexcept;
+
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
+
+	[[nodiscard]] const parameters_t &parameter() const noexcept;
+	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
+
+public:
+	basic_client_request &unset_header(string_view_t key);
+	basic_client_request &unset_cookie(string_view_t key);
+	basic_client_request &unset_chunk_attribute(const value_t &attributes);
+	basic_client_request &reset();
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+using client_request = basic_client_request<char>;
+using wclient_request = basic_client_request<wchar_t>;
+
 } //namespace libgs::http
+#include <libgs/http/client/detail/request.h>
 
 
 #endif //LIBGS_HTTP_CLIENT_REQUEST_H

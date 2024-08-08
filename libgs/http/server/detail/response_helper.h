@@ -45,7 +45,6 @@ struct _response_helper_static_string;
 #define LIBGS_HTTP_DETAIL_STATIC_STRING(_type, ...) \
 	static constexpr const _type *colon                 = __VA_ARGS__##": "                             ; \
 	static constexpr const _type *line_break            = __VA_ARGS__##"\r\n"                           ; \
-	static constexpr const _type *content_type          = __VA_ARGS__##"text/plain; charset=utf-8"      ; \
 	static constexpr const _type *bytes                 = __VA_ARGS__##"bytes"                          ; \
 	static constexpr const _type *bytes_start           = __VA_ARGS__##"bytes="                         ; \
 	static constexpr const _type *range_format          = __VA_ARGS__##"{}-{},"                         ; \
@@ -74,8 +73,8 @@ class basic_response_helper<CharT>::impl
 
 public:
 	impl() = default;
-	impl(string_view_t version, const headers_t &request_headers) :
-		m_version(version), m_request_headers(request_headers) {}
+	impl(const headers_t &request_headers, string_view_t version = string_pool::v_1_1) :
+		m_version(version), m_request_headers(&request_headers) {}
 
 public:
 	[[nodiscard]] std::string header_data(size_t body_size)
@@ -137,7 +136,7 @@ public:
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers)
 	{
 		auto it = m_response_headers.find(header_t::content_length);
-		if( it != m_request_headers.end() )
+		if( it != m_request_headers->end() )
 			throw runtime_error("libgs::http::response_helper::chunk_end: 'Content-Length' has been set.");
 
 		it = m_response_headers.find(header_t::transfer_encoding);
@@ -160,33 +159,33 @@ private:
 		if( stoi32(m_version) < 1.1 )
 			return false;
 
-		auto it = m_request_headers.find(header_t::transfer_encoding);
-		return it != m_request_headers.end() and str_to_lower(it->second.to_string()) == string_pool::chunked;
+		auto it = m_request_headers->find(header_t::transfer_encoding);
+		return it != m_request_headers->end() and str_to_lower(it->second.to_string()) == string_pool::chunked;
 	}
 
 public:
 	string_view_t m_version = string_pool::v_1_1;
-	const headers_t &m_request_headers;
+	const headers_t *m_request_headers = nullptr;
 
 	http::status m_status = status::ok;
 	headers_t m_response_headers {
-		{ header_t::content_type, string_pool::content_type }
+		{ header_t::content_type, string_pool::text_plain }
 	};
-	cookies_t m_cookies;
-	value_list_t m_chunk_attributes;
-	string_t m_redirect_url;
+	cookies_t m_cookies {};
+	value_list_t m_chunk_attributes {};
+	string_t m_redirect_url {};
 };
 
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(string_view_t version, const headers_t &request_headers) :
-	m_impl(new impl(this, version, request_headers))
+	m_impl(new impl(request_headers, version))
 {
 
 }
 
 template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(const headers_t &request_headers) :
-	m_impl(new impl(this, detail::string_pool<CharT>::v_1_1, request_headers))
+	m_impl(new impl(request_headers))
 {
 
 }
@@ -201,14 +200,16 @@ template <concept_char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(basic_response_helper &&other) noexcept :
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl(&other);
+	other.m_impl = new impl();
+	other.m_impl->m_request_headers = m_impl->m_request_headers;
 }
 
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::operator=(basic_response_helper &&other) noexcept
 {
 	m_impl = other.m_impl;
-	other.m_impl = new impl(&other);
+	other.m_impl = new impl();
+	other.m_impl->m_request_headers = m_impl->m_request_headers;
 	return *this;
 }
 
@@ -261,7 +262,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
 
-	set_header(basic_header<CharT>::transfer_encoding, detail::string_pool<CharT>::chunked);
+	set_header(basic_header<CharT>::transfer_encoding, string_pool::chunked);
 	m_impl->m_chunk_attributes.emplace_back(std::move(attribute));
 	return *this;
 }
@@ -272,7 +273,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
 
-	set_header(basic_header<CharT>::transfer_encoding, detail::string_pool<CharT>::chunked);
+	set_header(basic_header<CharT>::transfer_encoding, string_pool::chunked);
 	for(auto &value : attributes)
 		m_impl->m_chunk_attributes.emplace_back(std::move(value));
 	return *this;
@@ -321,6 +322,12 @@ const typename basic_response_helper<CharT>::cookies_t &basic_response_helper<Ch
 }
 
 template <concept_char_type CharT>
+const basic_value_list<CharT> &basic_response_helper<CharT>::chunk_attributes() const noexcept
+{
+	return m_impl->m_chunk_attributes;
+}
+
+template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_response_headers.erase({key.data(), key.size()});
@@ -344,11 +351,11 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribut
 template <concept_char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 {
-	m_impl->m_version = detail::string_pool<CharT>::v_1_1;
+	m_impl->m_version = string_pool::v_1_1;
 	m_impl->m_status = status::ok;
 
 	m_impl->m_response_headers = {
-		{ header_t::content_type, detail::_response_helper_static_string<CharT>::content_type }
+		{ header_t::content_type, string_pool::text_plain }
 	};
 	m_impl->m_cookies.clear();
 	m_impl->m_chunk_attributes.clear();

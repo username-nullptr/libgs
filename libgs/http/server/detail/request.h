@@ -76,7 +76,7 @@ public:
 
 public:
 	next_layer_t m_next_layer;
-	parser_t *m_parser;
+	parser_t *m_parser = nullptr;
 };
 
 template <concept_tcp_stream Stream, concept_char_type CharT>

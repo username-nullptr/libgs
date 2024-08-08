@@ -38,6 +38,7 @@ template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_response_helper
 {
 	LIBGS_DISABLE_COPY(basic_response_helper)
+	using string_pool = detail::string_pool<CharT>;
 
 public:
 	using string_t = std::basic_string<CharT>;
@@ -83,6 +84,8 @@ public:
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
+
+	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
 
 public:
 	basic_response_helper &unset_header(string_view_t key);
