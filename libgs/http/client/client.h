@@ -30,10 +30,56 @@
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
 #include <libgs/http/client/request_helper.h>
-#include <libgs/http/client/request.h>
 
 namespace libgs::http
 {
+
+template <concept_char_type CharT, concept_tcp_stream Stream = asio::ip::tcp::socket>
+class LIBGS_HTTP_TAPI basic_client
+{
+	LIBGS_DISABLE_COPY(basic_client)
+
+public:
+	using socket_t = Stream;
+	using executor_t = typename Stream::executor_type;
+
+	using request = basic_client_request<CharT>;
+//	using response = basic_client_response<CharT>;
+
+public:
+	template <concept_schedulable Exec = asio::io_context>
+	explicit basic_client(Exec &exec = execution::io_context());
+	~basic_client();
+
+public:
+	// template <http::method Method>
+	// response request(const request &req);
+	// response request(const request &req);
+
+	// response get(const request &req);
+	// response PUT(const request &req);
+	// response POST(const request &req);
+	// response HEAD(const request &req);
+	// response DELETE(const request &req);
+	// response OPTIONS(const request &req);
+	// response CONNECT(const request &req);
+	// response TRACH(const request &req);
+
+public:
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+};
+
+template <concept_execution Exec = asio::any_io_executor>
+using basic_tcp_client = basic_client<char, asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+
+template <concept_execution Exec = asio::any_io_executor>
+using wbasic_tcp_client = basic_client<wchar_t, asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+
+using tcp_client = basic_tcp_client<asio::any_io_executor>;
+using wtcp_client = wbasic_tcp_client<asio::any_io_executor>;
+
+using client = tcp_client;
+using wclient = wtcp_client;
 
 } //namespace libgs::http
 

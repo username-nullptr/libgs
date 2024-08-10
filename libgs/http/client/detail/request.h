@@ -64,37 +64,11 @@ class basic_client_request<CharT>::impl
 	struct string_pool : detail::string_pool<CharT>, detail::_client_request_static_string<CharT> {};
 
 public:
-	explicit impl(string_view_t path) {
-		set_path(path);
-	}
+	explicit impl(url_t &&url) :
+		m_url(std::move(url)) {}
 
 public:
-	void set_path(string_view_t path) noexcept
-	{
-		auto resource_line = str_trimmed(path);
-		auto pos = resource_line.find('?');
-
-		if( pos == string_t::npos )
-		{
-			m_path = std::move(resource_line);
-			return ;
-		}
-		m_path = resource_line.substr(0, pos);
-		auto parameters_string = resource_line.substr(pos + 1);
-
-		for(auto &para_str : string_list_t::from_string(parameters_string, string_pool::ampersand))
-		{
-			pos = para_str.find(string_pool::assignment);
-			if( pos == string_t::npos )
-				m_parameters.emplace(mbstoxx<CharT>(para_str), mbstoxx<CharT>(para_str));
-			else
-				m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
-		}
-	}
-
-public:
-	string_t m_path = string_pool::root;
-	parameters_t m_parameters {};
+	url_t m_url;
 	http::method m_method = http::method::GET;
 	headers_t m_headers {
 		{ header_t::content_type, string_pool::text_plain }
@@ -104,16 +78,8 @@ public:
 };
 
 template <concept_char_type CharT>
-template <typename Arg0, typename...Args>
-basic_client_request<CharT>::basic_client_request(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
-	m_impl(new impl(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...)))
-{
-
-}
-
-template <concept_char_type CharT>
-basic_client_request<CharT>::basic_client_request(string_view_t path) :
-	m_impl(new impl(path))
+basic_client_request<CharT>::basic_client_request(url_t url) :
+	m_impl(new impl(std::move(url)))
 {
 
 }
@@ -163,6 +129,13 @@ basic_client_request<CharT> &basic_client_request<CharT>::set_parameter(string_v
 }
 
 template <concept_char_type CharT>
+basic_client_request<CharT> &basic_client_request<CharT>::set_url(url_t url)
+{
+	m_impl->m_url = std::move(url);
+	return *this;
+}
+
+template <concept_char_type CharT>
 basic_client_request<CharT> &basic_client_request<CharT>::set_method(http::method method)
 {
 	method_check(method);
@@ -202,12 +175,6 @@ basic_client_request<CharT> &basic_client_request<CharT>::set_chunk_attributes(v
 }
 
 template <concept_char_type CharT>
-std::basic_string_view<CharT> basic_client_request<CharT>::path() const noexcept
-{
-	return m_impl->m_path;
-}
-
-template <concept_char_type CharT>
 http::method basic_client_request<CharT>::method() const noexcept
 {
 	return m_impl->m_method;
@@ -226,15 +193,21 @@ const basic_cookie_values<CharT> &basic_client_request<CharT>::cookies() const n
 }
 
 template <concept_char_type CharT>
-const basic_parameters<CharT> &basic_client_request<CharT>::parameter() const noexcept
-{
-	return m_impl->m_parameters;
-}
-
-template <concept_char_type CharT>
 const basic_value_list<CharT> &basic_client_request<CharT>::chunk_attributes() const noexcept
 {
 	return m_impl->m_chunk_attributes;
+}
+
+template <concept_char_type CharT>
+const basic_url<CharT> &basic_client_request<CharT>::url() const noexcept
+{
+	return m_impl->m_url;
+}
+
+template <concept_char_type CharT>
+basic_url<CharT> &basic_client_request<CharT>::url() noexcept
+{
+	return m_impl->m_url;
 }
 
 template <concept_char_type CharT>

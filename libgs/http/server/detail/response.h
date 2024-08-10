@@ -45,32 +45,9 @@ class basic_server_response<Stream,CharT>::impl
 	using static_string = detail::_response_helper_static_string<CharT>;
 
 public:
-	impl(response_t *q_ptr, next_layer_t &&next_layer) :
-		q_ptr(q_ptr), m_helper(next_layer.version(), next_layer.headers()),
+	impl(next_layer_t &&next_layer) :
+		m_helper(next_layer.version(), next_layer.headers()),
 		m_next_layer(std::move(next_layer)) {}
-
-	template <typename Stream0>
-	impl(response_t *q_ptr, typename basic_server_response<Stream0,CharT>::impl &&other) noexcept :
-		q_ptr(q_ptr),
-		m_helper(std::move(other.m_helper)),
-		m_next_layer(std::move(other.m_next_layer)),
-		m_headers_writed(other.m_headers_writed),
-		m_chunk_end_writed(other.m_chunk_end_writed)
-	{
-		other.m_headers_writed = false;
-		other.m_chunk_end_writed = false;
-	}
-
-	impl(response_t *q_ptr, impl &&other) noexcept :
-		q_ptr(q_ptr),
-		m_helper(std::move(other.m_helper)),
-		m_next_layer(std::move(other.m_next_layer)),
-		m_headers_writed(other.m_headers_writed),
-		m_chunk_end_writed(other.m_chunk_end_writed)
-	{
-		other.m_headers_writed = false;
-		other.m_chunk_end_writed = false;
-	}
 
 	template <typename Stream0>
 	impl &operator=(typename basic_server_response<Stream0,CharT>::impl &&other) noexcept
@@ -98,6 +75,19 @@ public:
 	}
 
 public:
+	inline void set_header(string_view_t key, value_t value) {
+		m_helper.set_header(key, std::move(value));
+	}
+
+	inline void set_status(uint32_t status) {
+		m_helper.set_status(status);
+	}
+
+	inline void set_status(http::status status) {
+		m_helper.set_status(status);
+	}
+
+public:
 	template <typename Token>
 	auto write_x(const const_buffer &body, Token &&token, const char *func)
 	{
@@ -116,20 +106,20 @@ public:
 		}
 		else
 		{
-			return [](impl *self, const_buffer body, Token token, const char *func) mutable -> awaitable<size_t>
+			return co_spawn([this, &body, &token, func]() mutable -> awaitable<size_t>
 			{
 				token.ec_ = error_code();
-				if( self->m_headers_writed )
+				if( m_headers_writed )
 				{
-					self->write_runtime_error_check(body, func);
-					co_return co_await self->write_body_x(body, std::forward<Token>(token));
+					write_runtime_error_check(body, func);
+					co_return co_await write_body_x(body, std::forward<Token>(token));
 				}
-				size_t sum = co_await self->write_header_x(body.size(), std::forward<Token>(token));
+				size_t sum = co_await write_header_x(body.size(), std::forward<Token>(token));
 				if( body.size() > 0 )
-					sum += co_await self->write_body_x(body, std::forward<Token>(token));
+					sum += co_await write_body_x(body, std::forward<Token>(token));
 				co_return sum;
-			}
-			(this, body, token, func);
+			},
+			m_next_layer.get_executor());
 		}
 	}
 
@@ -183,32 +173,32 @@ public:
 		}
 		else
 		{
-			return [](impl *self, std::string _file_name, resp_ranges ranges, Token token, const char *func) mutable -> awaitable<size_t>
+			return co_spawn([this, _file_name, &ranges, &token, func]() mutable -> awaitable<size_t>
 			{
 				size_t sum = 0;
 				error_code error;
 				auto file_name = app::absolute_path(error, _file_name);
 
-				if( not self->token_check(token, error) )
+				if( not token_check(token, error) )
 					co_return sum;
 				else if( not fs::exists(file_name) )
 				{
-					self->token_check(token, std::make_error_code(std::errc::no_such_file_or_directory));
+					token_check(token, std::make_error_code(std::errc::no_such_file_or_directory));
 					co_return sum;
 				}
 				std::ifstream file(file_name, std::ios_base::in | std::ios_base::binary);
 				if( not file.is_open())
 				{
-					self->token_check(token, std::make_error_code(static_cast<std::errc>(errno)));
+					token_check(token, std::make_error_code(static_cast<std::errc>(errno)));
 					co_return sum;
 				}
 				else if( ranges.empty() )
 				{
-					auto it = self->m_next_layer.headers().find(header_t::range);
-					if( it != self->m_next_layer.headers().end() )
-						sum = co_await self->range_transfer_x(file_name, file, it->second.to_string(), std::forward<Token>(token), func);
+					auto it = m_next_layer.headers().find(header_t::range);
+					if( it != m_next_layer.headers().end() )
+						sum = co_await range_transfer_x(file_name, file, it->second.to_string(), std::forward<Token>(token), func);
 					else
-						sum = co_await self->default_transfer_x(file_name, file, std::forward<Token>(token));
+						sum = co_await default_transfer_x(file_name, file, std::forward<Token>(token));
 				}
 				else
 				{
@@ -221,12 +211,11 @@ public:
 							throw runtime_error("libgs::http::response::{}: range error: begin > end", func);
 					}
 					range_text.pop_back();
-					sum = co_await self->range_transfer_x(file_name, file, range_text, std::forward<Token>(token), func);
+					sum = co_await range_transfer_x(file_name, file, range_text, std::forward<Token>(token), func);
 				}
 				file.close();
 				co_return sum;
-			}
-			(this, {_file_name.data(), _file_name.size()}, ranges, token, func);
+			});
 		}
 	}
 
@@ -262,14 +251,13 @@ public:
 		}
 		else
 		{
-			return [](impl *self, std::string buf, Token token) mutable -> awaitable<size_t>
+			return co_spawn([this, token = std::forward<Token>(token), buf = std::move(buf)]() mutable -> awaitable<size_t>
 			{
-				auto res = co_await self->write_body_x(buffer(buf, buf.size()), std::forward<Token>(token));
+				auto res = co_await write_body_x(buffer(buf, buf.size()), std::forward<Token>(token));
 				if( not token.ec_ )
-					self->m_chunk_end_writed = true;
+					m_chunk_end_writed = true;
 				co_return res;
-			}
-			(this, std::move(buf), token);
+			});
 		}
 	}
 
@@ -291,7 +279,7 @@ private:
 			if( file_size == 0 )
 				return sum;
 
-			q_ptr->set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+			set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
 			sum += write_header_x(file_size, token);
 			if( token )
 				return sum;
@@ -309,14 +297,13 @@ private:
 				sum += write_body_x(buffer(fr_buf, size), token);
 				if( token )
 					break;
-
-				sleep_for(512us);
+//				sleep_for(512us);
 			}
 			return sum;
 		}
 		else
 		{
-			return [](impl *self, std::string_view file_name, std::ifstream &file, Token token) mutable -> awaitable<size_t>
+			return co_spawn([this, file_name, &file, &token]() mutable -> awaitable<size_t>
 			{
 				auto mime_type = get_mime_type(file_name);
 				spdlog::debug("resource mime-type: {}.", mime_type);
@@ -327,8 +314,8 @@ private:
 				if( file_size == 0 )
 					co_return sum;
 
-				self->q_ptr->set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
-				sum += co_await self->write_header_x(file_size, std::forward<Token>(token));
+				set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+				sum += co_await write_header_x(file_size, std::forward<Token>(token));
 
 				if( token.ec_ )
 					co_return sum;
@@ -343,15 +330,13 @@ private:
 					if( size == 0 )
 						break;
 
-					sum += co_await self->write_body_x(buffer(fr_buf, size), std::forward<Token>(token));
+					sum += co_await write_body_x(buffer(fr_buf, size), std::forward<Token>(token));
 					if( token.ec_ )
 						break;
-
-					co_await co_sleep_for(512us, self->q_ptr->get_executor());
+//					co_await co_sleep_for(512us, get_executor());
 				}
 				co_return sum;
-			}
-			(this, file_name, file, token);
+			});
 		}
 	}
 
@@ -369,7 +354,7 @@ private:
 			auto status = m_helper.status();
 			if( range_str.empty())
 			{
-				q_ptr->set_status(status::bad_request);
+				set_status(status::bad_request);
 				auto buf = std::format("{} ({})", to_status_description(status), status);
 				return write_x(buffer(buf, buf.size()), token, func);
 			}
@@ -377,7 +362,7 @@ private:
 			// bytes=x-y, m-n, i-j ...
 			else if( range_str.substr(0, 6) != static_string::bytes_start )
 			{
-				q_ptr->set_status(status::range_not_satisfiable);
+				set_status(status::range_not_satisfiable);
 				auto buf = std::format("{} ({})", to_status_description(status), status);
 				return write_x(buffer(buf, buf.size()), token, func);
 			}
@@ -386,7 +371,7 @@ private:
 			auto range_list_str = range_str.substr(6);
 			if( range_list_str.empty())
 			{
-				q_ptr->set_status(status::range_not_satisfiable);
+				set_status(status::range_not_satisfiable);
 				auto buf = std::format("{} ({})", to_status_description(status), status);
 				return write_x(buffer(buf, buf.size()), token, func);
 			}
@@ -395,7 +380,7 @@ private:
 			auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
 			auto mime_type = get_mime_type(file_name);
 
-			q_ptr->set_status(status::partial_content);
+			set_status(status::partial_content);
 			std::list<range_value> range_value_list;
 
 			if( range_list.size() == 1 )
@@ -405,16 +390,15 @@ private:
 
 				if( not range_parsing(file_name, range_list[0], range_value))
 				{
-					q_ptr->set_status(status::range_not_satisfiable);
+					set_status(status::range_not_satisfiable);
 					auto buf = std::format("{} ({})", to_status_description(status), status);
 					return write_x(buffer(buf, buf.size()), token, func);
 				}
-				q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
-					  .set_header(header_t::content_type, mbstoxx<CharT>(mime_type))
-					  .set_header(header_t::content_length, range_value.size)
-					  .set_header(header_t::content_range,
-								  {static_string::content_range_format, range_value.begin, range_value.end,
-								   range_value.size});
+				set_header(header_t::accept_ranges, static_string::bytes);
+				set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+				set_header(header_t::content_length, range_value.size);
+				set_header(header_t::content_range,
+						   {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
 
 				return send_range_x(file, "", "", std::move(range_value_list), token);
 			} // if( rangeList.size() == 1 )
@@ -423,7 +407,7 @@ private:
 			auto boundary = std::format("{}_{}", uuid::generate().to_string(),
 										duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 
-			q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
+			set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
 
 			auto ct_line = std::format("{}: {}", header::content_type, mime_type);
 			std::size_t content_length = 0;
@@ -435,7 +419,7 @@ private:
 
 				if( not range_parsing(file_name, str_trimmed(str), range_value))
 				{
-					q_ptr->set_status(status::range_not_satisfiable);
+					set_status(status::range_not_satisfiable);
 					auto buf = std::format("{} ({})", to_status_description(status), status);
 					return write_x(buffer(buf, buf.size()), token, func);
 				}
@@ -463,15 +447,13 @@ private:
 			}
 			content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
 
-			q_ptr->set_header(header_t::content_length, content_length)
-				  .set_header(header_t::accept_ranges, static_string::bytes);
-
+			set_header(header_t::content_length, content_length);
+			set_header(header_t::accept_ranges, static_string::bytes);
 			return send_range_x(file, boundary, ct_line, std::move(range_value_list), token);
 		}
 		else
 		{
-			return [](impl *self, std::string_view file_name, std::ifstream &file, string_view_t _range_str,
-					Token token, const char *func) mutable -> awaitable<size_t>
+			return co_spawn([this, file_name, &file, _range_str, &token, func]() mutable -> awaitable<size_t>
 			{
 				string_t range_str(_range_str.data(), _range_str.size());
 				for(auto i=range_str.size(); i>0; i--)
@@ -479,36 +461,36 @@ private:
 					if( range_str[i] == 0x20/*SPACE*/ )
 						range_str.erase(i,1);
 				}
-				auto status = self->m_helper.status();
+				auto status = m_helper.status();
 				if( range_str.empty())
 				{
-					self->q_ptr->set_status(status::bad_request);
+					set_status(status::bad_request);
 					auto buf = std::format("{} ({})", to_status_description(status), status);
-					co_return co_await self->write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				}
 
 				// bytes=x-y, m-n, i-j ...
 				else if( range_str.substr(0, 6) != static_string::bytes_start )
 				{
-					self->q_ptr->set_status(status::range_not_satisfiable);
+					set_status(status::range_not_satisfiable);
 					auto buf = std::format("{} ({})", to_status_description(status), status);
-					co_return co_await self->write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				}
 
 				// x-y, m-n, i-j ...
 				auto range_list_str = range_str.substr(6);
 				if( range_list_str.empty())
 				{
-					self->q_ptr->set_status(status::range_not_satisfiable);
+					set_status(status::range_not_satisfiable);
 					auto buf = std::format("{} ({})", to_status_description(status), status);
-					co_return co_await self->write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				}
 
 				// (x-y) ( m-n) ( i-j) ...
 				auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
 				auto mime_type = get_mime_type(file_name);
 
-				self->q_ptr->set_status(status::partial_content);
+				set_status(status::partial_content);
 				std::list<range_value> range_value_list;
 
 				if( range_list.size() == 1 )
@@ -516,20 +498,19 @@ private:
 					range_value_list.emplace_back();
 					auto &range_value = range_value_list.back();
 
-					if( not self->range_parsing(file_name, range_list[0], range_value))
+					if( not range_parsing(file_name, range_list[0], range_value))
 					{
-						self->q_ptr->set_status(status::range_not_satisfiable);
+						set_status(status::range_not_satisfiable);
 						auto buf = std::format("{} ({})", to_status_description(status), status);
-						co_return co_await self->write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 					}
-					self->q_ptr->set_header(header_t::accept_ranges, static_string::bytes)
-								.set_header(header_t::content_type, mbstoxx<CharT>(mime_type))
-								.set_header(header_t::content_length, range_value.size)
-								.set_header(header_t::content_range,
-											{static_string::content_range_format, range_value.begin, range_value.end,
-											 range_value.size});
+					set_header(header_t::accept_ranges, static_string::bytes);
+					set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+					set_header(header_t::content_length, range_value.size);
+					set_header(header_t::content_range,
+							   {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
 
-					co_return co_await self->send_range_x
+					co_return co_await send_range_x
 					(file, "", "", std::move(range_value_list), std::forward<Token>(token));
 				} // if( rangeList.size() == 1 )
 
@@ -537,7 +518,7 @@ private:
 				auto boundary = std::format("{}_{}", uuid::generate().to_string(),
 											duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count());
 
-				self->q_ptr->set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
+				set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
 
 				auto ct_line = std::format("{}: {}", header::content_type, mime_type);
 				std::size_t content_length = 0;
@@ -547,11 +528,11 @@ private:
 					range_value_list.emplace_back();
 					auto &range_value = range_value_list.back();
 
-					if( not self->range_parsing(file_name, str_trimmed(str), range_value))
+					if( not range_parsing(file_name, str_trimmed(str), range_value))
 					{
-						self->q_ptr->set_status(status::range_not_satisfiable);
+						set_status(status::range_not_satisfiable);
 						auto buf = std::format("{} ({})", to_status_description(status), status);
-						co_return co_await self->write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
+						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 					}
 					namespace fs = std::filesystem;
 					range_value.cr_line = std::format("{}: bytes {}-{}/{}", header::content_range,
@@ -577,13 +558,12 @@ private:
 				}
 				content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
 
-				self->q_ptr->set_header(header_t::content_length, content_length)
-							.set_header(header_t::accept_ranges, static_string::bytes);
+				set_header(header_t::content_length, content_length);
+				set_header(header_t::accept_ranges, static_string::bytes);
 
-				co_return co_await self->send_range_x
+				co_return co_await send_range_x
 				(file, boundary, ct_line, std::move(range_value_list), std::forward<Token>(token));
-			}
-			(this, file_name, file, _range_str, token, func);
+			});
 		}
 	}
 
@@ -689,7 +669,7 @@ public:
 						if( token )
 							break;
 
-						sleep_for(512us);
+//						sleep_for(512us);
 						break;
 					}
 					file.read(buf, buf_size);
@@ -700,7 +680,7 @@ public:
 						break;
 
 					value.size -= buf_size;
-					sleep_for(512us);
+//					sleep_for(512us);
 				}
 				return sum;
 			}
@@ -743,7 +723,7 @@ public:
 						if( token )
 							return sum;
 
-						sleep_for(512us);
+//						sleep_for(512us);
 						break;
 					}
 					file.read(buf, buf_size);
@@ -754,7 +734,7 @@ public:
 						return sum;
 
 					value.size -= buf_size;
-					sleep_for(512us);
+//					sleep_for(512us);
 				}
 			}
 			auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
@@ -763,14 +743,9 @@ public:
 		}
 		else
 		{
-			return [](impl *self,
-					  std::ifstream &file,
-					  std::string_view boundary,
-					  std::string_view ct_line,
-					  std::list<range_value> range_value_queue,
-					  Token token) mutable -> awaitable<size_t>
+			return co_spawn([this, &file, boundary, ct_line, &range_value_queue, &token]() mutable -> awaitable<size_t>
 			{
-				auto sum = co_await self->write_header_x(0, std::forward<Token>(token));
+				auto sum = co_await write_header_x(0, std::forward<Token>(token));
 				constexpr size_t buf_size = 0xFFFF;
 
 				if( range_value_queue.size() == 1 )
@@ -786,22 +761,22 @@ public:
 							file.read(buf, value.size);
 							auto size = file.gcount();
 
-							sum += co_await self->write_body_x(buffer(buf,size), std::forward<Token>(token));
+							sum += co_await write_body_x(buffer(buf,size), std::forward<Token>(token));
 							if( token.ec_ )
 								break;
 
-							co_await co_sleep_for(512us, self->q_ptr->get_executor());
+//							co_await co_sleep_for(512us, get_executor());
 							break;
 						}
 						file.read(buf, buf_size);
 						auto size = file.gcount();
 
-						sum += co_await self->write_body_x(buffer(buf,size), std::forward<Token>(token));
+						sum += co_await write_body_x(buffer(buf,size), std::forward<Token>(token));
 						if( token.ec_ )
 							break;
 
 						value.size -= buf_size;
-						co_await co_sleep_for(512us, self->q_ptr->get_executor());
+//						co_await co_sleep_for(512us, get_executor());
 					}
 					co_return sum;
 				}
@@ -822,7 +797,7 @@ public:
 						.append(value.cr_line).append("\r\n"
 													  "\r\n");
 
-					sum += co_await self->write_body_x(buffer(body, body.size()), std::forward<Token>(token));
+					sum += co_await write_body_x(buffer(body, body.size()), std::forward<Token>(token));
 					if( token.ec_ )
 						co_return sum;
 
@@ -840,29 +815,28 @@ public:
 							buf[size + 0] = '\r';
 							buf[size + 1] = '\n';
 
-							sum += co_await self->write_body_x(buffer(buf, size + 2), std::forward<Token>(token));
+							sum += co_await write_body_x(buffer(buf, size + 2), std::forward<Token>(token));
 							if( token.ec_ )
 								co_return sum;
 
-							co_await co_sleep_for(512us, self->q_ptr->get_executor());
+//							co_await co_sleep_for(512us, get_executor());
 							break;
 						}
 						file.read(buf, buf_size);
 						auto size = file.gcount();
 
-						sum += co_await self->write_body_x(buffer(buf,size), std::forward<Token>(token));
+						sum += co_await write_body_x(buffer(buf,size), std::forward<Token>(token));
 						if( token.ec_ )
 							co_return sum;
 
 						value.size -= buf_size;
-						co_await co_sleep_for(512us, self->q_ptr->get_executor());
+//						co_await co_sleep_for(512us, get_executor());
 					}
 				}
 				auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
-				sum += co_await self->write_body_x(buffer(abuf, abuf.size()), std::forward<Token>(token));
+				sum += co_await write_body_x(buffer(abuf, abuf.size()), std::forward<Token>(token));
 				co_return sum;
-			}
-			(this, file, boundary, ct_line, std::move(range_value_queue), token);
+			});
 		}
 	}
 
@@ -899,13 +873,13 @@ private:
 		}
 		else
 		{
-			return [](impl *self, std::string data, bool wheader, Token token) mutable -> awaitable<size_t>
+			return co_spawn([this, data = std::move(data), wheader, &token]() mutable -> awaitable<size_t>
 			{
 				token.ec_ = error_code();
 				size_t sum = 0;
 				do {
 					sum += co_await asio::async_write(
-							self->m_next_layer.next_layer(),
+							m_next_layer.next_layer(),
 							buffer(data.c_str() + sum, data.size() - sum),
 							token);
 
@@ -913,11 +887,10 @@ private:
 						continue;
 				}
 				while(false);
-				if( self->token_check(token, token.ec_) and wheader )
-					self->m_headers_writed = true;
+				if( token_check(token, token.ec_) and wheader )
+					m_headers_writed = true;
 				co_return sum;
-			}
-			(this, std::move(data), wheader, token);
+			});
 		}
 	}
 
@@ -939,7 +912,6 @@ private:
 	}
 
 public:
-	response_t *q_ptr;
 	helper_t m_helper;
 	next_layer_t m_next_layer;
 
@@ -949,7 +921,7 @@ public:
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT>::basic_server_response(next_layer_t &&next_layer) :
-	m_impl(new impl(this, std::move(next_layer)))
+	m_impl(new impl(std::move(next_layer)))
 {
 
 }
@@ -962,7 +934,7 @@ basic_server_response<Stream,CharT>::~basic_server_response()
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT>::basic_server_response(basic_server_response &&other) noexcept :
-	m_impl(new impl(this, std::move(*other.m_impl)))
+	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
@@ -997,21 +969,21 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operat
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(uint32_t status)
 {
-	m_impl->m_helper.set_status(status);
+	m_impl->set_status(status);
 	return *this;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(http::status status)
 {
-	m_impl->m_helper.set_status(status);
+	m_impl->set_status(status);
 	return *this;
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_header(string_view_t key, value_t value)
 {
-	m_impl->m_helper.set_header(key, std::move(value));
+	m_impl->set_header(key, std::move(value));
 	return *this;
 }
 

@@ -45,7 +45,7 @@ class LIBGS_HTTP_TAPI basic_server
 public:
 	using socket_t = Stream;
 	using executor_t = Exec;
-	using service_exec_t = typename Stream::executor_type;
+	using service_exec_t = typename socket_t::executor_type;
 
 	using next_layer_t = basic_acceptor_wrap<socket_t>;
 	using endpoint_t = typename next_layer_t::acceptor_t::endpoint_type;
@@ -112,8 +112,12 @@ public:
 	basic_server &unbound_system_error();
 	basic_server &unbound_exception();
 
+public:
 	template <typename Rep, typename Period>
-	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d);
+	basic_server &set_first_reading_time(const std::chrono::duration<Rep,Period> &d);
+
+	template <typename Rep, typename Period>
+	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d = {});
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;

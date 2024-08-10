@@ -506,7 +506,7 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 			file.write(buf, static_cast<pos_type>(size));
 			total -= size;
 		}
-		sleep_for(512us);
+//		sleep_for(512us);
 	}
 	file.close();
 	return sum;
@@ -585,7 +585,7 @@ awaitable<size_t> basic_server_request<Stream,CharT>::co_save_file
 				file.write(buf, static_cast<pos_type>(size));
 				total -= size;
 			}
-			co_await co_sleep_for(512us);
+//			co_await co_sleep_for(512us, get_executor());
 		}
 		file.close();
 	}

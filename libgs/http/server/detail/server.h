@@ -213,14 +213,16 @@ private:
 
 	[[nodiscard]] awaitable<void> do_tcp_service(socket_t &socket, const std::chrono::milliseconds &keepalive_time)
 	{
+		using namespace std::chrono_literals;
+		const auto *time = &m_first_reading_time;
+
 		basic_server::parser parser;
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size] = {0};
 		for(;;)
 		{
 			try {
-				auto var = co_await (socket.async_read_some(buffer(buf, buf_size), use_awaitable) or
-									 co_sleep_for(keepalive_time));
+				auto var = co_await (socket.async_read_some(buffer(buf, buf_size), use_awaitable) or co_sleep_for(*time));
 				if( var.index() == 1 )
 					break;
 
@@ -249,6 +251,10 @@ private:
 
 			if( not _context.response().headers_writed() )
 				co_await call_on_default(_context);
+
+			time = &keepalive_time;
+			if( *time == 0ms )
+				break;
 
 			parser.reset();
 			socket = std::move(_context.request().next_layer());
@@ -460,6 +466,7 @@ public:
 	system_error_handler m_system_error_handler {};
 	exception_handler m_exception_handler {};
 
+	std::chrono::milliseconds m_first_reading_time {1500};
 	std::chrono::milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_is_start {false};
 };
@@ -665,6 +672,18 @@ template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution 
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_exception()
 {
 	m_impl->m_exception_handler = {};
+	return *this;
+}
+
+template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution Exec>
+template <typename Rep, typename Period>
+basic_server<CharT,Stream,Exec>&
+basic_server<CharT,Stream,Exec>::set_first_reading_time(const std::chrono::duration<Rep,Period> &d)
+{
+	using namespace std::chrono;
+	m_impl->m_first_reading_time = duration_cast<milliseconds>(d);
+	if( m_impl->m_first_reading_time == 0ms )
+		m_impl->m_first_reading_time = 1ms;
 	return *this;
 }
 
