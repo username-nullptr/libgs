@@ -53,19 +53,18 @@ public:
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
 
-	using context = basic_service_context<socket_t,CharT>;
-	using request_handler = std::function<awaitable<void>(context&)>;
-	using system_error_handler = std::function<bool(error_code)>;
-	using exception_handler = std::function<bool(context&, std::exception&)>;
+	using context_t = basic_service_context<socket_t,CharT>;
+	using system_error_handler_t = std::function<bool(error_code)>;
+	using exception_handler_t = std::function<bool(context_t&, std::exception&)>;
 
-	using parser = basic_request_parser<CharT>;
-	using request = basic_server_request<socket_t,CharT>;
-	using response = basic_server_response<socket_t,CharT>;
+	using parser_t = basic_request_parser<CharT>;
+	using request_t = basic_server_request<socket_t,CharT>;
+	using response_t = basic_server_response<socket_t,CharT>;
 
-	using aop = basic_aop<socket_t,CharT>;
-	using ctrlr_aop = basic_ctrlr_aop<socket_t,CharT>;
-	using aop_ptr = basic_aop_ptr<socket_t,CharT>;
-	using ctrlr_aop_ptr = basic_ctrlr_aop_ptr<socket_t,CharT>;
+	using aop_t = basic_aop<socket_t,CharT>;
+	using ctrlr_aop_t = basic_ctrlr_aop<socket_t,CharT>;
+	using aop_ptr_t = basic_aop_ptr<socket_t,CharT>;
+	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t,CharT>;
 
 public:
 
@@ -97,16 +96,16 @@ public:
 		detail::concept_request_handler<Func,socket_t,CharT> and detail::concept_aop_ptr_list<socket_t,CharT,AopPtr...>;
 
 	template <http::method...method>
-	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr ctrlr);
+	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr_t ctrlr);
 
 	template <http::method...method>
-	basic_server &on_request(string_view_t path_rule, ctrlr_aop *ctrlr);
+	basic_server &on_request(string_view_t path_rule, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>
 	basic_server &on_default(Func &&func) requires detail::concept_request_handler<Func,socket_t,CharT>;
 
-	basic_server &on_system_error(system_error_handler func);
-	basic_server &on_exception(exception_handler func);
+	basic_server &on_system_error(system_error_handler_t func);
+	basic_server &on_exception(exception_handler_t func);
 
 	basic_server &unbound_request(string_view_t path_rule = {});
 	basic_server &unbound_system_error();

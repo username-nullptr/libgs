@@ -72,7 +72,7 @@ int main()
 	server.bind({asio::ip::address_v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
-	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		co_await context.response().co_write(asio::buffer("hello libgs"));
 		co_return ;

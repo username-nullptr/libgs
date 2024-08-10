@@ -106,29 +106,6 @@ basic_client_request<CharT> &basic_client_request<CharT>::operator=(basic_client
 }
 
 template <concept_char_type CharT>
-template <typename Arg0, typename...Args>
-basic_client_request<CharT> &basic_client_request<CharT>::set_path
-(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) noexcept
-{
-	m_impl->set_path(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...));
-	return *this;
-}
-
-template <concept_char_type CharT>
-basic_client_request<CharT> &basic_client_request<CharT>::set_path(string_view_t path) noexcept
-{
-	m_impl->set_path(path);
-	return *this;
-}
-
-template <concept_char_type CharT>
-basic_client_request<CharT> &basic_client_request<CharT>::set_parameter(string_view_t key, value_t value) noexcept
-{
-	m_impl->m_parameters[str_to_lower(key)] = std::move(value);
-	return *this;
-}
-
-template <concept_char_type CharT>
 basic_client_request<CharT> &basic_client_request<CharT>::set_url(url_t url)
 {
 	m_impl->m_url = std::move(url);

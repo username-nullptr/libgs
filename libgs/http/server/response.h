@@ -156,6 +156,9 @@ using wbasic_tcp_server_response = basic_server_response<asio::basic_stream_sock
 using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
 using wtcp_server_response = wbasic_tcp_server_response<asio::any_io_executor>;
 
+using server_response = tcp_server_response;
+using wserver_response = wtcp_server_response;
+
 } //namespace libgs::http
 #include <libgs/http/server/detail/response.h>
 

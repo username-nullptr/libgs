@@ -156,6 +156,9 @@ using wbasic_tcp_server_request = basic_server_request<asio::basic_stream_socket
 using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
 using wtcp_server_request = wbasic_tcp_server_request<asio::any_io_executor>;
 
+using server_request = tcp_server_request;
+using wserver_request = wtcp_server_request;
+
 } //namespace libgs::http
 #include <libgs/http/server/detail/request.h>
 

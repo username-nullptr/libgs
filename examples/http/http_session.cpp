@@ -13,13 +13,13 @@ int main()
 	server.bind({asio::ip::address_v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
-	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto session = context.session();
 		spdlog::debug("session: '{}': <{}>", session->id(), session);
 		co_return ;
 	})
-	.on_exception([](libgs::http::server::context&, std::exception &ex)
+	.on_exception([](libgs::http::server::context_t&, std::exception &ex)
 	{
 		spdlog::error(ex);
 		return true;

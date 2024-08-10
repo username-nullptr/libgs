@@ -36,6 +36,7 @@ template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution 
 class basic_server<CharT,Stream,Exec>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
+	using request_handler_t = std::function<awaitable<void>(context_t&)>;
 
 public:
 	template <concept_execution_context Context>
@@ -216,7 +217,7 @@ private:
 		using namespace std::chrono_literals;
 		const auto *time = &m_first_reading_time;
 
-		basic_server::parser parser;
+		basic_server::parser_t parser;
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size] = {0};
 		for(;;)
@@ -246,31 +247,31 @@ private:
 				call_on_system_error(ex.code());
 			}
 
-			context _context(std::move(socket), parser, m_sss);
-			co_await call_on_request(_context);
+			context_t context(std::move(socket), parser, m_sss);
+			co_await call_on_request(context);
 
-			if( not _context.response().headers_writed() )
-				co_await call_on_default(_context);
+			if( not context.response().headers_writed() )
+				co_await call_on_default(context);
 
 			time = &keepalive_time;
 			if( *time == 0ms )
 				break;
 
 			parser.reset();
-			socket = std::move(_context.request().next_layer());
+			socket = std::move(context.request().next_layer());
 		}
 		co_return ;
 	}
 
 private:
-	[[nodiscard]] awaitable<void> call_on_request(context &_context)
+	[[nodiscard]] awaitable<void> call_on_request(context_t &context)
 	{
 		tk_handler_ptr handler {};
 		int32_t weight = std::numeric_limits<int32_t>::max();
 
 		for(auto &[rule, _handler] : m_request_handler_map)
 		{
-			auto _weight = _context.request().path_match(rule);
+			auto _weight = context.request().path_match(rule);
 			if( _weight < 0 )
 				continue;
 			else if( _weight < weight )
@@ -281,42 +282,42 @@ private:
 		}
 		if( weight < 0 )
 		{
-			_context.response().set_status(status::not_found);
+			context.response().set_status(status::not_found);
 			co_return ;
 		}
-		else if( (handler->method & _context.request().method()) == 0 )
+		else if( (handler->method & context.request().method()) == 0 )
 		{
-			_context.response().set_status(status::method_not_allowed);
+			context.response().set_status(status::method_not_allowed);
 			co_return ;
 		}
 		try
 		{
-			if( co_await handler->aop->before(_context) )
+			if( co_await handler->aop->before(context) )
 				co_return ;
 
-			co_await handler->aop->service(_context);
-			co_await handler->aop->after(_context);
+			co_await handler->aop->service(context);
+			co_await handler->aop->after(context);
 		}
 		catch(std::exception &ex)
 		{
-			if( handler->aop->exception(_context, ex) )
+			if( handler->aop->exception(context, ex) )
 				co_return ;
-			call_on_exception(_context, ex);
+			call_on_exception(context, ex);
 		}
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> call_on_default(context &_context)
+	[[nodiscard]] awaitable<void> call_on_default(context_t &context)
 	{
 		if( m_default_handler )
 		{
 			try {
-				co_await m_default_handler(_context);
+				co_await m_default_handler(context);
 			}
 			catch(std::exception &ex) {
-				call_on_exception(_context, ex);
+				call_on_exception(context, ex);
 			}
-			if( _context.response().headers_writed() )
+			if( context.response().headers_writed() )
 				co_return ;
 		}
 		constexpr const char *def_html =
@@ -337,19 +338,19 @@ private:
 			"</body>"
 			"</html>";
 		std::string data;
-		if( _context.response().status() == status::ok )
+		if( context.response().status() == status::ok )
 			data = std::format(def_html, "Welcome to LIBGS", "");
 		else
 		{
-			auto status = std::format("<h2>{} ({})</h2>", to_status_description(_context.response().status()), _context.response().status());
+			auto status = std::format("<h2>{} ({})</h2>", to_status_description(context.response().status()), context.response().status());
 			data = std::format(def_html, "LIBGS", status);
 		}
 		if constexpr( is_char_v<CharT> )
-			_context.response().set_header(header::content_type, "text/html");
+			context.response().set_header(header::content_type, "text/html");
 		else
-			_context.response().set_header(wheader::content_type, L"text/html");
+			context.response().set_header(wheader::content_type, L"text/html");
 
-		co_await _context.response().co_write(asio::buffer(data, data.size()));
+		co_await context.response().co_write(asio::buffer(data, data.size()));
 		co_return ;
 	}
 
@@ -364,73 +365,73 @@ private:
 		throw system_error(error, "libgs::http::server");
 	}
 
-	void call_on_exception(context &_context, std::exception &ex)
+	void call_on_exception(context_t &context, std::exception &ex)
 	{
-		_context.response().set_status(status::internal_server_error);
+		context.response().set_status(status::internal_server_error);
 		if( m_exception_handler )
 		{
-			if( m_exception_handler(_context, ex) )
+			if( m_exception_handler(context, ex) )
 				return ;
 		}
 		throw ex;
 	}
 
 public:
-	class multi_ctrlr_aop : public ctrlr_aop
+	class multi_ctrlr_aop : public ctrlr_aop_t
 	{
 	public:
 		template <typename Func, typename...AopPtr>
 		multi_ctrlr_aop(Func &&func, AopPtr&&...aops) :
-			m_aops{aop_ptr(std::forward<AopPtr>(aops))...},
+			m_aops{aop_ptr_t(std::forward<AopPtr>(aops))...},
 			m_func(std::forward<Func>(func))
 		{
 			assert(m_func);
 		}
 
 	public:
-		awaitable<bool> before(context &_context) override
+		awaitable<bool> before(context_t &context) override
 		{
 			for(auto &aop : m_aops)
 			{
-				if( co_await aop->before(_context) )
+				if( co_await aop->before(context) )
 					co_return true;
 			}
 			co_return false;
 		}
 
-		awaitable<bool> after(context &_context) override
+		awaitable<bool> after(context_t &context) override
 		{
 			for(auto &aop : m_aops)
 			{
-				if( co_await aop->after(_context) )
+				if( co_await aop->after(context) )
 					co_return true;
 			}
 			co_return false;
 		}
 
-		bool exception(context &_context, std::exception &ex) override
+		bool exception(context_t &context, std::exception &ex) override
 		{
 			for(auto &aop : m_aops)
 			{
-				if( aop->exception(_context, ex) )
+				if( aop->exception(context, ex) )
 					return true;
 			}
 			return false;
 		}
 
 	public:
-		awaitable<void> service(context &_context) override {
-			co_return co_await m_func(_context);
+		awaitable<void> service(context_t &context) override {
+			co_return co_await m_func(context);
 		}
 
 	private:
-		std::vector<aop_ptr> m_aops {};
-		request_handler m_func {};
+		std::vector<aop_ptr_t> m_aops {};
+		request_handler_t m_func {};
 	};
 
 	struct tk_handler
 	{
-		explicit tk_handler(ctrlr_aop_ptr aop) : aop(std::move(aop)) {}
+		explicit tk_handler(ctrlr_aop_ptr_t aop) : aop(std::move(aop)) {}
 
 		template <http::method...method>
 		tk_handler &bind_method()
@@ -451,7 +452,7 @@ public:
 			return *this;
 		}
 		http::methods method {};
-		ctrlr_aop_ptr aop {};
+		ctrlr_aop_ptr_t aop {};
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
 
@@ -462,9 +463,9 @@ public:
 	std::map<string_t, tk_handler_ptr> m_request_handler_map;
 	session_set m_sss;
 
-	request_handler m_default_handler {};
-	system_error_handler m_system_error_handler {};
-	exception_handler m_exception_handler {};
+	request_handler_t m_default_handler {};
+	system_error_handler_t m_system_error_handler {};
+	exception_handler_t m_exception_handler {};
 
 	std::chrono::milliseconds m_first_reading_time {1500};
 	std::chrono::milliseconds m_keepalive_timeout {5000};
@@ -581,7 +582,7 @@ basic_server<CharT,Stream,Exec>::on_request(string_view_t path_rule, Func &&func
 		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
 	auto aop = new typename impl::multi_ctrlr_aop(std::forward<Func>(func), std::forward<AopPtr>(aops)...);
-	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr(aop));
+	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(aop));
 	it->second->template bind_method<method...>();
 	return *this;
 }
@@ -589,7 +590,7 @@ basic_server<CharT,Stream,Exec>::on_request(string_view_t path_rule, Func &&func
 template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution Exec>
 template <http::method...method>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
-(string_view_t path_rule, ctrlr_aop_ptr ctrlr)
+(string_view_t path_rule, ctrlr_aop_ptr_t ctrlr)
 {
 	if( path_rule.empty() )
 		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
@@ -609,7 +610,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution Exec>
 template <http::method...method>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
-(string_view_t path_rule, ctrlr_aop *ctrlr)
+(string_view_t path_rule, ctrlr_aop_t *ctrlr)
 {
 	if( path_rule.empty() )
 		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
@@ -621,7 +622,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 	if( not res )
 		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
-	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr(ctrlr));
+	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(ctrlr));
 	it->second->template bind_method<method...>();
 	return *this;
 }
@@ -637,7 +638,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_default(Fun
 
 template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution Exec>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::on_system_error(system_error_handler func)
+basic_server<CharT,Stream,Exec>::on_system_error(system_error_handler_t func)
 {
 	m_impl->m_system_error_handler = std::move(func);
 	return *this;
@@ -645,7 +646,7 @@ basic_server<CharT,Stream,Exec>::on_system_error(system_error_handler func)
 
 template <concept_char_type CharT, concept_tcp_stream Stream, concept_execution Exec>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::on_exception(exception_handler func)
+basic_server<CharT,Stream,Exec>::on_exception(exception_handler_t func)
 {
 	m_impl->m_exception_handler = std::move(func);
 	return *this;

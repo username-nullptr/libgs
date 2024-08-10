@@ -26,79 +26,15 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
-#define LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
-
-#include <libgs/http/basic/types.h>
+#ifndef LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
+#define LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI basic_response_parser
-{
-	LIBGS_DISABLE_COPY(basic_response_parser)
 
-public:
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
-
-	using value_t = basic_value<CharT>;
-	using value_list_t = basic_value_list<CharT>;
-
-	using cookies_t = basic_cookie_values<CharT>;
-	using header_t = basic_header<CharT>;
-	using headers_t = basic_headers<CharT>;
-
-public:
-	explicit basic_response_parser(size_t init_buf_size = 0xFFFF);
-	~basic_response_parser();
-
-	basic_response_parser(basic_response_parser &&other) noexcept;
-	basic_response_parser &operator=(basic_response_parser &&other) noexcept;
-
-public:
-	bool append(std::string_view buf, error_code &error);
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
-
-public:
-	[[nodiscard]] string_view_t version() const noexcept;
-	[[nodiscard]] http::status status() const noexcept;
-
-	[[nodiscard]] const value_t &header(string_view_t key) const;
-	[[nodiscard]] const value_t &cookie(string_view_t key) const;
-
-	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
-	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
-
-public:
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
-
-public:
-	[[nodiscard]] bool keep_alive() const noexcept;
-	[[nodiscard]] bool support_gzip() const noexcept;
-	[[nodiscard]] bool can_read_from_device() const noexcept;
-
-public:
-	[[nodiscard]] std::string take_partial_body(size_t size);
-	[[nodiscard]] std::string take_body();
-	[[nodiscard]] bool is_finished() const noexcept;
-	[[nodiscard]] bool is_eof() const noexcept;
-	basic_response_parser &reset();
-
-private:
-	class impl;
-	impl *m_impl;
-};
-
-using response_parser = basic_response_parser<char>;
-using wresponse_parser = basic_response_parser<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/client/detail/response_parser.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_RESPONSE_PARSER_H
+#endif //LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H

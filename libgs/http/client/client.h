@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
 #include <libgs/http/client/request_helper.h>
+#include <libgs/http/client/response.h>
 
 namespace libgs::http
 {
@@ -43,8 +44,8 @@ public:
 	using socket_t = Stream;
 	using executor_t = typename Stream::executor_type;
 
-	using request = basic_client_request<CharT>;
-//	using response = basic_client_response<CharT>;
+	using request_t = basic_client_request<CharT>;
+	using response_t = basic_client_response<socket_t,CharT>;
 
 public:
 	template <concept_schedulable Exec = asio::io_context>
@@ -52,18 +53,18 @@ public:
 	~basic_client();
 
 public:
-	// template <http::method Method>
-	// response request(const request &req);
-	// response request(const request &req);
+	template <http::method Method>
+	response_t request(const request_t &req);
+	response_t request(const request_t &req);
 
-	// response get(const request &req);
-	// response PUT(const request &req);
-	// response POST(const request &req);
-	// response HEAD(const request &req);
-	// response DELETE(const request &req);
-	// response OPTIONS(const request &req);
-	// response CONNECT(const request &req);
-	// response TRACH(const request &req);
+	response_t get(const request_t &req);
+	response_t PUT(const request_t &req);
+	response_t POST(const request_t &req);
+	response_t HEAD(const request_t &req);
+	response_t DELETE(const request_t &req);
+	response_t OPTIONS(const request_t &req);
+	response_t CONNECT(const request_t &req);
+	response_t TRACH(const request_t &req);
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;

@@ -13,7 +13,7 @@ int main()
 	server.bind({asio::ip::tcp::v4(), port})
 
 	.on_request<libgs::http::method::GET>("/*",
-	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
 		spdlog::debug("Version:{} - Method:{} - Path:{}",
@@ -38,7 +38,7 @@ int main()
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/aa*bb?cc/{arg0}/{arg1}",
-	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
 		for(auto &[key,value] : request.path_args())
@@ -55,7 +55,7 @@ int main()
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/hello",
-	[](libgs::http::server::context &context) -> libgs::awaitable<void>
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 //		co_await context.response().write("hello world !!!");
 		co_await context.response()
@@ -63,7 +63,7 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::http::server::context&, std::exception &ex)
+	.on_exception([](libgs::http::server::context_t&, std::exception &ex)
 	{
 		spdlog::error("on_exception: {}", ex);
 //		return false; // Returning false will result in abort !!!
@@ -81,7 +81,7 @@ int main()
 	server.bind({asio::ip::tcp::v4(), port})
 
 	.on_request<libgs::http::method::GET>(L"/*",
-	[](libgs::http::wserver::context &context) -> libgs::awaitable<void>
+	[](libgs::http::wserver::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
 		spdlog::debug("Version:{} - Method:{} - Path:{}",
@@ -106,7 +106,7 @@ int main()
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>(L"/hello",
-	[](libgs::http::wserver::context &context) -> libgs::awaitable<void>
+	[](libgs::http::wserver::context_t &context) -> libgs::awaitable<void>
 	{
 //		co_await context.response().write("hello world !!!");
 		co_await context.response()
@@ -114,7 +114,7 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::http::wserver::context&, std::exception &ex)
+	.on_exception([](libgs::http::wserver::context_t&, std::exception &ex)
 	{
 		spdlog::error("on_exception: {}", ex);
 //		return false; // Returning false will result in abort !!!
