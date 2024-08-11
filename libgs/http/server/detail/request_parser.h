@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 
-#include <libgs/core/string_list.h>
+#include <libgs/http/basic/parser.h>
 #include <ranges>
 
 namespace libgs::http
@@ -77,33 +77,35 @@ public:
 	}
 
 public:
-	[[nodiscard]] bool parse_header()
+	[[nodiscard]] bool parse_header(error_code &error)
 	{
 		do {
 			auto pos = m_src_buf.find("\r\n");
 			if( pos == std::string::npos )
 			{
 				if( m_src_buf.size() < 1024 )
-					return false;
-
+					break;
 				else if( m_state == state::waiting_request )
-					error("request line too long");
-
+					error = error_code(PE_RLTL, s_error_category);
 				else if( m_state == state::reading_headers )
-					error("header line too long");
-
-				return false;
+					error = error_code(PE_HLTL, s_error_category);
+				break;
 			}
 			auto line_buf = m_src_buf.substr(0, pos);
 			m_src_buf.erase(0, pos + 2);
 
 			if( m_state == state::waiting_request )
-				state_handler_waiting_request(line_buf);
-
+			{
+				state_handler_waiting_request(line_buf, error);
+				if( error )
+					break;
+			}
 			else if( m_state == state::reading_headers )
 			{
-				if( state_handler_reading_headers(line_buf) )
+				if( state_handler_reading_headers(line_buf, error) )
 					return true;
+				else if( error )
+					break;
 			}
 		}
 		while( not m_src_buf.empty() );
@@ -122,7 +124,7 @@ public:
 		m_state = tsize > m_partial_body.size() ? state::reading_length : state::finished;
 	}
 
-	bool parse_chunked()
+	bool parse_chunked(error_code &error)
 	{
 		std::size_t _size = 0;
 		do {
@@ -130,7 +132,7 @@ public:
 			if( pos == std::string::npos )
 			{
 				if( m_src_buf.size() >= 1024 )
-					error("header line too long");
+					error = error_code(PE_HLTL, s_error_category);
 				break;
 			}
 			auto line_buf = m_src_buf.substr(0, pos + 2);
@@ -145,13 +147,16 @@ public:
 					line_buf.erase(pos);
 
 				if( line_buf.size() > 16 )
-					error("size format error");
-
+				{
+					error = error_code(PE_SFE, s_error_category);
+					break;
+				}
 				try {
 					_size = ston<size_t>(line_buf, 16);
 				}
 				catch(...) {
-					error("size format error");
+					error = error_code(PE_SFE, s_error_category);
+					break;
 				}
 				m_state = _size == 0 ? state::chunked_wait_headers : state::chunked_wait_content;
 			}
@@ -174,10 +179,12 @@ public:
 				}
 				auto colon_index = line_buf.find(':');
 				if( colon_index == std::string::npos )
-					error("size format error");
-
+				{
+					error = error_code(PE_SFE, s_error_category);
+					break;
+				}
 				header_insert(str_to_lower(str_trimmed(line_buf.substr(0, colon_index))),
-							  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))));
+							  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))), error);
 			}
 		}
 		while( not m_src_buf.empty() );
@@ -200,13 +207,14 @@ public:
 	}
 
 private:
-	void state_handler_waiting_request(std::string_view line_buf)
+	void state_handler_waiting_request(std::string_view line_buf, error_code &error)
 	{
 		auto request_line_parts = string_list::from_string(line_buf, ' ');
 		if( request_line_parts.size() != 3 or not str_to_upper(request_line_parts[2]).starts_with("HTTP/") )
 		{
 			m_src_buf.clear();
-			throw runtime_error("libgs::http::server::parser: Invalid request line.");
+			error = error_code(PE_IRL, s_error_category);
+			return ;
 		}
 		http::method method;
 		try {
@@ -215,7 +223,8 @@ private:
 		catch(std::exception&)
 		{
 			m_src_buf.clear();
-			throw runtime_error("libgs::http::server::parser: Invalid http method.");
+			error = error_code(PE_IHM, s_error_category);
+			return ;
 		}
 		m_method  = method;
 		m_version = mbstoxx<CharT>(request_line_parts[2].substr(5,3));
@@ -242,7 +251,8 @@ private:
 		if( not m_path.starts_with(string_pool::root) )
 		{
 			m_src_buf.clear();
-			throw runtime_error("libgs::http::server::parser: Invalid http path.");
+			error = error_code(PE_IHP, s_error_category);
+			return ;
 		}
 		auto n_it = std::unique(m_path.begin(), m_path.end(), [](CharT c0, CharT c1){
 			return c0 == c1 and c0 == 0x2F/*/*/;
@@ -256,24 +266,25 @@ private:
 		m_state = state::reading_headers;
 	}
 
-	[[nodiscard]] bool state_handler_reading_headers(std::string_view line_buf)
+	[[nodiscard]] bool state_handler_reading_headers(std::string_view line_buf, error_code &error)
 	{
 		if( line_buf.empty() )
-			return set_read_body_state();
+			return set_read_body_state(error);
 
 		auto colon_index = line_buf.find(':');
 		if( colon_index == std::string::npos )
 		{
 			reset();
-			throw runtime_error("libgs::http::server::parser: Invalid header line.");
+			error = error_code(PE_IHL, s_error_category);
+			return false;
 		}
 		header_insert(str_to_lower(str_trimmed(line_buf.substr(0, colon_index))),
-					  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))));
+					  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))), error);
 		return false;
 	}
 
 private:
-	void header_insert(std::string key, std::string value)
+	void header_insert(std::string key, std::string value, error_code &error)
 	{
 		if( key != "cookie" )
 		{
@@ -287,15 +298,17 @@ private:
 			auto pos = statement.find('=');
 
 			if( pos == std::string::npos )
-				error("invalid header line");
-
+			{
+				error = error_code(PE_IHL, s_error_category);
+				return ;
+			}
 			key = str_trimmed(statement.substr(0,pos));
 			value = str_trimmed(statement.substr(pos+1));
 			m_cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
 		}
 	}
 
-	bool set_read_body_state()
+	bool set_read_body_state(error_code &error)
 	{
 		auto it = m_headers.find(basic_header<CharT>::connection);
 		if( it == m_headers.end() )
@@ -331,7 +344,7 @@ private:
 			else
 			{
 				m_state = state::chunked_wait_size;
-				parse_chunked();
+				parse_chunked(error);
 			}
 		}
 		else
@@ -339,16 +352,52 @@ private:
 		return true;
 	}
 
-	void error(const char *msg)
-	{
-		reset();
-		throw runtime_error("libgs::http::server::parser: {}.", msg);
-	}
+public:
+#define LIBGS_HTTP_PARSER_ERRNO \
+X_MACRO( PE_RLTL , 10000 , "Request line too long."      ) \
+X_MACRO( PE_HLTL , 10001 , "Header line too long."       ) \
+X_MACRO( PE_IRL  , 10002 , "Invalid request line."       ) \
+X_MACRO( PE_IHM  , 10003 , "Invalid http method."        ) \
+X_MACRO( PE_IHP  , 10004 , "Invalid http path."          ) \
+X_MACRO( PE_IHL  , 10005 , "Invalid header line."        ) \
+X_MACRO( PE_IDE  , 10006 , "The inserted data is empty." ) \
+X_MACRO( PE_SFE  , 10007 , "Size format error."          ) \
+X_MACRO( PE_RE   , 10008 , "This request is ended."      )
 
+	enum parser_errno
+	{
+#define X_MACRO(e,v,d) e=(v),
+		LIBGS_HTTP_PARSER_ERRNO
+#undef X_MACRO
+	};
+	class error_category : public std::error_category
+	{
+		LIBGS_DISABLE_COPY_MOVE(error_category)
+
+	public:
+		error_category() = default;
+		[[nodiscard]] const char *name() const noexcept override {
+			return "libgs::http::request_parser_error";
+		}
+		[[nodiscard]] std::string message(int code) const override
+		{
+			switch(code)
+			{
+#define X_MACRO(e,v,d) case e: return d;
+				LIBGS_HTTP_PARSER_ERRNO
+#undef X_MACRO
+				default: break;
+			}
+			return "Unknown error.";
+		}
+	};
+	inline static error_category s_error_category;
+
+#undef LIBGS_HTTP_PARSER_ERRNO
 public:
 	enum class state
 	{
-		waiting_request,      // HTTP/1.1 GET /path\r\n
+		waiting_request,      // GET /path HTTP/1.1\r\n
 		reading_headers,      // Key: Value\r\n
 		reading_length,       // Fixed length (Content-Length: 9\r\n).
 		chunked_wait_size,    // 9\r\n
@@ -399,67 +448,44 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_reques
 {
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
+	return *this;
 }
 
 template <concept_char_type CharT>
 bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error)
 {
-	bool res = false;
-	try {
-		error = error_code();
-		res = append(buf);
-	}
-	catch(std::exception &ex)
-	{
-		static class error_category : public std::error_category
-		{
-			LIBGS_DISABLE_COPY_MOVE(error_category)
-
-		public:
-			error_category() = default;
-			error_category &set_message(std::exception &ex)
-			{
-				m_what = ex.what();
-				return *this;
-			}
-
-		public:
-			[[nodiscard]] const char *name() const noexcept override {
-				return "libgs::http::request_parser_error";
-			}
-			[[nodiscard]] std::string message(int) const override {
-				return m_what;
-			}
-
-		private:
-			std::string m_what;
-		}
-		error_category;
-		error = error_code(static_cast<int>(std::errc::protocol_error), error_category.set_message(ex));
-	}
-	return res;
-}
-
-template <concept_char_type CharT>
-bool basic_request_parser<CharT>::append(std::string_view buf)
-{
 	using state = impl::state;
+	error = error_code();
 	if( buf.empty() )
-		throw runtime_error("libgs::http::server::parser: the inserted data is empty.");
-
+	{
+		error = error_code(impl::PE_IDE, impl::s_error_category);
+		return false;
+	}
 	else if( m_impl->m_state == state::finished )
-		throw runtime_error("libgs::http::server::parser: this request is ended.");
-
+	{
+		error = error_code(impl::PE_RE, impl::s_error_category);
+		return false;
+	}
 	m_impl->m_src_buf.append(buf);
 	if( m_impl->m_state <= state::reading_headers )
-		return m_impl->parse_header();
+		return m_impl->parse_header(error);
 
 	else if( m_impl->m_state == state::reading_length )
 	{
 		m_impl->parse_length();
 		return true;
 	}
-	return m_impl->parse_chunked();
+	return m_impl->parse_chunked(error);
+}
+
+template <concept_char_type CharT>
+bool basic_request_parser<CharT>::append(std::string_view buf)
+{
+	error_code error;
+	bool res = append(buf, error);
+	if( error )
+		throw system_error(error, "libgs::http::request_parser");
+	return res;
 }
 
 template <concept_char_type CharT>

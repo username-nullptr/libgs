@@ -3,7 +3,7 @@
 
 using namespace std::chrono_literals;
 
-class aop : public libgs::http::server::aop
+class aop : public libgs::http::server::aop_t
 {
 public:
 	libgs::awaitable<bool> before(context_t &context) override
@@ -30,7 +30,7 @@ public:
 	}
 };
 
-class controller : public libgs::http::server::ctrlr_aop
+class controller : public libgs::http::server::ctrlr_aop_t
 {
 public:
 	libgs::awaitable<bool> before(context_t &context) override

@@ -26,81 +26,16 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
-#define LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
+#ifndef LIBGS_HTTP_BASIC_DETAIL_PARSER_H
+#define LIBGS_HTTP_BASIC_DETAIL_PARSER_H
 
-#include <libgs/http/basic/parser.h>
+#include <libgs/core/string_list.h>
 
 namespace libgs::http
 {
-
-template <concept_char_type CharT>
-class basic_response_parser<CharT>::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
-
-public:
-	explicit impl(size_t init_buf_size) {
-		m_src_buf.reserve(init_buf_size);
-	}
-
-public:
-	enum class state
-	{
-		waiting_request,      // HTTP/1.1 200 OK\r\n
-		reading_headers,      // Key: Value\r\n
-		reading_length,       // Fixed length (Content-Length: 9\r\n).
-		chunked_wait_size,    // 9\r\n
-		chunked_wait_content, // body\r\n
-		chunked_wait_headers, // Key: Value\r\n
-		finished
-	}
-	m_state = state::waiting_request;
-	size_t m_state_context = 0;
-	std::string m_src_buf;
-
-	http::method m_method = http::method::GET;
-	http::status m_status;
-
-	string_t m_version;
-	string_t m_description;
-	string_t m_path;
-
-	headers_t m_headers;
-	cookies_t m_cookies;
-	std::string m_partial_body;
-};
-
-template <concept_char_type CharT>
-basic_response_parser<CharT>::basic_response_parser(size_t init_buf_size) :
-	m_impl(new impl(init_buf_size))
-{
-
-}
-
-template <concept_char_type CharT>
-basic_response_parser<CharT>::~basic_response_parser()
-{
-	delete m_impl;
-}
-
-template <concept_char_type CharT>
-basic_response_parser<CharT>::basic_response_parser(basic_response_parser &&other) noexcept :
-	m_impl(other.m_impl)
-{
-	other.m_impl = new impl(0xFFFF);
-}
-
-template <concept_char_type CharT>
-basic_response_parser<CharT> &basic_response_parser<CharT>::operator=(basic_response_parser &&other) noexcept
-{
-	m_impl = other.m_impl;
-	other.m_impl = new impl(0xFFFF);
-	return *this;
-}
 
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
+#endif //LIBGS_HTTP_BASIC_DETAIL_PARSER_H

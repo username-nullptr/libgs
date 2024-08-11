@@ -26,81 +26,46 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
-#define LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
+#ifndef LIBGS_HTTP_BASIC_PARSER_H
+#define LIBGS_HTTP_BASIC_PARSER_H
 
-#include <libgs/http/basic/parser.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
 
 template <concept_char_type CharT>
-class basic_response_parser<CharT>::impl
+class LIBGS_HTTP_TAPI basic_parser
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(basic_parser)
 
 public:
-	explicit impl(size_t init_buf_size) {
-		m_src_buf.reserve(init_buf_size);
-	}
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
+
+	using value_t = basic_value<CharT>;
+	using value_list_t = basic_value_list<CharT>;
+
+	using cookies_t = basic_cookie_values<CharT>;
+	using header_t = basic_header<CharT>;
+	using headers_t = basic_headers<CharT>;
 
 public:
-	enum class state
-	{
-		waiting_request,      // HTTP/1.1 200 OK\r\n
-		reading_headers,      // Key: Value\r\n
-		reading_length,       // Fixed length (Content-Length: 9\r\n).
-		chunked_wait_size,    // 9\r\n
-		chunked_wait_content, // body\r\n
-		chunked_wait_headers, // Key: Value\r\n
-		finished
-	}
-	m_state = state::waiting_request;
-	size_t m_state_context = 0;
-	std::string m_src_buf;
+	basic_parser();
+	~basic_parser();
 
-	http::method m_method = http::method::GET;
-	http::status m_status;
+	basic_parser(basic_parser &&other) noexcept;
+	basic_parser &operator=(basic_parser &&other) noexcept;
 
-	string_t m_version;
-	string_t m_description;
-	string_t m_path;
+public:
 
-	headers_t m_headers;
-	cookies_t m_cookies;
-	std::string m_partial_body;
+private:
+	class impl;
+	impl *m_impl;
 };
 
-template <concept_char_type CharT>
-basic_response_parser<CharT>::basic_response_parser(size_t init_buf_size) :
-	m_impl(new impl(init_buf_size))
-{
-
-}
-
-template <concept_char_type CharT>
-basic_response_parser<CharT>::~basic_response_parser()
-{
-	delete m_impl;
-}
-
-template <concept_char_type CharT>
-basic_response_parser<CharT>::basic_response_parser(basic_response_parser &&other) noexcept :
-	m_impl(other.m_impl)
-{
-	other.m_impl = new impl(0xFFFF);
-}
-
-template <concept_char_type CharT>
-basic_response_parser<CharT> &basic_response_parser<CharT>::operator=(basic_response_parser &&other) noexcept
-{
-	m_impl = other.m_impl;
-	other.m_impl = new impl(0xFFFF);
-	return *this;
-}
-
-
 } //namespace libgs::http
+#include <libgs/http/basic/detail/parser.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_DETAIL_RESPONSE_PARSER_H
+#endif //LIBGS_HTTP_BASIC_PARSER_H
