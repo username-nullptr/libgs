@@ -38,37 +38,28 @@ template <concept_char_type CharT>
 class basic_response_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using parser_t = basic_parser<CharT>;
 
 public:
-	explicit impl(size_t init_buf_size) {
-		m_src_buf.reserve(init_buf_size);
-	}
-
-public:
-	enum class state
+	explicit impl(size_t init_buf_size) :
+		m_parser(init_buf_size)
 	{
-		waiting_request,      // HTTP/1.1 200 OK\r\n
-		reading_headers,      // Key: Value\r\n
-		reading_length,       // Fixed length (Content-Length: 9\r\n).
-		chunked_wait_size,    // 9\r\n
-		chunked_wait_content, // body\r\n
-		chunked_wait_headers, // Key: Value\r\n
-		finished
+		m_parser
+		.on_parse_begin([this](std::string_view line_buf, error_code &error)
+		{
+
+		})
+		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
+		{
+
+		});
 	}
-	m_state = state::waiting_request;
-	size_t m_state_context = 0;
-	std::string m_src_buf;
 
-	http::method m_method = http::method::GET;
-	http::status m_status;
-
-	string_t m_version;
-	string_t m_description;
-	string_t m_path;
-
-	headers_t m_headers;
-	cookies_t m_cookies;
-	std::string m_partial_body;
+public:
+	parser_t m_parser;
+	http::status m_status = http::status::ok;
+	string_t m_description = basic_status_description_v<CharT,http::status::ok>;
+	cookies_t m_cookies {};
 };
 
 template <concept_char_type CharT>
@@ -99,6 +90,125 @@ basic_response_parser<CharT> &basic_response_parser<CharT>::operator=(basic_resp
 	return *this;
 }
 
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::append(std::string_view buf, error_code &error)
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::append(std::string_view buf)
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::operator<<(std::string_view buf)
+{
+
+}
+
+template <concept_char_type CharT>
+std::basic_string_view<CharT> basic_response_parser<CharT>::version() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+http::status basic_response_parser<CharT>::status() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+const basic_value<CharT> &basic_response_parser<CharT>::header(string_view_t key) const
+{
+
+}
+
+template <concept_char_type CharT>
+const basic_cookie<CharT> &basic_response_parser<CharT>::cookie(string_view_t key) const
+{
+
+}
+
+template <concept_char_type CharT>
+basic_value<CharT> basic_response_parser<CharT>::header_or(string_view_t key, value_t def_value) const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+basic_cookie<CharT> basic_response_parser<CharT>::cookie_or(string_view_t key, value_t def_value) const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+const basic_headers<CharT> &basic_response_parser<CharT>::headers() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+const basic_cookies<CharT> &basic_response_parser<CharT>::cookies() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+const basic_value_list<CharT> &basic_response_parser<CharT>::chunk_attributes() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::keep_alive() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::support_gzip() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::can_read_from_device() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+std::string basic_response_parser<CharT>::take_partial_body(size_t size)
+{
+
+}
+
+template <concept_char_type CharT>
+std::string basic_response_parser<CharT>::take_body()
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::is_finished() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+bool basic_response_parser<CharT>::is_eof() const noexcept
+{
+
+}
+
+template <concept_char_type CharT>
+basic_response_parser<CharT> &basic_response_parser<CharT>::reset()
+{
+
+}
 
 } //namespace libgs::http
 

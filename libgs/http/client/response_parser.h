@@ -46,7 +46,9 @@ public:
 	using value_t = basic_value<CharT>;
 	using value_list_t = basic_value_list<CharT>;
 
-	using cookies_t = basic_cookie_values<CharT>;
+	using cookie_t = basic_cookie<CharT>;
+	using cookies_t = basic_cookies<CharT>;
+
 	using header_t = basic_header<CharT>;
 	using headers_t = basic_headers<CharT>;
 
@@ -67,10 +69,10 @@ public:
 	[[nodiscard]] http::status status() const noexcept;
 
 	[[nodiscard]] const value_t &header(string_view_t key) const;
-	[[nodiscard]] const value_t &cookie(string_view_t key) const;
+	[[nodiscard]] const cookie_t &cookie(string_view_t key) const;
 
 	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
-	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
+	[[nodiscard]] cookie_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
 
 public:
 	[[nodiscard]] const headers_t &headers() const noexcept;

@@ -63,360 +63,123 @@ class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 	struct string_pool : detail::string_pool<CharT>, detail::_request_parser_static_string<CharT> {};
+	using string_list_t = basic_string_list<CharT>;
+	using parser_t = basic_parser<CharT>;
 
 public:
-	using string_t = std::basic_string<CharT>;
-	using headers_t = basic_headers<CharT>;
-
-	using cookies_t = basic_cookie_values<CharT>;
-	using parameters_t = basic_parameters<CharT>;
-
-public:
-	explicit impl(size_t init_buf_size) {
-		m_src_buf.reserve(init_buf_size);
-	}
-
-public:
-	[[nodiscard]] bool parse_header(error_code &error)
+	explicit impl(size_t init_buf_size) :
+		m_parser(init_buf_size)
 	{
-		do {
-			auto pos = m_src_buf.find("\r\n");
+		m_parser
+		.on_parse_begin([this](std::string_view line_buf, error_code &error)
+		{
+			std::string version;
+			auto request_line_parts = string_list::from_string(line_buf, ' ');
+			if( request_line_parts.size() != 3 or not str_to_upper(request_line_parts[2]).starts_with("HTTP/") )
+			{
+				error = parser_t::make_error_code(parse_errno::IRL);
+				return version;
+			}
+			http::method method;
+			try {
+				method = from_method_string(request_line_parts[0]);
+			}
+			catch(std::exception&)
+			{
+				error = parser_t::make_error_code(parse_errno::IHM);
+				return version;
+			}
+			m_method  = method;
+			version = mbstoxx<CharT>(request_line_parts[2].substr(5,3));
+
+			auto url_line = from_percent_encoding(request_line_parts[1]);
+			auto pos = url_line.find('?');
+
 			if( pos == std::string::npos )
+				m_path = mbstoxx<CharT>(url_line);
+			else
 			{
-				if( m_src_buf.size() < 1024 )
-					break;
-				else if( m_state == state::waiting_request )
-					error = error_code(PE_RLTL, s_error_category);
-				else if( m_state == state::reading_headers )
-					error = error_code(PE_HLTL, s_error_category);
-				break;
-			}
-			auto line_buf = m_src_buf.substr(0, pos);
-			m_src_buf.erase(0, pos + 2);
+				m_path = mbstoxx<CharT>(url_line.substr(0, pos));
+				auto parameters_string = url_line.substr(pos + 1);
 
-			if( m_state == state::waiting_request )
-			{
-				state_handler_waiting_request(line_buf, error);
-				if( error )
-					break;
-			}
-			else if( m_state == state::reading_headers )
-			{
-				if( state_handler_reading_headers(line_buf, error) )
-					return true;
-				else if( error )
-					break;
-			}
-		}
-		while( not m_src_buf.empty() );
-		return false;
-	}
-
-	void parse_length() noexcept
-	{
-		auto rsize = m_partial_body.size() + m_src_buf.size();
-		rsize = rsize > m_content_length ? m_content_length - m_partial_body.size() : m_src_buf.size();
-
-		m_partial_body += std::string(m_src_buf.c_str(), rsize);
-		m_src_buf.clear();
-
-		m_state = m_content_length > m_partial_body.size() ? state::reading_length : state::finished;
-	}
-
-	bool parse_chunked(error_code &error)
-	{
-		std::size_t _size = 0;
-		do {
-			auto pos = m_src_buf.find("\r\n");
-			if( pos == std::string::npos )
-			{
-				if( m_src_buf.size() >= 1024 )
-					error = error_code(PE_HLTL, s_error_category);
-				break;
-			}
-			auto line_buf = m_src_buf.substr(0, pos + 2);
-			m_src_buf.erase(0, pos + 2);
-
-			if( m_state == state::chunked_wait_size )
-			{
-				line_buf.erase(pos);
-				pos = line_buf.find(';');
-
-				if( pos != std::string::npos )
-					line_buf.erase(pos);
-
-				if( line_buf.size() > 16 )
+				for(auto &para_str : string_list::from_string(parameters_string, '&'))
 				{
-					error = error_code(PE_SFE, s_error_category);
-					break;
+					pos = para_str.find('=');
+					if( pos == std::string::npos )
+						m_parameters.emplace(mbstoxx<CharT>(para_str), mbstoxx<CharT>(para_str));
+					else
+						m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
 				}
-				try {
-					_size = ston<size_t>(line_buf, 16);
-				}
-				catch(...) {
-					error = error_code(PE_SFE, s_error_category);
-					break;
-				}
-				m_state = _size == 0 ? state::chunked_wait_headers : state::chunked_wait_content;
 			}
-			else if( m_state == state::chunked_wait_content )
+			if( not m_path.starts_with(string_pool::root) )
 			{
-				line_buf.erase(pos);
-				if( _size < line_buf.size() )
-					_size = line_buf.size();
-				else
-					m_state = state::chunked_wait_size;
-				m_partial_body += line_buf;
+				error = parser_t::make_error_code(parse_errno::IHP);
+				return version;
 			}
-			else if( m_state == state::chunked_wait_headers )
+			auto n_it = std::unique(m_path.begin(), m_path.end(), [](CharT c0, CharT c1){
+				return c0 == c1 and c0 == 0x2F/*/*/;
+			});
+			if( n_it != m_path.end() )
+				m_path.erase(n_it, m_path.end());
+
+			if( m_path.size() > 1 and m_path.ends_with(string_pool::root) )
+				m_path.pop_back();
+			return version;
+		})
+		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
+		{
+			auto list = string_list::from_string(line_buf, ';');
+			for(auto &statement : list)
 			{
-				if( line_buf == "\r\n" )
-				{
-					m_state = state::finished;
-					m_src_buf.clear();
-					return true;
-				}
-				auto colon_index = line_buf.find(':');
-				if( colon_index == std::string::npos )
-				{
-					error = error_code(PE_SFE, s_error_category);
-					break;
-				}
-				header_insert(str_to_lower(str_trimmed(line_buf.substr(0, colon_index))),
-							  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))), error);
-			}
-		}
-		while( not m_src_buf.empty() );
-		return false;
-	}
+				statement = str_trimmed(statement);
+				auto pos = statement.find('=');
 
-public:
-	void reset()
-	{
-		m_state = state::waiting_request;
-		m_src_buf.clear();
-
-		m_version.clear();
-		m_path.clear();
-		m_parameters.clear();
-
-		m_headers.clear();
-		m_cookies.clear();
-		m_partial_body.clear();
-	}
-
-private:
-	void state_handler_waiting_request(std::string_view line_buf, error_code &error)
-	{
-		auto request_line_parts = string_list::from_string(line_buf, ' ');
-		if( request_line_parts.size() != 3 or not str_to_upper(request_line_parts[2]).starts_with("HTTP/") )
-		{
-			m_src_buf.clear();
-			error = error_code(PE_IRL, s_error_category);
-			return ;
-		}
-		http::method method;
-		try {
-			method = from_method_string(request_line_parts[0]);
-		}
-		catch(std::exception&)
-		{
-			m_src_buf.clear();
-			error = error_code(PE_IHM, s_error_category);
-			return ;
-		}
-		m_method  = method;
-		m_version = mbstoxx<CharT>(request_line_parts[2].substr(5,3));
-
-		auto url_line = from_percent_encoding(request_line_parts[1]);
-		auto pos = url_line.find('?');
-
-		if( pos == std::string::npos )
-			m_path = mbstoxx<CharT>(url_line);
-		else
-		{
-			m_path = mbstoxx<CharT>(url_line.substr(0, pos));
-			auto parameters_string = url_line.substr(pos + 1);
-
-			for(auto &para_str : string_list::from_string(parameters_string, '&'))
-			{
-				pos = para_str.find('=');
 				if( pos == std::string::npos )
-					m_parameters.emplace(mbstoxx<CharT>(para_str), mbstoxx<CharT>(para_str));
-				else
-					m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
+				{
+					error = parser_t::make_error_code(parse_errno::IHL);
+					return ;
+				}
+				auto key = str_trimmed(statement.substr(0,pos));
+				auto value = str_trimmed(statement.substr(pos+1));
+				m_cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
 			}
-		}
-		if( not m_path.starts_with(string_pool::root) )
-		{
-			m_src_buf.clear();
-			error = error_code(PE_IHP, s_error_category);
-			return ;
-		}
-		auto n_it = std::unique(m_path.begin(), m_path.end(), [](CharT c0, CharT c1){
-			return c0 == c1 and c0 == 0x2F/*/*/;
 		});
-		if( n_it != m_path.end() )
-			m_path.erase(n_it, m_path.end());
-
-		if( m_path.size() > 1 and m_path.ends_with(string_pool::root) )
-			m_path.pop_back();
-
-		m_state = state::reading_headers;
 	}
 
-	[[nodiscard]] bool state_handler_reading_headers(std::string_view line_buf, error_code &error)
+public:
+	void set_attribute()
 	{
-		if( line_buf.empty() )
-			return set_read_body_state(error);
-
-		auto colon_index = line_buf.find(':');
-		if( colon_index == std::string::npos )
-		{
-			reset();
-			error = error_code(PE_IHL, s_error_category);
-			return false;
-		}
-		header_insert(str_to_lower(str_trimmed(line_buf.substr(0, colon_index))),
-					  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))), error);
-		return false;
-	}
-
-private:
-	void header_insert(std::string key, std::string value, error_code &error)
-	{
-		if( key != "cookie" )
-		{
-			m_headers[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
-			return ;
-		}
-		auto list = string_list::from_string(value, ';');
-		for(auto &statement : list)
-		{
-			statement = str_trimmed(statement);
-			auto pos = statement.find('=');
-
-			if( pos == std::string::npos )
-			{
-				error = error_code(PE_IHL, s_error_category);
-				return ;
-			}
-			key = str_trimmed(statement.substr(0,pos));
-			value = str_trimmed(statement.substr(pos+1));
-			m_cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
-		}
-	}
-
-	bool set_read_body_state(error_code &error)
-	{
-		auto it = m_headers.find(basic_header<CharT>::connection);
-		if( it == m_headers.end() )
-			m_keep_alive = m_version != string_pool::v_1_0;
+		auto headers = m_parser.headers();
+		auto it = headers.find(basic_header<CharT>::connection);
+		if( it == headers.end() )
+			m_keep_alive = m_parser.version() != string_pool::v_1_0;
 		else
 			m_keep_alive = str_to_lower(it->second.to_string()) != string_pool::close;
 
-		it = m_headers.find(basic_header<CharT>::accept_encoding);
-		if( it == m_headers.end() )
+		it = headers.find(basic_header<CharT>::accept_encoding);
+		if( it == headers.end() )
+		{
 			m_support_gzip = false;
-		else
+			return ;
+		}
+		for(auto &str : string_list_t::from_string(it->second.to_string(), string_pool::comma))
 		{
-			for(auto &str : basic_string_list<CharT>::from_string(it->second.to_string(), string_pool::comma))
+			if( str_to_lower(str_trimmed(str)) == string_pool::gzip )
 			{
-				if( str_to_lower(str_trimmed(str)) == string_pool::gzip )
-				{
-					m_support_gzip = true;
-					break;
-				}
+				m_support_gzip = true;
+				break;
 			}
 		}
-		it = m_headers.find(basic_header<CharT>::content_length);
-		if( it != m_headers.end() )
-		{
-			m_content_length = it->second.template get<size_t>();
-			parse_length();
-		}
-		else if( m_version == string_pool::v_1_1 )
-		{
-			it = m_headers.find(basic_header<CharT>::transfer_encoding);
-			if( it == m_headers.end() or it->second.to_string() != string_pool::chunked )
-				m_state = state::finished;
-			else
-			{
-				m_state = state::chunked_wait_size;
-				parse_chunked(error);
-			}
-		}
-		else
-			m_state = state::finished;
-		return true;
 	}
 
 public:
-#define LIBGS_HTTP_PARSER_ERRNO \
-X_MACRO( PE_RLTL , 10000 , "Request line too long."      ) \
-X_MACRO( PE_HLTL , 10001 , "Header line too long."       ) \
-X_MACRO( PE_IRL  , 10002 , "Invalid request line."       ) \
-X_MACRO( PE_IHM  , 10003 , "Invalid http method."        ) \
-X_MACRO( PE_IHP  , 10004 , "Invalid http path."          ) \
-X_MACRO( PE_IHL  , 10005 , "Invalid header line."        ) \
-X_MACRO( PE_IDE  , 10006 , "The inserted data is empty." ) \
-X_MACRO( PE_SFE  , 10007 , "Size format error."          ) \
-X_MACRO( PE_RE   , 10008 , "This request is ended."      )
-
-	enum parser_errno
-	{
-#define X_MACRO(e,v,d) e=(v),
-		LIBGS_HTTP_PARSER_ERRNO
-#undef X_MACRO
-	};
-	class error_category : public std::error_category
-	{
-		LIBGS_DISABLE_COPY_MOVE(error_category)
-
-	public:
-		error_category() = default;
-		[[nodiscard]] const char *name() const noexcept override {
-			return "libgs::http::request_parser_error";
-		}
-		[[nodiscard]] std::string message(int code) const override
-		{
-			switch(code)
-			{
-#define X_MACRO(e,v,d) case e: return d;
-				LIBGS_HTTP_PARSER_ERRNO
-#undef X_MACRO
-				default: break;
-			}
-			return "Unknown error.";
-		}
-	};
-	inline static error_category s_error_category;
-
-#undef LIBGS_HTTP_PARSER_ERRNO
-public:
-	enum class state
-	{
-		waiting_request,      // GET /path HTTP/1.1\r\n
-		reading_headers,      // Key: Value\r\n
-		reading_length,       // Fixed length (Content-Length: 9\r\n).
-		chunked_wait_size,    // 9\r\n
-		chunked_wait_content, // body\r\n
-		chunked_wait_headers, // Key: Value\r\n
-		finished
-	}
-	m_state = state::waiting_request;
-	size_t m_content_length = 0;
-	std::string m_src_buf;
-
+	parser_t m_parser;
 	http::method m_method = http::method::GET;
-	string_t m_path;
-	parameters_t m_parameters;
-	path_args_t m_path_args;
-	string_t m_version;
 
-	headers_t m_headers;
-	cookies_t m_cookies;
-	std::string m_partial_body;
+	string_t m_path {};
+	parameters_t m_parameters {};
+	path_args_t m_path_args {};
+	cookies_t m_cookies {};
 
 	bool m_keep_alive = true;
 	bool m_support_gzip = false;
@@ -453,37 +216,17 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_reques
 template <concept_char_type CharT>
 bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error)
 {
-	using state = impl::state;
-	error = error_code();
-	if( buf.empty() )
-	{
-		error = error_code(impl::PE_IDE, impl::s_error_category);
-		return false;
-	}
-	else if( m_impl->m_state == state::finished )
-	{
-		error = error_code(impl::PE_RE, impl::s_error_category);
-		return false;
-	}
-	m_impl->m_src_buf.append(buf);
-	if( m_impl->m_state <= state::reading_headers )
-		return m_impl->parse_header(error);
-
-	else if( m_impl->m_state == state::reading_length )
-	{
-		m_impl->parse_length();
-		return true;
-	}
-	return m_impl->parse_chunked(error);
+	bool res = m_impl->m_parser.append(buf, error);
+	if( not error )
+		m_impl->set_attribute();
+	return res;
 }
 
 template <concept_char_type CharT>
 bool basic_request_parser<CharT>::append(std::string_view buf)
 {
-	error_code error;
-	bool res = append(buf, error);
-	if( error )
-		throw system_error(error, "libgs::http::request_parser");
+	bool res = m_impl->m_parser.append(buf);
+	m_impl->set_attribute();
 	return res;
 }
 
@@ -575,7 +318,7 @@ std::basic_string_view<CharT> basic_request_parser<CharT>::path() const noexcept
 template <concept_char_type CharT>
 std::basic_string_view<CharT> basic_request_parser<CharT>::version() const noexcept
 {
-	return m_impl->m_version;
+	return m_impl->m_parser.version();
 }
 
 template <concept_char_type CharT>
@@ -593,7 +336,7 @@ const typename basic_request_parser<CharT>::path_args_t &basic_request_parser<Ch
 template <concept_char_type CharT>
 const typename basic_request_parser<CharT>::headers_t &basic_request_parser<CharT>::headers() const noexcept
 {
-	return m_impl->m_headers;
+	return m_impl->m_parser.headers();
 }
 
 template <concept_char_type CharT>
@@ -617,45 +360,40 @@ bool basic_request_parser<CharT>::support_gzip() const noexcept
 template <concept_char_type CharT>
 bool basic_request_parser<CharT>::can_read_from_device() const noexcept
 {
-	return m_impl->m_state > impl::state::reading_headers and
-		   m_impl->m_state < impl::state::finished;
+	return m_impl->m_parser.can_read_from_device();
 }
 
 template <concept_char_type CharT>
 std::string basic_request_parser<CharT>::take_partial_body(size_t size)
 {
-	if( size == 0 )
-		return {};
-	else if( size > m_impl->m_partial_body.size() )
-		size = m_impl->m_partial_body.size();
-
-	auto res = m_impl->m_partial_body.substr(0,size);
-	m_impl->m_partial_body.erase(0,size);
-	return res;
+	return m_impl->m_parser.take_partial_body(size);
 }
 
 template <concept_char_type CharT>
 std::string basic_request_parser<CharT>::take_body()
 {
-	return std::move(m_impl->m_partial_body);
+	return m_impl->m_parser.take_body();
 }
 
 template <concept_char_type CharT>
 bool basic_request_parser<CharT>::is_finished() const noexcept
 {
-	return m_impl->m_state == impl::state::finished;
+	return m_impl->m_parser.is_finished();
 }
 
 template <concept_char_type CharT>
 bool basic_request_parser<CharT>::is_eof() const noexcept
 {
-	return m_impl->m_partial_body.empty() and not can_read_from_device();
+	return m_impl->m_parser.is_eof();
 }
 
 template <concept_char_type CharT>
 basic_request_parser<CharT> &basic_request_parser<CharT>::reset()
 {
-	m_impl->reset();
+	m_impl->m_parser.reset();
+	m_impl->m_path.clear();
+	m_impl->m_parameters.clear();
+	m_impl->m_cookies.clear();
 	return *this;
 }
 

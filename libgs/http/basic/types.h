@@ -148,40 +148,76 @@ enum class redirect
 LIBGS_HTTP_VAPI void redirect_check(uint32_t type);
 LIBGS_HTTP_VAPI void redirect_check(redirect type);
 
-template <status>
-struct status_description
+template <concept_char_type,status>
+struct basic_status_description
 #ifndef _MSC_VER // _MSVC
 { static_assert(false, "Invalid http status."); }
 #endif //_MSC_VER
 ;
 #define X_MACRO(e,v,d) \
-	template <> struct status_description<status::e> { \
+	template <> struct basic_status_description<char,status::e> { \
 		static constexpr const char *value = d; \
+	};
+LIBGS_HTTP_STATUS_TABLE
+#undef X_MACRO
+#define X_MACRO(e,v,d) \
+	template <> struct basic_status_description<wchar_t,status::e> { \
+		static constexpr const wchar_t *value = L##d; \
 	};
 LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
 
 template <status S>
-constexpr const char *status_description_v = status_description<S>::value;
+using status_description = basic_status_description<char,S>;
+
+template <status S>
+using wstatus_description = basic_status_description<wchar_t,S>;
+
+template <concept_char_type CharT, status S>
+constexpr const char *basic_status_description_v = basic_status_description<CharT,S>::value;
+
+template <status S>
+constexpr const char *status_description_v = basic_status_description_v<char,S>;
+
+template <status S>
+constexpr const char *wstatus_description_v = basic_status_description_v<wchar_t,S>;
 
 template <concept_char_type CharT = char>
 std::basic_string<CharT> to_status_description(status s);
 
-template <method>
-struct method_string 
+template <concept_char_type,method>
+struct basic_method_string
 #ifndef _MSC_VER // _MSVC
 { static_assert(false, "Invalid http method."); }
 #endif //_MSC_VER
 ;
 #define X_MACRO(e,v,d) \
-	template <> struct method_string<method::e> { \
+	template <> struct basic_method_string<char,method::e> { \
 		static constexpr const char *value = d; \
+	};
+LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
+#define X_MACRO(e,v,d) \
+	template <> struct basic_method_string<wchar_t,method::e> { \
+		static constexpr const wchar_t *value = L##d; \
 	};
 LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 
 template <method M>
-constexpr const char *method_string_v = method_string<M>::value;
+using method_string = basic_method_string<char,M>;
+
+template <method M>
+using wmethod_string = basic_method_string<wchar_t,M>;
+
+template <concept_char_type CharT, method M>
+constexpr const char *basic_method_string_v = basic_method_string<CharT,M>::value;
+
+template <method M>
+constexpr const char *method_string_v = basic_method_string_v<char,M>;
+
+template <method M>
+constexpr const char *wmethod_string_v = basic_method_string_v<wchar_t,M>;
 
 template <concept_char_type CharT = char>
 LIBGS_HTTP_TAPI std::basic_string<CharT> to_method_string(method m);
