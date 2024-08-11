@@ -78,6 +78,15 @@ public:
 	const_buffer(const mutable_buffer &buf) :
 		asio::ASIO_CONST_BUFFER(buf.data(), buf.size()) {}
 
+	const_buffer(const char *buf) :
+		asio::ASIO_CONST_BUFFER(buf, strlen(buf)) {}
+
+	const_buffer(const std::string &buf) :
+		asio::ASIO_CONST_BUFFER(buf.c_str(), buf.size()) {}
+
+	const_buffer(std::string_view &buf) :
+		asio::ASIO_CONST_BUFFER(buf.data(), buf.size()) {}
+
 	const_buffer &operator=(const mutable_buffer &buf)
 	{
 		operator=(const_buffer(buf.data(), buf.size()));

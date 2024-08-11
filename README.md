@@ -68,7 +68,7 @@ int main()
 			spdlog::debug("partial_body: {}\n", co_await request.co_read_all());
 
 		// If you don't write anything, the server will write the default body for you
-		// co_await context.response().write("hello world");
+		// co_await context.response().co_write("hello world");
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/aa*bb?cc/{arg0}/{arg1}",
@@ -85,13 +85,13 @@ int main()
 		spdlog::debug("Path arg[1]: {}", request.path_arg(1));
 
 		// If you don't write anything, the server will write the default body for you
-		// co_await context.response().write("hello world");
+		// co_await context.response().co_write("hello world");
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/hello",
 	[](libgs::http::server::context &context) -> libgs::awaitable<void>
 	{
-//		co_await context.response().write("hello world !!!");
+//		co_await context.response().co_write("hello world !!!");
 		co_await context.response()
 			.co_send_file("~/hello_world.txt");
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
@@ -175,7 +175,7 @@ int main()
 			spdlog::debug("partial_body: {}\n", co_await request.co_read_all());
 
 		// If you don't write anything, the server will write the default body for you
-		// co_await context.response().write("hello world");
+		// co_await context.response().co_write("hello world");
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/aa*bb?cc/{arg0}/{arg1}",
@@ -192,13 +192,13 @@ int main()
 		spdlog::debug("Path arg[1]: {}", request.path_arg(1));
 
 		// If you don't write anything, the server will write the default body for you
-		// co_await context.response().write("hello world");
+		// co_await context.response().co_write("hello world");
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/hello",
 	[](libgs::https::server::context &context) -> libgs::awaitable<void>
 	{
-//		co_await context.response().write("hello world !!!");
+//		co_await context.response().co_write("hello world !!!");
 		co_await context.response()
 			.co_send_file("~/hello_world.txt");
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");

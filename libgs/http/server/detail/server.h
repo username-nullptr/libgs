@@ -350,7 +350,7 @@ private:
 		else
 			context.response().set_header(wheader::content_type, L"text/html");
 
-		co_await context.response().co_write(asio::buffer(data, data.size()));
+		co_await context.response().co_write(data);
 		co_return ;
 	}
 
