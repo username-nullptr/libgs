@@ -68,7 +68,7 @@ public:
 	using string_t = std::basic_string<CharT>;
 	using headers_t = basic_headers<CharT>;
 
-	using cookies_t = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
+	using cookies_t = basic_cookie_values<CharT>;
 	using parameters_t = basic_parameters<CharT>;
 
 public:
@@ -114,14 +114,13 @@ public:
 
 	void parse_length() noexcept
 	{
-		auto tsize = m_state_context;
 		auto rsize = m_partial_body.size() + m_src_buf.size();
-		rsize = rsize > tsize ? tsize - m_partial_body.size() : m_src_buf.size();
+		rsize = rsize > m_content_length ? m_content_length - m_partial_body.size() : m_src_buf.size();
 
 		m_partial_body += std::string(m_src_buf.c_str(), rsize);
 		m_src_buf.clear();
 
-		m_state = tsize > m_partial_body.size() ? state::reading_length : state::finished;
+		m_state = m_content_length > m_partial_body.size() ? state::reading_length : state::finished;
 	}
 
 	bool parse_chunked(error_code &error)
@@ -333,7 +332,7 @@ private:
 		it = m_headers.find(basic_header<CharT>::content_length);
 		if( it != m_headers.end() )
 		{
-			m_state_context = it->second.template get<size_t>();
+			m_content_length = it->second.template get<size_t>();
 			parse_length();
 		}
 		else if( m_version == string_pool::v_1_1 )
@@ -406,7 +405,7 @@ public:
 		finished
 	}
 	m_state = state::waiting_request;
-	size_t m_state_context = 0;
+	size_t m_content_length = 0;
 	std::string m_src_buf;
 
 	http::method m_method = http::method::GET;

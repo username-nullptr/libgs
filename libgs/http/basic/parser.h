@@ -34,6 +34,24 @@
 namespace libgs::http
 {
 
+#define LIBGS_HTTP_PARSER_ERRNO \
+X_MACRO( RLTL , 10000 , "Request line too long."      ) \
+X_MACRO( HLTL , 10001 , "Header line too long."       ) \
+X_MACRO( IRL  , 10002 , "Invalid request line."       ) \
+X_MACRO( IHM  , 10003 , "Invalid http method."        ) \
+X_MACRO( IHP  , 10004 , "Invalid http path."          ) \
+X_MACRO( IHL  , 10005 , "Invalid header line."        ) \
+X_MACRO( IDE  , 10006 , "The inserted data is empty." ) \
+X_MACRO( SFE  , 10007 , "Size format error."          ) \
+X_MACRO( RE   , 10008 , "This request is ended."      )
+
+enum class parse_errno
+{
+#define X_MACRO(e,v,d) e=(v),
+	LIBGS_HTTP_PARSER_ERRNO
+#undef X_MACRO
+};
+
 template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_parser
 {
@@ -44,25 +62,52 @@ public:
 	using string_view_t = std::basic_string_view<CharT>;
 
 	using value_t = basic_value<CharT>;
-	using value_list_t = basic_value_list<CharT>;
-
-	using cookies_t = basic_cookie_values<CharT>;
 	using header_t = basic_header<CharT>;
 	using headers_t = basic_headers<CharT>;
 
+	using parse_begin_handler = std::function<string_t(std::string_view line_buf, error_code &error)>;
+	using parse_cookie_handler = std::function<void(std::string_view line_buf, error_code &error)>;
+
 public:
-	basic_parser();
+	explicit basic_parser(size_t init_buf_size = 0xFFFF);
 	~basic_parser();
 
 	basic_parser(basic_parser &&other) noexcept;
 	basic_parser &operator=(basic_parser &&other) noexcept;
 
 public:
+	basic_parser &on_parse_begin(parse_begin_handler func);
+	basic_parser &on_parse_cookie(parse_cookie_handler func);
+	static error_code make_error_code(parse_errno errc);
+
+	bool append(std::string_view buf, error_code &error);
+	bool append(std::string_view buf);
+	bool operator<<(std::string_view buf);
+	basic_parser &reset();
+
+public:
+	[[nodiscard]] string_view_t version() const noexcept;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+
+	[[nodiscard]] std::string take_partial_body(size_t size);
+	[[nodiscard]] std::string take_body();
+
+public:
+	[[nodiscard]] bool can_read_from_device() const noexcept;
+	[[nodiscard]] bool is_finished() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
+
+public:
+	basic_parser &unset_parse_begin();
+	basic_parser &unset_parse_cookie();
 
 private:
 	class impl;
 	impl *m_impl;
 };
+
+using parser = basic_parser<char>;
+using wparser = basic_parser<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/basic/detail/parser.h>
