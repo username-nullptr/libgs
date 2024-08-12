@@ -309,12 +309,17 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error
 		do {
 			tmp_sum += m_impl->m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
 			sum += tmp_sum;
+
 			if( error and error.value() == errc::interrupted )
+				continue;
+
+			bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
+			if( error )
+				return sum;
+			else if( not res )
 				continue;
 		}
 		while(false);
-		if( tmp_sum == 0 or not m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
-			break;
 	}
 	while(true);
 	return sum;
@@ -333,12 +338,13 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf)
 template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_request<Stream,CharT>::co_read(const mutable_buffer &buf, error_code &error) noexcept
 {
+	using namespace std::chrono_literals;
 	error = error_code();
 	const size_t buf_size = buf.size();
 	size_t sum = 0;
 	do {
 		if( buf_size == 0 )
-			co_return sum;
+			break;
 		else if( is_eof() )
 		{
 			error = std::make_error_code(static_cast<std::errc>(errc::eof));
@@ -349,30 +355,41 @@ awaitable<size_t> basic_server_request<Stream,CharT>::co_read(const mutable_buff
 		if( error )
 			break;
 
-		auto dst_buf = reinterpret_cast<char*>(buf.data());
-		do {
-			auto body = m_impl->m_parser->take_partial_body(buf_size);
-			sum += body.size();
-
-			memcpy(dst_buf + sum, body.c_str(), body.size());
-			if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
-				break;
-
-			body = std::string(op.value(),'\0');
-			auto tmp_buf = const_cast<char*>(body.c_str());
-			size_t tmp_sum = 0;
+		auto read_task = [&,this]() mutable -> awaitable<size_t>
+		{
+			auto dst_buf = reinterpret_cast<char*>(buf.data());
 			do {
-				auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
-				tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error);
-				sum += tmp_sum;
-				if( error and error.value() == errc::interrupted )
-					continue;
+				auto body = m_impl->m_parser->take_partial_body(buf_size);
+				sum += body.size();
+
+				memcpy(dst_buf + sum, body.c_str(), body.size());
+				if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+					break;
+
+				body = std::string(op.value(),'\0');
+				auto tmp_buf = const_cast<char*>(body.c_str());
+				size_t tmp_sum = 0;
+				do {
+					auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
+					tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error);
+
+					if( error and error.value() == errc::interrupted )
+						continue;
+
+					bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
+					if( error )
+						co_return sum;
+					else if( not res )
+						continue;
+				}
+				while(false);
 			}
-			while(false);
-			if( tmp_sum == 0 or not m_impl->m_parser->append({body.c_str(), tmp_sum}, error) )
-				break;
-		}
-		while(true);
+			while(true);
+			co_return sum;
+		};
+		auto var = co_await (read_task() or co_sleep_for(30s, get_executor()));
+		if( var.index() == 1 and sum == 0 )
+			error = asio::error::make_error_code(errc::timed_out);
 	}
 	while(false);
 	co_return sum;
