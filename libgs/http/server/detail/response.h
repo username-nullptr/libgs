@@ -261,6 +261,14 @@ public:
 		}
 	}
 
+	size_t check_time_out(const auto &var, error_code &error) const
+	{
+		if( var.index() == 0 )
+			return std::get<0>(var);
+		error = asio::error::make_error_code(errc::timed_out);
+		return 0;
+	}
+
 private:
 	template <typename Token>
 	auto default_transfer_x(std::string_view file_name, std::ifstream &file, Token &&token) noexcept
@@ -1029,7 +1037,10 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_write(const const_buff
 template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_write(const const_buffer &body, error_code &error)
 {
-	co_return co_await m_impl->write_x(body, use_awaitable|error, "co_write");
+	using namespace std::chrono_literals;
+	auto var = co_await(m_impl->write_x(body, use_awaitable|error, "co_write") or
+						co_sleep_for(30s, get_executor()));
+	co_return m_impl->check_time_out(var, error);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
@@ -1075,8 +1086,12 @@ template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_redirect
 (string_view_t url, http::redirect redi, error_code &error)
 {
+	using namespace std::chrono_literals;
 	m_impl->m_helper.set_redirect(url, redi);
-	co_return co_await m_impl->write_x({nullptr,0}, use_awaitable|error, "co_redirect");
+
+	auto var = co_await (m_impl->write_x({nullptr,0}, use_awaitable|error, "co_redirect") or
+						 co_sleep_for(30s, get_executor()));
+	co_return m_impl->check_time_out(var, error);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
@@ -1123,7 +1138,10 @@ template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_send_file
 (std::string_view file_name, const resp_ranges &ranges, error_code &error)
 {
-	co_return co_await m_impl->send_file_x(file_name, ranges, use_awaitable|error, "co_send_file");
+	using namespace std::chrono_literals;
+	auto var = co_await (m_impl->send_file_x(file_name, ranges, use_awaitable|error, "co_send_file") or
+						 co_sleep_for(30s, get_executor()));
+	co_return m_impl->check_time_out(var, error);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
@@ -1182,7 +1200,10 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(const header
 template <concept_tcp_stream Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(const headers_t &headers, error_code &error)
 {
-	co_return co_await m_impl->chunk_end_x(headers, use_awaitable|error, "co_chunk_end");
+	using namespace std::chrono_literals;
+	auto var = co_await (m_impl->chunk_end_x(headers, use_awaitable|error, "co_chunk_end") or
+						 co_sleep_for(30s, get_executor()));
+	co_return m_impl->check_time_out(var, error);
 }
 
 template <concept_tcp_stream Stream, concept_char_type CharT>
