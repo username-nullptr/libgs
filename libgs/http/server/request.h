@@ -29,8 +29,10 @@
 #ifndef LIBGS_HTTP_SERVER_REQUEST_H
 #define LIBGS_HTTP_SERVER_REQUEST_H
 
-#include <libgs/http/server/request_parser.h>
+#include <libgs/http/basic/socket_operation_helper.h>
 #include <libgs/http/basic/opt_token.h>
+
+#include <libgs/http/server/request_parser.h>
 #include <libgs/core/coroutine.h>
 
 namespace libgs::http
@@ -44,10 +46,10 @@ class LIBGS_HTTP_TAPI basic_server_request
 public:
 	using next_layer_t = Stream;
 	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
+	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
 
 	using parser_t = basic_request_parser<CharT>;
-	using string_t = typename parser_t::string_t;
+	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
 
 	using value_t = typename parser_t::value_t;
@@ -139,8 +141,8 @@ public:
 	basic_server_request &cancel() noexcept;
 
 public:
-	const next_layer_t &next_layer() const noexcept;
-	next_layer_t &next_layer() noexcept;
+	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
+	[[nodiscard]] next_layer_t &next_layer() noexcept;
 
 private:
 	class impl;

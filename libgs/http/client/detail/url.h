@@ -64,7 +64,7 @@ struct _url_static_string<wchar_t> {
 template <concept_char_type CharT>
 class basic_url<CharT>::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_MOVE(impl)
 	using string_list_t = basic_string_list<CharT>;
 	struct string_pool : detail::string_pool<CharT>, detail::_url_static_string<CharT> {};
 
@@ -72,7 +72,10 @@ public:
 	explicit impl(string_view_t url = string_pool::root) {
 		set(url);
 	}
+	impl(const impl &other) = default;
+	impl &operator=(const impl &other) = default;
 
+public:
 	void set(string_view_t url)
 	{
 		if( url.empty() )
@@ -159,9 +162,30 @@ basic_url<CharT>::basic_url(string_view_t url) :
 }
 
 template <concept_char_type CharT>
+basic_url<CharT>::basic_url() :
+	basic_url(string_view_t())
+{
+
+}
+
+template <concept_char_type CharT>
 basic_url<CharT>::~basic_url()
 {
 	delete m_impl;
+}
+
+template <concept_char_type CharT>
+basic_url<CharT>::basic_url(const basic_url &other) :
+	m_impl(new impl(*other.m_impl))
+{
+
+}
+
+template <concept_char_type CharT>
+basic_url<CharT> &basic_url<CharT>::operator=(const basic_url &other) 
+{
+	m_impl = new impl(*other.m_impl);
+	return *this;
 }
 
 template <concept_char_type CharT>

@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CLIENT_CLIENT_H
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
-#include <libgs/http/client/request_helper.h>
+#include <libgs/http/client/request_context.h>
 #include <libgs/http/client/response.h>
 
 namespace libgs::http

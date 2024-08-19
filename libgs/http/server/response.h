@@ -139,8 +139,8 @@ public:
 	basic_server_response &unset_chunk_attribute(const value_t &attribute);
 
 public:
-	const next_layer_t &next_layer() const noexcept;
-	next_layer_t &next_layer() noexcept;
+	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
+	[[nodiscard]] next_layer_t &next_layer() noexcept;
 
 private:
 	class impl;

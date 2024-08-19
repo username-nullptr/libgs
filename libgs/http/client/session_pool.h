@@ -26,61 +26,14 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
-#define LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
-
-#include <libgs/http/global.h>
+#ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
+#define LIBGS_HTTP_CLIENT_SESSION_POOL_H
 
 namespace libgs::http
 {
 
-template <typename Stream>
-class socket_operation_helper;
-
-template <concept_execution Exec>
-class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>
-{
-public:
-	using socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec>;
-	using executor_t = typename socket_t::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
-
-public:
-	static void get_option(socket_t &socket, auto &option, error_code &error);
-	static void close(socket_t &socket);
-
-	static endpoint_t remote_endpoint(socket_t &socket);
-	static endpoint_t local_endpoint(socket_t &socket);
-
-	static const executor_t &get_executor(socket_t &socket) noexcept;
-	static bool is_open(socket_t &socket) noexcept;
-};
-
-#ifdef LIBGS_ENABLE_OPENSSL
-
-template <concept_execution Exec>
-class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
-{
-public:
-	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-	using executor_t = typename asio::basic_stream_socket<asio::ip::tcp,Exec>::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
-
-public:
-	static void get_option(socket_t &socket, auto &option, error_code &error);
-	static void close(socket_t &socket);
-
-	static endpoint_t remote_endpoint(socket_t &socket);
-	static endpoint_t local_endpoint(socket_t &socket);
-
-	static const executor_t &get_executor(socket_t &socket) noexcept;
-	static bool is_open(socket_t &socket) noexcept;
-};
-
-#endif //LIBGS_ENABLE_OPENSSL
-
 } //namespace libgs::http
-#include <libgs/http/basic/detail/socket_operation_helper.h>
 
 
-#endif //LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
+#endif //LIBGS_HTTP_CLIENT_SESSION_POOL_H
+

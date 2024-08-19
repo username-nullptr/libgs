@@ -37,7 +37,6 @@ namespace libgs::http
 template <concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_url
 {
-	LIBGS_DISABLE_COPY(basic_url)
 	using string_pool = detail::string_pool<CharT>;
 
 public:
@@ -53,7 +52,11 @@ public:
 	basic_url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	basic_url(string_view_t url);
+	basic_url();
 	~basic_url();
+
+	basic_url(const basic_url &other);
+	basic_url &operator=(const basic_url &other);
 
 	basic_url(basic_url &&other) noexcept;
 	basic_url &operator=(basic_url &&other) noexcept;

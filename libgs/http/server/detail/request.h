@@ -29,7 +29,6 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 
-#include <libgs/http/basic/socket_operation_helper.h>
 #include <libgs/core/string_list.h>
 #include <libgs/core/app_utls.h>
 #include <filesystem>

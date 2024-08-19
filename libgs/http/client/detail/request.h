@@ -85,6 +85,13 @@ basic_client_request<CharT>::basic_client_request(url_t url) :
 }
 
 template <concept_char_type CharT>
+basic_client_request<CharT>::basic_client_request() :
+	basic_client_request(url_t())
+{
+
+}
+
+template <concept_char_type CharT>
 basic_client_request<CharT>::~basic_client_request()
 {
 	delete m_impl;

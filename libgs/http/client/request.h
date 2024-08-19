@@ -56,6 +56,7 @@ public:
 
 public:
 	basic_client_request(url_t url);
+	basic_client_request();
 	~basic_client_request();
 
 	basic_client_request(basic_client_request &&other) noexcept;

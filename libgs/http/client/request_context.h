@@ -26,61 +26,82 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
-#define LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
+#ifndef LIBGS_HTTP_CLIENT_REQUEST_CONTEXT_H
+#define LIBGS_HTTP_CLIENT_REQUEST_CONTEXT_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/client/request.h>
+#include <libgs/http/client/session_pool.h>
 
 namespace libgs::http
 {
 
-template <typename Stream>
-class socket_operation_helper;
-
-template <concept_execution Exec>
-class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+template <concept_tcp_stream Stream, concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_request_context
 {
-public:
-	using socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec>;
-	using executor_t = typename socket_t::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
+	LIBGS_DISABLE_COPY(basic_request_context)
 
 public:
-	static void get_option(socket_t &socket, auto &option, error_code &error);
-	static void close(socket_t &socket);
+	using next_layer_t = Stream;
+	using executor_t = typename next_layer_t::executor_type;
 
-	static endpoint_t remote_endpoint(socket_t &socket);
-	static endpoint_t local_endpoint(socket_t &socket);
+	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
+	using request_t = basic_client_request<CharT>;
+	// using session_pool_t = basic_session_pool<next_layer_t>;
 
-	static const executor_t &get_executor(socket_t &socket) noexcept;
-	static bool is_open(socket_t &socket) noexcept;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
+
+	using header_t = basic_header<CharT>;
+	using headers_t = basic_headers<CharT>;
+
+	using value_t = basic_value<CharT>;
+	using value_list_t = basic_value_list<CharT>;
+	using cookies_t = basic_cookie_values<CharT>;
+
+public:
+	basic_request_context(request_t &&request/*, session_pool_t &pool*/);
+	basic_request_context(/*session_pool_t &pool*/);
+	~basic_request_context();
+
+public:
+	// TODO ...
+	// get...
+	// wait_response...
+
+public:
+	[[nodiscard]] endpoint_t remote_endpoint() const;
+	[[nodiscard]] endpoint_t local_endpoint() const;
+
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	basic_request_context &cancel() noexcept;
+
+public:
+	[[nodiscard]] const request_t &request() const noexcept;
+	[[nodiscard]] request_t &request() noexcept;
+
+	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
+	[[nodiscard]] next_layer_t &next_layer() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
-#ifdef LIBGS_ENABLE_OPENSSL
+template <concept_execution Exec>
+using basic_tcp_request_context = basic_request_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
 template <concept_execution Exec>
-class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
-{
-public:
-	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-	using executor_t = typename asio::basic_stream_socket<asio::ip::tcp,Exec>::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
+using wbasic_tcp_request_context = basic_request_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
-public:
-	static void get_option(socket_t &socket, auto &option, error_code &error);
-	static void close(socket_t &socket);
+using tcp_request_context = basic_tcp_request_context<asio::any_io_executor>;
+using wtcp_request_context = wbasic_tcp_request_context<asio::any_io_executor>;
 
-	static endpoint_t remote_endpoint(socket_t &socket);
-	static endpoint_t local_endpoint(socket_t &socket);
-
-	static const executor_t &get_executor(socket_t &socket) noexcept;
-	static bool is_open(socket_t &socket) noexcept;
-};
-
-#endif //LIBGS_ENABLE_OPENSSL
+using request_context = tcp_request_context;
+using wrequest_context = wtcp_request_context;
 
 } //namespace libgs::http
-#include <libgs/http/basic/detail/socket_operation_helper.h>
+#include <libgs/http/client/detail/request_context.h>
 
 
-#endif //LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
+#endif //LIBGS_HTTP_CLIENT_REQUEST_CONTEXT_H
+
