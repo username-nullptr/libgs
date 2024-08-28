@@ -117,8 +117,8 @@ X_MACRO( POST    , 0x04 , "POST"    ) \
 X_MACRO( HEAD    , 0x08 , "HEAD"    ) \
 X_MACRO( DELETE  , 0x10 , "DELETE"  ) \
 X_MACRO( OPTIONS , 0x20 , "OPTIONS" ) \
-X_MACRO( CONNECT , 0x40 , "CONNECT" ) \
-X_MACRO( TRACH   , 0x80 , "TRACH"   )
+X_MACRO( TRACH   , 0x40 , "TRACH"   ) \
+X_MACRO( CONNECT , 0x80 , "CONNECT" )
 
 enum method
 {
@@ -129,6 +129,9 @@ enum method
 LIBGS_DECLARE_FLAGS(methods, method)
 LIBGS_HTTP_VAPI void method_check(uint32_t m);
 LIBGS_HTTP_VAPI void method_check(method m);
+
+constexpr method method_begin = method::GET;
+constexpr method method_end = method::CONNECT;
 
 #define LIBGS_HTTP_REDIRECT_TYPE_TABLE \
 X_MACRO( moved_permanently  , static_cast<int>(status::moved_permanently ) ) \

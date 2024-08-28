@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 class basic_service_context<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -68,27 +68,27 @@ public:
 	session_set *m_sss;
 };
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT>::basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss) :
 	m_impl(new impl(std::move(stream), parser, sss))
 {
 
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT>::~basic_service_context()
 {
 	delete m_impl;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT>::basic_service_context(basic_service_context &&other) noexcept :
 	m_impl(new impl(*other.m_impl))
 {
 
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=
 (basic_service_context &&other) noexcept
 {
@@ -96,7 +96,7 @@ basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operat
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template<typename Stream0>
 basic_service_context<Stream,CharT>::basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
 	requires concept_constructible<Stream,Stream0&&> :
@@ -105,7 +105,7 @@ basic_service_context<Stream,CharT>::basic_service_context(basic_service_context
 
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template<typename Stream0>
 basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=
 (basic_service_context<Stream0,CharT> &&other) noexcept requires concept_assignable<Stream,Stream0&&>
@@ -114,31 +114,31 @@ basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operat
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 const basic_server_request<Stream,CharT> &basic_service_context<Stream,CharT>::request() const noexcept
 {
 	return m_impl->m_response.next_layer();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_request<Stream,CharT> &basic_service_context<Stream,CharT>::request() noexcept
 {
 	return m_impl->m_response.next_layer();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 const basic_server_response<Stream,CharT> &basic_service_context<Stream,CharT>::response() const noexcept
 {
 	return m_impl->m_response;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_service_context<Stream,CharT>::response() noexcept
 {
 	return m_impl->m_response;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...args)
 	requires concept_constructible<Session, Args...>
@@ -150,7 +150,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...a
 	return session;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...args) noexcept
 	requires concept_constructible<basic_session<CharT>, Args...>
@@ -162,7 +162,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...a
 	return session;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
 {
@@ -173,7 +173,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
 	return session;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
@@ -183,7 +183,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 	return session;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
 {
@@ -194,7 +194,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
 	return session;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session_or() noexcept
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();

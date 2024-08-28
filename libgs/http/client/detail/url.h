@@ -45,7 +45,8 @@ struct _url_static_string;
 	static constexpr const _type *local_addr = __VA_ARGS__##"127.0.0.1" ; \
 	static constexpr const _type *question   = __VA_ARGS__##"?"         ; \
 	static constexpr const _type *ampersand  = __VA_ARGS__##"&"         ; \
-	static constexpr const _type *assignment = __VA_ARGS__##"="         ;
+	static constexpr const _type *assignment = __VA_ARGS__##"="         ; \
+	static constexpr const _type *pro_sptr   = __VA_ARGS__##"://"       ;
 
 template <>
 struct _url_static_string<char> {
@@ -137,12 +138,24 @@ public:
 		}
 		if( m_address.empty() )
 			m_address = string_pool::local_addr;
+		else
+		{
+			pos = m_address.rfind(":");
+			if( pos == string_t::npos )
+				m_port = m_protocol == string_pool::pro_https ? 443 : 80;
+			else
+			{
+				m_port = stoui16(m_address.substr(pos+1));
+				m_address = m_address.substr(0,pos);
+			}
+		}
 	}
 
 public:
 	string_t m_protocol = string_pool::pro_http;
 	string_t m_path = string_pool::root;
 	string_t m_address = string_pool::local_addr;
+	uint16_t m_port = 80;
 	parameters_t m_parameters {};
 };
 
@@ -219,16 +232,23 @@ basic_url<CharT> &basic_url<CharT>::set(string_view_t url)
 }
 
 template <concept_char_type CharT>
-basic_url<CharT> &basic_url<CharT>::set_path(string_view_t path)
+basic_url<CharT> &basic_url<CharT>::set_address(string_view_t addr)
 {
-	m_impl->set(path);
+	m_impl->m_address = string_t(addr.data(), addr.size());
 	return *this;
 }
 
 template <concept_char_type CharT>
-basic_url<CharT> &basic_url<CharT>::set_address(string_view_t addr)
+basic_url<CharT> &basic_url<CharT>::set_port(uint16_t port)
 {
-	m_impl->m_address = string_t(addr.data(), addr.size());
+	m_impl->m_port = port;
+	return *this;
+}
+
+template <concept_char_type CharT>
+basic_url<CharT> &basic_url<CharT>::set_path(string_view_t path)
+{
+	m_impl->set(path);
 	return *this;
 }
 
@@ -240,9 +260,9 @@ basic_url<CharT> &basic_url<CharT>::set_parameter(string_view_t key, value_t val
 }
 
 template <concept_char_type CharT>
-std::basic_string_view<CharT> basic_url<CharT>::path() const noexcept
+std::basic_string_view<CharT> basic_url<CharT>::protocol() const noexcept
 {
-	return m_impl->m_path;
+	return m_impl->m_protocols;
 }
 
 template <concept_char_type CharT>
@@ -252,31 +272,43 @@ std::basic_string_view<CharT> basic_url<CharT>::address() const noexcept
 }
 
 template <concept_char_type CharT>
+uint16_t basic_url<CharT>::port() const noexcept
+{
+	return m_impl->m_port;
+}
+
+template <concept_char_type CharT>
+std::basic_string_view<CharT> basic_url<CharT>::path() const noexcept
+{
+	return m_impl->m_path;
+}
+
+template <concept_char_type CharT>
 const basic_parameters<CharT> &basic_url<CharT>::parameter() const noexcept
 {
 	return m_impl->m_parameters;
 }
 
 template <concept_char_type CharT>
-std::basic_string_view<CharT> basic_url<CharT>::protocol() const noexcept
+std::basic_string<CharT> basic_url<CharT>::to_string() const noexcept
 {
-	return m_impl->m_protocols;
-}
+	using sp = detail::_url_static_string<CharT>;
+	string_t buf = m_impl->m_protocol + sp::pro_sptr + m_impl->m_path + std::format(default_format_v<CharT>, m_impl->m_port);
 
-template <concept_char_type CharT>
-std::basic_string<CharT> basic_url<CharT>::url() const noexcept
-{
-	string_t buf = m_impl->m_path;
 	if( m_impl->m_parameters.empty() )
 		return buf;
 
-	using sp = detail::_url_static_string<CharT>;
 	buf += sp::question;
-
 	for(auto &[key,value] : m_impl->m_parameters)
 		buf += key + sp::assignment + value.to_string() + sp::ampersand;
 	buf.pop_back();
 	return buf;
+}
+
+template <concept_char_type CharT>
+basic_url<CharT>::operator std::basic_string<CharT>() const noexcept
+{
+	return to_string();
 }
 
 } //namespace libgs::http

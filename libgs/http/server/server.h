@@ -36,7 +36,7 @@ namespace libgs::http
 {
 
 template <concept_char_type CharT,
-		  concept_tcp_stream Stream = asio::ip::tcp::socket,
+		  concept_stream_requires Stream = asio::ip::tcp::socket,
 		  concept_execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server
 {

@@ -26,16 +26,24 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_REQUEST_CONTEXT_H
-#define LIBGS_HTTP_CLIENT_DETAIL_REQUEST_CONTEXT_H
-
-#include <libgs/http/client/request_helper.h>
+#ifndef LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
+#define LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
 
 namespace libgs::http
 {
 
+template <concept_stream_requires Stream>
+class basic_session_pool<Stream>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+
+public:
+};
+
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_DETAIL_REQUEST_CONTEXT_H
+#endif //LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
 

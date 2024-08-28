@@ -29,13 +29,13 @@
 #ifndef LIBGS_HTTP_CLIENT_CLIENT_H
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
-#include <libgs/http/client/request_context.h>
+#include <libgs/http/client/request.h>
 #include <libgs/http/client/response.h>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_tcp_stream Stream = asio::ip::tcp::socket>
+template <concept_char_type CharT, concept_stream_requires Stream = asio::ip::tcp::socket>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
@@ -53,18 +53,8 @@ public:
 	~basic_client();
 
 public:
-	template <http::method Method>
-	response_t request(const request_t &req);
-	response_t request(const request_t &req);
-
-	response_t get(const request_t &req);
-	response_t PUT(const request_t &req);
-	response_t POST(const request_t &req);
-	response_t HEAD(const request_t &req);
-	response_t DELETE(const request_t &req);
-	response_t OPTIONS(const request_t &req);
-	response_t CONNECT(const request_t &req);
-	response_t TRACH(const request_t &req);
+	request_t request(error_code &error) noexcept;
+	request_t request();
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;
@@ -83,6 +73,7 @@ using client = tcp_client;
 using wclient = wtcp_client;
 
 } //namespace libgs::http
+#include <libgs/http/client/detail/client.h>
 
 
 #endif //LIBGS_HTTP_CLIENT_CLIENT_H

@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 class basic_server_response<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -927,27 +927,27 @@ public:
 	bool m_chunk_end_writed = false;
 };
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT>::basic_server_response(next_layer_t &&next_layer) :
 	m_impl(new impl(std::move(next_layer)))
 {
 
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT>::~basic_server_response()
 {
 	delete m_impl;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT>::basic_server_response(basic_server_response &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operator=
 (basic_server_response &&other) noexcept
 {
@@ -955,7 +955,7 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operat
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template <typename Stream0>
 basic_server_response<Stream,CharT>::basic_server_response
 (basic_server_response<Stream0,CharT> &&other) noexcept
@@ -965,7 +965,7 @@ basic_server_response<Stream,CharT>::basic_server_response
 
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 template <typename Stream0>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operator=
 (basic_server_response<Stream0,CharT> &&other) noexcept requires concept_assignable<Stream,Stream0&&>
@@ -974,35 +974,35 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operat
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(uint32_t status)
 {
 	m_impl->set_status(status);
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(http::status status)
 {
 	m_impl->set_status(status);
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_header(string_view_t key, value_t value)
 {
 	m_impl->set_header(key, std::move(value));
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_cookie(string_view_t key, cookie_t cookie)
 {
 	m_impl->m_helper.set_cookie(key, std::move(cookie));
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::write(const const_buffer &body)
 {
 	error_code error;
@@ -1012,19 +1012,19 @@ size_t basic_server_response<Stream,CharT>::write(const const_buffer &body)
 	return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::write(const const_buffer &body, error_code &error)
 {
 	return m_impl->write_x(body, error, "write");
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::write(error_code &error)
 {
 	return write({nullptr,0}, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_write(const const_buffer &body)
 {
 	error_code error;
@@ -1034,7 +1034,7 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_write(const const_buff
 	co_return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_write(const const_buffer &body, error_code &error)
 {
 	using namespace std::chrono_literals;
@@ -1043,13 +1043,13 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_write(const const_buff
 	co_return m_impl->check_time_out(var, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_write(error_code &error)
 {
 	co_return co_await co_write({nullptr,0}, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi)
 {
 	error_code error;
@@ -1059,20 +1059,20 @@ size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, http::re
 	return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi, error_code &error)
 {
 	m_impl->m_helper.set_redirect(url, redi);
 	return m_impl->write_x({nullptr,0}, error, "redirect");
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::redirect(string_view_t url, error_code &error)
 {
 	return redirect(url, http::redirect::moved_permanently, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_redirect(string_view_t url, http::redirect redi)
 {
 	error_code error;
@@ -1082,7 +1082,7 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_redirect(string_view_t
 	co_return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_redirect
 (string_view_t url, http::redirect redi, error_code &error)
 {
@@ -1094,13 +1094,13 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_redirect
 	co_return m_impl->check_time_out(var, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_redirect(string_view_t url, error_code &error)
 {
 	co_return co_await co_redirect(url, http::redirect::moved_permanently, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::send_file(std::string_view file_name, const resp_ranges &ranges)
 {
 	error_code error;
@@ -1110,20 +1110,20 @@ size_t basic_server_response<Stream,CharT>::send_file(std::string_view file_name
 	return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::send_file
 (std::string_view file_name, const resp_ranges &ranges, error_code &error)
 {
 	return m_impl->send_file_x(file_name, ranges, error, "send_file");
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::send_file(std::string_view file_name, error_code &error)
 {
 	return send_file(file_name, {}, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_send_file
 (std::string_view file_name, const resp_ranges &ranges)
 {
@@ -1134,7 +1134,7 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_send_file
 	co_return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_send_file
 (std::string_view file_name, const resp_ranges &ranges, error_code &error)
 {
@@ -1144,28 +1144,28 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_send_file
 	co_return m_impl->check_time_out(var, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_send_file
 (std::string_view file_name, error_code &error)
 {
 	co_return co_await co_send_file(file_name, {}, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attribute(value_t attribute)
 {
 	m_impl->m_helper.set_chunk_attribute(std::move(attribute));
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attributes(value_list_t attributes)
 {
 	m_impl->m_helper.set_chunk_attributes(std::move(attributes));
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers)
 {
 	error_code error;
@@ -1175,19 +1175,19 @@ size_t basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers)
 	return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, error_code &error)
 {
 	return m_impl->chunk_end_x(headers, error, "chunk_end");
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 size_t basic_server_response<Stream,CharT>::chunk_end(error_code &error)
 {
 	return chunk_end({}, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(const headers_t &headers)
 {
 	error_code error;
@@ -1197,7 +1197,7 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(const header
 	co_return res;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(const headers_t &headers, error_code &error)
 {
 	using namespace std::chrono_literals;
@@ -1206,94 +1206,94 @@ awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(const header
 	co_return m_impl->check_time_out(var, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 awaitable<size_t> basic_server_response<Stream,CharT>::co_chunk_end(error_code &error)
 {
 	co_return co_await chunk_end({}, error);
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT>::string_view_t
 basic_server_response<Stream,CharT>::version() const noexcept
 {
 	return m_impl->m_helper.version();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 http::status basic_server_response<Stream,CharT>::status() const noexcept
 {
 	return m_impl->m_helper.status();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 const typename basic_server_response<Stream,CharT>::headers_t&
 basic_server_response<Stream,CharT>::headers() const noexcept
 {
 	return m_impl->m_helper.headers();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 const typename basic_server_response<Stream,CharT>::cookies_t&
 basic_server_response<Stream,CharT>::cookies() const noexcept
 {
 	return m_impl->m_helper.cookies();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 bool basic_server_response<Stream,CharT>::headers_writed() const noexcept
 {
 	return m_impl->m_headers_writed;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 bool basic_server_response<Stream,CharT>::chunk_end_writed() const noexcept
 {
 	return m_impl->m_chunk_end_writed;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 const typename basic_server_response<Stream,CharT>::executor_t&
 basic_server_response<Stream,CharT>::get_executor() noexcept
 {
 	return m_impl->m_next_layer.get_executor();
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::cancel() noexcept
 {
 	m_impl->m_next_layer->m_impl->m_socket->cancel();
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_helper.unset_header(key);
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_cookie(string_view_t key)
 {
 	m_impl->m_helper.unset_cookie(key);
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_chunk_attribute(const value_t &attribute)
 {
 	m_impl->m_helper.unset_chunk_attribute(std::move(attribute));
 	return *this;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 const typename basic_server_response<Stream,CharT>::next_layer_t&
 basic_server_response<Stream,CharT>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 typename basic_server_response<Stream,CharT>::next_layer_t&
 basic_server_response<Stream,CharT>::next_layer() noexcept
 {

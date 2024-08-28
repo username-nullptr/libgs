@@ -53,7 +53,7 @@ template <typename Stream>
 constexpr bool stream_requires_v = stream_requires<Stream>::value;
 
 template <typename Stream>
-concept concept_tcp_stream = stream_requires_v<Stream>;
+concept concept_stream_requires = stream_requires_v<Stream>;
 
 using begin_t = size_t;
 using total_t = size_t;

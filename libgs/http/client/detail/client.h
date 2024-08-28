@@ -26,71 +26,15 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_URL_H
-#define LIBGS_HTTP_CLIENT_URL_H
+#ifndef LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
+#define LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 
-#include <libgs/http/basic/types.h>
+#include <libgs/http/client/session_pool.h>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
-class LIBGS_HTTP_TAPI basic_url
-{
-	using string_pool = detail::string_pool<CharT>;
-
-public:
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
-
-	using value_t = basic_value<CharT>;
-	using parameters_t = basic_parameters<CharT>;
-
-public:
-	template <typename Arg0, typename...Args>
-	basic_url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-
-	basic_url(string_view_t url);
-	basic_url();
-	~basic_url();
-
-	basic_url(const basic_url &other);
-	basic_url &operator=(const basic_url &other);
-
-	basic_url(basic_url &&other) noexcept;
-	basic_url &operator=(basic_url &&other) noexcept;
-
-public:
-	template <typename Arg0, typename...Args>
-	basic_url &set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	basic_url &set(string_view_t url);
-
-	basic_url &set_address(string_view_t addr);
-	basic_url &set_port(uint16_t port);
-	basic_url &set_path(string_view_t path);
-	basic_url &set_parameter(string_view_t key, value_t value) noexcept;
-
-public:
-	[[nodiscard]] string_view_t protocol() const noexcept;
-	[[nodiscard]] string_view_t address() const noexcept;
-	[[nodiscard]] uint16_t port() const noexcept;
-	[[nodiscard]] string_view_t path() const noexcept;
-	[[nodiscard]] const parameters_t &parameter() const noexcept;
-
-public:
-	[[nodiscard]] string_t to_string() const noexcept;
-	[[nodiscard]] operator string_t() const noexcept;
-
-private:
-	class impl;
-	impl *m_impl;
-};
-
-using url = basic_url<char>;
-using wurl = basic_url<wchar_t>;
-
 } //namespace libgs::http
-#include <libgs/http/client/detail/url.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_URL_H
+#endif //LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H

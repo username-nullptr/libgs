@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <concept_tcp_stream Stream, concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 class basic_service_context
 {
 	LIBGS_DISABLE_COPY(basic_service_context)
