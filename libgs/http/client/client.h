@@ -44,8 +44,9 @@ public:
 	using socket_t = Stream;
 	using executor_t = typename Stream::executor_type;
 
-	using request_t = basic_client_request<CharT>;
-	using response_t = basic_client_response<socket_t,CharT>;
+	using request_t = basic_client_request<socket_t,CharT>;
+	using response_t = typename request_t::response_t;
+	using url_t = typename request_t::url_t;
 
 public:
 	template <concept_schedulable Exec = asio::io_context>
@@ -53,11 +54,15 @@ public:
 	~basic_client();
 
 public:
-	request_t request(error_code &error) noexcept;
-	request_t request();
+	request_t request(url_t url, error_code &error) noexcept;
+	request_t request(url_t url);
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
 template <concept_execution Exec = asio::any_io_executor>

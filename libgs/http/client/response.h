@@ -44,7 +44,7 @@ class LIBGS_HTTP_TAPI basic_client_response
 public:
 	using next_layer_t = Stream;
 	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
+	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
 
 	using parser_t = basic_request_parser<CharT>;
 	using string_t = typename parser_t::string_t;

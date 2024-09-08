@@ -34,6 +34,60 @@
 namespace libgs::http
 {
 
+template <concept_char_type CharT, concept_stream_requires Stream>
+class basic_client<CharT,Stream>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	template <concept_schedulable Exec>
+	impl(Exec &exec)
+	{
+		if constexpr( is_execution_context_v<Exec> )
+			m_executor = exec.get_executor();
+		else
+			m_executor = exec
+	}
+
+public:
+	executor_t m_executor;
+};
+
+template <concept_char_type CharT, concept_stream_requires Stream>
+template <concept_schedulable Exec>
+basic_client<CharT,Stream>::basic_client(Exec &exec) :
+	m_impl(new impl(exec))
+{
+
+}
+
+template <concept_char_type CharT, concept_stream_requires Stream>
+basic_client<CharT,Stream>::~basic_client()
+{
+	delete m_impl;
+}
+
+template <concept_char_type CharT, concept_stream_requires Stream>
+typename basic_client<CharT,Stream>::request_t 
+basic_client<CharT,Stream>::request(url_t url, error_code &error) noexcept
+{
+	// TODO ...
+}
+
+template <concept_char_type CharT, concept_stream_requires Stream>
+typename basic_client<CharT,Stream>::request_t
+basic_client<CharT,Stream>::request(url_t url)
+{
+	// TODO ...
+}
+
+template <concept_char_type CharT, concept_stream_requires Stream>
+const typename  basic_client<CharT,Stream>::executor_t&
+basic_client<CharT,Stream>::get_executor() noexcept
+{
+	return m_impl->m_executor;
+}
+
 } //namespace libgs::http
 
 

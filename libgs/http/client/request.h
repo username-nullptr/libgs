@@ -30,18 +30,25 @@
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
 #include <libgs/http/client/url.h>
+#include <libgs/http/client/response.h>
 
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <concept_stream_requires Stream, concept_char_type CharT>
 class LIBGS_HTTP_TAPI basic_client_request
 {
 	LIBGS_DISABLE_COPY(basic_client_request)
 	using string_pool = detail::string_pool<CharT>;
 
 public:
+	using next_layer_t = Stream;
+	using executor_t = typename next_layer_t::executor_type;
+	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
+
 	using url_t = basic_url<CharT>;
+	using response_t = basic_client_response<next_layer_t,CharT>;
+
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
 
@@ -87,13 +94,42 @@ public:
 	basic_client_request &unset_chunk_attribute(const value_t &attributes);
 	basic_client_request &reset();
 
+public:
+	// TODO ...
+	// response_t get();
+
+public:
+	// TODO ...
+	// size_t write(const const_buffer &buf, error_code &error) noexcept;
+	// size_t write(const const_buffer &buf) noexcept;
+
+public:
+	[[nodiscard]] endpoint_t remote_endpoint() const;
+	[[nodiscard]] endpoint_t local_endpoint() const;
+
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	basic_client_request &cancel() noexcept;
+
+public:
+	const next_layer_t &next_layer() const noexcept;
+	next_layer_t &next_layer() noexcept;
+
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using client_request = basic_client_request<char>;
-using wclient_request = basic_client_request<wchar_t>;
+template <concept_execution Exec>
+using basic_tcp_client_request = basic_client_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
+
+template <concept_execution Exec>
+using wbasic_tcp_client_request = basic_client_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
+
+using tcp_client_request = basic_tcp_client_request<asio::any_io_executor>;
+using wtcp_client_request = wbasic_tcp_client_request<asio::any_io_executor>;
+
+using client_request = tcp_client_request;
+using wclient_request = wtcp_client_request;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/request.h>
