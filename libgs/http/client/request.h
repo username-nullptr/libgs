@@ -96,11 +96,11 @@ public:
 
 public:
 	// TODO ...
-	// response_t get();
+	// response_t get(); // write
 
 public:
 	// TODO ...
-	// size_t write(const const_buffer &buf, error_code &error) noexcept;
+	// size_t write(const const_buffer &buf, error_code &error) noexcept; // no head
 	// size_t write(const const_buffer &buf) noexcept;
 
 public:

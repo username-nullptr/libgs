@@ -38,17 +38,17 @@ namespace libgs
 
 [[nodiscard]] LIBGS_CORE_VAPI bool is_big_endian();
 
-[[nodiscard]] LIBGS_CORE_VAPI auto hton(concept_number_type auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto hton(concept_number_type auto t);
 
-[[nodiscard]] LIBGS_CORE_VAPI auto *hton(auto *data, size_t len);
+[[nodiscard]] LIBGS_CORE_TAPI auto *hton(auto *data, size_t len);
 
-[[nodiscard]] LIBGS_CORE_VAPI auto ntoh(concept_number_type auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto ntoh(concept_number_type auto t);
 
-[[nodiscard]] LIBGS_CORE_VAPI auto *ntoh(auto *data, size_t len);
+[[nodiscard]] LIBGS_CORE_TAPI auto *ntoh(auto *data, size_t len);
 
-[[nodiscard]] LIBGS_CORE_VAPI auto reverse(concept_number_type auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto reverse(concept_number_type auto t);
 
-[[nodiscard]] LIBGS_CORE_VAPI auto *reverse(auto *data, size_t len);
+[[nodiscard]] LIBGS_CORE_TAPI auto *reverse(auto *data, size_t len);
 
 } //namespace libgs
 #include <libgs/core/algorithm/detail/byte_order.h>
