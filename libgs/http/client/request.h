@@ -95,13 +95,108 @@ public:
 	basic_client_request &reset();
 
 public:
-	// TODO ...
-	// response_t get(); // write
+	size_t write(const const_buffer &buf, error_code &error) noexcept;
+	size_t write(const const_buffer &buf) noexcept;
+	size_t write(error_code &error) noexcept;
+	size_t write() noexcept;
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(const const_buffer &buf, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(Token &&token);
 
 public:
-	// TODO ...
-	// size_t write(const const_buffer &buf, error_code &error) noexcept; // no head
-	// size_t write(const const_buffer &buf) noexcept;
+	template <http::method Method>
+	size_t write(const const_buffer &buf, error_code &error) noexcept;
+
+	template <http::method Method>
+	size_t write(const const_buffer &buf) noexcept;
+
+	template <http::method Method>
+	size_t write(error_code &error) noexcept;
+
+	template <http::method Method>
+	size_t write() noexcept;
+
+	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(const const_buffer &buf, Token &&token);
+
+	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_write(Token &&token);
+
+public:
+	size_t get(error_code &error);
+	size_t get();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_get(Token &&token);
+
+public:
+	size_t put(const const_buffer &buf, error_code &error);
+	size_t put(const const_buffer &buf);
+	size_t put(error_code &error);
+	size_t put();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_put(const const_buffer &buf, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_put(Token &&token);
+
+public:
+	size_t post(const const_buffer &buf, error_code &error);
+	size_t post(const const_buffer &buf);
+	size_t post(error_code &error);
+	size_t post();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_post(const const_buffer &buf, Token &&token);
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_post(Token &&token);
+
+public:
+	size_t Delete(error_code &error);
+	size_t Delete();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_delete(Token &&token);
+
+public:
+	size_t head(error_code &error);
+	size_t head();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_head(Token &&token);
+
+public:
+	size_t options(error_code &error);
+	size_t options();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_options(Token &&token);
+
+public:
+	size_t trach(error_code &error);
+	size_t trach();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_trach(Token &&token);
+
+public:
+	size_t connect(error_code &error);
+	size_t connect();
+
+	template <asio::completion_token_for<void(size_t,error_code)> Token>
+	auto async_connect(Token &&token);
+
+public:
+	[[nodiscard]] response_t wait_response(error_code &error);
+	[[nodiscard]] response_t wait_response();
+
+	template <asio::completion_token_for<void(error_code)> Token>
+	auto async_wait_response(response_t &response, Token &&token);
 
 public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;

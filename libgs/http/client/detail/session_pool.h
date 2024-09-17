@@ -42,6 +42,57 @@ public:
 public:
 };
 
+template <concept_stream_requires Stream>
+basic_session_pool<Stream>::basic_session_pool() :
+	m_impl(new impl())
+{
+
+}
+
+template <concept_stream_requires Stream>
+basic_session_pool<Stream>::~basic_session_pool()
+{
+	delete m_impl;
+}
+
+template <concept_stream_requires Stream>
+basic_session_pool<Stream>::basic_session_pool(basic_session_pool &&other) noexcept
+{
+
+}
+
+template <concept_stream_requires Stream>
+basic_session_pool<Stream> &basic_session_pool<Stream>::operator=(basic_session_pool &&other) noexcept
+{
+
+	return *this;
+}
+
+template <concept_stream_requires Stream>
+typename basic_session_pool<Stream>::socket_t basic_session_pool<Stream>::get(endpoint_t ep)
+{
+
+}
+
+template <concept_stream_requires Stream>
+typename basic_session_pool<Stream>::socket_t basic_session_pool<Stream>::get(endpoint_t ep, error_code &error) noexcept
+{
+
+}
+
+template <concept_stream_requires Stream>
+template <asio::completion_token_for<void(error_code)> Token>
+void basic_session_pool<Stream>::async_get(endpoint_t ep, socket_t &socket, Token &&token)
+{
+
+}
+
+template <concept_stream_requires Stream>
+void basic_session_pool<Stream>::deposit(socket_t &&socket)
+{
+
+}
+
 } //namespace libgs::http
 
 

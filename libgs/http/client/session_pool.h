@@ -52,8 +52,8 @@ public:
 	basic_session_pool &operator=(basic_session_pool &&other) noexcept;
 
 public:
-	socket_t get(endpoint_t ep);
-	socket_t get(endpoint_t ep, error_code &error) noexcept;
+	[[nodiscard]] socket_t get(endpoint_t ep);
+	[[nodiscard]] socket_t get(endpoint_t ep, error_code &error) noexcept;
 
 	template <asio::completion_token_for<void(error_code)> Token>
 	void async_get(endpoint_t ep, socket_t &socket, Token &&token);

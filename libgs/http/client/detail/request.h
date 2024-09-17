@@ -227,6 +227,43 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::reset()
 	return *this;
 }
 
+template <concept_stream_requires Stream, concept_char_type CharT>
+typename basic_client_request<Stream,CharT>::endpoint_t basic_client_request<Stream,CharT>::remote_endpoint() const
+{
+
+}
+
+template <concept_stream_requires Stream, concept_char_type CharT>
+typename basic_client_request<Stream,CharT>::endpoint_t basic_client_request<Stream,CharT>::local_endpoint() const
+{
+
+}
+
+template <concept_stream_requires Stream, concept_char_type CharT>
+const typename basic_client_request<Stream,CharT>::executor_t &basic_client_request<Stream,CharT>::get_executor() noexcept
+{
+
+}
+
+template <concept_stream_requires Stream, concept_char_type CharT>
+basic_client_request<Stream,CharT> &basic_client_request<Stream, CharT>::cancel() noexcept
+{
+
+	return *this;
+}
+
+template <concept_stream_requires Stream, concept_char_type CharT>
+const typename basic_client_request<Stream,CharT>::next_layer_t &basic_client_request<Stream,CharT>::next_layer() const noexcept
+{
+
+}
+
+template <concept_stream_requires Stream, concept_char_type CharT>
+typename basic_client_request<Stream,CharT>::next_layer_t &basic_client_request<Stream,CharT>::next_layer() noexcept
+{
+
+}
+
 } //namespace libgs::http
 
 

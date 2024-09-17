@@ -38,7 +38,7 @@ template <concept_char_type CharT, concept_stream_requires Stream>
 class basic_client<CharT,Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	// using session_pool_t = basic_session_pool<Stream>;
+	using session_pool_t = basic_session_pool<Stream>;
 
 public:
 	template <concept_schedulable Exec>
@@ -51,7 +51,7 @@ public:
 	}
 
 public:
-	// session_pool_t m_session_pool;
+	session_pool_t m_session_pool;
 	executor_t m_executor;
 };
 
