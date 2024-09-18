@@ -31,6 +31,8 @@
 
 #ifdef _MSC_VER
 
+# pragma execution_character_set("utf-8")
+
 # define LIBGS_DECL_EXPORT  __declspec(dllexport)
 # define LIBGS_DECL_IMPORT  __declspec(dllimport)
 # define LIBGS_DECL_HIDDEN
