@@ -69,8 +69,10 @@ public:
 		return *this;
 	}
 
-	~impl() {
-		socket_operation_helper<next_layer_t>::close(m_next_layer);
+	~impl()
+	{
+		if( m_parser->version() == detail::string_pool<CharT>::v_1_0 )
+			socket_operation_helper<next_layer_t>::close(m_next_layer);
 	}
 
 public:

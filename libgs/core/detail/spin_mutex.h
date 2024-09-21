@@ -40,7 +40,8 @@ inline spin_mutex::~spin_mutex() noexcept(false)
 
 void spin_mutex::lock()
 {
-	while( m_native_handle );
+	while( m_native_handle )
+		std::this_thread::yield();
 	m_native_handle = true;
 }
 
