@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
 
+#include <libgs/http/client/session_pool.h>
+
 namespace libgs::http
 {
 
@@ -60,8 +62,13 @@ template <concept_stream_requires Stream, concept_char_type CharT>
 class basic_client_request<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+
 	using string_list_t = basic_string_list<CharT>;
-	struct string_pool : detail::string_pool<CharT>, detail::_client_request_static_string<CharT> {};
+	using session_pool_t = basic_session_pool<Stream>;
+
+	struct string_pool :
+		detail::_client_request_static_string<CharT>,
+		detail::string_pool<CharT> {};
 
 public:
 	explicit impl(url_t &&url) :
@@ -69,6 +76,8 @@ public:
 
 public:
 	url_t m_url;
+	session_pool_t m_session_pool;
+
 	http::method m_method = http::method::GET;
 	headers_t m_headers {
 		{ header_t::content_type, string_pool::text_plain }
@@ -226,6 +235,9 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::reset()
 	};
 	return *this;
 }
+
+
+
 
 template <concept_stream_requires Stream, concept_char_type CharT>
 typename basic_client_request<Stream,CharT>::endpoint_t basic_client_request<Stream,CharT>::remote_endpoint() const

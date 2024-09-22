@@ -26,77 +26,81 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
-#define LIBGS_HTTP_CLIENT_SESSION_POOL_H
+#ifndef LIBGS_HTTP_CLIENT_REPLY_PARSER_H
+#define LIBGS_HTTP_CLIENT_REPLY_PARSER_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/basic/types.h>
 
 namespace libgs::http
 {
 
-template <concept_stream_requires Stream>
-class LIBGS_HTTP_TAPI basic_session_pool
+template <concept_char_type CharT>
+class LIBGS_HTTP_TAPI basic_reply_parser
 {
-	LIBGS_DISABLE_COPY(basic_session_pool)
+	LIBGS_DISABLE_COPY(basic_reply_parser)
 
 public:
-	using socket_t = Stream;
-	using executor_t = typename socket_t::executor_type;
-	using endpoint_t = typename socket_t::endpoint_type;
+	using string_t = std::basic_string<CharT>;
+	using string_view_t = std::basic_string_view<CharT>;
+
+	using value_t = basic_value<CharT>;
+	using value_list_t = basic_value_list<CharT>;
+
+	using cookie_t = basic_cookie<CharT>;
+	using cookies_t = basic_cookies<CharT>;
+
+	using header_t = basic_header<CharT>;
+	using headers_t = basic_headers<CharT>;
 
 public:
-	basic_session_pool();
-	~basic_session_pool();
+	explicit basic_reply_parser(size_t init_buf_size = 0xFFFF);
+	~basic_reply_parser();
 
-	basic_session_pool(basic_session_pool &&other) noexcept;
-	basic_session_pool &operator=(basic_session_pool &&other) noexcept;
-
-public:
-	class session
-	{
-		LIBGS_DISABLE_COPY(session)
-		friend class basic_session_pool;
-		
-	public:
-		session();
-		~session();
-
-		session(session &&other) noexcept;
-		session &operator=(session &&other) noexcept;
-
-	public:
-		const socket_t &socket() const noexcept;
-		socket_t &socket() noexcept;
-
-	private:
-		class impl;
-		impl *m_impl;
-	};
+	basic_reply_parser(basic_reply_parser &&other) noexcept;
+	basic_reply_parser &operator=(basic_reply_parser &&other) noexcept;
 
 public:
-	[[nodiscard]] session get(endpoint_t ep);
-	[[nodiscard]] session get(endpoint_t ep, error_code &error) noexcept;
-
-	template <asio::completion_token_for<void(error_code)> Token>
-	void async_get(endpoint_t ep, session &sess, Token &&token);
+	bool append(std::string_view buf, error_code &error);
+	bool append(std::string_view buf);
+	bool operator<<(std::string_view buf);
 
 public:
-	void insert(socket_t &&socket);
-	void operator<<(socket_t &&socket);
+	[[nodiscard]] string_view_t version() const noexcept;
+	[[nodiscard]] http::status status() const noexcept;
+
+	[[nodiscard]] const value_t &header(string_view_t key) const;
+	[[nodiscard]] const cookie_t &cookie(string_view_t key) const;
+
+	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
+	[[nodiscard]] cookie_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
+
+public:
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
+	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
+
+public:
+	[[nodiscard]] bool keep_alive() const noexcept;
+	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool can_read_from_device() const noexcept;
+
+public:
+	[[nodiscard]] std::string take_partial_body(size_t size);
+	[[nodiscard]] std::string take_body();
+	[[nodiscard]] bool is_finished() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
+	basic_reply_parser &reset();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-template <concept_execution Exec = asio::any_io_executor>
-using tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-
-using session_pool = tcp_session_pool<asio::any_io_executor>;
+using reply_parser = basic_reply_parser<char>;
+using wreply_parser = basic_reply_parser<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/client/detail/session_pool.h>
+#include <libgs/http/client/detail/reply_parser.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_SESSION_POOL_H
-
+#endif //LIBGS_HTTP_CLIENT_REPLY_PARSER_H

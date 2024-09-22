@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
 #include <libgs/http/client/request.h>
-#include <libgs/http/client/response.h>
 
 namespace libgs::http
 {

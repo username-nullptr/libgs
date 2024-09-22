@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
 #include <libgs/http/client/url.h>
-#include <libgs/http/client/response.h>
+#include <libgs/http/client/reply.h>
 
 namespace libgs::http
 {
@@ -47,7 +47,7 @@ public:
 	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
 
 	using url_t = basic_url<CharT>;
-	using response_t = basic_client_response<next_layer_t,CharT>;
+	using reply_t = basic_client_reply<next_layer_t,CharT>;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -192,11 +192,11 @@ public:
 	auto async_connect(Token &&token);
 
 public:
-	[[nodiscard]] response_t wait_response(error_code &error);
-	[[nodiscard]] response_t wait_response();
+	[[nodiscard]] reply_t wait_reply(error_code &error);
+	[[nodiscard]] reply_t wait_reply();
 
 	template <asio::completion_token_for<void(error_code)> Token>
-	auto async_wait_response(response_t &response, Token &&token);
+	auto async_wait_reply(reply_t &reply, Token &&token);
 
 public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;

@@ -29,8 +29,6 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 
-#include <libgs/http/client/session_pool.h>
-
 namespace libgs::http
 {
 

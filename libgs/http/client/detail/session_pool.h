@@ -33,13 +33,73 @@ namespace libgs::http
 {
 
 template <concept_stream_requires Stream>
+class basic_session_pool<Stream>::session::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+	using pool_t = basic_session_pool<Stream>;
+
+public:
+	impl() = default;
+	~impl()
+	{
+		if( m_pool and m_socket.is_open() )
+			m_pool->insert(std::move(m_socket));
+	}
+
+public:
+	pool_t *m_pool = nullptr;
+	socket_t m_socket;
+};
+
+template <concept_stream_requires Stream>
+basic_session_pool<Stream>::session::session() :
+	m_impl(new impl())
+{
+
+}
+
+template <concept_stream_requires Stream>
+basic_session_pool<Stream>::session::~session()
+{
+	delete m_impl;
+}
+
+template <concept_stream_requires Stream>
+basic_session_pool<Stream>::session::session(session &&other) noexcept :
+	m_impl(other.m_impl)
+{
+	other.m_impl = new impl();
+}
+
+template <concept_stream_requires Stream>
+typename basic_session_pool<Stream>::session &basic_session_pool<Stream>::session::operator=(session &&other) noexcept
+{
+	delete m_impl;
+	m_impl = other.m_impl;
+	other.m_impl = new impl();
+	return *this;
+}
+
+template <concept_stream_requires Stream>
+const typename basic_session_pool<Stream>::socket_t &basic_session_pool<Stream>::session::socket() const noexcept
+{
+	return m_impl->m_socket;
+}
+
+template <concept_stream_requires Stream>
+typename basic_session_pool<Stream>::socket_t &basic_session_pool<Stream>::session::socket() noexcept
+{
+	return m_impl->m_socket;
+}
+
+template <concept_stream_requires Stream>
 class basic_session_pool<Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-
-public:
+	impl() = default;
+	std::map<endpoint_t, socket_t> m_sock_map;
 };
 
 template <concept_stream_requires Stream>
@@ -56,41 +116,51 @@ basic_session_pool<Stream>::~basic_session_pool()
 }
 
 template <concept_stream_requires Stream>
-basic_session_pool<Stream>::basic_session_pool(basic_session_pool &&other) noexcept
+basic_session_pool<Stream>::basic_session_pool(basic_session_pool &&other) noexcept :
+	m_impl(other.impl)
 {
-
+	other.m_impl = new impl();
 }
 
 template <concept_stream_requires Stream>
 basic_session_pool<Stream> &basic_session_pool<Stream>::operator=(basic_session_pool &&other) noexcept
 {
-
+	delete m_impl;
+	m_impl = other.impl;
+	other.m_impl = new impl();
 	return *this;
 }
 
 template <concept_stream_requires Stream>
-typename basic_session_pool<Stream>::socket_t basic_session_pool<Stream>::get(endpoint_t ep)
+typename basic_session_pool<Stream>::session basic_session_pool<Stream>::get(endpoint_t ep)
 {
 
 }
 
 template <concept_stream_requires Stream>
-typename basic_session_pool<Stream>::socket_t basic_session_pool<Stream>::get(endpoint_t ep, error_code &error) noexcept
+typename basic_session_pool<Stream>::session basic_session_pool<Stream>::get(endpoint_t ep, error_code &error) noexcept
 {
 
 }
 
 template <concept_stream_requires Stream>
 template <asio::completion_token_for<void(error_code)> Token>
-void basic_session_pool<Stream>::async_get(endpoint_t ep, socket_t &socket, Token &&token)
+void basic_session_pool<Stream>::async_get(endpoint_t ep, session &sess, Token &&token)
 {
 
 }
 
 template <concept_stream_requires Stream>
-void basic_session_pool<Stream>::deposit(socket_t &&socket)
+void basic_session_pool<Stream>::insert(socket_t &&socket)
 {
+	if( socket.is_open() )
+		m_impl->m_sock_map.emplate(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+}
 
+template <concept_stream_requires Stream>
+void basic_session_pool<Stream>::operator<<(socket_t &&socket)
+{
+	insert(std::move(socket));
 }
 
 } //namespace libgs::http
