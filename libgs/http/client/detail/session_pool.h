@@ -117,7 +117,7 @@ basic_session_pool<Stream>::~basic_session_pool()
 
 template <concept_stream_requires Stream>
 basic_session_pool<Stream>::basic_session_pool(basic_session_pool &&other) noexcept :
-	m_impl(other.impl)
+	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
@@ -126,7 +126,7 @@ template <concept_stream_requires Stream>
 basic_session_pool<Stream> &basic_session_pool<Stream>::operator=(basic_session_pool &&other) noexcept
 {
 	delete m_impl;
-	m_impl = other.impl;
+	m_impl = other.m_impl;
 	other.m_impl = new impl();
 	return *this;
 }
