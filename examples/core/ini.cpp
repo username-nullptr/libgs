@@ -13,6 +13,7 @@ int main()
 
 	ini["test"]["aaa"] = 3.14;
 	ini["test"]["bbb"] = true;
+	ini["test"]["测"] = "aaa 你 bbb 好 ccc";
 
 	ini.sync();
 #endif
@@ -23,6 +24,7 @@ int main()
 
 	spdlog::debug("test-aaa: {}", ini["test"]["aaa"]);
 	spdlog::debug("test-bbb: {}", ini["test"]["bbb"]);
+	spdlog::debug("test-测: {}", ini["test"]["测"]);
 
 	return 0;
 }

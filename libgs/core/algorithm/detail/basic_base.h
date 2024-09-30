@@ -437,50 +437,54 @@ constexpr CharT to_hex_lower(unsigned int value) noexcept
 
 template <concept_char_type CharT>
 [[nodiscard]] std::basic_string<CharT> to_percent_encoding
-(std::basic_string_view<CharT> str, std::basic_string_view<CharT> exclude, std::basic_string_view<CharT> include, CharT percent)
+(std::basic_string_view<CharT> str, std::basic_string_view<CharT> exclude, std::basic_string_view<CharT> include, char percent)
 {
-	std::basic_string<CharT> result;
-	if( str.empty() )
-		return result;
-
-	const auto contains = [](std::basic_string_view<CharT> view, CharT c) {
-		return not view.empty() and memchr(view.data(), c, view.size()) != nullptr;
-	};
-	CharT *output = nullptr;
-	size_t length = 0;
-
-	for(auto &c : str)
+	if constexpr( is_wchar_v<CharT> )
+		return mbstowcs(to_percent_encoding<char>(wcstombs(str), wcstombs(exclude), wcstombs(include), percent));
+	else
 	{
-		if( c != percent and
-			((c >= 0x61 and c <= 0x7A) // ALPHA
-			 or (c >= 0x41 and c <= 0x5A) // ALPHA
-			 or (c >= 0x30 and c <= 0x39) // DIGIT
-			 or c == 0x2D // -
-			 or c == 0x2E // .
-			 or c == 0x5F // _
-			 or c == 0x7E // ~
-			 or contains(exclude, c)) and
-			not contains(include, c) )
+		std::string result;
+		if( str.empty() )
+			return result;
+
+		const auto contains = [](std::string_view view, char c) {
+			return not view.empty() and memchr(view.data(), c, view.size()) != nullptr;
+		};
+		size_t length = 0;
+		result.resize(str.size());
+		bool expanded = false;
+
+		for(auto &c : str)
 		{
-			if( output )
-				output[length] = c;
-			length++;
-		}
-		else
-		{
-			if( not output )
+			if( c != percent and
+			    ((c >= 0x61 and c <= 0x7A) // ALPHA
+			     or (c >= 0x41 and c <= 0x5A) // ALPHA
+			     or (c >= 0x30 and c <= 0x39) // DIGIT
+			     or c == 0x2D // -
+			     or c == 0x2E // .
+			     or c == 0x5F // _
+			     or c == 0x7E // ~
+			     or contains(exclude, c)) and
+			    not contains(include, c) )
 			{
-				result.resize(str.size() * 3);
-				output = result.data();
+				result[length++] = c;
 			}
-			output[length++] = percent;
-			output[length++] = to_hex_upper<CharT>((c & 0xf0) >> 4);
-			output[length++] = to_hex_upper<CharT>(c & 0xf);
+			else
+			{
+				if( not expanded )
+				{
+					result.resize(str.size() * 3);
+					expanded = true;
+				}
+				result[length++] = percent;
+				result[length++] = to_hex_upper<char>((c & 0xf0) >> 4);
+				result[length++] = to_hex_upper<char>(c & 0xf);
+			}
 		}
+		if( expanded )
+			result = result.substr(0, length);
+		return result;
 	}
-	if( output )
-		result = result.substr(0, length);
-	return result;
 }
 
 template <concept_char_type CharT>

@@ -145,6 +145,11 @@ public:
 	);
 
 public:
+	[[nodiscard]] bool is_alpha() const noexcept;
+	[[nodiscard]] bool is_digit() const noexcept;
+	[[nodiscard]] bool is_alnum() const noexcept;
+
+public:
 	[[nodiscard]] string_t &operator*() & noexcept;
 	[[nodiscard]] const string_t &operator*() const & noexcept;
 	[[nodiscard]] string_t &&operator*() && noexcept;

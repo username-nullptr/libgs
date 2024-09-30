@@ -180,7 +180,7 @@ template <concept_float_type T>
 (std::string_view str, std::string_view exclude = {}, std::string_view include = {}, char percent = '%');
 
 [[nodiscard]] LIBGS_CORE_API std::wstring to_percent_encoding
-(std::wstring_view str, std::wstring_view exclude = {}, std::wstring_view include = {}, wchar_t percent = L'%');
+(std::wstring_view str, std::wstring_view exclude = {}, std::wstring_view include = {}, char percent = '%');
 
 [[nodiscard]] LIBGS_CORE_API int32_t wildcard_match(std::string_view rule, std::string_view str);
 [[nodiscard]] LIBGS_CORE_API int32_t wildcard_match(std::wstring_view rule, std::wstring_view str);

@@ -33,6 +33,8 @@
 #include <filesystem>
 #include <fstream>
 
+#include <iostream>
+
 namespace libgs
 {
 
@@ -244,6 +246,8 @@ struct ini_keyword_char<char>
 	static constexpr char left_bracket = '[';
 	static constexpr char right_bracket = ']';
 	static constexpr char assigning = '=';
+	static constexpr char single_quotes = '\'';
+	static constexpr char double_quotes = '"';
 	static constexpr char sharp = '#';
 	static constexpr char semicolon = ';';
 	static constexpr char line_break = '\n';
@@ -252,12 +256,14 @@ struct ini_keyword_char<char>
 template <>
 struct ini_keyword_char<wchar_t>
 {
-	static constexpr char left_bracket = L'[';
-	static constexpr char right_bracket = L']';
-	static constexpr char assigning = L'=';
-	static constexpr char sharp = L'#';
-	static constexpr char semicolon = L';';
-	static constexpr char line_break = L'\n';
+	static constexpr wchar_t left_bracket = L'[';
+	static constexpr wchar_t right_bracket = L']';
+	static constexpr wchar_t assigning = L'=';
+	static constexpr wchar_t single_quotes = L'\'';
+	static constexpr wchar_t double_quotes = L'"';
+	static constexpr wchar_t sharp = L'#';
+	static constexpr wchar_t semicolon = L';';
+	static constexpr wchar_t line_break = L'\n';
 };
 
 } //namespace detail
@@ -292,6 +298,7 @@ public:
 	[[nodiscard]] bool parsing_key_value
 	(const string_t &curr_group, const string_t &str, size_t line, std::string &errmsg) noexcept
 	{
+		using keyword_char = detail::ini_keyword_char<CharT>;
 		if( curr_group.empty() )
 		{
 			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: No group specified.", line);
@@ -302,7 +309,7 @@ public:
 			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
 			return false;
 		}
-		auto pos = str.find(detail::ini_keyword_char<CharT>::assigning);
+		auto pos = str.find(keyword_char::assigning);
 		if( pos == 0 )
 		{
 			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
@@ -319,7 +326,37 @@ public:
 			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
 			return false;
 		}
-		groups[curr_group][key] = from_percent_encoding(str_trimmed(str.substr(pos+1)));
+		auto value = str_trimmed(str.substr(pos+1));
+		{
+			int i = 0;
+			for(; i<static_cast<int>(value.size()); i++)
+			{
+				if( value[i] != keyword_char::assigning )
+					break;
+			}
+			if( --i >= 0 )
+				value = value.substr(0,i);
+		}
+		auto set_invalid_value = [&errmsg, line]
+		{
+			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Invalid value.", line);
+			return false;
+		};
+		if( value.size() == 1 )
+		{
+			if( value[0] == keyword_char::assigning or
+			    value[0] == keyword_char::single_quotes or
+			    value[0] == keyword_char::double_quotes )
+				return set_invalid_value();
+			return true;
+		}
+		else if( value[0] == keyword_char::single_quotes or value[0] == keyword_char::double_quotes )
+		{
+			if( value.back() != value[0] )
+				return set_invalid_value();
+			value = value.substr(1, value.size() - 2);
+		}
+		groups[curr_group][key] = from_percent_encoding(value);
 		return true;
 	}
 
@@ -371,6 +408,10 @@ basic_ini<CharT> &basic_ini<CharT>::set_file_name(std::string_view file_name)
 		return *this;
 
 	m_impl->file_name = std::move(_name);
+	std::string error;
+
+	load(error);
+	ignore_unused(error);
 	return *this;
 }
 
@@ -641,6 +682,7 @@ basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::rend() const noexcept
 template <concept_char_type CharT>
 bool basic_ini<CharT>::load(std::string &errmsg) noexcept
 {
+	errmsg.clear();
 	if( not std::filesystem::exists(m_impl->file_name) )
 	{
 		errmsg = std::format("No such file: '{}'", m_impl->file_name);
@@ -694,6 +736,7 @@ basic_ini<CharT> &basic_ini<CharT>::load()
 template <concept_char_type CharT>
 bool basic_ini<CharT>::sync(std::string &errmsg) noexcept
 {
+	using keyword_char = detail::ini_keyword_char<CharT>;
 	if( m_impl->file_name.empty() )
 	{
 		errmsg = std::format("File name is empty.");
@@ -707,18 +750,25 @@ bool basic_ini<CharT>::sync(std::string &errmsg) noexcept
 	}
 	for(auto &[group, keys] : *this)
 	{
-		file << detail::ini_keyword_char<CharT>::left_bracket
+		file << keyword_char::left_bracket
 			 << to_percent_encoding(group)
-			 << detail::ini_keyword_char<CharT>::right_bracket
-			 << detail::ini_keyword_char<CharT>::line_break;
+			 << keyword_char::right_bracket
+			 << keyword_char::line_break;
 
 		for(auto &[key, value] : keys)
 		{
-			file << to_percent_encoding(key)
-				 << detail::ini_keyword_char<CharT>::assigning
-				 << to_percent_encoding(value.to_string())
-				 << detail::ini_keyword_char<CharT>::line_break;
+			file << to_percent_encoding(key) << keyword_char::assigning;
+			if( value.is_digit() )
+				file << value.to_string();
+			else
+			{
+				file << keyword_char::double_quotes
+				     << to_percent_encoding(value.to_string())
+				     << keyword_char::double_quotes;
+			}
+			file << keyword_char::line_break;
 		}
+		file << keyword_char::line_break;
 	}
 	file.close();
 	return true;

@@ -345,6 +345,39 @@ basic_value<CharT> &basic_value<CharT>::set(T &&v) requires (
 }
 
 template <concept_char_type CharT>
+bool basic_value<CharT>::is_alpha() const noexcept
+{
+	for(auto &c : m_str)
+	{
+		if( not std::isalpha(c) )
+			return false;
+	}
+	return true;
+}
+
+template <concept_char_type CharT>
+bool basic_value<CharT>::is_digit() const noexcept
+{
+	for(auto &c : m_str)
+	{
+		if( not std::isdigit(c) )
+			return false;
+	}
+	return true;
+}
+
+template <concept_char_type CharT>
+bool basic_value<CharT>::is_alnum() const noexcept
+{
+	for(auto &c : m_str)
+	{
+		if( not std::isalnum(c) )
+			return false;
+	}
+	return true;
+}
+
+template <concept_char_type CharT>
 std::basic_string<CharT> &basic_value<CharT>::operator*() & noexcept
 {
 	return get();
