@@ -105,10 +105,10 @@ bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args..
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(error_code &error, std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept;
 
-template <concept_char_string_type T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
+template <concepts::char_string_type T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(std::string_view key, T &&value, bool overwrite = true);
 
-template <concept_char_string_type T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
+template <concepts::char_string_type T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(error_code &error, std::string_view key, T &&value, bool overwrite = true) noexcept;
 
 } //namespace libgs::app

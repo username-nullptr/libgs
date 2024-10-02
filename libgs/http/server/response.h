@@ -37,7 +37,7 @@ namespace libgs::http
 {
 
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 class LIBGS_HTTP_VAPI basic_server_response
 {
 	LIBGS_DISABLE_COPY(basic_server_response)
@@ -68,11 +68,11 @@ public:
 
 	template <typename Stream0>
 	basic_server_response(basic_server_response<Stream0,CharT> &&other) noexcept
-		requires concept_constructible<next_layer_t,basic_server_request<Stream0,CharT>&&>;
+		requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0,CharT>&&>;
 
 	template <typename Stream0>
 	basic_server_response &operator=(basic_server_response<Stream0,CharT> &&other) noexcept
-		requires concept_assignable<Stream,Stream0&&>;
+		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
 	basic_server_response &set_status(uint32_t status);
@@ -147,10 +147,10 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 using basic_tcp_server_response = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 using wbasic_tcp_server_response = basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;

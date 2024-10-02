@@ -37,7 +37,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 struct LIBGS_HTTP_TAPI basic_less_case_insensitive
 {
 	using string_t = std::basic_string<CharT>;

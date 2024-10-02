@@ -30,16 +30,17 @@
 #define LIBGS_CORE_VALUE_H
 
 #include <libgs/core/algorithm/base.h>
-#include <format>
 #include <deque>
 
-namespace libgs
+namespace libgs { namespace concepts
 {
 
 template <typename T, typename CharT>
-concept concept_vgs = is_dsame_v<T,std::basic_string<CharT>>;
+concept vgs = is_dsame_v<T,std::basic_string<CharT>>;
 
-template <concept_char_type CharT>
+}//namespace concepts
+
+template <concepts::char_type CharT>
 class LIBGS_CORE_TAPI basic_value
 {
 public:
@@ -81,28 +82,28 @@ public:
 	operator const string_t&&() const && noexcept;
 
 public:
-	template <concept_integral_type T>
+	template <concepts::integral_type T>
 	[[nodiscard]] T get(size_t base = 10) const;
 
-	template <concept_float_type T>
+	template <concepts::float_type T>
 	[[nodiscard]] T get() const;
 
-	template <concept_integral_type T>
+	template <concepts::integral_type T>
 	[[nodiscard]] T get_or(size_t base = 10, T default_value = 0) const noexcept;
 
-	template <concept_float_type T>
+	template <concepts::float_type T>
 	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
-	template <concept_vgs<CharT> T = string_t>
+	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] const string_t &get() const & noexcept;
 
-	template <concept_vgs<CharT> T = string_t>
+	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] string_t &get() & noexcept;
 
-	template <concept_vgs<CharT> T = string_t>
+	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] const string_t &&get() const && noexcept;
 
-	template <concept_vgs<CharT> T = string_t>
+	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] string_t &&get() && noexcept;
 
 	[[nodiscard]] const string_t &get() const & noexcept;
@@ -182,7 +183,7 @@ protected:
 using value = basic_value<char>;
 using wvalue = basic_value<wchar_t>;
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 using basic_value_list = std::deque<basic_value<CharT>>;
 
 using value_list = basic_value_list<char>;

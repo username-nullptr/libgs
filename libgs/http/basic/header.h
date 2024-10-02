@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 struct basic_header;
 
 #define LIBGS_HTTP_HEADER_KEY(_type, ...) \
@@ -66,7 +66,7 @@ template <> struct basic_header<wchar_t> { LIBGS_HTTP_HEADER_KEY(wchar_t,L); };
 using header = basic_header<char>;
 using wheader = basic_header<wchar_t>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 using basic_headers = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using headers = basic_headers<char>;

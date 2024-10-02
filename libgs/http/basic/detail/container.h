@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_less_case_insensitive<CharT>::operator()(const string_t &v1, const string_t &v2) const
 {
 	return std::lexicographical_compare(v1.begin(), v1.end(), v2.begin(), v2.end(), [](CharT c1, CharT c2){

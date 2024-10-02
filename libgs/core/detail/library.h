@@ -46,7 +46,7 @@ struct tuple_reverse<std::tuple<Args...>>
 
 } //namespace detail
 
-template <concept_function Func>
+template <concepts::function Func>
 auto library::interface(std::string_view ifname) const
 {
 	using function_t = std::function<typename function_traits<Func>::call_type>;
@@ -54,7 +54,7 @@ auto library::interface(std::string_view ifname) const
 	return function_t(reinterpret_cast<pointer_t>(interface(ifname)));
 }
 
-template <concept_function Func, typename Arg0, typename...Args>
+template <concepts::function Func, typename Arg0, typename...Args>
 auto library::interface(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const
 {
 	return interface<Func>(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...));

@@ -37,7 +37,7 @@
 namespace libgs
 {
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 using basic_string_deque = std::deque<std::basic_string<CharT>>;
 
 using string_deque = basic_string_deque<char>;
@@ -64,16 +64,19 @@ struct _default_splits_argument<wchar_t>
 	static constexpr wchar_t c = L' ';
 };
 
+namespace concepts
+{
+
 template <typename T, typename CharT>
-concept concept_string_list_iterator =
+concept string_list_iterator =
 	std::is_same_v<T, typename basic_string_deque<CharT>::iterator> and
 	std::is_same_v<T, typename basic_string_deque<CharT>::const_iterator> and
 	std::is_same_v<T, typename basic_string_deque<CharT>::reverse_iterator> and
 	std::is_same_v<T, typename basic_string_deque<CharT>::const_reverse_iterator>;
 
-} //namespace detail
+}} //namespace detail::concepts
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 class LIBGS_CORE_TAPI basic_string_list : public basic_string_deque<CharT>
 {
 	static constexpr const CharT *default_splits_argument_s = detail::_default_splits_argument<CharT>::s;
@@ -95,8 +98,8 @@ public:
 	[[nodiscard]] string_t join(size_t index, size_t length, const string_t &splits = default_splits_argument_s);
 	[[nodiscard]] string_t join(size_t index, const string_t &splits = default_splits_argument_s);
 
-	[[nodiscard]] static string_t join(detail::concept_string_list_iterator<CharT> auto begin,
-									   detail::concept_string_list_iterator<CharT> auto end,
+	[[nodiscard]] static string_t join(detail::concepts::string_list_iterator<CharT> auto begin,
+									   detail::concepts::string_list_iterator<CharT> auto end,
 									   const string_t &splits = default_splits_argument_s);
 
 	[[nodiscard]] static basic_string_list<CharT>

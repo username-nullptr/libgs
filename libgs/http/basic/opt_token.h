@@ -41,19 +41,24 @@ namespace libgs::http
 template <typename Stream>
 struct stream_requires : std::false_type {};
 
-template <concept_execution Exec>
+template <concepts::execution Exec>
 struct stream_requires<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
 
 #ifdef LIBGS_ENABLE_OPENSSL
-template <concept_execution Exec>
+template <concepts::execution Exec>
 struct stream_requires<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
 #endif //LIBGS_ENABLE_OPENSSL
 
 template <typename Stream>
 constexpr bool stream_requires_v = stream_requires<Stream>::value;
 
+namespace concepts
+{
+
 template <typename Stream>
-concept concept_stream_requires = stream_requires_v<Stream>;
+concept stream_requires = stream_requires_v<Stream>;
+
+} //namespace concepts
 
 using begin_t = size_t;
 using total_t = size_t;

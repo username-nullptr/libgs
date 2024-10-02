@@ -38,7 +38,7 @@
 namespace libgs
 {
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 class no_parse_formatter
 {
 public:
@@ -66,7 +66,7 @@ inline uint64_t thread_id_helper(uint64_t id) {
 namespace std
 {
 
-template <typename T, libgs::concept_char_type CharT> requires is_enum_v<T>
+template <typename T, libgs::concepts::char_type CharT> requires is_enum_v<T>
 class formatter<T,CharT> 
 {
 public:
@@ -82,7 +82,7 @@ private:
 	formatter<uint32_t, CharT> m_formatter;
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<std::thread::id, CharT>
 {
 public:
@@ -100,7 +100,7 @@ private:
 	formatter<uint64_t, CharT> m_formatter;
 };
 
-template <typename T, libgs::concept_char_type CharT>
+template <typename T, libgs::concepts::char_type CharT>
 class formatter<std::optional<T>, CharT>
 {
 public:
@@ -123,7 +123,7 @@ private:
 	formatter<T, CharT> m_formatter;
 };
 
-template <typename T, libgs::concept_char_type CharT>
+template <typename T, libgs::concepts::char_type CharT>
 class formatter<std::atomic<T>, CharT>
 {
 public:
@@ -139,7 +139,7 @@ private:
 	formatter<T, CharT> m_formatter;
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<std::error_code, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -152,7 +152,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<asio::ip::tcp::endpoint, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -165,7 +165,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<asio::ip::udp::endpoint, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -178,7 +178,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<asio::ip::address, CharT> 
 {
 public:
@@ -193,7 +193,7 @@ private:
 	formatter<std::string, CharT> m_formatter;
 };
 
-template <typename Fir, typename Sec, libgs::concept_char_type CharT>
+template <typename Fir, typename Sec, libgs::concepts::char_type CharT>
 class formatter<std::pair<Fir,Sec>, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -206,7 +206,7 @@ public:
 	}
 };
 
-template <typename T, libgs::concept_char_type CharT>
+template <typename T, libgs::concepts::char_type CharT>
 class formatter<std::shared_ptr<T>, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -221,7 +221,7 @@ public:
 
 #if 0
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::basic_string_view<CharT>, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -230,7 +230,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::type, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -239,7 +239,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::method, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -248,7 +248,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::property, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -257,7 +257,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::variant, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -364,7 +364,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::argument, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:
@@ -373,7 +373,7 @@ public:
 	}
 };
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<rttr::instance, CharT> : public libgs::no_parse_formatter<CharT>
 {
 public:

@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class basic_request_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -111,71 +111,71 @@ public:
 	request_t *m_request = nullptr;
 };
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_request_helper<CharT>::basic_request_helper(string_view_t version, request_t &request) :
 	m_impl(new impl(request, version))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_request_helper<CharT>::basic_request_helper(request_t &request) :
 	m_impl(new impl(request))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_request_helper<CharT>::~basic_request_helper()
 {
 	delete m_impl;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_request_helper<CharT>::basic_request_helper(basic_request_helper &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_request_helper<CharT> &basic_request_helper<CharT>::operator=(basic_request_helper &&other) noexcept
 {
 	*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_request_helper<CharT>::header_data(size_t body_size)
 {
 	return m_impl->header_data(body_size);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_request_helper<CharT>::body_data(const const_buffer &buffer)
 {
 	return m_impl->body_data(buffer);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_request_helper<CharT>::chunk_end_data(const headers_t &headers)
 {
 	return m_impl->chunk_end_data(headers);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_request_helper<CharT>::version() const noexcept
 {
 	return m_impl->m_version;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 const basic_client_request<CharT> &basic_request_helper<CharT>::request() const noexcept
 {
 	return m_impl->m_request;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_client_request<CharT> &basic_request_helper<CharT>::request() noexcept
 {
 	return m_impl->m_request;

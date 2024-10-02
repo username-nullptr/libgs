@@ -65,7 +65,7 @@ struct _response_helper_static_string<wchar_t> {
 
 } //namespace detail
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -176,27 +176,27 @@ public:
 	string_t m_redirect_url {};
 };
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(string_view_t version, const headers_t &request_headers) :
 	m_impl(new impl(request_headers, version))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(const headers_t &request_headers) :
 	m_impl(new impl(request_headers))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT>::~basic_response_helper()
 {
 	delete m_impl;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT>::basic_response_helper(basic_response_helper &&other) noexcept :
 	m_impl(other.m_impl)
 {
@@ -204,7 +204,7 @@ basic_response_helper<CharT>::basic_response_helper(basic_response_helper &&othe
 	other.m_impl->m_request_headers = m_impl->m_request_headers;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::operator=(basic_response_helper &&other) noexcept
 {
 	m_impl = other.m_impl;
@@ -213,7 +213,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::operator=(basic_resp
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(uint32_t status)
 {
 	status_check(status);
@@ -221,7 +221,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(uint32_t 
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(http::status status)
 {
 	status_check(status);
@@ -229,21 +229,21 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(http::sta
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(string_view_t key, value_t value) noexcept
 {
 	m_impl->set_header(key, std::move(value));
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(string_view_t key, cookie_t cookie) noexcept
 {
 	m_impl->m_cookies[str_to_lower(key)] = std::move(cookie);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect(string_view_t url, redirect type)
 {
 	switch(type)
@@ -256,7 +256,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect(string_
 	return set_header(header_t::location, url);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(value_t attribute)
 {
 	if( stof(version()) < 1.1 )
@@ -267,7 +267,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes(value_list_t attributes)
 {
 	if( stof(version()) < 1.1 )
@@ -279,76 +279,76 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_response_helper<CharT>::header_data(size_t body_size)
 {
 	return m_impl->header_data(body_size);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_response_helper<CharT>::body_data(const const_buffer &buffer)
 {
 	return m_impl->body_data(buffer.data(), buffer.size());
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_response_helper<CharT>::chunk_end_data(const headers_t &headers)
 {
 	return m_impl->chunk_end_data(headers);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_response_helper<CharT>::version() const noexcept
 {
 	return m_impl->m_version;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 http::status basic_response_helper<CharT>::status() const noexcept
 {
 	return m_impl->m_status;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 const typename basic_response_helper<CharT>::headers_t &basic_response_helper<CharT>::headers() const noexcept
 {
 	return m_impl->m_response_headers;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 const typename basic_response_helper<CharT>::cookies_t &basic_response_helper<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 const basic_value_list<CharT> &basic_response_helper<CharT>::chunk_attributes() const noexcept
 {
 	return m_impl->m_chunk_attributes;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_response_headers.erase({key.data(), key.size()});
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(string_view_t key)
 {
 	m_impl->m_cookies.erase({key.data(), key.size()});
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(const value_t &attributes)
 {
 	m_impl->m_chunk_attributes.erase(attributes);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 {
 	m_impl->m_version = string_pool::v_1_1;

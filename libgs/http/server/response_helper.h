@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_response_helper
 {
 	LIBGS_DISABLE_COPY(basic_response_helper)

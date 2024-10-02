@@ -35,9 +35,9 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT,
-		  concept_stream_requires Stream = asio::ip::tcp::socket,
-		  concept_execution Exec = asio::any_io_executor>
+template <core_concepts::char_type CharT,
+		  concepts::stream_requires Stream = asio::ip::tcp::socket,
+		  core_concepts::execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server
 {
 	LIBGS_DISABLE_COPY(basic_server)
@@ -68,19 +68,19 @@ public:
 
 public:
 
-	template <concept_execution_context Context = asio::io_context&>
+	template <core_concepts::execution_context Context = asio::io_context&>
 	explicit basic_server(basic_acceptor_wrap<socket_t> &&next_layer, Context &&service_exec = execution::io_context());
 	~basic_server();
 
 	template <typename Stream0, typename Exec0>
 	basic_server(basic_server<CharT,Stream0,Exec0> &&other) noexcept
-		requires concept_constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
-				 concept_constructible<service_exec_t,typename Stream::executor_type>;
+		requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+				 core_concepts::constructible<service_exec_t,typename Stream::executor_type>;
 
 	template <typename Stream0, typename Exec0>
 	basic_server &operator=(basic_server<CharT,Stream0,Exec0> &&other) noexcept
-		requires concept_assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
-				 concept_assignable<service_exec_t,typename Stream::executor_type>;
+		requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+				 core_concepts::assignable<service_exec_t,typename Stream::executor_type>;
 
 public:
 	basic_server &bind(endpoint_t ep);
@@ -93,7 +93,7 @@ public:
 public:
 	template <http::method...method, typename Func, typename...AopPtr>
 	basic_server &on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
-		detail::concept_request_handler<Func,socket_t,CharT> and detail::concept_aop_ptr_list<socket_t,CharT,AopPtr...>;
+		detail::concepts::request_handler<Func,socket_t,CharT> and detail::concepts::aop_ptr_list<socket_t,CharT,AopPtr...>;
 
 	template <http::method...method>
 	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr_t ctrlr);
@@ -102,7 +102,7 @@ public:
 	basic_server &on_request(string_view_t path_rule, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>
-	basic_server &on_default(Func &&func) requires detail::concept_request_handler<Func,socket_t,CharT>;
+	basic_server &on_default(Func &&func) requires detail::concepts::request_handler<Func,socket_t,CharT>;
 
 	basic_server &on_system_error(system_error_handler_t func);
 	basic_server &on_exception(exception_handler_t func);
@@ -133,10 +133,10 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec, concept_execution ServiceExec = asio::any_io_executor>
+template <core_concepts::execution Exec, core_concepts::execution ServiceExec = asio::any_io_executor>
 using basic_tcp_server = basic_server<char, asio::basic_stream_socket<asio::ip::tcp,ServiceExec>, Exec>;
 
-template <concept_execution Exec, concept_execution ServiceExec = asio::any_io_executor>
+template <core_concepts::execution Exec, core_concepts::execution ServiceExec = asio::any_io_executor>
 using wbasic_tcp_server = basic_server<wchar_t, asio::basic_stream_socket<asio::ip::tcp,ServiceExec>, Exec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
@@ -152,10 +152,10 @@ using wserver = wtcp_server;
 namespace libgs { namespace http
 {
 
-template <concept_execution Exec, concept_execution ServiceExec = asio::any_io_executor>
+template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
 using basic_ssl_tcp_server = basic_server<char, asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>>, Exec>;
 
-template <concept_execution Exec, concept_execution ServiceExec = asio::any_io_executor>
+template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
 using wbasic_ssl_tcp_server = basic_server<wchar_t, asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>>, Exec>;
 
 using ssl_tcp_server = basic_ssl_tcp_server<asio::any_io_executor>;
@@ -169,10 +169,10 @@ using wssl_server = wssl_tcp_server;
 namespace https
 {
 
-template <concept_execution Exec, concept_execution ServiceExec = asio::any_io_executor>
+template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
 using basic_tcp_server = http::basic_ssl_tcp_server<Exec,ServiceExec>;
 
-template <concept_execution Exec, concept_execution ServiceExec = asio::any_io_executor>
+template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
 using wbasic_tcp_server = http::wbasic_ssl_tcp_server<Exec,ServiceExec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;

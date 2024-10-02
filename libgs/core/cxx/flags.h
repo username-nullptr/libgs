@@ -32,7 +32,7 @@
 #include <initializer_list>
 #include <libgs/core/cxx/utilities.h>
 
-namespace libgs
+namespace libgs { namespace concepts
 {
 
 template <typename T>
@@ -41,19 +41,21 @@ concept flag_template = std::is_enum_v<T> and sizeof(T) <= sizeof(uint32_t);
 template <typename T>
 concept flag_number = std::is_integral_v<T> and sizeof(T) <= sizeof(uint32_t);
 
-template <flag_template Enum>
+} //namespace concepts
+
+template <concepts::flag_template Enum>
 class flags
 {
 public:
-	using enum_type = Enum;
+	using enum_t = Enum;
 	constexpr flags() noexcept = default;
 	constexpr flags(Enum f) noexcept;
-	constexpr flags(const flags &other);
+	constexpr flags(const flags &other) = default;
 	constexpr flags(std::initializer_list<Enum> flags) noexcept;
-	flags &operator=(const flags &other);
+	flags &operator=(const flags &other) = default;
 
 public:
-	template <flag_number Int>
+	template <concepts::flag_number Int>
 	const flags &operator&=(Int mask) noexcept;
 
 	const flags &operator&=(Enum mask) noexcept;
@@ -63,7 +65,7 @@ public:
 	const flags &operator^=(Enum f) noexcept;
 
 public:
-	template <flag_number Int>
+	template <concepts::flag_number Int>
 	constexpr flags operator&(Int mask) const noexcept;
 
 	constexpr flags operator&(Enum f) const noexcept;
@@ -91,11 +93,11 @@ private:
 #define LIBGS_DECLARE_FLAGS(v_flags, v_enum)  using v_flags = libgs::flags<v_enum>;
 
 #define LIBGS_DECLARE_OPERATORS_FOR_FLAGS(_flags) \
-	constexpr inline flags<_flags::enum_type> operator| \
-	(_flags::enum_type f1, _flags::enum_type f2) noexcept \
-	{ return flags<_flags::enum_type>(f1) | f2; } \
-	constexpr inline flags<_flags::enum_type> operator| \
-	(_flags::enum_type f1, flags<_flags::enum_type> f2) noexcept \
+	constexpr inline flags<_flags::enum_t> operator| \
+	(_flags::enum_t f1, _flags::enum_t f2) noexcept \
+	{ return flags<_flags::enum_t>(f1) | f2; } \
+	constexpr inline flags<_flags::enum_t> operator| \
+	(_flags::enum_t f1, flags<_flags::enum_t> f2) noexcept \
 	{ return f2 | f1; }
 
 

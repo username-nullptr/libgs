@@ -32,41 +32,38 @@
 #include <libgs/http/basic/socket_operation_helper.h>
 #include <spdlog/spdlog.h>
 
-namespace libgs::http
+namespace libgs::http { namespace detail
 {
 
-namespace detail
-{
-
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 acceptor_wrap<Exec>::acceptor_wrap(acceptor_t &&acceptor) :
 	m_acceptor(std::move(acceptor))
 {
 
 }
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 const typename acceptor_wrap<Exec>::acceptor_t &acceptor_wrap<Exec>::acceptor() const
 {
 	return m_acceptor;
 }
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 typename acceptor_wrap<Exec>::acceptor_t &acceptor_wrap<Exec>::acceptor()
 {
 	return m_acceptor;
 }
 
-template <concept_execution Exec>
-template <concept_execution Exec0>
+template <core_concepts::execution Exec>
+template <core_concepts::execution Exec0>
 acceptor_wrap<Exec>::acceptor_wrap(acceptor_wrap<Exec0> &&other) noexcept :
 	m_acceptor(std::move(other.m_acceptor))
 {
 
 }
 
-template <concept_execution Exec>
-template <concept_execution Exec0>
+template <core_concepts::execution Exec>
+template <core_concepts::execution Exec0>
 acceptor_wrap<Exec> &acceptor_wrap<Exec>::operator=(acceptor_wrap<Exec0> &&other) noexcept
 {
 	m_acceptor = std::move(other.m_acceptor);
@@ -75,15 +72,15 @@ acceptor_wrap<Exec> &acceptor_wrap<Exec>::operator=(acceptor_wrap<Exec0> &&other
 
 } //namespace detail
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_acceptor_wrap(acceptor_t &&acceptor) :
 	base_t(std::move(acceptor))
 {
 
 }
 
-template <concept_execution Exec>
-template <concept_execution Exec0>
+template <core_concepts::execution Exec>
+template <core_concepts::execution Exec0>
 basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_acceptor_wrap
 (basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept :
 	base_t(std::move(other.m_acceptor))
@@ -91,8 +88,8 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_accept
 
 }
 
-template <concept_execution Exec>
-template <concept_execution Exec0>
+template <core_concepts::execution Exec>
+template <core_concepts::execution Exec0>
 basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>&
 basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::operator=
 (basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept
@@ -101,16 +98,16 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::operator=
 	return *this;
 }
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 awaitable<typename basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::socket_t>
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept(concept_execution auto &service_exec)
+basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept(core_concepts::execution auto &service_exec)
 {
 	co_return co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 }
 
 #ifdef LIBGS_ENABLE_OPENSSL
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl) :
 	base_t(std::move(acceptor))
@@ -118,7 +115,7 @@ basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl) :
 	m_ssl = &ssl;
 }
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::basic_acceptor_wrap
 (basic_acceptor_wrap &&other) noexcept :
 	base_t(std::move(other.m_acceptor))
@@ -126,7 +123,7 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	m_ssl = other.m_ssl;
 }
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>&
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::operator=
 (basic_acceptor_wrap &&other) noexcept
@@ -136,8 +133,8 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	return *this;
 }
 
-template <concept_execution Exec>
-template <concept_execution Exec0>
+template <core_concepts::execution Exec>
+template <core_concepts::execution Exec0>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::basic_acceptor_wrap
 (basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept :
 	base_t(std::move(other.m_acceptor))
@@ -145,8 +142,8 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	m_ssl = other.m_ssl;
 }
 
-template <concept_execution Exec>
-template <concept_execution Exec0>
+template <core_concepts::execution Exec>
+template <core_concepts::execution Exec0>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>&
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::operator=
 	(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept
@@ -156,9 +153,9 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	return *this;
 }
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 awaitable<typename basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::socket_t>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::accept(concept_execution auto &service_exec)
+basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::accept(core_concepts::execution auto &service_exec)
 {
 	auto tcp_socket = co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 	socket_t ssl_socket(std::move(tcp_socket), *m_ssl);

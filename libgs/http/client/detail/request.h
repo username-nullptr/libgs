@@ -37,7 +37,7 @@ namespace libgs::http
 namespace detail
 {
 
-template <concept_char_type T>
+template <core_concepts::char_type T>
 struct _client_request_static_string;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
@@ -58,7 +58,7 @@ struct _client_request_static_string<wchar_t> {
 
 } //namespace detail
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 class basic_client_request<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -86,34 +86,34 @@ public:
 	value_list_t m_chunk_attributes {};
 };
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT>::basic_client_request(url_t url) :
 	m_impl(new impl(std::move(url)))
 {
 
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT>::basic_client_request() :
 	basic_client_request(url_t())
 {
 
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT>::~basic_client_request()
 {
 	delete m_impl;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT>::basic_client_request(basic_client_request &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl({});
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::operator=(basic_client_request &&other) noexcept
 {
 	m_impl = other.m_impl;
@@ -121,14 +121,14 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::operator
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_url(url_t url)
 {
 	m_impl->m_url = std::move(url);
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_method(http::method method)
 {
 	method_check(method);
@@ -136,21 +136,21 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_meth
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_header(string_view_t key, value_t value) noexcept
 {
 	m_impl->m_headers[str_to_lower(key)] = std::move(value);
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_cookie(string_view_t key, value_t value) noexcept
 {
 	m_impl->m_cookies[str_to_lower(key)] = std::move(value);
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_chunk_attribute(value_t attribute)
 {
 	set_header(basic_header<CharT>::transfer_encoding, string_pool::chunked);
@@ -158,7 +158,7 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_chun
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_chunk_attributes(value_list_t attributes)
 {
 	set_header(basic_header<CharT>::transfer_encoding, string_pool::chunked);
@@ -167,64 +167,64 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_chun
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 http::method basic_client_request<Stream,CharT>::method() const noexcept
 {
 	return m_impl->m_method;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const basic_headers<CharT> &basic_client_request<Stream,CharT>::headers() const noexcept
 {
 	return m_impl->m_headers;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const basic_cookie_values<CharT> &basic_client_request<Stream,CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const basic_value_list<CharT> &basic_client_request<Stream,CharT>::chunk_attributes() const noexcept
 {
 	return m_impl->m_chunk_attributes;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const basic_url<CharT> &basic_client_request<Stream,CharT>::url() const noexcept
 {
 	return m_impl->m_url;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_url<CharT> &basic_client_request<Stream,CharT>::url() noexcept
 {
 	return m_impl->m_url;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::unset_header(string_view_t key)
 {
 	m_impl->m_headers.erase({key.data(), key.size()});
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::unset_cookie(string_view_t key)
 {
 	m_impl->m_cookies.erase({key.data(), key.size()});
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::unset_chunk_attribute(const value_t &attributes)
 {
 	m_impl->m_chunk_attributes.erase(attributes);
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::reset()
 {
 	m_impl->m_path = string_pool::root;
@@ -239,38 +239,38 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::reset()
 
 
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 typename basic_client_request<Stream,CharT>::endpoint_t basic_client_request<Stream,CharT>::remote_endpoint() const
 {
 
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 typename basic_client_request<Stream,CharT>::endpoint_t basic_client_request<Stream,CharT>::local_endpoint() const
 {
 
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const typename basic_client_request<Stream,CharT>::executor_t &basic_client_request<Stream,CharT>::get_executor() noexcept
 {
 
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_client_request<Stream,CharT> &basic_client_request<Stream, CharT>::cancel() noexcept
 {
 
 	return *this;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const typename basic_client_request<Stream,CharT>::next_layer_t &basic_client_request<Stream,CharT>::next_layer() const noexcept
 {
 
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 typename basic_client_request<Stream,CharT>::next_layer_t &basic_client_request<Stream,CharT>::next_layer() noexcept
 {
 

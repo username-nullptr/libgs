@@ -32,7 +32,7 @@
 namespace libgs
 {
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 class lock_free_queue<T>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -62,32 +62,32 @@ public:
 	std::atomic<node*> m_tail {};
 };
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 lock_free_queue<T>::lock_free_queue() :
 	m_impl(new impl())
 {
 
 }
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 lock_free_queue<T>::~lock_free_queue()
 {
 	delete m_impl;
 }
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 void lock_free_queue<T>::enqueue(const T &data)
 {
 	emplace(data);
 }
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 void lock_free_queue<T>::enqueue(T &&data)
 {
 	emplace(std::move(data));
 }
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 std::optional<T> lock_free_queue<T>::dequeue()
 {
 	typename impl::node *head = nullptr;
@@ -120,7 +120,7 @@ std::optional<T> lock_free_queue<T>::dequeue()
 	return data;
 }
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 bool lock_free_queue<T>::dequeue(T &data)
 {
 	auto _data = dequeue();
@@ -132,7 +132,7 @@ bool lock_free_queue<T>::dequeue(T &data)
 	return false;
 }
 
-template <concept_copymovable T>
+template <concepts::copymovable T>
 template <typename...Args>
 void lock_free_queue<T>::emplace(Args&&...args)
 {

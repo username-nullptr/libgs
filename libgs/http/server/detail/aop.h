@@ -32,49 +32,49 @@
 namespace libgs::http
 {
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 basic_aop<Stream,CharT>::~basic_aop() = default;
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 awaitable<bool> basic_aop<Stream,CharT>::before(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 awaitable<bool> basic_aop<Stream,CharT>::after(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 bool basic_aop<Stream,CharT>::exception(context_t &context, std::exception &ex)
 {
 	ignore_unused(context, ex);
 	return false;
 }
 
-namespace detail
+namespace detail::concepts
 {
 
 template <typename Stream, typename CharT, typename...Args>
-concept concept_aop_ptr_list = requires(Args&&...args) {
+concept aop_ptr_list = requires(Args&&...args) {
 	std::vector<basic_aop_ptr<Stream,CharT>> { basic_aop_ptr<Stream,CharT>(std::forward<Args>(args))... };
 };
 
 template <typename Stream, typename CharT, typename...Args>
-concept concept_ctrlr_aop_ptr_list = requires(Args&&...args) {
+concept ctrlr_aop_ptr_list = requires(Args&&...args) {
 	std::vector<basic_ctrlr_aop_ptr<Stream,CharT>> { basic_ctrlr_aop_ptr<Stream,CharT>(std::forward<Args>(args))... };
 };
 
 template <typename Func, typename Stream, typename CharT>
-concept concept_request_handler = requires(Func &&func, basic_service_context<Stream,CharT> &context) {
+concept request_handler = requires(Func &&func, basic_service_context<Stream,CharT> &context) {
 	std::is_same_v<awaitable_return_type_t<decltype(func(context))>,void>;
 };
 
-}} //namespace libgs::http::detail
+}} //namespace libgs::http::detail::concepts
 
 
 #endif //LIBGS_HTTP_SERVER_DETAIL_AOP_H

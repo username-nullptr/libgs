@@ -35,7 +35,7 @@
 namespace libgs::algorithm_base
 {
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] int _stob(std::basic_string_view<CharT> str)
 {
 	if constexpr( is_char_v<CharT> )
@@ -57,7 +57,7 @@ template <concept_char_type CharT>
 	return -1;
 }
 
-template <concept_char_type CharT, typename T>
+template <concepts::char_type CharT, typename T>
 static T try_stobtot(std::basic_string_view<CharT> str, const std::optional<T> &odv)
 {
 	int res = _stob<CharT>(str);
@@ -70,7 +70,7 @@ static T try_stobtot(std::basic_string_view<CharT> str, const std::optional<T> &
 	return static_cast<T>(!!res);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 inline auto _sto_float(auto &&func, std::basic_string_view<CharT> str)
 {  
 	size_t index = 0; 
@@ -80,7 +80,7 @@ inline auto _sto_float(auto &&func, std::basic_string_view<CharT> str)
 	return res; 
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 inline auto _sto_int(auto &&func, std::basic_string_view<CharT> str, size_t base)
 {
 	size_t index = 0; 
@@ -90,7 +90,7 @@ inline auto _sto_int(auto &&func, std::basic_string_view<CharT> str, size_t base
 	return res;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] int8_t stoi8(std::basic_string_view<CharT> str, size_t base, std::optional<int8_t> odv = {})
 {
 	try {
@@ -100,7 +100,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] uint8_t stoui8(std::basic_string_view<CharT> str, size_t base, std::optional<uint8_t> odv = {})
 {
 	try {
@@ -110,7 +110,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] int16_t stoi16(std::basic_string_view<CharT> str, size_t base, std::optional<int16_t> odv = {})
 {
 	try {
@@ -120,7 +120,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] uint16_t stoui16(std::basic_string_view<CharT> str, size_t base, std::optional<uint16_t> odv = {})
 {
 	try {
@@ -130,7 +130,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] int32_t stoi32(std::basic_string_view<CharT> str, size_t base, std::optional<int32_t> odv = {})
 {
 	try {
@@ -140,7 +140,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] uint32_t stoui32(std::basic_string_view<CharT> str, size_t base, std::optional<uint32_t> odv = {})
 {
 	try {
@@ -150,7 +150,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] int64_t stoi64(std::basic_string_view<CharT> str, size_t base, std::optional<int64_t> odv = {})
 {
 	try {
@@ -160,7 +160,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] uint64_t stoui64(std::basic_string_view<CharT> str, size_t base, std::optional<uint64_t> odv = {})
 {
 	try {
@@ -170,7 +170,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] float stof(std::basic_string_view<CharT> str, std::optional<float> odv = {})
 {
 	try {
@@ -180,7 +180,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] double stod(std::basic_string_view<CharT> str, std::optional<double> odv = {})
 {
 	try {
@@ -190,7 +190,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] double stold(std::basic_string_view<CharT> str, std::optional<double> odv = {})
 {
 	try {
@@ -200,7 +200,7 @@ template <concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] bool stob(std::basic_string_view<CharT> str, size_t base, std::optional<bool> odv = {})
 {
 	int res = _stob<CharT>(str);
@@ -219,7 +219,7 @@ template <concept_char_type CharT>
 	return res > 0;
 }
 
-template <concept_integral_type T, concept_char_type CharT>
+template <concepts::integral_type T, concepts::char_type CharT>
 [[nodiscard]] T ston(std::basic_string_view<CharT> str, size_t base, std::optional<T> odv = {})
 {
 	if constexpr( std::is_same_v<T, bool> )
@@ -253,7 +253,7 @@ template <concept_integral_type T, concept_char_type CharT>
 	}
 }
 
-template <concept_float_type T, concept_char_type CharT>
+template <concepts::float_type T, concepts::char_type CharT>
 [[nodiscard]] T ston(std::basic_string_view<CharT> str, std::optional<T> odv = {})
 {
 	try {
@@ -268,7 +268,7 @@ template <concept_float_type T, concept_char_type CharT>
 	return try_stobtot(str, odv);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> str_to_lower(std::basic_string_view<CharT> str)
 {
 	std::basic_string<CharT> result(str.size(), '\0');
@@ -277,7 +277,7 @@ template <concept_char_type CharT>
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> str_to_upper(std::basic_string_view<CharT> str)
 {
 	std::basic_string<CharT> result(str.size(), '\0');
@@ -286,7 +286,7 @@ template <concept_char_type CharT>
 	return result;
 }
 
-template <concept_char_type CharT> /*[[nodiscard]]*/ 
+template <concepts::char_type CharT> /*[[nodiscard]]*/
 size_t str_replace(std::basic_string<CharT> &str, std::basic_string_view<CharT> _old, std::basic_string_view<CharT> _new, bool step)
 {
 	if( _old == _new )
@@ -311,7 +311,7 @@ size_t str_replace(std::basic_string<CharT> &str, std::basic_string_view<CharT> 
 	return sum;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> str_trimmed(std::basic_string_view<CharT> str)
 {
 	std::basic_string<CharT> result;
@@ -343,7 +343,7 @@ template <concept_char_type CharT>
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> 
 str_remove(std::basic_string_view<CharT> str, std::basic_string_view<CharT> find, bool step)
 {
@@ -352,7 +352,7 @@ str_remove(std::basic_string_view<CharT> str, std::basic_string_view<CharT> find
 	return res;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> str_remove(std::basic_string_view<CharT> str, CharT find, bool)
 {
 	std::basic_string<CharT> res(str.data(), str.size());
@@ -362,7 +362,7 @@ template <concept_char_type CharT>
 	return res;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> from_percent_encoding(std::basic_string_view<CharT> str)
 {
 	std::basic_string<CharT> result;
@@ -417,7 +417,7 @@ template <concept_char_type CharT>
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 constexpr CharT to_hex_upper(unsigned int value) noexcept
 {
 	if constexpr( is_char_v<CharT> )
@@ -426,7 +426,7 @@ constexpr CharT to_hex_upper(unsigned int value) noexcept
 		return L"0123456789ABCDEF"[value & 0xF];
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 constexpr CharT to_hex_lower(unsigned int value) noexcept
 {
 	if constexpr( is_char_v<CharT> )
@@ -435,7 +435,7 @@ constexpr CharT to_hex_lower(unsigned int value) noexcept
 		return L"0123456789abcdef"[value & 0xF];
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> to_percent_encoding
 (std::basic_string_view<CharT> str, std::basic_string_view<CharT> exclude, std::basic_string_view<CharT> include, char percent)
 {
@@ -487,7 +487,7 @@ template <concept_char_type CharT>
 	}
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] int32_t wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
 {
 	size_t rule_len = rule.size();
@@ -524,7 +524,7 @@ template <concept_char_type CharT>
 	return dp.back().back() ? weight : -1;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> file_name(std::basic_string_view<CharT> file_name)
 {
 	size_t pos = 0;
@@ -533,7 +533,6 @@ template <concept_char_type CharT>
 	else
 		pos = file_name.rfind(L"/");
 
-	std::basic_string<CharT> result;
 	if( pos == std::basic_string<CharT>::npos )
 	{
 		if constexpr( is_char_v<CharT> )
@@ -548,7 +547,7 @@ template <concept_char_type CharT>
 	return std::basic_string<CharT>(tmp.data(), tmp.size());
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 [[nodiscard]] std::basic_string<CharT> file_path(std::basic_string_view<CharT> file_name)
 {
 	size_t pos = 0;

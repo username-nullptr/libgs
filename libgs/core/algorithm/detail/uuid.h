@@ -34,14 +34,14 @@
 namespace libgs
 {
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 basic_uuid<CharT>::basic_uuid(string_view_t basic_uuid) :
 	_wide_integers{0}
 {
 	operator=(basic_uuid);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 basic_uuid<CharT> basic_uuid<CharT>::generate()
 {
 #if defined(__APPLE__) || defined(__clang__)
@@ -62,7 +62,7 @@ basic_uuid<CharT> basic_uuid<CharT>::generate()
 	return obj;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 {
 	if constexpr( is_char_v )
@@ -94,31 +94,31 @@ basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 bool basic_uuid<CharT>::operator==(const basic_uuid &other) const
 {
 	return std::memcmp(&other, this, sizeof(basic_uuid)) == 0;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 bool basic_uuid<CharT>::operator!=(const basic_uuid &other) const
 {
 	return not operator==(other);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 bool basic_uuid<CharT>::operator<(const basic_uuid &other) const
 {
 	return std::memcmp(this, &other, sizeof(basic_uuid)) < 0;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 bool basic_uuid<CharT>::operator>(const basic_uuid &other) const
 {
 	return std::memcmp(this, &other, sizeof(basic_uuid)) > 0;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
 {
 	if constexpr( is_char_v )
@@ -158,7 +158,7 @@ std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
 namespace std
 {
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<libgs::basic_uuid<CharT>, CharT> 
 {
 public:

@@ -53,10 +53,10 @@ public:
 	void unload();
 
 public:
-	template <concept_function Func>
+	template <concepts::function Func>
 	[[nodiscard]] auto interface(std::string_view ifname) const;
 
-	template <concept_function Func, typename Arg0, typename...Args>
+	template <concepts::function Func, typename Arg0, typename...Args>
 	[[nodiscard]] auto interface(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const;
 
 	[[nodiscard]] void *interface(std::string_view ifname) const;

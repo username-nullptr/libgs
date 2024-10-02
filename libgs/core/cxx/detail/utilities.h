@@ -125,7 +125,7 @@ inline wchar_t mbstowcs(char c)
 	return buf;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::string xxtombs(std::basic_string_view<CharT> str)
 {
 	if constexpr( is_char_v<CharT> )
@@ -134,7 +134,7 @@ std::string xxtombs(std::basic_string_view<CharT> str)
 		return wcstombs(str);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 char xxtombs(CharT c)
 {
 	if constexpr( is_char_v<CharT> )
@@ -143,7 +143,7 @@ char xxtombs(CharT c)
 		return wcstombs(c);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::wstring xxtowcs(std::basic_string_view<CharT> str)
 {
 	if constexpr( is_char_v<CharT> )
@@ -152,7 +152,7 @@ std::wstring xxtowcs(std::basic_string_view<CharT> str)
 		return {str.data(), str.size()};
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 wchar_t xxtowcs(CharT c)
 {
 	if constexpr( is_char_v<CharT> )
@@ -161,7 +161,7 @@ wchar_t xxtowcs(CharT c)
 		return c;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> mbstoxx(std::string_view str)
 {
 	if constexpr( is_char_v<CharT> )
@@ -170,7 +170,7 @@ std::basic_string<CharT> mbstoxx(std::string_view str)
 		return mbstowcs(str);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 CharT mbstoxx(char c)
 {
 	if constexpr( is_char_v<CharT> )
@@ -179,7 +179,7 @@ CharT mbstoxx(char c)
 		return mbstowcs(c);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> wcstoxx(std::wstring_view str)
 {
 	if constexpr( is_char_v<CharT> )
@@ -188,7 +188,7 @@ std::basic_string<CharT> wcstoxx(std::wstring_view str)
 		return {str.data(), str.size()};
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 CharT wcstoxx(wchar_t c)
 {
 	if constexpr( is_char_v<CharT> )

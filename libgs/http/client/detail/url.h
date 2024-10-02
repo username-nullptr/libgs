@@ -35,7 +35,7 @@ namespace libgs::http
 namespace detail
 {
 
-template <concept_char_type T>
+template <core_concepts::char_type T>
 struct _url_static_string;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
@@ -62,7 +62,7 @@ struct _url_static_string<wchar_t> {
 
 } //namespace detail
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class basic_url<CharT>::impl
 {
 	LIBGS_DISABLE_MOVE(impl)
@@ -159,7 +159,7 @@ public:
 	parameters_t m_parameters {};
 };
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <typename Arg0, typename...Args>
 basic_url<CharT>::basic_url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
 	basic_url(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
@@ -167,48 +167,48 @@ basic_url<CharT>::basic_url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT>::basic_url(string_view_t url) :
 	m_impl(new impl(url))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT>::basic_url() :
 	basic_url(string_view_t())
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT>::~basic_url()
 {
 	delete m_impl;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT>::basic_url(const basic_url &other) :
 	m_impl(new impl(*other.m_impl))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::operator=(const basic_url &other) 
 {
 	m_impl = new impl(*other.m_impl);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT>::basic_url(basic_url &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::operator=(basic_url &&other) noexcept
 {
 	m_impl = other.m_impl;
@@ -216,7 +216,7 @@ basic_url<CharT> &basic_url<CharT>::operator=(basic_url &&other) noexcept
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <typename Arg0, typename...Args>
 basic_url<CharT> &basic_url<CharT>::set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args)
 {
@@ -224,72 +224,72 @@ basic_url<CharT> &basic_url<CharT>::set(format_string<Arg0,Args...> fmt, Arg0 &&
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::set(string_view_t url)
 {
 	m_impl->set(url);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::set_address(string_view_t addr)
 {
 	m_impl->m_address = string_t(addr.data(), addr.size());
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::set_port(uint16_t port)
 {
 	m_impl->m_port = port;
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::set_path(string_view_t path)
 {
 	m_impl->set(path);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::set_parameter(string_view_t key, value_t value) noexcept
 {
 	m_impl->m_parameters[string_t(key.data(), key.size())] = std::move(value);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_url<CharT>::protocol() const noexcept
 {
 	return m_impl->m_protocols;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_url<CharT>::address() const noexcept
 {
 	return m_impl->m_address;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 uint16_t basic_url<CharT>::port() const noexcept
 {
 	return m_impl->m_port;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_url<CharT>::path() const noexcept
 {
 	return m_impl->m_path;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 const basic_parameters<CharT> &basic_url<CharT>::parameter() const noexcept
 {
 	return m_impl->m_parameters;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string<CharT> basic_url<CharT>::to_string() const noexcept
 {
 	using sp = detail::_url_static_string<CharT>;
@@ -305,7 +305,7 @@ std::basic_string<CharT> basic_url<CharT>::to_string() const noexcept
 	return buf;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_url<CharT>::operator std::basic_string<CharT>() const noexcept
 {
 	return to_string();

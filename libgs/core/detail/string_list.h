@@ -32,7 +32,7 @@
 namespace libgs
 {
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::vector<std::basic_string<CharT>> basic_string_list<CharT>::to_vector() const
 {
 	std::vector<string_t> result;
@@ -43,7 +43,7 @@ std::vector<std::basic_string<CharT>> basic_string_list<CharT>::to_vector() cons
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::vector<const CharT*> basic_string_list<CharT>::c_str_vector() const
 {
 	std::vector<const char*> result;
@@ -54,7 +54,7 @@ std::vector<const CharT*> basic_string_list<CharT>::c_str_vector() const
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> basic_string_list<CharT>::join(const string_t &splits)
 {
 	string_t result;
@@ -64,7 +64,7 @@ std::basic_string<CharT> basic_string_list<CharT>::join(const string_t &splits)
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, size_t length, const string_t &splits)
 {
 	string_t result;
@@ -82,16 +82,16 @@ std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, size_t len
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, const string_t &splits)
 {
 	return join(index, this->size(), splits);
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 std::basic_string<CharT> basic_string_list<CharT>::join
-(detail::concept_string_list_iterator<CharT> auto begin,
- detail::concept_string_list_iterator<CharT> auto end,
+(detail::concepts::string_list_iterator<CharT> auto begin,
+ detail::concepts::string_list_iterator<CharT> auto end,
  const string_t &splits)
 {
 	string_t result;
@@ -101,7 +101,7 @@ std::basic_string<CharT> basic_string_list<CharT>::join
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 basic_string_list<CharT> basic_string_list<CharT>::from_string
 (string_view_t str, string_view_t splits, bool ignore_empty)
 {
@@ -125,7 +125,7 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 	return result;
 }
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 basic_string_list<CharT> basic_string_list<CharT>::from_string
 (string_view_t str, CharT splits, bool ignore_empty)
 {
@@ -137,7 +137,7 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 namespace std
 {
 
-template <libgs::concept_char_type CharT>
+template <libgs::concepts::char_type CharT>
 class formatter<libgs::basic_string_list<CharT>, CharT>
 {
 public:

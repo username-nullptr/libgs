@@ -35,7 +35,7 @@ namespace libgs::http
 namespace detail
 {
 
-template <concept_char_type T>
+template <core_concepts::char_type T>
 struct string_pool;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
@@ -118,7 +118,7 @@ inline void redirect_check(redirect type)
 	}
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string<CharT> to_status_description(status s)
 {
 	switch(s)
@@ -132,7 +132,7 @@ std::basic_string<CharT> to_status_description(status s)
 //	return {};
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string<CharT> to_method_string(method m)
 {
 	if constexpr( is_char_v<CharT> )

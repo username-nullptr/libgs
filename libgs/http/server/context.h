@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 class basic_service_context
 {
 	LIBGS_DISABLE_COPY(basic_service_context)
@@ -59,11 +59,11 @@ public:
 
 	template<typename Stream0>
 	basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
-		requires concept_constructible<Stream,Stream0&&>;
+		requires core_concepts::constructible<Stream,Stream0&&>;
 
 	template<typename Stream0>
 	basic_service_context &operator=(basic_service_context<Stream0,CharT> &&other) noexcept
-		requires concept_assignable<Stream,Stream0&&>;
+		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
 	const request_t &request() const noexcept;
@@ -75,11 +75,11 @@ public:
 public:
 	template <base_of_session<CharT> Session, typename...Args>
 	std::shared_ptr<Session> session(Args&&...args)
-		requires concept_constructible<Session, Args...>;
+		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	session_ptr session(Args&&...args) noexcept
-		requires concept_constructible<basic_session<CharT>, Args...>;
+		requires core_concepts::constructible<basic_session<CharT>, Args...>;
 
 	template <base_of_session<CharT> Session>
 	std::shared_ptr<Session> session() const;
@@ -94,10 +94,10 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 using basic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 using wbasic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;

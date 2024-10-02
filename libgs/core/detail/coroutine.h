@@ -67,8 +67,8 @@ inline auto operator|(std::error_code &error, const asio::cancellation_slot_bind
 namespace libgs
 {
 
-template <concept_schedulable Exec>
-auto co_spawn(concept_awaitable_function auto &&func, Exec &exec)
+template <concepts::schedulable Exec>
+auto co_spawn(concepts::awaitable_function auto &&func, Exec &exec)
 {
 	using Func = std::decay_t<decltype(func)>;
 	if constexpr( is_execution_context_v<Exec> )
@@ -77,7 +77,7 @@ auto co_spawn(concept_awaitable_function auto &&func, Exec &exec)
 		return asio::co_spawn(exec, std::forward<Func>(func), asio::use_awaitable);
 }
 
-template <typename T, concept_schedulable Exec>
+template <typename T, concepts::schedulable Exec>
 auto co_spawn(awaitable<T> &&a, Exec &exec)
 {
 	if constexpr( is_execution_context_v<Exec> )
@@ -86,8 +86,8 @@ auto co_spawn(awaitable<T> &&a, Exec &exec)
 		return asio::co_spawn(exec, std::move(a), asio::use_awaitable);
 }
 
-template <concept_schedulable Exec>
-auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec)
+template <concepts::schedulable Exec>
+auto co_spawn_detached(concepts::awaitable_function auto &&func, Exec &exec)
 {
 	using Func = std::decay_t<decltype(func)>;
 	if constexpr( is_execution_context_v<Exec> )
@@ -96,7 +96,7 @@ auto co_spawn_detached(concept_awaitable_function auto &&func, Exec &exec)
 		return asio::co_spawn(exec, std::forward<Func>(func), asio::detached);
 }
 
-template <typename T, concept_schedulable Exec>
+template <typename T, concepts::schedulable Exec>
 auto co_spawn_detached(awaitable<T> &&a, Exec &exec)
 {
 	if constexpr( is_execution_context_v<Exec> )
@@ -105,8 +105,8 @@ auto co_spawn_detached(awaitable<T> &&a, Exec &exec)
 		return asio::co_spawn(exec, std::move(a), asio::detached);
 }
 
-template <concept_schedulable Exec>
-auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec)
+template <concepts::schedulable Exec>
+auto co_spawn_future(concepts::awaitable_function auto &&func, Exec &exec)
 {
 	using Func = std::decay_t<decltype(func)>;
 	if constexpr( is_execution_context_v<Exec> )
@@ -115,7 +115,7 @@ auto co_spawn_future(concept_awaitable_function auto &&func, Exec &exec)
 		return asio::co_spawn(exec, std::forward<Func>(func), asio::use_future);
 }
 
-template <typename T, concept_schedulable Exec>
+template <typename T, concepts::schedulable Exec>
 auto co_spawn_future(awaitable<T> &&a, Exec &exec)
 {
 	if constexpr( is_execution_context_v<Exec> )
@@ -125,7 +125,7 @@ auto co_spawn_future(awaitable<T> &&a, Exec &exec)
 }
 
 template <typename Exec, typename Func>
-auto co_post(Exec &exec, Func &&func) requires concept_callable<Func>
+auto co_post(Exec &exec, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
 	if constexpr( std::is_same_v<return_type, void> )
@@ -163,7 +163,7 @@ auto co_post(Exec &exec, Func &&func) requires concept_callable<Func>
 }
 
 template <typename Exec, typename Func>
-auto co_dispatch(Exec &exec, Func &&func) requires concept_callable<Func>
+auto co_dispatch(Exec &exec, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
 	if constexpr( std::is_same_v<return_type, void> )
@@ -201,7 +201,7 @@ auto co_dispatch(Exec &exec, Func &&func) requires concept_callable<Func>
 }
 
 template <typename Func>
-auto co_thread(Func &&func) requires concept_callable<Func>
+auto co_thread(Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
 	if constexpr( std::is_same_v<return_type, void> )
@@ -280,7 +280,7 @@ inline awaitable<void> co_wait(const std::thread &thread)
 	});
 }
 
-template <concept_schedulable Exec>
+template <concepts::schedulable Exec>
 awaitable<void> co_to_exec(Exec &exec)
 {
 	return asio::async_initiate<decltype(asio::use_awaitable), void()>([&exec](auto handler)
@@ -308,7 +308,7 @@ inline awaitable<void> co_to_thread()
 #ifdef LIBGS_USING_BOOST_ASIO
 
 template <typename Exec, typename Func>
-auto co_post(Exec &exec, yield_context &yc, Func &&func) requires concept_callable<Func>
+auto co_post(Exec &exec, yield_context &yc, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
 	if constexpr( std::is_same_v<return_type, void> )
@@ -346,7 +346,7 @@ auto co_post(Exec &exec, yield_context &yc, Func &&func) requires concept_callab
 }
 
 template <typename Exec, typename Func>
-auto co_dispatch(Exec &exec, yield_context &yc, Func &&func) requires concept_callable<Func>
+auto co_dispatch(Exec &exec, yield_context &yc, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
 	if constexpr( std::is_same_v<return_type, void> )
@@ -384,7 +384,7 @@ auto co_dispatch(Exec &exec, yield_context &yc, Func &&func) requires concept_ca
 }
 
 template <typename Func>
-auto co_thread(yield_context &yc, Func &&func) requires concept_callable<Func>
+auto co_thread(yield_context &yc, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
 	if constexpr( std::is_same_v<return_type, void> )
@@ -463,7 +463,7 @@ inline void co_wait(yield_context &yc, const std::thread &thread)
 	});
 }
 
-template <concept_schedulable Exec>
+template <concepts::schedulable Exec>
 awaitable<void> co_to_exec(yield_context &yc, Exec &exec)
 {
 	return asio::async_initiate<yield_context, void()>([&exec](auto handler)

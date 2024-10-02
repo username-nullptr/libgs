@@ -37,7 +37,7 @@ namespace libgs::http
 namespace detail
 {
 
-template <concept_char_type T>
+template <core_concepts::char_type T>
 struct _parser_static_string;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
@@ -57,7 +57,7 @@ struct _parser_static_string<wchar_t> {
 
 } //namespace detail
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -304,27 +304,27 @@ public:
 	parse_cookie_handler m_parse_cookie;
 };
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT>::basic_parser(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT>::~basic_parser()
 {
 	delete m_impl;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT>::basic_parser(basic_parser &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT> &basic_parser<CharT>::operator=(basic_parser &&other) noexcept
 {
 	m_impl = other.m_impl;
@@ -332,27 +332,27 @@ basic_parser<CharT> &basic_parser<CharT>::operator=(basic_parser &&other) noexce
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT> &basic_parser<CharT>::on_parse_begin(parse_begin_handler func)
 {
 	m_impl->m_parse_begin = std::move(func);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT> &basic_parser<CharT>::on_parse_cookie(parse_cookie_handler func)
 {
 	m_impl->m_parse_cookie = std::move(func);
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 error_code basic_parser<CharT>::make_error_code(parse_errno errc)
 {
 	return impl::make_error_code(errc);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_parser<CharT>::append(std::string_view buf, error_code &error)
 {
 	using state = impl::state;
@@ -379,7 +379,7 @@ bool basic_parser<CharT>::append(std::string_view buf, error_code &error)
 	return m_impl->parse_chunked(error);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_parser<CharT>::append(std::string_view buf)
 {
 	error_code error;
@@ -389,32 +389,32 @@ bool basic_parser<CharT>::append(std::string_view buf)
 	return res;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_parser<CharT>::operator<<(std::string_view buf)
 {
 	return append(buf);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT> &basic_parser<CharT>::reset()
 {
 	m_impl->reset();
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_parser<CharT>::version() const noexcept
 {
 	return m_impl->m_version;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 const typename basic_parser<CharT>::headers_t &basic_parser<CharT>::headers() const noexcept
 {
 	return m_impl->m_headers;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_parser<CharT>::take_partial_body(size_t size)
 {
 	if( size == 0 )
@@ -427,39 +427,39 @@ std::string basic_parser<CharT>::take_partial_body(size_t size)
 	return res;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::string basic_parser<CharT>::take_body()
 {
 	return std::move(m_impl->m_partial_body);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_parser<CharT>::can_read_from_device() const noexcept
 {
 	return m_impl->m_state > impl::state::reading_headers and
 		   m_impl->m_state < impl::state::finished;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_parser<CharT>::is_finished() const noexcept
 {
 	return m_impl->m_state == impl::state::finished;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 bool basic_parser<CharT>::is_eof() const noexcept
 {
 	return m_impl->m_partial_body.empty() and not can_read_from_device();
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT> &basic_parser<CharT>::unset_parse_begin()
 {
 	m_impl->m_parse_begin = {};
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_parser<CharT> &basic_parser<CharT>::unset_parse_cookie()
 {
 	m_impl->m_parse_cookie = {};

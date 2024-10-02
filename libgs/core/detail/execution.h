@@ -32,7 +32,7 @@
 namespace libgs::execution
 {
 
-template<typename T, concept_execution Exec>
+template<typename T, concepts::schedulable Exec>
 void delete_later(T *obj, Exec &exec)
 {
 	post(exec, [obj]{

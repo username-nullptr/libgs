@@ -37,7 +37,7 @@ inline bool is_big_endian()
 	return not is_little_endian();
 }
 
-auto hton(concept_number_type auto t)
+auto hton(concepts::number_type auto t)
 {
 	return is_big_endian() ? t : reverse(t);
 }
@@ -47,7 +47,7 @@ auto *hton(auto *data, size_t len)
 	return is_big_endian() ? data : reverse(data, len);
 }
 
-auto ntoh(concept_number_type auto t)
+auto ntoh(concepts::number_type auto t)
 {
 	return is_big_endian() ? t : reverse(t);
 }
@@ -57,7 +57,7 @@ auto *ntoh(auto *data, size_t len)
 	return is_big_endian() ? data : reverse(data, len);
 }
 
-auto reverse(concept_number_type auto t)
+auto reverse(concepts::number_type auto t)
 {
 	for(size_t i=0; i<sizeof(t)>>1; i++)
 	{

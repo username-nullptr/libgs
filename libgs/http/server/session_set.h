@@ -38,7 +38,7 @@ namespace libgs::http
 template <typename Session, typename CharT>
 concept base_of_session = std::is_base_of_v<basic_session<CharT>, Session>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_session_set
 {
 	LIBGS_DISABLE_COPY(basic_session_set)
@@ -58,19 +58,19 @@ public:
 public:
 	template <base_of_session<CharT> Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept
-		requires concept_constructible<Session, Args...>;
+		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept
-		requires concept_constructible<basic_session<CharT>, Args...>;
+		requires core_concepts::constructible<basic_session<CharT>, Args...>;
 
 	template <base_of_session<CharT> Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
-		requires concept_constructible<Session, Args...>;
+		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
-		requires concept_constructible<basic_session<CharT>, Args...>;
+		requires core_concepts::constructible<basic_session<CharT>, Args...>;
 
 public:
 	template <base_of_session<CharT> Session>

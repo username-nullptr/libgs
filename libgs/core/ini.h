@@ -46,7 +46,7 @@ concept ini_read_type =
 	std::is_arithmetic_v<T> or
 	std::is_enum_v<T>;
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 class LIBGS_CORE_TAPI basic_ini_keys
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_ini_keys)
@@ -125,7 +125,7 @@ protected:
 	key_map m_keys;
 };
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 class LIBGS_CORE_TAPI basic_ini
 {
 	LIBGS_DISABLE_COPY(basic_ini)

@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 struct basic_cookie_attribute;
 
 #define LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY(_type, ...) \
@@ -54,13 +54,13 @@ template <> struct basic_cookie_attribute<wchar_t> { LIBGS_HTTP_COOKEI_ATTRUBUTE
 using cookie_attribute = basic_cookie_attribute<char>;
 using wcookie_attribute = basic_cookie_attribute<wchar_t>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 using basic_cookie_attributes = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using cookie_attributes = basic_cookie_attributes<char>;
 using wcookie_attributes = basic_cookie_attributes<wchar_t>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 using basic_cookie_attributes_view = decltype (
 	std::declval<basic_cookie_attributes<CharT>>() |
 	std::views::take (
@@ -71,7 +71,7 @@ using basic_cookie_attributes_view = decltype (
 using cookie_attributes_view = basic_cookie_attributes_view<char>;
 using wcookie_attributes_view = basic_cookie_attributes_view<wchar_t>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_cookie
 {
 public:
@@ -181,13 +181,13 @@ protected:
 using cookie = basic_cookie<char>;
 using wcookie = basic_cookie<wchar_t>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 using basic_cookie_values = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using cookie_values = basic_cookie_values<char>;
 using wcookie_values = basic_cookie_values<wchar_t>;
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 using basic_cookies = std::map<std::basic_string<CharT>, basic_cookie<CharT>, basic_less_case_insensitive<CharT>>;
 
 using cookies = basic_cookies<char>;

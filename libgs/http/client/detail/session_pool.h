@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 class basic_session_pool<Stream>::session::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -43,35 +43,35 @@ public:
 	~impl()
 	{
 		if( m_pool and m_socket.is_open() )
-			m_pool->insert(std::move(m_socket));
+			m_pool->emplace(std::move(m_socket));
 	}
 
 public:
 	pool_t *m_pool = nullptr;
-	socket_t m_socket;
+	socket_t m_socket {execution::io_context()};
 };
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 basic_session_pool<Stream>::session::session() :
 	m_impl(new impl())
 {
 
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 basic_session_pool<Stream>::session::~session()
 {
 	delete m_impl;
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 basic_session_pool<Stream>::session::session(session &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 typename basic_session_pool<Stream>::session &basic_session_pool<Stream>::session::operator=(session &&other) noexcept
 {
 	delete m_impl;
@@ -80,49 +80,57 @@ typename basic_session_pool<Stream>::session &basic_session_pool<Stream>::sessio
 	return *this;
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 const typename basic_session_pool<Stream>::socket_t &basic_session_pool<Stream>::session::socket() const noexcept
 {
 	return m_impl->m_socket;
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 typename basic_session_pool<Stream>::socket_t &basic_session_pool<Stream>::session::socket() noexcept
 {
 	return m_impl->m_socket;
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 class basic_session_pool<Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl() = default;
-	std::map<endpoint_t, socket_t> m_sock_map;
+	template <core_concepts::match_execution<executor_t> Exec>
+	explicit impl(Exec &exec) : m_exec(exec) {}
+
+	template <core_concepts::match_execution_context<executor_t> Exec>
+	explicit impl(Exec &exec) : m_exec(exec.get_context()) {}
+
+public:
+	std::map<endpoint_t,socket_t> m_sock_map;
+	executor_t m_exec;
 };
 
-template <concept_stream_requires Stream>
-basic_session_pool<Stream>::basic_session_pool() :
-	m_impl(new impl())
+template <concepts::stream_requires Stream>
+template <core_concepts::match_execution_or_context<typename basic_session_pool<Stream>::executor_t> Exec>
+basic_session_pool<Stream>::basic_session_pool(Exec &exec) :
+	m_impl(new impl(exec))
 {
 
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 basic_session_pool<Stream>::~basic_session_pool()
 {
 	delete m_impl;
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 basic_session_pool<Stream>::basic_session_pool(basic_session_pool &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 basic_session_pool<Stream> &basic_session_pool<Stream>::operator=(basic_session_pool &&other) noexcept
 {
 	delete m_impl;
@@ -131,33 +139,73 @@ basic_session_pool<Stream> &basic_session_pool<Stream>::operator=(basic_session_
 	return *this;
 }
 
-template <concept_stream_requires Stream>
-typename basic_session_pool<Stream>::session basic_session_pool<Stream>::get(endpoint_t ep)
+template <concepts::stream_requires Stream>
+typename basic_session_pool<Stream>::session
+basic_session_pool<Stream>::get(const endpoint_t &ep)
 {
-
+	return get(m_impl->m_exec, ep);
 }
 
-template <concept_stream_requires Stream>
-typename basic_session_pool<Stream>::session basic_session_pool<Stream>::get(endpoint_t ep, error_code &error) noexcept
+template <concepts::stream_requires Stream>
+typename basic_session_pool<Stream>::session
+basic_session_pool<Stream>::get(const endpoint_t &ep, error_code &error) noexcept
 {
-
+	return get(m_impl->m_exec, ep, error);
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
+template <core_concepts::schedulable Exec>
+basic_session_pool<Stream>::session basic_session_pool<Stream>::get(Exec &exec, const endpoint_t &ep)
+{
+	error_code error;
+	auto sess = get(exec, ep, error);
+	if( error )
+          throw system_error(error, "libgs::http::basic_session_pool::get");
+	return sess;
+}
+
+template <concepts::stream_requires Stream>
+template <core_concepts::schedulable Exec>
+basic_session_pool<Stream>::session basic_session_pool<Stream>::get(Exec &exec, const endpoint_t &ep, error_code &error) noexcept
+{
+	session sess;
+	auto it = m_impl->m_sock_map.find(ep);
+
+	if( it == m_impl->m_sock_map.end() )
+	{
+		sess.m_impl->m_socket = socket_t(exec);
+        sess.m_impl->m_socket.connect(ep, error);
+	}
+	else
+	{
+		sess.m_impl->m_socket = std::move(it->second);
+		m_impl->m_sock_map.erase(it);
+	}
+	return sess;
+}
+
+template <concepts::stream_requires Stream>
 template <asio::completion_token_for<void(error_code)> Token>
 void basic_session_pool<Stream>::async_get(endpoint_t ep, session &sess, Token &&token)
 {
 
 }
 
-template <concept_stream_requires Stream>
-void basic_session_pool<Stream>::insert(socket_t &&socket)
+template <concepts::stream_requires Stream>
+template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
+void basic_session_pool<Stream>::async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token)
 {
-	if( socket.is_open() )
-		m_impl->m_sock_map.emplate(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+
 }
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
+void basic_session_pool<Stream>::emplace(socket_t &&socket)
+{
+	if( socket.is_open() )
+		m_impl->m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+}
+
+template <concepts::stream_requires Stream>
 void basic_session_pool<Stream>::operator<<(socket_t &&socket)
 {
 	insert(std::move(socket));

@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concept_stream_requires Stream, concept_char_type CharT>
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 class basic_client_reply<Stream, CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)

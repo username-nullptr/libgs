@@ -66,22 +66,22 @@ inline resp_range::resp_range(size_t begin, size_t end) :
 
 }
 
-namespace detail
+namespace detail::concepts
 {
 
 template <typename T>
-concept concept_has_ec_ = requires(T &&t) {
+concept has_ec_ = requires(T &&t) {
 	t.ec_;
 };
 
 template <typename T>
-concept concept_has_get = requires(T &&t)
+concept has_get = requires(T &&t)
 {
 	t.get_cancellation_slot();
 	t.get();
 };
 
-}; //namespace detail
+} //namespace detail::concepts
 
 } //namespace libgs::http
 

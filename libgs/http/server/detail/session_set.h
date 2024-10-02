@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 class basic_session_set<CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -88,27 +88,27 @@ public:
 	spin_shared_mutex m_map_mutex;
 };
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_set<CharT>::basic_session_set() :
 	m_impl(new impl())
 {
 
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_set<CharT>::~basic_session_set()
 {
 	delete m_impl;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_set<CharT>::basic_session_set(basic_session_set &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set &&other) noexcept
 {
 	delete m_impl;
@@ -117,10 +117,10 @@ basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set 
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept
-	requires concept_constructible<Session, Args...>
+	requires core_concepts::constructible<Session, Args...>
 {
 	auto session = std::make_shared<Session>(std::forward<Args>(args)...);
 	m_impl->emplace(session);
@@ -133,10 +133,10 @@ std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept
 	return session;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::make(Args&&...args) noexcept
-	requires concept_constructible<basic_session<CharT>, Args...>
+	requires core_concepts::constructible<basic_session<CharT>, Args...>
 {
 	auto session = std::make_shared<session_t>(std::forward<Args>(args)...);
 	m_impl->emplace(session);
@@ -149,10 +149,10 @@ basic_session_ptr<CharT> basic_session_set<CharT>::make(Args&&...args) noexcept
 	return session;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args)
-	requires concept_constructible<Session, Args...>
+	requires core_concepts::constructible<Session, Args...>
 {
 	auto ptr = m_impl->find(id, false);
 	if( not ptr )
@@ -164,10 +164,10 @@ std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id,
 	return rptr;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args) noexcept
-	requires concept_constructible<basic_session<CharT>, Args...>
+	requires core_concepts::constructible<basic_session<CharT>, Args...>
 {
 	auto ptr = m_impl->find(id, false);
 	if( not ptr )
@@ -175,7 +175,7 @@ basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id,
 	return ptr;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
 {
@@ -185,13 +185,13 @@ std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
 	return ptr;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_ptr<CharT> basic_session_set<CharT>::get(string_view_t id)
 {
 	return m_impl->find(id);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <base_of_session<CharT> Session>
 std::shared_ptr<Session> basic_session_set<CharT>::get_or(string_view_t id)
 {
@@ -201,13 +201,13 @@ std::shared_ptr<Session> basic_session_set<CharT>::get_or(string_view_t id)
 	return ptr;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_ptr<CharT> basic_session_set<CharT>::get_or(string_view_t id) noexcept
 {
 	return m_impl->find(id, false);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 template <typename Rep, typename Period>
 basic_session_set<CharT> &basic_session_set<CharT>::set_lifecycle(const duration<Rep,Period> &seconds)
 {
@@ -220,13 +220,13 @@ basic_session_set<CharT> &basic_session_set<CharT>::set_lifecycle(const duration
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::chrono::seconds basic_session_set<CharT>::lifecycle() const noexcept
 {
 	return std::chrono::seconds(m_impl->m_lifecycle);
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 basic_session_set<CharT> &basic_session_set<CharT>::set_cookie_key(string_view_t key)
 {
 	if( key.empty() )
@@ -235,7 +235,7 @@ basic_session_set<CharT> &basic_session_set<CharT>::set_cookie_key(string_view_t
 	return *this;
 }
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_session_set<CharT>::cookie_key() noexcept
 {
 	return m_impl->m_cookie_key;

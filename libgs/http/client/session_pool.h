@@ -29,12 +29,12 @@
 #ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
 #define LIBGS_HTTP_CLIENT_SESSION_POOL_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/basic/opt_token.h>
 
 namespace libgs::http
 {
 
-template <concept_stream_requires Stream>
+template <concepts::stream_requires Stream>
 class LIBGS_HTTP_TAPI basic_session_pool
 {
 	LIBGS_DISABLE_COPY(basic_session_pool)
@@ -45,7 +45,8 @@ public:
 	using endpoint_t = typename socket_t::endpoint_type;
 
 public:
-	basic_session_pool();
+	template <core_concepts::match_execution_or_context<executor_t> Exec>
+	explicit basic_session_pool(Exec &exec);
 	~basic_session_pool();
 
 	basic_session_pool(basic_session_pool &&other) noexcept;
@@ -74,14 +75,23 @@ public:
 	};
 
 public:
-	[[nodiscard]] session get(endpoint_t ep);
-	[[nodiscard]] session get(endpoint_t ep, error_code &error) noexcept;
+	[[nodiscard]] session get(const endpoint_t &ep);
+	[[nodiscard]] session get(const endpoint_t &ep, error_code &error) noexcept;
+
+	template <core_concepts::schedulable Exec>
+	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep);
+
+	template <core_concepts::schedulable Exec>
+	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep, error_code &error) noexcept;
 
 	template <asio::completion_token_for<void(error_code)> Token>
 	void async_get(endpoint_t ep, session &sess, Token &&token);
 
+	template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
+	void async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token);
+
 public:
-	void insert(socket_t &&socket);
+	void emplace(socket_t &&socket);
 	void operator<<(socket_t &&socket);
 
 private:
@@ -89,7 +99,7 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec = asio::any_io_executor>
+template <core_concepts::execution Exec = asio::any_io_executor>
 using tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
 using session_pool = tcp_session_pool<asio::any_io_executor>;

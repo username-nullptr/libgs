@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concept_char_type CharT, concept_stream_requires Stream = asio::ip::tcp::socket>
+template <core_concepts::char_type CharT, concepts::stream_requires Stream = asio::ip::tcp::socket>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
@@ -48,7 +48,7 @@ public:
 	using url_t = typename request_t::url_t;
 
 public:
-	template <concept_schedulable Exec = asio::io_context>
+	template <core_concepts::schedulable Exec = asio::io_context>
 	explicit basic_client(Exec &exec = execution::io_context());
 	~basic_client();
 
@@ -64,10 +64,10 @@ private:
 	impl *m_impl;
 };
 
-template <concept_execution Exec = asio::any_io_executor>
+template <core_concepts::execution Exec = asio::any_io_executor>
 using basic_tcp_client = basic_client<char, asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
-template <concept_execution Exec = asio::any_io_executor>
+template <core_concepts::execution Exec = asio::any_io_executor>
 using wbasic_tcp_client = basic_client<wchar_t, asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
 using tcp_client = basic_tcp_client<asio::any_io_executor>;

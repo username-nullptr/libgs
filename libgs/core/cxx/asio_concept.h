@@ -58,14 +58,11 @@ struct is_execution {
 	static constexpr bool value =
 		(asio::execution::is_executor<Exec>::value and
 		 asio::can_require<Exec, asio::execution::blocking_t::never_t>::value) or
-		asio::is_executor<Exec>::value;
+		 asio::is_executor<Exec>::value;
 };
 
 template <typename Exec>
 constexpr bool is_execution_v = is_execution<Exec>::value;
-
-template <typename Exec>
-concept concept_execution = is_execution_v<Exec>;
 
 template <typename ExecContext>
 struct is_execution_context {
@@ -75,9 +72,6 @@ struct is_execution_context {
 template <typename ExecContext>
 constexpr bool is_execution_context_v = is_execution_context<ExecContext>::value;
 
-template <typename ExecContext>
-concept concept_execution_context = is_execution_context_v<ExecContext>;
-
 template <typename Exec>
 struct is_schedulable {
 	static constexpr bool value = is_execution_v<Exec> or is_execution_context_v<Exec>;
@@ -86,8 +80,49 @@ struct is_schedulable {
 template <typename Exec>
 constexpr bool is_schedulable_v = is_schedulable<Exec>::value;
 
-template <typename Exec>
-concept concept_schedulable = is_schedulable_v<Exec>;
+namespace concepts
+{
+
+template <typename Exec, typename NativeExec>
+concept match_execution = requires(const Exec &exec) {
+	NativeExec(exec);
+};
+
+template <typename Exec, typename NativeExec>
+concept match_execution_context = requires(const Exec &exec) {
+	NativeExec(exec.get_executor());
+};
+
+template <typename Exec, typename NativeExec>
+concept match_execution_or_context =
+	match_execution<NativeExec,Exec> or
+	match_execution_context<NativeExec,Exec>;
+
+} //namespace concepts
+
+template <typename Exec, typename NativeExec>
+struct match_execution {
+	static constexpr bool value = concepts::match_execution<NativeExec,Exec>;
+};
+
+template <typename Exec, typename NativeExec>
+constexpr bool match_execution_v = match_execution<NativeExec,Exec>::value;
+
+template <typename Exec, typename NativeExec>
+struct match_execution_context {
+	static constexpr bool value = concepts::match_execution_context<NativeExec,Exec>;
+};
+
+template <typename Exec, typename NativeExec>
+constexpr bool match_execution_context_v = match_execution_context<NativeExec,Exec>::value;
+
+template <typename Exec, typename NativeExec>
+struct match_execution_or_context {
+	static constexpr bool value = concepts::match_execution_or_context<NativeExec,Exec>;
+};
+
+template <typename Exec, typename NativeExec>
+constexpr bool match_execution_or_context_v = match_execution_or_context<NativeExec,Exec>::value;
 
 template <typename T>
 struct is_awaitable : public std::false_type {};
@@ -98,8 +133,13 @@ struct is_awaitable<asio::awaitable<T>> : public std::true_type {};
 template <typename T>
 constexpr bool is_awaitable_v = is_awaitable<T>::value;
 
+namespace concepts
+{
+
 template <typename T>
-concept concept_awaitable_type = is_awaitable_v<T>;
+concept awaitable_type = is_awaitable_v<T>;
+
+} //namespace concepts
 
 template <typename T>
 struct awaitable_return_type {};
@@ -109,16 +149,28 @@ struct awaitable_return_type<asio::awaitable<T>> {
 	using type = T;
 };
 
-template <concept_awaitable_type T>
+template <concepts::awaitable_type T>
 using awaitable_return_type_t = typename awaitable_return_type<T>::type;
 
+namespace concepts
+{
+
+template <typename Exec>
+concept execution = is_execution_v<Exec>;
+
+template <typename ExecContext>
+concept execution_context = is_execution_context_v<ExecContext>;
+
+template <typename Exec>
+concept schedulable = is_schedulable_v<Exec>;
+
 template <typename Func>
-concept concept_awaitable_function =
+concept awaitable_function =
 	is_functor_v<Func> and
 	is_awaitable_v<typename function_traits<Func>::return_type> and
 	function_traits<Func>::arg_count == 0;
 
-} //namespace libgs
+}} //namespace libgs::concepts
 
 
 #endif //LIBGS_CORE_CXX_ASIO_CONCEPT_H

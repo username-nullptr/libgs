@@ -45,7 +45,7 @@ using duration = std::chrono::duration<Rep, Period>;
 template<typename Clock, typename Duration>
 using time_point = std::chrono::time_point<Clock, Duration>;
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 struct default_format {};
 
 template <>
@@ -58,10 +58,10 @@ struct default_format<wchar_t> {
 	static constexpr const wchar_t *value = L"{}";
 };
 
-template <concept_char_type CharT, typename...Args>
+template <concepts::char_type CharT, typename...Args>
 using format_string = std::basic_format_string<CharT, std::type_identity_t<Args>...>;
 
-template <concept_char_type CharT>
+template <concepts::char_type CharT>
 static constexpr const CharT *default_format_v = default_format<CharT>::value;
 
 using mutable_buffer = asio::ASIO_MUTABLE_BUFFER;

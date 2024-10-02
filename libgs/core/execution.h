@@ -44,8 +44,8 @@ LIBGS_CORE_API void exit(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
 
-template<typename T, concept_schedulable Exec = asio::io_context>
-void delete_later(T *obj, Exec &exec = io_context());
+template<typename T, concepts::schedulable Exec = asio::io_context>
+LIBGS_CORE_TAPI void delete_later(T *obj, Exec &exec = io_context());
 
 } //namespace libgs::execution
 #include <libgs/core/detail/execution.h>

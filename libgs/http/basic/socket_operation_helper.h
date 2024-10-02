@@ -37,7 +37,7 @@ namespace libgs::http
 template <typename Stream>
 class socket_operation_helper;
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 {
 public:
@@ -58,7 +58,7 @@ public:
 
 #ifdef LIBGS_ENABLE_OPENSSL
 
-template <concept_execution Exec>
+template <core_concepts::execution Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
 {
 public:

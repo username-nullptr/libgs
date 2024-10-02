@@ -151,7 +151,7 @@ enum class redirect
 LIBGS_HTTP_VAPI void redirect_check(uint32_t type);
 LIBGS_HTTP_VAPI void redirect_check(redirect type);
 
-template <concept_char_type,status>
+template <core_concepts::char_type,status>
 struct basic_status_description
 #ifndef _MSC_VER // _MSVC
 { static_assert(false, "Invalid http status."); }
@@ -176,7 +176,7 @@ using status_description = basic_status_description<char,S>;
 template <status S>
 using wstatus_description = basic_status_description<wchar_t,S>;
 
-template <concept_char_type CharT, status S>
+template <core_concepts::char_type CharT, status S>
 constexpr const char *basic_status_description_v = basic_status_description<CharT,S>::value;
 
 template <status S>
@@ -185,10 +185,10 @@ constexpr const char *status_description_v = basic_status_description_v<char,S>;
 template <status S>
 constexpr const char *wstatus_description_v = basic_status_description_v<wchar_t,S>;
 
-template <concept_char_type CharT = char>
+template <core_concepts::char_type CharT = char>
 std::basic_string<CharT> to_status_description(status s);
 
-template <concept_char_type,method>
+template <core_concepts::char_type,method>
 struct basic_method_string
 #ifndef _MSC_VER // _MSVC
 { static_assert(false, "Invalid http method."); }
@@ -213,7 +213,7 @@ using method_string = basic_method_string<char,M>;
 template <method M>
 using wmethod_string = basic_method_string<wchar_t,M>;
 
-template <concept_char_type CharT, method M>
+template <core_concepts::char_type CharT, method M>
 constexpr const char *basic_method_string_v = basic_method_string<CharT,M>::value;
 
 template <method M>
@@ -222,13 +222,13 @@ constexpr const char *method_string_v = basic_method_string_v<char,M>;
 template <method M>
 constexpr const char *wmethod_string_v = basic_method_string_v<wchar_t,M>;
 
-template <concept_char_type CharT = char>
+template <core_concepts::char_type CharT = char>
 LIBGS_HTTP_TAPI std::basic_string<CharT> to_method_string(method m);
 
 LIBGS_HTTP_VAPI method from_method_string(std::string_view str);
 LIBGS_HTTP_VAPI method from_method_string(std::wstring_view str);
 
-template <concept_char_type CharT>
+template <core_concepts::char_type CharT>
 using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using parameters = basic_parameters<char>;
