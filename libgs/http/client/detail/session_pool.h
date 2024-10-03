@@ -102,7 +102,9 @@ public:
 	explicit impl(Exec &exec) : m_exec(exec) {}
 
 	template <core_concepts::match_execution_context<executor_t> Exec>
-	explicit impl(Exec &exec) : m_exec(exec.get_context()) {}
+	explicit impl(Exec &exec) : m_exec(exec.get_executor()) {}
+
+	impl() : m_exec(execution::io_context().get_executor()) {}
 
 public:
 	std::map<endpoint_t,socket_t> m_sock_map;
@@ -113,6 +115,14 @@ template <concepts::stream_requires Stream>
 template <core_concepts::match_execution_or_context<typename basic_session_pool<Stream>::executor_t> Exec>
 basic_session_pool<Stream>::basic_session_pool(Exec &exec) :
 	m_impl(new impl(exec))
+{
+
+}
+
+template <concepts::stream_requires Stream>
+basic_session_pool<Stream>::basic_session_pool() requires
+	core_concepts::match_default_execution<executor_t> :
+	m_impl(new impl())
 {
 
 }
@@ -172,30 +182,31 @@ basic_session_pool<Stream>::session basic_session_pool<Stream>::get(Exec &exec, 
 	auto it = m_impl->m_sock_map.find(ep);
 
 	if( it == m_impl->m_sock_map.end() )
-	{
 		sess.m_impl->m_socket = socket_t(exec);
-        sess.m_impl->m_socket.connect(ep, error);
-	}
 	else
 	{
 		sess.m_impl->m_socket = std::move(it->second);
 		m_impl->m_sock_map.erase(it);
 	}
+	if(not sess.m_impl->m_socket.is_open())
+		sess.m_impl->m_socket.connect(ep, error);
 	return sess;
 }
 
 template <concepts::stream_requires Stream>
 template <asio::completion_token_for<void(error_code)> Token>
-void basic_session_pool<Stream>::async_get(endpoint_t ep, session &sess, Token &&token)
+auto basic_session_pool<Stream>::async_get(endpoint_t ep, session &sess, Token &&token)
 {
 
+
+	return 0;
 }
 
 template <concepts::stream_requires Stream>
 template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
-void basic_session_pool<Stream>::async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token)
+auto basic_session_pool<Stream>::async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token)
 {
-
+	return 0;
 }
 
 template <concepts::stream_requires Stream>

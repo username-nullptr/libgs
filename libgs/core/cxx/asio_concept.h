@@ -84,45 +84,45 @@ namespace concepts
 {
 
 template <typename Exec, typename NativeExec>
-concept match_execution = requires(const Exec &exec) {
-	NativeExec(exec);
-};
+concept match_execution =
+	is_execution_v<Exec> and is_execution_v<NativeExec> and
+	requires(Exec &exec) { NativeExec(exec); };
 
 template <typename Exec, typename NativeExec>
-concept match_execution_context = requires(const Exec &exec) {
-	NativeExec(exec.get_executor());
-};
+concept match_execution_context =
+	is_execution_context_v<Exec> and is_execution_v<NativeExec> and
+	requires(Exec &exec) { NativeExec(exec.get_executor()); };
 
 template <typename Exec, typename NativeExec>
 concept match_execution_or_context =
-	match_execution<NativeExec,Exec> or
-	match_execution_context<NativeExec,Exec>;
+	match_execution<Exec,NativeExec> or
+	match_execution_context<Exec,NativeExec>;
 
 } //namespace concepts
 
 template <typename Exec, typename NativeExec>
-struct match_execution {
-	static constexpr bool value = concepts::match_execution<NativeExec,Exec>;
+struct is_match_execution {
+	static constexpr bool value = concepts::match_execution<Exec,NativeExec>;
 };
 
 template <typename Exec, typename NativeExec>
-constexpr bool match_execution_v = match_execution<NativeExec,Exec>::value;
+constexpr bool is_match_execution_v = is_match_execution<Exec,NativeExec>::value;
 
 template <typename Exec, typename NativeExec>
-struct match_execution_context {
-	static constexpr bool value = concepts::match_execution_context<NativeExec,Exec>;
+struct is_match_execution_context {
+	static constexpr bool value = concepts::match_execution_context<Exec,NativeExec>;
 };
 
 template <typename Exec, typename NativeExec>
-constexpr bool match_execution_context_v = match_execution_context<NativeExec,Exec>::value;
+constexpr bool is_match_execution_context_v = is_match_execution_context<Exec,NativeExec>::value;
 
 template <typename Exec, typename NativeExec>
-struct match_execution_or_context {
-	static constexpr bool value = concepts::match_execution_or_context<NativeExec,Exec>;
+struct is_match_execution_or_context {
+	static constexpr bool value = concepts::match_execution_or_context<Exec,NativeExec>;
 };
 
 template <typename Exec, typename NativeExec>
-constexpr bool match_execution_or_context_v = match_execution_or_context<NativeExec,Exec>::value;
+constexpr bool is_match_execution_or_context_v = is_match_execution_or_context<Exec,NativeExec>::value;
 
 template <typename T>
 struct is_awaitable : public std::false_type {};

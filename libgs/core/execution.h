@@ -31,7 +31,7 @@
 
 #include <libgs/core/global.h>
 
-namespace libgs::execution
+namespace libgs { namespace execution
 {
 
 using executor_t = typename asio::io_context::executor_type;
@@ -47,7 +47,26 @@ LIBGS_CORE_API void exit(int code = 0);
 template<typename T, concepts::schedulable Exec = asio::io_context>
 LIBGS_CORE_TAPI void delete_later(T *obj, Exec &exec = io_context());
 
-} //namespace libgs::execution
+} //namespace execution
+
+namespace concepts
+{
+
+template <typename NativeExec>
+concept match_default_execution =
+	is_execution_v<NativeExec> and requires { NativeExec(execution::get_executor()); };
+
+} //namespace concepts
+
+template <typename NativeExec>
+struct is_match_default_execution {
+	static constexpr bool value = concepts::match_default_execution<NativeExec>;
+};
+
+template <typename NativeExec>
+constexpr bool is_match_default_execution_v = is_match_default_execution<NativeExec>::value;
+
+} //namespace libgs
 #include <libgs/core/detail/execution.h>
 
 

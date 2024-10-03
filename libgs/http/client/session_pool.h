@@ -47,6 +47,8 @@ public:
 public:
 	template <core_concepts::match_execution_or_context<executor_t> Exec>
 	explicit basic_session_pool(Exec &exec);
+
+	basic_session_pool() requires core_concepts::match_default_execution<executor_t>;
 	~basic_session_pool();
 
 	basic_session_pool(basic_session_pool &&other) noexcept;
@@ -85,10 +87,10 @@ public:
 	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep, error_code &error) noexcept;
 
 	template <asio::completion_token_for<void(error_code)> Token>
-	void async_get(endpoint_t ep, session &sess, Token &&token);
+	[[nodiscard]] auto async_get(endpoint_t ep, session &sess, Token &&token);
 
 	template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
-	void async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token);
+	[[nodiscard]] auto async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token);
 
 public:
 	void emplace(socket_t &&socket);
