@@ -64,24 +64,20 @@ LIBGS_CORE_TAPI auto co_spawn_future(concepts::awaitable_function auto &&func, E
 template <typename T, concepts::schedulable Exec = asio::io_context>
 LIBGS_CORE_TAPI auto co_spawn_future(awaitable<T> &&a, Exec &exec = execution::io_context());
 
-constexpr auto use_awaitable = asio::use_awaitable;
-
-using use_awaitable_t = decltype(use_awaitable);
-
-template <typename Exec, typename Func>
+template <concepts::schedulable Exec, typename Func>
 LIBGS_CORE_TAPI auto co_post(Exec &exec, Func &&func) requires concepts::callable<Func>;
 
-template <typename Exec, typename Func>
+template <concepts::schedulable Exec, typename Func>
 LIBGS_CORE_TAPI auto co_dispatch(Exec &exec, Func &&func) requires concepts::callable<Func>;
 
 template <typename Func>
 LIBGS_CORE_TAPI auto co_thread(Func &&func) requires concepts::callable<Func>;
 
-template<typename Rep, typename Period, typename Exec = asio::io_context>
+template<typename Rep, typename Period, concepts::schedulable Exec = asio::io_context>
 LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for
 (const std::chrono::duration<Rep,Period> &rtime, Exec &exec = execution::io_context());
 
-template<typename Clock, typename Duration, typename Exec = asio::io_context>
+template<typename Clock, typename Duration, concepts::schedulable Exec = asio::io_context>
 LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until
 (const std::chrono::time_point<Clock,Duration> &atime, Exec &exec = execution::io_context());
 
@@ -96,37 +92,46 @@ LIBGS_CORE_TAPI awaitable<void> co_to_exec(Exec &exec = execution::io_context())
 
 LIBGS_CORE_VAPI awaitable<void> co_to_thread();
 
+template <concepts::co_token Token>
+LIBGS_CORE_TAPI bool check_error(Token &token, const error_code &error, const char *func = nullptr)
+	requires (not std::is_const_v<Token>);
+
 #ifdef LIBGS_USING_BOOST_ASIO
 
-using yield_context = asio::yield_context;
+template <concepts::schedulable Exec, concepts::execution YCExec, typename Func>
+LIBGS_CORE_TAPI auto co_post(Exec &exec, basic_yield_context<YCExec> yc, Func &&func) requires concepts::callable<Func>;
 
-template <typename Exec, typename Func>
-LIBGS_CORE_TAPI auto co_post(Exec &exec, yield_context &yc, Func &&func) requires concepts::callable<Func>;
+template <concepts::schedulable Exec, concepts::execution YCExec, typename Func>
+LIBGS_CORE_TAPI auto co_dispatch(Exec &exec, basic_yield_context<YCExec> yc, Func &&func) requires concepts::callable<Func>;
 
-template <typename Exec, typename Func>
-LIBGS_CORE_TAPI auto co_dispatch(Exec &exec, yield_context &yc, Func &&func) requires concepts::callable<Func>;
+template <concepts::execution YCExec, typename Func>
+LIBGS_CORE_TAPI auto co_thread(basic_yield_context<YCExec> yc, Func &&func) requires concepts::callable<Func>;
 
-template <typename Func>
-LIBGS_CORE_TAPI auto co_thread(yield_context &yc, Func &&func) requires concepts::callable<Func>;
-
-template<typename Rep, typename Period, typename Exec = asio::io_context>
+template<typename Rep, typename Period, concepts::execution YCExec, concepts::schedulable Exec = YCExec>
 LIBGS_CORE_TAPI error_code co_sleep_for
-(const std::chrono::duration<Rep,Period> &rtime, yield_context &yc, Exec &exec = execution::io_context());
+(const std::chrono::duration<Rep,Period> &rtime, basic_yield_context<Exec> yc, Exec &exec = yc.get_executor());
 
-template<typename Clock, typename Duration, typename Exec = asio::io_context>
+template<typename Clock, typename Duration, concepts::execution YCExec, concepts::schedulable Exec = YCExec>
 LIBGS_CORE_TAPI error_code co_sleep_until
-(const std::chrono::time_point<Clock,Duration> &atime, yield_context &yc, Exec &exec = execution::io_context());
+(const std::chrono::time_point<Clock,Duration> &atime, yield_context yc, Exec &exec = yc.get_executor());
 
-template <typename T>
-LIBGS_CORE_TAPI T co_wait(yield_context &yc, const std::future<T> &future);
+template <typename T, concepts::execution YCExec>
+LIBGS_CORE_TAPI T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future);
 
-LIBGS_CORE_VAPI void co_wait(yield_context &yc, const asio::thread_pool &pool);
-LIBGS_CORE_VAPI void co_wait(yield_context &yc, const std::thread &thread);
+template <concepts::execution YCExec>
+LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool);
 
-template <concepts::schedulable Exec = asio::io_context>
-LIBGS_CORE_TAPI void co_to_exec(yield_context &yc, Exec &exec = execution::io_context());
+template <concepts::execution YCExec>
+LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread);
 
-LIBGS_CORE_VAPI void co_to_thread(yield_context &yc);
+template <concepts::execution YCExec, concepts::schedulable Exec = YCExec>
+LIBGS_CORE_TAPI void co_to_exec(basic_yield_context<YCExec> yc, Exec &exec = yc.get_executor());
+
+template <concepts::execution YCExec>
+LIBGS_CORE_VAPI void co_to_thread(basic_yield_context<YCExec> yc);
+
+template <concepts::execution Exec>
+LIBGS_CORE_VAPI bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const char *func = nullptr);
 
 #endif //LIBGS_USING_BOOST_ASIO
 

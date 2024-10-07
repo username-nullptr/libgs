@@ -49,40 +49,40 @@ class flags
 public:
 	using enum_t = Enum;
 	constexpr flags() noexcept = default;
-	constexpr flags(Enum f) noexcept;
+	constexpr flags(enum_t f) noexcept;
 	constexpr flags(const flags &other) = default;
-	constexpr flags(std::initializer_list<Enum> flags) noexcept;
+	constexpr flags(std::initializer_list<enum_t> flags) noexcept;
 	flags &operator=(const flags &other) = default;
 
 public:
 	template <concepts::flag_number Int>
 	const flags &operator&=(Int mask) noexcept;
 
-	const flags &operator&=(Enum mask) noexcept;
+	const flags &operator&=(enum_t mask) noexcept;
 	const flags &operator|=(flags f) noexcept;
-	const flags &operator|=(Enum f) noexcept;
+	const flags &operator|=(enum_t f) noexcept;
 	const flags &operator^=(flags f) noexcept;
-	const flags &operator^=(Enum f) noexcept;
+	const flags &operator^=(enum_t f) noexcept;
 
 public:
 	template <concepts::flag_number Int>
 	constexpr flags operator&(Int mask) const noexcept;
 
-	constexpr flags operator&(Enum f) const noexcept;
+	constexpr flags operator&(enum_t f) const noexcept;
 	constexpr flags operator|(flags f) const noexcept;
-	constexpr flags operator|(Enum f) const noexcept;
+	constexpr flags operator|(enum_t f) const noexcept;
 	constexpr flags operator^(flags f) const noexcept;
-	constexpr flags operator^(Enum f) const noexcept;
+	constexpr flags operator^(enum_t f) const noexcept;
 	constexpr flags operator~() const noexcept;
 	constexpr bool operator!() const noexcept;
 
 public:
 	constexpr operator int() const noexcept;
-	constexpr bool testFlag(Enum f) const noexcept;
-	constexpr flags &setFlag(Enum f, bool on = true) const noexcept;
+	constexpr bool testFlag(enum_t f) const noexcept;
+	constexpr flags &setFlag(enum_t f, bool on = true) const noexcept;
 
 private:
-	using iterator = typename std::initializer_list<Enum>::const_iterator;
+	using iterator = typename std::initializer_list<enum_t>::const_iterator;
 	constexpr static int initializer_list_helper(iterator it, iterator end) noexcept;
 	uint32_t m_value = 0;
 };

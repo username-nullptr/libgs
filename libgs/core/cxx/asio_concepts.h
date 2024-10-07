@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_ASIO_CONCEPT_H
-#define LIBGS_CORE_CXX_ASIO_CONCEPT_H
+#ifndef LIBGS_CORE_CXX_ASIO_CONCEPTS_H
+#define LIBGS_CORE_CXX_ASIO_CONCEPTS_H
 
 #include <libgs/core/cxx/function_traits.h>
 #include <concepts>
@@ -124,11 +124,11 @@ struct is_match_execution_or_context {
 template <typename Exec, typename NativeExec>
 constexpr bool is_match_execution_or_context_v = is_match_execution_or_context<Exec,NativeExec>::value;
 
-template <typename T>
-struct is_awaitable : public std::false_type {};
+template <typename>
+struct is_awaitable : std::false_type {};
 
 template <typename T>
-struct is_awaitable<asio::awaitable<T>> : public std::true_type {};
+struct is_awaitable<asio::awaitable<T>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_awaitable_v = is_awaitable<T>::value;
@@ -173,4 +173,4 @@ concept awaitable_function =
 }} //namespace libgs::concepts
 
 
-#endif //LIBGS_CORE_CXX_ASIO_CONCEPT_H
+#endif //LIBGS_CORE_CXX_ASIO_CONCEPTS_H

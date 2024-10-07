@@ -29,8 +29,9 @@
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
-#include <libgs/core/cxx/asio_concept.h>
-#include <libgs/core/cxx/concept.h>
+#include <libgs/core/cxx/asio_concepts.h>
+#include <libgs/core/cxx/coro_concepts.h>
+#include <libgs/core/cxx/concepts.h>
 #include <chrono>
 #include <format>
 

@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_CONCEPT_H
-#define LIBGS_CORE_CXX_CONCEPT_H
+#ifndef LIBGS_CORE_CXX_CONCEPTS_H
+#define LIBGS_CORE_CXX_CONCEPTS_H
 
 #include <concepts>
 #include <string>
@@ -73,7 +73,7 @@ using is_dsame = std::is_same<std::decay_t<T0>, T1>;
 template <typename T0, typename T1>
 constexpr bool is_dsame_v = libgs::is_dsame<std::decay_t<T0>, T1>::value;
 
-template <concepts::char_type CharT, typename T>
+template <concepts::char_type, typename>
 struct is_basic_char_array : std::false_type {};
 
 template <concepts::char_type CharT, concepts::char_type T, size_t N>
@@ -213,4 +213,4 @@ concept copymovable = copyable<T> and movable<T>;
 }} //namespace libgs::concepts
 
 
-#endif //LIBGS_CORE_CXX_CONCEPT_H
+#endif //LIBGS_CORE_CXX_CONCEPTS_H

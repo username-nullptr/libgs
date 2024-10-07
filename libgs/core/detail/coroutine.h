@@ -31,39 +31,6 @@
 
 #include <thread>
 
-inline auto operator|(libgs::use_awaitable_t &ua, std::error_code &error) {
-	return redirect_error(ua, error);
-}
-
-inline auto operator|(std::error_code &error, libgs::use_awaitable_t &ua) {
-	return redirect_error(ua, error);
-}
-
-inline auto operator|(libgs::use_awaitable_t &ua, const asio::cancellation_slot &slot) {
-	return asio::bind_cancellation_slot(slot, ua);
-}
-
-inline auto operator|(const asio::cancellation_slot &slot, libgs::use_awaitable_t &ua) {
-	asio::cancellation_signal sss;
-	return asio::bind_cancellation_slot(slot, ua);
-}
-
-inline auto operator|(const asio::redirect_error_t<typename std::decay<libgs::use_awaitable_t>::type> &re, const asio::cancellation_slot &slot) {
-	return asio::bind_cancellation_slot(slot, re);
-}
-
-inline auto operator|(const asio::cancellation_slot &slot, const asio::redirect_error_t<typename std::decay<libgs::use_awaitable_t>::type> &re) {
-	return asio::bind_cancellation_slot(slot, re);
-}
-
-inline auto operator|(const asio::cancellation_slot_binder<typename std::decay<libgs::use_awaitable_t>::type,asio::cancellation_slot> &csb, std::error_code &error) {
-	return redirect_error(csb, error);
-}
-
-inline auto operator|(std::error_code &error, const asio::cancellation_slot_binder<typename std::decay<libgs::use_awaitable_t>::type,asio::cancellation_slot> &csb){
-	return redirect_error(csb, error);
-}
-
 namespace libgs
 {
 
@@ -124,7 +91,7 @@ auto co_spawn_future(awaitable<T> &&a, Exec &exec)
 		return asio::co_spawn(exec, std::move(a), asio::use_future);
 }
 
-template <typename Exec, typename Func>
+template <concepts::schedulable Exec, typename Func>
 auto co_post(Exec &exec, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
@@ -162,7 +129,7 @@ auto co_post(Exec &exec, Func &&func) requires concepts::callable<Func>
 	}
 }
 
-template <typename Exec, typename Func>
+template <concepts::schedulable Exec, typename Func>
 auto co_dispatch(Exec &exec, Func &&func) requires concepts::callable<Func>
 {
 	using return_type = decltype(func());
@@ -240,7 +207,7 @@ auto co_thread(Func &&func) requires concepts::callable<Func>
 	}
 }
 
-template<typename Rep, typename Period, typename Exec>
+template<typename Rep, typename Period, concepts::schedulable Exec>
 awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &exec)
 {
 	error_code error;
@@ -249,7 +216,7 @@ awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtim
 	co_return error;
 }
 
-template<typename Clock, typename Duration, typename Exec>
+template<typename Clock, typename Duration, concepts::schedulable Exec>
 awaitable<error_code> co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, Exec &exec)
 {
 	error_code error;
@@ -305,12 +272,31 @@ inline awaitable<void> co_to_thread()
 	asio::use_awaitable);
 }
 
+template <concepts::co_token Token>
+bool check_error(Token &token, const error_code &error, const char *func)
+	requires (not std::is_const_v<Token>)
+{
+	if( not error )
+		return true;
+	if constexpr( is_use_awaitable_v<Token> or is_cancellation_slot_binder_v<Token> )
+		throw func ? system_error(error, func) : system_error(error);
+	else if constexpr( is_redirect_error_v<Token> or is_redirect_error_cancellation_slot_binder_v<Token> )
+		token.ec_ = error;
+	else if constexpr( is_cancellation_slot_binder_redirect_error_v<Token> )
+		token.get().ec_ = error;
+	else
+		static_assert(false, "aaaaaaaaaaaaaaaaaaaaaaaa");
+	return false;
+}
+
 #ifdef LIBGS_USING_BOOST_ASIO
 
-template <typename Exec, typename Func>
-auto co_post(Exec &exec, yield_context &yc, Func &&func) requires concepts::callable<Func>
+template <concepts::schedulable Exec, concepts::execution YCExec, typename Func>
+auto co_post(Exec &exec, basic_yield_context<YCExec> yc, Func &&func) requires concepts::callable<Func>
 {
+	using yield_context = basic_yield_context<YCExec>;
 	using return_type = decltype(func());
+
 	if constexpr( std::is_same_v<return_type, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
@@ -345,10 +331,12 @@ auto co_post(Exec &exec, yield_context &yc, Func &&func) requires concepts::call
 	}
 }
 
-template <typename Exec, typename Func>
-auto co_dispatch(Exec &exec, yield_context &yc, Func &&func) requires concepts::callable<Func>
+template <concepts::schedulable Exec, concepts::execution YCExec, typename Func>
+auto co_dispatch(Exec &exec, basic_yield_context<YCExec> yc, Func &&func) requires concepts::callable<Func>
 {
+	using yield_context = basic_yield_context<YCExec>;
 	using return_type = decltype(func());
+
 	if constexpr( std::is_same_v<return_type, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
@@ -383,10 +371,12 @@ auto co_dispatch(Exec &exec, yield_context &yc, Func &&func) requires concepts::
 	}
 }
 
-template <typename Func>
-auto co_thread(yield_context &yc, Func &&func) requires concepts::callable<Func>
+template <concepts::execution YCExec, typename Func>
+auto co_thread(basic_yield_context<YCExec> yc, Func &&func) requires concepts::callable<Func>
 {
+	using yield_context = basic_yield_context<YCExec>;
 	using return_type = decltype(func());
+
 	if constexpr( std::is_same_v<return_type, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
@@ -423,8 +413,8 @@ auto co_thread(yield_context &yc, Func &&func) requires concepts::callable<Func>
 	}
 }
 
-template<typename Rep, typename Period, typename Exec>
-error_code co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, yield_context &yc, Exec &exec)
+template<typename Rep, typename Period, concepts::execution YCExec, concepts::schedulable Exec>
+error_code co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, basic_yield_context<Exec> yc, Exec &exec)
 {
 	error_code error;
 	asio::steady_timer timer(exec, rtime);
@@ -432,8 +422,8 @@ error_code co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, yield_co
 	return error;
 }
 
-template<typename Clock, typename Duration, typename Exec>
-error_code co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, yield_context &yc, Exec &exec)
+template<typename Clock, typename Duration, concepts::execution YCExec, concepts::schedulable Exec>
+error_code co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, basic_yield_context<Exec> yc, Exec &exec)
 {
 	error_code error;
 	asio::steady_timer timer(exec, atime);
@@ -441,32 +431,34 @@ error_code co_sleep_until(const std::chrono::time_point<Clock,Duration> &atime, 
 	return error;
 }
 
-template <typename T>
-T co_wait(yield_context &yc, const std::future<T> &future)
+template <typename T, concepts::execution YCExec>
+T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
 {
 	return co_thread(yc, [future = &future] {
 		return remove_const(future)->get();
 	});
 }
 
-inline void co_wait(yield_context &yc, const asio::thread_pool &pool)
+template <concepts::execution YCExec>
+void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 {
 	co_thread(yc, [pool = &pool] {
 		return remove_const(pool)->wait();
 	});
 }
 
-inline void co_wait(yield_context &yc, const std::thread &thread)
+template <concepts::execution YCExec>
+void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread)
 {
 	co_thread(yc, [thread = &thread] {
 		return remove_const(thread)->join();
 	});
 }
 
-template <concepts::schedulable Exec>
-awaitable<void> co_to_exec(yield_context &yc, Exec &exec)
+template <concepts::execution YCExec, concepts::schedulable Exec>
+awaitable<void> co_to_exec(basic_yield_context<YCExec> yc, Exec &exec)
 {
-	return asio::async_initiate<yield_context, void()>([&exec](auto handler)
+	return asio::async_initiate<basic_yield_context<YCExec>, void()>([&exec](auto handler)
 	{
 		auto work = asio::make_work_guard(handler);
 		asio::post(exec, [handler = std::move(handler), work = std::move(work)]() mutable {
@@ -476,9 +468,10 @@ awaitable<void> co_to_exec(yield_context &yc, Exec &exec)
 	yc);
 }
 
-inline void co_to_thread(yield_context &yc)
+template <concepts::execution YCExec>
+void co_to_thread(basic_yield_context<YCExec> yc)
 {
-	return asio::async_initiate<asio::yield_context, void()>([](auto handler)
+	return asio::async_initiate<basic_yield_context<YCExec>, void()>([](auto handler)
 	{
 		auto work = asio::make_work_guard(handler);
 		std::thread([handler = std::move(handler), work = std::move(work)]() mutable {
@@ -486,6 +479,17 @@ inline void co_to_thread(yield_context &yc)
 		}).detach();
 	},
 	yc);
+}
+
+template <concepts::execution Exec>
+bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const char *func)
+{
+	if( not error )
+		return true;
+	else if( not yc.ec_ )
+		throw func ? system_error(error, func) : system_error(error);
+	*yc.ec_ = error;
+	return false;
 }
 
 #endif //LIBGS_USING_BOOST_ASIO

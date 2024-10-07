@@ -175,7 +175,7 @@ private:
 		do try
 		{
 			auto socket = co_await m_next_layer.accept(m_service_exec);
-			if( not socket_operation_helper<socket_t>::is_open(socket) )
+			if( not socket_operation_helper<socket_t>(socket).is_open() )
 				continue;
 
 			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
@@ -194,7 +194,7 @@ private:
 					spdlog::error("libgs::http::server: service: Unknown exception.");
 					abd = true;
 				}
-				socket_operation_helper<socket_t>::close(socket);
+				socket_operation_helper<socket_t>(socket).close();
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -385,7 +385,7 @@ private:
 	std::string options_response_body(http::methods method)
 	{
 		std::string sum;
-		for(int i=method_begin; i<=method_end; i<<=1)
+		for(int i=static_cast<int>(http::method::begin); i<=static_cast<int>(http::method::end); i<<=1)
 		{
 			if( method & i )
 				sum += to_method_string(static_cast<http::method>(i)) + ";";
@@ -452,25 +452,20 @@ public:
 	{
 		explicit tk_handler(ctrlr_aop_ptr_t aop) : aop(std::move(aop)) {}
 
-		template <http::method...method>
+		template <method...Method>
 		tk_handler &bind_method()
 		{
-			if constexpr( sizeof...(method) == 0 )
-			{
-				using hm = http::method;
-				this->method = {
-					hm::GET, hm::PUT, hm::POST, hm::HEAD, hm::DELETE, hm::OPTIONS, hm::CONNECT, hm::TRACH
-				};
-			}
+			if constexpr( sizeof...(Method) == 0 )
+				method = method::all;
 			else
 			{
 				(void) std::initializer_list<int> {
-					(this->method |= method, 0) ...
+					(method |= Method, 0) ...
 				};
 			}
 			return *this;
 		}
-		http::methods method {};
+		methods method {};
 		ctrlr_aop_ptr_t aop {};
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;

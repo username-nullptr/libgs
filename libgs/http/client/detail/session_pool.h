@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
 #define LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
 
+#include <libgs/http/basic/socket_operation_helper.h>
+
 namespace libgs::http
 {
 
@@ -188,8 +190,9 @@ basic_session_pool<Stream>::session basic_session_pool<Stream>::get(Exec &exec, 
 		sess.m_impl->m_socket = std::move(it->second);
 		m_impl->m_sock_map.erase(it);
 	}
-	if(not sess.m_impl->m_socket.is_open())
-		sess.m_impl->m_socket.connect(ep, error);
+	socket_operation_helper helper(sess.m_impl->m_socket);
+	if( not helper.is_open() )
+		helper.connect(ep, error);
 	return sess;
 }
 
@@ -197,15 +200,25 @@ template <concepts::stream_requires Stream>
 template <asio::completion_token_for<void(error_code)> Token>
 auto basic_session_pool<Stream>::async_get(endpoint_t ep, session &sess, Token &&token)
 {
-
-
-	return 0;
+	return async_get(m_impl->m_exec, ep, sess, std::forward<Token>(token));
 }
 
 template <concepts::stream_requires Stream>
 template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
 auto basic_session_pool<Stream>::async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token)
 {
+	auto it = m_impl->m_sock_map.find(ep);
+	if( it == m_impl->m_sock_map.end() )
+		sess.m_impl->m_socket = socket_t(exec);
+	else
+	{
+		sess.m_impl->m_socket = std::move(it->second);
+		m_impl->m_sock_map.erase(it);
+	}
+	if(not sess.m_impl->m_socket.is_open())
+	{
+
+	}
 	return 0;
 }
 

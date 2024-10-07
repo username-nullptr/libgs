@@ -33,14 +33,14 @@ namespace libgs
 {
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum>::flags(Enum f) noexcept :
-	m_value(f)
+constexpr inline flags<Enum>::flags(enum_t f) noexcept :
+	m_value(static_cast<uint32_t>(f))
 {
 
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum>::flags(std::initializer_list<Enum> flags) noexcept :
+constexpr inline flags<Enum>::flags(std::initializer_list<enum_t> flags) noexcept :
 	m_value(initializer_list_helper(flags.begin(), flags.end()))
 {
 
@@ -55,9 +55,9 @@ const inline flags<Enum> &flags<Enum>::operator&=(Int mask) noexcept
 }
 
 template <concepts::flag_template Enum>
-const inline flags<Enum> &flags<Enum>::operator&=(Enum mask) noexcept
+const inline flags<Enum> &flags<Enum>::operator&=(enum_t mask) noexcept
 {
-	m_value &= mask;
+	m_value &= static_cast<uint32_t>(mask);
 	return *this;
 }
 
@@ -69,23 +69,23 @@ const inline flags<Enum> &flags<Enum>::operator|=(flags f) noexcept
 }
 
 template <concepts::flag_template Enum>
-const inline flags<Enum> &flags<Enum>::operator|=(Enum f) noexcept
+const inline flags<Enum> &flags<Enum>::operator|=(enum_t f) noexcept
 {
-	m_value |= f;
+	m_value |= static_cast<uint32_t>(f);
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const inline flags<Enum> &flags<Enum>::operator^=(flags<Enum> f) noexcept
+const inline flags<Enum> &flags<Enum>::operator^=(flags<enum_t> f) noexcept
 {
 	m_value ^= f.m_value;
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const inline flags<Enum> &flags<Enum>::operator^=(Enum f) noexcept
+const inline flags<Enum> &flags<Enum>::operator^=(enum_t f) noexcept
 {
-	m_value ^= f;
+	m_value ^= static_cast<uint32_t>(f);
 	return *this;
 }
 
@@ -93,43 +93,43 @@ template <concepts::flag_template Enum>
 template <concepts::flag_number Int>
 constexpr inline flags<Enum> flags<Enum>::operator&(Int mask) const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(m_value & static_cast<uint32_t>(mask)));
+	return flags<Enum>( static_cast<enum_t>(m_value & static_cast<uint32_t>(mask)));
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum> flags<Enum>::operator&(Enum f) const noexcept
+constexpr inline flags<Enum> flags<Enum>::operator&(enum_t f) const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(m_value & f) );
+	return flags<enum_t>( static_cast<enum_t>(m_value & static_cast<uint32_t>(f)) );
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum> flags<Enum>::operator|(flags<Enum> f) const noexcept
+constexpr inline flags<Enum> flags<Enum>::operator|(flags<enum_t> f) const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(m_value | f.m_value) );
+	return flags<enum_t>( static_cast<enum_t>(m_value | f.m_value) );
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum> flags<Enum>::operator|(Enum f) const noexcept
+constexpr inline flags<Enum> flags<Enum>::operator|(enum_t f) const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(m_value | f) );
+	return flags<enum_t>( static_cast<enum_t>(m_value | static_cast<uint32_t>(f)) );
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum> flags<Enum>::operator^(flags<Enum> f) const noexcept
+constexpr inline flags<Enum> flags<Enum>::operator^(flags<enum_t> f) const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(m_value ^ f.m_value) );
+	return flags<enum_t>( static_cast<enum_t>(m_value ^ f.m_value) );
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum> flags<Enum>::operator^(Enum f) const noexcept
+constexpr inline flags<Enum> flags<Enum>::operator^(enum_t f) const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(m_value ^ f) );
+	return flags<enum_t>( static_cast<enum_t>(m_value ^ static_cast<uint32_t>(f)) );
 }
 
 template <concepts::flag_template Enum>
 constexpr inline flags<Enum> flags<Enum>::operator~() const noexcept
 {
-	return flags<Enum>( static_cast<Enum>(~m_value) );
+	return flags<enum_t>( static_cast<enum_t>(~m_value) );
 }
 
 template <concepts::flag_template Enum>
@@ -145,21 +145,22 @@ constexpr inline flags<Enum>::operator int() const noexcept
 }
 
 template <concepts::flag_template Enum>
-constexpr inline bool flags<Enum>::testFlag(Enum f) const noexcept
+constexpr inline bool flags<Enum>::testFlag(enum_t f) const noexcept
 {
-	return (m_value & f) == f and (f != 0 or m_value == f);
+	auto _f = static_cast<uint32_t>(f);
+	return (m_value & _f) == _f and (_f != 0 or m_value == _f);
 }
 
 template <concepts::flag_template Enum>
-constexpr inline flags<Enum> &flags<Enum>::setFlag(Enum f, bool on) const noexcept
+constexpr inline flags<Enum> &flags<Enum>::setFlag(enum_t f, bool on) const noexcept
 {
-	return on ? (*this |= f) : (*this &= ~f);
+	return on ? (*this |= static_cast<uint32_t>(f)) : (*this &= ~static_cast<uint32_t>(f));
 }
 
 template <concepts::flag_template Enum>
 constexpr inline int flags<Enum>::initializer_list_helper(iterator it, iterator end) noexcept
 {
-	return (it == end ? 0 : (*it | initializer_list_helper(it + 1, end)));
+	return (it == end ? 0 : (static_cast<uint32_t>(*it) | initializer_list_helper(it + 1, end)));
 }
 
 } //namespace libgs

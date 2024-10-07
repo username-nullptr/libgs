@@ -120,18 +120,18 @@ X_MACRO( OPTIONS , 0x20 , "OPTIONS" ) \
 X_MACRO( TRACH   , 0x40 , "TRACH"   ) \
 X_MACRO( CONNECT , 0x80 , "CONNECT" )
 
-enum method
+enum class method
 {
 #define X_MACRO(e,v,d) e=(v),
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
+	all   = GET | PUT | POST | HEAD | DELETE | OPTIONS | TRACH | CONNECT,
+	begin = GET,
+	end   = CONNECT
 };
 LIBGS_DECLARE_FLAGS(methods, method)
 LIBGS_HTTP_VAPI void method_check(uint32_t m);
 LIBGS_HTTP_VAPI void method_check(method m);
-
-constexpr method method_begin = method::GET;
-constexpr method method_end = method::CONNECT;
 
 #define LIBGS_HTTP_REDIRECT_TYPE_TABLE \
 X_MACRO( moved_permanently  , static_cast<int>(status::moved_permanently ) ) \

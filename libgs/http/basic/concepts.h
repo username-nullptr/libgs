@@ -26,89 +26,43 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
-#define LIBGS_HTTP_CLIENT_SESSION_POOL_H
+#ifndef LIBGS_HTTP_BASIC_CONCEPTS_H
+#define LIBGS_HTTP_BASIC_CONCEPTS_H
 
-#include <libgs/http/global.h>
+#include <libgs/core/global.h>
+
+#ifdef LIBGS_ENABLE_OPENSSL
+#include <asio/ssl.hpp>
+#endif //LIBGS_ENABLE_OPENSSL
 
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream>
-class LIBGS_HTTP_TAPI basic_session_pool
+template <typename Stream>
+struct stream_requires : std::false_type {};
+
+template <concepts::execution Exec>
+struct stream_requires<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
+
+#ifdef LIBGS_ENABLE_OPENSSL
+template <concepts::execution Exec>
+struct stream_requires<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
+#endif //LIBGS_ENABLE_OPENSSL
+
+template <typename Stream>
+constexpr bool stream_requires_v = stream_requires<Stream>::value;
+
+namespace concepts
 {
-	LIBGS_DISABLE_COPY(basic_session_pool)
 
-public:
-	using socket_t = Stream;
-	using executor_t = typename socket_t::executor_type;
-	using endpoint_t = typename socket_t::endpoint_type;
+template <typename Stream>
+concept stream_requires = stream_requires_v<Stream>;
 
-public:
-	template <core_concepts::match_execution_or_context<executor_t> Exec>
-	explicit basic_session_pool(Exec &exec);
+} //namespace concepts
 
-	basic_session_pool() requires core_concepts::match_default_execution<executor_t>;
-	~basic_session_pool();
-
-	basic_session_pool(basic_session_pool &&other) noexcept;
-	basic_session_pool &operator=(basic_session_pool &&other) noexcept;
-
-public:
-	class session
-	{
-		LIBGS_DISABLE_COPY(session)
-		friend class basic_session_pool;
-		
-	public:
-		session();
-		~session();
-
-		session(session &&other) noexcept;
-		session &operator=(session &&other) noexcept;
-
-	public:
-		const socket_t &socket() const noexcept;
-		socket_t &socket() noexcept;
-
-	private:
-		class impl;
-		impl *m_impl;
-	};
-
-public:
-	[[nodiscard]] session get(const endpoint_t &ep);
-	[[nodiscard]] session get(const endpoint_t &ep, error_code &error) noexcept;
-
-	template <core_concepts::schedulable Exec>
-	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep);
-
-	template <core_concepts::schedulable Exec>
-	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep, error_code &error) noexcept;
-
-	template <asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_get(endpoint_t ep, session &sess, Token &&token);
-
-	template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token);
-
-public:
-	void emplace(socket_t &&socket);
-	void operator<<(socket_t &&socket);
-
-private:
-	class impl;
-	impl *m_impl;
-};
-
-template <core_concepts::execution Exec = asio::any_io_executor>
-using tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-
-using session_pool = tcp_session_pool<asio::any_io_executor>;
+namespace core_concepts = libgs::concepts;
 
 } //namespace libgs::http
-#include <libgs/http/client/detail/session_pool.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_SESSION_POOL_H
-
+#endif //LIBGS_HTTP_BASIC_CONCEPTS_H

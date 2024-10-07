@@ -71,7 +71,7 @@ public:
 	~impl()
 	{
 		if( m_parser->version() == detail::string_pool<CharT>::v_1_0 )
-			socket_operation_helper<next_layer_t>::close(m_next_layer);
+			socket_operation_helper<next_layer_t>(m_next_layer).close();
 	}
 
 public:
@@ -290,7 +290,7 @@ size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error
 		return sum;
 	}
 	asio::socket_base::receive_buffer_size op;
-	socket_operation_helper<next_layer_t>::get_option(m_impl->m_next_layer, op, error);
+	socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
 	if( error )
 		return sum;
 
@@ -351,7 +351,7 @@ awaitable<size_t> basic_server_request<Stream,CharT>::co_read(const mutable_buff
 			break;
 		}
 		asio::socket_base::receive_buffer_size op;
-		socket_operation_helper<next_layer_t>::get_option(m_impl->m_next_layer, op, error);
+		socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
 		if( error )
 			break;
 
@@ -653,19 +653,19 @@ bool basic_server_request<Stream,CharT>::is_eof() const noexcept
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Stream,CharT>::remote_endpoint() const
 {
-	return socket_operation_helper<next_layer_t>::remote_endpoint(m_impl->m_next_layer);
+	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).remote_endpoint();
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Stream,CharT>::local_endpoint() const
 {
-	return socket_operation_helper<next_layer_t>::local_endpoint(m_impl->m_next_layer);
+	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).local_endpoint();
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 const typename basic_server_request<Stream,CharT>::executor_t &basic_server_request<Stream,CharT>::get_executor() noexcept
 {
-	return socket_operation_helper<next_layer_t>::get_executor(m_impl->m_next_layer);
+	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_executor();
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>

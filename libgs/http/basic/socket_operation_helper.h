@@ -34,47 +34,104 @@
 namespace libgs::http
 {
 
-template <typename Stream>
+template <concepts::stream_requires Stream>
 class socket_operation_helper;
 
-template <core_concepts::execution Exec>
-class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+template <concepts::stream_requires Stream>
+class socket_operation_helper_base
 {
+	LIBGS_DISABLE_COPY(socket_operation_helper_base)
+
 public:
-	using socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec>;
+	using socket_t = Stream;
 	using executor_t = typename socket_t::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
+	using endpoint_t = typename socket_t::endpoint_type;
 
 public:
-	static void get_option(socket_t &socket, auto &option, error_code &error);
-	static void close(socket_t &socket);
+	explicit socket_operation_helper_base(socket_t &socket);
+	~socket_operation_helper_base() = default;
 
-	static endpoint_t remote_endpoint(socket_t &socket);
-	static endpoint_t local_endpoint(socket_t &socket);
+	socket_operation_helper_base(socket_operation_helper_base &&other) noexcept = default;
+	socket_operation_helper_base &operator=(socket_operation_helper_base &&other) noexcept = default;
 
-	static const executor_t &get_executor(socket_t &socket) noexcept;
-	static bool is_open(socket_t &socket) noexcept;
+public:
+	socket_t &socket;
+};
+
+template <core_concepts::execution Exec>
+class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>> :
+	public socket_operation_helper_base<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+{
+	LIBGS_DISABLE_COPY(socket_operation_helper)
+
+public:
+	using base_t = socket_operation_helper_base<
+		asio::basic_stream_socket<asio::ip::tcp,Exec>
+	>;
+	using socket_t = typename base_t::socket_t;
+	using executor_t = typename base_t::executor_t;
+	using endpoint_t = typename base_t::endpoint_t;
+
+public:
+	using base_t::base_t;
+	socket_operation_helper(socket_operation_helper &&other) noexcept = default;
+	socket_operation_helper &operator=(socket_operation_helper &&other) noexcept = default;
+
+public:
+	template <asio::completion_token_for<void(error_code)> Token>
+	[[nodiscard]] auto async_connect(endpoint_t ep, Token &&token);
+
+	void connect(endpoint_t ep, error_code &error) noexcept;
+	void connect(endpoint_t ep);
+
+	void get_option(auto &option, error_code &error) noexcept;
+	void get_option(auto &option);
+	void close() noexcept;
+
+	[[nodiscard]] endpoint_t remote_endpoint() noexcept;
+	[[nodiscard]] endpoint_t local_endpoint() noexcept;
+
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	[[nodiscard]] bool is_open() noexcept;
 };
 
 #ifdef LIBGS_ENABLE_OPENSSL
 
 template <core_concepts::execution Exec>
-class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
+class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
+	public socket_operation_helper_base<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
 {
-public:
-	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-	using executor_t = typename asio::basic_stream_socket<asio::ip::tcp,Exec>::executor_type;
-	using endpoint_t = asio::ip::tcp::endpoint;
+	LIBGS_DISABLE_COPY(socket_operation_helper)
 
 public:
-	static void get_option(socket_t &socket, auto &option, error_code &error);
-	static void close(socket_t &socket);
+	using base_t = socket_operation_helper_base<
+		asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+	>;
+	using socket_t = typename base_t::socket_t;
+	using executor_t = typename base_t::executor_t;
+	using endpoint_t = typename base_t::endpoint_t;
 
-	static endpoint_t remote_endpoint(socket_t &socket);
-	static endpoint_t local_endpoint(socket_t &socket);
+public:
+	using base_t::base_t;
+	socket_operation_helper(socket_operation_helper &&other) noexcept = default;
+	socket_operation_helper &operator=(socket_operation_helper &&other) noexcept = default;
 
-	static const executor_t &get_executor(socket_t &socket) noexcept;
-	static bool is_open(socket_t &socket) noexcept;
+public:
+	template <asio::completion_token_for<void(error_code)> Token>
+	[[nodiscard]] auto async_connect(endpoint_t endpoint, Token &&token);
+
+	void connect(endpoint_t endpoint, error_code &error) noexcept;
+	void connect(endpoint_t endpoint);
+
+	void get_option(auto &option, error_code &error) noexcept;
+	void get_option(auto &option);
+	void close() noexcept;
+
+	[[nodiscard]] endpoint_t remote_endpoint();
+	[[nodiscard]] endpoint_t local_endpoint();
+
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	[[nodiscard]] bool is_open() noexcept;
 };
 
 #endif //LIBGS_ENABLE_OPENSSL
