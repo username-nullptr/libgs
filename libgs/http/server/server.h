@@ -91,9 +91,9 @@ public:
 	basic_server &start(error_code &error) noexcept;
 
 public:
-	template <http::method...method, typename Func, typename...AopPtr>
-	basic_server &on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
-		detail::concepts::request_handler<Func,socket_t,CharT> and detail::concepts::aop_ptr_list<socket_t,CharT,AopPtr...>;
+	template <http::method...method, typename Func, typename...AopPtrs>
+	basic_server &on_request(string_view_t path_rule, Func &&func, AopPtrs&&...aops) requires
+		detail::concepts::request_handler<Func,socket_t,CharT> and detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>;
 
 	template <http::method...method>
 	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr_t ctrlr);

@@ -399,9 +399,9 @@ public:
 	class multi_ctrlr_aop : public ctrlr_aop_t
 	{
 	public:
-		template <typename Func, typename...AopPtr>
-		multi_ctrlr_aop(Func &&func, AopPtr&&...aops) :
-			m_aops{aop_ptr_t(std::forward<AopPtr>(aops))...},
+		template <typename Func, typename...AopPtrs>
+		multi_ctrlr_aop(Func &&func, AopPtrs&&...aops) :
+			m_aops{aop_ptr_t(std::forward<AopPtrs>(aops))...},
 			m_func(std::forward<Func>(func))
 		{
 			assert(m_func);
@@ -579,11 +579,11 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start
 }
 
 template <core_concepts::char_type CharT, concepts::stream_requires Stream, core_concepts::execution Exec>
-template <http::method...method, typename Func, typename...AopPtr>
+template <http::method...method, typename Func, typename...AopPtrs>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::on_request(string_view_t path_rule, Func &&func, AopPtr&&...aops) requires
+basic_server<CharT,Stream,Exec>::on_request(string_view_t path_rule, Func &&func, AopPtrs&&...aops) requires
 	detail::concepts::request_handler<Func,socket_t,CharT> and
-	detail::concepts::aop_ptr_list<socket_t,CharT,AopPtr...>
+	detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>
 {
 	if( path_rule.empty() )
 		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
@@ -595,7 +595,7 @@ basic_server<CharT,Stream,Exec>::on_request(string_view_t path_rule, Func &&func
 	if( not res )
 		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
-	auto aop = new typename impl::multi_ctrlr_aop(std::forward<Func>(func), std::forward<AopPtr>(aops)...);
+	auto aop = new typename impl::multi_ctrlr_aop(std::forward<Func>(func), std::forward<AopPtrs>(aops)...);
 	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(aop));
 	it->second->template bind_method<method...>();
 	return *this;
