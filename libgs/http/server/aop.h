@@ -45,9 +45,9 @@ public:
 	virtual ~basic_aop() = 0;
 
 public:
-	virtual awaitable<bool> before(context_t &context);
-	virtual awaitable<bool> after(context_t &context);
-	virtual bool exception(context_t &context, std::exception &ex);
+	[[nodiscard]] virtual awaitable<bool> before(context_t &context);
+	[[nodiscard]] virtual awaitable<bool> after(context_t &context);
+	[[nodiscard]] virtual bool exception(context_t &context, std::exception &ex);
 };
 
 template <core_concepts::execution Exec>
@@ -76,7 +76,7 @@ class basic_ctrlr_aop : public basic_aop<Stream,CharT>
 {
 public:
 	using context_t = basic_service_context<Stream,CharT>;
-	virtual awaitable<void> service(context_t &context) = 0;
+	[[nodiscard]] virtual awaitable<void> service(context_t &context) = 0;
 };
 
 template <core_concepts::execution Exec>
