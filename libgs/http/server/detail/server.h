@@ -408,7 +408,7 @@ public:
 		}
 
 	public:
-		awaitable<bool> before(context_t &context) override
+		[[nodiscard]] awaitable<bool> before(context_t &context) override
 		{
 			for(auto &aop : m_aops)
 			{
@@ -418,7 +418,7 @@ public:
 			co_return false;
 		}
 
-		awaitable<bool> after(context_t &context) override
+		[[nodiscard]] awaitable<bool> after(context_t &context) override
 		{
 			for(auto &aop : m_aops)
 			{
@@ -428,7 +428,7 @@ public:
 			co_return false;
 		}
 
-		bool exception(context_t &context, std::exception &ex) override
+		[[nodiscard]] bool exception(context_t &context, std::exception &ex) override
 		{
 			for(auto &aop : m_aops)
 			{
@@ -439,7 +439,7 @@ public:
 		}
 
 	public:
-		awaitable<void> service(context_t &context) override {
+		[[nodiscard]] awaitable<void> service(context_t &context) override {
 			co_return co_await m_func(context);
 		}
 
