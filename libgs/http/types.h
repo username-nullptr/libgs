@@ -26,12 +26,12 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_TYPES_H
-#define LIBGS_HTTP_BASIC_TYPES_H
+#ifndef LIBGS_HTTP_TYPES_H
+#define LIBGS_HTTP_TYPES_H
 
-#include <libgs/http/basic/header.h>
-#include <libgs/http/basic/cookie.h>
 #include <libgs/core/cxx/flags.h>
+#include <libgs/http/header.h>
+#include <libgs/http/cookie.h>
 
 #if defined(__WINNT) || defined(_WINDOWS)
 # undef DELETE
@@ -235,7 +235,7 @@ using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/basic/detail/types.h>
+#include <libgs/http/detail/types.h>
 
 
-#endif //LIBGS_HTTP_BASIC_TYPES_H
+#endif //LIBGS_HTTP_TYPES_H

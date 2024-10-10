@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 
-#include <libgs/http/basic/parser.h>
+#include <libgs/http/parser_base.h>
 #include <ranges>
 
 namespace libgs::http { namespace detail
@@ -61,7 +61,7 @@ class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 	struct string_pool : detail::string_pool<CharT>, detail::_request_parser_static_string<CharT> {};
 	using string_list_t = basic_string_list<CharT>;
-	using parser_t = basic_parser<CharT>;
+	using parser_t = basic_parser_base<CharT>;
 
 public:
 	explicit impl(size_t init_buf_size) :

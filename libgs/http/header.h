@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_HEADER_H
-#define LIBGS_HTTP_BASIC_HEADER_H
+#ifndef LIBGS_HTTP_HEADER_H
+#define LIBGS_HTTP_HEADER_H
 
-#include <libgs/http/basic/container.h>
+#include <libgs/http/global.h>
 
 namespace libgs::http
 {
@@ -75,4 +75,4 @@ using wheaders = basic_headers<wchar_t>;
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_BASIC_HEADER_H
+#endif //LIBGS_HTTP_HEADER_H

@@ -26,8 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_DETAIL_SOCKET_OPERATION_HELPER_H
-#define LIBGS_HTTP_BASIC_DETAIL_SOCKET_OPERATION_HELPER_H
+#ifndef LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
+#define LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
+
+#include <libgs/core/coroutine.h>
 
 namespace libgs::http
 {
@@ -51,16 +53,18 @@ async_connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		this->socket.async_connect(ep, token[error]);
-		check_error(token, error, "libgs::http::socket_operation_helper::async_connect");
+		check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return asio::co_spawn(this->socket.get_executor(), [&]() -> awaitable<void>
+		return asio::co_spawn(this->socket.get_executor(),
+							  [&socket = this->socket, ep = std::move(ep), token = std::forward<Token>(token)]()
+							  mutable -> awaitable<void>
 		{
 			error_code error;
-			co_await this->socket.next_layer().async_connect(ep, use_awaitable|error);
-			check_error(token, error, "libgs::http::socket_operation_helper::async_connect");
+			co_await socket.async_connect(ep, use_awaitable|error);
+			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
 			co_return ;
 		},
 		std::forward<Token>(token));
@@ -166,21 +170,22 @@ async_connect(endpoint_t ep, Token &&token)
 		if( check_error(token, error, "libgs::http::socket_operation_helper::async_connect") )
 		{
 			this->socket.async_handshake(std::move(ep), token[error]);
-			check_error(token, error, "libgs::http::socket_operation_helper::async_connect");
+			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
 		}
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
 		return asio::co_spawn(get_executor(),
-			[socket = &this->socket, ep = std::move(ep), token = std::forward<Token>(token)]() -> awaitable<void>
+			[socket = &this->socket, ep = std::move(ep), token = std::forward<Token>(token)]()
+			mutable -> awaitable<void>
 		{
 			error_code error;
 			co_await socket->next_layer().async_connect(ep, use_awaitable|error);
 			if( not check_error(token, error, "libgs::http::socket_operation_helper::async_connect") )
 			{
 				socket->async_handshake(std::move(ep), use_awaitable|error);
-				check_error(token, error, "libgs::http::socket_operation_helper::async_connect");
+				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
 			}
 			co_return ;
 		},
@@ -280,4 +285,4 @@ bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_BASIC_DETAIL_SOCKET_OPERATION_HELPER_H
+#endif //LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H

@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_COOKIE_H
-#define LIBGS_HTTP_BASIC_COOKIE_H
+#ifndef LIBGS_HTTP_COOKIE_H
+#define LIBGS_HTTP_COOKIE_H
 
-#include <libgs/http/basic/container.h>
+#include <libgs/http/global.h>
 
 namespace libgs::http
 {
@@ -194,7 +194,7 @@ using cookies = basic_cookies<char>;
 using wcookies = basic_cookies<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/basic/detail/cookie.h>
+#include <libgs/http/detail/cookie.h>
 
 
-#endif //LIBGS_HTTP_BASIC_COOKIE_H
+#endif //LIBGS_HTTP_COOKIE_H

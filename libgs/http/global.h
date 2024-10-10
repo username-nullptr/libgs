@@ -29,16 +29,6 @@
 #ifndef LIBGS_HTTP_GLOBAL_H
 #define LIBGS_HTTP_GLOBAL_H
 
-#include <libgs/http/basic/concepts.h>
-
-#ifdef gs_http_EXPORTS
-# define LIBGS_HTTP_API  LIBGS_DECL_EXPORT
-#else //gs_http_EXPORTS
-# define LIBGS_HTTP_API  LIBGS_DECL_IMPORT
-#endif //gs_http_EXPORTS
-
-# define LIBGS_HTTP_VAPI  LIBGS_CORE_VAPI
-# define LIBGS_HTTP_TAPI  LIBGS_CORE_TAPI
-
+#include <libgs/http/cxx/container.h>
 
 #endif //LIBGS_HTTP_GLOBAL_H

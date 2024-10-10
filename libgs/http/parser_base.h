@@ -26,81 +26,91 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_REPLY_PARSER_H
-#define LIBGS_HTTP_CLIENT_REPLY_PARSER_H
+#ifndef LIBGS_HTTP_PARSER_BASE_H
+#define LIBGS_HTTP_PARSER_BASE_H
 
 #include <libgs/http/types.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
-class LIBGS_HTTP_TAPI basic_reply_parser
+#define LIBGS_HTTP_PARSER_ERRNO \
+X_MACRO( RLTL , 10000 , "Request line too long."      ) \
+X_MACRO( HLTL , 10001 , "Header line too long."       ) \
+X_MACRO( IRL  , 10002 , "Invalid request line."       ) \
+X_MACRO( IHM  , 10003 , "Invalid http method."        ) \
+X_MACRO( IHP  , 10004 , "Invalid http path."          ) \
+X_MACRO( IHL  , 10005 , "Invalid header line."        ) \
+X_MACRO( IDE  , 10006 , "The inserted data is empty." ) \
+X_MACRO( SFE  , 10007 , "Size format error."          ) \
+X_MACRO( RE   , 10008 , "This request is ended."      )
+
+enum class parse_errno
 {
-	LIBGS_DISABLE_COPY(basic_reply_parser)
+#define X_MACRO(e,v,d) e=(v),
+	LIBGS_HTTP_PARSER_ERRNO
+#undef X_MACRO
+};
+
+template <core_concepts::char_type CharT>
+class LIBGS_HTTP_TAPI basic_parser_base
+{
+	LIBGS_DISABLE_COPY(basic_parser_base)
 
 public:
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
 
 	using value_t = basic_value<CharT>;
-	using value_list_t = basic_value_list<CharT>;
-
-	using cookie_t = basic_cookie<CharT>;
-	using cookies_t = basic_cookies<CharT>;
-
 	using header_t = basic_header<CharT>;
 	using headers_t = basic_headers<CharT>;
 
-public:
-	explicit basic_reply_parser(size_t init_buf_size = 0xFFFF);
-	~basic_reply_parser();
-
-	basic_reply_parser(basic_reply_parser &&other) noexcept;
-	basic_reply_parser &operator=(basic_reply_parser &&other) noexcept;
+	using parse_begin_handler = std::function<string_t(std::string_view line_buf, error_code &error)>;
+	using parse_cookie_handler = std::function<void(std::string_view line_buf, error_code &error)>;
 
 public:
+	explicit basic_parser_base(size_t init_buf_size = 0xFFFF);
+	~basic_parser_base();
+
+	basic_parser_base(basic_parser_base &&other) noexcept;
+	basic_parser_base &operator=(basic_parser_base &&other) noexcept;
+
+public:
+	basic_parser_base &on_parse_begin(parse_begin_handler func);
+	basic_parser_base &on_parse_cookie(parse_cookie_handler func);
+	static error_code make_error_code(parse_errno errc);
+
 	bool append(std::string_view buf, error_code &error);
 	bool append(std::string_view buf);
 	bool operator<<(std::string_view buf);
+	basic_parser_base &reset();
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
-	[[nodiscard]] http::status status() const noexcept;
-
-	[[nodiscard]] const value_t &header(string_view_t key) const;
-	[[nodiscard]] const cookie_t &cookie(string_view_t key) const;
-
-	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
-	[[nodiscard]] cookie_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
-
-public:
 	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
 
-public:
-	[[nodiscard]] bool keep_alive() const noexcept;
-	[[nodiscard]] bool support_gzip() const noexcept;
-	[[nodiscard]] bool can_read_from_device() const noexcept;
-
-public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+
+public:
+	[[nodiscard]] bool can_read_from_device() const noexcept;
 	[[nodiscard]] bool is_finished() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
-	basic_reply_parser &reset();
+
+public:
+	basic_parser_base &unset_parse_begin();
+	basic_parser_base &unset_parse_cookie();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using reply_parser = basic_reply_parser<char>;
-using wreply_parser = basic_reply_parser<wchar_t>;
+using parser_base = basic_parser_base<char>;
+using wparser_base = basic_parser_base<wchar_t>;
 
 } //namespace libgs::http
-#include <libgs/http/client/detail/reply_parser.h>
+#include <libgs/http/detail/parser_base.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_REPLY_PARSER_H
+#endif //LIBGS_HTTP_PARSER_BASE_H

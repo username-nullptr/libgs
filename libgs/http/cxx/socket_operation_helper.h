@@ -26,10 +26,11 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
-#define LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
+#ifndef LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
+#define LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/cxx/attributes.h>
+#include <libgs/http/cxx/concepts.h>
 
 namespace libgs::http
 {
@@ -38,7 +39,7 @@ template <concepts::stream_requires Stream>
 class socket_operation_helper;
 
 template <concepts::stream_requires Stream>
-class socket_operation_helper_base
+class LIBGS_HTTP_TAPI socket_operation_helper_base
 {
 	LIBGS_DISABLE_COPY(socket_operation_helper_base)
 
@@ -137,7 +138,7 @@ public:
 #endif //LIBGS_ENABLE_OPENSSL
 
 } //namespace libgs::http
-#include <libgs/http/basic/detail/socket_operation_helper.h>
+#include <libgs/http/cxx/detail/socket_operation_helper.h>
 
 
-#endif //LIBGS_HTTP_BASIC_SOCKET_OPERATION_HELPER_H
+#endif //LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H

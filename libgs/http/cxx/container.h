@@ -26,21 +26,30 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_DETAIL_CONTAINER_H
-#define LIBGS_HTTP_BASIC_DETAIL_CONTAINER_H
+#ifndef LIBGS_HTTP_CXX_CONTAINER_H
+#define LIBGS_HTTP_CXX_CONTAINER_H
+
+#include <libgs/http/cxx/attributes.h>
+#include <libgs/http/cxx/concepts.h>
+#include <libgs/core/value.h>
+#include <ranges>
+#include <map>
 
 namespace libgs::http
 {
 
 template <core_concepts::char_type CharT>
-bool basic_less_case_insensitive<CharT>::operator()(const string_t &v1, const string_t &v2) const
+struct LIBGS_HTTP_TAPI basic_less_case_insensitive
 {
-	return std::lexicographical_compare(v1.begin(), v1.end(), v2.begin(), v2.end(), [](CharT c1, CharT c2){
-		return tolower(c1) < tolower(c2);
-	});
-}
+	using string_t = std::basic_string<CharT>;
+	bool operator()(const string_t &v1, const string_t &v2) const;
+};
+
+using less_case_insensitive = basic_less_case_insensitive<char>;
+using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
 
 } //namespace libgs::http
+#include <libgs/http/cxx/detail/container.h>
 
 
-#endif //LIBGS_HTTP_BASIC_DETAIL_CONTAINER_H
+#endif //LIBGS_HTTP_CXX_CONTAINER_H

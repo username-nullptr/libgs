@@ -17,8 +17,9 @@ set(${target_name}_sources
 set(${target_name}_headers
 	cxx/cplusplus.h
 	cxx/attributes.h
-	cxx/concept.h
-	cxx/asio_concept.h
+	cxx/concepts.h
+	cxx/asio_concepts.h
+	cxx/coro_concepts.h
 	cxx/type_traits.h
 	cxx/remove_repeat.h
 	cxx/function_traits.h

@@ -30,23 +30,27 @@
 #define LIBGS_HTTP_CLIENT_SESSION_POOL_H
 
 #include <libgs/http/global.h>
+#include <libgs/core/execution.h>
 
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream>
+template <concepts::stream_requires Stream, core_concepts::execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_session_pool
 {
 	LIBGS_DISABLE_COPY(basic_session_pool)
 
 public:
 	using socket_t = Stream;
-	using executor_t = typename socket_t::executor_type;
+	using executor_t = Exec;
 	using endpoint_t = typename socket_t::endpoint_type;
 
 public:
-	template <core_concepts::match_execution_or_context<executor_t> Exec>
-	explicit basic_session_pool(Exec &exec);
+	template <core_concepts::match_execution<executor_t> Exec0>
+	explicit basic_session_pool(const Exec0 &exec);
+
+	template <core_concepts::match_execution_context<executor_t> Context>
+	explicit basic_session_pool(Context &context);
 
 	basic_session_pool() requires core_concepts::match_default_execution<executor_t>;
 	~basic_session_pool();
@@ -59,7 +63,7 @@ public:
 	{
 		LIBGS_DISABLE_COPY(session)
 		friend class basic_session_pool;
-		
+
 	public:
 		session();
 		~session();
@@ -80,17 +84,17 @@ public:
 	[[nodiscard]] session get(const endpoint_t &ep);
 	[[nodiscard]] session get(const endpoint_t &ep, error_code &error) noexcept;
 
-	template <core_concepts::schedulable Exec>
-	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep);
+	template <core_concepts::schedulable Exec0>
+	[[nodiscard]] session get(Exec0 &exec, const endpoint_t &ep);
 
-	template <core_concepts::schedulable Exec>
-	[[nodiscard]] session get(Exec &exec, const endpoint_t &ep, error_code &error) noexcept;
+	template <core_concepts::schedulable Exec0>
+	[[nodiscard]] session get(Exec0 &exec, const endpoint_t &ep, error_code &error) noexcept;
 
-	template <asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_get(endpoint_t ep, session &sess, Token &&token);
+	template <asio::completion_token_for<void(session,error_code)> Token>
+	[[nodiscard]] auto async_get(endpoint_t ep, Token &&token);
 
-	template <core_concepts::schedulable Exec, asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_get(Exec &exec, endpoint_t ep, session &sess, Token &&token);
+	template <core_concepts::schedulable Exec0, asio::completion_token_for<void(session,error_code)> Token>
+	[[nodiscard]] auto async_get(Exec0 &exec, endpoint_t ep, Token &&token);
 
 public:
 	void emplace(socket_t &&socket);
@@ -101,8 +105,11 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec = asio::any_io_executor>
-using tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+template <core_concepts::execution MainExec, core_concepts::execution SockExec>
+using basic_tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec>;
+
+template <core_concepts::execution Exec>
+using tcp_session_pool = basic_tcp_session_pool<asio::any_io_executor, Exec>;
 
 using session_pool = tcp_session_pool<asio::any_io_executor>;
 

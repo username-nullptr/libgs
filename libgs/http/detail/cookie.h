@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_DETAIL_COOKIE_H
-#define LIBGS_HTTP_BASIC_DETAIL_COOKIE_H
+#ifndef LIBGS_HTTP_DETAIL_COOKIE_H
+#define LIBGS_HTTP_DETAIL_COOKIE_H
 
 namespace libgs::http
 {
@@ -414,4 +414,4 @@ basic_cookie_attributes<CharT> basic_cookie<CharT>::attributes() const noexcept
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_BASIC_DETAIL_COOKIE_H
+#endif //LIBGS_HTTP_DETAIL_COOKIE_H

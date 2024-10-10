@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_SESSION_H
 #define LIBGS_HTTP_SERVER_SESSION_H
 
-#include <libgs/http/basic/types.h>
+#include <libgs/http/types.h>
 
 namespace libgs::http
 {

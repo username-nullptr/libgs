@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_CLIENT_REPLY_H
 
 #include <libgs/http/client/reply_parser.h>
-#include <libgs/http/basic/opt_token.h>
+#include <libgs/http/opt_token.h>
 #include <libgs/core/coroutine.h>
 
 namespace libgs::http

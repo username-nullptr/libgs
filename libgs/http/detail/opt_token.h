@@ -26,43 +26,65 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_CONCEPTS_H
-#define LIBGS_HTTP_BASIC_CONCEPTS_H
-
-#include <libgs/core/global.h>
-
-#ifdef LIBGS_ENABLE_OPENSSL
-#include <asio/ssl.hpp>
-#endif //LIBGS_ENABLE_OPENSSL
+#ifndef LIBGS_HTTP_DETAIL_OPT_TOKEN_H
+#define LIBGS_HTTP_DETAIL_OPT_TOKEN_H
 
 namespace libgs::http
 {
 
-template <typename Stream>
-struct stream_requires : std::false_type {};
-
-template <concepts::execution Exec>
-struct stream_requires<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
-
-#ifdef LIBGS_ENABLE_OPENSSL
-template <concepts::execution Exec>
-struct stream_requires<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
-#endif //LIBGS_ENABLE_OPENSSL
-
-template <typename Stream>
-constexpr bool stream_requires_v = stream_requires<Stream>::value;
-
-namespace concepts
+inline constexpr req_range::req_range()
 {
 
-template <typename Stream>
-concept stream_requires = stream_requires_v<Stream>;
+}
 
-} //namespace concepts
+inline req_range::req_range(size_t total) :
+	total(total)
+{
 
-namespace core_concepts = libgs::concepts;
+}
+
+inline req_range::req_range(size_t begin, size_t total) :
+	begin(begin), total(total)
+{
+
+}
+
+inline constexpr resp_range::resp_range()
+{
+
+}
+
+inline resp_range::resp_range(size_t end) :
+	end(end)
+{
+
+}
+
+inline resp_range::resp_range(size_t begin, size_t end) :
+	begin(begin), end(end)
+{
+
+}
+
+namespace detail::concepts
+{
+
+template <typename T>
+concept has_ec_ = requires(T &&t) {
+	t.ec_;
+};
+
+template <typename T>
+concept has_get = requires(T &&t)
+{
+	t.get_cancellation_slot();
+	t.get();
+};
+
+} //namespace detail::concepts
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_BASIC_CONCEPTS_H
+#endif //LIBGS_HTTP_DETAIL_OPT_TOKEN_H
+

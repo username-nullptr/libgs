@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REPLY_PARSER_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REPLY_PARSER_H
 
-#include <libgs/http/basic/parser.h>
+#include <libgs/http/parser_base.h>
 
 namespace libgs::http
 {
@@ -38,7 +38,7 @@ template <core_concepts::char_type CharT>
 class basic_reply_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using parser_t = basic_parser<CharT>;
+	using parser_t = basic_parser_base<CharT>;
 
 public:
 	explicit impl(size_t init_buf_size) :

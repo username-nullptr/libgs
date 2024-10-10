@@ -26,29 +26,43 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_BASIC_CONTAINER_H
-#define LIBGS_HTTP_BASIC_CONTAINER_H
+#ifndef LIBGS_HTTP_CXX_CONCEPTS_H
+#define LIBGS_HTTP_CXX_CONCEPTS_H
 
-#include <libgs/http/global.h>
-#include <libgs/core/value.h>
-#include <ranges>
-#include <map>
+#include <libgs/core/global.h>
+
+#ifdef LIBGS_ENABLE_OPENSSL
+#include <asio/ssl.hpp>
+#endif //LIBGS_ENABLE_OPENSSL
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
-struct LIBGS_HTTP_TAPI basic_less_case_insensitive
-{
-	using string_t = std::basic_string<CharT>;
-	bool operator()(const string_t &v1, const string_t &v2) const;
-};
+template <typename Stream>
+struct stream_requires : std::false_type {};
 
-using less_case_insensitive = basic_less_case_insensitive<char>;
-using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
+template <concepts::execution Exec>
+struct stream_requires<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
+
+#ifdef LIBGS_ENABLE_OPENSSL
+template <concepts::execution Exec>
+struct stream_requires<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
+#endif //LIBGS_ENABLE_OPENSSL
+
+template <typename Stream>
+constexpr bool stream_requires_v = stream_requires<Stream>::value;
+
+namespace concepts
+{
+
+template <typename Stream>
+concept stream_requires = stream_requires_v<Stream>;
+
+} //namespace concepts
+
+namespace core_concepts = libgs::concepts;
 
 } //namespace libgs::http
-#include <libgs/http/basic/detail/container.h>
 
 
-#endif //LIBGS_HTTP_BASIC_CONTAINER_H
+#endif //LIBGS_HTTP_CXX_CONCEPTS_H

@@ -71,11 +71,16 @@ set(core_sources
 )
 set_target(gs_core ${core_sources})
 
-set(http_sources
-	http/http_server_parser.cpp
-	http/http_server.cpp
-	http/http_server_aop.cpp
-	http/http_session.cpp
-	http/https_server.cpp
+set(http_server_sources
+	http_server/http_server_parser.cpp
+	http_server/http_server.cpp
+	http_server/http_server_aop.cpp
+	http_server/http_session.cpp
+	http_server/https_server.cpp
 )
-set_target(gs_core ${http_sources})
+set_target(gs_core ${http_server_sources})
+
+set(http_client_sources
+	http_client/session_pool.cpp
+)
+set_target(gs_core ${http_client_sources})
