@@ -29,19 +29,9 @@
 #ifndef LIBGS_CORE_GLOBAL_H
 #define LIBGS_CORE_GLOBAL_H
 
-#include <libgs/core/cxx/attributes.h>
 #include <libgs/core/cxx/cplusplus.h>
 #include <libgs/core/cxx/formatter.h>
 #include <libgs/core/cxx/exception.h>
-
-#ifdef gs_core_EXPORTS
-# define LIBGS_CORE_API  LIBGS_DECL_EXPORT
-#else //gs_core_EXPORTS
-# define LIBGS_CORE_API  LIBGS_DECL_IMPORT
-#endif //gs_core_EXPORTS
-
-#define LIBGS_CORE_VAPI
-#define LIBGS_CORE_TAPI
 
 namespace libgs
 {

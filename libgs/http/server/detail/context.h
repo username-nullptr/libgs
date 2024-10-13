@@ -139,6 +139,13 @@ basic_server_response<Stream,CharT> &basic_service_context<Stream,CharT>::respon
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
+typename basic_service_context<Stream,CharT>::executor_t
+basic_service_context<Stream,CharT>::get_executor() noexcept
+{
+	return request().get_executor();
+}
+
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 template <base_of_session<CharT> Session, typename...Args>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...args)
 	requires core_concepts::constructible<Session, Args...>

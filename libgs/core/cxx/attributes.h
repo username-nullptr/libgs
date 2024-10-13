@@ -53,6 +53,15 @@
 #  define LIBGS_DECL_IMPORT
 # endif //__MINGW
 
+#ifdef gs_core_EXPORTS
+# define LIBGS_CORE_API  LIBGS_DECL_EXPORT
+#else //gs_core_EXPORTS
+# define LIBGS_CORE_API  LIBGS_DECL_IMPORT
+#endif //gs_core_EXPORTS
+
+#define LIBGS_CORE_VAPI
+#define LIBGS_CORE_TAPI
+
 # define LIBGS_DECL_HIDDEN  __attribute__((visibility("hidden")))
 
 # define LIBGS_CXX_ATTR_USED    __attribute__((used))

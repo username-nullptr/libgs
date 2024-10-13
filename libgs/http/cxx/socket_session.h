@@ -26,59 +26,59 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "execution.h"
+#ifndef LIBGS_HTTP_CXX_SOCKET_SESSION_H
+#define LIBGS_HTTP_CXX_SOCKET_SESSION_H
 
-namespace libgs::execution
+#include <libgs/http/cxx/socket_operation_helper.h>
+
+namespace libgs::http
 {
 
-static context_t g_ioc;
-
-static std::atomic_int g_exit_code {0};
-
-static std::atomic_bool g_run_flag {false};
-
-context_t &context()
+template <concepts::stream_requires Stream>
+class LIBGS_HTTP_TAPI basic_socket_session
 {
-	return g_ioc;
-}
+	LIBGS_DISABLE_COPY(basic_socket_session)
 
-executor_t get_executor() noexcept
-{
-	return context().get_executor();
-}
+public:
+	using socket_t = Stream;
+    using opt_helper_t = socket_operation_helper<socket_t>;
 
-int exec()
-{
-	if( g_run_flag )
-		throw runtime_error("libgs::execution::exec: not reentrant.");
+	using executor_t = typename opt_helper_t::executor_t;
+	using endpoint_t = typename opt_helper_t::endpoint_t;
 
-	g_run_flag = true;
-	auto &ioc = context();
+public:
+  	template <core_concepts::callable<socket_t&&> Func>
+	basic_socket_session(socket_t &&socket, Func &&destructor);
+	basic_socket_session(socket_t &&socket);
+	basic_socket_session();
+    ~basic_socket_session();
 
-	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
-	for(;;)
-	{
-		ioc.run();
-		if( not g_run_flag )
-			break;
-		ioc.restart();
-	}
-	return g_exit_code;
-}
+	basic_socket_session(basic_socket_session &&other) noexcept;
+	basic_socket_session &operator=(basic_socket_session &&other) noexcept;
+	basic_socket_session &operator=(socket_t &&socket) noexcept;
 
-void exit(int code)
-{
-	if( not g_run_flag )
-		return ;
+public:
+ 	[[nodiscard]] const socket_t &socket() const noexcept;
+ 	[[nodiscard]] socket_t &socket() noexcept;
 
-	g_exit_code = code;
-	g_run_flag = false;
-	context().stop();
-}
+ 	[[nodiscard]] const opt_helper_t &opt_helper() const noexcept;
+ 	[[nodiscard]] opt_helper_t &opt_helper() noexcept;
 
-bool is_run()
-{
-	return g_run_flag;
-}
+	[[nodiscard]] executor_t get_executor() noexcept;
 
-} //namespace libgs::execution
+private:
+	class impl;
+	impl *m_impl;
+};
+
+template <core_concepts::execution Exec = asio::any_io_executor>
+using basic_tcp_socket_session = basic_socket_session<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+
+using tcp_socket_session = basic_tcp_socket_session<asio::any_io_executor>;
+using socket_session = tcp_socket_session;
+
+} //namespace libgs::http
+#include <libgs/http/cxx/detail/socket_session.h>
+
+
+#endif //LIBGS_HTTP_CXX_SOCKET_SESSION_H

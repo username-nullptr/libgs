@@ -31,6 +31,7 @@
 
 #include <libgs/http/client/url.h>
 #include <libgs/http/client/reply.h>
+#include <libgs/http/client/session_pool.h>
 
 namespace libgs::http
 {
@@ -44,7 +45,7 @@ class LIBGS_HTTP_TAPI basic_client_request
 public:
 	using next_layer_t = Stream;
 	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
+	using endpoint_t = typename next_layer_t::endpoint_type;
 
 	using url_t = basic_url<CharT>;
 	using reply_t = basic_client_reply<next_layer_t,CharT>;
@@ -101,10 +102,10 @@ public:
 	size_t write() noexcept;
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(const const_buffer &buf, Token &&token);
+	[[nodiscard]] auto async_write(const const_buffer &buf, Token &&token);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(Token &&token);
+	[[nodiscard]] auto async_write(Token &&token);
 
 public:
 	template <http::method Method>
@@ -120,17 +121,17 @@ public:
 	size_t write() noexcept;
 
 	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(const const_buffer &buf, Token &&token);
+	[[nodiscard]] auto async_write(const const_buffer &buf, Token &&token);
 
 	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_write(Token &&token);
+	[[nodiscard]] auto async_write(Token &&token);
 
 public:
 	size_t get(error_code &error);
 	size_t get();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_get(Token &&token);
+	[[nodiscard]] auto async_get(Token &&token);
 
 public:
 	size_t put(const const_buffer &buf, error_code &error);
@@ -139,10 +140,10 @@ public:
 	size_t put();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_put(const const_buffer &buf, Token &&token);
+	[[nodiscard]] auto async_put(const const_buffer &buf, Token &&token);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_put(Token &&token);
+	[[nodiscard]] auto async_put(Token &&token);
 
 public:
 	size_t post(const const_buffer &buf, error_code &error);
@@ -151,52 +152,52 @@ public:
 	size_t post();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_post(const const_buffer &buf, Token &&token);
+	[[nodiscard]] auto async_post(const const_buffer &buf, Token &&token);
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_post(Token &&token);
+	[[nodiscard]] auto async_post(Token &&token);
 
 public:
 	size_t Delete(error_code &error);
 	size_t Delete();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_delete(Token &&token);
+	[[nodiscard]] auto async_delete(Token &&token);
 
 public:
 	size_t head(error_code &error);
 	size_t head();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_head(Token &&token);
+	[[nodiscard]] auto async_head(Token &&token);
 
 public:
 	size_t options(error_code &error);
 	size_t options();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_options(Token &&token);
+	[[nodiscard]] auto async_options(Token &&token);
 
 public:
 	size_t trach(error_code &error);
 	size_t trach();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_trach(Token &&token);
+	[[nodiscard]] auto async_trach(Token &&token);
 
 public:
 	size_t connect(error_code &error);
 	size_t connect();
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	auto async_connect(Token &&token);
+	[[nodiscard]] auto async_connect(Token &&token);
 
 public:
 	[[nodiscard]] reply_t wait_reply(error_code &error);
 	[[nodiscard]] reply_t wait_reply();
 
 	template <asio::completion_token_for<void(error_code)> Token>
-	auto async_wait_reply(reply_t &reply, Token &&token);
+	[[nodiscard]] auto async_wait_reply(reply_t &reply, Token &&token);
 
 public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;

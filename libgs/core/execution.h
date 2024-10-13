@@ -34,9 +34,10 @@
 namespace libgs { namespace execution
 {
 
-using executor_t = typename asio::io_context::executor_type;
+using context_t = asio::io_context;
+using executor_t = typename context_t::executor_type;
 
-[[nodiscard]] LIBGS_CORE_API asio::io_context &io_context();
+[[nodiscard]] LIBGS_CORE_API context_t &context();
 [[nodiscard]] LIBGS_CORE_API executor_t get_executor() noexcept;
 
 LIBGS_CORE_API int exec();
@@ -44,8 +45,11 @@ LIBGS_CORE_API void exit(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
 
-template<typename T, concepts::schedulable Exec = asio::io_context>
-LIBGS_CORE_TAPI void delete_later(T *obj, Exec &exec = io_context());
+template<concepts::execution Exec = executor_t>
+LIBGS_CORE_TAPI void delete_later(auto *obj, const Exec &exec = get_executor());
+
+template<concepts::execution_context Exec = context_t>
+LIBGS_CORE_TAPI void delete_later(auto *obj, Exec &exec = context());
 
 } //namespace execution
 

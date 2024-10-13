@@ -41,7 +41,7 @@ class socket_operation_helper;
 template <concepts::stream_requires Stream>
 class LIBGS_HTTP_TAPI socket_operation_helper_base
 {
-	LIBGS_DISABLE_COPY(socket_operation_helper_base)
+	LIBGS_DISABLE_COPY_MOVE(socket_operation_helper_base)
 
 public:
 	using socket_t = Stream;
@@ -49,34 +49,34 @@ public:
 	using endpoint_t = typename socket_t::endpoint_type;
 
 public:
-	explicit socket_operation_helper_base(socket_t &socket);
-	~socket_operation_helper_base() = default;
-
-	socket_operation_helper_base(socket_operation_helper_base &&other) noexcept = default;
-	socket_operation_helper_base &operator=(socket_operation_helper_base &&other) noexcept = default;
+	socket_operation_helper_base(socket_t &socket);
+	~socket_operation_helper_base();
 
 public:
-	socket_t &socket;
+	[[nodiscard]] executor_t get_executor() noexcept;
+	[[nodiscard]] const socket_t &socket() const noexcept;
+	[[nodiscard]] socket_t &socket() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
 template <core_concepts::execution Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>> :
 	public socket_operation_helper_base<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 {
-	LIBGS_DISABLE_COPY(socket_operation_helper)
+	LIBGS_DISABLE_COPY_MOVE(socket_operation_helper)
 
 public:
 	using base_t = socket_operation_helper_base<
 		asio::basic_stream_socket<asio::ip::tcp,Exec>
 	>;
+	using base_t::base_t;
+
 	using socket_t = typename base_t::socket_t;
 	using executor_t = typename base_t::executor_t;
 	using endpoint_t = typename base_t::endpoint_t;
-
-public:
-	using base_t::base_t;
-	socket_operation_helper(socket_operation_helper &&other) noexcept = default;
-	socket_operation_helper &operator=(socket_operation_helper &&other) noexcept = default;
 
 public:
 	template <asio::completion_token_for<void(error_code)> Token>
@@ -89,10 +89,9 @@ public:
 	void get_option(auto &option);
 	void close() noexcept;
 
+public:
 	[[nodiscard]] endpoint_t remote_endpoint() noexcept;
 	[[nodiscard]] endpoint_t local_endpoint() noexcept;
-
-	[[nodiscard]] const executor_t &get_executor() noexcept;
 	[[nodiscard]] bool is_open() noexcept;
 };
 
@@ -102,20 +101,17 @@ template <core_concepts::execution Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
 	public socket_operation_helper_base<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
 {
-	LIBGS_DISABLE_COPY(socket_operation_helper)
+	LIBGS_DISABLE_COPY_MOVE(socket_operation_helper)
 
 public:
 	using base_t = socket_operation_helper_base<
 		asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 	>;
+	using base_t::base_t;
+
 	using socket_t = typename base_t::socket_t;
 	using executor_t = typename base_t::executor_t;
 	using endpoint_t = typename base_t::endpoint_t;
-
-public:
-	using base_t::base_t;
-	socket_operation_helper(socket_operation_helper &&other) noexcept = default;
-	socket_operation_helper &operator=(socket_operation_helper &&other) noexcept = default;
 
 public:
 	template <asio::completion_token_for<void(error_code)> Token>
@@ -128,10 +124,9 @@ public:
 	void get_option(auto &option);
 	void close() noexcept;
 
+public:
 	[[nodiscard]] endpoint_t remote_endpoint();
 	[[nodiscard]] endpoint_t local_endpoint();
-
-	[[nodiscard]] const executor_t &get_executor() noexcept;
 	[[nodiscard]] bool is_open() noexcept;
 };
 

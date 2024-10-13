@@ -663,7 +663,7 @@ typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Str
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::executor_t &basic_server_request<Stream,CharT>::get_executor() noexcept
+typename basic_server_request<Stream,CharT>::executor_t basic_server_request<Stream,CharT>::get_executor() noexcept
 {
 	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_executor();
 }

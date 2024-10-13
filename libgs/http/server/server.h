@@ -67,9 +67,15 @@ public:
 	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t,CharT>;
 
 public:
-
-	template <core_concepts::execution_context Context = asio::io_context&>
-	explicit basic_server(basic_acceptor_wrap<socket_t> &&next_layer, Context &&service_exec = execution::io_context());
+	template <core_concepts::execution Exec0 = execution::executor_t>
+	explicit basic_server (
+		basic_acceptor_wrap<socket_t> &&next_layer,
+		const Exec0 &service_exec = execution::get_executor()
+	);
+	explicit basic_server (
+		basic_acceptor_wrap<socket_t> &&next_layer,
+		core_concepts::execution_context auto &service_exec
+	);
 	~basic_server();
 
 	template <typename Stream0, typename Exec0>

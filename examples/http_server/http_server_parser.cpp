@@ -67,7 +67,7 @@ int main()
 
 	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
 	{
-		asio::ip::tcp::acceptor server(libgs::execution::io_context());
+		asio::ip::tcp::acceptor server(libgs::execution::context());
 		try {
 			server.bind({asio::ip::tcp::v4(), port});
 			for(;;)

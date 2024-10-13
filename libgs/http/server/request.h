@@ -137,7 +137,7 @@ public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;
 	[[nodiscard]] endpoint_t local_endpoint() const;
 
-	[[nodiscard]] const executor_t &get_executor() noexcept;
+	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_server_request &cancel() noexcept;
 
 public:

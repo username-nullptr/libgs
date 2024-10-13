@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
 #define LIBGS_HTTP_CLIENT_SESSION_POOL_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/cxx/socket_session.h>
 #include <libgs/core/execution.h>
 
 namespace libgs::http
@@ -42,8 +42,10 @@ class LIBGS_HTTP_TAPI basic_session_pool
 
 public:
 	using socket_t = Stream;
+	using session_t = basic_socket_session<socket_t>;
+
 	using executor_t = Exec;
-	using endpoint_t = typename socket_t::endpoint_type;
+	using endpoint_t = typename session_t::endpoint_t;
 
 public:
 	template <core_concepts::match_execution<executor_t> Exec0>
@@ -59,41 +61,19 @@ public:
 	basic_session_pool &operator=(basic_session_pool &&other) noexcept;
 
 public:
-	class session
-	{
-		LIBGS_DISABLE_COPY(session)
-		friend class basic_session_pool;
-
-	public:
-		session();
-		~session();
-
-		session(session &&other) noexcept;
-		session &operator=(session &&other) noexcept;
-
-	public:
-		const socket_t &socket() const noexcept;
-		socket_t &socket() noexcept;
-
-	private:
-		class impl;
-		impl *m_impl;
-	};
-
-public:
-	[[nodiscard]] session get(const endpoint_t &ep);
-	[[nodiscard]] session get(const endpoint_t &ep, error_code &error) noexcept;
+	[[nodiscard]] session_t get(const endpoint_t &ep);
+	[[nodiscard]] session_t get(const endpoint_t &ep, error_code &error) noexcept;
 
 	template <core_concepts::schedulable Exec0>
-	[[nodiscard]] session get(Exec0 &exec, const endpoint_t &ep);
+	[[nodiscard]] session_t get(Exec0 &exec, const endpoint_t &ep);
 
 	template <core_concepts::schedulable Exec0>
-	[[nodiscard]] session get(Exec0 &exec, const endpoint_t &ep, error_code &error) noexcept;
+	[[nodiscard]] session_t get(Exec0 &exec, const endpoint_t &ep, error_code &error) noexcept;
 
-	template <asio::completion_token_for<void(session,error_code)> Token>
+	template <asio::completion_token_for<void(session_t,error_code)> Token>
 	[[nodiscard]] auto async_get(endpoint_t ep, Token &&token);
 
-	template <core_concepts::schedulable Exec0, asio::completion_token_for<void(session,error_code)> Token>
+	template <core_concepts::schedulable Exec0, asio::completion_token_for<void(session_t,error_code)> Token>
 	[[nodiscard]] auto async_get(Exec0 &exec, endpoint_t ep, Token &&token);
 
 public:
@@ -118,4 +98,3 @@ using session_pool = tcp_session_pool<asio::any_io_executor>;
 
 
 #endif //LIBGS_HTTP_CLIENT_SESSION_POOL_H
-

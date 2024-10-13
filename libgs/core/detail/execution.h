@@ -32,10 +32,18 @@
 namespace libgs::execution
 {
 
-template<typename T, concepts::schedulable Exec>
-void delete_later(T *obj, Exec &exec)
+template<concepts::execution Exec>
+void delete_later(auto *obj, const Exec &exec)
 {
-	post(exec, [obj]{
+	asio::post(exec, [obj]{
+		delete obj;
+	});
+}
+
+template<concepts::execution_context Exec>
+void delete_later(auto *obj, Exec &exec)
+{
+	asio::post(exec, [obj]{
 		delete obj;
 	});
 }

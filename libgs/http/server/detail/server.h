@@ -39,11 +39,7 @@ class basic_server<CharT,Stream,Exec>::impl
 	using request_handler_t = std::function<awaitable<void>(context_t&)>;
 
 public:
-	template <core_concepts::execution_context Context>
-	explicit impl(basic_acceptor_wrap<socket_t> &&next_layer, Context &&service_exec) :
-		m_next_layer(std::move(next_layer)), m_service_exec(service_exec.get_executor()) {}
-
-	explicit impl(basic_acceptor_wrap<socket_t> &&next_layer, service_exec_t &service_exec) :
+	explicit impl(basic_acceptor_wrap<socket_t> &&next_layer, const service_exec_t &service_exec) :
 		m_next_layer(std::move(next_layer)), m_service_exec(service_exec) {}
 
 	template <typename Stream0, typename Exec0>
@@ -487,9 +483,18 @@ public:
 };
 
 template <core_concepts::char_type CharT, concepts::stream_requires Stream, core_concepts::execution Exec>
-template <core_concepts::execution_context Context>
-basic_server<CharT,Stream,Exec>::basic_server(basic_acceptor_wrap<socket_t> &&next_layer, Context &&service_exec) :
-	m_impl(new impl(std::move(next_layer), std::forward<Context>(service_exec)))
+template <core_concepts::execution Exec0>
+basic_server<CharT,Stream,Exec>::basic_server
+(basic_acceptor_wrap<socket_t> &&next_layer, const Exec0 &service_exec) :
+	m_impl(new impl(std::move(next_layer), service_exec))
+{
+
+}
+
+template <core_concepts::char_type CharT, concepts::stream_requires Stream, core_concepts::execution Exec>
+basic_server<CharT,Stream,Exec>::basic_server
+(basic_acceptor_wrap<socket_t> &&next_layer, core_concepts::execution_context auto &service_exec) :
+	m_impl(new impl(std::move(next_layer), service_exec.get_executor()))
 {
 
 }

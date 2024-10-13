@@ -29,8 +29,8 @@
 #ifndef LIBGS_CORE_CXX_REMOVE_REPEAT_H
 #define LIBGS_CORE_CXX_REMOVE_REPEAT_H
 
-#include <tuple>
 #include <variant>
+#include <tuple>
 
 namespace libgs
 {

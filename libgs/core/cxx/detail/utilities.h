@@ -60,13 +60,12 @@ constexpr const T *as_const(const T *v) {
 }
 
 template <typename T>
-const char *type_name(T &&t) {
-	return LIBGS_ABI_CXA_DEMANGLE(typeid(t).name());
-}
-
-template <typename T>
 const char *type_name() {
 	return LIBGS_ABI_CXA_DEMANGLE(typeid(T).name());
+}
+
+const char *type_name(auto &&t) {
+	return LIBGS_ABI_CXA_DEMANGLE(typeid(t).name());
 }
 
 inline std::string wcstombs(std::wstring_view str)
@@ -134,10 +133,9 @@ std::string xxtombs(std::basic_string_view<CharT> str)
 		return wcstombs(str);
 }
 
-template <concepts::char_type CharT>
-char xxtombs(CharT c)
+char xxtombs(concepts::char_type auto c)
 {
-	if constexpr( is_char_v<CharT> )
+	if constexpr( is_char_v<decltype(c)> )
 		return c;
 	else
 		return wcstombs(c);
@@ -152,10 +150,9 @@ std::wstring xxtowcs(std::basic_string_view<CharT> str)
 		return {str.data(), str.size()};
 }
 
-template <concepts::char_type CharT>
-wchar_t xxtowcs(CharT c)
+wchar_t xxtowcs(concepts::char_type auto c)
 {
-	if constexpr( is_char_v<CharT> )
+	if constexpr( is_char_v<decltype(c)> )
 		return mbstowcs(c);
 	else
 		return c;
@@ -235,6 +232,16 @@ inline string_wrapper::operator std::string &()
 inline string_wrapper::operator const std::string &() const
 {
 	return value;
+}
+
+auto get_executor_helper(const concepts::execution auto &exec)
+{
+	return exec;
+}
+
+auto get_executor_helper(concepts::execution_context auto &exec)
+{
+	return exec.get_executor();
 }
 
 } //namespace libgs

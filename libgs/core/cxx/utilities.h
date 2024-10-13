@@ -31,6 +31,7 @@
 
 #include <libgs/core/cxx/remove_repeat.h>
 #include <libgs/core/cxx/type_traits.h>
+#include <libgs/core/cxx/attributes.h>
 #include <utility>
 
 #ifdef __GNUC__
@@ -85,42 +86,38 @@ template <typename T>
 constexpr const T *as_const(const T *v);
 
 template <typename T>
-const char *type_name(T &&t);
+LIBGS_CORE_TAPI const char *type_name();
+LIBGS_CORE_TAPI const char *type_name(auto &&t);
 
-template <typename T>
-const char *type_name();
+LIBGS_CORE_VAPI std::string wcstombs(std::wstring_view str);
+LIBGS_CORE_VAPI char wcstombs(wchar_t c);
 
-std::string wcstombs(std::wstring_view str);
-char wcstombs(wchar_t c);
-
-std::wstring mbstowcs(std::string_view str);
-wchar_t mbstowcs(char c);
+LIBGS_CORE_VAPI std::wstring mbstowcs(std::string_view str);
+LIBGS_CORE_VAPI wchar_t mbstowcs(char c);
 
 template <concepts::char_type CharT>
-std::string xxtombs(std::basic_string_view<CharT> str);
+LIBGS_CORE_TAPI std::string xxtombs(std::basic_string_view<CharT> str);
+
+LIBGS_CORE_TAPI char xxtombs(concepts::char_type auto c);
 
 template <concepts::char_type CharT>
-char xxtombs(CharT c);
+LIBGS_CORE_TAPI std::wstring xxtowcs(std::basic_string_view<CharT> str);
+
+LIBGS_CORE_TAPI wchar_t xxtowcs(concepts::char_type auto c);
 
 template <concepts::char_type CharT>
-std::wstring xxtowcs(std::basic_string_view<CharT> str);
+LIBGS_CORE_TAPI std::basic_string<CharT> mbstoxx(std::string_view str);
 
 template <concepts::char_type CharT>
-wchar_t xxtowcs(CharT c);
+LIBGS_CORE_TAPI CharT mbstoxx(char c);
 
 template <concepts::char_type CharT>
-std::basic_string<CharT> mbstoxx(std::string_view str);
+LIBGS_CORE_TAPI std::basic_string<CharT> wcstoxx(std::wstring_view str);
 
 template <concepts::char_type CharT>
-CharT mbstoxx(char c);
+LIBGS_CORE_TAPI CharT wcstoxx(wchar_t c);
 
-template <concepts::char_type CharT>
-std::basic_string<CharT> wcstoxx(std::wstring_view str);
-
-template <concepts::char_type CharT>
-CharT wcstoxx(wchar_t c);
-
-struct string_wrapper
+struct LIBGS_CORE_VAPI string_wrapper
 {
 	std::string value;
 
@@ -136,6 +133,9 @@ struct string_wrapper
 	operator std::string&();
 	operator const std::string&() const;
 };
+
+LIBGS_CORE_TAPI auto get_executor_helper(const concepts::execution auto &exec);
+LIBGS_CORE_TAPI auto get_executor_helper(concepts::execution_context auto &exec);
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/utilities.h>

@@ -32,7 +32,7 @@ int main()
 	});
 #else
 	spool.async_get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080},
-	[&pool](libgs::http::session_pool::session session, const std::error_code &error)
+	[&pool](libgs::http::session_pool::session_t session, const std::error_code &error)
 	{
 	    static auto wbuf ="GET / HTTP/1.1\r\n"
 	                      "Host: 127.0.0.1:8080\r\n"

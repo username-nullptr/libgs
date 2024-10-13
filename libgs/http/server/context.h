@@ -46,6 +46,7 @@ public:
 
 	using request_t = basic_server_request<stream_t,CharT>;
 	using response_t = basic_server_response<stream_t,CharT>;
+	using executor_t = typename stream_t::executor_type;
 
 	using session_t = basic_session<CharT>;
 	using session_ptr = basic_session_ptr<CharT>;
@@ -66,28 +67,30 @@ public:
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
-	const request_t &request() const noexcept;
-	request_t &request() noexcept;
+	[[nodiscard]] const request_t &request() const noexcept;
+	[[nodiscard]] request_t &request() noexcept;
 
-	const response_t &response() const noexcept;
-	response_t &response() noexcept;
+	[[nodiscard]] const response_t &response() const noexcept;
+	[[nodiscard]] response_t &response() noexcept;
+
+	[[nodiscard]] executor_t get_executor() noexcept;
 
 public:
 	template <base_of_session<CharT> Session, typename...Args>
-	std::shared_ptr<Session> session(Args&&...args)
+	[[nodiscard]] std::shared_ptr<Session> session(Args&&...args)
 		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
-	session_ptr session(Args&&...args) noexcept
+	[[nodiscard]] session_ptr session(Args&&...args) noexcept
 		requires core_concepts::constructible<basic_session<CharT>, Args...>;
 
 	template <base_of_session<CharT> Session>
-	std::shared_ptr<Session> session() const;
-	session_ptr session() const;
+	[[nodiscard]] std::shared_ptr<Session> session() const;
+	[[nodiscard]] session_ptr session() const;
 
 	template <base_of_session<CharT> Session>
-	std::shared_ptr<Session> session_or();
-	session_ptr session_or() noexcept;
+	[[nodiscard]] std::shared_ptr<Session> session_or();
+	[[nodiscard]] session_ptr session_or() noexcept;
 
 private:
 	class impl;

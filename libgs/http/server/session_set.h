@@ -87,7 +87,7 @@ public:
 	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
 
 	basic_session_set &set_cookie_key(string_view_t key);
-	string_view_t cookie_key() noexcept;
+	[[nodiscard]] string_view_t cookie_key() noexcept;
 
 private:
 	class impl;

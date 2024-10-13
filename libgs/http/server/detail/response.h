@@ -1252,7 +1252,7 @@ bool basic_server_response<Stream,CharT>::chunk_end_writed() const noexcept
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-const typename basic_server_response<Stream,CharT>::executor_t&
+typename basic_server_response<Stream,CharT>::executor_t
 basic_server_response<Stream,CharT>::get_executor() noexcept
 {
 	return m_impl->m_next_layer.get_executor();
