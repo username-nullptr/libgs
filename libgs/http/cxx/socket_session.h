@@ -47,8 +47,10 @@ public:
 	using endpoint_t = typename opt_helper_t::endpoint_t;
 
 public:
-  	template <core_concepts::callable<socket_t&&> Func>
-	basic_socket_session(socket_t &&socket, Func &&destructor);
+  	template <typename Func>
+	basic_socket_session(socket_t &&socket, Func &&destructor)
+		requires core_concepts::callable<Func,socket_t&&>;
+
 	basic_socket_session(socket_t &&socket);
 	basic_socket_session();
     ~basic_socket_session();

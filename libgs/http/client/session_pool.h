@@ -48,11 +48,8 @@ public:
 	using endpoint_t = typename session_t::endpoint_t;
 
 public:
-	template <core_concepts::match_execution<executor_t> Exec0>
-	explicit basic_session_pool(const Exec0 &exec);
-
-	template <core_concepts::match_execution_context<executor_t> Context>
-	explicit basic_session_pool(Context &context);
+	explicit basic_session_pool(const core_concepts::match_execution<executor_t> auto &exec);
+	explicit basic_session_pool(core_concepts::match_execution_context<executor_t> auto &context);
 
 	basic_session_pool() requires core_concepts::match_default_execution<executor_t>;
 	~basic_session_pool();
@@ -64,17 +61,29 @@ public:
 	[[nodiscard]] session_t get(const endpoint_t &ep);
 	[[nodiscard]] session_t get(const endpoint_t &ep, error_code &error) noexcept;
 
-	template <core_concepts::schedulable Exec0>
-	[[nodiscard]] session_t get(Exec0 &exec, const endpoint_t &ep);
+	[[nodiscard]] session_t get
+	(const core_concepts::execution auto &exec, const endpoint_t &ep);
 
-	template <core_concepts::schedulable Exec0>
-	[[nodiscard]] session_t get(Exec0 &exec, const endpoint_t &ep, error_code &error) noexcept;
+	[[nodiscard]] session_t get
+	(core_concepts::execution_context auto &exec, const endpoint_t &ep);
 
-	template <asio::completion_token_for<void(session_t,error_code)> Token>
-	[[nodiscard]] auto async_get(endpoint_t ep, Token &&token);
+	[[nodiscard]] session_t get
+	(const core_concepts::execution auto &exec, const endpoint_t &ep, error_code &error) noexcept;
 
-	template <core_concepts::schedulable Exec0, asio::completion_token_for<void(session_t,error_code)> Token>
-	[[nodiscard]] auto async_get(Exec0 &exec, endpoint_t ep, Token &&token);
+	[[nodiscard]] session_t get
+	(core_concepts::execution_context auto &exec, const endpoint_t &ep, error_code &error) noexcept;
+
+	template <typename Token>
+	[[nodiscard]] auto async_get(endpoint_t ep, Token &&token)
+		requires asio::completion_token_for<Token,void(session_t,error_code)>;
+
+	template <typename Token>
+	[[nodiscard]] auto async_get(const core_concepts::execution auto &exec, endpoint_t ep, Token &&token)
+		requires asio::completion_token_for<Token,void(session_t,error_code)>;
+
+	template <typename Token>
+	[[nodiscard]] auto async_get(core_concepts::execution_context auto &exec, endpoint_t ep, Token &&token)
+		requires asio::completion_token_for<Token,void(session_t,error_code)>;
 
 public:
 	void emplace(socket_t &&socket);

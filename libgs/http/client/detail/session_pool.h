@@ -55,16 +55,14 @@ public:
 };
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-template <core_concepts::match_execution<typename basic_session_pool<Stream,Exec>::executor_t> Exec0>
-basic_session_pool<Stream,Exec>::basic_session_pool(const Exec0 &exec) :
+basic_session_pool<Stream,Exec>::basic_session_pool(const core_concepts::match_execution<executor_t> auto &exec) :
 	m_impl(new impl(exec))
 {
 
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-template <core_concepts::match_execution_context<typename basic_session_pool<Stream,Exec>::executor_t> Context>
-basic_session_pool<Stream,Exec>::basic_session_pool(Context &context) :
+basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_execution_context<executor_t> auto &context) :
 	m_impl(new impl(context.get_executor()))
 {
 
@@ -115,9 +113,8 @@ basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, error_code &error) no
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-template <core_concepts::schedulable Exec0>
 basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(Exec0 &exec, const endpoint_t &ep)
+basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep)
 {
 	error_code error;
 	auto sess = get(exec, ep, error);
@@ -127,9 +124,19 @@ basic_session_pool<Stream,Exec>::get(Exec0 &exec, const endpoint_t &ep)
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-template <core_concepts::schedulable Exec0>
 basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(Exec0 &exec, const endpoint_t &ep, error_code &error) noexcept
+basic_session_pool<Stream,Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep)
+{
+	error_code error;
+	auto sess = get(exec, ep, error);
+	if( error )
+          throw system_error(error, "libgs::http::basic_session_pool::get");
+	return sess;
+}
+
+template <concepts::stream_requires Stream, core_concepts::execution Exec>
+basic_session_pool<Stream,Exec>::session_t
+basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep, error_code &error) noexcept
 {
 	socket_t socket(exec);
 	auto it = m_impl->m_sock_map.find(ep);
@@ -153,16 +160,24 @@ basic_session_pool<Stream,Exec>::get(Exec0 &exec, const endpoint_t &ep, error_co
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-template <asio::completion_token_for<void(typename basic_session_pool<Stream,Exec>::session_t,error_code)> Token>
+basic_session_pool<Stream,Exec>::session_t
+basic_session_pool<Stream, Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep, error_code &error) noexcept
+{
+	return get(exec.get_executor(), ep, error);
+}
+
+template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <typename Token>
 auto basic_session_pool<Stream,Exec>::async_get(endpoint_t ep, Token &&token)
+	requires asio::completion_token_for<Token,void(session_t,error_code)>
 {
 	return async_get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-template <core_concepts::schedulable Exec0, asio::completion_token_for
-    <void(typename basic_session_pool<Stream,Exec>::session_t,error_code)> Token>
-auto basic_session_pool<Stream,Exec>::async_get(Exec0 &exec, endpoint_t ep, Token &&token)
+template <typename Token>
+auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution auto &exec, endpoint_t ep, Token &&token)
+	requires asio::completion_token_for<Token,void(session_t,error_code)>
 {
 	socket_t socket(exec);
 	auto it = m_impl->m_sock_map.find(ep);
@@ -217,6 +232,14 @@ auto basic_session_pool<Stream,Exec>::async_get(Exec0 &exec, endpoint_t ep, Toke
 		},
 		use_awaitable);
 	}
+}
+
+template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <typename Token>
+auto basic_session_pool<Stream,Exec>::async_get(core_concepts::execution_context auto &exec, endpoint_t ep, Token &&token)
+	requires asio::completion_token_for<Token,void(session_t,error_code)>
+{
+	return async_get(exec.get_executor(), std::move(ep), std::forward<Token>(token));
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>

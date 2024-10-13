@@ -1,6 +1,10 @@
 #include <libgs/core/ini.h>
 #include <spdlog/spdlog.h>
 
+#ifdef _MSC_VER
+# pragma warning(disable:4819)
+#endif
+
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
@@ -13,8 +17,10 @@ int main()
 
 	ini["test"]["aaa"] = 3.14;
 	ini["test"]["bbb"] = true;
-	ini["test"]["测"] = "aaa 你 bbb 好 ccc";
 
+#ifndef _MSC_VER
+	ini["test"]["测"] = "aaa 你 bbb 好 ccc";
+#endif
 	ini.sync();
 #endif
 
@@ -24,7 +30,9 @@ int main()
 
 	spdlog::debug("test-aaa: {}", ini["test"]["aaa"]);
 	spdlog::debug("test-bbb: {}", ini["test"]["bbb"]);
-	spdlog::debug("test-测: {}", ini["test"]["测"]);
 
+#ifndef _MSC_VER
+	spdlog::debug("test-测: {}", ini["test"]["测"]);
+#endif
 	return 0;
 }

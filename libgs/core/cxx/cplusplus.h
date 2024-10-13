@@ -43,5 +43,9 @@
 # define SPDLOG_USE_STD_FORMAT
 #endif //SPDLOG_USE_STD_FORMAT
 
+#ifdef _MSC_VER // _MSVC
+# pragma warning(disable: 4819)
+#endif // _MSVC
+
 
 #endif //LIBGS_CORE_CXX_CPLUSPLUS_H

@@ -60,8 +60,9 @@ public:
 };
 
 template <concepts::stream_requires Stream>
-template <core_concepts::callable<typename basic_socket_session<Stream>::socket_t&&> Func>
-basic_socket_session<Stream>::basic_socket_session(socket_t &&socket, Func &&destructor) :
+template <typename Func>
+basic_socket_session<Stream>::basic_socket_session(socket_t &&socket, Func &&destructor)
+	requires core_concepts::callable<Func,socket_t&&> :
 	m_impl(new impl(std::move(socket), std::forward<Func>(destructor)))
 {
 
