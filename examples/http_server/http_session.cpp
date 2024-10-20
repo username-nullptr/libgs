@@ -19,7 +19,7 @@ int main()
 		spdlog::debug("session: '{}': <{}>", session->id(), session);
 		co_return ;
 	})
-	.on_exception([](libgs::http::server::context_t&, std::exception &ex)
+	.on_exception([](libgs::http::server::context_t&, const std::exception &ex)
 	{
 		spdlog::error(ex);
 		return true;

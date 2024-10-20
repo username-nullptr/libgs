@@ -234,14 +234,12 @@ inline string_wrapper::operator const std::string &() const
 	return value;
 }
 
-auto get_executor_helper(const concepts::execution auto &exec)
+auto get_executor_helper(concepts::schedulable auto &&exec)
 {
-	return exec;
-}
-
-auto get_executor_helper(concepts::execution_context auto &exec)
-{
-	return exec.get_executor();
+	if constexpr( is_execution_v<std::decay_t<decltype(exec)>> )
+		return exec;
+	else
+		return exec.get_executor();
 }
 
 } //namespace libgs

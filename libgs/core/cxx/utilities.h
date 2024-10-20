@@ -134,8 +134,7 @@ struct LIBGS_CORE_VAPI string_wrapper
 	operator const std::string&() const;
 };
 
-LIBGS_CORE_TAPI auto get_executor_helper(const concepts::execution auto &exec);
-LIBGS_CORE_TAPI auto get_executor_helper(concepts::execution_context auto &exec);
+LIBGS_CORE_TAPI auto get_executor_helper(concepts::schedulable auto &&exec);
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/utilities.h>

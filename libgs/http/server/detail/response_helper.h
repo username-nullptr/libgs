@@ -30,8 +30,6 @@
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 
 #include <libgs/core/algorithm/mime_type.h>
-#include <filesystem>
-#include <list>
 
 namespace libgs::http
 {
@@ -94,7 +92,7 @@ public:
 		std::string buf;
 		buf.reserve(4096);
 
-		buf = std::format("HTTP/{} {} {}\r\n", xxtombs<CharT>(m_version), m_status, to_status_description(m_status));
+		buf = std::format("HTTP/{} {} {}\r\n", xxtombs<CharT>(m_version), m_status, status_description(m_status));
 		m_response_headers.erase(string_pool::set_cookie);
 
 		for(auto &[key,value] : m_response_headers)
@@ -167,7 +165,7 @@ public:
 	string_view_t m_version = string_pool::v_1_1;
 	const headers_t *m_request_headers = nullptr;
 
-	http::status m_status = status::ok;
+	status_t m_status = status::ok;
 	headers_t m_response_headers {
 		{ header_t::content_type, string_pool::text_plain }
 	};
@@ -214,15 +212,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::operator=(basic_resp
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(uint32_t status)
-{
-	status_check(status);
-	m_impl->m_status = static_cast<http::status>(status);
-	return *this;
-}
-
-template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(http::status status)
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(status_t status)
 {
 	status_check(status);
 	m_impl->m_status = status;
@@ -304,7 +294,7 @@ std::basic_string_view<CharT> basic_response_helper<CharT>::version() const noex
 }
 
 template <core_concepts::char_type CharT>
-http::status basic_response_helper<CharT>::status() const noexcept
+status_t basic_response_helper<CharT>::status() const noexcept
 {
 	return m_impl->m_status;
 }

@@ -20,7 +20,7 @@ public:
 		// otherwise terminates the call chain.
 		co_return false;
 	}
-	[[nodiscard]] bool exception(context_t &context, std::exception &ex) override
+	[[nodiscard]] bool exception(context_t &context, const std::exception &ex) override
 	{
 		spdlog::error("request throw [{}] log: '{}'.", ex, context.request().path());
 		// Returning true terminates the chain of calls,
@@ -47,7 +47,7 @@ public:
 		// otherwise terminates the call chain.
 		co_return false;
 	}
-	[[nodiscard]] bool exception(context_t &context, std::exception &ex) override
+	[[nodiscard]] bool exception(context_t &context, const std::exception &ex) override
 	{
 		spdlog::error("request throw [{}] log (controller): '{}'.", ex, context.request().path());
 		// Returning true terminates the chain of calls,

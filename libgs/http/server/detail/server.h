@@ -131,7 +131,7 @@ public:
 			try {
 				co_await do_tcp_accept();
 			}
-			catch(std::exception &ex)
+			catch(const std::exception &ex)
 			{
 				spdlog::error("libgs::http::server: Unhandled exception: {}.", ex);
 				abd = true;
@@ -180,7 +180,7 @@ private:
 				try {
 					co_await do_tcp_service(socket, ktime);
 				}
-				catch(std::exception &ex)
+				catch(const std::exception &ex)
 				{
 					spdlog::error("libgs::http::server: service: Unhandled exception: {}.", ex);
 					abd = true;
@@ -300,7 +300,7 @@ private:
 			co_await handler->aop->service(context);
 			co_await handler->aop->after(context);
 		}
-		catch(std::exception &ex)
+		catch(const std::exception &ex)
 		{
 			if( handler->aop->exception(context, ex) )
 				co_return ;
@@ -316,7 +316,7 @@ private:
 			try {
 				co_await m_default_handler(context);
 			}
-			catch(std::exception &ex) {
+			catch(const std::exception &ex) {
 				call_on_exception(context, ex);
 			}
 			if( context.response().headers_writed() )
@@ -344,7 +344,11 @@ private:
 			data = std::format(def_html, "Welcome to LIBGS", "");
 		else
 		{
-			auto status = std::format("<h2>{} ({})</h2>", to_status_description(context.response().status()), context.response().status());
+			auto status = std::format (
+				"<h2>{} ({})</h2>",
+				status_description(context.response().status()),
+				context.response().status()
+			);
 			data = std::format(def_html, "LIBGS", status);
 		}
 		if constexpr( is_char_v<CharT> )
@@ -367,7 +371,7 @@ private:
 		throw system_error(error, "libgs::http::server");
 	}
 
-	void call_on_exception(context_t &context, std::exception &ex)
+	void call_on_exception(context_t &context, const std::exception &ex)
 	{
 		context.response().set_status(status::internal_server_error);
 		if( m_exception_handler )
@@ -384,7 +388,7 @@ private:
 		for(int i=static_cast<int>(http::method::begin); i<=static_cast<int>(http::method::end); i<<=1)
 		{
 			if( method & i )
-				sum += to_method_string(static_cast<http::method>(i)) + ";";
+				sum += method_string(static_cast<http::method>(i)) + ";";
 		}
 		if( not sum.empty() )
 			sum.pop_back();
@@ -424,7 +428,7 @@ public:
 			co_return false;
 		}
 
-		[[nodiscard]] bool exception(context_t &context, std::exception &ex) override
+		[[nodiscard]] bool exception(context_t &context, const std::exception &ex) override
 		{
 			for(auto &aop : m_aops)
 			{

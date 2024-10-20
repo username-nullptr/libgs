@@ -27,7 +27,7 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 
 			spdlog::debug("Version:{} - Method:{} - Path:{}",
 						  parser.version(),
-						  libgs::http::to_method_string(parser.method()),
+						  method_string(parser.method()),
 						  parser.path());
 
 			for(auto &[key,value] : parser.parameters())
@@ -53,7 +53,7 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 			break;
 		}
 	}
-	catch( std::exception &ex ) {
+	catch(const std::exception &ex) {
 		spdlog::error("socket error: {}", ex);
 	}
 	spdlog::error("disconnected: {}", ep);
@@ -79,7 +79,7 @@ int main()
 				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)));
 			}
 		}
-		catch(std::exception &ex)
+		catch(const std::exception &ex)
 		{
 			spdlog::error("server error: {}", ex);
 			libgs::execution::exit(-1);

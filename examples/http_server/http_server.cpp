@@ -18,7 +18,7 @@ int main()
 		auto &request = context.request();
 		spdlog::debug("Version:{} - Method:{} - Path:{}",
 					  request.version(),
-					  libgs::http::to_method_string(request.method()),
+					  method_string(request.method()),
 					  request.path());
 
 		for(auto &[key,value] : request.parameters())
@@ -63,7 +63,7 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::http::server::context_t&, std::exception &ex)
+	.on_exception([](libgs::http::server::context_t&, const std::exception &ex)
 	{
 		spdlog::error("on_exception: {}", ex);
 //		return false; // Returning false will result in abort !!!
@@ -114,7 +114,7 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::http::wserver::context_t&, std::exception &ex)
+	.on_exception([](libgs::http::wserver::context_t&, const std::exception &ex)
 	{
 		spdlog::error("on_exception: {}", ex);
 //		return false; // Returning false will result in abort !!!

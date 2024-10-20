@@ -62,12 +62,9 @@ public:
 	basic_response_helper &operator=(basic_response_helper &&other) noexcept;
 
 public:
-	basic_response_helper &set_status(uint32_t status);
-	basic_response_helper &set_status(http::status status);
-
+	basic_response_helper &set_status(status_t status);
 	basic_response_helper &set_header(string_view_t key, value_t value) noexcept;
 	basic_response_helper &set_cookie(string_view_t key, cookie_t cookie) noexcept;
-
 	basic_response_helper &set_redirect(string_view_t url, redirect type = redirect::moved_permanently);
 
 	basic_response_helper &set_chunk_attribute(value_t attribute);
@@ -80,7 +77,7 @@ public:
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
-	[[nodiscard]] http::status status() const noexcept;
+	[[nodiscard]] status_t status() const noexcept;
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;

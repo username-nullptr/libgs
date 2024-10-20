@@ -122,7 +122,7 @@ public:
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
-	[[nodiscard]] http::status status() const noexcept;
+	[[nodiscard]] status_t status() const noexcept;
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;

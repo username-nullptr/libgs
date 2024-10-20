@@ -101,14 +101,15 @@ X_MACRO( loop_detected                   , 508 , "Loop Detected"                
 X_MACRO( not_extended                    , 510 , "Not Extended"                    ) \
 X_MACRO( network_authentication_required , 511 , "Network Authentication Required" )
 
-enum class status
+struct LIBGS_HTTP_VAPI status
 {
-#define X_MACRO(e,v,d) e=(v),
+	using type = uint32_t;
+#define X_MACRO(e,v,d) static constexpr type e = (v);
 	LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
 };
-LIBGS_HTTP_VAPI void status_check(uint32_t s);
-LIBGS_HTTP_VAPI void status_check(status s);
+using status_t = status::type;
+LIBGS_HTTP_VAPI bool status_check(status_t s, bool _throw = true);
 
 #define LIBGS_HTTP_METHOD_TABLE \
 X_MACRO( GET     , 0x01 , "GET"     ) \
@@ -130,8 +131,7 @@ enum class method
 	end   = CONNECT
 };
 LIBGS_DECLARE_FLAGS(methods, method)
-LIBGS_HTTP_VAPI void method_check(uint32_t m);
-LIBGS_HTTP_VAPI void method_check(method m);
+LIBGS_HTTP_VAPI bool method_check(method m, bool _throw = true);
 
 #define LIBGS_HTTP_REDIRECT_TYPE_TABLE \
 X_MACRO( moved_permanently  , static_cast<int>(status::moved_permanently ) ) \
@@ -148,91 +148,49 @@ enum class redirect
 	LIBGS_HTTP_REDIRECT_TYPE_TABLE
 #undef X_MACRO
 };
-LIBGS_HTTP_VAPI void redirect_check(uint32_t type);
-LIBGS_HTTP_VAPI void redirect_check(redirect type);
-
-template <core_concepts::char_type,status>
-struct basic_status_description
-#ifndef _MSC_VER // _MSVC
-{ static_assert(false, "Invalid http status."); }
-#endif //_MSC_VER
-;
-#define X_MACRO(e,v,d) \
-	template <> struct basic_status_description<char,status::e> { \
-		static constexpr const char *value = d; \
-	};
-LIBGS_HTTP_STATUS_TABLE
-#undef X_MACRO
-#define X_MACRO(e,v,d) \
-	template <> struct basic_status_description<wchar_t,status::e> { \
-		static constexpr const wchar_t *value = L##d; \
-	};
-LIBGS_HTTP_STATUS_TABLE
-#undef X_MACRO
-
-template <status S>
-using status_description = basic_status_description<char,S>;
-
-template <status S>
-using wstatus_description = basic_status_description<wchar_t,S>;
-
-template <core_concepts::char_type CharT, status S>
-constexpr const char *basic_status_description_v = basic_status_description<CharT,S>::value;
-
-template <status S>
-constexpr const char *status_description_v = basic_status_description_v<char,S>;
-
-template <status S>
-constexpr const char *wstatus_description_v = basic_status_description_v<wchar_t,S>;
-
-template <core_concepts::char_type CharT = char>
-std::basic_string<CharT> to_status_description(status s);
-
-template <core_concepts::char_type,method>
-struct basic_method_string
-#ifndef _MSC_VER // _MSVC
-{ static_assert(false, "Invalid http method."); }
-#endif //_MSC_VER
-;
-#define X_MACRO(e,v,d) \
-	template <> struct basic_method_string<char,method::e> { \
-		static constexpr const char *value = d; \
-	};
-LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-#define X_MACRO(e,v,d) \
-	template <> struct basic_method_string<wchar_t,method::e> { \
-		static constexpr const wchar_t *value = L##d; \
-	};
-LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-
-template <method M>
-using method_string = basic_method_string<char,M>;
-
-template <method M>
-using wmethod_string = basic_method_string<wchar_t,M>;
-
-template <core_concepts::char_type CharT, method M>
-constexpr const char *basic_method_string_v = basic_method_string<CharT,M>::value;
-
-template <method M>
-constexpr const char *method_string_v = basic_method_string_v<char,M>;
-
-template <method M>
-constexpr const char *wmethod_string_v = basic_method_string_v<wchar_t,M>;
-
-template <core_concepts::char_type CharT = char>
-LIBGS_HTTP_TAPI std::basic_string<CharT> to_method_string(method m);
-
-LIBGS_HTTP_VAPI method from_method_string(std::string_view str);
-LIBGS_HTTP_VAPI method from_method_string(std::wstring_view str);
+LIBGS_HTTP_VAPI bool redirect_check(redirect type, bool _throw = true);
 
 template <core_concepts::char_type CharT>
 using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
 
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
+
+template <uint32_t Status, core_concepts::char_type CharT = char>
+[[nodiscard]] constexpr const CharT *status_description();
+
+template <uint32_t Status>
+[[nodiscard]] constexpr const char *status_description();
+
+template <uint32_t Status>
+[[nodiscard]] constexpr const wchar_t *wstatus_description();
+
+template <core_concepts::char_type CharT = char>
+LIBGS_HTTP_TAPI [[nodiscard]] std::basic_string<CharT> status_description(status_t s);
+
+LIBGS_HTTP_VAPI [[nodiscard]] std::string status_description(status_t s);
+LIBGS_HTTP_VAPI [[nodiscard]] std::wstring wstatus_description(status_t s);
+
+template <method Method, core_concepts::char_type CharT = char>
+[[nodiscard]] constexpr const CharT *method_string();
+
+template <method Method>
+[[nodiscard]] constexpr const char *method_string();
+
+template <method Method>
+[[nodiscard]] constexpr const wchar_t *wmethod_string();
+
+template <core_concepts::char_type CharT = char>
+[[nodiscard]] LIBGS_HTTP_TAPI std::basic_string<CharT> method_string(method m);
+
+[[nodiscard]] LIBGS_HTTP_TAPI std::string method_string(method m);
+[[nodiscard]] LIBGS_HTTP_TAPI std::wstring wmethod_string(method m);
+
+template <core_concepts::char_type CharT = char>
+[[nodiscard]] LIBGS_HTTP_TAPI method from_method_string(std::basic_string_view<CharT> str);
+
+[[nodiscard]] LIBGS_HTTP_VAPI method from_method_string(std::string_view str);
+[[nodiscard]] LIBGS_HTTP_VAPI method from_method_string(std::wstring_view str);
 
 } //namespace libgs::http
 #include <libgs/http/detail/types.h>

@@ -363,7 +363,7 @@ private:
 			if( range_str.empty())
 			{
 				set_status(status::bad_request);
-				auto buf = std::format("{} ({})", to_status_description(status), status);
+				auto buf = std::format("{} ({})", status_description(status), status);
 				return write_x(buffer(buf, buf.size()), token, func);
 			}
 
@@ -371,7 +371,7 @@ private:
 			else if( range_str.substr(0, 6) != static_string::bytes_start )
 			{
 				set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})", to_status_description(status), status);
+				auto buf = std::format("{} ({})", status_description(status), status);
 				return write_x(buffer(buf, buf.size()), token, func);
 			}
 
@@ -380,7 +380,7 @@ private:
 			if( range_list_str.empty())
 			{
 				set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})", to_status_description(status), status);
+				auto buf = std::format("{} ({})", status_description(status), status);
 				return write_x(buffer(buf, buf.size()), token, func);
 			}
 
@@ -399,7 +399,7 @@ private:
 				if( not range_parsing(file_name, range_list[0], range_value))
 				{
 					set_status(status::range_not_satisfiable);
-					auto buf = std::format("{} ({})", to_status_description(status), status);
+					auto buf = std::format("{} ({})", status_description(status), status);
 					return write_x(buffer(buf, buf.size()), token, func);
 				}
 				set_header(header_t::accept_ranges, static_string::bytes);
@@ -428,7 +428,7 @@ private:
 				if( not range_parsing(file_name, str_trimmed(str), range_value))
 				{
 					set_status(status::range_not_satisfiable);
-					auto buf = std::format("{} ({})", to_status_description(status), status);
+					auto buf = std::format("{} ({})", status_description(status), status);
 					return write_x(buffer(buf, buf.size()), token, func);
 				}
 				namespace fs = std::filesystem;
@@ -473,7 +473,7 @@ private:
 				if( range_str.empty())
 				{
 					set_status(status::bad_request);
-					auto buf = std::format("{} ({})", to_status_description(status), status);
+					auto buf = std::format("{} ({})", status_description(status), status);
 					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				}
 
@@ -481,7 +481,7 @@ private:
 				else if( range_str.substr(0, 6) != static_string::bytes_start )
 				{
 					set_status(status::range_not_satisfiable);
-					auto buf = std::format("{} ({})", to_status_description(status), status);
+					auto buf = std::format("{} ({})", status_description(status), status);
 					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				}
 
@@ -490,7 +490,7 @@ private:
 				if( range_list_str.empty())
 				{
 					set_status(status::range_not_satisfiable);
-					auto buf = std::format("{} ({})", to_status_description(status), status);
+					auto buf = std::format("{} ({})", status_description(status), status);
 					co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 				}
 
@@ -509,7 +509,7 @@ private:
 					if( not range_parsing(file_name, range_list[0], range_value))
 					{
 						set_status(status::range_not_satisfiable);
-						auto buf = std::format("{} ({})", to_status_description(status), status);
+						auto buf = std::format("{} ({})", status_description(status), status);
 						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 					}
 					set_header(header_t::accept_ranges, static_string::bytes);
@@ -539,7 +539,7 @@ private:
 					if( not range_parsing(file_name, str_trimmed(str), range_value))
 					{
 						set_status(status::range_not_satisfiable);
-						auto buf = std::format("{} ({})", to_status_description(status), status);
+						auto buf = std::format("{} ({})", status_description(status), status);
 						co_return co_await write_x(buffer(buf, buf.size()), std::forward<Token>(token), func);
 					}
 					namespace fs = std::filesystem;
@@ -1220,7 +1220,7 @@ basic_server_response<Stream,CharT>::version() const noexcept
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-http::status basic_server_response<Stream,CharT>::status() const noexcept
+status_t basic_server_response<Stream,CharT>::status() const noexcept
 {
 	return m_impl->m_helper.status();
 }

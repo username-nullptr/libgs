@@ -24,7 +24,7 @@ int main()
 		ssl.use_certificate_chain_file("~/.ssl/ssl.crt"_abs);
 		ssl.use_private_key_file("~/.ssl/ssl.key"_abs, asio::ssl::context::pem);
 	}
-	catch(std::exception &ex)
+	catch(const std::exception &ex)
 	{
 		spdlog::error("ssl error: {}", ex);
 		return -1;
@@ -83,7 +83,7 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::https::server::context_t&, std::exception &ex)
+	.on_exception([](libgs::https::server::context_t&, const std::exception &ex)
 	{
 		spdlog::error("on_exception: {}", ex);
 //		return false; // Returning false will result in abort !!!

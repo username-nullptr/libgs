@@ -50,7 +50,7 @@ awaitable<bool> basic_aop<Stream,CharT>::after(context_t &context)
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-bool basic_aop<Stream,CharT>::exception(context_t &context, std::exception &ex)
+bool basic_aop<Stream,CharT>::exception(context_t &context, const std::exception &ex)
 {
 	ignore_unused(context, ex);
 	return false;

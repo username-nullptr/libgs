@@ -47,7 +47,7 @@ public:
 public:
 	[[nodiscard]] virtual awaitable<bool> before(context_t &context);
 	[[nodiscard]] virtual awaitable<bool> after(context_t &context);
-	[[nodiscard]] virtual bool exception(context_t &context, std::exception &ex);
+	[[nodiscard]] virtual bool exception(context_t &context, const std::exception &ex);
 };
 
 template <core_concepts::execution Exec>

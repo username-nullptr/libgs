@@ -96,10 +96,8 @@ public:
 	basic_client_request &reset();
 
 public:
-	size_t write(const const_buffer &buf, error_code &error) noexcept;
-	size_t write(const const_buffer &buf) noexcept;
-	size_t write(error_code &error) noexcept;
-	size_t write() noexcept;
+	size_t write(error_code &error, const const_buffer &buf = asio::buffer("")) noexcept;
+	size_t write(const const_buffer &buf = asio::buffer("")) noexcept;
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	[[nodiscard]] auto async_write(const const_buffer &buf, Token &&token);
@@ -109,16 +107,10 @@ public:
 
 public:
 	template <http::method Method>
-	size_t write(const const_buffer &buf, error_code &error) noexcept;
+	size_t write(error_code &error, const const_buffer &buf = asio::buffer("")) noexcept;
 
 	template <http::method Method>
-	size_t write(const const_buffer &buf) noexcept;
-
-	template <http::method Method>
-	size_t write(error_code &error) noexcept;
-
-	template <http::method Method>
-	size_t write() noexcept;
+	size_t write(const const_buffer &buf = asio::buffer("")) noexcept;
 
 	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
 	[[nodiscard]] auto async_write(const const_buffer &buf, Token &&token);
@@ -134,10 +126,8 @@ public:
 	[[nodiscard]] auto async_get(Token &&token);
 
 public:
-	size_t put(const const_buffer &buf, error_code &error);
-	size_t put(const const_buffer &buf);
-	size_t put(error_code &error);
-	size_t put();
+	size_t put(error_code &error, const const_buffer &buf = asio::buffer(""));
+	size_t put(const const_buffer &buf = asio::buffer(""));
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	[[nodiscard]] auto async_put(const const_buffer &buf, Token &&token);
@@ -146,10 +136,8 @@ public:
 	[[nodiscard]] auto async_put(Token &&token);
 
 public:
-	size_t post(const const_buffer &buf, error_code &error);
-	size_t post(const const_buffer &buf);
-	size_t post(error_code &error);
-	size_t post();
+	size_t post(error_code &error, const const_buffer &buf = asio::buffer(""));
+	size_t post(const const_buffer &buf = asio::buffer(""));
 
 	template <asio::completion_token_for<void(size_t,error_code)> Token>
 	[[nodiscard]] auto async_post(const const_buffer &buf, Token &&token);

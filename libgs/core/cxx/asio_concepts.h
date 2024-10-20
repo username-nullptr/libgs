@@ -162,7 +162,9 @@ template <typename ExecContext>
 concept execution_context = is_execution_context_v<ExecContext>;
 
 template <typename Exec>
-concept schedulable = is_schedulable_v<Exec>;
+concept schedulable = execution<Exec> or (
+	execution_context<Exec> and std::is_lvalue_reference_v<Exec>
+);
 
 template <typename Func>
 concept awaitable_function =

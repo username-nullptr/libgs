@@ -55,7 +55,7 @@ public:
 
 	using context_t = basic_service_context<socket_t,CharT>;
 	using system_error_handler_t = std::function<bool(error_code)>;
-	using exception_handler_t = std::function<bool(context_t&, std::exception&)>;
+	using exception_handler_t = std::function<bool(context_t&, const std::exception&)>;
 
 	using parser_t = basic_request_parser<CharT>;
 	using request_t = basic_server_request<socket_t,CharT>;
