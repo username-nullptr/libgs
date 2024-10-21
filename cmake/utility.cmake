@@ -1,15 +1,15 @@
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
 
-	option(USE_LIBCXX "-- libgs: use clang libcxx." OFF)
+	option(USE_LIBCXX "-- ${PRO_NAME}: use clang libcxx." OFF)
 	if (USE_LIBCXX)
-		message(STATUS "libgs: use clang libcxx.")
+		message(STATUS "${PRO_NAME}: use clang libcxx.")
 		add_compile_options(-stdlib=libc++)
 		link_libraries(c++ c++abi)
 	endif ()
 
-	option(USE_LLD "-- libgs: use clang lld." OFF)
+	option(USE_LLD "-- ${PRO_NAME}: use clang lld." OFF)
 	if (USE_LLD)
-		message(STATUS "libgs: use clang lld.")
+		message(STATUS "${PRO_NAME}: use clang lld.")
 		set(CMAKE_EXE_LINKER_FLAGS -fuse-ld=lld)
 	endif ()
 

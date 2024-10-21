@@ -12,7 +12,7 @@ endif()
 
 add_subdirectory(core)
 add_subdirectory(http)
-#add_subdirectory(web)
+# add_subdirectory(web)
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	core.h  io.h  http.h

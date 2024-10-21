@@ -1,7 +1,7 @@
-set(libgs_3rd_path ${CMAKE_SOURCE_DIR}/3rd_party)
+set(${PRO_NAME}_3rd_path ${CMAKE_SOURCE_DIR}/3rd_party)
 
 include_directories(
-	${libgs_3rd_path}/nlohmann.json
-	${libgs_3rd_path}/spdlog
-	${libgs_3rd_path}/asio
+	${${PRO_NAME}_3rd_path}/nlohmann.json
+	${${PRO_NAME}_3rd_path}/spdlog
+	${${PRO_NAME}_3rd_path}/asio
 )

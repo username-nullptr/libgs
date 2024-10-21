@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.12)
-set(PRO_VERSION 0.4.20)
+set(PRO_VERSION 0.4.21)
+set(PRO_NAME LibGS)
 
-project(LibGS VERSION ${PRO_VERSION} LANGUAGES C CXX)
+project(${PRO_NAME} VERSION ${PRO_VERSION} LANGUAGES C CXX)
 add_definitions(-DLIBGS_VERSION_STR="${PRO_VERSION}-dev")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -10,9 +11,9 @@ include(utility)
 check_compiler_version(CMAKE_CXX_STANDARD)
 
 message(STATUS "")
-message(STATUS "libgs: using C++: " ${CMAKE_CXX_STANDARD})
-message(STATUS "libgs: build type: " ${CMAKE_BUILD_TYPE})
-message(STATUS "libgs: install prefix: " ${CMAKE_INSTALL_PREFIX})
+message(STATUS "${PRO_NAME}: using C++: " ${CMAKE_CXX_STANDARD})
+message(STATUS "${PRO_NAME}: build type: " ${CMAKE_BUILD_TYPE})
+message(STATUS "${PRO_NAME}: install prefix: " ${CMAKE_INSTALL_PREFIX})
 
 set(output_dir ${CMAKE_BINARY_DIR}/output)
 
@@ -27,10 +28,10 @@ include_directories(.)
 add_subdirectory(libgs)
 add_subdirectory(test)
 
-option(BUILD_EXAMPLES "-- libgs: enable this to build the examples" ON)
+option(BUILD_EXAMPLES "-- ${PRO_NAME}: enable this to build the examples" ON)
 
 if (BUILD_EXAMPLES)
-	message(STATUS "libgs: enable this to build the examples.")
+	message(STATUS "${PRO_NAME}: enable this to build the examples.")
 	add_subdirectory(examples)
 endif()
 
