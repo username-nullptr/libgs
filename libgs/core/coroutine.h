@@ -76,6 +76,11 @@ LIBGS_CORE_TAPI auto co_spawn_future (
 	awaitable<T> &&a, Exec &&exec = execution::get_executor()
 );
 
+template <typename T = void>
+LIBGS_CORE_TAPI auto co_task (
+	concepts::co_task_token<T> auto &&wake_up
+);
+
 LIBGS_CORE_TAPI auto co_post (
 	concepts::schedulable auto &&exec, concepts::callable auto &&func
 );

@@ -91,6 +91,38 @@ auto co_spawn_future(awaitable<T> &&a, Exec &&exec)
 	);
 }
 
+template <typename T>
+auto co_task(concepts::co_task_token<T> auto &&wake_up)
+{
+	using Func = std::decay_t<decltype(wake_up)>;
+	if constexpr( std::is_same_v<T,void> )
+	{
+		return asio::async_initiate<decltype(asio::use_awaitable), void()>
+		([wake_up = std::forward<Func>(wake_up)](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(work.get_executor(),
+			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+				wake_up(std::move(handler));
+			});
+		},
+		asio::use_awaitable);
+	}
+	else
+	{
+		return asio::async_initiate<decltype(asio::use_awaitable), void(T)>
+		([wake_up = std::forward<Func>(wake_up)](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(work.get_executor(),
+			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+				wake_up(std::move(handler));
+			});
+		},
+		asio::use_awaitable);
+	}
+}
+
 auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 {
 	using Func = std::decay_t<decltype(func)>;

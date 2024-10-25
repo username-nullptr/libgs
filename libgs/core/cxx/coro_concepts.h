@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_CXX_CORO_CONCEPTS_H
 #define LIBGS_CORE_CXX_CORO_CONCEPTS_H
 
-#include <concepts>
+#include <libgs/core/cxx/concepts.h>
 
 #ifdef LIBGS_USING_BOOST_ASIO
 # include <boost/asio/experimental/awaitable_operators.hpp>
@@ -144,6 +144,37 @@ constexpr bool is_co_token_v =
 	is_redirect_error_cancellation_slot_binder_v<T> or
 	is_cancellation_slot_binder_redirect_error_v<T>;
 
+
+template <typename Func, typename T>
+struct is_co_task_token
+{
+	static constexpr bool value =
+		is_function_v<Func> and (function_traits<Func>::arg_count == 1) and
+		concepts::callable <
+			std::tuple_element_t <0,
+				typename function_traits<Func>::arg_types
+			>, T
+		>;
+};
+
+template <typename Func, typename T>
+constexpr bool is_co_task_token_v = is_co_task_token<Func, T>::value;
+
+template <typename Func>
+struct is_co_task_token<Func,void>
+{
+	static constexpr bool value =
+		is_function_v<Func> and (function_traits<Func>::arg_count == 1) and
+		concepts::callable <
+			std::tuple_element_t <0,
+				typename function_traits<Func>::arg_types
+			>
+		>;
+};
+
+template <typename Func>
+constexpr bool is_co_task_token_v<Func,void> = is_co_task_token<Func,void>::value;
+
 namespace concepts
 {
 
@@ -170,6 +201,9 @@ concept cancellation_slot_binder_redirect_error =
 template <typename T>
 concept co_token =
 	not std::is_pointer_v<T> and is_co_token_v<std::decay_t<T>>;
+
+template <typename Func, typename T>
+concept co_task_token = is_co_task_token_v<Func,T>;
 
 } //namespace concepts
 
