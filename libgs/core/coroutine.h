@@ -76,9 +76,12 @@ LIBGS_CORE_TAPI auto co_spawn_future (
 	awaitable<T> &&a, Exec &&exec = execution::get_executor()
 );
 
+template <typename T>
+using awaitable_wake_up = asio::detail::awaitable_handler<asio::any_io_executor,T>;
+
 template <typename T = void>
 LIBGS_CORE_TAPI auto co_task (
-	concepts::co_task_token<T> auto &&wake_up
+	std::function<void(awaitable_wake_up<T>&&)> wake_up
 );
 
 LIBGS_CORE_TAPI auto co_post (
