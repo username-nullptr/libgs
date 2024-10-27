@@ -126,9 +126,9 @@ auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 {
 	using Func = std::decay_t<decltype(func)>;
 	using Exec = std::decay_t<decltype(exec)>;
-	using return_type = decltype(func());
+	using return_t = decltype(func());
 
-	if constexpr( std::is_same_v<return_type, void> )
+	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void()>
 		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
@@ -146,7 +146,7 @@ auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type)>
+		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
 		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
 		{
 		    auto work = asio::make_work_guard(handler);
@@ -166,9 +166,9 @@ auto co_dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&fu
 {
 	using Func = std::decay_t<decltype(func)>;
 	using Exec = std::decay_t<decltype(exec)>;
-	using return_type = decltype(func());
+	using return_t = decltype(func());
 
-	if constexpr( std::is_same_v<return_type, void> )
+	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void()>
 		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
@@ -186,7 +186,7 @@ auto co_dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&fu
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type)>
+		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
 		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
 		{
 			auto work = asio::make_work_guard(handler);
@@ -205,9 +205,9 @@ auto co_dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&fu
 auto co_thread(concepts::callable auto &&func)
 {
 	using Func = std::decay_t<decltype(func)>;
-	using return_type = decltype(func());
+	using return_t = decltype(func());
 
-	if constexpr( std::is_same_v<return_type, void> )
+	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void()>
 		([func = std::forward<Func>(func)](auto handler)
@@ -226,7 +226,7 @@ auto co_thread(concepts::callable auto &&func)
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_type)>
+		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
 		([func = std::forward<Func>(func)](auto handler)
 		{
 			auto work = asio::make_work_guard(handler);
@@ -342,9 +342,9 @@ auto co_post(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, 
 	using yield_context = basic_yield_context<YCExec>;
 	using Func = std::decay_t<decltype(func)>;
 	using Exec = std::decay_t<decltype(exec)>;
-	using return_type = decltype(func());
+	using return_t = decltype(func());
 
-	if constexpr( std::is_same_v<return_type, void> )
+	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
 		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
@@ -362,7 +362,7 @@ auto co_post(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, 
 	}
 	else
 	{
-		return asio::async_initiate<yield_context, void(return_type)>
+		return asio::async_initiate<yield_context, void(return_t)>
 		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
 		 {
 			 auto work = asio::make_work_guard(handler);
@@ -384,9 +384,9 @@ auto co_dispatch(concepts::schedulable auto &&exec, basic_yield_context<YCExec> 
 	using yield_context = basic_yield_context<YCExec>;
 	using Func = std::decay_t<decltype(func)>;
 	using Exec = std::decay_t<decltype(exec)>;
-	using return_type = decltype(func());
+	using return_t = decltype(func());
 
-	if constexpr( std::is_same_v<return_type, void> )
+	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
 		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
@@ -404,7 +404,7 @@ auto co_dispatch(concepts::schedulable auto &&exec, basic_yield_context<YCExec> 
 	}
 	else
 	{
-		return asio::async_initiate<yield_context, void(return_type)>
+		return asio::async_initiate<yield_context, void(return_t)>
 		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
 		 {
 			 auto work = asio::make_work_guard(handler);
@@ -425,9 +425,9 @@ auto co_thread(basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
 	using Func = std::decay_t<decltype(func)>;
-	using return_type = decltype(func());
+	using return_t = decltype(func());
 
-	if constexpr( std::is_same_v<return_type, void> )
+	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
 		([func = std::forward<Func>(func)](auto handler)
@@ -446,7 +446,7 @@ auto co_thread(basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 	}
 	else
 	{
-		return asio::async_initiate<yield_context, void(return_type)>
+		return asio::async_initiate<yield_context, void(return_t)>
 		([func = std::forward<Func>(func)](auto handler)
 		 {
 			 auto work = asio::make_work_guard(handler);

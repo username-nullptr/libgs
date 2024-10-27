@@ -37,7 +37,7 @@ static std::atomic_int g_exit_code {0};
 
 static std::atomic_bool g_run_flag {false};
 
-context_t &context()
+context_t &context() noexcept
 {
 	return g_ioc;
 }

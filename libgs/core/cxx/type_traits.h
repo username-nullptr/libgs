@@ -99,6 +99,25 @@ inline auto buffer(Args&&...args) {
 	return asio::buffer(std::forward<Args>(args)...);
 }
 
+template <size_t N>
+struct byte_type {};
+
+template <> struct byte_type<1> { using unsigned_t = uint8_t ; using signed_t = int8_t ; };
+template <> struct byte_type<2> { using unsigned_t = uint16_t; using signed_t = int16_t; };
+template <> struct byte_type<4> { using unsigned_t = uint32_t; using signed_t = int32_t; };
+template <> struct byte_type<8> { using unsigned_t = uint64_t; using signed_t = int64_t; };
+
+template <size_t N> using byte_unsigned_t = typename byte_type<N>::unsigned_t;
+template <size_t N> using byte_signed_t   = typename byte_type<N>::signed_t  ;
+
+template <typename T>
+struct sizeof_type : byte_type<sizeof(T)> {
+	static constexpr size_t bytes = sizeof(T);
+};
+
+using uintptr_t = sizeof_type<void*>::unsigned_t;
+using intptr_t  = sizeof_type<void*>::signed_t;
+
 } //namespace libgs
 
 

@@ -178,13 +178,13 @@ concept rvalue = std::is_rvalue_reference_v<T>;
 template <typename Func>
 concept function = is_function_v<Func>;
 
-template <typename Res, typename Func, typename...Args>
-concept basic_callable = requires(Func &&func, Args&&...args) {
+template <typename Func, typename Res, typename...Args>
+concept callable_ret = requires(Func &&func, Args&&...args) {
 	std::is_same_v<decltype(func(std::forward<Args>(args)...)), Res>;
 };
 
 template <typename Func, typename...Args>
-concept void_callable = basic_callable<void, Func, Args...>;
+concept callable_void = callable_ret<Func, void, Args...>;
 
 template <typename Func, typename...Args>
 concept callable = requires(Func &&func, Args&&...args) {

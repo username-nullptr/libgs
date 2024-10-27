@@ -31,7 +31,7 @@
 
 #include <libgs/core/cxx/remove_repeat.h>
 #include <libgs/core/cxx/type_traits.h>
-#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/initialize.h>
 #include <utility>
 
 #ifdef __GNUC__
@@ -41,29 +41,7 @@
 # define LIBGS_ABI_CXA_DEMANGLE(name)  name
 #endif //__GNUC__
 
-#define LIBGS_UNUSED(x)  (void)(x)
-
-#if defined(_WIN64) || defined(__x86_64__) || defined(__arm64__) || defined(__aarch64__)
-# define LIBGS_OS_64BIT
-#else
-# define LIBGS_OS_32BIT
-#endif // 32bit & 64bit
-
-#define LIBGS_DISABLE_COPY(_class) \
-	explicit _class(const _class&) = delete; \
-	void operator=(const _class&) = delete; \
-	void operator=(const _class&) volatile = delete;
-
-#define LIBGS_DISABLE_MOVE(_class) \
-	explicit _class(_class&&) = delete; \
-	void operator=(_class&&) = delete; \
-	void operator=(_class&&) volatile = delete;
-
-#define LIBGS_DISABLE_COPY_MOVE(_class) \
-	LIBGS_DISABLE_COPY(_class) LIBGS_DISABLE_MOVE(_class)
-
-#define P_P_LIBGS_WCHAR(s) L##s
-#define LIBGS_WCHAR(s) P_P_LIBGS_WCHAR(s)
+#define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
 
 namespace libgs
 {

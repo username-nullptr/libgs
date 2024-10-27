@@ -26,69 +26,32 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_ATTRIBUTES_H
-#define LIBGS_CORE_CXX_ATTRIBUTES_H
+#ifndef LIBGS_CORE_CXX_INITIALIZE_H
+#define LIBGS_CORE_CXX_INITIALIZE_H
+
+#include <libgs/core/cxx/cplusplus.h>
+#include <libgs/core/cxx/attributes.h>
+
+#define LIBGS_AUTO_FUNC_NAME  LIBGS_AUTO_XX_NAME(__libgs_auto_xx_name_)
+
+#define LIBGS_REGISTRATION \
+	static void LIBGS_AUTO_FUNC_NAME(); \
+	namespace { \
+		struct LIBGS_AUTO_XX_NAME(__libgs_auto_register_) { \
+			LIBGS_AUTO_XX_NAME(__libgs_auto_register_)() { \
+				LIBGS_AUTO_FUNC_NAME(); \
+			} \
+		}; \
+	} \
+	static const LIBGS_AUTO_XX_NAME(__libgs_auto_register_) LIBGS_AUTO_XX_NAME(__auto_register_); \
+	static void LIBGS_AUTO_FUNC_NAME()
 
 #ifdef _MSC_VER
-
-# pragma execution_character_set("utf-8")
-
-# define LIBGS_DECL_EXPORT  __declspec(dllexport)
-# define LIBGS_DECL_IMPORT  __declspec(dllimport)
-# define LIBGS_DECL_HIDDEN
-
-# define LIBGS_CXX_ATTR_USED    __declspec(used)
-# define LIBGS_CXX_ATTR_UNUSED  __declspec(unused)
-
-# define LIBGS_CXX_ATTR_WEAK              __declspec(weak)
-# define LIBGS_CXX_ATTR_WEAKREF(_symbol)  __declspec(weakref(_symbol))
-
-#elif defined(__GNUC__)
-
-# if defined(__MINGW32__) || defined(__MINGW32__)
-#  define LIBGS_DECL_EXPORT  __declspec(dllexport)
-#  define LIBGS_DECL_IMPORT  __declspec(dllimport)
-# else
-#  define LIBGS_DECL_EXPORT  __attribute__((visibility("default")))
-#  define LIBGS_DECL_IMPORT
-# endif //__MINGW
-
-# define LIBGS_DECL_HIDDEN  __attribute__((visibility("hidden")))
-
-# define LIBGS_CXX_ATTR_USED    __attribute__((used))
-# define LIBGS_CXX_ATTR_UNUSED  __attribute__((unused))
-
-# define LIBGS_CXX_ATTR_WEAK              __attribute__((weak))
-# define LIBGS_CXX_ATTR_WEAKREF(_symbol)  __attribute__((weakref(_symbol)))
-
-# define LIBGS_GNU_ATTR_INIT  __attribute__((constructor))
-# define LIBGS_GNU_ATTR_EXIT  __attribute__((destructor))
-
-#else // other compiler
-
-# define LIBGS_DECL_EXPORT
-# define LIBGS_DECL_IMPORT
-# define LIBGS_DECL_HIDDEN
-
-# define LIBGS_CXX_ATTR_USED
-# define LIBGS_CXX_ATTR_UNUSED
-
-# define LIBGS_CXX_ATTR_WEAK
-# define LIBGS_CXX_ATTR_WEAKREF(_symbol)
-
-#endif
-
-#ifdef gs_core_EXPORTS
-# define LIBGS_CORE_API  LIBGS_DECL_EXPORT
-#else //gs_core_EXPORTS
-# define LIBGS_CORE_API  LIBGS_DECL_IMPORT
-#endif //gs_core_EXPORTS
-
-#define LIBGS_CORE_VAPI
-#define LIBGS_CORE_TAPI
-
-#define C_VIRTUAL_FUNC             __attribute_weak__
-#define C_VIRTUAL_SYMBOL(_symbol)  __attribute_weakref__(_symbol)
+# define LIBGS_PLUGIN_REGISTRATION LIBGS_REGISTRATION
+#else //GNU & Clang ...
+# define LIBGS_PLUGIN_REGISTRATION \
+	LIBGS_GNU_ATTR_INIT static void LIBGS_AUTO_XX_NAME(__libgs_auto_register_)()
+#endif //_MSC_VER
 
 
-#endif //LIBGS_CORE_CXX_ATTRIBUTES_H
+#endif //LIBGS_CORE_CXX_INITIALIZE_H

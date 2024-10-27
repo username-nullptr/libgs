@@ -70,6 +70,7 @@ set(core_sources
 	core/library.cpp
 )
 set_target(gs_core ${core_sources})
+add_subdirectory(core/modules)
 
 set(http_server_sources
 	http_server/http_server_parser.cpp

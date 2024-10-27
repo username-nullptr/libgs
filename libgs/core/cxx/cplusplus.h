@@ -35,6 +35,32 @@
 # define LIBGS_CPLUSPLUS  __cplusplus
 #endif
 
+#if defined(_WIN64) || defined(__x86_64__) || defined(__arm64__) || defined(__aarch64__)
+# define LIBGS_OS_64BIT
+#else
+# define LIBGS_OS_32BIT
+#endif // 32bit & 64bit
+
+#define LIBGS_UNUSED(x)  (void)(x)
+
+#define LIBGS_CAT_IMPL(a,b)  a##b
+#define LIBGS_CAT(a,b)  LIBGS_CAT_IMPL(a,b)
+
+#define LIBGS_AUTO_XX_NAME(_prefix)  LIBGS_CAT(_prefix,__LINE__)
+
+#define LIBGS_DISABLE_COPY(_class) \
+	explicit _class(const _class&) = delete; \
+	void operator=(const _class&) = delete; \
+	void operator=(const _class&) volatile = delete;
+
+#define LIBGS_DISABLE_MOVE(_class) \
+	explicit _class(_class&&) = delete; \
+	void operator=(_class&&) = delete; \
+	void operator=(_class&&) volatile = delete;
+
+#define LIBGS_DISABLE_COPY_MOVE(_class) \
+	LIBGS_DISABLE_COPY(_class) LIBGS_DISABLE_MOVE(_class)
+
 #ifndef ASIO_HAS_CHRONO
 # define ASIO_HAS_CHRONO
 #endif //ASIO_HAS_CHRONO

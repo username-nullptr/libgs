@@ -3,7 +3,7 @@
 *                                                                                   *
 *   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of LIBGS3                                                       *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
@@ -26,69 +26,28 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_ATTRIBUTES_H
-#define LIBGS_CORE_CXX_ATTRIBUTES_H
+#ifndef LIBGS_CORE_DETAIL_MODULES_H
+#define LIBGS_CORE_DETAIL_MODULES_H
 
-#ifdef _MSC_VER
+namespace libgs
+{
 
-# pragma execution_character_set("utf-8")
+void modules::reg_init(concepts::modules_init_func auto &&func, level_t level)
+{
+	using Func = std::decay_t<decltype(func)>;
+	using return_t = typename function_traits<Func>::return_type;
 
-# define LIBGS_DECL_EXPORT  __declspec(dllexport)
-# define LIBGS_DECL_IMPORT  __declspec(dllimport)
-# define LIBGS_DECL_HIDDEN
+	if constexpr( std::is_same_v<return_t,void> )
+		reg_init_p(init_func_t(std::forward<Func>(func)), level);
 
-# define LIBGS_CXX_ATTR_USED    __declspec(used)
-# define LIBGS_CXX_ATTR_UNUSED  __declspec(unused)
+	else if constexpr( std::is_same_v<return_t,std::future<void>> )
+		reg_init_p(future_init_func_t(std::forward<Func>(func)), level);
 
-# define LIBGS_CXX_ATTR_WEAK              __declspec(weak)
-# define LIBGS_CXX_ATTR_WEAKREF(_symbol)  __declspec(weakref(_symbol))
+	else if constexpr( std::is_same_v<return_t,awaitable<void>> )
+		reg_init_p(await_init_func_t(std::forward<Func>(func)), level);
+}
 
-#elif defined(__GNUC__)
-
-# if defined(__MINGW32__) || defined(__MINGW32__)
-#  define LIBGS_DECL_EXPORT  __declspec(dllexport)
-#  define LIBGS_DECL_IMPORT  __declspec(dllimport)
-# else
-#  define LIBGS_DECL_EXPORT  __attribute__((visibility("default")))
-#  define LIBGS_DECL_IMPORT
-# endif //__MINGW
-
-# define LIBGS_DECL_HIDDEN  __attribute__((visibility("hidden")))
-
-# define LIBGS_CXX_ATTR_USED    __attribute__((used))
-# define LIBGS_CXX_ATTR_UNUSED  __attribute__((unused))
-
-# define LIBGS_CXX_ATTR_WEAK              __attribute__((weak))
-# define LIBGS_CXX_ATTR_WEAKREF(_symbol)  __attribute__((weakref(_symbol)))
-
-# define LIBGS_GNU_ATTR_INIT  __attribute__((constructor))
-# define LIBGS_GNU_ATTR_EXIT  __attribute__((destructor))
-
-#else // other compiler
-
-# define LIBGS_DECL_EXPORT
-# define LIBGS_DECL_IMPORT
-# define LIBGS_DECL_HIDDEN
-
-# define LIBGS_CXX_ATTR_USED
-# define LIBGS_CXX_ATTR_UNUSED
-
-# define LIBGS_CXX_ATTR_WEAK
-# define LIBGS_CXX_ATTR_WEAKREF(_symbol)
-
-#endif
-
-#ifdef gs_core_EXPORTS
-# define LIBGS_CORE_API  LIBGS_DECL_EXPORT
-#else //gs_core_EXPORTS
-# define LIBGS_CORE_API  LIBGS_DECL_IMPORT
-#endif //gs_core_EXPORTS
-
-#define LIBGS_CORE_VAPI
-#define LIBGS_CORE_TAPI
-
-#define C_VIRTUAL_FUNC             __attribute_weak__
-#define C_VIRTUAL_SYMBOL(_symbol)  __attribute_weakref__(_symbol)
+} //namespace libgs
 
 
-#endif //LIBGS_CORE_CXX_ATTRIBUTES_H
+#endif //LIBGS_CORE_DETAIL_MODULES_H

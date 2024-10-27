@@ -8,6 +8,7 @@ set(${target_name}_sources
 	app_utls.cpp
 	detail/app_utls_${OS_CPP}.cpp
 	global.cpp
+	modules.cpp
 	args_parser.cpp
 	execution.cpp
 	library.cpp
@@ -23,11 +24,13 @@ set(${target_name}_headers
 	cxx/type_traits.h
 	cxx/remove_repeat.h
 	cxx/function_traits.h
+	cxx/initialize.h
 	cxx/utilities.h
 	cxx/formatter.h
 	cxx/exception.h
 	cxx/flags.h
 	global.h
+	modules.h
 	spin_mutex.h
 	shared_mutex.h
 	algorithm.h
@@ -52,6 +55,7 @@ set(${target_name}_detail_headers
 	cxx/detail/exception.h
 	cxx/detail/flags.h
 	detail/global.h
+	detail/modules.h
 	detail/spin_mutex.h
 	detail/shared_mutex.h
 	algorithm/detail/basic_base.h

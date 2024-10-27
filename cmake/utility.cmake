@@ -1,5 +1,4 @@
 if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-
 	option(USE_LIBCXX "-- ${PRO_NAME}: use clang libcxx." OFF)
 	if (USE_LIBCXX)
 		message(STATUS "${PRO_NAME}: use clang libcxx.")
@@ -13,6 +12,12 @@ if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
 		set(CMAKE_EXE_LINKER_FLAGS -fuse-ld=lld)
 	endif ()
 
+elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
+	option(ENABLE_LTO "-- ${PRO_NAME}: use gnu-lto." OFF)
+	if (ENABLE_LTO)
+		message(STATUS "${PRO_NAME}: use gnu-lto.")
+		add_compile_options(-flto)
+	endif ()
 endif ()
 
 if (WIN32)
@@ -39,7 +44,7 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 		if (${MSVC_VERSION} LESS 1930)
 			message(FATAL_ERROR "The minimum version of 'MSVC' required is 1930 (VS2022).")
 		endif ()
-		add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+		add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_WIN32_WINNT=0x0A00)
 
 	else()
 		message(STATUS "Unknow compiler: " ${CMAKE_CXX_COMPILER_ID} " (" ${CMAKE_CXX_COMPILER_VERSION} ").")
