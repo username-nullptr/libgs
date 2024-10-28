@@ -38,14 +38,14 @@ inline spin_mutex::~spin_mutex() noexcept(false)
 		throw runtime_error("libgs::spin_mutex: Destruct a spin mutex that has not yet been unlocked.");
 }
 
-void spin_mutex::lock()
+inline void spin_mutex::lock()
 {
 	while( m_native_handle )
 		std::this_thread::yield();
 	m_native_handle = true;
 }
 
-bool spin_mutex::try_lock()
+inline bool spin_mutex::try_lock()
 {
 	bool flag = false;
 	/*
@@ -63,7 +63,7 @@ bool spin_mutex::try_lock()
 	return m_native_handle.compare_exchange_weak(flag, true);
 }
 
-void spin_mutex::unlock()
+inline void spin_mutex::unlock()
 {
 	m_native_handle	= false;
 }
