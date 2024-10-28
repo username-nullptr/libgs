@@ -47,12 +47,12 @@ template <typename T>
 using awaitable = asio::awaitable<T>;
 
 template <concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI auto co_spawn (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn (
 	concepts::awaitable_function auto &&func, Exec &&exec = execution::get_executor()
 );
 
 template <typename T, concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI auto co_spawn (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn (
 	awaitable<T> &&a, Exec &&exec = execution::get_executor()
 );
 
@@ -62,17 +62,17 @@ LIBGS_CORE_TAPI auto co_spawn_detached (
 );
 
 template <typename T, concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI auto co_spawn_detached (
+ LIBGS_CORE_TAPI auto co_spawn_detached (
 	awaitable<T> &&a, Exec &&exec = execution::get_executor()
 );
 
 template <concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI auto co_spawn_future (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_future (
 	concepts::awaitable_function auto &&func, Exec &&exec = execution::get_executor()
 );
 
 template <typename T, concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI auto co_spawn_future (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_future (
 	awaitable<T> &&a, Exec &&exec = execution::get_executor()
 );
 
@@ -80,11 +80,11 @@ template <typename T>
 using awaitable_wake_up = asio::detail::awaitable_handler<asio::any_io_executor,T>;
 
 template <typename T = void>
-LIBGS_CORE_TAPI auto co_task (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_task (
 	std::function<void(awaitable_wake_up<T>&&)> wake_up
 );
 
-LIBGS_CORE_TAPI auto co_post (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_post (
 	concepts::schedulable auto &&exec, concepts::callable auto &&func
 );
 
@@ -92,39 +92,39 @@ LIBGS_CORE_TAPI auto co_dispatch (
 	concepts::schedulable auto &&exec, concepts::callable auto &&func
 );
 
-LIBGS_CORE_TAPI auto co_thread (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_thread (
 	concepts::callable auto &&func
 );
 
 template <typename Rep, typename Period, concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
 	const std::chrono::duration<Rep,Period> &rtime, Exec &&exec = execution::get_executor()
 );
 
 template <typename Rep, typename Period, concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until (
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until (
 	const std::chrono::time_point<Rep,Period> &atime, Exec &&exec = execution::get_executor()
 );
 
 template <typename T>
-LIBGS_CORE_TAPI awaitable<T> co_wait (
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<T> co_wait (
 	const std::future<T> &future
 );
 
-LIBGS_CORE_VAPI awaitable<void> co_wait (
+[[nodiscard]] LIBGS_CORE_VAPI awaitable<void> co_wait (
 	const asio::thread_pool &pool
 );
 
-LIBGS_CORE_VAPI awaitable<void> co_wait (
+[[nodiscard]] LIBGS_CORE_VAPI awaitable<void> co_wait (
 	const std::thread &thread
 );
 
 template <concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI awaitable<void> co_to_exec (
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<void> co_to_exec (
 	Exec &&exec = execution::get_executor()
 );
 
-LIBGS_CORE_VAPI awaitable<void> co_to_thread();
+[[nodiscard]] LIBGS_CORE_VAPI awaitable<void> co_to_thread();
 
 template <concepts::co_token Token>
 LIBGS_CORE_TAPI bool check_error (
@@ -134,7 +134,7 @@ LIBGS_CORE_TAPI bool check_error (
 #ifdef LIBGS_USING_BOOST_ASIO
 
 template <concepts::execution YCExec>
-LIBGS_CORE_TAPI auto co_post (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_post (
 	concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func
 );
 
@@ -144,36 +144,36 @@ LIBGS_CORE_TAPI auto co_dispatch (
 );
 
 template <concepts::execution YCExec>
-LIBGS_CORE_TAPI auto co_thread (
+[[nodiscard]] LIBGS_CORE_TAPI auto co_thread (
 	basic_yield_context<YCExec> yc, concepts::callable auto &&func
 );
 
 template<typename Rep, typename Period, concepts::execution YCExec, concepts::schedulable Exec = YCExec>
-LIBGS_CORE_TAPI error_code co_sleep_for (
+[[nodiscard]] LIBGS_CORE_TAPI error_code co_sleep_for (
 	const std::chrono::duration<Rep,Period> &rtime, basic_yield_context<Exec> yc, Exec &&exec = yc.get_executor()
 );
 
 template<typename Clock, typename Duration, concepts::execution YCExec, concepts::schedulable Exec = YCExec>
-LIBGS_CORE_TAPI error_code co_sleep_until (
+[[nodiscard]] LIBGS_CORE_TAPI error_code co_sleep_until (
 	const std::chrono::time_point<Clock,Duration> &atime, yield_context yc, Exec &&exec = yc.get_executor()
 );
 
 template <typename T, concepts::execution YCExec>
-LIBGS_CORE_TAPI T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future);
+[[nodiscard]] LIBGS_CORE_TAPI T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future);
 
 template <concepts::execution YCExec>
-LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool);
+[[nodiscard]] LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool);
 
 template <concepts::execution YCExec>
-LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread);
+[[nodiscard]] LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread);
 
 template <concepts::execution YCExec, concepts::schedulable Exec = YCExec>
-LIBGS_CORE_TAPI void co_to_exec (
+[[nodiscard]] LIBGS_CORE_TAPI void co_to_exec (
 	basic_yield_context<YCExec> yc, Exec &&exec = yc.get_executor()
 );
 
 template <concepts::execution YCExec>
-LIBGS_CORE_VAPI void co_to_thread (
+[[nodiscard]] LIBGS_CORE_VAPI void co_to_thread (
 	basic_yield_context<YCExec> yc
 );
 

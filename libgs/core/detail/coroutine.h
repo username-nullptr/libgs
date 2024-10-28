@@ -30,6 +30,7 @@
 #define LIBGS_CORE_DETAIL_COROUTINE_H
 
 #include <thread>
+#include <iostream>
 
 namespace libgs
 {
@@ -272,22 +273,22 @@ awaitable<error_code> co_sleep_until(const std::chrono::time_point<Rep,Period> &
 template <typename T>
 awaitable<T> co_wait(const std::future<T> &future)
 {
-	return co_thread([future = &future] {
-		return remove_const(future)->get();
+	return co_thread([&future] {
+		return remove_const(future).get();
 	});
 }
 
 inline awaitable<void> co_wait(const asio::thread_pool &pool)
 {
-	return co_thread([pool = &pool] {
-		return remove_const(pool)->wait();
+	return co_thread([&pool] {
+		return remove_const(pool).wait();
 	});
 }
 
 inline awaitable<void> co_wait(const std::thread &thread)
 {
-	return co_thread([thread = &thread] {
-		return remove_const(thread)->join();
+	return co_thread([&thread] {
+		return remove_const(thread).join();
 	});
 }
 
@@ -494,24 +495,24 @@ error_code co_sleep_until
 template <typename T, concepts::execution YCExec>
 T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
 {
-	return co_thread(yc, [future = &future] {
-		return remove_const(future)->get();
+	return co_thread(yc, [&future] {
+		return remove_const(future).get();
 	});
 }
 
 template <concepts::execution YCExec>
 void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 {
-	co_thread(yc, [pool = &pool] {
-		return remove_const(pool)->wait();
+	co_thread(yc, [&pool] {
+		return remove_const(pool).wait();
 	});
 }
 
 template <concepts::execution YCExec>
 void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread)
 {
-	co_thread(yc, [thread = &thread] {
-		return remove_const(thread)->join();
+	co_thread(yc, [&thread] {
+		return remove_const(thread).join();
 	});
 }
 

@@ -32,9 +32,9 @@ awaitable<void> modules::co_run_init()
 				if( var.index() == 0 )
 					std::get<init_func_t>(var)();
 				else if( var.index() == 1 )
-					co_await std::get<await_init_func_t>(var)();
-				else
 					future_list.emplace_back(std::get<future_init_func_t>(var)());
+				else
+					co_await std::get<await_init_func_t>(var)();
 			}
 			for(auto &futrue : future_list)
 				co_await co_wait(futrue);
