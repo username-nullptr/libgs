@@ -31,15 +31,16 @@
 namespace libgs::execution
 {
 
-static context_t g_ioc;
-
 static std::atomic_int g_exit_code {0};
 
 static std::atomic_bool g_run_flag {false};
 
 context_t &context() noexcept
 {
-	return g_ioc;
+	// Don't destruct it.
+	// An exception occurs when the main function exits in Win10.
+	static auto *g_ioc = new context_t();
+	return *g_ioc;
 }
 
 executor_t get_executor() noexcept
