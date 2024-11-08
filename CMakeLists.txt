@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.12)
-set(PRO_VERSION 0.4.22)
+set(PRO_VERSION 0.4.23)
 set(PRO_NAME LibGS)
 
 project(${PRO_NAME} VERSION ${PRO_VERSION} LANGUAGES C CXX)
 add_definitions(-DLIBGS_VERSION_STR="${PRO_VERSION}-dev")
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(utility)
 check_compiler_version(CMAKE_CXX_STANDARD)
