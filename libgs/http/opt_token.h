@@ -30,39 +30,221 @@
 #define LIBGS_HTTP_OPT_TOKEN_H
 
 #include <libgs/http/types.h>
+#include <fstream>
 
 namespace libgs::http
 {
 
-using begin_t = size_t;
-using total_t = size_t;
-using end_t   = size_t;
-
 template <typename...Args>
 using callback_t = std::function<void(Args...)>;
 
-struct req_range
+class LIBGS_HTTP_API op_base
 {
-	size_t begin = 0;
-	size_t total = 0;
-
-	constexpr req_range();
-	req_range(size_t total);
-	req_range(size_t begin, size_t total);
+public:
+    op_base() = default;
+    op_base(error_code &error);
+    error_code *error = nullptr;
 };
 
-struct resp_range
+class LIBGS_HTTP_API read_op : public op_base
 {
-	size_t begin = 0;
-	size_t end = 0;
-
-	constexpr resp_range();
-	resp_range(size_t end);
-	resp_range(size_t begin, size_t end);
+public:
+    read_op(mutable_buffer buf, error_code &error);
+    read_op(mutable_buffer buf);
+    mutable_buffer buf;
 };
-using resp_ranges = std::vector<resp_range>;
 
-} //namespace libgs::http
+class LIBGS_HTTP_API write_op : public op_base
+{
+public:
+    write_op(const_buffer buf, error_code &error);
+    write_op(const_buffer buf);
+    write_op();
+    const_buffer buf;
+};
+
+template <typename FS>
+class LIBGS_HTTP_TAPI file_op_base : public op_base
+{
+public:
+    using fstream_t = FS;
+	using pos_t = typename fstream_t::pos_type;
+    fstream_t *fs;
+
+    file_op_base(fstream_t &&fs, error_code &error);
+    file_op_base(fstream_t &fs, error_code &error);
+    file_op_base(fstream_t &fs);
+
+    template <typename...Args>
+    file_op_base(error_code &error, Args&&...args) requires
+        core_concepts::constructible<fstream_t,Args&&...>;
+
+    template <typename...Args>
+    file_op_base(Args&&...args) requires
+		core_concepts::constructible<fstream_t, Args&&...>;
+
+protected:
+    bool ext;
+};
+
+template <typename FS>
+class LIBGS_HTTP_TAPI req_file_op_base : public file_op_base<FS>
+{
+	using base_t = file_op_base<FS>;
+
+public:
+	using pos_t = typename base_t::pos_t;
+	using fstream_t = typename base_t::fstream_t;
+	using base_t::file_op_base;
+
+	struct range
+	{
+		pos_t begin = 0;
+		pos_t total = 0;
+	}
+	rng;
+
+    req_file_op_base(fstream_t &&fs, range rng, error_code &error);
+    req_file_op_base(fstream_t &fs, range rng, error_code &error);
+    req_file_op_base(fstream_t &fs, range rng, pos_t total);
+
+    template <typename...Args>
+    req_file_op_base(error_code &error, range rng, Args&&...args) requires
+        core_concepts::constructible<fstream_t,Args&&...>;
+
+    template <typename...Args>
+    req_file_op_base(pos_t begin, range rng, Args&&...args) requires
+		core_concepts::constructible<fstream_t, Args&&...>;
+};
+
+template <core_concepts::char_type CharT>
+using basic_req_file_op = req_file_op_base<std::basic_fstream<CharT>>;
+
+using req_file_op = basic_req_file_op<char>;
+using basic_req_file_op = basic_req_file_op<wchar_t>;
+
+template <typename FS>
+class LIBGS_HTTP_TAPI resp_file_op_base : public file_op_base<FS>
+{
+	using base_t = file_op_base<FS>;
+
+public:
+	using pos_t = typename base_t::pos_t;
+	using fstream_t = typename base_t::fstream_t;
+	using base_t::file_op_base;
+
+	struct range
+	{
+		pos_t begin = 0;
+		pos_t end = 0;
+	};
+	using ranges_t = std::vector<range>;
+	ranges_t rngs;
+
+    resp_file_op_base(fstream_t &&fs, ranges_t rngs, error_code &error);
+    resp_file_op_base(fstream_t &&fs, range rng, error_code &error);
+
+    resp_file_op_base(fstream_t &fs, ranges_t rngs, error_code &error);
+    resp_file_op_base(fstream_t &fs, range rng, error_code &error);
+
+    resp_file_op_base(fstream_t &fs, ranges_t rngs);
+    resp_file_op_base(fstream_t &fs, range rng);
+
+    template <typename...Args>
+    resp_file_op_base(error_code &error, ranges_t rngs, Args&&...args) requires
+        core_concepts::constructible<fstream_t,Args&&...>;
+
+    template <typename...Args>
+    resp_file_op_base(error_code &error, range rng, Args&&...args) requires
+        core_concepts::constructible<fstream_t,Args&&...>;
+
+    template <typename...Args>
+    resp_file_op_base(pos_t begin, ranges_t rngs, Args&&...args) requires
+		core_concepts::constructible<fstream_t, Args&&...>;
+
+    template <typename...Args>
+    resp_file_op_base(pos_t begin, range rng, Args&&...args) requires
+		core_concepts::constructible<fstream_t, Args&&...>;
+};
+
+template <core_concepts::char_type CharT>
+using basic_resp_file_op = resp_file_op_base<std::basic_fstream<CharT>>;
+
+using resp_file_op = basic_resp_file_op<char>;
+using basic_resp_file_op = basic_resp_file_op<wchar_t>;
+
+namespace opreators
+{
+
+LIBGS_HTTP_API read_op operator| (
+	mutable_buffer buf, error_code &error
+);
+LIBGS_HTTP_API read_op operator| (
+	error_code &error, mutable_buffer buf
+);
+
+LIBGS_HTTP_API write_op operator| (
+	const_buffer buf, error_code &error
+);
+LIBGS_HTTP_API write_op operator| (
+	error_code &error, const_buffer buf
+);
+
+template <typename FS>
+LIBGS_HTTP_TAPI file_op_base<FS> operator| (
+	FS &&fs, error_code &error
+);
+template <typename FS>
+LIBGS_HTTP_TAPI file_op_base<FS> operator| (
+	error_code &error, FS &&fs
+);
+
+template <typename FS>
+LIBGS_HTTP_TAPI req_file_op_base<FS> operator| (
+	file_op_base<FS> fs, typename req_file_op_base<FS>::range rng
+);
+template <typename FS>
+LIBGS_HTTP_TAPI req_file_op_base<FS> operator| (
+	typename req_file_op_base<FS>::range rng, file_op_base<FS> fs
+);
+
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
+	file_op_base<FS> fs, typename resp_file_op_base<FS>::range rng
+);
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
+	typename resp_file_op_base<FS>::range rng, file_op_base<FS> fs
+);
+
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
+	file_op_base<FS> fs, typename resp_file_op_base<FS>::ranges_t rngs
+);
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
+	typename resp_file_op_base<FS>::ranges_t rngs, file_op_base<FS> fs
+);
+
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
+	resp_file_op_base<FS> &fs, typename resp_file_op_base<FS>::range rng
+);
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
+	typename resp_file_op_base<FS>::range rng, resp_file_op_base<FS> &fs
+);
+
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
+	resp_file_op_base<FS> &fs, typename resp_file_op_base<FS>::ranges_t rngs
+);
+template <typename FS>
+LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
+	typename resp_file_op_base<FS>::ranges_t rngs, resp_file_op_base<FS> &fs
+);
+
+}} //namespace libgs::http::opreators
 #include <libgs/http/detail/opt_token.h>
 
 

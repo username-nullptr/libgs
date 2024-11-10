@@ -113,7 +113,7 @@ basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, error_code &error) no
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-basic_session_pool<Stream,Exec>::session_t
+typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep)
 {
 	error_code error;
@@ -124,7 +124,7 @@ basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, 
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-basic_session_pool<Stream,Exec>::session_t
+typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep)
 {
 	error_code error;
@@ -135,7 +135,7 @@ basic_session_pool<Stream,Exec>::get(core_concepts::execution_context auto &exec
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-basic_session_pool<Stream,Exec>::session_t
+typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep, error_code &error) noexcept
 {
 	socket_t socket(exec);
@@ -148,19 +148,18 @@ basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, 
 		socket = std::move(it->second);
 		m_impl->m_sock_map.erase(it);
 	}
-	session_t sess(std::move(socket), [this, valid = m_impl->m_valid](socket_t &&socket)
+	session_t sess(std::move(socket), [this, valid = m_impl->m_valid](socket_t &&sock)
 	{
 		if( *valid )
-			emplace(std::move(socket));
+			emplace(std::move(sock));
 	});
-	auto &helper = sess.opt_helper();
-	if( not helper.is_open() )
+	if( auto &helper = sess.opt_helper(); not helper.is_open() )
 		helper.connect(ep, error);
 	return sess;
 }
 
 template <concepts::stream_requires Stream, core_concepts::execution Exec>
-basic_session_pool<Stream,Exec>::session_t
+typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream, Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep, error_code &error) noexcept
 {
 	return get(exec.get_executor(), ep, error);
@@ -189,24 +188,26 @@ auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution a
 		socket = std::move(it->second);
 		m_impl->m_sock_map.erase(it);
 	}
-	session_t sess(std::move(socket), [this, valid = m_impl->m_valid](socket_t &&socket)
+	session_t sess(std::move(socket), [this, valid = m_impl->m_valid](socket_t &&sock)
 	{
 		if( *valid )
-			emplace(std::move(socket));
+			emplace(std::move(sock));
 	});
 	if constexpr( is_function_v<Token> )
 	{
-		auto &helper = sess.opt_helper();
-		if( helper.is_open() )
+		if( auto &helper = sess.opt_helper(); helper.is_open() )
 		{
-			asio::dispatch(exec, [token = std::forward<Token>(token), sess = std::move(sess)]() mutable {
+			asio::dispatch(exec, [
+				token = std::forward<Token>(token), sess = std::move(sess)
+			]() mutable {
 				token(std::move(sess), error_code());
 			});
 		}
 		else
 		{
-			helper.async_connect
-			(std::move(ep), [token = std::forward<Token>(token), sess = std::move(sess)](const error_code &error) mutable {
+			helper.async_connect(std::move(ep), [
+				token = std::forward<Token>(token), sess = std::move(sess)
+			](const error_code &error) mutable {
 				token(std::move(sess), error);
 			});
 		}
@@ -222,11 +223,11 @@ auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution a
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return asio::co_spawn(exec, [ep = std::move(ep), sess = std::move(sess), token = std::forward<Token>(token)]()
-		mutable -> awaitable<session_t>
+		return asio::co_spawn(exec, [
+			ep = std::move(ep), sess = std::move(sess), token = std::forward<Token>(token)
+		]() mutable -> awaitable<session_t>
 		{
-			auto &helper = sess.opt_helper();
-			if( not helper.is_open() )
+			if( auto &helper = sess.opt_helper(); not helper.is_open() )
 				co_await helper.async_connect(std::move(ep), std::forward<Token>(token));
 			co_return std::move(sess);
 		},

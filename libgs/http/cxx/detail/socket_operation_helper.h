@@ -95,9 +95,10 @@ async_connect(endpoint_t ep, Token &&token)
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return asio::co_spawn(this->socket().get_executor(),
-							  [&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)]()
-							  mutable -> awaitable<void>
+		using namespace operators;
+		return asio::co_spawn(this->socket().get_executor(), [
+			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
+		]() mutable -> awaitable<void>
 		{
 			error_code error;
 			co_await socket.async_connect(ep, use_awaitable|error);
@@ -185,8 +186,9 @@ async_connect(endpoint_t ep, Token &&token)
 	if constexpr( is_function_v<Token> )
 	{
 		auto _ep = ep;
-		this->socket().next_layer().async_connect(std::move(ep),
-			[&socket = this->socket(), ep = std::move(_ep), token = std::forward<Token>(token)](error_code error)
+		this->socket().next_layer().async_connect(std::move(ep), [
+			&socket = this->socket(), ep = std::move(_ep), token = std::forward<Token>(token)
+		](error_code error)
 		{
 			if( not error )
 				socket.async_handshake(std::move(ep), std::forward<Token>(token));
@@ -206,15 +208,16 @@ async_connect(endpoint_t ep, Token &&token)
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		return asio::co_spawn(get_executor(),
-			[&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)]()
-			mutable -> awaitable<void>
+		using namespace operators;
+		return asio::co_spawn(get_executor(), [
+			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
+		]() mutable -> awaitable<void>
 		{
 			error_code error;
 			co_await socket.next_layer().async_connect(ep, use_awaitable|error);
 			if( not check_error(token, error, "libgs::http::socket_operation_helper::async_connect") )
 			{
-				socket.async_handshake(std::move(ep), use_awaitable|error);
+				co_await socket.async_handshake(std::move(ep), use_awaitable|error);
 				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
 			}
 			co_return ;

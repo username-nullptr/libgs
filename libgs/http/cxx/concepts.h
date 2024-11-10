@@ -58,6 +58,14 @@ namespace concepts
 template <typename Stream>
 concept stream_requires = stream_requires_v<Stream>;
 
+template <typename Token, typename...Signatures>
+concept ioop_token =
+	asio::completion_token_for<Token,Signatures...> or
+	(
+		std::is_same_v<std::decay_t<Token>, error_code> and
+		std::is_lvalue_reference_v<Token>
+	);
+
 } //namespace concepts
 
 namespace core_concepts = libgs::concepts;

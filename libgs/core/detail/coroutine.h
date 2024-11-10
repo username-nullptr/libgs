@@ -92,6 +92,52 @@ auto co_spawn_future(awaitable<T> &&a, Exec &&exec)
 	);
 }
 
+
+template <concepts::execution_context Exec>
+auto co_spawn_thread(concepts::awaitable_void_function auto &&func, Exec &exec)
+{
+	return co_spawn_thread(func(), exec);
+}
+
+auto co_spawn_thread(concepts::awaitable_void_function auto &&func)
+{
+	using func_t = std::decay_t<decltype(func)>;
+	return std::thread([func = std::forward<func_t>(func)]() mutable
+	{
+		asio::io_context ioc;
+		co_spawn_detached(std::move(func), ioc);
+		ioc.run();
+	});
+}
+
+template <concepts::execution_context Exec>
+auto co_spawn_thread(awaitable<void> &&a, Exec &exec)
+{
+	return std::thread([a = std::move(a), &exec]() mutable
+	{
+		bool finished = false;
+		co_spawn_detached([&finished, a = std::move(a)]() mutable -> awaitable<void>
+		{
+			co_await std::move(a);
+			finished = true;
+			co_return ;
+		},
+		exec);
+		while( not finished )
+			exec.run();
+	});
+}
+
+inline auto co_spawn_thread(awaitable<void> &&a)
+{
+	return std::thread([a = std::move(a)]() mutable
+	{
+		asio::io_context ioc;
+		co_spawn_detached(std::move(a), ioc);
+		ioc.run();
+	});
+}
+
 template <typename T>
 auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 {
@@ -125,14 +171,15 @@ auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 
 auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 {
-	using Func = std::decay_t<decltype(func)>;
-	using Exec = std::decay_t<decltype(exec)>;
+	using function_t = std::decay_t<decltype(func)>;
+	using executor_t = std::decay_t<decltype(exec)>;
 	using return_t = decltype(func());
 
 	if constexpr( std::is_same_v<return_t, void> )
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void()>
-		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
+		return asio::async_initiate<decltype(asio::use_awaitable), void()>([
+			exec = get_executor_helper(std::forward<executor_t>(exec)), func = std::forward<function_t>(func)
+		](auto handler)
 		{
 		    auto work = asio::make_work_guard(handler);
 		    asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
@@ -148,7 +195,7 @@ auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 	else
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
-		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
+		([exec = get_executor_helper(exec), func = std::forward<function_t>(func)](auto handler)
 		{
 		    auto work = asio::make_work_guard(handler);
 		    asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
@@ -165,33 +212,38 @@ auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 
 auto co_dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&func)
 {
-	using Func = std::decay_t<decltype(func)>;
-	using Exec = std::decay_t<decltype(exec)>;
+	using function_t = std::decay_t<decltype(func)>;
+	using executor_t = std::decay_t<decltype(exec)>;
 	using return_t = decltype(func());
 
 	if constexpr( std::is_same_v<return_t, void> )
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void()>
-		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 asio::dispatch(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 func();
-				 asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					 std::move(handler)();
-				 });
-			 });
+		return asio::async_initiate<decltype(asio::use_awaitable), void()>([
+			exec = get_executor_helper(std::forward<executor_t>(exec)), func = std::forward<function_t>(func)
+		](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(exec, [
+				func = std::move(func), handler = std::move(handler), work = std::move(work)
+			]() mutable
+			{
+				func();
+				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
+					std::move(handler)();
+				});
+			});
 		},
 		asio::use_awaitable);
 	}
 	else
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
-		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
+		([exec = get_executor_helper(exec), func = std::forward<function_t>(func)](auto handler)
 		{
 			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			asio::dispatch(exec, [
+				func = std::move(func), handler = std::move(handler), work = std::move(work)
+			]() mutable
 			{
 				auto res = func();
 				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
@@ -205,13 +257,13 @@ auto co_dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&fu
 
 auto co_thread(concepts::callable auto &&func)
 {
-	using Func = std::decay_t<decltype(func)>;
+	using function_t = std::decay_t<decltype(func)>;
 	using return_t = decltype(func());
 
 	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void()>
-		([func = std::forward<Func>(func)](auto handler)
+		([func = std::forward<function_t>(func)](auto handler)
 		{
 			auto work = asio::make_work_guard(handler);
 			std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
@@ -228,7 +280,7 @@ auto co_thread(concepts::callable auto &&func)
 	else
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
-		([func = std::forward<Func>(func)](auto handler)
+		([func = std::forward<function_t>(func)](auto handler)
 		{
 			auto work = asio::make_work_guard(handler);
 			std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
@@ -250,6 +302,7 @@ namespace detail
 template <typename Exec>
 awaitable<error_code> co_sleep_x(const auto &stdtime, Exec &&exec)
 {
+	using namespace operators;
 	error_code error;
 	asio::steady_timer timer(std::forward<Exec>(exec), stdtime);
 	co_await timer.async_wait(use_awaitable|error);
@@ -293,26 +346,26 @@ inline awaitable<void> co_wait(const std::thread &thread)
 }
 
 template <concepts::schedulable Exec>
-awaitable<void> co_to_exec(Exec &&exec)
+awaitable<asio::any_io_executor> co_to_exec(Exec &&exec)
 {
-	return asio::async_initiate<decltype(asio::use_awaitable), void()>
+	return asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
 	([exec = get_executor_helper(exec)](auto handler)
 	{
 	    auto work = asio::make_work_guard(handler);
 	    asio::post(exec, [handler = std::move(handler), work = std::move(work)]() mutable {
-			std::move(handler)();
+			std::move(handler)(work.get_executor());
 		});
 	},
 	asio::use_awaitable);
 }
 
-inline awaitable<void> co_to_thread()
+inline awaitable<asio::any_io_executor> co_to_thread()
 {
-	return asio::async_initiate<decltype(asio::use_awaitable), void()>([](auto handler)
+	return asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>([](auto handler)
 	{
 	    auto work = asio::make_work_guard(handler);
 		std::thread([handler = std::move(handler), work = std::move(work)]() mutable {
-			std::move(handler)();
+			std::move(handler)(work.get_executor());
 		}).detach();
 	},
 	asio::use_awaitable);
@@ -341,41 +394,42 @@ template <concepts::execution YCExec>
 auto co_post(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
-	using Func = std::decay_t<decltype(func)>;
-	using Exec = std::decay_t<decltype(exec)>;
+	using function_t = std::decay_t<decltype(func)>;
+	using executor_t = std::decay_t<decltype(exec)>;
 	using return_t = decltype(func());
 
 	if constexpr( std::is_same_v<return_t, void> )
 	{
-		return asio::async_initiate<yield_context, void()>
-		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 func();
-				 asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					 std::move(handler)();
-				 });
-			 });
-		 },
-		 yc);
+		return asio::async_initiate<yield_context, void()>([
+			exec = get_executor_helper(std::forward<executor_t>(exec)), func = std::forward<function_t>(func)
+		](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			{
+				func();
+				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
+					std::move(handler)();
+				});
+			});
+		},
+		yc);
 	}
 	else
 	{
 		return asio::async_initiate<yield_context, void(return_t)>
-		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 auto res = func();
-				 asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
-					 std::move(handler)(std::move(res));
-				 });
-			 });
-		 },
-		 yc);
+		([exec = get_executor_helper(exec), func = std::forward<function_t>(func)](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			{
+				auto res = func();
+				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
+					std::move(handler)(std::move(res));
+				});
+			});
+		},
+		yc);
 	}
 }
 
@@ -383,41 +437,42 @@ template <concepts::execution YCExec>
 auto co_dispatch(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
-	using Func = std::decay_t<decltype(func)>;
-	using Exec = std::decay_t<decltype(exec)>;
+	using function_t = std::decay_t<decltype(func)>;
+	using executor_t = std::decay_t<decltype(exec)>;
 	using return_t = decltype(func());
 
 	if constexpr( std::is_same_v<return_t, void> )
 	{
-		return asio::async_initiate<yield_context, void()>
-		([exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 asio::dispatch(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 func();
-				 asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					 std::move(handler)();
-				 });
-			 });
-		 },
-		 yc);
+		return asio::async_initiate<yield_context, void()>([
+			exec = get_executor_helper(std::forward<executor_t>(exec)), func = std::forward<function_t>(func)
+		](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			{
+				func();
+				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
+					std::move(handler)();
+				});
+			});
+		},
+		yc);
 	}
 	else
 	{
 		return asio::async_initiate<yield_context, void(return_t)>
-		([exec = get_executor_helper(exec), func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 asio::dispatch(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 auto res = func();
-				 asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
-					 std::move(handler)(std::move(res));
-				 });
-			 });
-		 },
-		 yc);
+		([exec = get_executor_helper(exec), func = std::forward<function_t>(func)](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			{
+				auto res = func();
+				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
+					std::move(handler)(std::move(res));
+				});
+			});
+		},
+		yc);
 	}
 }
 
@@ -425,42 +480,42 @@ template <concepts::execution YCExec>
 auto co_thread(basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
-	using Func = std::decay_t<decltype(func)>;
+	using function_t = std::decay_t<decltype(func)>;
 	using return_t = decltype(func());
 
 	if constexpr( std::is_same_v<return_t, void> )
 	{
 		return asio::async_initiate<yield_context, void()>
-		([func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 func();
-				 asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					 std::move(handler)();
-				 });
-			 })
-			 .detach();
-		 },
-		 yc);
+		([func = std::forward<function_t>(func)](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			{
+				func();
+				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
+					std::move(handler)();
+				});
+			})
+			.detach();
+		},
+		yc);
 	}
 	else
 	{
 		return asio::async_initiate<yield_context, void(return_t)>
-		([func = std::forward<Func>(func)](auto handler)
-		 {
-			 auto work = asio::make_work_guard(handler);
-			 std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			 {
-				 auto res = func();
-				 asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
-					 std::move(handler)(std::move(res));
-				 });
-			 })
-			 .detach();
-		 },
-		 yc);
+		([func = std::forward<function_t>(func)](auto handler)
+		{
+			auto work = asio::make_work_guard(handler);
+			std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
+			{
+				auto res = func();
+				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
+					std::move(handler)(std::move(res));
+				});
+			})
+			.detach();
+		},
+		yc);
 	}
 }
 
@@ -517,27 +572,27 @@ void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread)
 }
 
 template <concepts::execution YCExec, concepts::schedulable Exec>
-awaitable<void> co_to_exec(basic_yield_context<YCExec> yc, Exec &&exec)
+asio::any_io_executor co_to_exec(basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	return asio::async_initiate<basic_yield_context<YCExec>, void()>
 	([exec = get_executor_helper(std::forward<Exec>(exec))](auto handler)
 	{
 		auto work = asio::make_work_guard(handler);
 		asio::post(exec, [handler = std::move(handler), work = std::move(work)]() mutable {
-			std::move(handler)();
+			std::move(handler)(work.get_executor());
 		});
 	},
 	yc);
 }
 
 template <concepts::execution YCExec>
-void co_to_thread(basic_yield_context<YCExec> yc)
+asio::any_io_executor co_to_thread(basic_yield_context<YCExec> yc)
 {
 	return asio::async_initiate<basic_yield_context<YCExec>, void()>([](auto handler)
 	{
 		auto work = asio::make_work_guard(handler);
 		std::thread([handler = std::move(handler), work = std::move(work)]() mutable {
-			std::move(handler)();
+			std::move(handler)(work.get_executor());
 		}).detach();
 	},
 	yc);

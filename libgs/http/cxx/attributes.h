@@ -31,11 +31,16 @@
 
 #include <libgs/core/global.h>
 
-#ifdef gs_http_EXPORTS
-# define LIBGS_HTTP_API  LIBGS_DECL_EXPORT
-#else //gs_http_EXPORTS
-# define LIBGS_HTTP_API  LIBGS_DECL_IMPORT
-#endif //gs_http_EXPORTS
+#ifdef LIBGS_HTTP_SHARED
+# ifdef gs_http_EXPORTS
+#  define LIBGS_HTTP_API  LIBGS_DECL_EXPORT
+# else //gs_http_EXPORTS
+#  define LIBGS_HTTP_API  LIBGS_DECL_IMPORT
+# endif //gs_http_EXPORTS
+
+#else //LIBGS_HTTP_SHARED
+# define LIBGS_HTTP_API
+#endif //LIBGS_HTTP_SHARED
 
 # define LIBGS_HTTP_VAPI  LIBGS_CORE_VAPI
 # define LIBGS_HTTP_TAPI  LIBGS_CORE_TAPI

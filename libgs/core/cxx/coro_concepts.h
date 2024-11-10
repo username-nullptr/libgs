@@ -202,47 +202,50 @@ concept yield_context = is_basic_yield_context_v<T>;
 
 #endif //LIBGS_USING_BOOST_ASIO
 
-} // namespace libgs
+namespace operators
+{
 
-template <libgs::concepts::use_awaitable Token>
-auto operator|(Token &&ua, std::error_code &error) {
+template <concepts::use_awaitable Token>
+[[nodiscard]] auto operator|(Token &&ua, std::error_code &error) {
 	return asio::redirect_error(std::forward<Token>(ua), error);
 }
 
-template <libgs::concepts::use_awaitable Token>
-auto operator|(const std::error_code &error, Token &&ua) {
+template <concepts::use_awaitable Token>
+[[nodiscard]] auto operator|(const std::error_code &error, Token &&ua) {
 	return asio::redirect_error(std::forward<Token>(ua), error);
 }
 
-template <libgs::concepts::use_awaitable Token>
-auto operator|(Token &&ua, const asio::cancellation_slot &slot) {
+template <concepts::use_awaitable Token>
+[[nodiscard]] auto operator|(Token &&ua, const asio::cancellation_slot &slot) {
 	return asio::bind_cancellation_slot(slot, std::forward<Token>(ua));
 }
 
 template <libgs::concepts::use_awaitable Token>
-auto operator|(const asio::cancellation_slot &slot, Token &&ua) {
+[[nodiscard]] auto operator|(const asio::cancellation_slot &slot, Token &&ua) {
 	return asio::bind_cancellation_slot(slot, std::forward<Token>(ua));
 }
 
-template <libgs::concepts::redirect_error Token>
-auto operator|(Token &&re, const asio::cancellation_slot &slot) {
+template <concepts::redirect_error Token>
+[[nodiscard]] auto operator|(Token &&re, const asio::cancellation_slot &slot) {
 	return asio::bind_cancellation_slot(slot, std::forward<Token>(re));
 }
 
-template <libgs::concepts::redirect_error Token>
-auto operator|(const asio::cancellation_slot &slot, Token &&re) {
+template <concepts::redirect_error Token>
+[[nodiscard]] auto operator|(const asio::cancellation_slot &slot, Token &&re) {
 	return asio::bind_cancellation_slot(slot, std::forward<Token>(re));
 }
 
-template <libgs::concepts::cancellation_slot_binder Token>
-auto operator|(Token &&csb, std::error_code &error) {
+template <concepts::cancellation_slot_binder Token>
+[[nodiscard]] auto operator|(Token &&csb, std::error_code &error) {
 	return asio::redirect_error(std::forward<Token>(csb), error);
 }
 
-template <libgs::concepts::cancellation_slot_binder Token>
-auto operator|(std::error_code &error, Token &&csb) {
+template <concepts::cancellation_slot_binder Token>
+[[nodiscar]] auto operator|(std::error_code &error, Token &&csb) {
 	return asio::redirect_error(std::forward<Token>(csb), error);
 }
+
+}} // namespace libgs::operators
 
 
 #endif //LIBGS_CORE_CXX_CORO_CONCEPTS_H

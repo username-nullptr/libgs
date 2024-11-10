@@ -172,6 +172,18 @@ concept awaitable_function =
 	is_awaitable_v<typename function_traits<Func>::return_type> and
 	function_traits<Func>::arg_count == 0;
 
+template <typename Func, typename RT>
+concept awaitable_ret_function =
+	awaitable_function<Func> and
+	std::is_same_v <
+		awaitable_return_type_t <
+			typename function_traits<Func>::return_type
+		>, RT
+	>;
+
+template <typename Func>
+concept awaitable_void_function = awaitable_ret_function<Func,void>;
+
 }} //namespace libgs::concepts
 
 

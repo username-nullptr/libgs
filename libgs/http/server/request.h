@@ -96,8 +96,8 @@ public:
 	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
 	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
 
-	[[nodiscard]] const value_t path_arg(size_t index) const;
-	[[nodiscard]] const value_t path_arg(string_view_t key) const;
+	[[nodiscard]] const value_t &path_arg(size_t index) const;
+	[[nodiscard]] const value_t &path_arg(string_view_t key) const;
 	[[nodiscard]] value_t path_arg_or(string_view_t key, value_t def_value = {}) const noexcept;
 
 public:

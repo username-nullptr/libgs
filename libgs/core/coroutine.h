@@ -76,6 +76,24 @@ template <typename T, concepts::schedulable Exec = execution::executor_t>
 	awaitable<T> &&a, Exec &&exec = execution::get_executor()
 );
 
+template <concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
+	concepts::awaitable_void_function auto &&func, Exec &exec
+);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
+	concepts::awaitable_void_function auto &&func
+);
+
+template <concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
+	awaitable<void> &&a, Exec &exec
+);
+
+[[nodiscard]] LIBGS_CORE_VAPI auto co_spawn_thread (
+	awaitable<void> &&a
+);
+
 template <typename T>
 using awaitable_wake_up = asio::detail::awaitable_handler<asio::any_io_executor,T>;
 
@@ -120,11 +138,11 @@ template <typename T>
 );
 
 template <concepts::schedulable Exec = execution::executor_t>
-[[nodiscard]] LIBGS_CORE_TAPI awaitable<void> co_to_exec (
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<asio::any_io_executor> co_to_exec (
 	Exec &&exec = execution::get_executor()
 );
 
-[[nodiscard]] LIBGS_CORE_VAPI awaitable<void> co_to_thread();
+[[nodiscard]] LIBGS_CORE_VAPI awaitable<asio::any_io_executor> co_to_thread();
 
 template <concepts::co_token Token>
 LIBGS_CORE_TAPI bool check_error (
@@ -168,12 +186,12 @@ template <concepts::execution YCExec>
 [[nodiscard]] LIBGS_CORE_VAPI void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread);
 
 template <concepts::execution YCExec, concepts::schedulable Exec = YCExec>
-[[nodiscard]] LIBGS_CORE_TAPI void co_to_exec (
+[[nodiscard]] LIBGS_CORE_TAPI asio::any_io_executor co_to_exec (
 	basic_yield_context<YCExec> yc, Exec &&exec = yc.get_executor()
 );
 
 template <concepts::execution YCExec>
-[[nodiscard]] LIBGS_CORE_VAPI void co_to_thread (
+[[nodiscard]] LIBGS_CORE_VAPI asio::any_io_executor co_to_thread (
 	basic_yield_context<YCExec> yc
 );
 

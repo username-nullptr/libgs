@@ -42,13 +42,13 @@ int main()
 
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
-		co_await libgs::co_to_thread();
+		auto preExec = co_await libgs::co_to_thread();
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		co_await libgs::co_to_exec(pool);
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
-		co_await libgs::co_to_exec();
+		co_await libgs::co_to_exec(preExec);
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		spdlog::debug("example finished...");

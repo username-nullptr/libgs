@@ -233,7 +233,7 @@ basic_server_request<Stream,CharT>::cookie_or(string_view_t key, value_t def_val
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t
+const typename basic_server_request<Stream,CharT>::value_t&
 basic_server_request<Stream,CharT>::path_arg(size_t index) const
 {
 	auto &vector = m_impl->m_parser->path_args();
@@ -243,7 +243,7 @@ basic_server_request<Stream,CharT>::path_arg(size_t index) const
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t
+const typename basic_server_request<Stream,CharT>::value_t&
 basic_server_request<Stream,CharT>::path_arg(string_view_t key) const
 {
 	auto &vector = m_impl->m_parser->path_args();
@@ -494,8 +494,8 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 		error = std::make_error_code(static_cast<std::errc>(errno));
 		return sum;
 	}
-	using pos_type = std::ifstream::pos_type;
-	file.seekp(static_cast<pos_type>(range.begin));
+	using pos_t = std::ifstream::pos_type;
+	file.seekp(static_cast<pos_t>(range.begin));
 
 	constexpr size_t tcp_buf_size = 0xFFFF;
 	char buf[tcp_buf_size] {0};
@@ -511,16 +511,16 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 
 		sum += size;
 		if( total == 0 )
-			file.write(buf, static_cast<pos_type>(size));
+			file.write(buf, static_cast<pos_t>(size));
 
 		else if( size > total )
 		{
-			file.write(buf, static_cast<pos_type>(total));
+			file.write(buf, static_cast<pos_t>(total));
 			break;
 		}
 		else
 		{
-			file.write(buf, static_cast<pos_type>(size));
+			file.write(buf, static_cast<pos_t>(size));
 			total -= size;
 		}
 //		sleep_for(512us);
@@ -573,8 +573,8 @@ awaitable<size_t> basic_server_request<Stream,CharT>::co_save_file
 			error = std::make_error_code(static_cast<std::errc>(errno));
 			break;
 		}
-		using pos_type = std::ifstream::pos_type;
-		file.seekp(static_cast<pos_type>(range.begin));
+		using pos_t = std::ifstream::pos_type;
+		file.seekp(static_cast<pos_t>(range.begin));
 
 		constexpr size_t tcp_buf_size = 0xFFFF;
 		char buf[tcp_buf_size] {0};
@@ -590,16 +590,16 @@ awaitable<size_t> basic_server_request<Stream,CharT>::co_save_file
 
 			sum += size;
 			if( total == 0 )
-				file.write(buf, static_cast<pos_type>(size));
+				file.write(buf, static_cast<pos_t>(size));
 
 			else if( size > total )
 			{
-				file.write(buf, static_cast<pos_type>(total));
+				file.write(buf, static_cast<pos_t>(total));
 				break;
 			}
 			else
 			{
-				file.write(buf, static_cast<pos_type>(size));
+				file.write(buf, static_cast<pos_t>(size));
 				total -= size;
 			}
 //			co_await co_sleep_for(512us, get_executor());

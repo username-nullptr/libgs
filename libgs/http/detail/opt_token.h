@@ -32,6 +32,11 @@
 namespace libgs::http
 {
 
+op_base::op_base(error_code &error)
+{
+
+}
+
 inline constexpr req_range::req_range()
 {
 
