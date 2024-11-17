@@ -32,64 +32,125 @@
 namespace libgs::http
 {
 
-op_base::op_base(error_code &error)
+template <typename CT>
+file_opt_base<CT>::file_opt_base(const file_range &range) :
+	ranges{range}
 {
 
 }
 
-inline constexpr req_range::req_range()
+template <typename CT>
+file_opt_base<CT>::file_opt_base(file_ranges ranges) :
+	ranges(std::move(ranges))
 {
 
 }
-
-inline req_range::req_range(size_t total) :
-	total(total)
-{
-
-}
-
-inline req_range::req_range(size_t begin, size_t total) :
-	begin(begin), total(total)
-{
-
-}
-
-inline constexpr resp_range::resp_range()
-{
-
-}
-
-inline resp_range::resp_range(size_t end) :
-	end(end)
-{
-
-}
-
-inline resp_range::resp_range(size_t begin, size_t end) :
-	begin(begin), end(end)
-{
-
-}
-
-namespace detail::concepts
-{
 
 template <typename T>
-concept has_ec_ = requires(T &&t) {
-	t.ec_;
-};
+file_opt<T>::file_opt(std::string_view file_name) :
+	file_name(file_name.data(), file_name.size()),
+	stream(file_name.data(), std::ios::binary)
+{
+
+}
 
 template <typename T>
-concept has_get = requires(T &&t)
+file_opt<T>::file_opt(std::string_view filename, const file_range &range) :
+	file_opt_base<file_opt>(range),
+	file_name(filename.data(), filename.size()),
+	stream(file_name.data(), std::ios::binary)
 {
-	t.get_cancellation_slot();
-	t.get();
-};
 
-} //namespace detail::concepts
+}
 
-} //namespace libgs::http
+template <typename T>
+file_opt<T>::file_opt(std::string_view filename, file_ranges ranges) :
+	file_opt_base<file_opt>(std::move(ranges)),
+	file_name(filename.data(), filename.size()),
+	stream(file_name.data(), std::ios::binary)
+{
+
+}
+
+template <concepts::fiostream FS> requires std::is_lvalue_reference_v<FS>
+file_opt<FS>::file_opt(fstream_t stream) :
+	stream(&stream)
+{
+
+}
+
+template <concepts::fiostream FS> requires std::is_lvalue_reference_v<FS>
+file_opt<FS>::file_opt(fstream_t stream, const file_range &range) :
+	file_opt_base<file_opt>(range),
+	stream(&stream)
+{
+
+}
+
+template <concepts::fiostream FS> requires std::is_lvalue_reference_v<FS>
+file_opt<FS>::file_opt(fstream_t stream, file_ranges ranges) :
+	file_opt_base<file_opt>(std::move(ranges)),
+	stream(&stream)
+{
+
+}
+
+template <concepts::fiostream FS> requires std::is_rvalue_reference_v<FS>
+file_opt<FS>::file_opt(fstream_t stream) :
+	stream(std::move(stream))
+{
+
+}
+
+template <concepts::fiostream FS> requires std::is_rvalue_reference_v<FS>
+file_opt<FS>::file_opt(fstream_t stream, const file_range &range) :
+	file_opt_base<file_opt>(range),
+	stream(std::move(stream))
+{
+
+}
+
+template <concepts::fiostream FS> requires std::is_rvalue_reference_v<FS>
+file_opt<FS>::file_opt(fstream_t stream, file_ranges ranges) :
+	file_opt_base<file_opt>(std::move(ranges)),
+	stream(std::move(stream))
+{
+
+}
+
+template <typename...Args>
+auto make_file_opt(Args&&...args)
+{
+	using fstream_t = std::tuple_element_t<0,std::tuple<Args...>>;
+	return file_opt<fstream_t>(std::forward<Args>(args)...);
+}
+
+namespace operators
+{
+
+auto operator| (std::string_view file_name, const file_range &range)
+{
+	return make_file_opt(file_name, range);
+}
+
+auto operator| (std::string_view file_name, file_ranges ranges)
+{
+	return make_file_opt(file_name, std::move(ranges));
+}
+
+auto operator| (concepts::fiostream auto &&stream, const file_range &range)
+{
+	using fstream_t = std::remove_cvref_t<decltype(stream)>;
+	return make_file_opt(std::forward<fstream_t>(stream), range);
+}
+
+auto operator| (concepts::fiostream auto &&stream, file_ranges ranges)
+{
+	using fstream_t = std::remove_cvref_t<decltype(stream)>;
+	return make_file_opt(std::forward<fstream_t>(stream), std::move(ranges));
+}
+
+}} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_DETAIL_OPT_TOKEN_H
-

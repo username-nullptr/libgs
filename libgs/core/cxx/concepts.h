@@ -108,6 +108,7 @@ struct is_basic_string
 
 	static constexpr bool value =
 		is_dsame_v<T, std::basic_string<nc_CharT>> or
+		is_dsame_v<T, std::basic_string_view<nc_CharT>> or
 		std::is_same_v<T, const nc_CharT*> or
 		std::is_same_v<T, nc_CharT*> or
 		is_basic_char_array_v<nc_CharT, T>;
@@ -177,6 +178,9 @@ concept rvalue = std::is_rvalue_reference_v<T>;
 
 template <typename Func>
 concept function = is_function_v<Func>;
+
+template <typename T>
+concept void_function = is_void_func_v<T>;
 
 template <typename Func, typename Res, typename...Args>
 concept callable_ret = requires(Func &&func, Args&&...args) {

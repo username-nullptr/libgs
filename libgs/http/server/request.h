@@ -104,27 +104,14 @@ public:
 	int32_t path_match(string_view_t rule);
 
 public:
-	size_t read(const mutable_buffer &buf, error_code &error) noexcept;
-	size_t read(const mutable_buffer &buf);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto read(const mutable_buffer &buf, Token &&token = use_sync);
 
-	[[nodiscard]] awaitable<size_t> co_read(const mutable_buffer &buf, error_code &error) noexcept;
-	[[nodiscard]] awaitable<size_t> co_read(const mutable_buffer &buf);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto read_all(Token &&token = use_sync);
 
-public:
-	[[nodiscard]] std::string read_all(error_code &error) noexcept;
-	[[nodiscard]] std::string read_all();
-
-	[[nodiscard]] awaitable<std::string> co_read_all(error_code &error) noexcept;
-	[[nodiscard]] awaitable<std::string> co_read_all();
-
-public:
-	size_t save_file(std::string_view file_name, const req_range &range = {});
-	size_t save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept;
-	size_t save_file(std::string_view file_name, error_code &error) noexcept;
-
-	[[nodiscard]] awaitable<size_t> co_save_file(std::string_view file_name, const req_range &range = {});
-	[[nodiscard]] awaitable<size_t> co_save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept;
-	[[nodiscard]] awaitable<size_t> co_save_file(std::string_view file_name, error_code &error) noexcept;
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto save_file(const concepts::file_opt auto &opt, Token &&token = use_sync);
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;

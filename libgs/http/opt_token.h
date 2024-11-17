@@ -35,217 +35,226 @@
 namespace libgs::http
 {
 
+template <typename Token, typename...Args>
+struct LIBGS_HTTP_TAPI is_async_token {
+	static constexpr bool value = asio::completion_token_for<Token,void(Args...)>;
+};
+
+template <typename Token, typename...Args>
+constexpr bool is_async_token_v = is_async_token<Token,Args...>::value;
+
+struct LIBGS_HTTP_VAPI use_sync_type {};
+constexpr use_sync_type use_sync = use_sync_type();
+
+template <typename Token = use_sync_type>
+struct LIBGS_HTTP_TAPI is_sync_token {
+	static constexpr bool value = std::is_same_v<Token,error_code&> or std::is_same_v<Token,use_sync_type>;
+};
+
+template <typename Token = use_sync_type>
+constexpr bool is_sync_token_v = is_sync_token<Token>::value;
+
+template <typename Token, typename...Args>
+struct LIBGS_HTTP_TAPI is_token {
+	static constexpr bool value = is_async_token_v<Token,Args...> or is_sync_token_v<Token>;
+};
+
+template <typename Token, typename...Args>
+constexpr bool is_token_v = is_token<Token, Args...>::value;
+
+template <typename Token = use_sync_type>
+struct LIBGS_HTTP_TAPI is_dis_func_token {
+	static constexpr bool value = is_token_v<Token,error_code> and not is_function_v<Token>;
+};
+
+template <typename Token>
+constexpr bool is_dis_func_token_v = is_dis_func_token<Token>::value;
+
+template <typename T>
+struct LIBGS_HTTP_TAPI is_fiostream : std::false_type {};
+
+template <core_concepts::char_type CharT>
+struct LIBGS_HTTP_TAPI is_fiostream<std::basic_fstream<CharT>> : std::true_type {};
+
+template <core_concepts::char_type CharT>
+struct LIBGS_HTTP_TAPI is_fiostream<std::basic_ifstream<CharT>> : std::true_type {};
+
+template <core_concepts::char_type CharT>
+struct LIBGS_HTTP_TAPI is_fiostream<std::basic_ofstream<CharT>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_fiostream_v = is_fiostream<T>::value;
+
+namespace concepts
+{
+
+template <typename Token, typename...Args>
+concept async_token = is_async_token_v<Token,Args...>;
+
+template <typename Token, typename...Args>
+concept sync_token = is_sync_token_v<Token>;
+
+template <typename Token, typename...Args>
+concept token = is_token_v<Token,Args...>;
+
+template <typename Token>
+concept dis_func_token = is_dis_func_token_v<Token>;
+
+template <typename T>
+concept fiostream = is_fiostream_v<std::remove_reference_t<T>>;
+
+} //namespace concepts
+
 template <typename...Args>
 using callback_t = std::function<void(Args...)>;
 
-class LIBGS_HTTP_API op_base
+struct LIBGS_HTTP_VAPI file_range
 {
-public:
-    op_base() = default;
-    op_base(error_code &error);
-    error_code *error = nullptr;
+	using pos_t = std::streamoff;
+	pos_t begin = 0, total = 0;
 };
+using file_ranges = std::list<file_range>;
 
-class LIBGS_HTTP_API read_op : public op_base
+template <typename CT = void>
+struct LIBGS_HTTP_VAPI file_opt_base
 {
-public:
-    read_op(mutable_buffer buf, error_code &error);
-    read_op(mutable_buffer buf);
-    mutable_buffer buf;
-};
+	file_ranges ranges;
+	file_opt_base() = default;
+	file_opt_base(const file_range &range);
+	file_opt_base(file_ranges ranges);
 
-class LIBGS_HTTP_API write_op : public op_base
-{
-public:
-    write_op(const_buffer buf, error_code &error);
-    write_op(const_buffer buf);
-    write_op();
-    const_buffer buf;
+	using cc_t = crtp_derived_t<CT,file_opt_base>;
+	cc_t &operator<<(file_range range);
+	cc_t &operator<<(file_ranges ranges);
 };
 
 template <typename FS>
-class LIBGS_HTTP_TAPI file_op_base : public op_base
+struct LIBGS_HTTP_VAPI file_opt;
+
+template <typename T = void>
+struct LIBGS_HTTP_VAPI file_opt : file_opt_base<file_opt<T>>
 {
-public:
-    using fstream_t = FS;
-	using pos_t = typename fstream_t::pos_type;
-    fstream_t *fs;
+	using pos_t = file_range::pos_t;
+	using fstream_t = std::fstream;
+	std::string file_name;
+	fstream_t stream;
 
-    file_op_base(fstream_t &&fs, error_code &error);
-    file_op_base(fstream_t &fs, error_code &error);
-    file_op_base(fstream_t &fs);
-
-    template <typename...Args>
-    file_op_base(error_code &error, Args&&...args) requires
-        core_concepts::constructible<fstream_t,Args&&...>;
-
-    template <typename...Args>
-    file_op_base(Args&&...args) requires
-		core_concepts::constructible<fstream_t, Args&&...>;
-
-protected:
-    bool ext;
+	file_opt(std::string_view file_name);
+	file_opt(std::string_view file_name, const file_range &range);
+	file_opt(std::string_view file_name, file_ranges ranges);
 };
 
-template <typename FS>
-class LIBGS_HTTP_TAPI req_file_op_base : public file_op_base<FS>
+template <concepts::fiostream FS> requires std::is_lvalue_reference_v<FS>
+struct LIBGS_HTTP_TAPI file_opt<FS> : file_opt_base<file_opt<FS>>
 {
-	using base_t = file_op_base<FS>;
+	using pos_t = file_range::pos_t;
+	using fstream_t = FS;
+	fstream_t *stream = nullptr;
 
-public:
-	using pos_t = typename base_t::pos_t;
-	using fstream_t = typename base_t::fstream_t;
-	using base_t::file_op_base;
-
-	struct range
-	{
-		pos_t begin = 0;
-		pos_t total = 0;
-	}
-	rng;
-
-    req_file_op_base(fstream_t &&fs, range rng, error_code &error);
-    req_file_op_base(fstream_t &fs, range rng, error_code &error);
-    req_file_op_base(fstream_t &fs, range rng, pos_t total);
-
-    template <typename...Args>
-    req_file_op_base(error_code &error, range rng, Args&&...args) requires
-        core_concepts::constructible<fstream_t,Args&&...>;
-
-    template <typename...Args>
-    req_file_op_base(pos_t begin, range rng, Args&&...args) requires
-		core_concepts::constructible<fstream_t, Args&&...>;
+	file_opt(fstream_t stream);
+	file_opt(fstream_t stream, const file_range &range);
+	file_opt(fstream_t stream, file_ranges ranges);
 };
 
-template <core_concepts::char_type CharT>
-using basic_req_file_op = req_file_op_base<std::basic_fstream<CharT>>;
-
-using req_file_op = basic_req_file_op<char>;
-using basic_req_file_op = basic_req_file_op<wchar_t>;
-
-template <typename FS>
-class LIBGS_HTTP_TAPI resp_file_op_base : public file_op_base<FS>
+template <concepts::fiostream FS> requires std::is_rvalue_reference_v<FS>
+struct LIBGS_HTTP_TAPI file_opt<FS> : file_opt_base<file_opt<FS>>
 {
-	using base_t = file_op_base<FS>;
+	using pos_t = file_range::pos_t;
+	using fstream_t = FS;
+	fstream_t stream;
 
-public:
-	using pos_t = typename base_t::pos_t;
-	using fstream_t = typename base_t::fstream_t;
-	using base_t::file_op_base;
-
-	struct range
-	{
-		pos_t begin = 0;
-		pos_t end = 0;
-	};
-	using ranges_t = std::vector<range>;
-	ranges_t rngs;
-
-    resp_file_op_base(fstream_t &&fs, ranges_t rngs, error_code &error);
-    resp_file_op_base(fstream_t &&fs, range rng, error_code &error);
-
-    resp_file_op_base(fstream_t &fs, ranges_t rngs, error_code &error);
-    resp_file_op_base(fstream_t &fs, range rng, error_code &error);
-
-    resp_file_op_base(fstream_t &fs, ranges_t rngs);
-    resp_file_op_base(fstream_t &fs, range rng);
-
-    template <typename...Args>
-    resp_file_op_base(error_code &error, ranges_t rngs, Args&&...args) requires
-        core_concepts::constructible<fstream_t,Args&&...>;
-
-    template <typename...Args>
-    resp_file_op_base(error_code &error, range rng, Args&&...args) requires
-        core_concepts::constructible<fstream_t,Args&&...>;
-
-    template <typename...Args>
-    resp_file_op_base(pos_t begin, ranges_t rngs, Args&&...args) requires
-		core_concepts::constructible<fstream_t, Args&&...>;
-
-    template <typename...Args>
-    resp_file_op_base(pos_t begin, range rng, Args&&...args) requires
-		core_concepts::constructible<fstream_t, Args&&...>;
+	file_opt(fstream_t stream);
+	file_opt(fstream_t stream, const file_range &range);
+	file_opt(fstream_t stream, file_ranges ranges);
 };
 
-template <core_concepts::char_type CharT>
-using basic_resp_file_op = resp_file_op_base<std::basic_fstream<CharT>>;
+template <typename...Args>
+[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt(Args&&...args);
 
-using resp_file_op = basic_resp_file_op<char>;
-using basic_resp_file_op = basic_resp_file_op<wchar_t>;
+template <typename T>
+struct LIBGS_HTTP_TAPI is_file_range_opt : std::false_type {};
 
-namespace opreators
+template <typename FS>
+struct LIBGS_HTTP_TAPI is_file_range_opt<file_opt<FS>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_file_range_opt_v = is_file_range_opt<T>::value;
+
+template <typename T>
+struct LIBGS_HTTP_TAPI is_file_baisc_opt {
+	static constexpr bool value = is_char_string_v<T>;
+};
+
+template <typename T>
+constexpr bool is_file_baisc_opt_v = is_file_baisc_opt<T>::value;
+
+template <typename T>
+struct LIBGS_HTTP_TAPI is_file_opt : std::disjunction<is_file_range_opt<T>, is_file_baisc_opt<T>> {};
+
+template <typename T>
+constexpr bool is_file_opt_v = is_file_opt<T>::value;
+
+namespace concepts
 {
 
-LIBGS_HTTP_API read_op operator| (
-	mutable_buffer buf, error_code &error
-);
-LIBGS_HTTP_API read_op operator| (
-	error_code &error, mutable_buffer buf
-);
+template <typename T>
+concept file_opt = is_file_opt_v<T>;
 
-LIBGS_HTTP_API write_op operator| (
-	const_buffer buf, error_code &error
-);
-LIBGS_HTTP_API write_op operator| (
-	error_code &error, const_buffer buf
-);
+} //namespace concepts
 
-template <typename FS>
-LIBGS_HTTP_TAPI file_op_base<FS> operator| (
-	FS &&fs, error_code &error
-);
-template <typename FS>
-LIBGS_HTTP_TAPI file_op_base<FS> operator| (
-	error_code &error, FS &&fs
-);
+namespace operators
+{
 
-template <typename FS>
-LIBGS_HTTP_TAPI req_file_op_base<FS> operator| (
-	file_op_base<FS> fs, typename req_file_op_base<FS>::range rng
-);
-template <typename FS>
-LIBGS_HTTP_TAPI req_file_op_base<FS> operator| (
-	typename req_file_op_base<FS>::range rng, file_op_base<FS> fs
-);
+[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::string_view file_name, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::string_view file_name, file_ranges ranges);
 
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
-	file_op_base<FS> fs, typename resp_file_op_base<FS>::range rng
-);
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
-	typename resp_file_op_base<FS>::range rng, file_op_base<FS> fs
-);
+[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (concepts::fiostream auto &&stream, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (concepts::fiostream auto &&stream, file_ranges ranges);
 
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
-	file_op_base<FS> fs, typename resp_file_op_base<FS>::ranges_t rngs
-);
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> operator| (
-	typename resp_file_op_base<FS>::ranges_t rngs, file_op_base<FS> fs
-);
-
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
-	resp_file_op_base<FS> &fs, typename resp_file_op_base<FS>::range rng
-);
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
-	typename resp_file_op_base<FS>::range rng, resp_file_op_base<FS> &fs
-);
-
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
-	resp_file_op_base<FS> &fs, typename resp_file_op_base<FS>::ranges_t rngs
-);
-template <typename FS>
-LIBGS_HTTP_TAPI resp_file_op_base<FS> &operator| (
-	typename resp_file_op_base<FS>::ranges_t rngs, resp_file_op_base<FS> &fs
-);
-
-}} //namespace libgs::http::opreators
+}} //namespace libgs::http::operators
 #include <libgs/http/detail/opt_token.h>
+
+namespace libgs::http::operators
+{
+
+template <concepts::token Token = use_sync_type>
+void www(const concepts::file_opt auto &opt, Token &&token = use_sync)
+{
+
+}
+
+inline void ttt()
+{
+	www("aaa");
+
+	std::string fn0 = "fn0";
+	www(fn0);
+
+	std::string_view fn1 = "fn1";
+	www(fn1);
+
+	file_range range {1,1};
+
+	www("aaa" | range);
+	www(make_file_opt("aaa", range));
+
+	file_ranges ranges {{1,1}, {2,2}};
+
+	www("aaa" | std::move(ranges));
+	www(make_file_opt("aaa", std::move(ranges)));
+
+	std::fstream file0;
+
+	www(file0 | range);
+	www(make_file_opt(file0, range));
+
+	std::fstream file1;
+
+	www(std::move(file1) | range);
+	www(make_file_opt(std::move(file1), range));
+}
+
+} //namespace libgs::http::operators
 
 
 #endif //LIBGS_HTTP_OPT_TOKEN_H
