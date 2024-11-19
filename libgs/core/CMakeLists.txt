@@ -39,6 +39,7 @@ set(${target_name}_headers
 	algorithm/mime_type.h
 	algorithm/uuid.h
 	algorithm/sha1.h
+	algorithm/math.h
 	app_utls.h
 	lock_free_queue.h
 	string_list.h
@@ -61,6 +62,7 @@ set(${target_name}_detail_headers
 	algorithm/detail/basic_base.h
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h
+	algorithm/detail/math.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
 	detail/string_list.h

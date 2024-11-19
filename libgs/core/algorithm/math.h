@@ -26,14 +26,32 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_ALGORITHM_H
-#define LIBGS_CORE_ALGORITHM_H
+#ifndef LIBGS_CORE_ALGORITHM_MATH_H
+#define LIBGS_CORE_ALGORITHM_MATH_H
 
-#include <libgs/core/algorithm/base.h>
-#include <libgs/core/algorithm/byte_order.h>
-#include <libgs/core/algorithm/mime_type.h>
-#include <libgs/core/algorithm/uuid.h>
-#include <libgs/core/algorithm/sha1.h>
-#include <libgs/core/algorithm/math.h>
+#include <libgs/core/global.h>
 
-#endif //LIBGS_CORE_ALGORITHM_H
+namespace libgs
+{
+
+template <typename Iter>
+[[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end) requires
+	std::is_arithmetic_v<std::remove_reference_t<decltype(*begin)>>;
+
+template <typename Iter>
+[[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end, auto &&func) requires
+	std::is_arithmetic_v<decltype(func(*begin))>;
+
+template <typename Iter, typename Data>
+[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requires
+	std::is_same_v<decltype(func(*begin)), Data> and std::is_arithmetic_v<Data>;
+
+template <typename Iter, typename Data>
+[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const Data &threshold) requires
+	std::is_same_v<decltype(*begin), Data> and std::is_arithmetic_v<Data>;
+
+} //namespace libgs
+#include <libgs/core/algorithm/detail/math.h>
+
+
+#endif //LIBGS_CORE_ALGORITHM_MATH_H
