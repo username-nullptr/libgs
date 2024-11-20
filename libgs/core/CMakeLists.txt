@@ -5,6 +5,7 @@ set(${target_name}_sources
 	algorithm/byte_order.cpp
 	algorithm/mime_type.cpp
 	algorithm/sha1.cpp
+	algorithm/misc.cpp
 	app_utls.cpp
 	detail/app_utls_${OS_CPP}.cpp
 	global.cpp
@@ -40,6 +41,7 @@ set(${target_name}_headers
 	algorithm/uuid.h
 	algorithm/sha1.h
 	algorithm/math.h
+	algorithm/misc.h
 	app_utls.h
 	lock_free_queue.h
 	string_list.h
@@ -59,7 +61,7 @@ set(${target_name}_detail_headers
 	detail/modules.h
 	detail/spin_mutex.h
 	detail/shared_mutex.h
-	algorithm/detail/basic_base.h
+	algorithm/detail/base.h
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h
 	algorithm/detail/math.h

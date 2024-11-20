@@ -26,16 +26,27 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_ALGORITHM_H
-#define LIBGS_CORE_ALGORITHM_H
+#ifndef LIBGS_CORE_ALGORITHM_MISC_H
+#define LIBGS_CORE_ALGORITHM_MISC_H
 
-#include <libgs/core/algorithm/base.h>
-#include <libgs/core/algorithm/byte_order.h>
-#include <libgs/core/algorithm/mime_type.h>
-#include <libgs/core/algorithm/uuid.h>
-#include <libgs/core/algorithm/sha1.h>
-#include <libgs/core/algorithm/math.h>
-#include <libgs/core/algorithm/misc.h>
+#include <libgs/core/global.h>
+
+namespace libgs
+{
+
+[[nodiscard]] LIBGS_CORE_API std::string from_percent_encoding(std::string_view str);
+[[nodiscard]] LIBGS_CORE_API std::wstring from_percent_encoding(std::wstring_view str);
+
+[[nodiscard]] LIBGS_CORE_API std::string to_percent_encoding
+(std::string_view str, std::string_view exclude = {}, std::string_view include = {}, char percent = '%');
+
+[[nodiscard]] LIBGS_CORE_API std::wstring to_percent_encoding
+(std::wstring_view str, std::wstring_view exclude = {}, std::wstring_view include = {}, char percent = '%');
+
+[[nodiscard]] LIBGS_CORE_API int32_t wildcard_match(std::string_view rule, std::string_view str);
+[[nodiscard]] LIBGS_CORE_API int32_t wildcard_match(std::wstring_view rule, std::wstring_view str);
+
+} //namespace libgs
 
 
-#endif //LIBGS_CORE_ALGORITHM_H
+#endif //LIBGS_CORE_ALGORITHM_MISC_H
