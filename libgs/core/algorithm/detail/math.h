@@ -73,19 +73,17 @@ auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requi
 	dtn = direction::level;
 
 	enum class inf_pt_t {
-		crest, trough
+		start, crest, trough
 	}
-	last_ipt = inf_pt_t::crest;
+	last_ipt = inf_pt_t::start;
 
 	auto pre_data = func(*begin);
-	std::list<Data> list;
+	std::list<Data> list { pre_data };
 
 	auto status_check = [&](direction d, inf_pt_t t, auto &&comp, auto &&diff) mutable
 	{
 		if( dtn == d )
 			return ;
-		else if( list.empty() )
-			list.emplace_back(pre_data);
 		else if( last_ipt == t and comp(pre_data, list.back()) )
 		{
 			list.pop_back();
