@@ -105,13 +105,13 @@ public:
 
 public:
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto read(const mutable_buffer &buf, Token &&token = use_sync);
+	[[nodiscard]] auto read(const mutable_buffer &buf, Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto read_all(Token &&token = use_sync);
+	[[nodiscard]] auto read(Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto save_file(const concepts::file_opt auto &opt, Token &&token = use_sync);
+	[[nodiscard]] auto save_file(const concepts::file_opt auto &opt, Token &&token = {});
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;

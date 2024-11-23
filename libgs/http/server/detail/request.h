@@ -29,9 +29,9 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 
-#include <libgs/core/app_utls.h>
 #include <filesystem>
 #include <fstream>
+#include <regex>
 
 namespace libgs::http
 {
@@ -72,6 +72,175 @@ public:
 	{
 		if( m_parser->version() == detail::string_pool<CharT>::v_1_0 )
 			socket_operation_helper<next_layer_t>(m_next_layer).close();
+	}
+
+public:
+	size_t read(const mutable_buffer &buf, error_code &error) noexcept
+	{
+		error.assign(0, std::system_category());
+		const size_t buf_size = buf.size();
+
+		size_t sum = 0;
+		if( buf_size == 0 )
+			return sum;
+		else if( is_eof() )
+		{
+			error = std::make_error_code(static_cast<std::errc>(errc::eof));
+			return sum;
+		}
+		asio::socket_base::receive_buffer_size op;
+		socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
+		if( error )
+			return sum;
+
+		auto dst_buf = reinterpret_cast<char*>(buf.data());
+		do {
+			auto body = m_impl->m_parser->take_partial_body(buf_size);
+			sum += body.size();
+
+			memcpy(dst_buf + sum, body.c_str(), body.size());
+			if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+				break;
+
+			body = std::string(op.value(),'\0');
+			auto tmp_buf = const_cast<char*>(body.c_str());
+			size_t tmp_sum = 0;
+			for(;;)
+			{
+				tmp_sum += m_impl->m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
+				sum += tmp_sum;
+
+				if( error and error.value() == errc::interrupted )
+					continue;
+
+				bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
+				if( error )
+					return sum;
+				else if( res )
+					break;
+			}
+		}
+		while(true);
+		return sum;
+	}
+
+	awaitable<size_t> co_read(const mutable_buffer &buf, error_code &error) noexcept
+	{
+		using namespace std::chrono_literals;
+		using namespace libgs::operators;
+
+		error = error_code();
+		const size_t buf_size = buf.size();
+		size_t sum = 0;
+		do {
+			if( buf_size == 0 )
+				break;
+			else if( is_eof() )
+			{
+				error = std::make_error_code(static_cast<std::errc>(errc::eof));
+				break;
+			}
+			asio::socket_base::receive_buffer_size op;
+			socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
+			if( error )
+				break;
+
+			auto read_task = [&,this]() mutable -> awaitable<size_t>
+			{
+				auto dst_buf = reinterpret_cast<char*>(buf.data());
+				do {
+					auto body = m_impl->m_parser->take_partial_body(buf_size);
+					sum += body.size();
+
+					memcpy(dst_buf + sum, body.c_str(), body.size());
+					if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+						break;
+
+					body = std::string(op.value(),'\0');
+					auto tmp_buf = const_cast<char*>(body.c_str());
+					size_t tmp_sum = 0;
+					do {
+						auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
+						tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error);
+
+						if( error and error.value() == errc::interrupted )
+							continue;
+
+						bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
+						if( error )
+							co_return sum;
+						else if( not res )
+							continue;
+					}
+					while(false);
+				}
+				while(true);
+				co_return sum;
+			};
+			auto var = co_await (read_task() or co_sleep_for(30s, get_executor()));
+			if( var.index() == 1 and sum == 0 )
+				error = make_error_code(errc::timed_out);
+		}
+		while(false);
+		co_return sum;
+	}
+
+public:
+	template <typename Opt>
+	size_t save_file(const Opt &opt, error_code &error) noexcept
+	{
+		std::size_t sum = 0;
+		if( file_name.empty() )
+		{
+			error = std::make_error_code(std::errc::invalid_argument);
+			return sum;
+		}
+		using namespace std::chrono_literals;
+		namespace fs = std::filesystem;
+
+		if( range.begin > 0 and not fs::exists(std::string(file_name.data(), file_name.size())) )
+		{
+			error = std::make_error_code(std::errc::no_such_file_or_directory);
+			return sum;
+		}
+		if( not file.is_open() )
+		{
+			error = std::make_error_code(static_cast<std::errc>(errno));
+			return sum;
+		}
+		using pos_t = std::ifstream::pos_type;
+		file.seekp(static_cast<pos_t>(range.begin));
+
+		constexpr size_t tcp_buf_size = 0xFFFF;
+		char buf[tcp_buf_size] {0};
+
+		auto total = range.total;
+		size_t size = 0;
+
+		while( can_read_body() )
+		{
+			size = read(buffer(buf, tcp_buf_size), error);
+			if( error )
+				break;
+
+			sum += size;
+			if( total == 0 )
+				file.write(buf, static_cast<pos_t>(size));
+
+			else if( size > total )
+			{
+				file.write(buf, static_cast<pos_t>(total));
+				break;
+			}
+			else
+			{
+				file.write(buf, static_cast<pos_t>(size));
+				total -= size;
+			}
+	//		sleep_for(512us);
+		}
+		file.close();
+		return sum;
 	}
 
 public:
@@ -276,189 +445,113 @@ int32_t basic_server_request<Stream,CharT>::path_match(string_view_t rule)
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, error_code &error) noexcept
+template <concepts::dis_func_token Token>
+auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &&token)
 {
-	error.assign(0, std::system_category());
-	const size_t buf_size = buf.size();
-
-	size_t sum = 0;
-	if( buf_size == 0 )
-		return sum;
-	else if( is_eof() )
+	if constexpr( std::is_same_v<Token, error_code&> )
+		return m_impl->read(buf, token);
+	else if( is_sync_token_v<Token> )
 	{
-		error = std::make_error_code(static_cast<std::errc>(errc::eof));
-		return sum;
+		error_code error;
+		auto res = read(buf, error);
+		if( error )
+			throw system_error(error, "libgs::http::server_request::read");
+		return res;
 	}
-	asio::socket_base::receive_buffer_size op;
-	socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
-	if( error )
-		return sum;
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<Token> )
+	{
+		// TODO ... ...
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else
+	{
+		using namespace libgs::operators;
+		return asio::co_spawn(get_executor(), [this, buf, token]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto size = co_await m_impl->co_read(buf, use_awaitable|error);
+			check_error(remove_const(token), error, "libgs::http::server_request::read");
+			co_return size;
+		},
+		token);
+	}
+}
 
-	auto dst_buf = reinterpret_cast<char*>(buf.data());
-	do {
-		auto body = m_impl->m_parser->take_partial_body(buf_size);
-		sum += body.size();
-
-		memcpy(dst_buf + sum, body.c_str(), body.size());
-		if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
-			break;
-
-		body = std::string(op.value(),'\0');
-		auto tmp_buf = const_cast<char*>(body.c_str());
-		size_t tmp_sum = 0;
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
+template <concepts::dis_func_token Token>
+auto basic_server_request<Stream,CharT>::read(Token &&token)
+{
+	if constexpr( std::is_same_v<Token, error_code&> )
+	{
+		std::string sum;
 		do {
-			tmp_sum += m_impl->m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
-			sum += tmp_sum;
+			constexpr size_t buf_size = 0xFFFF;
+			char buf[buf_size] {0};
 
-			if( error and error.value() == errc::interrupted )
-				continue;
+			auto res = read(buffer(buf,buf_size), token);
+			sum += std::string(buf,res);
 
-			bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
-			if( error )
-				return sum;
-			else if( not res )
-				continue;
+			if( token )
+				break;
 		}
-		while(false);
+		while( can_read_body() );
+		return sum;
 	}
-	while(true);
-	return sum;
-}
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-size_t basic_server_request<Stream,CharT>::read(const mutable_buffer &buf)
-{
-	error_code error;
-	auto res = read(buf, error);
-	if( error )
-		throw system_error(error, "libgs::http::server_request::read");
-	return res;
-}
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<size_t> basic_server_request<Stream,CharT>::co_read(const mutable_buffer &buf, error_code &error) noexcept
-{
-	using namespace std::chrono_literals;
-	error = error_code();
-	const size_t buf_size = buf.size();
-	size_t sum = 0;
-	do {
-		if( buf_size == 0 )
-			break;
-		else if( is_eof() )
-		{
-			error = std::make_error_code(static_cast<std::errc>(errc::eof));
-			break;
-		}
-		asio::socket_base::receive_buffer_size op;
-		socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
+	else if( is_sync_token_v<Token> )
+	{
+		error_code error;
+		auto buf = read(error);
 		if( error )
-			break;
-
-		auto read_task = [&,this]() mutable -> awaitable<size_t>
+			throw system_error(error, "libgs::http::server_request::read");
+		return buf;
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<Token> )
+	{
+		// TODO ... ...
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else
+	{
+		using namespace libgs::operators;
+		return asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<std::string>
 		{
-			auto dst_buf = reinterpret_cast<char*>(buf.data());
+			error_code error;
+			std::string sum;
 			do {
-				auto body = m_impl->m_parser->take_partial_body(buf_size);
-				sum += body.size();
+				constexpr size_t buf_size = 0xFFFF;
+				char buf[buf_size] {0};
 
-				memcpy(dst_buf + sum, body.c_str(), body.size());
-				if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+				auto res = co_await m_impl->co_read(buffer(buf,buf_size), error);
+				sum += std::string(buf,res);
+				if( error )
 					break;
-
-				body = std::string(op.value(),'\0');
-				auto tmp_buf = const_cast<char*>(body.c_str());
-				size_t tmp_sum = 0;
-				do {
-					auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
-					tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error);
-
-					if( error and error.value() == errc::interrupted )
-						continue;
-
-					bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
-					if( error )
-						co_return sum;
-					else if( not res )
-						continue;
-				}
-				while(false);
 			}
-			while(true);
+			while( can_read_body() );
+			check_error(remove_const(token), error, "libgs::http::server_request::read");
 			co_return sum;
-		};
-		auto var = co_await (read_task() or co_sleep_for(30s, get_executor()));
-		if( var.index() == 1 and sum == 0 )
-			error = asio::error::make_error_code(errc::timed_out);
+		},
+		token);
 	}
-	while(false);
-	co_return sum;
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<size_t> basic_server_request<Stream,CharT>::co_read(const mutable_buffer &buf)
+template <concepts::dis_func_token Token>
+auto basic_server_request<Stream,CharT>::save_file(const concepts::file_opt auto &opt, Token &&token)
 {
-	error_code error;
-	auto res = co_await co_read(buf, error);
-	if( error )
-		throw system_error(error, "libgs::http::server_request::co_read");
-	co_return res;
-}
+	using file_opt_t = decltype(opt);
+	if constexpr( is_file_baisc_opt_v<file_opt_t> )
+	{
 
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-std::string basic_server_request<Stream,CharT>::read_all(error_code &error) noexcept
-{
-	std::string sum;
-	do {
-		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] {0};
-
-		auto res = read(buffer(buf,buf_size), error);
-		sum += std::string(buf,res);
-
-		if( error )
-			break;
 	}
-	while( can_read_body() );
-	return sum;
-}
+	else
+	{
 
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-std::string basic_server_request<Stream,CharT>::read_all()
-{
-	error_code error;
-	auto buf = read_all(error);
-	if( error )
-		throw system_error(error, "libgs::http::server_request::read_all");
-	return buf;
-}
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<std::string> basic_server_request<Stream,CharT>::co_read_all(error_code &error) noexcept
-{
-	std::string sum;
-	do {
-		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] {0};
-
-		auto res = co_await co_read(buffer(buf,buf_size), error);
-		sum += std::string(buf,res);
-		if( error )
-			break;
 	}
-	while( can_read_body() );
-	co_return sum;
 }
 
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<std::string> basic_server_request<Stream,CharT>::co_read_all()
-{
-	error_code error;
-	auto buf = co_read_all(error);
-	if( error )
-		throw system_error(error, "libgs::http::server_request::co_read_all");
-	return buf;
-}
+
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const req_range &range)
@@ -470,64 +563,7 @@ size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name,
 	return buf;
 }
 
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const req_range &range, error_code &error) noexcept
-{
-	std::size_t sum = 0;
-	if( file_name.empty() )
-	{
-		error = std::make_error_code(std::errc::invalid_argument);
-		return sum;
-	}
-	auto _file_name = app::absolute_path(file_name);
-	using namespace std::chrono_literals;
-	namespace fs = std::filesystem;
 
-	if( range.begin > 0 and not fs::exists(std::string(file_name.data(), file_name.size())) )
-	{
-		error = std::make_error_code(std::errc::no_such_file_or_directory);
-		return sum;
-	}
-	std::ofstream file(_file_name, std::ios_base::out | std::ios_base::binary);
-	if( not file.is_open() )
-	{
-		error = std::make_error_code(static_cast<std::errc>(errno));
-		return sum;
-	}
-	using pos_t = std::ifstream::pos_type;
-	file.seekp(static_cast<pos_t>(range.begin));
-
-	constexpr size_t tcp_buf_size = 0xFFFF;
-	char buf[tcp_buf_size] {0};
-
-	auto total = range.total;
-	size_t size = 0;
-
-	while( can_read_body() )
-	{
-		size = read(buffer(buf, tcp_buf_size), error);
-		if( error )
-			break;
-
-		sum += size;
-		if( total == 0 )
-			file.write(buf, static_cast<pos_t>(size));
-
-		else if( size > total )
-		{
-			file.write(buf, static_cast<pos_t>(total));
-			break;
-		}
-		else
-		{
-			file.write(buf, static_cast<pos_t>(size));
-			total -= size;
-		}
-//		sleep_for(512us);
-	}
-	file.close();
-	return sum;
-}
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, error_code &error) noexcept

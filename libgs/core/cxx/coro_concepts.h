@@ -241,7 +241,7 @@ template <concepts::cancellation_slot_binder Token>
 }
 
 template <concepts::cancellation_slot_binder Token>
-[[nodiscar]] auto operator|(std::error_code &error, Token &&csb) {
+[[nodiscard]] auto operator|(std::error_code &error, Token &&csb) {
 	return asio::redirect_error(std::forward<Token>(csb), error);
 }
 
