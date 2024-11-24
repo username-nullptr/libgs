@@ -111,7 +111,10 @@ public:
 	[[nodiscard]] auto read(Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto save_file(const concepts::file_opt auto &opt, Token &&token = {});
+	[[nodiscard]] auto save_file(
+		concepts::file_opt<file_optype::single, io_permission::write> auto &&opt,
+		Token &&token = {}
+	);
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;

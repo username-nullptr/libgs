@@ -130,7 +130,7 @@ enum class method
 	begin = GET,
 	end   = CONNECT
 };
-LIBGS_DECLARE_FLAGS(methods, method)
+LIBGS_DECLARE_FLAGS(methods, method);
 LIBGS_HTTP_VAPI bool method_check(method m, bool _throw = true);
 
 #define LIBGS_HTTP_REDIRECT_TYPE_TABLE \

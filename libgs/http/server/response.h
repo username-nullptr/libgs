@@ -82,43 +82,33 @@ public:
 	basic_server_response &set_cookie(string_view_t key, cookie_t cookie);
 
 public:
-	size_t write(const const_buffer &body = {nullptr,0});
-	size_t write(const const_buffer &body, error_code &error);
-	size_t write(error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto write(const const_buffer &body, Token &&token = {});
 
-	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body = {nullptr,0});
-	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error);
-	[[nodiscard]] awaitable<size_t> co_write(error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto write(Token &&token = {});
 
-public:
-	size_t redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
-	size_t redirect(string_view_t url, http::redirect redi, error_code &error);
-	size_t redirect(string_view_t url, error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto redirect(string_view_t url, http::redirect redi, Token &&token = {});
 
-	[[nodiscard]] awaitable<size_t> co_redirect(string_view_t url, http::redirect redi = http::redirect::moved_permanently);
-	[[nodiscard]] awaitable<size_t> co_redirect(string_view_t url, http::redirect redi, error_code &error);
-	[[nodiscard]] awaitable<size_t> co_redirect(string_view_t url, error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto redirect(string_view_t url, Token &&token = {});
 
-public:
-	size_t send_file(std::string_view file_name, const resp_ranges &ranges = {});
-	size_t send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error);
-	size_t send_file(std::string_view file_name, error_code &error);
-
-	[[nodiscard]] awaitable<size_t> co_send_file(std::string_view file_name, const resp_ranges &ranges = {});
-	[[nodiscard]] awaitable<size_t> co_send_file(std::string_view file_name, const resp_ranges &ranges, error_code &error);
-	[[nodiscard]] awaitable<size_t> co_send_file(std::string_view file_name, error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto send_file(
+		concepts::file_opt<file_optype::combine, io_permission::read> auto &&opt,
+		Token &&token = {}
+	);
 
 public:
 	basic_server_response &set_chunk_attribute(value_t attribute);
 	basic_server_response &set_chunk_attributes(value_list_t attributes);
 
-	size_t chunk_end(const headers_t &headers = {});
-	size_t chunk_end(const headers_t &headers, error_code &error);
-	size_t chunk_end(error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto chunk_end(const headers_t &headers, Token &&token = {});
 
-	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers = {});
-	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error);
-	[[nodiscard]] awaitable<size_t> co_chunk_end(error_code &error);
+	template <concepts::dis_func_token Token = use_sync_type>
+	[[nodiscard]] auto chunk_end(Token &&token = {});
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;

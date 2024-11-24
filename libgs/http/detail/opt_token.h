@@ -35,230 +35,294 @@ namespace libgs::http
 {
 
 template <concepts::fstream_wkn FS>
-file_single_opt<FS>::file_single_opt(fstream_t &&stream) :
-	stream(std::move(stream))
+file_opt<FS,file_optype::single>::~file_opt()
 {
-
+	if( stream.use_count() == 1 and stream->is_open() )
+		stream->close();
 }
 
 template <concepts::fstream_wkn FS>
-file_single_opt<FS>::file_single_opt(fstream_t &&stream, const file_range &range) :
-	stream(std::move(stream)), range(range)
+file_opt<FS,file_optype::single>::file_opt(fstream_t &&stream) :
+	stream(new fstream_t(std::move(stream)))
 {
-
+	if( not this->stream->is_open() )
+		this->error = std::make_error_code(std::errc::bad_file_descriptor);
 }
 
 template <concepts::fstream_wkn FS>
-file_single_opt<FS>::file_single_opt(std::string_view file_name)
+file_opt<FS,file_optype::single>::file_opt(fstream_t &&stream, const file_range &range) :
+	file_opt(std::move(stream))
 {
-	auto abs_name = app::absolute_path(file_name);
-	stream.open(abs_name.c_str(), std::ios::binary);
+	this->range = range;
 }
 
 template <concepts::fstream_wkn FS>
-file_single_opt<FS>::file_single_opt(std::string_view file_name, const file_range &range) :
-	range(range)
+file_opt<FS,file_optype::single>::file_opt(std::string_view file_name)
 {
-	auto abs_name = app::absolute_path(file_name);
-	stream.open(abs_name.c_str(), std::ios::binary);
+	if( file_name.empty() )
+		this->error = std::make_error_code(std::errc::invalid_argument);
+	else
+	{
+		auto abs_name = app::absolute_path(file_name);
+		stream->open(abs_name.c_str(), std::ios::binary);
+		if( not stream->is_open() )
+			this->error = std::make_error_code(static_cast<std::errc>(errno));
+	}
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS> file_single_opt<FS>::operator| (const file_range &range)
+file_opt<FS,file_optype::single>::file_opt(std::string_view file_name, const file_range &range) :
+	file_opt(file_name)
 {
-	return {std::move(stream), range};
+	this->range = range;
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS> file_single_opt<FS>::operator| (file_ranges ranges)
+file_opt<FS,file_optype::multiple> file_opt<FS,file_optype::single>::operator| (const file_range &range)
 {
-	return {std::move(stream), std::move(ranges)};
+	return {*this, range};
 }
 
 template <concepts::fstream_wkn FS>
-file_single_opt<FS&>::file_single_opt(fstream_t &stream) :
-	stream(stream)
+file_opt<FS,file_optype::multiple> file_opt<FS,file_optype::single>::operator| (file_ranges ranges)
 {
-
+	return {*this, std::move(ranges)};
 }
 
 template <concepts::fstream_wkn FS>
-file_single_opt<FS&>::file_single_opt(fstream_t &stream, const file_range &range) :
-	stream(stream), range(range)
+file_opt<FS&,file_optype::single>::file_opt(fstream_t &stream) :
+	stream(&stream)
 {
-
+	if( not stream.is_open() )
+		this->error = std::make_error_code(static_cast<std::errc>(errno));
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&> file_single_opt<FS&>::operator| (const file_range &range)
+file_opt<FS&,file_optype::single>::file_opt(fstream_t &stream, const file_range &range) :
+	file_opt(stream)
 {
-	return {stream, range};
+	this->range = range;
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&> file_single_opt<FS&>::operator| (file_ranges ranges)
+file_opt<FS&,file_optype::multiple> file_opt<FS&,file_optype::single>::operator| (const file_range &range)
 {
-	return {stream, std::move(ranges)};
+	return {*this, range};
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS>::file_multiple_opt(fstream_t &&stream) :
-	stream(std::move(stream))
+file_opt<FS&,file_optype::multiple> file_opt<FS&,file_optype::single>::operator| (file_ranges ranges)
 {
-
+	return {*this, std::move(ranges)};
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS>::file_multiple_opt(fstream_t &&stream, const file_range &range) :
-	stream(std::move(stream)), ranges{range}
+file_opt<FS,file_optype::multiple>::~file_opt()
 {
-
+	if( stream.use_count() == 1 and stream->is_open() )
+		stream->close();
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS>::file_multiple_opt(fstream_t &&stream, file_ranges ranges) :
-	stream(std::move(stream)), ranges(std::move(ranges))
+file_opt<FS,file_optype::multiple>::file_opt(fstream_t &&stream) :
+	stream(new fstream_t(std::move(stream)))
 {
-
+	if( not this->stream->is_open() )
+		this->error = std::make_error_code(static_cast<std::errc>(errno));
 }
 
 template <concepts::fstream_wkn FS>
-template <typename...Args>
-file_multiple_opt<FS>::file_multiple_opt(fstream_t &&stream, Args&&...ranges) requires
-	requires { file_ranges{std::forward<Args>(ranges)...}; } :
-	stream(std::move(stream)), ranges{std::forward<Args>(ranges)...}
+file_opt<FS,file_optype::multiple>::file_opt(fstream_t &&stream, const file_range &range) :
+	file_opt(std::move(stream))
 {
-
+	ranges.emplace_back(range);
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS>::file_multiple_opt(std::string_view file_name)
+file_opt<FS,file_optype::multiple>::file_opt(fstream_t &&stream, file_ranges ranges) :
+	file_opt(std::move(stream))
 {
-	auto abs_name = app::absolute_path(file_name);
-	stream.open(abs_name.c_str(), std::ios::binary);
-}
-
-template <concepts::fstream_wkn FS>
-file_multiple_opt<FS>::file_multiple_opt(std::string_view file_name, const file_range &range) :
-	ranges{range}
-{
-	auto abs_name = app::absolute_path(file_name);
-	stream.open(abs_name.c_str(), std::ios::binary);
-}
-
-template <concepts::fstream_wkn FS>
-file_multiple_opt<FS>::file_multiple_opt(std::string_view file_name, file_ranges ranges) :
-	ranges(std::move(ranges))
-{
-	auto abs_name = app::absolute_path(file_name);
-	stream.open(abs_name.c_str(), std::ios::binary);
+	this->ranges = std::move(ranges);
 }
 
 template <concepts::fstream_wkn FS>
 template <typename...Args>
-file_multiple_opt<FS>::file_multiple_opt(std::string_view file_name, Args&&...ranges) requires
+file_opt<FS,file_optype::multiple>::file_opt(fstream_t &&stream, Args&&...ranges) requires
 	requires { file_ranges{std::forward<Args>(ranges)...}; } :
-	ranges{std::forward<Args>(ranges)...}
+	file_opt(std::move(stream))
 {
-	auto abs_name = app::absolute_path(file_name);
-	stream.open(abs_name.c_str(), std::ios::binary);
+	this->ranges = {std::forward<Args>(ranges)...};
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS> &file_multiple_opt<FS>::operator| (const file_range &range) &
+file_opt<FS,file_optype::multiple>::file_opt(std::string_view file_name)
+{
+	if( file_name.empty() )
+		this->error = std::make_error_code(std::errc::invalid_argument);
+	else
+	{
+		auto abs_name = app::absolute_path(file_name);
+		stream->open(abs_name.c_str(), std::ios::binary);
+		if( not stream->is_open() )
+			this->error = std::make_error_code(static_cast<std::errc>(errno));
+	}
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS,file_optype::multiple>::file_opt(std::string_view file_name, const file_range &range) :
+	file_opt(file_name)
+{
+	ranges.emplace_back(range);
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS,file_optype::multiple>::file_opt(std::string_view file_name, file_ranges ranges) :
+	file_opt(file_name)
+{
+	this->ranges = std::move(ranges);
+}
+
+template <concepts::fstream_wkn FS>
+template <typename...Args>
+file_opt<FS,file_optype::multiple>::file_opt(std::string_view file_name, Args&&...ranges) requires
+	requires { file_ranges{std::forward<Args>(ranges)...}; } :
+	file_opt(file_name)
+{
+	this->ranges = {std::forward<Args>(ranges)...};
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS,file_optype::multiple>::file_opt(file_opt<FS,file_optype::single> &opt, const file_range &range) :
+	stream(opt.stream), ranges{range}
+{
+
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS,file_optype::multiple>::file_opt(file_opt<FS,file_optype::single> &opt, file_ranges ranges) :
+	stream(opt.stream), ranges(std::move(ranges))
+{
+
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS,file_optype::multiple> &file_opt<FS,file_optype::multiple>::operator| (const file_range &range) &
 {
 	ranges.emplace_back(range);
 	return *this;
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS> &file_multiple_opt<FS>::operator| (file_ranges ranges) &
+file_opt<FS,file_optype::multiple> &file_opt<FS,file_optype::multiple>::operator| (file_ranges ranges) &
 {
 	this->ranges.splice(this->ranges.end(), ranges);
 	return *this;
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS> &&file_multiple_opt<FS>::operator| (const file_range &range) &&
+file_opt<FS,file_optype::multiple> &&file_opt<FS,file_optype::multiple>::operator| (const file_range &range) &&
 {
 	ranges.emplace_back(range);
 	return std::move(*this);
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS> &&file_multiple_opt<FS>::operator| (file_ranges ranges) &&
+file_opt<FS,file_optype::multiple> &&file_opt<FS,file_optype::multiple>::operator| (file_ranges ranges) &&
 {
 	this->ranges.splice(this->ranges.end(), ranges);
 	return std::move(*this);
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&>::file_multiple_opt(fstream_t &stream) :
-	stream(stream)
+file_opt<FS&,file_optype::multiple>::file_opt(fstream_t &stream) :
+	stream(&stream)
 {
 
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&>::file_multiple_opt(fstream_t &stream, const file_range &range) :
-	stream(stream), ranges{range}
+file_opt<FS&,file_optype::multiple>::file_opt(fstream_t &stream, const file_range &range) :
+	file_opt(stream)
 {
-
+	ranges.emplace_back(range);
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&>::file_multiple_opt(fstream_t &stream, file_ranges ranges) :
-	stream(stream), ranges(std::move(ranges))
+file_opt<FS&,file_optype::multiple>::file_opt(fstream_t &stream, file_ranges ranges) :
+	file_opt(stream)
 {
-
+	this->ranges = std::move(ranges);
 }
 
 template <concepts::fstream_wkn FS>
 template <typename...Args>
-file_multiple_opt<FS&>::file_multiple_opt(fstream_t &stream, Args&&...ranges) requires
+file_opt<FS&,file_optype::multiple>::file_opt(fstream_t &stream, Args&&...ranges) requires
 	requires { file_ranges{std::forward<Args>(ranges)...}; } :
-	stream(stream), ranges{std::forward<Args>(ranges)...}
+	file_opt(stream)
+{
+	this->rangesi = {std::forward<Args>(ranges)...};
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS&,file_optype::multiple>::file_opt(file_opt<FS&,file_optype::single> &opt, const file_range &range) :
+	stream(opt.stream), ranges{range}
 {
 
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&> &file_multiple_opt<FS&>::operator| (const file_range &range)
+file_opt<FS&,file_optype::multiple>::file_opt(file_opt<FS&,file_optype::single> &opt, file_ranges ranges) :
+	stream(opt.stream), ranges(std::move(ranges))
+{
+
+}
+
+template <concepts::fstream_wkn FS>
+file_opt<FS&,file_optype::multiple> &file_opt<FS&,file_optype::multiple>::operator| (const file_range &range)
 {
 	ranges.emplace_back(range);
 	return *this;
 }
 
 template <concepts::fstream_wkn FS>
-file_multiple_opt<FS&> &file_multiple_opt<FS&>::operator| (file_ranges ranges)
+file_opt<FS&,file_optype::multiple> &file_opt<FS&,file_optype::multiple>::operator| (file_ranges ranges)
 {
 	this->ranges.splice(this->ranges.end(), ranges);
 	return *this;
 }
 
 template <typename...Args>
-auto make_file_opt(std::string_view file_name, Args&&...args)
+auto make_file_opt(std::string_view file_name, Args&&...args) noexcept
 {
 	auto abs_name = app::absolute_path(file_name);
 	return make_file_opt(std::fstream(abs_name.c_str(), std::ios::binary), std::forward<Args>(args)...);
 }
 
 template <typename...Args>
-auto make_file_opt(concepts::fstream_wkn auto &&stream, Args&&...args)
+auto make_file_opt(concepts::fstream_wkn auto &&stream, Args&&...args) noexcept
 {
 	using fstream_t = decltype(stream);
 	if constexpr( sizeof...(args) == 0 )
-		return file_single_opt<fstream_t>(std::forward<fstream_t>(stream));
+		return file_opt<fstream_t,file_optype::single>(std::forward<fstream_t>(stream));
 	else if constexpr( sizeof...(args) == 1 )
 	{
 		using first_arg_t = std::remove_cvref_t<std::tuple_element_t<0,std::tuple<Args&&...>>>;
 		if constexpr( std::is_same_v<first_arg_t, file_range> )
-			return file_single_opt<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
+			return file_opt<fstream_t,file_optype::single>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
 		else
-			return file_multiple_opt<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
+			return file_opt<fstream_t,file_optype::multiple>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
 	}
 	else
-		return file_multiple_opt<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
+		return file_opt<fstream_t,file_optype::multiple>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
+}
+
+auto make_file_opt(concepts::file_opt auto &&opt) noexcept
+{
+	using opt_t = decltype(opt);
+    if constexpr( std::is_rvalue_reference_v<opt_t> )
+		return std::move(opt);
+	else
+		return opt;
 }
 
 namespace operators

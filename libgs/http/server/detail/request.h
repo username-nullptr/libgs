@@ -190,33 +190,27 @@ public:
 	size_t save_file(const Opt &opt, error_code &error) noexcept
 	{
 		std::size_t sum = 0;
-		if( file_name.empty() )
-		{
-			error = std::make_error_code(std::errc::invalid_argument);
+		if( opt.error )
 			return sum;
-		}
+		error = error_code();
+
 		using namespace std::chrono_literals;
 		namespace fs = std::filesystem;
 
-		if( range.begin > 0 and not fs::exists(std::string(file_name.data(), file_name.size())) )
+		opt.stream.seekp(0, std::ios::end);
+		if( opt.range.begin + opt.range.total > opt.stream.tellg() )
 		{
-			error = std::make_error_code(std::errc::no_such_file_or_directory);
+			error = std::make_error_code(std::errc::invalid_seek);
 			return sum;
 		}
-		if( not file.is_open() )
-		{
-			error = std::make_error_code(static_cast<std::errc>(errno));
-			return sum;
-		}
-		using pos_t = std::ifstream::pos_type;
-		file.seekp(static_cast<pos_t>(range.begin));
-
+		opt.stream.seekp(opt.range.begin);
 		constexpr size_t tcp_buf_size = 0xFFFF;
 		char buf[tcp_buf_size] {0};
 
-		auto total = range.total;
+		auto total = opt.range.total;
 		size_t size = 0;
 
+		using pos_t = typename Opt::pos_t;
 		while( can_read_body() )
 		{
 			size = read(buffer(buf, tcp_buf_size), error);
@@ -225,22 +219,74 @@ public:
 
 			sum += size;
 			if( total == 0 )
-				file.write(buf, static_cast<pos_t>(size));
+				opt.stream.write(buf, static_cast<pos_t>(size));
 
 			else if( size > total )
 			{
-				file.write(buf, static_cast<pos_t>(total));
+				opt.stream.write(buf, static_cast<pos_t>(total));
 				break;
 			}
 			else
 			{
-				file.write(buf, static_cast<pos_t>(size));
+				opt.stream.write(buf, static_cast<pos_t>(size));
 				total -= size;
 			}
 	//		sleep_for(512us);
 		}
-		file.close();
 		return sum;
+	}
+
+	template <typename Opt>
+	awaitable<size_t> co_save_file(const Opt &opt, error_code &error) noexcept
+	{
+		std::size_t sum = 0;
+		if( opt.error )
+			co_return sum;
+
+		error = error_code();
+		do {
+			using namespace std::chrono_literals;
+			namespace fs = std::filesystem;
+
+			opt.stream.seekp(0, std::ios::end);
+			if( opt.range.begin + opt.range.total > opt.stream.tellg() )
+			{
+				error = std::make_error_code(std::errc::invalid_seek);
+				break;
+			}
+			opt.stream.seekp(opt.range.begin);
+			constexpr size_t tcp_buf_size = 0xFFFF;
+			char buf[tcp_buf_size] {0};
+
+			auto total = opt.range.total;
+			size_t size = 0;
+
+			using pos_t = typename Opt::pos_t;
+			while( can_read_body() )
+			{
+				size = co_await co_read(buffer(buf, tcp_buf_size), error);
+				if( error )
+					break;
+
+				sum += size;
+				if( total == 0 )
+					opt.stream.write(buf, static_cast<pos_t>(size));
+
+				else if( size > total )
+				{
+					opt.stream.write(buf, static_cast<pos_t>(total));
+					break;
+				}
+				else
+				{
+					opt.stream.write(buf, static_cast<pos_t>(size));
+					total -= size;
+				}
+	//			co_await co_sleep_for(512us, get_executor());
+			}
+		}
+		while(false);
+		co_return sum;
 	}
 
 public:
@@ -538,119 +584,39 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 template <concepts::dis_func_token Token>
-auto basic_server_request<Stream,CharT>::save_file(const concepts::file_opt auto &opt, Token &&token)
+auto basic_server_request<Stream,CharT>::save_file
+(concepts::file_opt<file_optype::single, io_permission::write> auto &&param, Token &&token)
 {
-	using file_opt_t = decltype(opt);
-	if constexpr( is_file_baisc_opt_v<file_opt_t> )
+	if constexpr( std::is_same_v<Token, error_code&> )
+		return m_impl->save_file(make_file_opt(param), token);
+	else if( is_sync_token_v<Token> )
 	{
-
+		error_code error;
+		auto res = save_file(param, error);
+		if( error )
+			throw system_error(error, "libgs::http::server_request::save_file");
+		return res;
 	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<Token> )
+	{
+		// TODO ... ...
+	}
+#endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-
+		using namespace libgs::operators;
+		return asio::co_spawn(get_executor(), [
+			this, param = std::forward<decltype(param)>(param), token
+		]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto size = co_await m_impl->co_save_file(make_file_opt(param), use_awaitable|error);
+			check_error(remove_const(token), error, "libgs::http::server_request::save_file");
+			co_return size;
+		},
+		token);
 	}
-}
-
-
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, const req_range &range)
-{
-	error_code error;
-	auto buf = save_file(file_name, range, error);
-	if( error )
-		throw system_error(error, "libgs::http::server_request::save_file");
-	return buf;
-}
-
-
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-size_t basic_server_request<Stream,CharT>::save_file(std::string_view file_name, error_code &error) noexcept
-{
-	return save_file(file_name, {}, error);
-}
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<size_t> basic_server_request<Stream,CharT>::co_save_file
-(std::string_view file_name, const req_range &range)
-{
-	error_code error;
-	auto res = co_await co_save_file(file_name, range, error);
-	if( error )
-		throw system_error(error, "libgs::http::server_request::co_save_file");
-	co_return res;
-}
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<size_t> basic_server_request<Stream,CharT>::co_save_file
-(std::string_view file_name, const req_range &range, error_code &error) noexcept
-{
-	error = error_code();
-	size_t sum = 0;
-	do {
-		if( file_name.empty() )
-		{
-			error = std::make_error_code(std::errc::invalid_argument);
-			break;
-		}
-		auto _file_name = app::absolute_path(file_name);
-		using namespace std::chrono_literals;
-		namespace fs = std::filesystem;
-
-		if( range.begin > 0 and not fs::exists(file_name) )
-		{
-			error = std::make_error_code(std::errc::no_such_file_or_directory);
-			break;
-		}
-		std::ofstream file(_file_name, std::ios_base::out | std::ios_base::binary);
-		if( not file.is_open() )
-		{
-			error = std::make_error_code(static_cast<std::errc>(errno));
-			break;
-		}
-		using pos_t = std::ifstream::pos_type;
-		file.seekp(static_cast<pos_t>(range.begin));
-
-		constexpr size_t tcp_buf_size = 0xFFFF;
-		char buf[tcp_buf_size] {0};
-
-		auto total = range.total;
-		size_t size = 0;
-
-		while( can_read_body() )
-		{
-			size = co_await co_read(buffer(buf, tcp_buf_size), error);
-			if( error )
-				break;
-
-			sum += size;
-			if( total == 0 )
-				file.write(buf, static_cast<pos_t>(size));
-
-			else if( size > total )
-			{
-				file.write(buf, static_cast<pos_t>(total));
-				break;
-			}
-			else
-			{
-				file.write(buf, static_cast<pos_t>(size));
-				total -= size;
-			}
-//			co_await co_sleep_for(512us, get_executor());
-		}
-		file.close();
-	}
-	while(false);
-	co_return sum;
-}
-
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-awaitable<size_t> basic_server_request<Stream,CharT>::co_save_file
-(std::string_view file_name, error_code &error) noexcept
-{
-	co_return co_await co_save_file(file_name, {}, error);
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>

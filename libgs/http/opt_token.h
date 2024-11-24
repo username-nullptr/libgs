@@ -132,160 +132,209 @@ struct LIBGS_HTTP_VAPI file_range
 };
 using file_ranges = std::list<file_range>;
 
-template <concepts::fstream_wkn FS>
-struct file_multiple_opt;
+namespace io_permission
+{
+using type = size_t; constexpr type
+	read  = 0x01,
+	write = 0x02,
+	read_write = read | write;
+}
+
+template <concepts::fstream>
+struct get_io_permissions;
+
+template <core_concepts::char_type CharT>
+struct LIBGS_HTTP_TAPI get_io_permissions<std::basic_fstream<CharT>> {
+	static constexpr auto value = io_permission::read_write;
+};
+
+template <core_concepts::char_type CharT>
+struct LIBGS_HTTP_TAPI get_io_permissions<std::basic_ofstream<CharT>> {
+	static constexpr auto value = io_permission::write;
+};
+
+template <core_concepts::char_type CharT>
+struct LIBGS_HTTP_TAPI get_io_permissions<std::basic_ifstream<CharT>> {
+	static constexpr auto value = io_permission::read;
+};
+
+template <concepts::fstream FS>
+constexpr auto io_permissions_v = get_io_permissions<FS>::value;
+
+namespace file_optype
+{
+using type = size_t; constexpr type
+	single   = 0x01,
+	multiple = 0x02,
+	combine  = single | multiple;
+}
 
 template <concepts::fstream_wkn FS>
-struct LIBGS_HTTP_TAPI file_single_opt
+struct file_opt_base
 {
 	using pos_t = file_range::pos_t;
-	using fstream_t = FS;
-	fstream_t stream;
+	using fstream_t = std::remove_cvref_t<FS>;
+
+	static constexpr auto permissions = io_permissions_v<fstream_t>;
+	static constexpr auto optype = file_optype::single;
+	error_code error;
+};
+
+template <concepts::fstream_wkn, file_optype::type>
+struct file_opt;
+
+template <concepts::fstream_wkn FS>
+struct LIBGS_HTTP_TAPI file_opt<FS,file_optype::single> : file_opt_base<FS>
+{
+	using fstream_t = typename file_opt_base<FS>::fstream_t;
+	std::shared_ptr<fstream_t> stream;
+	file_range range;
+	~file_opt();
+
+	file_opt(fstream_t &&stream);
+	file_opt(fstream_t &&stream, const file_range &range);
+
+	file_opt(std::string_view file_name);
+	file_opt(std::string_view file_name, const file_range &range);
+
+	file_opt<FS,file_optype::multiple> operator| (const file_range &range);
+	file_opt<FS,file_optype::multiple> operator| (file_ranges ranges);
+
+	file_opt(file_opt&&) = default;
+	file_opt(const file_opt&) = default;
+	file_opt &operator=(file_opt&&) = default;
+	file_opt &operator=(const file_opt&) = default;
+};
+
+template <concepts::fstream_wkn FS>
+struct LIBGS_HTTP_TAPI file_opt<FS&,file_optype::single> : file_opt_base<FS&>
+{
+	using fstream_t = typename file_opt_base<FS&>::fstream_t;
+	fstream_t *stream = nullptr;
 	file_range range;
 
-	file_single_opt(fstream_t &&stream);
-	file_single_opt(fstream_t &&stream, const file_range &range);
+	file_opt(fstream_t &stream);
+	file_opt(fstream_t &stream, const file_range &range);
 
-	file_single_opt(std::string_view file_name);
-	file_single_opt(std::string_view file_name, const file_range &range);
+	file_opt<FS&,file_optype::multiple> operator| (const file_range &range);
+	file_opt<FS&,file_optype::multiple> operator| (file_ranges ranges);
 
-	file_multiple_opt<FS> operator| (const file_range &range);
-	file_multiple_opt<FS> operator| (file_ranges ranges);
+	file_opt(file_opt&&) = default;
+	file_opt(const file_opt&) = default;
+	file_opt &operator=(file_opt&&) = default;
+	file_opt &operator=(const file_opt&) = default;
 };
 
 template <concepts::fstream_wkn FS>
-struct LIBGS_HTTP_TAPI file_single_opt<FS&>
+struct LIBGS_HTTP_TAPI file_opt<FS,file_optype::multiple> : file_opt_base<FS>
 {
-	using pos_t = file_range::pos_t;
-	using fstream_t = FS;
-	fstream_t &stream;
-	file_range range;
+	using fstream_t = typename file_opt_base<FS>::fstream_t;
+	std::shared_ptr<fstream_t> stream;
+	file_ranges ranges;
+	~file_opt();
 
-	file_single_opt(fstream_t &stream);
-	file_single_opt(fstream_t &stream, const file_range &range);
+	file_opt(fstream_t &&stream);
+	file_opt(fstream_t &&stream, const file_range &range);
+	file_opt(fstream_t &&stream, file_ranges ranges);
 
-	file_multiple_opt<FS&> operator| (const file_range &range);
-	file_multiple_opt<FS&> operator| (file_ranges ranges);
+	template <typename...Args>
+	file_opt(fstream_t &&stream, Args&&...ranges) requires
+		requires { file_ranges{std::forward<Args>(ranges)...}; };
+
+	file_opt(std::string_view file_name);
+	file_opt(std::string_view file_name, const file_range &range);
+	file_opt(std::string_view file_name, file_ranges ranges);
+
+	template <typename...Args>
+	file_opt(std::string_view file_name, Args&&...ranges) requires
+		requires { file_ranges{std::forward<Args>(ranges)...}; };
+
+	file_opt(file_opt<FS,file_optype::single> &opt, const file_range &range);
+	file_opt(file_opt<FS,file_optype::single> &opt, file_ranges ranges);
+
+	file_opt &operator| (const file_range &range) &;
+	file_opt &operator| (file_ranges ranges) &;
+
+	file_opt &&operator| (const file_range &range) &&;
+	file_opt &&operator| (file_ranges ranges) &&;
+
+	file_opt(file_opt&&) = default;
+	file_opt(const file_opt&) = default;
+	file_opt &operator=(file_opt&&) = default;
+	file_opt &operator=(const file_opt&) = default;
 };
 
 template <concepts::fstream_wkn FS>
-struct LIBGS_HTTP_TAPI file_multiple_opt
+struct LIBGS_HTTP_TAPI file_opt<FS&,file_optype::multiple> : file_opt_base<FS&>
 {
-	using pos_t = file_range::pos_t;
-	using fstream_t = FS;
-	fstream_t stream;
+	using fstream_t = typename file_opt_base<FS&>::fstream_t;
+	fstream_t *stream = nullptr;
 	file_ranges ranges;
 
-	file_multiple_opt(fstream_t &&stream);
-	file_multiple_opt(fstream_t &&stream, const file_range &range);
-	file_multiple_opt(fstream_t &&stream, file_ranges ranges);
+	file_opt(fstream_t &stream);
+	file_opt(fstream_t &stream, const file_range &range);
+	file_opt(fstream_t &stream, file_ranges ranges);
 
 	template <typename...Args>
-	file_multiple_opt(fstream_t &&stream, Args&&...ranges) requires
+	file_opt(fstream_t &stream, Args&&...ranges) requires
 		requires { file_ranges{std::forward<Args>(ranges)...}; };
 
-	file_multiple_opt(std::string_view file_name);
-	file_multiple_opt(std::string_view file_name, const file_range &range);
-	file_multiple_opt(std::string_view file_name, file_ranges ranges);
+	file_opt(file_opt<FS&,file_optype::single> &opt, const file_range &range);
+	file_opt(file_opt<FS&,file_optype::single> &opt, file_ranges ranges);
 
-	template <typename...Args>
-	file_multiple_opt(std::string_view file_name, Args&&...ranges) requires
-		requires { file_ranges{std::forward<Args>(ranges)...}; };
+	file_opt &operator| (const file_range &range);
+	file_opt &operator| (file_ranges ranges);
 
-	file_multiple_opt &operator| (const file_range &range) &;
-	file_multiple_opt &operator| (file_ranges ranges) &;
-
-	file_multiple_opt &&operator| (const file_range &range) &&;
-	file_multiple_opt &&operator| (file_ranges ranges) &&;
-};
-
-template <concepts::fstream_wkn FS>
-struct LIBGS_HTTP_TAPI file_multiple_opt<FS&>
-{
-	using pos_t = file_range::pos_t;
-	using fstream_t = FS;
-	fstream_t &stream;
-	file_ranges ranges;
-
-	file_multiple_opt(fstream_t &stream);
-	file_multiple_opt(fstream_t &stream, const file_range &range);
-	file_multiple_opt(fstream_t &stream, file_ranges ranges);
-
-	template <typename...Args>
-	file_multiple_opt(fstream_t &stream, Args&&...ranges) requires
-		requires { file_ranges{std::forward<Args>(ranges)...}; };
-
-	file_multiple_opt &operator| (const file_range &range);
-	file_multiple_opt &operator| (file_ranges ranges);
+	file_opt(file_opt&&) = default;
+	file_opt(const file_opt&) = default;
+	file_opt &operator=(file_opt&&) = default;
+	file_opt &operator=(const file_opt&) = default;
 };
 
 template <typename...Args>
-[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt(std::string_view file_name, Args&&...args);
+[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt(std::string_view file_name, Args&&...args) noexcept;
 
 template <typename...Args>
-[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt(concepts::fstream_wkn auto &&stream, Args&&...args);
+[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt(concepts::fstream_wkn auto &&stream, Args&&...args) noexcept;
 
-// template <typename>
-// struct LIBGS_HTTP_TAPI is_file_single_opt : std::false_type {};
-//
-// struct LIBGS_HTTP_TAPI is_file_single_opt<file_single_opt<void>> : std::true_type {};
-//
-// template <concepts::fostream FS>
-// struct LIBGS_HTTP_TAPI is_file_single_opt<file_single_opt<FS&>> : std::true_type {};
-//
-// template <typename T>
-// constexpr bool is_file_single_opt_v = is_file_single_opt<T>::value;
-//
-// template <typename>
-// struct LIBGS_HTTP_TAPI is_file_multiple_opt : std::false_type {};
-//
-// struct LIBGS_HTTP_TAPI is_file_multiple_opt<file_multiple_opt<void>> : std::true_type {};
-//
-// template <concepts::fiostream FS>
-// struct LIBGS_HTTP_TAPI is_file_multiple_opt<file_multiple_opt<FS&>> : std::true_type {};
-//
-// template <typename T>
-// constexpr bool is_file_multiple_opt_v = is_file_multiple_opt<T>::value;
-//
-// template <typename T>
-// struct LIBGS_HTTP_TAPI is_file_baisc_opt {
-// 	static constexpr bool value = is_char_string_v<T>;
-// };
-//
-// template <typename T>
-// constexpr bool is_file_baisc_opt_v = is_file_baisc_opt<T>::value;
-//
-// template <typename T>
-// struct LIBGS_HTTP_TAPI is_file_single_opt_param : std::disjunction<is_file_single_opt<T>, is_file_baisc_opt<T>> {};
-//
-// template <typename T>
-// constexpr bool is_file_single_opt_param_v = is_file_single_opt_param<T>::value;
-//
-// template <typename T>
-// struct LIBGS_HTTP_TAPI is_file_multiple_opt_param : std::disjunction<is_file_multiple_opt<T>, is_file_baisc_opt<T>> {};
-//
-// template <typename T>
-// constexpr bool is_file_multiple_opt_param_v = is_file_multiple_opt_param<T>::value;
-//
-// template <typename T>
-// struct LIBGS_HTTP_TAPI is_file_opt_param : std::disjunction<is_file_single_opt_param<T>, is_file_multiple_opt_param<T>> {};
-//
-// template <typename T>
-// constexpr bool is_file_opt_param_v = is_file_opt_param<T>::value;
+template <typename>
+struct LIBGS_HTTP_TAPI is_file_opt : std::false_type {};
+
+template <concepts::fstream_wkn FS>
+struct LIBGS_HTTP_TAPI is_file_opt<file_opt<FS, file_optype::single>> : std::true_type {};
+
+template <concepts::fstream_wkn FS>
+struct LIBGS_HTTP_TAPI is_file_opt<file_opt<FS, file_optype::multiple>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_file_opt_v = is_file_opt<T>::value;
 
 namespace concepts
 {
 
-// template <typename T>
-// concept file_single_opt = is_file_single_opt_param_v<T>;
-//
-// template <typename T>
-// concept file_multiple_opt = is_file_multiple_opt_param_v<T>;
-//
-// template <typename T>
-// concept file_opt = is_file_opt_param_v<T>;
+template <
+	typename T,
+	file_optype::type Types = file_optype::combine,
+	io_permission::type Perms = io_permission::read_write
+>
+concept file_opt =
+	is_file_opt_v<std::remove_cvref_t<T>> and
+	!!(std::remove_cvref_t<T>::optype & Types) and
+	!!(std::remove_cvref_t<T>::permissions & Perms);
+
+template <
+	typename T,
+	file_optype::type Types = file_optype::combine,
+	io_permission::type Perms = io_permission::read_write
+>
+concept file_opt_param =
+	core_concepts::char_string_type<T> or
+	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
+	file_opt<T,Types,Perms>;
 
 } //namespace concepts
+
+[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt(concepts::file_opt auto &&opt) noexcept;
 
 namespace operators
 {

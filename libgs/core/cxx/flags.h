@@ -90,7 +90,7 @@ private:
 } //namespace libgs
 #include <libgs/core/cxx/detail/flags.h>
 
-#define LIBGS_DECLARE_FLAGS(v_flags, v_enum)  using v_flags = libgs::flags<v_enum>;
+#define LIBGS_DECLARE_FLAGS(v_flags, v_enum)  using v_flags = libgs::flags<v_enum>
 
 #define LIBGS_DECLARE_OPERATORS_FOR_FLAGS(_flags) \
 	constexpr inline flags<_flags::enum_t> operator| \
