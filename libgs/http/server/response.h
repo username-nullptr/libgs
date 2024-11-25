@@ -96,7 +96,7 @@ public:
 
 	template <concepts::dis_func_token Token = use_sync_type>
 	[[nodiscard]] auto send_file(
-		concepts::file_opt<file_optype::combine, io_permission::read> auto &&opt,
+		concepts::char_file_opt_token_param<file_optype::combine, io_permission::read> auto &&opt,
 		Token &&token = {}
 	);
 

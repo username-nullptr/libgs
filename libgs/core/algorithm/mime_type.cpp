@@ -977,9 +977,10 @@ static mime_head_map g_signatures_map_offset4
 	{ "wide"                         , VIDEO "quicktime"                }
 };
 
-#define LIST_LEN(x)  ( sizeof(x) / sizeof(x[0]) - 2 )
+namespace detail
+{
 
-static std::string s_mime_search(const mime_head_map &mimes, const char *buf, size_t size)
+std::string mime_search(const mime_head_map &mimes, const char *buf, size_t size)
 {
 	if( size == 0 )
 		return "text/plain";
@@ -1002,63 +1003,7 @@ static std::string s_mime_search(const mime_head_map &mimes, const char *buf, si
 	return "unknown";
 }
 
-static bool s_is_text_file(std::ifstream &file)
-{
-	char buf[0x4000] = {0};
-	file.read(buf, sizeof(buf));
-
-	auto buf_size = static_cast<size_t>(file.gcount());
-	std::string data(buf, buf_size);
-
-	// UTF16 byte order marks
-	if( data.starts_with("\xFE\xFF") or data.starts_with("\xFF\xFE") )
-		return true;
-
-	// Check the first 128 bytes (see shared-mime spec)
-	const char *p = buf;
-	const char *e = p + ( 128 < buf_size ? 128 : buf_size );
-
-	for(; p<e; p++)
-	{
-		if( static_cast<char>(*p) < 32 and *p != 9 and *p != 10 and *p != 13 )
-			return false;
-	}
-	return true;
-}
-
-#define BUF_LEN  256
-
-static std::string _mime_from_magic(std::ifstream &file)
-{
-	if( not file.is_open() )
-		return "unknown";
-
-	char buf[BUF_LEN] = {0};
-	file.read(buf, BUF_LEN);
-
-	auto size = static_cast<size_t>(file.gcount());
-	if( size < BUF_LEN )
-	{
-		file.seekg(0, std::ios_base::beg);
-		if( s_is_text_file(file) )
-		{
-			file.close();
-			return "text/plain";
-		}
-	}
-	auto mime_type = s_mime_search(g_signatures_map, buf, size);
-	if( mime_type.empty() and size > 4 )
-		mime_type = s_mime_search(g_signatures_map_offset4, buf + 4, size - 4);
-	return mime_type;
-}
-
-static std::string mime_from_magic(std::string_view file_name)
-{
-	std::ifstream file(app::absolute_path(file_name).c_str());
-	auto mime_type = _mime_from_magic(file);
-	file.close();
-	return mime_type;
-}
+} //namespace detail
 
 void set_suffix_map(suffix_type_map map)
 {
@@ -1071,26 +1016,27 @@ void insert_suffix_map(suffix_type_map map)
 		g_suffix_hash[std::move(key)] = std::move(value);
 }
 
-LIBGS_CORE_API void set_signatures_map(mime_head_map map)
+suffix_type_map &suffix_map()
 {
-	g_signatures_map = std::move(map);
+	return g_suffix_hash;
 }
 
-LIBGS_CORE_API void insert_signatures_map(mime_head_map map)
+mime_head_map &signatures_map()
 {
-	for(auto &[key,value] : map)
-		g_signatures_map[std::move(key)] = std::move(value);
+	return g_signatures_map;
 }
 
-LIBGS_CORE_API void set_signatures_map_offset4(mime_head_map map)
+mime_head_map &signatures_map_offset4()
 {
-	g_signatures_map_offset4 = std::move(map);
+	return g_signatures_map_offset4;
 }
 
-LIBGS_CORE_API void insert_signatures_map_offset4(mime_head_map map)
+static std::string mime_from_magic(std::string_view file_name)
 {
-	for(auto &[key,value] : map)
-		g_signatures_map_offset4[std::move(key)] = std::move(value);
+	std::ifstream file(app::absolute_path(file_name).c_str());
+	auto mime_type = detail::mime_from_magic(file);
+	file.close();
+	return mime_type;
 }
 
 std::string get_mime_type(std::string_view file_name, bool magic_first)
@@ -1143,68 +1089,6 @@ std::string get_text_file_encoding(std::string_view file_name)
 	auto res = get_text_file_encoding(file);
 	file.close();
 	return res;
-}
-
-std::string get_mime_type(std::ifstream &file)
-{
-	return _mime_from_magic(file);
-}
-
-bool is_text_file(std::ifstream &file)
-{
-	if( file.is_open() )
-		return s_is_text_file(file);
-	return false;
-}
-
-bool is_binary_file(std::ifstream &file)
-{
-	return not is_text_file(file);
-}
-
-std::string get_text_file_encoding(std::ifstream &file)
-{
-	std::string result = "unknown";
-	if( not file.is_open() )
-		return result;
-
-	char first_byte = 0;
-	file.get(first_byte);
-
-	char second_byte = 0;
-	if( file.eof() )
-		second_byte = 'A';
-	else
-		file.get(second_byte);
-
-	char third_byte = 0;
-	if( file.eof() )
-		third_byte = 'A';
-	else
-		file.get(third_byte);
-
-	char fourth_byte = 0;
-	if( file.eof() )
-		fourth_byte = 'A';
-	else
-		file.get(fourth_byte);
-
-	if( static_cast<uint8_t>(first_byte) == 0xEF and static_cast<uint8_t>(second_byte) == 0xBB and static_cast<uint8_t>(third_byte) == 0xBF )
-		result = "UTF-8";
-
-	else if( static_cast<uint8_t>(first_byte) == 0xFF and static_cast<uint8_t>(second_byte) == 0xFE )
-		result = "UTF-16LE";
-
-	else if( static_cast<uint8_t>(first_byte) == 0xFE and static_cast<uint8_t>(second_byte) == 0xFF )
-		result =  "UTF-16BE";
-
-	else if( static_cast<uint8_t>(first_byte) == 0xFF and static_cast<uint8_t>(second_byte) == 0xFE and static_cast<uint8_t>(third_byte) == 0x0 and static_cast<uint8_t>(fourth_byte) == 0x0)
-		result = "UTF-32LE";
-
-	else if( static_cast<uint8_t>(first_byte) == 0x00 and static_cast<uint8_t>(second_byte) == 0x00 and static_cast<uint8_t>(third_byte) == 0xFE and static_cast<uint8_t>(fourth_byte) == 0xFF)
-		result = "UTF-32BE";
-
-	return result;
 }
 
 } //namespace libgs

@@ -11,24 +11,27 @@
 
 // using namespace std::chrono_literals;
 
-void ssss(libgs::http::concepts::file_opt_param<libgs::http::file_optype::single, libgs::http::io_permission::write> auto &&param)
-{
-	auto opt0 = libgs::http::make_file_opt(param);
-	auto opt1 = libgs::http::make_file_opt(std::move(param));
-}
+// void ssss(libgs::http::concepts::file_opt_token_param<libgs::http::file_optype::single, libgs::http::io_permission::write> auto &&param)
+// {
+// 	auto opt0 = libgs::http::make_file_opt_token(param);
+// 	auto opt1 = libgs::http::make_file_opt_token(std::move(param));
+// }
 
 int main()
 {
 	std::fstream f0;
 	std::ifstream f1;
+	std::ofstream f2;
+	//
+	// libgs::http::file_range r0, r1, r2;
+	// libgs::http::file_ranges rs0, rs1;
+	//
+	// using namespace libgs::http::operators;
 
-	libgs::http::file_range r0, r1, r2;
-	libgs::http::file_ranges rs0, rs1;
+	// ssss("11"|r0);
 
-	using namespace libgs::http::operators;
-
-	ssss("11"|r0);
-
+	std::wfstream wf0;
+	auto ttt = libgs::get_mime_type(f1);
 
 
 	// spdlog::set_level(spdlog::level::trace);

@@ -39,14 +39,9 @@ namespace libgs
 using suffix_type_map = std::unordered_map<std::string, std::string>;
 using mime_head_map = std::map<std::string, std::string>;
 
-LIBGS_CORE_API void set_suffix_map(suffix_type_map map);
-LIBGS_CORE_API void insert_suffix_map(suffix_type_map map);
-
-LIBGS_CORE_API void set_signatures_map(mime_head_map map);
-LIBGS_CORE_API void insert_signatures_map(mime_head_map map);
-
-LIBGS_CORE_API void set_signatures_map_offset4(mime_head_map map);
-LIBGS_CORE_API void insert_signatures_map_offset4(mime_head_map map);
+[[nodiscard]] LIBGS_CORE_API suffix_type_map &suffix_map();
+[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map();
+[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map_offset4();
 
 [[nodiscard]] LIBGS_CORE_API
 std::string get_mime_type(std::string_view file_name, bool magic_first = false);
@@ -60,19 +55,24 @@ bool is_binary_file(std::string_view file_name);
 [[nodiscard]] LIBGS_CORE_API
 std::string get_text_file_encoding(std::string_view file_name);
 
-[[nodiscard]] LIBGS_CORE_API
-std::string get_mime_type(std::ifstream &file);
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI std::string get_mime_type(FS &stream)
+	requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>;
 
-[[nodiscard]] LIBGS_CORE_API
-bool is_text_file(std::ifstream &file);
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI bool is_text_file(FS &stream)
+	requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>;
 
-[[nodiscard]] LIBGS_CORE_API
-bool is_binary_file(std::ifstream &file);
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI bool is_binary_file(FS &stream)
+	requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>;
 
-[[nodiscard]] LIBGS_CORE_API
-std::string get_text_file_encoding(std::ifstream &file);
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI std::string get_text_file_encoding(FS &stream)
+	requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>;
 
 } //namespace libgs
+#include <libgs/core/algorithm/detail/mime_type.h>
 
 
 #endif //LIBGS_CORE_ALGORITHM_MIME_TYPE_H

@@ -95,7 +95,7 @@ public:
 };
 
 template <typename...Args>
-inline auto buffer(Args&&...args) {
+auto buffer(Args&&...args) {
 	return asio::buffer(std::forward<Args>(args)...);
 }
 

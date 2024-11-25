@@ -75,7 +75,7 @@ public:
 	}
 
 public:
-	size_t read(const mutable_buffer &buf, error_code &error) noexcept
+	[[nodiscard]] size_t read(const mutable_buffer &buf, error_code &error) noexcept
 	{
 		error.assign(0, std::system_category());
 		const size_t buf_size = buf.size();
@@ -124,7 +124,7 @@ public:
 		return sum;
 	}
 
-	awaitable<size_t> co_read(const mutable_buffer &buf, error_code &error) noexcept
+	[[nodiscard]] awaitable<size_t> co_read(const mutable_buffer &buf, error_code &error) noexcept
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
@@ -187,48 +187,44 @@ public:
 
 public:
 	template <typename Opt>
-	size_t save_file(const Opt &opt, error_code &error) noexcept
+	[[nodiscard]] size_t save_file(Opt &&opt, error_code &error) noexcept
 	{
 		std::size_t sum = 0;
-		if( opt.error )
+		error = opt.init(std::ios::out | std::ios::app | std::ios::binary);
+		if( error )
 			return sum;
-		error = error_code();
 
-		using namespace std::chrono_literals;
-		namespace fs = std::filesystem;
-
-		opt.stream.seekp(0, std::ios::end);
-		if( opt.range.begin + opt.range.total > opt.stream.tellg() )
+		auto end = opt.range.begin + opt.total - 1;
+		if( opt.range.begin <= end or opt.range.begin < 0 or end > opt.size )
 		{
 			error = std::make_error_code(std::errc::invalid_seek);
 			return sum;
 		}
-		opt.stream.seekp(opt.range.begin);
+		opt.stream->seekp(opt.range.begin);
 		constexpr size_t tcp_buf_size = 0xFFFF;
 		char buf[tcp_buf_size] {0};
 
 		auto total = opt.range.total;
-		size_t size = 0;
-
 		using pos_t = typename Opt::pos_t;
+
 		while( can_read_body() )
 		{
-			size = read(buffer(buf, tcp_buf_size), error);
+			auto size = read(buffer(buf, tcp_buf_size), error);
 			if( error )
 				break;
 
 			sum += size;
 			if( total == 0 )
-				opt.stream.write(buf, static_cast<pos_t>(size));
+				opt.stream->write(buf, static_cast<pos_t>(size));
 
 			else if( size > total )
 			{
-				opt.stream.write(buf, static_cast<pos_t>(total));
+				opt.stream->write(buf, static_cast<pos_t>(total));
 				break;
 			}
 			else
 			{
-				opt.stream.write(buf, static_cast<pos_t>(size));
+				opt.stream->write(buf, static_cast<pos_t>(size));
 				total -= size;
 			}
 	//		sleep_for(512us);
@@ -237,49 +233,42 @@ public:
 	}
 
 	template <typename Opt>
-	awaitable<size_t> co_save_file(const Opt &opt, error_code &error) noexcept
+	[[nodiscard]] awaitable<size_t> co_save_file(Opt &&opt, error_code &error) noexcept
 	{
 		std::size_t sum = 0;
-		if( opt.error )
+		error = opt.init(std::ios::out | std::ios::binary);
+		if( error )
 			co_return sum;
-
-		error = error_code();
 		do {
-			using namespace std::chrono_literals;
-			namespace fs = std::filesystem;
-
-			opt.stream.seekp(0, std::ios::end);
-			if( opt.range.begin + opt.range.total > opt.stream.tellg() )
+			if( opt.range.begin + opt.range.total - 1 > opt.size )
 			{
 				error = std::make_error_code(std::errc::invalid_seek);
 				break;
 			}
-			opt.stream.seekp(opt.range.begin);
-			constexpr size_t tcp_buf_size = 0xFFFF;
+			constexpr size_t tcp_buf_size = 0x2000 * sizeof(wchar_t);
 			char buf[tcp_buf_size] {0};
 
 			auto total = opt.range.total;
-			size_t size = 0;
-
 			using pos_t = typename Opt::pos_t;
+
 			while( can_read_body() )
 			{
-				size = co_await co_read(buffer(buf, tcp_buf_size), error);
+				auto size = co_await co_read(buffer(buf, tcp_buf_size), error);
 				if( error )
 					break;
 
 				sum += size;
 				if( total == 0 )
-					opt.stream.write(buf, static_cast<pos_t>(size));
+					opt.stream->write(buf, static_cast<pos_t>(size));
 
 				else if( size > total )
 				{
-					opt.stream.write(buf, static_cast<pos_t>(total));
+					opt.stream->write(buf, static_cast<pos_t>(total));
 					break;
 				}
 				else
 				{
-					opt.stream.write(buf, static_cast<pos_t>(size));
+					opt.stream->write(buf, static_cast<pos_t>(size));
 					total -= size;
 				}
 	//			co_await co_sleep_for(512us, get_executor());
@@ -585,14 +574,15 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 template <concepts::dis_func_token Token>
 auto basic_server_request<Stream,CharT>::save_file
-(concepts::file_opt<file_optype::single, io_permission::write> auto &&param, Token &&token)
+(concepts::char_file_opt_token_param<file_optype::single, io_permission::write> auto &&param, Token &&token)
 {
+	using opt_t = decltype(param);
 	if constexpr( std::is_same_v<Token, error_code&> )
-		return m_impl->save_file(make_file_opt(param), token);
+		return m_impl->save_file(make_file_opt_token(std::forward<opt_t>(param)), token);
 	else if( is_sync_token_v<Token> )
 	{
 		error_code error;
-		auto res = save_file(param, error);
+		auto res = save_file(std::forward<opt_t>(param), error);
 		if( error )
 			throw system_error(error, "libgs::http::server_request::save_file");
 		return res;
@@ -607,11 +597,11 @@ auto basic_server_request<Stream,CharT>::save_file
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(get_executor(), [
-			this, param = std::forward<decltype(param)>(param), token
+			this, param = std::forward<opt_t>(param), token
 		]() mutable -> awaitable<size_t>
 		{
 			error_code error;
-			auto size = co_await m_impl->co_save_file(make_file_opt(param), use_awaitable|error);
+			auto size = co_await m_impl->co_save_file(make_file_opt_token(std::move(param)), use_awaitable|error);
 			check_error(remove_const(token), error, "libgs::http::server_request::save_file");
 			co_return size;
 		},
