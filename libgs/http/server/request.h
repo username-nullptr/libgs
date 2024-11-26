@@ -112,7 +112,7 @@ public:
 
 	template <concepts::dis_func_token Token = use_sync_type>
 	[[nodiscard]] auto save_file(
-		concepts::char_file_opt_token_param<file_optype::single, io_permission::write> auto &&opt,
+		concepts::char_file_opt_token_arg<file_optype::single, io_permission::write> auto &&opt,
 		Token &&token = {}
 	);
 

@@ -213,13 +213,16 @@ private:
 		using namespace std::chrono_literals;
 		const auto *time = &m_first_reading_time;
 
-		basic_server::parser_t parser;
+		parser_t parser;
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size] = {0};
 		for(;;)
 		{
 			try {
-				auto var = co_await (socket.async_read_some(buffer(buf, buf_size), use_awaitable) or co_sleep_for(*time));
+				auto var = co_await (
+					socket.async_read_some(buffer(buf, buf_size), use_awaitable) or
+					co_sleep_for(*time)
+				);
 				if( var.index() == 1 )
 					break;
 
@@ -242,13 +245,14 @@ private:
 					break;
 				call_on_system_error(ex.code());
 			}
-
 			context_t context(std::move(socket), parser, m_sss);
 			co_await call_on_request(context);
 
 			if( not context.response().headers_writed() )
 				co_await call_on_default(context);
 
+			if( not context.request().keep_alive() )
+				break;
 			time = &keepalive_time;
 			if( *time == 0ms )
 				break;
@@ -285,9 +289,17 @@ private:
 		if( (handler->method & method) == 0 )
 		{
 			if( method == http::method::HEAD )
-				co_await context.response().set_header(header::content_type,"text/plain").co_write();
+			{
+				co_await context.response()
+					.set_header(header::content_type,"text/plain")
+					.write(use_awaitable);
+			}
 			if( method == http::method::OPTIONS )
-				co_await context.response().set_header(header::content_type,"text/plain").co_write(options_response_body(handler->method));
+			{
+				co_await context.response()
+					.set_header(header::content_type,"text/plain")
+					.write(options_response_body(handler->method), use_awaitable);
+			}
 			else
 				context.response().set_status(status::method_not_allowed);
 			co_return ;
@@ -311,52 +323,52 @@ private:
 
 	[[nodiscard]] awaitable<void> call_on_default(context_t &context)
 	{
-		if( m_default_handler )
-		{
-			try {
+		try {
+			if( m_default_handler )
+			{
 				co_await m_default_handler(context);
+				if( context.response().headers_writed() )
+					co_return ;
 			}
-			catch(const std::exception &ex) {
-				call_on_exception(context, ex);
+			constexpr const char *def_html =
+				"<!DOCTYPE html>"
+				"<html>"
+				"<head>"
+				"	<meta charset=\"utf-8\">"
+				"	<title>{0}</title>"
+				"</head>"
+				"<body>"
+				"	<h1>{0}</h1>{1}"
+				"	<p>[ This is the server's default reply ]</p>"
+				"	<p>-----------------------------------------------</p>"
+				"	<p>This is an open source C++ (ASIO) server.</p>"
+				"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
+				"		Source code repository (Gitee)"
+				"	</a>"
+				"</body>"
+				"</html>";
+			std::string data;
+			if( context.response().status() == status::ok )
+				data = std::format(def_html, "Welcome to LIBGS", "");
+			else
+			{
+				auto status = std::format (
+					"<h2>{} ({})</h2>",
+					status_description(context.response().status()),
+					context.response().status()
+				);
+				data = std::format(def_html, "LIBGS", status);
 			}
-			if( context.response().headers_writed() )
-				co_return ;
-		}
-		constexpr const char *def_html =
-			"<!DOCTYPE html>"
-			"<html>"
-			"<head>"
-			"	<meta charset=\"utf-8\">"
-			"	<title>{0}</title>"
-			"</head>"
-			"<body>"
-			"	<h1>{0}</h1>{1}"
-			"	<p>[ This is the server's default reply ]</p>"
-			"	<p>-----------------------------------------------</p>"
-			"	<p>This is an open source C++ (ASIO) server.</p>"
-			"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
-			"		Source code repository (Gitee)"
-			"	</a>"
-			"</body>"
-			"</html>";
-		std::string data;
-		if( context.response().status() == status::ok )
-			data = std::format(def_html, "Welcome to LIBGS", "");
-		else
-		{
-			auto status = std::format (
-				"<h2>{} ({})</h2>",
-				status_description(context.response().status()),
-				context.response().status()
-			);
-			data = std::format(def_html, "LIBGS", status);
-		}
-		if constexpr( is_char_v<CharT> )
-			context.response().set_header(header::content_type, "text/html");
-		else
-			context.response().set_header(wheader::content_type, L"text/html");
+			if constexpr( is_char_v<CharT> )
+				context.response().set_header(header::content_type, "text/html");
+			else
+				context.response().set_header(wheader::content_type, L"text/html");
 
-		co_await context.response().co_write(data);
+			co_await context.response().write(data, use_awaitable);
+		}
+		catch(const std::exception &ex) {
+			call_on_exception(context, ex);
+		}
 		co_return ;
 	}
 

@@ -1039,7 +1039,7 @@ static std::string mime_from_magic(std::string_view file_name)
 	return mime_type;
 }
 
-std::string get_mime_type(std::string_view file_name, bool magic_first)
+std::string mime_type(std::string_view file_name, bool magic_first)
 {
 	if( magic_first )
 	{
@@ -1083,10 +1083,10 @@ bool is_binary_file(std::string_view file_name)
 	return not is_text_file(file_name);
 }
 
-std::string get_text_file_encoding(std::string_view file_name)
+std::string text_file_encoding(std::string_view file_name)
 {
 	std::ifstream file(file_name.data());
-	auto res = get_text_file_encoding(file);
+	auto res = text_file_encoding(file);
 	file.close();
 	return res;
 }

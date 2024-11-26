@@ -32,6 +32,65 @@
 namespace libgs { namespace detail
 {
 
+template <concepts::char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI auto _sto_float(auto &&func, std::basic_string_view<CharT> str)
+{
+	size_t index = 0;
+	auto res = func({str.data(), str.size()}, &index);
+	if( index < str.size() )
+		throw runtime_error("Cannot convert string to arithmetic.");
+	return res;
+}
+
+template <concepts::char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI auto _sto_int(auto &&func, std::basic_string_view<CharT> str, size_t base)
+{
+	size_t index = 0;
+	auto res = func({str.data(), str.size()}, &index, static_cast<int>(base));
+	if( index < str.size() )
+	{
+		res = static_cast<decltype(res)>(
+			_sto_float(static_cast<long double(*)(const std::basic_string<CharT>&,size_t*)>(std::stold), str)
+		);
+	}
+	return res;
+}
+
+template <concepts::char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI int _stob(std::basic_string_view<CharT> str)
+{
+	if constexpr( is_char_v<CharT> )
+	{
+#ifdef WIN32
+		if( _stricmp(str.data(), "true") == 0 )
+			return 1;
+		else if( _stricmp(str.data(), "false") == 0 )
+			return 0;
+#else
+		if( str.size() == 4 and strncasecmp(str.data(), "true", 4) == 0 )
+			return 1;
+		else if( str.size() == 5 and strncasecmp(str.data(), "false", 5) == 0 )
+			return 0;
+#endif
+	}
+	else
+		return _stob<char>(wcstombs(str));
+	return -1;
+}
+
+template <concepts::char_type CharT, typename T>
+[[nodiscard]] LIBGS_CORE_TAPI T try_stobtot(std::basic_string_view<CharT> str, const std::optional<T> &odv)
+{
+	int res = _stob<CharT>(str);
+	if( res < 0 )
+	{
+		if( odv )
+			return *odv;
+		throw runtime_error("Cannot convert string to arithmetic.");
+	}
+	return static_cast<T>(!!res);
+}
+
 template <concepts::integral_type T, concepts::char_type CharT>
 [[nodiscard]] LIBGS_CORE_TAPI T ston(std::basic_string_view<CharT> str, size_t base, std::optional<T> odv = {})
 {

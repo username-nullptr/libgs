@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
 
 #include <libgs/http/parser_base.h>
+#include <libgs/core/string_list.h>
 #include <ranges>
 
 namespace libgs::http { namespace detail

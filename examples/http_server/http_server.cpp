@@ -31,10 +31,10 @@ int main()
 			spdlog::debug("Cookie: {}: {}", key, value);
 
 		if( request.can_read_body() )
-			spdlog::debug("partial_body: {}\n", co_await request.co_read_all());
+			spdlog::debug("partial_body: {}\n", co_await request.read(asio::use_awaitable));
 
 		// If you don't write anything, the server will write the default body for you
-		// co_await context.response().co_write("hello world");
+		// co_await context.response().write("hello world", asio::use_awaitable);
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/aa*bb?cc/{arg0}/{arg1}",
@@ -51,16 +51,16 @@ int main()
 		spdlog::debug("Path arg[1]: {}", request.path_arg(1));
 
 		// If you don't write anything, the server will write the default body for you
-		// co_await context.response().co_write("hello world");
+		// co_await context.response().write("hello world", asio::use_awaitable);
 		co_return ;
 	})
 	.on_request<libgs::http::method::GET>("/hello",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
-//		co_await context.response().co_write("hello world !!!");
+//		co_await context.response().write("hello world !!!", asio::use_awaitable);
 		co_await context.response()
-			.co_send_file("~/hello_world.txt");
-//			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
+			// .send_file("~/hello_world.txt", asio::use_awaitable);
+			.send_file("C:/Users/Administrator/Desktop/hello_world.txt", asio::use_awaitable);
 		co_return ;
 	})
 	.on_exception([](libgs::http::server::context_t&, const std::exception &ex)
@@ -99,7 +99,7 @@ int main()
 			spdlog::debug("Cookie: {}: {}", libgs::wcstombs(key), libgs::wcstombs(value.to_string()));
 
 		if( request.can_read_body() )
-			spdlog::debug("partial_body: {}\n", co_await request.co_read_all());
+			spdlog::debug("partial_body: {}\n", co_await request.read(asio::use_awaitable));
 
 		// If you don't write anything, the server will write the default body for you
 		// co_await context.response()._write("hello world");
@@ -108,7 +108,7 @@ int main()
 	.on_request<libgs::http::method::GET>(L"/hello",
 	[](libgs::http::wserver::context_t &context) -> libgs::awaitable<void>
 	{
-//		co_await context.response().co_write("hello world !!!");
+//		co_await context.response().write("hello world !!!", asio::use_awaitable);
 		co_await context.response()
 			.co_send_file("~/hello_world.txt");
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");

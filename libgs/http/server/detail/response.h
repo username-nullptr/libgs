@@ -96,9 +96,11 @@ public:
 			write_runtime_error_check(body, func);
 			return write_body(body, error);
 		}
-		auto sum = write_header(body.size());
-		if( body.size() > 0 )
-			sum += write_body(body);
+		auto sum = write_header(body.size(), error);
+		if( error )
+			return sum;
+		else if( body.size() > 0 )
+			sum += write_body(body, error);
 		return sum;
 	}
 
@@ -110,11 +112,26 @@ public:
 			write_runtime_error_check(body, func);
 			co_return co_await co_write_body(body, error);
 		}
-		auto sum = co_await co_write_header(body.size());
-		if( body.size() > 0 )
-			sum += co_await co_write_body(body);
+		auto sum = co_await co_write_header(body.size(), error);
+		if( error )
+			co_return sum;
+		else if( body.size() > 0 )
+			sum += co_await co_write_body(body, error);
 		co_return sum;
 	}
+
+private:
+	struct range_value : file_range
+	{
+		std::string cr_line;
+		size_t end = 0;
+	};
+
+	struct fot_data
+	{
+		std::string mtype;
+		size_t fsize = 0;
+	};
 
 public:
 	template <typename Opt>
@@ -123,29 +140,29 @@ public:
 		if( m_headers_writed )
 			throw runtime_error("libgs::http::server_response::{}: The http protocol header is sent repeatedly.", func);
 
-		std::size_t sum = 0;
-		error = opt.init(std::ios::in | std::ios::binary);
+		fot_data data = 0;
+		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
 		if( error )
-			return sum;
+			return 0;
 
-		if( opt.ranges.empty() )
+		if( not token.ranges.empty() )
 		{
-			auto it = m_next_layer.headers().find(header_t::range);
-			if( it != m_next_layer.headers().end() )
-				sum = range_transfer(std::forward<Opt>(opt), it->second.to_string(), error, func);
-			else
-				sum = default_transfer(std::forward<Opt>(opt), error);
+			auto ranges = from_file_range(token.ranges, data.fsize, error);
+			return error ? 0 : range_transfer(token, ranges, data, error);
 		}
-		else
-		{
-			string_t range_text = static_string::bytes_start;
-			for(auto &range : opt.ranges)
-				range_text += std::format(static_string::range_format, range.begin, range.begin + range.total - 1);
+		auto it = m_next_layer.headers().find(header_t::range);
+		if( it == m_next_layer.headers().end() )
+			return default_transfer(token, data, error);
 
-			range_text.pop_back();
-			sum = range_transfer(std::forward<Opt>(opt), range_text, error, func);
+		std::list<range_value> ranges;
+		auto status = range_text_parsing(it->second.to_string(), data.fsize, ranges);
+		if( status != status::ok )
+		{
+			set_status(status::range_not_satisfiable);
+			auto buf = std::format("{} ({})", status_description(status), status);
+			return write(buffer(buf, buf.size()), error, func);
 		}
-		return sum;
+		return range_transfer(token, ranges, data, error);
 	}
 
 	template <typename Opt>
@@ -154,29 +171,29 @@ public:
 		if( m_headers_writed )
 			throw runtime_error("libgs::http::server_response::{}: The http protocol header is sent repeatedly.", func);
 
-		std::size_t sum = 0;
-		error = opt.init(std::ios::in | std::ios::binary);
+		fot_data data;
+		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
 		if( error )
-			co_return sum;
+			co_return 0;
 
-		else if( opt.ranges.empty() )
+		if( not token.ranges.empty() )
 		{
-			auto it = m_next_layer.headers().find(header_t::range);
-			if( it != m_next_layer.headers().end() )
-				sum = co_await co_range_transfer(std::forward<Opt>(opt), it->second.to_string(), error, func);
-			else
-				sum = co_await co_default_transfer(std::forward<Opt>(opt), error);
+			auto ranges = from_file_range(token.ranges, data.fsize, error);
+			co_return error ? 0 : co_await co_range_transfer(token, ranges, data, error);
 		}
-		else
-		{
-			string_t range_text = static_string::bytes_start;
-			for(auto &range : opt.ranges)
-				range_text += std::format(static_string::range_format, range.begin, range.begin + range.total - 1);
+		auto it = m_next_layer.headers().find(header_t::range);
+		if( it == m_next_layer.headers().end() )
+			co_return co_await co_default_transfer(token, data, error);
 
-			range_text.pop_back();
-			sum = co_await co_range_transfer(std::forward<Opt>(opt), range_text, error, func);
+		std::list<range_value> ranges;
+		auto status = range_text_parsing(it->second.to_string(), data.fsize, ranges);
+		if( status != status::ok )
+		{
+			set_status(status::range_not_satisfiable);
+			auto buf = std::format("{} ({})", status_description(status), status);
+			co_return co_await co_write(buffer(buf, buf.size()), error, func);
 		}
-		co_return sum;
+		co_return co_await co_range_transfer(token, ranges, data, error);
 	}
 
 public:
@@ -208,24 +225,22 @@ public:
 
 private:
 	template <typename Opt>
-	[[nodiscard]] size_t default_transfer(Opt &&opt, error_code &error) noexcept
+	[[nodiscard]] size_t default_transfer(Opt &&opt, const fot_data &data, error_code &error) noexcept
 	{
-		auto mime_type = opt.mime_type();
-		spdlog::debug("resource mime-type: {}.", mime_type);
-
+		spdlog::debug("resource mime-type: {}.", data.mtype);
 		size_t sum = 0;
-		if( opt.size == 0 )
+		if( data.fsize == 0 )
 			return sum;
 
-		set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
-		sum += write_header(opt.size, error);
+		set_header(header_t::content_type, mbstoxx<CharT>(data.mtype));
+		sum += write_header(data.fsize, error);
 		if( error )
 			return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
 		char fr_buf[buf_size] {0};
 
-		opt.stream->seekp(0);
+		opt.stream->seekg(0);
 		while( not opt.stream->eof() )
 		{
 			opt.stream->read(fr_buf, buf_size);
@@ -242,24 +257,22 @@ private:
 	}
 
 	template <typename Opt>
-	[[nodiscard]] awaitable<size_t> co_default_transfer(Opt &&opt, error_code &error) noexcept
+	[[nodiscard]] awaitable<size_t> co_default_transfer(Opt &&opt, const fot_data &data, error_code &error) noexcept
 	{
-		auto mime_type = opt.mime_type();
-		spdlog::debug("resource mime-type: {}.", mime_type);
-
+		spdlog::debug("resource mime-type: {}.", data.mtype);
 		size_t sum = 0;
-		if( opt.size == 0 )
+		if( data.fsize == 0 )
 			co_return sum;
 
-		set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
-		sum += co_await co_write_header(opt.size, error);
+		set_header(header_t::content_type, mbstoxx<CharT>(data.mtype));
+		sum += co_await co_write_header(data.fsize, error);
 		if( error )
 			co_return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
 		char fr_buf[buf_size] {0};
 
-		opt.stream->seekp(0);
+		opt.stream->seekg(0);
 		while( not opt.stream->eof() )
 		{
 			opt.stream->read(fr_buf, buf_size);
@@ -277,64 +290,19 @@ private:
 
 public:
 	[[nodiscard]] size_t range_transfer
-	(auto &&opt, string_view_t _range_str, error_code &error, const char *func)
+	(auto &&opt, const std::list<range_value> &ranges, const fot_data &data, error_code &error)
 	{
-		string_t range_str(_range_str.data(), _range_str.size());
-		for(auto i=range_str.size(); i>0; i--)
-		{
-			if( range_str[i] == 0x20/*SPACE*/ )
-				range_str.erase(i,1);
-		}
-		auto status = m_helper.status();
-		if( range_str.empty())
-		{
-			set_status(status::bad_request);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			return write(buffer(buf, buf.size()), error, func);
-		}
-
-		// bytes=x-y, m-n, i-j ...
-		else if( range_str.substr(0, 6) != static_string::bytes_start )
-		{
-			set_status(status::range_not_satisfiable);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			return write(buffer(buf, buf.size()), error, func);
-		}
-
-		// x-y, m-n, i-j ...
-		auto range_list_str = range_str.substr(6);
-		if( range_list_str.empty())
-		{
-			set_status(status::range_not_satisfiable);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			return write(buffer(buf, buf.size()), error, func);
-		}
-
-		// (x-y) ( m-n) ( i-j) ...
-		auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
-		auto mime_type = opt.mime_type();
-
 		set_status(status::partial_content);
-		std::list<range_value> range_value_list;
-
-		if( range_list.size() == 1 )
+		if( ranges.size() == 1 )
 		{
-			range_value_list.emplace_back();
-			auto &range_value = range_value_list.back();
-
-			if( not range_parsing(file_name, range_list[0], range_value))
-			{
-				set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})", status_description(status), status);
-				return write(buffer(buf, buf.size()), error, func);
-			}
+			auto &range = ranges.back();
 			set_header(header_t::accept_ranges, static_string::bytes);
 			set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
-			set_header(header_t::content_length, range_value.size);
-			set_header(header_t::content_range,
-					   {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
-
-			return send_range(opt.stream, "", "", std::move(range_value_list), error);
+			set_header(header_t::content_length, range.total);
+			set_header(header_t::content_range, {
+				static_string::content_range_format, range.begin, range.end, range.total
+			});
+			return send_range(opt.stream, "", "", ranges, error);
 		} // if( rangeList.size() == 1 )
 
 		using namespace std::chrono;
@@ -344,23 +312,11 @@ public:
 		);
 		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
 
-		auto ct_line = std::format("{}: {}", header::content_type, mime_type);
+		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
-		for(auto &str: range_list)
+		for(auto &range: ranges)
 		{
-			range_value_list.emplace_back();
-			auto &range_value = range_value_list.back();
-
-			if( not range_parsing(file_name, str_trimmed(str), range_value))
-			{
-				set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})", status_description(status), status);
-				return write(buffer(buf, buf.size()), error, func);
-			}
-			range_value.cr_line = std::format("{}: bytes {}-{}/{}",
-				header::content_range, range_value.begin, range_value.end, opt.size
-			);
 			/*
 				--boundary<CR><LF>
 				Content-Type: xxx<CR><LF>
@@ -374,78 +330,33 @@ public:
 				01235467<CR><LF>
 				--boundary--<CR><LF>
 			*/
-			content_length += 2 + boundary.size() + 2 +        // --boundary<CR><LF>
-							  ct_line.size() + 2 +             // Content-Type: xxx<CR><LF>
-							  range_value.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
-							  2 +                              // <CR><LF>
-							  range_value.size + 2;            // 012345678<CR><LF>
+			content_length += 2 + boundary.size() + 2 +  // --boundary<CR><LF>
+							  ct_line.size() + 2 +       // Content-Type: xxx<CR><LF>
+							  range.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+							  2 +                        // <CR><LF>
+							  range.total + 2;           // 012345678<CR><LF>
 		}
-		content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
+		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
 		set_header(header_t::content_length, content_length);
 		set_header(header_t::accept_ranges, static_string::bytes);
-		return send_range(opt.stream, boundary, ct_line, std::move(range_value_list), error);
+		return send_range(opt.stream, boundary, ct_line, ranges, error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_range_transfer
-	(auto &&opt, string_view_t _range_str, error_code &error, const char *func)
+	(auto &&opt, const std::list<range_value> &ranges, const fot_data &data, error_code &error)
 	{
-		string_t range_str(_range_str.data(), _range_str.size());
-		for(auto i=range_str.size(); i>0; i--)
-		{
-			if( range_str[i] == 0x20/*SPACE*/ )
-				range_str.erase(i,1);
-		}
-		auto status = m_helper.status();
-		if( range_str.empty())
-		{
-			set_status(status::bad_request);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			co_return co_await co_write(buffer(buf, buf.size()), error, func);
-		}
-
-		// bytes=x-y, m-n, i-j ...
-		else if( range_str.substr(0, 6) != static_string::bytes_start )
-		{
-			set_status(status::range_not_satisfiable);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			co_return co_await co_write(buffer(buf, buf.size()), error, func);
-		}
-
-		// x-y, m-n, i-j ...
-		auto range_list_str = range_str.substr(6);
-		if( range_list_str.empty())
-		{
-			set_status(status::range_not_satisfiable);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			co_return co_await co_write(buffer(buf, buf.size()), error, func);
-		}
-
-		// (x-y) ( m-n) ( i-j) ...
-		auto range_list = string_list_t::from_string(range_list_str, 0x2C/*,*/);
-		auto mime_type = opt.mime_type();
-
 		set_status(status::partial_content);
-		std::list<range_value> range_value_list;
-
-		if( range_list.size() == 1 )
+		if( ranges.size() == 1 )
 		{
-			range_value_list.emplace_back();
-			auto &range_value = range_value_list.back();
-
-			if( not range_parsing(file_name, range_list[0], range_value))
-			{
-				set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})", status_description(status), status);
-				co_return co_await co_write(buffer(buf, buf.size()), error, func);
-			}
+			auto &range = ranges.back();
 			set_header(header_t::accept_ranges, static_string::bytes);
-			set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
-			set_header(header_t::content_length, range_value.size);
-			set_header(header_t::content_range,
-					   {static_string::content_range_format, range_value.begin, range_value.end, range_value.size});
-
-			co_return co_await co_send_range(opt.stream, "", "", std::move(range_value_list), error);
+			set_header(header_t::content_type, mbstoxx<CharT>(data.mtype));
+			set_header(header_t::content_length, range.total);
+			set_header(header_t::content_range, {
+				static_string::content_range_format, range.begin, range.end, range.total
+			});
+			co_return co_await co_send_range(opt.stream, "", "", ranges, error);
 		} // if( rangeList.size() == 1 )
 
 		using namespace std::chrono;
@@ -455,23 +366,11 @@ public:
 		);
 		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
 
-		auto ct_line = std::format("{}: {}", header::content_type, mime_type);
+		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
-		for(auto &str: range_list)
+		for(auto &range: ranges)
 		{
-			range_value_list.emplace_back();
-			auto &range_value = range_value_list.back();
-
-			if( not range_parsing(file_name, str_trimmed(str), range_value))
-			{
-				set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})", status_description(status), status);
-				co_return co_await co_write(buffer(buf, buf.size()), error, func);
-			}
-			range_value.cr_line = std::format("{}: bytes {}-{}/{}",
-				header::content_range, range_value.begin, range_value.end, opt.size
-			);
 			/*
 				--boundary<CR><LF>
 				Content-Type: xxx<CR><LF>
@@ -485,50 +384,42 @@ public:
 				01235467<CR><LF>
 				--boundary--<CR><LF>
 			*/
-			content_length += 2 + boundary.size() + 2 +        // --boundary<CR><LF>
-							  ct_line.size() + 2 +             // Content-Type: xxx<CR><LF>
-							  range_value.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
-							  2 +                              // <CR><LF>
-							  range_value.size + 2;            // 012345678<CR><LF>
+			content_length += 2 + boundary.size() + 2 +  // --boundary<CR><LF>
+							  ct_line.size() + 2 +       // Content-Type: xxx<CR><LF>
+							  range.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+							  2 +                        // <CR><LF>
+							  range.total + 2;           // 012345678<CR><LF>
 		}
-		content_length += 2 + boundary.size() + 2 + 2;         // --boundary--<CR><LF>
+		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
 		set_header(header_t::content_length, content_length);
 		set_header(header_t::accept_ranges, static_string::bytes);
-
-		co_return co_await co_send_range(opt.stream, boundary, ct_line, std::move(range_value_list), error);
+		co_return co_await co_send_range(opt.stream, boundary, ct_line, ranges, error);
 	}
 
 private:
-	struct range_value : file_range
-	{
-		std::string cr_line;
-		pos_t end = 0;
-	};
-
 	template <typename FS>
 	[[nodiscard]] size_t send_range(
 		FS &stream, std::string_view boundary, std::string_view ct_line,
-		std::list<range_value> range_value_queue, error_code &error
+		std::list<range_value> ranges, error_code &error
 	) noexcept
 	{
-		assert(not range_value_queue.empty());
+		assert(not ranges.empty());
 		auto sum = write_header(0, error);
 		if( error )
 			return sum;
 
-		using pos_t = typename FS::pos_type;
 		constexpr size_t buf_size = 0xFFFF;
+		char buf[buf_size] {0};
 
-		if( range_value_queue.size() == 1 )
+		if( ranges.size() == 1 )
 		{
-			auto &value = range_value_queue.back();
+			auto &value = ranges.back();
 			stream->seekg(value.begin, std::ios_base::beg);
 
-			char buf[buf_size] {0};
 			while( not stream->eof() )
 			{
-				if( value.total <= static_cast<pos_t>(buf_size) )
+				if( value.total <= buf_size )
 				{
 					stream->read(buf, value.total);
 					auto size = stream->gcount();
@@ -552,11 +443,7 @@ private:
 			}
 			return sum;
 		}
-		else if( range_value_queue.empty())
-			return sum;
-
-		char buf[buf_size] {0};
-		for(auto &value: range_value_queue)
+		for(auto &value: ranges)
 		{
 			std::string body;
 			body.reserve(2 + boundary.size() + 2 +
@@ -576,7 +463,7 @@ private:
 			stream->seekg(value.begin, std::ios_base::beg);
 			while( not stream->eof() )
 			{
-				if( value.size <= static_cast<size_t>(buf_size) )
+				if( value.size <= buf_size )
 				{
 					stream->read(buf, value.size);
 					auto size = stream->gcount();
@@ -612,28 +499,27 @@ private:
 	template <typename FS>
 	[[nodiscard]] awaitable<size_t> co_send_range(
 		FS &stream, std::string_view boundary, std::string_view ct_line,
-		std::list<range_value> range_value_queue, error_code &error
+		std::list<range_value> ranges, error_code &error
 	) noexcept
 	{
-		assert(not range_value_queue.empty());
+		assert(not ranges.empty());
 		auto sum = co_await co_write_header(0, error);
 		if( error )
 			co_return sum;
 
-		using pos_t = typename FS::pos_type;
 		constexpr size_t buf_size = 0xFFFF;
+		char buf[buf_size] {0};
 
-		if( range_value_queue.size() == 1 )
+		if( ranges.size() == 1 )
 		{
-			auto &value = range_value_queue.back();
+			auto &value = ranges.back();
 			stream->seekg(value.begin, std::ios_base::beg);
 
-			char buf[buf_size] {0};
 			while( not stream->eof() )
 			{
-				if( value.size <= static_cast<size_t>(buf_size) )
+				if( value.total <= buf_size )
 				{
-					stream->read(buf, value.size);
+					stream->read(buf, value.total);
 					auto size = stream->gcount();
 
 					sum += co_await co_write_body(buffer(buf,size), error);
@@ -650,16 +536,12 @@ private:
 				if( error )
 					break;
 
-				value.size -= buf_size;
+				value.total -= buf_size;
 //				co_await co_sleep_for(512us, get_executor());
 			}
 			co_return sum;
 		}
-		else if( range_value_queue.empty() )
-			co_return sum;
-
-		char buf[buf_size] {0};
-		for(auto &value : range_value_queue)
+		for(auto &value : ranges)
 		{
 			std::string body;
 			body.reserve(2 + boundary.size() + 2 +
@@ -679,9 +561,9 @@ private:
 			stream->seekg(value.begin, std::ios_base::beg);
 			while( not stream->eof() )
 			{
-				if( value.size <= static_cast<size_t>(buf_size) )
+				if( value.total <= buf_size )
 				{
-					stream->read(buf, value.size);
+					stream->read(buf, value.total);
 					auto size = stream->gcount();
 					if( size == 0 )
 						break;
@@ -703,7 +585,7 @@ private:
 				if( error )
 					co_return sum;
 
-				value.size -= buf_size;
+				value.total -= buf_size;
 //				co_await co_sleep_for(512us, get_executor());
 			}
 		}
@@ -712,63 +594,117 @@ private:
 		co_return sum;
 	}
 
-	[[nodiscard]] bool range_parsing(size_t file_size, string_view_t range_str, range_value &rv) noexcept
+private:
+	[[nodiscard]] status_t range_text_parsing
+	(string_view_t range_str_view, size_t file_size, std::list<range_value> &ranges)
 	{
-		rv.total = 0;
-		auto list = string_list_t::from_string(range_str, '-', false);
-
-		if( list.size() > 2 )
+		string_t range_str(range_str_view.data(), range_str_view.size());
+		for(auto i=range_str.size(); i>0; i--)
 		{
-			spdlog::debug("Range format error: {}.", xxtombs<CharT>(range_str));
-			return false;
+			if( range_str[i] == 0x20/*SPACE*/ )
+				range_str.erase(i,1);
 		}
-		else if( list[0].empty())
-		{
-			if( list[1].empty())
-			{
-				spdlog::debug("Range format error.");
-				return false;
-			}
-			rv.total = ston_or<size_t>(list[1]);
+		if( range_str.empty() )
+			return status::bad_request;
 
-			if( rv.total == 0 or rv.total > file_size )
-			{
-				spdlog::debug("Range size is invalid.");
-				return false;
-			}
-			rv.begin = file_size - rv.total;
-			rv.end   = file_size - 1;
-		}
-		else if( list[1].empty() )
-		{
-			if( list[0].empty())
-			{
-				spdlog::debug("Range format error.");
-				return false;
-			}
-			rv.begin = ston_or<size_t>(list[0]);
-			rv.end   = file_size - 1;
+		// bytes=x-y, m-n, i-j ...
+		else if( range_str.substr(0,6) != static_string::bytes_start )
+			return status::range_not_satisfiable;
 
-			if( rv.begin > rv.end )
-			{
-				spdlog::debug("Range is invalid.");
-				return false;
-			}
-			rv.total = file_size - rv.begin;
-		}
-		else
-		{
-			rv.begin = ston_or<size_t>(list[0]);
-			rv.end   = ston_or<size_t>(list[1]);
+		// x-y, m-n, i-j ...
+		auto cl_range_str = range_str.substr(6);
+		if( cl_range_str.empty() )
+			return status::range_not_satisfiable;
 
-			if( rv.begin > rv.end or rv.end >= file_size )
+		// (x-y) ( m-n) ( i-j) ...
+		for(auto &sub_range_str : string_list_t::from_string(cl_range_str, 0x2C/*,*/))
+		{
+			range_value range;
+			range.total = 0;
+
+			auto list = string_list_t::from_string(sub_range_str, '-', false);
+			if( list.size() != 2 )
 			{
-				spdlog::debug("Range is invalid.");
-				return false;
+				spdlog::debug("Range format error: {}.", xxtombs<CharT>(sub_range_str));
+				return status::range_not_satisfiable;
 			}
-			rv.size = rv.end - rv.begin + 1;
+			else if( list[0].empty() )
+			{
+				if( list[1].empty() )
+				{
+					spdlog::debug("Range format error.");
+					return status::range_not_satisfiable;
+				}
+				range.total = ston_or<size_t>(list[1]);
+
+				if( range.total == 0 or range.total > file_size )
+				{
+					spdlog::debug("Range size is invalid.");
+					return status::range_not_satisfiable;
+				}
+				range.begin = file_size - range.total;
+				range.end   = file_size - 1;
+			}
+			else if( list[1].empty() )
+			{
+				if( list[0].empty() )
+				{
+					spdlog::debug("Range format error.");
+					return status::range_not_satisfiable;
+				}
+				range.begin = ston_or<size_t>(list[0]);
+				range.end   = file_size - 1;
+
+				if( range.begin > range.end )
+				{
+					spdlog::debug("Range is invalid.");
+					return status::range_not_satisfiable;
+				}
+				range.total = file_size - range.begin;
+			}
+			else
+			{
+				range.begin = ston_or<size_t>(list[0]);
+				range.end   = ston_or<size_t>(list[1]);
+
+				if( range.begin > range.end or range.end >= file_size )
+				{
+					spdlog::debug("Range is invalid.");
+					return status::range_not_satisfiable;
+				}
+				range.total = range.end - range.begin + 1;
+			}
+			range.cr_line = std::format("{}: bytes {}-{}/{}",
+				header::content_range, range.begin, range.end, file_size
+			);
+			ranges.emplace_back(std::move(range));
 		}
-		return true;
+		return status::ok;
+	}
+
+	[[nodiscard]] std::list<range_value> from_file_range
+	(const file_ranges &ranges, size_t file_size, error_code &error)
+	{
+		std::list<range_value> list;
+		for(auto &range : ranges)
+		{
+			auto end = range.begin + range.total - 1;
+			if( range.total == 0 or end >= file_size )
+			{
+				error = std::make_error_code(std::errc::invalid_seek);
+				break;
+			}
+			range_value value;
+			value.begin = range.begin;
+			value.total = range.total;
+			value.end   = end;
+
+			value.cr_line = std::format("{}: bytes {}-{}/{}",
+				header::content_range, value.begin, value.end, file_size
+			);
+			list.emplace_back(std::move(value));
+		}
+		return list;
 	}
 
 	[[nodiscard]] std::string chunk_end_check(const headers_t &headers, const char *func)
@@ -850,6 +786,49 @@ private:
 		if( not error and wheader )
 			m_headers_writed = true;
 		co_return sum;
+	}
+
+private:
+	template <typename Opt>
+	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error)
+	{
+		if constexpr( is_char_string_v<Opt> or is_fstream_v<Opt> or is_ofstream_v<Opt> )
+		{
+			using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
+			using type = typename token_t::type;
+			return _file_opt_token_helper(
+				file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
+				data, error
+			);
+		}
+		else if constexpr( Opt::optype == file_optype::single )
+		{
+			using type = typename std::remove_cvref_t<Opt>::type;
+			return _file_opt_token_helper(
+				file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
+				data, error
+			);
+		}
+		else
+			return _file_opt_token_helper(std::forward<Opt>(opt), data, error);
+	}
+
+	template <typename Opt>
+	[[nodiscard]] auto _file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error)
+	{
+		error = opt.init(std::ios::in | std::ios::binary);
+		if( error )
+			return std::forward<Opt>(opt);
+
+		auto size = file_size(opt, io_permission::write);
+		if( not size )
+		{
+			error = make_error_code(std::errc::permission_denied);
+			return std::forward<Opt>(opt);
+		}
+		data.fsize = *size;
+		data.mtype = mime_type(opt);
+		return std::forward<Opt>(opt);
 	}
 
 private:
@@ -958,7 +937,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 {
 	if constexpr( std::is_same_v<Token, error_code&> )
 		return m_impl->write(body, token, "write");
-	else if( is_sync_token_v<Token> )
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
 		auto res = write(body, error);
@@ -1009,7 +988,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 		m_impl->m_helper.set_redirect(url, redi);
 		return m_impl->write({nullptr,0}, token, "redirect");
 	}
-	else if( is_sync_token_v<Token> )
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
 		auto res = redirect(url, redi, error);
@@ -1056,15 +1035,15 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, Token &&to
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 template <concepts::dis_func_token Token>
 auto basic_server_response<Stream,CharT>::send_file
-(concepts::char_file_opt_token_param<file_optype::combine, io_permission::read> auto &&param, Token &&token)
+(concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt, Token &&token)
 {
-	using opt_t = decltype(param);
+	using opt_t = decltype(opt);
 	if constexpr( std::is_same_v<Token, error_code&> )
-		return m_impl->send_file(make_file_opt_token(std::forward<opt_t>(param)), token, "send_file");
-	else if( is_sync_token_v<Token> )
+		return m_impl->send_file(std::forward<opt_t>(opt), token, "send_file");
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
-		auto res = save_file(std::forward<opt_t>(param), error);
+		auto res = save_file(std::forward<opt_t>(opt), error);
 		if( error )
 			throw system_error(error, "libgs::http::server_request::save_file");
 		return res;
@@ -1079,14 +1058,14 @@ auto basic_server_response<Stream,CharT>::send_file
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(get_executor(), [
-			this, param = std::forward<opt_t>(param), token
+			this, opt = std::forward<opt_t>(opt), token
 		]() mutable -> awaitable<size_t>
 		{
 			using namespace std::chrono_literals;
 			error_code error;
 
 			auto var = co_await (
-				m_impl->co_send_file(make_file_opt_token(std::move(param)), error, "send_file") or
+				m_impl->co_send_file(std::move(opt), error, "send_file") or
 				co_sleep_for(30s, get_executor())
 			);
 			auto res = m_impl->check_time_out(var, error);
@@ -1113,12 +1092,12 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_ch
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token = use_sync_type>
+template <concepts::dis_func_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, Token &&token)
 {
 	if constexpr( std::is_same_v<Token, error_code&> )
 		return m_impl->chunk_end(headers, token, "chunk_end");
-	else if( is_sync_token_v<Token> )
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
 		auto res = chunk_end(headers, error);
@@ -1154,14 +1133,14 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token = use_sync_type>
+template <concepts::dis_func_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(Token &&token)
 {
 	return chunk_end({}, std::forward<Token>(token));
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT>::string_view_t
+typename basic_server_response<Stream,CharT>::string_view_t
 basic_server_response<Stream,CharT>::version() const noexcept
 {
 	return m_impl->m_helper.version();

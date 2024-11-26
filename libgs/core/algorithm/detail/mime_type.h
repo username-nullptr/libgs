@@ -93,7 +93,7 @@ template <typename FS>
 } //namespace detail
 
 template <typename FS>
-std::string get_mime_type(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+std::string mime_type(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
 {
 	return detail::mime_from_magic(stream);
 }
@@ -113,7 +113,7 @@ bool is_binary_file(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstre
 }
 
 template <typename FS>
-std::string get_text_file_encoding(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+std::string text_file_encoding(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
 {
 	std::string result = "unknown";
 	if( not stream.is_open() )

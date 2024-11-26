@@ -29,8 +29,6 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 
-#include <filesystem>
-#include <fstream>
 #include <regex>
 
 namespace libgs::http
@@ -141,7 +139,7 @@ public:
 				break;
 			}
 			asio::socket_base::receive_buffer_size op;
-			socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
+			socket_operation_helper<next_layer_t>(m_next_layer).get_option(op, error);
 			if( error )
 				break;
 
@@ -149,11 +147,11 @@ public:
 			{
 				auto dst_buf = reinterpret_cast<char*>(buf.data());
 				do {
-					auto body = m_impl->m_parser->take_partial_body(buf_size);
+					auto body = m_parser->take_partial_body(buf_size);
 					sum += body.size();
 
 					memcpy(dst_buf + sum, body.c_str(), body.size());
-					if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+					if( sum == buf_size or not m_parser->can_read_from_device() )
 						break;
 
 					body = std::string(op.value(),'\0');
@@ -161,12 +159,12 @@ public:
 					size_t tmp_sum = 0;
 					do {
 						auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
-						tmp_sum += co_await m_impl->m_next_layer.async_read_some(read_buf, use_awaitable|error);
+						tmp_sum += co_await m_next_layer.async_read_some(read_buf, use_awaitable|error);
 
 						if( error and error.value() == errc::interrupted )
 							continue;
 
-						bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
+						bool res = m_parser->append({tmp_buf, tmp_sum}, error);
 						if( error )
 							co_return sum;
 						else if( not res )
@@ -190,44 +188,44 @@ public:
 	[[nodiscard]] size_t save_file(Opt &&opt, error_code &error) noexcept
 	{
 		std::size_t sum = 0;
-		error = opt.init(std::ios::out | std::ios::app | std::ios::binary);
+		auto token = file_opt_token_helper(std::forward<Opt>(opt), error);
 		if( error )
 			return sum;
 
-		auto end = opt.range.begin + opt.total - 1;
-		if( opt.range.begin <= end or opt.range.begin < 0 or end > opt.size )
-		{
-			error = std::make_error_code(std::errc::invalid_seek);
-			return sum;
-		}
-		opt.stream->seekp(opt.range.begin);
 		constexpr size_t tcp_buf_size = 0xFFFF;
 		char buf[tcp_buf_size] {0};
 
-		auto total = opt.range.total;
 		using pos_t = typename Opt::pos_t;
-
-		while( can_read_body() )
+		if( token.range->total == 0 )
 		{
-			auto size = read(buffer(buf, tcp_buf_size), error);
-			if( error )
-				break;
-
-			sum += size;
-			if( total == 0 )
-				opt.stream->write(buf, static_cast<pos_t>(size));
-
-			else if( size > total )
+			while( can_read_body() )
 			{
-				opt.stream->write(buf, static_cast<pos_t>(total));
-				break;
+				auto size = read(buffer(buf, tcp_buf_size), error);
+				if( error )
+					break;
+
+				sum += size;
+				token.stream->write(buf, static_cast<pos_t>(size));
+				// sleep_for(512us);
 			}
-			else
+		}
+		else
+		{
+			auto total = token.range->total;
+			while( can_read_body() )
 			{
-				opt.stream->write(buf, static_cast<pos_t>(size));
+				auto size = read(buffer(buf, std::min(tcp_buf_size, total)), error);
+				if( error )
+					break;
+
+				sum += size;
+				token.stream->write(buf, static_cast<pos_t>(size));
+
 				total -= size;
+				if( total == 0 )
+					break;
+				// sleep_for(512us);
 			}
-	//		sleep_for(512us);
 		}
 		return sum;
 	}
@@ -236,21 +234,16 @@ public:
 	[[nodiscard]] awaitable<size_t> co_save_file(Opt &&opt, error_code &error) noexcept
 	{
 		std::size_t sum = 0;
-		error = opt.init(std::ios::out | std::ios::binary);
+		auto token = file_opt_token_helper(std::forward<Opt>(opt), error);
 		if( error )
 			co_return sum;
-		do {
-			if( opt.range.begin + opt.range.total - 1 > opt.size )
-			{
-				error = std::make_error_code(std::errc::invalid_seek);
-				break;
-			}
-			constexpr size_t tcp_buf_size = 0x2000 * sizeof(wchar_t);
-			char buf[tcp_buf_size] {0};
 
-			auto total = opt.range.total;
-			using pos_t = typename Opt::pos_t;
+		constexpr size_t tcp_buf_size = 0xFFFF;
+		char buf[tcp_buf_size] {0};
 
+		using pos_t = typename Opt::pos_t;
+		if( token.range->total == 0 )
+		{
 			while( can_read_body() )
 			{
 				auto size = co_await co_read(buffer(buf, tcp_buf_size), error);
@@ -258,24 +251,82 @@ public:
 					break;
 
 				sum += size;
-				if( total == 0 )
-					opt.stream->write(buf, static_cast<pos_t>(size));
-
-				else if( size > total )
-				{
-					opt.stream->write(buf, static_cast<pos_t>(total));
-					break;
-				}
-				else
-				{
-					opt.stream->write(buf, static_cast<pos_t>(size));
-					total -= size;
-				}
-	//			co_await co_sleep_for(512us, get_executor());
+				token.stream->write(buf, static_cast<pos_t>(size));
+				// sleep_for(512us);
 			}
 		}
-		while(false);
+		else
+		{
+			auto total = token.range->total;
+			while( can_read_body() )
+			{
+				auto size = co_await co_read(buffer(buf, std::min(tcp_buf_size, total)), error);
+				if( error )
+					break;
+
+				sum += size;
+				token.stream->write(buf, static_cast<pos_t>(size));
+
+				total -= size;
+				if( total == 0 )
+					break;
+				// co_await co_sleep_for(512us, get_executor());
+			}
+		}
 		co_return sum;
+	}
+
+public:
+	[[nodiscard]] bool is_eof() const noexcept {
+		return m_parser->is_eof();
+	}
+	[[nodiscard]] executor_t get_executor() noexcept {
+		return socket_operation_helper<next_layer_t>(m_next_layer).get_executor();
+	}
+
+private:
+	template <typename Opt>
+	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, error_code &error)
+	{
+		if constexpr( is_char_string_v<Opt> or is_fstream_v<Opt> or is_ofstream_v<Opt> )
+		{
+			auto token = make_file_opt_token(std::forward<Opt>(opt));
+			error = token.init(std::ios::out | std::ios::binary);
+			if( error )
+				return token;
+
+			auto size = file_size(opt, io_permission::write);
+			if( not size )
+			{
+				error = make_error_code(std::errc::permission_denied);
+				return token;
+			}
+			token.stream->seekp(0, std::ios::beg);
+			return token;
+		}
+		else
+		{
+			error = opt.init(std::ios::out | std::ios::binary);
+			if( error )
+				return std::forward<Opt>(opt);
+
+			auto size = file_size(opt, io_permission::write);
+			if( not size )
+			{
+				error = make_error_code(std::errc::permission_denied);
+				return std::forward<Opt>(opt);
+			}
+			else if( not opt.range )
+				opt.range = file_range(0,0);
+
+			else if( opt.range->begin > *size or opt.range.total == 0 )
+			{
+				error = make_error_code(std::errc::invalid_seek);
+				return std::forward<Opt>(opt);
+			}
+			opt.stream->seekp(opt.range->begin, std::ios::beg);
+			return std::forward<Opt>(opt);
+		}
 	}
 
 public:
@@ -485,7 +536,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 {
 	if constexpr( std::is_same_v<Token, error_code&> )
 		return m_impl->read(buf, token);
-	else if( is_sync_token_v<Token> )
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
 		auto res = read(buf, error);
@@ -533,7 +584,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 		while( can_read_body() );
 		return sum;
 	}
-	else if( is_sync_token_v<Token> )
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
 		auto buf = read(error);
@@ -574,15 +625,15 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 template <concepts::dis_func_token Token>
 auto basic_server_request<Stream,CharT>::save_file
-(concepts::char_file_opt_token_param<file_optype::single, io_permission::write> auto &&param, Token &&token)
+(concepts::char_file_opt_token_arg<file_optype::single, io_permission::write> auto &&opt, Token &&token)
 {
-	using opt_t = decltype(param);
+	using opt_t = decltype(opt);
 	if constexpr( std::is_same_v<Token, error_code&> )
-		return m_impl->save_file(make_file_opt_token(std::forward<opt_t>(param)), token);
-	else if( is_sync_token_v<Token> )
+		return m_impl->save_file(std::forward<opt_t>(opt), token);
+	else if constexpr( is_sync_token_v<Token> )
 	{
 		error_code error;
-		auto res = save_file(std::forward<opt_t>(param), error);
+		auto res = save_file(std::forward<opt_t>(opt), error);
 		if( error )
 			throw system_error(error, "libgs::http::server_request::save_file");
 		return res;
@@ -597,11 +648,11 @@ auto basic_server_request<Stream,CharT>::save_file
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(get_executor(), [
-			this, param = std::forward<opt_t>(param), token
+			this, opt = std::forward<opt_t>(opt), token
 		]() mutable -> awaitable<size_t>
 		{
 			error_code error;
-			auto size = co_await m_impl->co_save_file(make_file_opt_token(std::move(param)), use_awaitable|error);
+			auto size = co_await m_impl->co_save_file(std::move(opt), use_awaitable|error);
 			check_error(remove_const(token), error, "libgs::http::server_request::save_file");
 			co_return size;
 		},
@@ -639,7 +690,7 @@ bool basic_server_request<Stream,CharT>::can_read_body() const noexcept
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 bool basic_server_request<Stream,CharT>::is_eof() const noexcept
 {
-	return m_impl->m_parser->is_eof();
+	return m_impl->is_eof();
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
@@ -657,7 +708,7 @@ typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Str
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
 typename basic_server_request<Stream,CharT>::executor_t basic_server_request<Stream,CharT>::get_executor() noexcept
 {
-	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_executor();
+	return m_impl->get_executor();
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>

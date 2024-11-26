@@ -5,7 +5,7 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
-	auto mt = libgs::get_mime_type("/opt/gdb/aaa");
+	auto mt = libgs::mime_type("/opt/gdb/aaa");
 	spdlog::debug("mime-type: '{}'.", mt);
 
 	libgs::sha1 sha1("Hello World !!!");

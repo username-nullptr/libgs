@@ -65,6 +65,7 @@ public:
 				self->m_impl->m_restart = false;
 				self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
 
+				using namespace libgs::operators;
 				co_await self->m_impl->m_timer.async_wait(use_awaitable|error);
 				if( self.use_count() == 1 )
 					break;

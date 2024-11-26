@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_DETAIL_INI_H
 #define LIBGS_CORE_DETAIL_INI_H
 
+#include <libgs/core/algorithm/misc.h>
 #include <libgs/core/app_utls.h>
 #include <filesystem>
 #include <fstream>

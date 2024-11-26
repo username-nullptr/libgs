@@ -57,7 +57,7 @@ public:
 	}
 	[[nodiscard]] libgs::awaitable<void> service(context_t &context) override
 	{
-		co_await context.response().co_write("hello libgs (controller)");
+		co_await context.response().write("hello libgs (controller)", asio::use_awaitable);
 		co_return ;
 	}
 };
@@ -74,7 +74,7 @@ int main()
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
-		co_await context.response().co_write("hello libgs");
+		co_await context.response().write("hello libgs", asio::use_awaitable);
 		co_return ;
 	},
 	new aop(), new aop())

@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_DETAIL_PARSER_BASE_H
 #define LIBGS_HTTP_DETAIL_PARSER_BASE_H
 
-#include <libgs/core/string_list.h>
+#include <libgs/core/algorithm/misc.h>
 
 namespace libgs::http
 {
@@ -355,7 +355,7 @@ error_code basic_parser_base<CharT>::make_error_code(parse_errno errc)
 template <core_concepts::char_type CharT>
 bool basic_parser_base<CharT>::append(std::string_view buf, error_code &error)
 {
-	using state = impl::state;
+	using state = typename impl::state;
 	error = error_code();
 	if( buf.empty() )
 	{

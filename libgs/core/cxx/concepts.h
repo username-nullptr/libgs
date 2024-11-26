@@ -254,7 +254,7 @@ template <typename T>
 concept string_type = is_string_v<T>;
 
 template <typename T>
-concept rvalue = std::is_rvalue_reference_v<T>;
+concept rvalue_reference = std::is_rvalue_reference_v<T>;
 
 template <typename Func>
 concept function = is_function_v<Func>;
