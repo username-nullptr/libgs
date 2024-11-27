@@ -94,6 +94,25 @@ template <concepts::execution_context Exec>
 	awaitable<void> &&a
 );
 
+template <concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
+	concepts::awaitable_void_function auto &&func, Exec &exec
+);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
+	concepts::awaitable_void_function auto &&func
+);
+
+template <typename T, concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI T co_spawn_local (
+	awaitable<T> &&a, Exec &exec
+);
+
+template <typename T>
+[[nodiscard]] LIBGS_CORE_TAPI T co_spawn_local (
+	awaitable<T> &&a
+);
+
 template <typename T>
 using awaitable_wake_up = asio::detail::awaitable_handler<asio::any_io_executor,T>;
 

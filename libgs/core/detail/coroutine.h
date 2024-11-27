@@ -31,6 +31,7 @@
 
 #include <thread>
 #include <iostream>
+#include <libgs/http/cxx/file_opt_token.h>
 
 namespace libgs
 {
@@ -115,16 +116,11 @@ auto co_spawn_thread(awaitable<void> &&a, Exec &exec)
 {
 	return std::thread([a = std::move(a), &exec]() mutable
 	{
-		bool finished = false;
-		co_spawn_detached([&finished, a = std::move(a)]() mutable -> awaitable<void>
-		{
-			co_await std::move(a);
-			finished = true;
-			co_return ;
+		co_spawn_detached([a = std::move(a)]() mutable -> awaitable<void> {
+			co_return co_await std::move(a);
 		},
 		exec);
-		while( not finished )
-			exec.run();
+		exec.run();
 	});
 }
 
@@ -136,6 +132,70 @@ inline auto co_spawn_thread(awaitable<void> &&a)
 		co_spawn_detached(std::move(a), ioc);
 		ioc.run();
 	});
+}
+
+template <concepts::execution_context Exec>
+auto co_spawn_local(concepts::awaitable_void_function auto &&func, Exec &exec)
+{
+	return co_spawn_local(func(), exec);
+}
+
+auto co_spawn_local(concepts::awaitable_void_function auto &&func)
+{
+	using func_t = std::decay_t<decltype(func)>;
+	using return_t = std::invoke_result_t<func_t>;
+	asio::io_context ioc;
+
+	if constexpr( std::is_same_v<return_t, void> )
+	{
+		co_spawn_detached(std::forward<func_t>(func), ioc);
+		ioc.run();
+	}
+	else
+	{
+		return_t res;
+		co_spawn_detached([&res, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
+		{
+			res = func();
+			co_return ;
+		},
+		ioc);
+		ioc.run();
+		return res;
+	}
+}
+
+template <typename T, concepts::execution_context Exec>
+T co_spawn_local(awaitable<T> &&a, Exec &exec)
+{
+	if constexpr( std::is_same_v<T, void> )
+	{
+		co_spawn_detached([a = std::move(a)]() mutable -> awaitable<void> {
+			co_return co_await std::move(a);
+		},
+		exec);
+		exec.run();
+		return ;
+	}
+	else
+	{
+		T res;
+		co_spawn_detached([&res, a = std::move(a)]() mutable -> awaitable<void>
+		{
+			res = co_await std::move(a);
+			co_return ;
+		},
+		exec);
+		exec.run();
+		return res;
+	}
+}
+
+template <typename T>
+T co_spawn_local(awaitable<T> &&a)
+{
+	asio::io_context ioc;
+	return co_spawn_local(std::move(a), ioc);
 }
 
 template <typename T>
