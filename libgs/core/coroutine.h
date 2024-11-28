@@ -78,11 +78,21 @@ template <typename T, concepts::schedulable Exec = execution::executor_t>
 
 template <concepts::execution_context Exec>
 [[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
+	concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter
+);
+
+template <concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
 	concepts::awaitable_void_function auto &&func, Exec &exec
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
 	concepts::awaitable_void_function auto &&func
+);
+
+template <concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
+	awaitable<void> &&a, Exec &exec, size_t &counter
 );
 
 template <concepts::execution_context Exec>
@@ -96,11 +106,21 @@ template <concepts::execution_context Exec>
 
 template <concepts::execution_context Exec>
 [[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
+	concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter
+);
+
+template <concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
 	concepts::awaitable_void_function auto &&func, Exec &exec
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
 	concepts::awaitable_void_function auto &&func
+);
+
+template <typename T, concepts::execution_context Exec>
+[[nodiscard]] LIBGS_CORE_TAPI T co_spawn_local (
+	awaitable<T> &&a, Exec &exec, size_t &counter
 );
 
 template <typename T, concepts::execution_context Exec>

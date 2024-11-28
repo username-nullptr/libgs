@@ -93,6 +93,11 @@ auto co_spawn_future(awaitable<T> &&a, Exec &&exec)
 	);
 }
 
+template <concepts::execution_context Exec>
+auto co_spawn_thread(concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter)
+{
+	return co_spawn_thread(func(), exec, counter);
+}
 
 template <concepts::execution_context Exec>
 auto co_spawn_thread(concepts::awaitable_void_function auto &&func, Exec &exec)
@@ -112,16 +117,30 @@ auto co_spawn_thread(concepts::awaitable_void_function auto &&func)
 }
 
 template <concepts::execution_context Exec>
-auto co_spawn_thread(awaitable<void> &&a, Exec &exec)
+auto co_spawn_thread(awaitable<void> &&a, Exec &exec, size_t &counter)
 {
-	return std::thread([a = std::move(a), &exec]() mutable
+	return std::thread([a = std::move(a), &exec, &counter]() mutable
 	{
-		co_spawn_detached([a = std::move(a)]() mutable -> awaitable<void> {
-			co_return co_await std::move(a);
+		bool finished = false;
+		co_spawn_detached([a = std::move(a), &finished]() mutable -> awaitable<void>
+		{
+			co_await std::move(a);
+			finished = true;
+			co_return ;
 		},
 		exec);
-		exec.run();
+		do {
+			counter += exec.run();
+		}
+		while( not finished );
 	});
+}
+
+template <concepts::execution_context Exec>
+auto co_spawn_thread(awaitable<void> &&a, Exec &exec)
+{
+	size_t counter = 0; LIBGS_UNUSED(counter);
+	return co_spawn_thread(std::move(a), exec, counter);
 }
 
 inline auto co_spawn_thread(awaitable<void> &&a)
@@ -132,6 +151,12 @@ inline auto co_spawn_thread(awaitable<void> &&a)
 		co_spawn_detached(std::move(a), ioc);
 		ioc.run();
 	});
+}
+
+template <concepts::execution_context Exec>
+auto co_spawn_local(concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter)
+{
+	return co_spawn_local(func(), exec, counter);
 }
 
 template <concepts::execution_context Exec>
@@ -166,29 +191,49 @@ auto co_spawn_local(concepts::awaitable_void_function auto &&func)
 }
 
 template <typename T, concepts::execution_context Exec>
-T co_spawn_local(awaitable<T> &&a, Exec &exec)
+T co_spawn_local(awaitable<T> &&a, Exec &exec, size_t &counter)
 {
-	if constexpr( std::is_same_v<T, void> )
+	bool finished = false;
+	counter = 0;
+
+	if constexpr( std::is_same_v<T,void> )
 	{
-		co_spawn_detached([a = std::move(a)]() mutable -> awaitable<void> {
-			co_return co_await std::move(a);
+		co_spawn_detached([a = std::move(a), &finished]() mutable -> awaitable<void>
+		{
+			co_await std::move(a);
+			finished = true;
+			co_return ;
 		},
 		exec);
-		exec.run();
+		do {
+			counter += exec.run();
+		}
+		while( not finished );
 		return ;
 	}
 	else
 	{
 		T res;
-		co_spawn_detached([&res, a = std::move(a)]() mutable -> awaitable<void>
+		co_spawn_detached([a = std::move(a), &res, &finished]() mutable -> awaitable<void>
 		{
 			res = co_await std::move(a);
+			finished = true;
 			co_return ;
 		},
 		exec);
-		exec.run();
+		do {
+			counter += exec.run();
+		}
+		while( not finished );
 		return res;
 	}
+}
+
+template <typename T, concepts::execution_context Exec>
+T co_spawn_local(awaitable<T> &&a, Exec &exec)
+{
+	size_t counter = 0; LIBGS_UNUSED(counter);
+	return co_spawn_local(std::move(a), exec, counter);
 }
 
 template <typename T>
