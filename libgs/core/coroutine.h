@@ -153,14 +153,24 @@ LIBGS_CORE_TAPI auto co_dispatch (
 	concepts::callable auto &&func
 );
 
-template <typename Rep, typename Period, concepts::schedulable Exec = execution::executor_t>
+template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
-	const std::chrono::duration<Rep,Period> &rtime, Exec &&exec = execution::get_executor()
+	const std::chrono::duration<Rep,Period> &rtime, concepts::schedulable auto &&exec
 );
 
-template <typename Rep, typename Period, concepts::schedulable Exec = execution::executor_t>
+template <typename Rep, typename Period>
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
+	const std::chrono::duration<Rep,Period> &rtime
+);
+
+template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until (
-	const std::chrono::time_point<Rep,Period> &atime, Exec &&exec = execution::get_executor()
+	const std::chrono::time_point<Rep,Period> &atime, concepts::schedulable auto &&exec
+);
+
+template <typename Rep, typename Period>
+[[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until (
+	const std::chrono::time_point<Rep,Period> &atime
 );
 
 template <typename T>

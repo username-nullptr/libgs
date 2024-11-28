@@ -294,6 +294,9 @@ concept movable = std::movable<T>;
 template <typename T>
 concept copymovable = copyable<T> and movable<T>;
 
+template <typename T, typename Base>
+concept base_of = std::is_base_of_v<Base,T>;
+
 template <typename T, typename CharT>
 concept basic_fstream =
 	is_basic_fstream_v<CharT,T> or

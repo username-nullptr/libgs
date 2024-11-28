@@ -416,16 +416,32 @@ awaitable<error_code> co_sleep_x(const auto &stdtime, Exec &&exec)
 
 } //namespace detail
 
-template <typename Rep, typename Period, concepts::schedulable Exec>
-awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime, Exec &&exec)
+template <typename Rep, typename Period>
+awaitable<error_code> co_sleep_for
+(const std::chrono::duration<Rep,Period> &rtime, concepts::schedulable auto &&exec)
 {
+	using Exec = std::remove_cvref_t<decltype(exec)>;
 	return detail::co_sleep_x(rtime, std::forward<Exec>(exec));
 }
 
-template <typename Rep, typename Period, concepts::schedulable Exec>
-awaitable<error_code> co_sleep_until(const std::chrono::time_point<Rep,Period> &atime, Exec &&exec)
+template <typename Rep, typename Period>
+awaitable<error_code> co_sleep_for(const std::chrono::duration<Rep,Period> &rtime)
 {
+	co_return co_await co_sleep_for(rtime, co_await asio::this_coro::executor);
+}
+
+template <typename Rep, typename Period>
+awaitable<error_code> co_sleep_until
+(const std::chrono::time_point<Rep,Period> &atime, concepts::schedulable auto &&exec)
+{
+	using Exec = std::remove_cvref_t<decltype(exec)>;
 	return detail::co_sleep_x(atime, std::forward<Exec>(exec));
+}
+
+template <typename Rep, typename Period>
+awaitable<error_code> co_sleep_until(const std::chrono::time_point<Rep,Period> &atime)
+{
+	co_return co_await co_sleep_until(atime, co_await asio::this_coro::executor);
 }
 
 template <typename T>
