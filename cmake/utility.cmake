@@ -41,6 +41,7 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 		endif ()
 
 	elseif ("MSVC" MATCHES ${CMAKE_CXX_COMPILER_ID})
+		add_compile_options(/W4)
 		if (${MSVC_VERSION} LESS 1930)
 			message(FATAL_ERROR "The minimum version of 'MSVC' required is 1930 (VS2022).")
 		endif ()

@@ -52,7 +52,7 @@ void forced_termination()
 #ifdef __unix__
 	kill(getpid(), SIGKILL);
 #else
-	TerminateProcess(GetCurrentProcess(), -9);
+	TerminateProcess(GetCurrentProcess(), static_cast<UINT>(-9));
 #endif
 	// No return;
 	abort(); // This function is never executed.

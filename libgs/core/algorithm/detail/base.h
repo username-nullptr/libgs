@@ -72,10 +72,10 @@ template <concepts::char_type CharT>
 		else if( str.size() == 5 and strncasecmp(str.data(), "false", 5) == 0 )
 			return 0;
 #endif
+		return -1;
 	}
 	else
 		return _stob<char>(wcstombs(str));
-	return -1;
 }
 
 template <concepts::char_type CharT, typename T>

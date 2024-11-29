@@ -52,6 +52,7 @@ public:
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
+	using path_opt_token_t = basic_path_opt_token<CharT>;
 
 	using context_t = basic_service_context<socket_t,CharT>;
 	using system_error_handler_t = std::function<bool(error_code)>;
@@ -98,14 +99,14 @@ public:
 
 public:
 	template <http::method...method, typename Func, typename...AopPtrs>
-	basic_server &on_request(string_view_t path_rule, Func &&func, AopPtrs&&...aops) requires
+	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
 		detail::concepts::request_handler<Func,socket_t,CharT> and detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>;
 
 	template <http::method...method>
-	basic_server &on_request(string_view_t path_rule, ctrlr_aop_ptr_t ctrlr);
+	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
 
 	template <http::method...method>
-	basic_server &on_request(string_view_t path_rule, ctrlr_aop_t *ctrlr);
+	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>
 	basic_server &on_default(Func &&func) requires detail::concepts::request_handler<Func,socket_t,CharT>;

@@ -95,7 +95,7 @@ async_connect(endpoint_t ep, Token &&token)
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace operators;
+		using namespace libgs::operators;
 		return asio::co_spawn(this->socket().get_executor(), [
 			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
 		]() mutable -> awaitable<void>
@@ -208,7 +208,7 @@ async_connect(endpoint_t ep, Token &&token)
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace operators;
+		using namespace libgs::operators;
 		return asio::co_spawn(get_executor(), [
 			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
 		]() mutable -> awaitable<void>

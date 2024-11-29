@@ -83,20 +83,23 @@ public:
 
 public:
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto write(const const_buffer &body, Token &&token = {});
+	auto write(const const_buffer &body, Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto write(Token &&token = {});
+	auto write(Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto redirect(string_view_t url, http::redirect redi, Token &&token = {});
+	auto redirect(string_view_t url, http::redirect redi, Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto redirect(string_view_t url, Token &&token = {});
+	auto redirect(string_view_t url, Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto send_file(
-		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
+	auto send_file (
+		concepts::char_file_opt_token_arg <
+			file_optype::combine,
+			io_permission::read
+		> auto &&opt,
 		Token &&token = {}
 	);
 
@@ -105,10 +108,10 @@ public:
 	basic_server_response &set_chunk_attributes(value_list_t attributes);
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto chunk_end(const headers_t &headers, Token &&token = {});
+	auto chunk_end(const headers_t &headers, Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto chunk_end(Token &&token = {});
+	auto chunk_end(Token &&token = {});
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;

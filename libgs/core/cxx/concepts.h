@@ -101,7 +101,7 @@ using is_wchar_array = is_basic_char_array<wchar_t, CharT>;
 template <typename CharT>
 constexpr bool is_wchar_array_v = is_wchar_array<CharT>::value;
 
-template <concepts::char_type CharT, typename T>
+template <typename T, concepts::char_type CharT>
 struct is_basic_string
 {
 	using nc_T = std::remove_cvref_t<T>;
@@ -115,17 +115,17 @@ struct is_basic_string
 		is_basic_char_array_v<nc_CharT, nc_T>;
 };
 
-template <concepts::char_type CharT, typename T>
-constexpr bool is_basic_string_v = is_basic_string<CharT,T>::value;
+template <typename T, concepts::char_type CharT>
+constexpr bool is_basic_string_v = is_basic_string<T,CharT>::value;
 
 template <typename T>
-using is_char_string = is_basic_string<char,T>;
+using is_char_string = is_basic_string<T,char>;
 
 template <typename T>
 constexpr bool is_char_string_v = is_char_string<T>::value;
 
 template <typename T>
-using is_wchar_string = is_basic_string<wchar_t,T>;
+using is_wchar_string = is_basic_string<T,wchar_t>;
 
 template <typename T>
 constexpr bool is_wchar_string_v = is_wchar_string<T>::value;
@@ -241,8 +241,8 @@ concept float_type = std::floating_point<T>;
 template <typename T>
 concept enum_type = std::is_enum_v<T>;
 
-template <typename CharT, typename T>
-concept basic_string_type = is_basic_string_v<CharT,T>;
+template <typename T, typename CharT>
+concept basic_string_type = is_basic_string_v<T,CharT>;
 
 template <typename T>
 concept char_string_type = is_char_string_v<T>;

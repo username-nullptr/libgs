@@ -55,7 +55,7 @@ inline namespace literals
 
 inline std::string operator""_abs(const char *path, size_t len)
 {
-	return absolute_path(path);
+	return absolute_path({path, len});
 }
 
 } //inline namespace app_literals

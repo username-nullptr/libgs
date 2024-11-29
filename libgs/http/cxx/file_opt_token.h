@@ -372,11 +372,11 @@ template <typename T>
 (file_opt_token<T,file_optype::single> opt, file_ranges ranges);
 
 template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator|
+LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator|
 (file_opt_token<T,file_optype::multiple> &opt, const file_range &range);
 
 template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator|
+LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator|
 (file_opt_token<T,file_optype::multiple> &opt, file_ranges ranges);
 
 template <typename T>

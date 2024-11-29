@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_H
 
 #include <libgs/http/server.h>
-#include <libgs/http/client.h>
+// #include <libgs/http/client.h>
 
 #endif //LIBGS_HTTP_H
 

@@ -90,5 +90,14 @@
 #define C_VIRTUAL_FUNC             __attribute_weak__
 #define C_VIRTUAL_SYMBOL(_symbol)  __attribute_weakref__(_symbol)
 
+namespace libgs
+{
+
+[[nodiscard]] constexpr auto nodiscard_return_helper(auto &&value) {
+	return std::forward<decltype(value)>(value);
+}
+
+} //namespace libgs
+
 
 #endif //LIBGS_CORE_CXX_ATTRIBUTES_H

@@ -105,14 +105,17 @@ public:
 
 public:
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto read(const mutable_buffer &buf, Token &&token = {});
+	auto read(const mutable_buffer &buf, Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto read(Token &&token = {});
+	auto read(Token &&token = {});
 
 	template <concepts::dis_func_token Token = use_sync_type>
-	[[nodiscard]] auto save_file(
-		concepts::char_file_opt_token_arg<file_optype::single, io_permission::write> auto &&opt,
+	auto save_file (
+		concepts::char_file_opt_token_arg <
+			file_optype::single,
+			io_permission::write
+		> auto &&opt,
 		Token &&token = {}
 	);
 

@@ -268,19 +268,26 @@ private:
 	{
 		tk_handler_ptr handler {};
 		int32_t weight = std::numeric_limits<int32_t>::max();
+		size_t path_length = std::numeric_limits<size_t>::min();
 
 		for(auto &[rule, _handler] : m_request_handler_map)
 		{
+			auto _path_length = context.request().path().length();
 			auto _weight = context.request().path_match(rule);
-			if( _weight < 0 )
-				continue;
-			else if( _weight < weight )
+
+			if( _weight == 0 )
+			{
+				handler = _handler;
+				weight = _weight;
+				break;
+			}
+			else if( _weight > 0 and (_weight < weight or (_weight == weight and _path_length > path_length)) )
 			{
 				handler = _handler;
 				weight = _weight;
 			}
 		}
-		if( weight < 0 )
+		if( not handler )
 		{
 			context.response().set_status(status::not_found);
 			co_return ;
@@ -601,64 +608,73 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start
 
 template <core_concepts::char_type CharT, concepts::stream_requires Stream, core_concepts::execution Exec>
 template <http::method...method, typename Func, typename...AopPtrs>
-basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::on_request(string_view_t path_rule, Func &&func, AopPtrs&&...aops) requires
+basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
+(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
 	detail::concepts::request_handler<Func,socket_t,CharT> and
 	detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>
 {
-	if( path_rule.empty() )
-		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+	for(auto &path_rule : path_rules.paths)
+	{
+		if( path_rule.empty() )
+			throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
 
-	string_t rule(path_rule.data(), path_rule.size());
-	m_impl->rule_path_check(rule);
-	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+		string_t rule(path_rule.data(), path_rule.size());
+		m_impl->rule_path_check(rule);
+		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
-	if( not res )
-		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+		if( not res )
+			throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
-	auto aop = new typename impl::multi_ctrlr_aop(std::forward<Func>(func), std::forward<AopPtrs>(aops)...);
-	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(aop));
-	it->second->template bind_method<method...>();
+		auto aop = new typename impl::multi_ctrlr_aop(func, aops...);
+		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(aop));
+		it->second->template bind_method<method...>();
+	}
 	return *this;
 }
 
 template <core_concepts::char_type CharT, concepts::stream_requires Stream, core_concepts::execution Exec>
 template <http::method...method>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
-(string_view_t path_rule, ctrlr_aop_ptr_t ctrlr)
+(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr)
 {
-	if( path_rule.empty() )
-		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+	for(auto &path_rule : path_rules.paths)
+	{
+		if( path_rule.empty() )
+			throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
 
-	string_t rule(path_rule.data(), path_rule.size());
-	m_impl->rule_path_check(rule);
-	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+		string_t rule(path_rule.data(), path_rule.size());
+		m_impl->rule_path_check(rule);
+		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
-	if( not res )
-		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+		if( not res )
+			throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
-	it->second = std::make_shared<typename impl::tk_handler>(std::move(ctrlr));
-	it->second->template bind_method<method...>();
+		it->second = std::make_shared<typename impl::tk_handler>(std::move(ctrlr));
+		it->second->template bind_method<method...>();
+	}
 	return *this;
 }
 
 template <core_concepts::char_type CharT, concepts::stream_requires Stream, core_concepts::execution Exec>
 template <http::method...method>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
-(string_view_t path_rule, ctrlr_aop_t *ctrlr)
+(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr)
 {
-	if( path_rule.empty() )
-		throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
+	for(auto &path_rule : path_rules.paths)
+	{
+		if( path_rule.empty() )
+			throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
 
-	string_t rule(path_rule.data(), path_rule.size());
-	m_impl->rule_path_check(rule);
-	auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
+		string_t rule(path_rule.data(), path_rule.size());
+		m_impl->rule_path_check(rule);
+		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
-	if( not res )
-		throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
+		if( not res )
+			throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
 
-	it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(ctrlr));
-	it->second->template bind_method<method...>();
+		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(ctrlr));
+		it->second->template bind_method<method...>();
+	}
 	return *this;
 }
 

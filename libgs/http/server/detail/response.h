@@ -954,7 +954,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [this, body, token]() mutable -> awaitable<size_t>
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, body, token]() mutable -> awaitable<size_t>
 		{
 			using namespace std::chrono_literals;
 			error_code error;
@@ -969,6 +969,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 			co_return res;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
@@ -1007,7 +1008,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 		using namespace libgs::operators;
 		m_impl->m_helper.set_redirect(url, redi);
 
-		return asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<size_t>
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<size_t>
 		{
 			using namespace std::chrono_literals;
 			error_code error;
@@ -1022,6 +1023,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 			co_return res;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
@@ -1057,7 +1059,7 @@ auto basic_server_response<Stream,CharT>::send_file
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [
+		auto co_awaitable = asio::co_spawn(get_executor(), [
 			this, opt = std::forward<opt_t>(opt), token
 		]() mutable -> awaitable<size_t>
 		{
@@ -1074,6 +1076,7 @@ auto basic_server_response<Stream,CharT>::send_file
 			co_return res;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
@@ -1114,7 +1117,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [this, headers, token]() mutable -> awaitable<size_t>
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, headers, token]() mutable -> awaitable<size_t>
 		{
 			using namespace std::chrono_literals;
 			error_code error;
@@ -1129,6 +1132,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 			co_return res;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 

@@ -498,15 +498,25 @@ bool check_error(Token &token, const error_code &error, const char *func)
 {
 	if( not error )
 		return true;
+
 	if constexpr( is_use_awaitable_v<Token> or is_cancellation_slot_binder_v<Token> )
 		throw func ? system_error(error, func) : system_error(error);
+
 	else if constexpr( is_redirect_error_v<Token> or is_redirect_error_cancellation_slot_binder_v<Token> )
+	{
 		token.ec_ = error;
+		return false;
+	}
 	else if constexpr( is_cancellation_slot_binder_redirect_error_v<Token> )
+	{
 		token.get().ec_ = error;
+		return false;
+	}
 	else
+	{
 		static_assert(false, "Unsupported token type.");
-	return false;
+		return false;
+	}
 }
 
 #ifdef LIBGS_USING_BOOST_ASIO

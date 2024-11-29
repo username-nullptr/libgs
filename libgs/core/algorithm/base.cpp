@@ -152,7 +152,7 @@ template <concepts::char_type CharT>
 }
 
 template <concepts::char_type CharT>
-[[nodiscard]] static double stold(std::basic_string_view<CharT> str, std::optional<double> odv = {})
+[[nodiscard]] static long double stold(std::basic_string_view<CharT> str, std::optional<long double> odv = {})
 {
 	try {
 		return _sto_float(
@@ -189,7 +189,7 @@ template <concepts::char_type CharT>
 {
 	std::basic_string<CharT> result(str.size(), '\0');
 	for(size_t i=0; i<str.size(); i++)
-		result[i] = ::tolower(str[i]);
+		result[i] = static_cast<CharT>(::tolower(str[i]));
 	return result;
 }
 
@@ -198,7 +198,7 @@ template <concepts::char_type CharT>
 {
 	std::basic_string<CharT> result(str.size(), '\0');
 	for(size_t i=0; i<str.size(); i++)
-		result[i] = ::toupper(str[i]);
+		result[i] = static_cast<CharT>(::toupper(str[i]));
 	return result;
 }
 

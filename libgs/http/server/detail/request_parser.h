@@ -240,9 +240,11 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 	constexpr const CharT *root = detail::string_pool<CharT>::root;
 	using string_list_t = basic_string_list<CharT>;
 
-	auto rule_list = string_list_t::from_string(rule, root/*/*/);
-	auto path_list = string_list_t::from_string(m_impl->m_path, root/*/*/);
+	auto rule_list = rule == root ?
+		string_list_t{{rule.data(), rule.size()}} :
+		string_list_t::from_string(rule, root/*/*/);
 
+	auto path_list = string_list_t::from_string(m_impl->m_path, root/*/*/);
 	if( path_list.empty() )
 		path_list.emplace_back(root);
 	if( path_list.size() < rule_list.size() )

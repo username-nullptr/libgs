@@ -63,16 +63,16 @@ void modules::run_init()
 
 void modules::reg_init_p(func_obj_t func, level_t level)
 {
-	assert([&func]() -> bool
+	auto res = [&func]() -> bool
 	{
 		if( func.index() == 0 )
 			return std::get<0>(func) != nullptr;
 		else if( func.index() == 1 )
 			return std::get<1>(func) != nullptr;
-		else
-			return std::get<2>(func) != nullptr;
-		return false;
-	}());
+		return std::get<2>(func) != nullptr;
+	}();
+	if( not res )
+		throw std::runtime_error("libgs::modules::reg_init_p: Invalid function object.");
 	init_map()[level].emplace_back(std::move(func));
 }
 
