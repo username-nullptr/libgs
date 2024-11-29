@@ -393,15 +393,12 @@ private:
 	void call_on_exception(context_t &context, const std::exception &ex)
 	{
 		context.response().set_status(status::internal_server_error);
-		if( m_exception_handler )
-		{
-			if( m_exception_handler(context, ex) )
-				return ;
-		}
+		if( m_exception_handler and m_exception_handler(context, ex) )
+			return ;
 		throw ex;
 	}
 
-	std::string options_response_body(http::methods method)
+	[[nodiscard]] std::string options_response_body(http::methods method)
 	{
 		std::string sum;
 		for(int i=static_cast<int>(http::method::begin); i<=static_cast<int>(http::method::end); i<<=1)

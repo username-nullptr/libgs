@@ -553,7 +553,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [this, buf, token]() mutable -> awaitable<size_t>
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, buf, token]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto size = co_await m_impl->co_read(buf, use_awaitable|error);
@@ -561,6 +561,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 			co_return size;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
@@ -601,7 +602,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<std::string>
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<std::string>
 		{
 			error_code error;
 			std::string sum;
@@ -619,6 +620,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 			co_return sum;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
@@ -647,7 +649,7 @@ auto basic_server_request<Stream,CharT>::save_file
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [
+		auto co_awaitable = asio::co_spawn(get_executor(), [
 			this, opt = std::forward<opt_t>(opt), token
 		]() mutable -> awaitable<size_t>
 		{
@@ -657,6 +659,7 @@ auto basic_server_request<Stream,CharT>::save_file
 			co_return size;
 		},
 		token);
+		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
