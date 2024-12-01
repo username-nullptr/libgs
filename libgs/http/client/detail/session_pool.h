@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 class basic_session_pool<Stream,Exec>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -54,21 +54,21 @@ public:
 	executor_t m_exec;
 };
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool(const core_concepts::match_execution<executor_t> auto &exec) :
 	m_impl(new impl(exec))
 {
 
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_execution_context<executor_t> auto &context) :
 	m_impl(new impl(context.get_executor()))
 {
 
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool() requires
 	core_concepts::match_default_execution<executor_t> :
 	m_impl(new impl())
@@ -76,20 +76,20 @@ basic_session_pool<Stream,Exec>::basic_session_pool() requires
 
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::~basic_session_pool()
 {
 	delete m_impl;
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool(basic_session_pool &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basic_session_pool &&other) noexcept
 {
 	delete m_impl;
@@ -98,21 +98,21 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basi
 	return *this;
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(const endpoint_t &ep)
 {
 	return get(m_impl->m_exec, ep);
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, error_code &error) noexcept
 {
 	return get(m_impl->m_exec, ep, error);
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep)
 {
@@ -123,7 +123,7 @@ basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, 
 	return sess;
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep)
 {
@@ -134,7 +134,7 @@ basic_session_pool<Stream,Exec>::get(core_concepts::execution_context auto &exec
 	return sess;
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep, error_code &error) noexcept
 {
@@ -158,14 +158,14 @@ basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, 
 	return sess;
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::session_t
 basic_session_pool<Stream, Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep, error_code &error) noexcept
 {
 	return get(exec.get_executor(), ep, error);
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::async_get(endpoint_t ep, Token &&token)
 	requires asio::completion_token_for<Token,void(session_t,error_code)>
@@ -173,7 +173,7 @@ auto basic_session_pool<Stream,Exec>::async_get(endpoint_t ep, Token &&token)
 	return async_get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution auto &exec, endpoint_t ep, Token &&token)
 	requires asio::completion_token_for<Token,void(session_t,error_code)>
@@ -235,7 +235,7 @@ auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution a
 	}
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::async_get(core_concepts::execution_context auto &exec, endpoint_t ep, Token &&token)
 	requires asio::completion_token_for<Token,void(session_t,error_code)>
@@ -243,17 +243,23 @@ auto basic_session_pool<Stream,Exec>::async_get(core_concepts::execution_context
 	return async_get(exec.get_executor(), std::move(ep), std::forward<Token>(token));
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 void basic_session_pool<Stream,Exec>::emplace(socket_t &&socket)
 {
 	if( socket.is_open() )
 		m_impl->m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
 }
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 void basic_session_pool<Stream,Exec>::operator<<(socket_t &&socket)
 {
 	insert(std::move(socket));
+}
+
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+typename basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get_executor() noexcept
+{
+	return m_impl->m_exec;
 }
 
 } //namespace libgs::http

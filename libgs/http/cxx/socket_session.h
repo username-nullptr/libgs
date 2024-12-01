@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 class LIBGS_HTTP_TAPI basic_socket_session
 {
 	LIBGS_DISABLE_COPY(basic_socket_session)

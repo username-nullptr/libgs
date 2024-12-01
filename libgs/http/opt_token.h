@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_OPT_TOKEN_H
 #define LIBGS_HTTP_OPT_TOKEN_H
 
-#include <libgs/http/cxx/path_opt_token.h>
+#include <libgs/http/cxx/opt_token.h>
 #include <libgs/http/cxx/file_opt_token.h>
 #include <libgs/http/types.h>
 

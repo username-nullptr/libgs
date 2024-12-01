@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
 
+#include <libgs/core/string_list.h>
+
 namespace libgs::http
 {
 
@@ -62,7 +64,6 @@ class basic_client_request<Stream,CharT>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 	using string_list_t = basic_string_list<CharT>;
-	using session_pool_t = basic_session_pool<Stream>;
 
 	struct string_pool :
 		detail::_client_request_static_string<CharT>,
@@ -76,7 +77,7 @@ public:
 	url_t m_url;
 	session_pool_t m_session_pool;
 
-	http::method m_method = http::method::GET;
+	method_t m_method = method_t::GET;
 	headers_t m_headers {
 		{ header_t::content_type, string_pool::text_plain }
 	};
@@ -127,7 +128,7 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_url(
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_method(http::method method)
+basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_method(method_t method)
 {
 	method_check(method);
 	m_impl->m_method = method;
@@ -166,7 +167,7 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::set_chun
 }
 
 template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-http::method basic_client_request<Stream,CharT>::method() const noexcept
+method_t basic_client_request<Stream,CharT>::method() const noexcept
 {
 	return m_impl->m_method;
 }
@@ -234,6 +235,19 @@ basic_client_request<Stream,CharT> &basic_client_request<Stream,CharT>::reset()
 	return *this;
 }
 
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
+template <method_t Method, concepts::token Token>
+auto basic_client_request<Stream,CharT>::write(const const_buffer &buf, Token &&token)
+{
+	method_string<Method,CharT>();
+}
+
+template <concepts::stream_requires Stream, core_concepts::char_type CharT>
+template <method_t Method, concepts::token Token>
+auto basic_client_request<Stream,CharT>::write(Token &&token)
+{
+
+}
 
 
 

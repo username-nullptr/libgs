@@ -55,7 +55,7 @@ inline file_opt_token<void,file_optype::single>::~file_opt_token()
 		stream->close();
 }
 
-inline error_code file_opt_token<void,file_optype::single>::init(int flags) noexcept
+inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::openmode mode) noexcept
 {
 	if( file_name.empty() )
 		return std::make_error_code(std::errc::invalid_argument);
@@ -68,10 +68,10 @@ inline error_code file_opt_token<void,file_optype::single>::init(int flags) noex
 	file_name = std::move(abs_name);
 	namespace fs = std::filesystem;
 
-	if( (flags & std::ios_base::out) == 0 and not fs::exists(file_name) )
+	if( (mode & std::ios_base::out) == 0 and not fs::exists(file_name) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
-	stream->open(file_name.c_str(), flags);
+	stream->open(file_name.c_str(), mode);
 	if( not stream->is_open() )
 		return std::make_error_code(static_cast<std::errc>(errno));
 	return error;
@@ -100,7 +100,7 @@ file_opt_token<FS&&,file_optype::single>::~file_opt_token()
 }
 
 template <core_concepts::fstream_wkn FS>
-error_code file_opt_token<FS&&,file_optype::single>::init(int) noexcept
+error_code file_opt_token<FS&&,file_optype::single>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }
@@ -121,7 +121,7 @@ file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream, const
 }
 
 template <core_concepts::fstream_wkn FS>
-error_code file_opt_token<FS&,file_optype::single>::init(int) noexcept
+error_code file_opt_token<FS&,file_optype::single>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }
@@ -168,7 +168,7 @@ inline file_opt_token<void,file_optype::multiple>::~file_opt_token()
 		stream->close();
 }
 
-inline error_code file_opt_token<void,file_optype::multiple>::init(int flags) noexcept
+inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base::openmode mode) noexcept
 {
 	if( file_name.empty() )
 		return std::make_error_code(std::errc::invalid_argument);
@@ -181,10 +181,10 @@ inline error_code file_opt_token<void,file_optype::multiple>::init(int flags) no
 	file_name = std::move(abs_name);
 	namespace fs = std::filesystem;
 
-	if( (flags & std::ios_base::out) == 0 and not fs::exists(file_name) )
+	if( (mode & std::ios_base::out) == 0 and not fs::exists(file_name) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
-	stream->open(file_name.c_str(), flags);
+	stream->open(file_name.c_str(), mode);
 	if( not stream->is_open() )
 		return std::make_error_code(static_cast<std::errc>(errno));
 	return error;
@@ -236,7 +236,7 @@ file_opt_token<FS&&,file_optype::multiple>::~file_opt_token()
 }
 
 template <core_concepts::fstream_wkn FS>
-error_code file_opt_token<FS&&,file_optype::multiple>::init(int) noexcept
+error_code file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }
@@ -280,7 +280,7 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(file_opt_token<type,fi
 }
 
 template <core_concepts::fstream_wkn FS>
-error_code file_opt_token<FS&,file_optype::multiple>::init(int) noexcept
+error_code file_opt_token<FS&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }

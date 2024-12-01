@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_PATH_OPT_TOKEN_H
-#define LIBGS_HTTP_CXX_PATH_OPT_TOKEN_H
+#ifndef LIBGS_HTTP_CXX_OPT_TOKEN_H
+#define LIBGS_HTTP_CXX_OPT_TOKEN_H
 
 #include <libgs/http/global.h>
 
@@ -54,8 +54,11 @@ struct LIBGS_HTTP_TAPI basic_path_opt_token
 	basic_path_opt_token(Str&&...paths);
 };
 
-} //namespace libgs::http
-#include <libgs/http/cxx/detail/path_opt_token.h>
+using path_opt_token  = basic_path_opt_token<char>;
+using wpath_opt_token = basic_path_opt_token<wchar_t>;
+
+} //namespace libgs::http::operators
+#include <libgs/http/cxx/detail/opt_token.h>
 
 
-#endif //LIBGS_HTTP_CXX_PATH_OPT_TOKEN_H
+#endif //LIBGS_HTTP_CXX_OPT_TOKEN_H

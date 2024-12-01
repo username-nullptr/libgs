@@ -32,60 +32,68 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream>
-class basic_client<CharT,Stream>::impl
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+class basic_client<CharT,Stream,Exec>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using session_pool_t = basic_session_pool<Stream>;
+	using session_pool_t = basic_session_pool<Stream,Exec>;
 
 public:
-	template <core_concepts::schedulable Exec>
-	impl(Exec &exec)
-	{
-		if constexpr( is_execution_context_v<Exec> )
-			m_executor = exec.get_executor();
-		else
-			m_executor = exec;
-	}
+	template <core_concepts::match_execution<executor_t> Exec0>
+	explicit impl(const Exec0 &exec) : m_session_pool(exec) {}
+	impl() = default;
 
 public:
 	session_pool_t m_session_pool;
-	executor_t m_executor;
 };
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream>
-template <core_concepts::schedulable Exec>
-basic_client<CharT,Stream>::basic_client(Exec &exec) :
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+basic_client<CharT,Stream,Exec>::basic_client(const core_concepts::match_execution<executor_t> auto &exec) :
 	m_impl(new impl(exec))
 {
 
 }
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream>
-basic_client<CharT,Stream>::~basic_client()
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+basic_client<CharT,Stream,Exec>::basic_client(core_concepts::match_execution_context<executor_t> auto &context) :
+	m_impl(new impl(context.get_executor()))
+{
+
+}
+
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+basic_client<CharT,Stream,Exec>::basic_client() requires
+	core_concepts::match_default_execution<executor_t> :
+	m_impl(new impl())
+{
+
+}
+
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+basic_client<CharT,Stream,Exec>::~basic_client()
 {
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream>
-typename basic_client<CharT,Stream>::request_t 
-basic_client<CharT,Stream>::request(url_t url, error_code &error) noexcept
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+typename basic_client<CharT,Stream,Exec>::request_t
+basic_client<CharT,Stream,Exec>::request(url_t url, error_code &error) noexcept
 {
 	// TODO ...
 }
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream>
-typename basic_client<CharT,Stream>::request_t
-basic_client<CharT,Stream>::request(url_t url)
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+typename basic_client<CharT,Stream,Exec>::request_t
+basic_client<CharT,Stream,Exec>::request(url_t url)
 {
 	// TODO ...
 }
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream>
-const typename  basic_client<CharT,Stream>::executor_t&
-basic_client<CharT,Stream>::get_executor() noexcept
+template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+typename basic_client<CharT,Stream,Exec>::executor_t
+basic_client<CharT,Stream,Exec>::get_executor() noexcept
 {
-	return m_impl->m_executor;
+	return m_impl->m_session_pool.get_executor();
 }
 
 } //namespace libgs::http

@@ -130,6 +130,7 @@ enum class method
 	begin = GET,
 	end   = CONNECT
 };
+using method_t = method;
 LIBGS_DECLARE_FLAGS(methods, method);
 LIBGS_HTTP_VAPI bool method_check(method m, bool _throw = true);
 

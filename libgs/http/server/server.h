@@ -36,7 +36,7 @@ namespace libgs::http
 {
 
 template <core_concepts::char_type CharT,
-		  concepts::stream_requires Stream = asio::ip::tcp::socket,
+		  concepts::any_exec_stream Stream = asio::ip::tcp::socket,
 		  core_concepts::execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server
 {
@@ -98,14 +98,14 @@ public:
 	basic_server &start(error_code &error) noexcept;
 
 public:
-	template <http::method...method, typename Func, typename...AopPtrs>
+	template <method...Method, typename Func, typename...AopPtrs>
 	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
 		detail::concepts::request_handler<Func,socket_t,CharT> and detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>;
 
-	template <http::method...method>
+	template <method...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
 
-	template <http::method...method>
+	template <method...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>

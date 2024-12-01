@@ -35,7 +35,8 @@
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream, core_concepts::execution Exec = asio::any_io_executor>
+template <concepts::any_exec_stream Stream = asio::ip::tcp::socket,
+		  core_concepts::execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_session_pool
 {
 	LIBGS_DISABLE_COPY(basic_session_pool)
@@ -88,6 +89,8 @@ public:
 public:
 	void emplace(socket_t &&socket);
 	void operator<<(socket_t &&socket);
+
+	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
 	class impl;

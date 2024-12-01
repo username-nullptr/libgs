@@ -62,17 +62,17 @@ template <core_concepts::fstream>
 struct get_io_permissions;
 
 template <core_concepts::char_type CharT>
-struct LIBGS_HTTP_TAPI get_io_permissions<std::basic_fstream<CharT>> {
+struct get_io_permissions<std::basic_fstream<CharT>> {
 	static constexpr auto value = io_permission::read_write;
 };
 
 template <core_concepts::char_type CharT>
-struct LIBGS_HTTP_TAPI get_io_permissions<std::basic_ofstream<CharT>> {
+struct get_io_permissions<std::basic_ofstream<CharT>> {
 	static constexpr auto value = io_permission::write;
 };
 
 template <core_concepts::char_type CharT>
-struct LIBGS_HTTP_TAPI get_io_permissions<std::basic_ifstream<CharT>> {
+struct get_io_permissions<std::basic_ifstream<CharT>> {
 	static constexpr auto value = io_permission::read;
 };
 
@@ -112,7 +112,7 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::single> : file_opt_token
 	file_opt_token(std::string_view file_name, const file_range &range);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(int flags) noexcept;
+	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -132,7 +132,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token
 	file_opt_token(fstream_t &&stream, const file_range &range);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(int flags) noexcept;
+	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -150,7 +150,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::single> : file_opt_token_
 
 	file_opt_token(fstream_t &stream);
 	file_opt_token(fstream_t &stream, const file_range &range);
-	[[nodiscard]] error_code init(int flags) noexcept;
+	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -176,7 +176,7 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::multiple> : file_opt_tok
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(int flags) noexcept;
+	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -202,7 +202,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_tok
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(int flags) noexcept;
+	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -226,7 +226,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 	file_opt_token(fstream_t &stream, Args&&...ranges);
 
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
-	[[nodiscard]] error_code init(int flags) noexcept;
+	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -245,17 +245,17 @@ template <typename...Args>
 ) noexcept;
 
 template <core_concepts::char_type, typename>
-struct LIBGS_HTTP_TAPI is_basic_file_opt_token : std::false_type {};
+struct is_basic_file_opt_token : std::false_type {};
 
 template <core_concepts::char_type CharT, typename T>
-struct LIBGS_HTTP_TAPI is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::single>>
+struct is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::single>>
 {
 	static constexpr bool value =
 		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::char_type>;
 };
 
 template <core_concepts::char_type CharT, typename T>
-struct LIBGS_HTTP_TAPI is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::multiple>>
+struct is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::multiple>>
 {
 	static constexpr bool value =
 		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::char_type>;
@@ -277,7 +277,7 @@ template <typename T>
 constexpr bool is_wchar_file_opt_token_v = is_wchar_file_opt_token<T>::value;
 
 template <typename T>
-struct LIBGS_HTTP_TAPI is_file_opt_token : std::disjunction<is_char_file_opt_token<T>, is_wchar_file_opt_token<T>> {};
+struct is_file_opt_token : std::disjunction<is_char_file_opt_token<T>, is_wchar_file_opt_token<T>> {};
 
 template <typename T>
 constexpr bool is_file_opt_token_v = is_file_opt_token<T>::value;

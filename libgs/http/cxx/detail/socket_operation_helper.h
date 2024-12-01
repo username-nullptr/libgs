@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 class socket_operation_helper_base<Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -44,34 +44,34 @@ public:
 	socket_t &m_socket;
 };
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 socket_operation_helper_base<Stream>::socket_operation_helper_base(socket_t &socket) :
 	m_impl(new impl(socket))
 {
 
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 socket_operation_helper_base<Stream>::~socket_operation_helper_base()
 {
 	delete m_impl;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 typename socket_operation_helper_base<Stream>::executor_t
 socket_operation_helper_base<Stream>::get_executor() noexcept
 {
 	return m_impl->m_socket.get_executor();
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 const typename socket_operation_helper_base<Stream>::socket_t&
 socket_operation_helper_base<Stream>::socket() const noexcept
 {
 	return m_impl->m_socket;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 typename socket_operation_helper_base<Stream>::socket_t&
 socket_operation_helper_base<Stream>::socket() noexcept
 {

@@ -37,7 +37,7 @@ namespace libgs::http
 {
 
 
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::char_type CharT>
 class LIBGS_HTTP_VAPI basic_server_response
 {
 	LIBGS_DISABLE_COPY(basic_server_response)

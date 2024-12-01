@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 class basic_socket_session<Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -59,7 +59,7 @@ public:
 	opt_helper_t m_opt_helper {m_socket};
 };
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 template <typename Func>
 basic_socket_session<Stream>::basic_socket_session(socket_t &&socket, Func &&destructor)
 	requires core_concepts::callable<Func,socket_t&&> :
@@ -68,34 +68,34 @@ basic_socket_session<Stream>::basic_socket_session(socket_t &&socket, Func &&des
 
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 basic_socket_session<Stream>::basic_socket_session(socket_t &&socket) :
 	m_impl(new impl(std::move(socket)))
 {
 
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 basic_socket_session<Stream>::basic_socket_session() :
 	m_impl(new impl())
 {
 
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 basic_socket_session<Stream>::~basic_socket_session()
 {
 	delete m_impl;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 basic_socket_session<Stream>::basic_socket_session(basic_socket_session &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(basic_socket_session &&other) noexcept
 {
 	delete m_impl;
@@ -104,42 +104,42 @@ basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(basic_sock
 	return *this;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(socket_t &&socket) noexcept
 {
 	m_impl->m_socket = std::move(socket);
 	return *this;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 const typename basic_socket_session<Stream>::socket_t&
 basic_socket_session<Stream>::socket() const noexcept
 {
 	return m_impl->m_socket;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 typename basic_socket_session<Stream>::socket_t&
 basic_socket_session<Stream>::socket() noexcept
 {
 	return m_impl->m_socket;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 const typename basic_socket_session<Stream>::opt_helper_t&
 basic_socket_session<Stream>::opt_helper() const noexcept
 {
 	return m_impl->m_opt_helper;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 typename basic_socket_session<Stream>::opt_helper_t&
 basic_socket_session<Stream>::opt_helper() noexcept
 {
 	return m_impl->m_opt_helper;
 }
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 typename basic_socket_session<Stream>::executor_t
 basic_socket_session<Stream>::get_executor() noexcept
 {

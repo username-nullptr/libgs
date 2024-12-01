@@ -35,10 +35,10 @@
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 class socket_operation_helper;
 
-template <concepts::stream_requires Stream>
+template <concepts::stream Stream>
 class LIBGS_HTTP_TAPI socket_operation_helper_base
 {
 	LIBGS_DISABLE_COPY_MOVE(socket_operation_helper_base)

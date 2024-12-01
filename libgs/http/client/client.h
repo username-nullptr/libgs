@@ -34,41 +34,48 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, concepts::stream_requires Stream = asio::ip::tcp::socket>
+template <core_concepts::char_type CharT,
+          concepts::any_exec_stream Stream = asio::ip::tcp::socket,
+		  core_concepts::execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
 
 public:
 	using socket_t = Stream;
-	using executor_t = typename Stream::executor_type;
+	using executor_t = Exec;
 
 	using request_t = basic_client_request<socket_t,CharT>;
-	using response_t = typename request_t::response_t;
+	using reply_t = typename request_t::reply_t;
 	using url_t = typename request_t::url_t;
 
 public:
-	template <core_concepts::schedulable Exec = asio::io_context>
-	explicit basic_client(Exec &exec = execution::io_context());
+	explicit basic_client(const core_concepts::match_execution<executor_t> auto &exec);
+	explicit basic_client(core_concepts::match_execution_context<executor_t> auto &context);
+
+	basic_client() requires core_concepts::match_default_execution<executor_t>;
 	~basic_client();
+
+	basic_client(basic_client &&other) noexcept;
+	basic_client &operator=(basic_client &&other) noexcept;
 
 public:
 	request_t request(url_t url, error_code &error) noexcept;
 	request_t request(url_t url);
 
 public:
-	[[nodiscard]] const executor_t &get_executor() noexcept;
+	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec = asio::any_io_executor>
-using basic_tcp_client = basic_client<char, asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+template <core_concepts::execution Exec, core_concepts::execution StreamExec = asio::any_io_executor>
+using basic_tcp_client = basic_client<char, asio::basic_stream_socket<asio::ip::tcp,StreamExec>, Exec>;
 
-template <core_concepts::execution Exec = asio::any_io_executor>
-using wbasic_tcp_client = basic_client<wchar_t, asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+template <core_concepts::execution Exec, core_concepts::execution StreamExec = asio::any_io_executor>
+using wbasic_tcp_client = basic_client<wchar_t, asio::basic_stream_socket<asio::ip::tcp,StreamExec>, Exec>;
 
 using tcp_client = basic_tcp_client<asio::any_io_executor>;
 using wtcp_client = wbasic_tcp_client<asio::any_io_executor>;
@@ -78,6 +85,10 @@ using wclient = wtcp_client;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/client.h>
+
+#ifdef LIBGS_ENABLE_OPENSSL
+// TODO ... ...
+#endif //LIBGS_ENABLE_OPENSSL
 
 
 #endif //LIBGS_HTTP_CLIENT_CLIENT_H

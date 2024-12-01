@@ -38,25 +38,38 @@
 namespace libgs::http
 {
 
-template <typename Stream>
-struct stream_requires : std::false_type {};
+template <typename>
+struct is_stream : std::false_type {};
 
 template <concepts::execution Exec>
-struct stream_requires<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
+struct is_stream<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
 
 #ifdef LIBGS_ENABLE_OPENSSL
 template <concepts::execution Exec>
-struct stream_requires<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
+struct is_stream<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
 #endif //LIBGS_ENABLE_OPENSSL
 
 template <typename Stream>
-constexpr bool stream_requires_v = stream_requires<Stream>::value;
+constexpr bool is_stream_v = is_stream<Stream>::value;
+
+template <typename Stream>
+struct is_any_exec_stream
+{
+	static constexpr bool value = is_stream_v<Stream> and
+		std::is_same_v<typename Stream::executor_type, asio::any_io_executor>;
+};
+
+template <typename Stream>
+constexpr bool is_any_exec_stream_v = is_any_exec_stream<Stream>::value;
 
 namespace concepts
 {
 
 template <typename Stream>
-concept stream_requires = stream_requires_v<Stream>;
+concept stream = is_stream_v<Stream>;
+
+template <typename Stream>
+concept any_exec_stream = is_any_exec_stream_v<Stream>;
 
 template <typename Token, typename...Signatures>
 concept ioop_token =

@@ -46,6 +46,7 @@ public:
 	using next_layer_t = Stream;
 	using executor_t = typename next_layer_t::executor_type;
 	using endpoint_t = typename next_layer_t::endpoint_type;
+	using session_pool_t = basic_session_pool<next_layer_t>;
 
 	using url_t = basic_url<CharT>;
 	using reply_t = basic_client_reply<next_layer_t,CharT>;
@@ -63,7 +64,7 @@ public:
 	using cookies_t = basic_cookie_values<CharT>;
 
 public:
-	basic_client_request(url_t url);
+	basic_client_request(session_pool_t , url_t url);
 	basic_client_request();
 	~basic_client_request();
 
@@ -72,7 +73,7 @@ public:
 
 public:
 	basic_client_request &set_url(url_t url);
-	basic_client_request &set_method(http::method method);
+	basic_client_request &set_method(method_t method);
 	basic_client_request &set_header(string_view_t key, value_t value) noexcept;
 	basic_client_request &set_cookie(string_view_t key, value_t value) noexcept;
 
@@ -80,7 +81,7 @@ public:
 	basic_client_request &set_chunk_attributes(value_list_t attributes);
 
 public:
-	[[nodiscard]] http::method method() const noexcept;
+	[[nodiscard]] method_t method() const noexcept;
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
@@ -96,96 +97,52 @@ public:
 	basic_client_request &reset();
 
 public:
-	size_t write(error_code &error, const const_buffer &buf = asio::buffer("")) noexcept;
-	size_t write(const const_buffer &buf = asio::buffer("")) noexcept;
+	template <concepts::token Token = use_sync_type>
+	auto get(Token &&token = {});
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_write(const const_buffer &buf, Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto put(const const_buffer &buf, Token &&token = {});
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_write(Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto put(Token &&token = {});
 
-public:
-	template <http::method Method>
-	size_t write(error_code &error, const const_buffer &buf = asio::buffer("")) noexcept;
+	template <concepts::token Token = use_sync_type>
+	auto post(const const_buffer &buf, Token &&token = {});
 
-	template <http::method Method>
-	size_t write(const const_buffer &buf = asio::buffer("")) noexcept;
+	template <concepts::token Token = use_sync_type>
+	auto post(Token &&token = {});
 
-	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_write(const const_buffer &buf, Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto Delete(Token &&token = {});
 
-	template <http::method Method, asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_write(Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto head(Token &&token = {});
 
-public:
-	size_t get(error_code &error);
-	size_t get();
+	template <concepts::token Token = use_sync_type>
+	auto options(Token &&token = {});
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_get(Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto trach(Token &&token = {});
 
 public:
-	size_t put(error_code &error, const const_buffer &buf = asio::buffer(""));
-	size_t put(const const_buffer &buf = asio::buffer(""));
+	template <method_t Method, concepts::token Token = use_sync_type>
+	auto write(const const_buffer &buf, Token &&token = {});
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_put(const const_buffer &buf, Token &&token);
+	template <method_t Method, concepts::token Token = use_sync_type>
+	auto write(Token &&token = {});
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_put(Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto write(const const_buffer &buf, Token &&token = {});
 
-public:
-	size_t post(error_code &error, const const_buffer &buf = asio::buffer(""));
-	size_t post(const const_buffer &buf = asio::buffer(""));
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_post(const const_buffer &buf, Token &&token);
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_post(Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto write(Token &&token = {});
 
 public:
-	size_t Delete(error_code &error);
-	size_t Delete();
+	template <concepts::token Token = use_sync_type>
+	auto connect(Token &&token = {});
 
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_delete(Token &&token);
-
-public:
-	size_t head(error_code &error);
-	size_t head();
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_head(Token &&token);
-
-public:
-	size_t options(error_code &error);
-	size_t options();
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_options(Token &&token);
-
-public:
-	size_t trach(error_code &error);
-	size_t trach();
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_trach(Token &&token);
-
-public:
-	size_t connect(error_code &error);
-	size_t connect();
-
-	template <asio::completion_token_for<void(size_t,error_code)> Token>
-	[[nodiscard]] auto async_connect(Token &&token);
-
-public:
-	[[nodiscard]] reply_t wait_reply(error_code &error);
-	[[nodiscard]] reply_t wait_reply();
-
-	template <asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_wait_reply(reply_t &reply, Token &&token);
+	template <concepts::token Token = use_sync_type>
+	auto wait_reply(Token &&token = {});
 
 public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;
