@@ -12,8 +12,9 @@ int main()
 #if 1
 	libgs::co_spawn_detached([&]() -> asio::awaitable<void>
 	{
-		auto session = co_await spool.async_get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080}, libgs::use_awaitable);
-
+		auto session = co_await spool.get(/*pool,*/
+			{asio::ip::address::from_string("127.0.0.1"),8080}, libgs::use_awaitable
+		);
 		auto wbuf ="GET / HTTP/1.1\r\n"
 		           "Host: 127.0.0.1:8080\r\n"
 		           "\r\n";
@@ -31,14 +32,14 @@ int main()
 		co_return ;
 	});
 #else
-	spool.async_get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080},
+	spool.get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080},
 	[&pool](libgs::http::session_pool::session_t session, const std::error_code &error)
 	{
 	    static auto wbuf ="GET / HTTP/1.1\r\n"
 	                      "Host: 127.0.0.1:8080\r\n"
 	                      "\r\n";
 	    asio::async_write(session.socket(), asio::buffer(wbuf, strlen(wbuf)),
-	                      [&pool, session = std::move(session)](const std::error_code &error, size_t wres) mutable
+	    [&pool, session = std::move(session)](const std::error_code &error, size_t wres) mutable
 	    {
 	        spdlog::info("Sent {} bytes", wres);
 	        static char rbuf[8192] {0};

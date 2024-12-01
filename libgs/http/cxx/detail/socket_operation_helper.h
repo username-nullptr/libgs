@@ -79,25 +79,35 @@ socket_operation_helper_base<Stream>::socket() noexcept
 }
 
 template <core_concepts::execution Exec>
-template <asio::completion_token_for<void(error_code)> Token>
+template <concepts::token<error_code> Token>
 auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
-async_connect(endpoint_t ep, Token &&token)
+connect(endpoint_t ep, Token &&token)
 {
-	if constexpr( is_function_v<Token> )
+	if constexpr( std::is_same_v<Token, error_code&> )
+		this->socket().connect(std::move(ep), token);
+	else if constexpr( is_sync_token_v<Token> )
+	{
+		error_code error;
+		auto res = get(ep, error);
+		if( error )
+			throw system_error(error, "libgs::http::socket_operation_helper::connect");
+		return res;
+	}
+	else if constexpr( is_function_v<Token> )
 		this->socket().async_connect(std::move(ep), std::forward<Token>(token));
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<Token> )
 	{
 		error_code error;
 		this->socket().async_connect(ep, token[error]);
-		check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
+		check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(this->socket().get_executor(), [
-			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
+		return asio::co_spawn(this->get_executor(), [
+			&socket = this->socket(), ep = std::move(ep), token
 		]() mutable -> awaitable<void>
 		{
 			error_code error;
@@ -105,25 +115,8 @@ async_connect(endpoint_t ep, Token &&token)
 			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
 			co_return ;
 		},
-		std::forward<Token>(token));
+		token);
 	}
-}
-
-template <core_concepts::execution Exec>
-void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
-connect(endpoint_t ep, error_code &error) noexcept
-{
-	this->socket().connect(std::move(ep), error);
-}
-
-template <core_concepts::execution Exec>
-void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
-connect(endpoint_t ep)
-{
-	error_code error;
-	this->socket().connect(std::move(ep), error);
-	if( error )
-		throw system_error(error, "libgs::http::socket_operation_helper::connect");
 }
 
 template <core_concepts::execution Exec>
@@ -179,19 +172,32 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_
 #ifdef LIBGS_ENABLE_OPENSSL
 
 template <core_concepts::execution Exec>
-template <asio::completion_token_for<void(error_code)> Token>
-auto socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
-async_connect(endpoint_t ep, Token &&token)
+template <concepts::token<error_code> Token>
+void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+connect(endpoint_t ep, Token &&token)
 {
-	if constexpr( is_function_v<Token> )
+	if constexpr( std::is_same_v<Token, error_code&> )
 	{
-		auto _ep = ep;
+		this->socket().next_layer().connect(ep, token);
+		if( not token )
+			this->socket().handshake(asio::ssl::stream_base::client, token);
+	}
+	else if constexpr( is_sync_token_v<Token> )
+	{
+		error_code error;
+		auto res = get(ep, error);
+		if( error )
+			throw system_error(error, "libgs::http::socket_operation_helper::connect");
+		return res;
+	}
+	else if constexpr( is_function_v<Token> )
+	{
 		this->socket().next_layer().async_connect(std::move(ep), [
-			&socket = this->socket(), ep = std::move(_ep), token = std::forward<Token>(token)
-		](error_code error)
+			&socket = this->socket(), ep = std::move(ep), token = forward<Token>(token)
+		](const error_code &error)
 		{
 			if( not error )
-				socket.async_handshake(std::move(ep), std::forward<Token>(token));
+				socket.async_handshake(std::move(ep), std::move(token));
 		});
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
@@ -199,53 +205,31 @@ async_connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		this->socket().next_layer().async_connect(ep, token[error]);
-		if( check_error(token, error, "libgs::http::socket_operation_helper::async_connect") )
+		if( check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 		{
 			this->socket().async_handshake(std::move(ep), token[error]);
-			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
+			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
 		}
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
 		using namespace libgs::operators;
-		return asio::co_spawn(get_executor(), [
-			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
+		return asio::co_spawn(this->get_executor(), [
+			&socket = this->socket(), ep = std::move(ep), token
 		]() mutable -> awaitable<void>
 		{
 			error_code error;
 			co_await socket.next_layer().async_connect(ep, use_awaitable|error);
-			if( not check_error(token, error, "libgs::http::socket_operation_helper::async_connect") )
+			if( not check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 			{
 				co_await socket.async_handshake(std::move(ep), use_awaitable|error);
-				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
+				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
 			}
 			co_return ;
 		},
-		std::forward<Token>(token));
+		token);
 	}
-}
-
-template <core_concepts::execution Exec>
-void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
-connect(endpoint_t ep, error_code &error) noexcept
-{
-	this->socket().next_layer().connect(ep, error);
-	if( not error )
-		this->socket().handshake(asio::ssl::stream_base::client, error);
-}
-
-template <core_concepts::execution Exec>
-void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
-connect(endpoint_t ep)
-{
-	error_code error;
-	this->socket().next_layer().connect(ep, error);
-	if( error )
-		throw std::system_error(error, "libgs::http::socket_operation_helper::connect");
-	this->socket().handshake(asio::ssl::stream_base::client, error);
-	if( error )
-		throw std::system_error(error, "libgs::http::socket_operation_helper::connect");
 }
 
 template <core_concepts::execution Exec>

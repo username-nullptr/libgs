@@ -29,8 +29,7 @@
 #ifndef LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
 #define LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
 
-#include <libgs/http/cxx/attributes.h>
-#include <libgs/http/cxx/concepts.h>
+#include <libgs/http/cxx/opt_token.h>
 
 namespace libgs::http
 {
@@ -79,11 +78,8 @@ public:
 	using endpoint_t = typename base_t::endpoint_t;
 
 public:
-	template <asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_connect(endpoint_t ep, Token &&token);
-
-	void connect(endpoint_t ep, error_code &error) noexcept;
-	void connect(endpoint_t ep);
+	template <concepts::token<error_code> Token = use_sync_type>
+	[[nodiscard]] auto connect(endpoint_t ep, Token &&token = {});
 
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
@@ -114,11 +110,8 @@ public:
 	using endpoint_t = typename base_t::endpoint_t;
 
 public:
-	template <asio::completion_token_for<void(error_code)> Token>
-	[[nodiscard]] auto async_connect(endpoint_t endpoint, Token &&token);
-
-	void connect(endpoint_t endpoint, error_code &error) noexcept;
-	void connect(endpoint_t endpoint);
+	template <concepts::token<error_code> Token = use_sync_type>
+	void connect(endpoint_t endpoint, Token &&token = {});
 
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);

@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_REPLY_H
-#define LIBGS_HTTP_CLIENT_REPLY_H
+#ifndef LIBGS_HTTP_CLIENT_REPLY_CONTEXT_H
+#define LIBGS_HTTP_CLIENT_REPLY_CONTEXT_H
 
 #include <libgs/http/client/reply_parser.h>
 #include <libgs/http/opt_token.h>
@@ -151,4 +151,4 @@ using wclient_reply = wtcp_client_reply;
 #include <libgs/http/client/detail/reply.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_REPLY_H
+#endif //LIBGS_HTTP_CLIENT_REPLY_CONTEXT_H

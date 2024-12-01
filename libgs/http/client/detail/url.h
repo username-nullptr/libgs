@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_URL_H
 #define LIBGS_HTTP_CLIENT_DETAIL_URL_H
 
+#include <libgs/core/string_list.h>
+
 namespace libgs::http
 {
 

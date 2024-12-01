@@ -29,7 +29,8 @@
 #ifndef LIBGS_HTTP_CXX_FILE_OPT_TOKEN_H
 #define LIBGS_HTTP_CXX_FILE_OPT_TOKEN_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/cxx/attributes.h>
+#include <libgs/http/cxx/concepts.h>
 #include <fstream>
 
 namespace libgs::http

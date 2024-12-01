@@ -45,6 +45,7 @@ public:
 	using socket_t = Stream;
 	using executor_t = Exec;
 
+	using session_pool_t = basic_session_pool<socket_t,executor_t>;
 	using request_t = basic_client_request<socket_t,CharT>;
 	using reply_t = typename request_t::reply_t;
 	using url_t = typename request_t::url_t;
@@ -60,10 +61,43 @@ public:
 	basic_client &operator=(basic_client &&other) noexcept;
 
 public:
-	request_t request(url_t url, error_code &error) noexcept;
-	request_t request(url_t url);
+	template <concepts::token Token = use_sync_type>
+	auto get(Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto put(const const_buffer &buf, Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto put(Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto post(const const_buffer &buf, Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto post(Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto Delete(Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto head(Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto options(Token &&token = {});
+
+	template <concepts::token Token = use_sync_type>
+	auto trach(Token &&token = {});
 
 public:
+	template <method_t Method, concepts::token Token = use_sync_type>
+	auto request(const const_buffer &buf, Token &&token = {});
+
+	template <method_t Method, concepts::token Token = use_sync_type>
+	auto request(Token &&token = {});
+
+public:
+	[[nodiscard]] const session_pool_t &session_pool() const noexcept;
+	[[nodiscard]] session_pool_t &session_pool() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:

@@ -49,6 +49,32 @@ public:
 	}
 
 public:
+	[[nodiscard]] session_t get(const endpoint_t &ep, auto &&exec)
+	{
+		socket_t socket(exec);
+		auto it = m_sock_map.find(ep);
+
+		if( it == m_sock_map.end() )
+			socket = socket_t(exec);
+		else
+		{
+			socket = std::move(it->second);
+			m_sock_map.erase(it);
+		}
+		return session_t(std::move(socket), [this, valid = m_valid](socket_t &&sock)
+		{
+			if( *valid )
+				emplace(std::move(sock));
+		});
+	}
+
+	void emplace(socket_t &&socket)
+	{
+		if( socket.is_open() )
+			m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+	}
+
+public:
 	std::shared_ptr<bool> m_valid {new bool(true)};
 	std::map<endpoint_t,socket_t> m_sock_map;
 	executor_t m_exec;
@@ -99,102 +125,37 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basi
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-typename basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(const endpoint_t &ep)
+template <typename Token>
+auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
+	requires concepts::token<Token,session_t,error_code>
 {
-	return get(m_impl->m_exec, ep);
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-typename basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, error_code &error) noexcept
-{
-	return get(m_impl->m_exec, ep, error);
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-typename basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep)
-{
-	error_code error;
-	auto sess = get(exec, ep, error);
-	if( error )
-          throw system_error(error, "libgs::http::basic_session_pool::get");
-	return sess;
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-typename basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep)
-{
-	error_code error;
-	auto sess = get(exec, ep, error);
-	if( error )
-          throw system_error(error, "libgs::http::basic_session_pool::get");
-	return sess;
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-typename basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream,Exec>::get(const core_concepts::execution auto &exec, const endpoint_t &ep, error_code &error) noexcept
-{
-	socket_t socket(exec);
-	auto it = m_impl->m_sock_map.find(ep);
-
-	if( it == m_impl->m_sock_map.end() )
-		socket = socket_t(exec);
-	else
-	{
-		socket = std::move(it->second);
-		m_impl->m_sock_map.erase(it);
-	}
-	session_t sess(std::move(socket), [this, valid = m_impl->m_valid](socket_t &&sock)
-	{
-		if( *valid )
-			emplace(std::move(sock));
-	});
-	if( auto &helper = sess.opt_helper(); not helper.is_open() )
-		helper.connect(ep, error);
-	return sess;
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-typename basic_session_pool<Stream,Exec>::session_t
-basic_session_pool<Stream, Exec>::get(core_concepts::execution_context auto &exec, const endpoint_t &ep, error_code &error) noexcept
-{
-	return get(exec.get_executor(), ep, error);
+	return get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
-auto basic_session_pool<Stream,Exec>::async_get(endpoint_t ep, Token &&token)
-	requires asio::completion_token_for<Token,void(session_t,error_code)>
+auto basic_session_pool<Stream,Exec>::get
+(const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token)
+	requires concepts::token<Token,session_t,error_code>
 {
-	return async_get(m_impl->m_exec, ep, std::forward<Token>(token));
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-template <typename Token>
-auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution auto &exec, endpoint_t ep, Token &&token)
-	requires asio::completion_token_for<Token,void(session_t,error_code)>
-{
-	socket_t socket(exec);
-	auto it = m_impl->m_sock_map.find(ep);
-
-	if( it == m_impl->m_sock_map.end() )
-		socket = socket_t(exec);
-	else
+	if constexpr( std::is_same_v<Token, error_code&> )
 	{
-		socket = std::move(it->second);
-		m_impl->m_sock_map.erase(it);
+		auto sess = m_impl->get(ep, exec);
+		if( auto &helper = sess.opt_helper(); not helper.is_open() )
+			helper.connect(ep, token);
+		return sess;
 	}
-	session_t sess(std::move(socket), [this, valid = m_impl->m_valid](socket_t &&sock)
+	else if constexpr( is_sync_token_v<Token> )
 	{
-		if( *valid )
-			emplace(std::move(sock));
-	});
-	if constexpr( is_function_v<Token> )
+		error_code error;
+		auto sess = get(ep, error);
+		if( error )
+			throw system_error(error, "libgs::http::basic_session_pool::get");
+		return sess;
+	}
+	else if constexpr( is_function_v<Token> )
 	{
+		auto sess = m_impl->get(ep, exec);
 		if( auto &helper = sess.opt_helper(); helper.is_open() )
 		{
 			asio::dispatch(exec, [
@@ -205,7 +166,7 @@ auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution a
 		}
 		else
 		{
-			helper.async_connect(std::move(ep), [
+			helper.connect(std::move(ep), [
 				token = std::forward<Token>(token), sess = std::move(sess)
 			](const error_code &error) mutable {
 				token(std::move(sess), error);
@@ -217,37 +178,38 @@ auto basic_session_pool<Stream,Exec>::async_get(const core_concepts::execution a
 	{
 		auto &helper = sess.opt_helper();
 		if( not helper.is_open() )
-			helper.async_connect(std::move(ep), std::forward<Token>(token));
-		std::move(sess);
+			helper.connect(std::move(ep), std::forward<Token>(token));
+		return std::move(sess);
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
+		auto sess = m_impl->get(ep, exec);
 		return asio::co_spawn(exec, [
-			ep = std::move(ep), sess = std::move(sess), token = std::forward<Token>(token)
+			ep = std::move(ep), sess = std::move(sess), token
 		]() mutable -> awaitable<session_t>
 		{
 			if( auto &helper = sess.opt_helper(); not helper.is_open() )
-				co_await helper.async_connect(std::move(ep), std::forward<Token>(token));
+				co_await helper.connect(std::move(ep), token);
 			co_return std::move(sess);
 		},
-		use_awaitable);
+		token);
 	}
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
-auto basic_session_pool<Stream,Exec>::async_get(core_concepts::execution_context auto &exec, endpoint_t ep, Token &&token)
-	requires asio::completion_token_for<Token,void(session_t,error_code)>
+auto basic_session_pool<Stream,Exec>::get
+(core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token)
+	requires concepts::token<Token,session_t,error_code>
 {
-	return async_get(exec.get_executor(), std::move(ep), std::forward<Token>(token));
+	return get(exec.get_executor(), ep, std::forward<Token>(token));
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 void basic_session_pool<Stream,Exec>::emplace(socket_t &&socket)
 {
-	if( socket.is_open() )
-		m_impl->m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+	m_impl->emplace(std::move(socket));
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>

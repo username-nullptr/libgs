@@ -30,7 +30,6 @@
 #define LIBGS_HTTP_CLIENT_SESSION_POOL_H
 
 #include <libgs/http/cxx/socket_session.h>
-#include <libgs/core/execution.h>
 
 namespace libgs::http
 {
@@ -59,32 +58,17 @@ public:
 	basic_session_pool &operator=(basic_session_pool &&other) noexcept;
 
 public:
-	[[nodiscard]] session_t get(const endpoint_t &ep);
-	[[nodiscard]] session_t get(const endpoint_t &ep, error_code &error) noexcept;
+	template <typename Token = use_sync_type>
+	[[nodiscard]] auto get(const endpoint_t &ep, Token &&token = {})
+		requires concepts::token<Token,session_t,error_code>;
 
-	[[nodiscard]] session_t get
-	(const core_concepts::execution auto &exec, const endpoint_t &ep);
+	template <typename Token = use_sync_type>
+	[[nodiscard]] auto get(const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token = {})
+		requires concepts::token<Token,session_t,error_code>;
 
-	[[nodiscard]] session_t get
-	(core_concepts::execution_context auto &exec, const endpoint_t &ep);
-
-	[[nodiscard]] session_t get
-	(const core_concepts::execution auto &exec, const endpoint_t &ep, error_code &error) noexcept;
-
-	[[nodiscard]] session_t get
-	(core_concepts::execution_context auto &exec, const endpoint_t &ep, error_code &error) noexcept;
-
-	template <typename Token>
-	[[nodiscard]] auto async_get(endpoint_t ep, Token &&token)
-		requires asio::completion_token_for<Token,void(session_t,error_code)>;
-
-	template <typename Token>
-	[[nodiscard]] auto async_get(const core_concepts::execution auto &exec, endpoint_t ep, Token &&token)
-		requires asio::completion_token_for<Token,void(session_t,error_code)>;
-
-	template <typename Token>
-	[[nodiscard]] auto async_get(core_concepts::execution_context auto &exec, endpoint_t ep, Token &&token)
-		requires asio::completion_token_for<Token,void(session_t,error_code)>;
+	template <typename Token = use_sync_type>
+	[[nodiscard]] auto get(core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token = {})
+		requires concepts::token<Token,session_t,error_code>;
 
 public:
 	void emplace(socket_t &&socket);
@@ -105,7 +89,22 @@ using tcp_session_pool = basic_tcp_session_pool<asio::any_io_executor, Exec>;
 
 using session_pool = tcp_session_pool<asio::any_io_executor>;
 
-} //namespace libgs::http
+template <typename>
+struct is_session_pool : std::false_type {};
+
+template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+struct is_session_pool<basic_session_pool<Stream,Exec>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_session_pool_v = is_session_pool<T>::value;
+
+namespace concepts
+{
+
+template <typename T>
+concept session_pool = is_session_pool_v<T>;
+
+}} //namespace libgs::http::concepts
 #include <libgs/http/client/detail/session_pool.h>
 
 

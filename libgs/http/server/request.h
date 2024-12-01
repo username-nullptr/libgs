@@ -30,8 +30,6 @@
 #define LIBGS_HTTP_SERVER_REQUEST_H
 
 #include <libgs/http/cxx/socket_operation_helper.h>
-#include <libgs/http/opt_token.h>
-
 #include <libgs/http/server/request_parser.h>
 #include <libgs/core/coroutine.h>
 
