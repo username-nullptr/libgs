@@ -30,7 +30,7 @@ int main()
 		return -1;
 	}
 	libgs::https::server server({std::move(acceptor), ssl});
-	server.bind({asio::ip::tcp::v4(), port})
+	server.bind({libgs::ip_type::v4, port})
 
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::https::server::context_t &context) -> libgs::awaitable<void>

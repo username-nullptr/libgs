@@ -546,7 +546,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::operator=
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
-basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind(endpoint_t ep)
+basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind(endpoint_wrapper_t ep)
 {
 	error_code error;
 	bind(std::move(ep), error);
@@ -557,12 +557,12 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind(endpoint_
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind
-(endpoint_t ep, error_code &error) noexcept
+(endpoint_wrapper_t ep, error_code &error) noexcept
 {
 	auto &acceptor = m_impl->m_next_layer.acceptor();
 	if( not acceptor.is_open() )
 	{
-		if( ep.address().is_v4())
+		if( ep->address().is_v4())
 			acceptor.open(asio::ip::tcp::v4(), error);
 		else
 			acceptor.open(asio::ip::tcp::v6(), error);
@@ -573,7 +573,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind
 	if( error )
 		return *this;
 
-	acceptor.bind(std::move(ep), error);
+	acceptor.bind(std::move(*ep), error);
 	return *this;
 }
 

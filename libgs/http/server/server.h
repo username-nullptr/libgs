@@ -49,6 +49,7 @@ public:
 
 	using next_layer_t = basic_acceptor_wrap<socket_t>;
 	using endpoint_t = typename next_layer_t::acceptor_t::endpoint_type;
+	using endpoint_wrapper_t = basic_endpoint_wrapper<typename endpoint_t::protocol_type>;
 
 	using string_t = std::basic_string<CharT>;
 	using string_view_t = std::basic_string_view<CharT>;
@@ -90,8 +91,8 @@ public:
 				 core_concepts::assignable<service_exec_t,typename Stream::executor_type>;
 
 public:
-	basic_server &bind(endpoint_t ep);
-	basic_server &bind(endpoint_t ep, error_code &error) noexcept;
+	basic_server &bind(endpoint_wrapper_t ep);
+	basic_server &bind(endpoint_wrapper_t ep, error_code &error) noexcept;
 
 	basic_server &start(size_t max = asio::socket_base::max_listen_connections);
 	basic_server &start(size_t max, error_code &error) noexcept;

@@ -101,6 +101,7 @@ struct LIBGS_CORE_VAPI string_wrapper
 
 	string_wrapper() = default;
 	string_wrapper(const char *value);
+	string_wrapper(const wchar_t *value);
 
 	string_wrapper(const std::string &value);
 	string_wrapper(std::string &&value);
@@ -110,9 +111,43 @@ struct LIBGS_CORE_VAPI string_wrapper
 
 	operator std::string&();
 	operator const std::string&() const;
+
+	std::string &operator*();
+	std::string *operator->();
 };
 
 LIBGS_CORE_TAPI auto get_executor_helper(concepts::schedulable auto &&exec);
+
+enum class ip_type {
+	v4, v6, loopback
+};
+
+template <typename Protocol>
+struct LIBGS_CORE_TAPI basic_endpoint_wrapper
+{
+	using endpoint_t = asio::ip::basic_endpoint<Protocol>;
+	endpoint_t value;
+
+	basic_endpoint_wrapper() = default;
+	basic_endpoint_wrapper(string_wrapper address, uint16_t port);
+	basic_endpoint_wrapper(string_wrapper address);
+
+	basic_endpoint_wrapper(ip_type type, uint16_t port);
+	basic_endpoint_wrapper(ip_type type);
+
+	template <typename...Args>
+	basic_endpoint_wrapper(Args&&...args) requires
+		concepts::constructible<endpoint_t,Args&&...>;
+
+	operator endpoint_t&();
+	operator const endpoint_t&() const;
+
+	endpoint_t &operator*();
+	endpoint_t *operator->();
+};
+
+using tcp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::tcp>;
+using udp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::udp>;
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/utilities.h>

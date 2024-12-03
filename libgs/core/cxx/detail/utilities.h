@@ -195,7 +195,13 @@ CharT wcstoxx(wchar_t c)
 }
 
 inline string_wrapper::string_wrapper(const char *value) :
-	value(value) 
+	value(value)
+{
+
+}
+
+inline string_wrapper::string_wrapper(const wchar_t *value) :
+	value(wcstombs(value))
 {
 
 }
@@ -234,12 +240,86 @@ inline string_wrapper::operator const std::string &() const
 	return value;
 }
 
+inline std::string &string_wrapper::operator*()
+{
+	return value;
+}
+
+inline std::string *string_wrapper::operator->()
+{
+	return &value;
+}
+
 auto get_executor_helper(concepts::schedulable auto &&exec)
 {
 	if constexpr( is_execution_v<std::remove_cvref_t<decltype(exec)>> )
 		return exec;
 	else
 		return exec.get_executor();
+}
+
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(string_wrapper address, uint16_t port) :
+	value(asio::ip::address::from_string(address.value), port)
+{
+
+}
+
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(string_wrapper address) :
+	basic_endpoint_wrapper(std::move(address), 0)
+{
+
+}
+
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(ip_type type, uint16_t port)
+{
+	if( type == ip_type::v4 )
+		value = endpoint_t(asio::ip::address_v4::any(), port);
+	else if( type == ip_type::v6 )
+		value = endpoint_t(asio::ip::address_v6::any(), port);
+	else
+		value = endpoint_t(asio::ip::address_v4::loopback(), port);
+}
+
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(ip_type type) :
+	basic_endpoint_wrapper(type, 0)
+{
+}
+
+template <typename Protocol>
+template <typename...Args>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(Args&&...args) requires
+	concepts::constructible<endpoint_t,Args&&...> :
+	value(std::forward<Args>(args)...)
+{
+
+}
+
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::operator endpoint_t&()
+{
+	return value;
+}
+
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::operator const endpoint_t&() const
+{
+	return value;
+}
+
+template <typename Protocol>
+typename basic_endpoint_wrapper<Protocol>::endpoint_t &basic_endpoint_wrapper<Protocol>::operator*()
+{
+	return value;
+}
+
+template <typename Protocol>
+typename basic_endpoint_wrapper<Protocol>::endpoint_t *basic_endpoint_wrapper<Protocol>::operator->()
+{
+	return &value;
 }
 
 } //namespace libgs

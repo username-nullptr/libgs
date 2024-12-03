@@ -138,7 +138,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 {
 	size_t counter = 0;
-	do { counter += exec.run(); }
+	do { counter += exec.poll(); }
 	while( not finished );
 	return counter;
 }

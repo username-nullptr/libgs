@@ -69,7 +69,7 @@ int main()
 	constexpr unsigned short port = 12345;
 
 	libgs::http::server server(std::move(acceptor));
-	server.bind({asio::ip::address_v4(), port})
+	server.bind({libgs::ip_type::v4, port})
 
 	.on_request<libgs::http::method::GET>("/*",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
