@@ -21,7 +21,6 @@ set(${target_name}_headers
 	cxx/attributes.h
 	cxx/concepts.h
 	cxx/asio_concepts.h
-	cxx/coro_concepts.h
 	cxx/type_traits.h
 	cxx/remove_repeat.h
 	cxx/function_traits.h

@@ -138,6 +138,26 @@ get_option(auto &option)
 }
 
 template <core_concepts::execution Exec>
+void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+non_blocking(bool mode, error_code &error) noexcept
+{
+	this->socket().non_blocking(mode, error);
+}
+
+template <core_concepts::execution Exec>
+void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+non_blocking(bool mode) noexcept
+{
+	this->socket().non_blocking(mode);
+}
+
+template <core_concepts::execution Exec>
+bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::non_blocking() const
+{
+	return this->socket().non_blocking();
+}
+
+template <core_concepts::execution Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::close() noexcept
 {
 	if( this->socket().is_open() )
@@ -249,6 +269,26 @@ get_option(auto &option)
 	this->socket().next_layer().get_option(option, error);
 	if( error )
 		throw std::system_error(error, "libgs::http::socket_operation_helper::get_option");
+}
+
+template <core_concepts::execution Exec>
+void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+non_blocking(bool mode, error_code &error) noexcept
+{
+	this->socket().next_layer().non_blocking(mode, error);
+}
+
+template <core_concepts::execution Exec>
+void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+non_blocking(bool mode) noexcept
+{
+	this->socket().next_layer().non_blocking(mode);
+}
+
+template <core_concepts::execution Exec>
+bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::non_blocking() const
+{
+	return this->socket().next_layer().non_blocking();
 }
 
 template <core_concepts::execution Exec>

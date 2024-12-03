@@ -333,6 +333,11 @@ private:
 	}
 
 public:
+	void set_blocking(error_code &error) {
+		socket_operation_helper<next_layer_t>(m_next_layer).non_blocking(false, error);
+	}
+
+public:
 	next_layer_t m_next_layer;
 	parser_t *m_parser = nullptr;
 };
@@ -539,7 +544,10 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
-		return m_impl->read(buf, token);
+	{
+		m_impl->set_blocking(token);
+		return token ? 0 : m_impl->read(buf, token);
+	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
@@ -638,7 +646,10 @@ auto basic_server_request<Stream,CharT>::save_file
 	using token_t = std::remove_cvref_t<Token>;
 
 	if constexpr( std::is_same_v<token_t, error_code> )
-		return m_impl->save_file(std::forward<opt_t>(opt), token);
+	{
+		m_impl->set_blocking(token);
+		return token ? 0 : m_impl->save_file(std::forward<opt_t>(opt), token);
+	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;

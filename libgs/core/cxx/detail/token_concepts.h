@@ -3,7 +3,7 @@
 *                                                                                   *
 *   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of LIBGS3                                                       *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
@@ -26,41 +26,61 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_EXCEPTION_H
-#define LIBGS_CORE_CXX_EXCEPTION_H
+#ifndef LIBGS_CORE_CXX_DETAIL_TOKEN_CONCEPTS_H
+#define LIBGS_CORE_CXX_DETAIL_TOKEN_CONCEPTS_H
 
-#include <libgs/core/cxx/utilities.h>
-#include <exception>
-#include <format>
-
-namespace libgs
+namespace libgs::operators
 {
 
-class LIBGS_CORE_VAPI runtime_error : public std::runtime_error
+auto operator|(concepts::use_awaitable auto &&ua, std::error_code &error)
 {
-public:
-	using std::runtime_error::runtime_error;
-    ~runtime_error() noexcept override = default;
+	using token_t = decltype(ua);
+	return asio::redirect_error(std::forward<token_t>(ua), error);
+}
 
-	template <typename Arg0, typename...Args>
-	runtime_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
-};
-
-class LIBGS_CORE_VAPI system_error : public std::system_error
+auto operator|(const std::error_code &error, concepts::use_awaitable auto &&ua)
 {
-public:
-	using std::system_error::system_error;
-    ~system_error() noexcept override = default;
+	using token_t = decltype(ua);
+	return asio::redirect_error(std::forward<token_t>(ua), error);
+}
 
-	template <typename Arg0, typename...Args>
-    system_error(std::error_code ec, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+auto operator|(concepts::use_awaitable auto &&ua, const asio::cancellation_slot &slot)
+{
+	using token_t = decltype(ua);
+	return asio::bind_cancellation_slot(slot, std::forward<token_t>(ua));
+}
 
-	template <typename Arg0, typename...Args>
-    system_error(int v, const std::error_category& ecat, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
-};
+auto operator|(const asio::cancellation_slot &slot, concepts::use_awaitable auto &&ua)
+{
+	using token_t = decltype(ua);
+	return asio::bind_cancellation_slot(slot, std::forward<token_t>(ua));
+}
 
-} //namespace libgs
-#include <libgs/core/cxx/detail/exception.h>
+auto operator|(concepts::redirect_error auto &&re, const asio::cancellation_slot &slot)
+{
+	using token_t = decltype(re);
+	return asio::bind_cancellation_slot(slot, std::forward<token_t>(re));
+}
+
+auto operator|(const asio::cancellation_slot &slot, concepts::redirect_error auto &&re)
+{
+	using token_t = decltype(re);
+	return asio::bind_cancellation_slot(slot, std::forward<token_t>(re));
+}
+
+auto operator|(concepts::cancellation_slot_binder auto &&csb, std::error_code &error)
+{
+	using token_t = decltype(csb);
+	return asio::redirect_error(std::forward<token_t>(csb), error);
+}
+
+auto operator|(std::error_code &error, concepts::cancellation_slot_binder auto &&csb)
+{
+	using token_t = decltype(csb);
+	return asio::redirect_error(std::forward<token_t>(csb), error);
+}
+
+} //namespace libgs::operators
 
 
-#endif //LIBGS_CORE_CXX_EXCEPTION_H
+#endif //LIBGS_CORE_CXX_DETAIL_TOKEN_CONCEPTS_H

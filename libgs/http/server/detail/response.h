@@ -120,6 +120,10 @@ public:
 		co_return sum;
 	}
 
+	void set_blocking(error_code &error) {
+		socket_operation_helper<next_layer_t>(m_next_layer.next_layer()).non_blocking(false, error);
+	}
+
 private:
 	struct range_value : file_range
 	{
@@ -937,7 +941,10 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
-		return m_impl->write(body, token, "write");
+	{
+		m_impl->set_blocking(token);
+		return token ? 0 : m_impl->write(body, token, "write");
+	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
@@ -988,8 +995,12 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
 	{
-		m_impl->m_helper.set_redirect(url, redi);
-		return m_impl->write({nullptr,0}, token, "redirect");
+		m_impl->set_blocking(token);
+		if( not token )
+		{
+			m_impl->m_helper.set_redirect(url, redi);
+			return m_impl->write({nullptr,0}, token, "redirect");
+		}
 	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
@@ -1045,7 +1056,10 @@ auto basic_server_response<Stream,CharT>::send_file
 	using token_t = std::remove_cvref_t<Token>;
 
 	if constexpr( std::is_same_v<token_t, error_code> )
-		return m_impl->send_file(std::forward<opt_t>(opt), token, "send_file");
+	{
+		m_impl->set_blocking(token);
+		return token ? 0 : m_impl->send_file(std::forward<opt_t>(opt), token, "send_file");
+	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
@@ -1104,7 +1118,10 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code&> )
-		return m_impl->chunk_end(headers, token, "chunk_end");
+	{
+		m_impl->set_blocking(token);
+		return token ? 0 : m_impl->chunk_end(headers, token, "chunk_end");
+	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;

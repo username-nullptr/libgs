@@ -44,7 +44,7 @@ concept flag_number = std::is_integral_v<T> and sizeof(T) <= sizeof(uint32_t);
 } //namespace concepts
 
 template <concepts::flag_template Enum>
-class flags
+class LIBGS_CORE_TAPI flags
 {
 public:
 	using enum_t = Enum;

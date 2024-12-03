@@ -83,6 +83,11 @@ public:
 
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
+
+	void non_blocking(bool mode, error_code &error) noexcept;
+	void non_blocking(bool mode) noexcept;
+
+	[[nodiscard]] bool non_blocking() const;
 	void close() noexcept;
 
 public:
@@ -115,6 +120,11 @@ public:
 
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
+
+	void non_blocking(bool mode, error_code &error) noexcept;
+	void non_blocking(bool mode) noexcept;
+
+	[[nodiscard]] bool non_blocking() const;
 	void close() noexcept;
 
 public:

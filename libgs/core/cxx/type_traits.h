@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
-#include <libgs/core/cxx/coro_concepts.h>
+#include <libgs/core/cxx/token_concepts.h>
 #include <chrono>
 #include <format>
 
@@ -65,7 +65,7 @@ static constexpr const CharT *default_format_v = default_format<CharT>::value;
 
 using mutable_buffer = asio::ASIO_MUTABLE_BUFFER;
 
-class const_buffer : public asio::ASIO_CONST_BUFFER
+class LIBGS_CORE_VAPI const_buffer : public asio::ASIO_CONST_BUFFER
 {
 public:
 	using asio::ASIO_CONST_BUFFER::ASIO_CONST_BUFFER;

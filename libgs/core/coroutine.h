@@ -79,12 +79,20 @@ LIBGS_CORE_TAPI auto local_dispatch (
 	awaitable<T> &&a
 );
 
-template <typename T>
-using awaitable_wake_up = asio::detail::awaitable_handler<asio::any_io_executor,T>;
+template<typename T>
+using awaitable_wake_up = std::conditional_t <
+	std::is_void_v<T>,
+	asio::detail::awaitable_handler<asio::any_io_executor>,
+	asio::detail::awaitable_handler<asio::any_io_executor,T>
+>;
 
-template <typename T = void>
+template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI auto co_task (
 	std::function<void(awaitable_wake_up<T>&&)> wake_up
+);
+
+[[nodiscard]] LIBGS_CORE_VAPI auto co_task (
+	std::function<void(awaitable_wake_up<void>&&)> wake_up
 );
 
 template <typename Rep, typename Period>
@@ -127,7 +135,7 @@ template <concepts::schedulable Exec = execution::executor_t>
 
 [[nodiscard]] LIBGS_CORE_VAPI awaitable<asio::any_io_executor> co_to_thread();
 
-template <concepts::co_token Token>
+template <concepts::co_opt_token Token>
 LIBGS_CORE_TAPI bool check_error (
 	Token &token, const error_code &error, const char *func = nullptr
 ) requires (not std::is_const_v<Token>);

@@ -124,6 +124,11 @@ auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 	}
 }
 
+inline auto co_task(std::function<void(awaitable_wake_up<void>&&)> wake_up)
+{
+	return co_task<void>(std::move(wake_up));
+}
+
 namespace detail
 {
 
@@ -237,7 +242,7 @@ inline awaitable<asio::any_io_executor> co_to_thread()
 	asio::use_awaitable);
 }
 
-template <concepts::co_token Token>
+template <concepts::co_opt_token Token>
 bool check_error(Token &token, const error_code &error, const char *func)
 	requires (not std::is_const_v<Token>)
 {
