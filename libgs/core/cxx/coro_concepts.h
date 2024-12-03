@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_CXX_CORO_CONCEPTS_H
 #define LIBGS_CORE_CXX_CORO_CONCEPTS_H
 
-#include <libgs/core/cxx/concepts.h>
+#include <libgs/core/cxx/token_concepts.h>
 
 #ifdef LIBGS_USING_BOOST_ASIO
 # include <boost/asio/experimental/awaitable_operators.hpp>
@@ -40,13 +40,6 @@
 
 namespace libgs
 {
-
-template <concepts::execution Exec = asio::any_io_executor>
-using use_basic_awaitable_t = asio::use_awaitable_t<Exec>;
-
-using use_awaitable_t = use_basic_awaitable_t<asio::any_io_executor>;
-
-constexpr auto use_awaitable = asio::use_awaitable;
 
 template <concepts::execution Exec>
 using basic_redirect_error_t =
@@ -75,18 +68,6 @@ using basic_cancellation_slot_binder_redirect_error_t =
 
 using cancellation_slot_binder_redirect_error_t =
 	basic_cancellation_slot_binder_redirect_error_t<asio::any_io_executor>;
-
-template <typename>
-struct is_use_awaitable : std::false_type {};
-
-template <concepts::execution Exec>
-struct is_use_awaitable <
-	use_basic_awaitable_t<Exec>
-> : std::true_type {};
-
-template <typename T>
-constexpr bool is_use_awaitable_v =
-	is_use_awaitable<T>::value;
 
 template <typename>
 struct is_redirect_error : std::false_type {};
@@ -149,27 +130,27 @@ namespace concepts
 
 template <typename T>
 concept use_awaitable =
-	not std::is_pointer_v<T> and is_use_awaitable_v<std::decay_t<T>>;
+	is_use_awaitable_v<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept redirect_error =
-	not std::is_pointer_v<T> and is_redirect_error_v<std::decay_t<T>>;
+	is_redirect_error_v<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept cancellation_slot_binder =
-	not std::is_pointer_v<T> and is_cancellation_slot_binder_v<std::decay_t<T>>;
+	is_cancellation_slot_binder_v<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept redirect_error_cancellation_slot_binder =
-	not std::is_pointer_v<T> and is_redirect_error_cancellation_slot_binder_v<std::decay_t<T>>;
+	is_redirect_error_cancellation_slot_binder_v<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept cancellation_slot_binder_redirect_error =
-	not std::is_pointer_v<T> and is_cancellation_slot_binder_redirect_error_v<std::decay_t<T>>;
+	is_cancellation_slot_binder_redirect_error_v<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept co_token =
-	not std::is_pointer_v<T> and is_co_token_v<std::decay_t<T>>;
+	is_co_token_v<std::remove_cvref_t<T>>;
 
 } //namespace concepts
 

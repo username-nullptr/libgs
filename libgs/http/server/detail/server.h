@@ -125,7 +125,7 @@ public:
 		else
 			m_is_start = true;
 
-		co_spawn_detached([this]() -> awaitable<void>
+		libgs::dispatch(m_next_layer.acceptor().get_executor(), [this]() mutable -> awaitable<void>
 		{
 			bool abd = false;
 			try {
@@ -148,8 +148,7 @@ public:
 			if( abd )
 				forced_termination();
 			co_return ;
-		},
-		m_next_layer.acceptor().get_executor());
+		});
 	}
 
 	void rule_path_check(string_t &str)
@@ -174,7 +173,8 @@ private:
 			if( not socket_operation_helper<socket_t>(socket).is_open() )
 				continue;
 
-			libgs::co_spawn_detached([this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
+			libgs::dispatch(m_service_exec,
+			[this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
 			{
 				bool abd = false;
 				try {
@@ -194,8 +194,7 @@ private:
 				if( abd )
 					forced_termination();
 				co_return ;
-			},
-			m_service_exec);
+			});
 		}
 		catch(std::system_error &ex)
 		{

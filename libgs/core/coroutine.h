@@ -43,93 +43,39 @@ using namespace asio::experimental::awaitable_operators;
 namespace libgs
 {
 
-template <typename T>
-using awaitable = asio::awaitable<T>;
-
-template <concepts::schedulable Exec = execution::executor_t>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn (
-	concepts::awaitable_function auto &&func, Exec &&exec = execution::get_executor()
+template <typename T, concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto dispatch (
+	const concepts::execution auto &exec, awaitable<T> &&a, Token &&token = detached
 );
 
-template <typename T, concepts::schedulable Exec = execution::executor_t>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn (
-	awaitable<T> &&a, Exec &&exec = execution::get_executor()
+template <typename T, concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto dispatch (
+	concepts::execution_context auto &exec, awaitable<T> &&a, Token &&token = detached
 );
 
-template <concepts::schedulable Exec = execution::executor_t>
-LIBGS_CORE_TAPI auto co_spawn_detached (
-	concepts::awaitable_function auto &&func, Exec &&exec = execution::get_executor()
-);
-
-template <typename T, concepts::schedulable Exec = execution::executor_t>
- LIBGS_CORE_TAPI auto co_spawn_detached (
-	awaitable<T> &&a, Exec &&exec = execution::get_executor()
-);
-
-template <concepts::schedulable Exec = execution::executor_t>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_future (
-	concepts::awaitable_function auto &&func, Exec &&exec = execution::get_executor()
-);
-
-template <typename T, concepts::schedulable Exec = execution::executor_t>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_future (
-	awaitable<T> &&a, Exec &&exec = execution::get_executor()
-);
-
-template <concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
-	concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter
-);
-
-template <concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
-	concepts::awaitable_void_function auto &&func, Exec &exec
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
-	concepts::awaitable_void_function auto &&func
-);
-
-template <concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
-	awaitable<void> &&a, Exec &exec, size_t &counter
-);
-
-template <concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_thread (
-	awaitable<void> &&a, Exec &exec
-);
-
-[[nodiscard]] LIBGS_CORE_VAPI auto co_spawn_thread (
-	awaitable<void> &&a
-);
-
-template <concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
-	concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter
-);
-
-template <concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
-	concepts::awaitable_void_function auto &&func, Exec &exec
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI auto co_spawn_local (
-	concepts::awaitable_void_function auto &&func
-);
-
-template <typename T, concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI T co_spawn_local (
-	awaitable<T> &&a, Exec &exec, size_t &counter
-);
-
-template <typename T, concepts::execution_context Exec>
-[[nodiscard]] LIBGS_CORE_TAPI T co_spawn_local (
-	awaitable<T> &&a, Exec &exec
+template <typename T, concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto dispatch (
+	awaitable<T> &&a, Token &&token = detached
 );
 
 template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI T co_spawn_local (
+LIBGS_CORE_TAPI auto local_dispatch (
+	concepts::execution_context auto &exec, awaitable<T> &&a,
+	concepts::dispatch_token auto &&token = detached
+);
+
+template <typename T>
+LIBGS_CORE_TAPI auto local_dispatch (
+	concepts::execution_context auto &exec, awaitable<T> &&a
+);
+
+template <typename T>
+LIBGS_CORE_TAPI auto local_dispatch (
+	awaitable<T> &&a, concepts::dispatch_token auto &&token = detached
+);
+
+template <typename T>
+LIBGS_CORE_TAPI auto local_dispatch (
 	awaitable<T> &&a
 );
 
@@ -139,18 +85,6 @@ using awaitable_wake_up = asio::detail::awaitable_handler<asio::any_io_executor,
 template <typename T = void>
 [[nodiscard]] LIBGS_CORE_TAPI auto co_task (
 	std::function<void(awaitable_wake_up<T>&&)> wake_up
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI auto co_post (
-	concepts::schedulable auto &&exec, concepts::callable auto &&func
-);
-
-LIBGS_CORE_TAPI auto co_dispatch (
-	concepts::schedulable auto &&exec, concepts::callable auto &&func
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI auto co_thread (
-	concepts::callable auto &&func
 );
 
 template <typename Rep, typename Period>

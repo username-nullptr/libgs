@@ -87,17 +87,17 @@ public:
 			return sum;
 		}
 		asio::socket_base::receive_buffer_size op;
-		socket_operation_helper<next_layer_t>(m_impl->m_next_layer).get_option(op, error);
+		socket_operation_helper<next_layer_t>(m_next_layer).get_option(op, error);
 		if( error )
 			return sum;
 
 		auto dst_buf = reinterpret_cast<char*>(buf.data());
 		do {
-			auto body = m_impl->m_parser->take_partial_body(buf_size);
+			auto body = m_parser->take_partial_body(buf_size);
 			sum += body.size();
 
 			memcpy(dst_buf + sum, body.c_str(), body.size());
-			if( sum == buf_size or not m_impl->m_parser->can_read_from_device() )
+			if( sum == buf_size or not m_parser->can_read_from_device() )
 				break;
 
 			body = std::string(op.value(),'\0');
@@ -105,13 +105,13 @@ public:
 			size_t tmp_sum = 0;
 			for(;;)
 			{
-				tmp_sum += m_impl->m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
+				tmp_sum += m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
 				sum += tmp_sum;
 
 				if( error and error.value() == errc::interrupted )
 					continue;
 
-				bool res = m_impl->m_parser->append({tmp_buf, tmp_sum}, error);
+				bool res = m_parser->append({tmp_buf, tmp_sum}, error);
 				if( error )
 					return sum;
 				else if( res )
@@ -279,6 +279,9 @@ public:
 public:
 	[[nodiscard]] bool is_eof() const noexcept {
 		return m_parser->is_eof();
+	}
+	[[nodiscard]] bool can_read_body() const noexcept {
+		return not is_eof();
 	}
 	[[nodiscard]] executor_t get_executor() noexcept {
 		return socket_operation_helper<next_layer_t>(m_next_layer).get_executor();
@@ -531,12 +534,13 @@ int32_t basic_server_request<Stream,CharT>::path_match(string_view_t rule)
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
 		return m_impl->read(buf, token);
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = read(buf, error);
@@ -545,7 +549,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token> )
 	{
 		// TODO ... ...
 	}
@@ -566,10 +570,11 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_request<Stream,CharT>::read(Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
 	{
 		std::string sum;
 		do {
@@ -585,7 +590,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 		while( can_read_body() );
 		return sum;
 	}
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto buf = read(error);
@@ -594,7 +599,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 		return buf;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		// TODO ... ...
 	}
@@ -625,14 +630,16 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_request<Stream,CharT>::save_file
 (concepts::char_file_opt_token_arg<file_optype::single, io_permission::write> auto &&opt, Token &&token)
 {
 	using opt_t = decltype(opt);
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( std::is_same_v<token_t, error_code> )
 		return m_impl->save_file(std::forward<opt_t>(opt), token);
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = save_file(std::forward<opt_t>(opt), error);
@@ -641,7 +648,7 @@ auto basic_server_request<Stream,CharT>::save_file
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		// TODO ... ...
 	}

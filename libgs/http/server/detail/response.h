@@ -932,12 +932,13 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_co
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
 		return m_impl->write(body, token, "write");
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = write(body, error);
@@ -946,7 +947,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		// TODO ... ...
 	}
@@ -974,22 +975,23 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::write(Token &&token)
 {
 	return write({nullptr,0}, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi, Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
 	{
 		m_impl->m_helper.set_redirect(url, redi);
 		return m_impl->write({nullptr,0}, token, "redirect");
 	}
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = redirect(url, redi, error);
@@ -998,7 +1000,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		// TODO ... ...
 	}
@@ -1028,21 +1030,23 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::redirect(string_view_t url, Token &&token)
 {
 	return redirect(url, http::redirect::moved_permanently, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::send_file
 (concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt, Token &&token)
 {
 	using opt_t = decltype(opt);
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( std::is_same_v<token_t, error_code> )
 		return m_impl->send_file(std::forward<opt_t>(opt), token, "send_file");
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = save_file(std::forward<opt_t>(opt), error);
@@ -1051,7 +1055,7 @@ auto basic_server_response<Stream,CharT>::send_file
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		// TODO ... ...
 	}
@@ -1095,12 +1099,13 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_ch
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code&> )
 		return m_impl->chunk_end(headers, token, "chunk_end");
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = chunk_end(headers, error);
@@ -1109,7 +1114,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		// TODO ... ...
 	}
@@ -1137,7 +1142,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <concepts::dis_func_token Token>
+template <core_concepts::dis_func_opt_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(Token &&token)
 {
 	return chunk_end({}, std::forward<Token>(token));

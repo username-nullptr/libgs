@@ -30,7 +30,7 @@
 #define LIBGS_CORE_CXX_ASIO_CONCEPTS_H
 
 #include <libgs/core/cxx/function_traits.h>
-#include <concepts>
+#include <libgs/core/cxx/concepts.h>
 
 #ifdef LIBGS_USING_BOOST_ASIO
 
@@ -54,7 +54,8 @@ namespace libgs
 {
 
 template <typename Exec>
-struct is_execution {
+struct is_execution
+{
 	static constexpr bool value =
 		(asio::execution::is_executor<Exec>::value and
 		 asio::can_require<Exec, asio::execution::blocking_t::never_t>::value) or
@@ -98,6 +99,17 @@ concept match_execution_or_context =
 	match_execution<Exec,NativeExec> or
 	match_execution_context<Exec,NativeExec>;
 
+template <typename Exec>
+concept execution = is_execution_v<Exec>;
+
+template <typename ExecContext>
+concept execution_context = is_execution_context_v<ExecContext>;
+
+template <typename Exec>
+concept schedulable = execution<Exec> or (
+	execution_context<Exec> and std::is_lvalue_reference_v<Exec>
+);
+
 } //namespace concepts
 
 template <typename Exec, typename NativeExec>
@@ -124,22 +136,17 @@ struct is_match_execution_or_context {
 template <typename Exec, typename NativeExec>
 constexpr bool is_match_execution_or_context_v = is_match_execution_or_context<Exec,NativeExec>::value;
 
+template <typename T>
+using awaitable = asio::awaitable<T>;
+
 template <typename>
 struct is_awaitable : std::false_type {};
 
 template <typename T>
-struct is_awaitable<asio::awaitable<T>> : std::true_type {};
+struct is_awaitable<awaitable<T>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_awaitable_v = is_awaitable<T>::value;
-
-namespace concepts
-{
-
-template <typename T>
-concept awaitable_type = is_awaitable_v<T>;
-
-} //namespace concepts
 
 template <typename T>
 struct awaitable_return_type {};
@@ -149,28 +156,25 @@ struct awaitable_return_type<asio::awaitable<T>> {
 	using type = T;
 };
 
-template <concepts::awaitable_type T>
-using awaitable_return_type_t = typename awaitable_return_type<T>::type;
-
 namespace concepts
 {
 
-template <typename Exec>
-concept execution = is_execution_v<Exec>;
-
-template <typename ExecContext>
-concept execution_context = is_execution_context_v<ExecContext>;
-
-template <typename Exec>
-concept schedulable = execution<Exec> or (
-	execution_context<Exec> and std::is_lvalue_reference_v<Exec>
-);
+template <typename T>
+concept awaitable_type = is_awaitable_v<T>;
 
 template <typename Func>
 concept awaitable_function =
 	is_functor_v<Func> and
 	is_awaitable_v<typename function_traits<Func>::return_type> and
 	function_traits<Func>::arg_count == 0;
+
+} //namespace concepts
+
+template <concepts::awaitable_type T>
+using awaitable_return_type_t = typename awaitable_return_type<T>::type;
+
+namespace concepts
+{
 
 template <typename Func, typename RT>
 concept awaitable_ret_function =
@@ -184,7 +188,9 @@ concept awaitable_ret_function =
 template <typename Func>
 concept awaitable_void_function = awaitable_ret_function<Func,void>;
 
-}} //namespace libgs::concepts
+} //namespace concepts
+
+} //namespace libgs::concepts
 
 
 #endif //LIBGS_CORE_CXX_ASIO_CONCEPTS_H

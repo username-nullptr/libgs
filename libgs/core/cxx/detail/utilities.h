@@ -236,7 +236,7 @@ inline string_wrapper::operator const std::string &() const
 
 auto get_executor_helper(concepts::schedulable auto &&exec)
 {
-	if constexpr( is_execution_v<std::decay_t<decltype(exec)>> )
+	if constexpr( is_execution_v<std::remove_cvref_t<decltype(exec)>> )
 		return exec;
 	else
 		return exec.get_executor();

@@ -61,38 +61,38 @@ public:
 	basic_client &operator=(basic_client &&other) noexcept;
 
 public:
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto get(Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto put(const const_buffer &buf, Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto put(Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto post(const const_buffer &buf, Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto post(Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto Delete(Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto head(Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto options(Token &&token = {});
 
-	template <concepts::token Token = use_sync_type>
+	template <concepts::token Token = use_sync_t>
 	auto trach(Token &&token = {});
 
 public:
-	template <method_t Method, concepts::token Token = use_sync_type>
+	template <method_t Method, concepts::token Token = use_sync_t>
 	auto request(const const_buffer &buf, Token &&token = {});
 
-	template <method_t Method, concepts::token Token = use_sync_type>
+	template <method_t Method, concepts::token Token = use_sync_t>
 	auto request(Token &&token = {});
 
 public:

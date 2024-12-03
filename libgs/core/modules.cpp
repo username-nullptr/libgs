@@ -21,7 +21,7 @@ static inline func_map_t &init_map()
 
 awaitable<void> modules::co_run_init()
 {
-	return co_spawn([]() -> awaitable<void>
+	return dispatch([]() -> awaitable<void>
 	{
 		auto map = std::move(init_map());
 		for(auto &[level, func_list] : map)
@@ -40,7 +40,8 @@ awaitable<void> modules::co_run_init()
 				co_await co_wait(futrue);
 		}
 		co_return ;
-	});
+	},
+	use_awaitable);
 }
 
 void modules::run_init()

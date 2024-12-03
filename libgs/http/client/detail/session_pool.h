@@ -127,7 +127,7 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basi
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
-	requires concepts::token<Token,session_t,error_code>
+	requires core_concepts::opt_token<Token,session_t,error_code>
 {
 	return get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
@@ -136,7 +136,7 @@ template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get
 (const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token)
-	requires concepts::token<Token,session_t,error_code>
+	requires core_concepts::opt_token<Token,session_t,error_code>
 {
 	if constexpr( std::is_same_v<Token, error_code&> )
 	{
@@ -145,7 +145,7 @@ auto basic_session_pool<Stream,Exec>::get
 			helper.connect(ep, token);
 		return sess;
 	}
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
 		auto sess = get(ep, error);
@@ -201,7 +201,7 @@ template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get
 (core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token)
-	requires concepts::token<Token,session_t,error_code>
+	requires core_concepts::opt_token<Token,session_t,error_code>
 {
 	return get(exec.get_executor(), ep, std::forward<Token>(token));
 }

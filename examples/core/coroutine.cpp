@@ -8,7 +8,7 @@ int main()
 	spdlog::set_level(spdlog::level::trace);
 	asio::thread_pool pool;
 
-	libgs::co_spawn_detached([&]() -> libgs::awaitable<void>
+	libgs::dispatch([&]() -> libgs::awaitable<void>
 	{
 		spdlog::debug("Start <0>...");
 		co_await libgs::co_sleep_for(1s);
@@ -20,14 +20,15 @@ int main()
 		spdlog::debug("End <0>...");
 
 		spdlog::debug("await thread task: {} ...", libgs::this_thread_id());
-		co_await libgs::co_thread([]
+		co_await libgs::local_dispatch([]
 		{
 			spdlog::debug("Thread <1>: {} ...", libgs::this_thread_id());
 			libgs::sleep_for(2s);
 
 			spdlog::debug("2 second passed...");
 			spdlog::debug("End <1>...");
-		});
+		},
+		libgs::use_awaitable);
 
 		spdlog::debug("await std::future: {} ...", libgs::this_thread_id());
 		auto future = std::async(std::launch::async,[]
@@ -52,7 +53,7 @@ int main()
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		spdlog::debug("example finished...");
-		co_await libgs::co_sleep_for(60s);
+		co_await libgs::co_sleep_for(5s);
 		libgs::execution::exit();
 	});
 	return libgs::execution::exec();

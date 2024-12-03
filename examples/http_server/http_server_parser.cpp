@@ -65,7 +65,7 @@ int main()
 	spdlog::set_level(spdlog::level::trace);
 	constexpr unsigned short port = 12345;
 
-	libgs::co_spawn_detached([]() -> libgs::awaitable<void>
+	libgs::dispatch([]() -> libgs::awaitable<void>
 	{
 		asio::ip::tcp::acceptor server(libgs::execution::context());
 		try {
@@ -76,7 +76,7 @@ int main()
 				auto ep = socket.remote_endpoint();
 
 				spdlog::debug("new connction: {}", ep);
-				libgs::co_spawn_detached(service(std::move(socket), std::move(ep)));
+				libgs::dispatch(service(std::move(socket), std::move(ep)));
 			}
 		}
 		catch(const std::exception &ex)

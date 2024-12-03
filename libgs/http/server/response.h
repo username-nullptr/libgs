@@ -82,19 +82,19 @@ public:
 	basic_server_response &set_cookie(string_view_t key, cookie_t cookie);
 
 public:
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto write(Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto redirect(string_view_t url, http::redirect redi, Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto redirect(string_view_t url, Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto send_file (
 		concepts::char_file_opt_token_arg <
 			file_optype::combine,
@@ -107,10 +107,10 @@ public:
 	basic_server_response &set_chunk_attribute(value_t attribute);
 	basic_server_response &set_chunk_attributes(value_list_t attributes);
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto chunk_end(const headers_t &headers, Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto chunk_end(Token &&token = {});
 
 public:

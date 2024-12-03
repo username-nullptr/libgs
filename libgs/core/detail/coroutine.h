@@ -30,223 +30,73 @@
 #define LIBGS_CORE_DETAIL_COROUTINE_H
 
 #include <thread>
-#include <iostream>
 #include <libgs/http/cxx/file_opt_token.h>
 
 namespace libgs
 {
 
-template <concepts::schedulable Exec>
-auto co_spawn(concepts::awaitable_function auto &&func, Exec &&exec)
+template <typename T, concepts::dispatch_token Token>
+auto dispatch(const concepts::execution auto &exec, awaitable<T> &&a, Token &&token)
 {
-	return asio::co_spawn (
-		std::forward<Exec>(exec),
-		std::forward<std::decay_t<decltype(func)>>(func),
-		asio::use_awaitable
-	);
+	return dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	}, std::forward<Token>(token));
 }
 
-template <typename T, concepts::schedulable Exec>
-auto co_spawn(awaitable<T> &&a, Exec &&exec)
+template <typename T, concepts::dispatch_token Token>
+auto dispatch(concepts::execution_context auto &exec, awaitable<T> &&a, Token &&token)
 {
-	return asio::co_spawn (
-		get_executor_helper(std::forward<Exec>(exec)),
-		std::move(a), asio::use_awaitable
-	);
+	return dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	}, std::forward<Token>(token));
 }
 
-template <concepts::schedulable Exec>
-auto co_spawn_detached(concepts::awaitable_function auto &&func, Exec &&exec)
+template <typename T, concepts::dispatch_token Token>
+auto dispatch(awaitable<T> &&a, Token &&token)
 {
-	return asio::co_spawn (
-		get_executor_helper(std::forward<Exec>(exec)),
-		std::forward<std::decay_t<decltype(func)>>(func),
-		asio::detached
-	);
-}
-
-template <typename T, concepts::schedulable Exec>
-auto co_spawn_detached(awaitable<T> &&a, Exec &&exec)
-{
-	return asio::co_spawn (
-		get_executor_helper(std::forward<Exec>(exec)),
-		std::move(a), asio::detached
-	);
-}
-
-template <concepts::schedulable Exec>
-auto co_spawn_future(concepts::awaitable_function auto &&func, Exec &&exec)
-{
-	return asio::co_spawn (
-		get_executor_helper(std::forward<Exec>(exec)),
-		std::forward<std::decay_t<decltype(func)>>(func),
-		asio::use_future
-	);
-}
-
-template <typename T, concepts::schedulable Exec>
-auto co_spawn_future(awaitable<T> &&a, Exec &&exec)
-{
-	return asio::co_spawn (
-		get_executor_helper(std::forward<Exec>(exec)),
-		std::move(a), asio::use_future
-	);
-}
-
-template <concepts::execution_context Exec>
-auto co_spawn_thread(concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter)
-{
-	return co_spawn_thread(func(), exec, counter);
-}
-
-template <concepts::execution_context Exec>
-auto co_spawn_thread(concepts::awaitable_void_function auto &&func, Exec &exec)
-{
-	return co_spawn_thread(func(), exec);
-}
-
-auto co_spawn_thread(concepts::awaitable_void_function auto &&func)
-{
-	using func_t = std::decay_t<decltype(func)>;
-	return std::thread([func = std::forward<func_t>(func)]() mutable
-	{
-		asio::io_context ioc;
-		co_spawn_detached(std::move(func), ioc);
-		ioc.run();
-	});
-}
-
-template <concepts::execution_context Exec>
-auto co_spawn_thread(awaitable<void> &&a, Exec &exec, size_t &counter)
-{
-	return std::thread([a = std::move(a), &exec, &counter]() mutable
-	{
-		bool finished = false;
-		co_spawn_detached([a = std::move(a), &finished]() mutable -> awaitable<void>
-		{
-			co_await std::move(a);
-			finished = true;
-			co_return ;
-		},
-		exec);
-		do {
-			counter += exec.run();
-		}
-		while( not finished );
-	});
-}
-
-template <concepts::execution_context Exec>
-auto co_spawn_thread(awaitable<void> &&a, Exec &exec)
-{
-	size_t counter = 0; LIBGS_UNUSED(counter);
-	return co_spawn_thread(std::move(a), exec, counter);
-}
-
-inline auto co_spawn_thread(awaitable<void> &&a)
-{
-	return std::thread([a = std::move(a)]() mutable
-	{
-		asio::io_context ioc;
-		co_spawn_detached(std::move(a), ioc);
-		ioc.run();
-	});
-}
-
-template <concepts::execution_context Exec>
-auto co_spawn_local(concepts::awaitable_void_function auto &&func, Exec &exec, size_t &counter)
-{
-	return co_spawn_local(func(), exec, counter);
-}
-
-template <concepts::execution_context Exec>
-auto co_spawn_local(concepts::awaitable_void_function auto &&func, Exec &exec)
-{
-	return co_spawn_local(func(), exec);
-}
-
-auto co_spawn_local(concepts::awaitable_void_function auto &&func)
-{
-	using func_t = std::decay_t<decltype(func)>;
-	using return_t = std::invoke_result_t<func_t>;
-	asio::io_context ioc;
-
-	if constexpr( std::is_same_v<return_t, void> )
-	{
-		co_spawn_detached(std::forward<func_t>(func), ioc);
-		ioc.run();
-	}
-	else
-	{
-		return_t res;
-		co_spawn_detached([&res, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
-		{
-			res = func();
-			co_return ;
-		},
-		ioc);
-		ioc.run();
-		return res;
-	}
-}
-
-template <typename T, concepts::execution_context Exec>
-T co_spawn_local(awaitable<T> &&a, Exec &exec, size_t &counter)
-{
-	bool finished = false;
-	counter = 0;
-
-	if constexpr( std::is_same_v<T,void> )
-	{
-		co_spawn_detached([a = std::move(a), &finished]() mutable -> awaitable<void>
-		{
-			co_await std::move(a);
-			finished = true;
-			co_return ;
-		},
-		exec);
-		do {
-			counter += exec.run();
-		}
-		while( not finished );
-		return ;
-	}
-	else
-	{
-		T res;
-		co_spawn_detached([a = std::move(a), &res, &finished]() mutable -> awaitable<void>
-		{
-			res = co_await std::move(a);
-			finished = true;
-			co_return ;
-		},
-		exec);
-		do {
-			counter += exec.run();
-		}
-		while( not finished );
-		return res;
-	}
-}
-
-template <typename T, concepts::execution_context Exec>
-T co_spawn_local(awaitable<T> &&a, Exec &exec)
-{
-	size_t counter = 0; LIBGS_UNUSED(counter);
-	return co_spawn_local(std::move(a), exec, counter);
+	return dispatch([a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	}, std::forward<Token>(token));
 }
 
 template <typename T>
-T co_spawn_local(awaitable<T> &&a)
+auto local_dispatch(concepts::execution_context auto &exec, awaitable<T> &&a, concepts::dispatch_token auto &&token)
 {
-	asio::io_context ioc;
-	return co_spawn_local(std::move(a), ioc);
+	using token_t = decltype(token);
+	return local_dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	}, std::forward<token_t>(token));
+}
+
+template <typename T>
+auto local_dispatch(concepts::execution_context auto &exec, awaitable<T> &&a)
+{
+	return local_dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	});
+}
+
+template <typename T>
+auto local_dispatch(awaitable<T> &&a, concepts::dispatch_token auto &&token)
+{
+	using token_t = decltype(token);
+	return local_dispatch([a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	}, std::forward<token_t>(token));
+}
+
+template <typename T>
+auto local_dispatch(awaitable<T> &&a)
+{
+	return local_dispatch([a = std::move(a)]() mutable -> awaitable<T> {
+		co_return co_await std::move(a);
+	});
 }
 
 template <typename T>
 auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 {
-	if constexpr( std::is_same_v<T,void> )
+	if constexpr( std::is_void_v<T> )
 	{
 		return asio::async_initiate<decltype(asio::use_awaitable), void()>
 		([wake_up = std::move(wake_up)](auto handler)
@@ -269,133 +119,6 @@ auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
 				wake_up(std::move(handler));
 			});
-		},
-		asio::use_awaitable);
-	}
-}
-
-auto co_post(concepts::schedulable auto &&exec, concepts::callable auto &&func)
-{
-	using function_t = std::decay_t<decltype(func)>;
-	using executor_t = std::decay_t<decltype(exec)>;
-	using return_t = decltype(func());
-
-	if constexpr( std::is_same_v<return_t, void> )
-	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void()>([
-			exec = get_executor_helper(std::forward<executor_t>(exec)), func = std::forward<function_t>(func)
-		](auto handler)
-		{
-		    auto work = asio::make_work_guard(handler);
-		    asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-		    {
-				func();
-				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					std::move(handler)();
-				});
-			});
-		},
-		asio::use_awaitable);
-	}
-	else
-	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
-		([exec = get_executor_helper(exec), func = std::forward<function_t>(func)](auto handler)
-		{
-		    auto work = asio::make_work_guard(handler);
-		    asio::post(exec, [func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-		    {
-				auto res = func();
-				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
-					std::move(handler)(std::move(res));
-				});
-		    });
-		},
-		asio::use_awaitable);
-	}
-}
-
-auto co_dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&func)
-{
-	using function_t = std::decay_t<decltype(func)>;
-	using executor_t = std::decay_t<decltype(exec)>;
-	using return_t = decltype(func());
-
-	if constexpr( std::is_same_v<return_t, void> )
-	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void()>([
-			exec = get_executor_helper(std::forward<executor_t>(exec)), func = std::forward<function_t>(func)
-		](auto handler)
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec, [
-				func = std::move(func), handler = std::move(handler), work = std::move(work)
-			]() mutable
-			{
-				func();
-				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					std::move(handler)();
-				});
-			});
-		},
-		asio::use_awaitable);
-	}
-	else
-	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
-		([exec = get_executor_helper(exec), func = std::forward<function_t>(func)](auto handler)
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec, [
-				func = std::move(func), handler = std::move(handler), work = std::move(work)
-			]() mutable
-			{
-				auto res = func();
-				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
-					std::move(handler)(std::move(res));
-				});
-			});
-		},
-		asio::use_awaitable);
-	}
-}
-
-auto co_thread(concepts::callable auto &&func)
-{
-	using function_t = std::decay_t<decltype(func)>;
-	using return_t = decltype(func());
-
-	if constexpr( std::is_same_v<return_t, void> )
-	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void()>
-		([func = std::forward<function_t>(func)](auto handler)
-		{
-			auto work = asio::make_work_guard(handler);
-			std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			{
-				func();
-				asio::dispatch(work.get_executor(), [handler = std::move(handler)]() mutable {
-					std::move(handler)();
-				});
-			})
-			.detach();
-		},
-		asio::use_awaitable);
-	}
-	else
-	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(return_t)>
-		([func = std::forward<function_t>(func)](auto handler)
-		{
-			auto work = asio::make_work_guard(handler);
-			std::thread([func = std::move(func), handler = std::move(handler), work = std::move(work)]() mutable
-			{
-				auto res = func();
-				asio::dispatch(work.get_executor(), [res = std::move(res), handler = std::move(handler)]() mutable {
-					std::move(handler)(std::move(res));
-				});
-			})
-			.detach();
 		},
 		asio::use_awaitable);
 	}
@@ -447,23 +170,45 @@ awaitable<error_code> co_sleep_until(const std::chrono::time_point<Rep,Period> &
 template <typename T>
 awaitable<T> co_wait(const std::future<T> &future)
 {
-	return co_thread([&future] {
-		return remove_const(future).get();
-	});
+	auto exec = co_await asio::this_coro::executor;
+	co_return co_await dispatch(exec, [&future]() mutable -> awaitable<T>
+	{
+		auto res = co_await local_dispatch([&future] {
+			return remove_const(future).get();
+		}, use_awaitable);
+
+		if constexpr( std::is_void_v<T> )
+			co_return ;
+		else
+			co_return res.first;
+	},
+	use_awaitable);
 }
 
 inline awaitable<void> co_wait(const asio::thread_pool &pool)
 {
-	return co_thread([&pool] {
-		return remove_const(pool).wait();
-	});
+	auto exec = co_await asio::this_coro::executor;
+	co_return co_await dispatch(exec, [&pool]() mutable -> awaitable<void>
+	{
+		co_await local_dispatch([&pool] {
+			return remove_const(pool).wait();
+		}, use_awaitable);
+		co_return ;
+	},
+	use_awaitable);
 }
 
 inline awaitable<void> co_wait(const std::thread &thread)
 {
-	return co_thread([&thread] {
-		return remove_const(thread).join();
-	});
+	auto exec = co_await asio::this_coro::executor;
+	co_return co_await dispatch(exec, [&thread]() mutable -> awaitable<void>
+	{
+		co_await local_dispatch([&thread] {
+			return remove_const(thread).join();
+		}, use_awaitable);
+		co_return ;
+	},
+	use_awaitable);
 }
 
 template <concepts::schedulable Exec>

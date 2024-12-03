@@ -35,7 +35,7 @@ namespace libgs { namespace execution
 {
 
 using context_t = asio::io_context;
-using executor_t = typename context_t::executor_type;
+using executor_t = context_t::executor_type;
 
 [[nodiscard]] LIBGS_CORE_API context_t &context() noexcept;
 [[nodiscard]] LIBGS_CORE_API executor_t get_executor() noexcept;
@@ -45,16 +45,62 @@ LIBGS_CORE_API void exit(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
 
-template<concepts::execution Exec = executor_t>
-LIBGS_CORE_TAPI void delete_later(auto *obj, const Exec &exec = get_executor());
-
-template<concepts::execution_context Exec = context_t>
-LIBGS_CORE_TAPI void delete_later(auto *obj, Exec &exec = context());
-
 } //namespace execution
 
+template <concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto dispatch (
+	const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token = detached
+);
+
+template <concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto dispatch (
+	concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token = detached
+);
+
+template <concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto dispatch (
+	concepts::callable auto &&func, Token &&token = detached
+);
+
+template <concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto post (
+	const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token = detached
+);
+
+template <concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto post (
+	concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token = detached
+);
+
+template <concepts::dispatch_token Token = const detached_t&>
+LIBGS_CORE_TAPI auto post (
+	concepts::callable auto &&func, Token &&token = detached
+);
+
+LIBGS_CORE_TAPI auto local_dispatch (
+	concepts::execution_context auto &exec, concepts::callable auto &&func,
+	concepts::dispatch_token auto &&token = detached
+);
+
+LIBGS_CORE_TAPI auto local_dispatch (
+	concepts::execution_context auto &exec, concepts::callable auto &&func
+);
+
+LIBGS_CORE_TAPI auto local_dispatch (
+	concepts::callable auto &&func, concepts::dispatch_token auto &&token = detached
+);
+
+LIBGS_CORE_TAPI auto local_dispatch (
+	concepts::callable auto &&func
+);
+
+LIBGS_CORE_TAPI void delete_later(const concepts::execution auto &exec, auto *obj);
+LIBGS_CORE_TAPI void delete_later(concepts::execution_context auto &exec, auto *obj);
+LIBGS_CORE_TAPI void delete_later(auto *obj);
+
 template <typename NativeExec>
-struct is_match_default_execution {
+struct is_match_default_execution
+{
 	static constexpr bool value =
 		is_execution_v<NativeExec> and
 		requires {

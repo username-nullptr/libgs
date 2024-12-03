@@ -78,7 +78,7 @@ public:
 	using endpoint_t = typename base_t::endpoint_t;
 
 public:
-	template <concepts::token<error_code> Token = use_sync_type>
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
 	[[nodiscard]] auto connect(endpoint_t ep, Token &&token = {});
 
 	void get_option(auto &option, error_code &error) noexcept;
@@ -110,7 +110,7 @@ public:
 	using endpoint_t = typename base_t::endpoint_t;
 
 public:
-	template <concepts::token<error_code> Token = use_sync_type>
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
 	void connect(endpoint_t endpoint, Token &&token = {});
 
 	void get_option(auto &option, error_code &error) noexcept;

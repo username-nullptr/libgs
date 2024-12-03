@@ -57,7 +57,7 @@ public:
 		else if( m_valid )
 			return ;
 
-		co_spawn_detached([_self = this->q_ptr]() -> awaitable<void>
+		libgs::dispatch([_self = this->q_ptr]() -> awaitable<void>
 		{
 			auto self = _self->shared_from_this();
 			error_code error;

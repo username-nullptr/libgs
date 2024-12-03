@@ -1,5 +1,5 @@
 // #include <libgs.h>
-// #include <libgs/core.h>
+#include <libgs/core.h>
 // #include <spdlog/spdlog.h>
 
 // #include <libgs/http/client/request.h>
@@ -9,13 +9,27 @@
 #include <list>
 #include <iostream>
 
-// using namespace std::chrono_literals;
-
+using namespace std::chrono_literals;
 
 int main()
 {
+	asio::io_context ioc;
+	asio::thread_pool pool;
 
-
+	libgs::dispatch(ioc, [&]
+	{
+		auto rrr = libgs::dispatch(pool, [&]
+		{
+			std::cerr << "000000000000000000000000" << std::endl;
+			libgs::sleep_for(1s);
+			std::cerr << "1111111111111" << std::endl;
+			return 111;
+		},
+		libgs::use_sync);
+		std::cerr << "rrrrrrrrrr : " << rrr << std::endl;
+	});
+	ioc.run();
+	return 0;
 
 	// spdlog::set_level(spdlog::level::trace);
 

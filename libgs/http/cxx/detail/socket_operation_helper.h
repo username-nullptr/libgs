@@ -79,13 +79,14 @@ socket_operation_helper_base<Stream>::socket() noexcept
 }
 
 template <core_concepts::execution Exec>
-template <concepts::token<error_code> Token>
+template <core_concepts::opt_token<error_code> Token>
 auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 connect(endpoint_t ep, Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
 		this->socket().connect(std::move(ep), token);
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = get(ep, error);
@@ -93,7 +94,7 @@ connect(endpoint_t ep, Token &&token)
 			throw system_error(error, "libgs::http::socket_operation_helper::connect");
 		return res;
 	}
-	else if constexpr( is_function_v<Token> )
+	else if constexpr( is_function_v<token_t> )
 		this->socket().async_connect(std::move(ep), std::forward<Token>(token));
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<Token> )
@@ -172,17 +173,18 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_
 #ifdef LIBGS_ENABLE_OPENSSL
 
 template <core_concepts::execution Exec>
-template <concepts::token<error_code> Token>
+template <core_concepts::opt_token<error_code> Token>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 connect(endpoint_t ep, Token &&token)
 {
-	if constexpr( std::is_same_v<Token, error_code&> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
 	{
 		this->socket().next_layer().connect(ep, token);
 		if( not token )
 			this->socket().handshake(asio::ssl::stream_base::client, token);
 	}
-	else if constexpr( is_sync_token_v<Token> )
+	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
 		auto res = get(ep, error);
@@ -190,7 +192,7 @@ connect(endpoint_t ep, Token &&token)
 			throw system_error(error, "libgs::http::socket_operation_helper::connect");
 		return res;
 	}
-	else if constexpr( is_function_v<Token> )
+	else if constexpr( is_function_v<token_t> )
 	{
 		this->socket().next_layer().async_connect(std::move(ep), [
 			&socket = this->socket(), ep = std::move(ep), token = forward<Token>(token)
@@ -201,7 +203,7 @@ connect(endpoint_t ep, Token &&token)
 		});
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		error_code error;
 		this->socket().next_layer().async_connect(ep, token[error]);

@@ -8,7 +8,7 @@ LIBGS_MODULE_INIT(3,[]
 	spdlog::info("hello world future 0 start initialization ...");
 	auto pool = std::make_shared<asio::thread_pool>(1);
 
-	return libgs::co_spawn_future([pool]() -> libgs::awaitable<void>
+	return libgs::dispatch(*pool, [pool]() -> libgs::awaitable<void>
 	{
 		co_await libgs::co_sleep_for(1s /*,*pool*/);
 		spdlog::info("hello world future 0 : sleep 1s.");
@@ -21,5 +21,5 @@ LIBGS_MODULE_INIT(3,[]
 
 		co_return ;
 	},
-	*pool);
+	libgs::use_future);
 });

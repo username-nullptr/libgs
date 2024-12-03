@@ -10,7 +10,7 @@ int main()
 	libgs::http::session_pool spool(libgs::execution::get_executor());
 	asio::thread_pool pool(16);
 #if 1
-	libgs::co_spawn_detached([&]() -> asio::awaitable<void>
+	libgs::dispatch([&]() -> asio::awaitable<void>
 	{
 		auto session = co_await spool.get(/*pool,*/
 			{asio::ip::address::from_string("127.0.0.1"),8080}, libgs::use_awaitable

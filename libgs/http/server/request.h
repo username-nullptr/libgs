@@ -102,13 +102,13 @@ public:
 	int32_t path_match(string_view_t rule);
 
 public:
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto read(const mutable_buffer &buf, Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto read(Token &&token = {});
 
-	template <concepts::dis_func_token Token = use_sync_type>
+	template <core_concepts::dis_func_opt_token Token = use_sync_t>
 	auto save_file (
 		concepts::char_file_opt_token_arg <
 			file_optype::single,
