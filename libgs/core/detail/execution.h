@@ -83,7 +83,7 @@ LIBGS_CORE_TAPI [[nodiscard]] auto post_future(Exec &&exec, Func &&func)
 }
 
 template <typename Func>
-LIBGS_CORE_TAPI auto make_lambda(Func &&func, bool &finished)
+LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 {
 	using return_t = std::invoke_result_t<Func>;
 	auto counter = std::make_shared<size_t>(0);
@@ -91,22 +91,28 @@ LIBGS_CORE_TAPI auto make_lambda(Func &&func, bool &finished)
 	if constexpr( is_awaitable_v<return_t> )
 	{
 		using co_return_t = typename return_t::value_type;
-		auto lambda = [counter, &finished, func = std::forward<Func>(func)]() mutable -> awaitable<co_return_t>
+		if constexpr( std::is_void_v<co_return_t> )
 		{
-			if constexpr( std::is_void_v<co_return_t> )
+			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
+			mutable -> awaitable<std::shared_ptr<size_t>>
 			{
 				co_await func();
 				finished = true;
-				co_return *counter;
-			}
-			else
+				co_return counter;
+			};
+			return std::make_pair(std::move(lambda), counter);
+		}
+		else
+		{
+			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
+			mutable -> awaitable<std::pair<co_return_t,std::shared_ptr<size_t>>>
 			{
 				auto res = co_await func();
 				finished = true;
-				co_return std::make_pair(std::move(res), *counter);
-			}
-		};
-		return std::make_pair(std::move(lambda), counter);
+				co_return std::make_pair(std::move(res), counter);
+			};
+			return std::make_pair(std::move(lambda), counter);
+		}
 	}
 	else
 	{
@@ -116,13 +122,13 @@ LIBGS_CORE_TAPI auto make_lambda(Func &&func, bool &finished)
 			{
 				func();
 				finished = true;
-				return *counter;
+				return counter;
 			}
 			else
 			{
 				auto res = func();
 				finished = true;
-				return std::make_pair(std::move(res), *counter);
+				return std::make_pair(std::move(res), counter);
 			}
 		};
 		return std::make_pair(std::move(lambda), counter);
@@ -132,7 +138,7 @@ LIBGS_CORE_TAPI auto make_lambda(Func &&func, bool &finished)
 LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 {
 	size_t counter = 0;
-	do { counter += exec.poll(); }
+	do { counter += exec.run(); }
 	while( not finished );
 	return counter;
 }
@@ -249,7 +255,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 	auto finished = std::make_shared<bool>(false);
 	if constexpr( is_detached_v<token_t> )
 	{
-		auto [lambda, counter] = detail::make_lambda(std::forward<func_t>(func), *finished);
+		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
 		dispatch(exec, std::move(lambda), token);
 
 		std::thread([&exec, finished]() mutable {
@@ -258,7 +264,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 	}
 	else if constexpr( is_use_future_v<token_t> )
 	{
-		auto [lambda, counter] = detail::make_lambda(std::forward<func_t>(func), *finished);
+		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
 		auto future = dispatch(exec, std::move(lambda), token);
 
 		std::thread([&exec, finished, counter]() mutable {
@@ -268,7 +274,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 	}
 	else if constexpr( is_use_awaitable_v<token_t> )
 	{
-		auto [lambda, counter] = detail::make_lambda(std::forward<func_t>(func), *finished);
+		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
 		auto a = dispatch(exec, std::move(lambda), token);
 
 		std::thread([&exec, finished, counter]() mutable {
@@ -278,13 +284,38 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 	}
 	else if constexpr( is_awaitable_v<return_t> )
 	{
-		auto [lambda, counter] = detail::make_lambda(std::forward<func_t>(func), *finished);
-		auto future = detail::post_future(exec, std::move(lambda));
-		detail::dispatch_poll(exec, *finished);
-		return future.get();
+		using co_return_t = typename return_t::value_type;
+		auto counter = std::make_shared<size_t>(0);
+
+		if constexpr( std::is_void_v<co_return_t> )
+		{
+			asio::co_spawn(exec, [&finished, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
+			{
+				co_await func();
+				*finished = true;
+				co_return ;
+			},
+			detached);
+			*counter = detail::dispatch_poll(exec, *finished);
+			return counter;
+		}
+		else
+		{
+			auto pair = std::make_pair(co_return_t(), counter);
+			asio::co_spawn(exec, [&pair, &finished, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
+			{
+				auto res = co_await func();
+				*finished = true;
+				pair.first = std::move(res);
+				co_return ;
+			},
+			detached);
+			*counter = detail::dispatch_poll(exec, *finished);
+			return pair;
+		}
 	}
 	else
-		return std::make_pair(func(), 1);
+		return std::make_pair(func(), std::make_shared<size_t>(1));
 }
 
 auto local_dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func)
@@ -292,7 +323,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 	auto finished = std::make_shared<bool>(false);
 	using func_t = std::remove_cvref_t<decltype(func)>;
 
-	auto [lambda, counter] = detail::make_lambda(std::forward<func_t>(func), *finished);
+	auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
 	dispatch(exec, std::move(lambda), detached);
 
 	return std::thread([&exec, finished]() mutable {
