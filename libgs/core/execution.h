@@ -79,7 +79,7 @@ LIBGS_CORE_TAPI auto post (
 
 LIBGS_CORE_TAPI auto local_dispatch (
 	concepts::execution_context auto &exec, concepts::callable auto &&func,
-	concepts::dispatch_token auto &&token = detached
+	concepts::dispatch_token auto &&token
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (
@@ -87,7 +87,7 @@ LIBGS_CORE_TAPI auto local_dispatch (
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::callable auto &&func, concepts::dispatch_token auto &&token = detached
+	concepts::callable auto &&func, concepts::dispatch_token auto &&token
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (

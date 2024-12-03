@@ -289,9 +289,14 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 
 auto local_dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func)
 {
+	auto finished = std::make_shared<bool>(false);
 	using func_t = std::remove_cvref_t<decltype(func)>;
-	return std::thread([&exec, func = std::forward<func_t>(func)]() mutable {
-		detail::dispatch_poll(exec, std::move(func));
+
+	auto [lambda, counter] = detail::make_lambda(std::forward<func_t>(func), *finished);
+	dispatch(exec, std::move(lambda), detached);
+
+	return std::thread([&exec, finished]() mutable {
+		detail::dispatch_poll(exec, *finished);
 	});
 }
 
@@ -324,8 +329,27 @@ auto local_dispatch(concepts::callable auto &&func, concepts::dispatch_token aut
 
 auto local_dispatch(concepts::callable auto &&func)
 {
-	using func_t = decltype(func);
-	return local_dispatch(execution::context(), std::forward<func_t>(func));
+	using func_t = std::remove_cvref_t<decltype(func)>;
+	using return_t = std::invoke_result_t<func_t>;
+
+	auto ioc = std::make_shared<asio::io_context>();
+	if constexpr( is_awaitable_v<return_t> )
+	{
+		using co_return_t = typename return_t::value_type;
+		return local_dispatch(*ioc, [ioc, func = std::forward<func_t>(func)]() mutable -> awaitable<co_return_t>
+		{
+			LIBGS_UNUSED(ioc);
+			co_return co_await func();
+		});
+	}
+	else
+	{
+		return local_dispatch(*ioc, [ioc, func = std::forward<func_t>(func)]() mutable
+		{
+			LIBGS_UNUSED(ioc);
+			return func();
+		});
+	}
 }
 
 void delete_later(const concepts::execution auto &exec, auto *obj)
