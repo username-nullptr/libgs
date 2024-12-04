@@ -94,12 +94,14 @@ auto local_dispatch(awaitable<T> &&a)
 }
 
 template <typename T>
-auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
+auto co_task(concepts::co_opt_token auto &&token, concepts::function auto &&wake_up)
 {
+	using token_t = decltype(token);
+	using func_t = decltype(wake_up);
+
 	if constexpr( std::is_void_v<T> )
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void()>
-		([wake_up = std::move(wake_up)](auto handler)
+		return asio::async_initiate<token_t, void()>([wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
 		{
 			auto work = asio::make_work_guard(handler);
 			asio::dispatch(work.get_executor(),
@@ -107,12 +109,11 @@ auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 				wake_up(std::move(handler));
 			});
 		},
-		asio::use_awaitable);
+		token);
 	}
 	else
 	{
-		return asio::async_initiate<decltype(asio::use_awaitable), void(T)>
-		([wake_up = std::move(wake_up)](auto handler)
+		return asio::async_initiate<token_t, void(T)>([wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
 		{
 			auto work = asio::make_work_guard(handler);
 			asio::dispatch(work.get_executor(),
@@ -120,13 +121,28 @@ auto co_task(std::function<void(awaitable_wake_up<T>&&)> wake_up)
 				wake_up(std::move(handler));
 			});
 		},
-		asio::use_awaitable);
+		token);
 	}
 }
 
-inline auto co_task(std::function<void(awaitable_wake_up<void>&&)> wake_up)
+auto co_task(concepts::co_opt_token auto &&token, concepts::function auto &&wake_up)
 {
-	return co_task<void>(std::move(wake_up));
+	using token_t = decltype(token);
+	using func_t = decltype(wake_up);
+	return co_task<void>(std::forward<token_t>(token), std::forward<func_t>(wake_up));
+}
+
+template <typename T>
+auto co_task(concepts::function	auto &&wake_up)
+{
+	using func_t = decltype(wake_up);
+	return co_task<T>(use_awaitable, std::forward<func_t>(wake_up));
+}
+
+auto co_task(concepts::function auto &&wake_up)
+{
+	using func_t = decltype(wake_up);
+	return co_task(use_awaitable, std::forward<func_t>(wake_up));
 }
 
 namespace detail
