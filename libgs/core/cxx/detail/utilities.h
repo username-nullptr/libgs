@@ -292,10 +292,15 @@ basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(ip_type type) :
 template <typename Protocol>
 template <typename...Args>
 basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(Args&&...args) requires
-	concepts::constructible<endpoint_t,Args&&...> :
-	value(std::forward<Args>(args)...)
+	concepts::constructible<endpoint_t,Args&&...>
 {
-
+	if constexpr( sizeof...(Args) == 2 )
+	{
+		auto tuple = std::forward_as_tuple(std::forward<Args>(args)...);
+		value = endpoint_t(std::get<0>(tuple), static_cast<uint16_t>(std::get<1>(tuple)));
+	}
+	else
+		value = endpoint_t(std::forward<Args>(args)...);
 }
 
 template <typename Protocol>

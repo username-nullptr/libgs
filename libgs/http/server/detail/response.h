@@ -120,8 +120,10 @@ public:
 		co_return sum;
 	}
 
-	void set_blocking(error_code &error) {
-		socket_operation_helper<next_layer_t>(m_next_layer.next_layer()).non_blocking(false, error);
+	void set_blocking(error_code &error)
+	{
+		socket_operation_helper<typename next_layer_t::next_layer_t>
+		(m_next_layer.next_layer()).non_blocking(false, error);
 	}
 
 private:
