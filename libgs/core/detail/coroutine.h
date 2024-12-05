@@ -262,12 +262,12 @@ template <concepts::co_opt_token Token>
 bool check_error(Token &token, const error_code &error, const char *func)
 	requires (not std::is_const_v<Token>)
 {
-	if( not error )
-		return true;
-
 	if constexpr( is_use_awaitable_v<Token> or is_cancellation_slot_binder_v<Token> )
+	{
+		if( not error )
+			return true;
 		throw func ? system_error(error, func) : system_error(error);
-
+	}
 	else if constexpr( is_redirect_error_v<Token> or is_redirect_error_cancellation_slot_binder_v<Token> )
 	{
 		token.ec_ = error;
