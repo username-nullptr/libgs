@@ -26,61 +26,60 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_DETAIL_TOKEN_CONCEPTS_H
-#define LIBGS_CORE_CXX_DETAIL_TOKEN_CONCEPTS_H
+#ifndef LIBGS_CORE_CXX_OPT_TOKEN_H
+#define LIBGS_CORE_CXX_OPT_TOKEN_H
 
-namespace libgs::operators
+#include <libgs/core/cxx/type_traits.h>
+
+#ifdef LIBGS_USING_BOOST_ASIO
+# include <boost/asio/experimental/awaitable_operators.hpp>
+# include <boost/asio/spawn.hpp>
+#else
+# include <asio/experimental/awaitable_operators.hpp>
+#endif //LIBGS_USING_BOOST_ASIO
+
+namespace libgs
 {
 
-auto operator|(concepts::use_awaitable auto &&ua, std::error_code &error)
+template <concepts::execution Exec = asio::any_io_executor>
+using use_basic_awaitable_t = asio::use_awaitable_t<Exec>;
+
+using use_awaitable_t = use_basic_awaitable_t<asio::any_io_executor>;
+constexpr auto use_awaitable = asio::use_awaitable;
+
+template <typename Allocator = std::allocator<void>>
+using use_basic_future_t = asio::use_future_t<Allocator>;
+
+using use_future_t = use_basic_future_t<std::allocator<void>>;
+constexpr auto use_future = asio::use_future;
+
+using detached_t = asio::detached_t;
+constexpr auto detached = asio::detached;
+
+struct use_sync_t {};
+constexpr use_sync_t use_sync = use_sync_t();
+
+template <typename Token>
+using redirect_error_t = asio::redirect_error_t<Token>;
+
+template <typename Token, typename CancellationSlot>
+using cancellation_slot_binder = asio::cancellation_slot_binder<Token, CancellationSlot>;
+
+template <typename Token>
+class LIBGS_CORE_TAPI redirect_time_t
 {
-	using token_t = decltype(ua);
-	return asio::redirect_error(std::forward<token_t>(ua), error);
-}
+public:
+	using token_t = Token;
 
-auto operator|(const std::error_code &error, concepts::use_awaitable auto &&ua)
-{
-	using token_t = decltype(ua);
-	return asio::redirect_error(std::forward<token_t>(ua), error);
-}
+	template <typename Rep, typename Period>
+	redirect_time_t(auto &&token, const duration<Rep,Period> &timeout);
 
-auto operator|(concepts::use_awaitable auto &&ua, const asio::cancellation_slot &slot)
-{
-	using token_t = decltype(ua);
-	return asio::bind_cancellation_slot(slot, std::forward<token_t>(ua));
-}
+	token_t token;
+	milliseconds time {0};
+};
 
-auto operator|(const asio::cancellation_slot &slot, concepts::use_awaitable auto &&ua)
-{
-	using token_t = decltype(ua);
-	return asio::bind_cancellation_slot(slot, std::forward<token_t>(ua));
-}
-
-auto operator|(concepts::redirect_error auto &&re, const asio::cancellation_slot &slot)
-{
-	using token_t = decltype(re);
-	return asio::bind_cancellation_slot(slot, std::forward<token_t>(re));
-}
-
-auto operator|(const asio::cancellation_slot &slot, concepts::redirect_error auto &&re)
-{
-	using token_t = decltype(re);
-	return asio::bind_cancellation_slot(slot, std::forward<token_t>(re));
-}
-
-auto operator|(concepts::cancellation_slot_binder auto &&csb, std::error_code &error)
-{
-	using token_t = decltype(csb);
-	return asio::redirect_error(std::forward<token_t>(csb), error);
-}
-
-auto operator|(std::error_code &error, concepts::cancellation_slot_binder auto &&csb)
-{
-	using token_t = decltype(csb);
-	return asio::redirect_error(std::forward<token_t>(csb), error);
-}
-
-} //namespace libgs::operators
+} //namespace libgs
+#include <libgs/core/cxx/detail/opt_token.h>
 
 
-#endif //LIBGS_CORE_CXX_DETAIL_TOKEN_CONCEPTS_H
+#endif //LIBGS_CORE_CXX_OPT_TOKEN_H

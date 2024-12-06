@@ -79,11 +79,7 @@ public:
 		m_helper.set_header(key, std::move(value));
 	}
 
-	void set_status(uint32_t status) {
-		m_helper.set_status(status);
-	}
-
-	void set_status(http::status status) {
+	void set_status(status_t status) {
 		m_helper.set_status(status);
 	}
 
@@ -910,14 +906,7 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operat
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(uint32_t status)
-{
-	m_impl->set_status(status);
-	return *this;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(http::status status)
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_status(status_t status)
 {
 	m_impl->set_status(status);
 	return *this;
@@ -938,7 +927,7 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_co
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -963,35 +952,38 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace libgs::operators;
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, body, token]() mutable -> awaitable<size_t>
-		{
-			using namespace std::chrono_literals;
-			error_code error;
+		using namespace std::chrono_literals;
+		auto timeout = 30000ms;
+		if constexpr( is_redirect_time_v<token_t> )
+			timeout = token.time;
 
+		auto ntoken = co_opt_token_helper(token);
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, body, timeout, ntoken]() mutable -> awaitable<size_t>
+		{
+			error_code error;
 			auto var = co_await (
 				m_impl->co_write(body, error, "write") or
-				co_sleep_for(30s /*,get_executor()*/)
+				co_sleep_for(timeout /*,get_executor()*/)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
-			check_error(remove_const(token), error, "libgs::http::server_response::write");
+			check_error(remove_const(ntoken), error, "libgs::http::server_response::write");
 			co_return res;
 		},
-		token);
+		ntoken);
 		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::write(Token &&token)
 {
 	return write({nullptr,0}, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -1020,37 +1012,40 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace libgs::operators;
+		using namespace std::chrono_literals;
+		auto timeout = 30000ms;
+		if constexpr( is_redirect_time_v<token_t> )
+			timeout = token.time;
+
 		m_impl->m_helper.set_redirect(url, redi);
+		auto ntoken = co_opt_token_helper(token);
 
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<size_t>
+		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
-			using namespace std::chrono_literals;
 			error_code error;
-
 			auto var = co_await (
 				m_impl->co_write({nullptr,0}, error, "redirect") or
-				co_sleep_for(30s /*,get_executor()*/)
+				co_sleep_for(timeout /*,get_executor()*/)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
-			check_error(remove_const(token), error, "libgs::http::server_response::redirect");
+			check_error(remove_const(ntoken), error, "libgs::http::server_response::redirect");
 			co_return res;
 		},
-		token);
+		ntoken);
 		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::redirect(string_view_t url, Token &&token)
 {
 	return redirect(url, http::redirect::moved_permanently, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::send_file
 (concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt, Token &&token)
 {
@@ -1078,24 +1073,26 @@ auto basic_server_response<Stream,CharT>::send_file
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace libgs::operators;
-		auto co_awaitable = asio::co_spawn(get_executor(), [
-			this, opt = std::forward<opt_t>(opt), token
-		]() mutable -> awaitable<size_t>
-		{
-			using namespace std::chrono_literals;
-			error_code error;
+		using namespace std::chrono_literals;
+		auto timeout = 30000ms;
+		if constexpr( is_redirect_time_v<token_t> )
+			timeout = token.time;
 
+		auto ntoken = co_opt_token_helper(token);
+		auto co_awaitable = asio::co_spawn(get_executor(),
+		[this, opt = std::forward<opt_t>(opt), timeout, ntoken]() mutable -> awaitable<size_t>
+		{
+			error_code error;
 			auto var = co_await (
 				m_impl->co_send_file(std::move(opt), error, "send_file") or
-				co_sleep_for(30s /*,get_executor()*/)
+				co_sleep_for(timeout /*,get_executor()*/)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
-			check_error(remove_const(token), error, "libgs::http::server_response::send_file");
+			check_error(remove_const(ntoken), error, "libgs::http::server_response::send_file");
 			co_return res;
 		},
-		token);
+		ntoken);
 		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
@@ -1115,7 +1112,7 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_ch
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -1140,28 +1137,32 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace libgs::operators;
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, headers, token]() mutable -> awaitable<size_t>
-		{
-			using namespace std::chrono_literals;
-			error_code error;
+		using namespace std::chrono_literals;
+		auto timeout = 30000ms;
+		if constexpr( is_redirect_time_v<token_t> )
+			timeout = token.time;
 
+		auto ntoken = co_opt_token_helper(token);
+		auto co_awaitable = asio::co_spawn(get_executor(),
+		[this, headers, timeout, ntoken]() mutable -> awaitable<size_t>
+		{
+			error_code error;
 			auto var = co_await (
 				m_impl->co_chunk_end(headers, error, "chunk_end") or
-				co_sleep_for(30s /*,get_executor()*/)
+				co_sleep_for(timeout /*,get_executor()*/)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
-			check_error(remove_const(token), error, "libgs::http::server_response::chunk_end");
+			check_error(remove_const(ntoken), error, "libgs::http::server_response::chunk_end");
 			co_return res;
 		},
-		token);
+		ntoken);
 		return nodiscard_return_helper(std::move(co_awaitable));
 	}
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <core_concepts::dis_func_opt_token Token>
+template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(Token &&token)
 {
 	return chunk_end({}, std::forward<Token>(token));

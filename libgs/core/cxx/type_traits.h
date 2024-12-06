@@ -29,7 +29,8 @@
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
-#include <libgs/core/cxx/token_concepts.h>
+#include <libgs/core/cxx/asio_concepts.h>
+#include <libgs/core/cxx/attributes.h>
 #include <chrono>
 #include <format>
 
@@ -41,10 +42,26 @@ using size_t = std::size_t;
 template<typename Rep, typename Period>
 using duration = std::chrono::duration<Rep, Period>;
 
+using nanoseconds  = std::chrono::nanoseconds ;
+using microseconds = std::chrono::microseconds;
+using milliseconds = std::chrono::milliseconds;
+
+using seconds = std::chrono::seconds;
+using minutes = std::chrono::minutes;
+using hours   = std::chrono::hours  ;
+
+using days   = std::chrono::days  ;
+using weeks  = std::chrono::weeks ;
+using months = std::chrono::months;
+using years  = std::chrono::years ;
+
 template<typename Clock, typename Duration>
 using time_point = std::chrono::time_point<Clock, Duration>;
 
-template <concepts::char_type CharT>
+using error_code = asio::error_code;
+namespace errc = asio::error;
+
+template <concepts::char_type>
 struct default_format {};
 
 template <>
@@ -70,33 +87,16 @@ class LIBGS_CORE_VAPI const_buffer : public asio::ASIO_CONST_BUFFER
 public:
 	using asio::ASIO_CONST_BUFFER::ASIO_CONST_BUFFER;
 	const_buffer &operator=(const const_buffer&) = default;
-
-	const_buffer(const asio::ASIO_CONST_BUFFER &buf) :
-		asio::ASIO_CONST_BUFFER(buf.data(), buf.size()) {}
-
-	const_buffer(const mutable_buffer &buf) :
-		asio::ASIO_CONST_BUFFER(buf.data(), buf.size()) {}
-
-	const_buffer(const char *buf) :
-		asio::ASIO_CONST_BUFFER(buf, strlen(buf)) {}
-
-	const_buffer(const std::string &buf) :
-		asio::ASIO_CONST_BUFFER(buf.c_str(), buf.size()) {}
-
-	const_buffer(std::string_view &buf) :
-		asio::ASIO_CONST_BUFFER(buf.data(), buf.size()) {}
-
-	const_buffer &operator=(const mutable_buffer &buf)
-	{
-		operator=(const_buffer(buf.data(), buf.size()));
-		return *this;
-	}
+	const_buffer(const asio::ASIO_CONST_BUFFER &buf);
+	const_buffer(const mutable_buffer &buf);
+	const_buffer(const char *buf);
+	const_buffer(const std::string &buf);
+	const_buffer(std::string_view &buf);
+	const_buffer &operator=(const mutable_buffer &buf);
 };
 
 template <typename...Args>
-auto buffer(Args&&...args) {
-	return asio::buffer(std::forward<Args>(args)...);
-}
+[[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args);
 
 template <size_t N>
 struct byte_type {};
@@ -118,6 +118,7 @@ using uintptr_t = sizeof_type<void*>::unsigned_t;
 using intptr_t  = sizeof_type<void*>::signed_t;
 
 } //namespace libgs
+#include <libgs/core/cxx/detail/type_traits.h>
 
 
 #endif //LIBGS_CORE_CXX_TYPE_TRAITS_H

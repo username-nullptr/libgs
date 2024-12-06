@@ -109,7 +109,7 @@ auto co_task(concepts::co_opt_token auto &&token, concepts::function auto &&wake
 				wake_up(std::move(handler));
 			});
 		},
-		token);
+		co_opt_token_helper(token));
 	}
 	else
 	{
@@ -121,7 +121,7 @@ auto co_task(concepts::co_opt_token auto &&token, concepts::function auto &&wake
 				wake_up(std::move(handler));
 			});
 		},
-		token);
+		co_opt_token_helper(token));
 	}
 }
 
@@ -262,22 +262,21 @@ template <concepts::co_opt_token Token>
 bool check_error(Token &token, const error_code &error, const char *func)
 	requires (not std::is_const_v<Token>)
 {
-	if constexpr( is_use_awaitable_v<Token> or is_cancellation_slot_binder_v<Token> )
+	if constexpr( is_use_awaitable_v<Token> )
 	{
 		if( not error )
 			return true;
 		throw func ? system_error(error, func) : system_error(error);
 	}
-	else if constexpr( is_redirect_error_v<Token> or is_redirect_error_cancellation_slot_binder_v<Token> )
+	else if constexpr( is_redirect_error_v<Token> )
 	{
 		token.ec_ = error;
 		return false;
 	}
-	else if constexpr( is_cancellation_slot_binder_redirect_error_v<Token> )
-	{
-		token.get().ec_ = error;
-		return false;
-	}
+	else if constexpr( is_cancellation_slot_binder_v<Token> )
+		return check_error(token.get(), error, func);
+	else if constexpr( is_redirect_time_v<Token> )
+		return check_error(token.token, error, func);
 	else
 	{
 		static_assert(false, "Unsupported token type.");

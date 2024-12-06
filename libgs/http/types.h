@@ -149,6 +149,7 @@ enum class redirect
 	LIBGS_HTTP_REDIRECT_TYPE_TABLE
 #undef X_MACRO
 };
+using redirect_t = redirect;
 LIBGS_HTTP_VAPI bool redirect_check(redirect type, bool _throw = true);
 
 template <core_concepts::char_type CharT>

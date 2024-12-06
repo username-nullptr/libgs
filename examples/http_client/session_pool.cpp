@@ -35,17 +35,20 @@ int main()
 	spool.get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080},
 	[&pool](libgs::http::session_pool::session_t session, const std::error_code &error)
 	{
+		LIBGS_UNUSED(error);
 	    static auto wbuf ="GET / HTTP/1.1\r\n"
 	                      "Host: 127.0.0.1:8080\r\n"
 	                      "\r\n";
 	    asio::async_write(session.socket(), asio::buffer(wbuf, strlen(wbuf)),
 	    [&pool, session = std::move(session)](const std::error_code &error, size_t wres) mutable
 	    {
+		    LIBGS_UNUSED(error);
 	        spdlog::info("Sent {} bytes", wres);
 	        static char rbuf[8192] {0};
 
 	        session.socket().async_read_some(asio::buffer(rbuf, 8192), [&pool](const std::error_code &error, size_t rres)
 	        {
+	        	LIBGS_UNUSED(error);
 	            spdlog::info("Received {} bytes\n", rres);
 	            spdlog::info("Response: {}", rbuf);
 

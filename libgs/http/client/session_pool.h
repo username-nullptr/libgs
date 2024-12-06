@@ -60,15 +60,15 @@ public:
 public:
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get(const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::opt_token<Token,session_t,error_code>;
+		requires core_concepts::tf_opt_token<Token,session_t,error_code>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get(const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::opt_token<Token,session_t,error_code>;
+		requires core_concepts::tf_opt_token<Token,session_t,error_code>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get(core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::opt_token<Token,session_t,error_code>;
+		requires core_concepts::tf_opt_token<Token,session_t,error_code>;
 
 public:
 	void emplace(socket_t &&socket);
