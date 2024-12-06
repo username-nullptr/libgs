@@ -29,5 +29,7 @@
 /tags
 **/makefile*
 **/Makefile*
+**/~*
+**/*~
 /.qmake.stash
 CMakeSettings.json
