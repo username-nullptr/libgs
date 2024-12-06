@@ -24,6 +24,7 @@
 /*.json
 /.vs
 /.idea
+/.svn
 /out
 /tags
 **/makefile*
