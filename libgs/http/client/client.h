@@ -29,24 +29,27 @@
 #ifndef LIBGS_HTTP_CLIENT_CLIENT_H
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
-#include <libgs/http/client/request.h>
+#include <libgs/http/client/request_context.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT,
-          concepts::any_exec_stream Stream = asio::ip::tcp::socket,
-		  core_concepts::execution Exec = asio::any_io_executor>
+template <core_concepts::char_type CharT, concepts::session_pool SessionPool = session_pool>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
 
 public:
-	using socket_t = Stream;
-	using executor_t = Exec;
+	using char_t = CharT;
+	using session_pool_t = SessionPool;
 
-	using session_pool_t = basic_session_pool<socket_t,executor_t>;
-	using request_t = basic_client_request<socket_t,CharT>;
+	using socket_t = typename session_pool_t::socket_t;
+	using executor_t = typename session_pool_t::executor_t;
+
+    template <method_t Method>
+    using request_context_t = basic_request_context<char_t,Method,session_pool_t>;
+	using request_t = basic_client_request<char_t>;
+
 	using reply_t = typename request_t::reply_t;
 	using url_t = typename request_t::url_t;
 
@@ -61,7 +64,7 @@ public:
 	basic_client &operator=(basic_client &&other) noexcept;
 
 public:
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto get(Token &&token = {});
 
 	template <concepts::token Token = use_sync_t>

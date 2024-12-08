@@ -60,9 +60,9 @@ template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	struct string_pool : detail::string_pool<CharT>, detail::_request_parser_static_string<CharT> {};
-	using string_list_t = basic_string_list<CharT>;
-	using parser_t = basic_parser_base<CharT>;
+	struct string_pool : detail::string_pool<char_t>, detail::_request_parser_static_string<char_t> {};
+	using string_list_t = basic_string_list<char_t>;
+	using parser_t = basic_parser_base<char_t>;
 
 public:
 	explicit impl(size_t init_buf_size) :
@@ -88,25 +88,25 @@ public:
 				return version;
 			}
 			m_method  = method;
-			version = mbstoxx<CharT>(request_line_parts[2].substr(5,3));
+			version = mbstoxx<char_t>(request_line_parts[2].substr(5,3));
 
 			auto url_line = from_percent_encoding(request_line_parts[1]);
 			auto pos = url_line.find('?');
 
 			if( pos == std::string::npos )
-				m_path = mbstoxx<CharT>(url_line);
+				m_path = mbstoxx<char_t>(url_line);
 			else
 			{
-				m_path = mbstoxx<CharT>(url_line.substr(0, pos));
+				m_path = mbstoxx<char_t>(url_line.substr(0, pos));
 				auto parameters_string = url_line.substr(pos + 1);
 
 				for(auto &para_str : string_list::from_string(parameters_string, '&'))
 				{
 					pos = para_str.find('=');
 					if( pos == std::string::npos )
-						m_parameters.emplace(mbstoxx<CharT>(para_str), mbstoxx<CharT>(para_str));
+						m_parameters.emplace(mbstoxx<char_t>(para_str), mbstoxx<char_t>(para_str));
 					else
-						m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
+						m_parameters.emplace(mbstoxx<char_t>(para_str.substr(0, pos)), mbstoxx<char_t>(para_str.substr(pos+1)));
 				}
 			}
 			if( not m_path.starts_with(string_pool::root) )
@@ -114,7 +114,7 @@ public:
 				error = parser_t::make_error_code(parse_errno::IHP);
 				return version;
 			}
-			auto n_it = std::unique(m_path.begin(), m_path.end(), [](CharT c0, CharT c1){
+			auto n_it = std::unique(m_path.begin(), m_path.end(), [](char_t c0, char_t c1){
 				return c0 == c1 and c0 == 0x2F/*/*/;
 			});
 			if( n_it != m_path.end() )
@@ -139,7 +139,7 @@ public:
 				}
 				auto key = str_trimmed(statement.substr(0,pos));
 				auto value = str_trimmed(statement.substr(pos+1));
-				m_cookies[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
+				m_cookies[mbstoxx<char_t>(key)] = mbstoxx<char_t>(value);
 			}
 		});
 	}
@@ -148,13 +148,13 @@ public:
 	void set_attribute()
 	{
 		auto headers = m_parser.headers();
-		auto it = headers.find(basic_header<CharT>::connection);
+		auto it = headers.find(basic_header<char_t>::connection);
 		if( it == headers.end() )
 			m_keep_alive = m_parser.version() != string_pool::v_1_0;
 		else
 			m_keep_alive = str_to_lower(it->second.to_string()) != string_pool::close;
 
-		it = headers.find(basic_header<CharT>::accept_encoding);
+		it = headers.find(basic_header<char_t>::accept_encoding);
 		if( it == headers.end() )
 		{
 			m_support_gzip = false;
@@ -237,8 +237,8 @@ bool basic_request_parser<CharT>::operator<<(std::string_view buf)
 template <core_concepts::char_type CharT>
 int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 {
-	constexpr const CharT *root = detail::string_pool<CharT>::root;
-	using string_list_t = basic_string_list<CharT>;
+	constexpr const char_t *root = detail::string_pool<char_t>::root;
+	using string_list_t = basic_string_list<char_t>;
 
 	auto rule_list = rule == root ?
 		string_list_t{{rule.data(), rule.size()}} :
@@ -304,7 +304,7 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 }
 
 template <core_concepts::char_type CharT>
-http::method basic_request_parser<CharT>::method() const noexcept
+method_t basic_request_parser<CharT>::method() const noexcept
 {
 	return m_impl->m_method;
 }

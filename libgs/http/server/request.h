@@ -46,9 +46,10 @@ public:
 	using executor_t = typename next_layer_t::executor_type;
 	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
 
-	using parser_t = basic_request_parser<CharT>;
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using parser_t = basic_request_parser<char_t>;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
 	using value_t = typename parser_t::value_t;
 	using path_args_t = typename parser_t::path_args_t;
@@ -68,11 +69,11 @@ public:
 	basic_server_request &operator=(basic_server_request &&other) noexcept;
 
 	template <typename Stream0>
-	basic_server_request(basic_server_request<Stream0,CharT> &&other) noexcept
+	basic_server_request(basic_server_request<Stream0,char_t> &&other) noexcept
 		requires core_concepts::constructible<Stream,Stream0&&>;
 
 	template <typename Stream0>
-	basic_server_request &operator=(basic_server_request<Stream0,CharT> &&other) noexcept
+	basic_server_request &operator=(basic_server_request<Stream0,char_t> &&other) noexcept
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:

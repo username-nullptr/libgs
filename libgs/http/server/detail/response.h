@@ -40,9 +40,9 @@ class basic_server_response<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
-	using response_t = basic_server_response<Stream, CharT>;
-	using string_list_t = basic_string_list<CharT>;
-	using static_string = detail::_response_helper_static_string<CharT>;
+	using response_t = basic_server_response;
+	using string_list_t = basic_string_list<char_t>;
+	using static_string = detail::_response_helper_static_string<char_t>;
 
 public:
 	impl(next_layer_t &&next_layer) :
@@ -50,7 +50,7 @@ public:
 		m_next_layer(std::move(next_layer)) {}
 
 	template <typename Stream0>
-	impl &operator=(typename basic_server_response<Stream0,CharT>::impl &&other) noexcept
+	impl &operator=(typename basic_server_response<Stream0,char_t>::impl &&other) noexcept
 	{
 		m_helper = std::move(other.m_helper);
 		m_next_layer = std::move(other.m_next_layer);
@@ -234,7 +234,7 @@ private:
 		if( data.fsize == 0 )
 			return sum;
 
-		set_header(header_t::content_type, mbstoxx<CharT>(data.mtype));
+		set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
 		sum += write_header(data.fsize, error);
 		if( error )
 			return sum;
@@ -266,7 +266,7 @@ private:
 		if( data.fsize == 0 )
 			co_return sum;
 
-		set_header(header_t::content_type, mbstoxx<CharT>(data.mtype));
+		set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
 		sum += co_await co_write_header(data.fsize, error);
 		if( error )
 			co_return sum;
@@ -299,7 +299,7 @@ public:
 		{
 			auto &range = ranges.back();
 			set_header(header_t::accept_ranges, static_string::bytes);
-			set_header(header_t::content_type, mbstoxx<CharT>(mime_type));
+			set_header(header_t::content_type, mbstoxx<char_t>(mime_type));
 			set_header(header_t::content_length, range.total);
 			set_header(header_t::content_range, {
 				static_string::content_range_format, range.begin, range.end, range.total
@@ -312,7 +312,7 @@ public:
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
 		);
-		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
+		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<char_t>(boundary));
 
 		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
@@ -353,7 +353,7 @@ public:
 		{
 			auto &range = ranges.back();
 			set_header(header_t::accept_ranges, static_string::bytes);
-			set_header(header_t::content_type, mbstoxx<CharT>(data.mtype));
+			set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
 			set_header(header_t::content_length, range.total);
 			set_header(header_t::content_range, {
 				static_string::content_range_format, range.begin, range.end, range.total
@@ -366,7 +366,7 @@ public:
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
 		);
-		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<CharT>(boundary));
+		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<char_t>(boundary));
 
 		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
@@ -627,7 +627,7 @@ private:
 			auto list = string_list_t::from_string(sub_range_str, '-', false);
 			if( list.size() != 2 )
 			{
-				spdlog::debug("Range format error: {}.", xxtombs<CharT>(sub_range_str));
+				spdlog::debug("Range format error: {}.", xxtombs<char_t>(sub_range_str));
 				return status::range_not_satisfiable;
 			}
 			else if( list[0].empty() )
@@ -723,12 +723,12 @@ private:
 
 		it = m_helper.headers().find(header_t::transfer_encoding);
 		if( it == m_helper.headers().end() or
-			str_to_lower(it->second.to_string()) != detail::string_pool<CharT>::chunked )
+			str_to_lower(it->second.to_string()) != detail::string_pool<char_t>::chunked )
 			throw runtime_error("libgs::http::server_response::{}: 'Transfer-Coding: chunked' not set.", func);
 
 		std::string buf = "0\r\n";
 		for(auto &[key,value] : headers)
-			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
+			buf += xxtombs<char_t>(key) + ": " + xxtombs<char_t>(value.to_string()) + "\r\n";
 		return buf + "\r\n";
 	}
 
@@ -889,8 +889,8 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operat
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <typename Stream0>
 basic_server_response<Stream,CharT>::basic_server_response
-(basic_server_response<Stream0,CharT> &&other) noexcept
-	requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0,CharT>&&> :
+(basic_server_response<Stream0,char_t> &&other) noexcept
+	requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0,char_t>&&> :
 	m_impl(new impl(this, std::move(*other.m_impl)))
 {
 
@@ -899,7 +899,7 @@ basic_server_response<Stream,CharT>::basic_server_response
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <typename Stream0>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operator=
-(basic_server_response<Stream0,CharT> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
+(basic_server_response<Stream0,char_t> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
 {
 	*m_impl = std::move(*other.m_impl);
 	return *this;

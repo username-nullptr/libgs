@@ -45,14 +45,14 @@ public:
 		m_next_layer(std::forward<Native>(next_layer)), m_parser(&parser) {}
 
 	template <typename Stream0>
-	impl(typename basic_server_request<Stream0,CharT>::impl &&other) noexcept :
+	impl(typename basic_server_request<Stream0,char_t>::impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
 
 	impl(impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
 
 	template <typename Stream0>
-	impl &operator=(typename basic_server_request<Stream0,CharT>::impl &&other) noexcept
+	impl &operator=(typename basic_server_request<Stream0,char_t>::impl &&other) noexcept
 	{
 		m_next_layer = std::move(other.m_next_layer);
 		m_parser = other.m_parser;
@@ -68,7 +68,7 @@ public:
 
 	~impl()
 	{
-		if( m_parser->version() == detail::string_pool<CharT>::v_1_0 )
+		if( m_parser->version() == detail::string_pool<char_t>::v_1_0 )
 			socket_operation_helper<next_layer_t>(m_next_layer).close();
 	}
 
@@ -373,7 +373,7 @@ basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <typename Stream0>
-basic_server_request<Stream,CharT>::basic_server_request(basic_server_request<Stream0,CharT> &&other) noexcept
+basic_server_request<Stream,CharT>::basic_server_request(basic_server_request<Stream0,char_t> &&other) noexcept
 	requires core_concepts::constructible<Stream,Stream0&&> :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
@@ -383,7 +383,7 @@ basic_server_request<Stream,CharT>::basic_server_request(basic_server_request<St
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <typename Stream0>
 basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator=
-(basic_server_request<Stream0,CharT> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
+(basic_server_request<Stream0,char_t> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
 {
 	*m_impl = std::move(*other.m_impl);
 	return *this;
@@ -442,7 +442,7 @@ basic_server_request<Stream,CharT>::parameter(string_view_t key) const
 	auto &map = m_impl->m_parser->parameters();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs<char_t>(key));
 	return it->second;
 }
 
@@ -453,7 +453,7 @@ basic_server_request<Stream,CharT>::header(string_view_t key) const
 	auto &map = m_impl->m_parser->headers();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs<char_t>(key));
 	return it->second;
 }
 
@@ -464,7 +464,7 @@ basic_server_request<Stream,CharT>::cookie(string_view_t key) const
 	auto &map = m_impl->m_parser->cookies();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs<char_t>(key));
 	return it->second;
 }
 
@@ -515,7 +515,7 @@ basic_server_request<Stream,CharT>::path_arg(string_view_t key) const
 		if( _key == key )
 			return value;
 	}
-	throw runtime_error("libgs::http::server_request::path_arg: key '{}' not exists.", xxtombs<CharT>(key));
+	throw runtime_error("libgs::http::server_request::path_arg: key '{}' not exists.", xxtombs<char_t>(key));
 //	return {};
 }
 
@@ -743,7 +743,7 @@ bool basic_server_request<Stream,CharT>::is_chunked() const noexcept
 	if( stoi32(version()) < 1.1 )
 		return false;
 	auto it = m_impl->m_headers.find(header_t::transfer_encoding);
-	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::string_pool<CharT>::chunked;
+	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::string_pool<char_t>::chunked;
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>

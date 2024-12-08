@@ -41,17 +41,18 @@ class LIBGS_HTTP_TAPI basic_response_helper
 	using string_pool = detail::string_pool<CharT>;
 
 public:
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
-	using value_t = basic_value<CharT>;
-	using value_list_t = basic_value_list<CharT>;
+	using value_t = basic_value<char_t>;
+	using value_list_t = basic_value_list<char_t>;
 
-	using header_t = basic_header<CharT>;
-	using headers_t = basic_headers<CharT>;
+	using header_t = basic_header<char_t>;
+	using headers_t = basic_headers<char_t>;
 
-	using cookie_t = basic_cookie<CharT>;
-	using cookies_t = basic_cookies<CharT>;
+	using cookie_t = basic_cookie<char_t>;
+	using cookies_t = basic_cookies<char_t>;
 
 public:
 	explicit basic_response_helper(string_view_t version, const headers_t &request_headers = {});

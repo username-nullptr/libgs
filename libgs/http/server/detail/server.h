@@ -43,7 +43,7 @@ public:
 		m_next_layer(std::move(next_layer)), m_service_exec(service_exec) {}
 
 	template <typename Stream0, typename Exec0>
-	impl(typename basic_server<CharT,Stream0,Exec0>::impl &&other) noexcept :
+	impl(typename basic_server<char_t,Stream0,Exec0>::impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)),
 		m_service_exec(other.m_service_exec),
 		m_request_handler_map(std::move(other.m_request_handler_map)),
@@ -74,7 +74,7 @@ public:
 	}
 
 	template <typename Stream0, typename Exec0>
-	impl &operator=(typename basic_server<CharT,Stream0,Exec0>::impl &&other) noexcept
+	impl &operator=(typename basic_server<char_t,Stream0,Exec0>::impl &&other) noexcept
 	{
 		m_next_layer = std::move(other.m_next_layer);
 		m_service_exec = other.m_service_exec;
@@ -153,13 +153,13 @@ public:
 
 	void rule_path_check(string_t &str)
 	{
-		auto n_it = std::unique(str.begin(), str.end(), [](CharT c0, CharT c1){
+		auto n_it = std::unique(str.begin(), str.end(), [](char_t c0, char_t c1){
 			return c0 == c1 and c0 == 0x2F/*/*/;
 		});
 		if( n_it != str.end() )
 			str.erase(n_it, str.end());
 
-		constexpr auto root = detail::string_pool<CharT>::root;
+		constexpr auto root = detail::string_pool<char_t>::root;
 		if( not str.starts_with(root) )
 			str = root + str;
 	}
@@ -365,7 +365,7 @@ private:
 				);
 				data = std::format(def_html, "LIBGS", status);
 			}
-			if constexpr( is_char_v<CharT> )
+			if constexpr( is_char_v<char_t> )
 				context.response().set_header(header::content_type, "text/html");
 			else
 				context.response().set_header(wheader::content_type, L"text/html");
@@ -606,8 +606,8 @@ template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core
 template <method...Method, typename Func, typename...AopPtrs>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-	detail::concepts::request_handler<Func,socket_t,CharT> and
-	detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>
+	detail::concepts::request_handler<Func,socket_t,char_t> and
+	detail::concepts::aop_ptr_list<socket_t,char_t,AopPtrs...>
 {
 	for(auto &path_rule : path_rules.paths)
 	{
@@ -677,7 +677,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Func>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_default(Func &&func)
-	requires detail::concepts::request_handler<Func,socket_t,CharT>
+	requires detail::concepts::request_handler<Func,socket_t,char_t>
 {
 	m_impl->m_default_handler = std::forward<Func>(func);
 	return *this;

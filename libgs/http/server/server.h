@@ -51,22 +51,23 @@ public:
 	using endpoint_t = typename next_layer_t::acceptor_t::endpoint_type;
 	using endpoint_wrapper_t = basic_endpoint_wrapper<typename endpoint_t::protocol_type>;
 
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
-	using path_opt_token_t = basic_path_opt_token<CharT>;
+	using char_t = CharT;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
+	using path_opt_token_t = basic_path_opt_token<char_t>;
 
-	using context_t = basic_service_context<socket_t,CharT>;
+	using context_t = basic_service_context<socket_t,char_t>;
 	using system_error_handler_t = std::function<bool(error_code)>;
 	using exception_handler_t = std::function<bool(context_t&, const std::exception&)>;
 
-	using parser_t = basic_request_parser<CharT>;
-	using request_t = basic_server_request<socket_t,CharT>;
-	using response_t = basic_server_response<socket_t,CharT>;
+	using parser_t = basic_request_parser<char_t>;
+	using request_t = basic_server_request<socket_t,char_t>;
+	using response_t = basic_server_response<socket_t,char_t>;
 
-	using aop_t = basic_aop<socket_t,CharT>;
-	using ctrlr_aop_t = basic_ctrlr_aop<socket_t,CharT>;
-	using aop_ptr_t = basic_aop_ptr<socket_t,CharT>;
-	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t,CharT>;
+	using aop_t = basic_aop<socket_t,char_t>;
+	using ctrlr_aop_t = basic_ctrlr_aop<socket_t,char_t>;
+	using aop_ptr_t = basic_aop_ptr<socket_t,char_t>;
+	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t,char_t>;
 
 public:
 	template <core_concepts::execution Exec0 = execution::executor_t>
@@ -81,12 +82,12 @@ public:
 	~basic_server();
 
 	template <typename Stream0, typename Exec0>
-	basic_server(basic_server<CharT,Stream0,Exec0> &&other) noexcept
+	basic_server(basic_server<char_t,Stream0,Exec0> &&other) noexcept
 		requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
 				 core_concepts::constructible<service_exec_t,typename Stream::executor_type>;
 
 	template <typename Stream0, typename Exec0>
-	basic_server &operator=(basic_server<CharT,Stream0,Exec0> &&other) noexcept
+	basic_server &operator=(basic_server<char_t,Stream0,Exec0> &&other) noexcept
 		requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
 				 core_concepts::assignable<service_exec_t,typename Stream::executor_type>;
 
@@ -101,7 +102,8 @@ public:
 public:
 	template <method...Method, typename Func, typename...AopPtrs>
 	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-		detail::concepts::request_handler<Func,socket_t,CharT> and detail::concepts::aop_ptr_list<socket_t,CharT,AopPtrs...>;
+		detail::concepts::request_handler<Func,socket_t,char_t> and
+		detail::concepts::aop_ptr_list<socket_t,char_t,AopPtrs...>;
 
 	template <method...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
@@ -110,7 +112,7 @@ public:
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>
-	basic_server &on_default(Func &&func) requires detail::concepts::request_handler<Func,socket_t,CharT>;
+	basic_server &on_default(Func &&func) requires detail::concepts::request_handler<Func,socket_t,char_t>;
 
 	basic_server &on_system_error(system_error_handler_t func);
 	basic_server &on_exception(exception_handler_t func);

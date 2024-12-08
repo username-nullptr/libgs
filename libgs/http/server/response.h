@@ -43,21 +43,22 @@ class LIBGS_HTTP_VAPI basic_server_response
 	LIBGS_DISABLE_COPY(basic_server_response)
 
 public:
-	using next_layer_t = basic_server_request<Stream,CharT>;
+	using char_t = CharT;
+	using next_layer_t = basic_server_request<Stream,char_t>;
 	using executor_t = typename next_layer_t::executor_t;
 
-	using helper_t = basic_response_helper<CharT>;
+	using helper_t = basic_response_helper<char_t>;
 	using string_t = typename next_layer_t::string_t;
 	using string_view_t = typename next_layer_t::string_view_t;
 
 	using header_t = typename next_layer_t::header_t;
 	using headers_t = typename next_layer_t::headers_t;
 
-	using cookie_t = basic_cookie<CharT>;
-	using cookies_t = basic_cookies<CharT>;
+	using cookie_t = basic_cookie<char_t>;
+	using cookies_t = basic_cookies<char_t>;
 
 	using value_t = typename next_layer_t::value_t;
-	using value_list_t = basic_value_list<CharT>;
+	using value_list_t = basic_value_list<char_t>;
 
 public:
 	explicit basic_server_response(next_layer_t &&next_layer);
@@ -67,11 +68,11 @@ public:
 	basic_server_response &operator=(basic_server_response &&other) noexcept;
 
 	template <typename Stream0>
-	basic_server_response(basic_server_response<Stream0,CharT> &&other) noexcept
-		requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0,CharT>&&>;
+	basic_server_response(basic_server_response<Stream0,char_t> &&other) noexcept
+		requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0,char_t>&&>;
 
 	template <typename Stream0>
-	basic_server_response &operator=(basic_server_response<Stream0,CharT> &&other) noexcept
+	basic_server_response &operator=(basic_server_response<Stream0,char_t> &&other) noexcept
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:

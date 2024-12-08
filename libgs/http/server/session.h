@@ -47,15 +47,17 @@ class LIBGS_HTTP_TAPI basic_session :
 	LIBGS_DISABLE_COPY_MOVE(basic_session)
 
 public:
+	using char_t = CharT;
+	using executor_t = asio::any_io_executor;
+
 	template <typename Rep, typename Period = std::ratio<1>>
 	using duration = std::chrono::duration<Rep,Period>;
 	using time_point = decltype(std::chrono::system_clock::now());
-	using executor_t = asio::any_io_executor;
 
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
-	using value_t = basic_value<CharT>;
-	using attributes_t = basic_session_attributes<CharT>;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
+	using value_t = basic_value<char_t>;
+	using attributes_t = basic_session_attributes<char_t>;
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>

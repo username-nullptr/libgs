@@ -39,12 +39,12 @@ template <core_concepts::char_type CharT>
 class basic_session_set<CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
-	using session_ptr = basic_session_ptr<CharT>;
+	using session_ptr = basic_session_ptr<char_t>;
 
 public:
 	impl()
 	{
-		if constexpr( is_char_v<CharT> )
+		if constexpr( is_char_v<char_t> )
 			m_cookie_key = "session";
 		else
 			m_cookie_key = L"session";
@@ -59,7 +59,7 @@ public:
 		if( it == m_session_map.end() )
 		{
 			if( _throw )
-				throw runtime_error("libgs::http::session_set: <map>: id '{}' not exists.", xxtombs<CharT>(id));
+				throw runtime_error("libgs::http::session_set: <map>: id '{}' not exists.", xxtombs<char_t>(id));
 			return {};
 		}
 		it->second->expand();
@@ -160,14 +160,14 @@ std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id,
 
 	auto rptr = std::dynamic_pointer_cast<Session>(ptr);
 	if( not rptr )
-		throw runtime_error("libgs::http::session_set::get_or_make: type error.", xxtombs<CharT>(id));
+		throw runtime_error("libgs::http::session_set::get_or_make: type error.", xxtombs<char_t>(id));
 	return rptr;
 }
 
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args) noexcept
-	requires core_concepts::constructible<basic_session<CharT>, Args...>
+	requires core_concepts::constructible<basic_session<char_t>, Args...>
 {
 	auto ptr = m_impl->find(id, false);
 	if( not ptr )
@@ -181,7 +181,7 @@ std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id));
 	if( not ptr )
-		throw runtime_error("libgs::http::session_set::get: type error.", xxtombs<CharT>(id));
+		throw runtime_error("libgs::http::session_set::get: type error.", xxtombs<char_t>(id));
 	return ptr;
 }
 
@@ -197,7 +197,7 @@ std::shared_ptr<Session> basic_session_set<CharT>::get_or(string_view_t id)
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id, false));
 	if( not ptr )
-		throw runtime_error("libgs::http::session_set::get_or: type error.", xxtombs<CharT>(id));
+		throw runtime_error("libgs::http::session_set::get_or: type error.", xxtombs<char_t>(id));
 	return ptr;
 }
 
@@ -230,7 +230,7 @@ template <core_concepts::char_type CharT>
 basic_session_set<CharT> &basic_session_set<CharT>::set_cookie_key(string_view_t key)
 {
 	if( key.empty() )
-		throw runtime_error("libgs::http::session::set_cookie_key: key is empty.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::session::set_cookie_key: key is empty.", xxtombs<char_t>(key));
 	m_impl->m_cookie_key = std::string(key.data(), key.size());
 	return *this;
 }

@@ -40,7 +40,8 @@ class basic_aop
 	LIBGS_DISABLE_COPY_MOVE(basic_aop)
 
 public:
-	using context_t = basic_service_context<Stream,CharT>;
+	using char_t = CharT;
+	using context_t = basic_service_context<Stream,char_t>;
 	basic_aop() = default;
 	virtual ~basic_aop() = 0;
 

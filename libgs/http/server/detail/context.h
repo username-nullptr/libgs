@@ -42,14 +42,14 @@ public:
 		m_response(request_t(std::move(stream), parser)), m_sss(&sss) {}
 
 	template<typename Stream0>
-	impl(typename basic_service_context<Stream0,CharT>::impl &&other) noexcept :
+	impl(typename basic_service_context<Stream0,char_t>::impl &&other) noexcept :
 		m_response(std::move(other)), m_sss(other.m_sss) {}
 
 	impl(impl &&other) noexcept :
 		m_response(std::move(other)), m_sss(other.m_sss) {}
 
 	template<typename Stream0>
-	impl &operator=(typename basic_service_context<Stream0,CharT>::impl &&other) noexcept
+	impl &operator=(typename basic_service_context<Stream0,char_t>::impl &&other) noexcept
 	{
 		m_response = std::move(other);
 		m_sss = other.m_sss;
@@ -98,7 +98,7 @@ basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operat
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template<typename Stream0>
-basic_service_context<Stream,CharT>::basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
+basic_service_context<Stream,CharT>::basic_service_context(basic_service_context<Stream0,char_t> &&other) noexcept
 	requires core_concepts::constructible<Stream,Stream0&&> :
 	m_impl(new impl(*other.m_impl))
 {
@@ -160,7 +160,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...a
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...args) noexcept
-	requires core_concepts::constructible<basic_session<CharT>, Args...>
+	requires core_concepts::constructible<basic_session<char_t>, Args...>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();

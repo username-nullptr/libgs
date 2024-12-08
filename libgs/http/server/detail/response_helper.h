@@ -67,7 +67,7 @@ template <core_concepts::char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	struct string_pool : detail::string_pool<CharT>, detail::_response_helper_static_string<CharT> {};
+	struct string_pool : detail::string_pool<char_t>, detail::_response_helper_static_string<char_t> {};
 
 public:
 	impl() = default;
@@ -92,17 +92,17 @@ public:
 		std::string buf;
 		buf.reserve(4096);
 
-		buf = std::format("HTTP/{} {} {}\r\n", xxtombs<CharT>(m_version), m_status, status_description(m_status));
+		buf = std::format("HTTP/{} {} {}\r\n", xxtombs<char_t>(m_version), m_status, status_description(m_status));
 		m_response_headers.erase(string_pool::set_cookie);
 
 		for(auto &[key,value] : m_response_headers)
-			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
+			buf += xxtombs<char_t>(key) + ": " + xxtombs<char_t>(value.to_string()) + "\r\n";
 
 		for(auto &[ckey,cookie] : m_cookies)
 		{
-			buf += "set-cookie: " + xxtombs<CharT>(ckey) + "=" + xxtombs<CharT>(cookie.value().to_string()) + ";";
+			buf += "set-cookie: " + xxtombs<char_t>(ckey) + "=" + xxtombs<char_t>(cookie.value().to_string()) + ";";
 			for(auto &[akey,attr] : cookie.attributes())
-				buf += xxtombs<CharT>(akey) + "=" + xxtombs<CharT>(attr.to_string()) + ";";
+				buf += xxtombs<char_t>(akey) + "=" + xxtombs<char_t>(attr.to_string()) + ";";
 
 			buf.pop_back();
 			buf += "\r\n";
@@ -122,7 +122,7 @@ public:
 		{
 			std::string attributes;
 			for(auto &attr : m_chunk_attributes)
-				attributes += xxtombs<CharT>(attr.to_string()) + ";";
+				attributes += xxtombs<char_t>(attr.to_string()) + ";";
 
 			m_chunk_attributes.clear();
 			attributes.pop_back();
@@ -143,7 +143,7 @@ public:
 
 		std::string buf = "0\r\n";
 		for(auto &[key,value] : headers)
-			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value.to_string()) + "\r\n";
+			buf += xxtombs<char_t>(key) + ": " + xxtombs<char_t>(value.to_string()) + "\r\n";
 		return buf + "\r\n";
 	}
 
@@ -252,7 +252,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
 
-	set_header(basic_header<CharT>::transfer_encoding, string_pool::chunked);
+	set_header(basic_header<char_t>::transfer_encoding, string_pool::chunked);
 	m_impl->m_chunk_attributes.emplace_back(std::move(attribute));
 	return *this;
 }
@@ -263,7 +263,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes
 	if( stof(version()) < 1.1 )
 		throw runtime_error("libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'.");
 
-	set_header(basic_header<CharT>::transfer_encoding, string_pool::chunked);
+	set_header(basic_header<char_t>::transfer_encoding, string_pool::chunked);
 	for(auto &value : attributes)
 		m_impl->m_chunk_attributes.emplace_back(std::move(value));
 	return *this;

@@ -85,7 +85,7 @@ public:
 
 public:
 	basic_session *q_ptr = nullptr;
-	const string_t m_id = basic_uuid<CharT>::generate();
+	const string_t m_id = basic_uuid<char_t>::generate();
 	time_point m_create_time = std::chrono::system_clock::now();
 
 	attributes_t m_attributes {};
@@ -116,7 +116,7 @@ basic_session<CharT>::basic_session(const executor_t &exec) :
 template <core_concepts::char_type CharT>
 basic_session<CharT>::~basic_session()
 {
-	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs<CharT>(id()));
+	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs<char_t>(id()));
 	delete m_impl;
 }
 
@@ -143,7 +143,7 @@ std::any basic_session<CharT>::attribute(string_view_t key) const
 {
 	auto it = m_impl->m_attributes.find({key.data(), key.size()});
 	if( it == m_impl->m_attributes.end() )
-		throw runtime_error("libgs::http::session::attribute: key '{}' not exists.", xxtombs<CharT>(key));
+		throw runtime_error("libgs::http::session::attribute: key '{}' not exists.", xxtombs<char_t>(key));
 	return it->second;
 }
 

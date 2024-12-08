@@ -41,15 +41,16 @@ class basic_service_context
 	LIBGS_DISABLE_COPY(basic_service_context)
 
 public:
+	using char_t = CharT;
 	using stream_t = Stream;
-	using parser_t = basic_request_parser<CharT>;
+	using parser_t = basic_request_parser<char_t>;
 
-	using request_t = basic_server_request<stream_t,CharT>;
-	using response_t = basic_server_response<stream_t,CharT>;
+	using request_t = basic_server_request<stream_t,char_t>;
+	using response_t = basic_server_response<stream_t,char_t>;
 	using executor_t = typename stream_t::executor_type;
 
-	using session_t = basic_session<CharT>;
-	using session_ptr = basic_session_ptr<CharT>;
+	using session_t = basic_session<char_t>;
+	using session_ptr = basic_session_ptr<char_t>;
 
 public:
 	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);
@@ -59,11 +60,11 @@ public:
 	basic_service_context &operator=(basic_service_context &&other) noexcept;
 
 	template<typename Stream0>
-	basic_service_context(basic_service_context<Stream0,CharT> &&other) noexcept
+	basic_service_context(basic_service_context<Stream0,char_t> &&other) noexcept
 		requires core_concepts::constructible<Stream,Stream0&&>;
 
 	template<typename Stream0>
-	basic_service_context &operator=(basic_service_context<Stream0,CharT> &&other) noexcept
+	basic_service_context &operator=(basic_service_context<Stream0,char_t> &&other) noexcept
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
@@ -76,19 +77,19 @@ public:
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 public:
-	template <base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<char_t> Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> session(Args&&...args)
 		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] session_ptr session(Args&&...args) noexcept
-		requires core_concepts::constructible<basic_session<CharT>, Args...>;
+		requires core_concepts::constructible<basic_session<char_t>, Args...>;
 
-	template <base_of_session<CharT> Session>
+	template <base_of_session<char_t> Session>
 	[[nodiscard]] std::shared_ptr<Session> session() const;
 	[[nodiscard]] session_ptr session() const;
 
-	template <base_of_session<CharT> Session>
+	template <base_of_session<char_t> Session>
 	[[nodiscard]] std::shared_ptr<Session> session_or();
 	[[nodiscard]] session_ptr session_or() noexcept;
 

@@ -112,21 +112,22 @@ using status_t = status::type;
 LIBGS_HTTP_VAPI bool status_check(status_t s, bool _throw = true);
 
 #define LIBGS_HTTP_METHOD_TABLE \
-X_MACRO( GET     , 0x01 , "GET"     ) \
-X_MACRO( PUT     , 0x02 , "PUT"     ) \
-X_MACRO( POST    , 0x04 , "POST"    ) \
-X_MACRO( HEAD    , 0x08 , "HEAD"    ) \
-X_MACRO( DELETE  , 0x10 , "DELETE"  ) \
-X_MACRO( OPTIONS , 0x20 , "OPTIONS" ) \
-X_MACRO( TRACH   , 0x40 , "TRACH"   ) \
-X_MACRO( CONNECT , 0x80 , "CONNECT" )
+X_MACRO( GET     , 0x0001 , "GET"     ) \
+X_MACRO( PUT     , 0x0002 , "PUT"     ) \
+X_MACRO( POST    , 0x0004 , "POST"    ) \
+X_MACRO( HEAD    , 0x0008 , "HEAD"    ) \
+X_MACRO( PATCH   , 0x0010 , "PATCH"   ) \
+X_MACRO( DELETE  , 0x0020 , "DELETE"  ) \
+X_MACRO( OPTIONS , 0x0040 , "OPTIONS" ) \
+X_MACRO( TRACE   , 0x0080 , "TRACE"   ) \
+X_MACRO( CONNECT , 0x0100 , "CONNECT" )
 
 enum class method
 {
 #define X_MACRO(e,v,d) e=(v),
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
-	all   = GET | PUT | POST | HEAD | DELETE | OPTIONS | TRACH | CONNECT,
+	all   = GET | PUT | POST | HEAD | PATCH | DELETE | OPTIONS | TRACE | CONNECT,
 	begin = GET,
 	end   = CONNECT
 };

@@ -44,9 +44,10 @@ class LIBGS_HTTP_TAPI basic_session_set
 	LIBGS_DISABLE_COPY(basic_session_set)
 
 public:
-	using session_t = basic_session<CharT>;
-	using string_t = std::basic_string_view<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using session_t = basic_session<char_t>;
+	using string_t = std::basic_string_view<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
 public:
 	basic_session_set();
@@ -56,28 +57,28 @@ public:
 	basic_session_set &operator=(basic_session_set &&other) noexcept;
 
 public:
-	template <base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<char_t> Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept
 		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept
-		requires core_concepts::constructible<basic_session<CharT>, Args...>;
+		requires core_concepts::constructible<basic_session<char_t>, Args...>;
 
-	template <base_of_session<CharT> Session, typename...Args>
+	template <base_of_session<char_t> Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
 		requires core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
-		requires core_concepts::constructible<basic_session<CharT>, Args...>;
+		requires core_concepts::constructible<basic_session<char_t>, Args...>;
 
 public:
-	template <base_of_session<CharT> Session>
+	template <base_of_session<char_t> Session>
 	[[nodiscard]] std::shared_ptr<Session> get(string_view_t id);
 	[[nodiscard]] std::shared_ptr<session_t> get(string_view_t id);
 
-	template <base_of_session<CharT> Session>
+	template <base_of_session<char_t> Session>
 	[[nodiscard]] std::shared_ptr<Session> get_or(string_view_t id);
 	[[nodiscard]] std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
 
