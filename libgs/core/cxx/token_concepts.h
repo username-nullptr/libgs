@@ -88,22 +88,6 @@ struct is_cancellation_slot_binder<cancellation_slot_binder<Token,CancellationSl
 template <typename T>
 constexpr bool is_cancellation_slot_binder_v = is_cancellation_slot_binder<T>::value;
 
-template <typename>
-struct is_redirect_time : std::false_type {};
-
-template <typename Token>
-struct is_redirect_time<redirect_time_t<Token>>
-{
-	static constexpr bool value =
-		is_void_func_v<Token> or
-		is_use_awaitable_v<Token> or
-		is_redirect_error_v<Token> or
-		is_cancellation_slot_binder_v<Token>;
-};
-
-template <typename T>
-constexpr bool is_redirect_time_v = is_redirect_time<T>::value;
-
 template <typename Token, typename...Args>
 struct is_async_opt_token {
 	static constexpr bool value = asio::completion_token_for<Token,void(Args...)>;
@@ -128,8 +112,7 @@ private: // Fucking msvc !!!
 		{
 			if constexpr( is_void_func_v<Token> )
 			{
-				constexpr size_t arg_count = function_traits<Token>::arg_count;
-				if constexpr( arg_count == 0 )
+				if constexpr( constexpr auto arg_count = function_traits<Token>::arg_count; arg_count == 0 )
 					return is_async_opt_token_v<Token>;
 				else
 					return helper(std::make_index_sequence<arg_count>{});
@@ -148,12 +131,21 @@ public:
 template <typename Token>
 constexpr bool is_any_async_opt_token_v = is_any_async_opt_token<Token>::value;
 
+template <typename>
+struct is_redirect_time : std::false_type {};
+
+template <typename Token>
+struct is_redirect_time<redirect_time_t<Token>> : is_any_async_opt_token<Token> {};
+
+template <typename T>
+constexpr bool is_redirect_time_v = is_redirect_time<T>::value;
+
 template <typename Token, typename...Args>
 struct is_async_tf_opt_token
 {
-	static constexpr bool value = []()  constexpr -> bool
+	static constexpr bool value = []() consteval -> bool
 	{
-		if( is_async_opt_token_v<Token,Args...> )
+		if constexpr( is_async_opt_token_v<Token,Args...> )
 			return true;
 		else if constexpr( is_redirect_time_v<Token> )
 			return is_async_opt_token_v<typename Token::token_t, Args...>;
@@ -238,17 +230,6 @@ template <typename Token, typename...Args>
 constexpr bool is_dis_func_tf_opt_token_v = is_dis_func_tf_opt_token<Token,Args...>::value;
 
 template <typename Token, typename...Args>
-struct is_dis_sync_opt_token
-{
-	static constexpr bool value =
-		is_opt_token_v<Token,Args...> and
-		not is_sync_opt_token_v<Token>;
-};
-
-template <typename Token, typename...Args>
-constexpr bool is_dis_sync_opt_token_v = is_dis_sync_opt_token<Token,Args...>::value;
-
-template <typename Token, typename...Args>
 struct is_dis_sync_tf_opt_token
 {
 	static constexpr bool value =
@@ -302,9 +283,6 @@ concept opt_token = is_opt_token_v<Token,Args...>;
 
 template <typename Token, typename...Args>
 concept tf_opt_token = is_tf_opt_token_v<Token,Args...>;
-
-template <typename Token, typename...Args>
-concept dis_sync_opt_token = is_dis_sync_opt_token_v<Token,Args...>;
 
 template <typename Token, typename...Args>
 concept dis_sync_tf_opt_token = is_dis_sync_tf_opt_token_v<Token,Args...>;

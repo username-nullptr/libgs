@@ -78,6 +78,11 @@ public:
 	milliseconds time {0};
 };
 
+template <typename Token, typename Rep, typename Period>
+[[nodiscard]] LIBGS_CORE_TAPI auto redirect_time (
+	Token &&token, const duration<Rep,Period> &timeout
+);
+
 } //namespace libgs
 #include <libgs/core/cxx/detail/opt_token.h>
 

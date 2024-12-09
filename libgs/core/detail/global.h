@@ -44,13 +44,13 @@ void sleep_until(const std::chrono::time_point<Clock,Duration> &atime)
 	std::this_thread::sleep_until(atime);
 }
 
-auto async_opt_token_helper(concepts::any_async_tf_opt_token auto &&token)
+constexpr auto async_opt_token_helper(concepts::any_async_tf_opt_token auto &&token)
 {
 	using token_t = std::remove_cvref_t<decltype(token)>;
 	if constexpr( is_redirect_time_v<token_t> )
 		return token.token;
 	else
-		return std::forward<decltype(token)>(token);
+		return token;
 }
 
 namespace operators
@@ -96,7 +96,7 @@ template <typename Rep, typename Period>
 auto operator|(concepts::any_async_opt_token auto &&token, const duration<Rep,Period> &d)
 {
 	using token_t = decltype(token);
-	return redirect_time_t<token_t>(std::forward<token_t>(token), d);
+	return redirect_time(std::forward<token_t>(token), d);
 }
 
 auto operator|(concepts::redirect_time auto &&rt, error_code &error)

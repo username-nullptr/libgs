@@ -40,6 +40,12 @@ redirect_time_t<Token>::redirect_time_t(auto &&token, const duration<Rep,Period>
 
 }
 
+template <typename Token, typename Rep, typename Period>
+auto redirect_time(Token &&token, const duration<Rep,Period> &timeout)
+{
+	return redirect_time_t<std::decay_t<Token>>(std::forward<Token>(token), timeout);
+}
+
 } //namespace libgs
 
 
