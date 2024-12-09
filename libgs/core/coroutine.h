@@ -79,24 +79,6 @@ LIBGS_CORE_TAPI auto local_dispatch (
 	awaitable<T> &&a
 );
 
-template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_task (
-	concepts::co_opt_token auto &&token, concepts::function auto &&wake_up
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI auto co_task (
-	concepts::co_opt_token auto &&token, concepts::function auto &&wake_up
-);
-
-template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI auto co_task (
-	concepts::function auto &&wake_up
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI auto co_task (
-	concepts::function auto &&wake_up
-);
-
 template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
 	const std::chrono::duration<Rep,Period> &rtime, concepts::schedulable auto &&exec
@@ -137,7 +119,7 @@ template <concepts::schedulable Exec = execution::executor_t>
 
 [[nodiscard]] LIBGS_CORE_VAPI awaitable<asio::any_io_executor> co_to_thread();
 
-template <concepts::co_opt_token Token>
+template <concepts::any_async_tf_opt_token Token>
 LIBGS_CORE_TAPI bool check_error (
 	Token &token, const error_code &error, const char *func = nullptr
 ) requires (not std::is_const_v<Token>);

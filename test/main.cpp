@@ -17,7 +17,7 @@ void aaa(libgs::concepts::async_tf_opt_token<size_t,std::error_code> auto &&toke
 
 }
 
-void callback(size_t)
+void callback(size_t, std::error_code)
 {
 
 }

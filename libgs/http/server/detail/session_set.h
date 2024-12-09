@@ -118,9 +118,9 @@ basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set 
 }
 
 template <core_concepts::char_type CharT>
-template <base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept
-	requires core_concepts::constructible<Session, Args...>
+template <typename Session, typename...Args>
+std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept requires
+	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>
 {
 	auto session = std::make_shared<Session>(std::forward<Args>(args)...);
 	m_impl->emplace(session);
@@ -136,7 +136,7 @@ std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::make(Args&&...args) noexcept
-	requires core_concepts::constructible<basic_session<CharT>, Args...>
+	requires core_concepts::constructible<session_t,Args...>
 {
 	auto session = std::make_shared<session_t>(std::forward<Args>(args)...);
 	m_impl->emplace(session);
@@ -150,9 +150,9 @@ basic_session_ptr<CharT> basic_session_set<CharT>::make(Args&&...args) noexcept
 }
 
 template <core_concepts::char_type CharT>
-template <base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args)
-	requires core_concepts::constructible<Session, Args...>
+template <typename Session, typename...Args>
+std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args) requires
+	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>
 {
 	auto ptr = m_impl->find(id, false);
 	if( not ptr )
@@ -167,7 +167,7 @@ std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id,
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args) noexcept
-	requires core_concepts::constructible<basic_session<char_t>, Args...>
+	requires core_concepts::constructible<session_t,Args...>
 {
 	auto ptr = m_impl->find(id, false);
 	if( not ptr )
@@ -176,8 +176,9 @@ basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id,
 }
 
 template <core_concepts::char_type CharT>
-template <base_of_session<CharT> Session>
+template <typename Session>
 std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
+	requires core_concepts::base_of<Session,session_t>
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id));
 	if( not ptr )
@@ -186,19 +187,20 @@ std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
 }
 
 template <core_concepts::char_type CharT>
-basic_session_ptr<CharT> basic_session_set<CharT>::get(string_view_t id)
-{
-	return m_impl->find(id);
-}
-
-template <core_concepts::char_type CharT>
-template <base_of_session<CharT> Session>
+template <typename Session>
 std::shared_ptr<Session> basic_session_set<CharT>::get_or(string_view_t id)
+	requires core_concepts::base_of<Session,session_t>
 {
 	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id, false));
 	if( not ptr )
 		throw runtime_error("libgs::http::session_set::get_or: type error.", xxtombs<char_t>(id));
 	return ptr;
+}
+
+template <core_concepts::char_type CharT>
+basic_session_ptr<CharT> basic_session_set<CharT>::get(string_view_t id)
+{
+	return m_impl->find(id);
 }
 
 template <core_concepts::char_type CharT>

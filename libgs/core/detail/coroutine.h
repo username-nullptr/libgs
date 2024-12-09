@@ -93,58 +93,6 @@ auto local_dispatch(awaitable<T> &&a)
 	});
 }
 
-template <typename T>
-auto co_task(concepts::co_opt_token auto &&token, concepts::function auto &&wake_up)
-{
-	using token_t = decltype(token);
-	using func_t = decltype(wake_up);
-
-	if constexpr( std::is_void_v<T> )
-	{
-		return asio::async_initiate<token_t, void()>([wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(work.get_executor(),
-			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
-				wake_up(std::move(handler));
-			});
-		},
-		co_opt_token_helper(token));
-	}
-	else
-	{
-		return asio::async_initiate<token_t, void(T)>([wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(work.get_executor(),
-			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
-				wake_up(std::move(handler));
-			});
-		},
-		co_opt_token_helper(token));
-	}
-}
-
-auto co_task(concepts::co_opt_token auto &&token, concepts::function auto &&wake_up)
-{
-	using token_t = decltype(token);
-	using func_t = decltype(wake_up);
-	return co_task<void>(std::forward<token_t>(token), std::forward<func_t>(wake_up));
-}
-
-template <typename T>
-auto co_task(concepts::function	auto &&wake_up)
-{
-	using func_t = decltype(wake_up);
-	return co_task<T>(use_awaitable, std::forward<func_t>(wake_up));
-}
-
-auto co_task(concepts::function auto &&wake_up)
-{
-	using func_t = decltype(wake_up);
-	return co_task(use_awaitable, std::forward<func_t>(wake_up));
-}
-
 namespace detail
 {
 
@@ -154,7 +102,7 @@ awaitable<error_code> co_sleep_x(const auto &stdtime, Exec &&exec)
 	using namespace operators;
 	error_code error;
 	asio::steady_timer timer(std::forward<Exec>(exec), stdtime);
-	co_await timer.async_wait(use_awaitable|error);
+	co_await timer.async_wait(use_awaitable | error);
 	co_return error;
 }
 
@@ -258,7 +206,7 @@ inline awaitable<asio::any_io_executor> co_to_thread()
 	asio::use_awaitable);
 }
 
-template <concepts::co_opt_token Token>
+template <concepts::any_async_tf_opt_token Token>
 bool check_error(Token &token, const error_code &error, const char *func)
 	requires (not std::is_const_v<Token>)
 {
@@ -275,6 +223,7 @@ bool check_error(Token &token, const error_code &error, const char *func)
 	}
 	else if constexpr( is_cancellation_slot_binder_v<Token> )
 		return check_error(token.get(), error, func);
+
 	else if constexpr( is_redirect_time_v<Token> )
 		return check_error(token.token, error, func);
 	else

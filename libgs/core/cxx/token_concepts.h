@@ -115,13 +115,34 @@ constexpr bool is_async_opt_token_v = is_async_opt_token<Token,Args...>::value;
 template <typename Token>
 struct is_any_async_opt_token
 {
-	static constexpr bool value =
-		function_traits<Token>
-		is_void_func_v<Token> or
-		is_use_awaitable_v<Token> or
-		is_redirect_error_v<Token> or
-		is_cancellation_slot_binder_v<Token> or
-		is_redirect_time_v<Token>;
+private: // Fucking msvc !!!
+	template <size_t...I>
+	[[nodiscard]] static consteval bool helper(std::index_sequence<I...>) {
+		return is_async_opt_token_v<Token, std::tuple_element_t<I, typename function_traits<Token>::arg_types>...>;
+	}
+
+	// Fucking msvc !!!
+	[[nodiscard]] static consteval bool helper()
+	{
+		if constexpr( is_function_v<Token> )
+		{
+			if constexpr( is_void_func_v<Token> )
+			{
+				constexpr size_t arg_count = function_traits<Token>::arg_count;
+				if constexpr( arg_count == 0 )
+					return is_async_opt_token_v<Token>;
+				else
+					return helper(std::make_index_sequence<arg_count>{});
+			}
+			else
+				return false;
+		}
+		else
+			return is_async_opt_token_v<Token>;
+	}
+
+public:
+	static constexpr bool value = helper();
 };
 
 template <typename Token>
@@ -130,8 +151,15 @@ constexpr bool is_any_async_opt_token_v = is_any_async_opt_token<Token>::value;
 template <typename Token, typename...Args>
 struct is_async_tf_opt_token
 {
-	static constexpr bool value = is_async_opt_token_v<Token,Args...> or
-		(is_redirect_time_v<Token> and is_async_opt_token_v<typename Token::token_t, Args...>);
+	static constexpr bool value = []()  constexpr -> bool
+	{
+		if( is_async_opt_token_v<Token,Args...> )
+			return true;
+		else if constexpr( is_redirect_time_v<Token> )
+			return is_async_opt_token_v<typename Token::token_t, Args...>;
+		else
+			return false;
+	}();
 };
 
 template <typename Token, typename...Args>
@@ -140,9 +168,19 @@ constexpr bool is_async_tf_opt_token_v = is_async_tf_opt_token<Token,Args...>::v
 template <typename Token>
 struct is_any_async_tf_opt_token
 {
-	static constexpr bool value = is_any_async_opt_token_v<Token> or
-		(is_redirect_time_v<Token> and is_async_opt_token_v<typename Token::token_t, Args...>);
+	static constexpr bool value = []() consteval -> bool
+	{
+		if( is_any_async_opt_token_v<Token> )
+			return true;
+		else if constexpr( is_redirect_time_v<Token> )
+			return is_any_async_opt_token_v<typename Token::token_t>;
+		else
+			return false;
+	}();
 };
+
+template <typename Token>
+constexpr bool is_any_async_tf_opt_token_v = is_any_async_tf_opt_token<Token>::value;
 
 template <typename Token = use_sync_t>
 struct is_sync_opt_token
@@ -247,8 +285,14 @@ concept redirect_time = is_redirect_time_v<std::remove_cvref_t<T>>;
 template <typename Token, typename...Args>
 concept async_opt_token = is_async_opt_token_v<Token,Args...>;
 
+template <typename Token>
+concept any_async_opt_token = is_any_async_opt_token_v<Token>;
+
 template <typename Token, typename...Args>
 concept async_tf_opt_token = is_async_tf_opt_token_v<Token,Args...>;
+
+template <typename Token>
+concept any_async_tf_opt_token = is_any_async_tf_opt_token_v<Token>;
 
 template <typename Token, typename...Args>
 concept sync_opt_token = is_sync_opt_token_v<Token>;

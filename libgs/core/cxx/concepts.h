@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_CXX_CONCEPTS_H
 #define LIBGS_CORE_CXX_CONCEPTS_H
 
+#include <libgs/core/cxx/function_traits.h>
 #include <concepts>
 #include <string>
 

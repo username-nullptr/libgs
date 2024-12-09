@@ -422,6 +422,41 @@ auto local_dispatch(concepts::callable auto &&func)
 	});
 }
 
+template <typename...Args>
+auto asnyc(concepts::function auto &&wake_up, concepts::async_opt_token<Args...> auto &&token)
+{
+	using token_t = std::remove_cvref_t<decltype(token)>;
+	using func_t = decltype(wake_up);
+
+	constexpr bool is_void = sizeof...(Args) == 0 or
+		(sizeof...(Args) == 1 and std::is_void_v<std::tuple_element_t<0,std::tuple<Args...>>>);
+
+	if constexpr( is_void )
+	{
+		return asio::async_initiate<token_t, void()>([wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(work.get_executor(),
+			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+				wake_up(std::move(handler));
+			});
+		},
+		co_opt_token_helper(token));
+	}
+	else
+	{
+		return asio::async_initiate<token_t, void(Args...)>([wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(work.get_executor(),
+			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+				wake_up(std::move(handler));
+			});
+		},
+		co_opt_token_helper(token));
+	}
+}
+
 void delete_later(const concepts::execution auto &exec, auto *obj)
 {
 	asio::post(exec, [obj]{ delete obj; });

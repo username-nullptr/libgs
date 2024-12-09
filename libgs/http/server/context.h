@@ -76,21 +76,24 @@ public:
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 
-public:
-	template <base_of_session<char_t> Session, typename...Args>
-	[[nodiscard]] std::shared_ptr<Session> session(Args&&...args)
-		requires core_concepts::constructible<Session, Args...>;
+public: // Fucking msvc !!!
+	template <typename Session, typename...Args>
+	[[nodiscard]] std::shared_ptr<Session> session(Args&&...args) requires
+		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] session_ptr session(Args&&...args) noexcept
 		requires core_concepts::constructible<basic_session<char_t>, Args...>;
 
-	template <base_of_session<char_t> Session>
-	[[nodiscard]] std::shared_ptr<Session> session() const;
-	[[nodiscard]] session_ptr session() const;
+	template <typename Session>
+	[[nodiscard]] std::shared_ptr<Session> session() const requires
+		core_concepts::base_of<Session,session_t>;
 
-	template <base_of_session<char_t> Session>
-	[[nodiscard]] std::shared_ptr<Session> session_or();
+	template <typename Session>
+	[[nodiscard]] std::shared_ptr<Session> session_or() requires
+		core_concepts::base_of<Session,session_t>;
+
+	[[nodiscard]] session_ptr session() const;
 	[[nodiscard]] session_ptr session_or() noexcept;
 
 private:

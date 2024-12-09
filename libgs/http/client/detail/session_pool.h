@@ -194,9 +194,9 @@ auto basic_session_pool<Stream,Exec>::get
 					callback(std::move(sess), error);
 				};
 				auto cancel_sig = std::make_shared<asio::cancellation_signal>();
-				using namespace operators;
+				using namespace libgs::operators;
 
-				helper.connect(std::move(ep), asio::bind_cancellation_slot(cancel_sig->slot(), std::move(callback)));
+				helper.connect(std::move(ep), std::move(callback) | cancel_sig->slot());
 				timer->async_wait([cancel_sig](const error_code &error)
 				{
 					if( not error )
@@ -206,7 +206,7 @@ auto basic_session_pool<Stream,Exec>::get
 		}
 		else
 		{
-			auto ntoken = co_opt_token_helper(token);
+			auto ntoken = async_opt_token_helper(token);
 			auto sess = m_impl->get(ep, exec);
 
 			return asio::co_spawn(exec, [

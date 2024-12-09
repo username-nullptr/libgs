@@ -44,24 +44,17 @@ void sleep_until(const std::chrono::time_point<Clock,Duration> &atime)
 	std::this_thread::sleep_until(atime);
 }
 
-template <typename...Args>
-auto async_opt_token_helper(concepts::async_tf_opt_token<Args...> auto &&token)
+auto async_opt_token_helper(concepts::any_async_tf_opt_token auto &&token)
 {
 	using token_t = std::remove_cvref_t<decltype(token)>;
 	if constexpr( is_redirect_time_v<token_t> )
 		return token.token;
 	else
-		return std::forward<token_t>(token);
+		return std::forward<decltype(token)>(token);
 }
 
 namespace operators
 {
-
-auto operator|(concepts::void_function auto &&func, error_code &error)
-{
-	using token_t = decltype(func);
-	return asio::redirect_error(std::forward<token_t>(func), error);
-}
 
 auto operator|(concepts::use_awaitable auto &&ua, error_code &error)
 {
@@ -87,10 +80,22 @@ auto operator|(concepts::cancellation_slot_binder auto &&csb, error_code &error)
 	return asio::redirect_error(std::forward<token_t>(csb), error);
 }
 
-template <typename Rep, typename Period, typename...Args>
-auto operator|(concepts::async_tf_opt_token<Args...> auto &&token, const duration<Rep,Period> &d)
+auto operator|(concepts::void_function auto &&func, error_code &error)
 {
-	using token_t = std::remove_cvref_t<decltype(token)>;
+	using token_t = decltype(func);
+	return asio::redirect_error(std::forward<token_t>(func), error);
+}
+
+auto operator|(concepts::void_function auto &&func, const asio::cancellation_slot &slot)
+{
+	using token_t = decltype(func);
+	return asio::bind_cancellation_slot(slot, std::forward<token_t>(func));
+}
+
+template <typename Rep, typename Period>
+auto operator|(concepts::any_async_opt_token auto &&token, const duration<Rep,Period> &d)
+{
+	using token_t = decltype(token);
 	return redirect_time_t<token_t>(std::forward<token_t>(token), d);
 }
 

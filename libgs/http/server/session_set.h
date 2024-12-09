@@ -35,9 +35,6 @@
 namespace libgs::http
 {
 
-template <typename Session, typename CharT>
-concept base_of_session = std::is_base_of_v<basic_session<CharT>, Session>;
-
 template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_session_set
 {
@@ -56,30 +53,33 @@ public:
 	basic_session_set(basic_session_set &&other) noexcept;
 	basic_session_set &operator=(basic_session_set &&other) noexcept;
 
-public:
-	template <base_of_session<char_t> Session, typename...Args>
-	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept
-		requires core_concepts::constructible<Session, Args...>;
+public: // Fucking msvc !!!
+	template <typename Session, typename...Args>
+	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept requires
+		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>;
 
 	template <typename...Args>
-	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept
-		requires core_concepts::constructible<basic_session<char_t>, Args...>;
+	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept requires
+		core_concepts::constructible<session_t,Args...>;
 
-	template <base_of_session<char_t> Session, typename...Args>
-	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id, Args&&...args)
-		requires core_concepts::constructible<Session, Args...>;
+	template <typename Session, typename...Args>
+	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id,Args&&...args) requires
+		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
-		requires core_concepts::constructible<basic_session<char_t>, Args...>;
+		requires core_concepts::constructible<session_t,Args...>;
 
-public:
-	template <base_of_session<char_t> Session>
-	[[nodiscard]] std::shared_ptr<Session> get(string_view_t id);
+public: // Fucking msvc !!!
+	template <typename Session>
+	[[nodiscard]] std::shared_ptr<Session> get(string_view_t id) requires
+		core_concepts::base_of<Session,session_t>;
+
+	template <typename Session>
+	[[nodiscard]] std::shared_ptr<Session> get_or(string_view_t id) requires
+		core_concepts::base_of<Session,session_t>;
+
 	[[nodiscard]] std::shared_ptr<session_t> get(string_view_t id);
-
-	template <base_of_session<char_t> Session>
-	[[nodiscard]] std::shared_ptr<Session> get_or(string_view_t id);
 	[[nodiscard]] std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
 
 public:

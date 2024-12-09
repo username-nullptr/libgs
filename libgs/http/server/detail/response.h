@@ -957,7 +957,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = co_opt_token_helper(token);
+		auto ntoken = async_opt_token_helper(token);
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, body, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
 			error_code error;
@@ -1018,7 +1018,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 			timeout = token.time;
 
 		m_impl->m_helper.set_redirect(url, redi);
-		auto ntoken = co_opt_token_helper(token);
+		auto ntoken = async_opt_token_helper(token);
 
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
@@ -1078,7 +1078,7 @@ auto basic_server_response<Stream,CharT>::send_file
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = co_opt_token_helper(token);
+		auto ntoken = async_opt_token_helper(token);
 		auto co_awaitable = asio::co_spawn(get_executor(),
 		[this, opt = std::forward<opt_t>(opt), timeout, ntoken]() mutable -> awaitable<size_t>
 		{
@@ -1142,7 +1142,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = co_opt_token_helper(token);
+		auto ntoken = async_opt_token_helper(token);
 		auto co_awaitable = asio::co_spawn(get_executor(),
 		[this, headers, timeout, ntoken]() mutable -> awaitable<size_t>
 		{

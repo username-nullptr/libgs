@@ -94,6 +94,11 @@ LIBGS_CORE_TAPI auto local_dispatch (
 	concepts::callable auto &&func
 );
 
+template <typename...Args>
+[[nodiscard]] LIBGS_CORE_TAPI auto asnyc (
+	concepts::function auto &&wake_up, concepts::async_opt_token<Args...> auto &&token
+);
+
 LIBGS_CORE_TAPI void delete_later(const concepts::execution auto &exec, auto *obj);
 LIBGS_CORE_TAPI void delete_later(concepts::execution_context auto &exec, auto *obj);
 LIBGS_CORE_TAPI void delete_later(auto *obj);

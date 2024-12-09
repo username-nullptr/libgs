@@ -146,9 +146,9 @@ basic_service_context<Stream,CharT>::get_executor() noexcept
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <base_of_session<CharT> Session, typename...Args>
-std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...args)
-	requires core_concepts::constructible<Session, Args...>
+template <typename Session, typename...Args>
+std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...args) requires
+	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session, Args...>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
@@ -170,12 +170,25 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...a
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-template <base_of_session<CharT> Session>
+template <typename Session>
 std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
+	requires core_concepts::base_of<Session,session_t>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->template get<Session>(session_id);
+	response().set_cookie(session_cookie, {session->id()});
+	return session;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <typename Session>
+std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
+	requires core_concepts::base_of<Session,session_t>
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session = m_impl->m_sss->template get_or<Session>(session_id);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }
@@ -186,17 +199,6 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->get(session_id);
-	response().set_cookie(session_cookie, {session->id()});
-	return session;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-template <base_of_session<CharT> Session>
-std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
-{
-	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
-	auto session = m_impl->m_sss->template get_or<Session>(session_id);
 	response().set_cookie(session_cookie, {session->id()});
 	return session;
 }

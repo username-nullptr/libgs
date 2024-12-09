@@ -29,7 +29,6 @@
 #ifndef LIBGS_CORE_CXX_ASIO_CONCEPTS_H
 #define LIBGS_CORE_CXX_ASIO_CONCEPTS_H
 
-#include <libgs/core/cxx/function_traits.h>
 #include <libgs/core/cxx/concepts.h>
 
 #ifdef LIBGS_USING_BOOST_ASIO
