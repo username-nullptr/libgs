@@ -86,6 +86,7 @@ struct function_traits : function_traits<decltype(&T::operator())> {
 template <typename R, typename...Args>
 struct function_traits<R(Args...)>
 {
+	using func_type = R(Args...);
 	static constexpr std::size_t arg_count = sizeof...(Args);
 
 	using return_type = R;

@@ -48,10 +48,15 @@ LIBGS_CORE_API std::thread::id this_thread_id();
 
 [[noreturn]] LIBGS_CORE_API void forced_termination();
 
-[[nodiscard]] LIBGS_CORE_TAPI auto co_opt_token_helper(concepts::co_opt_token auto &&token);
+template <typename...Args>
+[[nodiscard]] LIBGS_CORE_TAPI auto async_opt_token_helper(concepts::async_tf_opt_token<Args...> auto &&token);
 
 namespace operators
 {
+
+LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
+    concepts::void_function auto &&func, error_code &error
+);
 
 LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
     concepts::use_awaitable auto &&ua, error_code &error
@@ -69,9 +74,10 @@ LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
     concepts::cancellation_slot_binder auto &&csb, error_code &error
 );
 
-template <typename Token, typename Rep, typename Period>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, const duration<Rep,Period> &d) requires
-    concepts::co_opt_token<Token> and (not is_redirect_time_v<Token>);
+template <typename Rep, typename Period, typename...Args>
+LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
+    concepts::async_tf_opt_token<Args...> auto &&token, const duration<Rep,Period> &d
+);
 
 LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
     concepts::redirect_time auto &&rt, error_code &error

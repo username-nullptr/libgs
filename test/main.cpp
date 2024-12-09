@@ -10,25 +10,24 @@
 #include <iostream>
 
 using namespace std::chrono_literals;
+using namespace libgs::operators;
+
+void aaa(libgs::concepts::async_tf_opt_token<size_t,std::error_code> auto &&token)
+{
+
+}
+
+void callback(size_t)
+{
+
+}
 
 int main()
 {
-	asio::io_context ioc;
-	asio::thread_pool pool;
+	std::error_code error;
 
-	libgs::dispatch(ioc, [&]
-	{
-		auto rrr = libgs::dispatch(pool, [&]
-		{
-			std::cerr << "000000000000000000000000" << std::endl;
-			libgs::sleep_for(1s);
-			std::cerr << "1111111111111" << std::endl;
-			return 111;
-		},
-		libgs::use_sync);
-		std::cerr << "rrrrrrrrrr : " << rrr << std::endl;
-	});
-	ioc.run();
+	aaa(callback | 111ms);
+
 	return 0;
 
 	// spdlog::set_level(spdlog::level::trace);
