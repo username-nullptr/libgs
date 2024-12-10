@@ -444,7 +444,7 @@ auto async(concepts::function auto &&wake_up, concepts::async_opt_token<Args...>
 	}
 	else
 	{
-		return asio::async_initiate<token_t, void(Args...)> (
+		return asio::async_initiate<token_t, void(Arg0,Args...)> (
 		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
 		{
 			auto work = asio::make_work_guard(handler);

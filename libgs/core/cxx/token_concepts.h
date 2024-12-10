@@ -162,7 +162,7 @@ struct is_any_async_tf_opt_token
 {
 	static constexpr bool value = []() consteval -> bool
 	{
-		if( is_any_async_opt_token_v<Token> )
+		if constexpr( is_any_async_opt_token_v<Token> )
 			return true;
 		else if constexpr( is_redirect_time_v<Token> )
 			return is_any_async_opt_token_v<typename Token::token_t>;

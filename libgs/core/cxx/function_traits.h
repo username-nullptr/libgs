@@ -209,7 +209,7 @@ struct is_function : std::disjunction <
 template <typename F>
 constexpr bool is_function_v = is_function<F>::value;
 
-template <typename F>
+template <typename F> // Fucking msvc !!!
 constexpr bool is_void_func_helper_v = std::is_void_v<typename function_traits<F>::return_type>;
 
 template <typename F>
