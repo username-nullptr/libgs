@@ -34,6 +34,14 @@
 namespace libgs
 {
 
+[[nodiscard]] LIBGS_CORE_TAPI bool equality (
+	concepts::number_type auto a, concepts::number_type auto b
+);
+
+[[nodiscard]] LIBGS_CORE_TAPI bool nequality (
+	concepts::number_type auto a, concepts::number_type auto b
+);
+
 template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end) requires
 	std::is_arithmetic_v<std::remove_reference_t<decltype(*begin)>>;

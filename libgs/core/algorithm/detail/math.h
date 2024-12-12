@@ -34,6 +34,22 @@
 namespace libgs
 {
 
+bool equality(concepts::number_type auto a, concepts::number_type auto b)
+{
+	if constexpr( is_float_v<decltype(a)> or is_float_v<decltype(b)> )
+	{
+		auto e = std::abs(a - b) ;
+		return e < std::numeric_limits<decltype(e)>::epsilon();
+	}
+	else
+		return a == b;
+}
+
+bool nequality(concepts::number_type auto a, concepts::number_type auto b)
+{
+	return not equality(a,b);
+}
+
 template <typename Iter>
 auto mean(Iter begin, Iter end) requires
 	std::is_arithmetic_v<std::remove_reference_t<decltype(*begin)>>
