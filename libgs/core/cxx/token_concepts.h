@@ -179,7 +179,7 @@ struct is_sync_opt_token
 {
 	static constexpr bool value =
 		std::is_same_v<Token,asio::error_code&> or
-		std::is_same_v<Token,use_sync_t>;
+		std::is_same_v<std::remove_cvref_t<Token>,use_sync_t>;
 };
 
 template <typename Token = use_sync_t>
@@ -213,7 +213,7 @@ struct is_dis_func_opt_token
 	static constexpr bool value = []() consteval -> bool
 	{
 		if constexpr( is_cancellation_slot_binder_v<Token> )
-			return true;
+			return not is_function_v<typename Token::target_type>;
 		else
 			return not is_function_v<Token> and is_opt_token_v<Token>;
 	}();

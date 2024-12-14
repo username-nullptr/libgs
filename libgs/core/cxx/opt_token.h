@@ -57,7 +57,7 @@ using detached_t = asio::detached_t;
 constexpr auto detached = asio::detached;
 
 struct use_sync_t {};
-constexpr use_sync_t use_sync = use_sync_t();
+constexpr use_sync_t use_sync;
 
 template <typename Token>
 using redirect_error_t = asio::redirect_error_t<Token>;
