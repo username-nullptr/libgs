@@ -210,9 +210,13 @@ constexpr bool is_tf_opt_token_v = is_tf_opt_token<Token,Args...>::value;
 template <typename Token>
 struct is_dis_func_opt_token
 {
-	static constexpr bool value =
-		is_opt_token_v<Token,asio::error_code> and
-		not is_function_v<Token>;
+	static constexpr bool value = []() consteval -> bool
+	{
+		if constexpr( is_cancellation_slot_binder_v<Token> )
+			return true;
+		else
+			return not is_function_v<Token> and is_opt_token_v<Token>;
+	}();
 };
 
 template <typename Token>
@@ -239,14 +243,6 @@ struct is_dis_sync_tf_opt_token
 
 template <typename Token, typename...Args>
 constexpr bool is_dis_sync_tf_opt_token_v = is_dis_sync_tf_opt_token<Token,Args...>::value;
-
-template <typename T>
-struct is_dispatch_token : std::disjunction<
-	is_use_awaitable<T>, is_use_future<T>, is_detached<T>, is_use_sync<T>
-> {};
-
-template <typename T>
-constexpr bool is_dispatch_token_v = is_dispatch_token<T>::value;
 
 namespace concepts
 {
@@ -292,9 +288,6 @@ concept dis_func_opt_token = is_dis_func_opt_token_v<Token>;
 
 template <typename Token>
 concept dis_func_tf_opt_token = is_dis_func_tf_opt_token_v<Token>;
-
-template <typename T>
-concept dispatch_token = is_dispatch_token_v<std::remove_cvref_t<T>>;
 
 } //namespace concepts
 

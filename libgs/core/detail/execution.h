@@ -145,7 +145,7 @@ LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 
 } //namespace detail
 
-template <concepts::dispatch_token Token>
+template <concepts::dis_func_opt_token Token>
 auto dispatch(const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token)
 {
 	using func_t = std::remove_cvref_t<decltype(func)>;
@@ -162,7 +162,7 @@ auto dispatch(const concepts::execution auto &exec, concepts::callable auto &&fu
 	else if constexpr( is_use_future_v<token_t> )
 		return detail::dispatch_future(exec, std::forward<func_t>(func));
 
-	else if constexpr( is_use_awaitable_v<token_t> )
+	else if constexpr( is_async_opt_token_v<token_t> )
 	{
 		if constexpr( is_awaitable_v<return_t> )
 			return asio::co_spawn(exec, std::forward<func_t>(func), token);
@@ -181,21 +181,21 @@ auto dispatch(const concepts::execution auto &exec, concepts::callable auto &&fu
 		return func();
 }
 
-template <concepts::dispatch_token Token>
+template <concepts::dis_func_opt_token Token>
 auto dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token)
 {
 	using func_t = std::remove_cvref_t<decltype(func)>;
 	return dispatch(exec.get_executor(), std::forward<func_t>(func), std::forward<Token>(token));
 }
 
-template <concepts::dispatch_token Token>
+template <concepts::dis_func_opt_token Token>
 auto dispatch(concepts::callable auto &&func, Token &&token)
 {
 	using func_t = decltype(func);
 	return dispatch(execution::context(), std::forward<func_t>(func), std::forward<Token>(token));
 }
 
-template <concepts::dispatch_token Token>
+template <concepts::dis_func_opt_token Token>
 auto post(const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token)
 {
 	using func_t = std::remove_cvref_t<decltype(func)>;
@@ -212,7 +212,7 @@ auto post(const concepts::execution auto &exec, concepts::callable auto &&func, 
 	else if constexpr( is_use_future_v<token_t> )
 		return detail::post_future(exec, std::forward<func_t>(func));
 
-	else if constexpr( is_use_awaitable_v<token_t> )
+	else if constexpr( is_async_opt_token_v<token_t> )
 	{
 		if constexpr( is_awaitable_v<return_t> )
 			return asio::co_spawn(exec, std::forward<func_t>(func), token);
@@ -231,14 +231,14 @@ auto post(const concepts::execution auto &exec, concepts::callable auto &&func, 
 		return func();
 }
 
-template <concepts::dispatch_token Token>
+template <concepts::dis_func_opt_token Token>
 auto post(concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token)
 {
 	using func_t = std::remove_cvref_t<decltype(func)>;
 	return post(exec.get_executor(), std::forward<func_t>(func), std::forward<Token>(token));
 }
 
-template <concepts::dispatch_token Token>
+template <concepts::dis_func_opt_token Token>
 auto post(concepts::callable auto &&func, Token &&token)
 {
 	using func_t = decltype(func);
@@ -246,7 +246,7 @@ auto post(concepts::callable auto &&func, Token &&token)
 }
 
 auto local_dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func,
-                    concepts::dispatch_token auto &&token)
+                    concepts::dis_func_opt_token auto &&token)
 {
 	using func_t = std::remove_cvref_t<decltype(func)>;
 	using return_t = std::invoke_result_t<func_t>;
@@ -272,7 +272,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 		}).detach();
 		return nodiscard_return_helper(std::move(future));
 	}
-	else if constexpr( is_use_awaitable_v<token_t> )
+	else if constexpr( is_async_opt_token_v<token_t> )
 	{
 		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
 		auto a = dispatch(exec, std::move(lambda), token);
@@ -331,7 +331,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 	});
 }
 
-auto local_dispatch(concepts::callable auto &&func, concepts::dispatch_token auto &&token)
+auto local_dispatch(concepts::callable auto &&func, concepts::dis_func_opt_token auto &&token)
 {
 	using func_t = std::remove_cvref_t<decltype(func)>;
 	using return_t = std::invoke_result_t<func_t>;
@@ -359,7 +359,7 @@ auto local_dispatch(concepts::callable auto &&func, concepts::dispatch_token aut
 		}).detach();
 		return nodiscard_return_helper(std::move(future));
 	}
-	else if constexpr( is_use_awaitable_v<token_t> )
+	else if constexpr( is_async_opt_token_v<token_t> )
 	{
 		auto ioc = std::make_shared<asio::io_context>();
 		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);

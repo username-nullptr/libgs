@@ -43,17 +43,17 @@ using namespace asio::experimental::awaitable_operators;
 namespace libgs
 {
 
-template <typename T, concepts::dispatch_token Token = const detached_t&>
+template <typename T, concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	const concepts::execution auto &exec, awaitable<T> &&a, Token &&token = detached
 );
 
-template <typename T, concepts::dispatch_token Token = const detached_t&>
+template <typename T, concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	concepts::execution_context auto &exec, awaitable<T> &&a, Token &&token = detached
 );
 
-template <typename T, concepts::dispatch_token Token = const detached_t&>
+template <typename T, concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	awaitable<T> &&a, Token &&token = detached
 );
@@ -61,7 +61,7 @@ LIBGS_CORE_TAPI auto dispatch (
 template <typename T>
 LIBGS_CORE_TAPI auto local_dispatch (
 	concepts::execution_context auto &exec, awaitable<T> &&a,
-	concepts::dispatch_token auto &&token = detached
+	concepts::dis_func_opt_token auto &&token = detached
 );
 
 template <typename T>
@@ -71,7 +71,7 @@ LIBGS_CORE_TAPI auto local_dispatch (
 
 template <typename T>
 LIBGS_CORE_TAPI auto local_dispatch (
-	awaitable<T> &&a, concepts::dispatch_token auto &&token = detached
+	awaitable<T> &&a, concepts::dis_func_opt_token auto &&token = detached
 );
 
 template <typename T>

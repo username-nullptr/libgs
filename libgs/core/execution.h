@@ -47,39 +47,39 @@ LIBGS_CORE_API void exit(int code = 0);
 
 } //namespace execution
 
-template <concepts::dispatch_token Token = const detached_t&>
+template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token = detached
 );
 
-template <concepts::dispatch_token Token = const detached_t&>
+template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token = detached
 );
 
-template <concepts::dispatch_token Token = const detached_t&>
+template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	concepts::callable auto &&func, Token &&token = detached
 );
 
-template <concepts::dispatch_token Token = const detached_t&>
+template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto post (
 	const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token = detached
 );
 
-template <concepts::dispatch_token Token = const detached_t&>
+template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto post (
 	concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token = detached
 );
 
-template <concepts::dispatch_token Token = const detached_t&>
+template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto post (
 	concepts::callable auto &&func, Token &&token = detached
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (
 	concepts::execution_context auto &exec, concepts::callable auto &&func,
-	concepts::dispatch_token auto &&token
+	concepts::dis_func_opt_token auto &&token
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (
@@ -87,7 +87,7 @@ LIBGS_CORE_TAPI auto local_dispatch (
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::callable auto &&func, concepts::dispatch_token auto &&token
+	concepts::callable auto &&func, concepts::dis_func_opt_token auto &&token
 );
 
 LIBGS_CORE_TAPI auto local_dispatch (

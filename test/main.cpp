@@ -12,21 +12,17 @@
 using namespace std::chrono_literals;
 using namespace libgs::operators;
 
-void aaa(libgs::concepts::async_tf_opt_token<size_t,std::error_code> auto &&token)
-{
-
-}
-
-void callback(size_t, std::error_code)
-{
-
-}
-
 int main()
 {
+	asio::cancellation_signal sig;
 	std::error_code error;
 
-	aaa(callback | 111ms);
+	auto aaa = libgs::dispatch([&]() -> libgs::awaitable<int>
+	{
+
+		co_return 1;
+	},
+	libgs::use_awaitable | error | sig.slot());
 
 	return 0;
 
