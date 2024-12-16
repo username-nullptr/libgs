@@ -101,7 +101,10 @@ awaitable<error_code> co_sleep_x(const auto &stdtime, Exec &&exec)
 {
 	using namespace operators;
 	error_code error;
-	asio::steady_timer timer(std::forward<Exec>(exec), stdtime);
+	asio::steady_timer timer (
+		std::forward<Exec>(exec),
+		std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
+	);
 	co_await timer.async_wait(use_awaitable | error);
 	co_return error;
 }
