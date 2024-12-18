@@ -53,6 +53,15 @@ template <typename T>
 constexpr bool is_detached_v = is_detached<T>::value;
 
 template <typename>
+struct is_deferred : std::false_type {};
+
+template <>
+struct is_deferred<deferred_t> : std::true_type {};
+
+template <typename T>
+constexpr bool is_deferred_v = is_deferred<T>::value;
+
+template <typename>
 struct is_use_sync : std::false_type {};
 
 template <>

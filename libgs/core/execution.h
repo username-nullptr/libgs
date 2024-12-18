@@ -96,7 +96,7 @@ LIBGS_CORE_TAPI auto local_dispatch (
 
 template <typename Arg0, typename...Args>
 [[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::function auto &&wake_up, concepts::async_opt_token<Args...> auto &&token
+	concepts::function auto &&wake_up, concepts::async_opt_token<Arg0,Args...> auto &&token
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto async (

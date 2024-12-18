@@ -56,6 +56,9 @@ constexpr auto use_future = asio::use_future;
 using detached_t = asio::detached_t;
 constexpr auto detached = asio::detached;
 
+using deferred_t = asio::deferred_t;
+constexpr auto deferred = asio::deferred;
+
 struct use_sync_t {};
 constexpr use_sync_t use_sync;
 

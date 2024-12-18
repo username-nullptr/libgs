@@ -14,17 +14,40 @@ using namespace libgs::operators;
 
 int main()
 {
-	asio::cancellation_signal sig;
-	std::error_code error;
+	asio::io_context ioc;
+	asio::thread_pool pool;
+	asio::ip::tcp::socket socket(libgs::execution::context());
 
-	auto aaa = libgs::dispatch([&]() -> libgs::awaitable<int>
+	libgs::dispatch(ioc, [&]() -> libgs::awaitable<void>
 	{
+		std::cout << "000000000000 : " << libgs::this_thread_id() << std::endl;
+		co_await libgs::co_to_exec();
 
-		co_return 1;
-	},
-	libgs::use_awaitable | error | sig.slot());
+		std::cout << "1111111111 : " << libgs::this_thread_id() << std::endl;
+		co_await libgs::co_to_exec(pool);
 
-	return 0;
+		std::cout << "2222222222222 : " << libgs::this_thread_id() << std::endl;
+
+		std::error_code error;
+		co_await socket.async_connect(
+			{asio::ip::address::from_string("127.0.0.1"), 111},
+			libgs::use_awaitable | error
+		);
+
+		std::cout << "aaaaaaaaaaaaaa : " << libgs::this_thread_id() << std::endl;
+
+		co_return ;
+	});
+
+	std::thread thread([&]
+	{
+		asio::io_context::work worker(ioc); LIBGS_UNUSED(worker);
+		ioc.run();
+	});
+	int res = libgs::execution::exec();
+	ioc.stop();
+	thread.join();
+	return res;
 
 	// spdlog::set_level(spdlog::level::trace);
 

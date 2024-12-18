@@ -423,7 +423,7 @@ auto local_dispatch(concepts::callable auto &&func)
 }
 
 template <typename Arg0, typename...Args>
-auto async(concepts::function auto &&wake_up, concepts::async_opt_token<Args...> auto &&token)
+auto async(concepts::function auto &&wake_up, concepts::async_opt_token<Arg0,Args...> auto &&token)
 {
 	using token_t = std::remove_cvref_t<decltype(token)>;
 	using func_t = decltype(wake_up);
