@@ -49,12 +49,7 @@ LIBGS_CORE_API void exit(int code = 0);
 
 template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
-	const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token = detached
-);
-
-template <concepts::dis_func_opt_token Token = const detached_t&>
-LIBGS_CORE_TAPI auto dispatch (
-	concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token = detached
+	concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token = detached
 );
 
 template <concepts::dis_func_opt_token Token = const detached_t&>
@@ -64,12 +59,7 @@ LIBGS_CORE_TAPI auto dispatch (
 
 template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto post (
-	const concepts::execution auto &exec, concepts::callable auto &&func, Token &&token = detached
-);
-
-template <concepts::dis_func_opt_token Token = const detached_t&>
-LIBGS_CORE_TAPI auto post (
-	concepts::execution_context auto &exec, concepts::callable auto &&func, Token &&token = detached
+	concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token = detached
 );
 
 template <concepts::dis_func_opt_token Token = const detached_t&>
@@ -111,22 +101,20 @@ template <concepts::async_opt_token Token = const use_awaitable_t&>
 
 template <typename Arg0, typename...Args>
 [[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::execution_context auto &exec, concepts::function auto &&wake_up,
+	concepts::schedulable auto &&exec, concepts::function auto &&wake_up,
 	concepts::async_opt_token<Arg0,Args...> auto &&token
 );
 
 template <typename Arg0, typename...Args>
 [[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::execution_context auto &exec, concepts::function auto &&wake_up
+	concepts::schedulable auto &&exec, concepts::function auto &&wake_up
 );
 
 template <concepts::async_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::execution_context auto &exec, concepts::function auto &&wake_up,
+	concepts::schedulable auto &&exec, concepts::function auto &&wake_up,
 	Token &&token = use_awaitable
 );
-
-
 
 LIBGS_CORE_TAPI void delete_later(const concepts::execution auto &exec, auto *obj);
 LIBGS_CORE_TAPI void delete_later(concepts::execution_context auto &exec, auto *obj);

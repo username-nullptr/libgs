@@ -22,6 +22,11 @@ int main()
 	ini["test"]["测"] = "aaa 你 bbb 好 ccc";
 #endif
 	ini.sync();
+	ini.sync([](std::error_code error){});
+	ini.sync(libgs::use_awaitable);
+	ini.sync(libgs::use_future);
+	ini.sync(libgs::deferred);
+	ini.sync(libgs::detached);
 #endif
 
 	spdlog::debug("hello-hello: {}", ini["hello"]["hello"]);

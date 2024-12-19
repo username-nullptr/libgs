@@ -527,7 +527,7 @@ basic_server<CharT,Stream,Exec>::~basic_server()
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Stream0, typename Exec0>
 basic_server<CharT,Stream,Exec>::basic_server(basic_server<CharT,Stream0,Exec0> &&other) noexcept
-	requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+	requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
 			 core_concepts::constructible<service_exec_t,typename Stream::executor_type> :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
@@ -538,7 +538,7 @@ template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core
 template <typename Stream0, typename Exec0>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::operator=
 (basic_server<CharT,Stream0,Exec0> &&other) noexcept
-	requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+	requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
 			 core_concepts::assignable<service_exec_t,typename Stream::executor_type>
 {
 	*m_impl = std::move(*other.m_impl);

@@ -83,12 +83,12 @@ public:
 
 	template <typename Stream0, typename Exec0>
 	basic_server(basic_server<char_t,Stream0,Exec0> &&other) noexcept
-		requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+		requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
 				 core_concepts::constructible<service_exec_t,typename Stream::executor_type>;
 
 	template <typename Stream0, typename Exec0>
 	basic_server &operator=(basic_server<char_t,Stream0,Exec0> &&other) noexcept
-		requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,executor_t>&&> and
+		requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
 				 core_concepts::assignable<service_exec_t,typename Stream::executor_type>;
 
 public:

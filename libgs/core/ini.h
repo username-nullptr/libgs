@@ -29,8 +29,8 @@
 #ifndef LIBGS_CORE_INI_H
 #define LIBGS_CORE_INI_H
 
-#include <libgs/core/value.h>
 #include <libgs/core/string_list.h>
+#include <libgs/core/value.h>
 #include <map>
 
 namespace libgs { namespace concepts
@@ -142,7 +142,9 @@ concept basic_of_ini_keys = basic_of_char_ini_keys<T> or basic_of_wchar_ini_keys
 
 } //namespace concepts
 
-template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys = basic_ini_keys<CharT>>
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys = basic_ini_keys<CharT>,
+		  concepts::execution Exec = asio::any_io_executor>
 class LIBGS_CORE_TAPI basic_ini
 {
 	LIBGS_DISABLE_COPY(basic_ini)
@@ -150,6 +152,7 @@ class LIBGS_CORE_TAPI basic_ini
 public:
 	using char_t = CharT;
 	using ini_keys_t = IniKeys;
+	using executor_t = Exec;
 
 	using string_t = std::basic_string<CharT>;
 	using value_t = basic_value<CharT>;
@@ -158,11 +161,27 @@ public:
 	using group_map = std::map<string_t, ini_keys_t>;
 
 public:
+	explicit basic_ini (
+		concepts::match_execution_context<executor_t> auto &exec,
+		std::string_view file_name = {}
+	);
+	explicit basic_ini (
+		const executor_t &exec, std::string_view file_name = {}
+	);
+
 	explicit basic_ini(std::string_view file_name = {});
 	virtual ~basic_ini();
 
 	basic_ini(basic_ini &&other) noexcept;
 	basic_ini &operator=(basic_ini &&other) noexcept;
+
+	template <typename Exec0>
+	explicit basic_ini(basic_ini<char_t,IniKeys,Exec0> &&other)
+		requires concepts::match_execution<Exec0,executor_t>;
+
+	template <typename Exec0>
+	basic_ini &operator=(basic_ini<char_t,IniKeys,Exec0> &&other)
+		requires concepts::match_execution<Exec0,executor_t>;
 
 public:
 	void set_file_name(std::string_view file_name);
@@ -245,14 +264,8 @@ public:
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
 public:
-	bool load(std::string &errmsg) noexcept;
-	void load();
-
 	template <concepts::opt_token<error_code> Token = use_sync_t>
 	auto load(Token &&token = {});
-
-	bool sync(std::string &errmsg) noexcept;
-	void sync();
 
 	template <concepts::opt_token<error_code> Token = use_sync_t>
 	auto sync(Token &&token = {});
@@ -267,9 +280,11 @@ public:
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
 
+	[[nodiscard]] executor_t get_executor() noexcept;
+
 protected:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
 using ini = basic_ini<char>;
