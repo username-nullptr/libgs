@@ -106,7 +106,7 @@ concept execution_context = is_execution_context_v<ExecContext>;
 
 template <typename Exec>
 concept schedulable = execution<Exec> or (
-	execution_context<Exec> and std::is_lvalue_reference_v<Exec>
+	execution_context<Exec> and std::is_lvalue_reference_v<Exec> and not std::is_const_v<Exec>
 );
 
 } //namespace concepts

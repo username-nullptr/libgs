@@ -33,18 +33,17 @@
 #include <libgs/core/string_list.h>
 #include <map>
 
-namespace libgs
+namespace libgs { namespace concepts
 {
 
-class ini_exception : public runtime_error {
-public: using runtime_error::runtime_error;
-};
-
-template <typename CharT, typename T>
-concept ini_read_type =
-	basic_value<CharT>::template is_string_v<T> or 
+template <typename T, typename CharT>
+concept ini_read =
+	is_basic_string_v<T,CharT> or
+	std::is_base_of_v<basic_value<CharT>,T> or
 	std::is_arithmetic_v<T> or
 	std::is_enum_v<T>;
+
+} //namespace concepts
 
 template <concepts::char_type CharT>
 class LIBGS_CORE_TAPI basic_ini_keys
@@ -52,28 +51,29 @@ class LIBGS_CORE_TAPI basic_ini_keys
 	LIBGS_DISABLE_COPY_MOVE(basic_ini_keys)
 
 public:
+	using char_t = CharT;
 	using string_t = std::basic_string<CharT>;
 	using value_t = basic_value<CharT>;
-	using key_map = std::map<string_t, value_t>;
+	using key_map = std::map<string_t,value_t>;
 
 public:
 	basic_ini_keys() = default;
 	virtual ~basic_ini_keys() = default;
 
 public:
-	template <ini_read_type<CharT> T = value_t>
+	template <concepts::ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read_or(const string_t &key, T default_value = T()) const noexcept;
 
-	template <ini_read_type<CharT> T = value_t>
+	template <concepts::ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read(const string_t &key) const;
 
 	[[nodiscard]] value_t read(const string_t &key) const;
 
 	template <typename T>
-	basic_ini_keys &write(const string_t &key, T &&value) noexcept;
+	void write(const string_t &key, T &&value) noexcept;
 
 	template <typename T>
-	basic_ini_keys &write(string_t &&key, T &&value) noexcept;
+	void write(string_t &&key, T &&value) noexcept;
 
 public:
 	[[nodiscard]] value_t operator[](const string_t &key) const;
@@ -81,21 +81,21 @@ public:
 	[[nodiscard]] value_t &operator[](string_t &&key) noexcept;
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	value_t operator[](const string_t &key, T default_value) const noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	value_t &operator[](const string_t &key, T default_value) noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	value_t &operator[](string_t &&key, T default_value) noexcept;
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:
-	using iterator = key_map::iterator;
-	using const_iterator = key_map::const_iterator;
-	using reverse_iterator = key_map::reverse_iterator;
-	using const_reverse_iterator = key_map::const_reverse_iterator;
+	using iterator = typename key_map::iterator;
+	using const_iterator = typename key_map::const_iterator;
+	using reverse_iterator = typename key_map::reverse_iterator;
+	using const_reverse_iterator = typename key_map::const_reverse_iterator;
 
 public:
 	[[nodiscard]] iterator begin() noexcept;
@@ -118,27 +118,44 @@ public:
 	[[nodiscard]] iterator find(const string_t &key) noexcept;
 	[[nodiscard]] const_iterator find(const string_t &key) const noexcept;
 
-	basic_ini_keys &clear() noexcept;
+	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
 
 protected:
 	key_map m_keys;
 };
 
-template <concepts::char_type CharT>
+namespace concepts
+{
+
+template <typename T, typename CharT>
+concept base_of_basic_ini_keys = std::is_base_of_v<basic_ini_keys<CharT>,T>;
+
+template <typename T>
+concept basic_of_char_ini_keys = base_of_basic_ini_keys<char,T>;
+
+template <typename T>
+concept basic_of_wchar_ini_keys = base_of_basic_ini_keys<wchar_t,T>;
+
+template <typename T>
+concept basic_of_ini_keys = basic_of_char_ini_keys<T> or basic_of_wchar_ini_keys<T>;
+
+} //namespace concepts
+
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys = basic_ini_keys<CharT>>
 class LIBGS_CORE_TAPI basic_ini
 {
 	LIBGS_DISABLE_COPY(basic_ini)
 
 public:
+	using char_t = CharT;
+	using ini_keys_t = IniKeys;
+
 	using string_t = std::basic_string<CharT>;
 	using value_t = basic_value<CharT>;
+
 	using string_list_t = basic_string_list<CharT>;
-
-	using ini_keys_t = basic_ini_keys<CharT>;
 	using group_map = std::map<string_t, ini_keys_t>;
-
-	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
 
 public:
 	explicit basic_ini(std::string_view file_name = {});
@@ -148,29 +165,29 @@ public:
 	basic_ini &operator=(basic_ini &&other) noexcept;
 
 public:
-	basic_ini &set_file_name(std::string_view file_name);
-	[[nodiscard]] std::string file_name() const noexcept;
+	void set_file_name(std::string_view file_name);
+	[[nodiscard]] std::string_view file_name() const noexcept;
 
 public:
-	template <ini_read_type<CharT> T = value_t>
+	template <concepts::ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read_or(const string_t &group, const string_t &key, T default_value = T()) const noexcept;
 
-	template <ini_read_type<CharT> T = value_t>
+	template <concepts::ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read(const string_t &group, const string_t &key) const;
 
 	[[nodiscard]] value_t read(const string_t &group, const string_t &key) const;
 
 	template <typename T>
-	basic_ini &write(const string_t &group, const string_t &key, T &&value) noexcept;
+	void write(const string_t &group, const string_t &key, T &&value) noexcept;
 
 	template <typename T>
-	basic_ini &write(const string_t &group, string_t &&key, T &&value) noexcept;
+	void write(const string_t &group, string_t &&key, T &&value) noexcept;
 
 	template <typename T>
-	basic_ini &write(string_t &&group, const string_t &key, T &&value) noexcept;
+	void write(string_t &&group, const string_t &key, T &&value) noexcept;
 
 	template <typename T>
-	basic_ini &write(string_t &&group, string_t &&key, T &&value) noexcept;
+	void write(string_t &&group, string_t &&key, T &&value) noexcept;
 
 public:
 	[[nodiscard]] const ini_keys_t &group(const string_t &group) const;
@@ -188,27 +205,27 @@ public:
 	[[nodiscard]] value_t &operator[](string_t &&group, const string_t &key) noexcept;
 	[[nodiscard]] value_t &operator[](string_t &&group, string_t &&key) noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	[[nodiscard]] value_t operator[](const string_t &group, const string_t &key, T default_value) const noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](const string_t &group, const string_t &key, T default_value) noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](const string_t &group, string_t &&key, T default_value) noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](string_t &&group, const string_t &key, T default_value) noexcept;
 
-	template <ini_read_type<CharT> T>
+	template <concepts::ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](string_t &&group, string_t &&key, T default_value) noexcept;
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 public:
-	using iterator = group_map::iterator;
-	using const_iterator = group_map::const_iterator;
-	using reverse_iterator = group_map::reverse_iterator;
-	using const_reverse_iterator = group_map::const_reverse_iterator;
+	using iterator = typename group_map::iterator;
+	using const_iterator = typename group_map::const_iterator;
+	using reverse_iterator = typename group_map::reverse_iterator;
+	using const_reverse_iterator = typename group_map::const_reverse_iterator;
 
 public:
 	[[nodiscard]] iterator begin() noexcept;
@@ -229,19 +246,25 @@ public:
 
 public:
 	bool load(std::string &errmsg) noexcept;
-	basic_ini &load();
+	void load();
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load(Token &&token = {});
 
 	bool sync(std::string &errmsg) noexcept;
-	basic_ini &sync();
+	void sync();
 
-	basic_ini &set_sync_on_delete(bool enable = true) noexcept;
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto sync(Token &&token = {});
+
+	void set_sync_on_delete(bool enable = true) noexcept;
 	[[nodiscard]] bool sync_on_delete() const noexcept;
 
 public:
 	[[nodiscard]] iterator find(const string_t &group) noexcept;
 	[[nodiscard]] const_iterator find(const string_t &group) const noexcept;
 
-	basic_ini &clear() noexcept;
+	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
 
 protected:

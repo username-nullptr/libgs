@@ -457,25 +457,76 @@ auto async(concepts::function auto &&wake_up, concepts::async_opt_token<Arg0,Arg
 	}
 }
 
-auto async(concepts::function auto &&wake_up, concepts::async_opt_token auto &&token)
+template <typename Arg0, typename...Args>
+auto async(concepts::function auto &&wake_up)
+{
+	using func_t = decltype(wake_up);
+	return async<Arg0,Args...>(std::forward<func_t>(wake_up), use_awaitable);
+}
+
+template <concepts::async_opt_token Token>
+auto async(concepts::function auto &&wake_up, Token &&token)
 {
 	using func_t = decltype(wake_up);
 	using token_t = decltype(token);
 	return async<void>(std::forward<func_t>(wake_up), std::forward<token_t>(token));
 }
 
-template <typename T>
-auto async(concepts::function auto &&wake_up)
+template <typename Arg0, typename...Args>
+auto async(concepts::execution_context auto &exec, concepts::function auto &&wake_up,
+		   concepts::async_opt_token<Arg0,Args...> auto &&token)
 {
+	using token_t = std::remove_cvref_t<decltype(token)>;
 	using func_t = decltype(wake_up);
-	return async<T>(std::forward<func_t>(wake_up), use_awaitable);
+	auto ntoken = async_opt_token_helper(token);
+
+	if constexpr( sizeof...(Args) == 0 and std::is_void_v<Arg0> )
+	{
+		return asio::async_initiate<token_t, void()> (
+		[&exec, wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		{
+			auto work = asio::make_work_guard(handler); LIBGS_UNUSED(work);
+			asio::dispatch(exec,
+			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+				wake_up(std::move(handler));
+			});
+		},
+		ntoken);
+	}
+	else
+	{
+		return asio::async_initiate<token_t, void(Arg0,Args...)> (
+		[&exec, wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(exec,
+			[wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+				wake_up(std::move(handler));
+			});
+		},
+		ntoken);
+	}
 }
 
-auto async(concepts::function auto &&wake_up)
+template <typename Arg0, typename...Args>
+auto async(concepts::execution_context auto &exec, concepts::function auto &&wake_up)
 {
 	using func_t = decltype(wake_up);
-	return async<void>(std::forward<func_t>(wake_up));
+	return async<Arg0,Args...>(exec, std::forward<func_t>(wake_up), use_awaitable);
 }
+
+template <concepts::async_opt_token Token>
+auto async(concepts::execution_context auto &exec, concepts::function auto &&wake_up, Token &&token)
+{
+	using func_t = decltype(wake_up);
+	using token_t = decltype(token);
+	return async<void>(exec, std::forward<func_t>(wake_up), std::forward<token_t>(token));
+}
+
+
+
+
+
 
 void delete_later(const concepts::execution auto &exec, auto *obj)
 {

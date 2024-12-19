@@ -11,6 +11,7 @@ set(${target_name}_sources
 	global.cpp
 	modules.cpp
 	args_parser.cpp
+	detail/ini.cpp
 	execution.cpp
 	library.cpp
 	detail/library_${OS_CPP}.cpp

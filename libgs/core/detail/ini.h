@@ -34,13 +34,11 @@
 #include <filesystem>
 #include <fstream>
 
-#include <iostream>
-
 namespace libgs
 {
 
 template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
+template <concepts::ini_read<CharT> T>
 auto basic_ini_keys<CharT>::read_or(const string_t &key, T default_value) const noexcept
 {
 	if constexpr( is_dsame_v<T, value_t> )
@@ -55,7 +53,7 @@ auto basic_ini_keys<CharT>::read_or(const string_t &key, T default_value) const 
 }
 
 template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
+template <concepts::ini_read<CharT> T>
 auto basic_ini_keys<CharT>::read(const string_t &key) const
 {
 	if constexpr( is_dsame_v<T, value_t> )
@@ -81,18 +79,16 @@ basic_value<CharT> basic_ini_keys<CharT>::read(const string_t &key) const
 
 template <concepts::char_type CharT>
 template <typename T>
-basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(const string_t &key, T &&value) noexcept
+void basic_ini_keys<CharT>::write(const string_t &key, T &&value) noexcept
 {
 	m_keys[key] = std::forward<T>(value);
-	return *this;
 }
 
 template <concepts::char_type CharT>
 template <typename T>
-basic_ini_keys<CharT> &basic_ini_keys<CharT>::write(string_t &&key, T &&value) noexcept
+void basic_ini_keys<CharT>::write(string_t &&key, T &&value) noexcept
 {
 	m_keys[std::move(key)] = std::forward<T>(value);
-	return *this;
 }
 
 template <concepts::char_type CharT>
@@ -116,22 +112,25 @@ basic_value<CharT> &basic_ini_keys<CharT>::operator[](string_t &&key) noexcept
 #if LIBGS_CORE_CPLUSPLUS >= 202302 // TODO ...
 
 template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_value<CharT> basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) const noexcept
+template <concepts::ini_read<CharT> T>
+typename basic_ini_keys<CharT>::value_t
+basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) const noexcept
 {
 	return read_or<value_t>(key, default_value);
 }
 
 template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_value<CharT> &basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) noexcept
+template <concepts::ini_read<CharT> T>
+typename basic_ini_keys<CharT>::value_t&
+basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) noexcept
 {
 	return *m_keys.emplace(std::make_pair(key, default_value)).first;
 }
 
 template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_value<CharT> &basic_ini_keys<CharT>::operator[](string_t &&key, T default_value) noexcept
+template <concepts::ini_read<CharT> T>
+typename basic_ini_keys<CharT>::value_t&
+basic_ini_keys<CharT>::operator[](string_t &&key, T default_value) noexcept
 {
 	return *m_keys.emplace(std::make_pair(std::move(key), default_value)).first;
 }
@@ -139,94 +138,93 @@ basic_value<CharT> &basic_ini_keys<CharT>::operator[](string_t &&key, T default_
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::begin() noexcept
+typename basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::begin() noexcept
 {
 	return m_keys.begin();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::cbegin() const noexcept
+typename basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::cbegin() const noexcept
 {
 	return m_keys.cbegin();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::begin() const noexcept
+typename basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::begin() const noexcept
 {
 	return m_keys.begin();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::end() noexcept
+typename basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::end() noexcept
 {
 	return m_keys.end();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::cend() const noexcept
+typename basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::cend() const noexcept
 {
 	return m_keys.cend();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::end() const noexcept
+typename basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::end() const noexcept
 {
 	return m_keys.end();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::reverse_iterator basic_ini_keys<CharT>::rbegin() noexcept
+typename basic_ini_keys<CharT>::reverse_iterator basic_ini_keys<CharT>::rbegin() noexcept
 {
 	return m_keys.rbegin();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::crbegin() const noexcept
+typename basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::crbegin() const noexcept
 {
 	return m_keys.crbegin();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::rbegin() const noexcept
+typename basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::rbegin() const noexcept
 {
 	return m_keys.rbegin();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::reverse_iterator basic_ini_keys<CharT>::rend() noexcept
+typename basic_ini_keys<CharT>::reverse_iterator basic_ini_keys<CharT>::rend() noexcept
 {
 	return m_keys.rend();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::crend() const noexcept
+typename basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::crend() const noexcept
 {
 	return m_keys.crend();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::rend() const noexcept
+typename basic_ini_keys<CharT>::const_reverse_iterator basic_ini_keys<CharT>::rend() const noexcept
 {
 	return m_keys.rend();
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::find(const string_t &key) noexcept
+typename basic_ini_keys<CharT>::iterator basic_ini_keys<CharT>::find(const string_t &key) noexcept
 {
 	return m_keys.find(key);
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::find(const string_t &key) const noexcept
+typename basic_ini_keys<CharT>::const_iterator basic_ini_keys<CharT>::find(const string_t &key) const noexcept
 {
 	return m_keys.find(key);
 }
 
 template <concepts::char_type CharT>
-basic_ini_keys<CharT> &basic_ini_keys<CharT>::clear() noexcept
+void basic_ini_keys<CharT>::clear() noexcept
 {
 	m_keys.clear();
-	return *this;
 }
 
 template <concepts::char_type CharT>
@@ -269,27 +267,52 @@ struct ini_keyword_char<wchar_t>
 
 } //namespace detail
 
-template <concepts::char_type CharT>
-class basic_ini<CharT>::impl
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+class LIBGS_CORE_TAPI basic_ini<CharT,IniKeys>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+
+	inline static class error_category final : public std::error_category
+	{
+		LIBGS_DISABLE_COPY_MOVE(error_category)
+
+	protected:
+		constexpr explicit error_category(const char *name, const char *desc) :
+			m_name(name), m_desc(desc) {}
+
+	public:
+		[[nodiscard]] const char *name() const noexcept override {
+			return m_name;
+		}
+		[[nodiscard]] std::string message(int line) const override {
+			return std::format("Ini file parsing: syntax error: [line:{}]: {}.", line, m_desc);
+		}
+
+	private:
+		const char *m_name;
+		const char *m_desc;
+	}
+	s_invalid_group          { "invalid_group"         , "Invalid group"                         },
+	s_no_group_specified     { "no_group_specified"    , "No group specified"                    },
+	s_invalid_key_value_line { "invalid_key_value_line", "Invalid key-value line"                },
+	s_key_is_empty           { "invalid_key_value_line", "Invalid key-value line: Key is empty"  },
+	s_invalid_value          { "invalid_key_value_line", "Invalid key-value line: Invalid value" };
 
 public:
 	impl() = default;
 
-public:
 	[[nodiscard]] string_t parsing_group
-	(const string_t &str, size_t line, std::string &errmsg) noexcept
+	(const string_t &str, size_t line, error_code &error) noexcept
 	{
 		if( str.size() < 3 or not str.ends_with(detail::ini_keyword_char<CharT>::right_bracket) )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
+			error = std::error_code(line, s_invalid_group);
 			return {};
 		}
 		auto group = from_percent_encoding(str_trimmed(string_t(str.c_str() + 1, str.size() - 2)));
 		if( group.empty() )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid group.", line);
+			error = std::error_code(line, s_invalid_group);
 			return {};
 		}
 		groups[group];
@@ -297,34 +320,34 @@ public:
 	}
 
 	[[nodiscard]] bool parsing_key_value
-	(const string_t &curr_group, const string_t &str, size_t line, std::string &errmsg) noexcept
+	(const string_t &curr_group, const string_t &str, size_t line, error_code &error) noexcept
 	{
 		using keyword_char = detail::ini_keyword_char<CharT>;
 		if( curr_group.empty() )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: No group specified.", line);
+			error = std::error_code(line, s_no_group_specified);
 			return false;
 		}
 		else if( str.size() < 2 )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
+			error = std::error_code(line, s_invalid_key_value_line);
 			return false;
 		}
 		auto pos = str.find(keyword_char::assigning);
 		if( pos == 0 )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
+			error = std::error_code(line, s_key_is_empty);
 			return false;
 		}
 		else if( pos == string_t::npos )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line.", line);
+			error = std::error_code(line, s_invalid_key_value_line);
 			return false;
 		}
 		auto key = from_percent_encoding(str_trimmed(str.substr(0,pos)));
 		if( key.empty() )
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Key is empty.", line);
+			error = std::error_code(line, s_key_is_empty);
 			return false;
 		}
 		auto value = str_trimmed(str.substr(pos+1));
@@ -338,9 +361,9 @@ public:
 			if( --i >= 0 )
 				value = value.substr(0,i);
 		}
-		auto set_invalid_value = [&errmsg, line]
+		auto set_invalid_value = [&error, line]
 		{
-			errmsg = std::format("Ini file parsing: syntax error: [line:{}]: Invalid key-value line: Invalid value.", line);
+			error = std::error_code(line, s_invalid_value);
 			return false;
 		};
 		if( value.size() == 1 )
@@ -368,15 +391,15 @@ public:
 	friend class basic_ini;
 };
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::basic_ini(std::string_view file_name) :
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+basic_ini<CharT,IniKeys>::basic_ini(std::string_view file_name) :
 	m_impl(new impl())
 {
 	set_file_name(file_name);
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::~basic_ini()
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+basic_ini<CharT,IniKeys>::~basic_ini()
 {
 	if( not sync_on_delete() )
 		return ;
@@ -386,23 +409,23 @@ basic_ini<CharT>::~basic_ini()
 	ignore_unused(errmsg);
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::basic_ini(basic_ini &&other) noexcept :
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+basic_ini<CharT,IniKeys>::basic_ini(basic_ini &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator=(basic_ini &&other) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+basic_ini<CharT,IniKeys> &basic_ini<CharT,IniKeys>::operator=(basic_ini &&other) noexcept
 {
 	m_impl = other.m_impl;
 	other.m_impl = new impl();
 	return *this;
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::set_file_name(std::string_view file_name)
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+void basic_ini<CharT,IniKeys>::set_file_name(std::string_view file_name)
 {
 	auto _name = app::absolute_path(file_name);
 	if( m_impl->file_name == _name )
@@ -416,15 +439,15 @@ basic_ini<CharT> &basic_ini<CharT>::set_file_name(std::string_view file_name)
 	return *this;
 }
 
-template <concepts::char_type CharT>
-std::string basic_ini<CharT>::file_name() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+std::string_view basic_ini<CharT,IniKeys>::file_name() const noexcept
 {
 	return m_impl->file_name;
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-auto basic_ini<CharT>::read_or(const string_t &group, const string_t &key, T default_value) const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+auto basic_ini<CharT,IniKeys>::read_or(const string_t &group, const string_t &key, T default_value) const noexcept
 {
 	if constexpr( is_dsame_v<T, value_t> )
 	{
@@ -437,9 +460,9 @@ auto basic_ini<CharT>::read_or(const string_t &group, const string_t &key, T def
 		return read<value_t>(group, key, default_value).template get<T>();
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-auto basic_ini<CharT>::read(const string_t &group, const string_t &key) const noexcept(false)
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+auto basic_ini<CharT,IniKeys>::read(const string_t &group, const string_t &key) const noexcept(false)
 {
 	if constexpr( is_dsame_v<T, value_t> )
 	{
@@ -447,7 +470,7 @@ auto basic_ini<CharT>::read(const string_t &group, const string_t &key) const no
 		if( it != m_impl->groups.end() )
 			return it->second.template read<T>(key);
 
-		if constexpr( is_char_v )
+		if constexpr( is_char_v<CharT> )
 			throw ini_exception("basic_ini: read: The group '{}' is not exists.", group);
 		else
 			throw ini_exception("basic_ini: read: The group '{}' is not exists.", libgs::wcstombs(group));
@@ -456,276 +479,249 @@ auto basic_ini<CharT>::read(const string_t &group, const string_t &key) const no
 		return read<value_t>(group, key).template get<T>();
 }
 
-template <concepts::char_type CharT>
-basic_value<CharT> basic_ini<CharT>::read(const string_t &group, const string_t &key) const
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::value_t
+basic_ini<CharT,IniKeys>::read(const string_t &group, const string_t &key) const
 {
 	return read<value_t>(group, key);
 }
 
-template <concepts::char_type CharT>
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(const string_t &group, const string_t &key, T &&value) noexcept
+void basic_ini<CharT,IniKeys>::write(const string_t &group, const string_t &key, T &&value) noexcept
 {
 	m_impl->groups[group][key] = std::forward<T>(value);
 	return *this;
 }
 
-template <concepts::char_type CharT>
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(const string_t &group, string_t &&key, T &&value) noexcept
+void basic_ini<CharT,IniKeys>::write(const string_t &group, string_t &&key, T &&value) noexcept
 {
 	m_impl->groups[group][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
-template <concepts::char_type CharT>
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(string_t &&group, const string_t &key, T &&value) noexcept
+void basic_ini<CharT,IniKeys>::write(string_t &&group, const string_t &key, T &&value) noexcept
 {
 	m_impl->groups[group][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
-template <concepts::char_type CharT>
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
 template <typename T>
-basic_ini<CharT> &basic_ini<CharT>::write(string_t &&group, string_t &&key, T &&value) noexcept
+void basic_ini<CharT,IniKeys>::write(string_t &&group, string_t &&key, T &&value) noexcept
 {
 	m_impl->groups[std::move(group)][std::move(key)] = std::forward<T>(value);
 	return *this;
 }
 
-template <concepts::char_type CharT>
-const basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group) const
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+const typename basic_ini<CharT,IniKeys>::ini_keys_t &basic_ini<CharT,IniKeys>::group(const string_t &group) const
 {
 	auto it = m_impl->groups.find(group);
 	if( it != m_impl->groups.end() )
 		return it->second;
 
-	if constexpr( is_char_v )
+	if constexpr( is_char_v<CharT> )
 		throw ini_exception("basic_ini: group: The group '{}' is not exists.", group);
 	else
 		throw ini_exception("basic_ini: group: The group '{}' is not exists.", libgs::wcstombs(group));
 }
 
-template <concepts::char_type CharT>
-basic_ini_keys<CharT> &basic_ini<CharT>::group(const string_t &group)
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::ini_keys_t &basic_ini<CharT,IniKeys>::group(const string_t &group)
 {
 	auto it = m_impl->groups.find(group);
 	if( it != m_impl->groups.end() )
 		return it->second;
 
-	if constexpr( is_char_v )
+	if constexpr( is_char_v<CharT> )
 		throw ini_exception("basic_ini: group: The group '{}' is not exists.", group);
 	else
 		throw ini_exception("basic_ini: group: The group '{}' is not exists.", libgs::wcstombs(group));
 }
 
-template <concepts::char_type CharT>
-const basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const string_t &group) const
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+const typename basic_ini<CharT,IniKeys>::ini_keys_t &basic_ini<CharT,IniKeys>::operator[](const string_t &group) const
 {
 	return this->group(group);
 }
 
-template <concepts::char_type CharT>
-basic_ini_keys<CharT> &basic_ini<CharT>::operator[](const string_t &group) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::ini_keys_t &basic_ini<CharT,IniKeys>::operator[](const string_t &group) noexcept
 {
 	return m_impl->groups[group];
 }
 
-template <concepts::char_type CharT>
-basic_ini_keys<CharT> &basic_ini<CharT>::operator[](string_t &&group) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::ini_keys_t &basic_ini<CharT,IniKeys>::operator[](string_t &&group) noexcept
 {
 	return m_impl->groups[std::move(group)];
 }
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
 
-template <concepts::char_type CharT>
-basic_ini<CharT> basic_ini<CharT>::operator[](const string_t &group, const string_t &key) const noexcept(false)
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::value_t basic_ini<CharT,IniKeys>::operator[]
+(const string_t &group, const string_t &key) const noexcept(false)
 {
 	return (*this)[group][key];
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, const string_t &key) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(const string_t &group, const string_t &key) noexcept
 {
 	return (*this)[group][key];
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, string_t &&key) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(const string_t &group, string_t &&key) noexcept
 {
 	return (*this)[group][std::move(key)];
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, const string_t &key) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(string_t &&group, const string_t &key) noexcept
 {
 	return (*this)[std::move(group)][key];
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, string_t &&key) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(string_t &&group, string_t &&key) noexcept
 {
 	return (*this)[std::move(group)][std::move(key)];
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_ini<CharT> basic_ini<CharT>::operator[](const string_t &group, const string_t &key, T default_value) const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+typename basic_ini<CharT,IniKeys>::value_t basic_ini<CharT>::operator[]
+(const string_t &group, const string_t &key, T default_value) const noexcept
 {
 	return read_or<value_t>(group, key, default_value];
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, const string_t &key, T default_value) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(const string_t &group, const string_t &key, T default_value) noexcept
 {
 	return (*this)[group][key, default_value];
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](const string_t &group, string_t &&key, T default_value) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(const string_t &group, string_t &&key, T default_value) noexcept
 {
 
 	return (*this)[group][std::move(key), default_value];
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, const string_t &key, T default_value) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(string_t &&group, const string_t &key, T default_value) noexcept
 {
 	return (*this)[std::move(group)][key, default_value];
 }
 
-template <concepts::char_type CharT>
-template <ini_read_type<CharT> T>
-basic_ini<CharT> &basic_ini<CharT>::operator[](string_t &&group, string_t &&key, T default_value) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::ini_read<CharT> T>
+typename basic_ini<CharT,IniKeys>::value_t &basic_ini<CharT>::operator[]
+(string_t &&group, string_t &&key, T default_value) noexcept
 {
 	return (*this)[std::move(group)][std::move(key), default_value];
 }
 
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::iterator basic_ini<CharT>::begin() noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::iterator basic_ini<CharT,IniKeys>::begin() noexcept
 {
 	return m_impl->groups.begin();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_iterator basic_ini<CharT>::cbegin() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_iterator basic_ini<CharT,IniKeys>::cbegin() const noexcept
 {
 	return m_impl->groups.cbegin();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_iterator basic_ini<CharT>::begin() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_iterator basic_ini<CharT,IniKeys>::begin() const noexcept
 {
 	return m_impl->groups.begin();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::iterator basic_ini<CharT>::end() noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::iterator basic_ini<CharT,IniKeys>::end() noexcept
 {
 	return m_impl->groups.end();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_iterator basic_ini<CharT>::cend() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_iterator basic_ini<CharT,IniKeys>::cend() const noexcept
 {
 	return m_impl->groups.cend();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_iterator basic_ini<CharT>::end() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_iterator basic_ini<CharT,IniKeys>::end() const noexcept
 {
 	return m_impl->groups.end();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::reverse_iterator basic_ini<CharT>::rbegin() noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::reverse_iterator basic_ini<CharT,IniKeys>::rbegin() noexcept
 {
 	return m_impl->groups.rbegin();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::crbegin() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_reverse_iterator basic_ini<CharT,IniKeys>::crbegin() const noexcept
 {
 	return m_impl->groups.crbegin();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::rbegin() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_reverse_iterator basic_ini<CharT,IniKeys>::rbegin() const noexcept
 {
 	return m_impl->groups.rbegin();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::reverse_iterator basic_ini<CharT>::rend() noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::reverse_iterator basic_ini<CharT,IniKeys>::rend() noexcept
 {
 	return m_impl->groups.rend();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::crend() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_reverse_iterator basic_ini<CharT,IniKeys>::crend() const noexcept
 {
 	return m_impl->groups.crend();
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_reverse_iterator basic_ini<CharT>::rend() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_reverse_iterator basic_ini<CharT,IniKeys>::rend() const noexcept
 {
 	return m_impl->groups.rend();
 }
 
-template <concepts::char_type CharT>
-bool basic_ini<CharT>::load(std::string &errmsg) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+bool basic_ini<CharT,IniKeys>::load(std::string &errmsg) noexcept
 {
-	errmsg.clear();
-	if( not std::filesystem::exists(m_impl->file_name) )
-	{
-		errmsg = std::format("No such file: '{}'", m_impl->file_name);
-		return false;
-	}
-	std::basic_ifstream<CharT> file(m_impl->file_name);
-	if( not file.is_open() )
-	{
-		errmsg = std::format("file '{}' open failed.", m_impl->file_name);
-		return false;
-	}
-	string_t buf;
-	string_t curr_group;
 
-	for(size_t line=1; std::getline(file, buf); line++)
-	{
-		buf = str_trimmed(buf);
-		if( buf.empty() or
-		    buf[0] == detail::ini_keyword_char<CharT>::sharp or
-		    buf[0] == detail::ini_keyword_char<CharT>::semicolon )
-			continue;
-		
-		auto list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::sharp);
-		buf = str_trimmed(list[0]);
-
-		list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::semicolon);
-		buf = str_trimmed(list[0]);
-
-		if( buf.starts_with(detail::ini_keyword_char<CharT>::left_bracket) )
-		{
-			curr_group = m_impl->parsing_group(buf, line, errmsg);
-			if( curr_group.empty() )
-				return false;
-		}
-		else if( not m_impl->parsing_key_value(curr_group, buf, line, errmsg) )
-			return false;
-	}
-	return true;
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::load()
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+void basic_ini<CharT,IniKeys>::load()
 {
 	std::string errmsg;
 	bool res = load(errmsg);
@@ -734,8 +730,70 @@ basic_ini<CharT> &basic_ini<CharT>::load()
 	return *this;
 }
 
-template <concepts::char_type CharT>
-bool basic_ini<CharT>::sync(std::string &errmsg) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+template <concepts::opt_token<std::error_code> Token>
+auto basic_ini<CharT,IniKeys>::load(Token &&token)
+{
+	if constexpr( std::is_same_v<Token,error_code&> )
+	{
+		token = error_code();
+		if( not std::filesystem::exists(m_impl->file_name) )
+		{
+			token = std::make_error_code(std::errc::no_such_file_or_directory);
+			return ;
+		}
+		std::basic_ifstream<CharT> file;
+		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+
+		try {
+			file.open(m_impl->file_name);
+		}
+		catch(const std::system_error &ex) {
+			token = ex.code();
+		}
+		string_t buf;
+		string_t curr_group;
+
+		for(size_t line=1; std::getline(file, buf); line++)
+		{
+			buf = str_trimmed(buf);
+			if( buf.empty() or
+			    buf[0] == detail::ini_keyword_char<CharT>::sharp or
+			    buf[0] == detail::ini_keyword_char<CharT>::semicolon )
+				continue;
+
+			auto list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::sharp);
+			buf = str_trimmed(list[0]);
+
+			list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::semicolon);
+			buf = str_trimmed(list[0]);
+
+			if( buf.starts_with(detail::ini_keyword_char<CharT>::left_bracket) )
+			{
+				curr_group = m_impl->parsing_group(buf, line, token);
+				if( curr_group.empty() )
+					return ;
+			}
+			else if( not m_impl->parsing_key_value(curr_group, buf, line, token) )
+				return ;
+		}
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		error_code error;
+		load(error);
+		if( error )
+			throw system_error(error, "libgs::basic_ini::load");
+	}
+	else if constexpr( is_function_v<Token> )
+	{
+
+	}
+}
+
+
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+bool basic_ini<CharT,IniKeys>::sync(std::string &errmsg) noexcept
 {
 	using keyword_char = detail::ini_keyword_char<CharT>;
 	if( m_impl->file_name.empty() )
@@ -775,49 +833,47 @@ bool basic_ini<CharT>::sync(std::string &errmsg) noexcept
 	return true;
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::sync()
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+void basic_ini<CharT,IniKeys>::sync()
 {
 	std::string errmsg;
 	bool res = sync(errmsg);
 	if( not res )
 		throw ini_exception(errmsg);
-	return *this;
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::set_sync_on_delete(bool enable) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+void basic_ini<CharT,IniKeys>::set_sync_on_delete(bool enable) noexcept
 {
 	m_impl->m_sync_on_delete = enable;
 }
 
-template <concepts::char_type CharT>
-bool basic_ini<CharT>::sync_on_delete() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+bool basic_ini<CharT,IniKeys>::sync_on_delete() const noexcept
 {
 	return m_impl->m_sync_on_delete;
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::iterator basic_ini<CharT>::find(const string_t &group) noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::iterator basic_ini<CharT,IniKeys>::find(const string_t &group) noexcept
 {
 	return m_impl->groups.find(group);
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT>::const_iterator basic_ini<CharT>::find(const string_t &group) const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+typename basic_ini<CharT,IniKeys>::const_iterator basic_ini<CharT,IniKeys>::find(const string_t &group) const noexcept
 {
 	return m_impl->groups.find(group);
 }
 
-template <concepts::char_type CharT>
-basic_ini<CharT> &basic_ini<CharT>::clear() noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+void basic_ini<CharT,IniKeys>::clear() noexcept
 {
 	m_impl->groups.clear();
-	return *this;
 }
 
-template <concepts::char_type CharT>
-size_t basic_ini<CharT>::size() const noexcept
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys>
+size_t basic_ini<CharT,IniKeys>::size() const noexcept
 {
 	return m_impl->groups.size();
 }
