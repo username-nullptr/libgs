@@ -39,10 +39,9 @@ namespace libgs
 {
 
 template <concepts::char_type CharT>
-class LIBGS_CORE_TAPI no_parse_formatter
+struct LIBGS_CORE_TAPI no_parse_formatter
 {
-public:
-	constexpr auto parse(std::basic_format_parse_context<CharT> &context) noexcept 
+	constexpr auto parse(std::basic_format_parse_context<CharT> &context) noexcept
 	{
 		if constexpr( std::is_same_v<CharT, char> )
 			return std::ranges::find(context, '}');
@@ -67,9 +66,8 @@ namespace std
 {
 
 template <typename T, libgs::concepts::char_type CharT> requires is_enum_v<T>
-class LIBGS_CORE_TAPI formatter<T,CharT>
+struct LIBGS_CORE_TAPI formatter<T,CharT>
 {
-public:
 	auto format(T e, auto &context) const {
 		return m_formatter.format(static_cast<uint32_t>(e), context);
 	}
@@ -83,10 +81,9 @@ private:
 };
 
 template <libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<std::thread::id, CharT>
+struct LIBGS_CORE_TAPI formatter<std::thread::id, CharT>
 {
-public:
-	auto format(const std::thread::id &tid, auto &context) const 
+	auto format(const std::thread::id &tid, auto &context) const
 	{
 		auto handle = *reinterpret_cast<const std::thread::native_handle_type*>(&tid);
 		return m_formatter.format(libgs::detail::thread_id_helper(handle), context);
@@ -101,10 +98,9 @@ private:
 };
 
 template <typename T, libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
+struct LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
 {
-public:
-	auto format(const std::optional<T> &ov, auto &context) const 
+	auto format(const std::optional<T> &ov, auto &context) const
 	{
 		if( ov )
 			return m_formatter.format(*ov, context);
@@ -124,9 +120,8 @@ private:
 };
 
 template <typename T, libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<std::atomic<T>, CharT>
+struct LIBGS_CORE_TAPI formatter<std::atomic<T>, CharT>
 {
-public:
 	auto format(const std::atomic<T> &n, auto &context) const {
 		return m_formatter.format(n.load(), context);
 	}
@@ -140,9 +135,8 @@ private:
 };
 
 template <libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<std::error_code, CharT> : public libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<std::error_code, CharT> : libgs::no_parse_formatter<CharT>
 {
-public:
 	auto format(const std::error_code &error, auto &context) const
 	{
 		if constexpr( std::is_same_v<CharT, char> )
@@ -153,9 +147,8 @@ public:
 };
 
 template <libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<asio::ip::tcp::endpoint, CharT> : public libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<asio::ip::tcp::endpoint, CharT> : libgs::no_parse_formatter<CharT>
 {
-public:
 	auto format(const asio::ip::tcp::endpoint &endpoint, auto &context) const
 	{
 		if constexpr( std::is_same_v<CharT, char> )
@@ -166,9 +159,8 @@ public:
 };
 
 template <libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<asio::ip::udp::endpoint, CharT> : public libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<asio::ip::udp::endpoint, CharT> : libgs::no_parse_formatter<CharT>
 {
-public:
 	auto format(const asio::ip::udp::endpoint &endpoint, auto &context) const
 	{
 		if constexpr( std::is_same_v<CharT, char> )
@@ -179,9 +171,8 @@ public:
 };
 
 template <libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<asio::ip::address, CharT>
+struct LIBGS_CORE_TAPI formatter<asio::ip::address, CharT>
 {
-public:
 	auto format(const asio::ip::address &addr, auto &context) const {
 		return m_formatter.format(addr.to_string(), context);
 	}
@@ -194,9 +185,8 @@ private:
 };
 
 template <typename Fir, typename Sec, libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : public libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : libgs::no_parse_formatter<CharT>
 {
-public:
 	auto format(const std::pair<Fir,Sec> &pair, auto &context) const
 	{
 		if constexpr( std::is_same_v<CharT, char> )
@@ -207,9 +197,8 @@ public:
 };
 
 template <typename T, libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : public libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_formatter<CharT>
 {
-public:
 	auto format(const std::shared_ptr<T> &ptr, auto &context) const
 	{
 		if constexpr( std::is_same_v<CharT, char> )

@@ -39,7 +39,7 @@ namespace libgs
 {
 
 template <concepts::char_type CharT>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 auto basic_ini_keys<CharT>::read_or(const string_t &key, T default_value) const noexcept
 {
 	if constexpr( is_dsame_v<T, value_t> )
@@ -54,7 +54,7 @@ auto basic_ini_keys<CharT>::read_or(const string_t &key, T default_value) const 
 }
 
 template <concepts::char_type CharT>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 auto basic_ini_keys<CharT>::read(const string_t &key) const
 {
 	if constexpr( is_dsame_v<T, value_t> )
@@ -113,7 +113,7 @@ basic_value<CharT> &basic_ini_keys<CharT>::operator[](string_t &&key) noexcept
 #if LIBGS_CORE_CPLUSPLUS >= 202302 // TODO ...
 
 template <concepts::char_type CharT>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini_keys<CharT>::value_t
 basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) const noexcept
 {
@@ -121,7 +121,7 @@ basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) const no
 }
 
 template <concepts::char_type CharT>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini_keys<CharT>::value_t&
 basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) noexcept
 {
@@ -129,7 +129,7 @@ basic_ini_keys<CharT>::operator[](const string_t &key, T default_value) noexcept
 }
 
 template <concepts::char_type CharT>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini_keys<CharT>::value_t&
 basic_ini_keys<CharT>::operator[](string_t &&key, T default_value) noexcept
 {
@@ -654,7 +654,7 @@ std::string_view basic_ini<CharT,IniKeys,Exec>::file_name() const noexcept
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 auto basic_ini<CharT,IniKeys,Exec>::read_or(const string_t &group, const string_t &key, T default_value) const noexcept
 {
 	if constexpr( is_dsame_v<T, value_t> )
@@ -669,7 +669,22 @@ auto basic_ini<CharT,IniKeys,Exec>::read_or(const string_t &group, const string_
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
+auto basic_ini<CharT,IniKeys,Exec>::read_or(const string_t &path, T default_value) const
+{
+	string_list_t str_list;
+	if constexpr( is_char_v<CharT> )
+		str_list = string_list_t::from_string(path, '/');
+	else
+		str_list = string_list_t::from_wstring(path, L'/');
+
+	if( str_list.size() != 2 )
+		throw runtime_error("libgs::basic_ini: read_or: The path '{}' is invalid.", path);
+	return read_or<T>(str_list[0], str_list[1], default_value);
+}
+
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
+template <concepts::basic_ini_read<CharT> T>
 auto basic_ini<CharT,IniKeys,Exec>::read(const string_t &group, const string_t &key) const noexcept(false)
 {
 	if constexpr( is_dsame_v<T, value_t> )
@@ -688,10 +703,31 @@ auto basic_ini<CharT,IniKeys,Exec>::read(const string_t &group, const string_t &
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
+template <concepts::basic_ini_read<CharT> T>
+auto basic_ini<CharT,IniKeys,Exec>::read(const string_t &path) const
+{
+	string_list_t str_list;
+	if constexpr( is_char_v<CharT> )
+		str_list = string_list_t::from_string(path, '/');
+	else
+		str_list = string_list_t::from_wstring(path, L'/');
+
+	if( str_list.size() != 2 )
+		throw runtime_error("libgs::basic_ini: read_or: The path '{}' is invalid.", path);
+	return read<T>(str_list[0], str_list[1]);
+}
+
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
 typename basic_ini<CharT,IniKeys,Exec>::value_t
 basic_ini<CharT,IniKeys,Exec>::read(const string_t &group, const string_t &key) const
 {
 	return read<value_t>(group, key);
+}
+
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
+typename basic_ini<CharT,IniKeys,Exec>::value_t basic_ini<CharT,IniKeys,Exec>::read(const string_t &path) const
+{
+	return read<value_t>(path);
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
@@ -720,6 +756,21 @@ template <typename T>
 void basic_ini<CharT,IniKeys,Exec>::write(string_t &&group, string_t &&key, T &&value) noexcept
 {
 	m_impl->m_groups[std::move(group)][std::move(key)] = std::forward<T>(value);
+}
+
+template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
+template <typename T>
+void basic_ini<CharT,IniKeys,Exec>::write(const string_t &path, T &&value)
+{
+	string_list_t str_list;
+	if constexpr( is_char_v<CharT> )
+		str_list = string_list_t::from_string(path, '/');
+	else
+		str_list = string_list_t::from_wstring(path, L'/');
+
+	if( str_list.size() != 2 )
+		throw runtime_error("libgs::basic_ini: write: The path '{}' is invalid.", path);
+	write(str_list[0], str_list[1], std::forward<T>(value));
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
@@ -809,7 +860,7 @@ typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini<CharT,IniKeys,Exec>::value_t basic_ini<CharT>::operator[]
 (const string_t &group, const string_t &key, T default_value) const noexcept
 {
@@ -817,7 +868,7 @@ typename basic_ini<CharT,IniKeys,Exec>::value_t basic_ini<CharT>::operator[]
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 (const string_t &group, const string_t &key, T default_value) noexcept
 {
@@ -825,7 +876,7 @@ typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 (const string_t &group, string_t &&key, T default_value) noexcept
 {
@@ -834,7 +885,7 @@ typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 (string_t &&group, const string_t &key, T default_value) noexcept
 {
@@ -842,7 +893,7 @@ typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
-template <concepts::ini_read<CharT> T>
+template <concepts::basic_ini_read<CharT> T>
 typename basic_ini<CharT,IniKeys,Exec>::value_t &basic_ini<CharT>::operator[]
 (string_t &&group, string_t &&key, T default_value) noexcept
 {

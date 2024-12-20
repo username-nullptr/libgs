@@ -112,6 +112,22 @@ public:
 	[[nodiscard]] const string_t &&get() const && noexcept;
 	[[nodiscard]] string_t &&get() && noexcept;
 
+	template <typename T>
+	[[nodiscard]] const basic_value &get() const & noexcept
+		requires std::is_same_v<T,basic_value>;
+
+	template <typename T>
+	[[nodiscard]] basic_value &get() & noexcept
+		requires std::is_same_v<T,basic_value>;
+
+	template <typename T>
+	[[nodiscard]] const basic_value &&get() const && noexcept
+		requires std::is_same_v<T,basic_value>;
+
+	template <typename T>
+	[[nodiscard]] basic_value &&get() && noexcept
+		requires std::is_same_v<T,basic_value>;
+
 public:
 	[[nodiscard]] bool to_bool(size_t base = 10) const;
 	[[nodiscard]] int32_t to_int(size_t base = 10) const;

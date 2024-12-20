@@ -37,11 +37,17 @@ namespace libgs { namespace concepts
 {
 
 template <typename T, typename CharT>
-concept ini_read =
+concept basic_ini_read =
 	is_basic_string_v<T,CharT> or
 	std::is_base_of_v<basic_value<CharT>,T> or
 	std::is_arithmetic_v<T> or
 	std::is_enum_v<T>;
+
+template <typename T>
+concept ini_read = basic_ini_read<T,char>;
+
+template <typename T>
+concept wini_read = basic_ini_read<T,wchar_t>;
 
 } //namespace concepts
 
@@ -61,10 +67,10 @@ public:
 	virtual ~basic_ini_keys() = default;
 
 public:
-	template <concepts::ini_read<CharT> T = value_t>
+	template <concepts::basic_ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read_or(const string_t &key, T default_value = T()) const noexcept;
 
-	template <concepts::ini_read<CharT> T = value_t>
+	template <concepts::basic_ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read(const string_t &key) const;
 
 	[[nodiscard]] value_t read(const string_t &key) const;
@@ -81,13 +87,13 @@ public:
 	[[nodiscard]] value_t &operator[](string_t &&key) noexcept;
 
 #if LIBGS_CORE_CPLUSPLUS >= 202302L // TODO ...
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	value_t operator[](const string_t &key, T default_value) const noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	value_t &operator[](const string_t &key, T default_value) noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	value_t &operator[](string_t &&key, T default_value) noexcept;
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 
@@ -184,18 +190,26 @@ public:
 		requires concepts::match_execution<Exec0,executor_t>;
 
 public:
-	void set_file_name(std::string_view file_name);
-	[[nodiscard]] std::string_view file_name() const noexcept;
+	virtual void set_file_name(std::string_view file_name);
+	[[nodiscard]] virtual std::string_view file_name() const noexcept;
 
 public:
-	template <concepts::ini_read<CharT> T = value_t>
+	template <concepts::basic_ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read_or(const string_t &group, const string_t &key, T default_value = T()) const noexcept;
 
-	template <concepts::ini_read<CharT> T = value_t>
+	template <concepts::basic_ini_read<CharT> T = value_t>
+	[[nodiscard]] auto read_or(const string_t &path, T default_value = T()) const;
+
+	template <concepts::basic_ini_read<CharT> T = value_t>
 	[[nodiscard]] auto read(const string_t &group, const string_t &key) const;
 
-	[[nodiscard]] value_t read(const string_t &group, const string_t &key) const;
+	template <concepts::basic_ini_read<CharT> T = value_t>
+	[[nodiscard]] auto read(const string_t &path) const;
 
+	[[nodiscard]] value_t read(const string_t &group, const string_t &key) const;
+	[[nodiscard]] value_t read(const string_t &path) const;
+
+public:
 	template <typename T>
 	void write(const string_t &group, const string_t &key, T &&value) noexcept;
 
@@ -207,6 +221,9 @@ public:
 
 	template <typename T>
 	void write(string_t &&group, string_t &&key, T &&value) noexcept;
+
+	template <typename T>
+	void write(const string_t &path, T &&value);
 
 public:
 	[[nodiscard]] const ini_keys_t &group(const string_t &group) const;
@@ -224,19 +241,19 @@ public:
 	[[nodiscard]] value_t &operator[](string_t &&group, const string_t &key) noexcept;
 	[[nodiscard]] value_t &operator[](string_t &&group, string_t &&key) noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	[[nodiscard]] value_t operator[](const string_t &group, const string_t &key, T default_value) const noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](const string_t &group, const string_t &key, T default_value) noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](const string_t &group, string_t &&key, T default_value) noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](string_t &&group, const string_t &key, T default_value) noexcept;
 
-	template <concepts::ini_read<CharT> T>
+	template <concepts::basic_ini_read<CharT> T>
 	[[nodiscard]] value_t &operator[](string_t &&group, string_t &&key, T default_value) noexcept;
 #endif // LIBGS_CORE_CPLUSPLUS >= 202302L
 

@@ -160,28 +160,28 @@ T basic_value<CharT>::get_or(T default_value) const noexcept
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT> T>
+template <concepts::vgs<CharT>>
 const std::basic_string<CharT> &basic_value<CharT>::get() const & noexcept 
 {
 	return m_str;
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT> T>
+template <concepts::vgs<CharT>>
 std::basic_string<CharT> &basic_value<CharT>::get() & noexcept
 {
 	return m_str;
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT> T>
+template <concepts::vgs<CharT>>
 const std::basic_string<CharT> &&basic_value<CharT>::get() const && noexcept 
 {
 	return std::move(m_str);
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT> T>
+template <concepts::vgs<CharT>>
 std::basic_string<CharT> &&basic_value<CharT>::get() && noexcept
 {
 	return std::move(m_str);
@@ -209,6 +209,38 @@ template <concepts::char_type CharT>
 std::basic_string<CharT> &&basic_value<CharT>::get() && noexcept
 {
 	return std::move(m_str);
+}
+
+template <concepts::char_type CharT>
+template <typename T>
+const basic_value<CharT> &basic_value<CharT>::get() const & noexcept
+	requires std::is_same_v<T,basic_value>
+{
+	return *this;
+}
+
+template <concepts::char_type CharT>
+template <typename T>
+basic_value<CharT> &basic_value<CharT>::get() & noexcept
+	requires std::is_same_v<T,basic_value>
+{
+	return *this;
+}
+
+template <concepts::char_type CharT>
+template <typename T>
+const basic_value<CharT> &&basic_value<CharT>::get() const && noexcept
+	requires std::is_same_v<T,basic_value>
+{
+	return std::move(*this);
+}
+
+template <concepts::char_type CharT>
+template <typename T>
+basic_value<CharT> &&basic_value<CharT>::get() && noexcept
+	requires std::is_same_v<T,basic_value>
+{
+	return std::move(*this);
 }
 
 template <concepts::char_type CharT>
