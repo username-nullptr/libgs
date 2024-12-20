@@ -43,6 +43,8 @@
 # define LIBGS_CXX_ATTR_WEAK              __declspec(weak)
 # define LIBGS_CXX_ATTR_WEAKREF(_symbol)  __declspec(weakref(_symbol))
 
+#define LIBGS_CXX_ATTR_NOVTABLE  __declspec(novtable)
+
 #elif defined(__GNUC__)
 
 # if defined(__MINGW32__) || defined(__MINGW32__)
@@ -64,6 +66,8 @@
 # define LIBGS_GNU_ATTR_INIT  __attribute__((constructor))
 # define LIBGS_GNU_ATTR_EXIT  __attribute__((destructor))
 
+#define LIBGS_CXX_ATTR_NOVTABLE  __attribute__(novtable)
+
 #else // other compiler
 
 # define LIBGS_DECL_EXPORT
@@ -76,7 +80,9 @@
 # define LIBGS_CXX_ATTR_WEAK
 # define LIBGS_CXX_ATTR_WEAKREF(_symbol)
 
-#endif
+#define LIBGS_CXX_ATTR_NOVTABLE
+
+#endif //_MSC_VER
 
 #ifdef gs_core_EXPORTS
 # define LIBGS_CORE_API  LIBGS_DECL_EXPORT
@@ -87,8 +93,8 @@
 #define LIBGS_CORE_VAPI
 #define LIBGS_CORE_TAPI
 
-#define C_VIRTUAL_FUNC             __attribute_weak__
-#define C_VIRTUAL_SYMBOL(_symbol)  __attribute_weakref__(_symbol)
+#define C_VIRTUAL_FUNC             LIBGS_CXX_ATTR_WEAK
+#define C_VIRTUAL_SYMBOL(_symbol)  LIBGS_CXX_ATTR_WEAKREF(_symbol)
 
 namespace libgs
 {

@@ -1,55 +1,50 @@
-#include "ini.h"
-
-#include "libgs/core/execution.h"
+#include <libgs/core/ini.h>
 
 namespace libgs::detail
 {
 
-class LIBGS_DECL_HIDDEN ini_error_category::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
+static ini_error_category
 
-public:
-	impl(const char *name, const char *desc) :
-		m_name(name), m_desc(desc) {}
-
-	const char *m_name;
-	const char *m_desc;
-};
-
-ini_error_category::ini_error_category(const char *name, const char *desc) :
-	m_impl(new impl(name, desc))
-{
-
-}
-
-const char *ini_error_category::name() const noexcept override
-{
-	return m_impl->m_name;
-}
-
-std::string ini_error_category::message(int line) const override
-{
-	return std::format("Ini file parsing: syntax error: [line:{}]: {}.", line, m_impl->m_desc);
-}
-
-ini_error_category
-
-ini_error_category::invalid_group {
+g_invalid_group {
 	"invalid_group", "Invalid group"
 },
-ini_error_category::no_group_specified {
+g_no_group_specified {
 	"no_group_specified", "No group specified"
 },
-ini_error_category::invalid_key_value_line {
+g_invalid_key_value_line {
 	"invalid_key_value_line", "Invalid key-value line"
 },
-ini_error_category::key_is_empty {
+g_key_is_empty {
 	"invalid_key_value_line", "Invalid key-value line: Key is empty"
 },
-ini_error_category::invalid_value {
+g_invalid_value {
 	"invalid_key_value_line", "Invalid key-value line: Invalid value"
 };
+
+ini_error_category &ini_invalid_group() noexcept
+{
+	return g_invalid_group;
+}
+
+ini_error_category &ini_no_group_specified() noexcept
+{
+	return g_no_group_specified;
+}
+
+ini_error_category &ini_invalid_key_value_line() noexcept
+{
+	return g_invalid_key_value_line;
+}
+
+ini_error_category &ini_key_is_empty() noexcept
+{
+	return g_key_is_empty;
+}
+
+ini_error_category &ini_invalid_value() noexcept
+{
+	return g_invalid_value;
+}
 
 static struct io_work
 {
@@ -74,9 +69,9 @@ static struct io_work
 }
 g_io_work;
 
-void ini_commit_io_work(std::function<void()> task)
+void ini_commit_io_work(std::function<void()> work)
 {
-	asio::post(*g_io_work.ioc, std::move(task));
+	asio::post(*g_io_work.ioc, std::move(work));
 }
 
 } //namespace libgs::detail

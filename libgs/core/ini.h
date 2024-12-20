@@ -270,6 +270,10 @@ public:
 	template <concepts::opt_token<error_code> Token = use_sync_t>
 	auto sync(Token &&token = {});
 
+	template <typename Rep, typename Period>
+	void set_sync_period(const duration<Rep,Period> &period = {});
+	[[nodiscard]] milliseconds sync_period() const noexcept;
+
 	void set_sync_on_delete(bool enable = true) noexcept;
 	[[nodiscard]] bool sync_on_delete() const noexcept;
 

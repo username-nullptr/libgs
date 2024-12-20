@@ -109,19 +109,24 @@ template <typename Token>
 struct is_any_async_opt_token
 {
 private: // Fucking msvc !!!
+	using token_t = std::remove_cvref_t<Token>;
+
 	template <size_t...I>
 	[[nodiscard]] static consteval bool helper(std::index_sequence<I...>) {
-		return is_async_opt_token_v<Token, std::tuple_element_t<I, typename function_traits<Token>::arg_types>...>;
+		return is_async_opt_token_v<Token, std::tuple_element_t<I, typename function_traits<token_t>::arg_types>...>;
 	}
 
 	// Fucking msvc !!!
 	[[nodiscard]] static consteval bool helper()
 	{
-		if constexpr( is_function_v<Token> )
+		if constexpr( is_use_future_v<token_t> or is_deferred_v<token_t> )
+			return is_async_opt_token_v<Token>;
+
+		else if constexpr( is_function_v<token_t> )
 		{
-			if constexpr( is_void_func_v<Token> )
+			if constexpr( is_void_func_v<token_t> )
 			{
-				if constexpr( constexpr auto arg_count = function_traits<Token>::arg_count; arg_count == 0 )
+				if constexpr( constexpr auto arg_count = function_traits<token_t>::arg_count; arg_count == 0 )
 					return is_async_opt_token_v<Token>;
 				else
 					return helper(std::make_index_sequence<arg_count>{});

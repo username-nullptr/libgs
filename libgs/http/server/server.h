@@ -123,10 +123,10 @@ public:
 
 public:
 	template <typename Rep, typename Period>
-	basic_server &set_first_reading_time(const std::chrono::duration<Rep,Period> &d);
+	basic_server &set_first_reading_time(const duration<Rep,Period> &d);
 
 	template <typename Rep, typename Period>
-	basic_server &set_keepalive_time(const std::chrono::duration<Rep,Period> &d = {});
+	basic_server &set_keepalive_time(const duration<Rep,Period> &d = {});
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;
@@ -140,7 +140,7 @@ public:
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
 template <core_concepts::execution Exec, core_concepts::execution ServiceExec = asio::any_io_executor>

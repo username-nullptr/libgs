@@ -33,7 +33,7 @@ namespace libgs::http
 {
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
-class basic_server<CharT,Stream,Exec>::impl
+class basic_server<CharT,Stream,Exec>::impl : public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY(impl)
 	using request_handler_t = std::function<awaitable<void>(context_t&)>;
@@ -54,7 +54,7 @@ public:
 		m_keepalive_timeout(other.m_keepalive_timeout),
 		m_is_start(other.m_is_start)
 	{
-		other.m_keepalive_timeout = std::chrono::milliseconds(5000);
+		other.m_keepalive_timeout = milliseconds(5000);
 		other.m_is_start = false;
 	}
 
@@ -69,7 +69,7 @@ public:
 		m_keepalive_timeout(other.m_keepalive_timeout),
 		m_is_start(other.m_is_start)
 	{
-		other.m_keepalive_timeout = std::chrono::milliseconds(5000);
+		other.m_keepalive_timeout = milliseconds(5000);
 		other.m_is_start = false;
 	}
 
@@ -89,7 +89,7 @@ public:
 		m_keepalive_timeout = other.m_keepalive_timeout;
 		m_is_start = other.m_is_start;
 	
-		other.m_keepalive_timeout = std::chrono::milliseconds(5000);
+		other.m_keepalive_timeout = milliseconds(5000);
 		other.m_is_start = false;
 		return *this;
 	}
@@ -109,7 +109,7 @@ public:
 		m_keepalive_timeout = other.m_keepalive_timeout;
 		m_is_start = other.m_is_start;
 
-		other.m_keepalive_timeout = std::chrono::milliseconds(5000);
+		other.m_keepalive_timeout = milliseconds(5000);
 		other.m_is_start = false;
 		return *this;
 	}
@@ -125,11 +125,12 @@ public:
 		else
 			m_is_start = true;
 
-		libgs::dispatch(m_next_layer.acceptor().get_executor(), [this]() mutable -> awaitable<void>
+		libgs::dispatch(m_next_layer.acceptor().get_executor(),
+		[self = this->shared_from_this()]() mutable -> awaitable<void>
 		{
 			bool abd = false;
 			try {
-				co_await do_tcp_accept();
+				co_await self->do_tcp_accept();
 			}
 			catch(const std::exception &ex)
 			{
@@ -141,10 +142,10 @@ public:
 				spdlog::error("libgs::http::server: Unknown exception.");
 				abd = true;
 			}
-			m_next_layer.acceptor().cancel();
+			self->m_next_layer.acceptor().cancel();
 			error_code error;
-			m_next_layer.acceptor().close(error);
-			m_is_start = false;
+			self->m_next_layer.acceptor().close(error);
+			self->m_is_start = false;
 			if( abd )
 				forced_termination();
 			co_return ;
@@ -174,11 +175,12 @@ private:
 				continue;
 
 			libgs::dispatch(m_service_exec,
-			[this, socket = std::move(socket), ktime = m_keepalive_timeout]() mutable -> awaitable<void>
+			[self = this->shared_from_this(), socket = std::move(socket), ktime = m_keepalive_timeout]
+			() mutable -> awaitable<void>
 			{
 				bool abd = false;
 				try {
-					co_await do_tcp_service(socket, ktime);
+					co_await self->do_tcp_service(socket, ktime);
 				}
 				catch(const std::exception &ex)
 				{
@@ -201,13 +203,12 @@ private:
 			if( not m_is_start )
 				break;
 			call_on_system_error(ex.code());
-			continue;
 		}
 		while(true);
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> do_tcp_service(socket_t &socket, const std::chrono::milliseconds &keepalive_time)
+	[[nodiscard]] awaitable<void> do_tcp_service(socket_t &socket, const milliseconds &keepalive_time)
 	{
 		using namespace std::chrono_literals;
 		const auto *time = &m_first_reading_time;
@@ -496,8 +497,8 @@ public:
 	system_error_handler_t m_system_error_handler {};
 	exception_handler_t m_exception_handler {};
 
-	std::chrono::milliseconds m_first_reading_time {1500};
-	std::chrono::milliseconds m_keepalive_timeout {5000};
+	milliseconds m_first_reading_time {1500};
+	milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_is_start {false};
 };
 
@@ -521,7 +522,7 @@ basic_server<CharT,Stream,Exec>::basic_server
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_server<CharT,Stream,Exec>::~basic_server()
 {
-	delete m_impl;
+	stop();
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
@@ -726,7 +727,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_except
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Rep, typename Period>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::set_first_reading_time(const std::chrono::duration<Rep,Period> &d)
+basic_server<CharT,Stream,Exec>::set_first_reading_time(const duration<Rep,Period> &d)
 {
 	using namespace std::chrono;
 	m_impl->m_first_reading_time = duration_cast<milliseconds>(d);
@@ -738,7 +739,7 @@ basic_server<CharT,Stream,Exec>::set_first_reading_time(const std::chrono::durat
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Rep, typename Period>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::set_keepalive_time(const std::chrono::duration<Rep,Period> &d)
+basic_server<CharT,Stream,Exec>::set_keepalive_time(const duration<Rep,Period> &d)
 {
 	using namespace std::chrono;
 	m_impl->m_keepalive_timeout = duration_cast<milliseconds>(d);
@@ -763,16 +764,14 @@ template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::stop() noexcept
 {
 	m_impl->m_is_start = false;
-	m_impl->m_next_layer.acceptor().stop();
+	m_impl->m_next_layer.acceptor().cancel();
 	return *this;
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::cancel() noexcept
 {
-	m_impl->m_is_start = false;
-	m_impl->m_next_layer.acceptor().cancel();
-	return *this;
+	return stop();
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>

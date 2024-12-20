@@ -29,6 +29,8 @@
 #ifndef LIBGS_CORE_DETAIL_STRING_LIST_H
 #define LIBGS_CORE_DETAIL_STRING_LIST_H
 
+#include <libgs/core/algorithm/base.h>
+
 namespace libgs
 {
 
@@ -90,8 +92,8 @@ std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, const stri
 
 template <concepts::char_type CharT>
 std::basic_string<CharT> basic_string_list<CharT>::join
-(detail::concepts::string_list_iterator<CharT> auto begin,
- detail::concepts::string_list_iterator<CharT> auto end,
+(concepts::string_list_iterator<char_t> auto begin,
+ concepts::string_list_iterator<char_t> auto end,
  const string_t &splits)
 {
 	string_t result;
@@ -138,7 +140,7 @@ namespace std
 {
 
 template <libgs::concepts::char_type CharT>
-class formatter<libgs::basic_string_list<CharT>, CharT>
+class LIBGS_CORE_TAPI formatter<libgs::basic_string_list<CharT>, CharT>
 {
 public:
 	auto format(const libgs::basic_string_list<CharT> &slist, auto &context) const

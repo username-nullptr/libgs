@@ -15,7 +15,6 @@ using namespace libgs::operators;
 int main()
 {
 
-	return 0;
 
 	// spdlog::set_level(spdlog::level::trace);
 

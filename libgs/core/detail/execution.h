@@ -408,6 +408,52 @@ auto local_dispatch(concepts::callable auto &&func)
 	});
 }
 
+namespace detail { namespace concepts
+{
+
+template <typename WakeUp, typename...Args>
+concept async_wake_up = requires(WakeUp wake_up, Args&&...args) {
+	wake_up(std::move(args)...);
+};
+
+} //namespace concepts
+
+template <typename Exec, typename WakeUp, typename Handler>
+LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
+{
+	using handler_t = std::remove_cvref_t<decltype(handler)>;
+	using exec_t = std::remove_cvref_t<decltype(exec)>;
+
+	if constexpr( concepts::async_wake_up<WakeUp, handler_t, exec_t> )
+		wake_up(std::move(handler), exec);
+	else if constexpr( concepts::async_wake_up<WakeUp, handler_t> )
+		wake_up(std::move(handler));
+	else
+		static_assert(false, "Invalid function signature for async");
+}
+
+template <typename WakeUp, typename Handler>
+LIBGS_CORE_TAPI void async_x(WakeUp &&wake_up, Handler &&handler)
+{
+	auto work = asio::make_work_guard(handler);
+	auto exec = work.get_executor();
+	asio::dispatch(exec, [exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+		async_xx(exec, std::move(wake_up), std::move(handler));
+	});
+}
+
+template <typename Exec, typename WakeUp, typename Handler>
+LIBGS_CORE_TAPI void async_x(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
+{
+	auto work = asio::make_work_guard(handler);
+	asio::dispatch(exec,
+	[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+		async_xx(exec, std::move(wake_up), std::move(handler));
+	});
+}
+
+} //namespace detail
+
 template <typename Arg0, typename...Args>
 auto async(concepts::function auto &&wake_up, concepts::async_opt_token<Arg0,Args...> auto &&token)
 {
@@ -418,38 +464,16 @@ auto async(concepts::function auto &&wake_up, concepts::async_opt_token<Arg0,Arg
 	if constexpr( sizeof...(Args) == 0 and std::is_void_v<Arg0> )
 	{
 		return asio::async_initiate<token_t, void()> (
-		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			auto exec = work.get_executor();
-			asio::dispatch(exec,
-			[exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable
-			{
-				if constexpr( function_traits<func_t>::arg_count == 1 )
-					wake_up(std::move(handler));
-				else
-					wake_up(std::move(handler), exec);
-			});
-		},
-		ntoken);
+		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
+			detail::async_x(std::move(wake_up), std::move(handler));
+		}, ntoken);
 	}
 	else
 	{
 		return asio::async_initiate<token_t, void(Arg0,Args...)> (
-		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			auto exec = work.get_executor();
-			asio::dispatch(exec,
-			[exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable
-			{
-				if constexpr( function_traits<func_t>::arg_count == 1 )
-					wake_up(std::move(handler));
-				else
-					wake_up(std::move(handler), exec);
-			});
-		},
-		ntoken);
+		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
+			detail::async_x(std::move(wake_up), std::move(handler));
+		}, ntoken);
 	}
 }
 
@@ -479,36 +503,16 @@ auto async(concepts::schedulable auto &&exec, concepts::function auto &&wake_up,
 	if constexpr( sizeof...(Args) == 0 and std::is_void_v<Arg0> )
 	{
 		return asio::async_initiate<token_t, void()> (
-		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec,
-			[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]() mutable
-			{
-				if constexpr( function_traits<func_t>::arg_count == 1 )
-					wake_up(std::move(handler));
-				else
-					wake_up(std::move(handler), exec);
-			});
-		},
-		ntoken);
+		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
+			detail::async_x(exec, std::move(wake_up), std::move(handler));
+		}, ntoken);
 	}
 	else
 	{
 		return asio::async_initiate<token_t, void(Arg0,Args...)> (
-		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec,
-			[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]() mutable
-			{
-				if constexpr( function_traits<func_t>::arg_count == 1 )
-					wake_up(std::move(handler));
-				else
-					wake_up(std::move(handler), exec);
-			});
-		},
-		ntoken);
+		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
+			detail::async_x(exec, std::move(wake_up), std::move(handler));
+		}, ntoken);
 	}
 }
 

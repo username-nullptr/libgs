@@ -78,6 +78,13 @@ struct is_functor<R(&)(Args...) noexcept> : std::true_type {};
 template <typename T>
 constexpr bool is_functor_v = is_functor<T>::value;
 
+// template <typename T>
+// struct function_traits : function_traits<decltype(&T::operator())>
+// {
+// 	using type = T;
+// 	static constexpr bool is_member_func = false;
+// };
+
 template <typename T>
 struct function_traits : function_traits<decltype(&T::operator())>
 {
@@ -209,8 +216,13 @@ struct is_function : std::disjunction <
 template <typename F>
 constexpr bool is_function_v = is_function<F>::value;
 
+namespace detail
+{
+
 template <typename F> // Fucking msvc !!!
 constexpr bool is_void_func_helper_v = std::is_void_v<typename function_traits<F>::return_type>;
+
+} //namespace detail
 
 template <typename F>
 struct is_void_func
@@ -219,7 +231,7 @@ struct is_void_func
 	static constexpr bool value = []() consteval -> bool
 	{
 		if constexpr( is_function_v<F> )
-			return is_void_func_helper_v<F>;
+			return detail::is_void_func_helper_v<F>;
 		else
 			return false;
 	}();
