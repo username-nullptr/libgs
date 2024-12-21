@@ -36,7 +36,7 @@ namespace libgs { namespace concepts
 {
 
 template <typename T, typename CharT>
-concept vgs = is_dsame_v<T,std::basic_string<CharT>>;
+concept vgs = std::is_same_v<T,std::basic_string<CharT>>;
 
 }//namespace concepts
 

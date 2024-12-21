@@ -408,7 +408,7 @@ auto local_dispatch(concepts::callable auto &&func)
 	});
 }
 
-namespace detail { namespace concepts
+namespace concepts::detail
 {
 
 template <typename WakeUp, typename...Args>
@@ -416,7 +416,10 @@ concept async_wake_up = requires(WakeUp wake_up, Args&&...args) {
 	wake_up(std::move(args)...);
 };
 
-} //namespace concepts
+} //namespace concepts::detail
+
+namespace detail
+{
 
 template <typename Exec, typename WakeUp, typename Handler>
 LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
@@ -424,9 +427,9 @@ LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&hand
 	using handler_t = std::remove_cvref_t<decltype(handler)>;
 	using exec_t = std::remove_cvref_t<decltype(exec)>;
 
-	if constexpr( concepts::async_wake_up<WakeUp, handler_t, exec_t> )
+	if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t, exec_t> )
 		wake_up(std::move(handler), exec);
-	else if constexpr( concepts::async_wake_up<WakeUp, handler_t> )
+	else if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t> )
 		wake_up(std::move(handler));
 	else
 		static_assert(false, "Invalid function signature for async");

@@ -665,7 +665,7 @@ auto basic_ini<CharT,IniKeys,Exec>::read_or(const string_t &group, const string_
 		return it->second.template read_or<T>(key, default_value);
 	}
 	else
-		return read<value_t>(group, key, default_value).template get<T>();
+		return read_or<value_t>(group, key, default_value).template get<T>();
 }
 
 template <concepts::char_type CharT, concepts::base_of_basic_ini_keys<CharT> IniKeys, concepts::execution Exec>
