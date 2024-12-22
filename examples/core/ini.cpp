@@ -10,7 +10,7 @@ int main()
 	spdlog::set_level(spdlog::level::trace);
 	libgs::ini ini("./test.ini");
 	try {
-		ini.load();
+		ini.load_or();
 #if 0
 		ini["hello"]["hello"] = "hello";
 		ini["hello"]["world"] = "world";

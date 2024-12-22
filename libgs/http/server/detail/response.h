@@ -627,7 +627,7 @@ private:
 			auto list = string_list_t::from_string(sub_range_str, '-', false);
 			if( list.size() != 2 )
 			{
-				spdlog::debug("Range format error: {}.", xxtombs<char_t>(sub_range_str));
+				spdlog::debug("Range format error: {}.", xxtombs(sub_range_str));
 				return status::range_not_satisfiable;
 			}
 			else if( list[0].empty() )
@@ -728,7 +728,7 @@ private:
 
 		std::string buf = "0\r\n";
 		for(auto &[key,value] : headers)
-			buf += xxtombs<char_t>(key) + ": " + xxtombs<char_t>(value.to_string()) + "\r\n";
+			buf += xxtombs(key) + ": " + xxtombs(value.to_string()) + "\r\n";
 		return buf + "\r\n";
 	}
 
@@ -971,7 +971,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 			co_return res;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 
@@ -1033,7 +1033,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 			co_return res;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 
@@ -1093,7 +1093,7 @@ auto basic_server_response<Stream,CharT>::send_file
 			co_return res;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 
@@ -1157,7 +1157,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 			co_return res;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 

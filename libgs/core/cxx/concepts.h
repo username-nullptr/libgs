@@ -78,14 +78,12 @@ template <concepts::char_type, typename>
 struct is_basic_char_array : std::false_type {};
 
 template <concepts::char_type CharT, concepts::char_type T, size_t N>
-struct is_basic_char_array<CharT, T[N]> {
-	static constexpr bool value = std::is_same_v<std::remove_const_t<CharT>, std::remove_const_t<T>>;
-};
+struct is_basic_char_array<CharT, T[N]> :
+	std::is_same<std::remove_const_t<CharT>, std::remove_const_t<T>> {};
 
 template <concepts::char_type CharT, concepts::char_type T>
-struct is_basic_char_array<CharT, T[]> {
-	static constexpr bool value = std::is_same_v<std::remove_const_t<CharT>, std::remove_const_t<T>>;
-};
+struct is_basic_char_array<CharT, T[]> :
+	std::is_same<std::remove_const_t<CharT>, std::remove_const_t<T>> {};
 
 template <concepts::char_type CharT, typename T>
 constexpr bool is_basic_char_array_v = is_basic_char_array<CharT,T>::value;
@@ -109,8 +107,8 @@ struct is_basic_string
 	using nc_CharT = std::remove_const_t<CharT>;
 
 	static constexpr bool value =
-		is_dsame_v<nc_T, std::basic_string<nc_CharT>> or
-		is_dsame_v<nc_T, std::basic_string_view<nc_CharT>> or
+		std::is_same_v<nc_T, std::basic_string<nc_CharT>> or
+		std::is_same_v<nc_T, std::basic_string_view<nc_CharT>> or
 		std::is_same_v<nc_T, const nc_CharT*> or
 		std::is_same_v<nc_T, nc_CharT*> or
 		is_basic_char_array_v<nc_CharT, nc_T>;

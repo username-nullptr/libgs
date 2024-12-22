@@ -26,86 +26,25 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_UTILITIES_H
-#define LIBGS_CORE_CXX_UTILITIES_H
+#ifndef LIBGS_CORE_CXX_DETAIL_RETURN_TOOLS_H
+#define LIBGS_CORE_CXX_DETAIL_RETURN_TOOLS_H
 
-#include <libgs/core/cxx/remove_repeat.h>
-#include <libgs/core/cxx/string_tools.h>
-#include <libgs/core/cxx/type_traits.h>
-#include <libgs/core/cxx/initialize.h>
 #include <utility>
-
-#ifdef __GNUC__
-# include <cxxabi.h>
-# define LIBGS_ABI_CXA_DEMANGLE(name)  abi::__cxa_demangle(name, nullptr, nullptr, nullptr)
-#else //_MSVC
-# define LIBGS_ABI_CXA_DEMANGLE(name)  name
-#endif //__GNUC__
-
-#define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
 
 namespace libgs
 {
 
-template <typename...Args>
-constexpr void ignore_unused(Args&&...) {}
-
-using std_type_id = decltype(typeid(void).hash_code());
-
-template <typename T>
-[[nodiscard]] constexpr T &remove_const(const T &v);
-
-template <typename T>
-[[nodiscard]] constexpr T *remove_const(const T *v);
-
-template <typename T>
-[[nodiscard]] constexpr const T &as_const(const T &v);
-
-template <typename T>
-[[nodiscard]] constexpr const T *as_const(const T *v);
-
-template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI const char *type_name();
-[[nodiscard]] LIBGS_CORE_TAPI const char *type_name(auto &&t);
-
-LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::schedulable auto &&exec
-);
-
-enum class ip_type {
-	v4, v6, loopback
-};
-
-template <typename Protocol>
-struct LIBGS_CORE_TAPI basic_endpoint_wrapper
+constexpr decltype(auto) return_reference(auto &&value)
 {
-	using protocol_t = Protocol;
-	using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
-	endpoint_t value;
+	return std::forward<decltype(value)>(value);
+}
 
-	basic_endpoint_wrapper() = default;
-	basic_endpoint_wrapper(string_wrapper address, uint16_t port);
-	basic_endpoint_wrapper(string_wrapper address);
-
-	basic_endpoint_wrapper(ip_type type, uint16_t port);
-	basic_endpoint_wrapper(ip_type type);
-
-	template <typename...Args>
-	basic_endpoint_wrapper(Args&&...args) requires
-		concepts::constructible<endpoint_t,Args&&...>;
-
-	operator endpoint_t&();
-	operator const endpoint_t&() const;
-
-	endpoint_t &operator*();
-	endpoint_t *operator->();
-};
-
-using tcp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::tcp>;
-using udp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::udp>;
+constexpr decltype(auto) return_nodiscard(auto &&value)
+{
+	return std::forward<decltype(value)>(value);
+}
 
 } //namespace libgs
-#include <libgs/core/cxx/detail/utilities.h>
 
 
-#endif //LIBGS_CORE_CXX_UTILITIES_H
+#endif //LIBGS_CORE_CXX_DETAIL_RETURN_TOOLS_H

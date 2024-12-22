@@ -61,7 +61,8 @@ public:
 		{
 			auto self = _self->shared_from_this();
 			error_code error;
-			do {
+			for(;;)
+			{
 				self->m_impl->m_restart = false;
 				self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
 
@@ -77,8 +78,8 @@ public:
 
 				self->m_impl->m_valid = false;
 				self->m_impl->m_timeout_handle();
+				break;
 			}
-			while(false);
 			co_return ;
 		});
 	}
@@ -116,7 +117,7 @@ basic_session<CharT>::basic_session(const executor_t &exec) :
 template <core_concepts::char_type CharT>
 basic_session<CharT>::~basic_session()
 {
-	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs<char_t>(id()));
+	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs(id()));
 	delete m_impl;
 }
 
@@ -143,7 +144,7 @@ std::any basic_session<CharT>::attribute(string_view_t key) const
 {
 	auto it = m_impl->m_attributes.find({key.data(), key.size()});
 	if( it == m_impl->m_attributes.end() )
-		throw runtime_error("libgs::http::session::attribute: key '{}' not exists.", xxtombs<char_t>(key));
+		throw runtime_error("libgs::http::session::attribute: key '{}' not exists.", xxtombs(key));
 	return it->second;
 }
 

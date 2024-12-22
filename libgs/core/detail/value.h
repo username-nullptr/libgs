@@ -46,39 +46,15 @@ namespace libgs
 {
 
 template <concepts::char_type CharT>
-basic_value<CharT>::basic_value(const CharT *str) :
-	m_str(str)
+basic_value<CharT>::basic_value(concepts::basic_value_arg<CharT> auto &&arg)
 {
-
-}
-
-template <concepts::char_type CharT>
-basic_value<CharT>::basic_value(string_t str) :
-	m_str(std::move(str))
-{
-
-}
-
-template <concepts::char_type CharT>
-basic_value<CharT>::basic_value(string_view_t str) :
-	m_str(str.data(), str.size())
-{
-
+	set(std::forward<decltype(arg)>(arg));
 }
 
 template <concepts::char_type CharT>
 template <typename Arg0, typename...Args>
 basic_value<CharT>::basic_value(format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
 	basic_value<CharT>(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
-{
-
-}
-
-template <concepts::char_type CharT>
-template <typename T>
-basic_value<CharT>::basic_value(T &&v) requires (
-	not requires(T &&rv) { string_t(std::forward<T>(rv)); }
-) : basic_value<CharT>(default_format_v, std::forward<T>(v))
 {
 
 }
@@ -160,28 +136,56 @@ T basic_value<CharT>::get_or(T default_value) const noexcept
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT>>
-const std::basic_string<CharT> &basic_value<CharT>::get() const & noexcept 
+template <concepts::basic_vgs<CharT> T>
+decltype(auto) basic_value<CharT>::get() & noexcept
 {
-	return m_str;
+	if constexpr( std::is_same_v<T,string_t> )
+		return return_reference(m_str);
+	else if constexpr( std::is_same_v<T,str_view_t> )
+		return str_view_t(m_str);
+	else
+		return return_reference(*this);
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT>>
+template <concepts::basic_rvgs<CharT> T>
+decltype(auto) basic_value<CharT>::get() && noexcept
+{
+	if constexpr( std::is_same_v<T,string_t> )
+		return std::move(m_str);
+	else
+		return std::move(*this);
+}
+
+template <concepts::char_type CharT>
+template <concepts::basic_vgs<CharT> T>
+auto &&basic_value<CharT>::get() const & noexcept
+{
+	if constexpr( std::is_same_v<T,string_t> )
+		return return_reference(m_str);
+	else if constexpr( std::is_same_v<T,str_view_t> )
+		return str_view_t(m_str);
+	else
+		return return_reference(*this);
+}
+
+template <concepts::char_type CharT>
+template <concepts::basic_rvgs<CharT> T>
+auto &&basic_value<CharT>::get() const && noexcept
+{
+	if constexpr( std::is_same_v<T,string_t> )
+		return std::move(m_str);
+	else
+		return std::move(*this);
+}
+
+template <concepts::char_type CharT>
 std::basic_string<CharT> &basic_value<CharT>::get() & noexcept
 {
 	return m_str;
 }
 
 template <concepts::char_type CharT>
-template <concepts::vgs<CharT>>
-const std::basic_string<CharT> &&basic_value<CharT>::get() const && noexcept 
-{
-	return std::move(m_str);
-}
-
-template <concepts::char_type CharT>
-template <concepts::vgs<CharT>>
 std::basic_string<CharT> &&basic_value<CharT>::get() && noexcept
 {
 	return std::move(m_str);
@@ -194,53 +198,9 @@ const std::basic_string<CharT> &basic_value<CharT>::get() const & noexcept
 }
 
 template <concepts::char_type CharT>
-std::basic_string<CharT> &basic_value<CharT>::get() & noexcept
-{
-	return m_str;
-}
-
-template <concepts::char_type CharT>
 const std::basic_string<CharT> &&basic_value<CharT>::get() const && noexcept
 {
 	return std::move(m_str);
-}
-
-template <concepts::char_type CharT>
-std::basic_string<CharT> &&basic_value<CharT>::get() && noexcept
-{
-	return std::move(m_str);
-}
-
-template <concepts::char_type CharT>
-template <typename T>
-const basic_value<CharT> &basic_value<CharT>::get() const & noexcept
-	requires std::is_same_v<T,basic_value>
-{
-	return *this;
-}
-
-template <concepts::char_type CharT>
-template <typename T>
-basic_value<CharT> &basic_value<CharT>::get() & noexcept
-	requires std::is_same_v<T,basic_value>
-{
-	return *this;
-}
-
-template <concepts::char_type CharT>
-template <typename T>
-const basic_value<CharT> &&basic_value<CharT>::get() const && noexcept
-	requires std::is_same_v<T,basic_value>
-{
-	return std::move(*this);
-}
-
-template <concepts::char_type CharT>
-template <typename T>
-basic_value<CharT> &&basic_value<CharT>::get() && noexcept
-	requires std::is_same_v<T,basic_value>
-{
-	return std::move(*this);
 }
 
 template <concepts::char_type CharT>
@@ -340,40 +300,24 @@ long double basic_value<CharT>::to_ldouble_or(long double default_value) const n
 }
 
 template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::set(const CharT *str)
-{
-	m_str = str;
-	return *this;
-}
-
-template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::set(string_t str)
-{
-	m_str = std::move(str);
-	return *this;
-}
-
-template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::set(string_view_t str)
-{
-	m_str = string_t(str.data(), str.size());
-	return *this;
-}
-
-template <concepts::char_type CharT>
 template <typename Arg0, typename...Args>
-basic_value<CharT> &basic_value<CharT>::set(format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args)
+void basic_value<CharT>::set(format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args)
 {
 	m_str = std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
-	return *this;
 }
 
 template <concepts::char_type CharT>
-template <typename T>
-basic_value<CharT> &basic_value<CharT>::set(T &&v) requires (
-	not requires(T &&rv) { string_t(std::forward<T>(rv)); } )
+void basic_value<CharT>::set(concepts::basic_value_arg<CharT> auto &&arg)
 {
-	return set(default_format_v, v);
+	using Arg = decltype(arg);
+	using arg_t = std::remove_cvref_t<Arg>;
+
+	if constexpr( std::is_same_v<arg_t, std::basic_string_view<CharT>> )
+		m_str = string_t(arg.data(), arg.size());
+	else if constexpr( is_basic_string_v<Arg, CharT> )
+		m_str = std::forward<Arg>(arg);
+	else
+		m_str = std::format(default_format_v<CharT>, std::forward<Arg>(arg));
 }
 
 template <concepts::char_type CharT>
@@ -446,7 +390,7 @@ const std::basic_string<CharT> *basic_value<CharT>::operator->() const noexcept
 }
 
 template <concepts::char_type CharT>
-bool basic_value<CharT>::operator==(const string_view_t &str) const
+bool basic_value<CharT>::operator==(const str_view_t &str) const
 {
 	return m_str == str;
 }
@@ -464,7 +408,7 @@ auto basic_value<CharT>::operator<=>(const basic_value &str) const
 }
 
 template <concepts::char_type CharT>
-auto basic_value<CharT>::operator<=>(const string_view_t &str) const
+auto basic_value<CharT>::operator<=>(const str_view_t &str) const
 {
 	return m_str <=> str;
 }
@@ -476,21 +420,10 @@ auto basic_value<CharT>::operator<=>(const string_t &str) const
 }
 
 template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::operator=(const CharT *str)
+basic_value<CharT> &basic_value<CharT>::operator=(concepts::basic_value_arg<CharT> auto &&arg)
 {
-	return set(str);
-}
-
-template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::operator=(string_t str)
-{
-	return set(std::move(str));
-}
-
-template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::operator=(string_view_t str)
-{
-	return set(std::move(str));
+	set(std::forward<decltype(arg)>(arg));
+	return *this;
 }
 
 } //namespace libgs
@@ -499,9 +432,8 @@ namespace std
 {
 
 template <libgs::concepts::char_type CharT>
-class formatter<libgs::basic_value<CharT>, CharT> 
+struct LIBGS_CORE_TAPI formatter<libgs::basic_value<CharT>, CharT>
 {
-public:
 	auto format(const libgs::basic_value<CharT> &value, auto &context) const {
 		return m_formatter.format(value.to_string(), context);
 	}

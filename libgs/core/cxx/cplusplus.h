@@ -29,11 +29,11 @@
 #ifndef LIBGS_CORE_CXX_CPLUSPLUS_H
 #define LIBGS_CORE_CXX_CPLUSPLUS_H
 
-#ifdef _MSC_VER // _MSVC
+#ifdef _MSC_VER
 # define LIBGS_CPLUSPLUS  _MSVC_LANG
 #else
 # define LIBGS_CPLUSPLUS  __cplusplus
-#endif
+#endif //_MSC_VER
 
 #if defined(_WIN64) || defined(__x86_64__) || defined(__arm64__) || defined(__aarch64__)
 # define LIBGS_OS_64BIT
@@ -84,9 +84,9 @@
 # define SPDLOG_USE_STD_FORMAT
 #endif //SPDLOG_USE_STD_FORMAT
 
-#ifdef _MSC_VER // _MSVC
+#ifdef _MSC_VER
 # pragma warning(disable: 4819)
-#endif // _MSVC
+#endif //_MSC_VER
 
 
 #endif //LIBGS_CORE_CXX_CPLUSPLUS_H

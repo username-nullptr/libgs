@@ -39,7 +39,7 @@
 namespace libgs
 {
 
-class library::impl
+class LIBGS_DECL_HIDDEN library::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 

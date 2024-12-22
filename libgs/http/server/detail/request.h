@@ -442,7 +442,7 @@ basic_server_request<Stream,CharT>::parameter(string_view_t key) const
 	auto &map = m_impl->m_parser->parameters();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs<char_t>(key));
+		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs(key));
 	return it->second;
 }
 
@@ -453,7 +453,7 @@ basic_server_request<Stream,CharT>::header(string_view_t key) const
 	auto &map = m_impl->m_parser->headers();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs<char_t>(key));
+		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs(key));
 	return it->second;
 }
 
@@ -464,7 +464,7 @@ basic_server_request<Stream,CharT>::cookie(string_view_t key) const
 	auto &map = m_impl->m_parser->cookies();
 	auto it = map.find({key.data(), key.size()});
 	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs<char_t>(key));
+		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs(key));
 	return it->second;
 }
 
@@ -515,7 +515,7 @@ basic_server_request<Stream,CharT>::path_arg(string_view_t key) const
 		if( _key == key )
 			return value;
 	}
-	throw runtime_error("libgs::http::server_request::path_arg: key '{}' not exists.", xxtombs<char_t>(key));
+	throw runtime_error("libgs::http::server_request::path_arg: key '{}' not exists.", xxtombs(key));
 //	return {};
 }
 
@@ -587,7 +587,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 			co_return res;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 
@@ -663,7 +663,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 			co_return sum;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 
@@ -721,7 +721,7 @@ auto basic_server_request<Stream,CharT>::save_file
 			co_return res;
 		},
 		ntoken);
-		return nodiscard_return_helper(std::move(co_awaitable));
+		return return_nodiscard(std::move(co_awaitable));
 	}
 }
 

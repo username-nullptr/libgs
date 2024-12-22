@@ -44,13 +44,15 @@ void sleep_until(const std::chrono::time_point<Clock,Duration> &atime)
 	std::this_thread::sleep_until(atime);
 }
 
-constexpr auto async_opt_token_helper(concepts::any_async_tf_opt_token auto &&token)
+constexpr decltype(auto) async_opt_token_helper(concepts::any_async_tf_opt_token auto &&token)
 {
-	using token_t = std::remove_cvref_t<decltype(token)>;
+	using Token = decltype(token);
+	using token_t = std::remove_cvref_t<Token>;
+
 	if constexpr( is_redirect_time_v<token_t> )
-		return token.token;
+		return return_reference(std::forward<Token>(token).token);
 	else
-		return token;
+		return std::forward<Token>(token);
 }
 
 namespace operators

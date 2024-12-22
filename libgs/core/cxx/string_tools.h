@@ -26,86 +26,64 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_UTILITIES_H
-#define LIBGS_CORE_CXX_UTILITIES_H
+#ifndef LIBGS_CORE_CXX_STRING_TOOLS_H
+#define LIBGS_CORE_CXX_STRING_TOOLS_H
 
-#include <libgs/core/cxx/remove_repeat.h>
-#include <libgs/core/cxx/string_tools.h>
-#include <libgs/core/cxx/type_traits.h>
-#include <libgs/core/cxx/initialize.h>
-#include <utility>
-
-#ifdef __GNUC__
-# include <cxxabi.h>
-# define LIBGS_ABI_CXA_DEMANGLE(name)  abi::__cxa_demangle(name, nullptr, nullptr, nullptr)
-#else //_MSVC
-# define LIBGS_ABI_CXA_DEMANGLE(name)  name
-#endif //__GNUC__
-
-#define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
+#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/concepts.h>
 
 namespace libgs
 {
 
-template <typename...Args>
-constexpr void ignore_unused(Args&&...) {}
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) nosview(concepts::string_type auto &&str);
 
-using std_type_id = decltype(typeid(void).hash_code());
+[[nodiscard]] LIBGS_CORE_VAPI std::string wcstombs(std::wstring_view str);
+[[nodiscard]] LIBGS_CORE_VAPI char wcstombs(wchar_t c);
 
-template <typename T>
-[[nodiscard]] constexpr T &remove_const(const T &v);
+[[nodiscard]] LIBGS_CORE_VAPI std::wstring mbstowcs(std::string_view str);
+[[nodiscard]] LIBGS_CORE_VAPI wchar_t mbstowcs(char c);
 
-template <typename T>
-[[nodiscard]] constexpr T *remove_const(const T *v);
+LIBGS_CORE_TAPI decltype(auto) xxtombs(concepts::string_type auto &&str);
+LIBGS_CORE_TAPI char xxtombs(concepts::char_type auto c);
 
-template <typename T>
-[[nodiscard]] constexpr const T &as_const(const T &v);
+LIBGS_CORE_TAPI decltype(auto) xxtowcs(concepts::string_type auto &&str);
+LIBGS_CORE_TAPI wchar_t xxtowcs(concepts::char_type auto c);
 
-template <typename T>
-[[nodiscard]] constexpr const T *as_const(const T *v);
+template <concepts::char_type CharT>
+LIBGS_CORE_TAPI decltype(auto) mbstoxx(concepts::char_string_type auto &&str);
 
-template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI const char *type_name();
-[[nodiscard]] LIBGS_CORE_TAPI const char *type_name(auto &&t);
+template <concepts::char_type CharT>
+LIBGS_CORE_TAPI CharT mbstoxx(char c);
 
-LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::schedulable auto &&exec
-);
+template <concepts::char_type CharT>
+LIBGS_CORE_TAPI decltype(auto) wcstoxx(concepts::wchar_string_type auto &&str);
 
-enum class ip_type {
-	v4, v6, loopback
-};
+template <concepts::char_type CharT>
+LIBGS_CORE_TAPI CharT wcstoxx(wchar_t c);
 
-template <typename Protocol>
-struct LIBGS_CORE_TAPI basic_endpoint_wrapper
+struct LIBGS_CORE_VAPI string_wrapper
 {
-	using protocol_t = Protocol;
-	using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
-	endpoint_t value;
+	std::string value;
 
-	basic_endpoint_wrapper() = default;
-	basic_endpoint_wrapper(string_wrapper address, uint16_t port);
-	basic_endpoint_wrapper(string_wrapper address);
+	string_wrapper() = default;
+	string_wrapper(const char *value);
+	string_wrapper(const wchar_t *value);
 
-	basic_endpoint_wrapper(ip_type type, uint16_t port);
-	basic_endpoint_wrapper(ip_type type);
+	string_wrapper(const std::string &value);
+	string_wrapper(std::string &&value);
 
-	template <typename...Args>
-	basic_endpoint_wrapper(Args&&...args) requires
-		concepts::constructible<endpoint_t,Args&&...>;
+	string_wrapper(std::string_view value);
+	string_wrapper(std::wstring_view value);
 
-	operator endpoint_t&();
-	operator const endpoint_t&() const;
+	operator std::string&();
+	operator const std::string&() const;
 
-	endpoint_t &operator*();
-	endpoint_t *operator->();
+	std::string &operator*();
+	std::string *operator->();
 };
-
-using tcp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::tcp>;
-using udp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::udp>;
 
 } //namespace libgs
-#include <libgs/core/cxx/detail/utilities.h>
+#include <libgs/core/cxx/detail/string_tools.h>
 
 
-#endif //LIBGS_CORE_CXX_UTILITIES_H
+#endif //LIBGS_CORE_CXX_STRING_TOOLS_H

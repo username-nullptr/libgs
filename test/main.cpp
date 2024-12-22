@@ -9,12 +9,13 @@
 #include <list>
 #include <iostream>
 
-using namespace std::chrono_literals;
-using namespace libgs::operators;
+// using namespace std::chrono_literals;
+// using namespace libgs::operators;
 
 int main()
 {
-
+	libgs::ini ini;
+	ini["111", "222"] = 123;
 
 	// spdlog::set_level(spdlog::level::trace);
 

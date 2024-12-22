@@ -32,11 +32,52 @@
 #include <libgs/core/algorithm/base.h>
 #include <deque>
 
-namespace libgs { namespace concepts
+namespace libgs
+{
+
+template <concepts::char_type CharT>
+class basic_value;
+
+namespace concepts
 {
 
 template <typename T, typename CharT>
-concept vgs = std::is_same_v<T,std::basic_string<CharT>>;
+concept basic_text_arg =
+	is_basic_string_v<T,CharT> or
+	std::is_base_of_v<basic_value<CharT>,T> or
+	std::is_arithmetic_v<T> or
+	std::is_enum_v<T>;
+
+template <typename T>
+concept text_arg = basic_text_arg<T,char>;
+
+template <typename T>
+concept wtext_arg = basic_text_arg<T,wchar_t>;
+
+template <typename T, typename CharT>
+concept basic_value_arg = basic_text_arg<T,CharT> or requires(T &&rv) {
+	std::format(default_format_v<CharT>, std::forward<T>(rv));
+};
+
+template <typename T, typename CharT>
+concept basic_rvgs =
+	std::is_same_v<T,std::basic_string<CharT>> or
+	std::is_same_v<T,basic_value<CharT>>;
+
+template <typename T>
+concept rvgs = basic_rvgs<T,char>;
+
+template <typename T>
+concept wrvgs = basic_rvgs<T,wchar_t>;
+
+template <typename T, typename CharT>
+concept basic_vgs = basic_rvgs<T,CharT> or std::is_same_v<T,basic_value<CharT>>;
+
+template <typename T>
+concept vgs = basic_vgs<T,char>;
+
+template <typename T>
+concept wvgs = basic_vgs<T,wchar_t>;
 
 }//namespace concepts
 
@@ -48,24 +89,14 @@ public:
 	using format_string = libgs::format_string<CharT, Args...>;
 
 	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
-
-	static constexpr const CharT *default_format_v = libgs::default_format_v<CharT>;
+	using str_view_t = std::basic_string_view<CharT>;
 
 public:
 	basic_value() = default;
-	basic_value(const CharT *str);
-
-	basic_value(string_t str);
-	basic_value(string_view_t str);
+	basic_value(concepts::basic_value_arg<CharT> auto &&arg);
 
 	template <typename Arg0, typename...Args>
 	basic_value(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-
-	template <typename T>
-	basic_value(T &&v) requires (
-		not requires(T &&rv) { string_t(std::forward<T>(rv)); }
-	);
 
 	basic_value(const basic_value&) = default;
 	basic_value(basic_value&&) noexcept = default;
@@ -94,39 +125,23 @@ public:
 	template <concepts::float_type T>
 	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
 
-	template <concepts::vgs<CharT> T = string_t>
-	[[nodiscard]] const string_t &get() const & noexcept;
+	template <concepts::basic_vgs<CharT> T = string_t>
+	[[nodiscard]] decltype(auto) get() & noexcept;
 
-	template <concepts::vgs<CharT> T = string_t>
+	template <concepts::basic_rvgs<CharT> T = string_t>
+	[[nodiscard]] decltype(auto) get() && noexcept;
+
+	template <concepts::basic_vgs<CharT> T = string_t>
+	[[nodiscard]] auto &&get() const & noexcept;
+
+	template <concepts::basic_rvgs<CharT> T = string_t>
+	[[nodiscard]] auto &&get() const && noexcept;
+
 	[[nodiscard]] string_t &get() & noexcept;
-
-	template <concepts::vgs<CharT> T = string_t>
-	[[nodiscard]] const string_t &&get() const && noexcept;
-
-	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] string_t &&get() && noexcept;
 
 	[[nodiscard]] const string_t &get() const & noexcept;
-	[[nodiscard]] string_t &get() & noexcept;
-
 	[[nodiscard]] const string_t &&get() const && noexcept;
-	[[nodiscard]] string_t &&get() && noexcept;
-
-	template <typename T>
-	[[nodiscard]] const basic_value &get() const & noexcept
-		requires std::is_same_v<T,basic_value>;
-
-	template <typename T>
-	[[nodiscard]] basic_value &get() & noexcept
-		requires std::is_same_v<T,basic_value>;
-
-	template <typename T>
-	[[nodiscard]] const basic_value &&get() const && noexcept
-		requires std::is_same_v<T,basic_value>;
-
-	template <typename T>
-	[[nodiscard]] basic_value &&get() && noexcept
-		requires std::is_same_v<T,basic_value>;
 
 public:
 	[[nodiscard]] bool to_bool(size_t base = 10) const;
@@ -148,18 +163,9 @@ public:
 	[[nodiscard]] long double to_ldouble_or(long double default_value = 0.0) const noexcept;
 
 public:
-	basic_value &set(const CharT *str);
-
-	basic_value &set(string_t str);
-	basic_value &set(string_view_t str);
-
 	template <typename Arg0, typename...Args>
-	basic_value &set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-
-	template <typename T>
-	basic_value &set(T &&v) requires (
-		not requires(T &&rv) { string_t(std::forward<T>(rv)); }
-	);
+	void set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+	void set(concepts::basic_value_arg<CharT> auto &&arg);
 
 public:
 	[[nodiscard]] bool is_alpha() const noexcept;
@@ -177,20 +183,17 @@ public:
 
 public:
 	[[nodiscard]] bool operator==(const basic_value &other) const = default;
-	[[nodiscard]] bool operator==(const string_view_t &tr) const;
+	[[nodiscard]] bool operator==(const str_view_t &tr) const;
 	[[nodiscard]] bool operator==(const string_t &str) const;
 
 	[[nodiscard]] auto operator<=>(const basic_value &other) const;
-	[[nodiscard]] auto operator<=>(const string_view_t &tr) const;
+	[[nodiscard]] auto operator<=>(const str_view_t &tr) const;
 	[[nodiscard]] auto operator<=>(const string_t &str) const;
 
 public:
+	basic_value &operator=(concepts::basic_value_arg<CharT> auto &&arg);
 	basic_value &operator=(const basic_value&) = default;
 	basic_value &operator=(basic_value&&) noexcept = default;
-
-	basic_value &operator=(const CharT *str);
-	basic_value &operator=(string_t str);
-	basic_value &operator=(string_view_t str);
 
 protected:
 	string_t m_str;

@@ -59,7 +59,7 @@ LIBGS_CORE_TAPI [[nodiscard]] auto dispatch_future(Exec &&exec, Func &&func)
 		[promise = std::move(promise), func = std::forward<Func>(func)]() mutable {
 			promise_set_value(promise, std::forward<Func>(func));
 		});
-		return nodiscard_return_helper(std::move(future));
+		return return_nodiscard(std::move(future));
 	}
 }
 
@@ -78,7 +78,7 @@ LIBGS_CORE_TAPI [[nodiscard]] auto post_future(Exec &&exec, Func &&func)
 		[promise = std::move(promise), func = std::forward<Func>(func)]() mutable {
 			promise_set_value(promise, std::forward<Func>(func));
 		});
-		return nodiscard_return_helper(std::move(future));
+		return return_nodiscard(std::move(future));
 	}
 }
 
@@ -256,7 +256,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 		std::thread([&exec, finished, counter]() mutable {
 			*counter = detail::dispatch_poll(exec, *finished);
 		}).detach();
-		return nodiscard_return_helper(std::move(future));
+		return return_nodiscard(std::move(future));
 	}
 	else if constexpr( is_async_opt_token_v<token_t> )
 	{
@@ -266,7 +266,7 @@ auto local_dispatch(concepts::execution_context auto &exec, concepts::callable a
 		std::thread([&exec, finished, counter]() mutable {
 			*counter = detail::dispatch_poll(exec, *finished);
 		}).detach();
-		return nodiscard_return_helper(std::move(a));
+		return return_nodiscard(std::move(a));
 	}
 	else if constexpr( is_awaitable_v<return_t> )
 	{
@@ -343,7 +343,7 @@ auto local_dispatch(concepts::callable auto &&func, concepts::dis_func_opt_token
 		std::thread([ioc = std::move(ioc), finished, counter]() mutable {
 			*counter = detail::dispatch_poll(*ioc, *finished);
 		}).detach();
-		return nodiscard_return_helper(std::move(future));
+		return return_nodiscard(std::move(future));
 	}
 	else if constexpr( is_async_opt_token_v<token_t> )
 	{
@@ -354,7 +354,7 @@ auto local_dispatch(concepts::callable auto &&func, concepts::dis_func_opt_token
 		std::thread([ioc = std::move(ioc), finished, counter]() mutable {
 			*counter = detail::dispatch_poll(*ioc, *finished);
 		}).detach();
-		return nodiscard_return_helper(std::move(a));
+		return return_nodiscard(std::move(a));
 	}
 	else if constexpr( is_awaitable_v<return_t> )
 	{

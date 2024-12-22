@@ -96,14 +96,5 @@
 #define C_VIRTUAL_FUNC             LIBGS_CXX_ATTR_WEAK
 #define C_VIRTUAL_SYMBOL(_symbol)  LIBGS_CXX_ATTR_WEAKREF(_symbol)
 
-namespace libgs
-{
-
-[[nodiscard]] constexpr auto nodiscard_return_helper(auto &&value) {
-	return std::forward<decltype(value)>(value);
-}
-
-} //namespace libgs
-
 
 #endif //LIBGS_CORE_CXX_ATTRIBUTES_H

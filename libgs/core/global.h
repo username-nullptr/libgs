@@ -48,7 +48,9 @@ LIBGS_CORE_API std::thread::id this_thread_id();
 
 [[noreturn]] LIBGS_CORE_API void forced_termination();
 
-[[nodiscard]] constexpr auto async_opt_token_helper(concepts::any_async_tf_opt_token auto &&token);
+[[nodiscard]] constexpr decltype(auto) async_opt_token_helper (
+    concepts::any_async_tf_opt_token auto &&token
+);
 
 namespace operators
 {
