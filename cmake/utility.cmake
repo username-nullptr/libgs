@@ -29,23 +29,24 @@ endif()
 function(check_compiler_version CMAKE_CXX_STANDARD)
 
 	if (${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-		add_compile_options(-Wall)
 		if (${CMAKE_CXX_COMPILER_VERSION} LESS 17)
 			message(FATAL_ERROR "The minimum version of 'Clang' required is 17.")
 		endif ()
+		add_compile_options(-Wall)
 
 	elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
-		add_compile_options(-Wall)
 		if (${CMAKE_CXX_COMPILER_VERSION} LESS 13)
 			message(FATAL_ERROR "The minimum version of 'GNU' required is 13.")
 		endif ()
+		add_compile_options(-Wall)
 
 	elseif ("MSVC" MATCHES ${CMAKE_CXX_COMPILER_ID})
-		add_compile_options(/W4)
 		if (${MSVC_VERSION} LESS 1930)
 			message(FATAL_ERROR "The minimum version of 'MSVC' required is 1930 (VS2022).")
 		endif ()
 		add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_WIN32_WINNT=0x0A00)
+		add_compile_options(/W4 /wd4819)
+
 
 	else()
 		message(STATUS "Unknow compiler: " ${CMAKE_CXX_COMPILER_ID} " (" ${CMAKE_CXX_COMPILER_VERSION} ").")

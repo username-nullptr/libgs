@@ -14,9 +14,6 @@
 
 int main()
 {
-	libgs::ini ini;
-	ini["111", "222"] = 123;
-
 	// spdlog::set_level(spdlog::level::trace);
 
 	// std::list l0 { 0,1,2,3,4 };

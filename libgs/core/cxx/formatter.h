@@ -80,6 +80,8 @@ private:
 	formatter<uint32_t, CharT> m_formatter;
 };
 
+#if !defined(_MSC_VER) || !_HAS_CXX23
+
 template <libgs::concepts::char_type CharT>
 struct LIBGS_CORE_TAPI formatter<std::thread::id, CharT>
 {
@@ -96,6 +98,8 @@ struct LIBGS_CORE_TAPI formatter<std::thread::id, CharT>
 private:
 	formatter<uint64_t, CharT> m_formatter;
 };
+
+#endif //_MSC_VER && _HAS_CXX23
 
 template <typename T, libgs::concepts::char_type CharT>
 struct LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
@@ -135,9 +139,9 @@ private:
 };
 
 template <libgs::concepts::char_type CharT>
-struct LIBGS_CORE_TAPI formatter<std::error_code, CharT> : libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const std::error_code &error, auto &context) const
+	auto format(const error_code &error, auto &context) const
 	{
 		if constexpr( std::is_same_v<CharT, char> )
 			return format_to(context.out(), "{} ({})", error.message(), error.value());
