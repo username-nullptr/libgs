@@ -42,11 +42,14 @@ namespace concepts
 {
 
 template <typename T, typename CharT>
-concept basic_text_arg =
-	is_basic_string_v<T,CharT> or
-	std::is_base_of_v<basic_value<CharT>,T> or
-	std::is_arithmetic_v<T> or
-	std::is_enum_v<T>;
+concept basic_text_arg = []() consteval -> bool
+{
+	using tt = std::remove_cvref_t<T>;
+	return is_basic_string_v<T,CharT> or
+		   std::is_base_of_v<basic_value<CharT>,tt> or
+		   std::is_arithmetic_v<tt> or
+		   std::is_enum_v<tt>;
+}();
 
 template <typename T>
 concept text_arg = basic_text_arg<T,char>;
@@ -58,6 +61,12 @@ template <typename T, typename CharT>
 concept basic_value_arg = basic_text_arg<T,CharT> or requires(T &&rv) {
 	std::format(default_format_v<CharT>, std::forward<T>(rv));
 };
+
+template <typename T>
+concept value_arg = basic_value_arg<T,char>;
+
+template <typename T>
+concept wvalue_arg = basic_value_arg<T,wchar_t>;
 
 template <typename T, typename CharT>
 concept basic_rvgs =
@@ -85,15 +94,16 @@ template <concepts::char_type CharT>
 class LIBGS_CORE_TAPI basic_value
 {
 public:
-	template <typename...Args>
-	using format_string = libgs::format_string<CharT, Args...>;
-
+	using char_t = CharT;
 	using string_t = std::basic_string<CharT>;
 	using str_view_t = std::basic_string_view<CharT>;
 
+	template <typename...Args>
+	using format_string = libgs::format_string<CharT, Args...>;
+
 public:
 	basic_value() = default;
-	basic_value(concepts::basic_value_arg<CharT> auto &&arg);
+	basic_value(concepts::basic_value_arg<char_t> auto &&arg);
 
 	template <typename Arg0, typename...Args>
 	basic_value(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
@@ -120,10 +130,10 @@ public:
 	[[nodiscard]] T get() const;
 
 	template <concepts::integral_type T>
-	[[nodiscard]] T get_or(size_t base = 10, T default_value = 0) const noexcept;
+	[[nodiscard]] T get_or(size_t base = 10, T def_value = 0) const noexcept;
 
 	template <concepts::float_type T>
-	[[nodiscard]] T get_or(T default_value = 0.0) const noexcept;
+	[[nodiscard]] T get_or(T def_value = 0.0) const noexcept;
 
 	template <concepts::basic_vgs<CharT> T = string_t>
 	[[nodiscard]] decltype(auto) get() & noexcept;
@@ -153,19 +163,19 @@ public:
 	[[nodiscard]] double to_double() const;
 	[[nodiscard]] long double to_ldouble() const;
 
-	[[nodiscard]] bool to_bool_or(size_t base = 10, bool default_value = false) const noexcept;
-	[[nodiscard]] int32_t to_int_or(size_t base = 10, int32_t default_value = 0) const noexcept;
-	[[nodiscard]] uint32_t to_uint_or(size_t base = 10, uint32_t default_value = 0) const noexcept;
-	[[nodiscard]] int64_t to_long_or(size_t base = 10, int64_t default_value = 0) const noexcept;
-	[[nodiscard]] uint64_t to_ulong_or(size_t base = 10, uint64_t default_value = 0) const noexcept;
-	[[nodiscard]] float to_float_or(float default_value = 0.0) const noexcept;
-	[[nodiscard]] double to_double_or(double default_value = 0.0) const noexcept;
-	[[nodiscard]] long double to_ldouble_or(long double default_value = 0.0) const noexcept;
+	[[nodiscard]] bool to_bool_or(size_t base = 10, bool def_value = false) const noexcept;
+	[[nodiscard]] int32_t to_int_or(size_t base = 10, int32_t def_value = 0) const noexcept;
+	[[nodiscard]] uint32_t to_uint_or(size_t base = 10, uint32_t def_value = 0) const noexcept;
+	[[nodiscard]] int64_t to_long_or(size_t base = 10, int64_t def_value = 0) const noexcept;
+	[[nodiscard]] uint64_t to_ulong_or(size_t base = 10, uint64_t def_value = 0) const noexcept;
+	[[nodiscard]] float to_float_or(float def_value = 0.0) const noexcept;
+	[[nodiscard]] double to_double_or(double def_value = 0.0) const noexcept;
+	[[nodiscard]] long double to_ldouble_or(long double def_value = 0.0) const noexcept;
 
 public:
 	template <typename Arg0, typename...Args>
 	void set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	void set(concepts::basic_value_arg<CharT> auto &&arg);
+	void set(concepts::basic_value_arg<char_t> auto &&arg);
 
 public:
 	[[nodiscard]] bool is_alpha() const noexcept;
@@ -191,7 +201,7 @@ public:
 	[[nodiscard]] auto operator<=>(const string_t &str) const;
 
 public:
-	basic_value &operator=(concepts::basic_value_arg<CharT> auto &&arg);
+	basic_value &operator=(concepts::basic_value_arg<char_t> auto &&arg);
 	basic_value &operator=(const basic_value&) = default;
 	basic_value &operator=(basic_value&&) noexcept = default;
 

@@ -39,24 +39,33 @@ namespace libgs
 {
 
 template <concepts::char_type CharT, typename KeyMap>
-template <concepts::basic_value_arg<CharT> T>
+template <concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_ini_keys<CharT,KeyMap>::read_or
-(concepts::basic_string_type<CharT> auto &&key, T &&def_value) const noexcept
+(concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
 {
 	auto it = m_keys.find(nosview(key));
-	if( it == m_keys.end() )
-		return return_reference(std::forward<T>(def_value));
-
 	using def_t = std::remove_cvref_t<T>;
+
 	if constexpr( std::is_same_v<def_t, value_t> )
-		return it->second;
+		return it == m_keys.end() ? std::forward<T>(def_value) : it->second;
+
+	else if constexpr( is_basic_string_v<def_t, char_t> )
+	{
+		return it == m_keys.end() ?
+			value_t(std::forward<T>(def_value)).template get<std::string>() :
+			it->second.template get<std::string>();
+	}
 	else
-		return it->second.template get<T>();
+	{
+		return it == m_keys.end() ?
+			value_t(std::forward<T>(def_value)).template get<def_t>() :
+			it->second.template get<def_t>();
+	}
 }
 
 template <concepts::char_type CharT, typename KeyMap>
-template <concepts::basic_value_arg<CharT> T>
-auto basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<CharT> auto &&key) const
+template <concepts::basic_text_arg<CharT> T>
+auto basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<char_t> auto &&key) const
 {
 	auto it = m_keys.find(nosview(key));
 	if( it == m_keys.end() )
@@ -69,30 +78,24 @@ auto basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<CharT> auto 
 	if constexpr( std::is_same_v<def_t, value_t> )
 		return it->second;
 	else
-		return it->second.template get<T>();
-}
-
-template <concepts::char_type CharT, typename KeyMap>
-basic_value<CharT> basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<CharT> auto &&key) const
-{
-	return read<value_t>(std::forward<decltype(key)>(key));
+		return it->second.template get<def_t>();
 }
 
 template <concepts::char_type CharT, typename KeyMap>
 void basic_ini_keys<CharT,KeyMap>::write
-(concepts::basic_string_type<CharT> auto &&key, concepts::basic_value_arg<CharT> auto &&value) noexcept
+(concepts::basic_string_type<char_t> auto &&key, concepts::basic_value_arg<char_t> auto &&value) noexcept
 {
 	m_keys[nosview(std::forward<decltype(key)>(key))] = std::forward<decltype(value)>(value);
 }
 
 template <concepts::char_type CharT, typename KeyMap>
-basic_value<CharT> basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_string_type<CharT> auto &&key) const
+basic_value<CharT> basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_string_type<char_t> auto &&key) const
 {
 	return read<value_t>(std::forward<decltype(key)>(key));
 }
 
 template <concepts::char_type CharT, typename KeyMap>
-basic_value<CharT> &basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_string_type<CharT> auto &&key) noexcept
+basic_value<CharT> &basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_string_type<char_t> auto &&key) noexcept
 {
 	return m_keys[nosview(std::forward<decltype(key)>(key))];
 }
@@ -101,14 +104,14 @@ basic_value<CharT> &basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_str
 
 template <concepts::char_type CharT, typename KeyMap>
 decltype(auto) basic_ini_keys<CharT,KeyMap>::operator[]
-(concepts::basic_string_type<CharT> auto &&key, concepts::basic_value_arg<CharT> auto &&def_value) const noexcept
+(concepts::basic_string_type<char_t> auto &&key, concepts::basic_value_arg<char_t> auto &&def_value) const noexcept
 {
-	return read_or<value_t>(std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value));
+	return read_or(std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value));
 }
 
 template <concepts::char_type CharT, typename KeyMap>
 decltype(auto) basic_ini_keys<CharT,KeyMap>::operator[]
-(concepts::basic_string_type<CharT> auto &&key, concepts::basic_value_arg<CharT> auto &&def_value) noexcept
+(concepts::basic_string_type<char_t> auto &&key, concepts::basic_value_arg<char_t> auto &&def_value) noexcept
 {
 	using Def = decltype(def_value);
 	using def_t = std::remove_cvref_t<Def>;
@@ -117,7 +120,7 @@ decltype(auto) basic_ini_keys<CharT,KeyMap>::operator[]
 	if constexpr( std::is_same_v<def_t, value_t> )
 		return return_reference(value);
 	else
-		return value.template get<Def>();
+		return value.template get<def_t>();
 }
 
 #endif //LIBGS_CPLUSPLUS
@@ -208,16 +211,16 @@ basic_ini_keys<CharT,KeyMap>::rend() const noexcept
 
 template <concepts::char_type CharT, typename KeyMap>
 typename basic_ini_keys<CharT,KeyMap>::iterator
-basic_ini_keys<CharT,KeyMap>::find(const string_t &key) noexcept
+basic_ini_keys<CharT,KeyMap>::find(concepts::basic_string_type<char_t> auto &&key) noexcept
 {
-	return m_keys.find(key);
+	return m_keys.find(nosview(std::forward<decltype(key)>(key)));
 }
 
 template <concepts::char_type CharT, typename KeyMap>
 typename basic_ini_keys<CharT,KeyMap>::const_iterator
-basic_ini_keys<CharT,KeyMap>::find(const string_t &key) const noexcept
+basic_ini_keys<CharT,KeyMap>::find(concepts::basic_string_type<char_t> auto &&key) const noexcept
 {
-	return m_keys.find(key);
+	return m_keys.find(nosview(std::forward<decltype(key)>(key)));
 }
 
 template <concepts::char_type CharT, typename KeyMap>
@@ -595,6 +598,61 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group_key::group_key
+(concepts::basic_string_type<char_t> auto &&group, concepts::basic_string_type<char_t> auto &&key) noexcept :
+	group(std::forward<decltype(group)>(group)), key(std::forward<decltype(key)>(key))
+{
+
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_string_type<CharT> Str>
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group_key::group_key(const std::pair<Str,Str> &pair) noexcept :
+	group(pair.first), key(pair.second)
+{
+
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_string_type<CharT> Str>
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group_key::group_key(std::pair<Str,Str> &&pair) noexcept :
+	group(std::move(pair.first)), key(std::move(pair.second))
+{
+
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_string_type<CharT> Str>
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group_key::group_key(const std::tuple<Str,Str> &tuple) noexcept :
+	group(std::get<0>(tuple)), key(std::get<1>(tuple))
+{
+
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_string_type<CharT> Str>
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group_key::group_key(std::tuple<Str,Str> &&tuple) noexcept :
+	group(std::move(std::get<0>(tuple))), key(std::move(std::get<1>(tuple)))
+{
+
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini
 (concepts::match_execution_context<executor_t> auto &exec, std::string_view file_name) :
 	basic_ini(exec.get_executor(), file_name)
@@ -703,18 +761,73 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-template <concepts::basic_value_arg<CharT> T>
-decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::read_or
-(concepts::basic_string_type<CharT> auto &&group,
- concepts::basic_string_type<CharT> auto &&key,
- T &&def_value) const noexcept
+template <concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::read_or(group_key gk, T &&def_value) const noexcept
 {
-	auto it = m_impl->m_groups.find(nosview(group));
-	if( it == m_impl->m_groups.end() )
-		return return_reference(def_value);
+	auto it = m_impl->m_groups.find(gk.group);
+	using def_t = std::remove_cvref_t<T>;
 
-	return it->second.template read_or<T> (
-		std::forward<decltype(key)>(key), std::forward<T>(def_value)
+	if constexpr( std::is_same_v<def_t, value_t> )
+	{
+		return it == m_impl->m_groups.end() ?
+			std::forward<T>(def_value) : it->second.read_or (
+				std::move(gk.key), std::forward<T>(def_value)
+			);
+	}
+	else if constexpr( is_basic_string_v<def_t, char_t> )
+	{
+		return it == m_impl->m_groups.end() ?
+			value_t(std::forward<T>(def_value)).template get<std::string>() : it->second.read_or (
+				std::move(gk.key), std::forward<T>(def_value)
+			);
+	}
+	else
+	{
+		return it == m_impl->m_groups.end() ?
+			value_t(std::forward<T>(def_value)).template get<def_t>() : it->second.read_or (
+				std::move(gk.key), std::forward<T>(def_value)
+			);
+	}
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::read_or
+(concepts::basic_string_type<char_t> auto &&path, T &&def_value) const
+{
+	auto pair = m_impl->from_path(std::forward<decltype(path)>(path), "read_or");
+	return read_or(std::move(pair), std::forward<T>(def_value));
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_text_arg<CharT> T>
+auto basic_ini<CharT,IniKeys,Exec,GroupMap>::read(group_key gk) const
+{
+	auto it = m_impl->m_groups.find(gk.group);
+	if( it == m_impl->m_groups.end() )
+	{
+		throw runtime_error("libgs::basic_ini: read: The group '{}' is not exists.",
+			xxtombs(std::forward<decltype(gk.group)>(gk.group))
+		);
+	}
+	return it->second.template read<std::remove_cvref_t<T>>(std::move(gk.key));
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+template <concepts::basic_text_arg<CharT> T>
+auto basic_ini<CharT,IniKeys,Exec,GroupMap>::read(concepts::basic_string_type<char_t> auto &&path) const
+{
+	return read<std::remove_cvref_t<T>> (
+		m_impl->from_path(std::forward<decltype(path)>(path), "read")
 	);
 }
 
@@ -722,62 +835,12 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-template <concepts::basic_value_arg<CharT> T>
-decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::read_or
-(concepts::basic_string_type<CharT> auto &&path, T &&def_value) const
+void basic_ini<CharT,IniKeys,Exec,GroupMap>::write
+(group_key gk, concepts::basic_value_arg<char_t> auto &&value) noexcept
 {
-	auto [group, key] = m_impl->from_path(std::forward<decltype(path)>(path), "read_or");
-	return read_or<T>(group, key, std::forward<T>(def_value));
-}
-
-template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
-		  concepts::execution Exec,
-		  typename GroupMap>
-template <concepts::basic_value_arg<CharT> T>
-auto basic_ini<CharT,IniKeys,Exec,GroupMap>::read
-(concepts::basic_string_type<CharT> auto &&group, concepts::basic_string_type<CharT> auto &&key) const
-{
-	auto it = m_impl->m_groups.find(nosview(group));
-	if( it == m_impl->m_groups.end() )
-	{
-		throw runtime_error("libgs::basic_ini: read: The group '{}' is not exists.",
-			xxtombs(std::forward<decltype(group)>(group))
-		);
-	}
-	return it->second.template read<T>(std::forward<decltype(key)>(key));
-}
-
-template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
-		  concepts::execution Exec,
-		  typename GroupMap>
-template <concepts::basic_value_arg<CharT> T>
-auto basic_ini<CharT,IniKeys,Exec,GroupMap>::read(concepts::basic_string_type<CharT> auto &&path) const
-{
-	auto [group, key] = m_impl->from_path(std::forward<decltype(path)>(path), "read");
-	return read<T>(group, key);
-}
-
-template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
-		  concepts::execution Exec,
-		  typename GroupMap>
-typename basic_ini<CharT,IniKeys,Exec,GroupMap>::value_t
-basic_ini<CharT,IniKeys,Exec,GroupMap>::read
-(concepts::basic_string_type<CharT> auto &&group, concepts::basic_string_type<CharT> auto &&key) const
-{
-	return read<value_t>(std::forward<decltype(group)>(group), std::forward<decltype(key)>(key));
-}
-
-template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
-		  concepts::execution Exec,
-		  typename GroupMap>
-typename basic_ini<CharT,IniKeys,Exec,GroupMap>::value_t
-basic_ini<CharT,IniKeys,Exec,GroupMap>::read(concepts::basic_string_type<CharT> auto &&path) const
-{
-	return read<value_t>(std::forward<decltype(path)>(path));
+	m_impl->m_groups[std::move(gk.group)].write (
+		std::move(gk.key), std::forward<decltype(value)>(value)
+	);
 }
 
 template <concepts::char_type CharT,
@@ -785,23 +848,10 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 void basic_ini<CharT,IniKeys,Exec,GroupMap>::write
-(concepts::basic_string_type<CharT> auto &&group,
- concepts::basic_string_type<CharT> auto &&key,
- concepts::basic_value_arg<CharT> auto &&value) noexcept
+(concepts::basic_string_type<char_t> auto &&path, concepts::basic_value_arg<char_t> auto &&value) noexcept
 {
-	m_impl->m_groups[nosview(std::forward<decltype(group)>(group))]
-		.write(std::forward<decltype(key)>(key), std::forward<decltype(value)>(value));
-}
-
-template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
-		  concepts::execution Exec,
-		  typename GroupMap>
-void basic_ini<CharT,IniKeys,Exec,GroupMap>::write
-(concepts::basic_string_type<CharT> auto &&path, concepts::basic_value_arg<CharT> auto &&value) noexcept
-{
-	auto [group, key] = m_impl->from_path(std::forward<decltype(path)>(path), "write");
-	write(std::move(group), std::move(key), std::forward<decltype(value)>(value));
+	auto pair = m_impl->from_path(std::forward<decltype(path)>(path), "write");
+	write(std::move(pair), std::forward<decltype(value)>(value));
 }
 
 template <concepts::char_type CharT,
@@ -809,7 +859,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 const typename basic_ini<CharT,IniKeys,Exec,GroupMap>::ini_keys_t&
-basic_ini<CharT,IniKeys,Exec,GroupMap>::group(concepts::basic_string_type<CharT> auto &&group) const
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group(concepts::basic_string_type<char_t> auto &&group) const
 {
 	return remove_const(this)->group(std::forward<decltype(group)>(group));
 }
@@ -819,9 +869,9 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 typename basic_ini<CharT,IniKeys,Exec,GroupMap>::ini_keys_t&
-basic_ini<CharT,IniKeys,Exec,GroupMap>::group(concepts::basic_string_type<CharT> auto &&group)
+basic_ini<CharT,IniKeys,Exec,GroupMap>::group(concepts::basic_string_type<char_t> auto &&group)
 {
-	auto it = m_impl->m_groups.find(group);
+	auto it = m_impl->m_groups.find(nosview(group));
 	if( it != m_impl->m_groups.end() )
 	{
 		throw runtime_error("basic_ini: group: The group '{}' is not exists.",
@@ -836,7 +886,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 const typename basic_ini<CharT,IniKeys,Exec,GroupMap>::ini_keys_t&
-basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[](concepts::basic_string_type<CharT> auto &&group) const
+basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[](concepts::basic_string_type<char_t> auto &&group) const
 {
 	return this->group(std::forward<decltype(group)>(group));
 }
@@ -846,9 +896,29 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 typename basic_ini<CharT,IniKeys,Exec,GroupMap>::ini_keys_t&
-basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[](concepts::basic_string_type<CharT> auto &&group) noexcept
+basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[](concepts::basic_string_type<char_t> auto &&group) noexcept
 {
 	return m_impl->m_groups[nosview(std::forward<decltype(group)>(group))];
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+typename basic_ini<CharT,IniKeys,Exec,GroupMap>::value_t
+basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[](group_key gk) const
+{
+	return (*this)[std::move(gk.group)][std::move(gk.key)];
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+typename basic_ini<CharT,IniKeys,Exec,GroupMap>::value_t&
+basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[](group_key gk) noexcept
+{
+	return (*this)[std::move(gk.group)][std::move(gk.key)];
 }
 
 #if LIBGS_CPLUSPLUS >= 202100L
@@ -858,7 +928,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 typename basic_ini<CharT,IniKeys,Exec,GroupMap>::value_t basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[]
-(concepts::basic_string_type<CharT> auto &&group, concepts::basic_string_type<CharT> auto &&key) const
+(concepts::basic_string_type<char_t> auto &&group, concepts::basic_string_type<char_t> auto &&key) const
 {
 	return (*this)[std::forward<decltype(group)>(group)][std::forward<decltype(key)>(key)];
 }
@@ -868,7 +938,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 typename basic_ini<CharT,IniKeys,Exec,GroupMap>::value_t &basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[]
-(concepts::basic_string_type<CharT> auto &&group, concepts::basic_string_type<CharT> auto &&key) noexcept
+(concepts::basic_string_type<char_t> auto &&group, concepts::basic_string_type<char_t> auto &&key) noexcept
 {
 	return (*this)[std::forward<decltype(group)>(group)][std::forward<decltype(key)>(key)];
 }
@@ -878,9 +948,9 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[]
-(concepts::basic_string_type<CharT> auto &&group,
- concepts::basic_string_type<CharT> auto &&key,
- concepts::basic_value_arg<CharT> auto &&def_value) noexcept
+(concepts::basic_string_type<char_t> auto &&group,
+ concepts::basic_string_type<char_t> auto &&key,
+ concepts::basic_value_arg<char_t> auto &&def_value) noexcept
 {
 	return (*this)[std::forward<decltype(group)>(group)] [
 		std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value)
@@ -892,9 +962,9 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::operator[]
-(concepts::basic_string_type<CharT> auto &&group,
- concepts::basic_string_type<CharT> auto &&key,
- concepts::basic_value_arg<CharT> auto &&def_value) const noexcept
+(concepts::basic_string_type<char_t> auto &&group,
+ concepts::basic_string_type<char_t> auto &&key,
+ concepts::basic_value_arg<char_t> auto &&def_value) const noexcept
 {
 	return (*this)[std::forward<decltype(group)>(group)] [
 		std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value)
@@ -1162,9 +1232,9 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 typename basic_ini<CharT,IniKeys,Exec,GroupMap>::iterator
-basic_ini<CharT,IniKeys,Exec,GroupMap>::find(const string_t &group) noexcept
+basic_ini<CharT,IniKeys,Exec,GroupMap>::find(concepts::basic_string_type<char_t> auto &&group) noexcept
 {
-	return m_impl->m_groups.find(group);
+	return m_impl->m_groups.find(nosview(std::forward<decltype(group)>(group)));
 }
 
 template <concepts::char_type CharT,
@@ -1172,9 +1242,9 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 typename basic_ini<CharT,IniKeys,Exec,GroupMap>::const_iterator
-basic_ini<CharT,IniKeys,Exec,GroupMap>::find(const string_t &group) const noexcept
+basic_ini<CharT,IniKeys,Exec,GroupMap>::find(concepts::basic_string_type<char_t> auto &&group) const noexcept
 {
-	return m_impl->m_groups.find(group);
+	return m_impl->m_groups.find(nosview(std::forward<decltype(group)>(group)));
 }
 
 template <concepts::char_type CharT,

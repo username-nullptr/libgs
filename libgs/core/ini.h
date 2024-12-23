@@ -44,8 +44,8 @@ class LIBGS_CORE_TAPI basic_ini_keys
 
 public:
 	using char_t = CharT;
-	using string_t = std::basic_string<CharT>;
-	using value_t = basic_value<CharT>;
+	using string_t = std::basic_string<char_t>;
+	using value_t = basic_value<char_t>;
 	using key_map_t = KeyMap;
 
 	template <typename...Args>
@@ -56,34 +56,32 @@ public:
 	virtual ~basic_ini_keys() = default;
 
 public:
-	template <concepts::basic_value_arg<CharT> T = value_t>
+	template <concepts::basic_text_arg<CharT> T = value_t>
 	[[nodiscard]] decltype(auto) read_or (
-		concepts::basic_string_type<CharT> auto &&key, T &&def_value = T()
+		concepts::basic_string_type<char_t> auto &&key, T &&def_value = T()
 	) const noexcept;
 
-	template <concepts::basic_value_arg<CharT> T = value_t>
-	[[nodiscard]] auto read(concepts::basic_string_type<CharT> auto &&key) const;
-
-	[[nodiscard]] value_t read(concepts::basic_string_type<CharT> auto &&key) const;
+	template <concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] auto read(concepts::basic_string_type<char_t> auto &&key) const;
 
 	void write (
-		concepts::basic_string_type<CharT> auto &&key,
-		concepts::basic_value_arg<CharT> auto &&value
+		concepts::basic_string_type<char_t> auto &&key,
+		concepts::basic_value_arg<char_t> auto &&value
 	) noexcept;
 
 public:
-	[[nodiscard]] value_t operator[](concepts::basic_string_type<CharT> auto &&key) const;
-	[[nodiscard]] value_t &operator[](concepts::basic_string_type<CharT> auto &&key) noexcept;
+	[[nodiscard]] value_t operator[](concepts::basic_string_type<char_t> auto &&key) const;
+	[[nodiscard]] value_t &operator[](concepts::basic_string_type<char_t> auto &&key) noexcept;
 
 #if LIBGS_CPLUSPLUS >= 202100L
 	decltype(auto) operator[] (
-		concepts::basic_string_type<CharT> auto &&key,
-		concepts::basic_value_arg<CharT> auto &&def_value
+		concepts::basic_string_type<char_t> auto &&key,
+		concepts::basic_value_arg<char_t> auto &&def_value
 	) const noexcept;
 
 	decltype(auto) operator[] (
-		concepts::basic_string_type<CharT> auto &&key,
-		concepts::basic_value_arg<CharT> auto &&def_value
+		concepts::basic_string_type<char_t> auto &&key,
+		concepts::basic_value_arg<char_t> auto &&def_value
 	) noexcept;
 #endif //LIBGS_CPLUSPLUS
 
@@ -111,8 +109,8 @@ public:
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
 public:
-	[[nodiscard]] iterator find(const string_t &key) noexcept;
-	[[nodiscard]] const_iterator find(const string_t &key) const noexcept;
+	[[nodiscard]] iterator find(concepts::basic_string_type<char_t> auto &&key) noexcept;
+	[[nodiscard]] const_iterator find(concepts::basic_string_type<char_t> auto &&key) const noexcept;
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
@@ -151,11 +149,34 @@ public:
 	using ini_keys_t = IniKeys;
 	using executor_t = Exec;
 
-	using string_t = std::basic_string<CharT>;
-	using value_t = basic_value<CharT>;
+	using string_t = std::basic_string<char_t>;
+	using value_t = basic_value<char_t>;
 
-	using string_list_t = basic_string_list<CharT>;
+	using string_list_t = basic_string_list<char_t>;
 	using group_map_t = GroupMap;
+
+	struct group_key
+	{
+		string_t group;
+		string_t key;
+
+		group_key (
+			concepts::basic_string_type<char_t> auto &&group,
+			concepts::basic_string_type<char_t> auto &&key
+		) noexcept;
+
+		template <concepts::basic_string_type<CharT> Str>
+		group_key(const std::pair<Str,Str> &pair) noexcept;
+
+		template <concepts::basic_string_type<CharT> Str>
+		group_key(std::pair<Str,Str> &&pair) noexcept;
+
+		template <concepts::basic_string_type<CharT> Str>
+		group_key(const std::tuple<Str,Str> &tuple) noexcept;
+
+		template <concepts::basic_string_type<CharT> Str>
+		group_key(std::tuple<Str,Str> &&tuple) noexcept;
+	};
 
 public:
 	explicit basic_ini (
@@ -185,80 +206,63 @@ public:
 	[[nodiscard]] virtual std::string_view file_name() const noexcept;
 
 public:
-	template <concepts::basic_value_arg<CharT> T = value_t>
+	template <concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) read_or(group_key gk, T &&def_value = T()) const noexcept;
+
+	template <concepts::basic_text_arg<CharT> T = value_t>
 	[[nodiscard]] decltype(auto) read_or (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key,
-		T &&def_value = T()
-	) const noexcept;
-
-	template <concepts::basic_value_arg<CharT> T = value_t>
-	[[nodiscard]] decltype(auto) read_or (
-		concepts::basic_string_type<CharT> auto &&path,
-		T &&def_value = T()
+		concepts::basic_string_type<char_t> auto &&path, T &&def_value = T()
 	) const;
 
-	template <concepts::basic_value_arg<CharT> T = value_t>
+	template <concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] auto read(group_key gk) const;
+
+	template <concepts::basic_text_arg<CharT> T = value_t>
 	[[nodiscard]] auto read (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key
-	) const;
-
-	template <concepts::basic_value_arg<CharT> T = value_t>
-	[[nodiscard]] auto read (
-		concepts::basic_string_type<CharT> auto &&path
-	) const;
-
-	[[nodiscard]] value_t read (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key
-	) const;
-
-	[[nodiscard]] value_t read (
-		concepts::basic_string_type<CharT> auto &&path
+		concepts::basic_string_type<char_t> auto &&path
 	) const;
 
 public:
 	void write (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key,
-		concepts::basic_value_arg<CharT> auto &&value
+		group_key gk, concepts::basic_value_arg<char_t> auto &&value
 	) noexcept;
 
 	void write (
-		concepts::basic_string_type<CharT> auto &&path,
-		concepts::basic_value_arg<CharT> auto &&value
+		concepts::basic_string_type<char_t> auto &&path,
+		concepts::basic_value_arg<char_t> auto &&value
 	) noexcept;
 
 public:
-	[[nodiscard]] const ini_keys_t &group(concepts::basic_string_type<CharT> auto &&group) const;
-	[[nodiscard]] ini_keys_t &group(concepts::basic_string_type<CharT> auto &&group);
+	[[nodiscard]] const ini_keys_t &group(concepts::basic_string_type<char_t> auto &&group) const;
+	[[nodiscard]] ini_keys_t &group(concepts::basic_string_type<char_t> auto &&group);
 
-public:
-	[[nodiscard]] const ini_keys_t &operator[](concepts::basic_string_type<CharT> auto &&group) const;
-	[[nodiscard]] ini_keys_t &operator[](concepts::basic_string_type<CharT> auto &&group) noexcept;
+	[[nodiscard]] const ini_keys_t &operator[](concepts::basic_string_type<char_t> auto &&group) const;
+	[[nodiscard]] ini_keys_t &operator[](concepts::basic_string_type<char_t> auto &&group) noexcept;
+
+	[[nodiscard]] value_t operator[](group_key gk) const;
+	[[nodiscard]] value_t &operator[](group_key gk) noexcept;
 
 #if LIBGS_CPLUSPLUS >= 202100L
 	[[nodiscard]] value_t operator[] (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key
+		concepts::basic_string_type<char_t> auto &&group,
+		concepts::basic_string_type<char_t> auto &&key
 	) const;
 
 	[[nodiscard]] value_t &operator[] (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key
+		concepts::basic_string_type<char_t> auto &&group,
+		concepts::basic_string_type<char_t> auto &&key
 	) noexcept;
 
 	[[nodiscard]] decltype(auto) operator[] (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key,
-		concepts::basic_value_arg<CharT> auto &&def_value
+		concepts::basic_string_type<char_t> auto &&group,
+		concepts::basic_string_type<char_t> auto &&key,
+		concepts::basic_value_arg<char_t> auto &&def_value
 	) const noexcept;
 
 	[[nodiscard]] decltype(auto) operator[] (
-		concepts::basic_string_type<CharT> auto &&group,
-		concepts::basic_string_type<CharT> auto &&key,
-		concepts::basic_value_arg<CharT> auto &&def_value
+		concepts::basic_string_type<char_t> auto &&group,
+		concepts::basic_string_type<char_t> auto &&key,
+		concepts::basic_value_arg<char_t> auto &&def_value
 	) noexcept;
 #endif //LIBGS_CPLUSPLUS
 
@@ -303,8 +307,8 @@ public:
 	[[nodiscard]] bool sync_on_delete() const noexcept;
 
 public:
-	[[nodiscard]] iterator find(const string_t &group) noexcept;
-	[[nodiscard]] const_iterator find(const string_t &group) const noexcept;
+	[[nodiscard]] iterator find(concepts::basic_string_type<char_t> auto &&group) noexcept;
+	[[nodiscard]] const_iterator find(concepts::basic_string_type<char_t> auto &&group) const noexcept;
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;

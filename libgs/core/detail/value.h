@@ -29,24 +29,11 @@
 #ifndef LIBGS_CORE_DETAIL_VALUE_H
 #define LIBGS_CORE_DETAIL_VALUE_H
 
-namespace std
-{
-
-template <libgs::concepts::char_type CharT>
-struct hash<libgs::basic_value<CharT>>
-{
-	size_t operator()(const libgs::basic_value<CharT> &v) const noexcept {
-		return hash<std::basic_string<CharT>>()(v);
-	}
-};
-
-} //namespace std
-
 namespace libgs
 {
 
 template <concepts::char_type CharT>
-basic_value<CharT>::basic_value(concepts::basic_value_arg<CharT> auto &&arg)
+basic_value<CharT>::basic_value(concepts::basic_value_arg<char_t> auto &&arg)
 {
 	set(std::forward<decltype(arg)>(arg));
 }
@@ -54,7 +41,7 @@ basic_value<CharT>::basic_value(concepts::basic_value_arg<CharT> auto &&arg)
 template <concepts::char_type CharT>
 template <typename Arg0, typename...Args>
 basic_value<CharT>::basic_value(format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
-	basic_value<CharT>(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+	basic_value(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 
 }
@@ -123,16 +110,16 @@ T basic_value<CharT>::get() const
 
 template <concepts::char_type CharT>
 template <concepts::integral_type T>
-T basic_value<CharT>::get_or(size_t base, T default_value) const noexcept
+T basic_value<CharT>::get_or(size_t base, T def_value) const noexcept
 {
-	return libgs::ston_or<T>(m_str, base, default_value);
+	return libgs::ston_or<T>(m_str, base, def_value);
 }
 
 template <concepts::char_type CharT>
 template <concepts::float_type T>
-T basic_value<CharT>::get_or(T default_value) const noexcept
+T basic_value<CharT>::get_or(T def_value) const noexcept
 {
-	return libgs::ston_or<T>(m_str, default_value);
+	return libgs::ston_or<T>(m_str, def_value);
 }
 
 template <concepts::char_type CharT>
@@ -252,51 +239,51 @@ long double basic_value<CharT>::to_ldouble() const
 }
 
 template <concepts::char_type CharT>
-bool basic_value<CharT>::to_bool_or(size_t base, bool default_value) const noexcept
+bool basic_value<CharT>::to_bool_or(size_t base, bool def_value) const noexcept
 {
-	return get_or<bool>(base, default_value);
+	return get_or<bool>(base, def_value);
 }
 
 template <concepts::char_type CharT>
-int32_t basic_value<CharT>::to_int_or(size_t base, int32_t default_value) const noexcept
+int32_t basic_value<CharT>::to_int_or(size_t base, int32_t def_value) const noexcept
 {
-	return get_or<int32_t>(base, default_value);
+	return get_or<int32_t>(base, def_value);
 }
 
 template <concepts::char_type CharT>
-uint32_t basic_value<CharT>::to_uint_or(size_t base, uint32_t default_value) const noexcept
+uint32_t basic_value<CharT>::to_uint_or(size_t base, uint32_t def_value) const noexcept
 {
-	return get_or<uint32_t>(base, default_value);
+	return get_or<uint32_t>(base, def_value);
 }
 
 template <concepts::char_type CharT>
-int64_t basic_value<CharT>::to_long_or(size_t base, int64_t default_value) const noexcept
+int64_t basic_value<CharT>::to_long_or(size_t base, int64_t def_value) const noexcept
 {
-	return get_or<int64_t>(base, default_value);
+	return get_or<int64_t>(base, def_value);
 }
 
 template <concepts::char_type CharT>
-uint64_t basic_value<CharT>::to_ulong_or(size_t base, uint64_t default_value) const noexcept
+uint64_t basic_value<CharT>::to_ulong_or(size_t base, uint64_t def_value) const noexcept
 {
-	return get_or<uint64_t>(base, default_value);
+	return get_or<uint64_t>(base, def_value);
 }
 
 template <concepts::char_type CharT>
-float basic_value<CharT>::to_float_or(float default_value) const noexcept
+float basic_value<CharT>::to_float_or(float def_value) const noexcept
 {
-	return get_or<float>(default_value);
+	return get_or<float>(def_value);
 }
 
 template <concepts::char_type CharT>
-double basic_value<CharT>::to_double_or(double default_value) const noexcept
+double basic_value<CharT>::to_double_or(double def_value) const noexcept
 {
-	return get_or<double>(default_value);
+	return get_or<double>(def_value);
 }
 
 template <concepts::char_type CharT>
-long double basic_value<CharT>::to_ldouble_or(long double default_value) const noexcept
+long double basic_value<CharT>::to_ldouble_or(long double def_value) const noexcept
 {
-	return get_or<long double>(default_value);
+	return get_or<long double>(def_value);
 }
 
 template <concepts::char_type CharT>
@@ -307,7 +294,7 @@ void basic_value<CharT>::set(format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args
 }
 
 template <concepts::char_type CharT>
-void basic_value<CharT>::set(concepts::basic_value_arg<CharT> auto &&arg)
+void basic_value<CharT>::set(concepts::basic_value_arg<char_t> auto &&arg)
 {
 	using Arg = decltype(arg);
 	using arg_t = std::remove_cvref_t<Arg>;
@@ -402,9 +389,9 @@ bool basic_value<CharT>::operator==(const string_t &str) const
 }
 
 template <concepts::char_type CharT>
-auto basic_value<CharT>::operator<=>(const basic_value &str) const
+auto basic_value<CharT>::operator<=>(const basic_value &other) const
 {
-	return m_str <=> str.to_string();
+	return m_str <=> other.to_string();
 }
 
 template <concepts::char_type CharT>
@@ -420,7 +407,7 @@ auto basic_value<CharT>::operator<=>(const string_t &str) const
 }
 
 template <concepts::char_type CharT>
-basic_value<CharT> &basic_value<CharT>::operator=(concepts::basic_value_arg<CharT> auto &&arg)
+basic_value<CharT> &basic_value<CharT>::operator=(concepts::basic_value_arg<char_t> auto &&arg)
 {
 	set(std::forward<decltype(arg)>(arg));
 	return *this;
@@ -430,6 +417,14 @@ basic_value<CharT> &basic_value<CharT>::operator=(concepts::basic_value_arg<Char
 
 namespace std
 {
+
+template <libgs::concepts::char_type CharT>
+struct hash<libgs::basic_value<CharT>>
+{
+	size_t operator()(const libgs::basic_value<CharT> &v) const noexcept {
+		return hash<std::basic_string<CharT>>()(v);
+	}
+};
 
 template <libgs::concepts::char_type CharT>
 struct LIBGS_CORE_TAPI formatter<libgs::basic_value<CharT>, CharT>

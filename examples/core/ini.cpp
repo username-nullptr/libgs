@@ -32,6 +32,8 @@ int main()
 		spdlog::debug("test-aaa: {}", ini["test"]["aaa"]);
 		spdlog::debug("test-bbb: {}", ini["test"]["bbb"]);
 
+		// spdlog::debug("test-bbb: {}", ini[{"test", "bbb"}]);
+
 #ifndef _MSC_VER
 		spdlog::debug("test-测: {}", ini["test"]["测"]);
 #endif
