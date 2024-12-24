@@ -94,9 +94,12 @@ template <typename Arg0, typename...Args>
 	concepts::function auto &&wake_up
 );
 
-template <concepts::async_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::function auto &&wake_up, Token &&token = use_awaitable
+	concepts::function auto &&wake_up, concepts::async_opt_token auto &&token
+);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto async (
+	concepts::function auto &&wake_up
 );
 
 template <typename Arg0, typename...Args>

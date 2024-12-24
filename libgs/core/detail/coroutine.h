@@ -213,21 +213,22 @@ template <concepts::any_async_tf_opt_token Token>
 bool check_error(Token &token, const error_code &error, const char *func)
 	requires (not std::is_const_v<Token>)
 {
-	if constexpr( is_use_awaitable_v<Token> )
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_use_awaitable_v<token_t> )
 	{
 		if( not error )
 			return true;
 		throw func ? system_error(error, func) : system_error(error);
 	}
-	else if constexpr( is_redirect_error_v<Token> )
+	else if constexpr( is_redirect_error_v<token_t> )
 	{
 		token.ec_ = error;
 		return false;
 	}
-	else if constexpr( is_cancellation_slot_binder_v<Token> )
+	else if constexpr( is_cancellation_slot_binder_v<token_t> )
 		return check_error(token.get(), error, func);
 
-	else if constexpr( is_redirect_time_v<Token> )
+	else if constexpr( is_redirect_time_v<token_t> )
 		return check_error(token.token, error, func);
 	else
 	{

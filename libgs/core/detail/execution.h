@@ -487,8 +487,7 @@ auto async(concepts::function auto &&wake_up)
 	return async<Arg0,Args...>(std::forward<func_t>(wake_up), use_awaitable);
 }
 
-template <concepts::async_opt_token Token>
-auto async(concepts::function auto &&wake_up, Token &&token)
+auto async(concepts::function auto &&wake_up, concepts::async_opt_token auto &&token)
 {
 	using func_t = decltype(wake_up);
 	using token_t = decltype(token);
