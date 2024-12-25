@@ -14,6 +14,9 @@
 
 int main()
 {
+	// libgs::basic_async_work<asio::any_io_executor>::make();
+	libgs::async_work<>::make();
+
 	// spdlog::set_level(spdlog::level::trace);
 
 	// std::list l0 { 0,1,2,3,4 };

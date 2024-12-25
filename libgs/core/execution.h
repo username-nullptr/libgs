@@ -84,40 +84,28 @@ LIBGS_CORE_TAPI auto local_dispatch (
 	concepts::callable auto &&func
 );
 
-template <typename Arg0, typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::function auto &&wake_up, concepts::async_opt_token<Arg0,Args...> auto &&token
-);
+template <concepts::execution Exec, typename...Args>
+class LIBGS_CORE_TAPI basic_async_work
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_async_work)
 
-template <typename Arg0, typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::function auto &&wake_up
-);
+public:
+	basic_async_work() = default;
+	using handler_t = asio::detail::awaitable_handler<Exec,Args...>;
 
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::function auto &&wake_up, concepts::async_opt_token auto &&token
-);
+	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
+	[[nodiscard]] static auto make (
+		concepts::schedulable auto &&exec, concepts::function auto &&wake_up, Token &&token = use_awaitable
+	);
 
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::function auto &&wake_up
-);
+	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
+	[[nodiscard]] static auto make (
+		concepts::callable<handler_t&&> auto &&wake_up, Token &&token = use_awaitable
+	);
+};
 
-template <typename Arg0, typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::schedulable auto &&exec, concepts::function auto &&wake_up,
-	concepts::async_opt_token<Arg0,Args...> auto &&token
-);
-
-template <typename Arg0, typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::schedulable auto &&exec, concepts::function auto &&wake_up
-);
-
-template <concepts::async_opt_token Token = const use_awaitable_t&>
-[[nodiscard]] LIBGS_CORE_TAPI auto async (
-	concepts::schedulable auto &&exec, concepts::function auto &&wake_up,
-	Token &&token = use_awaitable
-);
+template <typename...Args>
+using async_work = basic_async_work<asio::any_io_executor, Args...>;
 
 LIBGS_CORE_TAPI void delete_later(const concepts::execution auto &exec, auto *obj);
 LIBGS_CORE_TAPI void delete_later(concepts::execution_context auto &exec, auto *obj);

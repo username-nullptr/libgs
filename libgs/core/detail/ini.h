@@ -1112,7 +1112,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load(Token &&token)
 	}
 	else
 	{
-		return async<error_code>(get_executor(), [this](auto handle, auto exec) mutable
+		return async<void(error_code)>(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			detail::ini_commit_io_work(
@@ -1142,7 +1142,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load_or(Token &&token)
 
 	if constexpr( is_async_opt_token_v<Token> )
 	{
-		return async<error_code>(get_executor(), [this](auto handle, auto exec) mutable
+		return async<void(error_code)>(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			dispatch(exec, [handle = std::make_shared<handle_t>(std::move(handle))]() mutable {
@@ -1172,7 +1172,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::sync(Token &&token)
 	}
 	else
 	{
-		return async<error_code>(get_executor(), [this](auto handle, auto exec) mutable
+		return async<void(error_code)>(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			detail::ini_commit_io_work(
