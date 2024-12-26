@@ -346,6 +346,7 @@ public:
 		m_file_name = app::absolute_path(file_name);
 	}
 
+	// TODO: canceller ... ...
 	void load(error_code &error)
 	{
 		error = error_code();
@@ -396,6 +397,7 @@ public:
 		file.close();
 	}
 
+	// TODO: canceller ... ...
 	void sync(error_code &error)
 	{
 		std::basic_ofstream<CharT> file;
@@ -1112,7 +1114,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load(Token &&token)
 	}
 	else
 	{
-		return async<void(error_code)>(get_executor(), [this](auto handle, auto exec) mutable
+		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			detail::ini_commit_io_work(
@@ -1142,7 +1144,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load_or(Token &&token)
 
 	if constexpr( is_async_opt_token_v<Token> )
 	{
-		return async<void(error_code)>(get_executor(), [this](auto handle, auto exec) mutable
+		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			dispatch(exec, [handle = std::make_shared<handle_t>(std::move(handle))]() mutable {
@@ -1172,7 +1174,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::sync(Token &&token)
 	}
 	else
 	{
-		return async<void(error_code)>(get_executor(), [this](auto handle, auto exec) mutable
+		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			detail::ini_commit_io_work(

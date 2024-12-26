@@ -15,7 +15,6 @@
 int main()
 {
 	// libgs::basic_async_work<asio::any_io_executor>::make();
-	libgs::async_work<>::make();
 
 	// spdlog::set_level(spdlog::level::trace);
 

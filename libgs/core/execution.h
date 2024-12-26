@@ -84,6 +84,16 @@ LIBGS_CORE_TAPI auto local_dispatch (
 	concepts::callable auto &&func
 );
 
+namespace concepts
+{
+
+template <typename Func, typename Handler>
+concept async_wake_up = std::is_rvalue_reference_v<Handler> and (
+	callable<Func,Handler&&> or callable<Func,Handler&&,asio::any_io_executor>
+);
+
+} //namespace concepts
+
 template <concepts::execution Exec, typename...Args>
 class LIBGS_CORE_TAPI basic_async_work
 {
@@ -94,13 +104,13 @@ public:
 	using handler_t = asio::detail::awaitable_handler<Exec,Args...>;
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
-	[[nodiscard]] static auto make (
-		concepts::schedulable auto &&exec, concepts::function auto &&wake_up, Token &&token = use_awaitable
+	[[nodiscard]] static auto handle (
+		concepts::schedulable auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable
 	);
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
-	[[nodiscard]] static auto make (
-		concepts::callable<handler_t&&> auto &&wake_up, Token &&token = use_awaitable
+	[[nodiscard]] static auto handle (
+		concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable
 	);
 };
 
