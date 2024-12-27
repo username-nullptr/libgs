@@ -301,13 +301,14 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-class LIBGS_CORE_TAPI basic_ini<CharT,IniKeys,Exec,GroupMap>::impl : public std::enable_shared_from_this<impl>
+class LIBGS_CORE_TAPI basic_ini<CharT,IniKeys,Exec,GroupMap>::impl :
+	public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY(impl)
 	friend class basic_ini;
 
 public:
-	impl(const executor_t &exec, std::string_view file_name) :
+	impl(const auto &exec, std::string_view file_name) :
 		m_exec(exec), m_timer(exec)
 	{
 		set_file_name(file_name);
@@ -587,8 +588,8 @@ private:
 	}
 
 public:
-	executor_t m_exec;
-	std::string m_file_name;
+	executor_t m_exec {};
+	std::string m_file_name {};
 	group_map_t m_groups {};
 
 	asio::steady_timer m_timer;
@@ -666,10 +667,10 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(const executor_t &exec, std::string_view file_name) :
-	m_impl(new impl(exec, file_name))
+basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini
+(const concepts::match_execution<executor_t> auto &exec, std::string_view file_name)
 {
-
+	m_impl = std::make_shared<impl>(exec, file_name);
 }
 
 template <concepts::char_type CharT,
@@ -702,7 +703,7 @@ template <concepts::char_type CharT,
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(basic_ini &&other) noexcept :
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl();
+	other.m_impl = std::make_shared<impl>();
 }
 
 template <concepts::char_type CharT,
@@ -712,7 +713,7 @@ template <concepts::char_type CharT,
 basic_ini<CharT,IniKeys,Exec,GroupMap> &basic_ini<CharT,IniKeys,Exec,GroupMap>::operator=(basic_ini &&other) noexcept
 {
 	m_impl = other.m_impl;
-	other.m_impl = new impl();
+	other.m_impl = std::make_shared<impl>();
 	return *this;
 }
 
@@ -723,7 +724,7 @@ template <concepts::char_type CharT,
 template <typename Exec0>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(basic_ini<char_t,IniKeys,Exec0,GroupMap> &&other)
 	requires concepts::match_execution<Exec0,executor_t> :
-	m_impl(new impl(std::move(*other.m_impl)))
+	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
 
 }

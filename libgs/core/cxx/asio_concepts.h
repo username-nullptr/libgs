@@ -86,7 +86,7 @@ namespace concepts
 template <typename Exec, typename NativeExec>
 concept match_execution =
 	is_execution_v<Exec> and is_execution_v<NativeExec> and
-	requires(Exec &exec) { NativeExec(exec); };
+	requires(const Exec &exec) { NativeExec(exec); };
 
 template <typename Exec, typename NativeExec>
 concept match_execution_context =

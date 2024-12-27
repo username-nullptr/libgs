@@ -184,7 +184,8 @@ public:
 		std::string_view file_name = {}
 	);
 	explicit basic_ini (
-		const executor_t &exec, std::string_view file_name = {}
+		const concepts::match_execution<executor_t> auto &exec,
+		std::string_view file_name = {}
 	);
 
 	explicit basic_ini(std::string_view file_name = {});
