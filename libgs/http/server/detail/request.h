@@ -390,7 +390,7 @@ basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-http::method basic_server_request<Stream,CharT>::method() const noexcept
+method_t basic_server_request<Stream,CharT>::method() const noexcept
 {
 	return m_impl->m_parser->method();
 }

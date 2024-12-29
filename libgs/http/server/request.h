@@ -77,7 +77,7 @@ public:
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
-	[[nodiscard]] http::method method() const noexcept;
+	[[nodiscard]] method_t method() const noexcept;
 	[[nodiscard]] string_view_t version() const noexcept;
 	[[nodiscard]] string_view_t path() const noexcept;
 

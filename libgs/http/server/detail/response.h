@@ -42,7 +42,7 @@ class basic_server_response<Stream,CharT>::impl
 
 	using response_t = basic_server_response;
 	using string_list_t = basic_string_list<char_t>;
-	using static_string = detail::_response_helper_static_string<char_t>;
+	using static_string = detail::response_helper_static_string<char_t>;
 
 public:
 	impl(next_layer_t &&next_layer) :
@@ -984,7 +984,8 @@ auto basic_server_response<Stream,CharT>::write(Token &&token)
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redirect redi, Token &&token)
+auto basic_server_response<Stream,CharT>::redirect
+(core_concepts::basic_string_type<char_t> auto &&url, http::redirect redi, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
@@ -992,14 +993,14 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 		m_impl->set_blocking(token);
 		if( not token )
 		{
-			m_impl->m_helper.set_redirect(url, redi);
+			m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
 			return m_impl->write({nullptr,0}, token, "redirect");
 		}
 	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
-		auto res = redirect(url, redi, error);
+		auto res = redirect(std::forward<decltype(url)>(url), redi, error);
 		if( error )
 			throw system_error(error, "libgs::http::server_response::redirect");
 		return res;
@@ -1017,7 +1018,7 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		m_impl->m_helper.set_redirect(url, redi);
+		m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
 		auto ntoken = async_opt_token_helper(token);
 
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<size_t>
@@ -1039,9 +1040,12 @@ auto basic_server_response<Stream,CharT>::redirect(string_view_t url, http::redi
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream,CharT>::redirect(string_view_t url, Token &&token)
+auto basic_server_response<Stream,CharT>::redirect
+(core_concepts::basic_string_type<char_t> auto &&url, Token &&token)
 {
-	return redirect(url, http::redirect::moved_permanently, std::forward<Token>(token));
+	return redirect (
+		std::forward<decltype(url)>(url), redirect_t::moved_permanently, std::forward<Token>(token)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
@@ -1222,16 +1226,18 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::cancel
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_header(string_view_t key)
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_header
+(core_concepts::basic_string_type<char_t> auto &&key)
 {
-	m_impl->m_helper.unset_header(key);
+	m_impl->m_helper.unset_header(std::forward<decltype(key)>(key));
 	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_cookie(string_view_t key)
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_cookie
+(core_concepts::basic_string_type<char_t> auto &&key)
 {
-	m_impl->m_helper.unset_cookie(key);
+	m_impl->m_helper.unset_cookie(std::forward<decltype(key)>(key));
 	return *this;
 }
 

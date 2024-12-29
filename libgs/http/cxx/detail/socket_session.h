@@ -55,7 +55,7 @@ public:
 
 public:
 	std::function<void(socket_t&&)> m_destructor {};
-	socket_t m_socket {execution::get_executor()};
+	socket_t m_socket {libgs::get_executor()};
 	opt_helper_t m_opt_helper {m_socket};
 };
 

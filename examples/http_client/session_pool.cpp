@@ -7,7 +7,7 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
-	libgs::http::session_pool spool(libgs::execution::get_executor());
+	libgs::http::session_pool spool(libgs::get_executor());
 	asio::thread_pool pool(16);
 #if 1
 	libgs::dispatch([&]() -> asio::awaitable<void>
@@ -28,7 +28,7 @@ int main()
 		spdlog::info("Response: {}", rbuf);
 
 		pool.stop();
-		libgs::execution::exit(0);
+		libgs::exit(0);
 		co_return ;
 	});
 #else
@@ -53,10 +53,10 @@ int main()
 	            spdlog::info("Response: {}", rbuf);
 
 	            pool.stop();
-	            libgs::execution::exit(0);
+	            libgs::exit(0);
 	        });
 	    });
 	});
 #endif
-	return libgs::execution::exec();
+	return libgs::exec();
 }

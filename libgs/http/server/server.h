@@ -70,12 +70,12 @@ public:
 	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t,char_t>;
 
 public:
-	template <core_concepts::execution Exec0 = execution::executor_t>
+	template <core_concepts::execution Exec0 = io_executor_t>
 	explicit basic_server (
 		basic_acceptor_wrap<socket_t> &&next_layer,
-		const Exec0 &service_exec = execution::get_executor()
+		const Exec0 &service_exec = libgs::get_executor()
 	);
-	explicit basic_server (
+	basic_server (
 		basic_acceptor_wrap<socket_t> &&next_layer,
 		core_concepts::execution_context auto &service_exec
 	);

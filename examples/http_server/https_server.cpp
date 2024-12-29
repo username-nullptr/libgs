@@ -6,7 +6,7 @@ using namespace std::chrono_literals;
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
-	asio::ip::tcp::acceptor acceptor(libgs::execution::get_executor());
+	asio::ip::tcp::acceptor acceptor(libgs::get_executor());
 	constexpr unsigned short port = 12345;
 
 	using namespace libgs::app::literals;
@@ -92,11 +92,11 @@ int main()
 	.on_system_error([](std::error_code error)
 	{
 		spdlog::error("on_system_error: {}", error);
-		libgs::execution::exit(-1);
+		libgs::exit(-1);
 		return true;
 	})
 	.start();
 
 	spdlog::info("HTTPS Server started ({}) ...", port);
-	return libgs::execution::exec();
+	return libgs::exec();
 }

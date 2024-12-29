@@ -68,8 +68,8 @@ template <core_concepts::char_type CharT>
 class basic_url<CharT>::impl
 {
 	LIBGS_DISABLE_MOVE(impl)
-	using string_list_t = basic_string_list<CharT>;
-	struct string_pool : detail::string_pool<CharT>, detail::_url_static_string<CharT> {};
+	using string_list_t = basic_string_list<char_t>;
+	struct string_pool : detail::string_pool<char_t>, detail::_url_static_string<char_t> {};
 
 public:
 	explicit impl(string_view_t url = string_pool::root) {
@@ -122,9 +122,9 @@ public:
 			{
 				pos = para_str.find(string_pool::assignment);
 				if( pos == string_t::npos )
-					m_parameters.emplace(mbstoxx<CharT>(para_str), mbstoxx<CharT>(para_str));
+					m_parameters.emplace(mbstoxx<char_t>(para_str), mbstoxx<char_t>(para_str));
 				else
-					m_parameters.emplace(mbstoxx<CharT>(para_str.substr(0, pos)), mbstoxx<CharT>(para_str.substr(pos+1)));
+					m_parameters.emplace(mbstoxx<char_t>(para_str.substr(0, pos)), mbstoxx<char_t>(para_str.substr(pos+1)));
 			}
 		}
 		pos = addpth.find(string_pool::root);
@@ -295,7 +295,7 @@ template <core_concepts::char_type CharT>
 std::basic_string<CharT> basic_url<CharT>::to_string() const noexcept
 {
 	using sp = detail::_url_static_string<CharT>;
-	string_t buf = m_impl->m_protocol + sp::pro_sptr + m_impl->m_path + std::format(default_format_v<CharT>, m_impl->m_port);
+	string_t buf = m_impl->m_protocol + sp::pro_sptr + m_impl->m_path + std::format(default_format_v<char_t>, m_impl->m_port);
 
 	if( m_impl->m_parameters.empty() )
 		return buf;

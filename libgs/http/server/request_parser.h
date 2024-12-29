@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <core_concepts::char_type CharT>
-class LIBGS_HTTP_TAPI basic_request_parser
+class LIBGS_HTTP_TAPI basic_request_parser final
 {
 	LIBGS_DISABLE_COPY(basic_request_parser)
 
@@ -45,12 +45,12 @@ public:
 	using string_view_t = std::basic_string_view<char_t>;
 
 	using value_t = basic_value<char_t>;
-	using path_args_t = std::vector<std::pair<string_t,value_t>>;
-
-	using cookies_t = basic_cookie_values<char_t>;
 	using header_t = basic_header<char_t>;
 	using headers_t = basic_headers<char_t>;
+
 	using parameters_t = basic_parameters<char_t>;
+	using cookies_t = basic_cookie_values<char_t>;
+	using path_args_t = std::vector<std::pair<string_t,value_t>>;
 
 public:
 	explicit basic_request_parser(size_t init_buf_size = 0xFFFF);

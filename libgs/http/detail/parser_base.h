@@ -61,7 +61,7 @@ template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_parser_base<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	struct string_pool : detail::string_pool<CharT>, detail::_parser_static_string<CharT> {};
+	struct string_pool : detail::string_pool<char_t>, detail::_parser_static_string<char_t> {};
 
 public:
 	impl(size_t init_buf_size) {
@@ -130,7 +130,7 @@ public:
 
 	bool set_read_body_state(error_code &error)
 	{
-		auto it = m_headers.find(basic_header<CharT>::content_length);
+		auto it = m_headers.find(basic_header<char_t>::content_length);
 		if( it != m_headers.end() )
 		{
 			m_content_length = it->second.template get<size_t>();
@@ -138,7 +138,7 @@ public:
 		}
 		else if( m_version == string_pool::v_1_1 )
 		{
-			it = m_headers.find(basic_header<CharT>::transfer_encoding);
+			it = m_headers.find(basic_header<char_t>::transfer_encoding);
 			if( it == m_headers.end() or it->second.to_string() != string_pool::chunked )
 				m_state = state::finished;
 			else
@@ -239,7 +239,7 @@ public:
 			m_parse_cookie(value, error);
 		}
 		else
-			m_headers[mbstoxx<CharT>(key)] = mbstoxx<CharT>(value);
+			m_headers[mbstoxx<char_t>(key)] = mbstoxx<char_t>(value);
 	}
 
 	void reset()
@@ -353,11 +353,20 @@ error_code basic_parser_base<CharT>::make_error_code(parse_errno errc)
 }
 
 template <core_concepts::char_type CharT>
-bool basic_parser_base<CharT>::append(std::string_view buf, error_code &error)
+bool basic_parser_base<CharT>::append(core_concepts::string_type auto &&buf, error_code &error)
 {
 	using state = typename impl::state;
+	using Buf = decltype(buf);
+	using buf_t = std::remove_cvref_t<Buf>;
+
+	std::string str_buf;
+	if constexpr( std::is_same_v<buf_t, std::string_view> )
+		str_buf = std::string(buf.data(), buf.size());
+	else
+		str_buf = std::forward<Buf>(buf);
+
 	error = error_code();
-	if( buf.empty() )
+	if( str_buf.empty() )
 	{
 		error = make_error_code(parse_errno::IDE);
 		return false;
@@ -367,7 +376,7 @@ bool basic_parser_base<CharT>::append(std::string_view buf, error_code &error)
 		error = make_error_code(parse_errno::RE);
 		return false;
 	}
-	m_impl->m_src_buf.append(buf);
+	m_impl->m_src_buf.append(std::move(str_buf));
 	if( m_impl->m_state <= state::reading_headers )
 		return m_impl->parse_header(error);
 
@@ -380,19 +389,20 @@ bool basic_parser_base<CharT>::append(std::string_view buf, error_code &error)
 }
 
 template <core_concepts::char_type CharT>
-bool basic_parser_base<CharT>::append(std::string_view buf)
+bool basic_parser_base<CharT>::append(core_concepts::string_type auto &&buf)
 {
 	error_code error;
-	bool res = append(buf, error);
+	bool res = append(std::forward<decltype(buf)>(buf), error);
 	if( error )
 		throw system_error(error, "libgs::http::parser");
 	return res;
 }
 
 template <core_concepts::char_type CharT>
-bool basic_parser_base<CharT>::operator<<(std::string_view buf)
+basic_parser_base<CharT> &basic_parser_base<CharT>::operator<<(core_concepts::string_type auto && buf)
 {
-	return append(buf);
+	append(std::forward<decltype(buf)>(buf));
+	return *this;
 }
 
 template <core_concepts::char_type CharT>

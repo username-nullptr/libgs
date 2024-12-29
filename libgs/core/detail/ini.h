@@ -348,7 +348,7 @@ public:
 	}
 
 	// TODO: canceller ... ...
-	void load(error_code &error)
+	void load(error_code &error, std::function<bool()> cancelled)
 	{
 		error = error_code();
 		if( not std::filesystem::exists(m_file_name) )
@@ -366,7 +366,12 @@ public:
 
 			for(size_t line=1;; line++)
 			{
-				if( file.peek() == EOF )
+				if( cancelled() )
+				{
+					error = make_error_code(asio::error::operation_aborted);
+					return ;
+				}
+				else if( file.peek() == EOF )
 					break;
 
 				std::getline(file, buf);
@@ -399,7 +404,7 @@ public:
 	}
 
 	// TODO: canceller ... ...
-	void sync(error_code &error)
+	void sync(error_code &error, std::function<bool()> cancelled)
 	{
 		std::basic_ofstream<CharT> file;
 		auto prev = file.exceptions();
@@ -410,6 +415,11 @@ public:
 
 			for(auto &[group, keys] : m_groups)
 			{
+				if( cancelled() )
+				{
+					error = make_error_code(asio::error::operation_aborted);
+					return ;
+				}
 				file << keyword_char_t::left_bracket
 					 << to_percent_encoding(group)
 					 << keyword_char_t::right_bracket
@@ -595,6 +605,8 @@ public:
 	asio::steady_timer m_timer;
 	milliseconds m_sync_period {0};
 	bool m_sync_on_delete = false;
+
+	std::list<std::shared_ptr<bool>> m_cancel_list {};
 };
 
 template <concepts::char_type CharT,
@@ -678,7 +690,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(std::string_view file_name) :
-	basic_ini(execution::context(), file_name)
+	basic_ini(io_context(), file_name)
 {
 
 }
@@ -1103,8 +1115,11 @@ template <concepts::char_type CharT,
 template <concepts::opt_token<error_code> Token>
 auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load(Token &&token)
 {
+	std::function<bool()> cancelled = []{
+		return false;
+	};
 	if constexpr( std::is_same_v<Token,error_code&> )
-		m_impl->load(token);
+		m_impl->load(token, std::move(cancelled));
 
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -1115,15 +1130,34 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load(Token &&token)
 	}
 	else
 	{
-		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
+		auto cflag = std::make_shared<bool>(false);
+		m_impl->m_cancel_list.emplace_back(cflag);
+
+		using token_t = std::remove_cvref_t<Token>;
+		if constexpr( is_cancellation_slot_binder_v<token_t> )
+		{
+			cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(token.get_cancellation_slot())]{
+				return *cflag or state.cancelled() != asio::cancellation_type::none;
+			};
+		}
+		else
+		{
+			cancelled = [cflag = std::move(cflag)]{
+				return *cflag;
+			};
+		}
+		return async_work<error_code>::handle(get_executor(),
+		[this, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
-			detail::ini_commit_io_work(
-			[this, impl = m_impl, handle = std::make_shared<handle_t>(std::move(handle)), exec]() mutable
+			detail::ini_commit_io_work([
+				this, impl = m_impl, cancelled = std::move(cancelled),
+				handle = std::make_shared<handle_t>(std::move(handle)), exec
+			]() mutable
 			{
 				LIBGS_UNUSED(impl);
 				error_code error;
-				load(error);
+				m_impl->load(error, std::move(cancelled));
 				dispatch(exec, [handle = std::move(handle), error]() mutable {
 					std::move(*handle)(error);
 				});
@@ -1163,8 +1197,11 @@ template <concepts::char_type CharT,
 template <concepts::opt_token<error_code> Token>
 auto basic_ini<CharT,IniKeys,Exec,GroupMap>::sync(Token &&token)
 {
+	std::function<bool()> cancelled = []{
+		return false;
+	};
 	if constexpr( std::is_same_v<Token,error_code&> )
-		m_impl->sync(token);
+		m_impl->sync(token, std::move(cancelled));
 
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -1175,15 +1212,34 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::sync(Token &&token)
 	}
 	else
 	{
-		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
+		auto cflag = std::make_shared<bool>(false);
+		m_impl->m_cancel_list.emplace_back(cflag);
+
+		using token_t = std::remove_cvref_t<Token>;
+		if constexpr( is_cancellation_slot_binder_v<token_t> )
+		{
+			cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(token.get_cancellation_slot())]{
+				return *cflag or state.cancelled() != asio::cancellation_type::none;
+			};
+		}
+		else
+		{
+			cancelled = [cflag = std::move(cflag)]{
+				return *cflag;
+			};
+		}
+		return async_work<error_code>::handle(get_executor(),
+		[this, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
-			detail::ini_commit_io_work(
-			[this, impl = m_impl, handle = std::make_shared<handle_t>(std::move(handle)), exec]() mutable
+			detail::ini_commit_io_work([
+				this, impl = m_impl, cancelled = std::move(cancelled),
+				handle = std::make_shared<handle_t>(std::move(handle)), exec
+			]() mutable
 			{
 				LIBGS_UNUSED(impl);
 				error_code error;
-				sync(error);
+				sync(error, std::move(cancelled));
 				dispatch(exec, [handle = std::move(handle), error]() mutable {
 					std::move(*handle)(error);
 				});
@@ -1207,15 +1263,6 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-milliseconds basic_ini<CharT,IniKeys,Exec,GroupMap>::sync_period() const noexcept
-{
-	return m_impl->m_sync_period;
-}
-
-template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
-		  concepts::execution Exec,
-		  typename GroupMap>
 void basic_ini<CharT,IniKeys,Exec,GroupMap>::set_sync_on_delete(bool enable) noexcept
 {
 	m_impl->m_sync_on_delete = enable;
@@ -1225,9 +1272,29 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
+milliseconds basic_ini<CharT,IniKeys,Exec,GroupMap>::sync_period() const noexcept
+{
+	return m_impl->m_sync_period;
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
 bool basic_ini<CharT,IniKeys,Exec,GroupMap>::sync_on_delete() const noexcept
 {
 	return m_impl->m_sync_on_delete;
+}
+
+template <concepts::char_type CharT,
+		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
+		  concepts::execution Exec,
+		  typename GroupMap>
+void basic_ini<CharT,IniKeys,Exec,GroupMap>::cancel()
+{
+	auto flags = std::move(m_impl->m_cancel_list);
+	for(auto flag : flags)
+		*flag = true;
 }
 
 template <concepts::char_type CharT,

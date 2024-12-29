@@ -88,10 +88,10 @@ public:
 	auto write(Token &&token = {});
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(string_view_t url, redirect_t redi, Token &&token = {});
+	auto redirect(core_concepts::basic_string_type<char_t> auto &&url, redirect_t redi, Token &&token = {});
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(string_view_t url, Token &&token = {});
+	auto redirect(core_concepts::basic_string_type<char_t> auto &&url, Token &&token = {});
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
 	auto send_file (
@@ -126,8 +126,8 @@ public:
 	basic_server_response &cancel() noexcept;
 
 public:
-	basic_server_response &unset_header(string_view_t key);
-	basic_server_response &unset_cookie(string_view_t key);
+	basic_server_response &unset_header(core_concepts::basic_string_type<char_t> auto &&key);
+	basic_server_response &unset_cookie(core_concepts::basic_string_type<char_t> auto &&key);
 	basic_server_response &unset_chunk_attribute(const value_t &attribute);
 
 public:

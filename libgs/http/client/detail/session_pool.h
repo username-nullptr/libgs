@@ -42,7 +42,7 @@ class basic_session_pool<Stream,Exec>::impl
 public:
 	template <core_concepts::match_execution<executor_t> Exec0>
 	explicit impl(const Exec0 &exec) : m_exec(exec) {}
-	impl() : m_exec(execution::get_executor()) {}
+	impl() : m_exec(libgs::get_executor()) {}
 
 	~impl() {
 		*m_valid = false;

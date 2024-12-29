@@ -29,11 +29,19 @@
 #ifndef LIBGS_HTTP_CLIENT_CLIENT_H
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
-#include <libgs/http/client/request_context.h>
+#include <libgs/http/client/session_pool.h>
+#include <libgs/http/client/request.h>
 
 namespace libgs::http
 {
 
+/*
+	  client -------- request_url
+	    |				  |
+	session_pool ----- context --- cilent_request
+                          |
+                      client_reply
+*/
 template <core_concepts::char_type CharT, concepts::session_pool SessionPool = session_pool>
 class LIBGS_HTTP_TAPI basic_client
 {
@@ -46,8 +54,6 @@ public:
 	using socket_t = typename session_pool_t::socket_t;
 	using executor_t = typename session_pool_t::executor_t;
 
-    template <method_t Method>
-    using request_context_t = basic_request_context<char_t,Method,session_pool_t>;
 	using request_t = basic_client_request<char_t>;
 
 	using reply_t = typename request_t::reply_t;
@@ -67,35 +73,35 @@ public:
 	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto get(Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto put(const const_buffer &buf, Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto put(Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto post(const const_buffer &buf, Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto post(Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto Delete(Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto head(Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto options(Token &&token = {});
 
-	template <concepts::token Token = use_sync_t>
+	template <core_concepts::tf_opt_token Token = use_sync_t>
 	auto trach(Token &&token = {});
 
 public:
-	template <method_t Method, concepts::token Token = use_sync_t>
+	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
 	auto request(const const_buffer &buf, Token &&token = {});
 
-	template <method_t Method, concepts::token Token = use_sync_t>
+	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
 	auto request(Token &&token = {});
 
 public:

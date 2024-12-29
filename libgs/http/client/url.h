@@ -40,11 +40,12 @@ class LIBGS_HTTP_TAPI basic_url
 	using string_pool = detail::string_pool<CharT>;
 
 public:
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
-	using value_t = basic_value<CharT>;
-	using parameters_t = basic_parameters<CharT>;
+	using value_t = basic_value<char_t>;
+	using parameters_t = basic_parameters<char_t>;
 
 public:
 	template <typename Arg0, typename...Args>

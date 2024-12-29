@@ -13,8 +13,8 @@ int main()
 	{
 		co_await libgs::modules::co_run_init();
 		spdlog::info("modules initialized.");
-		co_return libgs::execution::exit(0);
+		co_return libgs::exit(0);
 	});
-	return libgs::execution::exec();
+	return libgs::exec();
 #endif
 }

@@ -53,20 +53,27 @@ enum class parse_errno
 };
 
 template <core_concepts::char_type CharT>
-class LIBGS_HTTP_TAPI basic_parser_base
+class LIBGS_HTTP_TAPI basic_parser_base final
 {
 	LIBGS_DISABLE_COPY(basic_parser_base)
 
 public:
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
-	using value_t = basic_value<CharT>;
-	using header_t = basic_header<CharT>;
-	using headers_t = basic_headers<CharT>;
+	using value_t = basic_value<char_t>;
+	using value_optl_t = basic_value_optl<char_t>;
 
-	using parse_begin_handler = std::function<string_t(std::string_view line_buf, error_code &error)>;
-	using parse_cookie_handler = std::function<void(std::string_view line_buf, error_code &error)>;
+	using header_t = basic_header<char_t>;
+	using headers_t = basic_headers<char_t>;
+
+	using parse_begin_handler = std::function <
+		string_t(std::string_view line_buf, error_code &error)
+	>;
+	using parse_cookie_handler = std::function <
+		void(std::string_view line_buf, error_code &error)
+	>;
 
 public:
 	explicit basic_parser_base(size_t init_buf_size = 0xFFFF);
@@ -80,9 +87,10 @@ public:
 	basic_parser_base &on_parse_cookie(parse_cookie_handler func);
 	static error_code make_error_code(parse_errno errc);
 
-	bool append(std::string_view buf, error_code &error);
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
+	bool append(core_concepts::string_type auto &&buf, error_code &error);
+	bool append(core_concepts::string_type auto &&buf);
+
+	basic_parser_base &operator<<(core_concepts::string_type auto &&buf);
 	basic_parser_base &reset();
 
 public:

@@ -61,9 +61,9 @@ public:
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	explicit basic_session(const duration<Rep,Period> &seconds, const executor_t &exec = execution::get_executor());
+	explicit basic_session(const duration<Rep,Period> &seconds, const executor_t &exec = get_executor());
 
-	explicit basic_session(const executor_t &exec = execution::get_executor());
+	explicit basic_session(const executor_t &exec = get_executor());
 	virtual ~basic_session();
 
 public:

@@ -154,7 +154,11 @@ using redirect_t = redirect;
 LIBGS_HTTP_VAPI bool redirect_check(redirect type, bool _throw = true);
 
 template <core_concepts::char_type CharT>
-using basic_parameters = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
+using basic_parameters = std::map <
+	std::basic_string<CharT>,
+	basic_value<CharT>,
+	basic_less_case_insensitive<CharT>
+>;
 
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;

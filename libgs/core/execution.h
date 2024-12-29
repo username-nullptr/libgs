@@ -31,21 +31,19 @@
 
 #include <libgs/core/global.h>
 
-namespace libgs { namespace execution
+namespace libgs
 {
 
-using context_t = asio::io_context;
-using executor_t = context_t::executor_type;
+using io_context_t = asio::io_context;
+using io_executor_t = io_context_t::executor_type;
 
-[[nodiscard]] LIBGS_CORE_API context_t &context() noexcept;
-[[nodiscard]] LIBGS_CORE_API executor_t get_executor() noexcept;
+[[nodiscard]] LIBGS_CORE_API io_context_t &io_context() noexcept;
+[[nodiscard]] LIBGS_CORE_API io_executor_t get_executor() noexcept;
 
 LIBGS_CORE_API int exec();
 LIBGS_CORE_API void exit(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
-
-} //namespace execution
 
 template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
@@ -127,7 +125,7 @@ struct is_match_default_execution
 	static constexpr bool value =
 		is_execution_v<NativeExec> and
 		requires {
-			NativeExec(execution::get_executor());
+			NativeExec(get_executor());
 		};
 };
 

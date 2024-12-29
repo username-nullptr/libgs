@@ -41,18 +41,19 @@ class LIBGS_HTTP_TAPI basic_client_request
 	using string_pool = detail::string_pool<CharT>;
 
 public:
-	using url_t = basic_url<CharT>;
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using url_t = basic_url<char_t>;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
-	using value_t = basic_value<CharT>;
-	using value_list_t = basic_value_list<CharT>;
+	using value_t = basic_value<char_t>;
+	using value_list_t = basic_value_list<char_t>;
 
-	using parameters_t = basic_parameters<CharT>;
-	using header_t = basic_header<CharT>;
+	using parameters_t = basic_parameters<char_t>;
+	using header_t = basic_header<char_t>;
 
-	using headers_t = basic_headers<CharT>;
-	using cookies_t = basic_cookie_values<CharT>;
+	using headers_t = basic_headers<char_t>;
+	using cookies_t = basic_cookie_values<char_t>;
 
 public:
 	basic_client_request(url_t url);

@@ -185,7 +185,7 @@ template <concepts::dis_func_opt_token Token>
 auto dispatch(concepts::callable auto &&func, Token &&token)
 {
 	using func_t = decltype(func);
-	return dispatch(execution::context(), std::forward<func_t>(func), std::forward<Token>(token));
+	return dispatch(io_context(), std::forward<func_t>(func), std::forward<Token>(token));
 }
 
 template <concepts::dis_func_opt_token Token>
@@ -228,7 +228,7 @@ template <concepts::dis_func_opt_token Token>
 auto post(concepts::callable auto &&func, Token &&token)
 {
 	using func_t = decltype(func);
-	return post(execution::context(), std::forward<func_t>(func), std::forward<Token>(token));
+	return post(io_context(), std::forward<func_t>(func), std::forward<Token>(token));
 }
 
 auto local_dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func,
@@ -428,9 +428,9 @@ LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&hand
 	using exec_t = std::remove_cvref_t<decltype(exec)>;
 
 	if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t, exec_t> )
-		wake_up(std::move(handler), exec);
+		wake_up(std::forward<Handler>(handler), exec);
 	else if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t> )
-		wake_up(std::move(handler));
+		wake_up(std::forward<Handler>(handler));
 	else
 		static_assert(false, "Invalid function signature for async");
 }
@@ -440,7 +440,7 @@ LIBGS_CORE_TAPI void async_x(WakeUp &&wake_up, Handler &&handler)
 {
 	auto work = asio::make_work_guard(handler);
 	auto exec = work.get_executor();
-	asio::dispatch(exec, [exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+	asio::dispatch(exec, [exec, wake_up = std::forward<WakeUp>(wake_up), handler = std::move(handler)]() mutable {
 		async_xx(exec, std::move(wake_up), std::move(handler));
 	});
 }
@@ -450,7 +450,7 @@ LIBGS_CORE_TAPI void async_x(const Exec &exec, WakeUp &&wake_up, Handler &&handl
 {
 	auto work = asio::make_work_guard(handler);
 	asio::dispatch(exec,
-	[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+	[exec = work.get_executor(), wake_up = std::forward<WakeUp>(wake_up), handler = std::move(handler)]() mutable {
 		async_xx(exec, std::move(wake_up), std::move(handler));
 	});
 }
@@ -518,7 +518,7 @@ void delete_later(concepts::execution_context auto &exec, auto *obj)
 
 void delete_later(auto *obj)
 {
-	delete_later(execution::context(), obj);
+	delete_later(io_context(), obj);
 }
 
 } //namespace libgs

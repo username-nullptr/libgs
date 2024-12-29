@@ -67,7 +67,11 @@ using header = basic_header<char>;
 using wheader = basic_header<wchar_t>;
 
 template <core_concepts::char_type CharT>
-using basic_headers = std::map<std::basic_string<CharT>, basic_value<CharT>, basic_less_case_insensitive<CharT>>;
+using basic_headers = std::map <
+	std::basic_string<CharT>,
+	basic_value<CharT>,
+	basic_less_case_insensitive<CharT>
+>;
 
 using headers = basic_headers<char>;
 using wheaders = basic_headers<wchar_t>;

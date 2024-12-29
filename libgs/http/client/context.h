@@ -26,24 +26,13 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
-#define LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
+#ifndef LIBGS_HTTP_CLIENT_CONTEXT_H
+#define LIBGS_HTTP_CLIENT_CONTEXT_H
 
 namespace libgs::http
 {
 
-template <concepts::stream_requires Stream, core_concepts::char_type CharT>
-class basic_client_reply<Stream, CharT>::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
-
-public:
-
-public:
-};
-
-
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
+#endif //LIBGS_HTTP_CLIENT_CONTEXT_H

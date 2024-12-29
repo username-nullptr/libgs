@@ -54,7 +54,7 @@ int main()
 
 		spdlog::debug("example finished...");
 		co_await libgs::co_sleep_for(5s);
-		libgs::execution::exit();
+		libgs::exit();
 	});
-	return libgs::execution::exec();
+	return libgs::exec();
 }

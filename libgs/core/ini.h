@@ -302,10 +302,11 @@ public:
 
 	template <typename Rep, typename Period>
 	void set_sync_period(const duration<Rep,Period> &period = {});
-	[[nodiscard]] milliseconds sync_period() const noexcept;
-
 	void set_sync_on_delete(bool enable = true) noexcept;
+
+	[[nodiscard]] milliseconds sync_period() const noexcept;
 	[[nodiscard]] bool sync_on_delete() const noexcept;
+	void cancel();
 
 public:
 	[[nodiscard]] iterator find(concepts::basic_string_type<char_t> auto &&group) noexcept;

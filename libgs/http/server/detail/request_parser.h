@@ -78,11 +78,11 @@ public:
 				error = parser_t::make_error_code(parse_errno::IRL);
 				return version;
 			}
-			http::method method;
+			method_t method;
 			try {
 				method = from_method_string(request_line_parts[0]);
 			}
-			catch(std::exception&)
+			catch(const std::exception&)
 			{
 				error = parser_t::make_error_code(parse_errno::IHM);
 				return version;
@@ -139,7 +139,7 @@ public:
 				}
 				auto key = str_trimmed(statement.substr(0,pos));
 				auto value = str_trimmed(statement.substr(pos+1));
-				m_cookies[mbstoxx<char_t>(key)] = mbstoxx<char_t>(value);
+				m_cookies[mbstoxx<char_t>(std::move(key))] = mbstoxx<char_t>(std::move(value));
 			}
 		});
 	}
@@ -172,7 +172,7 @@ public:
 
 public:
 	parser_t m_parser;
-	http::method m_method = http::method::GET;
+	method_t m_method = method_t::GET;
 
 	string_t m_path {};
 	parameters_t m_parameters {};

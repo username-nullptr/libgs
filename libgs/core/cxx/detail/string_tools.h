@@ -41,9 +41,9 @@ decltype(auto) nosview(concepts::string_type auto &&str)
 	using str_t = std::remove_cvref_t<Str>;
 
 	if constexpr( std::is_same_v<str_t, std::string_view> )
-		return std::string(str.data(), str.size());
+		return std::string(str);
 	else if constexpr( std::is_same_v<str_t, std::wstring_view> )
-		return std::wstring(str.data(), str.size());
+		return std::wstring(str);
 	else
 		return return_reference(std::forward<Str>(str));
 }

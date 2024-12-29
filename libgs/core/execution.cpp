@@ -28,24 +28,24 @@
 
 #include "execution.h"
 
-namespace libgs::execution
+namespace libgs
 {
 
 static std::atomic_int g_exit_code {0};
 
 static std::atomic_bool g_run_flag {false};
 
-context_t &context() noexcept
+io_context_t &io_context() noexcept
 {
 	// Don't destruct it.
 	// An exception occurs when the main function exits in Win10.
-	static auto *g_ioc = new context_t();
+	static auto *g_ioc = new io_context_t();
 	return *g_ioc;
 }
 
-executor_t get_executor() noexcept
+io_executor_t get_executor() noexcept
 {
-	return context().get_executor();
+	return io_context().get_executor();
 }
 
 int exec()
@@ -54,7 +54,7 @@ int exec()
 		throw runtime_error("libgs::execution::exec: not reentrant.");
 
 	g_run_flag = true;
-	auto &ioc = context();
+	auto &ioc = io_context();
 
 	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
 	for(;;)
@@ -74,7 +74,7 @@ void exit(int code)
 
 	g_exit_code = code;
 	g_run_flag = false;
-	context().stop();
+	io_context().stop();
 }
 
 bool is_run()
@@ -82,4 +82,4 @@ bool is_run()
 	return g_run_flag;
 }
 
-} //namespace libgs::execution
+} //namespace libgs

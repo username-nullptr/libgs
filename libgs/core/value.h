@@ -218,6 +218,12 @@ using basic_value_list = std::deque<basic_value<CharT>>;
 using value_list = basic_value_list<char>;
 using wvalue_list = basic_value_list<wchar_t>;
 
+template <concepts::char_type CharT>
+using basic_value_optl = std::optional<basic_value<CharT>>;
+
+using value_optl = basic_value_optl<char>;
+using wvalue_optl = basic_value_optl<wchar_t>;
+
 } //namespace libgs
 #include <libgs/core/detail/value.h>
 

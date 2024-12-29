@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <core_concepts::char_type CharT>
-class LIBGS_HTTP_TAPI basic_response_helper
+class LIBGS_HTTP_TAPI basic_response_helper final
 {
 	LIBGS_DISABLE_COPY(basic_response_helper)
 	using string_pool = detail::string_pool<CharT>;
@@ -66,8 +66,11 @@ public:
 	basic_response_helper &set_status(status_t status);
 	basic_response_helper &set_header(string_view_t key, value_t value) noexcept;
 	basic_response_helper &set_cookie(string_view_t key, cookie_t cookie) noexcept;
-	basic_response_helper &set_redirect(string_view_t url, redirect type = redirect::moved_permanently);
 
+	basic_response_helper &set_redirect (
+		core_concepts::basic_string_type<char_t> auto &&url,
+		redirect type = redirect::moved_permanently
+	);
 	basic_response_helper &set_chunk_attribute(value_t attribute);
 	basic_response_helper &set_chunk_attributes(value_list_t attributes);
 
@@ -86,8 +89,8 @@ public:
 	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
 
 public:
-	basic_response_helper &unset_header(string_view_t key);
-	basic_response_helper &unset_cookie(string_view_t key);
+	basic_response_helper &unset_header(core_concepts::basic_string_type<char_t> auto &&key);
+	basic_response_helper &unset_cookie(core_concepts::basic_string_type<char_t> auto &&key);
 	basic_response_helper &unset_chunk_attribute(const value_t &attributes);
 	basic_response_helper &reset();
 

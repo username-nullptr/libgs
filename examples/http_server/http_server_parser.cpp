@@ -67,7 +67,7 @@ int main()
 
 	libgs::dispatch([]() -> libgs::awaitable<void>
 	{
-		asio::ip::tcp::acceptor server(libgs::execution::context());
+		asio::ip::tcp::acceptor server(libgs::io_context());
 		try {
 			server.bind({asio::ip::tcp::v4(), port});
 			for(;;)
@@ -82,9 +82,9 @@ int main()
 		catch(const std::exception &ex)
 		{
 			spdlog::error("server error: {}", ex);
-			libgs::execution::exit(-1);
+			libgs::exit(-1);
 		}
 	});
 	spdlog::info("HTTP Server started ({}) ...", port);
-	return libgs::execution::exec();
+	return libgs::exec();
 }

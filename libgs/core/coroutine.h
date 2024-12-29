@@ -112,9 +112,9 @@ template <typename T>
 	const std::thread &thread
 );
 
-template <concepts::schedulable Exec = execution::executor_t>
+template <concepts::schedulable Exec = io_executor_t>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<asio::any_io_executor> co_to_exec (
-	Exec &&exec = execution::get_executor()
+	Exec &&exec = get_executor()
 );
 
 [[nodiscard]] LIBGS_CORE_VAPI awaitable<asio::any_io_executor> co_to_thread();
