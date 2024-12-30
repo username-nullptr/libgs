@@ -37,7 +37,7 @@
 namespace libgs
 {
 
-std::string_view version_string()
+const char *version_string()
 {
 	return LIBGS_VERSION_STR;
 }

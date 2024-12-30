@@ -36,7 +36,7 @@
 namespace libgs
 {
 
-[[nodiscard]] LIBGS_CORE_API std::string_view version_string();
+[[nodiscard]] LIBGS_CORE_API const char *version_string();
 
 template<typename Rep, typename Period>
 LIBGS_CORE_TAPI void sleep_for(const std::chrono::duration<Rep,Period> &rtime);
