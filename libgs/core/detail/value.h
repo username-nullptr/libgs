@@ -310,34 +310,25 @@ void basic_value<CharT>::set(concepts::basic_value_arg<char_t> auto &&arg)
 template <concepts::char_type CharT>
 bool basic_value<CharT>::is_alpha() const noexcept
 {
-	for(auto &c : m_str)
-	{
-		if( not std::isalpha(c) )
-			return false;
-	}
-	return true;
+	return libgs::is_alpha(m_str);
 }
 
 template <concepts::char_type CharT>
 bool basic_value<CharT>::is_digit() const noexcept
 {
-	for(auto &c : m_str)
-	{
-		if( not std::isdigit(c) )
-			return false;
-	}
-	return true;
+	return libgs::is_digit(m_str);
 }
 
 template <concepts::char_type CharT>
 bool basic_value<CharT>::is_alnum() const noexcept
 {
-	for(auto &c : m_str)
-	{
-		if( not std::isalnum(c) )
-			return false;
-	}
-	return true;
+	return libgs::is_alnum(m_str);
+}
+
+template <concepts::char_type CharT>
+bool basic_value<CharT>::is_ascii() const noexcept
+{
+	return libgs::is_ascii(m_str);
 }
 
 template <concepts::char_type CharT>

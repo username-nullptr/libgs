@@ -181,6 +181,7 @@ public:
 	[[nodiscard]] bool is_alpha() const noexcept;
 	[[nodiscard]] bool is_digit() const noexcept;
 	[[nodiscard]] bool is_alnum() const noexcept;
+	[[nodiscard]] bool is_ascii() const noexcept;
 
 public:
 	[[nodiscard]] string_t &operator*() & noexcept;

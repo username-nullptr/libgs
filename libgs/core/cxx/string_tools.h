@@ -82,6 +82,11 @@ struct LIBGS_CORE_VAPI string_wrapper
 	std::string *operator->();
 };
 
+LIBGS_CORE_VAPI [[nodiscard]] bool is_alpha(std::string_view str) noexcept;
+LIBGS_CORE_VAPI [[nodiscard]] bool is_digit(std::string_view str) noexcept;
+LIBGS_CORE_VAPI [[nodiscard]] bool is_alnum(std::string_view str) noexcept;
+LIBGS_CORE_VAPI [[nodiscard]] bool is_ascii(std::string_view str) noexcept;
+
 } //namespace libgs
 #include <libgs/core/cxx/detail/string_tools.h>
 

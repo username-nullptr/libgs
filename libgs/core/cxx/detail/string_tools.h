@@ -230,6 +230,46 @@ inline std::string *string_wrapper::operator->()
 	return &value;
 }
 
+inline bool is_alpha(std::string_view str) noexcept
+{
+	for(auto &c : str)
+	{
+		if( not std::isalpha(c) )
+			return false;
+	}
+	return true;
+}
+
+inline bool is_digit(std::string_view str) noexcept
+{
+	for(auto &c : str)
+	{
+		if( not std::isdigit(c) )
+			return false;
+	}
+	return true;
+}
+
+inline bool is_alnum(std::string_view str) noexcept
+{
+	for(auto &c : str)
+	{
+		if( not std::isalnum(c) )
+			return false;
+	}
+	return true;
+}
+
+inline bool is_ascii(std::string_view str) noexcept
+{
+	for(auto &c : str)
+	{
+		if( c > 127 )
+			return false;
+	}
+	return true;
+}
+
 } //namespace libgs
 
 

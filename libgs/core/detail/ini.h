@@ -421,19 +421,21 @@ public:
 					return ;
 				}
 				file << keyword_char_t::left_bracket
-					 << to_percent_encoding(group)
+					 << (is_ascii(group) ? group : to_percent_encoding(group))
 					 << keyword_char_t::right_bracket
 					 << keyword_char_t::line_break;
 
 				for(auto &[key, value] : keys)
 				{
-					file << to_percent_encoding(key) << keyword_char_t::assigning;
+					file << (is_ascii(key) ? key : to_percent_encoding(key))
+						 << keyword_char_t::assigning;
+
 					if( value.is_digit() )
 						file << value.to_string();
 					else
 					{
 						file << keyword_char_t::double_quotes
-						     << to_percent_encoding(value.to_string())
+						     << (value.is_ascii() ? value.to_string() : to_percent_encoding(value.to_string()))
 						     << keyword_char_t::double_quotes;
 					}
 					file << keyword_char_t::line_break;
