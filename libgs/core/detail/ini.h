@@ -348,7 +348,7 @@ public:
 	}
 
 	// TODO: canceller ... ...
-	void load(error_code &error, std::function<bool()> cancelled)
+	void load(error_code &error, const std::function<bool()> &cancelled)
 	{
 		error = error_code();
 		if( not std::filesystem::exists(m_file_name) )
@@ -404,7 +404,7 @@ public:
 	}
 
 	// TODO: canceller ... ...
-	void sync(error_code &error, std::function<bool()> cancelled)
+	void sync(error_code &error, const std::function<bool()> &cancelled)
 	{
 		std::basic_ofstream<CharT> file;
 		auto prev = file.exceptions();
@@ -488,7 +488,7 @@ public:
 					detail::ini_commit_io_work([self]
 					{
 						error_code error; LIBGS_UNUSED(error);
-						self->sync(error);
+						self->sync(error, []{return false;});
 					});
 				}
 				co_return ;
@@ -1157,7 +1157,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load(Token &&token)
 			{
 				LIBGS_UNUSED(impl);
 				error_code error;
-				m_impl->load(error, std::move(cancelled));
+				m_impl->load(error, cancelled);
 				dispatch(exec, [handle = std::move(handle), error]() mutable {
 					std::move(*handle)(error);
 				});
@@ -1239,7 +1239,7 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::sync(Token &&token)
 			{
 				LIBGS_UNUSED(impl);
 				error_code error;
-				sync(error, std::move(cancelled));
+				m_impl->sync(error, cancelled);
 				dispatch(exec, [handle = std::move(handle), error]() mutable {
 					std::move(*handle)(error);
 				});
