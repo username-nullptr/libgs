@@ -285,7 +285,7 @@ concept async_tf_opt_token = is_async_tf_opt_token_v<Token,Args...>;
 template <typename Token>
 concept any_async_tf_opt_token = is_any_async_tf_opt_token_v<Token>;
 
-template <typename Token, typename...Args>
+template <typename Token>
 concept sync_opt_token = is_sync_opt_token_v<Token>;
 
 template <typename Token, typename...Args>

@@ -103,12 +103,14 @@ public:
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
 	[[nodiscard]] static auto handle (
-		concepts::schedulable auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable
+		concepts::schedulable auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up,
+		Token &&token = use_awaitable
 	);
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
 	[[nodiscard]] static auto handle (
-		concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable
+		concepts::async_wake_up<handler_t&&> auto &&wake_up,
+		Token &&token = use_awaitable
 	);
 };
 

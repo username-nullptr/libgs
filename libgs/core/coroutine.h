@@ -121,7 +121,7 @@ template <concepts::schedulable Exec = io_executor_t>
 
 template <concepts::any_async_tf_opt_token Token>
 LIBGS_CORE_TAPI bool check_error (
-	Token &token, const error_code &error, const char *func = nullptr
+	Token &token, const error_code &error, const char *message = nullptr
 ) requires (not std::is_const_v<Token>);
 
 #ifdef LIBGS_USING_BOOST_ASIO
@@ -172,7 +172,7 @@ template <concepts::execution YCExec>
 
 template <concepts::execution Exec>
 LIBGS_CORE_VAPI bool check_error (
-	basic_yield_context<Exec> &yc, const error_code &error, const char *func = nullptr
+	basic_yield_context<Exec> &yc, const error_code &error, const char *message = nullptr
 );
 
 #endif //LIBGS_USING_BOOST_ASIO

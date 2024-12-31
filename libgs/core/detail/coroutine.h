@@ -210,7 +210,7 @@ inline awaitable<asio::any_io_executor> co_to_thread()
 }
 
 template <concepts::any_async_tf_opt_token Token>
-bool check_error(Token &token, const error_code &error, const char *func)
+bool check_error(Token &token, const error_code &error, const char *message)
 	requires (not std::is_const_v<Token>)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -218,7 +218,7 @@ bool check_error(Token &token, const error_code &error, const char *func)
 	{
 		if( not error )
 			return true;
-		throw func ? system_error(error, func) : system_error(error);
+		throw message ? system_error(error, message) : system_error(error);
 	}
 	else if constexpr( is_redirect_error_v<token_t> )
 	{
@@ -226,10 +226,10 @@ bool check_error(Token &token, const error_code &error, const char *func)
 		return false;
 	}
 	else if constexpr( is_cancellation_slot_binder_v<token_t> )
-		return check_error(token.get(), error, func);
+		return check_error(token.get(), error, message);
 
 	else if constexpr( is_redirect_time_v<token_t> )
-		return check_error(token.token, error, func);
+		return check_error(token.token, error, message);
 	else
 	{
 		static_assert(false, "Unsupported token type.");
@@ -448,12 +448,12 @@ asio::any_io_executor co_to_thread(basic_yield_context<YCExec> yc)
 }
 
 template <concepts::execution Exec>
-bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const char *func)
+bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const char *message)
 {
 	if( not error )
 		return true;
 	else if( not yc.ec_ )
-		throw func ? system_error(error, func) : system_error(error);
+		throw func ? system_error(error, message) : system_error(error);
 	*yc.ec_ = error;
 	return false;
 }
