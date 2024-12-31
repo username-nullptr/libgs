@@ -145,6 +145,26 @@ LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 
 } //namespace detail
 
+template <concepts::callable Func, concepts::dispatch_token<Func> Token>
+auto _dispatch(concepts::schedulable auto &&exec, Func &&func, Token &&token)
+{
+	using return_t = std::invoke_result_t<Func>;
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( is_awaitable_v<return_t> )
+		return asio::co_spawn(exec, std::forward<Func>(func), std::forward<Token>(token));
+	else
+	{
+		using ntoken_t = token_unbound_t<token_t>;
+		if constexpr( is_detached_v<ntoken_t> )
+			asio::dispatch(exec, std::forward<Func>(func));
+
+		else if constexpr( is_use_future_v<token_t> )
+			return detail::dispatch_future(exec, std::forward<func_t>(func));
+
+	}
+}
+
 template <concepts::dis_func_opt_token Token>
 auto dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token)
 {

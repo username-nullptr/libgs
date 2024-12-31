@@ -210,6 +210,12 @@ struct is_opt_token
 template <typename Token, typename...Args>
 constexpr bool is_opt_token_v = is_opt_token<Token,Args...>::value;
 
+template <typename Token>
+struct is_any_opt_token : std::disjunction<is_async_opt_token<Token>, is_sync_opt_token<Token>> {};
+
+template <typename Token>
+constexpr bool is_any_opt_token_v = is_any_opt_token<Token>::value;
+
 template <typename Token, typename...Args>
 struct is_tf_opt_token
 {
@@ -220,6 +226,12 @@ struct is_tf_opt_token
 
 template <typename Token, typename...Args>
 constexpr bool is_tf_opt_token_v = is_tf_opt_token<Token,Args...>::value;
+
+template <typename Token>
+struct is_any_tf_opt_token : std::disjunction<is_async_tf_opt_token<Token>, is_sync_opt_token<Token>> {};
+
+template <typename Token>
+constexpr bool is_any_tf_opt_token_v = is_any_tf_opt_token<Token>::value;
 
 template <typename Token>
 struct is_dis_func_opt_token
@@ -293,6 +305,12 @@ concept opt_token = is_opt_token_v<Token,Args...>;
 
 template <typename Token, typename...Args>
 concept tf_opt_token = is_tf_opt_token_v<Token,Args...>;
+
+template <typename Token>
+concept any_opt_token = is_any_opt_token_v<Token>;
+
+template <typename Token>
+concept any_tf_opt_token = is_any_tf_opt_token_v<Token>;
 
 template <typename Token, typename...Args>
 concept dis_sync_tf_opt_token = is_dis_sync_tf_opt_token_v<Token,Args...>;

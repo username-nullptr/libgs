@@ -216,15 +216,6 @@ struct is_ifstream : std::disjunction<is_char_ifstream<T>, is_wchar_ifstream<T>>
 template <typename T>
 constexpr bool is_ifstream_v = is_ifstream<T>::value;
 
-template <typename Derived, typename Base>
-struct crtp_derived { using type = Derived; };
-
-template <typename Base>
-struct crtp_derived<void,Base> { using type = Base; };
-
-template <typename Derived, typename Base>
-using crtp_derived_t = typename crtp_derived<Derived, Base>::type;
-
 namespace concepts
 {
 

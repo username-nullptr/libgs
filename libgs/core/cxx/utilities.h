@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_CXX_UTILITIES_H
 #define LIBGS_CORE_CXX_UTILITIES_H
 
+#include <libgs/core/cxx/token_concepts.h>
 #include <libgs/core/cxx/remove_repeat.h>
 #include <libgs/core/cxx/string_tools.h>
 #include <libgs/core/cxx/type_traits.h>
@@ -68,9 +69,44 @@ template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI const char *type_name();
 [[nodiscard]] LIBGS_CORE_TAPI const char *type_name(auto &&t);
 
-LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
 	concepts::schedulable auto &&exec
 );
+
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) unbound_token (
+	concepts::any_tf_opt_token auto &&token
+);
+
+template <concepts::any_tf_opt_token Token>
+struct token_unbound
+{
+	using type = std::remove_cvref_t <
+		decltype(unbound_token(std::declval<Token>()))
+	>;
+};
+
+template <concepts::any_tf_opt_token Token>
+using token_unbound_t = typename token_unbound<Token>::type;
+
+template <typename T, typename U> requires std::is_class_v<T>
+struct class_member
+{
+	using type = std::remove_reference_t <
+		decltype(std::declval<T>().*std::declval<U>())
+	>;
+};
+
+template <typename T, typename U> requires std::is_class_v<T>
+using class_member_t = typename class_member<T,U>::type;
+
+template <typename Derived, typename Base>
+struct crtp_derived { using type = Derived; };
+
+template <typename Base>
+struct crtp_derived<void,Base> { using type = Base; };
+
+template <typename Derived, typename Base>
+using crtp_derived_t = typename crtp_derived<Derived, Base>::type;
 
 enum class ip_type {
 	v4, v6, loopback

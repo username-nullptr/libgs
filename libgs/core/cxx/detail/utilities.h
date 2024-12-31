@@ -85,6 +85,21 @@ decltype(auto) get_executor_helper(concepts::schedulable auto &&exec)
 		return exec.get_executor();
 }
 
+decltype(auto) unbound_token(concepts::any_tf_opt_token auto &&token)
+{
+	using Token = decltype(token);
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( is_redirect_time_v<token_t> )
+		return unbound_token(token.token);
+	else if constexpr( is_redirect_error_v<token_t> )
+		return return_reference(token.token_);
+	else if constexpr( is_cancellation_slot_binder_v<token_t> )
+		return token.get();
+	else
+		return std::forward<Token>(token);
+}
+
 template <typename Protocol>
 basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(string_wrapper address, uint16_t port) :
 	value(asio::ip::address::from_string(address.value), port)

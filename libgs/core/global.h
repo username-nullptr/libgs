@@ -29,7 +29,6 @@
 #ifndef LIBGS_CORE_GLOBAL_H
 #define LIBGS_CORE_GLOBAL_H
 
-#include <libgs/core/cxx/token_concepts.h>
 #include <libgs/core/cxx/formatter.h>
 #include <libgs/core/cxx/exception.h>
 

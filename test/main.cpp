@@ -10,10 +10,31 @@
 #include <iostream>
 
 // using namespace std::chrono_literals;
-// using namespace libgs::operators;
+using namespace libgs::operators;
 
 int main()
 {
+	std::error_code ec;
+	auto re = asio::redirect_error(libgs::use_awaitable, ec);
+
+	using re_t = decltype(re);
+	using asd = libgs::class_member<re_t, decltype(&re_t::token_)>::type;
+
+
+	asio::cancellation_signal sig;
+
+	auto func = [](std::exception_ptr ex, int a)
+	{
+		libgs::ignore_unused(ex, a);
+	};
+
+	co_spawn(libgs::get_executor(), []() -> asio::awaitable<int>
+	{
+		co_return 123;
+	},
+	std::move(func) | sig.slot());
+
+
 	// libgs::basic_async_work<asio::any_io_executor>::make();
 
 	// spdlog::set_level(spdlog::level::trace);

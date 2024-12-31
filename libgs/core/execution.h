@@ -45,6 +45,39 @@ LIBGS_CORE_API void exit(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
 
+namespace concepts
+{
+
+template <typename Token, typename Func>
+concept dispatch_token = []() consteval -> bool
+{
+	if constexpr( not callable<Func> )
+		return false;
+
+	using return_t = std::invoke_result_t<Func>;
+	if constexpr( is_awaitable_v<return_t> )
+	{
+		return opt_token<Token, std::exception_ptr,
+			typename std::invoke_result_t<Func>::value_type
+		>;
+	}
+	else
+	{
+		return opt_token<Token, std::exception_ptr,
+			std::invoke_result_t<Func>
+		>;
+	}
+}();
+
+} //namespace concepts
+
+constexpr decltype(auto) base_token(concepts::any_opt_token auto &&token);
+
+template <concepts::callable Func, concepts::dispatch_token<Func> Token = const detached_t&>
+LIBGS_CORE_TAPI auto _dispatch (
+	concepts::schedulable auto &&exec, Func &&func, Token &&token = detached
+);
+
 template <concepts::dis_func_opt_token Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
 	concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token = detached
