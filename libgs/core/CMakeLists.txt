@@ -27,6 +27,7 @@ set(${target_name}_headers
 	cxx/function_traits.h
 	cxx/return_tools.h
 	cxx/string_tools.h
+	cxx/tools.h
 	cxx/initialize.h
 	cxx/utilities.h
 	cxx/formatter.h
@@ -58,6 +59,7 @@ set(${target_name}_headers
 set(${target_name}_detail_headers
 	cxx/detail/return_tools.h
 	cxx/detail/string_tools.h
+	cxx/detail/tools.h
 	cxx/detail/utilities.h
 	cxx/detail/exception.h
 	cxx/detail/flags.h

@@ -44,44 +44,6 @@ LIBGS_CORE_TAPI void promise_set_value(std::promise<T> &promise, auto &&func)
 		promise.set_value(func());
 }
 
-template <typename Exec, typename Func>
-LIBGS_CORE_TAPI [[nodiscard]] auto dispatch_future(Exec &&exec, Func &&func)
-{
-	using return_t = std::invoke_result_t<Func>;
-	if constexpr( is_awaitable_v<return_t> )
-		return asio::co_spawn(std::forward<Exec>(exec), std::forward<Func>(func), use_future);
-	else
-	{
-		std::promise<return_t> promise;
-		auto future = promise.get_future();
-
-		asio::dispatch(std::forward<Exec>(exec),
-		[promise = std::move(promise), func = std::forward<Func>(func)]() mutable {
-			promise_set_value(promise, std::forward<Func>(func));
-		});
-		return return_nodiscard(std::move(future));
-	}
-}
-
-template <typename Exec, typename Func>
-LIBGS_CORE_TAPI [[nodiscard]] auto post_future(Exec &&exec, Func &&func)
-{
-	using return_t = std::invoke_result_t<Func>;
-	if constexpr( is_awaitable_v<return_t> )
-		return asio::co_spawn(std::forward<Exec>(exec), std::forward<Func>(func), use_future);
-	else
-	{
-		std::promise<return_t> promise;
-		auto future = promise.get_future();
-
-		asio::post(std::forward<Exec>(exec),
-		[promise = std::move(promise), func = std::forward<Func>(func)]() mutable {
-			promise_set_value(promise, std::forward<Func>(func));
-		});
-		return return_nodiscard(std::move(future));
-	}
-}
-
 template <typename Func>
 LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 {
@@ -145,287 +107,338 @@ LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 
 } //namespace detail
 
-template <concepts::callable Func, concepts::dispatch_token<Func> Token>
-auto _dispatch(concepts::schedulable auto &&exec, Func &&func, Token &&token)
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
+auto dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&token)
 {
-	using return_t = std::invoke_result_t<Func>;
-	using token_t = std::remove_cvref_t<Token>;
-
-	if constexpr( is_awaitable_v<return_t> )
-		return asio::co_spawn(exec, std::forward<Func>(func), std::forward<Token>(token));
+	using work_t = std::remove_cvref_t<Work>;
+	if constexpr( is_awaitable_v<work_t> )
+	{
+		return dispatch(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+			co_return co_await std::move(a);
+		}, std::forward<Token>(token));
+	}
 	else
 	{
+		using return_t = std::invoke_result_t<Work>;
+		using token_t = std::remove_cvref_t<Token>;
+
+		if constexpr( is_awaitable_v<return_t> )
+		{
+			if constexpr( is_sync_opt_token_v<Token> )
+				return dispatch(exec, std::forward<Work>(work), use_future).get();
+			else
+				return asio::co_spawn(exec, std::forward<Work>(work), std::forward<Token>(token));
+		}
+		else
+		{
+			using ntoken_t = token_unbound_t<token_t>;
+			if constexpr( is_detached_v<ntoken_t> )
+				asio::dispatch(exec, std::forward<Work>(work));
+
+			else if constexpr( is_use_future_v<ntoken_t> )
+			{
+				std::promise<return_t> promise;
+				auto future = promise.get_future();
+
+				asio::dispatch(exec,
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable {
+					detail::promise_set_value(promise, std::forward<Work>(func));
+				});
+				return return_nodiscard(std::move(future));
+			}
+			else if constexpr( is_async_opt_token_v<ntoken_t> )
+			{
+				return asio::co_spawn(exec,
+				[func = std::forward<Work>(work)]() mutable -> awaitable<return_t> {
+					co_return func();
+				}, std::forward<Token>(token));
+			}
+			else
+				return dispatch(exec, std::forward<Work>(work), use_future).get();
+		}
+	}
+}
+
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
+auto dispatch(Work &&work, Token &&token)
+{
+	return dispatch(io_context(), std::forward<Work>(work), std::forward<Token>(token));
+}
+
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
+auto post(concepts::schedulable auto &&exec, Work &&work, Token &&token)
+{
+	using work_t = std::remove_cvref_t<Work>;
+	if constexpr( is_awaitable_v<work_t> )
+	{
+		return post(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+			co_return co_await std::move(a);
+		}, std::forward<Token>(token));
+	}
+	else
+	{
+		using return_t = std::invoke_result_t<Work>;
+		using token_t = std::remove_cvref_t<Token>;
+
+		if constexpr( is_awaitable_v<return_t> )
+		{
+			if constexpr( is_sync_opt_token_v<Token> )
+				return post(exec, std::forward<Work>(work), use_future).get();
+			else
+				return asio::co_spawn(exec, std::forward<Work>(work), std::forward<Token>(token));
+		}
+		else
+		{
+			using ntoken_t = token_unbound_t<token_t>;
+			if constexpr( is_detached_v<ntoken_t> )
+				asio::post(exec, std::forward<Work>(work));
+
+			else if constexpr( is_use_future_v<ntoken_t> )
+			{
+				std::promise<return_t> promise;
+				auto future = promise.get_future();
+
+				asio::post(exec,
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable {
+					detail::promise_set_value(promise, std::forward<Work>(func));
+				});
+				return return_nodiscard(std::move(future));
+			}
+			else if constexpr( is_async_opt_token_v<ntoken_t> )
+			{
+				return asio::co_spawn(exec,
+				[func = std::forward<Work>(work)]() mutable -> awaitable<return_t> {
+					co_return func();
+				}, std::forward<Token>(token));
+			}
+			else
+				return post(exec, std::forward<Work>(work), use_future).get();
+		}
+	}
+}
+
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
+auto post(Work &&work, Token &&token)
+{
+	return post(io_context(), std::forward<Work>(work), std::forward<Token>(token));
+}
+
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
+auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &&token)
+{
+	using work_t = std::remove_cvref_t<Work>;
+	if constexpr( is_awaitable_v<work_t> )
+	{
+		return local_dispatch(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+			co_return co_await std::move(a);
+		}, std::forward<Token>(token));
+	}
+	else
+	{
+		using return_t = std::invoke_result_t<Work>;
+		using token_t = std::remove_cvref_t<decltype(token)>;
 		using ntoken_t = token_unbound_t<token_t>;
+
+		auto finished = std::make_shared<bool>(false);
 		if constexpr( is_detached_v<ntoken_t> )
-			asio::dispatch(exec, std::forward<Func>(func));
-
-		else if constexpr( is_use_future_v<token_t> )
-			return detail::dispatch_future(exec, std::forward<func_t>(func));
-
-	}
-}
-
-template <concepts::dis_func_opt_token Token>
-auto dispatch(concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token)
-{
-	using func_t = std::remove_cvref_t<decltype(func)>;
-	using return_t = std::invoke_result_t<func_t>;
-	using token_t = std::remove_cvref_t<Token>;
-
-	if constexpr( is_detached_v<token_t> )
-	{
-		if constexpr( is_awaitable_v<return_t> )
-			asio::co_spawn(exec, std::forward<func_t>(func), token);
-		else
-			asio::dispatch(exec, std::forward<func_t>(func));
-	}
-	else if constexpr( is_use_future_v<token_t> )
-		return detail::dispatch_future(exec, std::forward<func_t>(func));
-
-	else if constexpr( is_async_opt_token_v<token_t> )
-	{
-		if constexpr( is_awaitable_v<return_t> )
-			return asio::co_spawn(exec, std::forward<func_t>(func), token);
-		else
 		{
-			return asio::co_spawn(exec,
-			[func = std::forward<func_t>(func)]() mutable -> awaitable<return_t> {
-				co_return func();
-			},
-			token);
+			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+			dispatch(exec, std::move(lambda), std::forward<Token>(token));
+
+			std::thread([&exec, finished]() mutable {
+				detail::dispatch_poll(exec, *finished);
+			}).detach();
 		}
-	}
-	else if constexpr( is_awaitable_v<return_t> )
-		return detail::dispatch_future(exec, std::forward<func_t>(func)).get();
-	else
-		return func();
-}
-
-template <concepts::dis_func_opt_token Token>
-auto dispatch(concepts::callable auto &&func, Token &&token)
-{
-	using func_t = decltype(func);
-	return dispatch(io_context(), std::forward<func_t>(func), std::forward<Token>(token));
-}
-
-template <concepts::dis_func_opt_token Token>
-auto post(concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token)
-{
-	using func_t = std::remove_cvref_t<decltype(func)>;
-	using return_t = std::invoke_result_t<func_t>;
-	using token_t = std::remove_cvref_t<Token>;
-
-	if constexpr( is_detached_v<token_t> )
-	{
-		if constexpr( is_awaitable_v<return_t> )
-			return asio::co_spawn(exec, std::forward<func_t>(func), token);
-		else
-			return asio::post(exec, std::forward<func_t>(func));
-	}
-	else if constexpr( is_use_future_v<token_t> )
-		return detail::post_future(exec, std::forward<func_t>(func));
-
-	else if constexpr( is_async_opt_token_v<token_t> )
-	{
-		if constexpr( is_awaitable_v<return_t> )
-			return asio::co_spawn(exec, std::forward<func_t>(func), token);
-		else
+		else if constexpr( is_use_future_v<ntoken_t> )
 		{
-			return asio::co_spawn(exec,
-			[func = std::forward<func_t>(func)]() -> awaitable<return_t> {
-				co_return func();
-			},
-			token);
+			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+			auto future = dispatch(exec, std::move(lambda), std::forward<Token>(token));
+
+			std::thread([&exec, finished, counter]() mutable {
+				*counter = detail::dispatch_poll(exec, *finished);
+			}).detach();
+			return return_nodiscard(std::move(future));
 		}
+		else if constexpr( is_async_opt_token_v<ntoken_t> )
+		{
+			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+			auto a = dispatch(exec, std::move(lambda), token);
+
+			std::thread([&exec, finished, counter]() mutable {
+				*counter = detail::dispatch_poll(exec, *finished);
+			}).detach();
+			return return_nodiscard(std::move(a));
+		}
+		else if constexpr( is_awaitable_v<return_t> )
+		{
+			using co_return_t = typename return_t::value_type;
+			auto counter = std::make_shared<size_t>(0);
+
+			if constexpr( std::is_void_v<co_return_t> )
+			{
+				asio::co_spawn(exec, [&finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				{
+					co_await func();
+					*finished = true;
+					co_return ;
+				},
+				detached);
+				*counter = detail::dispatch_poll(exec, *finished);
+				return counter;
+			}
+			else
+			{
+				auto pair = std::make_pair(co_return_t(), counter);
+				asio::co_spawn(exec, [&pair, &finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				{
+					auto res = co_await func();
+					*finished = true;
+					pair.first = std::move(res);
+					co_return ;
+				},
+				detached);
+				*counter = detail::dispatch_poll(exec, *finished);
+				return pair;
+			}
+		}
+		else
+			return std::make_pair(work(), std::make_shared<size_t>(1));
 	}
-	else if constexpr( is_awaitable_v<return_t> )
-		return detail::post_future(exec, std::forward<func_t>(func)).get();
-	else
-		return func();
 }
 
-template <concepts::dis_func_opt_token Token>
-auto post(concepts::callable auto &&func, Token &&token)
+template <typename Work>
+auto local_dispatch(concepts::execution_context auto &exec, Work &&work)
+	requires concepts::dispatch_token<detached_t, Work>
 {
-	using func_t = decltype(func);
-	return post(io_context(), std::forward<func_t>(func), std::forward<Token>(token));
-}
-
-auto local_dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func,
-                    concepts::dis_func_opt_token auto &&token)
-{
-	using func_t = std::remove_cvref_t<decltype(func)>;
-	using return_t = std::invoke_result_t<func_t>;
-	using token_t = std::remove_cvref_t<decltype(token)>;
-
-	auto finished = std::make_shared<bool>(false);
-	if constexpr( is_detached_v<token_t> )
+	using work_t = std::remove_cvref_t<Work>;
+	if constexpr( is_awaitable_v<work_t> )
 	{
-		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-		dispatch(exec, std::move(lambda), token);
+		return local_dispatch(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+			co_return co_await std::move(a);
+		});
+	}
+	else
+	{
+		auto finished = std::make_shared<bool>(false);
 
-		std::thread([&exec, finished]() mutable {
+		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+		dispatch(exec, std::move(lambda), detached);
+
+		return std::thread([&exec, finished]() mutable {
 			detail::dispatch_poll(exec, *finished);
-		}).detach();
+		});
 	}
-	else if constexpr( is_use_future_v<token_t> )
-	{
-		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-		auto future = dispatch(exec, std::move(lambda), token);
+}
 
-		std::thread([&exec, finished, counter]() mutable {
-			*counter = detail::dispatch_poll(exec, *finished);
-		}).detach();
-		return return_nodiscard(std::move(future));
-	}
-	else if constexpr( is_async_opt_token_v<token_t> )
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
+auto local_dispatch(Work &&work, Token &&token)
+{
+	using work_t = std::remove_cvref_t<Work>;
+	if constexpr( is_awaitable_v<work_t> )
 	{
-		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-		auto a = dispatch(exec, std::move(lambda), token);
-
-		std::thread([&exec, finished, counter]() mutable {
-			*counter = detail::dispatch_poll(exec, *finished);
-		}).detach();
-		return return_nodiscard(std::move(a));
-	}
-	else if constexpr( is_awaitable_v<return_t> )
-	{
-		using co_return_t = typename return_t::value_type;
-		auto counter = std::make_shared<size_t>(0);
-
-		if constexpr( std::is_void_v<co_return_t> )
-		{
-			asio::co_spawn(exec, [&finished, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
-			{
-				co_await func();
-				*finished = true;
-				co_return ;
-			},
-			detached);
-			*counter = detail::dispatch_poll(exec, *finished);
-			return counter;
-		}
-		else
-		{
-			auto pair = std::make_pair(co_return_t(), counter);
-			asio::co_spawn(exec, [&pair, &finished, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
-			{
-				auto res = co_await func();
-				*finished = true;
-				pair.first = std::move(res);
-				co_return ;
-			},
-			detached);
-			*counter = detail::dispatch_poll(exec, *finished);
-			return pair;
-		}
+		return local_dispatch([a = std::forward<Work>(work)]() mutable -> work_t {
+			co_return co_await std::move(a);
+		}, std::forward<Token>(token));
 	}
 	else
-		return std::make_pair(func(), std::make_shared<size_t>(1));
+	{
+		using return_t = std::invoke_result_t<Work>;
+		using token_t = std::remove_cvref_t<decltype(token)>;
+
+		auto finished = std::make_shared<bool>(false);
+		if constexpr( is_detached_v<token_t> )
+		{
+			auto ioc = std::make_shared<asio::io_context>();
+			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+			dispatch(*ioc, std::move(lambda), token);
+
+			std::thread([ioc = std::move(ioc), finished]() mutable {
+				detail::dispatch_poll(*ioc, *finished);
+			}).detach();
+		}
+		else if constexpr( is_use_future_v<token_t> )
+		{
+			auto ioc = std::make_shared<asio::io_context>();
+			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+			auto future = dispatch(*ioc, std::move(lambda), token);
+
+			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
+				*counter = detail::dispatch_poll(*ioc, *finished);
+			}).detach();
+			return return_nodiscard(std::move(future));
+		}
+		else if constexpr( is_async_opt_token_v<token_t> )
+		{
+			auto ioc = std::make_shared<asio::io_context>();
+			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+			auto a = dispatch(*ioc, std::move(lambda), token);
+
+			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
+				*counter = detail::dispatch_poll(*ioc, *finished);
+			}).detach();
+			return return_nodiscard(std::move(a));
+		}
+		else if constexpr( is_awaitable_v<return_t> )
+		{
+			using co_return_t = typename return_t::value_type;
+			auto counter = std::make_shared<size_t>(0);
+			asio::io_context ioc;
+
+			if constexpr( std::is_void_v<co_return_t> )
+			{
+				asio::co_spawn(ioc, [&finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				{
+					co_await func();
+					*finished = true;
+					co_return ;
+				},
+				detached);
+				*counter = detail::dispatch_poll(ioc, *finished);
+				return counter;
+			}
+			else
+			{
+				auto pair = std::make_pair(co_return_t(), counter);
+				asio::co_spawn(ioc, [&pair, &finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				{
+					auto res = co_await func();
+					*finished = true;
+					pair.first = std::move(res);
+					co_return ;
+				},
+				detached);
+				*counter = detail::dispatch_poll(ioc, *finished);
+				return pair;
+			}
+		}
+		else
+			return std::make_pair(work(), std::make_shared<size_t>(1));
+	}
 }
 
-auto local_dispatch(concepts::execution_context auto &exec, concepts::callable auto &&func)
+template <typename Work>
+auto local_dispatch(Work &&work)
+	requires concepts::dispatch_token<detached_t, Work>
 {
-	auto finished = std::make_shared<bool>(false);
-	using func_t = std::remove_cvref_t<decltype(func)>;
-
-	auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-	dispatch(exec, std::move(lambda), detached);
-
-	return std::thread([&exec, finished]() mutable {
-		detail::dispatch_poll(exec, *finished);
-	});
-}
-
-auto local_dispatch(concepts::callable auto &&func, concepts::dis_func_opt_token auto &&token)
-{
-	using func_t = std::remove_cvref_t<decltype(func)>;
-	using return_t = std::invoke_result_t<func_t>;
-	using token_t = std::remove_cvref_t<decltype(token)>;
-
-	auto finished = std::make_shared<bool>(false);
-	if constexpr( is_detached_v<token_t> )
+	using work_t = std::remove_cvref_t<Work>;
+	if constexpr( is_awaitable_v<work_t> )
+	{
+		return local_dispatch([a = std::forward<Work>(work)]() mutable -> work_t {
+			co_return co_await std::move(a);
+		});
+	}
+	else
 	{
 		auto ioc = std::make_shared<asio::io_context>();
-		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-		dispatch(*ioc, std::move(lambda), token);
+		auto finished = std::make_shared<bool>(false);
 
-		std::thread([ioc = std::move(ioc), finished]() mutable {
+		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
+		dispatch(*ioc, std::move(lambda), detached);
+
+		return std::thread([ioc = std::move(ioc), finished]() mutable {
 			detail::dispatch_poll(*ioc, *finished);
-		}).detach();
+		});
 	}
-	else if constexpr( is_use_future_v<token_t> )
-	{
-		auto ioc = std::make_shared<asio::io_context>();
-		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-		auto future = dispatch(*ioc, std::move(lambda), token);
-
-		std::thread([ioc = std::move(ioc), finished, counter]() mutable {
-			*counter = detail::dispatch_poll(*ioc, *finished);
-		}).detach();
-		return return_nodiscard(std::move(future));
-	}
-	else if constexpr( is_async_opt_token_v<token_t> )
-	{
-		auto ioc = std::make_shared<asio::io_context>();
-		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-		auto a = dispatch(*ioc, std::move(lambda), token);
-
-		std::thread([ioc = std::move(ioc), finished, counter]() mutable {
-			*counter = detail::dispatch_poll(*ioc, *finished);
-		}).detach();
-		return return_nodiscard(std::move(a));
-	}
-	else if constexpr( is_awaitable_v<return_t> )
-	{
-		using co_return_t = typename return_t::value_type;
-		auto counter = std::make_shared<size_t>(0);
-		asio::io_context ioc;
-
-		if constexpr( std::is_void_v<co_return_t> )
-		{
-			asio::co_spawn(ioc, [&finished, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
-			{
-				co_await func();
-				*finished = true;
-				co_return ;
-			},
-			detached);
-			*counter = detail::dispatch_poll(ioc, *finished);
-			return counter;
-		}
-		else
-		{
-			auto pair = std::make_pair(co_return_t(), counter);
-			asio::co_spawn(ioc, [&pair, &finished, func = std::forward<func_t>(func)]() mutable -> awaitable<void>
-			{
-				auto res = co_await func();
-				*finished = true;
-				pair.first = std::move(res);
-				co_return ;
-			},
-			detached);
-			*counter = detail::dispatch_poll(ioc, *finished);
-			return pair;
-		}
-	}
-	else
-		return std::make_pair(func(), std::make_shared<size_t>(1));
-
-}
-
-auto local_dispatch(concepts::callable auto &&func)
-{
-	auto ioc = std::make_shared<asio::io_context>();
-	auto finished = std::make_shared<bool>(false);
-	using func_t = std::remove_cvref_t<decltype(func)>;
-
-	auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<func_t>(func), *finished);
-	dispatch(*ioc, std::move(lambda), detached);
-
-	return std::thread([ioc = std::move(ioc), finished]() mutable {
-		detail::dispatch_poll(*ioc, *finished);
-	});
 }
 
 namespace concepts::detail
@@ -460,7 +473,10 @@ LIBGS_CORE_TAPI void async_x(WakeUp &&wake_up, Handler &&handler)
 {
 	auto work = asio::make_work_guard(handler);
 	auto exec = work.get_executor();
-	asio::dispatch(exec, [exec, wake_up = std::forward<WakeUp>(wake_up), handler = std::move(handler)]() mutable {
+	asio::dispatch(exec, [
+		exec, wake_up = std::forward<WakeUp>(wake_up),
+		handler = std::forward<Handler>(handler)
+	]() mutable {
 		async_xx(exec, std::move(wake_up), std::move(handler));
 	});
 }
@@ -469,8 +485,10 @@ template <typename Exec, typename WakeUp, typename Handler>
 LIBGS_CORE_TAPI void async_x(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
 {
 	auto work = asio::make_work_guard(handler);
-	asio::dispatch(exec,
-	[exec = work.get_executor(), wake_up = std::forward<WakeUp>(wake_up), handler = std::move(handler)]() mutable {
+	asio::dispatch(exec, [
+		exec = work.get_executor(), wake_up = std::forward<WakeUp>(wake_up),
+		handler = std::forward<Handler>(handler)
+	]() mutable {
 		async_xx(exec, std::move(wake_up), std::move(handler));
 	});
 }

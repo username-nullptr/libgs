@@ -24,52 +24,77 @@
 *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
 *   SOFTWARE.                                                                       *
 *                                                                                   *
+
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_UTILITIES_H
-#define LIBGS_CORE_CXX_UTILITIES_H
-
-#include <libgs/core/cxx/initialize.h>
-#include <libgs/core/cxx/tools.h>
-#include <utility>
+#ifndef LIBGS_CORE_CXX_DETAIL_TOOLS_H
+#define LIBGS_CORE_CXX_DETAIL_TOOLS_H
 
 namespace libgs
 {
 
-enum class ip_type {
-	v4, v6, loopback
-};
-
-template <typename Protocol>
-struct LIBGS_CORE_TAPI basic_endpoint_wrapper
+template <typename T>
+const char *type_name()
 {
-	using protocol_t = Protocol;
-	using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
-	endpoint_t value;
+	return LIBGS_ABI_CXA_DEMANGLE(typeid(T).name());
+}
 
-	basic_endpoint_wrapper() = default;
-	basic_endpoint_wrapper(string_wrapper address, uint16_t port);
-	basic_endpoint_wrapper(string_wrapper address);
+const char *type_name(auto &&t)
+{
+	return LIBGS_ABI_CXA_DEMANGLE(typeid(t).name());
+}
 
-	basic_endpoint_wrapper(ip_type type, uint16_t port);
-	basic_endpoint_wrapper(ip_type type);
+template <typename T>
+constexpr T &remove_const(const T &v)
+{
+	return const_cast<T&>(v);
+}
 
-	template <typename...Args>
-	basic_endpoint_wrapper(Args&&...args) requires
-		concepts::constructible<endpoint_t,Args&&...>;
+template <typename T>
+constexpr T *remove_const(const T *v)
+{
+	return const_cast<T*>(v);
+}
 
-	operator endpoint_t&();
-	operator const endpoint_t&() const;
+template <typename T>
+constexpr const T &as_const(const T &v)
+{
+	return v;
+}
 
-	endpoint_t &operator*();
-	endpoint_t *operator->();
-};
+template <typename T>
+constexpr const T *as_const(const T *v)
+{
+	return v;
+}
 
-using tcp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::tcp>;
-using udp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::udp>;
+decltype(auto) get_executor_helper(concepts::schedulable auto &&exec)
+{
+	using Exec = decltype(exec);
+	using exec_t = std::remove_cvref_t<Exec>;
+
+	if constexpr( is_execution_v<exec_t> )
+		return std::forward<Exec>(exec);
+	else
+		return exec.get_executor();
+}
+
+decltype(auto) unbound_token(concepts::any_tf_opt_token auto &&token)
+{
+	using Token = decltype(token);
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( is_redirect_time_v<token_t> )
+		return unbound_token(token.token);
+	else if constexpr( is_redirect_error_v<token_t> )
+		return return_reference(token.token_);
+	else if constexpr( is_cancellation_slot_binder_v<token_t> )
+		return token.get();
+	else
+		return std::forward<Token>(token);
+}
 
 } //namespace libgs
-#include <libgs/core/cxx/detail/utilities.h>
 
 
-#endif //LIBGS_CORE_CXX_UTILITIES_H
+#endif //LIBGS_CORE_CXX_DETAIL_TOOLS_H

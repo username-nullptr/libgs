@@ -32,68 +32,7 @@
 #include <thread>
 #include <libgs/http/cxx/file_opt_token.h>
 
-namespace libgs
-{
-
-template <typename T, concepts::dis_func_opt_token Token>
-auto dispatch(const concepts::execution auto &exec, awaitable<T> &&a, Token &&token)
-{
-	return dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	}, std::forward<Token>(token));
-}
-
-template <typename T, concepts::dis_func_opt_token Token>
-auto dispatch(concepts::execution_context auto &exec, awaitable<T> &&a, Token &&token)
-{
-	return dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	}, std::forward<Token>(token));
-}
-
-template <typename T, concepts::dis_func_opt_token Token>
-auto dispatch(awaitable<T> &&a, Token &&token)
-{
-	return dispatch([a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	}, std::forward<Token>(token));
-}
-
-template <typename T>
-auto local_dispatch(concepts::execution_context auto &exec, awaitable<T> &&a, concepts::dis_func_opt_token auto &&token)
-{
-	using token_t = decltype(token);
-	return local_dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	}, std::forward<token_t>(token));
-}
-
-template <typename T>
-auto local_dispatch(concepts::execution_context auto &exec, awaitable<T> &&a)
-{
-	return local_dispatch(exec, [a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	});
-}
-
-template <typename T>
-auto local_dispatch(awaitable<T> &&a, concepts::dis_func_opt_token auto &&token)
-{
-	using token_t = decltype(token);
-	return local_dispatch([a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	}, std::forward<token_t>(token));
-}
-
-template <typename T>
-auto local_dispatch(awaitable<T> &&a)
-{
-	return local_dispatch([a = std::move(a)]() mutable -> awaitable<T> {
-		co_return co_await std::move(a);
-	});
-}
-
-namespace detail
+namespace libgs { namespace detail
 {
 
 template <typename Exec>

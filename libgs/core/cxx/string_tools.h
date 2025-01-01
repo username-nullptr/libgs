@@ -87,6 +87,8 @@ LIBGS_CORE_VAPI [[nodiscard]] bool is_digit(std::string_view str) noexcept;
 LIBGS_CORE_VAPI [[nodiscard]] bool is_alnum(std::string_view str) noexcept;
 LIBGS_CORE_VAPI [[nodiscard]] bool is_ascii(std::string_view str) noexcept;
 
+#define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
+
 } //namespace libgs
 #include <libgs/core/cxx/detail/string_tools.h>
 

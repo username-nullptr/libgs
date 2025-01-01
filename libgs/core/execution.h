@@ -48,72 +48,97 @@ LIBGS_CORE_API void exit(int code = 0);
 namespace concepts
 {
 
-template <typename Token, typename Func>
-concept dispatch_token = []() consteval -> bool
+template <typename Work>
+concept dispatch_work = []() consteval -> bool
 {
-	if constexpr( not callable<Func> )
-		return false;
-
-	using return_t = std::invoke_result_t<Func>;
-	if constexpr( is_awaitable_v<return_t> )
-	{
-		return opt_token<Token, std::exception_ptr,
-			typename std::invoke_result_t<Func>::value_type
-		>;
-	}
+	if constexpr( callable<Work> )
+		return true;
 	else
 	{
-		return opt_token<Token, std::exception_ptr,
-			std::invoke_result_t<Func>
-		>;
+		using work_t = std::remove_cvref_t<Work>;
+		return awaitable_type<work_t> and std::is_rvalue_reference_v<Work&&>;
+	}
+}();
+
+template <typename Token, typename Work>
+concept dispatch_token = []() consteval -> bool
+{
+	if constexpr( not dispatch_work<Work> )
+		return false;
+	else
+	{
+		using work_t = std::remove_cvref_t<Work>;
+		if constexpr( awaitable_type<work_t> )
+		{
+			using return_t = typename work_t::value_type;
+			if constexpr( std::is_void_v<return_t> )
+				return opt_token<Token, std::exception_ptr>;
+			else
+				return opt_token<Token, std::exception_ptr, return_t>;
+		}
+		else
+		{
+			if constexpr( not callable<Work> )
+				return false;
+			else
+			{
+				using return_t = std::invoke_result_t<Work>;
+				if constexpr( is_awaitable_v<return_t> )
+				{
+					using nreturn_t = typename return_t::value_type;
+					if constexpr( std::is_void_v<nreturn_t> )
+						return opt_token<Token, std::exception_ptr>;
+					else
+						return opt_token<Token, std::exception_ptr, nreturn_t>;
+				}
+				else if constexpr( std::is_void_v<return_t> )
+					return opt_token<Token, std::exception_ptr>;
+				else
+					return opt_token<Token, std::exception_ptr, return_t>;
+			}
+		}
 	}
 }();
 
 } //namespace concepts
 
-constexpr decltype(auto) base_token(concepts::any_opt_token auto &&token);
-
-template <concepts::callable Func, concepts::dispatch_token<Func> Token = const detached_t&>
-LIBGS_CORE_TAPI auto _dispatch (
-	concepts::schedulable auto &&exec, Func &&func, Token &&token = detached
-);
-
-template <concepts::dis_func_opt_token Token = const detached_t&>
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
-	concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token = detached
+	concepts::schedulable auto &&exec, Work &&work, Token &&token = detached
 );
 
-template <concepts::dis_func_opt_token Token = const detached_t&>
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI auto dispatch (
-	concepts::callable auto &&func, Token &&token = detached
+	Work &&work, Token &&token = detached
 );
 
-template <concepts::dis_func_opt_token Token = const detached_t&>
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI auto post (
-	concepts::schedulable auto &&exec, concepts::callable auto &&func, Token &&token = detached
+	concepts::schedulable auto &&exec, Work &&work, Token &&token = detached
 );
 
-template <concepts::dis_func_opt_token Token = const detached_t&>
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI auto post (
-	concepts::callable auto &&func, Token &&token = detached
+	Work &&work, Token &&token = detached
 );
 
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::execution_context auto &exec, concepts::callable auto &&func,
-	concepts::dis_func_opt_token auto &&token
+	concepts::execution_context auto &exec, Work &&work, Token &&token
 );
 
+template <typename Work>
+LIBGS_CORE_TAPI auto local_dispatch(concepts::execution_context auto &exec, Work &&work)
+	requires concepts::dispatch_token<detached_t, Work>;
+
+template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::execution_context auto &exec, concepts::callable auto &&func
+	Work &&work, Token &&token
 );
 
-LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::callable auto &&func, concepts::dis_func_opt_token auto &&token
-);
-
-LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::callable auto &&func
-);
+template <typename Work>
+LIBGS_CORE_TAPI auto local_dispatch(Work &&work)
+	requires concepts::dispatch_token<detached_t, Work>;
 
 namespace concepts
 {

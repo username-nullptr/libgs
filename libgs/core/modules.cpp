@@ -13,7 +13,7 @@ using func_obj_t         = modules::func_obj_t;
 using func_list_t = std::list<func_obj_t>;
 using func_map_t  = std::map<level_t,func_list_t>;
 
-static inline func_map_t &init_map()
+static func_map_t &init_map()
 {
 	static func_map_t map;
 	return map;

@@ -43,42 +43,6 @@ using namespace asio::experimental::awaitable_operators;
 namespace libgs
 {
 
-template <typename T, concepts::dis_func_opt_token Token = const detached_t&>
-LIBGS_CORE_TAPI auto dispatch (
-	const concepts::execution auto &exec, awaitable<T> &&a, Token &&token = detached
-);
-
-template <typename T, concepts::dis_func_opt_token Token = const detached_t&>
-LIBGS_CORE_TAPI auto dispatch (
-	concepts::execution_context auto &exec, awaitable<T> &&a, Token &&token = detached
-);
-
-template <typename T, concepts::dis_func_opt_token Token = const detached_t&>
-LIBGS_CORE_TAPI auto dispatch (
-	awaitable<T> &&a, Token &&token = detached
-);
-
-template <typename T>
-LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::execution_context auto &exec, awaitable<T> &&a,
-	concepts::dis_func_opt_token auto &&token = detached
-);
-
-template <typename T>
-LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::execution_context auto &exec, awaitable<T> &&a
-);
-
-template <typename T>
-LIBGS_CORE_TAPI auto local_dispatch (
-	awaitable<T> &&a, concepts::dis_func_opt_token auto &&token = detached
-);
-
-template <typename T>
-LIBGS_CORE_TAPI auto local_dispatch (
-	awaitable<T> &&a
-);
-
 template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
 	const std::chrono::duration<Rep,Period> &rtime, concepts::schedulable auto &&exec
