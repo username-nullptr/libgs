@@ -103,22 +103,22 @@ concept dispatch_token = []() consteval -> bool
 } //namespace concepts
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
-LIBGS_CORE_TAPI auto dispatch (
+LIBGS_CORE_TAPI decltype(auto) dispatch (
 	concepts::schedulable auto &&exec, Work &&work, Token &&token = detached
 );
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
-LIBGS_CORE_TAPI auto dispatch (
+LIBGS_CORE_TAPI decltype(auto) dispatch (
 	Work &&work, Token &&token = detached
 );
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
-LIBGS_CORE_TAPI auto post (
+LIBGS_CORE_TAPI decltype(auto) post (
 	concepts::schedulable auto &&exec, Work &&work, Token &&token = detached
 );
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
-LIBGS_CORE_TAPI auto post (
+LIBGS_CORE_TAPI decltype(auto) post (
 	Work &&work, Token &&token = detached
 );
 

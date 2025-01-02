@@ -108,7 +108,7 @@ LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 } //namespace detail
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-auto dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&token)
+decltype(auto) dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&token)
 {
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
@@ -160,13 +160,13 @@ auto dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&token)
 }
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-auto dispatch(Work &&work, Token &&token)
+decltype(auto) dispatch(Work &&work, Token &&token)
 {
 	return dispatch(io_context(), std::forward<Work>(work), std::forward<Token>(token));
 }
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-auto post(concepts::schedulable auto &&exec, Work &&work, Token &&token)
+decltype(auto) post(concepts::schedulable auto &&exec, Work &&work, Token &&token)
 {
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
@@ -218,7 +218,7 @@ auto post(concepts::schedulable auto &&exec, Work &&work, Token &&token)
 }
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-auto post(Work &&work, Token &&token)
+decltype(auto) post(Work &&work, Token &&token)
 {
 	return post(io_context(), std::forward<Work>(work), std::forward<Token>(token));
 }

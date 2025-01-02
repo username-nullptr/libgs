@@ -125,12 +125,17 @@ inline awaitable<void> co_wait(const std::thread &thread)
 template <concepts::schedulable Exec>
 awaitable<asio::any_io_executor> co_to_exec(Exec &&exec)
 {
-	return asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
-	([exec = get_executor_helper(exec)](auto handler)
+	auto curr_exec = co_await asio::this_coro::executor;
+	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
+	([curr_exec = std::move(curr_exec), exec = get_executor_helper(exec)](auto handler)
 	{
 	    auto work = asio::make_work_guard(handler);
-	    asio::post(exec, [handler = std::move(handler), work = std::move(work)]() mutable {
-			std::move(handler)(work.get_executor());
+	    asio::post(exec, [
+			handler = std::move(handler), work = std::move(work), prev_exec = std::move(curr_exec)
+	    ]() mutable
+	    {
+	    	LIBGS_UNUSED(work);
+			std::move(handler)(std::move(prev_exec));
 		});
 	},
 	asio::use_awaitable);
@@ -138,11 +143,17 @@ awaitable<asio::any_io_executor> co_to_exec(Exec &&exec)
 
 inline awaitable<asio::any_io_executor> co_to_thread()
 {
-	return asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>([](auto handler)
+	auto curr_exec = co_await asio::this_coro::executor;
+	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
+	([curr_exec = std::move(curr_exec)](auto handler)
 	{
 	    auto work = asio::make_work_guard(handler);
-		std::thread([handler = std::move(handler), work = std::move(work)]() mutable {
-			std::move(handler)(work.get_executor());
+		std::thread([
+			handler = std::move(handler), work = std::move(work), prev_exec = std::move(curr_exec)
+		]() mutable
+		{
+	    	LIBGS_UNUSED(work);
+			std::move(handler)(std::move(prev_exec));
 		}).detach();
 	},
 	asio::use_awaitable);
