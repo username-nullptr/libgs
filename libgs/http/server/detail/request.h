@@ -569,7 +569,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, buf, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
 			error_code error;
@@ -587,7 +587,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 			co_return res;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -633,7 +633,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<std::string>
 		{
 			error_code error;
@@ -663,7 +663,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 			co_return sum;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -701,7 +701,7 @@ auto basic_server_request<Stream,CharT>::save_file
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 		auto co_awaitable = asio::co_spawn(get_executor(), [
 			this, opt = std::forward<opt_t>(opt), timeout, ntoken
 		]() mutable -> awaitable<size_t>
@@ -721,7 +721,7 @@ auto basic_server_request<Stream,CharT>::save_file
 			co_return res;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 

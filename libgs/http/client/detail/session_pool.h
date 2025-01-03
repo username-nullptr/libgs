@@ -206,7 +206,7 @@ auto basic_session_pool<Stream,Exec>::get
 		}
 		else
 		{
-			auto ntoken = async_opt_token_helper(token);
+			auto ntoken = unbound_redirect_time(token);
 			auto sess = m_impl->get(ep, exec);
 
 			return asio::co_spawn(exec, [

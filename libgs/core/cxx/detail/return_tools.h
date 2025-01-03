@@ -34,12 +34,7 @@
 namespace libgs
 {
 
-constexpr decltype(auto) return_reference(auto &&value)
-{
-	return std::forward<decltype(value)>(value);
-}
-
-constexpr decltype(auto) return_nodiscard(auto &&value)
+constexpr auto &&return_reference(auto &&value)
 {
 	return std::forward<decltype(value)>(value);
 }

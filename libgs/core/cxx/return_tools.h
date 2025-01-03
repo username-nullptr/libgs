@@ -32,9 +32,7 @@
 namespace libgs
 {
 
-constexpr decltype(auto) return_reference(auto &&value);
-
-[[nodiscard]] constexpr decltype(auto) return_nodiscard(auto &&value);
+[[nodiscard]] constexpr auto &&return_reference(auto &&value);
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/return_tools.h>

@@ -957,7 +957,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, body, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
 			error_code error;
@@ -971,7 +971,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 			co_return res;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -1019,7 +1019,7 @@ auto basic_server_response<Stream,CharT>::redirect
 			timeout = token.time;
 
 		m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 
 		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
@@ -1034,7 +1034,7 @@ auto basic_server_response<Stream,CharT>::redirect
 			co_return res;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -1082,7 +1082,7 @@ auto basic_server_response<Stream,CharT>::send_file
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 		auto co_awaitable = asio::co_spawn(get_executor(),
 		[this, opt = std::forward<opt_t>(opt), timeout, ntoken]() mutable -> awaitable<size_t>
 		{
@@ -1097,7 +1097,7 @@ auto basic_server_response<Stream,CharT>::send_file
 			co_return res;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -1146,7 +1146,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 		if constexpr( is_redirect_time_v<token_t> )
 			timeout = token.time;
 
-		auto ntoken = async_opt_token_helper(token);
+		auto ntoken = unbound_redirect_time(token);
 		auto co_awaitable = asio::co_spawn(get_executor(),
 		[this, headers, timeout, ntoken]() mutable -> awaitable<size_t>
 		{
@@ -1161,7 +1161,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 			co_return res;
 		},
 		ntoken);
-		return return_nodiscard(std::move(co_awaitable));
+		return return_reference(std::move(co_awaitable));
 	}
 }
 

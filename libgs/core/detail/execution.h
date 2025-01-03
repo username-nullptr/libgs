@@ -144,7 +144,7 @@ decltype(auto) dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&
 				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable {
 					detail::promise_set_value(promise, std::forward<Work>(func));
 				});
-				return return_nodiscard(std::move(future));
+				return future;
 			}
 			else if constexpr( is_async_opt_token_v<ntoken_t> )
 			{
@@ -152,6 +152,21 @@ decltype(auto) dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&
 				[func = std::forward<Work>(work)]() mutable -> awaitable<return_t> {
 					co_return func();
 				}, std::forward<Token>(token));
+			}
+			else if constexpr( std::is_lvalue_reference_v<return_t> )
+			{
+				using nr_return_t = std::remove_reference_t<return_t>;
+				std::promise<nr_return_t*> promise;
+				auto future = promise.get_future();
+
+				asio::dispatch(exec,
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable
+				{
+					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable {
+						return &func();
+					});
+				});
+				return return_reference(*future.get());
 			}
 			else
 				return dispatch(exec, std::forward<Work>(work), use_future).get();
@@ -202,7 +217,7 @@ decltype(auto) post(concepts::schedulable auto &&exec, Work &&work, Token &&toke
 				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable {
 					detail::promise_set_value(promise, std::forward<Work>(func));
 				});
-				return return_nodiscard(std::move(future));
+				return future;
 			}
 			else if constexpr( is_async_opt_token_v<ntoken_t> )
 			{
@@ -210,6 +225,21 @@ decltype(auto) post(concepts::schedulable auto &&exec, Work &&work, Token &&toke
 				[func = std::forward<Work>(work)]() mutable -> awaitable<return_t> {
 					co_return func();
 				}, std::forward<Token>(token));
+			}
+			else if constexpr( std::is_lvalue_reference_v<return_t> )
+			{
+				using nr_return_t = std::remove_reference_t<return_t>;
+				std::promise<nr_return_t*> promise;
+				auto future = promise.get_future();
+
+				asio::post(exec,
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable
+				{
+					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable {
+						return &func();
+					});
+				});
+				return return_reference(*future.get());
 			}
 			else
 				return post(exec, std::forward<Work>(work), use_future).get();
@@ -257,7 +287,7 @@ auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &
 			std::thread([&exec, finished, counter]() mutable {
 				*counter = detail::dispatch_poll(exec, *finished);
 			}).detach();
-			return return_nodiscard(std::move(future));
+			return return_reference(std::move(future));
 		}
 		else if constexpr( is_async_opt_token_v<ntoken_t> )
 		{
@@ -267,7 +297,7 @@ auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &
 			std::thread([&exec, finished, counter]() mutable {
 				*counter = detail::dispatch_poll(exec, *finished);
 			}).detach();
-			return return_nodiscard(std::move(a));
+			return return_reference(std::move(a));
 		}
 		else if constexpr( is_awaitable_v<return_t> )
 		{
@@ -300,6 +330,11 @@ auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &
 				*counter = detail::dispatch_poll(exec, *finished);
 				return pair;
 			}
+		}
+		else if constexpr( std::is_void_v<return_t> )
+		{
+			work();
+			return std::make_shared<size_t>(1);
 		}
 		else
 			return std::make_pair(work(), std::make_shared<size_t>(1));
@@ -365,7 +400,7 @@ auto local_dispatch(Work &&work, Token &&token)
 			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
 				*counter = detail::dispatch_poll(*ioc, *finished);
 			}).detach();
-			return return_nodiscard(std::move(future));
+			return return_reference(std::move(future));
 		}
 		else if constexpr( is_async_opt_token_v<token_t> )
 		{
@@ -376,7 +411,7 @@ auto local_dispatch(Work &&work, Token &&token)
 			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
 				*counter = detail::dispatch_poll(*ioc, *finished);
 			}).detach();
-			return return_nodiscard(std::move(a));
+			return return_reference(std::move(a));
 		}
 		else if constexpr( is_awaitable_v<return_t> )
 		{
@@ -410,6 +445,11 @@ auto local_dispatch(Work &&work, Token &&token)
 				*counter = detail::dispatch_poll(ioc, *finished);
 				return pair;
 			}
+		}
+		else if constexpr( std::is_void_v<return_t> )
+		{
+			work();
+			return std::make_shared<size_t>(1);
 		}
 		else
 			return std::make_pair(work(), std::make_shared<size_t>(1));
@@ -502,7 +542,7 @@ auto basic_async_work<Exec,Args...>::handle
 {
 	using token_t = std::remove_cvref_t<decltype(token)>;
 	using func_t = decltype(wake_up);
-	auto ntoken = async_opt_token_helper(token);
+	auto ntoken = unbound_redirect_time(token);
 
 	if constexpr( sizeof...(Args) == 1 and std::is_void_v<std::tuple_element_t<0,std::tuple<Args...>>> )
 	{
@@ -526,7 +566,7 @@ auto basic_async_work<Exec,Args...>::handle(concepts::async_wake_up<handler_t&&>
 {
 	using token_t = std::remove_cvref_t<decltype(token)>;
 	using func_t = decltype(wake_up);
-	auto ntoken = async_opt_token_helper(token);
+	auto ntoken = unbound_redirect_time(token);
 
 	if constexpr( sizeof...(Args) == 1 and std::is_void_v<std::tuple_element_t<0,std::tuple<Args...>>> )
 	{

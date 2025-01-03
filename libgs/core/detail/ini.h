@@ -1135,19 +1135,10 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load(Token &&token)
 		auto cflag = std::make_shared<bool>(false);
 		m_impl->m_cancel_list.emplace_back(cflag);
 
-		using token_t = std::remove_cvref_t<Token>;
-		if constexpr( is_cancellation_slot_binder_v<token_t> )
-		{
-			cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(token.get_cancellation_slot())]{
-				return *cflag or state.cancelled() != asio::cancellation_type::none;
-			};
-		}
-		else
-		{
-			cancelled = [cflag = std::move(cflag)]{
-				return *cflag;
-			};
-		}
+		auto slot = asio::get_associated_cancellation_slot(token);
+		cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(slot)]{
+			return *cflag or state.cancelled() != asio::cancellation_type::none;
+		};
 		return async_work<error_code>::handle(get_executor(),
 		[this, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
 		{
@@ -1217,19 +1208,10 @@ auto basic_ini<CharT,IniKeys,Exec,GroupMap>::sync(Token &&token)
 		auto cflag = std::make_shared<bool>(false);
 		m_impl->m_cancel_list.emplace_back(cflag);
 
-		using token_t = std::remove_cvref_t<Token>;
-		if constexpr( is_cancellation_slot_binder_v<token_t> )
-		{
-			cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(token.get_cancellation_slot())]{
-				return *cflag or state.cancelled() != asio::cancellation_type::none;
-			};
-		}
-		else
-		{
-			cancelled = [cflag = std::move(cflag)]{
-				return *cflag;
-			};
-		}
+		auto slot = asio::get_associated_cancellation_slot(token);
+		cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(slot)]{
+			return *cflag or state.cancelled() != asio::cancellation_type::none;
+		};
 		return async_work<error_code>::handle(get_executor(),
 		[this, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
 		{
