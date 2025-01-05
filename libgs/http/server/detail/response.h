@@ -221,7 +221,8 @@ public:
 	{
 		if( var.index() == 0 )
 			return std::get<0>(var);
-		error = asio::error::make_error_code(errc::timed_out);
+		else if( not error )
+			error = make_error_code(errc::timed_out);
 		return 0;
 	}
 
@@ -953,12 +954,10 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		auto ntoken = unbound_redirect_time(token);
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, body, timeout, ntoken]() mutable -> awaitable<size_t>
+
+		return asio::co_spawn(get_executor(),
+		[this, body, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
@@ -971,7 +970,6 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 			co_return res;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -1014,14 +1012,11 @@ auto basic_server_response<Stream,CharT>::redirect
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
-		auto ntoken = unbound_redirect_time(token);
 
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<size_t>
+		auto ntoken = unbound_redirect_time(token);
+		return asio::co_spawn(get_executor(),
+		[this, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
@@ -1034,7 +1029,6 @@ auto basic_server_response<Stream,CharT>::redirect
 			co_return res;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -1078,13 +1072,12 @@ auto basic_server_response<Stream,CharT>::send_file
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		auto ntoken = unbound_redirect_time(token);
-		auto co_awaitable = asio::co_spawn(get_executor(),
-		[this, opt = std::forward<opt_t>(opt), timeout, ntoken]() mutable -> awaitable<size_t>
+
+		return asio::co_spawn(get_executor(), [
+			this, ntoken, opt = std::forward<opt_t>(opt),
+			timeout = get_associated_redirect_time(token, 30s)
+		]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
@@ -1097,7 +1090,6 @@ auto basic_server_response<Stream,CharT>::send_file
 			co_return res;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -1142,13 +1134,10 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		auto ntoken = unbound_redirect_time(token);
-		auto co_awaitable = asio::co_spawn(get_executor(),
-		[this, headers, timeout, ntoken]() mutable -> awaitable<size_t>
+
+		return asio::co_spawn(get_executor(),
+		[this, headers, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
@@ -1161,7 +1150,6 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 			co_return res;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 

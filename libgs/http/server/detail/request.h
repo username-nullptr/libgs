@@ -157,7 +157,8 @@ public:
 					body = std::string(op.value(),'\0');
 					auto tmp_buf = const_cast<char*>(body.c_str());
 					size_t tmp_sum = 0;
-					do {
+					for(;;)
+					{
 						auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
 						tmp_sum += co_await m_next_layer.async_read_some(read_buf, use_awaitable|error);
 
@@ -167,10 +168,9 @@ public:
 						bool res = m_parser->append({tmp_buf, tmp_sum}, error);
 						if( error )
 							co_return sum;
-						else if( not res )
-							continue;
+						else if( res )
+							break;
 					}
-					while(false);
 				}
 				while(true);
 				co_return sum;
@@ -346,7 +346,7 @@ template <concepts::stream Stream, core_concepts::char_type CharT>
 template <typename NextLayer>
 basic_server_request<Stream,CharT>::basic_server_request(NextLayer &&next_layer, parser_t &parser)
 	requires core_concepts::constructible<next_layer_t,NextLayer&&> :
-	m_impl(new impl(std::move(next_layer), parser))
+	m_impl(new impl(std::forward<NextLayer>(next_layer), parser))
 {
 
 }
@@ -565,12 +565,10 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		auto ntoken = unbound_redirect_time(token);
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, buf, timeout, ntoken]() mutable -> awaitable<size_t>
+
+		return asio::co_spawn(get_executor(),
+		[this, buf, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
@@ -580,14 +578,13 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 			size_t res = 0;
 			if( var.index() == 0 )
 				res = std::get<0>(var);
-			else
+			else if( not error )
 				error = make_error_code(std::errc::timed_out);
 
 			check_error(remove_const(ntoken), error, "libgs::http::server_request::read");
 			co_return res;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -629,12 +626,10 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		auto ntoken = unbound_redirect_time(token);
-		auto co_awaitable = asio::co_spawn(get_executor(), [this, timeout, ntoken]() mutable -> awaitable<std::string>
+
+		return asio::co_spawn(get_executor(),
+		[this, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<std::string>
 		{
 			error_code error;
 			std::string sum;
@@ -656,14 +651,13 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 			auto var = co_await (
 				read_task() or co_sleep_for(timeout /*,get_executor()*/)
 			);
-			if( var.index() == 1 )
+			if( var.index() == 1 and not error )
 				error = make_error_code(std::errc::timed_out);
 
 			check_error(remove_const(ntoken), error, "libgs::http::server_request::read");
 			co_return sum;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 
@@ -697,13 +691,10 @@ auto basic_server_request<Stream,CharT>::save_file
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
-
 		auto ntoken = unbound_redirect_time(token);
-		auto co_awaitable = asio::co_spawn(get_executor(), [
-			this, opt = std::forward<opt_t>(opt), timeout, ntoken
+
+		return asio::co_spawn(get_executor(), [
+			this, opt = std::forward<opt_t>(opt), ntoken, timeout = get_associated_redirect_time(token, 30s)
 		]() mutable -> awaitable<size_t>
 		{
 			error_code error;
@@ -714,14 +705,13 @@ auto basic_server_request<Stream,CharT>::save_file
 			size_t res = 0;
 			if( var.index() == 0 )
 				res = std::get<0>(var);
-			else
+			else if( not error )
 				error = make_error_code(std::errc::timed_out);
 
 			check_error(remove_const(ntoken), error, "libgs::http::server_request::save_file");
 			co_return res;
 		},
 		ntoken);
-		return return_reference(std::move(co_awaitable));
 	}
 }
 

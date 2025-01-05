@@ -347,7 +347,6 @@ public:
 		m_file_name = app::absolute_path(file_name);
 	}
 
-	// TODO: canceller ... ...
 	void load(error_code &error, const std::function<bool()> &cancelled)
 	{
 		error = error_code();
@@ -403,7 +402,6 @@ public:
 		file.close();
 	}
 
-	// TODO: canceller ... ...
 	void sync(error_code &error, const std::function<bool()> &cancelled)
 	{
 		std::basic_ofstream<CharT> file;

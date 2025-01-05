@@ -86,25 +86,24 @@ connect(endpoint_t ep, Token &&token)
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
 		this->socket().connect(std::move(ep), token);
+
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
-		auto res = get(ep, error);
+		auto res = connect(ep, error);
 		if( error )
 			throw system_error(error, "libgs::http::socket_operation_helper::connect");
 		return res;
 	}
-	else if constexpr( is_function_v<token_t> )
-		this->socket().async_connect(std::move(ep), std::forward<Token>(token));
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
 		error_code error;
 		this->socket().async_connect(ep, token[error]);
 		check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(this->get_executor(), [
@@ -112,12 +111,14 @@ connect(endpoint_t ep, Token &&token)
 		]() mutable -> awaitable<void>
 		{
 			error_code error;
-			co_await socket.async_connect(ep, use_awaitable|error);
-			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::async_connect");
+			co_await socket.async_connect(ep, use_awaitable | error);
+			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
 			co_return ;
 		},
 		token);
 	}
+	else
+		this->socket().async_connect(std::move(ep), std::forward<Token>(token));
 }
 
 template <core_concepts::execution Exec>
@@ -207,20 +208,10 @@ connect(endpoint_t ep, Token &&token)
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
-		auto res = get(ep, error);
+		auto res = connect(ep, error);
 		if( error )
 			throw system_error(error, "libgs::http::socket_operation_helper::connect");
 		return res;
-	}
-	else if constexpr( is_function_v<token_t> )
-	{
-		this->socket().next_layer().async_connect(std::move(ep), [
-			&socket = this->socket(), ep = std::move(ep), token = forward<Token>(token)
-		](const error_code &error)
-		{
-			if( not error )
-				socket.async_handshake(std::move(ep), std::move(token));
-		});
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<token_t> )
@@ -234,7 +225,7 @@ connect(endpoint_t ep, Token &&token)
 		}
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(this->get_executor(), [
@@ -242,15 +233,25 @@ connect(endpoint_t ep, Token &&token)
 		]() mutable -> awaitable<void>
 		{
 			error_code error;
-			co_await socket.next_layer().async_connect(ep, use_awaitable|error);
+			co_await socket.next_layer().async_connect(ep, use_awaitable | error);
 			if( not check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 			{
-				co_await socket.async_handshake(std::move(ep), use_awaitable|error);
+				co_await socket.async_handshake(std::move(ep), use_awaitable | error);
 				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
 			}
 			co_return ;
 		},
 		token);
+	}
+	else
+	{
+		this->socket().next_layer().async_connect(std::move(ep), [
+			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
+		](const error_code &error)
+		{
+			if( not error )
+				socket.async_handshake(std::move(ep), std::move(token));
+		});
 	}
 }
 

@@ -2,7 +2,7 @@
 #include <libgs/core.h>
 // #include <spdlog/spdlog.h>
 
-// #include <libgs/http/client/request.h>
+#include <libgs/http/client/request_url.h>
 // #include <libgs/http/cxx/socket_session.h>
 
 // #include <libgs/http/client.h>

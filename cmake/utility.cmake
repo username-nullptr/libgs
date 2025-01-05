@@ -52,7 +52,7 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 		message(STATUS "Unknow compiler: " ${CMAKE_CXX_COMPILER_ID} " (" ${CMAKE_CXX_COMPILER_VERSION} ").")
 	endif ()
 
-#	set(${CMAKE_CXX_STANDARD} 20 PARENT_SCOPE)
-	set(${CMAKE_CXX_STANDARD} 23 PARENT_SCOPE)
+	set(${CMAKE_CXX_STANDARD} 20 PARENT_SCOPE)
+#	set(${CMAKE_CXX_STANDARD} 23 PARENT_SCOPE)
 
 endfunction()

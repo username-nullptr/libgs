@@ -127,7 +127,7 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basi
 template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,session_t,error_code>
+	requires core_concepts::tf_opt_token<Token,error_code,session_t>
 {
 	return get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
@@ -136,7 +136,7 @@ template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get
 (const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,session_t,error_code>
+	requires core_concepts::tf_opt_token<Token,error_code,session_t>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code&> )
@@ -155,10 +155,9 @@ auto basic_session_pool<Stream,Exec>::get
 		return sess;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<Token> )
+	else if constexpr( is_yield_context_v<token_t> )
 	{
-		auto &helper = sess.opt_helper();
-		if( not helper.is_open() )
+		if( auto &helper = sess.opt_helper(); not helper.is_open() )
 			helper.connect(std::move(ep), std::forward<Token>(token));
 		return std::move(sess);
 	}
@@ -166,64 +165,32 @@ auto basic_session_pool<Stream,Exec>::get
 	else
 	{
 		using namespace std::chrono_literals;
-		auto timeout = 30000ms;
-		if constexpr( is_redirect_time_v<token_t> )
-			timeout = token.time;
+		auto sess = m_impl->get(ep, exec);
+		auto ntoken = unbound_redirect_time(token);
 
-		if constexpr( is_function_v<token_t> )
+		return asio::co_spawn(exec, [
+			ep = std::move(ep), sess = std::move(sess),
+			timeout = get_associated_redirect_time(token), ntoken
+		]() mutable -> awaitable<session_t>
 		{
-			auto sess = m_impl->get(ep, exec);
-			if( auto &helper = sess.opt_helper(); helper.is_open() )
-			{
-				asio::dispatch(exec, [
-					callback = std::forward<token_t>(token), sess = std::move(sess)
-				]() mutable {
-					callback(std::move(sess), error_code());
-				});
-			}
-			else
-			{
-				auto timer = std::make_shared<asio::steady_timer>(exec);
-				timer->expires_after(timeout);
-
-				auto callback = [
-					timer, sess = std::move(sess), callback = std::forward<token_t>(token)
-				](const error_code &error) mutable
-				{
-					timer->cancel();
-					callback(std::move(sess), error);
-				};
-				auto cancel_sig = std::make_shared<asio::cancellation_signal>();
-				using namespace libgs::operators;
-
-				helper.connect(std::move(ep), std::move(callback) | cancel_sig->slot());
-				timer->async_wait([cancel_sig](const error_code &error)
-				{
-					if( not error )
-						cancel_sig->emit(asio::cancellation_type::all);
-				});
-			}
-		}
-		else
-		{
-			auto ntoken = unbound_redirect_time(token);
-			auto sess = m_impl->get(ep, exec);
-
-			return asio::co_spawn(exec, [
-				ep = std::move(ep), sess = std::move(sess), timeout, ntoken
-			]() mutable -> awaitable<session_t>
-			{
-				if( auto &helper = sess.opt_helper(); not helper.is_open() )
-				{
-					co_await (
-						helper.connect(std::move(ep), ntoken) or
-						co_sleep_for(timeout /*,get_executor()*/)
-					);
-				}
+			auto &helper = sess.opt_helper();
+			if( helper.is_open() )
 				co_return std::move(sess);
-			},
-			ntoken);
-		}
+
+			using namespace libgs::operators;
+			std::error_code error;
+
+			auto var = co_await (
+				helper.connect(std::move(ep), use_awaitable | error) or
+				co_sleep_for(timeout /*,get_executor()*/)
+			);
+			if( var.index() == 0 )
+				co_return std::move(sess);
+			else if( not error )
+				error = make_error_code(errc::timed_out);
+			check_error(remove_const(ntoken), error, "libgs::http::session_pool::get");
+		},
+		ntoken);
 	}
 }
 
@@ -231,7 +198,7 @@ template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get
 (core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,session_t,error_code>
+	requires core_concepts::tf_opt_token<Token,error_code,session_t>
 {
 	return get(exec.get_executor(), ep, std::forward<Token>(token));
 }

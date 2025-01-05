@@ -50,7 +50,6 @@ public:
 public:
 	template <typename Arg0, typename...Args>
 	basic_url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-
 	basic_url(string_view_t url);
 	basic_url();
 	~basic_url();
