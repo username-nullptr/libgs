@@ -2,7 +2,7 @@
 // ssl/detail/engine.hpp
 // ~~~~~~~~~~~~~~~~~~~~~
 //
-// Copyright (c) 2003-2023 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2024 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -35,24 +35,24 @@ class engine
 public:
   enum want
   {
-	// Returned by functions to indicate that the engine wants input. The input
-	// buffer should be updated to point to the data. The engine then needs to
-	// be called again to retry the operation.
-	want_input_and_retry = -2,
+    // Returned by functions to indicate that the engine wants input. The input
+    // buffer should be updated to point to the data. The engine then needs to
+    // be called again to retry the operation.
+    want_input_and_retry = -2,
 
-	// Returned by functions to indicate that the engine wants to write output.
-	// The output buffer points to the data to be written. The engine then
-	// needs to be called again to retry the operation.
-	want_output_and_retry = -1,
+    // Returned by functions to indicate that the engine wants to write output.
+    // The output buffer points to the data to be written. The engine then
+    // needs to be called again to retry the operation.
+    want_output_and_retry = -1,
 
-	// Returned by functions to indicate that the engine doesn't need input or
-	// output.
-	want_nothing = 0,
+    // Returned by functions to indicate that the engine doesn't need input or
+    // output.
+    want_nothing = 0,
 
-	// Returned by functions to indicate that the engine wants to write output.
-	// The output buffer points to the data to be written. After that the
-	// operation is complete, and the engine does not need to be called again.
-	want_output = 1
+    // Returned by functions to indicate that the engine wants to write output.
+    // The output buffer points to the data to be written. After that the
+    // operation is complete, and the engine does not need to be called again.
+    want_output = 1
   };
 
   // Construct a new engine for the specified context.
@@ -61,66 +61,59 @@ public:
   // Construct a new engine for an existing native SSL implementation.
   ASIO_DECL explicit engine(SSL* ssl_impl);
 
-#if defined(ASIO_HAS_MOVE)
   // Move construct from another engine.
-  ASIO_DECL engine(engine&& other) ASIO_NOEXCEPT;
-#endif // defined(ASIO_HAS_MOVE)
+  ASIO_DECL engine(engine&& other) noexcept;
 
   // Destructor.
   ASIO_DECL ~engine();
 
-#if defined(ASIO_HAS_MOVE)
   // Move assign from another engine.
-  ASIO_DECL engine& operator=(engine&& other) ASIO_NOEXCEPT;
-#endif // defined(ASIO_HAS_MOVE)
+  ASIO_DECL engine& operator=(engine&& other) noexcept;
 
   // Get the underlying implementation in the native type.
   ASIO_DECL SSL* native_handle();
 
   // Set the peer verification mode.
   ASIO_DECL asio::error_code set_verify_mode(
-	  verify_mode v, asio::error_code& ec);
+      verify_mode v, asio::error_code& ec);
 
   // Set the peer verification depth.
   ASIO_DECL asio::error_code set_verify_depth(
-	  int depth, asio::error_code& ec);
+      int depth, asio::error_code& ec);
 
   // Set a peer certificate verification callback.
   ASIO_DECL asio::error_code set_verify_callback(
-	  verify_callback_base* callback, asio::error_code& ec);
+      verify_callback_base* callback, asio::error_code& ec);
 
   // Perform an SSL handshake using either SSL_connect (client-side) or
   // SSL_accept (server-side).
   ASIO_DECL want handshake(
-	  stream_base::handshake_type type, asio::error_code& ec);
+      stream_base::handshake_type type, asio::error_code& ec);
 
   // Perform a graceful shutdown of the SSL session.
   ASIO_DECL want shutdown(asio::error_code& ec);
 
   // Write bytes to the SSL session.
   ASIO_DECL want write(const asio::const_buffer& data,
-	  asio::error_code& ec, std::size_t& bytes_transferred);
+      asio::error_code& ec, std::size_t& bytes_transferred);
 
   // Read bytes from the SSL session.
   ASIO_DECL want read(const asio::mutable_buffer& data,
-	  asio::error_code& ec, std::size_t& bytes_transferred);
-
-  // Release SSL object.
-  ASIO_DECL SSL* release();
+      asio::error_code& ec, std::size_t& bytes_transferred);
 
   // Get output data to be written to the transport.
   ASIO_DECL asio::mutable_buffer get_output(
-	  const asio::mutable_buffer& data);
+      const asio::mutable_buffer& data);
 
   // Put input data that was read from the transport.
   ASIO_DECL asio::const_buffer put_input(
-	  const asio::const_buffer& data);
+      const asio::const_buffer& data);
 
   // Map an error::eof code returned by the underlying transport according to
   // the type and state of the SSL session. Returns a const reference to the
   // error code object, suitable for passing to a completion handler.
   ASIO_DECL const asio::error_code& map_error_code(
-	  asio::error_code& ec) const;
+      asio::error_code& ec) const;
 
 private:
   // Disallow copying and assignment.
@@ -129,7 +122,7 @@ private:
 
   // Callback used when the SSL implementation wants to verify a certificate.
   ASIO_DECL static int verify_callback_function(
-	  int preverified, X509_STORE_CTX* ctx);
+      int preverified, X509_STORE_CTX* ctx);
 
 #if (OPENSSL_VERSION_NUMBER < 0x10000000L)
   // The SSL_accept function may not be thread safe. This mutex is used to
@@ -141,8 +134,8 @@ private:
   // operation needs more input, or want_write if it needs to write some output
   // before the operation can complete.
   ASIO_DECL want perform(int (engine::* op)(void*, std::size_t),
-	  void* data, std::size_t length, asio::error_code& ec,
-	  std::size_t* bytes_transferred);
+      void* data, std::size_t length, asio::error_code& ec,
+      std::size_t* bytes_transferred);
 
   // Adapt the SSL_accept function to the signature needed for perform().
   ASIO_DECL int do_accept(void*, std::size_t);

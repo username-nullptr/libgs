@@ -2,7 +2,7 @@
 // ssl/stream.hpp
 // ~~~~~~~~~~~~~~
 //
-// Copyright (c) 2003-2023 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2024 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -18,6 +18,7 @@
 #include "asio/detail/config.hpp"
 
 #include "asio/async_result.hpp"
+#include "asio/buffer.hpp"
 #include "asio/detail/buffer_sequence_adapter.hpp"
 #include "asio/detail/handler_type_requirements.hpp"
 #include "asio/detail/non_const_lvalue.hpp"
@@ -54,7 +55,7 @@ namespace ssl {
  * @code
  * asio::io_context my_context;
  * asio::ssl::context ctx(asio::ssl::context::sslv23);
- * asio::ssl::stream<asio:ip::tcp::socket> sock(my_context, ctx);
+ * asio::ssl::stream<asio::ip::tcp::socket> sock(my_context, ctx);
  * @endcode
  *
  * @par Concepts:
@@ -79,11 +80,11 @@ public:
   /// Structure for use with deprecated impl_type.
   struct impl_struct
   {
-	SSL* ssl;
+    SSL* ssl;
   };
 
   /// The type of the next layer.
-  typedef typename remove_reference<Stream>::type next_layer_type;
+  typedef remove_reference_t<Stream> next_layer_type;
 
   /// The type of the lowest layer.
   typedef typename next_layer_type::lowest_layer_type lowest_layer_type;
@@ -91,7 +92,6 @@ public:
   /// The type of the executor associated with the object.
   typedef typename lowest_layer_type::executor_type executor_type;
 
-#if defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
   /// Construct a stream.
   /**
    * This constructor creates a stream and initialises the underlying stream
@@ -103,8 +103,8 @@ public:
    */
   template <typename Arg>
   stream(Arg&& arg, context& ctx)
-	: next_layer_(ASIO_MOVE_CAST(Arg)(arg)),
-	  core_(ctx.native_handle(), next_layer_.lowest_layer().get_executor())
+    : next_layer_(static_cast<Arg&&>(arg)),
+      core_(ctx.native_handle(), next_layer_.lowest_layer().get_executor())
   {
   }
 
@@ -120,27 +120,11 @@ public:
    */
   template <typename Arg>
   stream(Arg&& arg, native_handle_type handle)
-	: next_layer_(ASIO_MOVE_CAST(Arg)(arg)),
-	  core_(handle, next_layer_.lowest_layer().get_executor())
-  {
-  }
-#else // defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
-  template <typename Arg>
-  stream(Arg& arg, context& ctx)
-	: next_layer_(arg),
-	  core_(ctx.native_handle(), next_layer_.lowest_layer().get_executor())
+    : next_layer_(static_cast<Arg&&>(arg)),
+      core_(handle, next_layer_.lowest_layer().get_executor())
   {
   }
 
-  template <typename Arg>
-  stream(Arg& arg, native_handle_type handle)
-	: next_layer_(arg),
-	  core_(handle, next_layer_.lowest_layer().get_executor())
-  {
-  }
-#endif // defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
-
-#if defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
   /// Move-construct a stream from another.
   /**
    * @param other The other stream object from which the move will occur. Must
@@ -149,8 +133,8 @@ public:
    * operation is destruction, or use as the target of a move assignment.
    */
   stream(stream&& other)
-	: next_layer_(ASIO_MOVE_CAST(Stream)(other.next_layer_)),
-	  core_(ASIO_MOVE_CAST(detail::stream_core)(other.core_))
+    : next_layer_(static_cast<Stream&&>(other.next_layer_)),
+      core_(static_cast<detail::stream_core&&>(other.core_))
   {
   }
 
@@ -163,14 +147,13 @@ public:
    */
   stream& operator=(stream&& other)
   {
-	if (this != &other)
-	{
-	  next_layer_ = ASIO_MOVE_CAST(Stream)(other.next_layer_);
-	  core_ = ASIO_MOVE_CAST(detail::stream_core)(other.core_);
-	}
-	return *this;
+    if (this != &other)
+    {
+      next_layer_ = static_cast<Stream&&>(other.next_layer_);
+      core_ = static_cast<detail::stream_core&&>(other.core_);
+    }
+    return *this;
   }
-#endif // defined(ASIO_HAS_MOVE) || defined(GENERATING_DOCUMENTATION)
 
   /// Destructor.
   /**
@@ -188,9 +171,9 @@ public:
    *
    * @return A copy of the executor that stream will use to dispatch handlers.
    */
-  executor_type get_executor() ASIO_NOEXCEPT
+  executor_type get_executor() noexcept
   {
-	return next_layer_.lowest_layer().get_executor();
+    return next_layer_.lowest_layer().get_executor();
   }
 
   /// Get the underlying implementation in the native type.
@@ -204,7 +187,7 @@ public:
    * suitable for passing to functions such as @c SSL_get_verify_result and
    * @c SSL_get_peer_certificate:
    * @code
-   * asio::ssl::stream<asio:ip::tcp::socket> sock(my_context, ctx);
+   * asio::ssl::stream<asio::ip::tcp::socket> sock(io_ctx, ctx);
    *
    * // ... establish connection and perform handshake ...
    *
@@ -219,14 +202,7 @@ public:
    */
   native_handle_type native_handle()
   {
-	return core_.engine_.native_handle();
-  }
-
-  /**
-   */
-  native_handle_type release()
-  {
-	  return core_.engine_.release();
+    return core_.engine_.native_handle();
   }
 
   /// Get a reference to the next layer.
@@ -239,7 +215,7 @@ public:
    */
   const next_layer_type& next_layer() const
   {
-	return next_layer_;
+    return next_layer_;
   }
 
   /// Get a reference to the next layer.
@@ -252,7 +228,7 @@ public:
    */
   next_layer_type& next_layer()
   {
-	return next_layer_;
+    return next_layer_;
   }
 
   /// Get a reference to the lowest layer.
@@ -265,7 +241,7 @@ public:
    */
   lowest_layer_type& lowest_layer()
   {
-	return next_layer_.lowest_layer();
+    return next_layer_.lowest_layer();
   }
 
   /// Get a reference to the lowest layer.
@@ -278,7 +254,7 @@ public:
    */
   const lowest_layer_type& lowest_layer() const
   {
-	return next_layer_.lowest_layer();
+    return next_layer_.lowest_layer();
   }
 
   /// Set the peer verification mode.
@@ -295,9 +271,9 @@ public:
    */
   void set_verify_mode(verify_mode v)
   {
-	asio::error_code ec;
-	set_verify_mode(v, ec);
-	asio::detail::throw_error(ec, "set_verify_mode");
+    asio::error_code ec;
+    set_verify_mode(v, ec);
+    asio::detail::throw_error(ec, "set_verify_mode");
   }
 
   /// Set the peer verification mode.
@@ -313,10 +289,10 @@ public:
    * @note Calls @c SSL_set_verify.
    */
   ASIO_SYNC_OP_VOID set_verify_mode(
-	  verify_mode v, asio::error_code& ec)
+      verify_mode v, asio::error_code& ec)
   {
-	core_.engine_.set_verify_mode(v, ec);
-	ASIO_SYNC_OP_VOID_RETURN(ec);
+    core_.engine_.set_verify_mode(v, ec);
+    ASIO_SYNC_OP_VOID_RETURN(ec);
   }
 
   /// Set the peer verification depth.
@@ -333,9 +309,9 @@ public:
    */
   void set_verify_depth(int depth)
   {
-	asio::error_code ec;
-	set_verify_depth(depth, ec);
-	asio::detail::throw_error(ec, "set_verify_depth");
+    asio::error_code ec;
+    set_verify_depth(depth, ec);
+    asio::detail::throw_error(ec, "set_verify_depth");
   }
 
   /// Set the peer verification depth.
@@ -351,10 +327,10 @@ public:
    * @note Calls @c SSL_set_verify_depth.
    */
   ASIO_SYNC_OP_VOID set_verify_depth(
-	  int depth, asio::error_code& ec)
+      int depth, asio::error_code& ec)
   {
-	core_.engine_.set_verify_depth(depth, ec);
-	ASIO_SYNC_OP_VOID_RETURN(ec);
+    core_.engine_.set_verify_depth(depth, ec);
+    ASIO_SYNC_OP_VOID_RETURN(ec);
   }
 
   /// Set the callback used to verify peer certificates.
@@ -378,9 +354,9 @@ public:
   template <typename VerifyCallback>
   void set_verify_callback(VerifyCallback callback)
   {
-	asio::error_code ec;
-	this->set_verify_callback(callback, ec);
-	asio::detail::throw_error(ec, "set_verify_callback");
+    asio::error_code ec;
+    this->set_verify_callback(callback, ec);
+    asio::detail::throw_error(ec, "set_verify_callback");
   }
 
   /// Set the callback used to verify peer certificates.
@@ -403,11 +379,11 @@ public:
    */
   template <typename VerifyCallback>
   ASIO_SYNC_OP_VOID set_verify_callback(VerifyCallback callback,
-	  asio::error_code& ec)
+      asio::error_code& ec)
   {
-	core_.engine_.set_verify_callback(
-		new detail::verify_callback<VerifyCallback>(callback), ec);
-	ASIO_SYNC_OP_VOID_RETURN(ec);
+    core_.engine_.set_verify_callback(
+        new detail::verify_callback<VerifyCallback>(callback), ec);
+    ASIO_SYNC_OP_VOID_RETURN(ec);
   }
 
   /// Perform SSL handshaking.
@@ -422,9 +398,9 @@ public:
    */
   void handshake(handshake_type type)
   {
-	asio::error_code ec;
-	handshake(type, ec);
-	asio::detail::throw_error(ec, "handshake");
+    asio::error_code ec;
+    handshake(type, ec);
+    asio::detail::throw_error(ec, "handshake");
   }
 
   /// Perform SSL handshaking.
@@ -438,10 +414,10 @@ public:
    * @param ec Set to indicate what error occurred, if any.
    */
   ASIO_SYNC_OP_VOID handshake(handshake_type type,
-	  asio::error_code& ec)
+      asio::error_code& ec)
   {
-	detail::io(next_layer_, core_, detail::handshake_op(type), ec);
-	ASIO_SYNC_OP_VOID_RETURN(ec);
+    detail::io(next_layer_, core_, detail::handshake_op(type), ec);
+    ASIO_SYNC_OP_VOID_RETURN(ec);
   }
 
   /// Perform SSL handshaking.
@@ -459,9 +435,9 @@ public:
   template <typename ConstBufferSequence>
   void handshake(handshake_type type, const ConstBufferSequence& buffers)
   {
-	asio::error_code ec;
-	handshake(type, buffers, ec);
-	asio::detail::throw_error(ec, "handshake");
+    asio::error_code ec;
+    handshake(type, buffers, ec);
+    asio::detail::throw_error(ec, "handshake");
   }
 
   /// Perform SSL handshaking.
@@ -478,11 +454,11 @@ public:
    */
   template <typename ConstBufferSequence>
   ASIO_SYNC_OP_VOID handshake(handshake_type type,
-	  const ConstBufferSequence& buffers, asio::error_code& ec)
+      const ConstBufferSequence& buffers, asio::error_code& ec)
   {
-	detail::io(next_layer_, core_,
-		detail::buffered_handshake_op<ConstBufferSequence>(type, buffers), ec);
-	ASIO_SYNC_OP_VOID_RETURN(ec);
+    detail::io(next_layer_, core_,
+        detail::buffered_handshake_op<ConstBufferSequence>(type, buffers), ec);
+    ASIO_SYNC_OP_VOID_RETURN(ec);
   }
 
   /// Start an asynchronous SSL handshake.
@@ -505,7 +481,7 @@ public:
    * Regardless of whether the asynchronous operation completes immediately or
    * not, the completion handler will not be invoked from within this function.
    * On immediate completion, invocation of the handler will be performed in a
-   * manner equivalent to using asio::post().
+   * manner equivalent to using asio::async_immediate().
    *
    * @par Completion Signature
    * @code void(asio::error_code) @endcode
@@ -522,22 +498,18 @@ public:
    * @c async_write_some operations.
    */
   template <
-	  ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code))
-		HandshakeToken
-		  ASIO_DEFAULT_COMPLETION_TOKEN_TYPE(executor_type)>
-  ASIO_INITFN_AUTO_RESULT_TYPE_PREFIX(HandshakeToken,
-	  void (asio::error_code))
-  async_handshake(handshake_type type,
-	  ASIO_MOVE_ARG(HandshakeToken) token
-		ASIO_DEFAULT_COMPLETION_TOKEN(executor_type))
-	ASIO_INITFN_AUTO_RESULT_TYPE_SUFFIX((
-	  async_initiate<HandshakeToken,
-		void (asio::error_code)>(
-		  declval<initiate_async_handshake>(), token, type)))
+      ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code))
+        HandshakeToken = default_completion_token_t<executor_type>>
+  auto async_handshake(handshake_type type,
+      HandshakeToken&& token = default_completion_token_t<executor_type>())
+    -> decltype(
+      async_initiate<HandshakeToken,
+        void (asio::error_code)>(
+          declval<initiate_async_handshake>(), token, type))
   {
-	return async_initiate<HandshakeToken,
-	  void (asio::error_code)>(
-		initiate_async_handshake(this), token, type);
+    return async_initiate<HandshakeToken,
+      void (asio::error_code)>(
+        initiate_async_handshake(this), token, type);
   }
 
   /// Start an asynchronous SSL handshake.
@@ -566,7 +538,7 @@ public:
    * Regardless of whether the asynchronous operation completes immediately or
    * not, the completion handler will not be invoked from within this function.
    * On immediate completion, invocation of the handler will be performed in a
-   * manner equivalent to using asio::post().
+   * manner equivalent to using asio::async_immediate().
    *
    * @par Completion Signature
    * @code void(asio::error_code, std::size_t) @endcode
@@ -583,22 +555,23 @@ public:
    * @c async_write_some operations.
    */
   template <typename ConstBufferSequence,
-	  ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code,
-		std::size_t)) BufferedHandshakeToken
-		  ASIO_DEFAULT_COMPLETION_TOKEN_TYPE(executor_type)>
-  ASIO_INITFN_AUTO_RESULT_TYPE_PREFIX(BufferedHandshakeToken,
-	  void (asio::error_code, std::size_t))
-  async_handshake(handshake_type type, const ConstBufferSequence& buffers,
-	  ASIO_MOVE_ARG(BufferedHandshakeToken) token
-		ASIO_DEFAULT_COMPLETION_TOKEN(executor_type))
-	ASIO_INITFN_AUTO_RESULT_TYPE_SUFFIX((
-	  async_initiate<BufferedHandshakeToken,
-		void (asio::error_code, std::size_t)>(
-		  declval<initiate_async_buffered_handshake>(), token, type, buffers)))
+      ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code,
+        std::size_t)) BufferedHandshakeToken
+          = default_completion_token_t<executor_type>>
+  auto async_handshake(handshake_type type, const ConstBufferSequence& buffers,
+      BufferedHandshakeToken&& token
+        = default_completion_token_t<executor_type>(),
+      constraint_t<
+        is_const_buffer_sequence<ConstBufferSequence>::value
+      > = 0)
+    -> decltype(
+      async_initiate<BufferedHandshakeToken,
+        void (asio::error_code, std::size_t)>(
+          declval<initiate_async_buffered_handshake>(), token, type, buffers))
   {
-	return async_initiate<BufferedHandshakeToken,
-	  void (asio::error_code, std::size_t)>(
-		initiate_async_buffered_handshake(this), token, type, buffers);
+    return async_initiate<BufferedHandshakeToken,
+      void (asio::error_code, std::size_t)>(
+        initiate_async_buffered_handshake(this), token, type, buffers);
   }
 
   /// Shut down SSL on the stream.
@@ -610,9 +583,9 @@ public:
    */
   void shutdown()
   {
-	asio::error_code ec;
-	shutdown(ec);
-	asio::detail::throw_error(ec, "shutdown");
+    asio::error_code ec;
+    shutdown(ec);
+    asio::detail::throw_error(ec, "shutdown");
   }
 
   /// Shut down SSL on the stream.
@@ -624,8 +597,8 @@ public:
    */
   ASIO_SYNC_OP_VOID shutdown(asio::error_code& ec)
   {
-	detail::io(next_layer_, core_, detail::shutdown_op(), ec);
-	ASIO_SYNC_OP_VOID_RETURN(ec);
+    detail::io(next_layer_, core_, detail::shutdown_op(), ec);
+    ASIO_SYNC_OP_VOID_RETURN(ec);
   }
 
   /// Asynchronously shut down SSL on the stream.
@@ -645,7 +618,7 @@ public:
    * Regardless of whether the asynchronous operation completes immediately or
    * not, the completion handler will not be invoked from within this function.
    * On immediate completion, invocation of the handler will be performed in a
-   * manner equivalent to using asio::post().
+   * manner equivalent to using asio::async_immediate().
    *
    * @par Completion Signature
    * @code void(asio::error_code) @endcode
@@ -662,22 +635,19 @@ public:
    * @c async_write_some operations.
    */
   template <
-	  ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code))
-		ShutdownToken
-		  ASIO_DEFAULT_COMPLETION_TOKEN_TYPE(executor_type)>
-  ASIO_INITFN_AUTO_RESULT_TYPE_PREFIX(ShutdownToken,
-	  void (asio::error_code))
-  async_shutdown(
-	  ASIO_MOVE_ARG(ShutdownToken) token
-		ASIO_DEFAULT_COMPLETION_TOKEN(executor_type))
-	ASIO_INITFN_AUTO_RESULT_TYPE_SUFFIX((
-	  async_initiate<ShutdownToken,
-		void (asio::error_code)>(
-		  declval<initiate_async_shutdown>(), token)))
+      ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code))
+        ShutdownToken
+          = default_completion_token_t<executor_type>>
+  auto async_shutdown(
+      ShutdownToken&& token = default_completion_token_t<executor_type>())
+    -> decltype(
+      async_initiate<ShutdownToken,
+        void (asio::error_code)>(
+          declval<initiate_async_shutdown>(), token))
   {
-	return async_initiate<ShutdownToken,
-	  void (asio::error_code)>(
-		initiate_async_shutdown(this), token);
+    return async_initiate<ShutdownToken,
+      void (asio::error_code)>(
+        initiate_async_shutdown(this), token);
   }
 
   /// Write some data to the stream.
@@ -699,10 +669,10 @@ public:
   template <typename ConstBufferSequence>
   std::size_t write_some(const ConstBufferSequence& buffers)
   {
-	asio::error_code ec;
-	std::size_t n = write_some(buffers, ec);
-	asio::detail::throw_error(ec, "write_some");
-	return n;
+    asio::error_code ec;
+    std::size_t n = write_some(buffers, ec);
+    asio::detail::throw_error(ec, "write_some");
+    return n;
   }
 
   /// Write some data to the stream.
@@ -723,10 +693,10 @@ public:
    */
   template <typename ConstBufferSequence>
   std::size_t write_some(const ConstBufferSequence& buffers,
-	  asio::error_code& ec)
+      asio::error_code& ec)
   {
-	return detail::io(next_layer_, core_,
-		detail::write_op<ConstBufferSequence>(buffers), ec);
+    return detail::io(next_layer_, core_,
+        detail::write_op<ConstBufferSequence>(buffers), ec);
   }
 
   /// Start an asynchronous write.
@@ -752,7 +722,7 @@ public:
    * Regardless of whether the asynchronous operation completes immediately or
    * not, the completion handler will not be invoked from within this function.
    * On immediate completion, invocation of the handler will be performed in a
-   * manner equivalent to using asio::post().
+   * manner equivalent to using asio::async_immediate().
    *
    * @par Completion Signature
    * @code void(asio::error_code, std::size_t) @endcode
@@ -774,22 +744,18 @@ public:
    * @c async_write_some operations.
    */
   template <typename ConstBufferSequence,
-	  ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code,
-		std::size_t)) WriteToken
-		  ASIO_DEFAULT_COMPLETION_TOKEN_TYPE(executor_type)>
-  ASIO_INITFN_AUTO_RESULT_TYPE_PREFIX(WriteToken,
-	  void (asio::error_code, std::size_t))
-  async_write_some(const ConstBufferSequence& buffers,
-	  ASIO_MOVE_ARG(WriteToken) token
-		ASIO_DEFAULT_COMPLETION_TOKEN(executor_type))
-	ASIO_INITFN_AUTO_RESULT_TYPE_SUFFIX((
-	  async_initiate<WriteToken,
-		void (asio::error_code, std::size_t)>(
-		  declval<initiate_async_write_some>(), token, buffers)))
+      ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code,
+        std::size_t)) WriteToken = default_completion_token_t<executor_type>>
+  auto async_write_some(const ConstBufferSequence& buffers,
+      WriteToken&& token = default_completion_token_t<executor_type>())
+    -> decltype(
+      async_initiate<WriteToken,
+        void (asio::error_code, std::size_t)>(
+          declval<initiate_async_write_some>(), token, buffers))
   {
-	return async_initiate<WriteToken,
-	  void (asio::error_code, std::size_t)>(
-		initiate_async_write_some(this), token, buffers);
+    return async_initiate<WriteToken,
+      void (asio::error_code, std::size_t)>(
+        initiate_async_write_some(this), token, buffers);
   }
 
   /// Read some data from the stream.
@@ -811,10 +777,10 @@ public:
   template <typename MutableBufferSequence>
   std::size_t read_some(const MutableBufferSequence& buffers)
   {
-	asio::error_code ec;
-	std::size_t n = read_some(buffers, ec);
-	asio::detail::throw_error(ec, "read_some");
-	return n;
+    asio::error_code ec;
+    std::size_t n = read_some(buffers, ec);
+    asio::detail::throw_error(ec, "read_some");
+    return n;
   }
 
   /// Read some data from the stream.
@@ -835,10 +801,10 @@ public:
    */
   template <typename MutableBufferSequence>
   std::size_t read_some(const MutableBufferSequence& buffers,
-	  asio::error_code& ec)
+      asio::error_code& ec)
   {
-	return detail::io(next_layer_, core_,
-		detail::read_op<MutableBufferSequence>(buffers), ec);
+    return detail::io(next_layer_, core_,
+        detail::read_op<MutableBufferSequence>(buffers), ec);
   }
 
   /// Start an asynchronous read.
@@ -864,7 +830,7 @@ public:
    * Regardless of whether the asynchronous operation completes immediately or
    * not, the completion handler will not be invoked from within this function.
    * On immediate completion, invocation of the handler will be performed in a
-   * manner equivalent to using asio::post().
+   * manner equivalent to using asio::async_immediate().
    *
    * @par Completion Signature
    * @code void(asio::error_code, std::size_t) @endcode
@@ -886,186 +852,182 @@ public:
    * @c async_write_some operations.
    */
   template <typename MutableBufferSequence,
-	  ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code,
-		std::size_t)) ReadToken
-		  ASIO_DEFAULT_COMPLETION_TOKEN_TYPE(executor_type)>
-  ASIO_INITFN_AUTO_RESULT_TYPE_PREFIX(ReadToken,
-	  void (asio::error_code, std::size_t))
-  async_read_some(const MutableBufferSequence& buffers,
-	  ASIO_MOVE_ARG(ReadToken) token
-		ASIO_DEFAULT_COMPLETION_TOKEN(executor_type))
-	ASIO_INITFN_AUTO_RESULT_TYPE_SUFFIX((
-	  async_initiate<ReadToken,
-		void (asio::error_code, std::size_t)>(
-		  declval<initiate_async_read_some>(), token, buffers)))
+      ASIO_COMPLETION_TOKEN_FOR(void (asio::error_code,
+        std::size_t)) ReadToken = default_completion_token_t<executor_type>>
+  auto async_read_some(const MutableBufferSequence& buffers,
+      ReadToken&& token = default_completion_token_t<executor_type>())
+    -> decltype(
+      async_initiate<ReadToken,
+        void (asio::error_code, std::size_t)>(
+          declval<initiate_async_read_some>(), token, buffers))
   {
-	return async_initiate<ReadToken,
-	  void (asio::error_code, std::size_t)>(
-		initiate_async_read_some(this), token, buffers);
+    return async_initiate<ReadToken,
+      void (asio::error_code, std::size_t)>(
+        initiate_async_read_some(this), token, buffers);
   }
 
 private:
   class initiate_async_handshake
   {
   public:
-	typedef typename stream::executor_type executor_type;
+    typedef typename stream::executor_type executor_type;
 
-	explicit initiate_async_handshake(stream* self)
-	  : self_(self)
-	{
-	}
+    explicit initiate_async_handshake(stream* self)
+      : self_(self)
+    {
+    }
 
-	executor_type get_executor() const ASIO_NOEXCEPT
-	{
-	  return self_->get_executor();
-	}
+    executor_type get_executor() const noexcept
+    {
+      return self_->get_executor();
+    }
 
-	template <typename HandshakeHandler>
-	void operator()(ASIO_MOVE_ARG(HandshakeHandler) handler,
-		handshake_type type) const
-	{
-	  // If you get an error on the following line it means that your handler
-	  // does not meet the documented type requirements for a HandshakeHandler.
-	  ASIO_HANDSHAKE_HANDLER_CHECK(HandshakeHandler, handler) type_check;
+    template <typename HandshakeHandler>
+    void operator()(HandshakeHandler&& handler,
+        handshake_type type) const
+    {
+      // If you get an error on the following line it means that your handler
+      // does not meet the documented type requirements for a HandshakeHandler.
+      ASIO_HANDSHAKE_HANDLER_CHECK(HandshakeHandler, handler) type_check;
 
-	  asio::detail::non_const_lvalue<HandshakeHandler> handler2(handler);
-	  detail::async_io(self_->next_layer_, self_->core_,
-		  detail::handshake_op(type), handler2.value);
-	}
+      asio::detail::non_const_lvalue<HandshakeHandler> handler2(handler);
+      detail::async_io(self_->next_layer_, self_->core_,
+          detail::handshake_op(type), handler2.value);
+    }
 
   private:
-	stream* self_;
+    stream* self_;
   };
 
   class initiate_async_buffered_handshake
   {
   public:
-	typedef typename stream::executor_type executor_type;
+    typedef typename stream::executor_type executor_type;
 
-	explicit initiate_async_buffered_handshake(stream* self)
-	  : self_(self)
-	{
-	}
+    explicit initiate_async_buffered_handshake(stream* self)
+      : self_(self)
+    {
+    }
 
-	executor_type get_executor() const ASIO_NOEXCEPT
-	{
-	  return self_->get_executor();
-	}
+    executor_type get_executor() const noexcept
+    {
+      return self_->get_executor();
+    }
 
-	template <typename BufferedHandshakeHandler, typename ConstBufferSequence>
-	void operator()(ASIO_MOVE_ARG(BufferedHandshakeHandler) handler,
-		handshake_type type, const ConstBufferSequence& buffers) const
-	{
-	  // If you get an error on the following line it means that your
-	  // handler does not meet the documented type requirements for a
-	  // BufferedHandshakeHandler.
-	  ASIO_BUFFERED_HANDSHAKE_HANDLER_CHECK(
-		  BufferedHandshakeHandler, handler) type_check;
+    template <typename BufferedHandshakeHandler, typename ConstBufferSequence>
+    void operator()(BufferedHandshakeHandler&& handler,
+        handshake_type type, const ConstBufferSequence& buffers) const
+    {
+      // If you get an error on the following line it means that your
+      // handler does not meet the documented type requirements for a
+      // BufferedHandshakeHandler.
+      ASIO_BUFFERED_HANDSHAKE_HANDLER_CHECK(
+          BufferedHandshakeHandler, handler) type_check;
 
-	  asio::detail::non_const_lvalue<
-		  BufferedHandshakeHandler> handler2(handler);
-	  detail::async_io(self_->next_layer_, self_->core_,
-		  detail::buffered_handshake_op<ConstBufferSequence>(type, buffers),
-		  handler2.value);
-	}
+      asio::detail::non_const_lvalue<
+          BufferedHandshakeHandler> handler2(handler);
+      detail::async_io(self_->next_layer_, self_->core_,
+          detail::buffered_handshake_op<ConstBufferSequence>(type, buffers),
+          handler2.value);
+    }
 
   private:
-	stream* self_;
+    stream* self_;
   };
 
   class initiate_async_shutdown
   {
   public:
-	typedef typename stream::executor_type executor_type;
+    typedef typename stream::executor_type executor_type;
 
-	explicit initiate_async_shutdown(stream* self)
-	  : self_(self)
-	{
-	}
+    explicit initiate_async_shutdown(stream* self)
+      : self_(self)
+    {
+    }
 
-	executor_type get_executor() const ASIO_NOEXCEPT
-	{
-	  return self_->get_executor();
-	}
+    executor_type get_executor() const noexcept
+    {
+      return self_->get_executor();
+    }
 
-	template <typename ShutdownHandler>
-	void operator()(ASIO_MOVE_ARG(ShutdownHandler) handler) const
-	{
-	  // If you get an error on the following line it means that your handler
-	  // does not meet the documented type requirements for a ShutdownHandler.
-	  ASIO_HANDSHAKE_HANDLER_CHECK(ShutdownHandler, handler) type_check;
+    template <typename ShutdownHandler>
+    void operator()(ShutdownHandler&& handler) const
+    {
+      // If you get an error on the following line it means that your handler
+      // does not meet the documented type requirements for a ShutdownHandler.
+      ASIO_HANDSHAKE_HANDLER_CHECK(ShutdownHandler, handler) type_check;
 
-	  asio::detail::non_const_lvalue<ShutdownHandler> handler2(handler);
-	  detail::async_io(self_->next_layer_, self_->core_,
-		  detail::shutdown_op(), handler2.value);
-	}
+      asio::detail::non_const_lvalue<ShutdownHandler> handler2(handler);
+      detail::async_io(self_->next_layer_, self_->core_,
+          detail::shutdown_op(), handler2.value);
+    }
 
   private:
-	stream* self_;
+    stream* self_;
   };
 
   class initiate_async_write_some
   {
   public:
-	typedef typename stream::executor_type executor_type;
+    typedef typename stream::executor_type executor_type;
 
-	explicit initiate_async_write_some(stream* self)
-	  : self_(self)
-	{
-	}
+    explicit initiate_async_write_some(stream* self)
+      : self_(self)
+    {
+    }
 
-	executor_type get_executor() const ASIO_NOEXCEPT
-	{
-	  return self_->get_executor();
-	}
+    executor_type get_executor() const noexcept
+    {
+      return self_->get_executor();
+    }
 
-	template <typename WriteHandler, typename ConstBufferSequence>
-	void operator()(ASIO_MOVE_ARG(WriteHandler) handler,
-		const ConstBufferSequence& buffers) const
-	{
-	  // If you get an error on the following line it means that your handler
-	  // does not meet the documented type requirements for a WriteHandler.
-	  ASIO_WRITE_HANDLER_CHECK(WriteHandler, handler) type_check;
+    template <typename WriteHandler, typename ConstBufferSequence>
+    void operator()(WriteHandler&& handler,
+        const ConstBufferSequence& buffers) const
+    {
+      // If you get an error on the following line it means that your handler
+      // does not meet the documented type requirements for a WriteHandler.
+      ASIO_WRITE_HANDLER_CHECK(WriteHandler, handler) type_check;
 
-	  asio::detail::non_const_lvalue<WriteHandler> handler2(handler);
-	  detail::async_io(self_->next_layer_, self_->core_,
-		  detail::write_op<ConstBufferSequence>(buffers), handler2.value);
-	}
+      asio::detail::non_const_lvalue<WriteHandler> handler2(handler);
+      detail::async_io(self_->next_layer_, self_->core_,
+          detail::write_op<ConstBufferSequence>(buffers), handler2.value);
+    }
 
   private:
-	stream* self_;
+    stream* self_;
   };
 
   class initiate_async_read_some
   {
   public:
-	typedef typename stream::executor_type executor_type;
+    typedef typename stream::executor_type executor_type;
 
-	explicit initiate_async_read_some(stream* self)
-	  : self_(self)
-	{
-	}
+    explicit initiate_async_read_some(stream* self)
+      : self_(self)
+    {
+    }
 
-	executor_type get_executor() const ASIO_NOEXCEPT
-	{
-	  return self_->get_executor();
-	}
+    executor_type get_executor() const noexcept
+    {
+      return self_->get_executor();
+    }
 
-	template <typename ReadHandler, typename MutableBufferSequence>
-	void operator()(ASIO_MOVE_ARG(ReadHandler) handler,
-		const MutableBufferSequence& buffers) const
-	{
-	  // If you get an error on the following line it means that your handler
-	  // does not meet the documented type requirements for a ReadHandler.
-	  ASIO_READ_HANDLER_CHECK(ReadHandler, handler) type_check;
+    template <typename ReadHandler, typename MutableBufferSequence>
+    void operator()(ReadHandler&& handler,
+        const MutableBufferSequence& buffers) const
+    {
+      // If you get an error on the following line it means that your handler
+      // does not meet the documented type requirements for a ReadHandler.
+      ASIO_READ_HANDLER_CHECK(ReadHandler, handler) type_check;
 
-	  asio::detail::non_const_lvalue<ReadHandler> handler2(handler);
-	  detail::async_io(self_->next_layer_, self_->core_,
-		  detail::read_op<MutableBufferSequence>(buffers), handler2.value);
-	}
+      asio::detail::non_const_lvalue<ReadHandler> handler2(handler);
+      detail::async_io(self_->next_layer_, self_->core_,
+          detail::read_op<MutableBufferSequence>(buffers), handler2.value);
+    }
 
   private:
-	stream* self_;
+    stream* self_;
   };
 
   Stream next_layer_;
