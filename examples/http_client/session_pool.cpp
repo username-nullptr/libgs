@@ -9,7 +9,7 @@ int main()
 
 	libgs::http::session_pool spool(libgs::get_executor());
 	asio::thread_pool pool(16);
-#if 1
+#if 0
 	libgs::dispatch([&]() -> asio::awaitable<void>
 	{
 		auto session = co_await spool.get(/*pool,*/
@@ -33,7 +33,7 @@ int main()
 	});
 #else
 	spool.get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080},
-	[&pool](libgs::http::session_pool::session_t session, const std::error_code &error)
+	[&pool](const std::error_code &error, libgs::http::session_pool::session_t session)
 	{
 		LIBGS_UNUSED(error);
 	    static auto wbuf ="GET / HTTP/1.1\r\n"

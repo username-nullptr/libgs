@@ -164,33 +164,42 @@ auto basic_session_pool<Stream,Exec>::get
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
+		using namespace libgs::operators;
 		using namespace std::chrono_literals;
-		auto sess = m_impl->get(ep, exec);
-		auto ntoken = unbound_redirect_time(token);
 
-		return asio::co_spawn(exec, [
-			ep = std::move(ep), sess = std::move(sess),
-			timeout = get_associated_redirect_time(token), ntoken
-		]() mutable -> awaitable<session_t>
+		decltype(auto) ntoken = unbound_redirect_time(token);
+		decltype(auto) rtoken = unbound_token(ntoken);
+
+		return async_work<error_code,session_t>::handle(get_executor(), [
+			self_exec = get_executor(), ep = std::move(ep), sess = m_impl->get(ep, exec),
+			timeout = get_associated_redirect_time(token), ntoken = std::move(ntoken)
+		](auto wake_up) mutable
 		{
-			auto &helper = sess.opt_helper();
-			if( helper.is_open() )
-				co_return std::move(sess);
+			using wake_up_t = std::remove_cvref_t<decltype(wake_up)>;
+			asio::co_spawn(self_exec, [
+				wake_up = std::make_shared<wake_up_t>(std::move(wake_up)), ep = std::move(ep),
+				sess = std::move(sess), timeout = std::move(timeout), ntoken = std::move(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto &helper = sess.opt_helper();
+				std::error_code error;
 
-			using namespace libgs::operators;
-			std::error_code error;
+				if( helper.is_open() )
+					std::move(*wake_up)(error, std::move(sess));
 
-			auto var = co_await (
-				helper.connect(std::move(ep), use_awaitable | error) or
-				co_sleep_for(timeout /*,get_executor()*/)
-			);
-			if( var.index() == 0 )
-				co_return std::move(sess);
-			else if( not error )
-				error = make_error_code(errc::timed_out);
-			check_error(remove_const(ntoken), error, "libgs::http::session_pool::get");
+				auto var = co_await (
+					helper.connect(std::move(ep), use_awaitable | error) or
+					co_sleep_for(timeout /*,get_executor()*/)
+				);
+				if( var.index() == 1 and not error )
+					error = make_error_code(errc::timed_out);
+
+				std::move(*wake_up)(error, std::move(sess));
+				co_return ;
+			},
+			detached | asio::get_associated_cancellation_slot(ntoken));
 		},
-		ntoken);
+		rtoken);
 	}
 }
 

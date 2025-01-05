@@ -228,7 +228,7 @@ template <typename Token, typename...Args>
 constexpr bool is_tf_opt_token_v = is_tf_opt_token<Token,Args...>::value;
 
 template <typename Token>
-struct is_any_tf_opt_token : std::disjunction<is_async_tf_opt_token<Token>, is_sync_opt_token<Token>> {};
+struct is_any_tf_opt_token : std::disjunction<is_any_async_tf_opt_token<Token>, is_sync_opt_token<Token>> {};
 
 template <typename Token>
 constexpr bool is_any_tf_opt_token_v = is_any_tf_opt_token<Token>::value;

@@ -26,34 +26,30 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_CONTEXT_H
-#define LIBGS_HTTP_CLIENT_CONTEXT_H
+#ifndef LIBGS_HTTP_CLIENT_REPLY_H
+#define LIBGS_HTTP_CLIENT_REPLY_H
 
-#include <libgs/http/client/reply.h>
+#include <libgs/http/client/request.h>
 
 namespace libgs::http
 {
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream = asio::ip::tcp::socket>
-class LIBGS_HTTP_TAPI basic_client_context
+class LIBGS_HTTP_TAPI basic_client_reply
 {
-	LIBGS_DISABLE_COPY(basic_client_context)
+	LIBGS_DISABLE_COPY(basic_client_reply)
 
 public:
 	using char_t = CharT;
-	using socket_t = Stream;
-
-	using reply_t = basic_client_reply<char_t,socket_t>;
-	using request_t = typename reply_t::request_t;
-
+	using request_t = basic_client_request<char_t>;
 	using request_url_t = typename request_t::request_url_t;
 	using url_t = typename request_url_t::url_t;
 
+	using socket_t = Stream;
 	using session_t = typename request_t::session_t;
 	using executor_t = typename session_t::executor_t;
 
 public:
-
 
 private:
 	class impl;
@@ -61,7 +57,7 @@ private:
 };
 
 } //namespace libgs::http
-#include <libgs/http/client/detail/context.h>
+#include <libgs/http/client/detail/reply.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_CONTEXT_H
+#endif //LIBGS_HTTP_CLIENT_REPLY_H
