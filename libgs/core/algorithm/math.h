@@ -50,13 +50,17 @@ template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end, auto &&func) requires
 	std::is_arithmetic_v<decltype(func(*begin))>;
 
-template <typename Iter, typename Data>
-[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requires
-	std::is_same_v<decltype(func(*begin)), Data> and std::is_arithmetic_v<Data>;
+template <typename Iter>
+[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
+	requires requires(const decltype(func(*begin)) &data) {
+		data > data; data < data; data - data > threshold; data - data < threshold;
+	};
 
-template <typename Iter, typename Data>
-[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const Data &threshold) requires
-	std::is_same_v<decltype(*begin), Data> and std::is_arithmetic_v<Data>;
+template <typename Iter>
+[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold)
+	requires requires(const decltype(*begin) &data) {
+		data > data; data < data; data - data > threshold; data - data < threshold;
+	};
 
 } //namespace libgs
 #include <libgs/core/algorithm/detail/math.h>

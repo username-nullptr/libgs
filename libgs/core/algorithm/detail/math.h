@@ -73,11 +73,14 @@ auto mean(Iter begin, Iter end, auto &&func) requires
 	return sum / count;
 }
 
-template <typename Iter, typename Data>
-auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requires
-	std::is_same_v<decltype(func(*begin)), Data> and std::is_arithmetic_v<Data>
+template <typename Iter>
+auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
+	requires requires(const decltype(func(*begin)) &data) {
+		data > data; data < data; data - data > threshold; data - data < threshold;
+	}
 {
-	using vector_t = std::vector<Data>;
+	using data_t = decltype(func(*begin));
+	using vector_t = std::vector<data_t>;
 	auto it = std::next(begin);
 
 	if( it == end )
@@ -94,7 +97,7 @@ auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requi
 	last_ipt = inf_pt_t::start;
 
 	auto pre_data = func(*begin);
-	std::list<Data> list { pre_data };
+	std::list<data_t> list { pre_data };
 
 	auto status_check = [&](direction d, inf_pt_t t, auto &&comp, auto &&diff) mutable
 	{
@@ -118,15 +121,15 @@ auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requi
 		if( data > pre_data )
 		{
 			status_check(direction::rising_edge, inf_pt_t::trough,
-				[](double pre, double back){ return pre < back; },
-				[](double pre, double back){ return back - pre; }
+				[](auto pre, auto back){ return pre < back; },
+				[](auto pre, auto back){ return back - pre; }
 			);
 		}
 		else if( data < pre_data )
 		{
 			status_check(direction::falling_edge, inf_pt_t::crest,
-				[](double pre, double back){ return pre > back; },
-				[](double pre, double back){ return pre - back; }
+				[](auto pre, auto back){ return pre > back; },
+				[](auto pre, auto back){ return pre - back; }
 			);
 		}
 		else
@@ -143,8 +146,10 @@ auto func_inf_pt(Iter begin, Iter end, const Data &threshold, auto &&func) requi
 }
 
 template <typename Iter, typename Data>
-auto func_inf_pt(Iter begin, Iter end, const Data &threshold) requires
-	std::is_same_v<decltype(*begin), Data> and std::is_arithmetic_v<Data>
+std::vector<Data> func_inf_pt(Iter begin, Iter end, const Data &threshold)
+	requires requires(const decltype(*begin) &data) {
+		data > data; data < data; data - data > threshold; data - data < threshold;
+	}
 {
 	return func_inf_pt(begin, end, threshold, [](auto x){return x;});
 }
