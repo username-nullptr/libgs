@@ -52,14 +52,14 @@ template <typename Iter>
 
 template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
-	requires requires(const decltype(func(*begin)) &data) {
-		data > data; data < data; data - data > threshold; data - data < threshold;
+	requires requires(decltype(func(*begin)) &data) {
+		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
 	};
 
 template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold)
-	requires requires(const decltype(*begin) &data) {
-		data > data; data < data; data - data > threshold; data - data < threshold;
+	requires requires(decltype(*begin) &data) {
+		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
 	};
 
 } //namespace libgs

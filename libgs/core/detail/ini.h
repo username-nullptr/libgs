@@ -581,7 +581,6 @@ private:
 					"libgs::basic_ini"
 				);
 			}
-			return ;
 		}
 		else if( value[0] == keyword_char::single_quotes or value[0] == keyword_char::double_quotes )
 		{

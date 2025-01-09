@@ -75,8 +75,8 @@ auto mean(Iter begin, Iter end, auto &&func) requires
 
 template <typename Iter>
 auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
-	requires requires(const decltype(func(*begin)) &data) {
-		data > data; data < data; data - data > threshold; data - data < threshold;
+	requires requires(decltype(func(*begin)) &data) {
+		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
 	}
 {
 	using data_t = decltype(func(*begin));
@@ -92,13 +92,46 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
 	dtn = direction::level;
 
 	enum class inf_pt_t {
-		start, crest, trough
+		crest, trough
 	}
-	last_ipt = inf_pt_t::start;
+	last_ipt = {};
 
-	auto pre_data = func(*begin);
-	std::list<data_t> list { pre_data };
+	auto data = func(*begin);
+	data_t min = data, max = data;
 
+	std::list<data_t> list;
+	for(; it!=end; ++it)
+	{
+		data = func(*it);
+		if( data < min )
+		{
+			last_ipt = inf_pt_t::trough;
+			min = std::move(data);
+
+			if( max - min > threshold )
+			{
+				list.emplace_back(max);
+				list.emplace_back(min);
+				break;
+			}
+		}
+		else if( data > max )
+		{
+			last_ipt = inf_pt_t::crest;
+			max = std::move(data);
+
+			if( max - min > threshold )
+			{
+				list.emplace_back(min);
+				list.emplace_back(max);
+				break;
+			}
+		}
+	}
+	if( list.empty() )
+		return vector_t{};
+
+	auto pre_data = data;
 	auto status_check = [&](direction d, inf_pt_t t, auto &&comp, auto &&diff) mutable
 	{
 		if( dtn == d )
@@ -115,9 +148,9 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
 		}
 		dtn = d;
 	};
-	for(; it!=end; ++it)
+	for(++it; it!=end; ++it)
 	{
-		auto data = func(*it);
+		data = func(*it);
 		if( data > pre_data )
 		{
 			status_check(direction::rising_edge, inf_pt_t::trough,
@@ -146,9 +179,9 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
 }
 
 template <typename Iter, typename Data>
-std::vector<Data> func_inf_pt(Iter begin, Iter end, const Data &threshold)
-	requires requires(const decltype(*begin) &data) {
-		data > data; data < data; data - data > threshold; data - data < threshold;
+auto func_inf_pt(Iter begin, Iter end, const Data &threshold)
+	requires requires(decltype(*begin) &data) {
+		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
 	}
 {
 	return func_inf_pt(begin, end, threshold, [](auto x){return x;});
