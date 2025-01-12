@@ -90,7 +90,7 @@ concept match_execution =
 
 template <typename Exec, typename NativeExec>
 concept match_execution_context =
-	is_execution_context_v<Exec> and is_execution_v<NativeExec> and
+	is_execution_context_v<Exec> and is_execution_v<NativeExec> and std::is_lvalue_reference_v<Exec&> and
 	requires(Exec &exec) { NativeExec(exec.get_executor()); };
 
 template <typename Exec, typename NativeExec>

@@ -79,7 +79,22 @@ using basic_tcp_socket_session = basic_socket_session<asio::basic_stream_socket<
 using tcp_socket_session = basic_tcp_socket_session<asio::any_io_executor>;
 using socket_session = tcp_socket_session;
 
-} //namespace libgs::http
+template <typename>
+struct is_socket_session : std::false_type {};
+
+template <concepts::stream Stream>
+struct is_socket_session<basic_socket_session<Stream>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_socket_session_v = is_socket_session<T>::value;
+
+namespace concepts
+{
+
+template <typename T>
+concept socket_session = is_socket_session_v<T>;
+
+}} //namespace libgs::http::concepts
 #include <libgs/http/cxx/detail/socket_session.h>
 
 

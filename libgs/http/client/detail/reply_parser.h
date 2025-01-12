@@ -35,10 +35,10 @@ namespace libgs::http
 {
 
 template <core_concepts::char_type CharT>
-class basic_reply_parser<CharT>::impl
+class LIBGS_HTTP_TAPI basic_reply_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using parser_t = basic_parser_base<CharT>;
+	using parser_t = basic_parser_base<char_t>;
 
 public:
 	explicit impl(size_t init_buf_size) :
@@ -57,8 +57,8 @@ public:
 
 public:
 	parser_t m_parser;
-	http::status m_status = http::status::ok;
-	string_t m_description = basic_status_description_v<CharT,http::status::ok>;
+	status_t m_status = status::ok;
+	string_t m_description = status_description<status::ok,char_t>();
 	cookies_t m_cookies {};
 };
 
@@ -91,19 +91,19 @@ basic_reply_parser<CharT> &basic_reply_parser<CharT>::operator=(basic_reply_pars
 }
 
 template <core_concepts::char_type CharT>
-bool basic_reply_parser<CharT>::append(std::string_view buf, error_code &error)
+bool basic_reply_parser<CharT>::append(core_concepts::string_type auto &&buf, error_code &error)
 {
 
 }
 
 template <core_concepts::char_type CharT>
-bool basic_reply_parser<CharT>::append(std::string_view buf)
+bool basic_reply_parser<CharT>::append(core_concepts::string_type auto &&buf)
 {
 
 }
 
 template <core_concepts::char_type CharT>
-bool basic_reply_parser<CharT>::operator<<(std::string_view buf)
+bool basic_reply_parser<CharT>::operator<<(core_concepts::string_type auto &&buf)
 {
 
 }
@@ -115,7 +115,7 @@ std::basic_string_view<CharT> basic_reply_parser<CharT>::version() const noexcep
 }
 
 template <core_concepts::char_type CharT>
-http::status basic_reply_parser<CharT>::status() const noexcept
+status_t basic_reply_parser<CharT>::status() const noexcept
 {
 
 }

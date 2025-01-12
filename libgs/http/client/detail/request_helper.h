@@ -33,11 +33,11 @@ namespace libgs::http
 {
 
 template <core_concepts::char_type CharT>
-class basic_request_helper<CharT>::impl
+class LIBGS_HTTP_TAPI basic_request_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
-	using string_list_t = basic_string_list<CharT>;
-	using string_pool = detail::string_pool<CharT>;
+	using string_list_t = basic_string_list<char_t>;
+	using string_pool = detail::string_pool<char_t>;
 	using header_t = typename request_t::header_t;
 
 public:
@@ -67,7 +67,7 @@ public:
 	}
 
 public:
-	std::string header_data(size_t body_size)
+	[[nodiscard]] std::string header_data(size_t body_size)
 	{
 		auto &headers = m_request->headers();
 		auto it = headers.find(header_t::content_length);
@@ -84,26 +84,40 @@ public:
 				m_request->set_header(header_t::content_length, body_size);
 		}
 		auto buf = to_method_string(m_request->method()) + " ";
-		auto url = xxtombs<CharT>(m_request->path());
+		auto url = xxtombs(m_request->path());
 
 		if( not m_request->parameters().empty() )
 		{
 			url += "?";
 			for(auto &[key,value] : m_request->parameters())
-				url += xxtombs<CharT>(key) + "=" + xxtombs<CharT>(value) + "&";
+				url += xxtombs(key) + "=" + xxtombs(value) + "&";
 		}
 		buf += to_percent_encoding(url) + " HTTP/" + m_version + "\r\n";
 		for(auto &[key,value] : headers)
-			buf += xxtombs<CharT>(key) + ": " + xxtombs<CharT>(value) + "\r\n";
+			buf += xxtombs(key) + ": " + xxtombs(value) + "\r\n";
 
 		if( not m_request->cookies().empty() )
 		{
 			buf += "Cookie: ";
 			for(auto &[key,value] : m_request->cookies())
-				buf += xxtombs<CharT>(key) + "=" + xxtombs<CharT>(value) + ";";
+				buf += xxtombs(key) + "=" + xxtombs(value) + ";";
 			buf += "\r\n";
 		}
 		return buf + "\r\n";
+	}
+
+	[[nodiscard]] std::string body_data(const const_buffer &buffer)
+	{
+		// TODO ... ...
+		LIBGS_UNUSED(buffer);
+		return {};
+	}
+
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers)
+	{
+		// TODO ... ...
+		LIBGS_UNUSED(headers);
+		return {};
 	}
 
 public:
@@ -112,15 +126,15 @@ public:
 };
 
 template <core_concepts::char_type CharT>
-basic_request_helper<CharT>::basic_request_helper(string_view_t version, request_t &request) :
-	m_impl(new impl(request, version))
+basic_request_helper<CharT>::basic_request_helper(request_t &request) :
+	m_impl(new impl(request))
 {
 
 }
 
 template <core_concepts::char_type CharT>
-basic_request_helper<CharT>::basic_request_helper(request_t &request) :
-	m_impl(new impl(request))
+basic_request_helper<CharT>::basic_request_helper(string_view_t version, request_t &request) :
+	m_impl(new impl(request, version))
 {
 
 }
@@ -170,13 +184,13 @@ std::basic_string_view<CharT> basic_request_helper<CharT>::version() const noexc
 }
 
 template <core_concepts::char_type CharT>
-const basic_client_request<CharT> &basic_request_helper<CharT>::request() const noexcept
+const typename basic_request_helper<CharT>::request_t &basic_request_helper<CharT>::request() const noexcept
 {
 	return m_impl->m_request;
 }
 
 template <core_concepts::char_type CharT>
-basic_client_request<CharT> &basic_request_helper<CharT>::request() noexcept
+typename basic_request_helper<CharT>::request_t &basic_request_helper<CharT>::request() noexcept
 {
 	return m_impl->m_request;
 }

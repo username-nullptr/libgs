@@ -29,33 +29,70 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_H
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
-#include <libgs/http/cxx/socket_session.h>
-#include <libgs/http/client/request_url.h>
+#include <libgs/http/client/url.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, concepts::any_exec_stream Stream = asio::ip::tcp::socket>
+template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_client_request
 {
 	LIBGS_DISABLE_COPY(basic_client_request)
+	using string_pool = detail::string_pool<CharT>;
 
 public:
 	using char_t = CharT;
-	using request_url_t = basic_request_url<char_t>;
-	using url_t = typename request_url_t::url_t;
+	using url_t = basic_url<char_t>;
 
-	using socket_t = Stream;
-	using session_t = basic_socket_session<socket_t>;
-	using executor_t = typename session_t::executor_t;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
+
+	using value_t = basic_value<char_t>;
+	using value_list_t = basic_value_list<char_t>;
+
+	using parameters_t = basic_parameters<char_t>;
+	using header_t = basic_header<char_t>;
+
+	using headers_t = basic_headers<char_t>;
+	using cookies_t = basic_cookie_values<char_t>;
 
 public:
+	basic_client_request(url_t url);
+	basic_client_request();
+	~basic_client_request();
+
+	basic_client_request(basic_client_request &&other) noexcept;
+	basic_client_request &operator=(basic_client_request &&other) noexcept;
+
+public:
+	basic_client_request &set_url(url_t url);
+	basic_client_request &set_header(string_view_t key, value_t value) noexcept;
+	basic_client_request &set_cookie(string_view_t key, value_t value) noexcept;
+
+	basic_client_request &set_chunk_attribute(value_t attribute);
+	basic_client_request &set_chunk_attributes(value_list_t attributes);
+
+public:
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
+	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
+
+	[[nodiscard]] const url_t &url() const noexcept;
+	[[nodiscard]] url_t &url() noexcept;
+
+public:
+	basic_client_request &unset_header(string_view_t key);
+	basic_client_request &unset_cookie(string_view_t key);
+	basic_client_request &unset_chunk_attribute(const value_t &attributes);
+	basic_client_request &reset();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
+using client_request  = basic_client_request<char>;
+using wclient_request = basic_client_request<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/request.h>

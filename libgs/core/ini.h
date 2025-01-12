@@ -187,10 +187,10 @@ public:
 		const concepts::match_execution<executor_t> auto &exec,
 		std::string_view file_name = {}
 	);
+	explicit basic_ini(std::string_view file_name = {}) requires
+		concepts::match_execution_context<asio::io_context,executor_t>;
 
-	explicit basic_ini(std::string_view file_name = {});
 	virtual ~basic_ini();
-
 	basic_ini(basic_ini &&other) noexcept;
 	basic_ini &operator=(basic_ini &&other) noexcept;
 

@@ -231,7 +231,7 @@ private:
 					break;
 
 				error_code error;
-				parser.append({buf, size}, error);
+				parser.append(std::string_view(buf, size), error);
 				if( error )
 				{
 					spdlog::warn("libgs::http::server: {}.", error);

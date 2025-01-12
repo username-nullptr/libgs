@@ -40,28 +40,30 @@ class LIBGS_HTTP_TAPI basic_request_helper
 	LIBGS_DISABLE_COPY(basic_request_helper)
 
 public:
-	using request_t = basic_client_request<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
-	using string_t = std::basic_string<CharT>;
-	using headers_t = basic_headers<CharT>;
+	using char_t = CharT;
+	using string_view_t = std::basic_string_view<char_t>;
+	using string_t = std::basic_string<char_t>;
+
+	using request_t = basic_client_request<char_t>;
+	using headers_t = typename request_t::headers_t;
 
 public:
-	basic_request_helper(string_view_t version, request_t &request);
-	explicit basic_request_helper(request_t &request); // default v1.1
+	explicit basic_request_helper(request_t &url); // default v1.1
+	basic_request_helper(string_view_t version, request_t &url);
 	~basic_request_helper();
 
 	basic_request_helper(basic_request_helper &&other) noexcept;
 	basic_request_helper &operator=(basic_request_helper &&other) noexcept;
 
 public:
+	[[nodiscard]] string_view_t version() const noexcept;
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
 public:
-	[[nodiscard]] string_view_t version() const noexcept;
-	[[nodiscard]] const request_t &request() const noexcept;
-	[[nodiscard]] request_t &request() noexcept;
+	const request_t &request() const noexcept;
+	request_t &request() noexcept;
 
 private:
 	class impl;

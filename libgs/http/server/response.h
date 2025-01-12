@@ -36,7 +36,6 @@
 namespace libgs::http
 {
 
-
 template <concepts::stream Stream, core_concepts::char_type CharT>
 class LIBGS_HTTP_VAPI basic_server_response
 {
@@ -95,10 +94,7 @@ public:
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
 	auto send_file (
-		concepts::char_file_opt_token_arg <
-			file_optype::combine,
-			io_permission::read
-		> auto &&opt,
+		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
 		Token &&token = {}
 	);
 

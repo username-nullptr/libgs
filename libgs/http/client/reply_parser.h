@@ -40,17 +40,18 @@ class LIBGS_HTTP_TAPI basic_reply_parser
 	LIBGS_DISABLE_COPY(basic_reply_parser)
 
 public:
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
+	using char_t = CharT;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
-	using value_t = basic_value<CharT>;
-	using value_list_t = basic_value_list<CharT>;
+	using value_t = basic_value<char_t>;
+	using value_list_t = basic_value_list<char_t>;
 
-	using cookie_t = basic_cookie<CharT>;
-	using cookies_t = basic_cookies<CharT>;
+	using cookie_t = basic_cookie<char_t>;
+	using cookies_t = basic_cookies<char_t>;
 
-	using header_t = basic_header<CharT>;
-	using headers_t = basic_headers<CharT>;
+	using header_t = basic_header<char_t>;
+	using headers_t = basic_headers<char_t>;
 
 public:
 	explicit basic_reply_parser(size_t init_buf_size = 0xFFFF);
@@ -60,13 +61,13 @@ public:
 	basic_reply_parser &operator=(basic_reply_parser &&other) noexcept;
 
 public:
-	bool append(std::string_view buf, error_code &error);
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
+	bool append(core_concepts::string_type auto &&buf, error_code &error);
+	bool append(core_concepts::string_type auto &&buf);
+	bool operator<<(core_concepts::string_type auto &&buf);
 
 public:
 	[[nodiscard]] string_view_t version() const noexcept;
-	[[nodiscard]] http::status status() const noexcept;
+	[[nodiscard]] status_t status() const noexcept;
 
 	[[nodiscard]] const value_t &header(string_view_t key) const;
 	[[nodiscard]] const cookie_t &cookie(string_view_t key) const;

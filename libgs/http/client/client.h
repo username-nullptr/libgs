@@ -30,18 +30,11 @@
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
 #include <libgs/http/client/session_pool.h>
-#include <libgs/http/client/request.h>
+#include <libgs/http/client/reply.h>
 
 namespace libgs::http
 {
 
-/*
-	  client -------- request_url
-	    |				  |
-	session_pool ----- context --- cilent_request
-                          |
-                      client_reply
-*/
 template <core_concepts::char_type CharT, concepts::session_pool SessionPool = session_pool>
 class LIBGS_HTTP_TAPI basic_client
 {
@@ -55,9 +48,10 @@ public:
 	using executor_t = typename session_pool_t::executor_t;
 
 	using request_t = basic_client_request<char_t>;
-
-	using reply_t = typename request_t::reply_t;
 	using url_t = typename request_t::url_t;
+
+    using get_body_t = std::function<std::string()>;
+	using reply_t = basic_client_reply<char_t>;
 
 public:
 	explicit basic_client(const core_concepts::match_execution<executor_t> auto &exec);
@@ -71,38 +65,58 @@ public:
 
 public:
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto get(Token &&token = {});
+	[[nodiscard]] auto get(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto put(const const_buffer &buf, Token &&token = {});
+	[[nodiscard]] auto put(request_t request, const const_buffer &body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto put(Token &&token = {});
+	[[nodiscard]] auto put(request_t request, const get_body_t &get_body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto post(const const_buffer &buf, Token &&token = {});
+	[[nodiscard]] auto put(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto post(Token &&token = {});
+	[[nodiscard]] auto post(request_t request, const const_buffer &body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto Delete(Token &&token = {});
+	[[nodiscard]] auto post(request_t request, const get_body_t &get_body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto head(Token &&token = {});
+	[[nodiscard]] auto post(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto options(Token &&token = {});
+	[[nodiscard]] auto Delete(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	auto trach(Token &&token = {});
+	[[nodiscard]] auto head(request_t request, Token &&token = {});
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	[[nodiscard]] auto options(request_t request, Token &&token = {});
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	[[nodiscard]] auto trace(request_t request, Token &&token = {});
 
 public:
 	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
-	auto request(const const_buffer &buf, Token &&token = {});
+	[[nodiscard]] auto request(request_t request, const const_buffer &body, Token &&token = {})
+    	requires (Method == method_t::POST || Method == method_t::PUT);
 
 	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
-	auto request(Token &&token = {});
+	[[nodiscard]] auto request(request_t request, const get_body_t &get_body, Token &&token = {})
+    	requires (Method == method_t::POST || Method == method_t::PUT);
+
+	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
+	[[nodiscard]] auto request(request_t request, Token &&token = {});
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	[[nodiscard]] auto request(method_t method, request_t request, const const_buffer &body, Token &&token = {});
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	[[nodiscard]] auto request(method_t method, request_t request, const get_body_t &get_body, Token &&token = {});
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	[[nodiscard]] auto request(method_t method, request_t request, Token &&token = {});
 
 public:
 	[[nodiscard]] const session_pool_t &session_pool() const noexcept;
@@ -114,17 +128,8 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec, core_concepts::execution StreamExec = asio::any_io_executor>
-using basic_tcp_client = basic_client<char, asio::basic_stream_socket<asio::ip::tcp,StreamExec>, Exec>;
 
-template <core_concepts::execution Exec, core_concepts::execution StreamExec = asio::any_io_executor>
-using wbasic_tcp_client = basic_client<wchar_t, asio::basic_stream_socket<asio::ip::tcp,StreamExec>, Exec>;
 
-using tcp_client = basic_tcp_client<asio::any_io_executor>;
-using wtcp_client = wbasic_tcp_client<asio::any_io_executor>;
-
-using client = tcp_client;
-using wclient = wtcp_client;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/client.h>

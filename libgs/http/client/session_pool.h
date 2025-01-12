@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concepts::any_exec_stream Stream = asio::ip::tcp::socket,
+template <concepts::stream Stream = asio::ip::tcp::socket,
 		  core_concepts::execution Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_session_pool
 {
@@ -43,6 +43,7 @@ class LIBGS_HTTP_TAPI basic_session_pool
 public:
 	using socket_t = Stream;
 	using session_t = basic_socket_session<socket_t>;
+	using socket_executor_t = typename socket_t::executor_type;
 
 	using executor_t = Exec;
 	using endpoint_t = typename session_t::endpoint_t;
@@ -63,12 +64,10 @@ public:
 		requires core_concepts::tf_opt_token<Token,error_code,session_t>;
 
 	template <typename Token = use_sync_t>
-	[[nodiscard]] auto get(const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,error_code,session_t>;
-
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto get(core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,error_code,session_t>;
+	[[nodiscard]] auto get (
+		core_concepts::match_execution_or_context<socket_executor_t> auto &&exec,
+		const endpoint_t &ep, Token &&token = {}
+	) requires core_concepts::tf_opt_token<Token,error_code,session_t>;
 
 public:
 	void emplace(socket_t &&socket);

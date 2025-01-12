@@ -165,7 +165,7 @@ public:
 						if( error and error.value() == errc::interrupted )
 							continue;
 
-						bool res = m_parser->append({tmp_buf, tmp_sum}, error);
+						bool res = m_parser->append(std::string_view(tmp_buf, tmp_sum), error);
 						if( error )
 							co_return sum;
 						else if( res )

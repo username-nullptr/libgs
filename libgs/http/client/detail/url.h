@@ -65,7 +65,7 @@ struct _url_static_string<wchar_t> {
 } //namespace detail
 
 template <core_concepts::char_type CharT>
-class basic_url<CharT>::impl
+class LIBGS_HTTP_TAPI basic_url<CharT>::impl
 {
 	LIBGS_DISABLE_MOVE(impl)
 	using string_list_t = basic_string_list<char_t>;

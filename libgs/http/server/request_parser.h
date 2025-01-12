@@ -60,9 +60,9 @@ public:
 	basic_request_parser &operator=(basic_request_parser &&other) noexcept;
 
 public:
-	bool append(std::string_view buf, error_code &error);
-	bool append(std::string_view buf);
-	bool operator<<(std::string_view buf);
+	bool append(core_concepts::string_type auto &&buf, error_code &error);
+	bool append(core_concepts::string_type auto &&buf);
+	bool operator<<(core_concepts::string_type auto &&buf);
 	int32_t path_match(string_view_t rule);
 
 public:

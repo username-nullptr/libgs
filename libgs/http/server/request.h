@@ -111,10 +111,7 @@ public:
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
 	auto save_file (
-		concepts::char_file_opt_token_arg <
-			file_optype::single,
-			io_permission::write
-		> auto &&opt,
+		concepts::char_file_opt_token_arg<file_optype::single, io_permission::write> auto &&opt,
 		Token &&token = {}
 	);
 

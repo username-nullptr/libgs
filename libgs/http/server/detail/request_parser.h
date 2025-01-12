@@ -212,26 +212,26 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_reques
 }
 
 template <core_concepts::char_type CharT>
-bool basic_request_parser<CharT>::append(std::string_view buf, error_code &error)
+bool basic_request_parser<CharT>::append(core_concepts::string_type auto &&buf, error_code &error)
 {
-	bool res = m_impl->m_parser.append(buf, error);
+	bool res = m_impl->m_parser.append(std::forward<decltype(buf)>(buf), error);
 	if( not error )
 		m_impl->set_attribute();
 	return res;
 }
 
 template <core_concepts::char_type CharT>
-bool basic_request_parser<CharT>::append(std::string_view buf)
+bool basic_request_parser<CharT>::append(core_concepts::string_type auto &&buf)
 {
-	bool res = m_impl->m_parser.append(buf);
+	bool res = m_impl->m_parser.append(std::forward<decltype(buf)>(buf));
 	m_impl->set_attribute();
 	return res;
 }
 
 template <core_concepts::char_type CharT>
-bool basic_request_parser<CharT>::operator<<(std::string_view buf)
+bool basic_request_parser<CharT>::operator<<(core_concepts::string_type auto &&buf)
 {
-	return append(buf);
+	return append(std::forward<decltype(buf)>(buf));
 }
 
 template <core_concepts::char_type CharT>

@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
 
+#include <libgs/http/client/reply_parser.h>
+
 namespace libgs::http
 {
 

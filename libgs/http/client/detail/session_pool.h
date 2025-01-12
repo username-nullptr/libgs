@@ -34,8 +34,8 @@
 namespace libgs::http
 {
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-class basic_session_pool<Stream,Exec>::impl
+template <concepts::stream Stream, core_concepts::execution Exec>
+class LIBGS_HTTP_TAPI basic_session_pool<Stream,Exec>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -61,10 +61,13 @@ public:
 			socket = std::move(it->second);
 			m_sock_map.erase(it);
 		}
-		return session_t(std::move(socket), [this, valid = m_valid](socket_t &&sock)
+		return session_t(std::move(socket), [this, valid = m_valid](socket_t &&sock) mutable
 		{
-			if( *valid )
-				emplace(std::move(sock));
+			dispatch(m_exec, [this, valid = std::move(valid), sock = std::move(sock)]() mutable
+			{
+				if( *valid )
+					emplace(std::move(sock));
+			});
 		});
 	}
 
@@ -80,21 +83,21 @@ public:
 	executor_t m_exec;
 };
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool(const core_concepts::match_execution<executor_t> auto &exec) :
 	m_impl(new impl(exec))
 {
 
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_execution_context<executor_t> auto &context) :
 	m_impl(new impl(context.get_executor()))
 {
 
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool() requires
 	core_concepts::match_default_execution<executor_t> :
 	m_impl(new impl())
@@ -102,20 +105,20 @@ basic_session_pool<Stream,Exec>::basic_session_pool() requires
 
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::~basic_session_pool()
 {
 	delete m_impl;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool(basic_session_pool &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basic_session_pool &&other) noexcept
 {
 	delete m_impl;
@@ -124,7 +127,7 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basi
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
 	requires core_concepts::tf_opt_token<Token,error_code,session_t>
@@ -132,10 +135,10 @@ auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
 	return get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get
-(const core_concepts::execution auto &exec, const endpoint_t &ep, Token &&token)
+(core_concepts::match_execution_or_context<socket_executor_t> auto &&exec, const endpoint_t &ep, Token &&token)
 	requires core_concepts::tf_opt_token<Token,error_code,session_t>
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -203,28 +206,19 @@ auto basic_session_pool<Stream,Exec>::get
 	}
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
-template <typename Token>
-auto basic_session_pool<Stream,Exec>::get
-(core_concepts::execution_context auto &exec, const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,error_code,session_t>
-{
-	return get(exec.get_executor(), ep, std::forward<Token>(token));
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 void basic_session_pool<Stream,Exec>::emplace(socket_t &&socket)
 {
 	m_impl->emplace(std::move(socket));
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 void basic_session_pool<Stream,Exec>::operator<<(socket_t &&socket)
 {
-	insert(std::move(socket));
+	emplace(std::move(socket));
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::stream Stream, core_concepts::execution Exec>
 typename basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get_executor() noexcept
 {
 	return m_impl->m_exec;
