@@ -56,7 +56,7 @@ inline const_buffer::const_buffer(const std::string &buf) :
 
 }
 
-inline const_buffer::const_buffer(std::string_view &buf) :
+inline const_buffer::const_buffer(std::string_view buf) :
 	asio::ASIO_CONST_BUFFER(buf.data(), buf.size())
 {
 

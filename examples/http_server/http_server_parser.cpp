@@ -22,7 +22,7 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 			if( res == 0 )
 				break;
 
-			if( not parser.append(std::string_view(rbuf,res)) or parser.can_read_from_device() )
+			if( not parser.append({rbuf,res}) or parser.can_read_from_device() )
 				continue;
 
 			spdlog::debug("Version:{} - Method:{} - Path:{}",

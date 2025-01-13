@@ -35,6 +35,30 @@
 namespace libgs::http
 {
 
+namespace concepts
+{
+
+template <typename T>
+concept get_body = []() consteval -> bool
+{
+	if constexpr( std::is_same_v<std::remove_cvref_t<T>, const_buffer> )
+		return true;
+	else if constexpr( is_function_v<T> )
+	{
+		if constexpr( function_traits<T>::arg_count != 1 )
+			return false;
+		else
+		{
+			using arg_t = std::tuple_element_t<0, typename function_traits<T>::arg_types>;
+			return std::is_same_v<arg_t, mutable_buffer&>;
+		}
+	}
+	else
+		return false;
+}();
+
+} //namespace concepts
+
 template <core_concepts::char_type CharT, concepts::session_pool SessionPool = session_pool>
 class LIBGS_HTTP_TAPI basic_client
 {
@@ -43,23 +67,25 @@ class LIBGS_HTTP_TAPI basic_client
 public:
 	using char_t = CharT;
 	using session_pool_t = SessionPool;
+	using string_view_t = std::basic_string_view<char_t>;
 
 	using socket_t = typename session_pool_t::socket_t;
 	using executor_t = typename session_pool_t::executor_t;
 
 	using request_t = basic_client_request<char_t>;
-	using url_t = typename request_t::url_t;
-
-    using get_body_t = std::function<std::string()>;
 	using reply_t = basic_client_reply<char_t>;
+	using url_t = typename request_t::url_t;
 
 public:
 	explicit basic_client(const core_concepts::match_execution<executor_t> auto &exec);
 	explicit basic_client(core_concepts::match_execution_context<executor_t> auto &context);
-
 	basic_client() requires core_concepts::match_default_execution<executor_t>;
-	~basic_client();
 
+	basic_client(string_view_t version, const core_concepts::match_execution<executor_t> auto &exec);
+	basic_client(string_view_t version, core_concepts::match_execution_context<executor_t> auto &context);
+	explicit basic_client(string_view_t version) requires core_concepts::match_default_execution<executor_t>;
+
+	~basic_client();
 	basic_client(basic_client &&other) noexcept;
 	basic_client &operator=(basic_client &&other) noexcept;
 
@@ -68,19 +94,13 @@ public:
 	[[nodiscard]] auto get(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto put(request_t request, const const_buffer &body, Token &&token = {});
-
-	template <core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto put(request_t request, const get_body_t &get_body, Token &&token = {});
+	[[nodiscard]] auto put(request_t request, concepts::get_body auto &&body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
 	[[nodiscard]] auto put(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto post(request_t request, const const_buffer &body, Token &&token = {});
-
-	template <core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto post(request_t request, const get_body_t &get_body, Token &&token = {});
+	[[nodiscard]] auto post(request_t request, concepts::get_body auto &&body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
 	[[nodiscard]] auto post(request_t request, Token &&token = {});
@@ -99,26 +119,20 @@ public:
 
 public:
 	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto request(request_t request, const const_buffer &body, Token &&token = {})
-    	requires (Method == method_t::POST || Method == method_t::PUT);
-
-	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto request(request_t request, const get_body_t &get_body, Token &&token = {})
+	[[nodiscard]] auto request(request_t request, concepts::get_body auto &&body, Token &&token = {})
     	requires (Method == method_t::POST || Method == method_t::PUT);
 
 	template <method_t Method, core_concepts::tf_opt_token Token = use_sync_t>
 	[[nodiscard]] auto request(request_t request, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto request(method_t method, request_t request, const const_buffer &body, Token &&token = {});
-
-	template <core_concepts::tf_opt_token Token = use_sync_t>
-	[[nodiscard]] auto request(method_t method, request_t request, const get_body_t &get_body, Token &&token = {});
+	[[nodiscard]] auto request(method_t method, request_t request, concepts::get_body auto &&body, Token &&token = {});
 
 	template <core_concepts::tf_opt_token Token = use_sync_t>
 	[[nodiscard]] auto request(method_t method, request_t request, Token &&token = {});
 
 public:
+	[[nodiscard]] string_view_t version() const noexcept;
 	[[nodiscard]] const session_pool_t &session_pool() const noexcept;
 	[[nodiscard]] session_pool_t &session_pool() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;

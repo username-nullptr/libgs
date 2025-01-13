@@ -60,10 +60,11 @@ public:
 	basic_request_parser &operator=(basic_request_parser &&other) noexcept;
 
 public:
-	bool append(core_concepts::string_type auto &&buf, error_code &error);
-	bool append(core_concepts::string_type auto &&buf);
-	bool operator<<(core_concepts::string_type auto &&buf);
-	int32_t path_match(string_view_t rule);
+	bool append(const const_buffer &buf, error_code &error);
+	bool append(const const_buffer &buf);
+
+	basic_request_parser &operator<<(const const_buffer &buf);
+	[[nodiscard]] int32_t path_match(string_view_t rule);
 
 public:
 	[[nodiscard]] method_t method() const noexcept;

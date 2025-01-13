@@ -87,10 +87,10 @@ public:
 	basic_parser_base &on_parse_cookie(parse_cookie_handler func);
 	static error_code make_error_code(parse_errno errc);
 
-	bool append(core_concepts::string_type auto &&buf, error_code &error);
-	bool append(core_concepts::string_type auto &&buf);
+	bool append(const const_buffer &buf, error_code &error);
+	bool append(const const_buffer &buf);
 
-	basic_parser_base &operator<<(core_concepts::string_type auto &&buf);
+	basic_parser_base &operator<<(const const_buffer &buf);
 	basic_parser_base &reset();
 
 public:

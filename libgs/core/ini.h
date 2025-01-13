@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_INI_H
 #define LIBGS_CORE_INI_H
 
+#include <libgs/core/execution.h>
 #include <libgs/core/string_list.h>
 #include <libgs/core/value.h>
 #include <map>
@@ -188,7 +189,7 @@ public:
 		std::string_view file_name = {}
 	);
 	explicit basic_ini(std::string_view file_name = {}) requires
-		concepts::match_execution_context<asio::io_context,executor_t>;
+		concepts::match_default_execution<executor_t>;
 
 	virtual ~basic_ini();
 	basic_ini(basic_ini &&other) noexcept;

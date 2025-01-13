@@ -42,9 +42,9 @@ class LIBGS_HTTP_TAPI basic_request_helper<CharT>::impl
 
 public:
 	explicit impl(request_t &request, string_view_t version = string_pool::v_1_1) :
-		m_version(version.data(), version.size()), m_request(&request)
+		m_version(version), m_request(&request)
 	{
-		if( stof(version()) < 1.1 )
+		if( stof(version) < 1.1 )
 		{
 			auto it = m_request->headers().find(header::transfer_encoding);
 			if( it != m_request->headers().end() and it->second == string_pool::chunked )
@@ -121,7 +121,7 @@ public:
 	}
 
 public:
-	string_t m_version = string_pool::v_1_1;
+	string_view_t m_version = string_pool::v_1_1;
 	request_t *m_request = nullptr;
 };
 

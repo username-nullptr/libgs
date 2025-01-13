@@ -353,17 +353,10 @@ error_code basic_parser_base<CharT>::make_error_code(parse_errno errc)
 }
 
 template <core_concepts::char_type CharT>
-bool basic_parser_base<CharT>::append(core_concepts::string_type auto &&buf, error_code &error)
+bool basic_parser_base<CharT>::append(const const_buffer &buf, error_code &error)
 {
 	using state = typename impl::state;
-	using Buf = decltype(buf);
-	using buf_t = std::remove_cvref_t<Buf>;
-
-	std::string str_buf;
-	if constexpr( std::is_same_v<buf_t, std::string_view> )
-		str_buf = std::string(buf.data(), buf.size());
-	else
-		str_buf = std::forward<Buf>(buf);
+	std::string str_buf(reinterpret_cast<const char*>(buf.data()), buf.size());
 
 	error = error_code();
 	if( str_buf.empty() )
@@ -389,19 +382,19 @@ bool basic_parser_base<CharT>::append(core_concepts::string_type auto &&buf, err
 }
 
 template <core_concepts::char_type CharT>
-bool basic_parser_base<CharT>::append(core_concepts::string_type auto &&buf)
+bool basic_parser_base<CharT>::append(const const_buffer&buf)
 {
 	error_code error;
-	bool res = append(std::forward<decltype(buf)>(buf), error);
+	bool res = append(buf, error);
 	if( error )
 		throw system_error(error, "libgs::http::parser");
 	return res;
 }
 
 template <core_concepts::char_type CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::operator<<(core_concepts::string_type auto && buf)
+basic_parser_base<CharT> &basic_parser_base<CharT>::operator<<(const const_buffer &buf)
 {
-	append(std::forward<decltype(buf)>(buf));
+	append(buf);
 	return *this;
 }
 

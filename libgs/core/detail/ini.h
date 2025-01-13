@@ -689,7 +689,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(std::string_view file_name)
-	requires concepts::match_execution_context<asio::io_context,executor_t> :
+	requires concepts::match_default_execution<executor_t> :
 	basic_ini(io_context(), file_name)
 {
 
