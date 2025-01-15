@@ -57,8 +57,8 @@ public:
 	using path_opt_token_t = basic_path_opt_token<char_t>;
 
 	using context_t = basic_service_context<socket_t,char_t>;
-	using system_error_handler_t = std::function<bool(error_code)>;
-	using exception_handler_t = std::function<bool(context_t&, const std::exception&)>;
+	using server_error_handler_t = std::function<bool(error_code)>;
+	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
 
 	using parser_t = basic_request_parser<char_t>;
 	using request_t = basic_server_request<socket_t,char_t>;
@@ -114,12 +114,12 @@ public:
 	template <typename Func>
 	basic_server &on_default(Func &&func) requires detail::concepts::request_handler<Func,socket_t,char_t>;
 
-	basic_server &on_system_error(system_error_handler_t func);
-	basic_server &on_exception(exception_handler_t func);
+	basic_server &on_server_error(server_error_handler_t func);
+	basic_server &on_service_error(service_error_handler_t func);
 
 	basic_server &unbound_request(string_view_t path_rule = {});
-	basic_server &unbound_system_error();
-	basic_server &unbound_exception();
+	basic_server &unbound_server_error();
+	basic_server &unbound_service_error();
 
 public:
 	template <typename Rep, typename Period>

@@ -73,8 +73,8 @@ auto mean(Iter begin, Iter end, auto &&func) requires
 	return sum / count;
 }
 
-template <typename Iter>
-auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
+template <typename Iter, typename C>
+auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, auto &&func)
 	requires requires(decltype(func(*begin)) &data) {
 		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
 	}
@@ -148,43 +148,44 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
 		}
 		dtn = d;
 	};
+	auto last_level_data = data;
 	for(++it; it!=end; ++it)
 	{
 		data = func(*it);
-		if( data > pre_data )
+		if( data - pre_data > precision )
 		{
 			status_check(direction::rising_edge, inf_pt_t::trough,
 				[](auto pre, auto back){ return pre < back; },
 				[](auto pre, auto back){ return back - pre; }
 			);
+			pre_data = data;
 		}
-		else if( data < pre_data )
+		else if( data - pre_data < precision )
 		{
 			status_check(direction::falling_edge, inf_pt_t::crest,
 				[](auto pre, auto back){ return pre > back; },
 				[](auto pre, auto back){ return pre - back; }
 			);
+			pre_data = data;
 		}
-		else
-			dtn = direction::level;
-		pre_data = data;
-	}
-	if( dtn == direction::level )
-	{
-		if( not list.empty() and std::abs(list.back() - pre_data) < threshold )
-			list.pop_back();
-		list.emplace_back(pre_data);
+		else if( dtn != direction::level )
+		{
+			status_check(direction::level, dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough,
+				[](auto pre, auto back){ return pre > back; },
+				[](auto pre, auto back){ return pre - back; }
+			);
+		}
 	}
 	return vector_t{ list.begin(), list.end() };
 }
 
-template <typename Iter, typename Data>
-auto func_inf_pt(Iter begin, Iter end, const Data &threshold)
+template <typename Iter, typename C>
+auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision)
 	requires requires(decltype(*begin) &data) {
 		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
 	}
 {
-	return func_inf_pt(begin, end, threshold, [](auto x){return x;});
+	return func_inf_pt(begin, end, threshold, precision, [](auto x){return x;});
 }
 
 } //namespace libgs
