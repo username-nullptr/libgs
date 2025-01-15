@@ -49,8 +49,8 @@ public:
 		m_request_handler_map(std::move(other.m_request_handler_map)),
 		m_sss(std::move(other.m_sss)),
 		m_default_handler(std::move(other.m_default_handler)),
-		m_system_error_handler(std::move(other.m_system_error_handler)),
-		m_exception_handler(std::move(other.m_exception_handler)),
+		m_server_error_handler(std::move(other.m_server_error_handler)),
+		m_service_error_handler(std::move(other.m_service_error_handler)),
 		m_keepalive_timeout(other.m_keepalive_timeout),
 		m_is_start(other.m_is_start)
 	{
@@ -64,8 +64,8 @@ public:
 		m_request_handler_map(std::move(other.m_request_handler_map)),
 		m_sss(std::move(other.m_sss)),
 		m_default_handler(std::move(other.m_default_handler)),
-		m_system_error_handler(std::move(other.m_system_error_handler)),
-		m_exception_handler(std::move(other.m_exception_handler)),
+		m_server_error_handler(std::move(other.m_server_error_handler)),
+		m_service_error_handler(std::move(other.m_service_error_handler)),
 		m_keepalive_timeout(other.m_keepalive_timeout),
 		m_is_start(other.m_is_start)
 	{
@@ -83,8 +83,8 @@ public:
 		m_sss = std::move(other.m_sss);
 
 		m_default_handler = std::move(other.m_default_handler);
-		m_system_error_handler = std::move(other.m_system_error_handler);
-		m_exception_handler = std::move(other.m_exception_handler);
+		m_server_error_handler = std::move(other.m_server_error_handler);
+		m_service_error_handler = std::move(other.m_service_error_handler);
 
 		m_keepalive_timeout = other.m_keepalive_timeout;
 		m_is_start = other.m_is_start;
@@ -103,8 +103,8 @@ public:
 		m_sss = std::move(other.m_sss);
 
 		m_default_handler = std::move(other.m_default_handler);
-		m_system_error_handler = std::move(other.m_system_error_handler);
-		m_exception_handler = std::move(other.m_exception_handler);
+		m_server_error_handler = std::move(other.m_server_error_handler);
+		m_service_error_handler = std::move(other.m_service_error_handler);
 
 		m_keepalive_timeout = other.m_keepalive_timeout;
 		m_is_start = other.m_is_start;
@@ -202,7 +202,7 @@ private:
 		{
 			if( not m_is_start )
 				break;
-			call_on_system_error(ex.code());
+			call_on_server_error(ex.code());
 		}
 		while(true);
 		co_return ;
@@ -221,7 +221,7 @@ private:
 			try {
 				auto var = co_await (
 					socket.async_read_some(buffer(buf, buf_size), use_awaitable) or
-					co_sleep_for(*time)
+					co_sleep_for(*time, m_service_exec)
 				);
 				if( var.index() == 1 )
 					break;
@@ -243,7 +243,7 @@ private:
 				auto eno = ex.code().value();
 				if( eno == errc::bad_descriptor or eno == errc::eof or eno == errc::timed_out )
 					break;
-				call_on_system_error(ex.code());
+				call_on_server_error(ex.code());
 			}
 			context_t context(std::move(socket), parser, m_sss);
 			co_await call_on_request(context);
@@ -295,13 +295,13 @@ private:
 		auto method = context.request().method();
 		if( (handler->method & method) == 0 )
 		{
-			if( method == http::method::HEAD )
+			if( method == method_t::HEAD )
 			{
 				co_await context.response()
 					.set_header(header::content_type,"text/plain")
 					.write(use_awaitable);
 			}
-			if( method == http::method::OPTIONS )
+			if( method == method_t::OPTIONS )
 			{
 				co_await context.response()
 					.set_header(header::content_type,"text/plain")
@@ -323,7 +323,7 @@ private:
 		{
 			if( handler->aop->exception(context, ex) )
 				co_return ;
-			call_on_exception(context, ex);
+			call_on_service_error(context, ex);
 		}
 		co_return ;
 	}
@@ -374,26 +374,26 @@ private:
 			co_await context.response().write(data, use_awaitable);
 		}
 		catch(const std::exception &ex) {
-			call_on_exception(context, ex);
+			call_on_service_error(context, ex);
 		}
 		co_return ;
 	}
 
 private:
-	void call_on_system_error(const error_code &error)
+	void call_on_server_error(const error_code &error)
 	{
-		if( m_system_error_handler )
+		if( m_server_error_handler )
 		{
-			if( m_system_error_handler(error) )
+			if( m_server_error_handler(error) )
 				return ;
 		}
-		throw system_error(error, "libgs::http::server");
+		throw std::system_error(error, "libgs::http::server");
 	}
 
-	void call_on_exception(context_t &context, const std::exception &ex)
+	void call_on_service_error(context_t &context, const std::exception &ex)
 	{
 		context.response().set_status(status::internal_server_error);
-		if( m_exception_handler and m_exception_handler(context, ex) )
+		if( m_service_error_handler and m_service_error_handler(context, ex) )
 			return ;
 		throw ex;
 	}
@@ -416,7 +416,7 @@ public:
 	{
 	public:
 		template <typename Func, typename...AopPtrs>
-		multi_ctrlr_aop(Func &&func, AopPtrs&&...aops) :
+		explicit multi_ctrlr_aop(Func &&func, AopPtrs&&...aops) :
 			m_aops{aop_ptr_t(std::forward<AopPtrs>(aops))...},
 			m_func(std::forward<Func>(func))
 		{
@@ -494,8 +494,8 @@ public:
 	session_set m_sss;
 
 	request_handler_t m_default_handler {};
-	system_error_handler_t m_system_error_handler {};
-	exception_handler_t m_exception_handler {};
+	server_error_handler_t m_server_error_handler {};
+	service_error_handler_t m_service_error_handler {};
 
 	milliseconds m_first_reading_time {1500};
 	milliseconds m_keepalive_timeout {5000};
@@ -552,7 +552,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind(endpoint_
 	error_code error;
 	bind(std::move(ep), error);
 	if( error )
-		throw system_error(error, "libgs::http::basic_server::bind");
+		throw std::system_error(error, "libgs::http::basic_server::bind");
 	return *this;
 }
 
@@ -584,7 +584,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start(size_t m
 	error_code error;
 	start(max, error);
 	if( error )
-		throw system_error(error, "libgs::http::basic_server::start");
+		throw std::system_error(error, "libgs::http::basic_server::start");
 	return *this;
 }
 
@@ -686,17 +686,17 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_default(Fun
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::on_system_error(system_error_handler_t func)
+basic_server<CharT,Stream,Exec>::on_server_error(server_error_handler_t func)
 {
-	m_impl->m_system_error_handler = std::move(func);
+	m_impl->m_server_error_handler = std::move(func);
 	return *this;
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
 basic_server<CharT,Stream,Exec>&
-basic_server<CharT,Stream,Exec>::on_exception(exception_handler_t func)
+basic_server<CharT,Stream,Exec>::on_service_error(service_error_handler_t func)
 {
-	m_impl->m_exception_handler = std::move(func);
+	m_impl->m_service_error_handler = std::move(func);
 	return *this;
 }
 
@@ -711,16 +711,16 @@ basic_server<CharT,Stream,Exec>::unbound_request(string_view_t path_rule)
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
-basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_system_error()
+basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_server_error()
 {
-	m_impl->m_system_error_handler = {};
+	m_impl->m_server_error_handler = {};
 	return *this;
 }
 
 template <core_concepts::char_type CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
-basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_exception()
+basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_service_error()
 {
-	m_impl->m_exception_handler = {};
+	m_impl->m_service_error_handler = {};
 	return *this;
 }
 

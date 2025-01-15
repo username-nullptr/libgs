@@ -562,29 +562,38 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 	{
-		using namespace std::chrono_literals;
 		auto ntoken = unbound_redirect_time(token);
-
 		return asio::co_spawn(get_executor(),
-		[this, buf, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
+		[this, buf, ntoken, timeout = get_associated_redirect_time(token)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
 				m_impl->co_read(buf, error) or
-				co_sleep_for(timeout /*,get_executor()*/)
+				co_sleep_for(timeout, get_executor())
 			);
 			size_t res = 0;
 			if( var.index() == 0 )
 				res = std::get<0>(var);
-			else if( not error )
+			else if( not std::get<1>(var) )
 				error = make_error_code(std::errc::timed_out);
 
 			check_error(remove_const(ntoken), error, "libgs::http::server_request::read");
 			co_return res;
 		},
 		ntoken);
+	}
+	else
+	{
+		return asio::co_spawn(get_executor(), [this, buf, token]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto res = co_await m_impl->co_read(buf, error);
+			check_error(remove_const(token), error, "libgs::http::server_request::read");
+			co_return res;
+		},
+		token);
 	}
 }
 
@@ -623,13 +632,11 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 	{
-		using namespace std::chrono_literals;
 		auto ntoken = unbound_redirect_time(token);
-
 		return asio::co_spawn(get_executor(),
-		[this, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<std::string>
+		[this, ntoken, timeout = get_associated_redirect_time(token)]() mutable -> awaitable<std::string>
 		{
 			error_code error;
 			std::string sum;
@@ -649,15 +656,36 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 				co_return ;
 			};
 			auto var = co_await (
-				read_task() or co_sleep_for(timeout /*,get_executor()*/)
+				read_task() or co_sleep_for(timeout, get_executor())
 			);
-			if( var.index() == 1 and not error )
+			if( var.index() == 1 and not std::get<1>(var) )
 				error = make_error_code(std::errc::timed_out);
 
 			check_error(remove_const(ntoken), error, "libgs::http::server_request::read");
 			co_return sum;
 		},
 		ntoken);
+	}
+	else
+	{
+		return asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<std::string>
+		{
+			error_code error;
+			std::string sum;
+			do {
+				constexpr size_t buf_size = 0xFFFF;
+				char buf[buf_size] {0};
+
+				auto res = co_await m_impl->co_read(buffer(buf,buf_size), error);
+				sum += std::string(buf,res);
+				if( error )
+					break;
+			}
+			while( can_read_body() );
+			check_error(remove_const(token), error, "libgs::http::server_request::read");
+			co_return sum;
+		},
+		token);
 	}
 }
 
@@ -688,30 +716,40 @@ auto basic_server_request<Stream,CharT>::save_file
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 	{
-		using namespace std::chrono_literals;
 		auto ntoken = unbound_redirect_time(token);
-
 		return asio::co_spawn(get_executor(), [
-			this, opt = std::forward<opt_t>(opt), ntoken, timeout = get_associated_redirect_time(token, 30s)
+			this, opt = std::forward<opt_t>(opt), ntoken, timeout = get_associated_redirect_time(token)
 		]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
 				m_impl->co_save_file(std::move(opt), error) or
-				co_sleep_for(timeout /*,get_executor()*/)
+				co_sleep_for(timeout, get_executor())
 			);
 			size_t res = 0;
 			if( var.index() == 0 )
 				res = std::get<0>(var);
-			else if( not error )
+			else if( not std::get<1>(var) )
 				error = make_error_code(std::errc::timed_out);
 
 			check_error(remove_const(ntoken), error, "libgs::http::server_request::save_file");
 			co_return res;
 		},
 		ntoken);
+	}
+	else
+	{
+		return asio::co_spawn(get_executor(),
+		[this, opt = std::forward<opt_t>(opt), token]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto res = co_await m_impl->co_save_file(std::move(opt), error) or
+			check_error(remove_const(token), error, "libgs::http::server_request::save_file");
+			co_return res;
+		},
+		token);
 	}
 }
 

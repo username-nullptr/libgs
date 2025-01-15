@@ -84,13 +84,13 @@ public:
 	}
 
 public:
-	[[nodiscard]] size_t write(const const_buffer &body, error_code &error, const char *func)
+	[[nodiscard]] size_t write(const const_buffer &body, error_code &error) noexcept
 	{
 		error = error_code();
 		if( m_headers_writed )
 		{
-			write_runtime_error_check(body, func);
-			return write_body(body, error);
+			return body.size() == 0 and m_chunk_end_writed ?
+				0 : write_body(body, error);
 		}
 		auto sum = write_header(body.size(), error);
 		if( error )
@@ -100,13 +100,13 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error, const char *func)
+	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error) noexcept
 	{
 		error = error_code();
 		if( m_headers_writed )
 		{
-			write_runtime_error_check(body, func);
-			co_return co_await co_write_body(body, error);
+			co_return body.size() == 0 and m_chunk_end_writed ?
+				0 : co_await co_write_body(body, error);
 		}
 		auto sum = co_await co_write_header(body.size(), error);
 		if( error )
@@ -137,11 +137,13 @@ private:
 
 public:
 	template <typename Opt>
-	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error, const char *func)
+	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error)
 	{
 		if( m_headers_writed )
-			throw runtime_error("libgs::http::server_response::{}: The http protocol header is sent repeatedly.", func);
-
+		{
+			error = make_error_code(asio::error::no_protocol_option);
+			return 0;
+		}
 		fot_data data = 0;
 		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
 		if( error )
@@ -162,17 +164,19 @@ public:
 		{
 			set_status(status::range_not_satisfiable);
 			auto buf = std::format("{} ({})", status_description(status), status);
-			return write(buffer(buf, buf.size()), error, func);
+			return write(buffer(buf, buf.size()), error);
 		}
 		return range_transfer(token, ranges, data, error);
 	}
 
 	template <typename Opt>
-	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error, const char *func)
+	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error)
 	{
 		if( m_headers_writed )
-			throw runtime_error("libgs::http::server_response::{}: The http protocol header is sent repeatedly.", func);
-
+		{
+			error = make_error_code(asio::error::no_protocol_option);
+			co_return 0;
+		}
 		fot_data data;
 		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
 		if( error )
@@ -193,7 +197,7 @@ public:
 		{
 			set_status(status::range_not_satisfiable);
 			auto buf = std::format("{} ({})", status_description(status), status);
-			co_return co_await co_write(buffer(buf, buf.size()), error, func);
+			co_return co_await co_write(buffer(buf, buf.size()), error);
 		}
 		co_return co_await co_range_transfer(token, ranges, data, error);
 	}
@@ -221,7 +225,7 @@ public:
 	{
 		if( var.index() == 0 )
 			return std::get<0>(var);
-		else if( not error )
+		else if( not std::get<1>(var) )
 			error = make_error_code(errc::timed_out);
 		return 0;
 	}
@@ -760,7 +764,11 @@ private:
 			if( error )
 				break;
 
-			sum += asio::write(m_next_layer.next_layer(), buffer(data.c_str() + sum, data.size() - sum), error);
+			sum += asio::write (
+				m_next_layer.next_layer(),
+				buffer(data.c_str() + sum, data.size() - sum),
+				error
+			);
 			if( error and error.value() == errc::interrupted )
 				continue;
 			break;
@@ -777,10 +785,10 @@ private:
 		size_t sum = 0;
 		for(;;)
 		{
-			sum += co_await asio::async_write(
+			sum += co_await asio::async_write (
 				m_next_layer.next_layer(),
 				buffer(data.c_str() + sum, data.size() - sum),
-				use_awaitable|error
+				use_awaitable | error
 			);
 			if( error and error.value() == errc::interrupted )
 				continue;
@@ -841,14 +849,6 @@ private:
 			return true;
 		token.ec_ = error;
 		return false;
-	}
-
-	void write_runtime_error_check(const const_buffer &body, const char *func)
-	{
-		if( body.size() == 0 )
-			throw runtime_error("libgs::http::response::{}: The http protocol header is sent repeatedly.", func);
-		else if( m_chunk_end_writed )
-			throw runtime_error("libgs::http::response::{}: Chunk has been written.", func);
 	}
 
 public:
@@ -935,7 +935,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 	if constexpr( std::is_same_v<token_t, error_code> )
 	{
 		m_impl->set_blocking(token);
-		return token ? 0 : m_impl->write(body, token, "write");
+		return token ? 0 : m_impl->write(body, token);
 	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
@@ -951,18 +951,16 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 	{
-		using namespace std::chrono_literals;
 		auto ntoken = unbound_redirect_time(token);
-
 		return asio::co_spawn(get_executor(),
-		[this, body, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
+		[this, body, ntoken, timeout = get_associated_redirect_time(token)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
-				m_impl->co_write(body, error, "write") or
-				co_sleep_for(timeout /*,get_executor()*/)
+				m_impl->co_write(body, error) or
+				co_sleep_for(timeout, get_executor())
 			);
 			auto res = m_impl->check_time_out(var, error);
 
@@ -970,6 +968,17 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 			co_return res;
 		},
 		ntoken);
+	}
+	else
+	{
+		return asio::co_spawn(get_executor(), [this, body, token]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto res = co_await m_impl->co_write(body, error);
+			check_error(remove_const(token), error, "libgs::http::server_response::write");
+			co_return res;
+		},
+		token);
 	}
 }
 
@@ -1011,24 +1020,36 @@ auto basic_server_response<Stream,CharT>::redirect
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		using namespace std::chrono_literals;
 		m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
-
-		auto ntoken = unbound_redirect_time(token);
-		return asio::co_spawn(get_executor(),
-		[this, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
+		if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 		{
-			error_code error;
-			auto var = co_await (
-				m_impl->co_write({nullptr,0}, error, "redirect") or
-				co_sleep_for(timeout /*,get_executor()*/)
-			);
-			auto res = m_impl->check_time_out(var, error);
+			auto ntoken = unbound_redirect_time(token);
+			return asio::co_spawn(get_executor(),
+			[this, ntoken, timeout = get_associated_redirect_time(token)]() mutable -> awaitable<size_t>
+			{
+				error_code error;
+				auto var = co_await (
+					m_impl->co_write({nullptr,0}, error) or
+					co_sleep_for(timeout, get_executor())
+				);
+				auto res = m_impl->check_time_out(var, error);
 
-			check_error(remove_const(ntoken), error, "libgs::http::server_response::redirect");
-			co_return res;
-		},
-		ntoken);
+				check_error(remove_const(ntoken), error, "libgs::http::server_response::redirect");
+				co_return res;
+			},
+			ntoken);
+		}
+		else
+		{
+			return asio::co_spawn(get_executor(), [this, token]() mutable -> awaitable<size_t>
+			{
+				error_code error;
+				auto res = co_await m_impl->co_write({nullptr,0}, error) or
+				check_error(remove_const(token), error, "libgs::http::server_response::redirect");
+				co_return res;
+			},
+			token);
+		}
 	}
 }
 
@@ -1053,7 +1074,7 @@ auto basic_server_response<Stream,CharT>::send_file
 	if constexpr( std::is_same_v<token_t, error_code> )
 	{
 		m_impl->set_blocking(token);
-		return token ? 0 : m_impl->send_file(std::forward<opt_t>(opt), token, "send_file");
+		return token ? 0 : m_impl->send_file(std::forward<opt_t>(opt), token);
 	}
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
@@ -1069,20 +1090,17 @@ auto basic_server_response<Stream,CharT>::send_file
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 	{
-		using namespace std::chrono_literals;
 		auto ntoken = unbound_redirect_time(token);
-
 		return asio::co_spawn(get_executor(), [
-			this, ntoken, opt = std::forward<opt_t>(opt),
-			timeout = get_associated_redirect_time(token, 30s)
+			this, ntoken, opt = std::forward<opt_t>(opt), timeout = get_associated_redirect_time(token)
 		]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
-				m_impl->co_send_file(std::move(opt), error, "send_file") or
-				co_sleep_for(timeout /*,get_executor()*/)
+				m_impl->co_send_file(std::move(opt), error) or
+				co_sleep_for(timeout, get_executor())
 			);
 			auto res = m_impl->check_time_out(var, error);
 
@@ -1090,6 +1108,18 @@ auto basic_server_response<Stream,CharT>::send_file
 			co_return res;
 		},
 		ntoken);
+	}
+	else
+	{
+		return asio::co_spawn(get_executor(),
+		[this, token, opt = std::forward<opt_t>(opt)]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto res = co_await m_impl->co_send_file(std::move(opt), error) or
+			check_error(remove_const(token), error, "libgs::http::server_response::send_file");
+			co_return res;
+		},
+		token);
 	}
 }
 
@@ -1131,13 +1161,11 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else
+	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
 	{
-		using namespace std::chrono_literals;
 		auto ntoken = unbound_redirect_time(token);
-
 		return asio::co_spawn(get_executor(),
-		[this, headers, ntoken, timeout = get_associated_redirect_time(token, 30s)]() mutable -> awaitable<size_t>
+		[this, headers, ntoken, timeout = get_associated_redirect_time(token)]() mutable -> awaitable<size_t>
 		{
 			error_code error;
 			auto var = co_await (
@@ -1150,6 +1178,17 @@ auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, To
 			co_return res;
 		},
 		ntoken);
+	}
+	else
+	{
+		return asio::co_spawn(get_executor(), [this, headers, token]() mutable -> awaitable<size_t>
+		{
+			error_code error;
+			auto res = co_await m_impl->co_chunk_end(headers, error, "chunk_end") or
+			check_error(remove_const(token), error, "libgs::http::server_response::chunk_end");
+			co_return res;
+		},
+		token);
 	}
 }
 
