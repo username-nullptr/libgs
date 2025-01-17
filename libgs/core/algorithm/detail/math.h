@@ -201,12 +201,16 @@ public:
 
 } //namespace detail
 
-template <typename Iter, typename C>
-auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, auto &&func)
-	requires requires(decltype(func(*begin)) &data) {
-		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
-	}
+template <typename Iter>
+auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_precision, auto &&func)
+	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype(func)>
 {
+	if( not (threshold > 0) or not (threshold_precision < 1.0) )
+	{
+		throw std::invalid_argument (
+			"libgs::func_inf_pt: threshold and precision must be positive and threshold > precision"
+		);
+	}
 	using data_t = decltype(func(*begin));
 	using vector_t = std::vector<data_t>;
 
@@ -214,11 +218,15 @@ auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, a
 	if( it == end )
 		return vector_t{};
 
-	using fip_t = detail::func_inf_pt<Iter,C,decltype(func)>;
+	using fip_t = detail::func_inf_pt <
+		Iter, decltype(threshold * threshold_precision), decltype(func)
+	>;
 	using direction = typename fip_t::direction;
 	using inf_pt_t = typename fip_t::inf_pt_t;
 
+	auto precision = threshold * threshold_precision;
 	fip_t fip(threshold, precision, func);
+
 	auto data = fip.begin_check(it, begin, end);
 	if( it == end )
 		return vector_t{ fip.list.begin(), fip.list.end() };
@@ -262,13 +270,11 @@ auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, a
 	return vector_t{ fip.list.begin(), fip.list.end() };
 }
 
-template <typename Iter, typename C>
-auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision)
-	requires requires(decltype(*begin) &data) {
-		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
-	}
+template <typename Iter>
+auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_precision)
+	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype([](auto x){return x;})>
 {
-	return func_inf_pt(begin, end, threshold, precision, [](auto x){return x;});
+	return func_inf_pt(begin, end, threshold, threshold_precision, [](auto x){return x;});
 }
 
 } //namespace libgs
