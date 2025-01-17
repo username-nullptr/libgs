@@ -121,7 +121,7 @@ private: // Fucking msvc !!!
 	{
 		if constexpr( is_function_v<token_t> )
 		{
-			if constexpr( is_use_future_v<token_t> or is_deferred_v<token_t> )
+			if constexpr( is_use_future_v<token_t> or is_deferred_v<token_t> or is_cancellation_slot_binder_v<token_t> )
 				return is_async_opt_token_v<Token>;
 
 			else if constexpr( is_void_func_v<token_t> )
@@ -161,10 +161,14 @@ struct is_async_tf_opt_token
 	{
 		if constexpr( is_async_opt_token_v<Token,Args...> )
 			return true;
-		else if constexpr( is_redirect_time_v<Token> )
-			return is_async_opt_token_v<typename Token::token_t, Args...>;
 		else
-			return false;
+		{
+			using token_t = std::remove_cvref_t<Token>;
+			if constexpr( is_redirect_time_v<token_t> )
+				return is_async_opt_token_v<typename token_t::token_t, Args...>;
+			else
+				return false;
+		}
 	}();
 };
 
@@ -178,10 +182,14 @@ struct is_any_async_tf_opt_token
 	{
 		if constexpr( is_any_async_opt_token_v<Token> )
 			return true;
-		else if constexpr( is_redirect_time_v<Token> )
-			return is_any_async_opt_token_v<typename Token::token_t>;
 		else
-			return false;
+		{
+			using token_t = std::remove_cvref_t<Token>;
+			if constexpr( is_redirect_time_v<token_t> )
+				return is_any_async_opt_token_v<typename token_t::token_t>;
+			else
+				return false;
+		}
 	}();
 };
 
