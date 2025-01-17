@@ -73,70 +73,107 @@ auto mean(Iter begin, Iter end, auto &&func) requires
 	return sum / count;
 }
 
-template <typename Iter, typename C>
-auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, auto &&func)
-	requires requires(decltype(func(*begin)) &data) {
-		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
-	}
+namespace detail
 {
-	using data_t = decltype(func(*begin));
-	using vector_t = std::vector<data_t>;
-	auto it = std::next(begin);
 
-	if( it == end )
-		return vector_t{};
-
+template <typename Iter, typename C, typename Func>
+class LIBGS_CORE_TAPI func_inf_pt
+{
+public:
+	using data_t = decltype (
+		std::declval<Func>()(*std::declval<Iter>())
+	);
 	enum class direction {
 		level, rising_edge, falling_edge
-	}
-	dtn = direction::level;
-
+	};
 	enum class inf_pt_t {
 		crest, trough
-	}
-	last_ipt = {};
+	};
 
-	auto data = func(*begin);
-	data_t min = data, max = data;
+public:
+	explicit func_inf_pt(const C &threshold, const C &precision, Func &func) :
+		threshold(threshold), precision(precision), func(func) {}
 
-	std::list<data_t> list;
-	for(; it!=end; ++it)
+	[[nodiscard]] auto begin_check(Iter &it, Iter begin, Iter end)
 	{
-		data = func(*it);
-		if( data < min )
-		{
-			last_ipt = inf_pt_t::trough;
-			min = std::move(data);
+		auto data = func(*begin);
+		pre_data = data;
 
-			if( max - min > threshold )
+		for(; it!=end; ++it)
+		{
+			data = func(*it);
+			if( not (std::abs(data - pre_data) > precision) )
 			{
-				list.emplace_back(max);
-				list.emplace_back(min);
+				pre_data = data;
+				continue;
+			}
+			for(++it; it!=end; ++it)
+			{
+				data = func(*it);
+				if( not (std::abs(data - pre_data) > precision) )
+				{
+					pre_data = data;
+					break;
+				}
+				else if( data - pre_data > threshold )
+				{
+					dtn = direction::rising_edge;
+					last_ipt = inf_pt_t::trough;
+				}
+				else if( data - pre_data < -threshold )
+				{
+					dtn = direction::falling_edge;
+					last_ipt = inf_pt_t::crest;
+				}
+				else
+					continue;
+
+				list.emplace_back(pre_data);
+				list.emplace_back(data);
 				break;
 			}
-		}
-		else if( data > max )
-		{
-			last_ipt = inf_pt_t::crest;
-			max = std::move(data);
-
-			if( max - min > threshold )
-			{
-				list.emplace_back(min);
-				list.emplace_back(max);
+			if( not list.empty() )
 				break;
-			}
 		}
+		return data;
 	}
-	if( list.empty() )
-		return vector_t{};
 
-	auto pre_data = data;
-	auto status_check = [&](direction d, inf_pt_t t, auto &&comp, auto &&diff) mutable
+	void end_check(Iter mit, Iter &it)
 	{
-		if( dtn == d )
-			return ;
-		else if( last_ipt == t and comp(pre_data, list.back()) )
+		auto data = func(*it);
+		pre_data = data;
+
+		for(; it!=mit; --it)
+		{
+			data = func(*it);
+			if( not (std::abs(data - pre_data) > precision) )
+			{
+				pre_data = data;
+				continue;
+			}
+			for(--it; it!=mit; --it)
+			{
+				data = func(*it);
+				if( not (std::abs(data - pre_data) > precision) )
+				{
+					pre_data = data;
+					break;
+				}
+				else if( std::abs(data - pre_data) > threshold )
+				{
+					last = pre_data;
+					break;
+				}
+			}
+			if( last )
+				break;
+		}
+		++it;
+	}
+
+	void status_check(direction d, inf_pt_t t, auto &&diff)
+	{
+		if( last_ipt == t and diff(pre_data, list.back()) > precision )
 		{
 			list.pop_back();
 			list.emplace_back(pre_data);
@@ -148,35 +185,81 @@ auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, a
 		}
 		dtn = d;
 	};
-	auto last_level_data = data;
+
+public:
+	const C &threshold;
+	const C &precision;
+	Func &func;
+
+	data_t pre_data;
+	std::list<data_t> list;
+	std::optional<data_t> last;
+
+	direction dtn = direction::level;
+	inf_pt_t last_ipt = {};
+};
+
+} //namespace detail
+
+template <typename Iter, typename C>
+auto func_inf_pt(Iter begin, Iter end, const C &threshold, const C &precision, auto &&func)
+	requires requires(decltype(func(*begin)) &data) {
+		data = data; data > data; data < data; data - data > threshold; data - data < threshold;
+	}
+{
+	using data_t = decltype(func(*begin));
+	using vector_t = std::vector<data_t>;
+
+	auto it = std::next(begin);
+	if( it == end )
+		return vector_t{};
+
+	using fip_t = detail::func_inf_pt<Iter,C,decltype(func)>;
+	using direction = typename fip_t::direction;
+	using inf_pt_t = typename fip_t::inf_pt_t;
+
+	fip_t fip(threshold, precision, func);
+	auto data = fip.begin_check(it, begin, end);
+	if( it == end )
+		return vector_t{ fip.list.begin(), fip.list.end() };
+
+	fip.end_check(it, --end);
+	if( fip.list.empty() )
+		return vector_t{};
+
+	fip.pre_data = data;
 	for(++it; it!=end; ++it)
 	{
 		data = func(*it);
-		if( data - pre_data > precision )
+		if( data - fip.pre_data > precision )
 		{
-			status_check(direction::rising_edge, inf_pt_t::trough,
-				[](auto pre, auto back){ return pre < back; },
+			fip.status_check(direction::rising_edge, inf_pt_t::trough,
+				[](auto pre, auto back){ return pre - back; }
+			);
+		}
+		else if( data - fip.pre_data < -precision )
+		{
+			fip.status_check(direction::falling_edge, inf_pt_t::crest,
 				[](auto pre, auto back){ return back - pre; }
 			);
-			pre_data = data;
 		}
-		else if( data - pre_data < -precision )
+		else if( fip.dtn != direction::level )
 		{
-			status_check(direction::falling_edge, inf_pt_t::crest,
-				[](auto pre, auto back){ return pre > back; },
-				[](auto pre, auto back){ return pre - back; }
-			);
-			pre_data = data;
-		}
-		else if( dtn != direction::level )
-		{
-			status_check(direction::level, dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough,
-				[](auto pre, auto back){ return pre > back; },
-				[](auto pre, auto back){ return pre - back; }
+			auto ipt = fip.dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough;
+			fip.status_check(direction::level, ipt,
+				[](auto pre, auto back){ return std::abs(pre - back); }
 			);
 		}
+		fip.pre_data = data;
 	}
-	return vector_t{ list.begin(), list.end() };
+	if( fip.last )
+	{
+		if( (fip.dtn == direction::rising_edge and fip.last_ipt == inf_pt_t::trough) or
+			(fip.dtn == direction::falling_edge and fip.last_ipt == inf_pt_t::crest) )
+			fip.list.pop_back();
+		fip.list.emplace_back(*fip.last);
+	}
+	return vector_t{ fip.list.begin(), fip.list.end() };
 }
 
 template <typename Iter, typename C>
