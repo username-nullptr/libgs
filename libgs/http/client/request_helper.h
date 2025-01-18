@@ -29,48 +29,51 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_HELPER_H
 #define LIBGS_HTTP_CLIENT_REQUEST_HELPER_H
 
-#include <libgs/http/client/request.h>
+#include <libgs/http/client/request_arg.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::char_type CharT, version_t Version = version::v11>
 class LIBGS_HTTP_TAPI basic_request_helper
 {
-	LIBGS_DISABLE_COPY(basic_request_helper)
-
 public:
 	using char_t = CharT;
 	using string_view_t = std::basic_string_view<char_t>;
 	using string_t = std::basic_string<char_t>;
 
-	using request_t = basic_client_request<char_t>;
-	using headers_t = typename request_t::headers_t;
+	using request_arg_t = basic_request_arg<char_t>;
+	using headers_t = typename request_arg_t::headers_t;
+
+	static constexpr auto version_v = Version;
 
 public:
-	explicit basic_request_helper(request_t &url); // default v1.1
-	basic_request_helper(string_view_t version, request_t &url);
+	explicit basic_request_helper(request_arg_t &url);
+	basic_request_helper(string_view_t version, request_arg_t &url);
 	~basic_request_helper();
 
-	basic_request_helper(basic_request_helper &&other) noexcept;
-	basic_request_helper &operator=(basic_request_helper &&other) noexcept;
+	basic_request_helper(const basic_request_helper &other) noexcept;
+	basic_request_helper &operator=(const basic_request_helper &other) noexcept;
 
 public:
-	[[nodiscard]] string_view_t version() const noexcept;
+	[[nodiscard]] consteval version_t version() const noexcept;
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
 public:
-	const request_t &request() const noexcept;
-	request_t &request() noexcept;
+	const request_arg_t &request_arg() const noexcept;
+	request_arg_t &request_arg() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
+template <version_t Version = version::v11>
 using request_helper = basic_request_helper<char>;
+
+template <version_t Version = version::v11>
 using wrequest_helper = basic_request_helper<wchar_t>;
 
 } //namespace libgs::http

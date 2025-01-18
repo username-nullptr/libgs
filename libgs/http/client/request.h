@@ -29,70 +29,85 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_H
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
-#include <libgs/http/client/url.h>
+#include <libgs/http/client/request_arg.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::char_type CharT, method Method,
+		  concepts::session_pool SessionPool = session_pool,
+		  version_t Version = version::v11>
 class LIBGS_HTTP_TAPI basic_client_request
 {
 	LIBGS_DISABLE_COPY(basic_client_request)
-	using string_pool = detail::string_pool<CharT>;
 
 public:
 	using char_t = CharT;
-	using url_t = basic_url<char_t>;
+	using session_pool_t = SessionPool;
 
-	using string_t = std::basic_string<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
+	using request_arg_t = basic_request_arg<char_t>;
+	using url_t = typename request_arg_t::url_t;
 
-	using value_t = basic_value<char_t>;
-	using value_list_t = basic_value_list<char_t>;
+	using string_t = typename request_arg_t::string_t;
+	using string_view_t = typename request_arg_t::string_view_t;
 
-	using parameters_t = basic_parameters<char_t>;
-	using header_t = basic_header<char_t>;
+	using value_t = typename request_arg_t::value_t;
+	using value_list_t = typename request_arg_t::value_list_t;
 
-	using headers_t = basic_headers<char_t>;
-	using cookies_t = basic_cookie_values<char_t>;
+	using parameters_t = typename request_arg_t::parameters_t;
+	using header_t = typename request_arg_t::header_t;
+
+	using headers_t = typename request_arg_t::headers_t;
+	using cookies_t = typename request_arg_t::cookies_t;
+
+	using socket_t = typename session_pool_t::socket_t;
+	using executor_t = typename session_pool_t::executor_t;
+
+	static constexpr auto method_v = Method;
+	static constexpr auto version_v = Version;
+
+	static constexpr auto put_or_post =
+		method_v == method_t::POST or method_v == method_t::PUT;
 
 public:
-	basic_client_request(url_t url);
-	basic_client_request();
+	basic_client_request(session_pool_t &pool, request_arg_t arg);
+	explicit basic_client_request(session_pool_t &pool);
 	~basic_client_request();
 
 	basic_client_request(basic_client_request &&other) noexcept;
 	basic_client_request &operator=(basic_client_request &&other) noexcept;
 
 public:
-	basic_client_request &set_url(url_t url);
-	basic_client_request &set_header(string_view_t key, value_t value) noexcept;
-	basic_client_request &set_cookie(string_view_t key, value_t value) noexcept;
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	auto write(Token &&token = {});
 
-	basic_client_request &set_chunk_attribute(value_t attribute);
-	basic_client_request &set_chunk_attributes(value_list_t attributes);
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	auto write(const const_buffer &body, Token &&token = {}) requires put_or_post;
+
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto send_file (
+		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
+		Token &&token = {}
+	) requires put_or_post;
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	auto chunk_end(const headers_t &headers, Token &&token = {}) requires put_or_post;
+
+	template <core_concepts::tf_opt_token Token = use_sync_t>
+	auto chunk_end(Token &&token = {}) requires put_or_post;
 
 public:
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
+	[[nodiscard]] consteval method_t method() const noexcept;
+	[[nodiscard]] consteval version_t version() const noexcept;
 
-	[[nodiscard]] const url_t &url() const noexcept;
-	[[nodiscard]] url_t &url() noexcept;
-
-public:
-	basic_client_request &unset_header(string_view_t key);
-	basic_client_request &unset_cookie(string_view_t key);
-	basic_client_request &unset_chunk_attribute(const value_t &attributes);
-	basic_client_request &reset();
+	[[nodiscard]] const session_pool_t &session_pool() const noexcept;
+	[[nodiscard]] session_pool_t &session_pool() noexcept;
+	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
-
-using client_request  = basic_client_request<char>;
-using wclient_request = basic_client_request<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/request.h>

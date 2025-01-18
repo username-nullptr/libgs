@@ -71,7 +71,7 @@ public:
 		m_parser
 		.on_parse_begin([this](std::string_view line_buf, error_code &error)
 		{
-			std::string version;
+			auto version = version::nan;
 			auto request_line_parts = string_list::from_string(line_buf, ' ');
 			if( request_line_parts.size() != 3 or not str_to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
@@ -87,8 +87,8 @@ public:
 				error = parser_t::make_error_code(parse_errno::IHM);
 				return version;
 			}
-			m_method  = method;
-			version = mbstoxx<char_t>(request_line_parts[2].substr(5,3));
+			m_method = method;
+			version = version_number(request_line_parts[2].substr(5,3));
 
 			auto url_line = from_percent_encoding(request_line_parts[1]);
 			auto pos = url_line.find('?');
@@ -150,7 +150,7 @@ public:
 		auto headers = m_parser.headers();
 		auto it = headers.find(basic_header<char_t>::connection);
 		if( it == headers.end() )
-			m_keep_alive = m_parser.version() != string_pool::v_1_0;
+			m_keep_alive = m_parser.version() != version::v10;
 		else
 			m_keep_alive = str_to_lower(it->second.to_string()) != string_pool::close;
 
@@ -317,7 +317,7 @@ std::basic_string_view<CharT> basic_request_parser<CharT>::path() const noexcept
 }
 
 template <core_concepts::char_type CharT>
-std::basic_string_view<CharT> basic_request_parser<CharT>::version() const noexcept
+version_t basic_request_parser<CharT>::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }

@@ -404,7 +404,7 @@ private:
 		for(int i=static_cast<int>(method_t::begin); i<=static_cast<int>(method_t::end); i<<=1)
 		{
 			if( method & i )
-				sum += method_string(static_cast<method_t>(i)) + ";";
+				sum += std::format("{};", method_string(static_cast<method_t>(i)));
 		}
 		if( not sum.empty() )
 			sum.pop_back();

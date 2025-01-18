@@ -78,7 +78,7 @@ public:
 
 public:
 	[[nodiscard]] method_t method() const noexcept;
-	[[nodiscard]] string_view_t version() const noexcept;
+	[[nodiscard]] version_t version() const noexcept;
 	[[nodiscard]] string_view_t path() const noexcept;
 
 	[[nodiscard]] const parameters_t &parameters() const noexcept;

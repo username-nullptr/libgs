@@ -81,7 +81,7 @@ int main()
 
 	.on_request<libgs::http::method::GET>("/ctrlr*", new controller())
 
-	.on_system_error([](std::error_code error)
+	.on_server_error([](std::error_code error)
 	{
 		spdlog::error(error);
 		libgs::exit(-1);

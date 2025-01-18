@@ -55,7 +55,7 @@ public:
 	using cookies_t = basic_cookies<char_t>;
 
 public:
-	explicit basic_response_helper(string_view_t version, const headers_t &request_headers = {});
+	explicit basic_response_helper(version_t version, const headers_t &request_headers = {});
 	explicit basic_response_helper(const headers_t &request_headers = {}); // default V1.1
 	~basic_response_helper();
 
@@ -80,7 +80,7 @@ public:
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
 public:
-	[[nodiscard]] string_view_t version() const noexcept;
+	[[nodiscard]] version_t version() const noexcept;
 	[[nodiscard]] status_t status() const noexcept;
 
 	[[nodiscard]] const headers_t &headers() const noexcept;

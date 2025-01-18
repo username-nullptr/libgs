@@ -19,12 +19,12 @@ int main()
 		spdlog::debug("session: '{}': <{}>", session->id(), session);
 		co_return ;
 	})
-	.on_exception([](libgs::http::server::context_t&, const std::exception &ex)
+	.on_service_error([](libgs::http::server::context_t&, const std::exception &ex)
 	{
 		spdlog::error(ex);
 		return true;
 	})
-	.on_system_error([](std::error_code error)
+	.on_server_error([](std::error_code error)
 	{
 		spdlog::error(error);
 		libgs::exit(-1);

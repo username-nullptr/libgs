@@ -40,8 +40,6 @@ struct string_pool;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
 	static constexpr const _type *root       = __VA_ARGS__##"/"                        ; \
-	static constexpr const _type *v_1_0      = __VA_ARGS__##"1.0"                      ; \
-	static constexpr const _type *v_1_1      = __VA_ARGS__##"1.1"                      ; \
 	static constexpr const _type *close      = __VA_ARGS__##"close"                    ; \
 	static constexpr const _type *gzip       = __VA_ARGS__##"gzip"                     ; \
 	static constexpr const _type *chunked    = __VA_ARGS__##"chunked"                  ; \
@@ -118,7 +116,7 @@ inline bool redirect_check(redirect type, bool _throw)
 }
 
 template <uint32_t Status, core_concepts::char_type CharT>
-constexpr const CharT *status_description()
+consteval const CharT *status_description()
 {
 #define X_MACRO(e,v,d) \
 	if constexpr( Status == status::e ) { \
@@ -136,19 +134,19 @@ constexpr const CharT *status_description()
 }
 
 template <uint32_t Status>
-constexpr const char *status_description()
+consteval const char *status_description()
 {
-	return status_description<Status, char>();
+	return status_description<Status,char>();
 }
 
 template <uint32_t Status>
-constexpr const wchar_t *wstatus_description()
+consteval const wchar_t *wstatus_description()
 {
-	return status_description<Status, wchar_t>();
+	return status_description<Status,wchar_t>();
 }
 
 template <core_concepts::char_type CharT>
-std::basic_string<CharT> status_description(status_t s)
+const CharT *status_description(status_t s)
 {
 	if constexpr( is_char_v<CharT> )
 		return status_description(s);
@@ -156,7 +154,7 @@ std::basic_string<CharT> status_description(status_t s)
 		return wstatus_description(s);
 }
 
-inline std::string status_description(status_t s)
+inline const char *status_description(status_t s)
 {
 	switch(s)
 	{
@@ -169,7 +167,7 @@ inline std::string status_description(status_t s)
 //	return "";
 }
 
-inline std::wstring wstatus_description(status_t s)
+inline const wchar_t *wstatus_description(status_t s)
 {
 	switch(s)
 	{
@@ -183,7 +181,7 @@ inline std::wstring wstatus_description(status_t s)
 }
 
 template <method Method, core_concepts::char_type CharT>
-constexpr const CharT *method_string()
+consteval const CharT *method_string()
 {
 #define X_MACRO(e,v,d) \
 	if constexpr( Method == method::e ) { \
@@ -201,19 +199,19 @@ constexpr const CharT *method_string()
 }
 
 template <method Method>
-constexpr const char *method_string()
+consteval const char *method_string()
 {
-	return method_string<Method, char>();
+	return method_string<Method,char>();
 }
 
 template <method Method>
-constexpr const wchar_t *wmethod_string()
+consteval const wchar_t *wmethod_string()
 {
-	return method_string<Method, wchar_t>();
+	return method_string<Method,wchar_t>();
 }
 
 template <core_concepts::char_type CharT>
-std::basic_string<CharT> method_string(method m)
+const CharT *method_string(method m)
 {
 	if constexpr( is_char_v<CharT> )
 		return method_string(m);
@@ -221,7 +219,7 @@ std::basic_string<CharT> method_string(method m)
 		return wmethod_string(m);
 }
 
-inline std::string method_string(method m)
+inline const char *method_string(method m)
 {
 	switch(m)
 	{
@@ -234,7 +232,7 @@ inline std::string method_string(method m)
 //	return "";
 }
 
-inline std::wstring wmethod_string(method m)
+inline const wchar_t *wmethod_string(method m)
 {
 	switch(m)
 	{

@@ -30,10 +30,11 @@
 #define LIBGS_HTTP_TYPES_H
 
 #include <libgs/core/cxx/flags.h>
+#include <libgs/http/version.h>
 #include <libgs/http/header.h>
 #include <libgs/http/cookie.h>
 
-#if defined(__WINNT) || defined(_WINDOWS)
+#if defined(__WINNT) || defined(_WINDOWS) // Fucking Microsoft !!!
 # undef DELETE
 #endif //_WINDOWS
 
@@ -164,34 +165,34 @@ using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
 template <uint32_t Status, core_concepts::char_type CharT = char>
-[[nodiscard]] constexpr const CharT *status_description();
+[[nodiscard]] consteval const CharT *status_description();
 
 template <uint32_t Status>
-[[nodiscard]] constexpr const char *status_description();
+[[nodiscard]] consteval const char *status_description();
 
 template <uint32_t Status>
-[[nodiscard]] constexpr const wchar_t *wstatus_description();
+[[nodiscard]] consteval const wchar_t *wstatus_description();
 
 template <core_concepts::char_type CharT = char>
-LIBGS_HTTP_TAPI [[nodiscard]] std::basic_string<CharT> status_description(status_t s);
+[[nodiscard]] LIBGS_HTTP_TAPI const CharT *status_description(status_t s);
 
-LIBGS_HTTP_VAPI [[nodiscard]] std::string status_description(status_t s);
-LIBGS_HTTP_VAPI [[nodiscard]] std::wstring wstatus_description(status_t s);
+[[nodiscard]] LIBGS_HTTP_VAPI const char *status_description(status_t s);
+[[nodiscard]] LIBGS_HTTP_VAPI const wchar_t *wstatus_description(status_t s);
 
 template <method Method, core_concepts::char_type CharT = char>
-[[nodiscard]] constexpr const CharT *method_string();
+[[nodiscard]] consteval const CharT *method_string();
 
 template <method Method>
-[[nodiscard]] constexpr const char *method_string();
+[[nodiscard]] consteval const char *method_string();
 
 template <method Method>
-[[nodiscard]] constexpr const wchar_t *wmethod_string();
+[[nodiscard]] consteval const wchar_t *wmethod_string();
 
 template <core_concepts::char_type CharT = char>
-[[nodiscard]] LIBGS_HTTP_TAPI std::basic_string<CharT> method_string(method m);
+[[nodiscard]] LIBGS_HTTP_TAPI const CharT *method_string(method m);
 
-[[nodiscard]] LIBGS_HTTP_TAPI std::string method_string(method m);
-[[nodiscard]] LIBGS_HTTP_TAPI std::wstring wmethod_string(method m);
+[[nodiscard]] LIBGS_HTTP_TAPI const char *method_string(method m);
+[[nodiscard]] LIBGS_HTTP_TAPI const wchar_t *wmethod_string(method m);
 
 template <core_concepts::char_type CharT = char>
 [[nodiscard]] LIBGS_HTTP_TAPI method from_method_string(std::basic_string_view<CharT> str);

@@ -136,7 +136,7 @@ public:
 			m_content_length = it->second.template get<size_t>();
 			parse_length();
 		}
-		else if( m_version == string_pool::v_1_1 )
+		else if( m_version == version::v11 )
 		{
 			it = m_headers.find(basic_header<char_t>::transfer_encoding);
 			if( it == m_headers.end() or it->second.to_string() != string_pool::chunked )
@@ -294,7 +294,7 @@ public:
 	m_state = state::waiting_request;
 	std::string m_src_buf;
 
-	string_t m_version;
+	version_t m_version;
 	headers_t m_headers;
 
 	std::string m_partial_body;
@@ -406,7 +406,7 @@ basic_parser_base<CharT> &basic_parser_base<CharT>::reset()
 }
 
 template <core_concepts::char_type CharT>
-std::basic_string_view<CharT> basic_parser_base<CharT>::version() const noexcept
+version_t basic_parser_base<CharT>::version() const noexcept
 {
 	return m_impl->m_version;
 }

@@ -26,62 +26,53 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
-#define LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
+#ifndef LIBGS_HTTP_VERSION_H
+#define LIBGS_HTTP_VERSION_H
 
-#include <libgs/http/client/request_helper.h>
+#include <libgs/http/global.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
-class LIBGS_HTTP_TAPI basic_client_request<CharT,Method,SessionPool,Version>::impl
+#define LIBGS_HTTP_VERSION_TABLE \
+X_MACRO( nan , 0x0000 , "NAN" ) \
+X_MACRO( v10 , 0x0100 , "1.0" ) \
+X_MACRO( v11 , 0x0101 , "1.1" )
+// X_MACRO( v12 , 0x0102 , "1.2" )
+// X_MACRO( v20 , 0x0200 , "2.0" )
+
+struct LIBGS_HTTP_VAPI version
 {
-	LIBGS_DISABLE_COPY(impl)
-
-public:
-	using helper_t = basic_request_helper<char_t,version_v>;
-
-	impl() = default;
-
-public:
-	request_arg_t m_request_arg;
+	using type = uint16_t;
+#define X_MACRO(e,v,s) static constexpr type e = (v);
+	LIBGS_HTTP_VERSION_TABLE
+#undef X_MACRO
 };
+using version_t = version::type;
+LIBGS_HTTP_VAPI bool version_check(version_t v, bool _throw = true);
+LIBGS_HTTP_VAPI bool version_check(std::string_view vs, bool _throw = true);
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
-template <core_concepts::tf_opt_token Token>
-auto basic_client_request<CharT,Method,SessionPool,Version>::write
-(const const_buffer &body, Token &&token) requires put_or_post
-{
-	typename impl::helper_t helper(m_impl->m_request_arg);
-	using token_t = std::remove_cvref_t<Token>;
-	using Body = decltype(body);
+template <version_t Version, core_concepts::char_type CharT = char>
+[[nodiscard]] consteval const CharT *version_string();
 
-	if constexpr( std::is_same_v<token_t, error_code&> )
-	{
-		// auto session = m_impl->m_session_pool.get({request.url().address(), request.url().port()});
-		// helper.header_data();
-	}
-	else if constexpr( is_sync_opt_token_v<token_t> )
-	{
-		error_code error;
-		auto reply = request(method, std::move(helper), std::forward<Body>(body), error);
-		if( error )
-			throw system_error(error, "libgs::http::client_request");
-		return reply;
-	}
-#ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<token_t> )
-	{
-	}
-#endif //LIBGS_USING_BOOST_ASIO
-	else
-	{
+template <version_t Version>
+[[nodiscard]] consteval const char *version_string();
 
-	}
-}
+template <version_t Version>
+[[nodiscard]] consteval const wchar_t *wversion_string();
+
+template <core_concepts::char_type CharT = char>
+[[nodiscard]] LIBGS_HTTP_TAPI const CharT *version_string(version_t v);
+
+[[nodiscard]] LIBGS_HTTP_VAPI const char *version_string(version_t v);
+[[nodiscard]] LIBGS_HTTP_VAPI const wchar_t *wversion_string(version_t v);
+
+LIBGS_HTTP_TAPI version_t version_number (
+	core_concepts::string_type auto &&vs, bool _throw = true
+);
 
 } //namespace libgs::http
+#include <libgs/http/detail/version.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
+#endif //LIBGS_HTTP_VERSION_H

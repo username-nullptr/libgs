@@ -69,7 +69,7 @@ class basic_response_helper<CharT>::impl
 
 public:
 	impl() = default;
-	impl(string_view_t version, const headers_t &request_headers) :
+	impl(version_t version, const headers_t &request_headers) :
 		m_version(version), m_request_headers(&request_headers) {}
 
 public:
@@ -78,7 +78,7 @@ public:
 		auto it = m_response_headers.find(header_t::content_length);
 		if( it == m_response_headers.end() )
 		{
-			if( stoi32(m_version) > 1.0 )
+			if( m_version > version::v10 )
 			{
 				it = m_response_headers.find(header_t::transfer_encoding);
 				if( it == m_response_headers.end() or str_to_lower(it->second.to_string()) != string_pool::chunked )
@@ -90,7 +90,9 @@ public:
 		std::string buf;
 		buf.reserve(4096);
 
-		buf = std::format("HTTP/{} {} {}\r\n", xxtombs(m_version), m_status, status_description(m_status));
+		buf = std::format("HTTP/{} {} {}\r\n",
+			version_string(m_version), m_status, status_description(m_status)
+		);
 		m_response_headers.erase(string_pool::set_cookie);
 
 		for(auto &[key,value] : m_response_headers)
@@ -152,7 +154,7 @@ public:
 private:
 	[[nodiscard]] bool is_chunked() const
 	{
-		if( stoi32(m_version) < 1.1 )
+		if( m_version < version::v11 )
 			return false;
 
 		auto it = m_request_headers->find(header_t::transfer_encoding);
@@ -160,7 +162,7 @@ private:
 	}
 
 public:
-	string_view_t m_version = string_pool::v_1_1;
+	version_t m_version = version::v11;
 	const headers_t *m_request_headers;
 
 	status_t m_status = status::ok;
@@ -173,7 +175,7 @@ public:
 };
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT>::basic_response_helper(string_view_t version, const headers_t &request_headers) :
+basic_response_helper<CharT>::basic_response_helper(version_t version, const headers_t &request_headers) :
 	m_impl(new impl(version, request_headers))
 {
 
@@ -250,7 +252,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect
 template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(value_t attribute)
 {
-	if( stof(version()) < 1.1 )
+	if( version() < http::version::v11 )
 	{
 		throw runtime_error (
 			"libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'."
@@ -264,7 +266,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(
 template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes(value_list_t attributes)
 {
-	if( stof(version()) < 1.1 )
+	if( version() < http::version::v11 )
 	{
 		throw runtime_error (
 			"libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'."
@@ -295,7 +297,7 @@ std::string basic_response_helper<CharT>::chunk_end_data(const headers_t &header
 }
 
 template <core_concepts::char_type CharT>
-std::basic_string_view<CharT> basic_response_helper<CharT>::version() const noexcept
+version_t basic_response_helper<CharT>::version() const noexcept
 {
 	return m_impl->m_version;
 }
@@ -353,7 +355,7 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribut
 template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
 {
-	m_impl->m_version = string_pool::v_1_1;
+	m_impl->m_version = version::v11;
 	m_impl->m_status = status::ok;
 
 	m_impl->m_response_headers = {

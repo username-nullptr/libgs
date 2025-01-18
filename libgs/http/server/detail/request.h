@@ -68,7 +68,7 @@ public:
 
 	~impl()
 	{
-		if( m_parser->version() == detail::string_pool<char_t>::v_1_0 )
+		if( m_parser->version() == version::v10 )
 			socket_operation_helper<next_layer_t>(m_next_layer).close();
 	}
 
@@ -396,7 +396,7 @@ method_t basic_server_request<Stream,CharT>::method() const noexcept
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-std::basic_string_view<CharT> basic_server_request<Stream,CharT>::version() const noexcept
+version_t basic_server_request<Stream,CharT>::version() const noexcept
 {
 	return m_impl->m_parser->version();
 }
@@ -768,7 +768,7 @@ bool basic_server_request<Stream,CharT>::support_gzip() const noexcept
 template <concepts::stream Stream, core_concepts::char_type CharT>
 bool basic_server_request<Stream,CharT>::is_chunked() const noexcept
 {
-	if( stoi32(version()) < 1.1 )
+	if( version() < http::version::v11 )
 		return false;
 	auto it = m_impl->m_headers.find(header_t::transfer_encoding);
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::string_pool<char_t>::chunked;
