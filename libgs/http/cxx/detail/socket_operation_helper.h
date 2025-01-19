@@ -159,6 +159,17 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::non
 }
 
 template <core_concepts::execution Exec>
+void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::cancel() noexcept
+{
+	if( this->socket().is_open() )
+	{
+		error_code error;
+		this->socket().cancel(error);
+		ignore_unused(error);
+	}
+}
+
+template <core_concepts::execution Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::close() noexcept
 {
 	if( this->socket().is_open() )
@@ -290,6 +301,17 @@ template <core_concepts::execution Exec>
 bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::non_blocking() const
 {
 	return this->socket().next_layer().non_blocking();
+}
+
+template <core_concepts::execution Exec>
+void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::cancel() noexcept
+{
+	if( this->socket().next_layer().is_open() )
+	{
+		error_code error;
+		this->socket().next_layer().cancel(error);
+		ignore_unused(error);
+	}
 }
 
 template <core_concepts::execution Exec>

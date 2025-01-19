@@ -56,8 +56,8 @@ public:
 	using request_t = basic_client_request <
 		char_t, Method, session_pool_t, version_v
 	>;
-	template <method Method>
-	using url_t = typename request_t<Method>::url_t;
+	using request_arg_t = basic_request_arg<char_t>;
+	using url_t = typename request_arg_t::url_t;
 
 public:
 	explicit basic_client(const core_concepts::match_execution<executor_t> auto &exec);
@@ -69,7 +69,72 @@ public:
 	basic_client &operator=(basic_client &&other) noexcept;
 
 public:
+	template <method Method, core_concepts::tf_opt_token<error_code,request_t<Method>> Token = use_sync_t>
+	[[nodiscard]] auto request(request_arg_t arg, Token &&token = {});
 
+	template <method Method, core_concepts::tf_opt_token<error_code,request_t<Method>> Token = use_sync_t>
+	[[nodiscard]] auto request(request_arg_t arg, const const_buffer &body, Token &&token = {})
+		requires (Method == method::POST or Method == method::PUT);
+
+	template <method Method, core_concepts::tf_opt_token<error_code,request_t<Method>> Token = use_sync_t>
+	[[nodiscard]] auto request(request_arg_t arg,
+		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
+		Token &&token = {}
+	) requires (Method == method::POST or Method == method::PUT);
+
+public:
+	template <core_concepts::tf_opt_token<error_code,request_t<method::GET>> Token = use_sync_t>
+	[[nodiscard]] auto get(request_arg_t arg, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::POST>> Token = use_sync_t>
+	[[nodiscard]] auto post(request_arg_t arg, const const_buffer &body, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::POST>> Token = use_sync_t>
+	[[nodiscard]] auto post(request_arg_t arg,
+		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
+		Token &&token = {}
+	);
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::PUT>> Token = use_sync_t>
+	[[nodiscard]] auto put(request_arg_t arg, const const_buffer &body, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::PUT>> Token = use_sync_t>
+	[[nodiscard]] auto put(request_arg_t arg,
+		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
+		Token &&token = {}
+	);
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::HEAD>> Token = use_sync_t>
+	[[nodiscard]] auto head(request_arg_t arg, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::PATCH>> Token = use_sync_t>
+	[[nodiscard]] auto patch(request_arg_t arg, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::DELETE>> Token = use_sync_t>
+	[[nodiscard]] auto Delete(request_arg_t arg, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::OPTIONS>> Token = use_sync_t>
+	[[nodiscard]] auto options(request_arg_t arg, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::TRACE>> Token = use_sync_t>
+	[[nodiscard]] auto trace(request_arg_t arg, Token &&token = {});
+
+	template <core_concepts::tf_opt_token<error_code,request_t<method::CONNECT>> Token = use_sync_t>
+	[[nodiscard]] auto connect(request_arg_t arg, Token &&token = {});
+
+public:
+	template <method Method>
+	[[nodiscard]] request_t<Method> make_request(request_arg_t arg);
+
+	[[nodiscard]] request_t<method::GET> make_get(request_arg_t arg);
+	[[nodiscard]] request_t<method::POST> make_post(request_arg_t arg);
+	[[nodiscard]] request_t<method::PUT> make_put(request_arg_t arg);
+	[[nodiscard]] request_t<method::HEAD> make_head(request_arg_t arg);
+	[[nodiscard]] request_t<method::PATCH> make_patch(request_arg_t arg);
+	[[nodiscard]] request_t<method::DELETE> make_delete(request_arg_t arg);
+	[[nodiscard]] request_t<method::OPTIONS> make_options(request_arg_t arg);
+	[[nodiscard]] request_t<method::TRACE> make_trace(request_arg_t arg);
+	[[nodiscard]] request_t<method::CONNECT> make_connect(request_arg_t arg);
 
 public:
 	[[nodiscard]] consteval version_t version() const noexcept;

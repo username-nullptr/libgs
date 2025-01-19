@@ -29,25 +29,31 @@
 #ifndef LIBGS_HTTP_CLIENT_REPLY_H
 #define LIBGS_HTTP_CLIENT_REPLY_H
 
-#include <libgs/http/client/request.h>
+#include <libgs/http/client/request_arg.h>
+#include <libgs/http/cxx/socket_session.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, concepts::any_exec_stream Stream = asio::ip::tcp::socket>
+template <core_concepts::char_type CharT, concepts::socket_session Session = session_pool::session_t>
 class LIBGS_HTTP_TAPI basic_client_reply
 {
 	LIBGS_DISABLE_COPY(basic_client_reply)
 
 public:
 	using char_t = CharT;
-	using request_t = basic_client_request<char_t>;
-	using request_url_t = typename request_t::request_url_t;
-	using url_t = typename request_url_t::url_t;
-
-	using socket_t = Stream;
-	using session_t = typename request_t::session_t;
+	using session_t = Session;
 	using executor_t = typename session_t::executor_t;
+
+	using request_arg_t = basic_request_arg<char_t>;
+	using url_t = typename request_arg_t::url_t;
+
+public:
+	basic_client_reply(session_t session, request_arg_t request_arg = {});
+	~basic_client_reply();
+
+	basic_client_reply(basic_client_reply &&other) noexcept;
+	basic_client_reply &operator=(basic_client_reply &&other) noexcept;
 
 public:
 

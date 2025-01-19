@@ -88,6 +88,7 @@ public:
 	void non_blocking(bool mode) noexcept;
 
 	[[nodiscard]] bool non_blocking() const;
+	void cancel() noexcept;
 	void close() noexcept;
 
 public:
@@ -125,6 +126,7 @@ public:
 	void non_blocking(bool mode) noexcept;
 
 	[[nodiscard]] bool non_blocking() const;
+	void cancel() noexcept;
 	void close() noexcept;
 
 public:

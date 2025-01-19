@@ -34,6 +34,16 @@
 namespace libgs::http
 {
 
+template <core_concepts::char_type CharT, concepts::socket_session Session>
+class LIBGS_HTTP_TAPI basic_client_reply<CharT,Session>::impl
+{
+	LIBGS_DISABLE_COPY(impl)
+
+public:
+
+};
+
+
 } //namespace libgs::http
 
 

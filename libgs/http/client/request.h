@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_H
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
-#include <libgs/http/client/request_arg.h>
+#include <libgs/http/client/reply.h>
 
 namespace libgs::http
 {
@@ -44,8 +44,10 @@ class LIBGS_HTTP_TAPI basic_client_request
 public:
 	using char_t = CharT;
 	using session_pool_t = SessionPool;
+	using session_t = typename session_pool_t::session_t;
 
-	using request_arg_t = basic_request_arg<char_t>;
+	using reply_t = basic_client_reply<char_t,session_t>;
+	using request_arg_t = typename reply_t::request_arg_t;
 	using url_t = typename request_arg_t::url_t;
 
 	using string_t = typename request_arg_t::string_t;
@@ -70,33 +72,40 @@ public:
 		method_v == method_t::POST or method_v == method_t::PUT;
 
 public:
-	basic_client_request(session_pool_t &pool, request_arg_t arg);
-	explicit basic_client_request(session_pool_t &pool);
+	basic_client_request(session_pool_t &pool, request_arg_t arg = {});
 	~basic_client_request();
 
 	basic_client_request(basic_client_request &&other) noexcept;
 	basic_client_request &operator=(basic_client_request &&other) noexcept;
 
 public:
-	template <core_concepts::tf_opt_token Token = use_sync_t>
+	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(Token &&token = {});
 
-	template <core_concepts::tf_opt_token Token = use_sync_t>
+	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {}) requires put_or_post;
 
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto send_file (
 		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
 		Token &&token = {}
 	) requires put_or_post;
 
-	template <core_concepts::tf_opt_token Token = use_sync_t>
+	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(const headers_t &headers, Token &&token = {}) requires put_or_post;
 
-	template <core_concepts::tf_opt_token Token = use_sync_t>
+	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(Token &&token = {}) requires put_or_post;
 
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto wait_reply(Token &&token = {}) const requires
+		core_concepts::tf_opt_token<error_code,reply_t>;
+
 public:
+	[[nodiscard]] bool is_finished() const noexcept;
+	basic_client_request &cancel() noexcept;
+	basic_client_request &reset() noexcept;
+
 	[[nodiscard]] consteval method_t method() const noexcept;
 	[[nodiscard]] consteval version_t version() const noexcept;
 
