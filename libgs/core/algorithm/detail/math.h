@@ -52,22 +52,25 @@ bool nequality(concepts::number_type auto a, concepts::number_type auto b)
 
 template <typename Iter>
 auto mean(Iter begin, Iter end) requires
-	std::is_arithmetic_v<std::remove_reference_t<decltype(*begin)>>
+	std::is_arithmetic_v<std::remove_cvref_t<decltype(*begin)>>
 {
-	return mean(begin, end, [](auto x){return x;});
+	return mean(begin, end, [](auto &x){return &x;});
 }
 
 template <typename Iter>
-auto mean(Iter begin, Iter end, auto &&func) requires
-	std::is_arithmetic_v<decltype(func(*begin))>
-{
-	using sum_t = decltype(func(*begin));
+auto mean(Iter begin, Iter end, auto &&func) requires (
+	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(*begin))>> or
+	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(begin))>>
+){
+	using sum_t = decltype(*func(begin));
 	auto sum = static_cast<sum_t>(0);
 	auto count = static_cast<sum_t>(0);
 
 	for(auto it=begin; it!=end; ++it)
 	{
-		sum += func(*it);
+		auto p = func(it);
+		if( p )
+			sum += *p;
 		count++;
 	}
 	return sum / count;
@@ -102,7 +105,28 @@ public:
 		for(; it!=end; ++it)
 		{
 			data = func(*it);
-			if( not (std::abs(data - pre_data) > precision) )
+			auto check_threshold = [&]
+			{
+				if( data - pre_data > threshold )
+				{
+					dtn = direction::rising_edge;
+					last_ipt = inf_pt_t::trough;
+				}
+				else if( data - pre_data < -threshold )
+				{
+					dtn = direction::falling_edge;
+					last_ipt = inf_pt_t::crest;
+				}
+				else
+					return false;
+
+				list.emplace_back(pre_data);
+				list.emplace_back(data);
+				return true;
+			};
+			if( check_threshold() )
+				break;
+			else if( not (std::abs(data - pre_data) > precision) )
 			{
 				pre_data = data;
 				continue;
@@ -115,22 +139,8 @@ public:
 					pre_data = data;
 					break;
 				}
-				else if( data - pre_data > threshold )
-				{
-					dtn = direction::rising_edge;
-					last_ipt = inf_pt_t::trough;
-				}
-				else if( data - pre_data < -threshold )
-				{
-					dtn = direction::falling_edge;
-					last_ipt = inf_pt_t::crest;
-				}
-				else
-					continue;
-
-				list.emplace_back(pre_data);
-				list.emplace_back(data);
-				break;
+				if( check_threshold() )
+					break;
 			}
 			if( not list.empty() )
 				break;
@@ -146,12 +156,19 @@ public:
 		for(; it!=mit; --it)
 		{
 			data = func(*it);
-			if( not (std::abs(data - pre_data) > precision) )
+			if( std::abs(data - pre_data) > threshold )
+			{
+				last = pre_data;
+				break;
+			}
+			else if( not (std::abs(data - pre_data) > precision) )
 			{
 				pre_data = data;
 				continue;
 			}
-			for(--it; it!=mit; --it)
+			if( --it == mit )
+				break;
+			for(; it!=mit; --it)
 			{
 				data = func(*it);
 				if( not (std::abs(data - pre_data) > precision) )
@@ -168,7 +185,7 @@ public:
 			if( last )
 				break;
 		}
-		++it;
+		// ++it;
 	}
 
 	void status_check(direction d, inf_pt_t t, auto &&diff)
@@ -231,7 +248,7 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_p
 	if( it == end )
 		return vector_t{ fip.list.begin(), fip.list.end() };
 
-	fip.end_check(it, --end);
+	fip.end_check(--it, --end);
 	if( fip.list.empty() )
 		return vector_t{};
 
@@ -262,9 +279,20 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_p
 	}
 	if( fip.last )
 	{
-		if( (fip.dtn == direction::rising_edge and fip.last_ipt == inf_pt_t::trough) or
-			(fip.dtn == direction::falling_edge and fip.last_ipt == inf_pt_t::crest) )
-			fip.list.pop_back();
+		if( fip.list.size() > 1 )
+		{
+			auto lit = --fip.list.end();
+			auto second = *lit;
+			auto first = *--lit;
+
+			if( second > first )
+			{
+				if( *fip.last > second )
+					fip.list.pop_back();
+			}
+			else if( *fip.last < second )
+				fip.list.pop_back();
+		}
 		fip.list.emplace_back(*fip.last);
 	}
 	return vector_t{ fip.list.begin(), fip.list.end() };
