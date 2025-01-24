@@ -69,9 +69,10 @@ auto mean(Iter begin, Iter end, auto &&func) requires (
 	for(auto it=begin; it!=end; ++it)
 	{
 		auto p = func(it);
-		if( p )
-			sum += *p;
-		count++;
+		if( not p )
+			continue;
+		sum += *p;
+		++count;
 	}
 	return sum / count;
 }
@@ -142,7 +143,7 @@ public:
 				if( check_threshold() )
 					break;
 			}
-			if( not list.empty() )
+			if( not list.empty() or it == end )
 				break;
 		}
 		return data;
@@ -166,9 +167,7 @@ public:
 				pre_data = data;
 				continue;
 			}
-			if( --it == mit )
-				break;
-			for(; it!=mit; --it)
+			for(--it; it!=mit; --it)
 			{
 				data = func(*it);
 				if( not (std::abs(data - pre_data) > precision) )
@@ -182,10 +181,9 @@ public:
 					break;
 				}
 			}
-			if( last )
+			if( last or it == mit )
 				break;
 		}
-		// ++it;
 	}
 
 	void status_check(direction d, inf_pt_t t, auto &&diff)
@@ -252,30 +250,33 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_p
 	if( fip.list.empty() )
 		return vector_t{};
 
-	fip.pre_data = data;
-	for(++it; it!=end; ++it)
+	if( it != end )
 	{
-		data = func(*it);
-		if( data - fip.pre_data > precision )
-		{
-			fip.status_check(direction::rising_edge, inf_pt_t::trough,
-				[](auto pre, auto back){ return pre - back; }
-			);
-		}
-		else if( data - fip.pre_data < -precision )
-		{
-			fip.status_check(direction::falling_edge, inf_pt_t::crest,
-				[](auto pre, auto back){ return back - pre; }
-			);
-		}
-		else if( fip.dtn != direction::level )
-		{
-			auto ipt = fip.dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough;
-			fip.status_check(direction::level, ipt,
-				[](auto pre, auto back){ return std::abs(pre - back); }
-			);
-		}
 		fip.pre_data = data;
+		for(++it; it!=end; ++it)
+		{
+			data = func(*it);
+			if( data - fip.pre_data > precision )
+			{
+				fip.status_check(direction::rising_edge, inf_pt_t::trough,
+					[](auto pre, auto back){ return pre - back; }
+				);
+			}
+			else if( data - fip.pre_data < -precision )
+			{
+				fip.status_check(direction::falling_edge, inf_pt_t::crest,
+					[](auto pre, auto back){ return back - pre; }
+				);
+			}
+			else if( fip.dtn != direction::level )
+			{
+				auto ipt = fip.dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough;
+				fip.status_check(direction::level, ipt,
+					[](auto pre, auto back){ return std::abs(pre - back); }
+				);
+			}
+			fip.pre_data = data;
+		}
 	}
 	if( fip.last )
 	{
@@ -296,13 +297,6 @@ auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_p
 		fip.list.emplace_back(*fip.last);
 	}
 	return vector_t{ fip.list.begin(), fip.list.end() };
-}
-
-template <typename Iter>
-auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_precision)
-	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype([](auto x){return x;})>
-{
-	return func_inf_pt(begin, end, threshold, threshold_precision, [](auto x){return x;});
 }
 
 } //namespace libgs

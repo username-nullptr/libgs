@@ -75,7 +75,9 @@ template <typename Iter>
 template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt (
 	Iter begin, Iter end, const auto &threshold, double threshold_precision
-) requires concepts::func_inf_pt<Iter, decltype(threshold), decltype([](auto x){return x;})>;
+) requires concepts::func_inf_pt<Iter, decltype(threshold), decltype([](auto x){return x;})> {
+	return func_inf_pt(begin, end, threshold, threshold_precision, [](auto x){return x;});
+}
 
 } //namespace libgs
 #include <libgs/core/algorithm/detail/math.h>

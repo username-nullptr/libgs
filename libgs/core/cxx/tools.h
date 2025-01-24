@@ -34,15 +34,15 @@
 #include <libgs/core/cxx/string_tools.h>
 #include <libgs/core/cxx/type_traits.h>
 
-namespace libgs
-{
-
 #ifdef __GNUC__
 # include <cxxabi.h>
 # define LIBGS_ABI_CXA_DEMANGLE(name)  abi::__cxa_demangle(name, nullptr, nullptr, nullptr)
 #else //_MSVC
 # define LIBGS_ABI_CXA_DEMANGLE(name)  name
 #endif //__GNUC__
+
+namespace libgs
+{
 
 using std_type_id = decltype(typeid(void).hash_code());
 
