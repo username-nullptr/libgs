@@ -75,6 +75,9 @@ set(${target_name}_detail_headers
 	algorithm/detail/uuid.h
 	algorithm/detail/math.h
 	coro/detail/utilities.h
+	coro/detail/wake_up.h
+	coro/detail/semaphore.h
+	coro/detail/mutex.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
 	detail/string_list.h

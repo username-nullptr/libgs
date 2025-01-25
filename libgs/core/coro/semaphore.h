@@ -29,10 +29,55 @@
 #ifndef LIBGS_CORE_CORO_SEMAPHORE_H
 #define LIBGS_CORE_CORO_SEMAPHORE_H
 
+#include <libgs/core/global.h>
+
 namespace libgs
 {
 
+template<size_t Max = std::numeric_limits<size_t>::max()>
+class LIBGS_CORE_TAPI co_semaphore
+{
+	LIBGS_DISABLE_COPY_MOVE(co_semaphore)
+	constexpr static size_t max_v = Max;
+
+public:
+	explicit co_semaphore(size_t initial_count = max_v);
+	~co_semaphore() noexcept(false);
+
+public:
+	[[nodiscard]] awaitable<void> acquire(concepts::schedulable auto &&exec);
+	[[nodiscard]] awaitable<void> acquire();
+
+	[[nodiscard]] bool try_acquire();
+	void release(size_t n = 1);
+
+	template<typename Rep, typename Period>
+	[[nodiscard]] awaitable<bool> try_acquire_for (
+		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
+	);
+	template<typename Clock, typename Duration>
+	[[nodiscard]] awaitable<bool> try_acquire_until (
+		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
+	);
+	template<typename Rep, typename Period>
+	[[nodiscard]] awaitable<bool> try_acquire_for (
+		const duration<Rep,Period> &timeout
+	);
+	template<typename Clock, typename Duration>
+	[[nodiscard]] awaitable<bool> try_acquire_until (
+		const time_point<Clock,Duration> &timeout
+	);
+
+public:
+	[[nodiscard]] consteval size_t max() const noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
 } //namespace libgs
+#include <libgs/core/coro/detail/semaphore.h>
 
 
 #endif //LIBGS_CORE_CORO_SEMAPHORE_H

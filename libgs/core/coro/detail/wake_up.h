@@ -26,61 +26,46 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_MUTEX_H
-#define LIBGS_CORE_CORO_MUTEX_H
+#ifndef LIBGS_CORE_CORO_DETAIL_WAKE_UP_H
+#define LIBGS_CORE_CORO_DETAIL_WAKE_UP_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/execution.h>
 
-namespace libgs
+namespace libgs::detail
 {
 
-class LIBGS_CORE_VAPI co_mutex
+class LIBGS_CORE_VAPI co_lock_wake_up
 {
-	LIBGS_DISABLE_COPY_MOVE(co_mutex)
+	LIBGS_DISABLE_COPY_MOVE(co_lock_wake_up)
 
 public:
-	using native_handle_t = std::atomic_bool;
+	using handler_t = async_work<bool>::handler_t;
 
-public:
-	co_mutex();
-	~co_mutex() noexcept(false);
+	co_lock_wake_up(const asio::any_io_executor &exec, handler_t handler) :
+		m_handler(std::move(handler)), m_exec(exec) {}
 
-public:
-	[[nodiscard]] awaitable<void> lock(concepts::schedulable auto &&exec);
-	[[nodiscard]] awaitable<void> lock();
+	void operator()(bool success)
+	{
+		if( not m_is_valid )
+			return ;
+		m_is_valid = false;
 
-	[[nodiscard]] bool try_lock();
-	void unlock();
-
-	template<typename Rep, typename Period>
-	[[nodiscard]] awaitable<bool> try_lock_for (
-		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
-	);
-	template<typename Clock, typename Duration>
-	[[nodiscard]] awaitable<bool> try_lock_until (
-		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
-	);
-	template<typename Rep, typename Period>
-	[[nodiscard]] awaitable<bool> try_lock_for (
-		const duration<Rep,Period> &timeout
-	);
-	template<typename Clock, typename Duration>
-	[[nodiscard]] awaitable<bool> try_lock_until (
-		const time_point<Clock,Duration> &timeout
-	);
-
-public:
-	native_handle_t &native_handle() noexcept;
+		dispatch(m_exec, [
+			success, handler = std::make_shared<handler_t>(std::move(m_handler))
+		]() mutable {
+			std::move(*handler)(success);
+		});
+	}
 
 private:
-	class impl;
-	impl *m_impl;
+	handler_t m_handler;
+	asio::any_io_executor m_exec;
+	std::atomic_bool m_is_valid {true};
 };
 
+using co_lock_wake_up_ptr = std::shared_ptr<co_lock_wake_up>;
+
+} //namespace libgs::detail
 
 
-} //namespace libgs
-#include <libgs/core/coro/detail/mutex.h>
-
-
-#endif //LIBGS_CORE_CORO_MUTEX_H
+#endif //LIBGS_CORE_CORO_DETAIL_WAKE_UP_H

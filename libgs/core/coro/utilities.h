@@ -45,22 +45,22 @@ namespace libgs
 
 template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
-	const std::chrono::duration<Rep,Period> &rtime, concepts::schedulable auto &&exec
+	const duration<Rep,Period> &rtime, concepts::schedulable auto &&exec
 );
 
 template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_for (
-	const std::chrono::duration<Rep,Period> &rtime
+	const duration<Rep,Period> &rtime
 );
 
 template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until (
-	const std::chrono::time_point<Rep,Period> &atime, concepts::schedulable auto &&exec
+	const time_point<Rep,Period> &atime, concepts::schedulable auto &&exec
 );
 
 template <typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<error_code> co_sleep_until (
-	const std::chrono::time_point<Rep,Period> &atime
+	const time_point<Rep,Period> &atime
 );
 
 template <typename T>

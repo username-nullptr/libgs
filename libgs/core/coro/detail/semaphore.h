@@ -26,55 +26,62 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_DETAIL_MUTEX_H
-#define LIBGS_CORE_CORO_DETAIL_MUTEX_H
+#ifndef LIBGS_CORE_CORO_DETAIL_SEMAPHORE_H
+#define LIBGS_CORE_CORO_DETAIL_SEMAPHORE_H
 
 #include <libgs/core/coro/detail/wake_up.h>
 #include <libgs/core/lock_free_queue.h>
 
+#include <semaphore>
+
 namespace libgs
 {
 
-class LIBGS_CORE_VAPI co_mutex::impl
+template<size_t Max>
+class LIBGS_CORE_TAPI co_semaphore<Max>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
 	using wake_up_t = detail::co_lock_wake_up;
 
-	impl() = default;
+	explicit impl(size_t initial_count) :
+		m_counter(initial_count) {}
+
 	~impl() noexcept(false)
 	{
-		if( not m_native_handle )
+		if( m_counter == max_v )
 			return ;
 		throw runtime_error (
-			"libgs::co_mutex: Destruct a co_mutex that has not yet been unlocked."
+			"libgs::co_semaphore: Destruct a co_semaphore with unreleased resources."
 		);
 	}
 
 public:
-	[[nodiscard]] bool try_lock()
+	[[nodiscard]] bool try_acquire()
 	{
-		bool flag = false;
+		auto counter = m_counter.load();
+		if( counter == 0 )
+			return false;
 		/*
-			if( m_native_handle == flag )
+			if( m_counter == counter )
 	 		{
-	 			m_native_handle = true;
+	 			m_counter = counter - 1;
 	 			return true;
 			}
 	 		else
 	 		{
-	 			flag = m_native_handle;
+	 			counter = m_counter;
 				return false;
 	 		}
 		*/
-		return m_native_handle.compare_exchange_weak(flag, true);
+		return m_counter.compare_exchange_weak(counter, counter - 1);
 	}
 
-	[[nodiscard]] awaitable<bool> try_lock_x
+	[[nodiscard]] awaitable<bool> try_acquire_x
 	(concepts::schedulable auto &&exec, const auto &timeout)
 	{
-		if( try_lock() )
+		if( try_acquire() )
 			co_return true;
 
 		co_return co_await async_work<bool>::handle(exec,
@@ -91,24 +98,27 @@ public:
 	}
 
 public:
-	native_handle_t m_native_handle {false};
+	std::atomic_size_t m_counter = 0;
 	lock_free_queue<detail::co_lock_wake_up_ptr> m_wait_queue;
 };
 
-inline co_mutex::co_mutex() :
-	m_impl(new impl())
+template<size_t Max>
+co_semaphore<Max>::co_semaphore(size_t initial_count) :
+	m_impl(new impl(initial_count))
 {
 
 }
 
-inline co_mutex::~co_mutex() noexcept(false)
+template<size_t Max>
+co_semaphore<Max>::~co_semaphore() noexcept(false)
 {
 	delete m_impl;
 }
 
-awaitable<void> co_mutex::lock(concepts::schedulable auto &&exec)
+template<size_t Max>
+awaitable<void> co_semaphore<Max>::acquire(concepts::schedulable auto &&exec)
 {
-	if( try_lock() )
+	if( try_acquire() )
 		co_return ;
 
 	co_await async_work<bool>::handle(exec,
@@ -121,67 +131,84 @@ awaitable<void> co_mutex::lock(concepts::schedulable auto &&exec)
 	co_return ;
 }
 
-inline awaitable<void> co_mutex::lock()
+template<size_t Max>
+awaitable<void> co_semaphore<Max>::acquire()
 {
-	co_return co_await lock (
+	co_return co_await acquire (
 		co_await asio::this_coro::executor
 	);
 }
 
-inline bool co_mutex::try_lock()
+template<size_t Max>
+bool co_semaphore<Max>::try_acquire()
 {
-	return m_impl->try_lock();
+	return m_impl->try_acquire();
 }
 
-inline void co_mutex::unlock()
+template<size_t Max>
+void co_semaphore<Max>::release(size_t n)
 {
-	auto wake_up = m_impl->m_wait_queue.dequeue();
-	if( wake_up )
-		std::move(**wake_up)(true);
-	else
-		m_impl->m_native_handle = false;
+	if( n == 0 or n > m_impl->m_count )
+	{
+		throw std::invalid_argument (
+			"libgs::co_semaphore: Invalid release count."
+		);
+	}
+	while( n-- )
+	{
+		auto wake_up = m_impl->m_wait_queue.dequeue();
+		if( wake_up )
+			std::move(**wake_up)(true);
+		else
+			m_impl->m_counter->fetch_add(1);
+	}
 }
 
+template<size_t Max>
 template<typename Rep, typename Period>
-awaitable<bool> co_mutex::try_lock_for
+awaitable<bool> co_semaphore<Max>::try_acquire_for
 (concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout)
 {
-	return m_impl->try_lock_x(exec,
+	return m_impl->try_acquire_x(exec,
 		std::chrono::duration_cast<asio::steady_timer::duration>(timeout)
 	);
 }
 
+template<size_t Max>
 template<typename Clock, typename Duration>
-awaitable<bool> co_mutex::try_lock_until
+awaitable<bool> co_semaphore<Max>::try_acquire_until
 (concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout)
 {
-	return m_impl->try_lock_x(exec,
+	return m_impl->try_acquire_x(exec,
 		std::chrono::time_point_cast<asio::steady_timer::time_point>(timeout)
 	);
 }
 
+template<size_t Max>
 template<typename Rep, typename Period>
-awaitable<bool> co_mutex::try_lock_for(const duration<Rep,Period> &timeout)
+awaitable<bool> co_semaphore<Max>::try_acquire_for(const duration<Rep,Period> &timeout)
 {
-	co_return co_await try_lock_for (
+	co_return co_await try_acquire_for (
 		co_await asio::this_coro::executor, timeout
 	);
 }
 
+template<size_t Max>
 template<typename Clock, typename Duration>
-awaitable<bool> co_mutex::try_lock_until(const time_point<Clock,Duration> &timeout)
+awaitable<bool> co_semaphore<Max>::try_acquire_until(const time_point<Clock,Duration> &timeout)
 {
-	co_return co_await try_lock_until (
+	co_return co_await try_acquire_until (
 		co_await asio::this_coro::executor, timeout
 	);
 }
 
-inline co_mutex::native_handle_t &co_mutex::native_handle() noexcept
+template<size_t Max>
+consteval size_t co_semaphore<Max>::max() const noexcept
 {
-	return m_impl->m_native_handle;
+	return max_v;
 }
 
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_CORO_DETAIL_MUTEX_H
+#endif //LIBGS_CORE_CORO_DETAIL_SEMAPHORE_H
