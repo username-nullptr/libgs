@@ -1,4 +1,4 @@
-#include <libgs/core/coroutine.h>
+#include <libgs/core/coro.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
@@ -54,7 +54,9 @@ int main()
 
 		spdlog::debug("example finished...");
 		co_await libgs::co_sleep_for(5s);
+
 		libgs::exit();
+		co_return ;
 	});
 	return libgs::exec();
 }

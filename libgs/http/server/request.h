@@ -31,7 +31,6 @@
 
 #include <libgs/http/cxx/socket_operation_helper.h>
 #include <libgs/http/server/request_parser.h>
-#include <libgs/core/coroutine.h>
 
 namespace libgs::http
 {

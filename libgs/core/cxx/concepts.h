@@ -279,10 +279,25 @@ template <typename T>
 concept copyable = std::copyable<T>;
 
 template <typename T>
+concept copy_constructible = std::copy_constructible<T>;
+
+template <typename T>
 concept movable = std::movable<T>;
 
 template <typename T>
+concept move_constructible = std::move_constructible<T>;
+
+template <typename T>
 concept copymovable = copyable<T> and movable<T>;
+
+template <typename T>
+concept copymove_constructible = copy_constructible<T> and move_constructible<T>;
+
+template <typename T>
+concept copy_or_movable = copyable<T> or movable<T>;
+
+template <typename T>
+concept copy_or_move_constructible = copy_constructible<T> or move_constructible<T>;
 
 template <typename T, typename Base>
 concept base_of = std::is_base_of_v<Base,T>;

@@ -494,6 +494,22 @@ concept async_wake_up = requires(WakeUp wake_up, Args&&...args) {
 namespace detail
 {
 
+template <typename...Args>
+struct initiate_token {
+	using type = void(Args...);
+};
+
+template <>
+struct initiate_token<void> {
+	using type = void();
+};
+
+template <>
+struct initiate_token<> : initiate_token<void> {};
+
+template <typename...Args>
+using initiate_token_t = typename initiate_token<Args...>::type;
+
 template <typename Exec, typename WakeUp, typename Handler>
 LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
 {
@@ -508,31 +524,6 @@ LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&hand
 		static_assert(false, "Invalid function signature for async");
 }
 
-template <typename WakeUp, typename Handler>
-LIBGS_CORE_TAPI void async_x(WakeUp &&wake_up, Handler &&handler)
-{
-	auto work = asio::make_work_guard(handler);
-	auto exec = work.get_executor();
-	asio::dispatch(exec, [
-		exec, wake_up = std::forward<WakeUp>(wake_up),
-		handler = std::forward<Handler>(handler)
-	]() mutable {
-		async_xx(exec, std::move(wake_up), std::move(handler));
-	});
-}
-
-template <typename Exec, typename WakeUp, typename Handler>
-LIBGS_CORE_TAPI void async_x(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
-{
-	auto work = asio::make_work_guard(handler);
-	asio::dispatch(exec, [
-		exec = work.get_executor(), wake_up = std::forward<WakeUp>(wake_up),
-		handler = std::forward<Handler>(handler)
-	]() mutable {
-		async_xx(exec, std::move(wake_up), std::move(handler));
-	});
-}
-
 } //namespace detail
 
 template <concepts::execution Exec, typename...Args>
@@ -544,20 +535,16 @@ auto basic_async_work<Exec,Args...>::handle
 	using func_t = decltype(wake_up);
 	auto ntoken = unbound_redirect_time(token);
 
-	if constexpr( sizeof...(Args) == 1 and std::is_void_v<std::tuple_element_t<0,std::tuple<Args...>>> )
+	return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
+	[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
 	{
-		return asio::async_initiate<token_t, void()> (
-		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
-			detail::async_x(exec, std::move(wake_up), std::move(handler));
-		}, ntoken);
-	}
-	else
-	{
-		return asio::async_initiate<token_t, void(Args...)> (
-		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
-			detail::async_x(exec, std::move(wake_up), std::move(handler));
-		}, ntoken);
-	}
+		auto work = asio::make_work_guard(handler);
+		asio::dispatch(exec,
+		[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+			detail::async_xx(exec, std::move(wake_up), std::move(handler));
+		});
+	},
+	ntoken);
 }
 
 template <concepts::execution Exec, typename...Args>
@@ -568,20 +555,16 @@ auto basic_async_work<Exec,Args...>::handle(concepts::async_wake_up<handler_t&&>
 	using func_t = decltype(wake_up);
 	auto ntoken = unbound_redirect_time(token);
 
-	if constexpr( sizeof...(Args) == 1 and std::is_void_v<std::tuple_element_t<0,std::tuple<Args...>>> )
+	return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
+	[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
 	{
-		return asio::async_initiate<token_t, void()> (
-		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
-			detail::async_x(std::move(wake_up), std::move(handler));
-		}, ntoken);
-	}
-	else
-	{
-		return asio::async_initiate<token_t, void(Args...)> (
-		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable {
-			detail::async_x(std::move(wake_up), std::move(handler));
-		}, ntoken);
-	}
+		auto work = asio::make_work_guard(handler);
+		auto exec = work.get_executor();
+		asio::dispatch(exec, [exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+			detail::async_xx(exec, std::move(wake_up), std::move(handler));
+		});
+	},
+	ntoken);
 }
 
 void delete_later(const concepts::execution auto &exec, auto *obj)

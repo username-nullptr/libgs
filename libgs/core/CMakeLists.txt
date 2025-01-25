@@ -45,6 +45,9 @@ set(${target_name}_headers
 	algorithm/sha1.h
 	algorithm/math.h
 	algorithm/misc.h
+	coro/utilities.h
+	coro/semaphore.h
+	coro/mutex.h
 	app_utls.h
 	lock_free_queue.h
 	string_list.h
@@ -52,7 +55,7 @@ set(${target_name}_headers
 	args_parser.h
 	ini.h
 	execution.h
-	coroutine.h
+	coro.h
 	library.h
 )
 
@@ -71,13 +74,13 @@ set(${target_name}_detail_headers
 	algorithm/detail/byte_order.h
 	algorithm/detail/uuid.h
 	algorithm/detail/math.h
+	coro/detail/utilities.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
 	detail/string_list.h
 	detail/value.h
 	detail/ini.h
 	detail/execution.h
-	detail/coroutine.h
 	detail/library_impl.hii
 	detail/library.h
 )

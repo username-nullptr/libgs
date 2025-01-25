@@ -35,7 +35,11 @@ namespace libgs
 inline spin_mutex::~spin_mutex() noexcept(false)
 {
 	if( m_native_handle )
-		throw runtime_error("libgs::spin_mutex: Destruct a spin mutex that has not yet been unlocked.");
+	{
+		throw runtime_error (
+			"libgs::spin_mutex: Destruct a spin mutex that has not yet been unlocked."
+		);
+	}
 }
 
 inline void spin_mutex::lock()

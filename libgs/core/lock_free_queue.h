@@ -34,7 +34,7 @@
 namespace libgs
 {
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
 class LIBGS_CORE_TAPI lock_free_queue
 {
 	LIBGS_DISABLE_COPY_MOVE(lock_free_queue)
@@ -44,7 +44,7 @@ public:
 	~lock_free_queue();
 
 public:
-	void enqueue(const T &data);
+	void enqueue(const T &data) requires concepts::copy_constructible<T>;
 	void enqueue(T &&data);
 
 	template <typename...Args>

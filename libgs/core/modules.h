@@ -30,7 +30,7 @@
 #define LIBGS_CORE_MODULES_H
 
 #include <libgs/core/global.h>
-#include <libgs/core/coroutine.h>
+#include <libgs/core/coro.h>
 
 namespace libgs { namespace concepts
 {

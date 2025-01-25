@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_SERVER_DETAIL_SESSION_H
 
 #include <libgs/core/algorithm/uuid.h>
-#include <libgs/core/coroutine.h>
+#include <libgs/core/coro.h>
 #include <spdlog/spdlog.h>
 
 namespace libgs::http

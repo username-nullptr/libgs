@@ -26,11 +26,11 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_COROUTINE_H
-#define LIBGS_CORE_DETAIL_COROUTINE_H
+#ifndef LIBGS_CORE_CORO_DETAIL_UTILITIES_H
+#define LIBGS_CORE_CORO_DETAIL_UTILITIES_H
 
-#include <thread>
 #include <libgs/http/cxx/file_opt_token.h>
+#include <thread>
 
 namespace libgs { namespace detail
 {
@@ -413,4 +413,4 @@ bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const c
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_DETAIL_COROUTINE_H
+#endif //LIBGS_CORO_DETAIL_UTILITIES_H

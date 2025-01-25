@@ -32,7 +32,7 @@
 namespace libgs
 {
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
 class lock_free_queue<T>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -62,32 +62,56 @@ public:
 	std::atomic<node*> m_tail {};
 };
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
 lock_free_queue<T>::lock_free_queue() :
 	m_impl(new impl())
 {
 
 }
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
 lock_free_queue<T>::~lock_free_queue()
 {
 	delete m_impl;
 }
 
-template <concepts::copymovable T>
-void lock_free_queue<T>::enqueue(const T &data)
+template <concepts::copy_or_move_constructible T>
+void lock_free_queue<T>::enqueue(const T &data) requires concepts::copy_constructible<T>
 {
 	emplace(data);
 }
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
 void lock_free_queue<T>::enqueue(T &&data)
 {
 	emplace(std::move(data));
 }
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
+template <typename...Args>
+void lock_free_queue<T>::emplace(Args&&...args)
+{
+	auto n = new typename impl::node(std::forward<Args>(args)...);
+	auto tail = m_impl->m_tail.load(std::memory_order_relaxed);
+	for(;;)
+	{
+		auto next = tail->next.load();
+		if( not next )
+		{
+			if( tail->next.compare_exchange_weak(next, n) )
+			{
+				m_impl->m_tail.compare_exchange_strong(tail, n);
+				return ;
+			}
+		}
+		// The 'next' is not empty,
+		// which means that another thread is also being inserted
+		// and the temporary tail node needs to be updated.
+		else m_impl->m_tail.compare_exchange_strong(tail, next);
+	}
+}
+
+template <concepts::copy_or_move_constructible T>
 std::optional<T> lock_free_queue<T>::dequeue()
 {
 	typename impl::node *head = nullptr;
@@ -120,7 +144,7 @@ std::optional<T> lock_free_queue<T>::dequeue()
 	return data;
 }
 
-template <concepts::copymovable T>
+template <concepts::copy_or_move_constructible T>
 bool lock_free_queue<T>::dequeue(T &data)
 {
 	auto _data = dequeue();
@@ -130,30 +154,6 @@ bool lock_free_queue<T>::dequeue(T &data)
 		return true;
 	}
 	return false;
-}
-
-template <concepts::copymovable T>
-template <typename...Args>
-void lock_free_queue<T>::emplace(Args&&...args)
-{
-	auto n = new typename impl::node(std::forward<Args>(args)...);
-	auto tail = m_impl->m_tail.load(std::memory_order_relaxed);
-	for(;;)
-	{
-		auto next = tail->next.load();
-		if( not next )
-		{
-			if( tail->next.compare_exchange_weak(next, n) )
-			{
-				m_impl->m_tail.compare_exchange_strong(tail, n);
-				return ;
-			}
-		}
-		// The 'next' is not empty,
-		// which means that another thread is also being inserted
-		// and the temporary tail node needs to be updated.
-		else m_impl->m_tail.compare_exchange_strong(tail, next);
-	}
 }
 
 } //namespace libgs

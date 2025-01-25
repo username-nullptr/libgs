@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_COROUTINE_H
-#define LIBGS_CORE_COROUTINE_H
+#ifndef LIBGS_CORE_CORO_UTILITIES_H
+#define LIBGS_CORE_CORO_UTILITIES_H
 
 #include <libgs/core/execution.h>
 
@@ -142,7 +142,7 @@ LIBGS_CORE_VAPI bool check_error (
 #endif //LIBGS_USING_BOOST_ASIO
 
 } //namespace libgs
-#include <libgs/core/detail/coroutine.h>
+#include <libgs/core/coro/detail/utilities.h>
 
 
-#endif //LIBGS_CORE_COROUTINE_H
+#endif //LIBGS_CORE_CORO_UTILITIES_H
