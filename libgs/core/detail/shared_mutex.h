@@ -75,21 +75,20 @@ inline bool spin_shared_mutex::try_lock_shared()
 inline void spin_shared_mutex::unlock_shared()
 {
 	auto counter = m_read_count.load();
-	if( counter == 0 )
-		return m_native_handle.unlock();
 	/*
-		if( m_counter == counter )
+		if( m_read_count == counter )
 		{
-			m_counter = counter - 1;
-			return true;
+			m_read_count = counter - 1;
+			return ;
 		}
 		else
 		{
-			counter = m_counter;
-			return false;
+			counter = m_read_count;
+			return ;
 		}
 	*/
-	m_read_count.compare_exchange_weak(counter, counter - 1);
+	if( counter > 0 and m_read_count.compare_exchange_weak(counter, counter - 1) )
+		m_native_handle.unlock();
 }
 
 inline spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept
