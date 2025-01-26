@@ -67,6 +67,7 @@ set(core_sources
 	core/ini.cpp
 	core/argv_parse.cpp
 	core/coroutine.cpp
+	core/co_semaphore.cpp
 	core/co_mutex.cpp
 	core/library.cpp
 )

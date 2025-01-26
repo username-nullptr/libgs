@@ -49,7 +49,8 @@ public:
 	[[nodiscard]] awaitable<void> acquire();
 
 	[[nodiscard]] bool try_acquire();
-	void release(size_t n = 1);
+	void release(size_t n = 1) requires (max_v > 1);
+	void release() requires (max_v == 1);
 
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_acquire_for (
@@ -75,6 +76,8 @@ private:
 	class impl;
 	impl *m_impl;
 };
+
+using co_binary_semaphore = co_semaphore<1>;
 
 } //namespace libgs
 #include <libgs/core/coro/detail/semaphore.h>

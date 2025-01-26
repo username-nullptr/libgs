@@ -46,7 +46,15 @@ public:
 	using wake_up_t = detail::co_lock_wake_up;
 
 	explicit impl(size_t initial_count) :
-		m_counter(initial_count) {}
+		m_counter(initial_count)
+	{
+		if( initial_count > max_v )
+		{
+			throw std::invalid_argument (
+				"libgs::co_semaphore: Initial count is greater than max value."
+			);
+		}
+	}
 
 	~impl() noexcept(false)
 	{
@@ -125,7 +133,7 @@ awaitable<void> co_semaphore<Max>::acquire(concepts::schedulable auto &&exec)
 	[this, exec = get_executor_helper(exec)](async_work<bool>::handler_t wake_up) mutable
 	{
 		m_impl->m_wait_queue.emplace (
-			std::make_shared<impl::wake_up_t>(exec, std::move(wake_up))
+			std::make_shared<typename impl::wake_up_t>(exec, std::move(wake_up))
 		);
 	});
 	co_return ;
@@ -146,9 +154,9 @@ bool co_semaphore<Max>::try_acquire()
 }
 
 template<size_t Max>
-void co_semaphore<Max>::release(size_t n)
+void co_semaphore<Max>::release(size_t n) requires (max_v > 1)
 {
-	if( n == 0 or n > m_impl->m_count )
+	if( n == 0 or n > max_v - m_impl->m_counter )
 	{
 		throw std::invalid_argument (
 			"libgs::co_semaphore: Invalid release count."
@@ -160,8 +168,24 @@ void co_semaphore<Max>::release(size_t n)
 		if( wake_up )
 			std::move(**wake_up)(true);
 		else
-			m_impl->m_counter->fetch_add(1);
+			m_impl->m_counter.fetch_add(1);
 	}
+}
+
+template<size_t Max>
+void co_semaphore<Max>::release() requires (max_v == 1)
+{
+	if( m_impl->m_counter == 1 )
+	{
+		throw std::runtime_error (
+			"libgs::co_semaphore: Release a co_binary_semaphore with max count 1 more than once."
+		);
+	}
+	auto wake_up = m_impl->m_wait_queue.dequeue();
+	if( wake_up )
+		std::move(**wake_up)(true);
+	else
+		m_impl->m_counter.fetch_add(1);
 }
 
 template<size_t Max>

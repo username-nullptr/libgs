@@ -46,10 +46,8 @@ public:
 
 	void operator()(bool success)
 	{
-		if( not m_is_valid )
+		if( m_finished.test_and_set() )
 			return ;
-		m_is_valid = false;
-
 		dispatch(m_exec, [
 			success, handler = std::make_shared<handler_t>(std::move(m_handler))
 		]() mutable {
@@ -60,7 +58,7 @@ public:
 private:
 	handler_t m_handler;
 	asio::any_io_executor m_exec;
-	std::atomic_bool m_is_valid {true};
+	std::atomic_flag m_finished;
 };
 
 using co_lock_wake_up_ptr = std::shared_ptr<co_lock_wake_up>;
