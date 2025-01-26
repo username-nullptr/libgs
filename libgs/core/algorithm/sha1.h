@@ -34,8 +34,6 @@
 namespace libgs
 {
 
-class sha1_impl;
-
 class LIBGS_CORE_API sha1
 {
 public:
@@ -75,7 +73,8 @@ public:
 	[[nodiscard]] std::wstring wbase64() const;
 
 private:
-	sha1_impl *m_impl;
+	class impl;
+	impl *m_impl;
 };
 
 } //namespace libgs

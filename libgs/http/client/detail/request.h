@@ -122,7 +122,8 @@ template <core_concepts::char_type CharT, method Method, concepts::session_pool 
 basic_client_request<CharT,Method,SessionPool,Version>&
 basic_client_request<CharT,Method,SessionPool,Version>::operator=(basic_client_request &&other) noexcept
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

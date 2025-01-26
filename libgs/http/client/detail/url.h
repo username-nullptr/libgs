@@ -213,6 +213,9 @@ basic_url<CharT>::basic_url(basic_url &&other) noexcept :
 template <core_concepts::char_type CharT>
 basic_url<CharT> &basic_url<CharT>::operator=(basic_url &&other) noexcept
 {
+	if( this == &other )
+		return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl();
 	return *this;

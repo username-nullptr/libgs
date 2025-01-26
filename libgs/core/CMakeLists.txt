@@ -46,8 +46,9 @@ set(${target_name}_headers
 	algorithm/math.h
 	algorithm/misc.h
 	coro/utilities.h
-	coro/semaphore.h
 	coro/mutex.h
+	coro/shared_mutex.h
+	coro/semaphore.h
 	app_utls.h
 	lock_free_queue.h
 	string_list.h
@@ -76,8 +77,9 @@ set(${target_name}_detail_headers
 	algorithm/detail/math.h
 	coro/detail/utilities.h
 	coro/detail/wake_up.h
-	coro/detail/semaphore.h
 	coro/detail/mutex.h
+	coro/detail/shared_mutex.h
+	coro/detail/semaphore.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
 	detail/string_list.h

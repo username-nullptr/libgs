@@ -367,7 +367,8 @@ basic_server_request<Stream,CharT>::basic_server_request(basic_server_request &&
 template <concepts::stream Stream, core_concepts::char_type CharT>
 basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator=(basic_server_request &&other) noexcept
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

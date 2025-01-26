@@ -85,6 +85,9 @@ basic_reply_parser<CharT>::basic_reply_parser(basic_reply_parser &&other) noexce
 template <core_concepts::char_type CharT>
 basic_reply_parser<CharT> &basic_reply_parser<CharT>::operator=(basic_reply_parser &&other) noexcept
 {
+	if( this == &other )
+        return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
 	return *this;

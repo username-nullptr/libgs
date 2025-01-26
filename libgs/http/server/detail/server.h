@@ -542,7 +542,8 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::operator=
 	requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
 			 core_concepts::assignable<service_exec_t,typename Stream::executor_type>
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

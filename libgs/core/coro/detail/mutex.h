@@ -176,9 +176,123 @@ awaitable<bool> co_mutex::try_lock_until(const time_point<Clock,Duration> &timeo
 	);
 }
 
+inline bool co_mutex::is_locked() const noexcept
+{
+	return m_impl->m_native_handle;
+}
+
 inline co_mutex::native_handle_t &co_mutex::native_handle() noexcept
 {
 	return m_impl->m_native_handle;
+}
+
+template <typename Mutex>
+co_unique_lock<Mutex>::co_unique_lock(mutex_t &mutex) :
+	m_mutex(&mutex)
+{
+
+}
+
+template <typename Mutex>
+co_unique_lock<Mutex>::~co_unique_lock() noexcept(noexcept(m_mutex->unlock()))
+{
+	if( m_mutex )
+		m_mutex->unlock();
+}
+
+template <typename Mutex>
+co_unique_lock<Mutex>::co_unique_lock(co_unique_lock &&other) noexcept
+{
+	m_mutex = other.m_mutex;
+	other.m_mutex = nullptr;
+}
+
+template <typename Mutex>
+co_unique_lock<Mutex> &co_unique_lock<Mutex>::operator=(co_unique_lock &&other) noexcept
+{
+	if( this == &other )
+		return *this;
+	else if( m_mutex )
+		m_mutex->unlock();
+
+	m_mutex = other.m_mutex;
+	other.m_mutex = nullptr;
+	return *this;
+}
+
+template <typename Mutex>
+awaitable<void> co_unique_lock<Mutex>::lock(concepts::schedulable auto &&exec)
+{
+	if( m_mutex )
+		co_await m_mutex->lock(exec);
+	co_return ;
+}
+
+template <typename Mutex>
+awaitable<void> co_unique_lock<Mutex>::lock()
+{
+	co_return co_await lock (
+		co_await asio::this_coro::executor
+	);
+}
+
+template <typename Mutex>
+bool co_unique_lock<Mutex>::try_lock()
+{
+	return m_mutex ? m_mutex->try_lock() : true;
+}
+
+template <typename Mutex>
+void co_unique_lock<Mutex>::unlock()
+{
+	if( m_mutex )
+		m_mutex->unlock();
+}
+
+template <typename Mutex>
+template<typename Rep, typename Period>
+awaitable<bool> co_unique_lock<Mutex>::try_lock_for
+(concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout)
+{
+	co_return m_mutex ? co_await m_mutex->try_lock_for(exec, timeout) : true;
+}
+
+template <typename Mutex>
+template<typename Clock, typename Duration>
+awaitable<bool> co_unique_lock<Mutex>::try_lock_until
+(concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout)
+{
+	co_return m_mutex ? co_await m_mutex->try_lock_until(exec, timeout) : true;
+}
+
+template <typename Mutex>
+template<typename Rep, typename Period>
+awaitable<bool> co_unique_lock<Mutex>::try_lock_for(const duration<Rep,Period> &timeout)
+{
+	co_return co_await try_lock_for (
+		co_await asio::this_coro::executor, timeout
+	);
+}
+
+template <typename Mutex>
+template<typename Clock, typename Duration>
+awaitable<bool> co_unique_lock<Mutex>::try_lock_until(const time_point<Clock,Duration> &timeout)
+{
+	co_return co_await try_lock_until (
+		co_await asio::this_coro::executor, timeout
+	);
+}
+
+template <typename Mutex>
+bool co_unique_lock<Mutex>::is_locked() const noexcept
+{
+	return m_mutex ? m_mutex->is_locked() : false;
+}
+
+template <typename Mutex>
+typename co_unique_lock<Mutex>::mutex_t *co_unique_lock<Mutex>::mutex() noexcept
+{
+	return m_mutex;
 }
 
 } //namespace libgs

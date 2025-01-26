@@ -37,9 +37,12 @@ namespace libgs
 template <concepts::char_type CharT>
 union LIBGS_CORE_TAPI basic_uuid // version 4
 {
-	using string_t = std::basic_string<CharT>;
-	using string_view_t = std::basic_string_view<CharT>;
 	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
+
+public:
+	using char_t = CharT;
+	using string_t = std::basic_string<char_t>;
+	using string_view_t = std::basic_string_view<char_t>;
 
 public:
 	basic_uuid(string_view_t basic_uuid);
@@ -64,25 +67,25 @@ public:
 	operator string_t() const { return to_string(); }
 
 public:
-	uint64_t _wide_integers[2];
+	uint64_t wide_integers[2];
 
-	struct _internalData
+	struct internal_data
 	{
 		uint32_t d0;
 		uint16_t d1;
 		uint16_t d2;
 		uint8_t  d3[8];
 	}
-	_basic_uuid;
+	internals;
 
-	struct _byteRepresentation
+	struct byte_representation
 	{
 		uint8_t d0[4];
 		uint8_t d1[2];
 		uint8_t d2[2];
 		uint8_t d3[8];
 	}
-	_bytes;
+	bytes;
 };
 
 using uuid = basic_uuid<char>;

@@ -724,6 +724,8 @@ template <concepts::char_type CharT,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap> &basic_ini<CharT,IniKeys,Exec,GroupMap>::operator=(basic_ini &&other) noexcept
 {
+	if( this == &other )
+		return *this;
 	m_impl = other.m_impl;
 	other.m_impl = std::make_shared<impl>();
 	return *this;
@@ -750,7 +752,8 @@ basic_ini<CharT,IniKeys,Exec,GroupMap>&
 basic_ini<CharT,IniKeys,Exec,GroupMap>::operator=(basic_ini<char_t,IniKeys,Exec0,GroupMap> &&other)
 	requires concepts::match_execution<Exec0,executor_t>
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

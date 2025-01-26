@@ -2,9 +2,8 @@
 #include <libgs/core.h>
 // #include <spdlog/spdlog.h>
 
-// #include <libgs/http/client.h>
+#include <libgs/http/client.h>
 
-// #include <libgs/http/client.h>
 #include <list>
 #include <iostream>
 

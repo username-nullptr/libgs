@@ -327,6 +327,9 @@ basic_parser_base<CharT>::basic_parser_base(basic_parser_base &&other) noexcept 
 template <core_concepts::char_type CharT>
 basic_parser_base<CharT> &basic_parser_base<CharT>::operator=(basic_parser_base &&other) noexcept
 {
+	if( this == &other )
+		return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
 	return *this;

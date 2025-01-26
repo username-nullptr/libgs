@@ -31,15 +31,17 @@
 
 #include <libgs/core/spin_mutex.h>
 #include <shared_mutex>
-#include <mutex>
 
 namespace libgs
 {
 
 inline spin_shared_mutex::~spin_shared_mutex() noexcept(false)
 {
-	if( m_read_count > 0 )
-		throw runtime_error("libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared.");
+	if( m_read_count == 0 )
+		return ;
+	throw runtime_error (
+		"libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared."
+	);
 }
 
 inline void spin_shared_mutex::lock()
@@ -72,11 +74,25 @@ inline bool spin_shared_mutex::try_lock_shared()
 
 inline void spin_shared_mutex::unlock_shared()
 {
-	if( --m_read_count == 0 )
-		m_native_handle.unlock();
+	auto counter = m_read_count.load();
+	if( counter == 0 )
+		return m_native_handle.unlock();
+	/*
+		if( m_counter == counter )
+		{
+			m_counter = counter - 1;
+			return true;
+		}
+		else
+		{
+			counter = m_counter;
+			return false;
+		}
+	*/
+	m_read_count.compare_exchange_weak(counter, counter - 1);
 }
 
-inline typename spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept
+inline spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept
 {
 	return m_native_handle;
 }

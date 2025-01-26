@@ -98,6 +98,8 @@ basic_socket_session<Stream>::basic_socket_session(basic_socket_session &&other)
 template <concepts::stream Stream>
 basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(basic_socket_session &&other) noexcept
 {
+	if( this == &other )
+		return *this;
 	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl({},{});

@@ -111,6 +111,8 @@ basic_session_set<CharT>::basic_session_set(basic_session_set &&other) noexcept 
 template <core_concepts::char_type CharT>
 basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set &&other) noexcept
 {
+	if( this == &other )
+		return *this;
 	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl();

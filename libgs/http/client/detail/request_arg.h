@@ -127,6 +127,9 @@ basic_request_arg<CharT>::basic_request_arg(basic_request_arg &&other) noexcept 
 template <core_concepts::char_type CharT>
 basic_request_arg<CharT> &basic_request_arg<CharT>::operator=(basic_request_arg &&other) noexcept
 {
+	if( this == &other )
+		return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl({});
 	return *this;

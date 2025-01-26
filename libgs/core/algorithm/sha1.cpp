@@ -31,12 +31,12 @@
 namespace libgs
 {
 
-class LIBGS_DECL_HIDDEN sha1_impl
+class LIBGS_DECL_HIDDEN sha1::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(sha1_impl)
+	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	sha1_impl() = default;
+	impl() = default;
 
 	void add_byte_dont_count_bits(uint8_t x)
 	{
@@ -209,25 +209,25 @@ public:
 /*----------------------------------------------------------------------------------------------------------*/
 
 sha1::sha1() :
-	m_impl(new sha1_impl())
+	m_impl(new impl())
 {
 
 }
 
 sha1::sha1(std::string_view text) :
-	m_impl(new sha1_impl())
+	m_impl(new impl())
 {
 	append(text);
 }
 
 sha1::sha1(std::wstring_view text) :
-	m_impl(new sha1_impl())
+	m_impl(new impl())
 {
 	append(text);
 }
 
 sha1::sha1(const sha1 &other) :
-	m_impl(new sha1_impl())
+	m_impl(new impl())
 {
 	operator=(other);
 }
@@ -235,20 +235,16 @@ sha1::sha1(const sha1 &other) :
 sha1::sha1(sha1 &&other) noexcept :
 	m_impl(other.m_impl)
 {
-	other.m_impl = nullptr;
+	other.m_impl = new impl();
 }
 
 sha1::~sha1()
 {
-	if( m_impl )
-		delete m_impl;
+	delete m_impl;
 }
 
 sha1 &sha1::operator=(const sha1 &other)
 {
-	if( m_impl == nullptr )
-		m_impl = new sha1_impl();
-
 	memcpy(m_impl->m_state, other.m_impl->m_state, 5);
 	memcpy(m_impl->m_buf, other.m_impl->m_buf, 64);
 
@@ -259,19 +255,16 @@ sha1 &sha1::operator=(const sha1 &other)
 
 sha1 &sha1::operator=(sha1 &&other) noexcept
 {
-	if( m_impl )
-		delete m_impl;
-
+	if( this == &other )
+		return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
-	other.m_impl = nullptr;
+	other.m_impl = new impl();
 	return *this;
 }
 
 sha1 &sha1::append(uint8_t x)
 {
-	if( m_impl == nullptr )
-		return *this;
-
 	m_impl->add_byte_dont_count_bits(x);
 	m_impl->m_n_bits += 8;
 	return *this;
@@ -279,23 +272,22 @@ sha1 &sha1::append(uint8_t x)
 
 sha1 &sha1::append(char c)
 {
-	if( m_impl == nullptr )
-		return *this;
 	return append(static_cast<uint8_t>(c));
 }
 
 sha1 &sha1::append(wchar_t c)
 {
-	if( m_impl == nullptr )
-		return *this;
 	return append(wcstombs(c));
 }
 
 sha1 &sha1::append(const void *data, size_t size)
 {
-	if( m_impl == nullptr or data == nullptr )
-		return *this;
-
+	if( data == nullptr )
+	{
+		throw std::invalid_argument (
+			"libgs::sha1::append: data is nullptr"
+		);
+	}
 	auto ptr = static_cast<const uint8_t*>(data);
 	for(; size and m_impl->m_i % sizeof(m_impl->m_buf); size--)
 		append(*ptr++);
@@ -313,14 +305,14 @@ sha1 &sha1::append(const void *data, size_t size)
 
 sha1 &sha1::append(std::string_view text)
 {
-	if( m_impl == nullptr or text.empty() )
+	if( text.empty() )
 		return *this;
 	return append(text.data(), text.size());
 }
 
 sha1 &sha1::append(std::wstring_view text)
 {
-	if( m_impl == nullptr or text.empty() )
+	if( text.empty() )
 		return *this;
 
 	auto tmp = wcstombs(text);
@@ -354,10 +346,7 @@ void sha1::operator+=(const std::wstring &text)
 
 sha1& sha1::finalize()
 {
-	if( m_impl == nullptr )
-		return *this;
 	m_impl->add_byte_dont_count_bits(0x80);
-
 	while( m_impl->m_i % 64 != 56 )
 		m_impl->add_byte_dont_count_bits(0x00);
 	for(int j=7; j>=0; j--)
@@ -367,14 +356,11 @@ sha1& sha1::finalize()
 
 std::string sha1::hex(bool upper_case) const
 {
-	char _hex[64] = "";
-	if( m_impl == nullptr )
-		return _hex;
-
 	static constexpr const char *lower = "0123456789abcdef";
 	static constexpr const char *upper = "0123456789ABCDEF";
 
 	auto alphabet = upper_case ? upper : lower;
+	char _hex[64] = "";
 	int k = 0;
 
 //	for(int i=0; i<5; i++)
@@ -388,10 +374,6 @@ std::string sha1::hex(bool upper_case) const
 
 std::string sha1::base64() const
 {
-	char _base64[32] = "";
-	if( m_impl == nullptr )
-		return _base64;
-
 	static constexpr const char *table =
 			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 			"abcdefghijklmnopqrstuvwxyz"
@@ -408,7 +390,9 @@ std::string sha1::base64() const
 		( (m_impl->m_state[3] & 0x000000FF) << (2 << 3) ) | ( (m_impl->m_state[4] & 0xFFFF0000) >> (2 << 3) ),
 		( (m_impl->m_state[4] & 0x0000FFFF) << (1 << 3) ),
 	};
+	char _base64[32] = "";
 	int i = 0;
+
 	for(; i<7; i++)
 	{
 		auto x = triples[i];

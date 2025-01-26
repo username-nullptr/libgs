@@ -90,9 +90,11 @@ basic_client<CharT,SessionPool,Version>::basic_client(basic_client &&other) noex
 }
 
 template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
-basic_client<CharT,SessionPool,Version> &basic_client<CharT,SessionPool,Version>::operator=(basic_client &&other) noexcept
+basic_client<CharT,SessionPool,Version>&
+basic_client<CharT,SessionPool,Version>::operator=(basic_client &&other) noexcept
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this == &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

@@ -206,6 +206,9 @@ basic_request_parser<CharT>::basic_request_parser(basic_request_parser &&other) 
 template <core_concepts::char_type CharT>
 basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_request_parser &&other) noexcept
 {
+	if( this == &other )
+		return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl(0xFFFF);
 	return *this;

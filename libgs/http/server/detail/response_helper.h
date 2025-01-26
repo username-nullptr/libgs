@@ -205,6 +205,9 @@ basic_response_helper<CharT>::basic_response_helper(basic_response_helper &&othe
 template <core_concepts::char_type CharT>
 basic_response_helper<CharT> &basic_response_helper<CharT>::operator=(basic_response_helper &&other) noexcept
 {
+	if( this == &other )
+		return *this;
+	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl();
 	other.m_impl->m_request_headers = m_impl->m_request_headers;

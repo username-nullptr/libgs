@@ -92,7 +92,8 @@ template <concepts::stream Stream, core_concepts::char_type CharT>
 basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=
 (basic_service_context &&other) noexcept
 {
-	*m_impl = *other.m_impl;
+	if( this != &other )
+		*m_impl = *other.m_impl;
 	return *this;
 }
 
@@ -110,7 +111,8 @@ template<typename Stream0>
 basic_service_context<Stream,CharT> &basic_service_context<Stream,CharT>::operator=
 (basic_service_context<Stream0,CharT> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
 {
-	*m_impl = *other.m_impl;
+	if( this != &other )
+		*m_impl = *other.m_impl;
 	return *this;
 }
 

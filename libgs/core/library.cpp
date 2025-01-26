@@ -50,7 +50,8 @@ library::library(library &&other) noexcept :
 
 library &library::operator=(library &&other) noexcept
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

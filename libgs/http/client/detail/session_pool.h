@@ -121,6 +121,8 @@ basic_session_pool<Stream,Exec>::basic_session_pool(basic_session_pool &&other) 
 template <concepts::stream Stream, core_concepts::execution Exec>
 basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basic_session_pool &&other) noexcept
 {
+	if( this == &other )
+		return *this;
 	delete m_impl;
 	m_impl = other.m_impl;
 	other.m_impl = new impl();

@@ -883,7 +883,8 @@ template <concepts::stream Stream, core_concepts::char_type CharT>
 basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::operator=
 (basic_server_response &&other) noexcept
 {
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

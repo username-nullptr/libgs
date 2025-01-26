@@ -14,12 +14,14 @@ int main()
 	{
 		libgs::dispatch([&, id = libgs::this_thread_id()]() -> libgs::awaitable<void>
 		{
-			co_await mutex.lock();
+			// co_await mutex.lock();
+			libgs::co_unique_lock locker(mutex);
+			co_await locker.lock();
 
 			spdlog::info("======== {} : {}", id, j++);
 			co_await libgs::co_sleep_for(1s);
 
-			mutex.unlock();
+			// mutex.unlock();
 
 			if( j == count )
 				libgs::exit();
