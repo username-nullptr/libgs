@@ -25,6 +25,7 @@ set(${target_name}_headers
 	cxx/type_traits.h
 	cxx/remove_repeat.h
 	cxx/function_traits.h
+	cxx/operators.h
 	cxx/return_tools.h
 	cxx/string_tools.h
 	cxx/tools.h
@@ -61,6 +62,7 @@ set(${target_name}_headers
 )
 
 set(${target_name}_detail_headers
+	cxx/detail/operators.h
 	cxx/detail/return_tools.h
 	cxx/detail/string_tools.h
 	cxx/detail/tools.h

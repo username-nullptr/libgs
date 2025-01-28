@@ -3,7 +3,7 @@
 *                                                                                   *
 *   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of LIBGS                                                      *
+*   This file is part of LIBGS3                                                       *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
@@ -26,51 +26,33 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_ALGORITHM_MATH_H
-#define LIBGS_CORE_ALGORITHM_MATH_H
+#ifndef LIBGS_CORE_CXX_OPERATOR_H
+#define LIBGS_CORE_CXX_OPERATOR_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/concepts.h>
 
 namespace libgs
 {
 
-template <typename Iter>
-[[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end) requires
-	std::is_arithmetic_v<std::remove_cvref_t<decltype(*begin)>>;
-
-template <typename Iter>
-[[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end, auto &&func) requires (
-	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(*begin))>> or
-	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(begin))>>
+[[nodiscard]] LIBGS_CORE_TAPI bool equality (
+	concepts::number_type auto a, concepts::number_type auto b
 );
 
-namespace concepts
-{
+[[nodiscard]] LIBGS_CORE_TAPI bool nequality (
+	concepts::number_type auto a, concepts::number_type auto b
+);
 
-template <typename Iter, typename C, typename Func>
-concept func_inf_pt = requires (
-	decltype(std::declval<Func>()(*std::declval<Iter>())) &data,
-	const C &threshold, decltype(threshold * 0.0) &precision
-){
-	data = data; data > data; data < data; threshold > 0;
-	data - data > threshold; data - data < threshold;
-	data - data > precision; data - data < precision;
-};
+[[nodiscard]] LIBGS_CORE_TAPI bool equal_greater (
+	concepts::number_type auto a, concepts::number_type auto b
+);
 
-} //namespace concepts
-
-template <typename Iter>
-[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
-	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype(func)>;
-
-template <typename Iter>
-[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold)
-	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype([](auto x){return x;})> {
-	return func_inf_pt(begin, end, threshold, [](auto x){return x;});
-}
+[[nodiscard]] LIBGS_CORE_TAPI bool equal_less (
+	concepts::number_type auto a, concepts::number_type auto b
+);
 
 } //namespace libgs
-#include <libgs/core/algorithm/detail/math.h>
+#include <libgs/core/cxx/detail/operators.h>
 
 
-#endif //LIBGS_CORE_ALGORITHM_MATH_H
+#endif //LIBGS_CORE_CXX_OPERATOR_H

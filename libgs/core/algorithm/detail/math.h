@@ -34,22 +34,6 @@
 namespace libgs
 {
 
-bool equality(concepts::number_type auto a, concepts::number_type auto b)
-{
-	if constexpr( is_float_v<decltype(a)> or is_float_v<decltype(b)> )
-	{
-		auto e = std::abs(a - b) ;
-		return e < std::numeric_limits<decltype(e)>::epsilon();
-	}
-	else
-		return a == b;
-}
-
-bool nequality(concepts::number_type auto a, concepts::number_type auto b)
-{
-	return not equality(a,b);
-}
-
 template <typename Iter>
 auto mean(Iter begin, Iter end) requires
 	std::is_arithmetic_v<std::remove_cvref_t<decltype(*begin)>>
@@ -83,6 +67,8 @@ namespace detail
 template <typename Iter, typename C, typename Func>
 class LIBGS_CORE_TAPI func_inf_pt
 {
+	LIBGS_DISABLE_COPY_MOVE(func_inf_pt)
+
 public:
 	using data_t = decltype (
 		std::declval<Func>()(*std::declval<Iter>())
@@ -95,100 +81,78 @@ public:
 	};
 
 public:
-	explicit func_inf_pt(const C &threshold, const C &precision, Func &func) :
-		threshold(threshold), precision(precision), func(func) {}
+	explicit func_inf_pt(const C &threshold, Func &func) :
+		threshold(threshold), func(func) {}
 
-	[[nodiscard]] auto begin_check(Iter &it, Iter begin, Iter end)
+	[[nodiscard]] Iter find_first(Iter begin, Iter end)
 	{
-		auto data = func(*begin);
-		pre_data = data;
+		auto it = begin;
+		auto max_it = it;
+		auto min_it = it;
 
 		for(; it!=end; ++it)
 		{
-			data = func(*it);
-			auto check_threshold = [&]
-			{
-				if( data - pre_data > threshold )
-				{
-					dtn = direction::rising_edge;
-					last_ipt = inf_pt_t::trough;
-				}
-				else if( data - pre_data < -threshold )
-				{
-					dtn = direction::falling_edge;
-					last_ipt = inf_pt_t::crest;
-				}
-				else
-					return false;
+			auto data = func(*it);
+			auto max = *max_it;
+			auto min = *min_it;
 
-				list.emplace_back(pre_data);
-				list.emplace_back(data);
-				return true;
-			};
-			if( check_threshold() )
-				break;
-			else if( not (std::abs(data - pre_data) > precision) )
+			if( data > max )
 			{
-				pre_data = data;
-				continue;
+				max_it = it;
+				if( equal_less(max - min, threshold) )
+					continue;
+
+				pre_data = max;
+				list.emplace_back(min);
+				list.emplace_back(max);
+				dtn = direction::rising_edge;
+				last_ipt = inf_pt_t::trough;
+				return max_it;
 			}
-			for(++it; it!=end; ++it)
+			else if( data < min )
 			{
-				data = func(*it);
-				if( not (std::abs(data - pre_data) > precision) )
-				{
-					pre_data = data;
-					break;
-				}
-				if( check_threshold() )
-					break;
+				min_it = it;
+				if( equal_less(max - min, threshold) )
+					continue;
+
+				pre_data = min;
+				list.emplace_back(max);
+				list.emplace_back(min);
+				dtn = direction::falling_edge;
+				last_ipt = inf_pt_t::crest;
+				return min_it;
 			}
-			if( not list.empty() or it == end )
-				break;
 		}
-		return data;
+		return end;
 	}
 
-	void end_check(Iter mit, Iter &it)
+public:
+	void rising_check()
 	{
-		auto data = func(*it);
-		pre_data = data;
-
-		for(; it!=mit; --it)
-		{
-			data = func(*it);
-			if( std::abs(data - pre_data) > threshold )
-			{
-				last = pre_data;
-				break;
-			}
-			else if( not (std::abs(data - pre_data) > precision) )
-			{
-				pre_data = data;
-				continue;
-			}
-			for(--it; it!=mit; --it)
-			{
-				data = func(*it);
-				if( not (std::abs(data - pre_data) > precision) )
-				{
-					pre_data = data;
-					break;
-				}
-				else if( std::abs(data - pre_data) > threshold )
-				{
-					last = pre_data;
-					break;
-				}
-			}
-			if( last or it == mit )
-				break;
-		}
+		status_check(direction::rising_edge, inf_pt_t::trough,
+			[](auto pre, auto back){ return pre - back; }
+		);
 	}
 
+	void falling_check()
+	{
+		status_check(direction::falling_edge, inf_pt_t::crest,
+			[](auto pre, auto back){ return back - pre; }
+		);
+	}
+
+	void level_check()
+	{
+		auto ipt = dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough;
+		status_check(direction::level, ipt,
+			[](auto pre, auto back){ return std::abs(pre - back); }
+		);
+	}
+
+private:
 	void status_check(direction d, inf_pt_t t, auto &&diff)
 	{
-		if( last_ipt == t and diff(pre_data, list.back()) > precision )
+		if( last_ipt == t and diff(pre_data, list.back()) > 0.0 )
 		{
 			list.pop_back();
 			list.emplace_back(pre_data);
@@ -203,12 +167,10 @@ public:
 
 public:
 	const C &threshold;
-	const C &precision;
 	Func &func;
 
 	data_t pre_data;
 	std::list<data_t> list;
-	std::optional<data_t> last;
 
 	direction dtn = direction::level;
 	inf_pt_t last_ipt = {};
@@ -217,86 +179,49 @@ public:
 } //namespace detail
 
 template <typename Iter>
-auto func_inf_pt(Iter begin, Iter end, const auto &threshold, double threshold_precision, auto &&func)
+auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
 	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype(func)>
 {
-	if( not (threshold > 0) or not (threshold_precision < 1.0) )
+	if( equal_less(threshold,0.0) )
 	{
 		throw std::invalid_argument (
-			"libgs::func_inf_pt: threshold and precision must be positive and threshold > precision"
+			"libgs::func_inf_pt: Argument 'threshold' must be positive"
 		);
 	}
 	using data_t = decltype(func(*begin));
 	using vector_t = std::vector<data_t>;
 
-	auto it = std::next(begin);
-	if( it == end )
-		return vector_t{};
-
 	using fip_t = detail::func_inf_pt <
-		Iter, decltype(threshold * threshold_precision), decltype(func)
+		Iter, decltype(threshold), decltype(func)
 	>;
 	using direction = typename fip_t::direction;
-	using inf_pt_t = typename fip_t::inf_pt_t;
 
-	auto precision = threshold * threshold_precision;
-	fip_t fip(threshold, precision, func);
+	fip_t fip(threshold, func);
+	auto it = fip.find_first(begin, end);
 
-	auto data = fip.begin_check(it, begin, end);
 	if( it == end )
-		return vector_t{ fip.list.begin(), fip.list.end() };
-
-	fip.end_check(--it, --end);
-	if( fip.list.empty() )
-		return vector_t{};
-
-	if( it != end )
 	{
+		return vector_t {
+			fip.list.begin(), fip.list.end()
+		};
+	}
+	for(++it; it!=end; ++it)
+	{
+		auto data = func(*it);
+		if( data > fip.pre_data )
+			fip.rising_check();
+		else if( data < fip.pre_data )
+			fip.falling_check();
+		else if( fip.dtn != direction::level )
+			fip.level_check();
 		fip.pre_data = data;
-		for(++it; it!=end; ++it)
-		{
-			data = func(*it);
-			if( data - fip.pre_data > precision )
-			{
-				fip.status_check(direction::rising_edge, inf_pt_t::trough,
-					[](auto pre, auto back){ return pre - back; }
-				);
-			}
-			else if( data - fip.pre_data < -precision )
-			{
-				fip.status_check(direction::falling_edge, inf_pt_t::crest,
-					[](auto pre, auto back){ return back - pre; }
-				);
-			}
-			else if( fip.dtn != direction::level )
-			{
-				auto ipt = fip.dtn == direction::rising_edge ? inf_pt_t::crest : inf_pt_t::trough;
-				fip.status_check(direction::level, ipt,
-					[](auto pre, auto back){ return std::abs(pre - back); }
-				);
-			}
-			fip.pre_data = data;
-		}
 	}
-	if( fip.last )
-	{
-		if( fip.list.size() > 1 )
-		{
-			auto lit = --fip.list.end();
-			auto second = *lit;
-			auto first = *--lit;
+	if( fip.dtn != direction::level )
+		fip.level_check();
 
-			if( second > first )
-			{
-				if( *fip.last > second )
-					fip.list.pop_back();
-			}
-			else if( *fip.last < second )
-				fip.list.pop_back();
-		}
-		fip.list.emplace_back(*fip.last);
-	}
-	return vector_t{ fip.list.begin(), fip.list.end() };
+	return vector_t {
+		fip.list.begin(), fip.list.end()
+	};
 }
 
 } //namespace libgs

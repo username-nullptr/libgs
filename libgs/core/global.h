@@ -31,6 +31,7 @@
 
 #include <libgs/core/cxx/formatter.h>
 #include <libgs/core/cxx/exception.h>
+#include <libgs/core/cxx/operators.h>
 
 namespace libgs
 {
