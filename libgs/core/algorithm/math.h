@@ -30,6 +30,7 @@
 #define LIBGS_CORE_ALGORITHM_MATH_H
 
 #include <libgs/core/global.h>
+#include <cmath>
 
 namespace libgs
 {
@@ -43,31 +44,6 @@ template <typename Iter>
 	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(*begin))>> or
 	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(begin))>>
 );
-
-namespace concepts
-{
-
-template <typename Iter, typename C, typename Func>
-concept func_inf_pt = requires (
-	decltype(std::declval<Func>()(*std::declval<Iter>())) &data,
-	const C &threshold, decltype(threshold * 0.0) &precision
-){
-	data = data; data > data; data < data; threshold > 0;
-	data - data > threshold; data - data < threshold;
-	data - data > precision; data - data < precision;
-};
-
-} //namespace concepts
-
-template <typename Iter>
-[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold, auto &&func)
-	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype(func)>;
-
-template <typename Iter>
-[[nodiscard]] LIBGS_CORE_TAPI auto func_inf_pt(Iter begin, Iter end, const auto &threshold)
-	requires concepts::func_inf_pt<Iter, decltype(threshold), decltype([](auto x){return x;})> {
-	return func_inf_pt(begin, end, threshold, [](auto x){return x;});
-}
 
 } //namespace libgs
 #include <libgs/core/algorithm/detail/math.h>
