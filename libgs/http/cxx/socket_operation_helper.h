@@ -52,6 +52,13 @@ public:
 	~socket_operation_helper_base();
 
 public:
+	template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
+	[[nodiscard]] auto read(mutable_buffer buffer, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
+	[[nodiscard]] auto write(const const_buffer &buffer, Token &&token = {});
+
+public:
 	[[nodiscard]] executor_t get_executor() noexcept;
 	[[nodiscard]] const socket_t &socket() const noexcept;
 	[[nodiscard]] socket_t &socket() noexcept;

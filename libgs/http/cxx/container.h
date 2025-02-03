@@ -34,6 +34,7 @@
 #include <libgs/core/value.h>
 #include <ranges>
 #include <map>
+#include <set>
 
 namespace libgs::http
 {
@@ -47,6 +48,107 @@ struct LIBGS_HTTP_TAPI basic_less_case_insensitive
 
 using less_case_insensitive = basic_less_case_insensitive<char>;
 using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_map = std::map <
+	std::basic_string<CharT>, basic_value<CharT>,
+	basic_less_case_insensitive<CharT>
+>;
+
+using map  = basic_map<char>;
+using wmap = basic_map<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_map_init_list = std::initializer_list<std::tuple <
+	std::basic_string_view<CharT>, basic_value<CharT>
+>>;
+
+using map_init_list  = basic_map_init_list<char>;
+using wmap_init_list = basic_map_init_list<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_map_key_init_list = std::initializer_list <
+	std::basic_string_view<CharT>
+>;
+
+using map_key_init_list  = basic_map_key_init_list<char>;
+using wmap_key_init_list = basic_map_key_init_list<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_set = std::set <
+	basic_value<CharT>,
+	basic_less_case_insensitive<CharT>
+>;
+
+using set  = basic_set<char>;
+using wset = basic_set<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_value_set = basic_set<CharT>;
+
+using value_set  = basic_value_set<char>;
+using wvalue_set = basic_value_set<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_set_init_list = std::initializer_list <
+	basic_value<CharT>
+>;
+
+using set_init_list  = basic_set_init_list<char>;
+using wset_init_list = basic_set_init_list<wchar_t>;
+
+namespace concepts
+{
+
+template <typename CharT, typename...Args>
+concept set_map_params = core_concepts::container_params <
+	std::tuple<std::basic_string_view<CharT>, basic_value<CharT>>, Args...
+>;
+
+template <typename CharT, typename...Args>
+concept unset_map_params = core_concepts::container_params <
+	std::basic_string_view<CharT>, Args...
+>;
+
+template <typename CharT, typename...Args>
+concept set_set_params = core_concepts::container_params <
+	basic_value<CharT>, Args...
+>;
+
+template <typename CharT, typename...Args>
+concept unset_set_params = core_concepts::container_params <
+	basic_value<CharT>, Args...
+>;
+
+} //namespace concepts
+
+template <core_concepts::char_type CharT, typename...Args>
+void set_map(basic_map<CharT> &map, Args&&...args) noexcept
+	requires concepts::set_map_params<CharT,Args...>;
+
+template <core_concepts::char_type CharT>
+void set_map(basic_map<CharT> &map, basic_map_init_list<CharT> list) noexcept;
+
+template <core_concepts::char_type CharT, typename...Args>
+void unset_map(basic_map<CharT> &map, Args&&...args) noexcept
+	requires concepts::unset_map_params<CharT,Args...>;
+
+template <core_concepts::char_type CharT>
+void unset_map(basic_map<CharT> &map, basic_map_key_init_list<CharT> list) noexcept;
+
+template <core_concepts::char_type CharT, typename...Args>
+void set_set(basic_set<CharT> &set, Args&&...args) noexcept
+	requires concepts::set_set_params<CharT,Args...>;
+
+template <core_concepts::char_type CharT>
+void set_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept;
+
+template <core_concepts::char_type CharT, typename...Args>
+void unset_set(basic_set<CharT> &set, Args&&...args) noexcept
+	requires concepts::unset_set_params<CharT,Args...>;
+
+template <core_concepts::char_type CharT>
+void unset_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept;
 
 } //namespace libgs::http
 #include <libgs/http/cxx/detail/container.h>

@@ -58,6 +58,170 @@ socket_operation_helper_base<Stream>::~socket_operation_helper_base()
 }
 
 template <concepts::stream Stream>
+template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
+auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
+	{
+		size_t sum = 0;
+		for(;;)
+		{
+			static_cast<socket_operation_helper<Stream>*>(this)
+				->non_blocking(false, token);
+			if( token )
+				break;
+
+			sum += socket().read(
+				libgs::buffer(buffer.data() + sum, buffer.size() - sum),
+				token
+			);
+			if( token and token.value() == errc::interrupted )
+				continue;
+			break;
+		}
+		return sum;
+	}
+	else if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		error_code error;
+		auto res = read(buffer, error);
+		if( error )
+			throw system_error(error, "libgs::http::socket_operation_helper::read");
+		return res;
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<token_t> )
+	{
+
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else
+	{
+		using namespace libgs::operators;
+		auto task = [&socket = this->socket(), buffer](error_code &error) mutable -> awaitable<size_t>
+		{
+			size_t sum = 0;
+			for(;;)
+			{
+				sum += co_await socket.async_read(
+					libgs::buffer(buffer.data() + sum, buffer.size() - sum),
+					use_awaitable | error
+				);
+				if( error and error.value() == errc::interrupted )
+					continue;
+				break;
+			}
+			co_return sum;
+		};
+		if constexpr( core_concepts::dis_func_opt_token<token_t> )
+		{
+			return asio::co_spawn(this->get_executor(),
+			[task = std::move(task), token]() mutable -> awaitable<size_t>
+			{
+				error_code error;
+				auto sum = co_await task(error);
+				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::read");
+				co_return sum;
+			},
+			token);
+		}
+		else
+		{
+			asio::co_spawn(this->get_executor(),
+			[task = std::move(task), token]() mutable -> awaitable<void>
+			{
+				error_code error;
+				auto sum = co_await task(error);
+				token(error, sum);
+			});
+		}
+	}
+}
+
+template <concepts::stream Stream>
+template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
+auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( std::is_same_v<token_t, error_code> )
+	{
+		size_t sum = 0;
+		for(;;)
+		{
+			static_cast<socket_operation_helper<Stream>*>(this)
+				->non_blocking(false, token);
+			if( token )
+				break;
+
+			sum += asio::write(socket(),
+				libgs::buffer(buffer.data() + sum, buffer.size() - sum),
+				token
+			);
+			if( token and token.value() == errc::interrupted )
+				continue;
+			break;
+		}
+		return sum;
+	}
+	else if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		error_code error;
+		auto res = write(buffer, error);
+		if( error )
+			throw system_error(error, "libgs::http::socket_operation_helper::write");
+		return res;
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<token_t> )
+	{
+
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else
+	{
+		using namespace libgs::operators;
+		auto task = [&socket = socket(), buffer](error_code &error) mutable -> awaitable<size_t>
+		{
+			size_t sum = 0;
+			for(;;)
+			{
+				sum += co_await asio::async_write(socket,
+					libgs::buffer(buffer.data() + sum, buffer.size() - sum),
+					use_awaitable | error
+				);
+				if( error and error.value() == errc::interrupted )
+					continue;
+				break;
+			}
+			co_return sum;
+		};
+		if constexpr( core_concepts::dis_func_opt_token<token_t> )
+		{
+			return asio::co_spawn(this->get_executor(),
+			[task = std::move(task), token]() mutable -> awaitable<size_t>
+			{
+				error_code error;
+				auto sum = co_await task(error);
+				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::write");
+				co_return sum;
+			},
+			token);
+		}
+		else
+		{
+			asio::co_spawn(this->get_executor(),
+			[task = std::move(task), token]() mutable -> awaitable<void>
+			{
+				error_code error;
+				auto sum = co_await task(error);
+				token(error, sum);
+			});
+		}
+	}
+}
+
+template <concepts::stream Stream>
 typename socket_operation_helper_base<Stream>::executor_t
 socket_operation_helper_base<Stream>::get_executor() noexcept
 {

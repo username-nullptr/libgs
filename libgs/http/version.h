@@ -52,7 +52,7 @@ using version_t = version::type;
 LIBGS_HTTP_VAPI bool version_check(version_t v, bool _throw = true);
 LIBGS_HTTP_VAPI bool version_check(std::string_view vs, bool _throw = true);
 
-template <version_t Version, core_concepts::char_type CharT = char>
+template <version_t Version, core_concepts::char_type CharT>
 [[nodiscard]] consteval const CharT *version_string();
 
 template <version_t Version>
@@ -61,7 +61,7 @@ template <version_t Version>
 template <version_t Version>
 [[nodiscard]] consteval const wchar_t *wversion_string();
 
-template <core_concepts::char_type CharT = char>
+template <core_concepts::char_type CharT>
 [[nodiscard]] LIBGS_HTTP_TAPI const CharT *version_string(version_t v);
 
 [[nodiscard]] LIBGS_HTTP_VAPI const char *version_string(version_t v);

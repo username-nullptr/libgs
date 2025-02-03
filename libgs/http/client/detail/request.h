@@ -43,16 +43,16 @@ public:
 	using helper_t = basic_request_helper<char_t,version_v>;
 
 	impl(session_pool_t &pool, request_arg_t arg) :
-		m_pool(pool), m_request_arg(std::move(arg)) {}
+		m_pool(pool), m_req_arg(std::move(arg)) {}
 
 	impl(impl &&other) noexcept :
 		m_pool(other.m_pool),
-		m_request_arg(std::move(other.m_request_arg)) {}
+		m_req_arg(std::move(other.m_req_arg)) {}
 
 	impl& operator=(impl &&other) noexcept
 	{
 		m_pool = other.m_pool;
-		m_request_arg = std::move(other.m_request_arg);
+		m_req_arg = std::move(other.m_req_arg);
 		return *this;
 	}
 
@@ -60,19 +60,36 @@ public:
 	template <core_concepts::tf_opt_token Token>
 	auto write(const const_buffer &body, Token &&token)
 	{
-		helper_t helper(m_impl->m_request_arg);
+		if( m_state == state_t::finished )
+			throw runtime_error("libgs::http::client_request: request already sent.");
+
 		using token_t = std::remove_cvref_t<Token>;
 		using Body = decltype(body);
 
 		if constexpr( std::is_same_v<token_t, error_code&> )
 		{
-			// auto session = m_impl->m_session_pool.get({request.url().address(), request.url().port()});
-			// helper.header_data();
+			m_session = m_impl->m_pool.get({
+				m_req_arg.url().address(), m_req_arg.url().port()
+			});
+			auto &sock = m_session.opt_helper();
+			helper_t helper(m_impl->m_req_arg);
+
+			size_t sent = 0;
+			if( m_state == state_t::header_sent )
+				sent += sock.write(helper.header_data(body.size()), token);
+
+			if( body.size() == 0 )
+			{
+				m_state = state_t::finished;
+				return sent;
+			}
+			sent += sock.write(helper.body_data(body), token);
+
 		}
 		else if constexpr( is_sync_opt_token_v<token_t> )
 		{
 			error_code error;
-			auto reply = write(method, std::move(helper), std::forward<Body>(body), error);
+			auto reply = write(std::forward<Body>(body), error);
 			if( error )
 				throw system_error(error, "libgs::http::client_request");
 			return reply;
@@ -90,12 +107,8 @@ public:
 
 public:
 	session_pool_t &m_pool;
-	request_arg_t m_request_arg;
 	session_t m_session;
-
-	enum class state_t {
-		init, header_sent, body_sent, finished
-	} m_state = {};
+	helper_t m_helper;
 };
 
 template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
@@ -175,6 +188,104 @@ auto basic_client_request<CharT,Method,SessionPool,Version>::wait_reply(Token &&
 }
 
 template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::set_arg(request_arg_t arg)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::set_url(url_t url)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::set_header(string_view_t key, value_t value) noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::set_cookie(string_view_t key, value_t value) noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::set_chunk_attribute(value_t attribute)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::set_chunk_attributes(value_list_t attributes)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+const typename basic_client_request<CharT,Method,SessionPool,Version>::headers_t&
+basic_client_request<CharT,Method,SessionPool,Version>::headers() const noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+const typename basic_client_request<CharT,Method,SessionPool,Version>::cookies_t&
+basic_client_request<CharT,Method,SessionPool,Version>::cookies() const noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+const typename basic_client_request<CharT,Method,SessionPool,Version>::value_list_t&
+basic_client_request<CharT,Method,SessionPool,Version>::chunk_attributes() const noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+const typename basic_client_request<CharT,Method,SessionPool,Version>::url_t&
+basic_client_request<CharT,Method,SessionPool,Version>::url() const noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+typename basic_client_request<CharT,Method,SessionPool,Version>::url_t&
+basic_client_request<CharT,Method,SessionPool,Version>::url() noexcept
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::unset_header(string_view_t key)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::unset_cookie(string_view_t key)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+basic_client_request<CharT,Method,SessionPool,Version>&
+basic_client_request<CharT,Method,SessionPool,Version>::unset_chunk_attribute(const value_t &attributes)
+{
+
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 bool basic_client_request<CharT,Method,SessionPool,Version>::is_finished() const noexcept
 {
 	return m_impl->m_state == impl::state_t::finished;
@@ -207,6 +318,20 @@ template <core_concepts::char_type CharT, method Method, concepts::session_pool 
 consteval version_t basic_client_request<CharT,Method,SessionPool,Version>::version() const noexcept
 {
 	return version_v;
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+const typename basic_client_request<CharT,Method,SessionPool,Version>::request_arg_t&
+basic_client_request<CharT,Method,SessionPool,Version>::request_arg() const noexcept
+{
+	return m_impl->m_req_arg;
+}
+
+template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+typename basic_client_request<CharT,Method,SessionPool,Version>::request_arg_t&
+basic_client_request<CharT,Method,SessionPool,Version>::request_arg() noexcept
+{
+	return m_impl->m_req_arg;
 }
 
 template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>

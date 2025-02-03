@@ -47,6 +47,9 @@ public:
 	using value_t = basic_value<char_t>;
 	using parameters_t = basic_parameters<char_t>;
 
+	using map_init_list_t = basic_map_init_list<char_t>;
+	using map_key_init_list_t = basic_map_key_init_list<char_t>;
+
 public:
 	template <typename Arg0, typename...Args>
 	basic_url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
@@ -68,14 +71,27 @@ public:
 	basic_url &set_address(string_view_t addr);
 	basic_url &set_port(uint16_t port);
 	basic_url &set_path(string_view_t path);
-	basic_url &set_parameter(string_view_t key, value_t value) noexcept;
+
+public:
+	template <typename...Args>
+	basic_url &set_parameter(Args&&...args) noexcept requires
+		concepts::set_map_params<char_t,Args...>;
+
+	basic_url &set_parameter(map_init_list_t headers) noexcept;
+
+	template <typename...Args>
+	basic_url &unset_parameter(Args&&...args) noexcept requires
+		concepts::unset_map_params<char_t,Args...>;
+
+	basic_url &unset_parameter(map_key_init_list_t keys) noexcept;
+	basic_url &clear_parameter() noexcept;
 
 public:
 	[[nodiscard]] string_view_t protocol() const noexcept;
 	[[nodiscard]] string_view_t address() const noexcept;
 	[[nodiscard]] uint16_t port() const noexcept;
 	[[nodiscard]] string_view_t path() const noexcept;
-	[[nodiscard]] const parameters_t &parameter() const noexcept;
+	[[nodiscard]] const parameters_t &parameters() const noexcept;
 
 public:
 	[[nodiscard]] string_t to_string() const noexcept;

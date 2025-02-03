@@ -26,20 +26,22 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_REQUEST_ARG_H
-#define LIBGS_HTTP_CLIENT_REQUEST_ARG_H
+#ifndef LIBGS_HTTP_HELPER_BASE_H
+#define LIBGS_HTTP_HELPER_BASE_H
 
-#include <libgs/http/client/url.h>
+#include <libgs/http/types.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
-class LIBGS_HTTP_TAPI basic_request_arg
+template <core_concepts::char_type CharT, version_t Version = version::v11>
+class LIBGS_HTTP_TAPI basic_helper_base final
 {
+	LIBGS_DISABLE_COPY(basic_helper_base)
+
 public:
 	using char_t = CharT;
-	using url_t = basic_url<char_t>;
+	constexpr static version_t version_v = Version;
 
 	using string_t = std::basic_string<char_t>;
 	using string_view_t = std::basic_string_view<char_t>;
@@ -49,77 +51,69 @@ public:
 
 	using header_t = basic_header<char_t>;
 	using headers_t = basic_headers<char_t>;
-	using cookies_t = basic_cookie_values<char_t>;
 
 	using set_init_list_t = basic_set_init_list<char_t>;
 	using map_init_list_t = basic_map_init_list<char_t>;
 	using map_key_init_list_t = basic_map_key_init_list<char_t>;
 
-public:
-	basic_request_arg(url_t url);
-	basic_request_arg();
-	~basic_request_arg();
-
-	basic_request_arg(const basic_request_arg &other) noexcept;
-	basic_request_arg &operator=(const basic_request_arg &other) noexcept;
-
-	basic_request_arg(basic_request_arg &&other) noexcept;
-	basic_request_arg &operator=(basic_request_arg &&other) noexcept;
+	enum class state_t {
+		header, content_length, chunk, finish
+	};
 
 public:
-	basic_request_arg &set_url(url_t url);
-	basic_request_arg &set_header(map_init_list_t headers) noexcept;
-	basic_request_arg &set_cookie(map_init_list_t cookies) noexcept;
-	basic_request_arg &set_chunk_attribute(set_init_list_t attributes) noexcept;
+	basic_helper_base();
+	~basic_helper_base();
 
+	basic_helper_base(basic_helper_base &&other) noexcept;
+	basic_helper_base &operator=(basic_helper_base &&other) noexcept;
+
+public:
 	template <typename...Args>
-	basic_request_arg &set_header(Args&&...args) noexcept requires
+	basic_helper_base &set_header(Args&&...args) noexcept requires
 		concepts::set_map_params<char_t,Args...>;
 
-	template <typename...Args>
-	basic_request_arg &set_cookie(Args&&...args) noexcept requires
-		concepts::set_map_params<char_t,Args...>;
+	basic_helper_base &set_header(map_init_list_t headers) noexcept;
 
 	template <typename...Args>
-	basic_request_arg &set_chunk_attribute(Args&&...args) noexcept requires
+	basic_helper_base &set_chunk_attribute(Args&&...args) noexcept requires
 		concepts::set_set_params<char_t,Args...>;
 
-public:
+	basic_helper_base &set_chunk_attribute(set_init_list_t attributes) noexcept;
+
 	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
 	[[nodiscard]] const value_set_t &chunk_attributes() const noexcept;
+	[[nodiscard]] consteval version_t version() const noexcept;
+	[[nodiscard]] state_t state() const noexcept;
 
-	[[nodiscard]] const url_t &url() const noexcept;
-	[[nodiscard]] url_t &url() noexcept;
+public:
+	[[nodiscard]] std::string header_data(size_t body_size = 0);
+	[[nodiscard]] std::string body_data(const const_buffer &buffer);
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
 public:
 	template <typename...Args>
-	basic_request_arg &unset_header(Args&&...args) requires
+	basic_helper_base &unset_header(Args&&...args) requires
 		concepts::unset_map_params<char_t,Args...>;
 
-	template <typename...Args>
-	basic_request_arg &unset_cookie(Args&&...args) requires
-		concepts::unset_map_params<char_t,Args...>;
+	basic_helper_base &unset_header(map_key_init_list_t headers) noexcept;
+	basic_helper_base &clear_headers() noexcept;
 
 	template <typename...Args>
-	basic_request_arg &unset_chunk_attribute(Args&&...args) requires
+	basic_helper_base &unset_chunk_attribute(Args&&...args) requires
 		concepts::unset_set_params<char_t,Args...>;
 
-	basic_request_arg &unset_header(map_key_init_list_t headers) noexcept;
-	basic_request_arg &unset_cookie(map_key_init_list_t cookies) noexcept;
-	basic_request_arg &unset_chunk_attribute(set_init_list_t attributes) noexcept;
-	basic_request_arg &reset();
+	basic_helper_base &unset_chunk_attribute(set_init_list_t attributes) noexcept;
+	basic_helper_base &clear_chunk_attributes() noexcept;
+
+	basic_helper_base &reset();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using request_arg  = basic_request_arg<char>;
-using wrequest_arg = basic_request_arg<wchar_t>;
-
 } //namespace libgs::http
-#include <libgs/http/client/detail/request_arg.h>
+#include <libgs/http/detail/helper_base.h>
 
 
-#endif //LIBGS_HTTP_CLIENT_REQUEST_ARG_H
+#endif //LIBGS_HTTP_HELPER_BASE_H

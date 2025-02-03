@@ -93,10 +93,13 @@ public:
 					if( resource_line[6] == 0x2F/*/*/ and resource_line[7] == 0x2F/*/*/ )
 					{
 #ifndef LIBGS_ENABLE_OPENSSL
-						throw runtime_error("libgs::http::url: SSL is not supported. (No defined LIBGS_ENABLE_OPENSSL)");
-#endif //LIBGS_ENABLE_OPENSSL
+						throw runtime_error (
+							"libgs::http::url: SSL is not supported. (No defined LIBGS_ENABLE_OPENSSL)"
+						);
+#else //LIBGS_ENABLE_OPENSSL
 						m_protocol = string_pool::pro_https;
 						resource_line = resource_line.substr(8);
+#endif //LIBGS_ENABLE_OPENSSL
 					}
 				}
 				else if( resource_line[4] == 0x3A/*:*/ )
@@ -258,16 +261,48 @@ basic_url<CharT> &basic_url<CharT>::set_path(string_view_t path)
 }
 
 template <core_concepts::char_type CharT>
-basic_url<CharT> &basic_url<CharT>::set_parameter(string_view_t key, value_t value) noexcept
+template <typename...Args>
+basic_url<CharT> &basic_url<CharT>::set_parameter(Args&&...args) noexcept
+	requires concepts::set_map_params<char_t,Args...>
 {
-	m_impl->m_parameters[string_t(key.data(), key.size())] = std::move(value);
+	set_map(m_impl->m_parameters, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_url<CharT> &basic_url<CharT>::set_parameter(map_init_list_t headers) noexcept
+{
+	set_map(m_impl->m_parameters, std::move(headers));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+template <typename...Args>
+basic_url<CharT> &basic_url<CharT>::unset_parameter(Args&&...args) noexcept
+	requires concepts::unset_map_params<char_t,Args...>
+{
+	unset_map(m_impl->m_parameters, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_url<CharT> &basic_url<CharT>::unset_parameter(map_key_init_list_t keys) noexcept
+{
+	unset_map(m_impl->m_parameters, std::move(keys));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_url<CharT> &basic_url<CharT>::clear_parameter() noexcept
+{
+	m_impl->m_parameters.clear();
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
 std::basic_string_view<CharT> basic_url<CharT>::protocol() const noexcept
 {
-	return m_impl->m_protocols;
+	return m_impl->m_protocol;
 }
 
 template <core_concepts::char_type CharT>
@@ -289,7 +324,7 @@ std::basic_string_view<CharT> basic_url<CharT>::path() const noexcept
 }
 
 template <core_concepts::char_type CharT>
-const basic_parameters<CharT> &basic_url<CharT>::parameter() const noexcept
+const basic_parameters<CharT> &basic_url<CharT>::parameters() const noexcept
 {
 	return m_impl->m_parameters;
 }
@@ -298,7 +333,9 @@ template <core_concepts::char_type CharT>
 std::basic_string<CharT> basic_url<CharT>::to_string() const noexcept
 {
 	using sp = detail::_url_static_string<CharT>;
-	string_t buf = m_impl->m_protocol + sp::pro_sptr + m_impl->m_path + std::format(default_format_v<char_t>, m_impl->m_port);
+	string_t buf =
+		m_impl->m_protocol + sp::pro_sptr + m_impl->m_path +
+		std::format(default_format_v<char_t>, m_impl->m_port);
 
 	if( m_impl->m_parameters.empty() )
 		return buf;

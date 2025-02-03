@@ -102,10 +102,33 @@ public:
 		core_concepts::tf_opt_token<error_code,reply_t>;
 
 public:
+	basic_client_request &set_arg(request_arg_t arg);
+	basic_client_request &set_url(url_t url);
+
+	basic_client_request &set_header(string_view_t key, value_t value) noexcept;
+	basic_client_request &set_cookie(string_view_t key, value_t value) noexcept;
+
+	basic_client_request &set_chunk_attribute(value_t attribute);
+	basic_client_request &set_chunk_attributes(value_list_t attributes);
+
+public:
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
+	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
+
+	[[nodiscard]] const url_t &url() const noexcept;
+	[[nodiscard]] url_t &url() noexcept;
+
+public:
+	basic_client_request &unset_header(string_view_t key);
+	basic_client_request &unset_cookie(string_view_t key);
+	basic_client_request &unset_chunk_attribute(const value_t &attributes);
+
 	[[nodiscard]] bool is_finished() const noexcept;
 	basic_client_request &cancel() noexcept;
 	basic_client_request &reset() noexcept;
 
+public:
 	[[nodiscard]] consteval method_t method() const noexcept;
 	[[nodiscard]] consteval version_t version() const noexcept;
 

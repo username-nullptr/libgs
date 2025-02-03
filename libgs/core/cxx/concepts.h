@@ -85,6 +85,12 @@ template <concepts::char_type CharT, concepts::char_type T>
 struct is_basic_char_array<CharT, T[]> :
 	std::is_same<std::remove_const_t<CharT>, std::remove_const_t<T>> {};
 
+template <concepts::char_type CharT, concepts::char_type T, size_t N>
+struct is_basic_char_array<CharT, T(&)[N]> : is_basic_char_array<CharT, T[N]> {};
+
+template <concepts::char_type CharT, concepts::char_type T>
+struct is_basic_char_array<CharT, T(&)[]> : is_basic_char_array<CharT, T[]> {};
+
 template <concepts::char_type CharT, typename T>
 constexpr bool is_basic_char_array_v = is_basic_char_array<CharT,T>::value;
 
@@ -219,6 +225,54 @@ constexpr bool is_ifstream_v = is_ifstream<T>::value;
 namespace concepts
 {
 
+template <typename T, typename Iter>
+concept iterator = requires(decltype(std::declval<Iter>()) begin, decltype(std::declval<Iter>()) end)
+{
+	++begin == --end;
+	T{ *begin };
+	T{ *end   };
+};
+
+template <typename Iter>
+concept any_iterator = requires(decltype(std::declval<Iter>()) begin, decltype(std::declval<Iter>()) end)
+{
+	++begin == --end;
+	*begin;
+	*end;
+};
+
+} //namespace concepts
+
+template <typename>
+struct match_iterator;
+
+template <concepts::any_iterator T>
+struct match_iterator<T> {
+	using type = T;
+};
+
+template <typename T, size_t N>
+struct match_iterator<T[N]> {
+	using type = decltype(std::declval<T[N]>() + 1);
+};
+
+template <typename T>
+struct match_iterator<T[]> {
+	using type = decltype(std::declval<T[]>() + 1);
+};
+
+template <typename T, size_t N>
+struct match_iterator<T(&)[N]> : match_iterator<T[N]> {};
+
+template <typename T>
+struct match_iterator<T(&)[]> : match_iterator<T[]> {};
+
+template <typename T>
+using match_iterator_t = typename match_iterator<T>::type;
+
+namespace concepts
+{
+
 template <typename T>
 concept number_type = std::is_arithmetic_v<T>;
 
@@ -301,6 +355,30 @@ concept copy_or_move_constructible = copy_constructible<T> or move_constructible
 
 template <typename T, typename Base>
 concept base_of = std::is_base_of_v<Base,T>;
+
+template <typename T, typename...Args>
+concept container_params = []() consteval -> bool
+{
+	if constexpr( constructible<T,Args...> )
+		return true;
+	else if constexpr( sizeof...(Args) == 1 )
+	{
+		using container_t = std::tuple_element_t<0,std::tuple<Args...>>;
+		return requires(const container_t &container)
+		{
+			T{ *std::begin(container) };
+			T{ *std::end  (container) };
+		};
+	}
+	else if constexpr( sizeof...(Args) == 2 )
+	{
+		using tuple_t = std::tuple<Args...>;
+		using begin_t = match_iterator_t<std::tuple_element_t<0,tuple_t>>;
+		using end_t = match_iterator_t<std::tuple_element_t<1,tuple_t>>;
+		return iterator<T,begin_t> and iterator<T,end_t>;
+	}
+	return false;
+}();
 
 template <typename T, typename CharT>
 concept basic_fstream =
