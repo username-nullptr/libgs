@@ -40,13 +40,12 @@ bool basic_less_case_insensitive<CharT>::operator()(const string_t &v1, const st
 	});
 }
 
-template <core_concepts::char_type CharT, typename...Args>
-void set_map(basic_map<CharT> &map, Args&&...args) noexcept
-	requires concepts::set_map_params<CharT,Args...>
+template <core_concepts::char_type CharT, typename Value, typename...Args>
+void set_map(basic_map<CharT,Value> &map, Args&&...args) noexcept
+	requires concepts::set_pair_params<CharT,Value,Args...>
 {
 	using string_view_t = std::basic_string_view<CharT>;
-	using value_t = basic_value<CharT>;
-	using tuple_t = std::tuple<string_view_t,value_t>;
+	using tuple_t = std::tuple<string_view_t,Value>;
 
 	if constexpr( core_concepts::constructible<tuple_t,Args...> )
 	{
@@ -74,22 +73,33 @@ void set_map(basic_map<CharT> &map, Args&&...args) noexcept
 	}
 }
 
-template <core_concepts::char_type CharT>
-void set_map(basic_map<CharT> &map, basic_map_init_list<CharT> list) noexcept
+template <core_concepts::char_type CharT, typename Value>
+void set_map(basic_map<CharT,Value> &map, basic_pair_init<CharT,Value> list) noexcept
 {
 	for(auto &[key,value] : list)
 		map[str_to_lower(key)] = std::move(value);
 }
 
-template <core_concepts::char_type CharT, typename...Args>
-void unset_map(basic_map<CharT> &map, Args&&...args) noexcept
-	requires concepts::unset_map_params<CharT,Args...>
+template <core_concepts::char_type CharT, typename Value, typename...Args>
+void unset_map(basic_map<CharT,Value> &map, Args&&...args) noexcept
+	requires concepts::unset_pair_params<CharT,Args...>
 {
-	using string_view_t = std::basic_string_view<CharT>;
 	using string_t = std::basic_string<CharT>;
+	if constexpr( core_concepts::constructible<string_t,Args...> )
+	{
+		if constexpr( sizeof...(Args) > 1 )
+			map.erase(string_t(std::forward<Args>(args)...));
+		else
+		{
+			using tuple_t = std::tuple<Args...>;
+			using type = std::tuple_element_t<0,tuple_t>;
 
-	if constexpr( core_concepts::constructible<string_view_t,Args...> )
-		map.erase(string_t(std::forward<Args>(args)...));
+			if constexpr( std::is_same_v<type,string_t> )
+				map.erase(std::forward<Args>(args)...);
+			else
+				map.erase(string_t(std::forward<Args>(args)...));
+		}
+	}
 	else
 	{
 		auto erase = [&](auto &key)
@@ -119,8 +129,8 @@ void unset_map(basic_map<CharT> &map, Args&&...args) noexcept
 	}
 }
 
-template <core_concepts::char_type CharT>
-void unset_map(basic_map<CharT> &map, basic_map_key_init_list<CharT> list) noexcept
+template <core_concepts::char_type CharT, typename Value>
+void unset_map(basic_map<CharT,Value> &map, basic_key_init<CharT> list) noexcept
 {
 	for(auto &key : list)
 		map.erase(std::basic_string<CharT>(key));
@@ -128,13 +138,23 @@ void unset_map(basic_map<CharT> &map, basic_map_key_init_list<CharT> list) noexc
 
 template <core_concepts::char_type CharT, typename...Args>
 void set_set(basic_set<CharT> &set, Args&&...args) noexcept
-	requires concepts::set_set_params<CharT,Args...>
+	requires concepts::set_attr_params<CharT,Args...>
 {
 	using value_t = basic_value<CharT>;
 	if constexpr( core_concepts::constructible<value_t,Args...> )
 	{
-		value_t value(std::forward<Args>(args)...);
-		set.emplace(std::move(value));
+		if constexpr( sizeof...(Args) > 1 )
+			set.emplace(value_t(std::forward<Args>(args)...));
+		else
+		{
+			using tuple_t = std::tuple<Args...>;
+			using type = std::tuple_element_t<0,tuple_t>;
+
+			if constexpr( std::is_same_v<type,value_t> )
+				set.emplace(std::forward<Args>(args)...);
+			else
+				set.emplace(value_t(std::forward<Args>(args)...));
+		}
 	}
 	else if constexpr( sizeof...(Args) == 1 )
 	{
@@ -155,7 +175,7 @@ void set_set(basic_set<CharT> &set, Args&&...args) noexcept
 }
 
 template <core_concepts::char_type CharT>
-void set_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept
+void set_set(basic_set<CharT> &set, basic_attr_init<CharT> list) noexcept
 {
 	for(auto &value : list)
 		set.emplace(std::move(value));
@@ -163,11 +183,24 @@ void set_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept
 
 template <core_concepts::char_type CharT, typename...Args>
 void unset_set(basic_set<CharT> &set, Args&&...args) noexcept
-	requires concepts::unset_set_params<CharT,Args...>
+	requires concepts::unset_attr_params<CharT,Args...>
 {
 	using value_t = basic_value<CharT>;
 	if constexpr( core_concepts::constructible<value_t,Args...> )
-		set.erase(value_t(std::forward<Args>(args)...));
+	{
+		if constexpr( sizeof...(Args) > 1 )
+			set.erase(value_t(std::forward<Args>(args)...));
+		else
+		{
+			using tuple_t = std::tuple<Args...>;
+			using type = std::tuple_element_t<0,tuple_t>;
+
+			if constexpr( std::is_same_v<type,value_t> )
+				set.erase(std::forward<Args>(args)...);
+			else
+				set.erase(value_t(std::forward<Args>(args)...));
+		}
+	}
 	else
 	{
 		auto erase = [&](auto &attr)
@@ -198,10 +231,64 @@ void unset_set(basic_set<CharT> &set, Args&&...args) noexcept
 }
 
 template <core_concepts::char_type CharT>
-void unset_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept
+void unset_set(basic_set<CharT> &set, basic_attr_init<CharT> list) noexcept
 {
 	for(auto &value : list)
 		set.erase(value);
+}
+
+template <core_concepts::char_type CharT, typename Value>
+[[nodiscard]] Value &get_map_value
+(const basic_map<CharT,Value> &map, core_concepts::basic_string_type<CharT> auto &&key)
+{
+	auto it = map.find(nosview(key));
+	if( it == map.end() )
+	{
+		throw runtime_error("libgs::http::get_map_value: The key '{}' is not exists.",
+			xxtombs(std::forward<decltype(key)>(key))
+		);
+	}
+	return as_const(it->second);
+}
+
+template <core_concepts::char_type CharT, typename Value, typename Default>
+[[nodiscard]] decltype(auto) get_map_value_or
+(const basic_map<CharT,Value> &map, core_concepts::basic_string_type<CharT> auto &&key, Default &&def_value)
+	requires std::is_same_v<Value,std::remove_cvref_t<Default>>
+{
+	auto it = map.find(nosview(key));
+	return it == map.end() ? std::forward<Default>(def_value) : it->second;
+}
+
+template <core_concepts::char_type CharT, core_concepts::basic_text_arg<CharT> T>
+decltype(auto) get_attr_map_value
+(const basic_attr_map<CharT> &map, core_concepts::basic_string_type<CharT> auto &&key)
+{
+	decltype(auto) value = get_map_value(map, std::forward<decltype(key)>(key));
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( std::is_same_v<def_t, basic_value<CharT>> )
+		return as_const(value);
+	else
+		return as_const(value.template get<def_t>());
+}
+
+template <core_concepts::char_type CharT, core_concepts::basic_text_arg<CharT> T>
+decltype(auto) get_attr_map_value_or
+(const basic_attr_map<CharT> &map, core_concepts::basic_string_type<CharT> auto &&key, T &&def_value)
+{
+	using value_t = basic_value<CharT>;
+	using def_t = std::remove_cvref_t<T>;
+
+	auto it = map.find(nosview(key));
+	if constexpr( std::is_same_v<def_t, value_t> )
+		return it == map.end() ? std::forward<T>(def_value) : it->second;
+	else
+	{
+		return it == map.end() ?
+			value_t(std::forward<T>(def_value)).template get<def_t>() :
+			it->second.template get<def_t>();
+	}
 }
 
 } //namespace libgs::http

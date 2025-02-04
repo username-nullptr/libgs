@@ -30,7 +30,7 @@
 #define LIBGS_HTTP_CLIENT_REPLY_H
 
 #include <libgs/http/client/request_arg.h>
-#include <libgs/http/cxx/socket_session.h>
+#include <libgs/http/client/session_pool.h>
 
 namespace libgs::http
 {

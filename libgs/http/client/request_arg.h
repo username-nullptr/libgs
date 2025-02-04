@@ -51,9 +51,9 @@ public:
 	using headers_t = basic_headers<char_t>;
 	using cookies_t = basic_cookie_values<char_t>;
 
-	using set_init_list_t = basic_set_init_list<char_t>;
-	using map_init_list_t = basic_map_init_list<char_t>;
-	using map_key_init_list_t = basic_map_key_init_list<char_t>;
+	using attr_init_t = basic_attr_init<char_t>;
+	using pair_init_t = basic_key_attr_init<char_t>;
+	using key_init_t = basic_key_init<char_t>;
 
 public:
 	basic_request_arg(url_t url);
@@ -68,21 +68,21 @@ public:
 
 public:
 	basic_request_arg &set_url(url_t url);
-	basic_request_arg &set_header(map_init_list_t headers) noexcept;
-	basic_request_arg &set_cookie(map_init_list_t cookies) noexcept;
-	basic_request_arg &set_chunk_attribute(set_init_list_t attributes) noexcept;
+	basic_request_arg &set_header(pair_init_t headers) noexcept;
+	basic_request_arg &set_cookie(pair_init_t cookies) noexcept;
+	basic_request_arg &set_chunk_attribute(attr_init_t attributes) noexcept;
 
 	template <typename...Args>
 	basic_request_arg &set_header(Args&&...args) noexcept requires
-		concepts::set_map_params<char_t,Args...>;
+		concepts::set_key_attr_params<char_t,Args...>;
 
 	template <typename...Args>
 	basic_request_arg &set_cookie(Args&&...args) noexcept requires
-		concepts::set_map_params<char_t,Args...>;
+		concepts::set_key_attr_params<char_t,Args...>;
 
 	template <typename...Args>
 	basic_request_arg &set_chunk_attribute(Args&&...args) noexcept requires
-		concepts::set_set_params<char_t,Args...>;
+		concepts::set_attr_params<char_t,Args...>;
 
 public:
 	[[nodiscard]] const headers_t &headers() const noexcept;
@@ -95,19 +95,19 @@ public:
 public:
 	template <typename...Args>
 	basic_request_arg &unset_header(Args&&...args) requires
-		concepts::unset_map_params<char_t,Args...>;
+		concepts::unset_pair_params<char_t,Args...>;
 
 	template <typename...Args>
 	basic_request_arg &unset_cookie(Args&&...args) requires
-		concepts::unset_map_params<char_t,Args...>;
+		concepts::unset_pair_params<char_t,Args...>;
 
 	template <typename...Args>
 	basic_request_arg &unset_chunk_attribute(Args&&...args) requires
-		concepts::unset_set_params<char_t,Args...>;
+		concepts::unset_attr_params<char_t,Args...>;
 
-	basic_request_arg &unset_header(map_key_init_list_t headers) noexcept;
-	basic_request_arg &unset_cookie(map_key_init_list_t cookies) noexcept;
-	basic_request_arg &unset_chunk_attribute(set_init_list_t attributes) noexcept;
+	basic_request_arg &unset_header(key_init_t headers) noexcept;
+	basic_request_arg &unset_cookie(key_init_t cookies) noexcept;
+	basic_request_arg &unset_chunk_attribute(attr_init_t attributes) noexcept;
 	basic_request_arg &reset();
 
 private:

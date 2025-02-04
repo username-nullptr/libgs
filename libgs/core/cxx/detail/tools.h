@@ -63,6 +63,12 @@ constexpr const T &as_const(const T &v)
 }
 
 template <typename T>
+constexpr const T &&as_const(const T &&v)
+{
+	return std::move(v);
+}
+
+template <typename T>
 constexpr const T *as_const(const T *v)
 {
 	return v;

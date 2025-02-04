@@ -359,8 +359,11 @@ concept base_of = std::is_base_of_v<Base,T>;
 template <typename T, typename...Args>
 concept container_params = []() consteval -> bool
 {
-	if constexpr( constructible<T,Args...> )
+	if constexpr( sizeof...(Args) == 0 )
+		return false;
+	else if constexpr( constructible<T,Args...> )
 		return true;
+
 	else if constexpr( sizeof...(Args) == 1 )
 	{
 		using container_t = std::tuple_element_t<0,std::tuple<Args...>>;

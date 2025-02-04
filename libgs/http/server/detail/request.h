@@ -437,106 +437,157 @@ basic_server_request<Stream,CharT>::cookies() const noexcept
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t&
-basic_server_request<Stream,CharT>::parameter(string_view_t key) const
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::parameter
+(core_concepts::basic_string_type<char_t> auto &&key) const
 {
-	auto &map = m_impl->m_parser->parameters();
-	auto it = map.find({key.data(), key.size()});
-	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::parameter: key '{}' not exists.", xxtombs(key));
-	return it->second;
+	return get_map_value(m_impl->m_parser->parameters(),
+		std::forward<decltype(key)>(key)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t&
-basic_server_request<Stream,CharT>::header(string_view_t key) const
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::header
+(core_concepts::basic_string_type<char_t> auto &&key) const
 {
-	auto &map = m_impl->m_parser->headers();
-	auto it = map.find({key.data(), key.size()});
-	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::header: key '{}' not exists.", xxtombs(key));
-	return it->second;
+	return get_map_value(m_impl->m_parser->headers(),
+		std::forward<decltype(key)>(key)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t&
-basic_server_request<Stream,CharT>::cookie(string_view_t key) const
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::cookie
+(core_concepts::basic_string_type<char_t> auto &&key) const
 {
-	auto &map = m_impl->m_parser->cookies();
-	auto it = map.find({key.data(), key.size()});
-	if( it == map.end() )
-		throw runtime_error("libgs::http::server_request::cookie: key '{}' not exists.", xxtombs(key));
-	return it->second;
+	return get_map_value(m_impl->m_parser->cookies(),
+		std::forward<decltype(key)>(key)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-typename basic_server_request<Stream,CharT>::value_t
-basic_server_request<Stream,CharT>::parameter_or(string_view_t key, value_t def_value) const noexcept
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::parameter_or
+(core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
 {
-	auto &map = m_impl->m_parser->parameters();
-	auto it = map.find({key.data(), key.size()});
-	return it == map.end() ? def_value : it->second;
+	return get_map_value_or(m_impl->m_parser->parameters(),
+		std::forward<decltype(key)>(key), std::forward<T>(def_value)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-typename basic_server_request<Stream,CharT>::value_t
-basic_server_request<Stream,CharT>::header_or(string_view_t key, value_t def_value) const noexcept
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::header_or
+(core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
 {
-	auto &map = m_impl->m_parser->headers();
-	auto it = map.find({key.data(), key.size()});
-	return it == map.end() ? def_value : it->second;
+	return get_map_value_or(m_impl->m_parser->headers(),
+		std::forward<decltype(key)>(key), std::forward<T>(def_value)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-typename basic_server_request<Stream,CharT>::value_t
-basic_server_request<Stream,CharT>::cookie_or(string_view_t key, value_t def_value) const noexcept
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::cookie_or
+(core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
 {
-	auto &map = m_impl->m_parser->cookies();
-	auto it = map.find({key.data(), key.size()});
-	return it == map.end() ? def_value : it->second;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t&
-basic_server_request<Stream,CharT>::path_arg(size_t index) const
-{
-	auto &vector = m_impl->m_parser->path_args();
-	if( index >= vector.size() )
-		throw runtime_error("libgs::http::server_request::path_arg: Index '{}' out-of-bounds access.", index);
-	return vector[index].second;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-const typename basic_server_request<Stream,CharT>::value_t&
-basic_server_request<Stream,CharT>::path_arg(string_view_t key) const
-{
-	auto &vector = m_impl->m_parser->path_args();
-	for(const auto &[_key,value] : vector)
-	{
-		if( _key == key )
-			return value;
-	}
-	throw runtime_error("libgs::http::server_request::path_arg: key '{}' not exists.", xxtombs(key));
-//	return {};
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-typename basic_server_request<Stream,CharT>::value_t
-basic_server_request<Stream,CharT>::path_arg_or(string_view_t key, value_t def_value) const noexcept
-{
-	auto &vector = m_impl->m_parser->path_args();
-	for(const auto &[_key,value] : vector)
-	{
-		if( _key == key )
-			return value;
-	}
-	return def_value;
+	return get_map_value_or(m_impl->m_parser->cookies(),
+		std::forward<decltype(key)>(key), std::forward<T>(def_value)
+	);
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
 int32_t basic_server_request<Stream,CharT>::path_match(string_view_t rule)
 {
 	return m_impl->m_parser->path_match(rule);
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::path_arg
+(core_concepts::basic_string_type<char_t> auto &&key) const
+{
+	auto &vector = m_impl->m_parser->path_args();
+	for(const auto &[_key,value] : vector)
+	{
+		if( _key != key )
+			continue;
+
+		using def_t = std::remove_cvref_t<T>;
+		if constexpr( std::is_same_v<def_t, value_t> )
+			return as_const(value);
+		else
+			return as_const(value.template get<def_t>());
+	}
+	throw runtime_error (
+		"libgs::http::server_request::path_arg: key '{}' not exists.",
+		xxtombs(key)
+	);
+//	return {};
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::path_arg(size_t index) const
+{
+	auto &vector = m_impl->m_parser->path_args();
+	if( index >= vector.size() )
+		throw runtime_error("libgs::http::server_request::path_arg: Index '{}' out-of-bounds access.", index);
+
+	auto &value = vector[index].second;
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( std::is_same_v<def_t, value_t> )
+		return as_const(value);
+	else
+		return as_const(value.template get<def_t>());
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::path_arg_or
+(core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
+{
+	using value_t = basic_value<CharT>;
+	using def_t = std::remove_cvref_t<T>;
+
+	auto &vector = m_impl->m_parser->path_args();
+	for(const auto &[_key,value] : vector)
+	{
+		if( _key != key )
+			continue;
+
+		if constexpr( std::is_same_v<def_t, value_t> )
+			return value;
+		else
+			return value.template get<def_t>();
+	}
+	if constexpr( std::is_same_v<def_t, value_t> )
+		return value_t(std::forward<T>(def_value));
+	else
+		return value_t(std::forward<T>(def_value)).template get<def_t>();
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <core_concepts::basic_text_arg<CharT> T>
+decltype(auto) basic_server_request<Stream,CharT>::path_arg_or(size_t index, T &&def_value) const noexcept
+{
+	using def_t = std::remove_cvref_t<T>;
+	auto &vector = m_impl->m_parser->path_args();
+
+	if( index >= vector.size() )
+	{
+		if constexpr( std::is_same_v<def_t, value_t> )
+			return value_t(std::forward<T>(def_value));
+		else
+			return value_t(std::forward<T>(def_value)).template get<def_t>();
+	}
+	auto &value = vector[index].second;
+
+	if constexpr( std::is_same_v<def_t, value_t> )
+		return as_const(value);
+	else
+		return as_const(value.template get<def_t>());
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>

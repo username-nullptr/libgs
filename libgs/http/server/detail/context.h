@@ -155,7 +155,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session(Args&&...a
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->template get_or_make<Session>(session_id, std::forward<Args>(args)...);
-	response().set_cookie(session_cookie, {session->id()});
+	response().set_cookie(session_cookie, session->id());
 	return session;
 }
 
@@ -167,7 +167,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session(Args&&...a
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->get_or_make(session_id, std::forward<Args>(args)...);
-	response().set_cookie(session_cookie, {session->id()});
+	response().set_cookie(session_cookie, session->id());
 	return session;
 }
 
@@ -179,7 +179,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session() const
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->template get<Session>(session_id);
-	response().set_cookie(session_cookie, {session->id()});
+	response().set_cookie(session_cookie, session->id());
 	return session;
 }
 
@@ -191,7 +191,7 @@ std::shared_ptr<Session> basic_service_context<Stream,CharT>::session_or()
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->template get_or<Session>(session_id);
-	response().set_cookie(session_cookie, {session->id()});
+	response().set_cookie(session_cookie, session->id());
 	return session;
 }
 
@@ -201,7 +201,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session() const
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->get(session_id);
-	response().set_cookie(session_cookie, {session->id()});
+	response().set_cookie(session_cookie, session->id());
 	return session;
 }
 
@@ -211,7 +211,7 @@ basic_session_ptr<CharT> basic_service_context<Stream,CharT>::session_or() noexc
 	auto session_cookie = m_impl->m_sss->cookie_key();
 	auto session_id = request().cookie_or(session_cookie).to_string();
 	auto session = m_impl->m_sss->get_or(session_id);
-	response().set_cookie(session_cookie, {session->id()});
+	response().set_cookie(session_cookie, session->id());
 	return session;
 }
 

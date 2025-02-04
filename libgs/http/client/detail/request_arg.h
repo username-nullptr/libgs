@@ -143,21 +143,21 @@ basic_request_arg<CharT> &basic_request_arg<CharT>::set_url(url_t url)
 }
 
 template <core_concepts::char_type CharT>
-basic_request_arg<CharT> &basic_request_arg<CharT>::set_header(map_init_list_t headers) noexcept
+basic_request_arg<CharT> &basic_request_arg<CharT>::set_header(pair_init_t headers) noexcept
 {
 	set_map(m_impl->m_headers, std::move(headers));
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_request_arg<CharT> &basic_request_arg<CharT>::set_cookie(map_init_list_t cookies) noexcept
+basic_request_arg<CharT> &basic_request_arg<CharT>::set_cookie(pair_init_t cookies) noexcept
 {
 	set_map(m_impl->m_cookies, cookies);
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_request_arg<CharT> &basic_request_arg<CharT>::set_chunk_attribute(set_init_list_t attributes) noexcept
+basic_request_arg<CharT> &basic_request_arg<CharT>::set_chunk_attribute(attr_init_t attributes) noexcept
 {
 	set_set(m_impl->m_chunk_attributes, std::move(attributes));
 	return *this;
@@ -166,7 +166,7 @@ basic_request_arg<CharT> &basic_request_arg<CharT>::set_chunk_attribute(set_init
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_request_arg<CharT> &basic_request_arg<CharT>::set_header(Args&&...args) noexcept
-	requires concepts::set_map_params<char_t,Args...>
+	requires concepts::set_key_attr_params<char_t,Args...>
 {
 	set_map(m_impl->m_headers, std::forward<Args>(args)...);
 	return *this;
@@ -175,7 +175,7 @@ basic_request_arg<CharT> &basic_request_arg<CharT>::set_header(Args&&...args) no
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_request_arg<CharT> &basic_request_arg<CharT>::set_cookie(Args&&...args) noexcept
-	requires concepts::set_map_params<char_t,Args...>
+	requires concepts::set_key_attr_params<char_t,Args...>
 {
 	set_map(m_impl->m_cookies, std::forward<Args>(args)...);
 	return *this;
@@ -184,7 +184,7 @@ basic_request_arg<CharT> &basic_request_arg<CharT>::set_cookie(Args&&...args) no
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_request_arg<CharT> &basic_request_arg<CharT>::set_chunk_attribute(Args&&...args) noexcept
-	requires concepts::set_set_params<char_t,Args...>
+	requires concepts::set_attr_params<char_t,Args...>
 {
 	set_set(m_impl->m_chunk_attributes, std::forward<Args>(args)...);
 	return *this;
@@ -226,7 +226,7 @@ typename basic_request_arg<CharT>::url_t &basic_request_arg<CharT>::url() noexce
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_request_arg<CharT> &basic_request_arg<CharT>::unset_header(Args&&...args)
-	requires concepts::unset_map_params<char_t,Args...>
+	requires concepts::unset_pair_params<char_t,Args...>
 {
 	unset_map(m_impl->m_headers, std::forward<Args>(args)...);
 	return *this;
@@ -235,7 +235,7 @@ basic_request_arg<CharT> &basic_request_arg<CharT>::unset_header(Args&&...args)
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_request_arg<CharT> &basic_request_arg<CharT>::unset_cookie(Args&&...args)
-	requires concepts::unset_map_params<char_t,Args...>
+	requires concepts::unset_pair_params<char_t,Args...>
 {
 	unset_map(m_impl->m_cookies, std::forward<Args>(args)...);
 	return *this;
@@ -244,28 +244,28 @@ basic_request_arg<CharT> &basic_request_arg<CharT>::unset_cookie(Args&&...args)
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_request_arg<CharT> &basic_request_arg<CharT>::unset_chunk_attribute(Args&&...args)
-	requires concepts::unset_set_params<char_t,Args...>
+	requires concepts::unset_attr_params<char_t,Args...>
 {
 	unset_set(m_impl->m_chunk_attributes, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_request_arg<CharT> &basic_request_arg<CharT>::unset_header(map_key_init_list_t headers) noexcept
+basic_request_arg<CharT> &basic_request_arg<CharT>::unset_header(key_init_t headers) noexcept
 {
 	unset_map(m_impl->m_headers, std::move(headers));
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_request_arg<CharT> &basic_request_arg<CharT>::unset_cookie(map_key_init_list_t cookies) noexcept
+basic_request_arg<CharT> &basic_request_arg<CharT>::unset_cookie(key_init_t cookies) noexcept
 {
 	unset_map(m_impl->m_cookies, std::move(cookies));
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_request_arg<CharT> &basic_request_arg<CharT>::unset_chunk_attribute(set_init_list_t attributes) noexcept
+basic_request_arg<CharT> &basic_request_arg<CharT>::unset_chunk_attribute(attr_init_t attributes) noexcept
 {
 	unset_set(m_impl->m_chunk_attributes, std::move(attributes));
 	return *this;

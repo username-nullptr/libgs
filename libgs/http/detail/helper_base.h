@@ -82,15 +82,15 @@ template <core_concepts::char_type CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::set_header(Args&&...args) noexcept requires
-	concepts::set_map_params<char_t,Args...>
+	concepts::set_key_attr_params<char_t,Args...>
 {
 	set_map(m_impl->m_headers, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT, version_t Version>
-basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::set_header
-(map_init_list_t headers) noexcept
+basic_helper_base<CharT,Version>&
+basic_helper_base<CharT,Version>::set_header(pair_init_t headers) noexcept
 {
 	set_map(m_impl->m_headers, std::move(headers));
 	return *this;
@@ -100,15 +100,15 @@ template <core_concepts::char_type CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::set_chunk_attribute(Args&&...args) noexcept requires
-	concepts::set_set_params<char_t,Args...>
+	concepts::set_attr_params<char_t,Args...>
 {
 	set_set(m_impl->m_chunk_attributes, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT, version_t Version>
-basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::set_chunk_attribute
-(set_init_list_t attributes) noexcept
+basic_helper_base<CharT,Version>&
+basic_helper_base<CharT,Version>::set_chunk_attribute(attr_init_t attributes) noexcept
 {
 	set_set(m_impl->m_chunk_attributes, std::move(attributes));
 	return *this;
@@ -247,15 +247,15 @@ std::string basic_helper_base<CharT,Version>::chunk_end_data(const headers_t &he
 template <core_concepts::char_type CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_header(Args&&...args)
-	requires concepts::unset_map_params<char_t,Args...>
+	requires concepts::unset_pair_params<char_t,Args...>
 {
 	unset_map(m_impl->m_headers, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT, version_t Version>
-basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_header
-(map_key_init_list_t headers) noexcept
+basic_helper_base<CharT,Version>&
+basic_helper_base<CharT,Version>::unset_header(key_init_t headers) noexcept
 {
 	unset_map(m_impl->m_headers, std::move(headers));
 	return *this;
@@ -271,15 +271,15 @@ basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::clear_header
 template <core_concepts::char_type CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_chunk_attribute(Args&&...args)
-	requires concepts::unset_set_params<char_t,Args...>
+	requires concepts::unset_attr_params<char_t,Args...>
 {
 	unset_set(m_impl->m_chunk_attributes, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT, version_t Version>
-basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_chunk_attribute
-(set_init_list_t attributes) noexcept
+basic_helper_base<CharT,Version>&
+basic_helper_base<CharT,Version>::unset_chunk_attribute(attr_init_t attributes) noexcept
 {
 	unset_set(m_impl->m_chunk_attributes, std::move(attributes));
 	return *this;

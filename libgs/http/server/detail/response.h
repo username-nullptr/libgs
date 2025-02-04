@@ -322,7 +322,7 @@ public:
 		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
-		for(auto &range: ranges)
+		for(auto &range : ranges)
 		{
 			/*
 				--boundary<CR><LF>
@@ -758,12 +758,11 @@ private:
 	[[nodiscard]] size_t write_funcdata(std::string &&data, bool wheader, error_code &error) noexcept
 	{
 		size_t sum = 0;
+		set_blocking(error);
+		if( error )
+			return sum;
 		for(;;)
 		{
-			m_next_layer.next_layer().non_blocking(false, error);
-			if( error )
-				break;
-
 			sum += asio::write (
 				m_next_layer.next_layer(),
 				buffer(data.c_str() + sum, data.size() - sum),
@@ -915,16 +914,53 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_st
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_header(string_view_t key, value_t value)
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::set_header(pair_init_t headers) noexcept
 {
-	m_impl->set_header(key, std::move(value));
+	m_impl->m_helper.set_header(std::move(headers));
 	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_cookie(string_view_t key, cookie_t cookie)
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::set_cookie(cookie_init_t headers) noexcept
 {
-	m_impl->m_helper.set_cookie(key, std::move(cookie));
+	m_impl->m_helper.set_cookie(std::move(headers));
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::set_chunk_attribute(attr_init_t attributes) noexcept
+{
+	m_impl->m_helper.set_chunk_attribute(std::move(attributes));
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <typename...Args>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_header(Args&&...args) noexcept
+	requires concepts::set_key_attr_params<char_t,Args...>
+{
+	m_impl->m_helper.set_header(std::forward<Args>(args)...);
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <typename...Args>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_cookie(Args&&...args) noexcept
+	requires concepts::set_cookie_params<char_t,Args...>
+{
+	m_impl->m_helper.set_cookie(std::forward<Args>(args)...);
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+template <typename...Args>
+basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attribute(Args&&...args) noexcept
+	requires concepts::set_attr_params<char_t,Args...>
+{
+	m_impl->m_helper.set_chunk_attribute(std::forward<Args>(args)...);
 	return *this;
 }
 
@@ -1125,20 +1161,6 @@ auto basic_server_response<Stream,CharT>::send_file
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attribute(value_t attribute)
-{
-	m_impl->m_helper.set_chunk_attribute(std::move(attribute));
-	return *this;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::set_chunk_attributes(value_list_t attributes)
-{
-	m_impl->m_helper.set_chunk_attributes(std::move(attributes));
-	return *this;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, Token &&token)
 {
@@ -1254,25 +1276,80 @@ basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::cancel
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_header
-(core_concepts::basic_string_type<char_t> auto &&key)
+template <typename...Args>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::unset_header(Args&&...args) noexcept
+	requires concepts::unset_pair_params<char_t,Args...>
 {
-	m_impl->m_helper.unset_header(std::forward<decltype(key)>(key));
+	m_impl->m_helper.unset_header(std::forward<Args>(args)...);
 	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_cookie
-(core_concepts::basic_string_type<char_t> auto &&key)
+template <typename...Args>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::unset_cookie(Args&&...args) noexcept
+	requires concepts::unset_pair_params<char_t,Args...>
 {
-	m_impl->m_helper.unset_cookie(std::forward<decltype(key)>(key));
+	m_impl->m_helper.unset_cookie(std::forward<Args>(args)...);
 	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-basic_server_response<Stream,CharT> &basic_server_response<Stream,CharT>::unset_chunk_attribute(const value_t &attribute)
+template <typename...Args>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::unset_chunk_attribute(Args&&...args) noexcept
+	requires concepts::unset_attr_params<char_t,Args...>
 {
-	m_impl->m_helper.unset_chunk_attribute(std::move(attribute));
+	m_impl->m_helper.unset_chunk_attribute(std::forward<Args>(args)...);
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::unset_header(key_init_t headers) noexcept
+{
+	m_impl->m_helper.unset_header(std::move(headers));
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::clear_header() noexcept
+{
+	m_impl->m_helper.clear_header();
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::unset_cookie(key_init_t headers) noexcept
+{
+	m_impl->m_helper.unset_cookie(std::move(headers));
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::clear_cookie() noexcept
+{
+	m_impl->m_helper.clear_cookie();
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::unset_chunk_attribute(attr_init_t headers) noexcept
+{
+	m_impl->m_helper.unset_chunk_attribute(std::move(headers));
+	return *this;
+}
+
+template <concepts::stream Stream, core_concepts::char_type CharT>
+basic_server_response<Stream,CharT>&
+basic_server_response<Stream,CharT>::clear_chunk_attribute() noexcept
+{
+	m_impl->m_helper.clear_chunk_attribute();
 	return *this;
 }
 

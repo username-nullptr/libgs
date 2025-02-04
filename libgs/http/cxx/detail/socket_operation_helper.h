@@ -58,7 +58,7 @@ socket_operation_helper_base<Stream>::~socket_operation_helper_base()
 }
 
 template <concepts::stream Stream>
-template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
+template <core_concepts::opt_token<error_code,size_t> Token>
 auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -104,7 +104,7 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 			size_t sum = 0;
 			for(;;)
 			{
-				sum += co_await socket.async_read(
+				sum += co_await socket.async_read (
 					libgs::buffer(buffer.data() + sum, buffer.size() - sum),
 					use_awaitable | error
 				);
@@ -140,7 +140,7 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 }
 
 template <concepts::stream Stream>
-template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
+template <core_concepts::opt_token<error_code,size_t> Token>
 auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;

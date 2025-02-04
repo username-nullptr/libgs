@@ -47,8 +47,8 @@ public:
 	using value_t = basic_value<char_t>;
 	using parameters_t = basic_parameters<char_t>;
 
-	using map_init_list_t = basic_map_init_list<char_t>;
-	using map_key_init_list_t = basic_map_key_init_list<char_t>;
+	using pair_init_t = basic_key_attr_init<char_t>;
+	using key_init_t = basic_key_init<char_t>;
 
 public:
 	template <typename Arg0, typename...Args>
@@ -75,15 +75,15 @@ public:
 public:
 	template <typename...Args>
 	basic_url &set_parameter(Args&&...args) noexcept requires
-		concepts::set_map_params<char_t,Args...>;
+		concepts::set_key_attr_params<char_t,Args...>;
 
-	basic_url &set_parameter(map_init_list_t headers) noexcept;
+	basic_url &set_parameter(pair_init_t headers) noexcept;
 
 	template <typename...Args>
 	basic_url &unset_parameter(Args&&...args) noexcept requires
-		concepts::unset_map_params<char_t,Args...>;
+		concepts::unset_pair_params<char_t,Args...>;
 
-	basic_url &unset_parameter(map_key_init_list_t keys) noexcept;
+	basic_url &unset_parameter(key_init_t keys) noexcept;
 	basic_url &clear_parameter() noexcept;
 
 public:

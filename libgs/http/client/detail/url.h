@@ -263,14 +263,14 @@ basic_url<CharT> &basic_url<CharT>::set_path(string_view_t path)
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_url<CharT> &basic_url<CharT>::set_parameter(Args&&...args) noexcept
-	requires concepts::set_map_params<char_t,Args...>
+	requires concepts::set_key_attr_params<char_t,Args...>
 {
 	set_map(m_impl->m_parameters, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_url<CharT> &basic_url<CharT>::set_parameter(map_init_list_t headers) noexcept
+basic_url<CharT> &basic_url<CharT>::set_parameter(pair_init_t headers) noexcept
 {
 	set_map(m_impl->m_parameters, std::move(headers));
 	return *this;
@@ -279,14 +279,14 @@ basic_url<CharT> &basic_url<CharT>::set_parameter(map_init_list_t headers) noexc
 template <core_concepts::char_type CharT>
 template <typename...Args>
 basic_url<CharT> &basic_url<CharT>::unset_parameter(Args&&...args) noexcept
-	requires concepts::unset_map_params<char_t,Args...>
+	requires concepts::unset_pair_params<char_t,Args...>
 {
 	unset_map(m_impl->m_parameters, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_url<CharT> &basic_url<CharT>::unset_parameter(map_key_init_list_t keys) noexcept
+basic_url<CharT> &basic_url<CharT>::unset_parameter(key_init_t keys) noexcept
 {
 	unset_map(m_impl->m_parameters, std::move(keys));
 	return *this;

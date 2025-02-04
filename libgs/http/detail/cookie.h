@@ -52,12 +52,14 @@ template <core_concepts::char_type CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_value(value_t v) noexcept
 {
 	m_value = std::move(v);
+	return *this;
 }
 
 template <core_concepts::char_type CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::operator=(value_t v) noexcept
 {
 	m_value = std::move(v);
+	return *this;
 }
 
 template <core_concepts::char_type CharT>
@@ -355,7 +357,55 @@ basic_cookie<CharT> &basic_cookie<CharT>::unset_priority()
 }
 
 template <core_concepts::char_type CharT>
-basic_value<CharT> basic_cookie<CharT>::attributes(const string_t &key) const
+template <typename...Args>
+basic_cookie<CharT> &basic_cookie<CharT>::set_attribute(Args&&...args) noexcept
+	requires concepts::set_key_attr_params<char_t,Args...>
+{
+	set_map(m_attributes, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+template <typename...Args>
+basic_cookie<CharT> &basic_cookie<CharT>::unset_attribute(Args&&...args) noexcept
+	requires concepts::unset_pair_params<char_t,Args...>
+{
+	unset_map(m_attributes, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_cookie<CharT> &basic_cookie<CharT>::set_attribute(pair_init_t init) noexcept
+{
+	set_map(m_attributes, std::move(init));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_cookie<CharT> &basic_cookie<CharT>::unset_attribute(key_init_t init) noexcept
+{
+	unset_map(m_attributes, std::move(init));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+template <typename T>
+T basic_cookie<CharT>::attribute(const string_t &key) const
+	requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>
+{
+	return attribute(key).template get<T>();
+}
+
+template <core_concepts::char_type CharT>
+template <typename T>
+T basic_cookie<CharT>::attribute_or(const string_t &key, T default_value) const noexcept
+	requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>
+{
+	return attribute_or(key, default_value).template get<T>();
+}
+
+template <core_concepts::char_type CharT>
+basic_value<CharT> basic_cookie<CharT>::attribute(const string_t &key) const
 {
 	auto it = m_attributes.find(key);
 	if( it == m_attributes.end() )
@@ -369,40 +419,10 @@ basic_value<CharT> basic_cookie<CharT>::attributes(const string_t &key) const
 }
 
 template <core_concepts::char_type CharT>
-basic_value<CharT> basic_cookie<CharT>::attributes_or(const string_t &key, value_t default_value) const noexcept
+basic_value<CharT> basic_cookie<CharT>::attribute_or(const string_t &key, value_t default_value) const noexcept
 {
 	auto it = m_attributes.find(key);
 	return it == m_attributes.end() ? default_value : it->second;
-}
-
-template <core_concepts::char_type CharT>
-basic_cookie<CharT> &basic_cookie<CharT>::set_attribute(string_t key, value_t v)
-{
-	m_attributes[std::move(key)] = std::move(v);
-	return *this;
-}
-
-template <core_concepts::char_type CharT>
-basic_cookie<CharT> &basic_cookie<CharT>::unset_attribute(const string_t &key)
-{
-	m_attributes.erase(key);
-	return *this;
-}
-
-template <core_concepts::char_type CharT>
-template <typename T>
-T basic_cookie<CharT>::attributes(const string_t &key) const
-	requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>
-{
-	return attributes().template get<T>();
-}
-
-template <core_concepts::char_type CharT>
-template <typename T>
-T basic_cookie<CharT>::attributes_or(const string_t &key, T default_value) const noexcept
-	requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>
-{
-	return attributes_or().template get<T>();
 }
 
 template <core_concepts::char_type CharT>

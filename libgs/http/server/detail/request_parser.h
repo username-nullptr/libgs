@@ -326,25 +326,29 @@ version_t basic_request_parser<CharT>::version() const noexcept
 }
 
 template <core_concepts::char_type CharT>
-const typename basic_request_parser<CharT>::parameters_t &basic_request_parser<CharT>::parameters() const noexcept
+const typename basic_request_parser<CharT>::parameters_t&
+basic_request_parser<CharT>::parameters() const noexcept
 {
 	return m_impl->m_parameters;
 }
 
 template <core_concepts::char_type CharT>
-const typename basic_request_parser<CharT>::path_args_t &basic_request_parser<CharT>::path_args() const noexcept
+const typename basic_request_parser<CharT>::path_args_t&
+basic_request_parser<CharT>::path_args() const noexcept
 {
 	return m_impl->m_path_args;
 }
 
 template <core_concepts::char_type CharT>
-const typename basic_request_parser<CharT>::headers_t &basic_request_parser<CharT>::headers() const noexcept
+const typename basic_request_parser<CharT>::headers_t&
+basic_request_parser<CharT>::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }
 
 template <core_concepts::char_type CharT>
-const typename basic_request_parser<CharT>::cookies_t &basic_request_parser<CharT>::cookies() const noexcept
+const typename basic_request_parser<CharT>::cookies_t&
+basic_request_parser<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }

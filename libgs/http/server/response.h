@@ -57,7 +57,12 @@ public:
 	using cookies_t = basic_cookies<char_t>;
 
 	using value_t = typename next_layer_t::value_t;
-	using value_list_t = basic_value_list<char_t>;
+	using value_set_t = basic_value_set<char_t>;
+
+	using key_init_t = basic_key_init<char_t>;
+	using attr_init_t = basic_attr_init<char_t>;
+	using pair_init_t = basic_key_attr_init<char_t>;
+	using cookie_init_t = basic_cookie_init<char_t>;
 
 public:
 	explicit basic_server_response(next_layer_t &&next_layer);
@@ -76,8 +81,21 @@ public:
 
 public:
 	basic_server_response &set_status(status_t status);
-	basic_server_response &set_header(string_view_t key, value_t value);
-	basic_server_response &set_cookie(string_view_t key, cookie_t cookie);
+	basic_server_response &set_header(pair_init_t headers) noexcept;
+	basic_server_response &set_cookie(cookie_init_t headers) noexcept;
+	basic_server_response &set_chunk_attribute(attr_init_t attributes) noexcept;
+
+	template <typename...Args>
+	basic_server_response &set_header(Args&&...args) noexcept requires
+		concepts::set_key_attr_params<char_t,Args...>;
+
+	template <typename...Args>
+	basic_server_response &set_cookie(Args&&...args) noexcept requires
+		concepts::set_cookie_params<char_t,Args...>;
+
+	template <typename...Args>
+	basic_server_response &set_chunk_attribute(Args&&...args) noexcept requires
+		concepts::set_attr_params<char_t,Args...>;
 
 public:
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
@@ -99,9 +117,6 @@ public:
 	);
 
 public:
-	basic_server_response &set_chunk_attribute(value_t attribute);
-	basic_server_response &set_chunk_attributes(value_list_t attributes);
-
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
 	auto chunk_end(const headers_t &headers, Token &&token = {});
 
@@ -122,9 +137,26 @@ public:
 	basic_server_response &cancel() noexcept;
 
 public:
-	basic_server_response &unset_header(core_concepts::basic_string_type<char_t> auto &&key);
-	basic_server_response &unset_cookie(core_concepts::basic_string_type<char_t> auto &&key);
-	basic_server_response &unset_chunk_attribute(const value_t &attribute);
+	template <typename...Args>
+	basic_server_response &unset_header(Args&&...args) noexcept requires
+		concepts::unset_pair_params<char_t,Args...>;
+
+	template <typename...Args>
+	basic_server_response &unset_cookie(Args&&...args) noexcept requires
+		concepts::unset_pair_params<char_t,Args...>;
+
+	template <typename...Args>
+	basic_server_response &unset_chunk_attribute(Args&&...args) noexcept requires
+		concepts::unset_attr_params<char_t,Args...>;
+
+	basic_server_response &unset_header(key_init_t headers) noexcept;
+	basic_server_response &clear_header() noexcept;
+
+	basic_server_response &unset_cookie(key_init_t headers) noexcept;
+	basic_server_response &clear_cookie() noexcept;
+
+	basic_server_response &unset_chunk_attribute(attr_init_t headers) noexcept;
+	basic_server_response &clear_chunk_attribute() noexcept;
 
 public:
 	[[nodiscard]] const next_layer_t &next_layer() const noexcept;

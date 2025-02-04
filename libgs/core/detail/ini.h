@@ -52,8 +52,8 @@ decltype(auto) basic_ini_keys<CharT,KeyMap>::read_or
 	else if constexpr( is_basic_string_v<def_t, char_t> )
 	{
 		return it == m_keys.end() ?
-			value_t(std::forward<T>(def_value)).template get<std::string>() :
-			it->second.template get<std::string>();
+			value_t(std::forward<T>(def_value)).template get<string_t>() :
+			it->second.template get<string_t>();
 	}
 	else
 	{
@@ -70,7 +70,7 @@ auto basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<char_t> auto
 	auto it = m_keys.find(nosview(key));
 	if( it == m_keys.end() )
 	{
-		throw runtime_error("basic_ini_keys: read: The key '{}' is not exists.",
+		throw runtime_error("libgs::basic_ini_keys: read: The key '{}' is not exists.",
 			xxtombs(std::forward<decltype(key)>(key))
 		);
 	}
@@ -460,7 +460,11 @@ public:
 			str_list = string_list_t::from_wstring(path, L'/');
 
 		if( str_list.size() != 2 )
-			throw runtime_error("libgs::basic_ini: {}: The path '{}' is invalid.", func, xxtombs(path));
+		{
+			throw runtime_error("libgs::basic_ini: {}: The path '{}' is invalid.",
+				func, xxtombs(path)
+			);
+		}
 		return std::make_pair(str_list[0], str_list[1]);
 	}
 
@@ -795,7 +799,7 @@ decltype(auto) basic_ini<CharT,IniKeys,Exec,GroupMap>::read_or(group_key gk, T &
 	else if constexpr( is_basic_string_v<def_t, char_t> )
 	{
 		return it == m_impl->m_groups.end() ?
-			value_t(std::forward<T>(def_value)).template get<std::string>() : it->second.read_or (
+			value_t(std::forward<T>(def_value)).template get<string_t>() : it->second.read_or (
 				std::move(gk.key), std::forward<T>(def_value)
 			);
 	}
@@ -842,7 +846,8 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 template <concepts::basic_text_arg<CharT> T>
-auto basic_ini<CharT,IniKeys,Exec,GroupMap>::read(concepts::basic_string_type<char_t> auto &&path) const
+auto basic_ini<CharT,IniKeys,Exec,GroupMap>::read
+(concepts::basic_string_type<char_t> auto &&path) const
 {
 	return read<std::remove_cvref_t<T>> (
 		m_impl->from_path(std::forward<decltype(path)>(path), "read")

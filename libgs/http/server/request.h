@@ -86,20 +86,48 @@ public:
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
 public:
-	[[nodiscard]] const value_t &parameter(string_view_t key) const;
-	[[nodiscard]] const value_t &header(string_view_t key) const;
-	[[nodiscard]] const value_t &cookie(string_view_t key) const;
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) parameter(core_concepts::basic_string_type<char_t> auto &&key) const;
 
-	[[nodiscard]] value_t parameter_or(string_view_t key, value_t def_value = {}) const noexcept;
-	[[nodiscard]] value_t header_or(string_view_t key, value_t def_value = {}) const noexcept;
-	[[nodiscard]] value_t cookie_or(string_view_t key, value_t def_value = {}) const noexcept;
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) header(core_concepts::basic_string_type<char_t> auto &&key) const;
 
-	[[nodiscard]] const value_t &path_arg(size_t index) const;
-	[[nodiscard]] const value_t &path_arg(string_view_t key) const;
-	[[nodiscard]] value_t path_arg_or(string_view_t key, value_t def_value = {}) const noexcept;
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) cookie(core_concepts::basic_string_type<char_t> auto &&key) const;
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) parameter_or (
+		core_concepts::basic_string_type<char_t> auto &&key, T &&def_value = T()
+	) const noexcept;
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) header_or (
+		core_concepts::basic_string_type<char_t> auto &&key, T &&def_value = T()
+	) const noexcept;
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) cookie_or (
+		core_concepts::basic_string_type<char_t> auto &&key, T &&def_value = T()
+	) const noexcept;
 
 public:
 	int32_t path_match(string_view_t rule);
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) path_arg(core_concepts::basic_string_type<char_t> auto &&key) const;
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) path_arg(size_t index) const;
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) path_arg_or (
+		core_concepts::basic_string_type<char_t> auto &&key, T &&def_value = T()
+	) const noexcept;
+
+	template <core_concepts::basic_text_arg<CharT> T = value_t>
+	[[nodiscard]] decltype(auto) path_arg_or (
+		size_t index, T &&def_value = T()
+	) const noexcept;
 
 public:
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>

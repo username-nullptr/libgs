@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 
+#include <libgs/http/helper_base.h>
+
 namespace libgs::http
 {
 
@@ -65,7 +67,11 @@ template <core_concepts::char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	struct string_pool : detail::string_pool<char_t>, detail::response_helper_static_string<char_t> {};
+	using helper_t = basic_helper_base<char_t>;
+
+	struct string_pool :
+		detail::string_pool<char_t>,
+		detail::response_helper_static_string<char_t> {};
 
 public:
 	impl() = default;
@@ -147,8 +153,9 @@ public:
 		return buf + "\r\n";
 	}
 
-	void set_header(string_view_t key, value_t value) noexcept {
-		m_response_headers[str_to_lower(key)] = std::move(value);
+	template <typename...Args>
+	void set_header(Args&&...args) noexcept {
+		set_map(m_response_headers, std::forward<Args>(args)...);
 	}
 
 private:
@@ -170,8 +177,11 @@ public:
 		{ header_t::content_type, string_pool::text_plain }
 	};
 	cookies_t m_cookies {};
-	value_list_t m_chunk_attributes {};
+	value_set_t m_chunk_attributes {};
 	string_t m_redirect_url {};
+
+	// TODO ...
+	helper_t m_helper;
 };
 
 template <core_concepts::char_type CharT>
@@ -223,16 +233,50 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_status(status_t 
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(string_view_t key, value_t value) noexcept
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(pair_init_t headers) noexcept
 {
-	m_impl->set_header(key, std::move(value));
+	set_map(m_impl->m_response_headers, std::move(headers));
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(string_view_t key, cookie_t cookie) noexcept
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(cookie_init_t headers) noexcept
 {
-	m_impl->m_cookies[str_to_lower(key)] = std::move(cookie);
+	set_map(m_impl->m_cookies, std::move(headers));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(attr_init_t attributes) noexcept
+{
+	set_set(m_impl->m_chunk_attributes, std::move(attributes));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+template <typename...Args>
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(Args&&...args) noexcept
+	requires concepts::set_key_attr_params<char_t,Args...>
+{
+	set_map(m_impl->m_response_headers, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+template <typename...Args>
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_cookie(Args&&...args) noexcept
+	requires concepts::set_cookie_params<char_t,Args...>
+{
+	set_map(m_impl->m_cookies, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+template <typename...Args>
+basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(Args&&...args) noexcept
+	requires concepts::set_attr_params<char_t,Args...>
+{
+	set_set(m_impl->m_chunk_attributes, std::forward<Args>(args)...);
 	return *this;
 }
 
@@ -250,35 +294,6 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect
 		);
 	}
 	return set_header(header_t::location, std::forward<decltype(url)>(url));
-}
-
-template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attribute(value_t attribute)
-{
-	if( version() < http::version::v11 )
-	{
-		throw runtime_error (
-			"libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'."
-		);
-	}
-	set_header(basic_header<char_t>::transfer_encoding, string_pool::chunked);
-	m_impl->m_chunk_attributes.emplace_back(std::move(attribute));
-	return *this;
-}
-
-template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::set_chunk_attributes(value_list_t attributes)
-{
-	if( version() < http::version::v11 )
-	{
-		throw runtime_error (
-			"libgs::http::response_helper::set_chunk_attribute: Only HTTP/1.1 supports 'Transfer-Coding: chunked'."
-		);
-	}
-	set_header(basic_header<char_t>::transfer_encoding, string_pool::chunked);
-	for(auto &value : attributes)
-		m_impl->m_chunk_attributes.emplace_back(std::move(value));
-	return *this;
 }
 
 template <core_concepts::char_type CharT>
@@ -326,32 +341,78 @@ basic_response_helper<CharT>::cookies() const noexcept
 }
 
 template <core_concepts::char_type CharT>
-const typename basic_response_helper<CharT>::value_list_t&
+const typename basic_response_helper<CharT>::value_set_t&
 basic_response_helper<CharT>::chunk_attributes() const noexcept
 {
 	return m_impl->m_chunk_attributes;
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header
-(core_concepts::basic_string_type<char_t> auto &&key)
+template <typename...Args>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(Args&&...args) noexcept
+	requires concepts::unset_pair_params<char_t,Args...>
 {
-	m_impl->m_response_headers.erase(nosview(std::forward<decltype(key)>(key)));
+	unset_map(m_impl->m_response_headers, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie
-(core_concepts::basic_string_type<char_t> auto &&key)
+template <typename...Args>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(Args&&...args) noexcept
+	requires concepts::unset_pair_params<char_t,Args...>
 {
-	m_impl->m_cookies.erase(nosview(std::forward<decltype(key)>(key)));
+	unset_map(m_impl->m_cookies, std::forward<Args>(args)...);
 	return *this;
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(const value_t &attributes)
+template <typename...Args>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(Args&&...args) noexcept
+	requires concepts::unset_attr_params<char_t,Args...>
 {
-	m_impl->m_chunk_attributes.erase(attributes);
+	unset_set(m_impl->m_chunk_attributes, std::forward<Args>(args)...);
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_header(key_init_t headers) noexcept
+{
+	unset_map(m_impl->m_response_headers, std::move(headers));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::clear_header() noexcept
+{
+	m_impl->m_redirect_url.clear();
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_cookie(key_init_t headers) noexcept
+{
+	unset_map(m_impl->m_cookies, std::move(headers));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::clear_cookie() noexcept
+{
+	m_impl->m_cookies.clear();
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::unset_chunk_attribute(attr_init_t headers) noexcept
+{
+	unset_set(m_impl->m_chunk_attributes, std::move(headers));
+	return *this;
+}
+
+template <core_concepts::char_type CharT>
+basic_response_helper<CharT> &basic_response_helper<CharT>::clear_chunk_attribute() noexcept
+{
+	m_impl->m_chunk_attributes.clear();
 	return *this;
 }
 

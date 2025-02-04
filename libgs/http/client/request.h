@@ -47,22 +47,9 @@ public:
 	using session_t = typename session_pool_t::session_t;
 
 	using reply_t = basic_client_reply<char_t,session_t>;
-	using request_arg_t = typename reply_t::request_arg_t;
-	using url_t = typename request_arg_t::url_t;
-
-	using string_t = typename request_arg_t::string_t;
-	using string_view_t = typename request_arg_t::string_view_t;
-
-	using value_t = typename request_arg_t::value_t;
-	using value_list_t = typename request_arg_t::value_list_t;
-
-	using parameters_t = typename request_arg_t::parameters_t;
-	using header_t = typename request_arg_t::header_t;
+	using request_arg_t = basic_request_arg<char_t>;
 
 	using headers_t = typename request_arg_t::headers_t;
-	using cookies_t = typename request_arg_t::cookies_t;
-
-	using socket_t = typename session_pool_t::socket_t;
 	using executor_t = typename session_pool_t::executor_t;
 
 	static constexpr auto method_v = Method;
@@ -103,27 +90,10 @@ public:
 
 public:
 	basic_client_request &set_arg(request_arg_t arg);
-	basic_client_request &set_url(url_t url);
-
-	basic_client_request &set_header(string_view_t key, value_t value) noexcept;
-	basic_client_request &set_cookie(string_view_t key, value_t value) noexcept;
-
-	basic_client_request &set_chunk_attribute(value_t attribute);
-	basic_client_request &set_chunk_attributes(value_list_t attributes);
+	[[nodiscard]] const request_arg_t &arg() const noexcept;
+	[[nodiscard]] request_arg_t &arg() noexcept;
 
 public:
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] const value_list_t &chunk_attributes() const noexcept;
-
-	[[nodiscard]] const url_t &url() const noexcept;
-	[[nodiscard]] url_t &url() noexcept;
-
-public:
-	basic_client_request &unset_header(string_view_t key);
-	basic_client_request &unset_cookie(string_view_t key);
-	basic_client_request &unset_chunk_attribute(const value_t &attributes);
-
 	[[nodiscard]] bool is_finished() const noexcept;
 	basic_client_request &cancel() noexcept;
 	basic_client_request &reset() noexcept;

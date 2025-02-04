@@ -49,30 +49,48 @@ struct LIBGS_HTTP_TAPI basic_less_case_insensitive
 using less_case_insensitive = basic_less_case_insensitive<char>;
 using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
 
-template <core_concepts::char_type CharT>
+template <core_concepts::char_type CharT, typename Value>
 using basic_map = std::map <
-	std::basic_string<CharT>, basic_value<CharT>,
+	std::basic_string<CharT>, Value,
 	basic_less_case_insensitive<CharT>
 >;
 
-using map  = basic_map<char>;
-using wmap = basic_map<wchar_t>;
+template <typename V>
+using map = basic_map<char,V>;
+
+template <typename V>
+using wmap = basic_map<wchar_t,V>;
 
 template <core_concepts::char_type CharT>
-using basic_map_init_list = std::initializer_list<std::tuple <
-	std::basic_string_view<CharT>, basic_value<CharT>
+using basic_attr_map = basic_map<CharT,basic_value<CharT>>;
+
+using attr_map  = basic_attr_map<char>;
+using wattr_map = basic_attr_map<wchar_t>;
+
+template <core_concepts::char_type CharT, typename Value>
+using basic_pair_init = std::initializer_list<std::tuple <
+	std::basic_string_view<CharT>, Value
 >>;
 
-using map_init_list  = basic_map_init_list<char>;
-using wmap_init_list = basic_map_init_list<wchar_t>;
+template <typename V>
+using pair_init = basic_pair_init<char,V>;
+
+template <typename V>
+using wpair_init = basic_pair_init<wchar_t,V>;
 
 template <core_concepts::char_type CharT>
-using basic_map_key_init_list = std::initializer_list <
+using basic_key_attr_init = basic_pair_init<CharT,basic_value<CharT>>;
+
+using key_attr_init  = basic_key_attr_init<char>;
+using wkey_attr_init = basic_key_attr_init<wchar_t>;
+
+template <core_concepts::char_type CharT>
+using basic_key_init = std::initializer_list <
 	std::basic_string_view<CharT>
 >;
 
-using map_key_init_list  = basic_map_key_init_list<char>;
-using wmap_key_init_list = basic_map_key_init_list<wchar_t>;
+using key_init_list  = basic_key_init<char>;
+using wkey_init_list = basic_key_init<wchar_t>;
 
 template <core_concepts::char_type CharT>
 using basic_set = std::set <
@@ -90,65 +108,92 @@ using value_set  = basic_value_set<char>;
 using wvalue_set = basic_value_set<wchar_t>;
 
 template <core_concepts::char_type CharT>
-using basic_set_init_list = std::initializer_list <
+using basic_attr_init = std::initializer_list <
 	basic_value<CharT>
 >;
 
-using set_init_list  = basic_set_init_list<char>;
-using wset_init_list = basic_set_init_list<wchar_t>;
+using attr_init  = basic_attr_init<char>;
+using wattr_init = basic_attr_init<wchar_t>;
 
 namespace concepts
 {
 
-template <typename CharT, typename...Args>
-concept set_map_params = core_concepts::container_params <
-	std::tuple<std::basic_string_view<CharT>, basic_value<CharT>>, Args...
+template <typename CharT, typename Value, typename...Args>
+concept set_pair_params = core_concepts::container_params <
+	std::tuple<std::basic_string<CharT>, Value>, Args...
 >;
 
 template <typename CharT, typename...Args>
-concept unset_map_params = core_concepts::container_params <
-	std::basic_string_view<CharT>, Args...
+concept set_key_attr_params = set_pair_params <
+	CharT, basic_value<CharT>, Args...
 >;
 
 template <typename CharT, typename...Args>
-concept set_set_params = core_concepts::container_params <
+concept unset_pair_params = core_concepts::container_params <
+	std::basic_string<CharT>, Args...
+>;
+
+template <typename CharT, typename...Args>
+concept set_attr_params = core_concepts::container_params <
 	basic_value<CharT>, Args...
 >;
 
 template <typename CharT, typename...Args>
-concept unset_set_params = core_concepts::container_params <
+concept unset_attr_params = core_concepts::container_params <
 	basic_value<CharT>, Args...
 >;
 
 } //namespace concepts
 
-template <core_concepts::char_type CharT, typename...Args>
-void set_map(basic_map<CharT> &map, Args&&...args) noexcept
-	requires concepts::set_map_params<CharT,Args...>;
+template <core_concepts::char_type CharT, typename Value, typename...Args>
+void set_map(basic_map<CharT,Value> &map, Args&&...args) noexcept
+	requires concepts::set_pair_params<CharT,Value,Args...>;
 
-template <core_concepts::char_type CharT>
-void set_map(basic_map<CharT> &map, basic_map_init_list<CharT> list) noexcept;
+template <core_concepts::char_type CharT, typename Value>
+void set_map(basic_map<CharT,Value> &map, basic_pair_init<CharT,Value> list) noexcept;
 
-template <core_concepts::char_type CharT, typename...Args>
-void unset_map(basic_map<CharT> &map, Args&&...args) noexcept
-	requires concepts::unset_map_params<CharT,Args...>;
+template <core_concepts::char_type CharT, typename Value, typename...Args>
+void unset_map(basic_map<CharT,Value> &map, Args&&...args) noexcept
+	requires concepts::unset_pair_params<CharT,Args...>;
 
-template <core_concepts::char_type CharT>
-void unset_map(basic_map<CharT> &map, basic_map_key_init_list<CharT> list) noexcept;
+template <core_concepts::char_type CharT, typename Value>
+void unset_map(basic_map<CharT,Value> &map, basic_key_init<CharT> list) noexcept;
 
 template <core_concepts::char_type CharT, typename...Args>
 void set_set(basic_set<CharT> &set, Args&&...args) noexcept
-	requires concepts::set_set_params<CharT,Args...>;
+	requires concepts::set_attr_params<CharT,Args...>;
 
 template <core_concepts::char_type CharT>
-void set_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept;
+void set_set(basic_set<CharT> &set, basic_attr_init<CharT> list) noexcept;
 
 template <core_concepts::char_type CharT, typename...Args>
 void unset_set(basic_set<CharT> &set, Args&&...args) noexcept
-	requires concepts::unset_set_params<CharT,Args...>;
+	requires concepts::unset_attr_params<CharT,Args...>;
 
 template <core_concepts::char_type CharT>
-void unset_set(basic_set<CharT> &set, basic_set_init_list<CharT> list) noexcept;
+void unset_set(basic_set<CharT> &set, basic_attr_init<CharT> list) noexcept;
+
+template <core_concepts::char_type CharT, typename Value>
+[[nodiscard]] Value &get_map_value(const basic_map<CharT,Value> &map,
+	core_concepts::basic_string_type<CharT> auto &&key
+);
+
+template <core_concepts::char_type CharT, typename Value, typename Default>
+[[nodiscard]] decltype(auto) get_map_value_or(const basic_map<CharT,Value> &map,
+	core_concepts::basic_string_type<CharT> auto &&key, Default &&def_value
+) requires std::is_same_v<Value,std::remove_cvref_t<Default>>;
+
+template <core_concepts::char_type CharT,
+	core_concepts::basic_text_arg<CharT> T = basic_value<CharT>>
+[[nodiscard]] decltype(auto) get_attr_map_value(const basic_attr_map<CharT> &map,
+	core_concepts::basic_string_type<CharT> auto &&key
+);
+
+template <core_concepts::char_type CharT,
+	core_concepts::basic_text_arg<CharT> T = basic_value<CharT>>
+[[nodiscard]] decltype(auto) get_attr_map_value_or(const basic_attr_map<CharT> &map,
+	core_concepts::basic_string_type<CharT> auto &&key, T &&def_value
+);
 
 } //namespace libgs::http
 #include <libgs/http/cxx/detail/container.h>

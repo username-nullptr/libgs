@@ -60,6 +60,9 @@ template <typename T>
 [[nodiscard]] constexpr const T &as_const(const T &v);
 
 template <typename T>
+[[nodiscard]] constexpr const T &&as_const(const T &&v);
+
+template <typename T>
 [[nodiscard]] constexpr const T *as_const(const T *v);
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
