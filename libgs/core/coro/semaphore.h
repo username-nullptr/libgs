@@ -35,23 +35,27 @@ namespace libgs
 {
 
 template<size_t Max = std::numeric_limits<size_t>::max()>
-class LIBGS_CORE_TAPI co_semaphore
+class LIBGS_CORE_TAPI co_basic_semaphore
 {
-	LIBGS_DISABLE_COPY_MOVE(co_semaphore)
+	LIBGS_DISABLE_COPY_MOVE(co_basic_semaphore)
 	constexpr static size_t max_v = Max;
 
+	static_assert(max_v > 0,
+		"Max must be greater than 0"
+	);
 public:
-	explicit co_semaphore(size_t initial_count = max_v);
-	~co_semaphore() noexcept(false);
+	explicit co_basic_semaphore(size_t initial_count = max_v);
+	~co_basic_semaphore() noexcept(false);
 
 public:
 	[[nodiscard]] awaitable<void> acquire(concepts::schedulable auto &&exec);
 	[[nodiscard]] awaitable<void> acquire();
 
 	[[nodiscard]] bool try_acquire();
-	void release(size_t n = 1) requires (max_v > 1);
-	void release() requires (max_v == 1);
+	size_t release(size_t n = 1) requires (max_v > 1);
+	size_t release() requires (max_v == 1);
 
+public:
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_acquire_for (
 		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
@@ -71,13 +75,15 @@ public:
 
 public:
 	[[nodiscard]] consteval size_t max() const noexcept;
+	[[nodiscard]] size_t count() const noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using co_binary_semaphore = co_semaphore<1>;
+using co_binary_semaphore = co_basic_semaphore<1>;
+using co_semaphore = co_basic_semaphore<>;
 
 } //namespace libgs
 #include <libgs/core/coro/detail/semaphore.h>
