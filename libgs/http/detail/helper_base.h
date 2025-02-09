@@ -41,7 +41,9 @@ class LIBGS_HTTP_TAPI basic_helper_base<CharT,Version>::impl
 
 public:
 	impl() = default;
-	headers_t m_headers;
+	headers_t m_headers {
+		{ header_t::content_type, detail::string_pool<char_t>::text_plain }
+	};
 	std::set<value_t> m_chunk_attributes {};
 	size_t m_content_length = 0;
 	state_t m_state {};
@@ -223,23 +225,15 @@ std::string basic_helper_base<CharT,Version>::body_data(const const_buffer &buff
 }
 
 template <core_concepts::char_type CharT, version_t Version>
-std::string basic_helper_base<CharT,Version>::chunk_end_data(const headers_t &headers)
+std::string basic_helper_base<CharT,Version>::chunk_end_data(const map_helper_t &headers)
 {
 	if( m_impl->m_state != state_t::chunk )
 		return {};
 
-	auto it = m_impl->m_headers.find(header_t::content_length);
-	if( it != m_impl->m_headers.end() )
-		throw runtime_error("libgs::http::helper_base::chunk_end: 'Content-Length' has been set.");
-
-	constexpr auto chunked_text = detail::string_pool<char_t>::chunked;
-	it = m_impl->m_headers.find(header_t::transfer_encoding);
-
-	if( it == m_impl->m_headers.end() or str_to_lower(it->second) != chunked_text )
-		throw runtime_error("libgs::http::helper_base::chunk_end: 'Transfer-Coding: chunked' not set.");
-
+	m_impl->m_state = state_t::finish;
 	std::string buf = "0\r\n";
-	for(auto &[key,value] : headers)
+
+	for(auto &[key,value] : headers.map)
 		buf += xxtombs(key) + ": " + xxtombs(value.to_string()) + "\r\n";
 	return buf + "\r\n";
 }
@@ -264,7 +258,9 @@ basic_helper_base<CharT,Version>::unset_header(key_init_t headers) noexcept
 template <core_concepts::char_type CharT, version_t Version>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::clear_headers() noexcept
 {
-	m_impl->m_headers.clear();
+	m_impl->m_headers = {
+		{ header_t::content_type, detail::string_pool<char_t>::text_plain }
+	};
 	return *this;
 }
 

@@ -182,7 +182,7 @@ auto basic_client_request<CharT,Method,SessionPool,Version>::send_file
 template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::chunk_end
-(const headers_t &headers, Token &&token) requires put_or_post
+(const map_helper_t &headers, Token &&token) requires put_or_post
 {
 
 }

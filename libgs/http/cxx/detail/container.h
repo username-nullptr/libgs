@@ -291,6 +291,20 @@ decltype(auto) get_attr_map_value_or
 	}
 }
 
+template <core_concepts::char_type CharT, typename Value>
+template <typename...Args>
+basic_map_helper<CharT,Value>::basic_map_helper(Args&&...args) noexcept requires
+	concepts::set_key_attr_params<char_t,Args...>
+{
+	set_map(map, std::forward<Args>(args)...);
+}
+
+template <core_concepts::char_type CharT, typename Value>
+basic_map_helper<CharT,Value>::basic_map_helper(pair_init_t headers) noexcept
+{
+	set_map(map, std::move(headers));
+}
+
 } //namespace libgs::http
 
 

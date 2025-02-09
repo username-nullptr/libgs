@@ -248,7 +248,7 @@ private:
 			context_t context(std::move(socket), parser, m_sss);
 			co_await call_on_request(context);
 
-			if( not context.response().headers_writed() )
+			if( not context.response().is_finished() )
 				co_await call_on_default(context);
 
 			if( not context.request().keep_alive() )
@@ -334,7 +334,7 @@ private:
 			if( m_default_handler )
 			{
 				co_await m_default_handler(context);
-				if( context.response().headers_writed() )
+				if( context.response().is_finished() )
 					co_return ;
 			}
 			constexpr const char *def_html =

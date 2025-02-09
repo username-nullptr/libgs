@@ -46,6 +46,7 @@ public:
 	using session_pool_t = SessionPool;
 	using session_t = typename session_pool_t::session_t;
 
+	using map_helper_t = basic_attr_map_helper<char_t>;
 	using reply_t = basic_client_reply<char_t,session_t>;
 	using request_arg_t = basic_request_arg<char_t>;
 
@@ -79,7 +80,7 @@ public:
 	) requires put_or_post;
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto chunk_end(const headers_t &headers, Token &&token = {}) requires put_or_post;
+	auto chunk_end(const map_helper_t &headers, Token &&token = {}) requires put_or_post;
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(Token &&token = {}) requires put_or_post;

@@ -161,7 +161,7 @@ std::string basic_request_helper<CharT,Version>::body_data(const const_buffer &b
 }
 
 template <core_concepts::char_type CharT, version_t Version>
-std::string basic_request_helper<CharT,Version>::chunk_end_data(const headers_t &headers)
+std::string basic_request_helper<CharT,Version>::chunk_end_data(const map_helper_t &headers)
 {
 	return m_impl->m_helper.chunk_end_data(headers);
 }

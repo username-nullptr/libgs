@@ -47,6 +47,7 @@ public:
 	using string_view_t = std::basic_string_view<char_t>;
 	using string_t = std::basic_string<char_t>;
 
+	using map_helper_t = basic_attr_map_helper<char_t>;
 	using request_arg_t = basic_request_arg<char_t>;
 	using url_t = typename request_arg_t::url_t;
 
@@ -78,7 +79,7 @@ public:
 	[[nodiscard]] std::string header_data(method_t method, size_t body_size = 0);
 
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const map_helper_t &headers = {});
 
 public:
 	[[nodiscard]] consteval version_t version() const noexcept;
