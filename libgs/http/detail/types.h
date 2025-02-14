@@ -29,10 +29,7 @@
 #ifndef LIBGS_HTTP_DETAIL_TYPES_H
 #define LIBGS_HTTP_DETAIL_TYPES_H
 
-namespace libgs::http
-{
-
-namespace detail
+namespace libgs::http { namespace detail
 {
 
 template <core_concepts::char_type T>
@@ -59,6 +56,38 @@ struct string_pool<wchar_t> {
 };
 
 #undef LIBGS_HTTP_DETAIL_STRING_POOL
+
+template <status_t, core_concepts::char_type>
+struct status_description;
+
+#define X_MACRO(e,v,d) \
+	template <typename CharT> \
+	struct status_description<v,CharT> { \
+		static constexpr const CharT *get() { \
+			if constexpr( std::is_same_v<CharT,char> ) \
+				return d; \
+			else \
+				return L##d; \
+		} \
+	};
+	LIBGS_HTTP_STATUS_TABLE
+#undef X_MACRO
+
+template <method, core_concepts::char_type>
+struct method_string;
+
+#define X_MACRO(e,v,d) \
+	template <typename CharT> \
+	struct method_string<method::e,CharT> { \
+		static constexpr const CharT *get() { \
+			if constexpr( std::is_same_v<CharT,char> ) \
+				return d; \
+			else \
+				return L##d; \
+		} \
+	};
+	LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
 
 } //namespace detail
 
@@ -115,31 +144,19 @@ inline bool redirect_check(redirect type, bool _throw)
 	return false;
 }
 
-template <uint32_t Status, core_concepts::char_type CharT>
+template <status_t Status, core_concepts::char_type CharT>
 consteval const CharT *status_description()
 {
-#define X_MACRO(e,v,d) \
-	if constexpr( Status == status::e ) { \
-		if constexpr( is_char_v<CharT> ) \
-			return d; \
-		else \
-			return LIBGS_WCHAR(d); \
-	}
-	LIBGS_HTTP_STATUS_TABLE
-#undef X_MACRO
-	else {
-		static_assert(false, "Invalid http status.");
-		return {};
-	}
+	return detail::status_description<Status,CharT>::get();
 }
 
-template <uint32_t Status>
+template <status_t Status>
 consteval const char *status_description()
 {
 	return status_description<Status,char>();
 }
 
-template <uint32_t Status>
+template <status_t Status>
 consteval const wchar_t *wstatus_description()
 {
 	return status_description<Status,wchar_t>();
@@ -183,19 +200,7 @@ inline const wchar_t *wstatus_description(status_t s)
 template <method Method, core_concepts::char_type CharT>
 consteval const CharT *method_string()
 {
-#define X_MACRO(e,v,d) \
-	if constexpr( Method == method::e ) { \
-		if constexpr( is_char_v<CharT> ) \
-			return d; \
-		else \
-			return LIBGS_WCHAR(d); \
-	}
-	LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-	else {
-		static_assert(false, "Invalid http method.");
-		return {};
-	}
+	return detail::method_string<Method,CharT>::get();
 }
 
 template <method Method>

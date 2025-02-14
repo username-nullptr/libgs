@@ -164,13 +164,13 @@ using basic_parameters = std::map <
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
-template <uint32_t Status, core_concepts::char_type CharT = char>
+template <status_t Status, core_concepts::char_type CharT = char>
 [[nodiscard]] consteval const CharT *status_description();
 
-template <uint32_t Status>
+template <status_t Status>
 [[nodiscard]] consteval const char *status_description();
 
-template <uint32_t Status>
+template <status_t Status>
 [[nodiscard]] consteval const wchar_t *wstatus_description();
 
 template <core_concepts::char_type CharT = char>
