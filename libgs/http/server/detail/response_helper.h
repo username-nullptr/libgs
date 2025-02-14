@@ -29,8 +29,6 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 
-#include <libgs/http/helper_base.h>
-
 namespace libgs::http
 {
 
@@ -67,8 +65,8 @@ template <core_concepts::char_type CharT>
 class basic_response_helper<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using helper_t = basic_helper_base<char_t>;
 
+public:
 	struct string_pool :
 		detail::string_pool<char_t>,
 		detail::response_helper_static_string<char_t> {};
@@ -78,110 +76,25 @@ public:
 	impl(version_t version, const headers_t &request_headers) :
 		m_version(version), m_request_headers(&request_headers) {}
 
-public:
-	[[nodiscard]] std::string header_data(size_t body_size)
-	{
-		auto it = m_response_headers.find(header_t::content_length);
-		if( it == m_response_headers.end() )
-		{
-			if( m_version > version::v10 )
-			{
-				it = m_response_headers.find(header_t::transfer_encoding);
-				if( it == m_response_headers.end() or str_to_lower(it->second.to_string()) != string_pool::chunked )
-					set_header(header_t::content_length, body_size);
-			}
-			else
-				set_header(header_t::content_length, body_size);
-		}
-		std::string buf;
-		buf.reserve(4096);
-
-		buf = std::format("HTTP/{} {} {}\r\n",
-			version_string(m_version), m_status, status_description(m_status)
-		);
-		m_response_headers.erase(string_pool::set_cookie);
-
-		for(auto &[key,value] : m_response_headers)
-			buf += xxtombs(key) + ": " + xxtombs(value.to_string()) + "\r\n";
-
-		for(auto &[ckey,cookie] : m_cookies)
-		{
-			buf += "set-cookie: " + xxtombs(ckey) + "=" + xxtombs(cookie.value().to_string()) + ";";
-			for(auto &[akey,attr] : cookie.attributes())
-				buf += xxtombs(akey) + "=" + xxtombs(attr.to_string()) + ";";
-
-			buf.pop_back();
-			buf += "\r\n";
-		}
-		return buf + "\r\n";
-	}
-
-	[[nodiscard]] std::string body_data(const void *buf, size_t size)
-	{
-		if( not is_chunked() )
-			return {static_cast<const char*>(buf), size};
-
-		std::string sum;
-		if( m_chunk_attributes.empty() )
-			sum += std::format("{:X}\r\n", size);
-		else
-		{
-			std::string attributes;
-			for(auto &attr : m_chunk_attributes)
-				attributes += xxtombs(attr.to_string()) + ";";
-
-			m_chunk_attributes.clear();
-			attributes.pop_back();
-			sum += std::format("{:X}; {}\r\n", size, attributes);
-		}
-		return sum + std::string(static_cast<const char*>(buf), size) + "\r\n";
-	}
-
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers)
-	{
-		auto it = m_response_headers.find(header_t::content_length);
-		if( it != m_response_headers.end() )
-			throw runtime_error("libgs::http::response_helper::chunk_end: 'Content-Length' has been set.");
-
-		it = m_response_headers.find(header_t::transfer_encoding);
-		if( it == m_response_headers.end() or str_to_lower(it->second) != string_pool::chunked )
-			throw runtime_error("libgs::http::response_helper::chunk_end: 'Transfer-Coding: chunked' not set.");
-
-		std::string buf = "0\r\n";
-		for(auto &[key,value] : headers)
-			buf += xxtombs(key) + ": " + xxtombs(value.to_string()) + "\r\n";
-		return buf + "\r\n";
-	}
-
-	template <typename...Args>
-	void set_header(Args&&...args) noexcept {
-		set_map(m_response_headers, std::forward<Args>(args)...);
-	}
-
-private:
-	[[nodiscard]] bool is_chunked() const
+	[[nodiscard]] bool request_chunked() const
 	{
 		if( m_version < version::v11 )
 			return false;
 
 		auto it = m_request_headers->find(header_t::transfer_encoding);
-		return it != m_request_headers->end() and str_to_lower(it->second.to_string()) == string_pool::chunked;
+		return it != m_request_headers->end() and
+			str_to_lower(it->second.to_string()) == string_pool::chunked;
 	}
 
 public:
-	version_t m_version = version::v11;
 	const headers_t *m_request_headers;
-
-	status_t m_status = status::ok;
-	headers_t m_response_headers {
-		{ header_t::content_type, string_pool::text_plain }
-	};
-	cookies_t m_cookies {};
-	value_set_t m_chunk_attributes {};
-	string_t m_redirect_url {};
-
-	// TODO ...
 	helper_t m_helper;
+
+	version_t m_version = version::v11;
+	status_t m_status = status::ok;
+
+	cookies_t m_cookies {};
+	string_t m_redirect_url {};
 };
 
 template <core_concepts::char_type CharT>
@@ -258,7 +171,7 @@ template <typename...Args>
 basic_response_helper<CharT> &basic_response_helper<CharT>::set_header(Args&&...args) noexcept
 	requires concepts::set_key_attr_params<char_t,Args...>
 {
-	set_map(m_impl->m_response_headers, std::forward<Args>(args)...);
+	m_impl->m_helper.set_header(std::forward<Args>(args)...);
 	return *this;
 }
 
@@ -299,17 +212,42 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::set_redirect
 template <core_concepts::char_type CharT>
 std::string basic_response_helper<CharT>::header_data(size_t body_size)
 {
-	return m_impl->header_data(body_size);
+	using string_pool = typename impl::string_pool;
+	if( m_impl->m_helper.state() != helper_t::state_t::header )
+		return {};
+
+	std::string buf;
+	buf.reserve(4096);
+
+	buf = std::format("HTTP/{} {} {}\r\n",
+		version_string(m_impl->m_version), m_impl->m_status, status_description(m_impl->m_status)
+	);
+	m_impl->m_helper.unset_header(string_pool::set_cookie);
+
+	if( m_impl->request_chunked() )
+		m_impl->m_helper.set_header(header_t::transfer_encoding, string_pool::chunked);
+	buf += m_impl->m_helper.header_data(body_size);
+
+	for(auto &[ckey,cookie] : m_impl->m_cookies)
+	{
+		buf += "set-cookie: " + xxtombs(ckey) + "=" + xxtombs(cookie.value().to_string()) + ";";
+		for(auto &[akey,attr] : cookie.attributes())
+			buf += xxtombs(akey) + "=" + xxtombs(attr.to_string()) + ";";
+
+		buf.pop_back();
+		buf += "\r\n";
+	}
+	return buf + "\r\n";
 }
 
 template <core_concepts::char_type CharT>
 std::string basic_response_helper<CharT>::body_data(const const_buffer &buffer)
 {
-	return m_impl->body_data(buffer.data(), buffer.size());
+	return m_impl->m_helper.body_data(buffer);
 }
 
 template <core_concepts::char_type CharT>
-std::string basic_response_helper<CharT>::chunk_end_data(const headers_t &headers)
+std::string basic_response_helper<CharT>::chunk_end_data(const map_helper_t &headers)
 {
 	return m_impl->chunk_end_data(headers);
 }
@@ -417,21 +355,22 @@ basic_response_helper<CharT> &basic_response_helper<CharT>::clear_chunk_attribut
 }
 
 template <core_concepts::char_type CharT>
-basic_response_helper<CharT> &basic_response_helper<CharT>::reset()
+basic_response_helper<CharT> &basic_response_helper<CharT>::reset() noexcept
 {
 	m_impl->m_version = version::v11;
 	m_impl->m_status = status::ok;
 
-	m_impl->m_response_headers = {
-		{ header_t::content_type, string_pool::text_plain }
-	};
 	m_impl->m_cookies.clear();
-	m_impl->m_chunk_attributes.clear();
 	m_impl->m_redirect_url.clear();
 
-	m_impl->m_chunk_end_writed = false;
-	m_impl->m_headers_writed = false;
+	m_impl->m_helper.reset();
 	return *this;
+}
+
+template <core_concepts::char_type CharT>
+typename basic_response_helper<CharT>::pro_state_t basic_response_helper<CharT>::pro_state() const noexcept
+{
+	return m_impl->m_helper.state();
 }
 
 } //namespace libgs::http

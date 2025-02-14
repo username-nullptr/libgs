@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
 #define LIBGS_HTTP_SERVER_RESPONSE_HELPER_H
 
-#include <libgs/http/types.h>
+#include <libgs/http/helper_base.h>
 
 namespace libgs::http
 {
@@ -38,7 +38,6 @@ template <core_concepts::char_type CharT>
 class LIBGS_HTTP_TAPI basic_response_helper final
 {
 	LIBGS_DISABLE_COPY(basic_response_helper)
-	using string_pool = detail::string_pool<CharT>;
 
 public:
 	using char_t = CharT;
@@ -58,6 +57,10 @@ public:
 	using attr_init_t = basic_attr_init<char_t>;
 	using pair_init_t = basic_key_attr_init<char_t>;
 	using cookie_init_t = basic_cookie_init<char_t>;
+	using map_helper_t = basic_attr_map_helper<char_t>;
+
+	using helper_t = basic_helper_base<char_t>;
+	using pro_state_t = typename helper_t::state_t;
 
 public:
 	explicit basic_response_helper(version_t version, const headers_t &request_headers = {});
@@ -93,7 +96,7 @@ public:
 public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const map_helper_t &headers = {});
 
 public:
 	[[nodiscard]] version_t version() const noexcept;
@@ -124,7 +127,9 @@ public:
 
 	basic_response_helper &unset_chunk_attribute(attr_init_t headers) noexcept;
 	basic_response_helper &clear_chunk_attribute() noexcept;
-	basic_response_helper &reset();
+
+	basic_response_helper &reset() noexcept;
+	[[nodiscard]] pro_state_t pro_state() const noexcept;
 
 private:
 	class impl;

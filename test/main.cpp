@@ -37,6 +37,15 @@ int main()
 	buf = helper.body_data(body);
 	std::cout << "body data: " << buf << std::endl;
 
+#if 1
+	buf = helper.chunk_end_data({"111", "234"});
+	buf = helper.chunk_end_data(std::make_pair("111","222"));
+	buf = helper.chunk_end_data(std::make_tuple("111","222"));
+	buf = helper.chunk_end_data({{"111","222"},{"333","444"}});
+	buf = helper.chunk_end_data({std::make_pair("111","222"),std::make_pair("333","444")});
+	buf = helper.chunk_end_data({std::make_tuple("111","222"),std::make_tuple("333","444")});
+#endif
+
 	// std::list l0 { 0,1,2,3,4 };
 	// std::list l1 { 5,6,7,8,9 };
 	//

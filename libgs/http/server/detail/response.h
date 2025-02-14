@@ -45,7 +45,7 @@ class basic_server_response<Stream,CharT>::impl
 	using static_string = detail::response_helper_static_string<char_t>;
 
 public:
-	impl(next_layer_t &&next_layer) :
+	explicit impl(next_layer_t &&next_layer) :
 		m_helper(next_layer.version(), next_layer.headers()),
 		m_next_layer(std::move(next_layer)) {}
 
@@ -54,11 +54,6 @@ public:
 	{
 		m_helper = std::move(other.m_helper);
 		m_next_layer = std::move(other.m_next_layer);
-		m_headers_writed = other.m_headers_writed;
-		m_chunk_end_writed = other.m_chunk_end_writed;
-
-		other.m_headers_writed = false;
-		other.m_chunk_end_writed = false;
 		return *this;
 	}
 
@@ -66,60 +61,61 @@ public:
 	{
 		m_helper = std::move(other.m_helper);
 		m_next_layer = std::move(other.m_next_layer);
-		m_headers_writed = other.m_headers_writed;
-		m_chunk_end_writed = other.m_chunk_end_writed;
-
-		other.m_headers_writed = false;
-		other.m_chunk_end_writed = false;
 		return *this;
 	}
 
 public:
-	void set_header(string_view_t key, value_t value) {
-		m_helper.set_header(key, std::move(value));
-	}
-
 	void set_status(status_t status) {
 		m_helper.set_status(status);
-	}
-
-public:
-	[[nodiscard]] size_t write(const const_buffer &body, error_code &error) noexcept
-	{
-		error = error_code();
-		if( m_headers_writed )
-		{
-			return body.size() == 0 and m_chunk_end_writed ?
-				0 : write_body(body, error);
-		}
-		auto sum = write_header(body.size(), error);
-		if( error )
-			return sum;
-		else if( body.size() > 0 )
-			sum += write_body(body, error);
-		return sum;
-	}
-
-	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error) noexcept
-	{
-		error = error_code();
-		if( m_headers_writed )
-		{
-			co_return body.size() == 0 and m_chunk_end_writed ?
-				0 : co_await co_write_body(body, error);
-		}
-		auto sum = co_await co_write_header(body.size(), error);
-		if( error )
-			co_return sum;
-		else if( body.size() > 0 )
-			sum += co_await co_write_body(body, error);
-		co_return sum;
 	}
 
 	void set_blocking(error_code &error)
 	{
 		socket_operation_helper<typename next_layer_t::next_layer_t>
 		(m_next_layer.next_layer()).non_blocking(false, error);
+	}
+
+	[[nodiscard]] auto pro_state() const noexcept {
+		return m_helper.pro_state();
+	}
+
+public:
+	[[nodiscard]] size_t write(const const_buffer &body, error_code &error) noexcept
+	{
+		if( pro_state() == helper_t::pro_state_t::finish )
+			return 0;
+
+		error = error_code();
+		size_t sum = 0;
+
+		if( pro_state() == helper_t::pro_state_t::header )
+		{
+			sum += write_header(body.size(), error);
+			if( error )
+				return sum;
+		}
+		if( body.size() > 0 )
+			sum += write_body(body, error);
+		return sum;
+	}
+
+	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error) noexcept
+	{
+		if( pro_state() == helper_t::pro_state_t::finish )
+			co_return 0;
+
+		error = error_code();
+		size_t sum = 0;
+
+		if( pro_state() == helper_t::pro_state_t::header )
+		{
+			sum += co_await co_write_header(body.size(), error);
+			if( error )
+				co_return sum;
+		}
+		if( body.size() > 0 )
+			sum += co_await co_write_body(body, error);
+		co_return sum;
 	}
 
 private:
@@ -139,11 +135,9 @@ public:
 	template <typename Opt>
 	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error)
 	{
-		if( m_headers_writed )
-		{
-			error = make_error_code(asio::error::no_protocol_option);
+		if( pro_state() == helper_t::pro_state_t::header or pro_state() == helper_t::pro_state_t::finish )
 			return 0;
-		}
+
 		fot_data data = 0;
 		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
 		if( error )
@@ -172,11 +166,9 @@ public:
 	template <typename Opt>
 	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error)
 	{
-		if( m_headers_writed )
-		{
-			error = make_error_code(asio::error::no_protocol_option);
+		if( pro_state() == helper_t::pro_state_t::header or pro_state() == helper_t::pro_state_t::finish )
 			co_return 0;
-		}
+
 		fot_data data;
 		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
 		if( error )
@@ -203,22 +195,20 @@ public:
 	}
 
 public:
-	[[nodiscard]] size_t chunk_end(const headers_t &headers, error_code &error, const char *func)
+	[[nodiscard]] size_t chunk_end(const map_helper_t &headers, error_code &error)
 	{
-		auto buf = chunk_end_check(headers, func);
-		auto res = write_body(buffer(buf, buf.size()), error);
-		if( not error )
-			m_chunk_end_writed = true;
-		return res;
+		auto buf = m_helper.chunk_end_data(headers);
+		if( buf.empty() )
+			return 0;
+		return write_body(buffer(buf), error);
 	}
 
-	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error, const char *func)
+	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error)
 	{
-		auto buf = chunk_end_check(headers, func);
-		auto res = co_await co_write_body(buffer(buf, buf.size()), error);
-		if( not error )
-			m_chunk_end_writed = true;
-		co_return res;
+		auto buf = m_helper.chunk_end_data(headers);
+		if( buf.empty() )
+			co_return 0;
+		co_return co_await co_write_body(buffer(buf), error);
 	}
 
 	[[nodiscard]] size_t check_time_out(const auto &var, error_code &error) const
@@ -239,7 +229,7 @@ private:
 		if( data.fsize == 0 )
 			return sum;
 
-		set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
+		m_helper.set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
 		sum += write_header(data.fsize, error);
 		if( error )
 			return sum;
@@ -271,7 +261,7 @@ private:
 		if( data.fsize == 0 )
 			co_return sum;
 
-		set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
+		m_helper.set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
 		sum += co_await co_write_header(data.fsize, error);
 		if( error )
 			co_return sum;
@@ -303,10 +293,10 @@ public:
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
-			set_header(header_t::accept_ranges, static_string::bytes);
-			set_header(header_t::content_type, mbstoxx<char_t>(mime_type));
-			set_header(header_t::content_length, range.total);
-			set_header(header_t::content_range, {
+			m_helper.set_header(header_t::accept_ranges, static_string::bytes);
+			m_helper.set_header(header_t::content_type, mbstoxx<char_t>(mime_type));
+			m_helper.set_header(header_t::content_length, range.total);
+			m_helper.set_header(header_t::content_range, value_t {
 				static_string::content_range_format, range.begin, range.end, range.total
 			});
 			return send_range(opt.stream, "", "", ranges, error);
@@ -317,8 +307,9 @@ public:
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
 		);
-		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<char_t>(boundary));
-
+		m_helper.set_header(header_t::content_type,
+			static_string::content_type_boundary + mbstoxx<char_t>(boundary)
+		);
 		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
@@ -345,8 +336,8 @@ public:
 		}
 		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
-		set_header(header_t::content_length, content_length);
-		set_header(header_t::accept_ranges, static_string::bytes);
+		m_helper.set_header(header_t::content_length, content_length);
+		m_helper.set_header(header_t::accept_ranges, static_string::bytes);
 		return send_range(opt.stream, boundary, ct_line, ranges, error);
 	}
 
@@ -357,10 +348,10 @@ public:
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
-			set_header(header_t::accept_ranges, static_string::bytes);
-			set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
-			set_header(header_t::content_length, range.total);
-			set_header(header_t::content_range, {
+			m_helper.set_header(header_t::accept_ranges, static_string::bytes);
+			m_helper.set_header(header_t::content_type, mbstoxx<char_t>(data.mtype));
+			m_helper.set_header(header_t::content_length, range.total);
+			m_helper.set_header(header_t::content_range, value_t {
 				static_string::content_range_format, range.begin, range.end, range.total
 			});
 			co_return co_await co_send_range(opt.stream, "", "", ranges, error);
@@ -371,8 +362,9 @@ public:
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
 		);
-		set_header(header_t::content_type, static_string::content_type_boundary + mbstoxx<char_t>(boundary));
-
+		m_helper.set_header(header_t::content_type,
+			static_string::content_type_boundary + mbstoxx<char_t>(boundary)
+		);
 		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
@@ -399,8 +391,8 @@ public:
 		}
 		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
-		set_header(header_t::content_length, content_length);
-		set_header(header_t::accept_ranges, static_string::bytes);
+		m_helper.set_header(header_t::content_length, content_length);
+		m_helper.set_header(header_t::accept_ranges, static_string::bytes);
 		co_return co_await co_send_range(opt.stream, boundary, ct_line, ranges, error);
 	}
 
@@ -714,48 +706,25 @@ private:
 		return list;
 	}
 
-	[[nodiscard]] std::string chunk_end_check(const headers_t &headers, const char *func)
-	{
-		if( not m_headers_writed )
-			throw runtime_error("libgs::http::server_response::{}: Http header hasn't been send.", func);
-
-		auto it = m_helper.headers().find(header_t::content_length);
-		if( it != m_helper.headers().end() )
-			throw runtime_error("libgs::http::server_response::{}: 'Content-Length' has been set.", func);
-
-		else if( m_chunk_end_writed )
-			throw runtime_error("libgs::http::server_response::{}: Chunk has been written.", func);
-
-		it = m_helper.headers().find(header_t::transfer_encoding);
-		if( it == m_helper.headers().end() or
-			str_to_lower(it->second.to_string()) != detail::string_pool<char_t>::chunked )
-			throw runtime_error("libgs::http::server_response::{}: 'Transfer-Coding: chunked' not set.", func);
-
-		std::string buf = "0\r\n";
-		for(auto &[key,value] : headers)
-			buf += xxtombs(key) + ": " + xxtombs(value.to_string()) + "\r\n";
-		return buf + "\r\n";
-	}
-
 private:
 	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept {
-		return write_funcdata(m_helper.header_data(size), true, error);
+		return write_funcdata(m_helper.header_data(size), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_header(size_t size, error_code &error) noexcept {
-		co_return co_await co_write_funcdata(m_helper.header_data(size), true, error);
+		co_return co_await co_write_funcdata(m_helper.header_data(size), error);
 	}
 
 	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept {
-		return write_funcdata(m_helper.body_data(body), false, error);
+		return write_funcdata(m_helper.body_data(body), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_body(const const_buffer &body, error_code &error) noexcept {
-		co_return co_await co_write_funcdata(m_helper.body_data(body), false, error);
+		co_return co_await co_write_funcdata(m_helper.body_data(body), error);
 	}
 
 private:
-	[[nodiscard]] size_t write_funcdata(std::string &&data, bool wheader, error_code &error) noexcept
+	[[nodiscard]] size_t write_funcdata(std::string &&data, error_code &error) noexcept
 	{
 		size_t sum = 0;
 		set_blocking(error);
@@ -772,12 +741,10 @@ private:
 				continue;
 			break;
 		}
-		if( not error and wheader )
-			m_headers_writed = true;
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_write_funcdata(std::string &&data, bool wheader, error_code &error) noexcept
+	[[nodiscard]] awaitable<size_t> co_write_funcdata(std::string &&data, error_code &error) noexcept
 	{
 		using namespace libgs::operators;
 		error = error_code();
@@ -793,8 +760,6 @@ private:
 				continue;
 			break;
 		}
-		if( not error and wheader )
-			m_headers_writed = true;
 		co_return sum;
 	}
 
@@ -853,9 +818,6 @@ private:
 public:
 	helper_t m_helper;
 	next_layer_t m_next_layer;
-
-	bool m_headers_writed = false;
-	bool m_chunk_end_writed = false;
 };
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
@@ -1162,7 +1124,7 @@ auto basic_server_response<Stream,CharT>::send_file
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream,CharT>::chunk_end(const headers_t &headers, Token &&token)
+auto basic_server_response<Stream,CharT>::chunk_end(const map_helper_t &headers, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code&> )
@@ -1250,15 +1212,9 @@ basic_server_response<Stream,CharT>::cookies() const noexcept
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>
-bool basic_server_response<Stream,CharT>::headers_writed() const noexcept
+bool basic_server_response<Stream,CharT>::is_finished() const noexcept
 {
-	return m_impl->m_headers_writed;
-}
-
-template <concepts::stream Stream, core_concepts::char_type CharT>
-bool basic_server_response<Stream,CharT>::chunk_end_writed() const noexcept
-{
-	return m_impl->m_chunk_end_writed;
+	return m_impl->pro_state() == helper_t::pro_state_t::finish;
 }
 
 template <concepts::stream Stream, core_concepts::char_type CharT>

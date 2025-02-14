@@ -195,6 +195,37 @@ template <core_concepts::char_type CharT,
 	core_concepts::basic_string_type<CharT> auto &&key, T &&def_value
 );
 
+template <core_concepts::char_type CharT, typename Value>
+class LIBGS_HTTP_VAPI basic_map_helper
+{
+public:
+	using char_t = CharT;
+	using value_t = Value;
+	using pair_init_t = basic_key_attr_init<char_t>;
+
+public:
+	template <typename...Args>
+	basic_map_helper(Args&&...args) noexcept requires
+		concepts::set_key_attr_params<char_t,Args...>;
+
+	basic_map_helper(pair_init_t headers) noexcept;
+	basic_map_helper() = default;
+
+	basic_map<char_t,value_t> map;
+};
+
+template <typename V>
+using map_helper = basic_map_helper<char,V>;
+
+template <typename V>
+using wmap_helper = basic_map_helper<wchar_t,V>;
+
+template <core_concepts::char_type CharT>
+using basic_attr_map_helper = basic_map_helper<CharT,basic_value<CharT>>;
+
+using attr_map_helper  = basic_attr_map_helper<char>;
+using wattr_map_helper = basic_attr_map_helper<wchar_t>;
+
 } //namespace libgs::http
 #include <libgs/http/cxx/detail/container.h>
 

@@ -63,6 +63,7 @@ public:
 	using attr_init_t = basic_attr_init<char_t>;
 	using pair_init_t = basic_key_attr_init<char_t>;
 	using cookie_init_t = basic_cookie_init<char_t>;
+	using map_helper_t = basic_attr_map_helper<char_t>;
 
 public:
 	explicit basic_server_response(next_layer_t &&next_layer);
@@ -118,7 +119,7 @@ public:
 
 public:
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto chunk_end(const headers_t &headers, Token &&token = {});
+	auto chunk_end(const map_helper_t &headers, Token &&token = {});
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
 	auto chunk_end(Token &&token = {});
@@ -130,9 +131,7 @@ public:
 	[[nodiscard]] const headers_t &headers() const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
 
-	[[nodiscard]] bool headers_writed() const noexcept;
-	[[nodiscard]] bool chunk_end_writed() const noexcept;
-
+	[[nodiscard]] bool is_finished() const noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_server_response &cancel() noexcept;
 

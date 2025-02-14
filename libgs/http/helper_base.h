@@ -55,6 +55,7 @@ public:
 	using attr_init_t = basic_attr_init<char_t>;
 	using pair_init_t = basic_key_attr_init<char_t>;
 	using key_init_t = basic_key_init<char_t>;
+	using map_helper_t = basic_attr_map_helper<char_t>;
 
 	enum class state_t {
 		header, content_length, chunk, finish
@@ -88,7 +89,7 @@ public:
 public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const map_helper_t &headers = {});
 
 public:
 	template <typename...Args>
