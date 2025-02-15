@@ -68,7 +68,7 @@ inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::
 	file_name = std::move(abs_name);
 	namespace fs = std::filesystem;
 
-	if( (mode & std::ios_base::out) == 0 and not fs::exists(file_name) )
+	if( (mode & std::ios_base::out) == 0 and not fs::exists(mbstowcs(file_name)) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
 	stream->open(file_name.c_str(), mode);
@@ -181,7 +181,7 @@ inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base
 	file_name = std::move(abs_name);
 	namespace fs = std::filesystem;
 
-	if( (mode & std::ios_base::out) == 0 and not fs::exists(file_name) )
+	if( (mode & std::ios_base::out) == 0 and not fs::exists(mbstowcs(file_name)) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
 	stream->open(file_name.c_str(), mode);

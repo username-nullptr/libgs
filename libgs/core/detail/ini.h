@@ -350,7 +350,7 @@ public:
 	void load(error_code &error, const std::function<bool()> &cancelled)
 	{
 		error = error_code();
-		if( not std::filesystem::exists(m_file_name) )
+		if( not std::filesystem::exists(mbstowcs(m_file_name)) )
 		{
 			error = std::make_error_code(std::errc::no_such_file_or_directory);
 			return ;
@@ -1173,7 +1173,7 @@ template <concepts::char_type CharT,
 template <concepts::opt_token<error_code> Token>
 auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load_or(Token &&token)
 {
-	if( std::filesystem::exists(file_name()) )
+	if( std::filesystem::exists(mbstowcs(file_name())) )
 		return load(std::forward<Token>(token));
 
 	if constexpr( is_async_opt_token_v<Token> )

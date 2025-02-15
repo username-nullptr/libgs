@@ -85,7 +85,8 @@ inline std::wstring mbstowcs(std::string_view str)
 	auto buf = std::make_shared<wchar_t[]>(size + 1);
 
 #ifdef _MSC_VER
-	::mbstowcs_s(&size, buf.get(), size, str.data(), size);
+	size_t rsize = 0;
+	::mbstowcs_s(&rsize, buf.get(), size + 1, str.data(), size);
 #else
 	std::mbstowcs(buf.get(), str.data(), size);
 #endif

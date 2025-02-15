@@ -7,7 +7,7 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 	constexpr size_t count = 8;
-	libgs::co_semaphore<3> semaphore;
+	libgs::co_semaphore semaphore(3);
 	size_t j = 0;
 
 	for(size_t i=0; i<count; i++)

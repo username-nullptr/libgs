@@ -104,7 +104,7 @@ void library::impl::set_file_name(std::string_view file_name)
 	for(auto &name : candidates)
 	{
 		auto abs_name = app::absolute_path(name);
-		if( not fs::exists(abs_name) )
+		if( not fs::exists(mbstowcs(abs_name)) )
 			continue;
 
 		m_file_name = std::move(abs_name);
@@ -115,12 +115,12 @@ void library::impl::set_file_name(std::string_view file_name)
 void library::impl::load_native(error_code &error)
 {
 	error = error_code();
-	if( not fs::exists(m_file_name) )
+	auto wfile_name = mbstowcs(m_file_name);
+	if( not fs::exists(wfile_name) )
 	{
 		error = std::make_error_code(std::errc::no_such_file_or_directory);
 		return ;
 	}
-	std::wstring wfile_name = mbstowcs(m_file_name);
 	m_handle = LoadLibraryW(wfile_name.c_str());
 	if( m_handle )
 		error = error_code(static_cast<int>(GetLastError()), g_library_category);
