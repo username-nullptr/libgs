@@ -163,7 +163,7 @@ template <concepts::char_type CharT>
 	size_t str_len = str.size();
 	int32_t weight = 0;
 
-	std::vector<std::vector<bool>> dp(str_len + 1, std::vector<bool>(rule_len + 1, false));
+	std::vector dp(str_len + 1, std::vector(rule_len + 1, false));
 	dp[0][0] = true;
 
 	for(size_t j=1; j<rule_len+1; j++)

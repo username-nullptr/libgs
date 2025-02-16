@@ -60,7 +60,7 @@ int main()
 //		co_await context.response().write("hello world !!!", asio::use_awaitable);
 		co_await context.response()
 			// .send_file("~/hello_world.txt", asio::use_awaitable);
-			.send_file("C:/Users/Administrator/Desktop/hello_world.txt", asio::use_awaitable);
+			.send_file("C:/opt/data/秦岭.jpg", asio::use_awaitable);
 		co_return ;
 	})
 	.on_service_error([](libgs::http::server::context_t&, const std::exception &ex)

@@ -38,6 +38,7 @@ template <concepts::stream Stream, core_concepts::char_type CharT>
 class basic_server_request<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
+	using sock_helper_t = socket_operation_helper<next_layer_t>;
 
 public:
 	template <typename Native>
@@ -86,8 +87,10 @@ public:
 			error = std::make_error_code(static_cast<std::errc>(errc::eof));
 			return sum;
 		}
+		sock_helper_t sock_helper(m_next_layer);
+
 		asio::socket_base::receive_buffer_size op;
-		socket_operation_helper<next_layer_t>(m_next_layer).get_option(op, error);
+		sock_helper.get_option(op, error);
 		if( error )
 			return sum;
 
@@ -101,17 +104,15 @@ public:
 				break;
 
 			body = std::string(op.value(),'\0');
-			auto tmp_buf = const_cast<char*>(body.c_str());
-			size_t tmp_sum = 0;
 			for(;;)
 			{
-				tmp_sum += m_next_layer.read_some(buffer(tmp_buf + tmp_sum, body.size() - tmp_sum), error);
-				sum += tmp_sum;
+				auto tmp_sum = sock_helper.read (
+					{body.data(), body.size()}, error
+				);
+				if( error )
+					return sum;
 
-				if( error and error.value() == errc::interrupted )
-					continue;
-
-				bool res = m_parser->append({tmp_buf, tmp_sum}, error);
+				bool res = m_parser->append({body.data(), tmp_sum}, error);
 				if( error )
 					return sum;
 				else if( res )
@@ -130,56 +131,55 @@ public:
 		error = error_code();
 		const size_t buf_size = buf.size();
 		size_t sum = 0;
-		do {
-			if( buf_size == 0 )
-				break;
-			else if( is_eof() )
-			{
-				error = std::make_error_code(static_cast<std::errc>(errc::eof));
-				break;
-			}
-			asio::socket_base::receive_buffer_size op;
-			socket_operation_helper<next_layer_t>(m_next_layer).get_option(op, error);
-			if( error )
-				break;
 
-			auto read_task = [&,this]() mutable -> awaitable<size_t>
-			{
-				auto dst_buf = reinterpret_cast<char*>(buf.data());
-				do {
-					auto body = m_parser->take_partial_body(buf_size);
-					sum += body.size();
+		if( buf_size == 0 )
+			co_return sum;
 
-					memcpy(dst_buf + sum, body.c_str(), body.size());
-					if( sum == buf_size or not m_parser->can_read_from_device() )
-						break;
-
-					body = std::string(op.value(),'\0');
-					auto tmp_buf = const_cast<char*>(body.c_str());
-					size_t tmp_sum = 0;
-					for(;;)
-					{
-						auto read_buf = buffer(tmp_buf + tmp_sum, body.size() - tmp_sum);
-						tmp_sum += co_await m_next_layer.async_read_some(read_buf, use_awaitable|error);
-
-						if( error and error.value() == errc::interrupted )
-							continue;
-
-						bool res = m_parser->append({tmp_buf, tmp_sum}, error);
-						if( error )
-							co_return sum;
-						else if( res )
-							break;
-					}
-				}
-				while(true);
-				co_return sum;
-			};
-			auto var = co_await (read_task() or co_sleep_for(30s /*,get_executor()*/));
-			if( var.index() == 1 and sum == 0 )
-				error = make_error_code(errc::timed_out);
+		else if( is_eof() )
+		{
+			error = std::make_error_code(static_cast<std::errc>(errc::eof));
+			co_return sum;
 		}
-		while(false);
+		sock_helper_t sock_helper(m_next_layer);
+
+		asio::socket_base::receive_buffer_size op;
+		sock_helper.get_option(op, error);
+		if( error )
+			co_return sum;
+
+		auto read_task = [&,this]() mutable -> awaitable<size_t>
+		{
+			auto dst_buf = reinterpret_cast<char*>(buf.data());
+			do {
+				auto body = m_parser->take_partial_body(buf_size);
+				sum += body.size();
+
+				memcpy(dst_buf + sum, body.c_str(), body.size());
+				if( sum == buf_size or not m_parser->can_read_from_device() )
+					break;
+
+				body = std::string(op.value(),'\0');
+				for(;;)
+				{
+					auto tmp_sum = co_await sock_helper.read (
+						{body.data(), body.size()}, use_awaitable | error
+					);
+					if( error )
+						co_return sum;
+
+					bool res = m_parser->append({body.data(), tmp_sum}, error);
+					if( error )
+						co_return sum;
+					else if( res )
+						break;
+				}
+			}
+			while(true);
+			co_return sum;
+		};
+		auto var = co_await (read_task() or co_sleep_for(30s /*,get_executor()*/));
+		if( var.index() == 1 and sum == 0 )
+			error = make_error_code(errc::timed_out);
 		co_return sum;
 	}
 

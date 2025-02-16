@@ -72,10 +72,11 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 			if( token )
 				break;
 
-			sum += socket().read(
-				libgs::buffer(buffer.data() + sum, buffer.size() - sum),
-				token
+			auto asio_buf = libgs::buffer (
+				reinterpret_cast<char*>(buffer.data()) + sum,
+				buffer.size() - sum
 			);
+			sum += socket().read(asio_buf, token);
 			if( token and token.value() == errc::interrupted )
 				continue;
 			break;
@@ -104,9 +105,12 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 			size_t sum = 0;
 			for(;;)
 			{
-				sum += co_await socket.async_read (
-					libgs::buffer(buffer.data() + sum, buffer.size() - sum),
-					use_awaitable | error
+				auto asio_buf = libgs::buffer (
+					reinterpret_cast<char*>(buffer.data()) + sum,
+					buffer.size() - sum
+				);
+				sum += co_await socket.async_read_some (
+					asio_buf, use_awaitable | error
 				);
 				if( error and error.value() == errc::interrupted )
 					continue;
@@ -154,10 +158,11 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 			if( token )
 				break;
 
-			sum += asio::write(socket(),
-				libgs::buffer(buffer.data() + sum, buffer.size() - sum),
-				token
+			auto asio_buf = libgs::buffer (
+				reinterpret_cast<const char*>(buffer.data()) + sum,
+				buffer.size() - sum
 			);
+			sum += asio::write(socket(), asio_buf, token);
 			if( token and token.value() == errc::interrupted )
 				continue;
 			break;
@@ -186,9 +191,12 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 			size_t sum = 0;
 			for(;;)
 			{
-				sum += co_await asio::async_write(socket,
-					libgs::buffer(buffer.data() + sum, buffer.size() - sum),
-					use_awaitable | error
+				auto asio_buf = libgs::buffer (
+					reinterpret_cast<const char*>(buffer.data()) + sum,
+					buffer.size() - sum
+				);
+				sum += co_await asio::async_write (
+					socket, asio_buf, use_awaitable | error
 				);
 				if( error and error.value() == errc::interrupted )
 					continue;

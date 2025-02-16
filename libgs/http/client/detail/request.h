@@ -59,20 +59,73 @@ public:
 	}
 
 public:
+	template <core_concepts::tf_opt_token<error_code,size_t> Token>
+	auto write(const const_buffer &body, Token &&token)
+	{
+		using token_t = std::remove_cvref_t<Token>;
+		if constexpr( std::is_same_v<token_t, error_code> )
+			return token ? 0 : base_write(body, token);
+
+		else if constexpr( is_sync_opt_token_v<token_t> )
+		{
+			error_code error;
+			auto res = write(body, error);
+			if( error )
+				throw system_error(error, "libgs::http::client_request::write");
+			return res;
+		}
+#ifdef LIBGS_USING_BOOST_ASIO
+		else if constexpr( is_yield_context_v<token_t> )
+		{
+			// TODO ... ...
+		}
+#endif //LIBGS_USING_BOOST_ASIO
+		else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+		{
+			auto ntoken = unbound_redirect_time(token);
+			return asio::co_spawn(get_executor(),
+			[this, body, ntoken, timeout = get_associated_redirect_time(token)]() mutable -> awaitable<size_t>
+			{
+				error_code error;
+				auto var = co_await (
+					co_base_write(body, error) or
+					co_sleep_for(timeout, get_executor())
+				);
+				auto res = check_time_out(var, error);
+
+				check_error(remove_const(ntoken), error, "libgs::http::client_request::write");
+				co_return res;
+			},
+			ntoken);
+		}
+		else
+		{
+			return asio::co_spawn(get_executor(), [this, body, token]() mutable -> awaitable<size_t>
+			{
+				error_code error;
+				auto res = co_await co_base_write(body, error);
+				check_error(remove_const(token), error, "libgs::http::client_request::write");
+				co_return res;
+			},
+			token);
+		}
+	}
+
 	// TODO ... ...
 
 public:
-	[[nodiscard]] size_t write(std::string &&data, error_code &error)
+	[[nodiscard]] size_t base_write(std::string &&data, error_code &error)
 	{
-		if( state() == state_t::finish )
-			throw runtime_error("libgs::http::client_request: request already sent.");
-
-		m_session = m_impl->m_pool.get({
-			url().address(), url().port()
-		});
-		auto &sock = m_session.opt_helper();
-
 		size_t sent = 0;
+		get_session(error);
+		if( error )
+			return sent;
+
+		auto &sock = m_session.opt_helper();
+		sock.non_blocking(false, error);
+		if( error )
+			return sent;
+
 		if( state() == state_t::header )
 			sent += sock.write(m_helper.header_data<method_v>(data.size()), error);
 
@@ -81,18 +134,16 @@ public:
 		return sent;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_write(std::string &&data, error_code &error)
+	[[nodiscard]] awaitable<size_t> co_base_write(std::string &&data, error_code &error)
 	{
-		if( state() == state_t::finish )
-			throw runtime_error("libgs::http::client_request: request already sent.");
+		size_t sent = 0;
+		co_await co_get_session(error);
+		if( error )
+			co_return sent;
 
 		using namespace libgs::operators;
-		m_session = co_await m_impl->m_pool.get(
-			{url().address(), url().port()}, use_awaitable | error
-		);
 		auto &sock = m_session.opt_helper();
 
-		size_t sent = 0;
 		if( state() == state_t::header )
 		{
 			sent += co_await sock.write (
@@ -107,6 +158,62 @@ public:
 			);
 		}
 		co_return sent;
+	}
+
+public:
+	[[nodiscard]] size_t chunk_end(const map_helper_t &headers, error_code &error)
+	{
+		if( state() != state_t::chunk )
+			return 0;
+		auto buf = m_helper.chunk_end_data(headers);
+		if( buf.empty() )
+			return 0;
+		return base_write(buffer(buf), error);
+	}
+
+	[[nodiscard]] awaitable<size_t> co_chunk_end(const map_helper_t &headers, error_code &error)
+	{
+		if( state() != state_t::chunk )
+			co_return 0;
+		auto buf = m_helper.chunk_end_data(headers);
+		if( buf.empty() )
+			co_return 0;
+		co_return co_await co_base_write(buffer(buf), error);
+	}
+
+public:
+	void get_session(error_code &error)
+	{
+		if( state() == state_t::finish )
+			throw runtime_error("libgs::http::client_request: request already sent.");
+		else if( m_session )
+			return ;
+		m_session = m_impl->m_pool.get (
+			{url().address(), url().port()}, error
+		);
+	}
+
+	[[nodiscard]] awaitable<void> co_get_session(std::string &&data, error_code &error)
+	{
+		if( state() == state_t::finish )
+			throw runtime_error("libgs::http::client_request: request already sent.");
+		else if( m_session )
+			co_return ;
+
+		using namespace libgs::operators;
+		m_session = co_await m_impl->m_pool.get (
+			{url().address(), url().port()}, use_awaitable | error
+		);
+		co_return ;
+	}
+
+	[[nodiscard]] size_t check_time_out(const auto &var, error_code &error) const
+	{
+		if( var.index() == 0 )
+			return std::get<0>(var);
+		else if( not std::get<1>(var) )
+			error = make_error_code(errc::timed_out);
+		return 0;
 	}
 
 public:
@@ -159,7 +266,7 @@ template <core_concepts::char_type CharT, method Method, concepts::session_pool 
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::write(Token &&token)
 {
-
+	return m_impl->write({nullptr,0}, std::forward<Token>(token));
 }
 
 template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
@@ -167,7 +274,7 @@ template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::write
 (const const_buffer &body, Token &&token) requires put_or_post
 {
-
+	return m_impl->write(body, std::forward<Token>(token));
 }
 
 template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>

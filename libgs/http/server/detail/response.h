@@ -41,6 +41,9 @@ class basic_server_response<Stream,CharT>::impl
 	LIBGS_DISABLE_COPY(impl)
 
 	using response_t = basic_server_response;
+	using sock_helper_t = socket_operation_helper<typename next_layer_t::next_layer_t>;
+
+	using pro_state_t = typename helper_t::pro_state_t;
 	using string_list_t = basic_string_list<char_t>;
 	using static_string = detail::response_helper_static_string<char_t>;
 
@@ -69,12 +72,6 @@ public:
 		m_helper.set_status(status);
 	}
 
-	void set_blocking(error_code &error)
-	{
-		socket_operation_helper<typename next_layer_t::next_layer_t>
-		(m_next_layer.next_layer()).non_blocking(false, error);
-	}
-
 	[[nodiscard]] auto pro_state() const noexcept {
 		return m_helper.pro_state();
 	}
@@ -82,13 +79,13 @@ public:
 public:
 	[[nodiscard]] size_t write(const const_buffer &body, error_code &error) noexcept
 	{
-		if( pro_state() == helper_t::pro_state_t::finish )
+		if( pro_state() == pro_state_t::finish )
 			return 0;
 
 		error = error_code();
 		size_t sum = 0;
 
-		if( pro_state() == helper_t::pro_state_t::header )
+		if( pro_state() == pro_state_t::header )
 		{
 			sum += write_header(body.size(), error);
 			if( error )
@@ -101,13 +98,13 @@ public:
 
 	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error) noexcept
 	{
-		if( pro_state() == helper_t::pro_state_t::finish )
+		if( pro_state() == pro_state_t::finish )
 			co_return 0;
 
 		error = error_code();
 		size_t sum = 0;
 
-		if( pro_state() == helper_t::pro_state_t::header )
+		if( pro_state() == pro_state_t::header )
 		{
 			sum += co_await co_write_header(body.size(), error);
 			if( error )
@@ -135,7 +132,7 @@ public:
 	template <typename Opt>
 	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error)
 	{
-		if( pro_state() == helper_t::pro_state_t::header or pro_state() == helper_t::pro_state_t::finish )
+		if( pro_state() != pro_state_t::header )
 			return 0;
 
 		fot_data data = 0;
@@ -166,7 +163,7 @@ public:
 	template <typename Opt>
 	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error)
 	{
-		if( pro_state() == helper_t::pro_state_t::header or pro_state() == helper_t::pro_state_t::finish )
+		if( pro_state() != pro_state_t::header )
 			co_return 0;
 
 		fot_data data;
@@ -197,14 +194,18 @@ public:
 public:
 	[[nodiscard]] size_t chunk_end(const map_helper_t &headers, error_code &error)
 	{
+		if( pro_state() != pro_state_t::chunk )
+			return 0;
 		auto buf = m_helper.chunk_end_data(headers);
 		if( buf.empty() )
 			return 0;
 		return write_body(buffer(buf), error);
 	}
 
-	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error)
+	[[nodiscard]] awaitable<size_t> co_chunk_end(const map_helper_t &headers, error_code &error)
 	{
+		if( pro_state() != pro_state_t::chunk )
+			co_return 0;
 		auto buf = m_helper.chunk_end_data(headers);
 		if( buf.empty() )
 			co_return 0;
@@ -708,59 +709,43 @@ private:
 
 private:
 	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept {
-		return write_funcdata(m_helper.header_data(size), error);
+		return base_write(m_helper.header_data(size), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_header(size_t size, error_code &error) noexcept {
-		co_return co_await co_write_funcdata(m_helper.header_data(size), error);
+		co_return co_await co_base_write(m_helper.header_data(size), error);
 	}
 
 	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept {
-		return write_funcdata(m_helper.body_data(body), error);
+		return base_write(m_helper.body_data(body), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_body(const const_buffer &body, error_code &error) noexcept {
-		co_return co_await co_write_funcdata(m_helper.body_data(body), error);
+		co_return co_await co_base_write(m_helper.body_data(body), error);
 	}
 
 private:
-	[[nodiscard]] size_t write_funcdata(std::string &&data, error_code &error) noexcept
+	[[nodiscard]] size_t base_write(std::string &&data, error_code &error)
 	{
-		size_t sum = 0;
-		set_blocking(error);
+		size_t sent = 0;
+		sock_helper_t sock_helper(m_next_layer.next_layer());
+
+		sock_helper.non_blocking(false, error);
 		if( error )
-			return sum;
-		for(;;)
-		{
-			sum += asio::write (
-				m_next_layer.next_layer(),
-				buffer(data.c_str() + sum, data.size() - sum),
-				error
-			);
-			if( error and error.value() == errc::interrupted )
-				continue;
-			break;
-		}
-		return sum;
+			return sent;
+
+		sent += sock_helper.write(data, error);
+		return sent;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_write_funcdata(std::string &&data, error_code &error) noexcept
+	[[nodiscard]] awaitable<size_t> co_base_write(std::string &&data, error_code &error)
 	{
+		sock_helper_t sock_helper(m_next_layer.next_layer());
+		size_t sent = 0;
+
 		using namespace libgs::operators;
-		error = error_code();
-		size_t sum = 0;
-		for(;;)
-		{
-			sum += co_await asio::async_write (
-				m_next_layer.next_layer(),
-				buffer(data.c_str() + sum, data.size() - sum),
-				use_awaitable | error
-			);
-			if( error and error.value() == errc::interrupted )
-				continue;
-			break;
-		}
-		co_return sum;
+		sent += co_await sock_helper.write(data, use_awaitable | error);
+		co_return sent;
 	}
 
 private:
@@ -932,10 +917,8 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
-	{
-		m_impl->set_blocking(token);
 		return token ? 0 : m_impl->write(body, token);
-	}
+
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
@@ -996,7 +979,6 @@ auto basic_server_response<Stream,CharT>::redirect
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
 	{
-		m_impl->set_blocking(token);
 		if( not token )
 		{
 			m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
@@ -1071,10 +1053,8 @@ auto basic_server_response<Stream,CharT>::send_file
 	using token_t = std::remove_cvref_t<Token>;
 
 	if constexpr( std::is_same_v<token_t, error_code> )
-	{
-		m_impl->set_blocking(token);
 		return token ? 0 : m_impl->send_file(std::forward<opt_t>(opt), token);
-	}
+
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
@@ -1128,10 +1108,8 @@ auto basic_server_response<Stream,CharT>::chunk_end(const map_helper_t &headers,
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code&> )
-	{
-		m_impl->set_blocking(token);
 		return token ? 0 : m_impl->chunk_end(headers, token, "chunk_end");
-	}
+
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
