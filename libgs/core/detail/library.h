@@ -29,10 +29,7 @@
 #ifndef LIBGS_CORE_DETAIL_LIBRARY_H
 #define LIBGS_CORE_DETAIL_LIBRARY_H
 
-namespace libgs
-{
-
-namespace detail
+namespace libgs { namespace detail
 {
 
 template <typename T>

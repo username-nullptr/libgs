@@ -28,11 +28,13 @@
 
 #include "detail/library_impl.hii"
 
+namespace fs = std::filesystem;
+
 namespace libgs
 {
 
-library::library(std::string_view file_name, std::string_view version) :
-	m_impl(new impl(file_name, version))
+library::library(fs::path file_name, std::string_view version) :
+	m_impl(new impl(std::move(file_name), version))
 {
 
 }
@@ -100,7 +102,7 @@ bool library::is_loaded() const noexcept
 	return m_impl->m_handle != nullptr;
 }
 
-std::string_view library::file_name() const noexcept
+fs::path library::file_name() const noexcept
 {
 	return m_impl->m_file_name;
 }

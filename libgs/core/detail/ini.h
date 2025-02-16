@@ -32,7 +32,6 @@
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/execution.h>
 #include <libgs/core/app_utls.h>
-#include <filesystem>
 #include <fstream>
 
 namespace libgs
@@ -308,10 +307,10 @@ class LIBGS_CORE_TAPI basic_ini<CharT,IniKeys,Exec,GroupMap>::impl :
 	friend class basic_ini;
 
 public:
-	impl(const auto &exec, std::string_view file_name) :
+	impl(const auto &exec, const std::filesystem::path &file_name) :
 		m_exec(exec), m_timer(exec)
 	{
-		set_file_name(file_name);
+		set_file_name(std::move(file_name));
 	}
 
 	impl(impl&&) = default;
@@ -342,7 +341,7 @@ public:
 	}
 
 public:
-	void set_file_name(std::string_view file_name)
+	void set_file_name(const std::filesystem::path &file_name)
 	{
 		m_file_name = app::absolute_path(file_name);
 	}
@@ -350,7 +349,7 @@ public:
 	void load(error_code &error, const std::function<bool()> &cancelled)
 	{
 		error = error_code();
-		if( not std::filesystem::exists(mbstowcs(m_file_name)) )
+		if( not exists(m_file_name) )
 		{
 			error = std::make_error_code(std::errc::no_such_file_or_directory);
 			return ;
@@ -602,7 +601,7 @@ private:
 
 public:
 	executor_t m_exec {};
-	std::string m_file_name {};
+	std::filesystem::path m_file_name {};
 	group_map_t m_groups {};
 
 	asio::steady_timer m_timer;
@@ -672,7 +671,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini
-(concepts::match_execution_context<executor_t> auto &exec, std::string_view file_name) :
+(concepts::match_execution_context<executor_t> auto &exec, const std::filesystem::path &file_name) :
 	basic_ini(exec.get_executor(), file_name)
 {
 
@@ -683,7 +682,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini
-(const concepts::match_execution<executor_t> auto &exec, std::string_view file_name)
+(const concepts::match_execution<executor_t> auto &exec, const std::filesystem::path &file_name)
 {
 	m_impl = std::make_shared<impl>(exec, file_name);
 }
@@ -692,7 +691,7 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(std::string_view file_name)
+basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(const std::filesystem::path &file_name)
 	requires concepts::match_default_execution<executor_t> :
 	basic_ini(io_context(), file_name)
 {
@@ -765,7 +764,7 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-void basic_ini<CharT,IniKeys,Exec,GroupMap>::set_file_name(std::string_view file_name)
+void basic_ini<CharT,IniKeys,Exec,GroupMap>::set_file_name(const std::filesystem::path &file_name)
 {
 	m_impl->set_file_name(file_name);
 }
@@ -774,7 +773,7 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-std::string_view basic_ini<CharT,IniKeys,Exec,GroupMap>::file_name() const noexcept
+std::filesystem::path basic_ini<CharT,IniKeys,Exec,GroupMap>::file_name() const noexcept
 {
 	return m_impl->m_file_name;
 }
@@ -1173,7 +1172,7 @@ template <concepts::char_type CharT,
 template <concepts::opt_token<error_code> Token>
 auto basic_ini<CharT,IniKeys,Exec,GroupMap>::load_or(Token &&token)
 {
-	if( std::filesystem::exists(mbstowcs(file_name())) )
+	if( exists(file_name()) )
 		return load(std::forward<Token>(token));
 
 	if constexpr( is_async_opt_token_v<Token> )

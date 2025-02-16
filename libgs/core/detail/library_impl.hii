@@ -52,14 +52,14 @@ class LIBGS_DECL_HIDDEN library::impl
 	;
 
 public:
-	impl(std::string_view file_name, std::string_view version)
+	impl(path_t file_name, std::string_view version)
 #ifdef __linux__
 		: m_version(version) {
 #else
 	{
 		ignore_unused(version);
 #endif //__linux__
-		set_file_name(file_name);
+		set_file_name(std::move(file_name));
 	}
 
 	impl(impl &&other) noexcept :
@@ -114,12 +114,12 @@ public:
 	[[nodiscard]] bool exists(std::string_view ifname) const;
 
 private:
-	void set_file_name(std::string_view file_name);
+	void set_file_name(path_t file_name);
 	void load_native(error_code &error);
 	void unload_native(error_code &error);
 
 public:
-	std::string m_file_name;
+	path_t m_file_name;
 	std::atomic_int m_load_count {0};
 	handle_t m_handle = nullptr;
 

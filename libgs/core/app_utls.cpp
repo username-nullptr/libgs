@@ -28,40 +28,42 @@
 
 #include "app_utls.h"
 
+namespace fs = std::filesystem;
+
 namespace libgs::app
 {
 
-std::string file_path()
+fs::path file_path()
 {
 	error_code error;
-	auto res = file_path(error);
+	auto path = file_path(error);
 	if( error )
 		throw system_error(error, "libgs::app::file_path");
-	return res;
+	return path;
 }
 
-std::string dir_path()
+fs::path dir_path()
 {
 	error_code error;
-	auto res = dir_path(error);
+	auto path = dir_path(error);
 	if( error )
 		throw system_error(error, "libgs::app::dir_path");
-	return res;
+	return path;
 }
 
-std::string dir_path(error_code &error) noexcept
+fs::path dir_path(error_code &error) noexcept
 {
-	auto file_name = file_path(error);
+	auto file_name = file_path(error).wstring();
 	if( error )
 		return {};
 
-	auto index = file_name.find_last_of('/');
-	if( index == std::string::npos or index == file_name.size() - 1 )
-		return "./";
-	return file_name.erase(index+1);
+	auto index = file_name.find_last_of(L'/');
+	if( index == std::wstring::npos or index == file_name.size() - 1 )
+		return L"./";
+	return file_name.erase(index + 1);
 }
 
-bool set_current_directory(std::string_view path)
+bool set_current_directory(const fs::path &path)
 {
 	error_code error;
 	bool res = set_current_directory(error, path);
@@ -70,22 +72,22 @@ bool set_current_directory(std::string_view path)
 	return res;
 }
 
-std::string current_directory()
+fs::path current_directory()
 {
 	error_code error;
-	auto res = current_directory(error);
+	auto path = current_directory(error);
 	if( error )
 		throw system_error(error, "libgs::app::current_directory");
-	return res;
+	return path;
 }
 
-std::string absolute_path(std::string_view path)
+fs::path absolute_path(const fs::path &path)
 {
 	error_code error;
-	auto res = absolute_path(error, path);
+	auto apath = absolute_path(error, path);
 	if( error )
 		throw system_error(error, "libgs::app::absolute_path");
-	return res;
+	return apath;
 }
 
 using optional_string = std::optional<std::string>;

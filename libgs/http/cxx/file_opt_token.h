@@ -91,6 +91,7 @@ using type = size_t; constexpr type
 template <core_concepts::fstream_wkn FS>
 struct LIBGS_HTTP_TAPI file_opt_token_base
 {
+	using path_t = std::filesystem::path;
 	using fstream_t = std::remove_cvref_t<FS>;
 	using pos_t = typename fstream_t::pos_type;
 
@@ -106,11 +107,11 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::single> : file_opt_token
 {
 	using type = void;
 	std::shared_ptr<fstream_t> stream {new fstream_t()};
-	std::string file_name;
+	path_t file_name;
 	std::optional<file_range> range;
 
-	file_opt_token(std::string_view file_name);
-	file_opt_token(std::string_view file_name, const file_range &range);
+	file_opt_token(path_t file_name);
+	file_opt_token(path_t file_name, const file_range &range);
 	~file_opt_token();
 
 	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
@@ -164,15 +165,15 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::multiple> : file_opt_tok
 {
 	using type = void;
 	std::shared_ptr<fstream_t> stream;
-	std::string file_name;
+	path_t file_name;
 	file_ranges ranges;
 
-	file_opt_token(std::string_view file_name);
-	file_opt_token(std::string_view file_name, const file_range &range);
-	file_opt_token(std::string_view file_name, file_ranges ranges);
+	file_opt_token(path_t file_name);
+	file_opt_token(path_t file_name, const file_range &range);
+	file_opt_token(path_t file_name, file_ranges ranges);
 
 	template <concepts::file_ranges_init_list...Args>
-	file_opt_token(std::string_view file_name, Args&&...ranges);
+	file_opt_token(path_t file_name, Args&&...ranges);
 
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
 	~file_opt_token();
@@ -237,7 +238,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 
 template <typename...Args>
 [[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt_token(
-	std::string_view file_name, Args&&...args
+	std::filesystem::path file_name, Args&&...args
 ) noexcept;
 
 template <typename...Args>
@@ -320,7 +321,7 @@ template <typename T, typename CharT,
 	io_permission::type Perms = io_permission::read_write
 >
 concept basic_file_opt_token_arg =
-	core_concepts::char_string_type<T> or
+	core_concepts::string_type<T> or
 	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
 	basic_file_opt_token<T,CharT,Types,Perms>;
 
@@ -358,8 +359,8 @@ concept file_opt_token_arg =
 namespace operators
 {
 
-[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::string_view file_name, const file_range &range);
-[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::string_view file_name, file_ranges ranges);
+[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::filesystem::path file_name, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::filesystem::path file_name, file_ranges ranges);
 
 [[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::fstream_wkn auto &&stream, const file_range &range);
 [[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::fstream_wkn auto &&stream, file_ranges ranges);

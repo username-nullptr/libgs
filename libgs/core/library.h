@@ -39,7 +39,9 @@ class LIBGS_CORE_API library
 	LIBGS_DISABLE_COPY(library)
 
 public:
-	explicit library(std::string_view file_name, std::string_view version = {});
+	using path_t = std::filesystem::path;
+
+	explicit library(path_t file_name, std::string_view version = {});
 	~library();
 
 	library(library &&other) noexcept;
@@ -64,7 +66,7 @@ public:
 
 public:
 	[[nodiscard]] bool is_loaded() const noexcept;
-	[[nodiscard]] std::string_view file_name() const noexcept;
+	[[nodiscard]] path_t file_name() const noexcept;
 
 private:
 	class impl;

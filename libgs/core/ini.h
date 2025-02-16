@@ -182,13 +182,13 @@ public:
 public:
 	explicit basic_ini (
 		concepts::match_execution_context<executor_t> auto &exec,
-		std::string_view file_name = {}
+		const std::filesystem::path &file_name = {}
 	);
 	explicit basic_ini (
 		const concepts::match_execution<executor_t> auto &exec,
-		std::string_view file_name = {}
+		const std::filesystem::path &file_name = {}
 	);
-	explicit basic_ini(std::string_view file_name = {}) requires
+	explicit basic_ini(const std::filesystem::path &file_name = {}) requires
 		concepts::match_default_execution<executor_t>;
 
 	virtual ~basic_ini();
@@ -204,8 +204,8 @@ public:
 		requires concepts::match_execution<Exec0,executor_t>;
 
 public:
-	virtual void set_file_name(std::string_view file_name);
-	[[nodiscard]] virtual std::string_view file_name() const noexcept;
+	virtual void set_file_name(const std::filesystem::path &file_name);
+	[[nodiscard]] virtual std::filesystem::path file_name() const noexcept;
 
 public:
 	template <concepts::basic_text_arg<CharT> T = value_t>

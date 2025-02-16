@@ -33,6 +33,8 @@
 #include <unordered_map>
 #include <fstream>
 
+namespace fs = std::filesystem;
+
 namespace libgs
 {
 
@@ -1031,15 +1033,15 @@ mime_head_map &signatures_map_offset4()
 	return g_signatures_map_offset4;
 }
 
-static std::string mime_from_magic(std::string_view file_name)
+static std::string mime_from_magic(const fs::path &file_name)
 {
-	std::ifstream file(app::absolute_path(file_name).c_str());
+	std::ifstream file(app::absolute_path(file_name));
 	auto mime_type = detail::mime_from_magic(file);
 	file.close();
 	return mime_type;
 }
 
-std::string mime_type(std::string_view file_name, bool magic_first)
+std::string mime_type(const fs::path &file_name, bool magic_first)
 {
 	if( magic_first )
 	{
@@ -1047,7 +1049,7 @@ std::string mime_type(std::string_view file_name, bool magic_first)
 		if( type != "unknown" )
 			return type;
 
-		auto name = libgs::file_name(file_name);
+		auto name = libgs::file_name(file_name.string());
 		auto pos = name.rfind('.');
 
 		if( pos == std::string::npos )
@@ -1058,7 +1060,7 @@ std::string mime_type(std::string_view file_name, bool magic_first)
 			return type;
 		return it->second;
 	}
-	auto name = libgs::file_name(file_name);
+	auto name = libgs::file_name(file_name.string());
 	auto pos = name.rfind('.');
 
 	if( pos == std::string::npos )
@@ -1070,22 +1072,22 @@ std::string mime_type(std::string_view file_name, bool magic_first)
 	return it->second;
 }
 
-bool is_text_file(std::string_view file_name)
+bool is_text_file(const fs::path &file_name)
 {
-	std::ifstream file(file_name.data());
+	std::ifstream file(file_name);
 	bool res = is_text_file(file);
 	file.close();
 	return res;
 }
 
-bool is_binary_file(std::string_view file_name)
+bool is_binary_file(const fs::path &file_name)
 {
 	return not is_text_file(file_name);
 }
 
-std::string text_file_encoding(std::string_view file_name)
+std::string text_file_encoding(const fs::path &file_name)
 {
-	std::ifstream file(file_name.data());
+	std::ifstream file(file_name);
 	auto res = text_file_encoding(file);
 	file.close();
 	return res;

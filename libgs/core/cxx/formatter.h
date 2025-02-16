@@ -30,6 +30,7 @@
 #define LIBGS_CORE_CXX_FORMATTER_H
 
 #include <libgs/core/cxx/utilities.h>
+#include <filesystem>
 #include <optional>
 #include <thread>
 #include <atomic>
@@ -210,6 +211,24 @@ struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_fo
 		else
 			return format_to(context.out(), L"{}:({})", libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get()));
 	}
+};
+
+template <libgs::concepts::char_type CharT>
+struct LIBGS_CORE_TAPI formatter<std::filesystem::path, CharT>
+{
+	auto format(const std::filesystem::path &path, auto &context) const
+	{
+		if constexpr( std::is_same_v<CharT, char> )
+			return m_formatter.format(path.string(), context);
+		else
+			return m_formatter.format(path.wstring(), context);
+	}
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<std::basic_string<CharT>, CharT> m_formatter;
 };
 
 } //namespace std

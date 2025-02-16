@@ -30,7 +30,6 @@
 
 #include "library_impl.hii"
 #include <libgs/core/app_utls.h>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -88,23 +87,24 @@ bool library::impl::exists(std::string_view ifname) const
 	return reinterpret_cast<void*>(GetProcAddress(m_handle, ifname.data())) != nullptr;
 }
 
-void library::impl::set_file_name(std::string_view file_name)
+void library::impl::set_file_name(fs::path file_name)
 {
-	m_file_name = std::string(file_name.data(), file_name.size());
-	std::vector<std::string> candidates
+	m_file_name = std::move(file_name);
+	auto _file_name = m_file_name.wstring();
+	std::vector candidates
 	{
-		m_file_name,
-		m_file_name + ".dll",
+		_file_name,
+		_file_name + L".dll",
 	};
-	if( m_file_name.find('/') == std::string_view::npos )
+	if( _file_name.find(L'/') == std::wstring::npos )
 	{
-		candidates.emplace_back("lib" + m_file_name);
-		candidates.emplace_back("lib" + m_file_name + ".dll");
+		candidates.emplace_back(L"lib" + _file_name);
+		candidates.emplace_back(L"lib" + _file_name + L".dll");
 	};
 	for(auto &name : candidates)
 	{
 		auto abs_name = app::absolute_path(name);
-		if( not fs::exists(mbstowcs(abs_name)) )
+		if( not fs::exists(abs_name) )
 			continue;
 
 		m_file_name = std::move(abs_name);
@@ -115,13 +115,13 @@ void library::impl::set_file_name(std::string_view file_name)
 void library::impl::load_native(error_code &error)
 {
 	error = error_code();
-	auto wfile_name = mbstowcs(m_file_name);
-	if( not fs::exists(wfile_name) )
+	if( not fs::exists(m_file_name) )
 	{
 		error = std::make_error_code(std::errc::no_such_file_or_directory);
 		return ;
 	}
-	m_handle = LoadLibraryW(wfile_name.c_str());
+	auto _file_name = m_file_name.wstring();
+	m_handle = LoadLibraryW(_file_name.c_str());
 	if( m_handle )
 		error = error_code(static_cast<int>(GetLastError()), g_library_category);
 }

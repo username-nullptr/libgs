@@ -37,37 +37,37 @@ namespace libgs::app
 {
 
 [[nodiscard]] LIBGS_CORE_API
-std::string file_path();
+std::filesystem::path file_path();
 
 [[nodiscard]] LIBGS_CORE_API
-std::string file_path(error_code &error) noexcept;
+std::filesystem::path file_path(error_code &error) noexcept;
 
 [[nodiscard]] LIBGS_CORE_API
-std::string dir_path();
+std::filesystem::path dir_path();
 
 [[nodiscard]] LIBGS_CORE_API
-std::string dir_path(error_code &error) noexcept;
+std::filesystem::path dir_path(error_code &error) noexcept;
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-bool set_current_directory(std::string_view path);
+bool set_current_directory(const std::filesystem::path &path);
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-bool set_current_directory(error_code &error, std::string_view path) noexcept;
+bool set_current_directory(error_code &error, const std::filesystem::path &path) noexcept;
 
 [[nodiscard]] LIBGS_CORE_API
-std::string current_directory();
+std::filesystem::path current_directory();
 
 [[nodiscard]] LIBGS_CORE_API
-std::string current_directory(error_code &error) noexcept;
+std::filesystem::path current_directory(error_code &error) noexcept;
 
 [[nodiscard]] LIBGS_CORE_API
-std::string absolute_path(std::string_view path);
+std::filesystem::path absolute_path(const std::filesystem::path &path);
 
 [[nodiscard]] LIBGS_CORE_API
-std::string absolute_path(error_code &error, std::string_view path) noexcept;
+std::filesystem::path absolute_path(error_code &error, const std::filesystem::path &path) noexcept;
 
 [[nodiscard]] LIBGS_CORE_API
-bool is_absolute_path(std::string_view path) noexcept;
+bool is_absolute_path(const std::filesystem::path &path) noexcept;
 
 [[nodiscard]] LIBGS_CORE_API
 std::optional<std::string> getenv(std::string_view key);
@@ -94,16 +94,24 @@ bool unsetenv(std::string_view key);
 bool unsetenv(error_code &error, std::string_view key) noexcept;
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-bool setenv(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+bool setenv(std::string_view key,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
+);
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-bool setenv(error_code &error, std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept;
+bool setenv(error_code &error, std::string_view key,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
+) noexcept;
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+bool setenv(std::string_view key, bool overwrite,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
+);
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-bool setenv(error_code &error, std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept;
+bool setenv(error_code &error, std::string_view key, bool overwrite,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
+) noexcept;
 
 template <concepts::char_string_type T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
 bool setenv(std::string_view key, T &&value, bool overwrite = true);

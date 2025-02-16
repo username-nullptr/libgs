@@ -33,13 +33,15 @@ namespace libgs::app
 {
 
 template <typename Arg0, typename...Args>
-bool setenv(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+bool setenv
+(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
 {
 	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...));
 }
 
 template <typename Arg0, typename...Args>
-bool setenv(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+bool setenv
+(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
 {
 	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...), overwrite);
 }
@@ -53,9 +55,14 @@ bool setenv(std::string_view key, T &&value, bool overwrite)
 inline namespace literals
 {
 
-inline std::string operator""_abs(const char *path, size_t len)
+inline std::filesystem::path operator""_abs(const char *path, size_t len)
 {
-	return absolute_path({path, len});
+	return absolute_path(std::string(path, len));
+}
+
+inline std::filesystem::path operator""_abs(const wchar_t *path, size_t len)
+{
+	return absolute_path(std::wstring(path, len));
 }
 
 } //inline namespace app_literals

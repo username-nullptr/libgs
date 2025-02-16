@@ -35,15 +35,17 @@
 
 /* extern char **environ; */
 
+namespace fs = std::filesystem;
+
 namespace libgs::app
 {
 
-static inline void set_error(error_code &error)
+static void set_error(error_code &error)
 {
 	error.assign(errno, std::system_category());
 }
 
-std::string file_path(error_code &error) noexcept
+fs::path file_path(error_code &error) noexcept
 {
 	error = error_code();
 	char exe_name[1024] = "";
@@ -53,10 +55,12 @@ std::string file_path(error_code &error) noexcept
 	return exe_name;
 }
 
-bool set_current_directory(error_code &error, std::string_view path) noexcept
+bool set_current_directory(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
-	if( chdir(path.data()) < 0 )
+    auto str = path.string();
+
+	if( chdir(str.data()) < 0 )
 	{
 		set_error(error);
 		return false;
@@ -64,7 +68,7 @@ bool set_current_directory(error_code &error, std::string_view path) noexcept
 	return true;
 }
 
-std::string current_directory(error_code &error) noexcept
+fs::path current_directory(error_code &error) noexcept
 {
 	error = error_code();
 	char buf[1024] = "";
@@ -78,24 +82,26 @@ std::string current_directory(error_code &error) noexcept
 	return str;
 }
 
-bool is_absolute_path(std::string_view path) noexcept
+bool is_absolute_path(const fs::path &path) noexcept
 {
-	if( path.starts_with("/") )
+	auto str = path.string();
+	if( str.starts_with("/") )
 		return true;
-	else if( path.starts_with("~") )
-		return path.size() == 1 or path[1] == '/';
+	else if( str.starts_with("~") )
+		return str.size() == 1 or str[1] == '/';
 	return false;
 }
 
-std::string absolute_path(error_code &error, std::string_view path) noexcept
+fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
-	std::string result(path.data(), path.size());
+	auto str = path.wstring();
+	auto result = str;
 
 	if( not is_absolute_path(path) )
-		result = dir_path() + result;
+		result = dir_path().string() + result;
 
-	else if( path.starts_with("~") )
+	else if( str.starts_with("~") )
 	{
 		auto tmp = ::getenv("HOME");
 		if( tmp == nullptr )

@@ -38,6 +38,8 @@ namespace libgs
 
 [[nodiscard]] LIBGS_CORE_API const char *version_string();
 
+[[nodiscard]] LIBGS_CORE_API const char *text_code();
+
 template<typename Rep, typename Period>
 LIBGS_CORE_TAPI void sleep_for(const duration<Rep,Period> &rtime);
 

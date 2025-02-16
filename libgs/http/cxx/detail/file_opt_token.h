@@ -31,20 +31,18 @@
 
 #include <libgs/core/algorithm/mime_type.h>
 #include <libgs/core/app_utls.h>
-#include <filesystem>
 
 namespace libgs::http
 {
 
-inline file_opt_token<void,file_optype::single>::file_opt_token(std::string_view file_name) :
-	file_name(file_name.data(), file_name.size())
+inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_name) :
+	file_name(std::move(file_name))
 {
 
 }
 
-inline file_opt_token<void,file_optype::single>::file_opt_token(std::string_view file_name, const file_range &range) :
-	file_name(file_name.data(), file_name.size()),
-	range(range)
+inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_name, const file_range &range) :
+	file_name(std::move(file_name)), range(range)
 {
 
 }
@@ -68,10 +66,10 @@ inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::
 	file_name = std::move(abs_name);
 	namespace fs = std::filesystem;
 
-	if( (mode & std::ios_base::out) == 0 and not fs::exists(mbstowcs(file_name)) )
+	if( (mode & std::ios_base::out) == 0 and not exists(file_name) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
-	stream->open(file_name.c_str(), mode);
+	stream->open(file_name, mode);
 	if( not stream->is_open() )
 		return std::make_error_code(static_cast<std::errc>(errno));
 	return error;
@@ -126,30 +124,29 @@ error_code file_opt_token<FS&,file_optype::single>::init(std::ios_base::openmode
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }
 
-inline file_opt_token<void,file_optype::multiple>::file_opt_token(std::string_view file_name) :
-	stream(new fstream_t()),
-	file_name(file_name.data(), file_name.size())
+inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name) :
+	stream(new fstream_t()), file_name(std::move(file_name))
 {
 
 }
 
-inline file_opt_token<void,file_optype::multiple>::file_opt_token(std::string_view file_name, const file_range &range) :
-	file_opt_token(file_name, file_ranges{range})
+inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, const file_range &range) :
+	file_opt_token(std::move(file_name), file_ranges{range})
 {
 
 }
 
-inline file_opt_token<void,file_optype::multiple>::file_opt_token(std::string_view file_name, file_ranges ranges) :
+inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, file_ranges ranges) :
 	stream(new fstream_t()),
-	file_name(file_name.data(), file_name.size()),
+	file_name(std::move(file_name)),
 	ranges(std::move(ranges))
 {
 
 }
 
 template <concepts::file_ranges_init_list...Args>
-file_opt_token<void,file_optype::multiple>::file_opt_token(std::string_view file_name, Args&&...ranges) :
-	file_opt_token(file_name, file_ranges{std::forward<Args>(ranges)...})
+file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, Args&&...ranges) :
+	file_opt_token(std::move(file_name), file_ranges{std::forward<Args>(ranges)...})
 {
 
 }
@@ -181,10 +178,10 @@ inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base
 	file_name = std::move(abs_name);
 	namespace fs = std::filesystem;
 
-	if( (mode & std::ios_base::out) == 0 and not fs::exists(mbstowcs(file_name)) )
+	if( (mode & std::ios_base::out) == 0 and not exists(file_name) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
-	stream->open(file_name.c_str(), mode);
+	stream->open(file_name, mode);
 	if( not stream->is_open() )
 		return std::make_error_code(static_cast<std::errc>(errno));
 	return error;
@@ -309,9 +306,9 @@ auto make_file_opt_token(auto &&arg, Args&&...args) noexcept
 } //namespace detail
 
 template <typename...Args>
-auto make_file_opt_token(std::string_view file_name, Args&&...args) noexcept
+auto make_file_opt_token(std::filesystem::path file_name, Args&&...args) noexcept
 {
-	return detail::make_file_opt_token<void>(file_name, std::forward<Args>(args)...);
+	return detail::make_file_opt_token<void>(std::move(file_name), std::forward<Args>(args)...);
 }
 
 template <typename...Args>

@@ -30,7 +30,6 @@
 
 #include "library_impl.hii"
 #include <libgs/core/app_utls.h>
-#include <filesystem>
 #include <dlfcn.h>
 
 namespace fs = std::filesystem;
@@ -69,29 +68,30 @@ bool library::impl::exists(std::string_view ifname) const
 	return dlsym(m_handle, ifname.data()) != nullptr;
 }
 
-void library::impl::set_file_name(std::string_view file_name)
+void library::impl::set_file_name(fs::path file_name)
 {
-	m_file_name = std::string(file_name.data(), file_name.size());
+	m_file_name = std::move(file_name);
+    auto _file_name = m_file_name.string();
 #ifdef __APPLE__
-	std::vector<std::string> candidates
+	std::vector candidates
 	{
-		m_file_name + ".bundle",
-		m_file_name + ".dylib",
-		m_file_name + "." + m_version + ".bundle",
-		m_file_name + "." + m_version + ".dylib"
+		_file_name + ".bundle",
+		_file_name + ".dylib",
+		_file_name + "." + m_version + ".bundle",
+		_file_name + "." + m_version + ".dylib"
 	};
 #else
-	std::vector<std::string> candidates
+	std::vector candidates
 	{
-		m_file_name,
-		m_file_name + ".so",
-		m_file_name + ".so." + m_version
+		_file_name,
+		_file_name + ".so",
+		_file_name + ".so." + m_version
 	};
-	if( m_file_name.find('/') == std::string_view::npos )
+	if( _file_name.find('/') == std::string_view::npos )
 	{
-		candidates.emplace_back("lib" + m_file_name);
-		candidates.emplace_back("lib" + m_file_name + ".so");
-		candidates.emplace_back("lib" + m_file_name + ".so." + m_version);
+		candidates.emplace_back("lib" + _file_name);
+		candidates.emplace_back("lib" + _file_name + ".so");
+		candidates.emplace_back("lib" + _file_name + ".so." + m_version);
 	}
 #endif
 	for(auto &name : candidates)
@@ -113,7 +113,8 @@ void library::impl::load_native(error_code &error)
 		error = std::make_error_code(std::errc::no_such_file_or_directory);
 		return ;
 	}
-	m_handle = dlopen(m_file_name.c_str(), RTLD_NOW);
+    auto _file_name = m_file_name.string();
+	m_handle = dlopen(_file_name.c_str(), RTLD_NOW);
 	if( not m_handle )
 		error = error_code(errno, g_library_category);
 }

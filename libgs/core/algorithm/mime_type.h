@@ -44,16 +44,16 @@ using mime_head_map = std::map<std::string, std::string>;
 [[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map_offset4();
 
 [[nodiscard]] LIBGS_CORE_API
-std::string mime_type(std::string_view file_name, bool magic_first = false);
+std::string mime_type(const std::filesystem::path &file_name, bool magic_first = false);
 
 [[nodiscard]] LIBGS_CORE_API
-bool is_text_file(std::string_view file_name);
+bool is_text_file(const std::filesystem::path &file_name);
 
 [[nodiscard]] LIBGS_CORE_API
-bool is_binary_file(std::string_view file_name);
+bool is_binary_file(const std::filesystem::path &file_name);
 
 [[nodiscard]] LIBGS_CORE_API
-std::string text_file_encoding(std::string_view file_name);
+std::string text_file_encoding(const std::filesystem::path &file_name);
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI std::string mime_type(FS &stream)

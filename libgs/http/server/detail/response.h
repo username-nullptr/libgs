@@ -752,7 +752,7 @@ private:
 	template <typename Opt>
 	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error)
 	{
-		if constexpr( is_char_string_v<Opt> or is_fstream_v<Opt> or is_ofstream_v<Opt> )
+		if constexpr( is_string_v<Opt> or is_fstream_v<Opt> or is_ofstream_v<Opt> )
 		{
 			using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
 			using type = typename token_t::type;

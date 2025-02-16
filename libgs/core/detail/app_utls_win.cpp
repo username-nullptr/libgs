@@ -34,6 +34,8 @@
 #include "libgs/core/algorithm/base.h"
 #include "libgs/core/app_utls.h"
 
+namespace fs = std::filesystem;
+
 namespace libgs::app
 {
 
@@ -47,89 +49,90 @@ static LPSTR convert_error_code_to_string(DWORD errc)
 }
 #endif
 
-static inline void set_error(error_code &error)
+static void set_error(error_code &error)
 {
 	error.assign(static_cast<int>(GetLastError()), std::system_category());
 }
 
-std::string file_path(error_code &error) noexcept
+fs::path file_path(error_code &error) noexcept
 {
-	TCHAR buf[MAX_PATH] = {0};
-	auto len = GetModuleFileName(nullptr, buf, _countof(buf));
+	WCHAR buf[MAX_PATH] {0};
+	auto len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
 
 	if( len == 0 )
 		set_error(error);
 
-	std::string path(buf, len);
-	str_replace(path, "\\", "/");
+	std::wstring path(buf, len);
+	str_replace(path, L"\\", L"/");
 	return path;
 }
 
-bool set_current_directory(error_code &error, std::string_view path) noexcept
+bool set_current_directory(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
+	auto wpath = path.wstring();
+	str_replace(wpath, L"/", L"\\");
 
-	std::string _path(path.data(), path.size());
-	str_replace(_path, "/", "\\");
-
-	if( SetCurrentDirectory(_path.c_str()) )
+	if( SetCurrentDirectoryW(wpath.c_str()) )
 		return true;
 
 	set_error(error);
 	return false;
 }
 
-std::string current_directory(error_code &error) noexcept
+fs::path current_directory(error_code &error) noexcept
 {
 	error = error_code();
 
-	char buf[1024] = "";
-	auto len = GetCurrentDirectory(1023, buf);
+	wchar_t buf[1024] {0};
+	auto len = GetCurrentDirectoryW(1023, buf);
 
 	if( len == 0 )
 		set_error(error);
 
-	std::string path(buf, len);
-	str_replace(path, "\\", "/");
+	std::wstring path(buf, len);
+	str_replace(path, L"\\", L"/");
 
-	if( not path.ends_with("/") )
-		path += "/";
+	if( not path.ends_with(L"/") )
+		path += L"/";
 	return buf;
 }
 
-bool is_absolute_path(std::string_view path) noexcept
+bool is_absolute_path(const fs::path &path) noexcept
 {
-	if( path.starts_with("/") )
+	auto wpath = path.wstring();
+	if( wpath.starts_with(L"/") )
 		return true;
-	else if( path.starts_with("~") )
-		return path.size() == 1 or path[1] == '/' or path[1] == '\\';
+	else if( wpath.starts_with(L"~") )
+		return wpath.size() == 1 or wpath[1] == L'/' or wpath[1] == L'\\';
 
-	auto pos = path.find(':');
-	if( pos == 0 or pos == std::string::npos )
+	auto pos = wpath.find(L':');
+	if( pos == 0 or pos == std::wstring::npos )
 		return false;
 
-	else if( pos == path.size() - 1 )
+	else if( pos == wpath.size() - 1 )
 		return true;
 
-	if( path[pos + 1] == '/' or path[pos + 1] == '\\' )
+	if( wpath[pos + 1] == L'/' or wpath[pos + 1] == L'\\' )
 		return true;
 	return false;
 }
 
 constexpr size_t g_max_buf_size = 4096;
 
-std::string absolute_path(error_code &error, std::string_view path) noexcept
+fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
-	std::string result(path.data(), path.size());
+	auto wpath = path.wstring();
+	auto result = wpath;
 
 	if( not is_absolute_path(path) )
-		result = dir_path() + result;
+		result = dir_path().wstring() + result;
 
-	else if( path.starts_with("~") )
+	else if( wpath.starts_with(L"~") )
 	{
-		char tmp[g_max_buf_size] = {0};
-		auto len = GetEnvironmentVariable("USERPROFILE", tmp, g_max_buf_size);
+		wchar_t tmp[g_max_buf_size] {0};
+		auto len = GetEnvironmentVariableW(L"USERPROFILE", tmp, g_max_buf_size);
 
 		if( len == 0 or len > g_max_buf_size )
 		{
@@ -137,16 +140,16 @@ std::string absolute_path(error_code &error, std::string_view path) noexcept
 			result.clear();
 			return result;
 		}
-		std::string home(tmp, len);
-		str_replace(home, "\\", "/");
+		std::wstring home(tmp, len);
+		str_replace(home, L"\\", L"/");
 
-		if( home.ends_with("/") )
+		if( home.ends_with(L"/") )
 			home.pop_back();
 
 		result = home + result.erase(0,1);
 	}
-	str_replace(result, "/./", "/", false);
-	str_replace(result, "//", "/", false);
+	str_replace(result, L"/./", L"/", false);
+	str_replace(result, L"//", L"/", false);
 	return result;
 }
 
