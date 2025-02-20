@@ -35,6 +35,30 @@
 namespace libgs
 {
 
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto co_sleep_for(concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
+{
+	return sleep_for(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
+}
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto co_sleep_for(const duration<Rep,Period> &rtime, Token &&token)
+{
+	return sleep_for(rtime, std::forward<Token>(token));
+}
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto co_sleep_until(concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
+{
+	return sleep_for(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
+}
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto co_sleep_until(const time_point<Rep,Period> &atime, Token &&token)
+{
+	return sleep_for(atime, std::forward<Token>(token));
+}
+
 template <typename T>
 awaitable<T> co_wait(const std::future<T> &future)
 {

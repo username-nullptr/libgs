@@ -19,7 +19,7 @@ int main()
 			co_await locker.lock();
 
 			spdlog::info("======== {} : {}", id, j++);
-			co_await libgs::sleep_for(1s, libgs::use_awaitable);
+			co_await libgs::co_sleep_for(1s);
 
 			// mutex.unlock();
 

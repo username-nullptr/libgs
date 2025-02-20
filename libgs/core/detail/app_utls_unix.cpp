@@ -95,7 +95,7 @@ bool is_absolute_path(const fs::path &path) noexcept
 fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
-	auto str = path.wstring();
+	auto str = path.string();
 	auto result = str;
 
 	if( not is_absolute_path(path) )

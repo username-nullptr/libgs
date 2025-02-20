@@ -43,6 +43,26 @@ using namespace asio::experimental::awaitable_operators;
 namespace libgs
 {
 
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_sleep_for (
+	concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token = use_awaitable
+);
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_sleep_for (
+	const duration<Rep,Period> &rtime, Token &&token = use_awaitable
+);
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_sleep_until (
+	concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
+);
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
+[[nodiscard]] LIBGS_CORE_TAPI auto co_sleep_until (
+	const time_point<Rep,Period> &atime, Token &&token = use_awaitable
+);
+
 template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI awaitable<T> co_wait (
 	const std::future<T> &future

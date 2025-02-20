@@ -170,7 +170,7 @@ template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_s
 	const duration<Rep,Period> &rtime, Token &&token = {}
 );
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token =  const use_awaitable_t&>
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
 	concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
 );

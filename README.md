@@ -97,15 +97,15 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::http::server::context&, std::exception &ex)
+	.on_service_error([](libgs::http::server::context&, std::exception &ex)
 	{
-		spdlog::error("on_exception: {}", ex);
+		spdlog::error("on_service_error: {}", ex);
 //		return false; // Returning false will result in abort !!!
 		return true;
 	})
-	.on_system_error([](std::error_code error)
+	.on_server_error([](std::error_code error)
 	{
-		spdlog::error("on_system_error: {}", error);
+		spdlog::error("on_server_error: {}", error);
 		libgs::execution::exit(-1);
 		return true;
 	})
@@ -204,15 +204,15 @@ int main()
 //			.co_send_file("C:/Users/Administrator/Desktop/hello_world.txt");
 		co_return ;
 	})
-	.on_exception([](libgs::https::server::context&, std::exception &ex)
+	.on_service_error([](libgs::https::server::context&, std::exception &ex)
 	{
-		spdlog::error("on_exception: {}", ex);
+		spdlog::error("on_service_error: {}", ex);
 //		return false; // Returning false will result in abort !!!
 		return true;
 	})
-	.on_system_error([](std::error_code error)
+	.on_server_error([](std::error_code error)
 	{
-		spdlog::error("on_system_error: {}", error);
+		spdlog::error("on_server_error: {}", error);
 		libgs::execution::exit(-1);
 		return true;
 	})

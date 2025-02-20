@@ -485,16 +485,34 @@ namespace detail
 {
 
 template <typename Exec, typename Token>
-awaitable<void> co_sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
+[[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
 {
 	asio::steady_timer timer(std::forward<Exec>(exec),
 		std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
 	);
-	co_return co_await timer.async_wait(token);
+	co_await timer.async_wait(std::forward<Token>(token));
+
+	using namespace operators;
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( is_cancellation_slot_binder_v<token_t> )
+	{
+		auto &target = token.get();
+		using target_t = std::remove_cvref_t<decltype(target)>;
+
+		if constexpr( is_redirect_error_v<target_t> )
+			co_return target.token_;
+		else
+			co_return error_code();
+	}
+	else if constexpr( is_redirect_error_v<token_t> )
+		co_return token.ec_;
+	else
+		co_return error_code();
 }
 
 template <typename Token>
-awaitable<void> co_sleep_x(const auto &stdtime, Token &&token)
+[[nodiscard]] awaitable<error_code> co_sleep_x(const auto &stdtime, Token &&token)
 {
 	co_return co_await co_sleep_x(co_await asio::this_coro::executor,
 		stdtime, std::forward<Token>(token)
