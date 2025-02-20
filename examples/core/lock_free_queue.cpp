@@ -1,4 +1,5 @@
 #include <libgs/core/lock_free_queue.h>
+#include <libgs/core/execution.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;

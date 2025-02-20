@@ -40,12 +40,6 @@ namespace libgs
 
 [[nodiscard]] LIBGS_CORE_API const char *text_code();
 
-template<typename Rep, typename Period>
-LIBGS_CORE_TAPI void sleep_for(const duration<Rep,Period> &rtime);
-
-template<typename Clock, typename Duration>
-LIBGS_CORE_TAPI void sleep_until(const time_point<Clock,Duration> &atime);
-
 LIBGS_CORE_API std::thread::id this_thread_id();
 
 [[noreturn]] LIBGS_CORE_API void forced_termination();
@@ -58,7 +52,6 @@ template<typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
     concepts::any_async_tf_opt_token auto &&token
 );
-
 
 [[nodiscard]] constexpr decltype(auto) unbound_redirect_time (
     concepts::any_async_tf_opt_token auto &&token

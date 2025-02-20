@@ -266,7 +266,7 @@ auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &
 	else
 	{
 		using return_t = std::invoke_result_t<Work>;
-		using token_t = std::remove_cvref_t<decltype(token)>;
+		using token_t = std::remove_cvref_t<Token>;
 		using ntoken_t = token_unbound_t<token_t>;
 
 		auto finished = std::make_shared<bool>(false);
@@ -378,7 +378,7 @@ auto local_dispatch(Work &&work, Token &&token)
 	else
 	{
 		using return_t = std::invoke_result_t<Work>;
-		using token_t = std::remove_cvref_t<decltype(token)>;
+		using token_t = std::remove_cvref_t<Token>;
 
 		auto finished = std::make_shared<bool>(false);
 		if constexpr( is_detached_v<token_t> )
@@ -481,6 +481,90 @@ auto local_dispatch(Work &&work)
 	}
 }
 
+namespace detail
+{
+
+template <typename Exec, typename Token>
+awaitable<void> co_sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
+{
+	asio::steady_timer timer(std::forward<Exec>(exec),
+		std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
+	);
+	co_return co_await timer.async_wait(token);
+}
+
+template <typename Token>
+awaitable<void> co_sleep_x(const auto &stdtime, Token &&token)
+{
+	co_return co_await co_sleep_x(co_await asio::this_coro::executor,
+		stdtime, std::forward<Token>(token)
+	);
+}
+
+template <typename Exec, typename Token>
+auto sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_void_func_v<token_t> )
+	{
+		auto timer = std::make_shared<asio::steady_timer>(std::forward<Exec>(exec),
+			std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
+		);
+		timer.async_wait(
+		[timer, callback = std::forward<Token>(token)](const error_code &error)
+		{
+			LIBGS_UNUSED(timer);
+			callback(error);
+		});
+	}
+	else
+	{
+		return co_sleep_x(std::forward<Exec>(exec),
+			stdtime, std::forward<Token>(token)
+		);
+	}
+}
+
+} //namespace detail
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto sleep_for(concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
+{
+	return detail::sleep_x(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
+}
+
+template <typename Rep, typename Period, concepts::sleep_opt_token Token>
+auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_void_func_v<token_t> )
+		sleep_for(get_executor(), rtime, std::forward<Token>(token));
+
+	else if constexpr( is_async_opt_token_v<token_t> )
+		return detail::co_sleep_x(rtime, std::forward<Token>(token));
+	else
+		std::this_thread::sleep_for(rtime);
+}
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto sleep_until(concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
+{
+	return detail::sleep_x(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
+}
+
+template <typename Rep, typename Period, concepts::sleep_opt_token Token>
+auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_void_func_v<token_t> )
+		sleep_for(get_executor(), atime, std::forward<Token>(token));
+
+	else if constexpr( is_async_opt_token_v<token_t> )
+		return detail::co_sleep_x(atime, std::forward<Token>(token));
+	else
+		std::this_thread::sleep_until(atime);
+}
+
 namespace concepts::detail
 {
 
@@ -531,7 +615,7 @@ template <concepts::async_opt_token<Args...> Token>
 auto basic_async_work<Exec,Args...>::handle
 (concepts::schedulable auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token)
 {
-	using token_t = std::remove_cvref_t<decltype(token)>;
+	using token_t = std::remove_cvref_t<Token>;
 	using func_t = decltype(wake_up);
 	auto ntoken = unbound_redirect_time(token);
 
@@ -551,7 +635,7 @@ template <concepts::execution Exec, typename...Args>
 template <concepts::async_opt_token<Args...> Token>
 auto basic_async_work<Exec,Args...>::handle(concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token)
 {
-	using token_t = std::remove_cvref_t<decltype(token)>;
+	using token_t = std::remove_cvref_t<Token>;
 	using func_t = decltype(wake_up);
 	auto ntoken = unbound_redirect_time(token);
 

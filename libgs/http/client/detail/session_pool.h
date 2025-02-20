@@ -194,7 +194,7 @@ auto basic_session_pool<Stream,Exec>::get
 
 				auto var = co_await (
 					helper.connect(std::move(ep), use_awaitable | error) or
-					co_sleep_for(timeout /*,get_executor()*/)
+					sleep_for(/*get_executor(),*/timeout, use_awaitable)
 				);
 				if( var.index() == 1 and not error )
 					error = make_error_code(errc::timed_out);

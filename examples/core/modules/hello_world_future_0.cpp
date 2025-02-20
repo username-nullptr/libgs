@@ -10,13 +10,13 @@ LIBGS_MODULE_INIT(3,[]
 
 	return libgs::dispatch(*pool, [pool]() -> libgs::awaitable<void>
 	{
-		co_await libgs::co_sleep_for(1s /*,*pool*/);
+		co_await libgs::sleep_for(/* *pool, */1s, libgs::use_awaitable);
 		spdlog::info("hello world future 0 : sleep 1s.");
 
-		co_await libgs::co_sleep_for(1s /*,*pool*/);
+		co_await libgs::sleep_for(/* *pool, */1s, libgs::use_awaitable);
 		spdlog::info("hello world future 0 : sleep 2s.");
 
-		co_await libgs::co_sleep_for(1s /*,*pool*/);
+		co_await libgs::sleep_for(/* *pool, */1s, libgs::use_awaitable);
 		spdlog::info("hello world future 0 initialized (3s).");
 
 		co_return ;

@@ -12,7 +12,7 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 		for(;;)
 		{
 			auto var = co_await (socket.async_read_some(asio::buffer(rbuf,4096), asio::use_awaitable) or
-								 libgs::co_sleep_for(5s));
+								 libgs::sleep_for(5s, libgs::use_awaitable));
 			if( var.index() == 1 )
 			{
 				spdlog::error("socket error: read timeout.");

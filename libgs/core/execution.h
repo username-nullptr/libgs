@@ -143,6 +143,46 @@ LIBGS_CORE_TAPI auto local_dispatch(Work &&work)
 namespace concepts
 {
 
+template <typename Token>
+concept sleep_opt_token = []() consteval -> bool
+{
+	using token_t = std::remove_cvref_t<Token>;
+	return
+		not is_use_future_v<token_t> and
+		not is_deferred_v<token_t> and
+		opt_token<token_t,error_code>;
+}();
+
+template <typename Token>
+concept co_sleep_opt_token =
+	not is_sync_opt_token_v<Token> and
+	sleep_opt_token<Token>;
+
+} //namespace concepts
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
+[[nodiscard]] LIBGS_CORE_TAPI auto sleep_for (
+	concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token = use_awaitable
+);
+
+template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_sync_t>
+[[nodiscard]] LIBGS_CORE_TAPI auto sleep_for (
+	const duration<Rep,Period> &rtime, Token &&token = {}
+);
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token =  const use_awaitable_t&>
+[[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
+	concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
+);
+
+template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_sync_t>
+[[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
+	const time_point<Rep,Period> &atime, Token &&token = {}
+);
+
+namespace concepts
+{
+
 template <typename Func, typename Handler>
 concept async_wake_up = std::is_rvalue_reference_v<Handler> and (
 	callable<Func,Handler&&> or callable<Func,Handler&&,asio::any_io_executor>

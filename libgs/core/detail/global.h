@@ -33,18 +33,6 @@ namespace libgs
 {
 
 template<typename Rep, typename Period>
-void sleep_for(const duration<Rep,Period> &rtime)
-{
-	std::this_thread::sleep_for(rtime);
-}
-
-template<typename Clock, typename Duration>
-void sleep_until(const time_point<Clock,Duration> &atime)
-{
-	std::this_thread::sleep_until(atime);
-}
-
-template<typename Rep, typename Period>
 decltype(auto) get_associated_redirect_time
 (concepts::any_async_tf_opt_token auto &&token, const duration<Rep,Period> &def_time)
 {

@@ -11,10 +11,10 @@ int main()
 	libgs::dispatch([&]() -> libgs::awaitable<void>
 	{
 		spdlog::debug("Start <0>...");
-		co_await libgs::co_sleep_for(1s);
+		co_await libgs::sleep_for(1s, libgs::use_awaitable);
 
 		spdlog::debug("1 second passed...");
-		co_await libgs::co_sleep_for(2s);
+		co_await libgs::sleep_for(2s, libgs::use_awaitable);
 
 		spdlog::debug("Another 2 seconds passed...");
 		spdlog::debug("End <0>...");
@@ -53,7 +53,7 @@ int main()
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		spdlog::debug("example finished...");
-		co_await libgs::co_sleep_for(5s);
+		co_await libgs::sleep_for(5s, libgs::use_awaitable);
 
 		libgs::exit();
 		co_return ;

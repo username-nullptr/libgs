@@ -32,51 +32,8 @@
 #include <libgs/http/cxx/file_opt_token.h>
 #include <thread>
 
-namespace libgs { namespace detail
+namespace libgs
 {
-
-template <typename Exec>
-awaitable<error_code> co_sleep_x(const auto &stdtime, Exec &&exec)
-{
-	using namespace operators;
-	error_code error;
-	asio::steady_timer timer (
-		std::forward<Exec>(exec),
-		std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
-	);
-	co_await timer.async_wait(use_awaitable | error);
-	co_return error;
-}
-
-} //namespace detail
-
-template <typename Rep, typename Period>
-awaitable<error_code> co_sleep_for
-(const duration<Rep,Period> &rtime, concepts::schedulable auto &&exec)
-{
-	using Exec = std::remove_cvref_t<decltype(exec)>;
-	return detail::co_sleep_x(rtime, std::forward<Exec>(exec));
-}
-
-template <typename Rep, typename Period>
-awaitable<error_code> co_sleep_for(const duration<Rep,Period> &rtime)
-{
-	co_return co_await co_sleep_for(rtime, co_await asio::this_coro::executor);
-}
-
-template <typename Rep, typename Period>
-awaitable<error_code> co_sleep_until
-(const time_point<Rep,Period> &atime, concepts::schedulable auto &&exec)
-{
-	using Exec = std::remove_cvref_t<decltype(exec)>;
-	return detail::co_sleep_x(atime, std::forward<Exec>(exec));
-}
-
-template <typename Rep, typename Period>
-awaitable<error_code> co_sleep_until(const time_point<Rep,Period> &atime)
-{
-	co_return co_await co_sleep_until(atime, co_await asio::this_coro::executor);
-}
 
 template <typename T>
 awaitable<T> co_wait(const std::future<T> &future)

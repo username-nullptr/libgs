@@ -221,7 +221,7 @@ private:
 			try {
 				auto var = co_await (
 					socket.async_read_some(buffer(buf, buf_size), use_awaitable) or
-					co_sleep_for(*time, m_service_exec)
+					sleep_for(m_service_exec, *time)
 				);
 				if( var.index() == 1 )
 					break;

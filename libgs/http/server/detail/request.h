@@ -177,7 +177,7 @@ public:
 			while(true);
 			co_return sum;
 		};
-		auto var = co_await (read_task() or co_sleep_for(30s /*,get_executor()*/));
+		auto var = co_await (read_task() or sleep_for(get_executor(), 30s));
 		if( var.index() == 1 and sum == 0 )
 			error = make_error_code(errc::timed_out);
 		co_return sum;
@@ -270,7 +270,7 @@ public:
 				total -= size;
 				if( total == 0 )
 					break;
-				// co_await co_sleep_for(512us /*,get_executor()*/);
+				// co_await sleep_for(get_executor(), 512us);
 			}
 		}
 		co_return sum;
@@ -623,7 +623,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 			error_code error;
 			auto var = co_await (
 				m_impl->co_read(buf, error) or
-				co_sleep_for(timeout, get_executor())
+				sleep_for(get_executor(), timeout)
 			);
 			size_t res = 0;
 			if( var.index() == 0 )
@@ -708,7 +708,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 				co_return ;
 			};
 			auto var = co_await (
-				read_task() or co_sleep_for(timeout, get_executor())
+				read_task() or sleep_for(get_executor(), timeout)
 			);
 			if( var.index() == 1 and not std::get<1>(var) )
 				error = make_error_code(std::errc::timed_out);
@@ -778,7 +778,7 @@ auto basic_server_request<Stream,CharT>::save_file
 			error_code error;
 			auto var = co_await (
 				m_impl->co_save_file(std::move(opt), error) or
-				co_sleep_for(timeout, get_executor())
+				sleep_for(get_executor(), timeout)
 			);
 			size_t res = 0;
 			if( var.index() == 0 )

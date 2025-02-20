@@ -281,7 +281,7 @@ private:
 			sum += co_await co_write_body(buffer(fr_buf, size), error);
 			if( error )
 				break;
-//			co_await co_sleep_for(512us /*,get_executor()*/);
+//			co_await sleep_for(get_executor(), 512us);
 		}
 		co_return sum;
 	}
@@ -526,7 +526,7 @@ private:
 					if( error )
 						break;
 
-//					co_await co_sleep_for(512us /*,get_executor()*/);
+//					co_await sleep_for(get_executor(), 512us);
 					break;
 				}
 				stream->read(buf, buf_size);
@@ -537,7 +537,7 @@ private:
 					break;
 
 				value.total -= buf_size;
-//				co_await co_sleep_for(512us /*,get_executor()*/);
+//				co_await sleep_for(get_executor(), 512us);
 			}
 			co_return sum;
 		}
@@ -575,7 +575,7 @@ private:
 					if( error )
 						co_return sum;
 
-//					co_await co_sleep_for(512us /*,get_executor()*/);
+//					co_await sleep_for(get_executor(), 512us);
 					break;
 				}
 				stream->read(buf, buf_size);
@@ -586,7 +586,7 @@ private:
 					co_return sum;
 
 				value.total -= buf_size;
-//				co_await co_sleep_for(512us /*,get_executor()*/);
+//				co_await sleep_for(get_executor(), 512us);
 			}
 		}
 		auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
@@ -942,7 +942,7 @@ auto basic_server_response<Stream,CharT>::write(const const_buffer &body, Token 
 			error_code error;
 			auto var = co_await (
 				m_impl->co_write(body, error) or
-				co_sleep_for(timeout, get_executor())
+				sleep_for(get_executor(), timeout)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
@@ -1011,7 +1011,7 @@ auto basic_server_response<Stream,CharT>::redirect
 				error_code error;
 				auto var = co_await (
 					m_impl->co_write({nullptr,0}, error) or
-					co_sleep_for(timeout, get_executor())
+					sleep_for(get_executor(), timeout)
 				);
 				auto res = m_impl->check_time_out(var, error);
 
@@ -1079,7 +1079,7 @@ auto basic_server_response<Stream,CharT>::send_file
 			error_code error;
 			auto var = co_await (
 				m_impl->co_send_file(std::move(opt), error) or
-				co_sleep_for(timeout, get_executor())
+				sleep_for(get_executor(), timeout)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
@@ -1133,7 +1133,7 @@ auto basic_server_response<Stream,CharT>::chunk_end(const map_helper_t &headers,
 			error_code error;
 			auto var = co_await (
 				m_impl->co_chunk_end(headers, error, "chunk_end") or
-				co_sleep_for(timeout /*,get_executor()*/)
+				sleep_for(get_executor(), timeout)
 			);
 			auto res = m_impl->check_time_out(var, error);
 
