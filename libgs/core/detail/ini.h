@@ -307,7 +307,7 @@ class LIBGS_CORE_TAPI basic_ini<CharT,IniKeys,Exec,GroupMap>::impl :
 	friend class basic_ini;
 
 public:
-	impl(const auto &exec, const std::filesystem::path &file_name) :
+	impl(const auto &exec, const path_t &file_name) :
 		m_exec(exec), m_timer(exec)
 	{
 		set_file_name(std::move(file_name));
@@ -341,7 +341,7 @@ public:
 	}
 
 public:
-	void set_file_name(const std::filesystem::path &file_name)
+	void set_file_name(const path_t &file_name)
 	{
 		m_file_name = app::absolute_path(file_name);
 	}
@@ -601,7 +601,7 @@ private:
 
 public:
 	executor_t m_exec {};
-	std::filesystem::path m_file_name {};
+	path_t m_file_name {};
 	group_map_t m_groups {};
 
 	asio::steady_timer m_timer;
@@ -671,7 +671,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini
-(concepts::match_execution_context<executor_t> auto &exec, const std::filesystem::path &file_name) :
+(concepts::match_execution_context<executor_t> auto &exec, const path_t &file_name) :
 	basic_ini(exec.get_executor(), file_name)
 {
 
@@ -682,7 +682,7 @@ template <concepts::char_type CharT,
 		  concepts::execution Exec,
 		  typename GroupMap>
 basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini
-(const concepts::match_execution<executor_t> auto &exec, const std::filesystem::path &file_name)
+(const concepts::match_execution<executor_t> auto &exec, const path_t &file_name)
 {
 	m_impl = std::make_shared<impl>(exec, file_name);
 }
@@ -691,7 +691,7 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(const std::filesystem::path &file_name)
+basic_ini<CharT,IniKeys,Exec,GroupMap>::basic_ini(const path_t &file_name)
 	requires concepts::match_default_execution<executor_t> :
 	basic_ini(io_context(), file_name)
 {
@@ -764,7 +764,7 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-void basic_ini<CharT,IniKeys,Exec,GroupMap>::set_file_name(const std::filesystem::path &file_name)
+void basic_ini<CharT,IniKeys,Exec,GroupMap>::set_file_name(const path_t &file_name)
 {
 	m_impl->set_file_name(file_name);
 }
@@ -773,7 +773,8 @@ template <concepts::char_type CharT,
 		  concepts::base_of_basic_ini_keys<CharT> IniKeys,
 		  concepts::execution Exec,
 		  typename GroupMap>
-std::filesystem::path basic_ini<CharT,IniKeys,Exec,GroupMap>::file_name() const noexcept
+typename basic_ini<CharT,IniKeys,Exec,GroupMap>::path_t
+basic_ini<CharT,IniKeys,Exec,GroupMap>::file_name() const noexcept
 {
 	return m_impl->m_file_name;
 }
