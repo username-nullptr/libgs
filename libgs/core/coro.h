@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_CORO_H
 #define LIBGS_CORE_CORO_H
 
+#include <libgs/core/coro/condition_variable.h>
 #include <libgs/core/coro/utilities.h>
 #include <libgs/core/coro/semaphore.h>
 #include <libgs/core/coro/mutex.h>

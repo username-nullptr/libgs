@@ -48,6 +48,7 @@ set(${target_name}_headers
 	algorithm/misc.h
 	coro/utilities.h
 	coro/mutex.h
+	coro/condition_variable.h
 	coro/shared_mutex.h
 	coro/semaphore.h
 	app_utls.h
@@ -80,6 +81,7 @@ set(${target_name}_detail_headers
 	coro/detail/utilities.h
 	coro/detail/wake_up.h
 	coro/detail/mutex.h
+	coro/detail/condition_variable.h
 	coro/detail/shared_mutex.h
 	coro/detail/semaphore.h
 	detail/app_utls.h

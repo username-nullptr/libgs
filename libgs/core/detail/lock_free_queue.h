@@ -76,6 +76,24 @@ lock_free_queue<T>::~lock_free_queue()
 }
 
 template <concepts::copy_or_move_constructible T>
+lock_free_queue<T>::lock_free_queue(lock_free_queue &&other) noexcept :
+	m_impl(other.m_impl)
+{
+	other.m_impl = new impl();
+}
+
+template <concepts::copy_or_move_constructible T>
+lock_free_queue<T> &lock_free_queue<T>::operator=(lock_free_queue &&other) noexcept
+{
+	if( &other == this )
+		return *this;
+	delete m_impl;
+	m_impl = other.m_impl;
+	other.m_impl = new impl();
+	return *this;
+}
+
+template <concepts::copy_or_move_constructible T>
 void lock_free_queue<T>::enqueue(const T &data) requires concepts::copy_constructible<T>
 {
 	emplace(data);

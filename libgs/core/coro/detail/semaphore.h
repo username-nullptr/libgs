@@ -98,12 +98,24 @@ public:
 		{
 			auto wake_up_ptr = std::make_shared<wake_up_t>(exec, std::move(wake_up));
 			m_wait_queue.emplace(wake_up_ptr);
-
-			auto timer = asio::steady_timer(exec, timeout);
-			timer.async_wait([this, wake_up_ptr = std::move(wake_up_ptr)]() mutable {
-				std::move(**wake_up_ptr)(false);
-			});
+			wake_up_ptr->start_timer(timeout);
 		});
+	}
+
+	void release_one()
+	{
+		for(;;)
+		{
+			auto wake_up = m_wait_queue.dequeue();
+			if( wake_up )
+			{
+				if( not std::move(**wake_up)(true) )
+					continue;
+			}
+			else
+				m_counter.fetch_add(1);
+			break;
+		}
 	}
 
 public:
@@ -164,13 +176,7 @@ size_t co_basic_semaphore<Max>::release(size_t n) requires (max_v > 1)
 		);
 	}
 	while( n-- )
-	{
-		auto wake_up = m_impl->m_wait_queue.dequeue();
-		if( wake_up )
-			std::move(**wake_up)(true);
-		else
-			m_impl->m_counter.fetch_add(1);
-	}
+		m_impl->release_one();
 	return count();
 }
 
@@ -183,11 +189,7 @@ size_t co_basic_semaphore<Max>::release() requires (max_v == 1)
 			"libgs::co_basic_semaphore: Release a co_binary_semaphore with max count 1 more than once."
 		);
 	}
-	auto wake_up = m_impl->m_wait_queue.dequeue();
-	if( wake_up )
-		std::move(**wake_up)(true);
-	else
-		m_impl->m_counter.fetch_add(1);
+	m_impl->release_one();
 	return count();
 }
 

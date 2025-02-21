@@ -82,11 +82,7 @@ public:
 		{
 			auto wake_up_ptr = std::make_shared<wake_up_t>(exec, std::move(wake_up));
 			m_wait_queue.emplace(wake_up_ptr);
-
-			auto timer = asio::steady_timer(exec, timeout);
-			timer.async_wait([this, wake_up_ptr = std::move(wake_up_ptr)]() mutable {
-				std::move(**wake_up_ptr)(false);
-			});
+			wake_up_ptr->start_timer(timeout);
 		});
 	}
 
@@ -135,11 +131,18 @@ inline bool co_mutex::try_lock()
 
 inline void co_mutex::unlock()
 {
-	auto wake_up = m_impl->m_wait_queue.dequeue();
-	if( wake_up )
-		std::move(**wake_up)(true);
-	else
-		m_impl->m_native_handle = false;
+	for(;;)
+	{
+		auto wake_up = m_impl->m_wait_queue.dequeue();
+		if( wake_up )
+		{
+			if( not std::move(**wake_up)(true) )
+				continue;
+		}
+		else
+			m_impl->m_native_handle = false;
+		break;
+	}
 }
 
 template<typename Rep, typename Period>

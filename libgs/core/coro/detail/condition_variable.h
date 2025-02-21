@@ -26,61 +26,38 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_DETAIL_WAKE_UP_H
-#define LIBGS_CORE_CORO_DETAIL_WAKE_UP_H
+#ifndef LIBGS_CORE_CORO_DETAIL_CONDITION_VARIABLE_H
+#define LIBGS_CORE_CORO_DETAIL_CONDITION_VARIABLE_H
 
-#include <libgs/core/execution.h>
-
-namespace libgs::detail
+namespace libgs
 {
 
-class LIBGS_CORE_VAPI co_lock_wake_up final :
-	public std::enable_shared_from_this<co_lock_wake_up>
+// TODO ... ...
+class LIBGS_CORE_VAPI co_condition_variable::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(co_lock_wake_up)
+	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	using ptr_t = std::shared_ptr<co_lock_wake_up>;
-	using handler_t = async_work<bool>::handler_t;
-
-	co_lock_wake_up(const asio::any_io_executor &exec, handler_t handler) :
-		m_handler(std::move(handler)), m_exec(exec) {}
+	impl() = default;
 
 public:
-	bool operator()(bool success)
-	{
-		if( m_finished.test_and_set() )
-			return false;
-		m_timer.cancel();
-
-		dispatch(m_exec, [
-			success, handler = std::make_shared<handler_t>(std::move(m_handler))
-		]() mutable {
-			std::move(*handler)(success);
-		});
-		return true;
-	}
-
-	void start_timer(const auto &timeout)
-	{
-		m_timer.expires_after(timeout);
-		m_timer.async_wait([this](const error_code &error) mutable
-		{
-			if( not error )
-				(*this)(false);
-		});
-	}
-
-private:
-	handler_t m_handler;
-	asio::any_io_executor m_exec;
-	asio::steady_timer m_timer{m_exec};
-	std::atomic_flag m_finished;
+	lock_free_queue <
+		detail::co_lock_wake_up_ptr
+	> m_wait_queue {};
 };
 
-using co_lock_wake_up_ptr = co_lock_wake_up::ptr_t;
+inline co_condition_variable::co_condition_variable() :
+	m_impl(new impl())
+{
 
-} //namespace libgs::detail
+}
+
+inline co_condition_variable::~co_condition_variable() noexcept(false)
+{
+	delete m_impl;
+}
+
+} //namespace libgs
 
 
-#endif //LIBGS_CORE_CORO_DETAIL_WAKE_UP_H
+#endif //LIBGS_CORE_CORO_DETAIL_CONDITION_VARIABLE_H
