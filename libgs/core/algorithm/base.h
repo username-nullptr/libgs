@@ -34,134 +34,175 @@
 namespace libgs
 {
 
-[[nodiscard]] LIBGS_CORE_API int8_t stoi8(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API int8_t stoi8(std::wstring_view str, size_t base = 10);
+[[nodiscard]] LIBGS_CORE_TAPI int8_t stoi8 (
+	const concepts::string_type auto &str, size_t base = 10
+);
+[[nodiscard]] LIBGS_CORE_TAPI uint8_t stou8 (
+	const concepts::string_type auto &str, size_t base = 10
+);
 
-[[nodiscard]] LIBGS_CORE_API uint8_t stoui8(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API uint8_t stoui8(std::wstring_view str, size_t base = 10);
+[[nodiscard]] LIBGS_CORE_TAPI int16_t stoi16 (
+	const concepts::string_type auto &str, size_t base = 10
+);
+[[nodiscard]] LIBGS_CORE_TAPI uint16_t stou16 (
+	const concepts::string_type auto &str, size_t base = 10
+);
 
-[[nodiscard]] LIBGS_CORE_API int16_t stoi16(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API int16_t stoi16(std::wstring_view str, size_t base = 10);
+[[nodiscard]] LIBGS_CORE_TAPI int32_t stoi32 (
+	const concepts::string_type auto &str, size_t base = 10
+);
+[[nodiscard]] LIBGS_CORE_TAPI uint32_t stou32 (
+	const concepts::string_type auto &str, size_t base = 10
+);
 
-[[nodiscard]] LIBGS_CORE_API uint16_t stoui16(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API uint16_t stoui16(std::wstring_view str, size_t base = 10);
+[[nodiscard]] LIBGS_CORE_TAPI int64_t stoi64 (
+	const concepts::string_type auto &str, size_t base = 10
+);
+[[nodiscard]] LIBGS_CORE_TAPI uint64_t stou64 (
+	const concepts::string_type auto &str, size_t base = 10
+);
 
-[[nodiscard]] LIBGS_CORE_API int32_t stoi32(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API int32_t stoi32(std::wstring_view str, size_t base = 10);
+[[nodiscard]] LIBGS_CORE_TAPI float stof (
+	const concepts::string_type auto &str
+);
+[[nodiscard]] LIBGS_CORE_TAPI double stod (
+	const concepts::string_type auto &str
+);
+[[nodiscard]] LIBGS_CORE_TAPI long double stold (
+	const concepts::string_type auto &str
+);
 
-[[nodiscard]] LIBGS_CORE_API uint32_t stoui32(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API uint32_t stoui32(std::wstring_view str, size_t base = 10);
-
-[[nodiscard]] LIBGS_CORE_API int64_t stoi64(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API int64_t stoi64(std::wstring_view str, size_t base = 10);
-
-[[nodiscard]] LIBGS_CORE_API uint64_t stoui64(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API uint64_t stoui64(std::wstring_view str, size_t base = 10);
-
-[[nodiscard]] LIBGS_CORE_API float stof(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API float stof(std::wstring_view str);
-
-[[nodiscard]] LIBGS_CORE_API double stod(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API double stod(std::wstring_view str);
-
-[[nodiscard]] LIBGS_CORE_API long double stold(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API long double stold(std::wstring_view str);
-
-[[nodiscard]] LIBGS_CORE_API bool stob(std::string_view str, size_t base = 10);
-[[nodiscard]] LIBGS_CORE_API bool stob(std::wstring_view str, size_t base = 10);
-
-template <concepts::integral_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston(std::string_view str, size_t base = 10);
-
-template <concepts::integral_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston(std::wstring_view str, size_t base = 10);
-
-template <concepts::float_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston(std::string_view str);
-
-template <concepts::float_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston(std::wstring_view str);
-
-[[nodiscard]] LIBGS_CORE_API int8_t stoi8_or(std::string_view str, size_t base = 10, int8_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API int8_t stoi8_or(std::wstring_view str, size_t base = 10, int8_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API uint8_t stoui8_or(std::string_view str, size_t base = 10, uint8_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API uint8_t stoui8_or(std::wstring_view str, size_t base = 10, uint8_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API int16_t stoi16_or(std::string_view str, size_t base = 10, int16_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API int16_t stoi16_or(std::wstring_view str, size_t base = 10, int16_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API uint16_t stoui16_or(std::string_view str, size_t base = 10, uint16_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API uint16_t stoui16_or(std::wstring_view str, size_t base = 10, uint16_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API int32_t stoi32_or(std::string_view str, size_t base = 10, int32_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API int32_t stoi32_or(std::wstring_view str, size_t base = 10, int32_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API uint32_t stoui32_or(std::string_view str, size_t base = 10, uint32_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API uint32_t stoui32_or(std::wstring_view str, size_t base = 10, uint32_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API int64_t stoi64_or(std::string_view str, size_t base = 10, int64_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API int64_t stoi64_or(std::wstring_view str, size_t base = 10, int64_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API uint64_t stoui64_or(std::string_view str, size_t base = 10, uint64_t default_value = 0) noexcept;
-[[nodiscard]] LIBGS_CORE_API uint64_t stoui64_or(std::wstring_view str, size_t base = 10, uint64_t default_value = 0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API float stof_or(std::string_view str, float default_value = 0.0) noexcept;
-[[nodiscard]] LIBGS_CORE_API float stof_or(std::wstring_view str, float default_value = 0.0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API double stod_or(std::string_view str, double default_value = 0.0) noexcept;
-[[nodiscard]] LIBGS_CORE_API double stod_or(std::wstring_view str, double default_value = 0.0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API long double stold_or(std::string_view str, long double default_value = 0.0) noexcept;
-[[nodiscard]] LIBGS_CORE_API long double stold_or(std::wstring_view str, long double default_value = 0.0) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API bool stob_or(std::string_view str, size_t base = 10, bool default_value = false) noexcept;
-[[nodiscard]] LIBGS_CORE_API bool stob_or(std::wstring_view str, size_t base = 10, bool default_value = false) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI bool stob (
+	const concepts::string_type auto &str, size_t base = 10
+);
 
 template <concepts::integral_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston_or(std::string_view str, size_t base = 10, T default_value = 0) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI T ston (
+	const concepts::string_type auto &str, size_t base = 10
+);
+
+template <concepts::float_type T>
+[[nodiscard]] LIBGS_CORE_TAPI T ston (
+	const concepts::string_type auto &str
+);
+
+[[nodiscard]] LIBGS_CORE_TAPI int8_t stoi8_or (
+	const concepts::string_type auto &str, size_t base = 10, int8_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI uint8_t stou8_or (
+	const concepts::string_type auto &str, size_t base = 10, uint8_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI int16_t stoi16_or (
+	const concepts::string_type auto &str, size_t base = 10, int16_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI uint16_t stou16_or (
+	const concepts::string_type auto &str, size_t base = 10, uint16_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI int32_t stoi32_or (
+	const concepts::string_type auto &str, size_t base = 10, int32_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI uint32_t stou32_or (
+	const concepts::string_type auto &str, size_t base = 10, uint32_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI int64_t stoi64_or (
+	const concepts::string_type auto &str, size_t base = 10, int64_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI uint64_t stou64_or (
+	const concepts::string_type auto &str, size_t base = 10, uint64_t default_value = 0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI float stof_or (
+	const concepts::string_type auto &str, float default_value = 0.0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI double stod_or (
+	const concepts::string_type auto &str, double default_value = 0.0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI long double stold_or (
+	const concepts::string_type auto &str, long double default_value = 0.0
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_TAPI bool stob_or (
+	const concepts::string_type auto &str, size_t base = 10, bool default_value = false
+) noexcept;
 
 template <concepts::integral_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston_or(std::wstring_view str, size_t base = 10, T default_value = 0) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI T ston_or (
+	const concepts::string_type auto &str, size_t base = 10, T default_value = 0
+) noexcept;
 
 template <concepts::float_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston_or(std::string_view str, T default_value = 0.0);
+[[nodiscard]] LIBGS_CORE_TAPI T ston_or (
+	const concepts::string_type auto &str, T default_value = 0.0
+);
 
-template <concepts::float_type T>
-[[nodiscard]] LIBGS_CORE_TAPI T ston_or(std::wstring_view str, T default_value = 0.0);
+[[nodiscard]] LIBGS_CORE_TAPI auto str_to_lower (
+	concepts::string_type auto &&str
+);
+[[nodiscard]] LIBGS_CORE_TAPI auto str_to_upper (
+	concepts::string_type auto &&str
+);
 
-[[nodiscard]] LIBGS_CORE_API std::string str_to_lower(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API std::wstring str_to_lower(std::wstring_view str);
+template <concepts::char_type CharT>
+struct LIBGS_CORE_TAPI str_replace_condition
+{
+	using char_t = CharT;
+	using string_view_t = std::basic_string_view<char_t>;
 
-[[nodiscard]] LIBGS_CORE_API std::string str_to_upper(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API std::wstring str_to_upper(std::wstring_view str);
+	string_view_t find;
+	string_view_t repl;
+	bool step = true;
 
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::string &str, std::string_view _old, std::string_view _new, bool step = true);
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::wstring &str, std::wstring_view _old, std::wstring_view _new, bool step = true);
+	str_replace_condition(string_view_t find, string_view_t repl, bool step = true) :
+		find(find), repl(repl), step(step) {}
 
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::string &str, std::string_view _old, char _new, bool step = true);
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::wstring &str, std::wstring_view _old, wchar_t _new, bool step = true);
+	str_replace_condition(const char &find, const char &repl, bool step = true) :
+		find(&find), repl(&repl), step(step) {}
 
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::string &str, char _old, std::string_view _new, bool step = true);
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::wstring &str, wchar_t _old, std::wstring_view _new, bool step = true);
+	str_replace_condition(string_view_t find, const char &repl, bool step = true) :
+		find(find), repl(&repl), step(step) {}
 
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::string &str, char _old, char _new, bool step = true);
-/*[[nodiscard]]*/ LIBGS_CORE_API size_t str_replace(std::wstring &str, wchar_t _old, wchar_t _new, bool step = true);
+	str_replace_condition(const char &find, string_view_t repl, bool step = true) :
+		find(&find), repl(repl), step(step) {}
+};
 
-[[nodiscard]] LIBGS_CORE_API std::string str_trimmed(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API std::wstring str_trimmed(std::wstring_view str);
+template <concepts::string_type Str>
+[[nodiscard]] LIBGS_CORE_TAPI auto str_replace (
+	Str &&str, const str_replace_condition<get_string_char_t<Str>> &cond
+);
 
-[[nodiscard]] LIBGS_CORE_API std::string str_remove(std::string_view str, std::string_view find, bool step = true);
-[[nodiscard]] LIBGS_CORE_API std::wstring str_remove(std::wstring_view str, std::wstring_view find, bool step = true);
+template <concepts::string_type Str>
+[[nodiscard]] LIBGS_CORE_TAPI auto str_replace (
+	Str &&str, const str_replace_condition<get_string_char_t<Str>> &cond, size_t &count
+);
 
-[[nodiscard]] LIBGS_CORE_API std::string str_remove(std::string_view str, char find, bool step = true);
-[[nodiscard]] LIBGS_CORE_API std::wstring str_remove(std::wstring_view str, wchar_t find, bool step = true);
+[[nodiscard]] LIBGS_CORE_TAPI auto str_trimmed (
+	const concepts::string_type auto &str
+);
 
-[[nodiscard]] LIBGS_CORE_API std::string file_name(std::string_view file_name);
-[[nodiscard]] LIBGS_CORE_API std::wstring file_name(std::wstring_view file_name);
+template <concepts::string_type Str, concepts::basic_string_type<get_string_char_t<Str>> Find>
+[[nodiscard]] LIBGS_CORE_TAPI auto str_remove (
+	const Str &str, const Find &find, bool step = true
+);
+template <concepts::string_type Str>
+[[nodiscard]] LIBGS_CORE_TAPI auto str_remove (
+	const Str &str, get_string_char_t<Str> find, bool step = true
+);
 
-[[nodiscard]] LIBGS_CORE_API std::string file_path(std::string_view file_name);
-[[nodiscard]] LIBGS_CORE_API std::wstring file_path(std::wstring_view file_name);
+[[nodiscard]] LIBGS_CORE_TAPI auto file_name (
+	const concepts::string_type auto &file_name
+);
+[[nodiscard]] LIBGS_CORE_TAPI auto file_path (
+	const concepts::string_type auto &file_name
+);
 
 } //namespace libgs
 #include <libgs/core/algorithm/detail/base.h>

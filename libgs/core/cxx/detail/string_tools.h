@@ -231,44 +231,66 @@ inline std::string *string_wrapper::operator->()
 	return &value;
 }
 
-inline bool is_alpha(std::string_view str) noexcept
+bool is_alpha(const concepts::string_type auto &str) noexcept
 {
-	for(auto &c : str)
+	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
+	return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::isalpha(c);
+	});
+}
+
+bool is_digit(const concepts::string_type auto &str) noexcept
+{
+	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
+	return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::isdigit(c);
+	});
+}
+
+bool is_rlnum(const concepts::string_type auto &str) noexcept
+{
+	using string_view_t = std::basic_string_view <
+		get_string_char_t<decltype(str)>
+	>;
+	string_view_t view(str);
+	if( view.empty() )
+		return false;
+
+	auto it = view.begin();
+	if( *it == 0x2D/*-*/ or *it == 0x2B/*+*/ )
+		++it;
+
+	if( not std::isdigit(*it) )
+		return false;
+
+	bool dot = false;
+	for(++it; it!=view.end(); ++it)
 	{
-		if( not std::isalpha(c) )
-			return false;
+		if( not std::isdigit(*it) )
+		{
+			if( *it == 0x2E/*.*/ and not dot )
+				dot = true;
+			else
+				return false;
+		}
 	}
 	return true;
 }
 
-inline bool is_digit(std::string_view str) noexcept
+bool is_alnum(const concepts::string_type auto &str) noexcept
 {
-	for(auto &c : str)
-	{
-		if( not std::isdigit(c) )
-			return false;
-	}
-	return true;
+	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
+	return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::isalnum(c);
+	});
 }
 
-inline bool is_alnum(std::string_view str) noexcept
+bool is_ascii(const concepts::string_type auto &str) noexcept
 {
-	for(auto &c : str)
-	{
-		if( not std::isalnum(c) )
-			return false;
-	}
-	return true;
-}
-
-inline bool is_ascii(std::string_view str) noexcept
-{
-	for(auto &c : str)
-	{
-		if( c > 127 )
-			return false;
-	}
-	return true;
+	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
+	return std::ranges::all_of(string_view_t(str), [](auto c){
+		return c <= 0x7F;
+	});
 }
 
 } //namespace libgs

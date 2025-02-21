@@ -113,8 +113,8 @@ fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 
 		result = home + result.erase(0,1);
 	}
-	str_replace(result, "/./", "/", false);
-	str_replace(result, "//", "/", false);
+	result = str_replace(std::move(result), {"/./", "/", false});
+	result = str_replace(std::move(result), {"//", "/", false});
 	return result;
 }
 

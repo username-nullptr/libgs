@@ -35,6 +35,18 @@
 namespace libgs
 {
 
+template <concepts::string_type>
+struct get_string_char;
+
+template <concepts::char_string_type Str>
+struct get_string_char<Str> { using type = char; };
+
+template <concepts::wchar_string_type Str>
+struct get_string_char<Str> { using type = wchar_t; };
+
+template <concepts::string_type Str>
+using get_string_char_t = typename get_string_char<Str>::type;
+
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) nosview(concepts::string_type auto &&str);
 
 [[nodiscard]] LIBGS_CORE_VAPI std::string wcstombs(std::wstring_view str);
@@ -82,10 +94,11 @@ struct LIBGS_CORE_VAPI string_wrapper
 	std::string *operator->();
 };
 
-LIBGS_CORE_VAPI [[nodiscard]] bool is_alpha(std::string_view str) noexcept;
-LIBGS_CORE_VAPI [[nodiscard]] bool is_digit(std::string_view str) noexcept;
-LIBGS_CORE_VAPI [[nodiscard]] bool is_alnum(std::string_view str) noexcept;
-LIBGS_CORE_VAPI [[nodiscard]] bool is_ascii(std::string_view str) noexcept;
+LIBGS_CORE_TAPI [[nodiscard]] bool is_alpha(const concepts::string_type auto &str) noexcept;
+LIBGS_CORE_TAPI [[nodiscard]] bool is_digit(const concepts::string_type auto &str) noexcept;
+LIBGS_CORE_TAPI [[nodiscard]] bool is_rlnum(const concepts::string_type auto &str) noexcept;
+LIBGS_CORE_TAPI [[nodiscard]] bool is_alnum(const concepts::string_type auto &str) noexcept;
+LIBGS_CORE_TAPI [[nodiscard]] bool is_ascii(const concepts::string_type auto &str) noexcept;
 
 #define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
 

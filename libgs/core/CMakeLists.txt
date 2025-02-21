@@ -1,7 +1,6 @@
 set(target_name gs_core)
 
 set(${target_name}_sources
-	algorithm/base.cpp
 	algorithm/byte_order.cpp
 	algorithm/mime_type.cpp
 	algorithm/sha1.cpp

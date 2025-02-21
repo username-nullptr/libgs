@@ -61,17 +61,13 @@ fs::path file_path(error_code &error) noexcept
 
 	if( len == 0 )
 		set_error(error);
-
-	std::wstring path(buf, len);
-	str_replace(path, L"\\", L"/");
-	return path;
+	return str_replace(std::wstring(buf,len), {L"\\", L"/"});
 }
 
 bool set_current_directory(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
-	auto wpath = path.wstring();
-	str_replace(wpath, L"/", L"\\");
+	auto wpath = str_replace(path.wstring(), {L"/", L"\\"});
 
 	if( SetCurrentDirectoryW(wpath.c_str()) )
 		return true;
@@ -90,9 +86,7 @@ fs::path current_directory(error_code &error) noexcept
 	if( len == 0 )
 		set_error(error);
 
-	std::wstring path(buf, len);
-	str_replace(path, L"\\", L"/");
-
+	auto path = str_replace(std::wstring(buf,len), {L"\\", L"/"});
 	if( not path.ends_with(L"/") )
 		path += L"/";
 	return buf;
@@ -140,16 +134,14 @@ fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 			result.clear();
 			return result;
 		}
-		std::wstring home(tmp, len);
-		str_replace(home, L"\\", L"/");
-
+		auto home = str_replace(std::wstring(tmp,len), {L"\\", L"/"});
 		if( home.ends_with(L"/") )
 			home.pop_back();
 
 		result = home + result.erase(0,1);
 	}
-	str_replace(result, L"/./", L"/", false);
-	str_replace(result, L"//", L"/", false);
+	result = str_replace(std::move(result), {L"/./", L"/", false});
+	result = str_replace(std::move(result), {L"//", L"/", false});
 	return result;
 }
 
