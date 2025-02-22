@@ -291,7 +291,8 @@ private:
 	template <typename Opt>
 	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, error_code &error)
 	{
-		if constexpr( is_char_string_v<Opt> or is_fstream_v<Opt> or is_ofstream_v<Opt> )
+		if constexpr( is_char_v<Opt> or is_char_string_v<Opt> or
+					  is_fstream_v<Opt> or is_ofstream_v<Opt> )
 		{
 			auto token = make_file_opt_token(std::forward<Opt>(opt));
 			error = token.init(std::ios::out | std::ios::binary);

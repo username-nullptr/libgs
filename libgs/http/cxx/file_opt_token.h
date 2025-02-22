@@ -236,13 +236,18 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 	file_opt_token &operator=(const file_opt_token&) = default;
 };
 
+template <core_concepts::char_type CharT, typename...Args>
+[[nodiscard]] LIBGS_HTTP_TAPI auto make_file_opt_token (
+	CharT file_name, Args&&...args
+) noexcept;
+
 template <typename...Args>
-[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt_token(
+[[nodiscard]] LIBGS_HTTP_TAPI auto make_file_opt_token (
 	std::filesystem::path file_name, Args&&...args
 ) noexcept;
 
 template <typename...Args>
-[[nodiscard]] LIBGS_HTTP_VAPI auto make_file_opt_token(
+[[nodiscard]] LIBGS_HTTP_TAPI auto make_file_opt_token (
 	core_concepts::fstream_wkn auto &&stream, Args&&...args
 ) noexcept;
 
@@ -321,7 +326,7 @@ template <typename T, typename CharT,
 	io_permission::type Perms = io_permission::read_write
 >
 concept basic_file_opt_token_arg =
-	core_concepts::string_type<T> or
+	core_concepts::weak_string_type<T> or
 	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
 	basic_file_opt_token<T,CharT,Types,Perms>;
 

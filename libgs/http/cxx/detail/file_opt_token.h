@@ -305,6 +305,12 @@ auto make_file_opt_token(auto &&arg, Args&&...args) noexcept
 
 } //namespace detail
 
+template <core_concepts::char_type CharT, typename...Args>
+auto make_file_opt_token(CharT file_name, Args&&...args) noexcept
+{
+	return make_file_opt_token(std::basic_string<CharT>(&file_name,1), std::forward<Args>(args)...);
+}
+
 template <typename...Args>
 auto make_file_opt_token(std::filesystem::path file_name, Args&&...args) noexcept
 {

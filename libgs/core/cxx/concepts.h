@@ -297,6 +297,19 @@ concept wchar_string_type = is_wchar_string_v<T>;
 template <typename T>
 concept string_type = is_string_v<T>;
 
+template <typename T, typename CharT>
+concept weak_basic_string_type =
+	basic_string_type<T,CharT> or std::is_same_v<std::remove_cvref_t<T>,CharT>;
+
+template <typename T>
+concept weak_char_string_type = weak_basic_string_type<T,char>;
+
+template <typename T>
+concept weak_wchar_string_type = weak_basic_string_type<T,wchar_t>;
+
+template <typename T>
+concept weak_string_type = weak_char_string_type<T> or weak_wchar_string_type<T>;
+
 template <typename T>
 concept rvalue_reference = std::is_rvalue_reference_v<T>;
 

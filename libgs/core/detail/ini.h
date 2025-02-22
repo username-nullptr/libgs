@@ -424,11 +424,18 @@ public:
 
 				for(auto &[key, value] : keys)
 				{
+					if( key.empty() or value->empty() )
+						continue;
+
 					file << (is_ascii(key) ? key : to_percent_encoding(key))
 						 << keyword_char_t::assigning;
 
-					if( value.is_digit() )
+					if( value.is_rlnum() )
+					{
+						if( value->front() == 0x2B/*+*/ )
+							value = value->substr(1);
 						file << value.to_string();
+					}
 					else
 					{
 						file << keyword_char_t::double_quotes

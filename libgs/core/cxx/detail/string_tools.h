@@ -48,99 +48,80 @@ decltype(auto) nosview(concepts::string_type auto &&str)
 		return return_reference(std::forward<Str>(str));
 }
 
-inline std::string wcstombs(std::wstring_view str)
+std::string wcstombs(const concepts::weak_wchar_string_type auto &str)
 {
-	if( str.empty() )
-		return "";
+	using str_t = std::remove_cvref_t<decltype(str)>;
+	if constexpr( is_wchar_v<str_t> )
+		return wcstombs(std::wstring_view(&str,1));
+	else
+	{
+		std::wstring_view view(str);
+		if( view.empty() )
+			return "";
 
-	auto size = str.size();
-	auto buf = std::make_shared<char[]>(size + 1);
+		auto size = view.size();
+		auto buf = std::make_shared<char[]>(size + 1);
 
 #ifdef _MSC_VER
-	::wcstombs_s(&size, buf.get(), size, str.data(), size);
+		::wcstombs_s(&size, buf.get(), size, view.data(), size);
 #else
-	std::wcstombs(buf.get(), str.data(), size);
+		std::wcstombs(buf.get(), view.data(), size);
 #endif
-	return buf.get();
+		return buf.get();
+	}
 }
 
-inline char wcstombs(wchar_t c)
+auto mbstowcs(const concepts::weak_char_string_type auto &str)
 {
-	char buf = 0;
-#ifdef _MSC_VER
-	size_t size = 0;
-	::wcstombs_s(&size, &buf, 1, &c, 1);
-#else
-	std::wcstombs(&buf, &c, 1);
-#endif
-	return buf;
-}
+	using str_t = std::remove_cvref_t<decltype(str)>;
+	if constexpr( is_char_v<str_t> )
+	{
+		auto wcs= mbstowcs(std::string_view(&str,1));
+		return wcs[0];
+	}
+	else
+	{
+		std::string_view view(str);
+		if( view.empty() )
+			return std::wstring();
 
-inline std::wstring mbstowcs(std::string_view str)
-{
-	if( str.empty() )
-		return L"";
-
-	auto size = str.size();
-	auto buf = std::make_shared<wchar_t[]>(size + 1);
+		auto size = view.size();
+		auto buf = std::make_shared<wchar_t[]>(size + 1);
 
 #ifdef _MSC_VER
-	size_t rsize = 0;
-	::mbstowcs_s(&rsize, buf.get(), size + 1, str.data(), size);
+		size_t rsize = 0;
+		::mbstowcs_s(&rsize, buf.get(), size + 1, view.data(), size);
 #else
-	std::mbstowcs(buf.get(), str.data(), size);
+		std::mbstowcs(buf.get(), view.data(), size);
 #endif
-	return buf.get();
+		return std::wstring(buf.get());
+	}
 }
 
-inline wchar_t mbstowcs(char c)
-{
-	wchar_t buf = 0;
-#ifdef _MSC_VER
-	size_t size = 0;
-	::mbstowcs_s(&size, &buf, 1, &c, 1);
-#else
-	std::mbstowcs(&buf, &c, 1);
-#endif
-	return buf;
-}
-
-decltype(auto) xxtombs(concepts::string_type auto &&str)
+decltype(auto) xxtombs(concepts::weak_string_type auto &&str)
 {
 	using Str = decltype(str);
-	if constexpr( is_char_string_v<Str> )
+	using char_t = get_string_char_t<Str>;
+
+	if constexpr( is_char_v<char_t> )
 		return return_reference(std::forward<Str>(str));
 	else
 		return wcstombs(str);
 }
 
-char xxtombs(concepts::char_type auto c)
-{
-	if constexpr( is_char_v<decltype(c)> )
-		return c;
-	else
-		return wcstombs(c);
-}
-
-decltype(auto) xxtowcs(concepts::string_type auto &&str)
+decltype(auto) xxtowcs(concepts::weak_string_type auto &&str)
 {
 	using Str = decltype(str);
-	if constexpr( is_wchar_string_v<Str> )
+	using char_t = get_string_char_t<Str>;
+
+	if constexpr( is_wchar_v<char_t> )
 		return return_reference(std::forward<Str>(str));
 	else
 		return mbstowcs(str);
 }
 
-wchar_t xxtowcs(concepts::char_type auto c)
-{
-	if constexpr( is_char_v<decltype(c)> )
-		return mbstowcs(c);
-	else
-		return c;
-}
-
 template <concepts::char_type CharT>
-decltype(auto) mbstoxx(concepts::char_string_type auto &&str)
+decltype(auto) mbstoxx(concepts::weak_char_string_type auto &&str)
 {
 	if constexpr( is_char_v<CharT> )
 		return std::forward<decltype(str)>(str);
@@ -149,30 +130,12 @@ decltype(auto) mbstoxx(concepts::char_string_type auto &&str)
 }
 
 template <concepts::char_type CharT>
-CharT mbstoxx(char c)
-{
-	if constexpr( is_char_v<CharT> )
-		return c;
-	else
-		return mbstowcs(c);
-}
-
-template <concepts::char_type CharT>
-decltype(auto) wcstoxx(concepts::wchar_string_type auto &&str)
+decltype(auto) wcstoxx(concepts::weak_wchar_string_type auto &&str)
 {
 	if constexpr( is_wchar_v<CharT> )
 		return std::forward<decltype(str)>(str);
 	else
 		return wcstombs(str);
-}
-
-template <concepts::char_type CharT>
-CharT wcstoxx(wchar_t c)
-{
-	if constexpr( is_char_v<CharT> )
-		return wcstombs(c);
-	else
-		return c;
 }
 
 inline string_wrapper::string_wrapper(const char *value) :
@@ -231,66 +194,104 @@ inline std::string *string_wrapper::operator->()
 	return &value;
 }
 
-bool is_alpha(const concepts::string_type auto &str) noexcept
+bool is_alpha(const concepts::weak_string_type auto &str) noexcept
 {
-	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
-	return std::ranges::all_of(string_view_t(str), [](auto c){
-		return std::isalpha(c);
-	});
-}
-
-bool is_digit(const concepts::string_type auto &str) noexcept
-{
-	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
-	return std::ranges::all_of(string_view_t(str), [](auto c){
-		return std::isdigit(c);
-	});
-}
-
-bool is_rlnum(const concepts::string_type auto &str) noexcept
-{
-	using string_view_t = std::basic_string_view <
-		get_string_char_t<decltype(str)>
-	>;
-	string_view_t view(str);
-	if( view.empty() )
-		return false;
-
-	auto it = view.begin();
-	if( *it == 0x2D/*-*/ or *it == 0x2B/*+*/ )
-		++it;
-
-	if( not std::isdigit(*it) )
-		return false;
-
-	bool dot = false;
-	for(++it; it!=view.end(); ++it)
+	using Str = decltype(str);
+	if constexpr( concepts::char_type<Str> )
+		return std::isalpha(str);
+	else
 	{
-		if( not std::isdigit(*it) )
-		{
-			if( *it == 0x2E/*.*/ and not dot )
-				dot = true;
-			else
-				return false;
-		}
+		using char_t = get_string_char_t<Str>;
+		using string_view_t = std::basic_string_view<char_t>;
+
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return std::isalpha(c);
+		});
 	}
-	return true;
 }
 
-bool is_alnum(const concepts::string_type auto &str) noexcept
+bool is_digit(const concepts::weak_string_type auto &str) noexcept
 {
-	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
-	return std::ranges::all_of(string_view_t(str), [](auto c){
-		return std::isalnum(c);
-	});
+	using Str = decltype(str);
+	if constexpr( concepts::char_type<Str> )
+		return std::isdigit(str);
+	else
+	{
+		using char_t = get_string_char_t<Str>;
+		using string_view_t = std::basic_string_view<char_t>;
+
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return std::isdigit(c);
+		});
+	}
 }
 
-bool is_ascii(const concepts::string_type auto &str) noexcept
+bool is_rlnum(const concepts::weak_string_type auto &str) noexcept
 {
-	using string_view_t = std::basic_string_view<get_string_char_t<decltype(str)>>;
-	return std::ranges::all_of(string_view_t(str), [](auto c){
-		return c <= 0x7F;
-	});
+	using Str = decltype(str);
+	if constexpr( concepts::char_type<Str> )
+		return std::isdigit(str);
+	else
+	{
+		using char_t = get_string_char_t<Str>;
+		using string_view_t = std::basic_string_view<char_t>;
+
+		string_view_t view(str);
+		if( view.empty() )
+			return false;
+
+		auto it = view.begin();
+		if( *it == 0x2D/*-*/ or *it == 0x2B/*+*/ )
+			++it;
+
+		if( not std::isdigit(*it) )
+			return false;
+
+		bool dot = false;
+		for(++it; it!=view.end(); ++it)
+		{
+			if( not std::isdigit(*it) )
+			{
+				if( *it == 0x2E/*.*/ and not dot )
+					dot = true;
+				else
+					return false;
+			}
+		}
+		return true;
+	}
+}
+
+bool is_alnum(const concepts::weak_string_type auto &str) noexcept
+{
+	using Str = decltype(str);
+	if constexpr( concepts::char_type<Str> )
+		return std::isalnum(str);
+	else
+	{
+		using char_t = get_string_char_t<Str>;
+		using string_view_t = std::basic_string_view<char_t>;
+
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return std::isalnum(c);
+		});
+	}
+}
+
+bool is_ascii(const concepts::weak_string_type auto &str) noexcept
+{
+	using Str = decltype(str);
+	if constexpr( concepts::char_type<Str> )
+		return str <= 0x7F;
+	else
+	{
+		using char_t = get_string_char_t<Str>;
+		using string_view_t = std::basic_string_view<char_t>;
+
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return c <= 0x7F;
+		});
+	}
 }
 
 } //namespace libgs

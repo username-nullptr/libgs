@@ -35,37 +35,34 @@
 namespace libgs
 {
 
-template <concepts::string_type>
+template <concepts::weak_string_type>
 struct get_string_char;
 
-template <concepts::char_string_type Str>
+template <concepts::weak_char_string_type Str>
 struct get_string_char<Str> { using type = char; };
 
-template <concepts::wchar_string_type Str>
+template <concepts::weak_wchar_string_type Str>
 struct get_string_char<Str> { using type = wchar_t; };
 
-template <concepts::string_type Str>
+template <concepts::weak_string_type Str>
 using get_string_char_t = typename get_string_char<Str>::type;
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) nosview(concepts::string_type auto &&str);
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) nosview (
+	concepts::string_type auto &&str
+);
 
-[[nodiscard]] LIBGS_CORE_VAPI std::string wcstombs(std::wstring_view str);
-[[nodiscard]] LIBGS_CORE_VAPI char wcstombs(wchar_t c);
+[[nodiscard]] LIBGS_CORE_TAPI std::string wcstombs (
+	const concepts::weak_wchar_string_type auto &str
+);
+[[nodiscard]] LIBGS_CORE_TAPI auto mbstowcs (
+	const concepts::weak_char_string_type auto &str
+);
 
-[[nodiscard]] LIBGS_CORE_VAPI std::wstring mbstowcs(std::string_view str);
-[[nodiscard]] LIBGS_CORE_VAPI wchar_t mbstowcs(char c);
-
-LIBGS_CORE_TAPI decltype(auto) xxtombs(concepts::string_type auto &&str);
-LIBGS_CORE_TAPI char xxtombs(concepts::char_type auto c);
-
-LIBGS_CORE_TAPI decltype(auto) xxtowcs(concepts::string_type auto &&str);
-LIBGS_CORE_TAPI wchar_t xxtowcs(concepts::char_type auto c);
-
-template <concepts::char_type CharT>
-LIBGS_CORE_TAPI decltype(auto) mbstoxx(concepts::char_string_type auto &&str);
+LIBGS_CORE_TAPI decltype(auto) xxtombs(concepts::weak_string_type auto &&str);
+LIBGS_CORE_TAPI decltype(auto) xxtowcs(concepts::weak_string_type auto &&str);
 
 template <concepts::char_type CharT>
-LIBGS_CORE_TAPI CharT mbstoxx(char c);
+LIBGS_CORE_TAPI decltype(auto) mbstoxx(concepts::weak_char_string_type auto &&str);
 
 template <concepts::char_type CharT>
 LIBGS_CORE_TAPI decltype(auto) wcstoxx(concepts::wchar_string_type auto &&str);
@@ -94,11 +91,11 @@ struct LIBGS_CORE_VAPI string_wrapper
 	std::string *operator->();
 };
 
-LIBGS_CORE_TAPI [[nodiscard]] bool is_alpha(const concepts::string_type auto &str) noexcept;
-LIBGS_CORE_TAPI [[nodiscard]] bool is_digit(const concepts::string_type auto &str) noexcept;
-LIBGS_CORE_TAPI [[nodiscard]] bool is_rlnum(const concepts::string_type auto &str) noexcept;
-LIBGS_CORE_TAPI [[nodiscard]] bool is_alnum(const concepts::string_type auto &str) noexcept;
-LIBGS_CORE_TAPI [[nodiscard]] bool is_ascii(const concepts::string_type auto &str) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI bool is_alpha(const concepts::weak_string_type auto &str) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI bool is_digit(const concepts::weak_string_type auto &str) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI bool is_rlnum(const concepts::weak_string_type auto &str) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI bool is_alnum(const concepts::weak_string_type auto &str) noexcept;
+[[nodiscard]] LIBGS_CORE_TAPI bool is_ascii(const concepts::weak_string_type auto &str) noexcept;
 
 #define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
 

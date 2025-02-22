@@ -150,7 +150,7 @@ public:
 				m_port = m_protocol == string_pool::pro_https ? 443 : 80;
 			else
 			{
-				m_port = stoui16(m_address.substr(pos+1));
+				m_port = stou16(m_address.substr(pos+1));
 				m_address = m_address.substr(0,pos);
 			}
 		}

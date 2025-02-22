@@ -35,120 +35,120 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_TAPI int8_t stoi8 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint8_t stou8 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int16_t stoi16 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t stou16 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int32_t stoi32 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint32_t stou32 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int64_t stoi64 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint64_t stou64 (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI float stof (
-	const concepts::string_type auto &str
+	const concepts::weak_string_type auto &str
 );
 [[nodiscard]] LIBGS_CORE_TAPI double stod (
-	const concepts::string_type auto &str
+	const concepts::weak_string_type auto &str
 );
 [[nodiscard]] LIBGS_CORE_TAPI long double stold (
-	const concepts::string_type auto &str
+	const concepts::weak_string_type auto &str
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI bool stob (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 
 template <concepts::integral_type T>
 [[nodiscard]] LIBGS_CORE_TAPI T ston (
-	const concepts::string_type auto &str, size_t base = 10
+	const concepts::weak_string_type auto &str, size_t base = 10
 );
 
 template <concepts::float_type T>
 [[nodiscard]] LIBGS_CORE_TAPI T ston (
-	const concepts::string_type auto &str
+	const concepts::weak_string_type auto &str
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int8_t stoi8_or (
-	const concepts::string_type auto &str, size_t base = 10, int8_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, int8_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint8_t stou8_or (
-	const concepts::string_type auto &str, size_t base = 10, uint8_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, uint8_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int16_t stoi16_or (
-	const concepts::string_type auto &str, size_t base = 10, int16_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, int16_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t stou16_or (
-	const concepts::string_type auto &str, size_t base = 10, uint16_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, uint16_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int32_t stoi32_or (
-	const concepts::string_type auto &str, size_t base = 10, int32_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, int32_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint32_t stou32_or (
-	const concepts::string_type auto &str, size_t base = 10, uint32_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, uint32_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int64_t stoi64_or (
-	const concepts::string_type auto &str, size_t base = 10, int64_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, int64_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint64_t stou64_or (
-	const concepts::string_type auto &str, size_t base = 10, uint64_t default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, uint64_t default_value = 0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI float stof_or (
-	const concepts::string_type auto &str, float default_value = 0.0
+	const concepts::weak_string_type auto &str, float default_value = 0.0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI double stod_or (
-	const concepts::string_type auto &str, double default_value = 0.0
+	const concepts::weak_string_type auto &str, double default_value = 0.0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI long double stold_or (
-	const concepts::string_type auto &str, long double default_value = 0.0
+	const concepts::weak_string_type auto &str, long double default_value = 0.0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI bool stob_or (
-	const concepts::string_type auto &str, size_t base = 10, bool default_value = false
+	const concepts::weak_string_type auto &str, size_t base = 10, bool default_value = false
 ) noexcept;
 
 template <concepts::integral_type T>
 [[nodiscard]] LIBGS_CORE_TAPI T ston_or (
-	const concepts::string_type auto &str, size_t base = 10, T default_value = 0
+	const concepts::weak_string_type auto &str, size_t base = 10, T default_value = 0
 ) noexcept;
 
 template <concepts::float_type T>
 [[nodiscard]] LIBGS_CORE_TAPI T ston_or (
-	const concepts::string_type auto &str, T default_value = 0.0
+	const concepts::weak_string_type auto &str, T default_value = 0.0
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto str_to_lower (
-	concepts::string_type auto &&str
+	concepts::weak_string_type auto &&str
 );
 [[nodiscard]] LIBGS_CORE_TAPI auto str_to_upper (
-	concepts::string_type auto &&str
+	concepts::weak_string_type auto &&str
 );
 
 template <concepts::char_type CharT>
@@ -185,23 +185,20 @@ template <concepts::string_type Str>
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto str_trimmed (
-	const concepts::string_type auto &str
+	const concepts::weak_string_type auto &str
 );
 
-template <concepts::string_type Str, concepts::basic_string_type<get_string_char_t<Str>> Find>
+template <concepts::string_type Str,
+		  concepts::weak_basic_string_type<get_string_char_t<Str>> Find>
 [[nodiscard]] LIBGS_CORE_TAPI auto str_remove (
 	const Str &str, const Find &find, bool step = true
 );
-template <concepts::string_type Str>
-[[nodiscard]] LIBGS_CORE_TAPI auto str_remove (
-	const Str &str, get_string_char_t<Str> find, bool step = true
-);
 
 [[nodiscard]] LIBGS_CORE_TAPI auto file_name (
-	const concepts::string_type auto &file_name
+	const concepts::weak_string_type auto &file_name
 );
 [[nodiscard]] LIBGS_CORE_TAPI auto file_path (
-	const concepts::string_type auto &file_name
+	const concepts::weak_string_type auto &file_name
 );
 
 } //namespace libgs

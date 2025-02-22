@@ -320,6 +320,12 @@ bool basic_value<CharT>::is_digit() const noexcept
 }
 
 template <concepts::char_type CharT>
+bool basic_value<CharT>::is_rlnum() const noexcept
+{
+	return libgs::is_rlnum(m_str);
+}
+
+template <concepts::char_type CharT>
 bool basic_value<CharT>::is_alnum() const noexcept
 {
 	return libgs::is_alnum(m_str);
