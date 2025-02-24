@@ -47,7 +47,6 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 		add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_WIN32_WINNT=0x0A00)
 		add_compile_options(/W4 /wd4819)
 
-
 	else()
 		message(STATUS "Unknow compiler: " ${CMAKE_CXX_COMPILER_ID} " (" ${CMAKE_CXX_COMPILER_VERSION} ").")
 	endif ()
