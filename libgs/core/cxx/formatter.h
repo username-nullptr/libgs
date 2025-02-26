@@ -44,10 +44,12 @@ struct LIBGS_CORE_TAPI no_parse_formatter
 {
 	constexpr auto parse(std::basic_format_parse_context<CharT> &context) noexcept
 	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return std::ranges::find(context, '}');
-		else
-			return std::ranges::find(context, L'}');
+		for(auto it=context.begin(); it!=context.end(); ++it)
+		{
+			if( *it == 0x7D )
+				return it;
+		}
+		return context.end();
 	}
 };
 
@@ -109,11 +111,9 @@ struct LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
 	{
 		if( ov )
 			return m_formatter.format(*ov, context);
-
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "optional(null)");
-		else
-			return format_to(context.out(), L"optional(null)");
+		return format_to(context.out(), libgs::s_str<CharT,
+			'o','p','t','i','o','n','a','l','(','n','u','l','l',')'
+		>);
 	}
 
 	constexpr auto parse(auto &context) noexcept {
@@ -144,34 +144,22 @@ struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<
 {
 	auto format(const error_code &error, auto &context) const
 	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{} ({})", error.message(), error.value());
-		else
-			return format_to(context.out(), L"{} ({})", error.message(), error.value());
+		return format_to(context.out(),
+			libgs::s_str<CharT,'{','}',' ','(','{','}',')'>,
+			error.message(), error.value()
+		);
 	}
 };
 
-template <libgs::concepts::char_type CharT>
-struct LIBGS_CORE_TAPI formatter<asio::ip::tcp::endpoint, CharT> : libgs::no_parse_formatter<CharT>
+template <typename Protocol, libgs::concepts::char_type CharT>
+struct LIBGS_CORE_TAPI formatter<asio::ip::basic_endpoint<Protocol>, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const asio::ip::tcp::endpoint &endpoint, auto &context) const
+	auto format(const asio::ip::basic_endpoint<Protocol> &endpoint, auto &context) const
 	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{}:{}", endpoint.address().to_string(), endpoint.port());
-		else
-			return format_to(context.out(), L"{}:{}", endpoint.address().to_string(), endpoint.port());
-	}
-};
-
-template <libgs::concepts::char_type CharT>
-struct LIBGS_CORE_TAPI formatter<asio::ip::udp::endpoint, CharT> : libgs::no_parse_formatter<CharT>
-{
-	auto format(const asio::ip::udp::endpoint &endpoint, auto &context) const
-	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{}:{}", endpoint.address().to_string(), endpoint.port());
-		else
-			return format_to(context.out(), L"{}:{}", endpoint.address().to_string(), endpoint.port());
+		return format_to(context.out(),
+			libgs::s_str<CharT,'{','}',':','{','}'>,
+			libgs::mbstoxx<CharT>(endpoint.address().to_string()), endpoint.port()
+		);
 	}
 };
 
@@ -179,14 +167,14 @@ template <libgs::concepts::char_type CharT>
 struct LIBGS_CORE_TAPI formatter<asio::ip::address, CharT>
 {
 	auto format(const asio::ip::address &addr, auto &context) const {
-		return m_formatter.format(addr.to_string(), context);
+		return m_formatter.format(libgs::mbstoxx<CharT>(addr.to_string()), context);
 	}
 	constexpr auto parse(auto &context) noexcept {
 		return m_formatter.parse(context);
 	}
 
 private:
-	formatter<std::string, CharT> m_formatter;
+	formatter<std::basic_string<CharT>, CharT> m_formatter;
 };
 
 template <typename Fir, typename Sec, libgs::concepts::char_type CharT>
@@ -194,10 +182,10 @@ struct LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : libgs::no_parse_fo
 {
 	auto format(const std::pair<Fir,Sec> &pair, auto &context) const
 	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "'{}'-'{}'", pair.first, pair.second);
-		else
-			return format_to(context.out(), L"'{}'-'{}'", pair.first, pair.second);
+		return format_to(context.out(),
+			libgs::s_str<CharT,'\'','{','}','\'','-','\'','{','}','\''>,
+			pair.first, pair.second
+		);
 	}
 };
 
@@ -206,22 +194,18 @@ struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_fo
 {
 	auto format(const std::shared_ptr<T> &ptr, auto &context) const
 	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return format_to(context.out(), "{}:({})", libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get()));
-		else
-			return format_to(context.out(), L"{}:({})", libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get()));
+		return format_to(context.out(),
+			libgs::s_str<CharT,'{','}',':','(','{','}',')'>,
+			libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get())
+		);
 	}
 };
 
 template <libgs::concepts::char_type CharT>
 struct LIBGS_CORE_TAPI formatter<std::filesystem::path, CharT>
 {
-	auto format(const std::filesystem::path &path, auto &context) const
-	{
-		if constexpr( std::is_same_v<CharT, char> )
-			return m_formatter.format(path.string(), context);
-		else
-			return m_formatter.format(path.wstring(), context);
+	auto format(const std::filesystem::path &path, auto &context) const {
+		return m_formatter.format(path.string<CharT>(), context);
 	}
 	constexpr auto parse(auto &context) noexcept {
 		return m_formatter.parse(context);

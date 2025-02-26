@@ -73,7 +73,7 @@ public:
 	}
 
 private:
-	formatter<const char*, char> m_formatter;
+	formatter<const char*> m_formatter;
 };
 
 template <>

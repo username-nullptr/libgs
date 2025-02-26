@@ -26,35 +26,53 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "misc.h"
-
 namespace libgs { namespace detail
 {
 
 template <concepts::char_type CharT>
-[[nodiscard]] static std::basic_string<CharT> from_percent_encoding(std::basic_string_view<CharT> str)
+constexpr CharT to_hex_upper(unsigned int value) noexcept
 {
-	std::basic_string<CharT> result;
-	if( str.empty() )
+	return s_str<CharT,
+		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
+	>[value & 0xF];
+}
+
+template <concepts::char_type CharT>
+constexpr CharT to_hex_lower(unsigned int value) noexcept
+{
+	return s_str<CharT,
+		'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'
+	>[value & 0xF];
+}
+
+} //namespace detail
+
+auto from_percent_encoding(concepts::string_type auto &&str)
+{
+	using Str = decltype(str);
+	using char_t = get_string_char_t<Str>;
+
+	std::basic_string<char_t> result(std::forward<Str>(str));
+	if( result.empty() )
 		return result;
 
-	result = str;
-	auto *data = const_cast<CharT*>(result.c_str());
-	const CharT *inputPtr = result.c_str();
+	auto input_ptr = result.c_str();
+	auto data = result.data();
 
 	size_t i = 0;
 	size_t len = str.size();
 	size_t outlen = 0;
-	int a, b;
-	CharT c;
+
+	int a = 0, b = 0;
+	char_t c = 0;
 
 	while( i < len )
 	{
-		c = inputPtr[i];
+		c = input_ptr[i];
 		if( c == 0x25/*%*/ and i + 2 < len )
 		{
-			a = inputPtr[++i];
-			b = inputPtr[++i];
+			a = input_ptr[++i];
+			b = input_ptr[++i];
 
 			if( a >= 0x30/*0*/ and a <= 0x39/*9*/ )
 				a -= 0x30/*0*/;
@@ -74,7 +92,7 @@ template <concepts::char_type CharT>
 			else if( b >= 0x41/*A*/ and b <= 0x46/*F*/ )
 				b = b - 0x41/*A*/ + 10;
 
-			*data++ = static_cast<CharT>((a << 4) | b);
+			*data++ = static_cast<char_t>((a << 4) | b);
 		}
 		else
 			*data++ = c;
@@ -86,44 +104,44 @@ template <concepts::char_type CharT>
 	return result;
 }
 
-template <concepts::char_type CharT>
-constexpr CharT to_hex_upper(unsigned int value) noexcept
+template <concepts::weak_string_type Str, concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg>
+std::string to_percent_encoding(const Str &str, StrArg &&exclude, StrArg &&include, char percent)
 {
-	if constexpr( is_char_v<CharT> )
-		return "0123456789ABCDEF"[value & 0xF];
-	else
-		return L"0123456789ABCDEF"[value & 0xF];
-}
+	using char_t = get_string_char_t<Str>;
+	if constexpr( not is_char_v<char_t> )
+	{
+		std::basic_string_view<char_t> view(str);
+		constexpr auto char_len = sizeof(char_t);
 
-template <concepts::char_type CharT>
-constexpr CharT to_hex_lower(unsigned int value) noexcept
-{
-	if constexpr( is_char_v<CharT> )
-		return "0123456789abcdef"[value & 0xF];
-	else
-		return L"0123456789abcdef"[value & 0xF];
-}
-
-template <concepts::char_type CharT>
-[[nodiscard]] static std::basic_string<CharT> to_percent_encoding
-(std::basic_string_view<CharT> str, std::basic_string_view<CharT> exclude, std::basic_string_view<CharT> include, char percent)
-{
-	if constexpr( is_wchar_v<CharT> )
-		return mbstowcs(to_percent_encoding<char>(wcstombs(str), wcstombs(exclude), wcstombs(include), percent));
+		std::string char_str(view.size() * char_len, '\0');
+		for(size_t i=0; i<view.size(); i++)
+		{
+			auto &wc = view[i];
+			for(size_t j=0; j<char_len; j++)
+				char_str[i * char_len + j] = wc >> (8 * (char_len - 1 - j));
+		}
+		return to_percent_encoding(std::move(char_str),
+			std::forward<StrArg>(exclude), std::forward<StrArg>(include), percent
+		);
+	}
 	else
 	{
+		auto str_view = transition_string_view(str);
+		auto exclude_view = transition_string_view(exclude);
+		auto include_view = transition_string_view(include);
+
 		std::string result;
-		if( str.empty() )
+		if( str_view.empty() )
 			return result;
 
 		const auto contains = [](std::string_view view, char c) {
 			return not view.empty() and memchr(view.data(), c, view.size()) != nullptr;
 		};
 		size_t length = 0;
-		result.resize(str.size());
+		result.resize(str_view.size());
 		bool expanded = false;
 
-		for(auto &c : str)
+		for(auto &c : str_view)
 		{
 			if( c != percent and
 			    ((c >= 0x61 and c <= 0x7A) // ALPHA
@@ -133,8 +151,8 @@ template <concepts::char_type CharT>
 			     or c == 0x2E // .
 			     or c == 0x5F // _
 			     or c == 0x7E // ~
-			     or contains(exclude, c)) and
-			    not contains(include, c) )
+			     or contains(exclude_view, c)) and
+			    not contains(include_view, c) )
 			{
 				result[length++] = c;
 			}
@@ -142,12 +160,12 @@ template <concepts::char_type CharT>
 			{
 				if( not expanded )
 				{
-					result.resize(str.size() * 3);
+					result.resize(str_view.size() * 3);
 					expanded = true;
 				}
 				result[length++] = percent;
-				result[length++] = to_hex_upper<char>((c & 0xf0) >> 4);
-				result[length++] = to_hex_upper<char>(c & 0xf);
+				result[length++] = detail::to_hex_upper<char>((c & 0xf0) >> 4);
+				result[length++] = detail::to_hex_upper<char>(c & 0xf);
 			}
 		}
 		if( expanded )
@@ -156,11 +174,14 @@ template <concepts::char_type CharT>
 	}
 }
 
-template <concepts::char_type CharT>
-[[nodiscard]] static int32_t wildcard_match(std::basic_string_view<CharT> rule, std::basic_string_view<CharT> str)
+template <concepts::weak_string_type Str, concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg>
+int32_t wildcard_match(const Str &rule, const StrArg &str)
 {
-	size_t rule_len = rule.size();
-	size_t str_len = str.size();
+	auto rule_view = transition_string_view(rule);
+	auto str_view = transition_string_view(str);
+
+	size_t rule_len = rule_view.size();
+	size_t str_len = str_view.size();
 	int32_t weight = 0;
 
 	std::vector dp(str_len + 1, std::vector(rule_len + 1, false));
@@ -168,22 +189,22 @@ template <concepts::char_type CharT>
 
 	for(size_t j=1; j<rule_len+1; j++)
 	{
-		if( rule[j-1] == 0x2A/***/ )
+		if( rule_view[j-1] == 0x2A/***/ )
 			dp[0][j] = dp[0][j-1];
 	}
 	for(size_t i=1; i<str_len+1; i++)
 	{
 		for(size_t j=1; j<rule_len+1; j++)
 		{
-			if( rule[j-1] == 0x3F/*?*/ )
+			if( rule_view[j-1] == 0x3F/*?*/ )
 			{
 				dp[i][j] = dp[i-1][j-1];
 				weight++;
 			}
-			else if( rule[j-1] == str[i-1] )
+			else if( rule_view[j-1] == str_view[i-1] )
 				dp[i][j] = dp[i-1][j-1];
 
-			else if( rule[j-1] == 0x2A/***/ )
+			else if( rule_view[j-1] == 0x2A/***/ )
 			{
 				dp[i][j] = dp[i-1][j] or dp[i][j-1];
 				weight += 2;
@@ -191,38 +212,6 @@ template <concepts::char_type CharT>
 		}
 	}
 	return dp.back().back() ? weight : -1;
-}
-
-} //namespace detail
-
-std::string from_percent_encoding(std::string_view str)
-{
-	return detail::from_percent_encoding<char>(str);
-}
-
-std::wstring from_percent_encoding(std::wstring_view str)
-{
-	return detail::from_percent_encoding<wchar_t>(str);
-}
-
-std::string to_percent_encoding(std::string_view str, std::string_view exclude, std::string_view include, char percent)
-{
-	return detail::to_percent_encoding<char>(str, exclude, include, percent);
-}
-
-std::wstring to_percent_encoding(std::wstring_view str, std::wstring_view exclude, std::wstring_view include, char percent)
-{
-	return detail::to_percent_encoding<wchar_t>(str, exclude, include, percent);
-}
-
-int32_t wildcard_match(std::string_view rule, std::string_view str)
-{
-	return detail::wildcard_match<char>(rule, str);
-}
-
-int32_t wildcard_match(std::wstring_view rule, std::wstring_view str)
-{
-	return detail::wildcard_match<wchar_t>(rule, str);
 }
 
 } //namespace libgs

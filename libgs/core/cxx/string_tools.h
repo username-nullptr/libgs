@@ -47,9 +47,22 @@ struct get_string_char<Str> { using type = wchar_t; };
 template <concepts::weak_string_type Str>
 using get_string_char_t = typename get_string_char<Str>::type;
 
-template <concepts::char_type CharT, typename...Char>
-[[nodiscard]] constexpr const CharT *s_str(Char...c)
-	requires concepts::all_types<char,Char...>;
+template <concepts::char_type CharT, char...Chars>
+struct string_literal
+{
+	static constexpr std::array<CharT, sizeof...(Chars) + 1> _array {Chars..., '\0'};
+	static constexpr const CharT *value = _array.data();
+};
+
+template <concepts::char_type CharT, char...Chars>
+constexpr const CharT *string_literal_v = string_literal<CharT,Chars...>::value;
+
+template <concepts::char_type CharT, char...Chars>
+constexpr const CharT *s_str = string_literal_v<CharT,Chars...>;
+
+[[nodiscard]] LIBGS_CORE_TAPI auto transition_string_view (
+	concepts::weak_string_type auto &&str
+);
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) nosview (
 	concepts::string_type auto &&str
@@ -62,17 +75,21 @@ template <concepts::char_type CharT, typename...Char>
 	const concepts::weak_char_string_type auto &str
 );
 
-LIBGS_CORE_TAPI decltype(auto) xxtombs(concepts::weak_string_type auto &&str);
-LIBGS_CORE_TAPI decltype(auto) xxtowcs(concepts::weak_string_type auto &&str);
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) xxtombs (
+	concepts::weak_string_type auto &&str
+);
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) xxtowcs (
+	concepts::weak_string_type auto &&str
+);
 
 template <concepts::char_type CharT>
-LIBGS_CORE_TAPI decltype(auto) mbstoxx(concepts::weak_char_string_type auto &&str);
-
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) mbstoxx (
+	concepts::weak_char_string_type auto &&str
+);
 template <concepts::char_type CharT>
-LIBGS_CORE_TAPI decltype(auto) wcstoxx(concepts::wchar_string_type auto &&str);
-
-template <concepts::char_type CharT>
-LIBGS_CORE_TAPI CharT wcstoxx(wchar_t c);
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) wcstoxx (
+	concepts::weak_wchar_string_type auto &&str
+);
 
 struct LIBGS_CORE_VAPI string_wrapper
 {

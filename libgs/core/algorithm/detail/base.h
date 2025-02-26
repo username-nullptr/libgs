@@ -28,34 +28,31 @@
 
 #ifndef LIBGS_CORE_ALGORITHM_DETAIL_BASE_H
 #define LIBGS_CORE_ALGORITHM_DETAIL_BASE_H
+#include "libgs/core/cxx/string_tools.h"
 
 namespace libgs { namespace detail
 {
 
-[[nodiscard]] LIBGS_CORE_TAPI auto _sto_float(auto &&func, const auto &str)
+template <concepts::char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI auto _sto_float(auto &&func, std::basic_string_view<CharT> str)
 {
-	using char_t = get_string_char_t<decltype(str)>;
-	std::basic_string_view<char_t> view(str);
-
 	size_t index = 0;
-	auto res = func({view.data(), view.size()}, &index);
-	if( index < view.size() )
+	auto res = func({str.data(), str.size()}, &index);
+	if( index < str.size() )
 		throw runtime_error("Cannot convert string to arithmetic.");
 	return res;
 }
 
-[[nodiscard]] LIBGS_CORE_TAPI auto _sto_int(auto &&func, const auto &str, size_t base)
+template <concepts::char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI auto _sto_int(auto &&func, std::basic_string_view<CharT> str, size_t base)
 {
-	using char_t = get_string_char_t<decltype(str)>;
-	std::basic_string_view<char_t> view(str);
-
 	size_t index = 0;
-	auto res = func({view.data(), view.size()}, &index, static_cast<int>(base));
-	if( index < view.size() )
+	auto res = func({str.data(), str.size()}, &index, static_cast<int>(base));
+	if( index < str.size() )
 	{
-		res = static_cast<decltype(res)>(
-			_sto_float(static_cast<long double(*)(const std::basic_string<char_t>&,size_t*)>(std::stold), str)
-		);
+		res = static_cast<decltype(res)>(_sto_float<CharT>(
+			static_cast<long double(*)(const std::basic_string<CharT>&,size_t*)>(std::stold), str
+		));
 	}
 	return res;
 }
@@ -77,18 +74,16 @@ struct bool_string<wchar_t>
 	static constexpr auto false_text = L"false";
 };
 
-[[nodiscard]] LIBGS_CORE_TAPI int _stob(const auto &str)
+template <concepts::char_type CharT>
+[[nodiscard]] LIBGS_CORE_TAPI int _stob(std::basic_string_view<CharT> str)
 {
-	using char_t = get_string_char_t<decltype(str)>;
-	std::basic_string_view<char_t> view(str);
-
-	constexpr auto true_text = bool_string<char_t>::true_text;
-	constexpr auto false_text = bool_string<char_t>::false_text;
+	constexpr auto true_text = bool_string<CharT>::true_text;
+	constexpr auto false_text = bool_string<CharT>::false_text;
 
 #ifdef WIN32
-	if( _stricmp(view.data(), true_text) == 0 )
+	if( _stricmp(str.data(), true_text) == 0 )
 		return 1;
-	else if( _stricmp(view.data(), false_text) == 0 )
+	else if( _stricmp(str.data(), false_text) == 0 )
 		return 0;
 #else
 	if( view.size() == 4 and strncasecmp(view.data(), true_text, 4) == 0 )
@@ -99,10 +94,10 @@ struct bool_string<wchar_t>
 	return -1;
 }
 
-template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI T try_stobtot(const auto &str, const std::optional<T> &odv)
+template <concepts::char_type CharT, typename T>
+[[nodiscard]] LIBGS_CORE_TAPI T try_stobtot(std::basic_string_view<CharT> str, const std::optional<T> &odv)
 {
-	int res = _stob(str);
+	int res = _stob<CharT>(str);
 	if( res < 0 )
 	{
 		if( odv )
@@ -116,253 +111,186 @@ template <typename T>
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stoi8(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<int8_t>(_sto_int<char_t>(
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<int8_t>(_sto_int (
-				static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t stou8(const auto &str, size_t base, std::optional<uint8_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stou8(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<uint8_t>(_sto_int<char_t>(
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<uint8_t>(_sto_int (
-				static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI int16_t stoi16(const auto &str, size_t base, std::optional<int16_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stoi16(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<int16_t>(_sto_int<char_t>(
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<int16_t>(_sto_int (
-				static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t stou16(const auto &str, size_t base, std::optional<uint8_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stou16(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<uint16_t>(_sto_int<char_t>(
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<uint16_t>(_sto_int (
-				static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI int32_t stoi32(const auto &str, size_t base, std::optional<int32_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stoi32(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<int32_t>(_sto_int<char_t>(
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<int32_t>(_sto_int (
-				static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint32_t stou32(const auto &str, size_t base, std::optional<uint32_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stou32(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<uint32_t>(_sto_int<char_t>(
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<uint32_t>(_sto_int (
-				static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI int64_t stoi64(const auto &str, size_t base, std::optional<int64_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stoi64(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<int64_t>(_sto_int<char_t>(
+			static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<int64_t>(_sto_int (
-				static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint64_t stou64(const auto &str, size_t base, std::optional<uint64_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stou64(string_view_t(&str,1), base, odv);
+	auto view = transition_string_view(str);
+	try {
+		return static_cast<uint64_t>(_sto_int<char_t>(
+			static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), view, base
+		));
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return static_cast<uint64_t>(_sto_int (
-				static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), str, base
-			));
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI float stof(const auto &str, std::optional<float> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stof(string_view_t(&str,1), odv);
+	auto view = transition_string_view(str);
+	try {
+		return _sto_float<char_t>(
+			static_cast<float(*)(const string_t&,size_t*)>(std::stof), view
+		);
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return _sto_float (
-				static_cast<float(*)(const string_t&,size_t*)>(std::stof), str
-			);
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI double stod(const auto &str, std::optional<double> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stod(string_view_t(&str,1), odv);
+	auto view = transition_string_view(str);
+	try {
+		return _sto_float<char_t>(
+			static_cast<double(*)(const string_t&,size_t*)>(std::stod), view
+		);
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return _sto_float (
-				static_cast<double(*)(const string_t&,size_t*)>(std::stod), str
-			);
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI long double stold(const auto &str, std::optional<long double> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return stold(string_view_t(&str,1), odv);
+	auto view = transition_string_view(str);
+	try {
+		return _sto_float<char_t>(
+			static_cast<long double(*)(const string_t&,size_t*)>(std::stold), view
+		);
 	}
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			return _sto_float (
-				static_cast<long double(*)(const string_t&,size_t*)>(std::stold), str
-			);
-		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
-	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
+
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI bool stob(const auto &str, size_t base, std::optional<bool> odv = {})
@@ -372,15 +300,17 @@ template <typename T>
 		return str != 0x30;
 	else
 	{
+		using char_t = get_string_char_t<str_t>;
+		std::basic_string_view<char_t> view(str);
 
-		int res = _stob(str);
+		int res = _stob<char_t>(view);
 		if( res < 0 )
 		{
 			using char_t = get_string_char_t<str_t>;
 			using string_t = std::basic_string<char_t>;
 			try {
-				return /*!!*/_sto_int (
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
+				return /*!!*/_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
 				);
 			}
 			catch(...)
@@ -399,84 +329,77 @@ template <concepts::integral_type T>
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	auto view = transition_string_view(str);
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return ston<T>(string_view_t(&str,1), base, odv);
-	}
+	if constexpr( std::is_same_v<T, bool> )
+		return stob<char_t>(view, base);
 	else
 	{
-		if constexpr( std::is_same_v<T, bool> )
-			return stob(str, base);
-		else
-		{
-			using string_t = std::basic_string<char_t>;
-			try {
-				if constexpr( std::is_same_v<T, char> )
-				{
-					return static_cast<char>(_sto_int(
-						static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, unsigned char> )
-				{
-					return static_cast<unsigned char>(_sto_int(
-						static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, short> )
-				{
-					return static_cast<short>(_sto_int(
-						static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, unsigned short> )
-				{
-					return static_cast<unsigned short>(_sto_int(
-						static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, int> )
-				{
-					return static_cast<int>(_sto_int(
-						static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, unsigned int> )
-				{
-					return static_cast<unsigned int>(_sto_int(
-						static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, long> )
-				{
-					return static_cast<long>(_sto_int(
-						static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, unsigned long> )
-				{
-					return static_cast<unsigned long>(_sto_int(
-						static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, long long> )
-				{
-					return static_cast<long long>(_sto_int(
-						static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), str, base
-					));
-				}
-				else if constexpr( std::is_same_v<T, unsigned long long> )
-				{
-					return static_cast<unsigned long long>(_sto_int(
-						static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), str, base
-					));
-				}
+		using string_t = std::basic_string<char_t>;
+		try {
+			if constexpr( std::is_same_v<T, char> )
+			{
+				return static_cast<char>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+				));
 			}
-			catch(std::exception&) {}
-			return try_stobtot(str, odv);
+			else if constexpr( std::is_same_v<T, unsigned char> )
+			{
+				return static_cast<unsigned char>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, short> )
+			{
+				return static_cast<short>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned short> )
+			{
+				return static_cast<unsigned short>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, int> )
+			{
+				return static_cast<int>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned int> )
+			{
+				return static_cast<unsigned int>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, long> )
+			{
+				return static_cast<long>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned long> )
+			{
+				return static_cast<unsigned long>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, long long> )
+			{
+				return static_cast<long long>(_sto_int<char_t>(
+					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), view, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned long long> )
+			{
+				return static_cast<unsigned long long>(_sto_int<char_t>(
+					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), view, base
+				));
+			}
 		}
+		catch(std::exception&) {}
+		return try_stobtot<char_t>(view, odv);
 	}
 }
 
@@ -485,38 +408,31 @@ template <concepts::float_type T>
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_string_char_t<str_t>;
+	using string_t = std::basic_string<char_t>;
 
-	if constexpr( concepts::char_type<str_t> )
-	{
-		using string_view_t = std::basic_string<char_t>;
-		return ston<T>(string_view_t(&str,1), odv);
-	}
-	else
-	{
-		using string_t = std::basic_string<get_string_char_t<decltype(str)>>;
-		try {
-			if constexpr( std::is_same_v<T, float> )
-			{
-				return _sto_float(
-					static_cast<float(*)(const string_t&,size_t*)>(std::stof), str
-				);
-			}
-			else if constexpr( std::is_same_v<T, double> )
-			{
-				return _sto_float(
-					static_cast<double(*)(const string_t&,size_t*)>(std::stod), str
-				);
-			}
-			else if constexpr( std::is_same_v<T, long double> )
-			{
-				return _sto_float(
-					static_cast<long double(*)(const string_t&,size_t*)>(std::stold), str
-				);
-			}
+	auto view = transition_string_view(str);
+	try {
+		if constexpr( std::is_same_v<T, float> )
+		{
+			return _sto_float<char_t>(
+				static_cast<float(*)(const string_t&,size_t*)>(std::stof), view
+			);
 		}
-		catch(std::exception&) {}
-		return try_stobtot(str, odv);
+		else if constexpr( std::is_same_v<T, double> )
+		{
+			return _sto_float<char_t>(
+				static_cast<double(*)(const string_t&,size_t*)>(std::stod), view
+			);
+		}
+		else if constexpr( std::is_same_v<T, long double> )
+		{
+			return _sto_float<char_t>(
+				static_cast<long double(*)(const string_t&,size_t*)>(std::stold), view
+			);
+		}
 	}
+	catch(std::exception&) {}
+	return try_stobtot<char_t>(view, odv);
 }
 
 template <typename Str>
@@ -825,20 +741,11 @@ auto file_name(const concepts::weak_string_type auto &file_name)
 	else
 	{
 		std::basic_string_view<char_t> view(file_name);
-		size_t pos = 0;
-
-		if constexpr( is_char_v<char_t> )
-			pos = view.rfind("/");
-		else
-			pos = view.rfind(L"/");
+		size_t pos = view.rfind(s_str<char_t,'/'>);
 
 		if( pos == std::basic_string<char_t>::npos )
 		{
-			if constexpr( is_char_v<char_t> )
-				pos = view.rfind("\\");
-			else
-				pos = view.rfind(L"\\");
-
+			pos = view.rfind(s_str<char_t,'\\'>);
 			if( pos == std::basic_string<char_t>::npos )
 				return std::basic_string<char_t>(view.data(), view.size());
 		}
@@ -857,20 +764,11 @@ auto file_path(const concepts::weak_string_type auto &file_name)
 	else
 	{
 		std::basic_string_view<char_t> view(file_name);
-		size_t pos = 0;
+		size_t pos = view.rfind(s_str<char_t,'/'>);
 
-		if constexpr( is_char_v<char_t> )
-		{
-			pos = view.rfind("/");
-			if( pos == std::basic_string<char_t>::npos )
-				return ".";
-		}
-		else
-		{
-			pos = view.rfind(L"/");
-			if( pos == std::basic_string<char_t>::npos )
-				return L".";
-		}
+		if( pos == std::basic_string<char_t>::npos )
+			return std::basic_string<char_t>(1, static_cast<char_t>('.'));
+
 		auto tmp = view.substr(0, pos + 1);
 		return std::basic_string<char_t>(tmp.data(), tmp.size());
 	}

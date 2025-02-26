@@ -34,19 +34,25 @@
 namespace libgs
 {
 
-[[nodiscard]] LIBGS_CORE_API std::string from_percent_encoding(std::string_view str);
-[[nodiscard]] LIBGS_CORE_API std::wstring from_percent_encoding(std::wstring_view str);
+[[nodiscard]] LIBGS_CORE_TAPI auto from_percent_encoding (
+	concepts::string_type auto &&str
+);
 
-[[nodiscard]] LIBGS_CORE_API std::string to_percent_encoding
-(std::string_view str, std::string_view exclude = {}, std::string_view include = {}, char percent = '%');
+template <concepts::weak_string_type Str,
+		  concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg =
+		  	std::basic_string_view<get_string_char_t<Str>>>
+[[nodiscard]] LIBGS_CORE_TAPI std::string to_percent_encoding (
+	const Str &str, StrArg &&exclude = {}, StrArg &&include = {}, char percent = '%'
+);
 
-[[nodiscard]] LIBGS_CORE_API std::wstring to_percent_encoding
-(std::wstring_view str, std::wstring_view exclude = {}, std::wstring_view include = {}, char percent = '%');
-
-[[nodiscard]] LIBGS_CORE_API int32_t wildcard_match(std::string_view rule, std::string_view str);
-[[nodiscard]] LIBGS_CORE_API int32_t wildcard_match(std::wstring_view rule, std::wstring_view str);
+template <concepts::weak_string_type Str,
+		  concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg>
+[[nodiscard]] LIBGS_CORE_TAPI int32_t wildcard_match (
+	const Str &rule, const StrArg &str
+);
 
 } //namespace libgs
+#include <libgs/core/algorithm/detail/misc.h>
 
 
 #endif //LIBGS_CORE_ALGORITHM_MISC_H
