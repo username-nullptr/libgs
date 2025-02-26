@@ -47,6 +47,10 @@ struct get_string_char<Str> { using type = wchar_t; };
 template <concepts::weak_string_type Str>
 using get_string_char_t = typename get_string_char<Str>::type;
 
+template <concepts::char_type CharT, typename...Char>
+[[nodiscard]] constexpr const CharT *s_str(Char...c)
+	requires concepts::all_types<char,Char...>;
+
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) nosview (
 	concepts::string_type auto &&str
 );

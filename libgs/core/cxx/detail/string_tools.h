@@ -35,15 +35,22 @@
 namespace libgs
 {
 
+template <concepts::char_type CharT, typename...Char>
+[[nodiscard]] constexpr const CharT *s_str(Char...c)
+	requires concepts::all_types<char,Char...>
+{
+	constexpr CharT str[] { std::forward<Char>(c)... };
+	return str;
+}
+
 decltype(auto) nosview(concepts::string_type auto &&str)
 {
 	using Str = decltype(str);
 	using str_t = std::remove_cvref_t<Str>;
+	using char_t = get_string_char_t<str_t>;
 
-	if constexpr( std::is_same_v<str_t, std::string_view> )
-		return std::string(str);
-	else if constexpr( std::is_same_v<str_t, std::wstring_view> )
-		return std::wstring(str);
+	if constexpr( std::is_same_v<str_t, std::basic_string_view<char_t>> )
+		return std::basic_string<char_t>(str);
 	else
 		return return_reference(std::forward<Str>(str));
 }

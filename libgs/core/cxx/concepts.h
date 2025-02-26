@@ -60,11 +60,31 @@ using is_wchar = std::is_same<std::remove_const_t<T>,wchar_t>;
 template <typename T>
 constexpr bool is_wchar_v = is_wchar<T>::value;
 
+template <typename T>
+using is_char8 = std::is_same<std::remove_const_t<T>, char8_t>;
+
+template <typename T>
+constexpr bool is_char8_v = is_char8<T>::value;
+
+template <typename T>
+using is_char16 = std::is_same<std::remove_const_t<T>, char16_t>;
+
+template <typename T>
+constexpr bool is_char16_v = is_char16<T>::value;
+
+template <typename T>
+using is_char32 = std::is_same<std::remove_const_t<T>, char32_t>;
+
+template <typename T>
+constexpr bool is_char32_v = is_char32<T>::value;
+
 namespace concepts
 {
 
 template <typename T>
-concept char_type = is_char_v<T> or is_wchar_v<T>;
+concept char_type =
+	is_char_v<T> or  is_wchar_v<T> or
+	is_char8_v<T> or is_char16_v<T> or is_char32_v<T>;
 
 } //namespace concepts
 
@@ -106,6 +126,24 @@ using is_wchar_array = is_basic_char_array<wchar_t, CharT>;
 template <typename CharT>
 constexpr bool is_wchar_array_v = is_wchar_array<CharT>::value;
 
+template <typename CharT>
+using is_char8_array = is_basic_char_array<char8_t, CharT>;
+
+template <typename CharT>
+constexpr bool is_char8_array_v = is_char8_array<CharT>::value;
+
+template <typename CharT>
+using is_char16_array = is_basic_char_array<char16_t, CharT>;
+
+template <typename CharT>
+constexpr bool is_char16_array_v = is_char16_array<CharT>::value;
+
+template <typename CharT>
+using is_char32_array = is_basic_char_array<char32_t, CharT>;
+
+template <typename CharT>
+constexpr bool is_char32_array_v = is_char32_array<CharT>::value;
+
 template <typename T, concepts::char_type CharT>
 struct is_basic_string
 {
@@ -136,7 +174,28 @@ template <typename T>
 constexpr bool is_wchar_string_v = is_wchar_string<T>::value;
 
 template <typename T>
-struct is_string : std::disjunction<is_char_string<T>, is_wchar_string<T>> {};
+using is_char8_string = is_basic_string<T,char8_t>;
+
+template <typename T>
+constexpr bool is_char8_string_v = is_char8_string<T>::value;
+
+template <typename T>
+using is_char16_string = is_basic_string<T,char16_t>;
+
+template <typename T>
+constexpr bool is_char16_string_v = is_char16_string<T>::value;
+
+template <typename T>
+using is_char32_string = is_basic_string<T,char32_t>;
+
+template <typename T>
+constexpr bool is_char32_string_v = is_char32_string<T>::value;
+
+template <typename T>
+struct is_string : std::disjunction <
+	is_char_string<T>, is_wchar_string<T>,
+	is_char8_string<T>, is_char16_string<T>, is_char32_string<T>
+> {};
 
 template <typename T>
 constexpr bool is_string_v = is_string<T>::value;
@@ -163,7 +222,28 @@ template <typename T>
 constexpr bool is_wchar_fstream_v = is_wchar_fstream<T>::value;
 
 template <typename T>
-struct is_fstream : std::disjunction<is_char_fstream<T>, is_wchar_fstream<T>> {};
+using is_char8_fstream = is_basic_fstream<char8_t,T>;
+
+template <typename T>
+constexpr bool is_char8_fstream_v = is_char8_fstream<T>::value;
+
+template <typename T>
+using is_char16_fstream = is_basic_fstream<char16_t,T>;
+
+template <typename T>
+constexpr bool is_char16_fstream_v = is_char16_fstream<T>::value;
+
+template <typename T>
+using is_char32_fstream = is_basic_fstream<char32_t,T>;
+
+template <typename T>
+constexpr bool is_char32_fstream_v = is_char32_fstream<T>::value;
+
+template <typename T>
+struct is_fstream : std::disjunction <
+	is_char_fstream<T>, is_wchar_fstream<T>,
+	is_char8_fstream<T>, is_char16_fstream<T>, is_char32_fstream<T>
+> {};
 
 template <typename T>
 constexpr bool is_fstream_v = is_fstream<T>::value;
@@ -190,7 +270,28 @@ template <typename T>
 constexpr bool is_wchar_ofstream_v = is_wchar_ofstream<T>::value;
 
 template <typename T>
-struct is_ofstream : std::disjunction<is_char_ofstream<T>, is_wchar_ofstream<T>> {};
+using is_char8_ofstream = is_basic_ofstream<char8_t,T>;
+
+template <typename T>
+constexpr bool is_char8_ofstream_v = is_char8_ofstream<T>::value;
+
+template <typename T>
+using is_char16_ofstream = is_basic_ofstream<char16_t,T>;
+
+template <typename T>
+constexpr bool is_char16_ofstream_v = is_char16_ofstream<T>::value;
+
+template <typename T>
+using is_char32_ofstream = is_basic_ofstream<char32_t,T>;
+
+template <typename T>
+constexpr bool is_char32_ofstream_v = is_char32_ofstream<T>::value;
+
+template <typename T>
+struct is_ofstream : std::disjunction <
+	is_char_ofstream<T>, is_wchar_ofstream<T>,
+	is_char8_ofstream<T>, is_char16_ofstream<T>, is_char32_ofstream<T>
+> {};
 
 template <typename T>
 constexpr bool is_ofstream_v = is_ofstream<T>::value;
@@ -215,6 +316,24 @@ using is_wchar_ifstream = is_basic_ifstream<wchar_t,T>;
 
 template <typename T>
 constexpr bool is_wchar_ifstream_v = is_wchar_ifstream<T>::value;
+
+template <typename T>
+using is_char8_ifstream = is_basic_ifstream<char8_t,T>;
+
+template <typename T>
+constexpr bool is_char8_ifstream_v = is_char8_ifstream<T>::value;
+
+template <typename T>
+using is_char16_ifstream = is_basic_ifstream<char16_t,T>;
+
+template <typename T>
+constexpr bool is_char16_ifstream_v = is_char16_ifstream<T>::value;
+
+template <typename T>
+using is_char32_ifstream = is_basic_ifstream<char32_t,T>;
+
+template <typename T>
+constexpr bool is_char32_ifstream_v = is_char32_ifstream<T>::value;
 
 template <typename T>
 struct is_ifstream : std::disjunction<is_char_ifstream<T>, is_wchar_ifstream<T>> {};
@@ -295,6 +414,15 @@ template <typename T>
 concept wchar_string_type = is_wchar_string_v<T>;
 
 template <typename T>
+concept char8_string_type = is_char8_string_v<T>;
+
+template <typename T>
+concept char16_string_type = is_char16_string_v<T>;
+
+template <typename T>
+concept char32_string_type = is_char32_string_v<T>;
+
+template <typename T>
 concept string_type = is_string_v<T>;
 
 template <typename T, typename CharT>
@@ -308,7 +436,18 @@ template <typename T>
 concept weak_wchar_string_type = weak_basic_string_type<T,wchar_t>;
 
 template <typename T>
-concept weak_string_type = weak_char_string_type<T> or weak_wchar_string_type<T>;
+concept weak_char8_string_type = weak_basic_string_type<T,char8_t>;
+
+template <typename T>
+concept weak_char16_string_type = weak_basic_string_type<T,char16_t>;
+
+template <typename T>
+concept weak_char32_string_type = weak_basic_string_type<T,char32_t>;
+
+template <typename T>
+concept weak_string_type =
+	weak_char_string_type<T> or weak_wchar_string_type<T> or
+	weak_char8_string_type<T> or weak_char16_string_type<T> or weak_char32_string_type<T>;
 
 template <typename T>
 concept rvalue_reference = std::is_rvalue_reference_v<T>;
@@ -370,6 +509,9 @@ template <typename T, typename Base>
 concept base_of = std::is_base_of_v<Base,T>;
 
 template <typename T, typename...Args>
+concept all_types = std::conjunction_v<std::is_same<T,std::remove_cvref_t<Args>>...>;
+
+template <typename T, typename...Args>
 concept container_params = []() consteval -> bool
 {
 	if constexpr( sizeof...(Args) == 0 )
@@ -418,7 +560,27 @@ template <typename T>
 concept wchar_fstream_wkn = wchar_fstream<std::remove_reference_t<T>>;
 
 template <typename T>
-concept fstream = char_fstream<T> or wchar_fstream<T>;
+concept char8_fstream = basic_fstream<T,char8_t>;
+
+template <typename T>
+concept char8_fstream_wkn = char8_fstream<std::remove_reference_t<T>>;
+
+template <typename T>
+concept char16_fstream = basic_fstream<T,char16_t>;
+
+template <typename T>
+concept char16_fstream_wkn = char16_fstream<std::remove_reference_t<T>>;
+
+template <typename T>
+concept char32_fstream = basic_fstream<T,char32_t>;
+
+template <typename T>
+concept char32_fstream_wkn = char32_fstream<std::remove_reference_t<T>>;
+
+template <typename T>
+concept fstream =
+	char_fstream<T> or wchar_fstream<T> or
+	char8_fstream<T> or char16_fstream<T> or char32_fstream<T>;
 
 template <typename T>
 concept fstream_wkn = fstream<std::remove_reference_t<T>>;
