@@ -55,6 +55,15 @@ template <typename T>
 concept text_arg = basic_text_arg<T,char>;
 
 template <typename T>
+concept u8text_arg = basic_text_arg<T,char8_t>;
+
+template <typename T>
+concept u16text_arg = basic_text_arg<T,char16_t>;
+
+template <typename T>
+concept u32text_arg = basic_text_arg<T,char32_t>;
+
+template <typename T>
 concept wtext_arg = basic_text_arg<T,wchar_t>;
 
 template <typename T, typename CharT>
@@ -64,6 +73,15 @@ concept basic_value_arg = basic_text_arg<T,CharT> or requires(T &&rv) {
 
 template <typename T>
 concept value_arg = basic_value_arg<T,char>;
+
+template <typename T>
+concept u8value_arg = basic_value_arg<T,char8_t>;
+
+template <typename T>
+concept u16value_arg = basic_value_arg<T,char16_t>;
+
+template <typename T>
+concept u32value_arg = basic_value_arg<T,char32_t>;
 
 template <typename T>
 concept wvalue_arg = basic_value_arg<T,wchar_t>;
@@ -77,6 +95,15 @@ template <typename T>
 concept rvgs = basic_rvgs<T,char>;
 
 template <typename T>
+concept u8rvgs = basic_rvgs<T,char8_t>;
+
+template <typename T>
+concept u16rvgs = basic_rvgs<T,char16_t>;
+
+template <typename T>
+concept u32rvgs = basic_rvgs<T,char32_t>;
+
+template <typename T>
 concept wrvgs = basic_rvgs<T,wchar_t>;
 
 template <typename T, typename CharT>
@@ -84,6 +111,15 @@ concept basic_vgs = basic_rvgs<T,CharT> or std::is_same_v<T,basic_value<CharT>>;
 
 template <typename T>
 concept vgs = basic_vgs<T,char>;
+
+template <typename T>
+concept u8vgs = basic_vgs<T,char8_t>;
+
+template <typename T>
+concept u16vgs = basic_vgs<T,char16_t>;
+
+template <typename T>
+concept u32vgs = basic_vgs<T,char32_t>;
 
 template <typename T>
 concept wvgs = basic_vgs<T,wchar_t>;
@@ -211,20 +247,26 @@ protected:
 	string_t m_str;
 };
 
-using value = basic_value<char>;
-using wvalue = basic_value<wchar_t>;
+using value    = basic_value<char    >;
+using u8value  = basic_value<char8_t >;
+using u16value = basic_value<char16_t>;
+using u32value = basic_value<char32_t>;
+using wvalue   = basic_value<wchar_t >;
 
-template <concepts::char_type CharT>
-using basic_value_list = std::deque<basic_value<CharT>>;
-
-using value_list = basic_value_list<char>;
-using wvalue_list = basic_value_list<wchar_t>;
+using value_t    = value   ;
+using u8value_t  = u8value ;
+using u16value_t = u16value;
+using u32value_t = u32value;
+using wvalue_t   = wvalue  ;
 
 template <concepts::char_type CharT>
 using basic_value_optl = std::optional<basic_value<CharT>>;
 
-using value_optl = basic_value_optl<char>;
-using wvalue_optl = basic_value_optl<wchar_t>;
+using value_optl    = basic_value_optl<char    >;
+using u8value_optl  = basic_value_optl<char8_t >;
+using u16value_optl = basic_value_optl<char16_t>;
+using u32value_optl = basic_value_optl<char32_t>;
+using wvalue_optl   = basic_value_optl<wchar_t >;
 
 } //namespace libgs
 #include <libgs/core/detail/value.h>

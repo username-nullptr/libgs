@@ -75,50 +75,16 @@ constexpr const CharT *s_str = string_literal_v<CharT,Chars...>;
 	const concepts::weak_char_string_type auto &str
 );
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) xxtombs (
-	concepts::weak_string_type auto &&str
-);
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) xxtowcs (
-	concepts::weak_string_type auto &&str
-);
-
-template <concepts::char_type CharT>
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) mbstoxx (
-	concepts::weak_char_string_type auto &&str
-);
-template <concepts::char_type CharT>
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) wcstoxx (
-	concepts::weak_wchar_string_type auto &&str
-);
-
-struct LIBGS_CORE_VAPI string_wrapper
-{
-	std::string value;
-
-	string_wrapper() = default;
-	string_wrapper(const char *value);
-	string_wrapper(const wchar_t *value);
-
-	string_wrapper(const std::string &value);
-	string_wrapper(std::string &&value);
-
-	string_wrapper(std::string_view value);
-	string_wrapper(std::wstring_view value);
-
-	operator std::string&();
-	operator const std::string&() const;
-
-	std::string &operator*();
-	std::string *operator->();
-};
-
 [[nodiscard]] LIBGS_CORE_TAPI bool is_alpha(const concepts::weak_string_type auto &str) noexcept;
 [[nodiscard]] LIBGS_CORE_TAPI bool is_digit(const concepts::weak_string_type auto &str) noexcept;
 [[nodiscard]] LIBGS_CORE_TAPI bool is_rlnum(const concepts::weak_string_type auto &str) noexcept;
 [[nodiscard]] LIBGS_CORE_TAPI bool is_alnum(const concepts::weak_string_type auto &str) noexcept;
 [[nodiscard]] LIBGS_CORE_TAPI bool is_ascii(const concepts::weak_string_type auto &str) noexcept;
 
-#define LIBGS_WCHAR(s)  LIBGS_CAT(L,s)
+#define LIBGS_WCHAR(s)   LIBGS_CAT(L , s)
+#define LIBGS_CHAR8(s)   LIBGS_CAT(u8, s)
+#define LIBGS_CHAR16(s)  LIBGS_CAT(u , s)
+#define LIBGS_CHAR32(s)  LIBGS_CAT(U , s)
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/string_tools.h>

@@ -52,23 +52,13 @@ using version_t = version::type;
 LIBGS_HTTP_VAPI bool version_check(version_t v, bool _throw = true);
 LIBGS_HTTP_VAPI bool version_check(std::string_view vs, bool _throw = true);
 
-template <version_t Version, core_concepts::char_type CharT>
-[[nodiscard]] consteval const CharT *version_string();
-
 template <version_t Version>
 [[nodiscard]] consteval const char *version_string();
 
-template <version_t Version>
-[[nodiscard]] consteval const wchar_t *wversion_string();
-
-template <core_concepts::char_type CharT>
-[[nodiscard]] LIBGS_HTTP_TAPI const CharT *version_string(version_t v);
-
 [[nodiscard]] LIBGS_HTTP_VAPI const char *version_string(version_t v);
-[[nodiscard]] LIBGS_HTTP_VAPI const wchar_t *wversion_string(version_t v);
 
-LIBGS_HTTP_TAPI version_t version_number (
-	core_concepts::string_type auto &&vs, bool _throw = true
+[[nodiscard]] LIBGS_HTTP_TAPI version_t version_number (
+	const core_concepts::string_type auto &vs, bool _throw = true
 );
 
 } //namespace libgs::http

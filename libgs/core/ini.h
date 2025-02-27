@@ -38,7 +38,8 @@ namespace libgs
 {
 
 template <concepts::char_type CharT,
-		  typename KeyMap = std::map<std::basic_string<CharT>,basic_value<CharT>>>
+		  template<typename,typename,typename...> class Map = std::map,
+		  typename...MapArgs>
 class LIBGS_CORE_TAPI basic_ini_keys
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_ini_keys)
@@ -47,7 +48,7 @@ public:
 	using char_t = CharT;
 	using string_t = std::basic_string<char_t>;
 	using value_t = basic_value<char_t>;
-	using key_map_t = KeyMap;
+	using map_t = Map<string_t,value_t,MapArgs...>;
 
 	template <typename...Args>
 	using format_string = typename value_t::template format_string<Args...>;
@@ -87,10 +88,10 @@ public:
 #endif //LIBGS_CPLUSPLUS
 
 public:
-	using iterator = typename key_map_t::iterator;
-	using const_iterator = typename key_map_t::const_iterator;
-	using reverse_iterator = typename key_map_t::reverse_iterator;
-	using const_reverse_iterator = typename key_map_t::const_reverse_iterator;
+	using iterator = typename map_t::iterator;
+	using const_iterator = typename map_t::const_iterator;
+	using reverse_iterator = typename map_t::reverse_iterator;
+	using const_reverse_iterator = typename map_t::const_reverse_iterator;
 
 public:
 	[[nodiscard]] iterator begin() noexcept;
@@ -117,14 +118,22 @@ public:
 	[[nodiscard]] size_t size() const noexcept;
 
 protected:
-	key_map_t m_keys;
+	map_t m_keys;
 };
 
 namespace concepts
 {
 
+// template <typename T, typename CharT>
+// concept base_of_basic_ini_keys = std::is_base_of_v<basic_ini_keys<CharT, typename T::map_t>, T>;
+
 template <typename T, typename CharT>
-concept base_of_basic_ini_keys = std::is_base_of_v<basic_ini_keys<CharT, typename T::key_map_t>, T>;
+concept ttttt = requires {
+	typename T::map_t;
+	std::is_same_v<typename T::map_t, typename basic_ini_keys<CharT, T::template map_t, typename T::map_t::allocator_type>::map_t>;
+}
+and std::is_base_of_v<basic_ini_keys<CharT, typename T::map_t::key_type, typename T::map_t::mapped_type, typename T::map_t::allocator_type>, T>;
+
 
 template <typename T>
 concept basic_of_char_ini_keys = base_of_basic_ini_keys<char,T>;
@@ -324,8 +333,11 @@ protected:
 	std::shared_ptr<impl> m_impl;
 };
 
-using ini = basic_ini<char>;
-using wini = basic_ini<wchar_t>;
+using ini    = basic_ini<char    >;
+using u8ini  = basic_ini<char8_t >;
+using u16ini = basic_ini<char16_t>;
+using u32ini = basic_ini<char32_t>;
+using wini   = basic_ini<wchar_t >;
 
 } //namespace libgs
 #include <libgs/core/detail/ini.h>

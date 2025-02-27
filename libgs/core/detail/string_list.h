@@ -34,44 +34,29 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT>
-std::vector<std::basic_string<CharT>> basic_string_list<CharT>::to_vector() const
-{
-	std::vector<string_t> result;
-	result.reserve(this->size());
-
-	for(size_t i=0; i<this->size(); i++)
-		result[i] = base_t::operator[](i);
-	return result;
-}
-
-template <concepts::char_type CharT>
-std::vector<const CharT*> basic_string_list<CharT>::c_str_vector() const
-{
-	std::vector<const char*> result;
-	result.reserve(this->size());
-
-	for(size_t i=0; i<this->size(); i++)
-		result[i] = base_t::operator[](i).c_str();
-	return result;
-}
-
-template <concepts::char_type CharT>
-std::basic_string<CharT> basic_string_list<CharT>::join(const string_t &splits)
+template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::weak_basic_string_type<CharT> Str>
+std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join(const Str &splits)
 {
 	string_t result;
+	auto view = transition_string_view(splits);
+
 	for(auto &str : *this)
-		result += str + splits;
-	result.erase(result.size() - splits.size(), splits.size());
+		result += str + string_t(view.data(), view.size());
+
+	result.erase(result.size() - view.size(), view.size());
 	return result;
 }
 
-template <concepts::char_type CharT>
-std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, size_t length, const string_t &splits)
+template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::weak_basic_string_type<CharT> Str>
+std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
+(size_t index, size_t length, const Str &splits)
 {
 	string_t result;
-	auto end = index + length;
+	auto view = transition_string_view(splits);
 
+	auto end = index + length;
 	if( end > this->size() )
 	{
 		end = this->size();
@@ -79,41 +64,52 @@ std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, size_t len
 			return result;
 	}
 	while( index < end )
-		result += (*this)[index++] + splits;
-	result.erase(result.size() - splits.size(), splits.size());
+		result += (*this)[index++] + string_t(view.data(), view.size());
+	result.erase(result.size() - view.size(), view.size());
 	return result;
 }
 
-template <concepts::char_type CharT>
-std::basic_string<CharT> basic_string_list<CharT>::join(size_t index, const string_t &splits)
+template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::weak_basic_string_type<CharT> Str>
+std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
+(size_t index, const Str &splits)
 {
 	return join(index, this->size(), splits);
 }
 
-template <concepts::char_type CharT>
-std::basic_string<CharT> basic_string_list<CharT>::join
-(concepts::string_list_iterator<char_t> auto begin,
- concepts::string_list_iterator<char_t> auto end,
- const string_t &splits)
+template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::string_list_iterator<CharT,Container,Args...> Iter,
+		  concepts::weak_basic_string_type<CharT> Str>
+std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
+(Iter begin, Iter end, const Str &splits)
 {
 	string_t result;
+	auto view = transition_string_view(splits);
+
 	for(auto it=begin; it!=end; ++it)
-		result += *it + splits;
-	result.erase(result.size() - splits.size(), splits.size());
+		result += *it + string_t(view.data(), view.size());
+
+	result.erase(result.size() - view.size(), view.size());
 	return result;
 }
 
-template <concepts::char_type CharT>
-basic_string_list<CharT> basic_string_list<CharT>::from_string
-(string_view_t str, string_view_t splits, bool ignore_empty)
+template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::weak_basic_string_type<CharT> Str>
+basic_string_container<CharT,Container,Args...>
+basic_string_container<CharT,Container,Args...>::from_string
+(concepts::basic_string_type<char_t> auto &&str, const Str &splits, bool ignore_empty)
 {
-	basic_string_list<CharT> result;
-	if( str.empty() )
+	basic_string_container result;
+	auto view = transition_string_view(splits);
+
+	if( view.empty() )
 		return result;
 
-	auto strs = string_t(str.data(), str.size()) + string_t(splits.data(), splits.size());
-	auto pos = strs.find(splits);
-	auto step = splits.size();
+	string_t strs(std::forward<Str>(str));
+	strs += view;
+
+	auto pos = strs.find(view);
+	auto step = view.size();
 
 	while( pos != std::basic_string<CharT>::npos )
 	{
@@ -122,16 +118,9 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 			result.emplace_back(std::move(tmp));
 
 		strs = strs.substr(pos + step, strs.size());
-		pos = strs.find(splits);
+		pos = strs.find(view);
 	}
 	return result;
-}
-
-template <concepts::char_type CharT>
-basic_string_list<CharT> basic_string_list<CharT>::from_string
-(string_view_t str, CharT splits, bool ignore_empty)
-{
-	return from_string(str, string_t(1,splits), ignore_empty);
 }
 
 } //namespace libgs
@@ -139,33 +128,25 @@ basic_string_list<CharT> basic_string_list<CharT>::from_string
 namespace std
 {
 
-template <libgs::concepts::char_type CharT>
-class LIBGS_CORE_TAPI formatter<libgs::basic_string_list<CharT>, CharT>
+template <libgs::concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+class LIBGS_CORE_TAPI formatter<libgs::basic_string_container<CharT,Container,Args...>, CharT>
 {
-public:
-	auto format(const libgs::basic_string_list<CharT> &slist, auto &context) const
-	{
-		if( slist.empty() )
-			return m_formatter.format("[]", context);
+	template <char...Chars>
+	static constexpr auto s_str = libgs::s_str<CharT,Chars...>;
 
-		if constexpr( libgs::is_char_v<CharT> )
-		{
-			std::string buf = "[";
-			for(auto &str : slist)
-				buf += "'" + str + "', ";
-			buf.erase(buf.size() - 2, 2);
-			buf += "]";
-			return m_formatter.format(buf, context);
-		}
-		else
-		{
-			std::wstring buf = L"[";
-			for(auto &str : slist)
-				buf += L"'" + str + L"', ";
-			buf.erase(buf.size() - 2, 2);
-			buf += L"]";
-			return m_formatter.format(buf, context);
-		}
+public:
+	auto format(const libgs::basic_string_container<CharT,Container,Args...> &container, auto &context) const
+	{
+		if( container.empty() )
+			return m_formatter.format(s_str<'[',']'>, context);
+
+		std::basic_string<CharT> buf = s_str<'['>;
+		for(auto &str : container)
+			buf += s_str<'\''> + str + s_str<'\'',',',' '>;
+
+		buf.erase(buf.size() - 2, 2);
+		buf += s_str<']'>;
+		return m_formatter.format(buf, context);
 	}
 
 	constexpr auto parse(auto &context) noexcept {

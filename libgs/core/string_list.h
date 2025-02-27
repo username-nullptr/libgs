@@ -34,87 +34,89 @@
 #include <vector>
 #include <deque>
 
-namespace libgs
+namespace libgs { namespace concepts
 {
 
-template <concepts::char_type CharT>
-using basic_string_deque = std::deque<std::basic_string<CharT>>;
-
-using string_deque = basic_string_deque<char>;
-using wstring_deque = basic_string_deque<wchar_t>;
-
-namespace detail
-{
-
-template <typename T>
-struct _default_splits_argument;
-
-template <>
-struct _default_splits_argument<char>
-{
-	static constexpr const char *s = " ";
-	static constexpr char c = ' ';
-};
-
-template <>
-struct _default_splits_argument<wchar_t>
-{
-	static constexpr const wchar_t *s = L" ";
-	static constexpr wchar_t c = L' ';
-};
-
-} //namespace detail
-
-namespace concepts
-{
-
-template <typename T, typename CharT>
+template <typename T, typename CharT, template<typename,typename...> class Container, typename...Args>
 concept string_list_iterator =
-	std::is_same_v<T, typename basic_string_deque<CharT>::iterator> and
-	std::is_same_v<T, typename basic_string_deque<CharT>::const_iterator> and
-	std::is_same_v<T, typename basic_string_deque<CharT>::reverse_iterator> and
-	std::is_same_v<T, typename basic_string_deque<CharT>::const_reverse_iterator>;
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::iterator> and
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::const_iterator> and
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::reverse_iterator> and
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::const_reverse_iterator>;
 
 } //namespace concepts
 
-template <concepts::char_type CharT>
-class LIBGS_CORE_TAPI basic_string_list : public basic_string_deque<CharT>
+template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+class LIBGS_CORE_TAPI basic_string_container : public Container<std::basic_string<CharT>,Args...>
 {
 public:
 	using char_t = CharT;
 	using string_t = std::basic_string<char_t>;
 	using string_view_t = std::basic_string_view<char_t>;
 
-	using base_t = basic_string_deque<char_t>;
+	using base_t = Container<string_t,Args...>;
 	using base_t::base_t;
 
-private:
-	static constexpr const char_t *default_splits_argument_s = detail::_default_splits_argument<char_t>::s;
-	static constexpr char_t default_splits_argument_c = detail::_default_splits_argument<char_t>::c;
+	constexpr char_t space = 0x20;
 
 public:
-	[[nodiscard]] std::vector<string_t> to_vector() const;
-	[[nodiscard]] std::vector<const char_t*> c_str_vector() const;
+	template <concepts::weak_basic_string_type<CharT> Str = char_t>
+	[[nodiscard]] string_t join(const Str &splits = space);
 
-public:
-	[[nodiscard]] string_t join(const string_t &splits = default_splits_argument_s);
-	[[nodiscard]] string_t join(size_t index, size_t length, const string_t &splits = default_splits_argument_s);
-	[[nodiscard]] string_t join(size_t index, const string_t &splits = default_splits_argument_s);
+	template <concepts::weak_basic_string_type<CharT> Str = char_t>
+	[[nodiscard]] string_t join(size_t index, size_t length, const Str &splits = space);
 
+	template <concepts::weak_basic_string_type<CharT> Str = char_t>
+	[[nodiscard]] string_t join(size_t index, const Str &splits = space);
+
+	template <concepts::string_list_iterator<CharT,Container> Iter,
+			  concepts::weak_basic_string_type<CharT> Str = char_t>
 	[[nodiscard]] static string_t join (
-		concepts::string_list_iterator<char_t> auto begin, concepts::string_list_iterator<char_t> auto end,
-		const string_t &splits = default_splits_argument_s
+		Iter begin, Iter end, const Str &splits = space
 	);
-	[[nodiscard]] static basic_string_list
-		from_string(string_view_t str, string_view_t splits = default_splits_argument_s,
-					bool ignore_empty = true);
 
-	[[nodiscard]] static basic_string_list
-		from_string(string_view_t str, char_t splits, bool ignore_empty = true);
+	template <concepts::weak_basic_string_type<CharT> Str = char_t>
+	[[nodiscard]] static basic_string_container from_string (
+		concepts::basic_string_type<char_t> auto &&str, const Str &splits = space,
+		bool ignore_empty = true
+	);
 };
 
-using string_list = basic_string_list<char>;
-using wstring_list = basic_string_list<wchar_t>;
+template <concepts::char_type CharT>
+using basic_string_vector = basic_string_container<CharT,std::vector>;
+
+using string_vector    = basic_string_vector<char    >;
+using wstring_vector   = basic_string_vector<wchar_t >;
+using u8string_vector  = basic_string_vector<char8_t >;
+using u16string_vector = basic_string_vector<char16_t>;
+using u32string_vector = basic_string_vector<char32_t>;
+
+template <concepts::char_type CharT>
+using basic_string_deque = basic_string_container<CharT,std::deque>;
+
+using string_deque    = basic_string_deque<char    >;
+using wstring_deque   = basic_string_deque<wchar_t >;
+using u8string_deque  = basic_string_deque<char8_t >;
+using u16string_deque = basic_string_deque<char16_t>;
+using u32string_deque = basic_string_deque<char32_t>;
+
+template <concepts::char_type CharT>
+using basic_string_list = basic_string_container<CharT,std::list>;
+
+using string_list    = basic_string_list<char    >;
+using wstring_list   = basic_string_list<wchar_t >;
+using u8string_list  = basic_string_list<char8_t >;
+using u16string_list = basic_string_list<char16_t>;
+using u32string_list = basic_string_list<char32_t>;
+
+template <concepts::char_type CharT>
+using basic_string_set = basic_string_container<CharT,std::set>;
+
+using string_set    = basic_string_set<char    >;
+using wstring_set   = basic_string_set<wchar_t >;
+using u8string_set  = basic_string_set<char8_t >;
+using u16string_set = basic_string_set<char16_t>;
+using u32string_set = basic_string_set<char32_t>;
 
 } //namespace libgs
 #include <libgs/core/detail/string_list.h>

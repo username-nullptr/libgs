@@ -48,8 +48,8 @@ struct LIBGS_CORE_TAPI basic_endpoint_wrapper
 	endpoint_t value;
 
 	basic_endpoint_wrapper() = default;
-	basic_endpoint_wrapper(string_wrapper address, uint16_t port);
-	basic_endpoint_wrapper(string_wrapper address);
+	basic_endpoint_wrapper(const concepts::string_type auto &address, uint16_t port);
+	basic_endpoint_wrapper(const concepts::string_type auto &address);
 
 	basic_endpoint_wrapper(ip_type type, uint16_t port);
 	basic_endpoint_wrapper(ip_type type);

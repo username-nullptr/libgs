@@ -60,43 +60,25 @@ inline bool version_check(std::string_view vs, bool _throw)
 	return false;
 }
 
-template <version_t Version, core_concepts::char_type CharT>
-consteval const CharT *version_string()
+namespace detail
 {
+
+template <version_t>
+struct version_string;
+
 #define X_MACRO(e,v,s) \
-	if constexpr( Version == version::e ) { \
-		if constexpr( is_char_v<CharT> ) \
-			return s; \
-		else \
-			return LIBGS_WCHAR(s); \
-	}
+	template <> struct version_string<version::e> { \
+		constexpr const char *value = s; \
+	};
 	LIBGS_HTTP_VERSION_TABLE
 #undef X_MACRO
-	else {
-		static_assert(false, "Invalid http version.");
-		return {};
-	}
-}
+
+} //namespace detail
 
 template <version_t Version>
 consteval const char *version_string()
 {
-	return version_string<Version,char>();
-}
-
-template <version_t Version>
-consteval const wchar_t *wversion_string()
-{
-	return version_string<Version,wchar_t>();
-}
-
-template <core_concepts::char_type CharT>
-const CharT *version_string(version_t v)
-{
-	if constexpr( is_char_v<CharT> )
-		return version_string(v);
-	else
-		return wversion_string(v);
+	return detail::version_string<Version>::value;
 }
 
 inline const char *version_string(version_t v)
@@ -112,24 +94,9 @@ inline const char *version_string(version_t v)
 //	return "";
 }
 
-inline const wchar_t *wversion_string(version_t v)
+version_t version_number(const core_concepts::string_type auto &vs, bool _throw)
 {
-	switch(v)
-	{
-#define X_MACRO(e,v,s) case version::e: return LIBGS_WCHAR(s);
-		LIBGS_HTTP_VERSION_TABLE
-#undef X_MACRO
-		default: break;
-	}
-	throw runtime_error("libgs::http: Invalid http version: '{}'.", v);
-	// return L"";
-}
-
-LIBGS_HTTP_TAPI version_t version_number(core_concepts::string_type auto &&vs, bool _throw)
-{
-#define X_MACRO(e,v,s) \
-	if( vs == s ) \
-		return version::e;
+#define X_MACRO(e,v,s) if( vs == s ) return version::e;
 	LIBGS_HTTP_VERSION_TABLE
 #undef X_MACRO
 	else if( _throw )

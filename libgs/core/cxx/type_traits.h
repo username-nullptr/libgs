@@ -62,24 +62,8 @@ using time_point = std::chrono::time_point<Clock, Duration>;
 using error_code = asio::error_code;
 namespace errc = asio::error;
 
-template <concepts::char_type>
-struct default_format {};
-
-template <>
-struct default_format<char> {
-	static constexpr const char *value = "{}";
-};
-
-template <>
-struct default_format<wchar_t> {
-	static constexpr const wchar_t *value = L"{}";
-};
-
 template <concepts::char_type CharT, typename...Args>
 using format_string = std::basic_format_string<CharT, std::type_identity_t<Args>...>;
-
-template <concepts::char_type CharT>
-static constexpr const CharT *default_format_v = default_format<CharT>::value;
 
 using mutable_buffer = asio::ASIO_MUTABLE_BUFFER;
 

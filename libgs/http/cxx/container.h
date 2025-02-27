@@ -39,192 +39,116 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
-struct LIBGS_HTTP_TAPI basic_less_case_insensitive
-{
-	using string_t = std::basic_string<CharT>;
-	bool operator()(const string_t &v1, const string_t &v2) const;
+struct LIBGS_HTTP_TAPI less_case_insensitive {
+	bool operator()(const std::string &v1, const std::string &v2) const;
 };
 
-using less_case_insensitive = basic_less_case_insensitive<char>;
-using wless_case_insensitive = basic_less_case_insensitive<wchar_t>;
+template <typename Value>
+using map = std::map <
+	std::string, Value, less_case_insensitive
+>;
+using attr_map = map<value>;
 
-template <core_concepts::char_type CharT, typename Value>
-using basic_map = std::map <
-	std::basic_string<CharT>, Value,
-	basic_less_case_insensitive<CharT>
+template <typename Value>
+using pair_init = std::initializer_list <
+	std::tuple<std::string_view, Value>
+>;
+using key_attr_init = pair_init<value>;
+
+using key_init = std::initializer_list <
+	std::string_view
 >;
 
-template <typename V>
-using map = basic_map<char,V>;
-
-template <typename V>
-using wmap = basic_map<wchar_t,V>;
-
-template <core_concepts::char_type CharT>
-using basic_attr_map = basic_map<CharT,basic_value<CharT>>;
-
-using attr_map  = basic_attr_map<char>;
-using wattr_map = basic_attr_map<wchar_t>;
-
-template <core_concepts::char_type CharT, typename Value>
-using basic_pair_init = std::initializer_list<std::tuple <
-	std::basic_string_view<CharT>, Value
->>;
-
-template <typename V>
-using pair_init = basic_pair_init<char,V>;
-
-template <typename V>
-using wpair_init = basic_pair_init<wchar_t,V>;
-
-template <core_concepts::char_type CharT>
-using basic_key_attr_init = basic_pair_init<CharT,basic_value<CharT>>;
-
-using key_attr_init  = basic_key_attr_init<char>;
-using wkey_attr_init = basic_key_attr_init<wchar_t>;
-
-template <core_concepts::char_type CharT>
-using basic_key_init = std::initializer_list <
-	std::basic_string_view<CharT>
+using set = std::set <
+	value, less_case_insensitive
 >;
-
-using key_init_list  = basic_key_init<char>;
-using wkey_init_list = basic_key_init<wchar_t>;
-
-template <core_concepts::char_type CharT>
-using basic_set = std::set <
-	basic_value<CharT>,
-	basic_less_case_insensitive<CharT>
->;
-
-using set  = basic_set<char>;
-using wset = basic_set<wchar_t>;
-
-template <core_concepts::char_type CharT>
-using basic_value_set = basic_set<CharT>;
-
-using value_set  = basic_value_set<char>;
-using wvalue_set = basic_value_set<wchar_t>;
-
-template <core_concepts::char_type CharT>
-using basic_attr_init = std::initializer_list <
-	basic_value<CharT>
->;
-
-using attr_init  = basic_attr_init<char>;
-using wattr_init = basic_attr_init<wchar_t>;
+using value_set = set;
+using attr_init = std::initializer_list<value>;
 
 namespace concepts
 {
 
-template <typename CharT, typename Value, typename...Args>
+template <typename Value, typename...Args>
 concept set_pair_params = core_concepts::container_params <
-	std::tuple<std::basic_string<CharT>, Value>, Args...
+	std::tuple<std::string, Value>, Args...
 >;
 
-template <typename CharT, typename...Args>
-concept set_key_attr_params = set_pair_params <
-	CharT, basic_value<CharT>, Args...
->;
+template <typename...Args>
+concept set_key_attr_params = set_pair_params<value,Args...>;
 
-template <typename CharT, typename...Args>
-concept unset_pair_params = core_concepts::container_params <
-	std::basic_string<CharT>, Args...
->;
+template <typename...Args>
+concept unset_pair_params = core_concepts::container_params<std::string,Args...>;
 
-template <typename CharT, typename...Args>
-concept set_attr_params = core_concepts::container_params <
-	basic_value<CharT>, Args...
->;
+template <typename...Args>
+concept set_attr_params = core_concepts::container_params<value,Args...>;
 
-template <typename CharT, typename...Args>
-concept unset_attr_params = core_concepts::container_params <
-	basic_value<CharT>, Args...
->;
+template <typename...Args>
+concept unset_attr_params = core_concepts::container_params<value,Args...>;
 
 } //namespace concepts
 
-template <core_concepts::char_type CharT, typename Value, typename...Args>
-void set_map(basic_map<CharT,Value> &map, Args&&...args) noexcept
-	requires concepts::set_pair_params<CharT,Value,Args...>;
+template <typename Value, typename...Args>
+LIBGS_HTTP_TAPI void set_map(map<Value> &map, Args&&...args) noexcept
+	requires concepts::set_pair_params<Value,Args...>;
 
-template <core_concepts::char_type CharT, typename Value>
-void set_map(basic_map<CharT,Value> &map, basic_pair_init<CharT,Value> list) noexcept;
+template <typename Value>
+LIBGS_HTTP_TAPI void set_map(map<Value> &map, pair_init<Value> list) noexcept;
 
-template <core_concepts::char_type CharT, typename Value, typename...Args>
-void unset_map(basic_map<CharT,Value> &map, Args&&...args) noexcept
-	requires concepts::unset_pair_params<CharT,Args...>;
+template <typename Value, typename...Args>
+LIBGS_HTTP_TAPI void unset_map(map<Value> &map, Args&&...args) noexcept
+	requires concepts::unset_pair_params<Args...>;
 
-template <core_concepts::char_type CharT, typename Value>
-void unset_map(basic_map<CharT,Value> &map, basic_key_init<CharT> list) noexcept;
+template <typename Value>
+LIBGS_HTTP_TAPI void unset_map(map<Value> &map, key_init list) noexcept;
 
-template <core_concepts::char_type CharT, typename...Args>
-void set_set(basic_set<CharT> &set, Args&&...args) noexcept
-	requires concepts::set_attr_params<CharT,Args...>;
+template <typename...Args>
+LIBGS_HTTP_TAPI void set_set(set &set, Args&&...args) noexcept
+	requires concepts::set_attr_params<Args...>;
 
-template <core_concepts::char_type CharT>
-void set_set(basic_set<CharT> &set, basic_attr_init<CharT> list) noexcept;
+LIBGS_HTTP_VAPI void set_set(set &set, attr_init list) noexcept;
 
-template <core_concepts::char_type CharT, typename...Args>
-void unset_set(basic_set<CharT> &set, Args&&...args) noexcept
-	requires concepts::unset_attr_params<CharT,Args...>;
+template <typename...Args>
+LIBGS_HTTP_TAPI void unset_set(set &set, Args&&...args) noexcept
+	requires concepts::unset_attr_params<Args...>;
 
-template <core_concepts::char_type CharT>
-void unset_set(basic_set<CharT> &set, basic_attr_init<CharT> list) noexcept;
+LIBGS_HTTP_VAPI void unset_set(set &set, attr_init list) noexcept;
 
-template <core_concepts::char_type CharT, typename Value>
-[[nodiscard]] Value &get_map_value(const basic_map<CharT,Value> &map,
-	core_concepts::basic_string_type<CharT> auto &&key
+template <typename Value>
+[[nodiscard]] LIBGS_HTTP_TAPI Value &get_map_value (
+	const map<Value> &map, core_concepts::string_type auto &&key
 );
 
-template <core_concepts::char_type CharT, typename Value, typename Default>
-[[nodiscard]] decltype(auto) get_map_value_or(const basic_map<CharT,Value> &map,
-	core_concepts::basic_string_type<CharT> auto &&key, Default &&def_value
+template <typename Value, typename Default>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) get_map_value_or(const map<Value> &map,
+	core_concepts::string_type auto &&key, Default &&def_value
 ) requires std::is_same_v<Value,std::remove_cvref_t<Default>>;
 
-template <core_concepts::char_type CharT,
-	core_concepts::basic_text_arg<CharT> T = basic_value<CharT>>
-[[nodiscard]] decltype(auto) get_attr_map_value(const basic_attr_map<CharT> &map,
-	core_concepts::basic_string_type<CharT> auto &&key
+template <core_concepts::text_arg T = value>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) get_attr_map_value(const attr_map &map,
+	core_concepts::string_type auto &&key
 );
 
-template <core_concepts::char_type CharT,
-	core_concepts::basic_text_arg<CharT> T = basic_value<CharT>>
-[[nodiscard]] decltype(auto) get_attr_map_value_or(const basic_attr_map<CharT> &map,
-	core_concepts::basic_string_type<CharT> auto &&key, T &&def_value
+template <core_concepts::text_arg T = value>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) get_attr_map_value_or(const attr_map &map,
+	core_concepts::string_type auto &&key, T &&def_value
 );
 
-template <core_concepts::char_type CharT, typename Value>
-class LIBGS_HTTP_VAPI basic_map_helper
+template <typename Value>
+class LIBGS_HTTP_TAPI map_helper
 {
 public:
-	using char_t = CharT;
 	using value_t = Value;
-	using pair_init_t = basic_key_attr_init<char_t>;
+	map<value_t> map;
 
-public:
 	template <typename...Args>
-	basic_map_helper(Args&&...args) noexcept requires
-		concepts::set_key_attr_params<char_t,Args...>;
+	map_helper(Args&&...args) noexcept requires
+		concepts::set_key_attr_params<Args...>;
 
-	basic_map_helper(pair_init_t headers) noexcept;
-	basic_map_helper() = default;
-
-	basic_map<char_t,value_t> map;
+	map_helper(key_attr_init headers) noexcept;
+	map_helper() = default;
 };
 
-template <typename V>
-using map_helper = basic_map_helper<char,V>;
-
-template <typename V>
-using wmap_helper = basic_map_helper<wchar_t,V>;
-
-template <core_concepts::char_type CharT>
-using basic_attr_map_helper = basic_map_helper<CharT,basic_value<CharT>>;
-
-using attr_map_helper  = basic_attr_map_helper<char>;
-using wattr_map_helper = basic_attr_map_helper<wchar_t>;
+using attr_map_helper = map_helper<value>;
 
 } //namespace libgs::http
 #include <libgs/http/cxx/detail/container.h>

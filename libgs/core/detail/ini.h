@@ -37,9 +37,9 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT, typename KeyMap>
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::basic_text_arg<CharT> T>
-decltype(auto) basic_ini_keys<CharT,KeyMap>::read_or
+decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
 (concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
 {
 	auto it = m_keys.find(nosview(key));
@@ -62,9 +62,9 @@ decltype(auto) basic_ini_keys<CharT,KeyMap>::read_or
 	}
 }
 
-template <concepts::char_type CharT, typename KeyMap>
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::basic_text_arg<CharT> T>
-auto basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<char_t> auto &&key) const
+auto basic_ini_keys<CharT,Map,MapArgs...>::read(concepts::basic_string_type<char_t> auto &&key) const
 {
 	auto it = m_keys.find(nosview(key));
 	if( it == m_keys.end() )
@@ -80,36 +80,38 @@ auto basic_ini_keys<CharT,KeyMap>::read(concepts::basic_string_type<char_t> auto
 		return it->second.template get<def_t>();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-void basic_ini_keys<CharT,KeyMap>::write
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+void basic_ini_keys<CharT,Map,MapArgs...>::write
 (concepts::basic_string_type<char_t> auto &&key, concepts::basic_value_arg<char_t> auto &&value) noexcept
 {
 	m_keys[nosview(std::forward<decltype(key)>(key))] = std::forward<decltype(value)>(value);
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-basic_value<CharT> basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_string_type<char_t> auto &&key) const
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+basic_value<CharT> basic_ini_keys<CharT,Map,MapArgs...>::operator[]
+(concepts::basic_string_type<char_t> auto &&key) const
 {
 	return read<value_t>(std::forward<decltype(key)>(key));
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-basic_value<CharT> &basic_ini_keys<CharT,KeyMap>::operator[](concepts::basic_string_type<char_t> auto &&key) noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+basic_value<CharT> &basic_ini_keys<CharT,Map,MapArgs...>::operator[]
+(concepts::basic_string_type<char_t> auto &&key) noexcept
 {
 	return m_keys[nosview(std::forward<decltype(key)>(key))];
 }
 
 #if LIBGS_CPLUSPLUS >= 202100L
 
-template <concepts::char_type CharT, typename KeyMap>
-decltype(auto) basic_ini_keys<CharT,KeyMap>::operator[]
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::operator[]
 (concepts::basic_string_type<char_t> auto &&key, concepts::basic_value_arg<char_t> auto &&def_value) const noexcept
 {
 	return read_or(std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value));
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-decltype(auto) basic_ini_keys<CharT,KeyMap>::operator[]
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::operator[]
 (concepts::basic_string_type<char_t> auto &&key, concepts::basic_value_arg<char_t> auto &&def_value) noexcept
 {
 	using Def = decltype(def_value);
@@ -124,147 +126,118 @@ decltype(auto) basic_ini_keys<CharT,KeyMap>::operator[]
 
 #endif //LIBGS_CPLUSPLUS
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::iterator
-basic_ini_keys<CharT,KeyMap>::begin() noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
+basic_ini_keys<CharT,Map,MapArgs...>::begin() noexcept
 {
 	return m_keys.begin();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_iterator
-basic_ini_keys<CharT,KeyMap>::cbegin() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::cbegin() const noexcept
 {
 	return m_keys.cbegin();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_iterator
-basic_ini_keys<CharT,KeyMap>::begin() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::begin() const noexcept
 {
 	return m_keys.begin();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::iterator
-basic_ini_keys<CharT,KeyMap>::end() noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
+basic_ini_keys<CharT,Map,MapArgs...>::end() noexcept
 {
 	return m_keys.end();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_iterator
-basic_ini_keys<CharT,KeyMap>::cend() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::cend() const noexcept
 {
 	return m_keys.cend();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_iterator
-basic_ini_keys<CharT,KeyMap>::end() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::end() const noexcept
 {
 	return m_keys.end();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::reverse_iterator
-basic_ini_keys<CharT,KeyMap>::rbegin() noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::rbegin() noexcept
 {
 	return m_keys.rbegin();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_reverse_iterator
-basic_ini_keys<CharT,KeyMap>::crbegin() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::crbegin() const noexcept
 {
 	return m_keys.crbegin();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_reverse_iterator
-basic_ini_keys<CharT,KeyMap>::rbegin() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::rbegin() const noexcept
 {
 	return m_keys.rbegin();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::reverse_iterator
-basic_ini_keys<CharT,KeyMap>::rend() noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::rend() noexcept
 {
 	return m_keys.rend();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_reverse_iterator
-basic_ini_keys<CharT,KeyMap>::crend() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::crend() const noexcept
 {
 	return m_keys.crend();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_reverse_iterator
-basic_ini_keys<CharT,KeyMap>::rend() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::rend() const noexcept
 {
 	return m_keys.rend();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::iterator
-basic_ini_keys<CharT,KeyMap>::find(concepts::basic_string_type<char_t> auto &&key) noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
+basic_ini_keys<CharT,Map,MapArgs...>::find(concepts::basic_string_type<char_t> auto &&key) noexcept
 {
 	return m_keys.find(nosview(std::forward<decltype(key)>(key)));
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-typename basic_ini_keys<CharT,KeyMap>::const_iterator
-basic_ini_keys<CharT,KeyMap>::find(concepts::basic_string_type<char_t> auto &&key) const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::find(concepts::basic_string_type<char_t> auto &&key) const noexcept
 {
 	return m_keys.find(nosview(std::forward<decltype(key)>(key)));
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-void basic_ini_keys<CharT,KeyMap>::clear() noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+void basic_ini_keys<CharT,Map,MapArgs...>::clear() noexcept
 {
 	m_keys.clear();
 }
 
-template <concepts::char_type CharT, typename KeyMap>
-size_t basic_ini_keys<CharT,KeyMap>::size() const noexcept
+template <concepts::char_type CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
+size_t basic_ini_keys<CharT,Map,MapArgs...>::size() const noexcept
 {
 	return m_keys.size();
 }
 
 namespace detail
 {
-
-template <typename T>
-struct ini_keyword_char {};
-
-template <>
-struct ini_keyword_char<char>
-{
-	static constexpr char left_bracket = '[';
-	static constexpr char right_bracket = ']';
-	static constexpr char assigning = '=';
-	static constexpr char single_quotes = '\'';
-	static constexpr char double_quotes = '"';
-	static constexpr char sharp = '#';
-	static constexpr char semicolon = ';';
-	static constexpr char line_break = '\n';
-};
-
-template <>
-struct ini_keyword_char<wchar_t>
-{
-	static constexpr wchar_t left_bracket = L'[';
-	static constexpr wchar_t right_bracket = L']';
-	static constexpr wchar_t assigning = L'=';
-	static constexpr wchar_t single_quotes = L'\'';
-	static constexpr wchar_t double_quotes = L'"';
-	static constexpr wchar_t sharp = L'#';
-	static constexpr wchar_t semicolon = L';';
-	static constexpr wchar_t line_break = L'\n';
-};
 
 class ini_error_category final : public std::error_category
 {
@@ -305,6 +278,15 @@ class LIBGS_CORE_TAPI basic_ini<CharT,IniKeys,Exec,GroupMap>::impl :
 {
 	LIBGS_DISABLE_COPY(impl)
 	friend class basic_ini;
+
+	static constexpr CharT left_bracket  = '[' ;
+	static constexpr CharT right_bracket = ']' ;
+	static constexpr CharT assigning     = '=' ;
+	static constexpr CharT single_quotes = '\'';
+	static constexpr CharT double_quotes = '"' ;
+	static constexpr CharT sharp         = '#' ;
+	static constexpr CharT semicolon     = ';' ;
+	static constexpr CharT line_break    = '\n';
 
 public:
 	impl(const auto &exec, const path_t &file_name) :
@@ -375,18 +357,16 @@ public:
 				std::getline(file, buf);
 				buf = str_trimmed(buf);
 
-				if( buf.empty() or
-				    buf[0] == detail::ini_keyword_char<CharT>::sharp or
-				    buf[0] == detail::ini_keyword_char<CharT>::semicolon )
+				if( buf.empty() or buf[0] == sharp or buf[0] == semicolon )
 					continue;
 
-				auto list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::sharp);
+				auto list = string_list_t::from_string(buf, sharp);
 				buf = str_trimmed(list[0]);
 
-				list = string_list_t::from_string(buf, detail::ini_keyword_char<CharT>::semicolon);
+				list = string_list_t::from_string(buf, semicolon);
 				buf = str_trimmed(list[0]);
 
-				if( buf.starts_with(detail::ini_keyword_char<CharT>::left_bracket) )
+				if( buf.starts_with(left_bracket) )
 					curr_group = parsing_group(buf, line);
 				else
 					parsing_key_value(curr_group, buf, line);
@@ -460,10 +440,7 @@ public:
 	[[nodiscard]] std::pair<string_t,string_t> from_path(std::basic_string_view<CharT> path, const char *func)
 	{
 		string_list_t str_list;
-		if constexpr( is_char_v<CharT> )
-			str_list = string_list_t::from_string(path, '/');
-		else
-			str_list = string_list_t::from_wstring(path, L'/');
+		str_list = string_list_t::from_string(path, 0x2F/*/*/);
 
 		if( str_list.size() != 2 )
 		{

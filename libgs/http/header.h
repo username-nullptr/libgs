@@ -34,47 +34,35 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
-struct basic_header;
+struct header
+{
+static constexpr const char
+	* accept_language   = "Accept-Language"  ,
+	* accept_encoding   = "Accept-Encoding"  ,
+	* accept_ranges     = "Accept-Ranges"    ,
+	* accept            = "Accept"           ,
+	* age               = "Age"              ,
+	* content_encoding  = "Content-Encoding" ,
+	* content_length    = "Content-Length"   ,
+	* cache_control     = "Cache-Control"    ,
+	* content_range     = "Content-Range"    ,
+	* content_type      = "Content-Type"     ,
+	* connection        = "Connection"       ,
+	* expires           = "Expires"          ,
+	* host              = "Host"             ,
+	* last_modified     = "Last-Modified"    ,
+	* location          = "Location"         ,
+	* origin            = "Origin"           ,
+	* referer           = "Referer"          ,
+	* range             = "Range"            ,
+	* transfer_encoding = "Transfer-Encoding",
+	* user_agent        = "User-Agent"       ,
+	* upgrade           = "Upgrade"          ;
+};
 
-#define LIBGS_HTTP_HEADER_KEY(_type, ...) \
-	static constexpr const _type *accept_language   = __VA_ARGS__##"Accept-Language"; \
-	static constexpr const _type *accept_encoding   = __VA_ARGS__##"Accept-Encoding"; \
-	static constexpr const _type *accept_ranges     = __VA_ARGS__##"Accept-Ranges"; \
-	static constexpr const _type *accept            = __VA_ARGS__##"Accept"; \
-	static constexpr const _type *age               = __VA_ARGS__##"Age"; \
-	static constexpr const _type *content_encoding  = __VA_ARGS__##"Content-Encoding"; \
-	static constexpr const _type *content_length    = __VA_ARGS__##"Content-Length"; \
-	static constexpr const _type *cache_control     = __VA_ARGS__##"Cache-Control"; \
-	static constexpr const _type *content_range     = __VA_ARGS__##"Content-Range"; \
-	static constexpr const _type *content_type      = __VA_ARGS__##"Content-Type"; \
-	static constexpr const _type *connection        = __VA_ARGS__##"Connection"; \
-	static constexpr const _type *expires           = __VA_ARGS__##"Expires"; \
-	static constexpr const _type *host              = __VA_ARGS__##"Host"; \
-	static constexpr const _type *last_modified     = __VA_ARGS__##"Last-Modified"; \
-	static constexpr const _type *location          = __VA_ARGS__##"Location"; \
-	static constexpr const _type *origin            = __VA_ARGS__##"Origin"; \
-	static constexpr const _type *referer           = __VA_ARGS__##"Referer"; \
-	static constexpr const _type *range             = __VA_ARGS__##"Range"; \
-	static constexpr const _type *transfer_encoding = __VA_ARGS__##"Transfer-Encoding"; \
-	static constexpr const _type *user_agent        = __VA_ARGS__##"User-Agent"; \
-	static constexpr const _type *upgrade           = __VA_ARGS__##"Upgrade"
-
-template <> struct basic_header<char> { LIBGS_HTTP_HEADER_KEY(char); };
-template <> struct basic_header<wchar_t> { LIBGS_HTTP_HEADER_KEY(wchar_t,L); };
-
-using header = basic_header<char>;
-using wheader = basic_header<wchar_t>;
-
-template <core_concepts::char_type CharT>
-using basic_headers = std::map <
-	std::basic_string<CharT>,
-	basic_value<CharT>,
-	basic_less_case_insensitive<CharT>
+using headers = std::map <
+	std::string, value, basic_less_case_insensitive<char>
 >;
-
-using headers = basic_headers<char>;
-using wheaders = basic_headers<wchar_t>;
 
 } //namespace libgs::http
 
