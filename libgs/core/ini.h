@@ -121,50 +121,29 @@ protected:
 	map_t m_keys;
 };
 
-namespace concepts
-{
-
-// template <typename T, typename CharT>
-// concept base_of_basic_ini_keys = std::is_base_of_v<basic_ini_keys<CharT, typename T::map_t>, T>;
-
-template <typename T, typename CharT>
-concept ttttt = requires {
-	typename T::map_t;
-	std::is_same_v<typename T::map_t, typename basic_ini_keys<CharT, T::template map_t, typename T::map_t::allocator_type>::map_t>;
-}
-and std::is_base_of_v<basic_ini_keys<CharT, typename T::map_t::key_type, typename T::map_t::mapped_type, typename T::map_t::allocator_type>, T>;
-
-
-template <typename T>
-concept basic_of_char_ini_keys = base_of_basic_ini_keys<char,T>;
-
-template <typename T>
-concept basic_of_wchar_ini_keys = base_of_basic_ini_keys<wchar_t,T>;
-
-template <typename T>
-concept basic_of_ini_keys = basic_of_char_ini_keys<T> or basic_of_wchar_ini_keys<T>;
-
-} //namespace concepts
-
 template <concepts::char_type CharT,
-		  concepts::base_of_basic_ini_keys<CharT> IniKeys = basic_ini_keys<CharT>,
 		  concepts::execution Exec = asio::any_io_executor,
-		  typename GroupMap = std::map<std::basic_string<CharT>,IniKeys>>
+		  template<typename,typename,typename...> class Map = std::map,
+		  typename...MapArgs>
 class LIBGS_CORE_TAPI basic_ini
 {
 	LIBGS_DISABLE_COPY(basic_ini)
 
 public:
 	using char_t = CharT;
-	using ini_keys_t = IniKeys;
 	using executor_t = Exec;
 
-	using path_t = std::filesystem::path;
-	using string_t = std::basic_string<char_t>;
-	using value_t = basic_value<char_t>;
+	template <typename...Args>
+	using map_temp = Map<Args...>;
 
-	using string_list_t = basic_string_list<char_t>;
-	using group_map_t = GroupMap;
+	using ini_keys_t = basic_ini_keys<CharT,map_temp,MapArgs...>;
+	using string_t = std::basic_string<char_t>;
+
+	using group_map_t = map_temp<string_t,ini_keys_t,MapArgs...>;
+	using string_vector_t = basic_string_vector<char_t>;
+
+	using path_t = std::filesystem::path;
+	using value_t = basic_value<char_t>;
 
 	struct group_key
 	{
@@ -206,11 +185,11 @@ public:
 	basic_ini &operator=(basic_ini &&other) noexcept;
 
 	template <typename Exec0>
-	explicit basic_ini(basic_ini<char_t,IniKeys,Exec0,GroupMap> &&other)
+	explicit basic_ini(basic_ini<char_t,Exec0,map_temp,MapArgs...> &&other)
 		requires concepts::match_execution<Exec0,executor_t>;
 
 	template <typename Exec0>
-	basic_ini &operator=(basic_ini<char_t,IniKeys,Exec0,GroupMap> &&other)
+	basic_ini &operator=(basic_ini<char_t,Exec0,map_temp,MapArgs...> &&other)
 		requires concepts::match_execution<Exec0,executor_t>;
 
 public:

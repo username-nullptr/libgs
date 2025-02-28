@@ -35,8 +35,49 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT>
+template <concepts::char_type CharT,
+		  typename Traits = std::char_traits<CharT>,
+		  typename Alloc = std::allocator<CharT>>
 class basic_value;
+
+template <typename, concepts::char_type>
+struct is_basic_value : std::false_type {};
+
+template <concepts::char_type CharT, typename...Args>
+struct is_basic_value<basic_value<CharT,Args...>,CharT> : std::true_type {};
+
+template <typename T, concepts::char_type CharT>
+constexpr bool is_basic_value_v = is_basic_value<T,CharT>::value;
+
+template <typename T>
+using is_value = is_basic_value<T,char>;
+
+template <typename T>
+constexpr bool is_value_v = is_value<T>::value;
+
+template <typename T>
+using is_std_wvalue = is_basic_value<T,wchar_t>;
+
+template <typename T>
+constexpr bool is_std_wvalue_v = is_std_wvalue<T>::value;
+
+template <typename T>
+using is_std_u8value = is_basic_value<T,char8_t>;
+
+template <typename T>
+constexpr bool is_std_u8value_v = is_std_u8value<T>::value;
+
+template <typename T>
+using is_std_u16value = is_basic_value<T,char16_t>;
+
+template <typename T>
+constexpr bool is_std_u16value_v = is_std_u16value<T>::value;
+
+template <typename T>
+using is_std_u32value = is_basic_value<T,char32_t>;
+
+template <typename T>
+constexpr bool is_std_u32value_v = is_std_u32value<T>::value;
 
 namespace concepts
 {
@@ -44,11 +85,16 @@ namespace concepts
 template <typename T, typename CharT>
 concept basic_text_arg = []() consteval -> bool
 {
-	using tt = std::remove_cvref_t<T>;
-	return is_basic_string_v<T,CharT> or
-		   std::is_base_of_v<basic_value<CharT>,tt> or
-		   std::is_arithmetic_v<tt> or
-		   std::is_enum_v<tt>;
+	using rcr_T = std::remove_cvref_t<T>;
+
+	if constexpr( is_basic_string_v<T,CharT> or std::is_arithmetic_v<rcr_T> or std::is_enum_v<rcr_T> )
+		return true;
+	else
+	{
+		using traits_t = typename rcr_T::traits_t;
+		using allocator_t = typename rcr_T::allocator_t;
+		return std::is_base_of_v<basic_value<CharT,traits_t,allocator_t>, rcr_T>;
+	}
 }();
 
 template <typename T>
@@ -68,7 +114,7 @@ concept wtext_arg = basic_text_arg<T,wchar_t>;
 
 template <typename T, typename CharT>
 concept basic_value_arg = basic_text_arg<T,CharT> or requires(T &&rv) {
-	std::format(default_format_v<CharT>, std::forward<T>(rv));
+	std::format(s_str<CharT>('{','}'), std::forward<T>(rv));
 };
 
 template <typename T>
@@ -88,8 +134,8 @@ concept wvalue_arg = basic_value_arg<T,wchar_t>;
 
 template <typename T, typename CharT>
 concept basic_rvgs =
-	std::is_same_v<T,std::basic_string<CharT>> or
-	std::is_same_v<T,basic_value<CharT>>;
+	is_basic_std_string_v<T,CharT> or
+	is_basic_value_v<T,CharT>;
 
 template <typename T>
 concept rvgs = basic_rvgs<T,char>;
@@ -107,7 +153,9 @@ template <typename T>
 concept wrvgs = basic_rvgs<T,wchar_t>;
 
 template <typename T, typename CharT>
-concept basic_vgs = basic_rvgs<T,CharT> or std::is_same_v<T,basic_value<CharT>>;
+concept basic_vgs =
+	basic_rvgs<T,CharT> or
+	is_basic_std_string_view_v<T,CharT>;
 
 template <typename T>
 concept vgs = basic_vgs<T,char>;
@@ -126,16 +174,19 @@ concept wvgs = basic_vgs<T,wchar_t>;
 
 }//namespace concepts
 
-template <concepts::char_type CharT>
+template <concepts::char_type CharT, typename Traits, typename Alloc>
 class LIBGS_CORE_TAPI basic_value
 {
 public:
 	using char_t = CharT;
-	using string_t = std::basic_string<CharT>;
-	using str_view_t = std::basic_string_view<CharT>;
+	using traits_t = Traits;
+	using allocator_t = Alloc;
+
+	using string_t = std::basic_string<char_t,traits_t,allocator_t>;
+	using str_view_t = std::basic_string_view<char_t,traits_t>;
 
 	template <typename...Args>
-	using format_string = libgs::format_string<CharT, Args...>;
+	using format_string = libgs::format_string<char_t,Args...>;
 
 public:
 	basic_value() = default;
@@ -259,8 +310,8 @@ using u16value_t = u16value;
 using u32value_t = u32value;
 using wvalue_t   = wvalue  ;
 
-template <concepts::char_type CharT>
-using basic_value_optl = std::optional<basic_value<CharT>>;
+template <concepts::char_type CharT, typename...StrArgs>
+using basic_value_optl = std::optional<basic_value<CharT,StrArgs...>>;
 
 using value_optl    = basic_value_optl<char    >;
 using u8value_optl  = basic_value_optl<char8_t >;

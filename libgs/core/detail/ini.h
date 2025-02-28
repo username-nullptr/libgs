@@ -360,10 +360,10 @@ public:
 				if( buf.empty() or buf[0] == sharp or buf[0] == semicolon )
 					continue;
 
-				auto list = string_list_t::from_string(buf, sharp);
+				auto list = string_vector_t::from_string(buf, sharp);
 				buf = str_trimmed(list[0]);
 
-				list = string_list_t::from_string(buf, semicolon);
+				list = string_vector_t::from_string(buf, semicolon);
 				buf = str_trimmed(list[0]);
 
 				if( buf.starts_with(left_bracket) )
@@ -439,8 +439,8 @@ public:
 public:
 	[[nodiscard]] std::pair<string_t,string_t> from_path(std::basic_string_view<CharT> path, const char *func)
 	{
-		string_list_t str_list;
-		str_list = string_list_t::from_string(path, 0x2F/*/*/);
+		string_vector_t str_list;
+		str_list = string_vector_t::from_string(path, 0x2F/*/*/);
 
 		if( str_list.size() != 2 )
 		{

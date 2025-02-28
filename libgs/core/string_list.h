@@ -82,8 +82,8 @@ public:
 	);
 };
 
-template <concepts::char_type CharT>
-using basic_string_vector = basic_string_container<CharT,std::vector>;
+template <concepts::char_type CharT, typename...Args>
+using basic_string_vector = basic_string_container<CharT,std::vector,Args...>;
 
 using string_vector    = basic_string_vector<char    >;
 using wstring_vector   = basic_string_vector<wchar_t >;
@@ -91,8 +91,8 @@ using u8string_vector  = basic_string_vector<char8_t >;
 using u16string_vector = basic_string_vector<char16_t>;
 using u32string_vector = basic_string_vector<char32_t>;
 
-template <concepts::char_type CharT>
-using basic_string_deque = basic_string_container<CharT,std::deque>;
+template <concepts::char_type CharT, typename...Args>
+using basic_string_deque = basic_string_container<CharT,std::deque,Args...>;
 
 using string_deque    = basic_string_deque<char    >;
 using wstring_deque   = basic_string_deque<wchar_t >;
@@ -100,8 +100,8 @@ using u8string_deque  = basic_string_deque<char8_t >;
 using u16string_deque = basic_string_deque<char16_t>;
 using u32string_deque = basic_string_deque<char32_t>;
 
-template <concepts::char_type CharT>
-using basic_string_list = basic_string_container<CharT,std::list>;
+template <concepts::char_type CharT, typename...Args>
+using basic_string_list = basic_string_container<CharT,std::list,Args...>;
 
 using string_list    = basic_string_list<char    >;
 using wstring_list   = basic_string_list<wchar_t >;
@@ -109,8 +109,8 @@ using u8string_list  = basic_string_list<char8_t >;
 using u16string_list = basic_string_list<char16_t>;
 using u32string_list = basic_string_list<char32_t>;
 
-template <concepts::char_type CharT>
-using basic_string_set = basic_string_container<CharT,std::set>;
+template <concepts::char_type CharT, typename...Args>
+using basic_string_set = basic_string_container<CharT,std::set,Args...>;
 
 using string_set    = basic_string_set<char    >;
 using wstring_set   = basic_string_set<wchar_t >;
