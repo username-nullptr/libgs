@@ -29,7 +29,7 @@
 namespace libgs { namespace detail
 {
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 constexpr CharT to_hex_upper(unsigned int value) noexcept
 {
 	return s_str<CharT,
@@ -37,7 +37,7 @@ constexpr CharT to_hex_upper(unsigned int value) noexcept
 	>[value & 0xF];
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 constexpr CharT to_hex_lower(unsigned int value) noexcept
 {
 	return s_str<CharT,

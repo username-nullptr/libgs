@@ -30,7 +30,7 @@ template <typename Char> class basic_printf_context {
                 "Unsupported code unit type.");
 
  public:
-  using char_type = Char;
+  using character = Char;
   using parse_context_type = basic_format_parse_context<Char>;
   template <typename T> using formatter_type = printf_formatter<T>;
 
@@ -114,13 +114,13 @@ template <> struct make_unsigned_or_bool<bool> {
 
 template <typename T, typename Context> class arg_converter {
  private:
-  using char_type = typename Context::char_type;
+  using character = typename Context::character;
 
   basic_format_arg<Context>& arg_;
-  char_type type_;
+  character type_;
 
  public:
-  arg_converter(basic_format_arg<Context>& arg, char_type type)
+  arg_converter(basic_format_arg<Context>& arg, character type)
       : arg_(arg), type_(type) {}
 
   void operator()(bool value) {
@@ -178,7 +178,7 @@ template <typename Context> class char_converter {
 
   template <typename T, FMT_ENABLE_IF(std::is_integral<T>::value)>
   void operator()(T value) {
-    auto c = static_cast<typename Context::char_type>(value);
+    auto c = static_cast<typename Context::character>(value);
     arg_ = detail::make_arg<Context>(c);
   }
 

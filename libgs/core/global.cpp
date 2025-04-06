@@ -31,7 +31,6 @@
 
 #ifdef __unix__
 # include <sys/types.h>
-# include <signal.h>
 # include <unistd.h>
 #endif //__unix__
 

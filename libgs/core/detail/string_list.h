@@ -34,7 +34,7 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::weak_basic_string_type<CharT> Str>
 std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join(const Str &splits)
 {
@@ -48,7 +48,7 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join(c
 	return result;
 }
 
-template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::weak_basic_string_type<CharT> Str>
 std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 (size_t index, size_t length, const Str &splits)
@@ -69,7 +69,7 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 	return result;
 }
 
-template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::weak_basic_string_type<CharT> Str>
 std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 (size_t index, const Str &splits)
@@ -77,7 +77,7 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 	return join(index, this->size(), splits);
 }
 
-template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::string_list_iterator<CharT,Container,Args...> Iter,
 		  concepts::weak_basic_string_type<CharT> Str>
 std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
@@ -93,7 +93,7 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 	return result;
 }
 
-template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::weak_basic_string_type<CharT> Str>
 basic_string_container<CharT,Container,Args...>
 basic_string_container<CharT,Container,Args...>::from_string
@@ -128,7 +128,7 @@ basic_string_container<CharT,Container,Args...>::from_string
 namespace std
 {
 
-template <libgs::concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <libgs::concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 class LIBGS_CORE_TAPI formatter<libgs::basic_string_container<CharT,Container,Args...>, CharT>
 {
 	template <char...Chars>

@@ -301,19 +301,19 @@ template <typename ParseContext> struct parse_empty_specs {
   ParseContext& ctx;
 };
 template <typename FormatContext> struct format_tuple_element {
-  using char_type = typename FormatContext::char_type;
+  using character = typename FormatContext::character;
 
   template <typename T>
-  void operator()(const formatter<T, char_type>& f, const T& v) {
+  void operator()(const formatter<T, character>& f, const T& v) {
     if (i > 0)
-      ctx.advance_to(detail::copy_str<char_type>(separator, ctx.out()));
+      ctx.advance_to(detail::copy_str<character>(separator, ctx.out()));
     ctx.advance_to(f.format(v, ctx));
     ++i;
   }
 
   int i;
   FormatContext& ctx;
-  basic_string_view<char_type> separator;
+  basic_string_view<character> separator;
 };
 
 }  // namespace detail

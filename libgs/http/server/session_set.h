@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class LIBGS_HTTP_TAPI basic_session_set
 {
 	LIBGS_DISABLE_COPY(basic_session_set)

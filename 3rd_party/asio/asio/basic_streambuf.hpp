@@ -192,7 +192,7 @@ public:
   const_buffers_type data() const noexcept
   {
     return asio::buffer(asio::const_buffer(gptr(),
-          (pptr() - gptr()) * sizeof(char_type)));
+          (pptr() - gptr()) * sizeof(character)));
   }
 
   /// Get a list of buffers that represents the output sequence, with the given
@@ -215,7 +215,7 @@ public:
   {
     reserve(n);
     return asio::buffer(asio::mutable_buffer(
-          pptr(), n * sizeof(char_type)));
+          pptr(), n * sizeof(character)));
   }
 
   /// Move characters from the output sequence to the input sequence.
@@ -347,7 +347,7 @@ protected:
 
 private:
   std::size_t max_size_;
-  std::vector<char_type, Allocator> buffer_;
+  std::vector<character, Allocator> buffer_;
 
   // Helper function to get the preferred size for reading data.
   friend std::size_t read_size_helper(

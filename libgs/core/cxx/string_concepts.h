@@ -35,292 +35,203 @@ namespace libgs
 {
 
 template <typename T>
-using is_char = std::is_same<std::remove_const_t<T>, char>;
+using is_char = std::is_same<T, char>;
 
 template <typename T>
 constexpr bool is_char_v = is_char<T>::value;
 
 template <typename T>
-using is_wchar = std::is_same<std::remove_const_t<T>,wchar_t>;
+using is_wchar = std::is_same<T,wchar_t>;
 
 template <typename T>
 constexpr bool is_wchar_v = is_wchar<T>::value;
 
 template <typename T>
-using is_char8 = std::is_same<std::remove_const_t<T>, char8_t>;
+using is_char8 = std::is_same<T, char8_t>;
 
 template <typename T>
 constexpr bool is_char8_v = is_char8<T>::value;
 
 template <typename T>
-using is_char16 = std::is_same<std::remove_const_t<T>, char16_t>;
+using is_char16 = std::is_same<T, char16_t>;
 
 template <typename T>
 constexpr bool is_char16_v = is_char16<T>::value;
 
 template <typename T>
-using is_char32 = std::is_same<std::remove_const_t<T>, char32_t>;
+using is_char32 = std::is_same<T, char32_t>;
 
 template <typename T>
 constexpr bool is_char32_v = is_char32<T>::value;
 
+template <typename T>
+struct is_any_char
+{
+	static constexpr bool value =
+		is_char_v<T> or is_wchar_v<T> or
+		is_char8_v<T> or is_char16_v<T> or is_char32_v<T>;
+};
+
+template <typename T>
+constexpr bool is_any_char_v = is_any_char<T>::value;
+
 namespace concepts
 {
 
 template <typename T>
-concept char_type =
+concept character =
 	is_char_v<T> or  is_wchar_v<T> or
 	is_char8_v<T> or is_char16_v<T> or is_char32_v<T>;
 
+template <typename T>
+concept character_p = character<std::remove_cvref_t<T>>;
+
 } //namespace concepts
 
-template <concepts::char_type, typename>
-struct is_basic_char_array : std::false_type {};
+template <concepts::character, typename>
+struct is_char_array : std::false_type {};
 
-template <concepts::char_type CharT, concepts::char_type T, size_t N>
-struct is_basic_char_array<CharT, T[N]> :
-	std::is_same<std::remove_const_t<CharT>, std::remove_const_t<T>> {};
+template <concepts::character CharT, size_t N>
+struct is_char_array<CharT, CharT[N]> : std::true_type {};
 
-template <concepts::char_type CharT, concepts::char_type T>
-struct is_basic_char_array<CharT, T[]> :
-	std::is_same<std::remove_const_t<CharT>, std::remove_const_t<T>> {};
+template <concepts::character CharT>
+struct is_char_array<CharT, CharT[]> : std::true_type {};
 
-template <concepts::char_type CharT, concepts::char_type T, size_t N>
-struct is_basic_char_array<CharT, T(&)[N]> : is_basic_char_array<CharT, T[N]> {};
+template <concepts::character CharT, size_t N>
+struct is_char_array<CharT, CharT(&)[N]> : std::true_type {};
 
-template <concepts::char_type CharT, concepts::char_type T>
-struct is_basic_char_array<CharT, T(&)[]> : is_basic_char_array<CharT, T[]> {};
+template <concepts::character CharT>
+struct is_char_array<CharT, CharT(&)[]> : std::true_type {};
 
-template <concepts::char_type CharT, typename T>
-constexpr bool is_basic_char_array_v = is_basic_char_array<CharT,T>::value;
-
-template <typename CharT>
-using is_char_array = is_basic_char_array<char, CharT>;
-
-template <typename CharT>
-constexpr bool is_char_array_v = is_char_array<CharT>::value;
-
-template <typename CharT>
-using is_wchar_array = is_basic_char_array<wchar_t, CharT>;
-
-template <typename CharT>
-constexpr bool is_wchar_array_v = is_wchar_array<CharT>::value;
-
-template <typename CharT>
-using is_char8_array = is_basic_char_array<char8_t, CharT>;
-
-template <typename CharT>
-constexpr bool is_char8_array_v = is_char8_array<CharT>::value;
-
-template <typename CharT>
-using is_char16_array = is_basic_char_array<char16_t, CharT>;
-
-template <typename CharT>
-constexpr bool is_char16_array_v = is_char16_array<CharT>::value;
-
-template <typename CharT>
-using is_char32_array = is_basic_char_array<char32_t, CharT>;
-
-template <typename CharT>
-constexpr bool is_char32_array_v = is_char32_array<CharT>::value;
-
-template <typename CharT>
-using is_any_char_array = std::disjunction <
-	is_basic_char_array<char    , CharT>,
-	is_basic_char_array<wchar_t , CharT>,
-	is_basic_char_array<char8_t , CharT>,
-	is_basic_char_array<char16_t, CharT>,
-	is_basic_char_array<char32_t, CharT>
->;
-
-template <typename CharT>
-constexpr bool is_any_char_array_v = is_any_char_array<CharT>::value;
-
-template <typename, concepts::char_type>
-struct is_basic_std_string : std::false_type {};
-
-template <concepts::char_type CharT, typename...Args>
-struct is_basic_std_string<std::basic_string<CharT,Args...>,CharT> : std::true_type {};
-
-template <typename T, concepts::char_type CharT>
-constexpr bool is_basic_std_string_v = is_basic_std_string<T,CharT>::value;
+template <concepts::character CharT, typename T>
+constexpr bool is_char_array_v = is_char_array<CharT,T>::value;
 
 template <typename T>
-using is_std_string = is_basic_std_string<T,char>;
-
-template <typename T>
-constexpr bool is_std_string_v = is_std_string<T>::value;
-
-template <typename T>
-using is_std_wstring = is_basic_std_string<T,wchar_t>;
-
-template <typename T>
-constexpr bool is_std_wstring_v = is_std_wstring<T>::value;
-
-template <typename T>
-using is_std_u8string = is_basic_std_string<T,char8_t>;
-
-template <typename T>
-constexpr bool is_std_u8string_v = is_std_u8string<T>::value;
-
-template <typename T>
-using is_std_u16string = is_basic_std_string<T,char16_t>;
-
-template <typename T>
-constexpr bool is_std_u16string_v = is_std_u16string<T>::value;
-
-template <typename T>
-using is_std_u32string = is_basic_std_string<T,char32_t>;
-
-template <typename T>
-constexpr bool is_std_u32string_v = is_std_u32string<T>::value;
-
-template <typename, concepts::char_type>
-struct is_basic_std_string_view : std::false_type {};
-
-template <concepts::char_type CharT, typename...Args>
-struct is_basic_std_string_view<std::basic_string<CharT,Args...>,CharT> : std::true_type {};
-
-template <typename T, concepts::char_type CharT>
-constexpr bool is_basic_std_string_view_v = is_basic_std_string_view<T,CharT>::value;
-
-template <typename T>
-using is_std_string_view = is_basic_std_string_view<T,char>;
-
-template <typename T>
-constexpr bool is_std_string_view_v = is_std_string_view<T>::value;
-
-template <typename T>
-using is_std_wstring_view = is_basic_std_string_view<T,wchar_t>;
-
-template <typename T>
-constexpr bool is_std_wstring_view_v = is_std_wstring_view<T>::value;
-
-template <typename T>
-using is_std_u8string_view = is_basic_std_string_view<T,char8_t>;
-
-template <typename T>
-constexpr bool is_std_u8string_view_v = is_std_u8string_view<T>::value;
-
-template <typename T>
-using is_std_u16string_view = is_basic_std_string_view<T,char16_t>;
-
-template <typename T>
-constexpr bool is_std_u16string_view_v = is_std_u16string_view<T>::value;
-
-template <typename T>
-using is_std_u32string_view = is_basic_std_string_view<T,char32_t>;
-
-template <typename T>
-constexpr bool is_std_u32string_view_v = is_std_u32string_view<T>::value;
-
-template <typename, concepts::char_type>
-struct is_basic_std_string;
-
-template <typename T, concepts::char_type CharT>
-struct is_basic_string
-{
-	using rcr_T = std::remove_cvref_t<T>;
-
-	static constexpr bool value =
-		is_basic_std_string_v<rcr_T,CharT> or
-		is_basic_std_string_v<rcr_T,CharT> or
-		std::is_same_v<rcr_T, const CharT*> or
-		std::is_same_v<rcr_T, CharT*> or
-		is_basic_char_array_v<CharT, rcr_T>;
-};
-
-template <typename T, concepts::char_type CharT>
-constexpr bool is_basic_string_v = is_basic_string<T,CharT>::value;
-
-template <typename T>
-using is_char_string = is_basic_string<T,char>;
-
-template <typename T>
-constexpr bool is_char_string_v = is_char_string<T>::value;
-
-template <typename T>
-using is_wchar_string = is_basic_string<T,wchar_t>;
-
-template <typename T>
-constexpr bool is_wchar_string_v = is_wchar_string<T>::value;
-
-template <typename T>
-using is_char8_string = is_basic_string<T,char8_t>;
-
-template <typename T>
-constexpr bool is_char8_string_v = is_char8_string<T>::value;
-
-template <typename T>
-using is_char16_string = is_basic_string<T,char16_t>;
-
-template <typename T>
-constexpr bool is_char16_string_v = is_char16_string<T>::value;
-
-template <typename T>
-using is_char32_string = is_basic_string<T,char32_t>;
-
-template <typename T>
-constexpr bool is_char32_string_v = is_char32_string<T>::value;
-
-template <typename T>
-struct is_string : std::disjunction <
-	is_char_string<T>, is_wchar_string<T>,
-	is_char8_string<T>, is_char16_string<T>, is_char32_string<T>
+struct is_any_char_array : std::disjunction <
+	is_char_array<char    , T>,
+	is_char_array<wchar_t , T>,
+	is_char_array<char8_t , T>,
+	is_char_array<char16_t, T>,
+	is_char_array<char32_t, T>
 > {};
 
 template <typename T>
-constexpr bool is_string_v = is_string<T>::value;
+constexpr bool is_any_char_array_v = is_any_char_array<T>::value;
+
+template <typename, concepts::character>
+struct is_std_string : std::false_type {};
+
+template <concepts::character CharT, typename...Args>
+struct is_std_string<std::basic_string<CharT,Args...>,CharT> : std::true_type {};
+
+template <typename T, concepts::character CharT>
+constexpr bool is_std_string_v = is_std_string<T,CharT>::value;
+
+template <typename T>
+struct is_any_std_string : std::disjunction <
+	is_std_string<T, char    >,
+	is_std_string<T, wchar_t >,
+	is_std_string<T, char8_t >,
+	is_std_string<T, char16_t>,
+	is_std_string<T, char32_t>
+> {};
+
+template <typename T>
+constexpr bool is_any_std_string_v = is_any_std_string<T>::value;
+
+template <typename, concepts::character>
+struct is_std_string_view : std::false_type {};
+
+template <concepts::character CharT, typename...Args>
+struct is_std_string_view<std::basic_string<CharT,Args...>,CharT> : std::true_type {};
+
+template <typename T, concepts::character CharT>
+constexpr bool is_std_string_view_v = is_std_string_view<T,CharT>::value;
+
+template <typename T>
+struct is_any_std_string_view : std::disjunction <
+	is_std_string_view<T, char    >,
+	is_std_string_view<T, wchar_t >,
+	is_std_string_view<T, char8_t >,
+	is_std_string_view<T, char16_t>,
+	is_std_string_view<T, char32_t>
+> {};
+
+template <typename T>
+constexpr bool is_any_std_string_view_v = is_any_std_string_view<T>::value;
+
+template <typename T, concepts::character CharT>
+struct is_string
+{
+	static constexpr bool value =
+		is_std_string_v<T,CharT> or is_std_string_view_v<T,CharT> or
+		std::is_same_v<T, const CharT*> or std::is_same_v<T, CharT*> or
+		is_char_array_v<CharT, T>;
+};
+
+template <typename T, concepts::character CharT>
+constexpr bool is_string_v = is_string<T,CharT>::value;
+
+template <typename T>
+struct is_any_string : std::disjunction <
+	is_string<T, char    >,
+	is_string<T, wchar_t >,
+	is_string<T, char8_t >,
+	is_string<T, char16_t>,
+	is_string<T, char32_t>
+> {};
+
+template <typename T>
+constexpr bool is_any_string_v = is_any_string<T>::value;
+
+template <typename T, concepts::character CharT>
+struct is_text : std::disjunction<
+	std::is_same<T,CharT>, is_string<T,CharT>
+> {};
+
+template <typename T, concepts::character CharT>
+constexpr bool is_text_v = is_text<T,CharT>::value;
+
+template <typename T>
+struct is_any_text : std::disjunction <
+	is_text<T, char    >,
+	is_text<T, wchar_t >,
+	is_text<T, char8_t >,
+	is_text<T, char16_t>,
+	is_text<T, char32_t>
+> {};
+
+template <typename T>
+constexpr bool is_any_text_v = is_any_text<T>::value;
 
 namespace concepts
 {
 
 template <typename T, typename CharT>
-concept basic_string_type = is_basic_string_v<T,CharT>;
-
-template <typename T>
-concept char_string_type = is_char_string_v<T>;
-
-template <typename T>
-concept wchar_string_type = is_wchar_string_v<T>;
-
-template <typename T>
-concept char8_string_type = is_char8_string_v<T>;
-
-template <typename T>
-concept char16_string_type = is_char16_string_v<T>;
-
-template <typename T>
-concept char32_string_type = is_char32_string_v<T>;
-
-template <typename T>
-concept string_type = is_string_v<T>;
+concept string = is_string_v<T,CharT>;
 
 template <typename T, typename CharT>
-concept weak_basic_string_type =
-	basic_string_type<T,CharT> or std::is_same_v<std::remove_cvref_t<T>,CharT>;
+concept string_p = string<std::remove_cvref_t<T>,CharT>;
 
 template <typename T>
-concept weak_char_string_type = weak_basic_string_type<T,char>;
+concept any_string = is_any_string_v<T>;
 
 template <typename T>
-concept weak_wchar_string_type = weak_basic_string_type<T,wchar_t>;
+concept any_string_p = any_string<std::remove_cvref_t<T>>;
+
+template <typename T, typename CharT>
+concept text = is_text_v<T,CharT>;
+
+template <typename T, typename CharT>
+concept text_p = text<std::remove_cvref_t<T>,CharT>;
 
 template <typename T>
-concept weak_char8_string_type = weak_basic_string_type<T,char8_t>;
+concept any_text = is_any_text_v<T>;
 
 template <typename T>
-concept weak_char16_string_type = weak_basic_string_type<T,char16_t>;
+concept any_text_p = any_text<std::remove_cvref_t<T>>;
 
-template <typename T>
-concept weak_char32_string_type = weak_basic_string_type<T,char32_t>;
-
-template <typename T>
-concept weak_string_type =
-	weak_char_string_type<T> or weak_wchar_string_type<T> or
-	weak_char8_string_type<T> or weak_char16_string_type<T> or weak_char32_string_type<T>;
-
-}} //namespace libgs
+}} //namespace libgs::concepts
 
 
 #endif //LIBGS_CORE_CXX_STRING_CONCEPTS_H

@@ -1772,8 +1772,8 @@ struct chrono_formatter {
   using milliseconds = std::chrono::duration<rep, std::milli>;
   bool negative;
 
-  using char_type = typename FormatContext::char_type;
-  using tm_writer_type = tm_writer<OutputIt, char_type>;
+  using character = typename FormatContext::character;
+  using tm_writer_type = tm_writer<OutputIt, character>;
 
   chrono_formatter(FormatContext& ctx, OutputIt o,
                    std::chrono::duration<Rep, Period> d)
@@ -1849,7 +1849,7 @@ struct chrono_formatter {
     if (width > num_digits) {
       out = detail::write_padding(out, pad, width - num_digits);
     }
-    out = format_decimal<char_type>(out, n, num_digits).end;
+    out = format_decimal<character>(out, n, num_digits).end;
   }
 
   void write_nan() { std::copy_n("nan", 3, out); }
@@ -1865,7 +1865,7 @@ struct chrono_formatter {
     out = w.out();
   }
 
-  void on_text(const char_type* begin, const char_type* end) {
+  void on_text(const character* begin, const character* end) {
     std::copy(begin, end, out);
   }
 
@@ -1943,7 +1943,7 @@ struct chrono_formatter {
         out = std::copy(buf.begin(), buf.end(), out);
       } else {
         write(second(), 2, pad);
-        write_fractional_seconds<char_type>(
+        write_fractional_seconds<character>(
             out, std::chrono::duration<rep, Period>(val), precision);
       }
       return;
@@ -1985,11 +1985,11 @@ struct chrono_formatter {
   void on_duration_value() {
     if (handle_nan_inf()) return;
     write_sign();
-    out = format_duration_value<char_type>(out, val, precision);
+    out = format_duration_value<character>(out, val, precision);
   }
 
   void on_duration_unit() {
-    out = format_duration_unit<char_type, Period>(out);
+    out = format_duration_unit<character, Period>(out);
   }
 };
 

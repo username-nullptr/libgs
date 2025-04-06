@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 class LIBGS_HTTP_TAPI basic_helper_base<CharT,Version>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -49,27 +49,27 @@ public:
 	state_t m_state {};
 };
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>::basic_helper_base() :
 	m_impl(new impl())
 {
 
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>::~basic_helper_base()
 {
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>::basic_helper_base(basic_helper_base &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::operator=(basic_helper_base &&other) noexcept
 {
 	if( this == &other )
@@ -80,7 +80,7 @@ basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::operator=(ba
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::set_header(Args&&...args) noexcept requires
@@ -90,7 +90,7 @@ basic_helper_base<CharT,Version>::set_header(Args&&...args) noexcept requires
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::set_header(pair_init_t headers) noexcept
 {
@@ -98,7 +98,7 @@ basic_helper_base<CharT,Version>::set_header(pair_init_t headers) noexcept
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::set_chunk_attribute(Args&&...args) noexcept requires
@@ -108,7 +108,7 @@ basic_helper_base<CharT,Version>::set_chunk_attribute(Args&&...args) noexcept re
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::set_chunk_attribute(attr_init_t attributes) noexcept
 {
@@ -116,34 +116,34 @@ basic_helper_base<CharT,Version>::set_chunk_attribute(attr_init_t attributes) no
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 const typename basic_helper_base<CharT,Version>::headers_t&
 basic_helper_base<CharT,Version>::headers() const noexcept
 {
 	return m_impl->m_headers;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 const typename basic_helper_base<CharT,Version>::value_set_t&
 basic_helper_base<CharT,Version>::chunk_attributes() const noexcept
 {
 	return m_impl->m_chunk_attributes;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 consteval version_t basic_helper_base<CharT,Version>::version() const noexcept
 {
 	return version_v;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 typename basic_helper_base<CharT,Version>::state_t
 basic_helper_base<CharT,Version>::state() const noexcept
 {
 	return m_impl->m_state;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 std::string basic_helper_base<CharT,Version>::header_data(size_t body_size)
 {
 	if( state() != state_t::header )
@@ -186,7 +186,7 @@ std::string basic_helper_base<CharT,Version>::header_data(size_t body_size)
 	return buf;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 std::string basic_helper_base<CharT,Version>::body_data(const const_buffer &buffer)
 {
 	if( m_impl->m_state == state_t::header or m_impl->m_state == state_t::finish )
@@ -224,7 +224,7 @@ std::string basic_helper_base<CharT,Version>::body_data(const const_buffer &buff
 	return sum + std::string(static_cast<const char*>(buffer.data()), buffer.size()) + "\r\n";
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 std::string basic_helper_base<CharT,Version>::chunk_end_data(const map_helper_t &headers)
 {
 	if( m_impl->m_state != state_t::chunk )
@@ -238,7 +238,7 @@ std::string basic_helper_base<CharT,Version>::chunk_end_data(const map_helper_t 
 	return buf + "\r\n";
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_header(Args&&...args)
 	requires concepts::unset_pair_params<char_t,Args...>
@@ -247,7 +247,7 @@ basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_header
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::unset_header(key_init_t headers) noexcept
 {
@@ -255,7 +255,7 @@ basic_helper_base<CharT,Version>::unset_header(key_init_t headers) noexcept
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::clear_headers() noexcept
 {
 	m_impl->m_headers = {
@@ -264,7 +264,7 @@ basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::clear_header
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 template <typename...Args>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_chunk_attribute(Args&&...args)
 	requires concepts::unset_attr_params<char_t,Args...>
@@ -273,7 +273,7 @@ basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::unset_chunk_
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version>&
 basic_helper_base<CharT,Version>::unset_chunk_attribute(attr_init_t attributes) noexcept
 {
@@ -281,14 +281,14 @@ basic_helper_base<CharT,Version>::unset_chunk_attribute(attr_init_t attributes) 
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::clear_chunk_attributes() noexcept
 {
 	m_impl->m_chunk_attributes.clear();
 	return *this;
 }
 
-template <core_concepts::char_type CharT, version_t Version>
+template <core_concepts::character CharT, version_t Version>
 basic_helper_base<CharT,Version> &basic_helper_base<CharT,Version>::reset()
 {
 	clear_headers();

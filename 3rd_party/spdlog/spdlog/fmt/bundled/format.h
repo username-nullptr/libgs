@@ -1826,10 +1826,10 @@ inline auto find_escape(const char* begin, const char* end)
     /* Use the hidden visibility as a workaround for a GCC bug (#1973). */    \
     /* Use a macro-like name to avoid shadowing warnings. */                  \
     struct FMT_VISIBILITY("hidden") FMT_COMPILE_STRING : base {               \
-      using char_type FMT_MAYBE_UNUSED = fmt::remove_cvref_t<decltype(s[0])>; \
+      using character FMT_MAYBE_UNUSED = fmt::remove_cvref_t<decltype(s[0])>; \
       FMT_MAYBE_UNUSED FMT_CONSTEXPR explicit                                 \
-      operator fmt::basic_string_view<char_type>() const {                    \
-        return fmt::detail_exported::compile_string_to_view<char_type>(s);    \
+      operator fmt::basic_string_view<character>() const {                    \
+        return fmt::detail_exported::compile_string_to_view<character>(s);    \
       }                                                                       \
     };                                                                        \
     return FMT_COMPILE_STRING();                                              \
@@ -3847,7 +3847,7 @@ FMT_CONSTEXPR auto get_arg(Context& ctx, ID id) -> decltype(ctx.arg(id)) {
 
 template <typename Handler, typename Context>
 FMT_CONSTEXPR void handle_dynamic_spec(int& value,
-                                       arg_ref<typename Context::char_type> ref,
+                                       arg_ref<typename Context::character> ref,
                                        Context& ctx) {
   switch (ref.kind) {
   case arg_id_kind::none:

@@ -25,15 +25,15 @@ namespace detail {
 
 template <typename Streambuf> class formatbuf : public Streambuf {
  private:
-  using char_type = typename Streambuf::char_type;
+  using character = typename Streambuf::character;
   using streamsize = decltype(std::declval<Streambuf>().sputn(nullptr, 0));
   using int_type = typename Streambuf::int_type;
   using traits_type = typename Streambuf::traits_type;
 
-  buffer<char_type>& buffer_;
+  buffer<character>& buffer_;
 
  public:
-  explicit formatbuf(buffer<char_type>& buf) : buffer_(buf) {}
+  explicit formatbuf(buffer<character>& buf) : buffer_(buf) {}
 
  protected:
   // The put area is always empty. This makes the implementation simpler and has
@@ -44,11 +44,11 @@ template <typename Streambuf> class formatbuf : public Streambuf {
 
   auto overflow(int_type ch) -> int_type override {
     if (!traits_type::eq_int_type(ch, traits_type::eof()))
-      buffer_.push_back(static_cast<char_type>(ch));
+      buffer_.push_back(static_cast<character>(ch));
     return ch;
   }
 
-  auto xsputn(const char_type* s, streamsize count) -> streamsize override {
+  auto xsputn(const character* s, streamsize count) -> streamsize override {
     buffer_.append(s, s + count);
     return count;
   }

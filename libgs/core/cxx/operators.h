@@ -36,19 +36,19 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_TAPI bool equality (
-	concepts::number_type auto a, concepts::number_type auto b
+	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI bool nequality (
-	concepts::number_type auto a, concepts::number_type auto b
+	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI bool equal_greater (
-	concepts::number_type auto a, concepts::number_type auto b
+	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI bool equal_less (
-	concepts::number_type auto a, concepts::number_type auto b
+	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
 } //namespace libgs

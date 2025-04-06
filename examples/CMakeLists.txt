@@ -66,13 +66,17 @@ set(core_sources
 	core/value.cpp
 	core/ini.cpp
 	core/argv_parse.cpp
-	core/coroutine.cpp
-	core/co_semaphore.cpp
-	core/co_mutex.cpp
 	core/library.cpp
 )
 set_target(gs_core ${core_sources})
 add_subdirectory(core/modules)
+
+set(coro_sources
+	coro/coroutine.cpp
+	coro/mutex.cpp
+	coro/semaphore.cpp
+)
+set_target(gs_core ${coro_sources})
 
 set(http_server_sources
 	http_server/http_server_parser.cpp

@@ -32,7 +32,7 @@
 namespace libgs::http { namespace detail
 {
 
-template <core_concepts::char_type T>
+template <core_concepts::character T>
 struct string_pool;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
@@ -57,7 +57,7 @@ struct string_pool<wchar_t> {
 
 #undef LIBGS_HTTP_DETAIL_STRING_POOL
 
-template <status_t, core_concepts::char_type>
+template <status_t, core_concepts::character>
 struct status_description;
 
 #define X_MACRO(e,v,d) \
@@ -73,7 +73,7 @@ struct status_description;
 	LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
 
-template <method, core_concepts::char_type>
+template <method, core_concepts::character>
 struct method_string;
 
 #define X_MACRO(e,v,d) \
@@ -144,7 +144,7 @@ inline bool redirect_check(redirect type, bool _throw)
 	return false;
 }
 
-template <status_t Status, core_concepts::char_type CharT>
+template <status_t Status, core_concepts::character CharT>
 consteval const CharT *status_description()
 {
 	return detail::status_description<Status,CharT>::get();
@@ -162,7 +162,7 @@ consteval const wchar_t *wstatus_description()
 	return status_description<Status,wchar_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const CharT *status_description(status_t s)
 {
 	if constexpr( is_char_v<CharT> )
@@ -197,7 +197,7 @@ inline const wchar_t *wstatus_description(status_t s)
 //	return L"";
 }
 
-template <method Method, core_concepts::char_type CharT>
+template <method Method, core_concepts::character CharT>
 consteval const CharT *method_string()
 {
 	return detail::method_string<Method,CharT>::get();
@@ -215,7 +215,7 @@ consteval const wchar_t *wmethod_string()
 	return method_string<Method,wchar_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const CharT *method_string(method m)
 {
 	if constexpr( is_char_v<CharT> )
@@ -250,7 +250,7 @@ inline const wchar_t *wmethod_string(method m)
 //	return L"";
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 method from_method_string(std::basic_string_view<CharT> str)
 {
 	if constexpr( is_char_v<CharT> )

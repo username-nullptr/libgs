@@ -58,7 +58,10 @@ struct remove_repeat<std::tuple<Args...>>
 	template<typename FArgs, typename...RArgs, typename...SaveArgs>
 	struct remove_repeat_helper<std::tuple<FArgs, RArgs...>, std::tuple<SaveArgs...>>
 	{
-		using inn_type = std::conditional_t<has_tof_args_v<FArgs, SaveArgs...>, std::tuple<SaveArgs...>, std::tuple<FArgs, SaveArgs...>>;
+		using inn_type = std::conditional_t <
+			has_tof_args_v<FArgs, SaveArgs...>,
+			std::tuple<SaveArgs...>, std::tuple<FArgs, SaveArgs...>
+		>;
 		using type = typename remove_repeat_helper<std::tuple<RArgs...>, inn_type>::type;
 	};
 
@@ -79,7 +82,10 @@ struct remove_repeat<std::variant<Args...>>
 	template<typename FArgs, typename...RArgs, typename...SaveArgs>
 	struct remove_repeat_helper<std::variant<FArgs, RArgs...>, std::variant<SaveArgs...>>
 	{
-		using inn_type = std::conditional_t<has_tof_args_v<FArgs, SaveArgs...>, std::variant<SaveArgs...>, std::variant<FArgs, SaveArgs...>>;
+		using inn_type = std::conditional_t <
+			has_tof_args_v<FArgs, SaveArgs...>,
+			std::variant<SaveArgs...>, std::variant<FArgs, SaveArgs...>
+		>;
 		using type = typename remove_repeat_helper<std::variant<RArgs...>, inn_type>::type;
 	};
 

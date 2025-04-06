@@ -26,24 +26,24 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_DETAIL_SEMAPHORE_H
-#define LIBGS_CORE_CORO_DETAIL_SEMAPHORE_H
+#ifndef LIBGS_CORO_DETAIL_SEMAPHORE_H
+#define LIBGS_CORO_DETAIL_SEMAPHORE_H
 
-#include <libgs/core/coro/detail/wake_up.h>
 #include <libgs/core/lock_free_queue.h>
+#include <libgs/coro/detail/wake_up.h>
 
 #include <semaphore>
 
-namespace libgs
+namespace libgs::coro
 {
 
 template<size_t Max>
-class LIBGS_CORE_TAPI co_basic_semaphore<Max>::impl
+class LIBGS_CORE_TAPI basic_semaphore<Max>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	using wake_up_t = detail::co_lock_wake_up;
+	using wake_up_t = detail::lock_wake_up;
 
 	explicit impl(size_t initial_count) :
 		m_counter(initial_count)
@@ -51,7 +51,7 @@ public:
 		if( initial_count > max_v )
 		{
 			throw std::invalid_argument (
-				"libgs::co_basic_semaphore: Initial count is greater than max value."
+				"libgs::basic_semaphore: Initial count is greater than max value."
 			);
 		}
 	}
@@ -62,7 +62,7 @@ public:
 		if( not wake_up )
 			return ;
 		throw runtime_error (
-			"libgs::co_basic_semaphore: Destruct a co_basic_semaphore with unreleased resources."
+			"libgs::basic_semaphore: Destruct a basic_semaphore with unreleased resources."
 		);
 	}
 
@@ -88,7 +88,7 @@ public:
 	}
 
 	[[nodiscard]] awaitable<bool> try_acquire_x
-	(concepts::schedulable auto &&exec, const auto &timeout)
+	(concepts::sched auto &&exec, const auto &timeout)
 	{
 		if( try_acquire() )
 			co_return true;
@@ -120,24 +120,24 @@ public:
 
 public:
 	std::atomic_size_t m_counter = 0;
-	lock_free_queue<detail::co_lock_wake_up_ptr> m_wait_queue;
+	lock_free_queue<detail::lock_wake_up_ptr> m_wait_queue;
 };
 
 template<size_t Max>
-co_basic_semaphore<Max>::co_basic_semaphore(size_t initial_count) :
+basic_semaphore<Max>::basic_semaphore(size_t initial_count) :
 	m_impl(new impl(initial_count))
 {
 
 }
 
 template<size_t Max>
-co_basic_semaphore<Max>::~co_basic_semaphore() noexcept(false)
+basic_semaphore<Max>::~basic_semaphore() noexcept(false)
 {
 	delete m_impl;
 }
 
 template<size_t Max>
-awaitable<void> co_basic_semaphore<Max>::acquire(concepts::schedulable auto &&exec)
+awaitable<void> basic_semaphore<Max>::acquire(concepts::sched auto &&exec)
 {
 	if( try_acquire() )
 		co_return ;
@@ -153,7 +153,7 @@ awaitable<void> co_basic_semaphore<Max>::acquire(concepts::schedulable auto &&ex
 }
 
 template<size_t Max>
-awaitable<void> co_basic_semaphore<Max>::acquire()
+awaitable<void> basic_semaphore<Max>::acquire()
 {
 	co_return co_await acquire (
 		co_await asio::this_coro::executor
@@ -161,18 +161,18 @@ awaitable<void> co_basic_semaphore<Max>::acquire()
 }
 
 template<size_t Max>
-bool co_basic_semaphore<Max>::try_acquire()
+bool basic_semaphore<Max>::try_acquire()
 {
 	return m_impl->try_acquire();
 }
 
 template<size_t Max>
-size_t co_basic_semaphore<Max>::release(size_t n) requires (max_v > 1)
+size_t basic_semaphore<Max>::release(size_t n) requires (max_v > 1)
 {
 	if( n == 0 or n > max_v - m_impl->m_counter )
 	{
 		throw std::invalid_argument (
-			"libgs::co_basic_semaphore: Invalid release count."
+			"libgs::basic_semaphore: Invalid release count."
 		);
 	}
 	while( n-- )
@@ -181,12 +181,12 @@ size_t co_basic_semaphore<Max>::release(size_t n) requires (max_v > 1)
 }
 
 template<size_t Max>
-size_t co_basic_semaphore<Max>::release() requires (max_v == 1)
+size_t basic_semaphore<Max>::release() requires (max_v == 1)
 {
 	if( m_impl->m_counter == 1 )
 	{
 		throw std::runtime_error (
-			"libgs::co_basic_semaphore: Release a co_binary_semaphore with max count 1 more than once."
+			"libgs::basic_semaphore: Release a binary_semaphore with max count 1 more than once."
 		);
 	}
 	m_impl->release_one();
@@ -195,8 +195,8 @@ size_t co_basic_semaphore<Max>::release() requires (max_v == 1)
 
 template<size_t Max>
 template<typename Rep, typename Period>
-awaitable<bool> co_basic_semaphore<Max>::try_acquire_for
-(concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout)
+awaitable<bool> basic_semaphore<Max>::try_acquire_for
+(concepts::sched auto &&exec, const duration<Rep,Period> &timeout)
 {
 	return m_impl->try_acquire_x(exec,
 		std::chrono::duration_cast<asio::steady_timer::duration>(timeout)
@@ -205,8 +205,8 @@ awaitable<bool> co_basic_semaphore<Max>::try_acquire_for
 
 template<size_t Max>
 template<typename Clock, typename Duration>
-awaitable<bool> co_basic_semaphore<Max>::try_acquire_until
-(concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout)
+awaitable<bool> basic_semaphore<Max>::try_acquire_until
+(concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout)
 {
 	return m_impl->try_acquire_x(exec,
 		std::chrono::time_point_cast<asio::steady_timer::time_point>(timeout)
@@ -215,7 +215,7 @@ awaitable<bool> co_basic_semaphore<Max>::try_acquire_until
 
 template<size_t Max>
 template<typename Rep, typename Period>
-awaitable<bool> co_basic_semaphore<Max>::try_acquire_for(const duration<Rep,Period> &timeout)
+awaitable<bool> basic_semaphore<Max>::try_acquire_for(const duration<Rep,Period> &timeout)
 {
 	co_return co_await try_acquire_for (
 		co_await asio::this_coro::executor, timeout
@@ -224,7 +224,7 @@ awaitable<bool> co_basic_semaphore<Max>::try_acquire_for(const duration<Rep,Peri
 
 template<size_t Max>
 template<typename Clock, typename Duration>
-awaitable<bool> co_basic_semaphore<Max>::try_acquire_until(const time_point<Clock,Duration> &timeout)
+awaitable<bool> basic_semaphore<Max>::try_acquire_until(const time_point<Clock,Duration> &timeout)
 {
 	co_return co_await try_acquire_until (
 		co_await asio::this_coro::executor, timeout
@@ -232,18 +232,18 @@ awaitable<bool> co_basic_semaphore<Max>::try_acquire_until(const time_point<Cloc
 }
 
 template<size_t Max>
-consteval size_t co_basic_semaphore<Max>::max() const noexcept
+consteval size_t basic_semaphore<Max>::max() const noexcept
 {
 	return max_v;
 }
 
 template<size_t Max>
-size_t co_basic_semaphore<Max>::count() const noexcept
+size_t basic_semaphore<Max>::count() const noexcept
 {
 	return m_impl->m_counter;
 }
 
-} //namespace libgs
+} //namespace libgs::coro
 
 
-#endif //LIBGS_CORE_CORO_DETAIL_SEMAPHORE_H
+#endif //LIBGS_CORO_DETAIL_SEMAPHORE_H

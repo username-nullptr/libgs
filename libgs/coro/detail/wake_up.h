@@ -26,12 +26,61 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_H
-#define LIBGS_CORE_CORO_H
+#ifndef LIBGS_CORO_DETAIL_WAKE_UP_H
+#define LIBGS_CORO_DETAIL_WAKE_UP_H
 
-#include <libgs/core/coro/condition_variable.h>
-#include <libgs/core/coro/utilities.h>
-#include <libgs/core/coro/semaphore.h>
-#include <libgs/core/coro/mutex.h>
+#include <libgs/core/execution.h>
 
-#endif //LIBGS_CORE_CORO_H
+namespace libgs::coro::detail
+{
+
+class LIBGS_CORE_VAPI lock_wake_up final :
+	public std::enable_shared_from_this<lock_wake_up>
+{
+	LIBGS_DISABLE_COPY_MOVE(lock_wake_up)
+
+public:
+	using ptr_t = std::shared_ptr<lock_wake_up>;
+	using handler_t = async_work<bool>::handler_t;
+
+	lock_wake_up(const asio::any_io_executor &exec, handler_t handler) :
+		m_handler(std::move(handler)), m_exec(exec) {}
+
+public:
+	bool operator()(bool success)
+	{
+		if( m_finished.test_and_set() )
+			return false;
+		m_timer.cancel();
+
+		dispatch(m_exec, [
+			success, handler = std::make_shared<handler_t>(std::move(m_handler))
+		]() mutable {
+			std::move(*handler)(success);
+		});
+		return true;
+	}
+
+	void start_timer(const auto &timeout)
+	{
+		m_timer.expires_after(timeout);
+		m_timer.async_wait([this](const error_code &error) mutable
+		{
+			if( not error )
+				(*this)(false);
+		});
+	}
+
+private:
+	handler_t m_handler;
+	asio::any_io_executor m_exec;
+	asio::steady_timer m_timer{m_exec};
+	std::atomic_flag m_finished;
+};
+
+using lock_wake_up_ptr = lock_wake_up::ptr_t;
+
+} //namespace libgs::coro::detail
+
+
+#endif //LIBGS_CORO_DETAIL_WAKE_UP_H

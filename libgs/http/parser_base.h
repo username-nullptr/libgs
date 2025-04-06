@@ -52,7 +52,7 @@ enum class parse_errno
 #undef X_MACRO
 };
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class LIBGS_HTTP_TAPI basic_parser_base final
 {
 	LIBGS_DISABLE_COPY(basic_parser_base)

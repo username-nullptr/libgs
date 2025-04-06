@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 class LIBGS_HTTP_TAPI basic_client<CharT,SessionPool,Version>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -54,21 +54,21 @@ public:
 	// TODO: Save cookie ... ...
 };
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 basic_client<CharT,SessionPool,Version>::basic_client(const core_concepts::match_execution<executor_t> auto &exec) :
 	m_impl(new impl(exec))
 {
 
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 basic_client<CharT,SessionPool,Version>::basic_client(core_concepts::match_execution_context<executor_t> auto &context) :
 	m_impl(new impl(context.get_executor()))
 {
 
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 basic_client<CharT,SessionPool,Version>::basic_client() requires
 	core_concepts::match_default_execution<executor_t> :
 	m_impl(new impl())
@@ -76,20 +76,20 @@ basic_client<CharT,SessionPool,Version>::basic_client() requires
 
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 basic_client<CharT,SessionPool,Version>::~basic_client()
 {
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 basic_client<CharT,SessionPool,Version>::basic_client(basic_client &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 basic_client<CharT,SessionPool,Version>&
 basic_client<CharT,SessionPool,Version>::operator=(basic_client &&other) noexcept
 {
@@ -100,27 +100,27 @@ basic_client<CharT,SessionPool,Version>::operator=(basic_client &&other) noexcep
 
 // TODO ... ...
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 consteval version_t basic_client<CharT,SessionPool,Version>::version() const noexcept
 {
 	return Version;
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 const typename basic_client<CharT,SessionPool,Version>::session_pool_t&
 basic_client<CharT,SessionPool,Version>::session_pool() const noexcept
 {
 	return m_impl->m_session_pool;
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 typename basic_client<CharT,SessionPool,Version>::session_pool_t&
 basic_client<CharT,SessionPool,Version>::session_pool() noexcept
 {
 	return m_impl->m_session_pool;
 }
 
-template <core_concepts::char_type CharT, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
 typename basic_client<CharT,SessionPool,Version>::executor_t
 basic_client<CharT,SessionPool,Version>::get_executor() noexcept
 {

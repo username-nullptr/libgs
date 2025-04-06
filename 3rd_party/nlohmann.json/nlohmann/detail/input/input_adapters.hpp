@@ -45,7 +45,7 @@ Input adapter for stdio file access. This adapter read only 1 byte and do not us
 class file_input_adapter
 {
   public:
-    using char_type = char;
+    using character = char;
 
     JSON_HEDLEY_NON_NULL(2)
     explicit file_input_adapter(std::FILE* f) noexcept
@@ -84,7 +84,7 @@ subsequent call for input from the std::istream.
 class input_stream_adapter
 {
   public:
-    using char_type = char;
+    using character = char;
 
     ~input_stream_adapter()
     {
@@ -139,22 +139,22 @@ template<typename IteratorType>
 class iterator_input_adapter
 {
   public:
-    using char_type = typename std::iterator_traits<IteratorType>::value_type;
+    using character = typename std::iterator_traits<IteratorType>::value_type;
 
     iterator_input_adapter(IteratorType first, IteratorType last)
         : current(std::move(first)), end(std::move(last))
     {}
 
-    typename std::char_traits<char_type>::int_type get_character()
+    typename std::char_traits<character>::int_type get_character()
     {
         if (JSON_HEDLEY_LIKELY(current != end))
         {
-            auto result = std::char_traits<char_type>::to_int_type(*current);
+            auto result = std::char_traits<character>::to_int_type(*current);
             std::advance(current, 1);
             return result;
         }
 
-        return std::char_traits<char_type>::eof();
+        return std::char_traits<character>::eof();
     }
 
   private:
@@ -299,7 +299,7 @@ template<typename BaseInputAdapter, typename WideCharType>
 class wide_string_input_adapter
 {
   public:
-    using char_type = char;
+    using character = char;
 
     wide_string_input_adapter(BaseInputAdapter base)
         : base_adapter(base) {}
@@ -344,7 +344,7 @@ template<typename IteratorType, typename Enable = void>
 struct iterator_input_adapter_factory
 {
     using iterator_type = IteratorType;
-    using char_type = typename std::iterator_traits<iterator_type>::value_type;
+    using character = typename std::iterator_traits<iterator_type>::value_type;
     using adapter_type = iterator_input_adapter<iterator_type>;
 
     static adapter_type create(IteratorType first, IteratorType last)
@@ -367,9 +367,9 @@ template<typename IteratorType>
 struct iterator_input_adapter_factory<IteratorType, enable_if_t<is_iterator_of_multibyte<IteratorType>::value>>
 {
     using iterator_type = IteratorType;
-    using char_type = typename std::iterator_traits<iterator_type>::value_type;
+    using character = typename std::iterator_traits<iterator_type>::value_type;
     using base_adapter_type = iterator_input_adapter<iterator_type>;
-    using adapter_type = wide_string_input_adapter<base_adapter_type, char_type>;
+    using adapter_type = wide_string_input_adapter<base_adapter_type, character>;
 
     static adapter_type create(IteratorType first, IteratorType last)
     {

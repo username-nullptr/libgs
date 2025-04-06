@@ -1,4 +1,4 @@
-#include <libgs/core/coro.h>
+#include <libgs/coro.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
@@ -7,7 +7,7 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 	constexpr size_t count = 8;
-	libgs::co_semaphore semaphore(3);
+	libgs::coro::semaphore semaphore(3);
 	size_t j = 0;
 
 	for(size_t i=0; i<count; i++)
@@ -17,7 +17,7 @@ int main()
 			co_await semaphore.acquire();
 
 			spdlog::info("======== {} : {}", id, j++);
-			co_await libgs::co_sleep_for(1s);
+			co_await libgs::coro::sleep_for(1s);
 
 			semaphore.release();
 

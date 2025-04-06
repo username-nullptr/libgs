@@ -74,12 +74,12 @@ constexpr const T *as_const(const T *v)
 	return v;
 }
 
-decltype(auto) get_executor_helper(concepts::schedulable auto &&exec)
+decltype(auto) get_executor_helper(concepts::sched auto &&exec)
 {
 	using Exec = decltype(exec);
 	using exec_t = std::remove_cvref_t<Exec>;
 
-	if constexpr( is_execution_v<exec_t> )
+	if constexpr( is_exec_v<exec_t> )
 		return std::forward<Exec>(exec);
 	else
 		return exec.get_executor();

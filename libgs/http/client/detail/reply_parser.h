@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class LIBGS_HTTP_TAPI basic_reply_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -62,27 +62,27 @@ public:
 	cookies_t m_cookies {};
 };
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_reply_parser<CharT>::basic_reply_parser(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_reply_parser<CharT>::~basic_reply_parser()
 {
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_reply_parser<CharT>::basic_reply_parser(basic_reply_parser &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_reply_parser<CharT> &basic_reply_parser<CharT>::operator=(basic_reply_parser &&other) noexcept
 {
 	if( this == &other )
@@ -93,121 +93,121 @@ basic_reply_parser<CharT> &basic_reply_parser<CharT>::operator=(basic_reply_pars
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::append(core_concepts::string_type auto &&buf, error_code &error)
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::append(core_concepts::string_type auto &&buf)
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::operator<<(core_concepts::string_type auto &&buf)
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string_view<CharT> basic_reply_parser<CharT>::version() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 status_t basic_reply_parser<CharT>::status() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_value<CharT> &basic_reply_parser<CharT>::header(string_view_t key) const
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_cookie<CharT> &basic_reply_parser<CharT>::cookie(string_view_t key) const
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_value<CharT> basic_reply_parser<CharT>::header_or(string_view_t key, value_t def_value) const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> basic_reply_parser<CharT>::cookie_or(string_view_t key, value_t def_value) const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_headers<CharT> &basic_reply_parser<CharT>::headers() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_cookies<CharT> &basic_reply_parser<CharT>::cookies() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_value_list<CharT> &basic_reply_parser<CharT>::chunk_attributes() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::keep_alive() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::support_gzip() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::can_read_from_device() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::string basic_reply_parser<CharT>::take_partial_body(size_t size)
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::string basic_reply_parser<CharT>::take_body()
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::is_finished() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_reply_parser<CharT>::is_eof() const noexcept
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_reply_parser<CharT> &basic_reply_parser<CharT>::reset()
 {
 

@@ -73,7 +73,7 @@ constexpr bool is_use_sync_v = is_use_sync<T>::value;
 template <typename>
 struct is_use_awaitable : std::false_type {};
 
-template <concepts::execution Exec>
+template <concepts::exec Exec>
 struct is_use_awaitable<use_basic_awaitable_t<Exec>> : std::true_type {};
 
 template <typename T>
@@ -112,8 +112,13 @@ private: // Fucking msvc !!!
 	using token_t = std::remove_cvref_t<Token>;
 
 	template <size_t...I>
-	[[nodiscard]] static consteval bool helper(std::index_sequence<I...>) {
-		return is_async_opt_token_v<Token, std::tuple_element_t<I, typename function_traits<token_t>::arg_types>...>;
+	[[nodiscard]] static consteval bool helper(std::index_sequence<I...>)
+	{
+		return is_async_opt_token_v <
+			Token, std::tuple_element_t <
+				I, typename function_traits<token_t>::arg_types
+			>...
+		>;
 	}
 
 	// Fucking msvc !!!
@@ -121,7 +126,8 @@ private: // Fucking msvc !!!
 	{
 		if constexpr( is_function_v<token_t> )
 		{
-			if constexpr( is_use_future_v<token_t> or is_deferred_v<token_t> or is_cancellation_slot_binder_v<token_t> )
+			if constexpr( is_use_future_v<token_t> or is_deferred_v<token_t> or
+						  is_cancellation_slot_binder_v<token_t> )
 				return is_async_opt_token_v<Token>;
 
 			else if constexpr( is_void_func_v<token_t> )
@@ -282,16 +288,28 @@ namespace concepts
 {
 
 template <typename T>
-concept use_awaitable = is_use_awaitable_v<std::remove_cvref_t<T>>;
+concept use_awaitable = is_use_awaitable_v<T>;
 
 template <typename T>
-concept redirect_error = is_redirect_error_v<std::remove_cvref_t<T>>;
+concept use_awaitable_p = use_awaitable<std::remove_cvref_t<T>>;
 
 template <typename T>
-concept cancellation_slot_binder = is_cancellation_slot_binder_v<std::remove_cvref_t<T>>;
+concept redirect_error = is_redirect_error_v<T>;
 
 template <typename T>
-concept redirect_time = is_redirect_time_v<std::remove_cvref_t<T>>;
+concept redirect_error_p = redirect_error<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept cancellation_slot_binder = is_cancellation_slot_binder_v<T>;
+
+template <typename T>
+concept cancellation_slot_binder_p = cancellation_slot_binder<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept redirect_time = is_redirect_time_v<T>;
+
+template <typename T>
+concept redirect_time_p = redirect_time<std::remove_cvref_t<T>>;
 
 template <typename Token, typename...Args>
 concept async_opt_token = is_async_opt_token_v<Token,Args...>;

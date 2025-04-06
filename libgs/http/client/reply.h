@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, concepts::socket_session Session = session_pool::session_t>
+template <core_concepts::character CharT, concepts::socket_session Session = session_pool::session_t>
 class LIBGS_HTTP_TAPI basic_client_reply
 {
 	LIBGS_DISABLE_COPY(basic_client_reply)

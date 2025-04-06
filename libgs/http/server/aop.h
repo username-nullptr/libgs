@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 class basic_aop
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_aop)
@@ -60,7 +60,7 @@ using wbasic_tcp_aop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,w
 using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
 using wtcp_aop = wbasic_tcp_aop<asio::any_io_executor>;
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 using basic_aop_ptr = std::shared_ptr<basic_aop<Stream,CharT>>;
 
 template <core_concepts::execution Exec>
@@ -72,7 +72,7 @@ using wbasic_tcp_aop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp
 using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
 using wtcp_aop_ptr = wbasic_tcp_aop_ptr<asio::any_io_executor>;
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 class basic_ctrlr_aop : public basic_aop<Stream,CharT>
 {
 public:
@@ -89,7 +89,7 @@ using wbasic_tcp_ctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip:
 using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
 using wtcp_ctrlr_aop = wbasic_tcp_ctrlr_aop<asio::any_io_executor>;
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Stream,CharT>>;
 
 template <core_concepts::execution Exec>

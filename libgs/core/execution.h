@@ -104,7 +104,7 @@ concept dispatch_token = []() consteval -> bool
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI decltype(auto) dispatch (
-	concepts::schedulable auto &&exec, Work &&work, Token &&token = detached
+	concepts::sched auto &&exec, Work &&work, Token &&token = detached
 );
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
@@ -114,7 +114,7 @@ LIBGS_CORE_TAPI decltype(auto) dispatch (
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI decltype(auto) post (
-	concepts::schedulable auto &&exec, Work &&work, Token &&token = detached
+	concepts::sched auto &&exec, Work &&work, Token &&token = detached
 );
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
@@ -162,7 +162,7 @@ concept co_sleep_opt_token =
 
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORE_TAPI auto sleep_for (
-	concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token = use_awaitable
+	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token = use_awaitable
 );
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_sync_t>
@@ -172,7 +172,7 @@ template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_s
 
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
-	concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
+	concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
 );
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_sync_t>
@@ -201,7 +201,7 @@ public:
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
 	[[nodiscard]] static auto handle (
-		concepts::schedulable auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up,
+		concepts::sched auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up,
 		Token &&token = use_awaitable
 	);
 
@@ -223,7 +223,7 @@ template <typename NativeExec>
 struct is_match_default_execution
 {
 	static constexpr bool value =
-		is_execution_v<NativeExec> and
+		is_exec_v<NativeExec> and
 		requires {
 			NativeExec(get_executor());
 		};

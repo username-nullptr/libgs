@@ -108,7 +108,7 @@ LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
 } //namespace detail
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-decltype(auto) dispatch(concepts::schedulable auto &&exec, Work &&work, Token &&token)
+decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 {
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
@@ -181,7 +181,7 @@ decltype(auto) dispatch(Work &&work, Token &&token)
 }
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-decltype(auto) post(concepts::schedulable auto &&exec, Work &&work, Token &&token)
+decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 {
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
@@ -546,7 +546,7 @@ auto sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
 } //namespace detail
 
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto sleep_for(concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
+auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
 {
 	return detail::sleep_x(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
 }
@@ -565,7 +565,7 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 }
 
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto sleep_until(concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
+auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
 	return detail::sleep_x(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
 }
@@ -631,7 +631,7 @@ LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&hand
 template <concepts::execution Exec, typename...Args>
 template <concepts::async_opt_token<Args...> Token>
 auto basic_async_work<Exec,Args...>::handle
-(concepts::schedulable auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token)
+(concepts::sched auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	using func_t = decltype(wake_up);

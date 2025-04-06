@@ -35,18 +35,18 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT,
+template <concepts::character CharT,
 		  typename Traits = std::char_traits<CharT>,
 		  typename Alloc = std::allocator<CharT>>
 class basic_value;
 
-template <typename, concepts::char_type>
+template <typename, concepts::character>
 struct is_basic_value : std::false_type {};
 
-template <concepts::char_type CharT, typename...Args>
+template <concepts::character CharT, typename...Args>
 struct is_basic_value<basic_value<CharT,Args...>,CharT> : std::true_type {};
 
-template <typename T, concepts::char_type CharT>
+template <typename T, concepts::character CharT>
 constexpr bool is_basic_value_v = is_basic_value<T,CharT>::value;
 
 template <typename T>
@@ -174,7 +174,7 @@ concept wvgs = basic_vgs<T,wchar_t>;
 
 }//namespace concepts
 
-template <concepts::char_type CharT, typename Traits, typename Alloc>
+template <concepts::character CharT, typename Traits, typename Alloc>
 class LIBGS_CORE_TAPI basic_value
 {
 public:
@@ -310,7 +310,7 @@ using u16value_t = u16value;
 using u32value_t = u32value;
 using wvalue_t   = wvalue  ;
 
-template <concepts::char_type CharT, typename...StrArgs>
+template <concepts::character CharT, typename...StrArgs>
 using basic_value_optl = std::optional<basic_value<CharT,StrArgs...>>;
 
 using value_optl    = basic_value_optl<char    >;

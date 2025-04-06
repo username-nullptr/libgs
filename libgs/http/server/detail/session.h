@@ -36,7 +36,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class basic_session<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -99,7 +99,7 @@ public:
 	std::function<void()> m_timeout_handle {};
 };
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename Rep, typename Period>
 basic_session<CharT>::basic_session(const duration<Rep,Period> &seconds, const executor_t &exec) :
 	m_impl(new impl(this, seconds, exec))
@@ -107,39 +107,39 @@ basic_session<CharT>::basic_session(const duration<Rep,Period> &seconds, const e
 	m_impl->start();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT>::basic_session(const executor_t &exec) :
 	basic_session(std::chrono::seconds(60), exec)
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT>::~basic_session()
 {
 	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs(id()));
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string_view<CharT> basic_session<CharT>::id() const noexcept
 {
 	return m_impl->m_id;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 typename basic_session<CharT>::time_point basic_session<CharT>::create_time() const noexcept
 {
 	return m_impl->m_create_time;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_session<CharT>::is_valid() const noexcept
 {
 	return m_impl->m_valid;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::any basic_session<CharT>::attribute(string_view_t key) const
 {
 	auto it = m_impl->m_attributes.find({key.data(), key.size()});
@@ -148,54 +148,54 @@ std::any basic_session<CharT>::attribute(string_view_t key) const
 	return it->second;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::any basic_session<CharT>::attribute_or(string_view_t key, std::any default_value) const noexcept
 {
 	auto it = m_impl->m_attributes.find({key.data(), key.size()});
 	return it == m_impl->m_attributes.end() ? std::move(default_value) : it->second;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_session_attributes<CharT> &basic_session<CharT>::attributes() const noexcept
 {
 	return m_impl->m_attributes;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT> &basic_session<CharT>::set_attribute(string_view_t key, const std::any &value)
 {
 	m_impl->m_attributes[{key.data(), key.size()}] = value;
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT> &basic_session<CharT>::set_attribute(string_view_t key, std::any &&value)
 {
 	m_impl->m_attributes[{key.data(), key.size()}] = std::move(value);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT> &basic_session<CharT>::unset_attribute(string_view_t key)
 {
 	m_impl->m_attributes.erase(key);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::chrono::seconds basic_session<CharT>::lifecycle() const noexcept
 {
 	return std::chrono::seconds(m_impl->m_second);
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 void basic_session<CharT>::invalidate()
 {
 	m_impl->m_valid = false;
 	m_impl->m_timer.cancel();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename Rep, typename Period>
 basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration<Rep,Period> &seconds)
 {
@@ -208,7 +208,7 @@ basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration<Rep,Per
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename Rep, typename Period>
 basic_session<CharT> &basic_session<CharT>::expand(const duration<Rep,Period> &seconds)
 {
@@ -217,7 +217,7 @@ basic_session<CharT> &basic_session<CharT>::expand(const duration<Rep,Period> &s
 	return expand();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT> &basic_session<CharT>::expand()
 {
 	m_impl->m_restart = true;
@@ -225,7 +225,7 @@ basic_session<CharT> &basic_session<CharT>::expand()
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <core_concepts::callable Func>
 basic_session<CharT> &basic_session<CharT>::on_timeout(Func &&func)
 {
@@ -233,7 +233,7 @@ basic_session<CharT> &basic_session<CharT>::on_timeout(Func &&func)
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_session<CharT> &basic_session<CharT>::unbind_timeout()
 {
 	m_impl->m_timeout_handle = nullptr;

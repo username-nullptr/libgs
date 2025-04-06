@@ -36,7 +36,7 @@
 namespace libgs::http { namespace detail
 {
 
-template <core_concepts::char_type T>
+template <core_concepts::character T>
 struct _request_parser_static_string;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
@@ -56,7 +56,7 @@ struct _request_parser_static_string<wchar_t> {
 
 } //namespace detail
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -183,27 +183,27 @@ public:
 	bool m_support_gzip = false;
 };
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_request_parser<CharT>::basic_request_parser(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_request_parser<CharT>::~basic_request_parser()
 {
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_request_parser<CharT>::basic_request_parser(basic_request_parser &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_request_parser &&other) noexcept
 {
 	if( this == &other )
@@ -214,7 +214,7 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_reques
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::append(const const_buffer &buf, error_code &error)
 {
 	bool res = m_impl->m_parser.append(buf, error);
@@ -223,7 +223,7 @@ bool basic_request_parser<CharT>::append(const const_buffer &buf, error_code &er
 	return res;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::append(const const_buffer &buf)
 {
 	bool res = m_impl->m_parser.append(buf);
@@ -231,14 +231,14 @@ bool basic_request_parser<CharT>::append(const const_buffer &buf)
 	return res;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_request_parser<CharT> &basic_request_parser<CharT>::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 {
 	constexpr const char_t *root = detail::string_pool<char_t>::root;
@@ -307,95 +307,95 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 	return weight;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 method_t basic_request_parser<CharT>::method() const noexcept
 {
 	return m_impl->m_method;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string_view<CharT> basic_request_parser<CharT>::path() const noexcept
 {
 	return m_impl->m_path;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 version_t basic_request_parser<CharT>::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const typename basic_request_parser<CharT>::parameters_t&
 basic_request_parser<CharT>::parameters() const noexcept
 {
 	return m_impl->m_parameters;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const typename basic_request_parser<CharT>::path_args_t&
 basic_request_parser<CharT>::path_args() const noexcept
 {
 	return m_impl->m_path_args;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const typename basic_request_parser<CharT>::headers_t&
 basic_request_parser<CharT>::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const typename basic_request_parser<CharT>::cookies_t&
 basic_request_parser<CharT>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::can_read_from_device() const noexcept
 {
 	return m_impl->m_parser.can_read_from_device();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::string basic_request_parser<CharT>::take_partial_body(size_t size)
 {
 	return m_impl->m_parser.take_partial_body(size);
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::string basic_request_parser<CharT>::take_body()
 {
 	return m_impl->m_parser.take_body();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::is_finished() const noexcept
 {
 	return m_impl->m_parser.is_finished();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_request_parser<CharT>::is_eof() const noexcept
 {
 	return m_impl->m_parser.is_eof();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_request_parser<CharT> &basic_request_parser<CharT>::reset()
 {
 	m_impl->m_parser.reset();

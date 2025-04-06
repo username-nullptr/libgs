@@ -66,7 +66,7 @@ template <typename T>
 [[nodiscard]] constexpr const T *as_const(const T *v);
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::schedulable auto &&exec
+	concepts::sched auto &&exec
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) unbound_token (

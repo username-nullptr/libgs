@@ -26,23 +26,23 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_CONDITION_VARIABLE_H
-#define LIBGS_CORE_CORO_CONDITION_VARIABLE_H
+#ifndef LIBGS_CORO_CONDITION_VARIABLE_H
+#define LIBGS_CORO_CONDITION_VARIABLE_H
 
-#include <libgs/core/coro/mutex.h>
+#include <libgs/coro/mutex.h>
 #include <condition_variable>
 
-namespace libgs
+namespace libgs::coro
 {
 
 // TODO ... ...
-class LIBGS_CORE_VAPI co_condition_variable
+class LIBGS_CORE_VAPI condition_variable
 {
-	LIBGS_DISABLE_COPY_MOVE(co_condition_variable)
+	LIBGS_DISABLE_COPY_MOVE(condition_variable)
 
 public:
-	co_condition_variable();
-	~co_condition_variable() noexcept(false);
+	condition_variable();
+	~condition_variable() noexcept(false);
 
 public:
 	template <typename Mutex>
@@ -53,12 +53,12 @@ public:
 
 	template <typename Mutex>
     [[nodiscard]] awaitable<void> wait (
-    	concepts::schedulable auto &&exec, co_unique_lock<Mutex> &lock
+    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock
     ) noexcept;
 
     template <typename Mutex>
     [[nodiscard]] awaitable<void> wait (
-    	concepts::schedulable auto &&exec, co_unique_lock<Mutex> &lock, auto pred
+    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock, auto pred
     );
 
     void notify_one() noexcept;
@@ -85,22 +85,22 @@ public:
 public:
     template <typename Mutex, typename Rep, typename Period>
     [[nodiscard]] awaitable<bool> wait_for (
-    	concepts::schedulable auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
     	const duration<Rep,Period> &rtime
     );
     template <typename Mutex, typename Rep, typename Period>
     [[nodiscard]] awaitable<bool> wait_for (
-    	concepts::schedulable auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
     	const duration<Rep,Period> &rtime, auto pred
     );
     template <typename Mutex, typename Clock, typename Duration>
     [[nodiscard]] awaitable<bool> wait_until (
-    	concepts::schedulable auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
     	const time_point<Clock,Duration> &atime
     );
     template <typename Mutex, typename Clock, typename Duration>
     [[nodiscard]] awaitable<bool> wait_until (
-    	concepts::schedulable auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
     	const time_point<Clock,Duration> &atime, auto pred
     );
 
@@ -112,8 +112,8 @@ private:
 	std::condition_variable_any bbb;
 };
 
-} //namespace libgs
-#include <libgs/core/coro/detail/condition_variable.h>
+} //namespace libgs::coro
+#include <libgs/coro/detail/condition_variable.h>
 
 
-#endif //LIBGS_CORE_CORO_CONDITION_VARIABLE_H
+#endif //LIBGS_CORO_CONDITION_VARIABLE_H

@@ -34,11 +34,9 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 union LIBGS_CORE_TAPI basic_uuid // version 4
 {
-	static constexpr bool is_char_v = libgs::is_char_v<CharT>;
-
 public:
 	using char_t = CharT;
 	using string_t = std::basic_string<char_t>;

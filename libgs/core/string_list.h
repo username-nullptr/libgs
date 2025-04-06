@@ -46,7 +46,7 @@ concept string_list_iterator =
 
 } //namespace concepts
 
-template <concepts::char_type CharT, template<typename,typename...> class Container, typename...Args>
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 class LIBGS_CORE_TAPI basic_string_container : public Container<std::basic_string<CharT>,Args...>
 {
 public:
@@ -82,7 +82,7 @@ public:
 	);
 };
 
-template <concepts::char_type CharT, typename...Args>
+template <concepts::character CharT, typename...Args>
 using basic_string_vector = basic_string_container<CharT,std::vector,Args...>;
 
 using string_vector    = basic_string_vector<char    >;
@@ -91,7 +91,7 @@ using u8string_vector  = basic_string_vector<char8_t >;
 using u16string_vector = basic_string_vector<char16_t>;
 using u32string_vector = basic_string_vector<char32_t>;
 
-template <concepts::char_type CharT, typename...Args>
+template <concepts::character CharT, typename...Args>
 using basic_string_deque = basic_string_container<CharT,std::deque,Args...>;
 
 using string_deque    = basic_string_deque<char    >;
@@ -100,7 +100,7 @@ using u8string_deque  = basic_string_deque<char8_t >;
 using u16string_deque = basic_string_deque<char16_t>;
 using u32string_deque = basic_string_deque<char32_t>;
 
-template <concepts::char_type CharT, typename...Args>
+template <concepts::character CharT, typename...Args>
 using basic_string_list = basic_string_container<CharT,std::list,Args...>;
 
 using string_list    = basic_string_list<char    >;
@@ -109,7 +109,7 @@ using u8string_list  = basic_string_list<char8_t >;
 using u16string_list = basic_string_list<char16_t>;
 using u32string_list = basic_string_list<char32_t>;
 
-template <concepts::char_type CharT, typename...Args>
+template <concepts::character CharT, typename...Args>
 using basic_string_set = basic_string_container<CharT,std::set,Args...>;
 
 using string_set    = basic_string_set<char    >;

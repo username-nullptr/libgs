@@ -34,13 +34,13 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 using basic_session_attributes = std::map<std::basic_string<CharT>, std::any>;
 
 using session_attributes = basic_session_attributes<char>;
 using wsession_attributes = basic_session_attributes<wchar_t>;
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class LIBGS_HTTP_TAPI basic_session :
 	public std::enable_shared_from_this<basic_session<CharT>>
 {
@@ -105,7 +105,7 @@ private:
 using session = basic_session<char>;
 using wsession = basic_session<wchar_t>;
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 using basic_session_ptr = std::shared_ptr<basic_session<CharT>>;
 
 using session_ptr = basic_session_ptr<char>;

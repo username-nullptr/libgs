@@ -79,7 +79,7 @@ class dynamic_format_arg_store
 #endif
 {
  private:
-  using char_type = typename Context::char_type;
+  using character = typename Context::character;
 
   template <typename T> struct need_copy {
     static constexpr detail::type mapped_type =
@@ -87,8 +87,8 @@ class dynamic_format_arg_store
 
     enum {
       value = !(detail::is_reference_wrapper<T>::value ||
-                std::is_same<T, basic_string_view<char_type>>::value ||
-                std::is_same<T, detail::std_string_view<char_type>>::value ||
+                std::is_same<T, basic_string_view<character>>::value ||
+                std::is_same<T, detail::std_string_view<character>>::value ||
                 (mapped_type != detail::type::cstring_type &&
                  mapped_type != detail::type::string_type &&
                  mapped_type != detail::type::custom_type))
@@ -97,13 +97,13 @@ class dynamic_format_arg_store
 
   template <typename T>
   using stored_type = conditional_t<
-      std::is_convertible<T, std::basic_string<char_type>>::value &&
+      std::is_convertible<T, std::basic_string<character>>::value &&
           !detail::is_reference_wrapper<T>::value,
-      std::basic_string<char_type>, T>;
+      std::basic_string<character>, T>;
 
   // Storage of basic_format_arg must be contiguous.
   std::vector<basic_format_arg<Context>> data_;
-  std::vector<detail::named_arg_info<char_type>> named_info_;
+  std::vector<detail::named_arg_info<character>> named_info_;
 
   // Storage of arguments not fitting into basic_format_arg must grow
   // without relocation because items in data_ refer to it.
@@ -127,9 +127,9 @@ class dynamic_format_arg_store
   }
 
   template <typename T>
-  void emplace_arg(const detail::named_arg<char_type, T>& arg) {
+  void emplace_arg(const detail::named_arg<character, T>& arg) {
     if (named_info_.empty()) {
-      constexpr const detail::named_arg_info<char_type>* zero_ptr{nullptr};
+      constexpr const detail::named_arg_info<character>* zero_ptr{nullptr};
       data_.insert(data_.begin(), {zero_ptr, 0});
     }
     data_.emplace_back(detail::make_arg<Context>(detail::unwrap(arg.value)));
@@ -198,9 +198,9 @@ class dynamic_format_arg_store
     argument. The name is always copied into the store.
   */
   template <typename T>
-  void push_back(const detail::named_arg<char_type, T>& arg) {
-    const char_type* arg_name =
-        dynamic_args_.push<std::basic_string<char_type>>(arg.name).c_str();
+  void push_back(const detail::named_arg<character, T>& arg) {
+    const character* arg_name =
+        dynamic_args_.push<std::basic_string<character>>(arg.name).c_str();
     if (detail::const_check(need_copy<T>::value)) {
       emplace_arg(
           fmt::arg(arg_name, dynamic_args_.push<stored_type<T>>(arg.value)));

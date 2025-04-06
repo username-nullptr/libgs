@@ -11,6 +11,7 @@ set(${target_name}_sources
 	args_parser.cpp
 	detail/ini.cpp
 	execution.cpp
+	file_info.cpp
 	library.cpp
 	detail/library_${OS_CPP}.cpp
 )
@@ -46,19 +47,14 @@ set(${target_name}_headers
 	algorithm/sha1.h
 	algorithm/math.h
 	algorithm/misc.h
-	coro/utilities.h
-	coro/mutex.h
-	coro/condition_variable.h
-	coro/shared_mutex.h
-	coro/semaphore.h
 	app_utls.h
 	lock_free_queue.h
 	string_list.h
 	value.h
 	args_parser.h
 	ini.h
+	file_info.h
 	execution.h
-	coro.h
 	library.h
 )
 
@@ -79,12 +75,6 @@ set(${target_name}_detail_headers
 	algorithm/detail/uuid.h
 	algorithm/detail/math.h
 	algorithm/detail/misc.h
-	coro/detail/utilities.h
-	coro/detail/wake_up.h
-	coro/detail/mutex.h
-	coro/detail/condition_variable.h
-	coro/detail/shared_mutex.h
-	coro/detail/semaphore.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
 	detail/string_list.h

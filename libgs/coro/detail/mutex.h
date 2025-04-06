@@ -26,21 +26,21 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_DETAIL_MUTEX_H
-#define LIBGS_CORE_CORO_DETAIL_MUTEX_H
+#ifndef LIBGS_CORO_DETAIL_MUTEX_H
+#define LIBGS_CORO_DETAIL_MUTEX_H
 
-#include <libgs/core/coro/detail/wake_up.h>
 #include <libgs/core/lock_free_queue.h>
+#include <libgs/coro/detail/wake_up.h>
 
-namespace libgs
+namespace libgs::coro
 {
 
-class LIBGS_CORE_VAPI co_mutex::impl
+class LIBGS_CORE_VAPI mutex::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	using wake_up_t = detail::co_lock_wake_up;
+	using wake_up_t = detail::lock_wake_up;
 
 	impl() = default;
 	~impl() noexcept(false)
@@ -48,7 +48,7 @@ public:
 		if( not m_native_handle )
 			return ;
 		throw runtime_error (
-			"libgs::co_mutex: Destruct a co_mutex that has not yet been unlocked."
+			"libgs::mutex: Destruct a mutex that has not yet been unlocked."
 		);
 	}
 
@@ -72,7 +72,7 @@ public:
 	}
 
 	[[nodiscard]] awaitable<bool> try_lock_x
-	(concepts::schedulable auto &&exec, const auto &timeout)
+	(concepts::sched auto &&exec, const auto &timeout)
 	{
 		if( try_lock() )
 			co_return true;
@@ -88,21 +88,21 @@ public:
 
 public:
 	native_handle_t m_native_handle {false};
-	lock_free_queue<detail::co_lock_wake_up_ptr> m_wait_queue;
+	lock_free_queue<detail::lock_wake_up_ptr> m_wait_queue;
 };
 
-inline co_mutex::co_mutex() :
+inline mutex::mutex() :
 	m_impl(new impl())
 {
 
 }
 
-inline co_mutex::~co_mutex() noexcept(false)
+inline mutex::~mutex() noexcept(false)
 {
 	delete m_impl;
 }
 
-awaitable<void> co_mutex::lock(concepts::schedulable auto &&exec)
+awaitable<void> mutex::lock(concepts::sched auto &&exec)
 {
 	if( try_lock() )
 		co_return ;
@@ -117,19 +117,19 @@ awaitable<void> co_mutex::lock(concepts::schedulable auto &&exec)
 	co_return ;
 }
 
-inline awaitable<void> co_mutex::lock()
+inline awaitable<void> mutex::lock()
 {
 	co_return co_await lock (
 		co_await asio::this_coro::executor
 	);
 }
 
-inline bool co_mutex::try_lock()
+inline bool mutex::try_lock()
 {
 	return m_impl->try_lock();
 }
 
-inline void co_mutex::unlock()
+inline void mutex::unlock()
 {
 	for(;;)
 	{
@@ -146,8 +146,8 @@ inline void co_mutex::unlock()
 }
 
 template<typename Rep, typename Period>
-awaitable<bool> co_mutex::try_lock_for
-(concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout)
+awaitable<bool> mutex::try_lock_for
+(concepts::sched auto &&exec, const duration<Rep,Period> &timeout)
 {
 	return m_impl->try_lock_x(exec,
 		std::chrono::duration_cast<asio::steady_timer::duration>(timeout)
@@ -155,8 +155,8 @@ awaitable<bool> co_mutex::try_lock_for
 }
 
 template<typename Clock, typename Duration>
-awaitable<bool> co_mutex::try_lock_until
-(concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout)
+awaitable<bool> mutex::try_lock_until
+(concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout)
 {
 	return m_impl->try_lock_x(exec,
 		std::chrono::time_point_cast<asio::steady_timer::time_point>(timeout)
@@ -164,7 +164,7 @@ awaitable<bool> co_mutex::try_lock_until
 }
 
 template<typename Rep, typename Period>
-awaitable<bool> co_mutex::try_lock_for(const duration<Rep,Period> &timeout)
+awaitable<bool> mutex::try_lock_for(const duration<Rep,Period> &timeout)
 {
 	co_return co_await try_lock_for (
 		co_await asio::this_coro::executor, timeout
@@ -172,46 +172,46 @@ awaitable<bool> co_mutex::try_lock_for(const duration<Rep,Period> &timeout)
 }
 
 template<typename Clock, typename Duration>
-awaitable<bool> co_mutex::try_lock_until(const time_point<Clock,Duration> &timeout)
+awaitable<bool> mutex::try_lock_until(const time_point<Clock,Duration> &timeout)
 {
 	co_return co_await try_lock_until (
 		co_await asio::this_coro::executor, timeout
 	);
 }
 
-inline bool co_mutex::is_locked() const noexcept
+inline bool mutex::is_locked() const noexcept
 {
 	return m_impl->m_native_handle;
 }
 
-inline co_mutex::native_handle_t &co_mutex::native_handle() noexcept
+inline mutex::native_handle_t &mutex::native_handle() noexcept
 {
 	return m_impl->m_native_handle;
 }
 
 template <typename Mutex>
-co_unique_lock<Mutex>::co_unique_lock(mutex_t &mutex) :
+unique_lock<Mutex>::unique_lock(mutex_t &mutex) :
 	m_mutex(&mutex)
 {
 
 }
 
 template <typename Mutex>
-co_unique_lock<Mutex>::~co_unique_lock() noexcept(noexcept(m_mutex->unlock()))
+unique_lock<Mutex>::~unique_lock() noexcept(noexcept(m_mutex->unlock()))
 {
 	if( m_mutex )
 		m_mutex->unlock();
 }
 
 template <typename Mutex>
-co_unique_lock<Mutex>::co_unique_lock(co_unique_lock &&other) noexcept
+unique_lock<Mutex>::unique_lock(unique_lock &&other) noexcept
 {
 	m_mutex = other.m_mutex;
 	other.m_mutex = nullptr;
 }
 
 template <typename Mutex>
-co_unique_lock<Mutex> &co_unique_lock<Mutex>::operator=(co_unique_lock &&other) noexcept
+unique_lock<Mutex> &unique_lock<Mutex>::operator=(unique_lock &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -224,7 +224,7 @@ co_unique_lock<Mutex> &co_unique_lock<Mutex>::operator=(co_unique_lock &&other) 
 }
 
 template <typename Mutex>
-awaitable<void> co_unique_lock<Mutex>::lock(concepts::schedulable auto &&exec)
+awaitable<void> unique_lock<Mutex>::lock(concepts::sched auto &&exec)
 {
 	if( m_mutex )
 		co_await m_mutex->lock(exec);
@@ -232,7 +232,7 @@ awaitable<void> co_unique_lock<Mutex>::lock(concepts::schedulable auto &&exec)
 }
 
 template <typename Mutex>
-awaitable<void> co_unique_lock<Mutex>::lock()
+awaitable<void> unique_lock<Mutex>::lock()
 {
 	co_return co_await lock (
 		co_await asio::this_coro::executor
@@ -240,13 +240,13 @@ awaitable<void> co_unique_lock<Mutex>::lock()
 }
 
 template <typename Mutex>
-bool co_unique_lock<Mutex>::try_lock()
+bool unique_lock<Mutex>::try_lock()
 {
 	return m_mutex ? m_mutex->try_lock() : true;
 }
 
 template <typename Mutex>
-void co_unique_lock<Mutex>::unlock()
+void unique_lock<Mutex>::unlock()
 {
 	if( m_mutex )
 		m_mutex->unlock();
@@ -254,23 +254,23 @@ void co_unique_lock<Mutex>::unlock()
 
 template <typename Mutex>
 template<typename Rep, typename Period>
-awaitable<bool> co_unique_lock<Mutex>::try_lock_for
-(concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout)
+awaitable<bool> unique_lock<Mutex>::try_lock_for
+(concepts::sched auto &&exec, const duration<Rep,Period> &timeout)
 {
 	co_return m_mutex ? co_await m_mutex->try_lock_for(exec, timeout) : true;
 }
 
 template <typename Mutex>
 template<typename Clock, typename Duration>
-awaitable<bool> co_unique_lock<Mutex>::try_lock_until
-(concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout)
+awaitable<bool> unique_lock<Mutex>::try_lock_until
+(concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout)
 {
 	co_return m_mutex ? co_await m_mutex->try_lock_until(exec, timeout) : true;
 }
 
 template <typename Mutex>
 template<typename Rep, typename Period>
-awaitable<bool> co_unique_lock<Mutex>::try_lock_for(const duration<Rep,Period> &timeout)
+awaitable<bool> unique_lock<Mutex>::try_lock_for(const duration<Rep,Period> &timeout)
 {
 	co_return co_await try_lock_for (
 		co_await asio::this_coro::executor, timeout
@@ -279,7 +279,7 @@ awaitable<bool> co_unique_lock<Mutex>::try_lock_for(const duration<Rep,Period> &
 
 template <typename Mutex>
 template<typename Clock, typename Duration>
-awaitable<bool> co_unique_lock<Mutex>::try_lock_until(const time_point<Clock,Duration> &timeout)
+awaitable<bool> unique_lock<Mutex>::try_lock_until(const time_point<Clock,Duration> &timeout)
 {
 	co_return co_await try_lock_until (
 		co_await asio::this_coro::executor, timeout
@@ -287,18 +287,18 @@ awaitable<bool> co_unique_lock<Mutex>::try_lock_until(const time_point<Clock,Dur
 }
 
 template <typename Mutex>
-bool co_unique_lock<Mutex>::is_locked() const noexcept
+bool unique_lock<Mutex>::is_locked() const noexcept
 {
 	return m_mutex ? m_mutex->is_locked() : false;
 }
 
 template <typename Mutex>
-typename co_unique_lock<Mutex>::mutex_t *co_unique_lock<Mutex>::mutex() noexcept
+typename unique_lock<Mutex>::mutex_t *unique_lock<Mutex>::mutex() noexcept
 {
 	return m_mutex;
 }
 
-} //namespace libgs
+} //namespace libgs::coro
 
 
-#endif //LIBGS_CORE_CORO_DETAIL_MUTEX_H
+#endif //LIBGS_CORO_DETAIL_MUTEX_H

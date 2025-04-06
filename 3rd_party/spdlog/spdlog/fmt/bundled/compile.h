@@ -49,8 +49,8 @@ struct is_compiled_string : std::is_base_of<compiled_string, S> {};
 template <typename Char, size_t N,
           fmt::detail_exported::fixed_string<Char, N> Str>
 struct udl_compiled_string : compiled_string {
-  using char_type = Char;
-  explicit constexpr operator basic_string_view<char_type>() const {
+  using character = Char;
+  explicit constexpr operator basic_string_view<character>() const {
     return {Str.data, N - 1};
   }
 };
@@ -95,7 +95,7 @@ template <typename T> struct is_compiled_format : std::false_type {};
 
 template <typename Char> struct text {
   basic_string_view<Char> data;
-  using char_type = Char;
+  using character = Char;
 
   template <typename OutputIt, typename... Args>
   constexpr OutputIt format(OutputIt out, const Args&...) const {
@@ -114,7 +114,7 @@ constexpr text<Char> make_text(basic_string_view<Char> s, size_t pos,
 
 template <typename Char> struct code_unit {
   Char value;
-  using char_type = Char;
+  using character = Char;
 
   template <typename OutputIt, typename... Args>
   constexpr OutputIt format(OutputIt out, const Args&...) const {
@@ -139,7 +139,7 @@ struct is_compiled_format<code_unit<Char>> : std::true_type {};
 
 // A replacement field that refers to argument N.
 template <typename Char, typename T, int N> struct field {
-  using char_type = Char;
+  using character = Char;
 
   template <typename OutputIt, typename... Args>
   constexpr OutputIt format(OutputIt out, const Args&... args) const {
@@ -157,7 +157,7 @@ struct is_compiled_format<field<Char, T, N>> : std::true_type {};
 
 // A replacement field that refers to argument with name.
 template <typename Char> struct runtime_named_field {
-  using char_type = Char;
+  using character = Char;
   basic_string_view<Char> name;
 
   template <typename OutputIt, typename T>
@@ -189,7 +189,7 @@ struct is_compiled_format<runtime_named_field<Char>> : std::true_type {};
 
 // A replacement field that refers to argument N and has format specifiers.
 template <typename Char, typename T, int N> struct spec_field {
-  using char_type = Char;
+  using character = Char;
   formatter<T, Char> fmt;
 
   template <typename OutputIt, typename... Args>
@@ -208,7 +208,7 @@ struct is_compiled_format<spec_field<Char, T, N>> : std::true_type {};
 template <typename L, typename R> struct concat {
   L lhs;
   R rhs;
-  using char_type = typename L::char_type;
+  using character = typename L::character;
 
   template <typename OutputIt, typename... Args>
   constexpr OutputIt format(OutputIt out, const Args&... args) const {
@@ -241,7 +241,7 @@ constexpr auto compile_format_string(S format_str);
 template <typename Args, size_t POS, int ID, typename T, typename S>
 constexpr auto parse_tail(T head, S format_str) {
   if constexpr (POS !=
-                basic_string_view<typename S::char_type>(format_str).size()) {
+                basic_string_view<typename S::character>(format_str).size()) {
     constexpr auto tail = compile_format_string<Args, POS, ID>(format_str);
     if constexpr (std::is_same<remove_cvref_t<decltype(tail)>,
                                unknown_format>())
@@ -314,12 +314,12 @@ struct field_type<T, enable_if_t<detail::is_named_arg<T>::value>> {
 template <typename T, typename Args, size_t END_POS, int ARG_INDEX, int NEXT_ID,
           typename S>
 constexpr auto parse_replacement_field_then_tail(S format_str) {
-  using char_type = typename S::char_type;
-  constexpr auto str = basic_string_view<char_type>(format_str);
-  constexpr char_type c = END_POS != str.size() ? str[END_POS] : char_type();
+  using character = typename S::character;
+  constexpr auto str = basic_string_view<character>(format_str);
+  constexpr character c = END_POS != str.size() ? str[END_POS] : character();
   if constexpr (c == '}') {
     return parse_tail<Args, END_POS + 1, NEXT_ID>(
-        field<char_type, typename field_type<T>::type, ARG_INDEX>(),
+        field<character, typename field_type<T>::type, ARG_INDEX>(),
         format_str);
   } else if constexpr (c != ':') {
     FMT_THROW(format_error("expected ':'"));
@@ -331,7 +331,7 @@ constexpr auto parse_replacement_field_then_tail(S format_str) {
       return 0;
     } else {
       return parse_tail<Args, result.end + 1, result.next_arg_id>(
-          spec_field<char_type, typename field_type<T>::type, ARG_INDEX>{
+          spec_field<character, typename field_type<T>::type, ARG_INDEX>{
               result.fmt},
           format_str);
     }
@@ -342,8 +342,8 @@ constexpr auto parse_replacement_field_then_tail(S format_str) {
 // or unknown_format() on unrecognized input.
 template <typename Args, size_t POS, int ID, typename S>
 constexpr auto compile_format_string(S format_str) {
-  using char_type = typename S::char_type;
-  constexpr auto str = basic_string_view<char_type>(format_str);
+  using character = typename S::character;
+  constexpr auto str = basic_string_view<character>(format_str);
   if constexpr (str[POS] == '{') {
     if constexpr (POS + 1 == str.size())
       FMT_THROW(format_error("unmatched '{' in format string"));
@@ -361,8 +361,8 @@ constexpr auto compile_format_string(S format_str) {
       constexpr auto arg_id_result =
           parse_arg_id<ID>(str.data() + POS + 1, str.data() + str.size());
       constexpr auto arg_id_end_pos = arg_id_result.arg_id_end - str.data();
-      constexpr char_type c =
-          arg_id_end_pos != str.size() ? str[arg_id_end_pos] : char_type();
+      constexpr character c =
+          arg_id_end_pos != str.size() ? str[arg_id_end_pos] : character();
       static_assert(c == '}' || c == ':', "missing '}' in format string");
       if constexpr (arg_id_result.arg_id.kind == arg_id_kind::index) {
         static_assert(
@@ -384,7 +384,7 @@ constexpr auto compile_format_string(S format_str) {
               arg_index, next_id>(format_str);
         } else if constexpr (c == '}') {
           return parse_tail<Args, arg_id_end_pos + 1, ID>(
-              runtime_named_field<char_type>{arg_id_result.arg_id.val.name},
+              runtime_named_field<character>{arg_id_result.arg_id.val.name},
               format_str);
         } else if constexpr (c == ':') {
           return unknown_format();  // no type info for specs parsing
@@ -401,7 +401,7 @@ constexpr auto compile_format_string(S format_str) {
       return parse_tail<Args, end, ID>(make_text(str, POS, end - POS),
                                        format_str);
     } else {
-      return parse_tail<Args, end, ID>(code_unit<char_type>{str[POS]},
+      return parse_tail<Args, end, ID>(code_unit<character>{str[POS]},
                                        format_str);
     }
   }
@@ -410,7 +410,7 @@ constexpr auto compile_format_string(S format_str) {
 template <typename... Args, typename S,
           FMT_ENABLE_IF(detail::is_compiled_string<S>::value)>
 constexpr auto compile(S format_str) {
-  constexpr auto str = basic_string_view<typename S::char_type>(format_str);
+  constexpr auto str = basic_string_view<typename S::character>(format_str);
   if constexpr (str.size() == 0) {
     return detail::make_text(str, 0, 0);
   } else {
@@ -428,7 +428,7 @@ FMT_BEGIN_EXPORT
 #if defined(__cpp_if_constexpr) && defined(__cpp_return_type_deduction)
 
 template <typename CompiledFormat, typename... Args,
-          typename Char = typename CompiledFormat::char_type,
+          typename Char = typename CompiledFormat::character,
           FMT_ENABLE_IF(detail::is_compiled_format<CompiledFormat>::value)>
 FMT_INLINE std::basic_string<Char> format(const CompiledFormat& cf,
                                           const Args&... args) {
@@ -446,10 +446,10 @@ constexpr FMT_INLINE OutputIt format_to(OutputIt out, const CompiledFormat& cf,
 
 template <typename S, typename... Args,
           FMT_ENABLE_IF(detail::is_compiled_string<S>::value)>
-FMT_INLINE std::basic_string<typename S::char_type> format(const S&,
+FMT_INLINE std::basic_string<typename S::character> format(const S&,
                                                            Args&&... args) {
-  if constexpr (std::is_same<typename S::char_type, char>::value) {
-    constexpr auto str = basic_string_view<typename S::char_type>(S());
+  if constexpr (std::is_same<typename S::character, char>::value) {
+    constexpr auto str = basic_string_view<typename S::character>(S());
     if constexpr (str.size() == 2 && str[0] == '{' && str[1] == '}') {
       const auto& first = detail::first(args...);
       if constexpr (detail::is_named_arg<
@@ -464,7 +464,7 @@ FMT_INLINE std::basic_string<typename S::char_type> format(const S&,
   if constexpr (std::is_same<remove_cvref_t<decltype(compiled)>,
                              detail::unknown_format>()) {
     return fmt::format(
-        static_cast<basic_string_view<typename S::char_type>>(S()),
+        static_cast<basic_string_view<typename S::character>>(S()),
         std::forward<Args>(args)...);
   } else {
     return fmt::format(compiled, std::forward<Args>(args)...);
@@ -478,7 +478,7 @@ FMT_CONSTEXPR OutputIt format_to(OutputIt out, const S&, Args&&... args) {
   if constexpr (std::is_same<remove_cvref_t<decltype(compiled)>,
                              detail::unknown_format>()) {
     return fmt::format_to(
-        out, static_cast<basic_string_view<typename S::char_type>>(S()),
+        out, static_cast<basic_string_view<typename S::character>>(S()),
         std::forward<Args>(args)...);
   } else {
     return fmt::format_to(out, compiled, std::forward<Args>(args)...);

@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 class basic_server_request<Stream,CharT>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -343,7 +343,7 @@ public:
 	parser_t *m_parser = nullptr;
 };
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <typename NextLayer>
 basic_server_request<Stream,CharT>::basic_server_request(NextLayer &&next_layer, parser_t &parser)
 	requires core_concepts::constructible<next_layer_t,NextLayer&&> :
@@ -352,20 +352,20 @@ basic_server_request<Stream,CharT>::basic_server_request(NextLayer &&next_layer,
 
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 basic_server_request<Stream,CharT>::~basic_server_request()
 {
 	delete m_impl;
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 basic_server_request<Stream,CharT>::basic_server_request(basic_server_request &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator=(basic_server_request &&other) noexcept
 {
 	if( this != &other )
@@ -373,7 +373,7 @@ basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator
 	return *this;
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <typename Stream0>
 basic_server_request<Stream,CharT>::basic_server_request(basic_server_request<Stream0,char_t> &&other) noexcept
 	requires core_concepts::constructible<Stream,Stream0&&> :
@@ -382,7 +382,7 @@ basic_server_request<Stream,CharT>::basic_server_request(basic_server_request<St
 
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <typename Stream0>
 basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator=
 (basic_server_request<Stream0,char_t> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
@@ -391,53 +391,53 @@ basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::operator
 	return *this;
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 method_t basic_server_request<Stream,CharT>::method() const noexcept
 {
 	return m_impl->m_parser->method();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 version_t basic_server_request<Stream,CharT>::version() const noexcept
 {
 	return m_impl->m_parser->version();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 std::basic_string_view<CharT> basic_server_request<Stream,CharT>::path() const noexcept
 {
 	return m_impl->m_parser->path();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 const typename basic_server_request<Stream,CharT>::parameters_t&
 basic_server_request<Stream,CharT>::parameters() const noexcept
 {
 	return m_impl->m_parser->parameters();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 const typename basic_server_request<Stream,CharT>::path_args_t&
 basic_server_request<Stream,CharT>::path_args() const noexcept
 {
 	return m_impl->m_parser->path_args();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 const typename basic_server_request<Stream,CharT>::headers_t&
 basic_server_request<Stream,CharT>::headers() const noexcept
 {
 	return m_impl->m_parser->headers();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 const typename basic_server_request<Stream,CharT>::cookies_t&
 basic_server_request<Stream,CharT>::cookies() const noexcept
 {
 	return m_impl->m_parser->cookies();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::parameter
 (core_concepts::basic_string_type<char_t> auto &&key) const
@@ -447,7 +447,7 @@ decltype(auto) basic_server_request<Stream,CharT>::parameter
 	);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::header
 (core_concepts::basic_string_type<char_t> auto &&key) const
@@ -457,7 +457,7 @@ decltype(auto) basic_server_request<Stream,CharT>::header
 	);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::cookie
 (core_concepts::basic_string_type<char_t> auto &&key) const
@@ -467,7 +467,7 @@ decltype(auto) basic_server_request<Stream,CharT>::cookie
 	);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::parameter_or
 (core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
@@ -477,7 +477,7 @@ decltype(auto) basic_server_request<Stream,CharT>::parameter_or
 	);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::header_or
 (core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
@@ -487,7 +487,7 @@ decltype(auto) basic_server_request<Stream,CharT>::header_or
 	);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::cookie_or
 (core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
@@ -497,13 +497,13 @@ decltype(auto) basic_server_request<Stream,CharT>::cookie_or
 	);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 int32_t basic_server_request<Stream,CharT>::path_match(string_view_t rule)
 {
 	return m_impl->m_parser->path_match(rule);
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::path_arg
 (core_concepts::basic_string_type<char_t> auto &&key) const
@@ -527,7 +527,7 @@ decltype(auto) basic_server_request<Stream,CharT>::path_arg
 //	return {};
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::path_arg(size_t index) const
 {
@@ -544,7 +544,7 @@ decltype(auto) basic_server_request<Stream,CharT>::path_arg(size_t index) const
 		return as_const(value.template get<def_t>());
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::path_arg_or
 (core_concepts::basic_string_type<char_t> auto &&key, T &&def_value) const noexcept
@@ -569,7 +569,7 @@ decltype(auto) basic_server_request<Stream,CharT>::path_arg_or
 		return value_t(std::forward<T>(def_value)).template get<def_t>();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::basic_text_arg<CharT> T>
 decltype(auto) basic_server_request<Stream,CharT>::path_arg_or(size_t index, T &&def_value) const noexcept
 {
@@ -591,7 +591,7 @@ decltype(auto) basic_server_request<Stream,CharT>::path_arg_or(size_t index, T &
 		return as_const(value.template get<def_t>());
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &&token)
 {
@@ -650,7 +650,7 @@ auto basic_server_request<Stream,CharT>::read(const mutable_buffer &buf, Token &
 	}
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_request<Stream,CharT>::read(Token &&token)
 {
@@ -742,7 +742,7 @@ auto basic_server_request<Stream,CharT>::read(Token &&token)
 	}
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_request<Stream,CharT>::save_file
 (concepts::char_file_opt_token_arg<file_optype::single, io_permission::write> auto &&opt, Token &&token)
@@ -806,19 +806,19 @@ auto basic_server_request<Stream,CharT>::save_file
 	}
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 bool basic_server_request<Stream,CharT>::keep_alive() const noexcept
 {
 	return m_impl->m_parser->keep_alive();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 bool basic_server_request<Stream,CharT>::support_gzip() const noexcept
 {
 	return m_impl->m_parser->support_gzip();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 bool basic_server_request<Stream,CharT>::is_chunked() const noexcept
 {
 	if( version() < http::version::v11 )
@@ -827,51 +827,51 @@ bool basic_server_request<Stream,CharT>::is_chunked() const noexcept
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == detail::string_pool<char_t>::chunked;
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 bool basic_server_request<Stream,CharT>::can_read_body() const noexcept
 {
 	return not is_eof();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 bool basic_server_request<Stream,CharT>::is_eof() const noexcept
 {
 	return m_impl->is_eof();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Stream,CharT>::remote_endpoint() const
 {
 	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).remote_endpoint();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 typename basic_server_request<Stream,CharT>::endpoint_t basic_server_request<Stream,CharT>::local_endpoint() const
 {
 	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).local_endpoint();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 typename basic_server_request<Stream,CharT>::executor_t basic_server_request<Stream,CharT>::get_executor() noexcept
 {
 	return m_impl->get_executor();
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 basic_server_request<Stream,CharT> &basic_server_request<Stream,CharT>::cancel() noexcept
 {
 	m_impl->m_next_layer.cancel();
 	return *this;
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 const typename basic_server_request<Stream,CharT>::next_layer_t&
 basic_server_request<Stream,CharT>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
-template <concepts::stream Stream, core_concepts::char_type CharT>
+template <concepts::stream Stream, core_concepts::character CharT>
 typename basic_server_request<Stream,CharT>::next_layer_t&
 basic_server_request<Stream,CharT>::next_layer() noexcept
 {

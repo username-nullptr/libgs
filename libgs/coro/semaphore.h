@@ -26,104 +26,67 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_MUTEX_H
-#define LIBGS_CORE_CORO_MUTEX_H
+#ifndef LIBGS_CORO_SEMAPHORE_H
+#define LIBGS_CORO_SEMAPHORE_H
 
 #include <libgs/core/global.h>
 
-namespace libgs
+namespace libgs::coro
 {
 
-class LIBGS_CORE_VAPI co_mutex
+template<size_t Max = std::numeric_limits<size_t>::max()>
+class LIBGS_CORE_TAPI basic_semaphore
 {
-	LIBGS_DISABLE_COPY_MOVE(co_mutex)
+	LIBGS_DISABLE_COPY_MOVE(basic_semaphore)
+	constexpr static size_t max_v = Max;
+
+	static_assert(max_v > 0,
+		"Max must be greater than 0"
+	);
+public:
+	explicit basic_semaphore(size_t initial_count = max_v);
+	~basic_semaphore() noexcept(false);
 
 public:
-	using native_handle_t = std::atomic_bool;
+	[[nodiscard]] awaitable<void> acquire(concepts::sched auto &&exec);
+	[[nodiscard]] awaitable<void> acquire();
+
+	[[nodiscard]] bool try_acquire();
+	size_t release(size_t n = 1) requires (max_v > 1);
+	size_t release() requires (max_v == 1);
 
 public:
-	co_mutex();
-	~co_mutex() noexcept(false);
-
-public:
-	[[nodiscard]] awaitable<void> lock(concepts::schedulable auto &&exec);
-	[[nodiscard]] awaitable<void> lock();
-
-	[[nodiscard]] bool try_lock();
-	void unlock();
-
 	template<typename Rep, typename Period>
-	[[nodiscard]] awaitable<bool> try_lock_for (
-		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
+	[[nodiscard]] awaitable<bool> try_acquire_for (
+		concepts::sched auto &&exec, const duration<Rep,Period> &timeout
 	);
 	template<typename Clock, typename Duration>
-	[[nodiscard]] awaitable<bool> try_lock_until (
-		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
+	[[nodiscard]] awaitable<bool> try_acquire_until (
+		concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout
 	);
 	template<typename Rep, typename Period>
-	[[nodiscard]] awaitable<bool> try_lock_for (
+	[[nodiscard]] awaitable<bool> try_acquire_for (
 		const duration<Rep,Period> &timeout
 	);
 	template<typename Clock, typename Duration>
-	[[nodiscard]] awaitable<bool> try_lock_until (
+	[[nodiscard]] awaitable<bool> try_acquire_until (
 		const time_point<Clock,Duration> &timeout
 	);
 
 public:
-	[[nodiscard]] bool is_locked() const noexcept;
-	[[nodiscard]] native_handle_t &native_handle() noexcept;
+	[[nodiscard]] consteval size_t max() const noexcept;
+	[[nodiscard]] size_t count() const noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-template <typename Mutex = co_mutex>
-class LIBGS_CORE_TAPI co_unique_lock
-{
-	LIBGS_DISABLE_COPY(co_unique_lock)
+using binary_semaphore = basic_semaphore<1>;
+using semaphore = basic_semaphore<>;
 
-public: using mutex_t = Mutex;
-private: mutex_t *m_mutex;
-
-public:
-	explicit co_unique_lock(mutex_t &mutex);
-	~co_unique_lock() noexcept(noexcept(m_mutex->unlock()));
-
-	co_unique_lock(co_unique_lock &&other) noexcept;
-	co_unique_lock &operator=(co_unique_lock &&other) noexcept;
-
-public:
-	[[nodiscard]] awaitable<void> lock(concepts::schedulable auto &&exec);
-	[[nodiscard]] awaitable<void> lock();
-
-	[[nodiscard]] bool try_lock();
-	void unlock();
-
-	template<typename Rep, typename Period>
-	[[nodiscard]] awaitable<bool> try_lock_for (
-		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
-	);
-	template<typename Clock, typename Duration>
-	[[nodiscard]] awaitable<bool> try_lock_until (
-		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
-	);
-	template<typename Rep, typename Period>
-	[[nodiscard]] awaitable<bool> try_lock_for (
-		const duration<Rep,Period> &timeout
-	);
-	template<typename Clock, typename Duration>
-	[[nodiscard]] awaitable<bool> try_lock_until (
-		const time_point<Clock,Duration> &timeout
-	);
-
-public:
-	[[nodiscard]] bool is_locked() const noexcept;
-	[[nodiscard]] mutex_t *mutex() noexcept;
-};
-
-} //namespace libgs
-#include <libgs/core/coro/detail/mutex.h>
+} //namespace libgs::coro
+#include <libgs/coro/detail/semaphore.h>
 
 
-#endif //LIBGS_CORE_CORO_MUTEX_H
+#endif //LIBGS_CORO_SEMAPHORE_H

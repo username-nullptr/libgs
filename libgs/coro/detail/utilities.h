@@ -26,41 +26,40 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_DETAIL_UTILITIES_H
-#define LIBGS_CORE_CORO_DETAIL_UTILITIES_H
+#ifndef LIBGS_CORO_DETAIL_UTILITIES_H
+#define LIBGS_CORO_DETAIL_UTILITIES_H
 
-#include <libgs/http/cxx/file_opt_token.h>
 #include <thread>
 
-namespace libgs
+namespace libgs::coro
 {
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto co_sleep_for(concepts::schedulable auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
+template <typename Rep, typename Period, concepts::sleep_opt_token Token>
+auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
 {
 	return sleep_for(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
 }
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto co_sleep_for(const duration<Rep,Period> &rtime, Token &&token)
+template <typename Rep, typename Period, concepts::sleep_opt_token Token>
+auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 {
 	return sleep_for(rtime, std::forward<Token>(token));
 }
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto co_sleep_until(concepts::schedulable auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
+template <typename Rep, typename Period, concepts::sleep_opt_token Token>
+auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
 	return sleep_for(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
 }
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto co_sleep_until(const time_point<Rep,Period> &atime, Token &&token)
+template <typename Rep, typename Period, concepts::sleep_opt_token Token>
+auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
 	return sleep_for(atime, std::forward<Token>(token));
 }
 
 template <typename T>
-awaitable<T> co_wait(const std::future<T> &future)
+awaitable<T> wait(const std::future<T> &future)
 {
 	auto exec = co_await asio::this_coro::executor;
 	co_return co_await dispatch(exec, [&future]() mutable -> awaitable<T>
@@ -77,7 +76,7 @@ awaitable<T> co_wait(const std::future<T> &future)
 	use_awaitable);
 }
 
-inline awaitable<void> co_wait(const asio::thread_pool &pool)
+inline awaitable<void> wait(const asio::thread_pool &pool)
 {
 	auto exec = co_await asio::this_coro::executor;
 	co_return co_await dispatch(exec, [&pool]() mutable -> awaitable<void>
@@ -90,7 +89,7 @@ inline awaitable<void> co_wait(const asio::thread_pool &pool)
 	use_awaitable);
 }
 
-inline awaitable<void> co_wait(const std::thread &thread)
+inline awaitable<void> wait(const std::thread &thread)
 {
 	auto exec = co_await asio::this_coro::executor;
 	co_return co_await dispatch(exec, [&thread]() mutable -> awaitable<void>
@@ -103,8 +102,8 @@ inline awaitable<void> co_wait(const std::thread &thread)
 	use_awaitable);
 }
 
-template <concepts::schedulable Exec>
-awaitable<asio::any_io_executor> co_to_exec(Exec &&exec)
+template <concepts::sched Exec>
+awaitable<asio::any_io_executor> goto_exec(Exec &&exec)
 {
 	auto curr_exec = co_await asio::this_coro::executor;
 	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
@@ -122,7 +121,7 @@ awaitable<asio::any_io_executor> co_to_exec(Exec &&exec)
 	asio::use_awaitable);
 }
 
-inline awaitable<asio::any_io_executor> co_to_thread()
+inline awaitable<asio::any_io_executor> goto_thread()
 {
 	auto curr_exec = co_await asio::this_coro::executor;
 	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
@@ -171,7 +170,7 @@ bool check_error(Token &token, const error_code &error, const char *message)
 #ifdef LIBGS_USING_BOOST_ASIO
 
 template <concepts::execution YCExec>
-auto co_post(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
+auto co_post(concepts::sched auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
 	using function_t = std::decay_t<decltype(func)>;
@@ -214,7 +213,7 @@ auto co_post(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, 
 }
 
 template <concepts::execution YCExec>
-auto co_dispatch(concepts::schedulable auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
+auto co_dispatch(concepts::sched auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
 	using function_t = std::decay_t<decltype(func)>;
@@ -303,7 +302,7 @@ namespace detail
 {
 
 template<concepts::execution YCExec, typename Exec>
-error_code co_sleep_x(const auto &stdtime, basic_yield_context<YCExec> yc, Exec &&exec)
+error_code sleep_x(const auto &stdtime, basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	error_code error;
 	asio::steady_timer timer(std::forward<Exec>(exec), stdtime);
@@ -313,22 +312,22 @@ error_code co_sleep_x(const auto &stdtime, basic_yield_context<YCExec> yc, Exec 
 
 } //namespace detail
 
-template<typename Rep, typename Period, concepts::execution YCExec, concepts::schedulable Exec>
-error_code co_sleep_for
+template<typename Rep, typename Period, concepts::execution YCExec, concepts::sched Exec>
+error_code sleep_for
 (const std::chrono::duration<Rep,Period> &rtime, basic_yield_context<YCExec> yc, Exec &&exec)
 {
-	return detail::co_sleep_x(rtime, yc, std::forward<Exec>(exec));
+	return detail::sleep_x(rtime, yc, std::forward<Exec>(exec));
 }
 
-template<typename Clock, typename Duration, concepts::execution YCExec, concepts::schedulable Exec>
-error_code co_sleep_until
+template<typename Clock, typename Duration, concepts::execution YCExec, concepts::sched Exec>
+error_code sleep_until
 (const std::chrono::time_point<Clock,Duration> &atime, basic_yield_context<YCExec> yc, Exec &&exec)
 {
-	return detail::co_sleep_x(atime, yc, std::forward<Exec>(exec));
+	return detail::sleep_x(atime, yc, std::forward<Exec>(exec));
 }
 
 template <typename T, concepts::execution YCExec>
-T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
+T wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
 {
 	return co_thread(yc, [&future] {
 		return remove_const(future).get();
@@ -336,7 +335,7 @@ T co_wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
 }
 
 template <concepts::execution YCExec>
-void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
+void wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 {
 	co_thread(yc, [&pool] {
 		return remove_const(pool).wait();
@@ -344,15 +343,15 @@ void co_wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 }
 
 template <concepts::execution YCExec>
-void co_wait(basic_yield_context<YCExec> yc, const std::thread &thread)
+void wait(basic_yield_context<YCExec> yc, const std::thread &thread)
 {
 	co_thread(yc, [&thread] {
 		return remove_const(thread).join();
 	});
 }
 
-template <concepts::execution YCExec, concepts::schedulable Exec>
-asio::any_io_executor co_to_exec(basic_yield_context<YCExec> yc, Exec &&exec)
+template <concepts::execution YCExec, concepts::sched Exec>
+asio::any_io_executor goto_exec(basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	return asio::async_initiate<basic_yield_context<YCExec>, void()>
 	([exec = get_executor_helper(std::forward<Exec>(exec))](auto handler)
@@ -366,7 +365,7 @@ asio::any_io_executor co_to_exec(basic_yield_context<YCExec> yc, Exec &&exec)
 }
 
 template <concepts::execution YCExec>
-asio::any_io_executor co_to_thread(basic_yield_context<YCExec> yc)
+asio::any_io_executor goto_thread(basic_yield_context<YCExec> yc)
 {
 	return asio::async_initiate<basic_yield_context<YCExec>, void()>([](auto handler)
 	{
@@ -391,7 +390,7 @@ bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const c
 
 #endif //LIBGS_USING_BOOST_ASIO
 
-} //namespace libgs
+} //namespace libgs::coro
 
 
 #endif //LIBGS_CORO_DETAIL_UTILITIES_H

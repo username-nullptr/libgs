@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT>::basic_cookie()
 {
 	if constexpr( is_char_v<CharT> )
@@ -41,52 +41,52 @@ basic_cookie<CharT>::basic_cookie()
 		m_attributes[attribute_t::path] = L"/";
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT>::basic_cookie(value_t v) :
 	m_value(std::move(v))
 {
 
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_value(value_t v) noexcept
 {
 	m_value = std::move(v);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::operator=(value_t v) noexcept
 {
 	m_value = std::move(v);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 const basic_value<CharT> &basic_cookie<CharT>::value() const noexcept
 {
 	return m_value;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_value<CharT> &basic_cookie<CharT>::value() noexcept
 {
 	return m_value;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT>::operator const value_t&() const noexcept
 {
 	return m_value;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT>::operator value_t&() noexcept
 {
 	return m_value;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::domain() const
 {
 	auto it = m_attributes.find(attributes_t::domain);
@@ -95,7 +95,7 @@ std::basic_string<CharT> basic_cookie<CharT>::domain() const
 	return it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::path() const
 {
 	auto it = m_attributes.find(attributes_t::path);
@@ -104,7 +104,7 @@ std::basic_string<CharT> basic_cookie<CharT>::path() const
 	return it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 size_t basic_cookie<CharT>::size() const
 {
 	auto it = m_attributes.find(attributes_t::size);
@@ -113,7 +113,7 @@ size_t basic_cookie<CharT>::size() const
 	return it->second.template get<size_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 uint64_t basic_cookie<CharT>::expires() const
 {
 	auto it = m_attributes.find(attributes_t::expires);
@@ -122,7 +122,7 @@ uint64_t basic_cookie<CharT>::expires() const
 	return it->second.template get<uint64_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 uint64_t basic_cookie<CharT>::max_age() const
 {
 	auto it = m_attributes.find(attributes_t::max_age);
@@ -131,7 +131,7 @@ uint64_t basic_cookie<CharT>::max_age() const
 	return it->second.template get<uint64_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_cookie<CharT>::http_only() const
 {
 	auto it = m_attributes.find(attributes_t::http_only);
@@ -140,7 +140,7 @@ bool basic_cookie<CharT>::http_only() const
 	return it->second.to_bool();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_cookie<CharT>::secure() const
 {
 	auto it = m_attributes.find(attributes_t::secure);
@@ -149,7 +149,7 @@ bool basic_cookie<CharT>::secure() const
 	return it->second.to_bool();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::same_site() const
 {
 	auto it = m_attributes.find(attributes_t::same_site);
@@ -158,7 +158,7 @@ std::basic_string<CharT> basic_cookie<CharT>::same_site() const
 	return it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::priority() const
 {
 	auto it = m_attributes.find(attributes_t::priority);
@@ -167,196 +167,196 @@ std::basic_string<CharT> basic_cookie<CharT>::priority() const
 	return it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::domain_or(std::basic_string<CharT> default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::domain);
 	return it == m_attributes.end() ? default_value : it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::path_or(std::basic_string<CharT> default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::path);
 	return it == m_attributes.end() ? default_value : it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 size_t basic_cookie<CharT>::size_or(size_t default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::size);
 	return it == m_attributes.end() ? default_value : it->second.template get<size_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 uint64_t basic_cookie<CharT>::expires_or(uint64_t default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::expires);
 	return it == m_attributes.end() ? default_value : it->second.template get<uint64_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 uint64_t basic_cookie<CharT>::max_age_or(uint64_t default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::max_age);
 	return it == m_attributes.end() ? default_value : it->second.template get<uint64_t>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_cookie<CharT>::http_only_or(bool default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::http_only);
 	return it == m_attributes.end() ? default_value : it->second.to_bool();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 bool basic_cookie<CharT>::secure_or(bool default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::secure);
 	return it == m_attributes.end() ? default_value : it->second.to_bool();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::same_site_or(std::basic_string<CharT> default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::same_site);
 	return it == m_attributes.end() ? default_value : it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 std::basic_string<CharT> basic_cookie<CharT>::priority_or(std::basic_string<CharT> default_value) const noexcept
 {
 	auto it = m_attributes.find(attributes_t::priority);
 	return it == m_attributes.end() ? default_value : it->second.to_string();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_domain(string_t domain)
 {
 	m_attributes[attributes_t::domain] = std::move(domain);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_path(string_t path)
 {
 	m_attributes[attributes_t::path] = std::move(path);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_size(size_t size)
 {
 	m_attributes[attributes_t::size] = size;
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_expires(uint64_t seconds)
 {
 	m_attributes[attributes_t::expires] = seconds;
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_max_age(uint64_t seconds)
 {
 	m_attributes[attributes_t::max_age] = seconds;
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_http_only(bool flag)
 {
 	m_attributes[attributes_t::http_only] = flag;
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_secure(bool flag)
 {
 	m_attributes[attributes_t::secure] = flag;
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_same_site(string_t sst)
 {
 	m_attributes[attributes_t::same_site] = std::move(sst);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_priority(string_t pt)
 {
 	m_attributes[attributes_t::priority] = std::move(pt);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_domain()
 {
 	m_attributes.erase(attributes_t::domain);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_path()
 {
 	m_attributes.erase(attributes_t::path);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_size()
 {
 	m_attributes.erase(attributes_t::size);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_expires()
 {
 	m_attributes.erase(attributes_t::expires);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_max_age()
 {
 	m_attributes.erase(attributes_t::max_age);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_http_only()
 {
 	m_attributes.erase(attributes_t::http_only);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_secure()
 {
 	m_attributes.erase(attributes_t::secure);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_same_site()
 {
 	m_attributes.erase(attributes_t::same_site);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_priority()
 {
 	m_attributes.erase(attributes_t::priority);
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename...Args>
 basic_cookie<CharT> &basic_cookie<CharT>::set_attribute(Args&&...args) noexcept
 	requires concepts::set_key_attr_params<char_t,Args...>
@@ -365,7 +365,7 @@ basic_cookie<CharT> &basic_cookie<CharT>::set_attribute(Args&&...args) noexcept
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename...Args>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_attribute(Args&&...args) noexcept
 	requires concepts::unset_pair_params<char_t,Args...>
@@ -374,21 +374,21 @@ basic_cookie<CharT> &basic_cookie<CharT>::unset_attribute(Args&&...args) noexcep
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::set_attribute(pair_init_t init) noexcept
 {
 	set_map(m_attributes, std::move(init));
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie<CharT> &basic_cookie<CharT>::unset_attribute(key_init_t init) noexcept
 {
 	unset_map(m_attributes, std::move(init));
 	return *this;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename T>
 T basic_cookie<CharT>::attribute(const string_t &key) const
 	requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>
@@ -396,7 +396,7 @@ T basic_cookie<CharT>::attribute(const string_t &key) const
 	return attribute(key).template get<T>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 template <typename T>
 T basic_cookie<CharT>::attribute_or(const string_t &key, T default_value) const noexcept
 	requires std::is_arithmetic_v<T> or std::is_same_v<T,string_t>
@@ -404,7 +404,7 @@ T basic_cookie<CharT>::attribute_or(const string_t &key, T default_value) const 
 	return attribute_or(key, default_value).template get<T>();
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_value<CharT> basic_cookie<CharT>::attribute(const string_t &key) const
 {
 	auto it = m_attributes.find(key);
@@ -418,14 +418,14 @@ basic_value<CharT> basic_cookie<CharT>::attribute(const string_t &key) const
 	return it->second;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_value<CharT> basic_cookie<CharT>::attribute_or(const string_t &key, value_t default_value) const noexcept
 {
 	auto it = m_attributes.find(key);
 	return it == m_attributes.end() ? default_value : it->second;
 }
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 basic_cookie_attributes<CharT> basic_cookie<CharT>::attributes() const noexcept
 {
 	return m_attributes;

@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 class LIBGS_HTTP_TAPI basic_client_request<CharT,Method,SessionPool,Version>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -233,27 +233,27 @@ public:
 	helper_t m_helper;
 };
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>::basic_client_request(session_pool_t &pool, request_arg_t arg) :
 	m_impl(new impl(pool, std::move(arg)))
 {
 
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>::~basic_client_request()
 {
 	delete m_impl;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>::basic_client_request(basic_client_request &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>&
 basic_client_request<CharT,Method,SessionPool,Version>::operator=(basic_client_request &&other) noexcept
 {
@@ -262,14 +262,14 @@ basic_client_request<CharT,Method,SessionPool,Version>::operator=(basic_client_r
 	return *this;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::write(Token &&token)
 {
 	return m_impl->write({nullptr,0}, std::forward<Token>(token));
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::write
 (const const_buffer &body, Token &&token) requires put_or_post
@@ -277,7 +277,7 @@ auto basic_client_request<CharT,Method,SessionPool,Version>::write
 	return m_impl->write(body, std::forward<Token>(token));
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::send_file
 (concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt, Token &&token)
@@ -286,7 +286,7 @@ auto basic_client_request<CharT,Method,SessionPool,Version>::send_file
 
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::chunk_end
 (const map_helper_t &headers, Token &&token) requires put_or_post
@@ -294,14 +294,14 @@ auto basic_client_request<CharT,Method,SessionPool,Version>::chunk_end
 
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::chunk_end(Token &&token) requires put_or_post
 {
 
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 template <typename Token>
 auto basic_client_request<CharT,Method,SessionPool,Version>::wait_reply(Token &&token) const
 	requires core_concepts::tf_opt_token<error_code,reply_t>
@@ -309,7 +309,7 @@ auto basic_client_request<CharT,Method,SessionPool,Version>::wait_reply(Token &&
 
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>&
 basic_client_request<CharT,Method,SessionPool,Version>::set_arg(request_arg_t arg)
 {
@@ -317,27 +317,27 @@ basic_client_request<CharT,Method,SessionPool,Version>::set_arg(request_arg_t ar
 	return *this;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 const typename basic_client_request<CharT,Method,SessionPool,Version>::request_arg_t&
 basic_client_request<CharT,Method,SessionPool,Version>::arg() const noexcept
 {
 	return m_impl->arg();
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 typename basic_client_request<CharT,Method,SessionPool,Version>::request_arg_t&
 basic_client_request<CharT,Method,SessionPool,Version>::arg() noexcept
 {
 	return m_impl->arg();
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 bool basic_client_request<CharT,Method,SessionPool,Version>::is_finished() const noexcept
 {
 	return m_impl->m_state == impl::state_t::finished;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>&
 basic_client_request<CharT,Method,SessionPool,Version>::cancel() noexcept
 {
@@ -345,7 +345,7 @@ basic_client_request<CharT,Method,SessionPool,Version>::cancel() noexcept
 	return *this;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 basic_client_request<CharT,Method,SessionPool,Version>&
 basic_client_request<CharT,Method,SessionPool,Version>::reset() noexcept
 {
@@ -354,33 +354,33 @@ basic_client_request<CharT,Method,SessionPool,Version>::reset() noexcept
 	return *this;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 consteval method_t basic_client_request<CharT,Method,SessionPool,Version>::method() const noexcept
 {
 	return method_v;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 consteval version_t basic_client_request<CharT,Method,SessionPool,Version>::version() const noexcept
 {
 	return version_v;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 const typename basic_client_request<CharT,Method,SessionPool,Version>::session_pool_t&
 basic_client_request<CharT,Method,SessionPool,Version>::session_pool() const noexcept
 {
 	return m_impl->m_pool;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 typename basic_client_request<CharT,Method,SessionPool,Version>::session_pool_t&
 basic_client_request<CharT,Method,SessionPool,Version>::session_pool() noexcept
 {
 	return m_impl->m_pool;
 }
 
-template <core_concepts::char_type CharT, method Method, concepts::session_pool SessionPool, version_t Version>
+template <core_concepts::character CharT, method Method, concepts::session_pool SessionPool, version_t Version>
 typename basic_client_request<CharT,Method,SessionPool,Version>::executor_t
 basic_client_request<CharT,Method,SessionPool,Version>::get_executor() noexcept
 {

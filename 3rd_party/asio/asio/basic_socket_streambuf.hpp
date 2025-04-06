@@ -430,7 +430,7 @@ protected:
     ec_ = asio::error::operation_not_supported;
     return traits_type::eof();
 #else // defined(ASIO_WINDOWS_RUNTIME)
-    char_type ch = traits_type::to_char_type(c);
+    character ch = traits_type::to_char_type(c);
 
     // Determine what needs to be sent.
     const_buffer output_buffer;
@@ -438,12 +438,12 @@ protected:
     {
       if (traits_type::eq_int_type(c, traits_type::eof()))
         return traits_type::not_eof(c); // Nothing to do.
-      output_buffer = asio::buffer(&ch, sizeof(char_type));
+      output_buffer = asio::buffer(&ch, sizeof(character));
     }
     else
     {
       output_buffer = asio::buffer(pbase(),
-          (pptr() - pbase()) * sizeof(char_type));
+          (pptr() - pbase()) * sizeof(character));
     }
 
     while (output_buffer.size() > 0)
@@ -503,7 +503,7 @@ protected:
     return overflow(traits_type::eof());
   }
 
-  std::streambuf* setbuf(char_type* s, std::streamsize n)
+  std::streambuf* setbuf(character* s, std::streamsize n)
   {
     if (pptr() == pbase() && s == 0 && n == 0)
     {

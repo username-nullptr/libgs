@@ -37,7 +37,7 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT,
+template <concepts::character CharT,
 		  template<typename,typename,typename...> class Map = std::map,
 		  typename...MapArgs>
 class LIBGS_CORE_TAPI basic_ini_keys
@@ -121,7 +121,7 @@ protected:
 	map_t m_keys;
 };
 
-template <concepts::char_type CharT,
+template <concepts::character CharT,
 		  concepts::execution Exec = asio::any_io_executor,
 		  template<typename,typename,typename...> class Map = std::map,
 		  typename...MapArgs>

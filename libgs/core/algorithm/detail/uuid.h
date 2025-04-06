@@ -26,21 +26,24 @@
 *                                                                                   *
 *************************************************************************************/
 
+#ifndef LIBGS_CORE_ALGORITHM_DETAIL_UUID_H
+#define LIBGS_CORE_ALGORITHM_DETAIL_UUID_H
+
 #include <cinttypes>
 #include <random>
-#include <format>
+#include <cuchar>
 #include <cstdio>
 
 namespace libgs
 {
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 basic_uuid<CharT>::basic_uuid(string_view_t basic_uuid)
 {
 	operator=(basic_uuid);
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 basic_uuid<CharT> basic_uuid<CharT>::generate()
 {
 #if defined(__APPLE__) || defined(__clang__)
@@ -61,7 +64,7 @@ basic_uuid<CharT> basic_uuid<CharT>::generate()
 	return obj;
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 {
 	if constexpr( is_char_v )
@@ -93,31 +96,31 @@ basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 	return *this;
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 bool basic_uuid<CharT>::operator==(const basic_uuid &other) const
 {
 	return std::memcmp(&other, this, sizeof(basic_uuid)) == 0;
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 bool basic_uuid<CharT>::operator!=(const basic_uuid &other) const
 {
 	return not operator==(other);
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 bool basic_uuid<CharT>::operator<(const basic_uuid &other) const
 {
 	return std::memcmp(this, &other, sizeof(basic_uuid)) < 0;
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 bool basic_uuid<CharT>::operator>(const basic_uuid &other) const
 {
 	return std::memcmp(this, &other, sizeof(basic_uuid)) > 0;
 }
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
 {
 	if constexpr( is_char_v )
@@ -157,7 +160,7 @@ std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
 namespace std
 {
 
-template <libgs::concepts::char_type CharT>
+template <libgs::concepts::character CharT>
 struct formatter<libgs::basic_uuid<CharT>, CharT>
 {
 	auto format(const libgs::basic_uuid<CharT> &uuid, auto &context) const {
@@ -172,3 +175,6 @@ private:
 };
 
 } //namespace std
+
+
+#endif //LIBGS_CORE_ALGORITHM_DETAIL_UUID_H

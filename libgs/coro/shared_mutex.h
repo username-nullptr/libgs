@@ -26,34 +26,34 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_SHARED_MUTEX_H
-#define LIBGS_CORE_CORO_SHARED_MUTEX_H
+#ifndef LIBGS_CORO_SHARED_MUTEX_H
+#define LIBGS_CORO_SHARED_MUTEX_H
 
-#include <libgs/core/coro/mutex.h>
+#include <libgs/coro/mutex.h>
 
-namespace libgs
+namespace libgs::coro
 {
 
-class LIBGS_CORE_VAPI co_shared_mutex
+class LIBGS_CORE_VAPI shared_mutex
 {
-	LIBGS_DISABLE_COPY_MOVE(co_shared_mutex)
+	LIBGS_DISABLE_COPY_MOVE(shared_mutex)
 
 public:
-	using native_handle_t = co_mutex;
+	using native_handle_t = mutex;
 
 public:
-	co_shared_mutex() = default;
-	~co_shared_mutex() noexcept(false);
+	shared_mutex() = default;
+	~shared_mutex() noexcept(false);
 
 public:
-	[[nodiscard]] awaitable<void> lock(concepts::schedulable auto &&exec);
+	[[nodiscard]] awaitable<void> lock(concepts::sched auto &&exec);
 	[[nodiscard]] awaitable<void> lock();
 
 	[[nodiscard]] bool try_lock();
 	void unlock();
 
 public:
-	[[nodiscard]] awaitable<void> lock_shared(concepts::schedulable auto &&exec);
+	[[nodiscard]] awaitable<void> lock_shared(concepts::sched auto &&exec);
 	[[nodiscard]] awaitable<void> lock_shared();
 
 	[[nodiscard]] bool try_lock_shared();
@@ -62,11 +62,11 @@ public:
 public:
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_lock_for (
-		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
+		concepts::sched auto &&exec, const duration<Rep,Period> &timeout
 	);
 	template<typename Clock, typename Duration>
 	[[nodiscard]] awaitable<bool> try_lock_until (
-		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
+		concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout
 	);
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_lock_for (
@@ -80,11 +80,11 @@ public:
 public:
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_lock_shared_for (
-		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
+		concepts::sched auto &&exec, const duration<Rep,Period> &timeout
 	);
 	template<typename Clock, typename Duration>
 	[[nodiscard]] awaitable<bool> try_lock_shared_until (
-		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
+		concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout
 	);
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_lock_shared_for (
@@ -104,26 +104,26 @@ private:
 	native_handle_t m_native_handle;
 };
 
-class LIBGS_CORE_VAPI co_shared_lock
+class LIBGS_CORE_VAPI shared_lock
 {
-	LIBGS_DISABLE_COPY(co_shared_lock)
+	LIBGS_DISABLE_COPY(shared_lock)
 
 public:
-	using mutex_t = co_shared_mutex;
+	using mutex_t = shared_mutex;
 
 private:
 	mutex_t *m_mutex;
 	bool m_owns = false;
 
 public:
-	explicit co_shared_lock(mutex_t &mutex);
-	~co_shared_lock() noexcept(noexcept(m_mutex->unlock_shared()));
+	explicit shared_lock(mutex_t &mutex);
+	~shared_lock() noexcept(noexcept(m_mutex->unlock_shared()));
 
-	co_shared_lock(co_shared_lock &&other) noexcept;
-	co_shared_lock &operator=(co_shared_lock &&other) noexcept;
+	shared_lock(shared_lock &&other) noexcept;
+	shared_lock &operator=(shared_lock &&other) noexcept;
 
 public:
-	[[nodiscard]] awaitable<void> lock_shared(concepts::schedulable auto &&exec);
+	[[nodiscard]] awaitable<void> lock_shared(concepts::sched auto &&exec);
 	[[nodiscard]] awaitable<void> lock_shared();
 
 	[[nodiscard]] bool try_lock_shared();
@@ -132,11 +132,11 @@ public:
 public:
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_lock_shared_for (
-		concepts::schedulable auto &&exec, const duration<Rep,Period> &timeout
+		concepts::sched auto &&exec, const duration<Rep,Period> &timeout
 	);
 	template<typename Clock, typename Duration>
 	[[nodiscard]] awaitable<bool> try_lock_shared_until (
-		concepts::schedulable auto &&exec, const time_point<Clock,Duration> &timeout
+		concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout
 	);
 	template<typename Rep, typename Period>
 	[[nodiscard]] awaitable<bool> try_lock_shared_for (
@@ -152,10 +152,10 @@ public:
 	[[nodiscard]] mutex_t *mutex() noexcept;
 };
 
-using co_shared_unique_lock = co_unique_lock<co_shared_mutex>;
+using shared_unique_lock = unique_lock<shared_mutex>;
 
-} //namespace libgs
-#include <libgs/core/coro/detail/shared_mutex.h>
+} //namespace libgs::coro
+#include <libgs/coro/detail/shared_mutex.h>
 
 
-#endif //LIBGS_CORE_CORO_SHARED_MUTEX_H
+#endif //LIBGS_CORO_SHARED_MUTEX_H

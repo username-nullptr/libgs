@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 class LIBGS_HTTP_TAPI basic_request_parser final
 {
 	LIBGS_DISABLE_COPY(basic_request_parser)

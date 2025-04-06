@@ -35,15 +35,15 @@ namespace libgs
 
 template <typename Protocol>
 basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper
-(const concepts::string_type auto &address, uint16_t port) :
-	value(asio::ip::address::from_string(transition_string_view(address).data()), port)
+(const concepts::any_string_p auto &address, uint16_t port) :
+	value(asio::ip::address::from_string(strtls::to_view(address).data()), port)
 {
 
 }
 
 template <typename Protocol>
 basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper
-(const concepts::string_type auto &address) :
+(const concepts::any_string_p auto &address) :
 	basic_endpoint_wrapper(std::forward<decltype(address)>(address), 0)
 {
 

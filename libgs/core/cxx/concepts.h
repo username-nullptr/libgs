@@ -31,7 +31,6 @@
 
 #include <libgs/core/cxx/function_traits.h>
 #include <concepts>
-#include <string>
 
 namespace libgs
 {
@@ -106,16 +105,28 @@ namespace concepts
 {
 
 template <typename T>
-concept number_type = std::is_arithmetic_v<T>;
+concept arithmetic = std::is_arithmetic_v<T>;
 
 template <typename T>
-concept integral_type = std::integral<T>;
+concept arithmetic_p = arithmetic<std::remove_cvref_t<T>>;
 
 template <typename T>
-concept float_type = std::floating_point<T>;
+concept integral = std::integral<T>;
 
 template <typename T>
-concept enum_type = std::is_enum_v<T>;
+concept integral_p = integral<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept floating = std::floating_point<T>;
+
+template <typename T>
+concept floating_p = floating<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept enumerate = std::is_enum_v<T>;
+
+template <typename T>
+concept enumerate_p = enumerate<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept rvalue_reference = std::is_rvalue_reference_v<T>;
@@ -205,7 +216,6 @@ concept container_params = []() consteval -> bool
 	}
 	return false;
 }();
-
 
 }} //namespace libgs::concepts
 

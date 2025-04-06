@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 struct LIBGS_HTTP_TAPI basic_path_opt_token
 {
 	using char_t = CharT;

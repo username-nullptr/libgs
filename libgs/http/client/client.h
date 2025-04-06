@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::char_type CharT,
+template <core_concepts::character CharT,
 		  concepts::session_pool SessionPool = session_pool,
 		  version_t Version = version::v11>
 class LIBGS_HTTP_TAPI basic_client

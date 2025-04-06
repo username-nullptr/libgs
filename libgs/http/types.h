@@ -154,7 +154,7 @@ enum class redirect
 using redirect_t = redirect;
 LIBGS_HTTP_VAPI bool redirect_check(redirect type, bool _throw = true);
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 using basic_parameters = std::map <
 	std::basic_string<CharT>,
 	basic_value<CharT>,
@@ -164,7 +164,7 @@ using basic_parameters = std::map <
 using parameters = basic_parameters<char>;
 using wparameters = basic_parameters<wchar_t>;
 
-template <status_t Status, core_concepts::char_type CharT>
+template <status_t Status, core_concepts::character CharT>
 [[nodiscard]] consteval const CharT *status_description();
 
 template <status_t Status>
@@ -173,13 +173,13 @@ template <status_t Status>
 template <status_t Status>
 [[nodiscard]] consteval const wchar_t *wstatus_description();
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 [[nodiscard]] LIBGS_HTTP_TAPI const CharT *status_description(status_t s);
 
 [[nodiscard]] LIBGS_HTTP_VAPI const char *status_description(status_t s);
 [[nodiscard]] LIBGS_HTTP_VAPI const wchar_t *wstatus_description(status_t s);
 
-template <method Method, core_concepts::char_type CharT>
+template <method Method, core_concepts::character CharT>
 [[nodiscard]] consteval const CharT *method_string();
 
 template <method Method>
@@ -188,13 +188,13 @@ template <method Method>
 template <method Method>
 [[nodiscard]] consteval const wchar_t *wmethod_string();
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 [[nodiscard]] LIBGS_HTTP_TAPI const CharT *method_string(method m);
 
 [[nodiscard]] LIBGS_HTTP_TAPI const char *method_string(method m);
 [[nodiscard]] LIBGS_HTTP_TAPI const wchar_t *wmethod_string(method m);
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 [[nodiscard]] LIBGS_HTTP_TAPI method from_method_string(std::basic_string_view<CharT> str);
 
 [[nodiscard]] LIBGS_HTTP_VAPI method from_method_string(std::string_view str);

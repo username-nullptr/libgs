@@ -41,7 +41,7 @@
 namespace libgs
 {
 
-template <concepts::execution Exec = asio::any_io_executor>
+template <concepts::exec Exec = asio::any_io_executor>
 using use_basic_awaitable_t = asio::use_awaitable_t<Exec>;
 
 using use_awaitable_t = use_basic_awaitable_t<asio::any_io_executor>;

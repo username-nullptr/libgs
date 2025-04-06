@@ -32,7 +32,7 @@
 namespace libgs
 {
 
-bool equality(concepts::number_type auto a, concepts::number_type auto b)
+bool equality(concepts::arithmetic_p auto a, concepts::arithmetic_p auto b)
 {
 	if constexpr( is_float_v<decltype(a)> or is_float_v<decltype(b)> )
 	{
@@ -43,24 +43,24 @@ bool equality(concepts::number_type auto a, concepts::number_type auto b)
 		return a == b;
 }
 
-bool nequality(concepts::number_type auto a, concepts::number_type auto b)
+bool nequality(concepts::arithmetic_p auto a, concepts::arithmetic_p auto b)
 {
 	return not equality(a,b);
 }
 
-bool equal_greater(concepts::number_type auto a, concepts::number_type auto b)
+bool equal_greater(concepts::arithmetic_p auto a, concepts::arithmetic_p auto b)
 {
 	return a > b or equality(a,b);
 }
 
-bool equal_less(concepts::number_type auto a, concepts::number_type auto b)
+bool equal_less(concepts::arithmetic_p auto a, concepts::arithmetic_p auto b)
 {
 	return a < b or equality(a,b);
 }
 
 } //namespace libgs
 
-[[nodiscard]] bool operator==(libgs::concepts::number_type auto a, libgs::concepts::number_type auto b)
+[[nodiscard]] bool operator==(libgs::concepts::arithmetic_p auto a, libgs::concepts::arithmetic_p auto b)
 {
 	if constexpr( libgs::is_float_v<decltype(a)> or libgs::is_float_v<decltype(b)> )
 	{
@@ -71,17 +71,17 @@ bool equal_less(concepts::number_type auto a, concepts::number_type auto b)
 		return a == b;
 }
 
-[[nodiscard]] bool operator!=(libgs::concepts::number_type auto a, libgs::concepts::number_type auto b)
+[[nodiscard]] bool operator!=(libgs::concepts::arithmetic_p auto a, libgs::concepts::arithmetic_p auto b)
 {
 	return not libgs::equality(a,b);
 }
 
-[[nodiscard]] bool operator>=(libgs::concepts::number_type auto a, libgs::concepts::number_type auto b)
+[[nodiscard]] bool operator>=(libgs::concepts::arithmetic_p auto a, libgs::concepts::arithmetic_p auto b)
 {
 	return a > b or libgs::equality(a,b);
 }
 
-[[nodiscard]] bool operator<=(libgs::concepts::number_type auto a, libgs::concepts::number_type auto b)
+[[nodiscard]] bool operator<=(libgs::concepts::arithmetic_p auto a, libgs::concepts::arithmetic_p auto b)
 {
 	return a < b or libgs::equality(a,b);
 }

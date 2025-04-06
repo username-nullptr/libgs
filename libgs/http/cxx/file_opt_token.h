@@ -62,17 +62,17 @@ using type = size_t; constexpr type
 template <core_concepts::fstream>
 struct get_io_permissions;
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 struct get_io_permissions<std::basic_fstream<CharT>> {
 	static constexpr auto value = io_permission::read_write;
 };
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 struct get_io_permissions<std::basic_ofstream<CharT>> {
 	static constexpr auto value = io_permission::write;
 };
 
-template <core_concepts::char_type CharT>
+template <core_concepts::character CharT>
 struct get_io_permissions<std::basic_ifstream<CharT>> {
 	static constexpr auto value = io_permission::read;
 };
@@ -236,7 +236,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 	file_opt_token &operator=(const file_opt_token&) = default;
 };
 
-template <core_concepts::char_type CharT, typename...Args>
+template <core_concepts::character CharT, typename...Args>
 [[nodiscard]] LIBGS_HTTP_TAPI auto make_file_opt_token (
 	CharT file_name, Args&&...args
 ) noexcept;
@@ -251,24 +251,24 @@ template <typename...Args>
 	core_concepts::fstream_wkn auto &&stream, Args&&...args
 ) noexcept;
 
-template <core_concepts::char_type, typename>
+template <core_concepts::character, typename>
 struct is_basic_file_opt_token : std::false_type {};
 
-template <core_concepts::char_type CharT, typename T>
+template <core_concepts::character CharT, typename T>
 struct is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::single>>
 {
 	static constexpr bool value =
-		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::char_type>;
+		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::character>;
 };
 
-template <core_concepts::char_type CharT, typename T>
+template <core_concepts::character CharT, typename T>
 struct is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::multiple>>
 {
 	static constexpr bool value =
-		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::char_type>;
+		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::character>;
 };
 
-template <core_concepts::char_type CharT, typename T>
+template <core_concepts::character CharT, typename T>
 constexpr bool is_basic_file_opt_token_v = is_basic_file_opt_token<CharT,T>::value;
 
 template <typename T>

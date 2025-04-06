@@ -39,7 +39,7 @@
 namespace libgs
 {
 
-template <concepts::char_type CharT>
+template <concepts::character CharT>
 struct LIBGS_CORE_TAPI no_parse_formatter
 {
 	constexpr auto parse(std::basic_format_parse_context<CharT> &context) noexcept
@@ -68,7 +68,7 @@ inline uint64_t thread_id_helper(uint64_t id) {
 namespace std
 {
 
-template <typename T, libgs::concepts::char_type CharT> requires is_enum_v<T>
+template <typename T, libgs::concepts::character CharT> requires is_enum_v<T>
 struct LIBGS_CORE_TAPI formatter<T,CharT>
 {
 	auto format(T e, auto &context) const {
@@ -85,7 +85,7 @@ private:
 
 #if !defined(_MSC_VER) || !_HAS_CXX23
 
-template <libgs::concepts::char_type CharT>
+template <libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::thread::id, CharT>
 {
 	auto format(const std::thread::id &tid, auto &context) const
@@ -104,7 +104,7 @@ private:
 
 #endif //_MSC_VER && _HAS_CXX23
 
-template <typename T, libgs::concepts::char_type CharT>
+template <typename T, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
 {
 	auto format(const std::optional<T> &ov, auto &context) const
@@ -124,7 +124,7 @@ private:
 	formatter<T, CharT> m_formatter;
 };
 
-template <typename T, libgs::concepts::char_type CharT>
+template <typename T, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::atomic<T>, CharT>
 {
 	auto format(const std::atomic<T> &n, auto &context) const {
@@ -139,7 +139,7 @@ private:
 	formatter<T, CharT> m_formatter;
 };
 
-template <libgs::concepts::char_type CharT>
+template <libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<CharT>
 {
 	auto format(const error_code &error, auto &context) const
@@ -151,7 +151,7 @@ struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<
 	}
 };
 
-template <typename Protocol, libgs::concepts::char_type CharT>
+template <typename Protocol, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<asio::ip::basic_endpoint<Protocol>, CharT> : libgs::no_parse_formatter<CharT>
 {
 	auto format(const asio::ip::basic_endpoint<Protocol> &endpoint, auto &context) const
@@ -163,7 +163,7 @@ struct LIBGS_CORE_TAPI formatter<asio::ip::basic_endpoint<Protocol>, CharT> : li
 	}
 };
 
-template <libgs::concepts::char_type CharT>
+template <libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<asio::ip::address, CharT>
 {
 	auto format(const asio::ip::address &addr, auto &context) const {
@@ -177,7 +177,7 @@ private:
 	formatter<std::basic_string<CharT>, CharT> m_formatter;
 };
 
-template <typename Fir, typename Sec, libgs::concepts::char_type CharT>
+template <typename Fir, typename Sec, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : libgs::no_parse_formatter<CharT>
 {
 	auto format(const std::pair<Fir,Sec> &pair, auto &context) const
@@ -189,7 +189,7 @@ struct LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : libgs::no_parse_fo
 	}
 };
 
-template <typename T, libgs::concepts::char_type CharT>
+template <typename T, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_formatter<CharT>
 {
 	auto format(const std::shared_ptr<T> &ptr, auto &context) const
@@ -201,7 +201,7 @@ struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_fo
 	}
 };
 
-template <libgs::concepts::char_type CharT>
+template <libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::filesystem::path, CharT>
 {
 	auto format(const std::filesystem::path &path, auto &context) const {

@@ -26,38 +26,12 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CORO_DETAIL_CONDITION_VARIABLE_H
-#define LIBGS_CORE_CORO_DETAIL_CONDITION_VARIABLE_H
+#ifndef LIBGS_CORE_CORO_H
+#define LIBGS_CORE_CORO_H
 
-namespace libgs
-{
+#include <libgs/coro/condition_variable.h>
+#include <libgs/coro/utilities.h>
+#include <libgs/coro/semaphore.h>
+#include <libgs/coro/mutex.h>
 
-// TODO ... ...
-class LIBGS_CORE_VAPI co_condition_variable::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
-
-public:
-	impl() = default;
-
-public:
-	lock_free_queue <
-		detail::co_lock_wake_up_ptr
-	> m_wait_queue {};
-};
-
-inline co_condition_variable::co_condition_variable() :
-	m_impl(new impl())
-{
-
-}
-
-inline co_condition_variable::~co_condition_variable() noexcept(false)
-{
-	delete m_impl;
-}
-
-} //namespace libgs
-
-
-#endif //LIBGS_CORE_CORO_DETAIL_CONDITION_VARIABLE_H
+#endif //LIBGS_CORE_CORO_H
