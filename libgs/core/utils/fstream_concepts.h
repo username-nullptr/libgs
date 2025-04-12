@@ -26,10 +26,11 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_FSTREAM_CONCEPTS_H
-#define LIBGS_CORE_CXX_FSTREAM_CONCEPTS_H
+#ifndef LIBGS_CORE_UTILS_FSTREAM_CONCEPTS_H
+#define LIBGS_CORE_UTILS_FSTREAM_CONCEPTS_H
 
 #include <libgs/core/cxx/string_concepts.h>
+#include <fstream>
 
 namespace libgs
 {
@@ -111,4 +112,4 @@ concept any_fstream_p = any_fstream<std::remove_reference_t<T>>;
 }} //namespace libgs
 
 
-#endif //LIBGS_CORE_CXX_FSTREAM_CONCEPTS_H
+#endif //LIBGS_CORE_UTILS_FSTREAM_CONCEPTS_H

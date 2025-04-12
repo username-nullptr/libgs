@@ -26,18 +26,24 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_ALGORITHM_DETAIL_BYTE_ORDER_H
-#define LIBGS_CORE_ALGORITHM_DETAIL_BYTE_ORDER_H
+#ifndef LIBGS_CORE_UTILS_DETAIL_BYTE_ORDER_H
+#define LIBGS_CORE_UTILS_DETAIL_BYTE_ORDER_H
 
 namespace libgs
 {
+
+inline bool is_little_endian()
+{
+	static constexpr uint32_t i = 0x12345678;
+	return *reinterpret_cast<const char*>(&i) == 0x78;
+}
 
 inline bool is_big_endian()
 {
 	return not is_little_endian();
 }
 
-auto hton(concepts::number_type auto t)
+auto hton(concepts::arithmetic_p auto t)
 {
 	return is_big_endian() ? t : reverse(t);
 }
@@ -47,7 +53,7 @@ auto *hton(auto *data, size_t len)
 	return is_big_endian() ? data : reverse(data, len);
 }
 
-auto ntoh(concepts::number_type auto t)
+auto ntoh(concepts::arithmetic_p auto t)
 {
 	return is_big_endian() ? t : reverse(t);
 }
@@ -57,7 +63,7 @@ auto *ntoh(auto *data, size_t len)
 	return is_big_endian() ? data : reverse(data, len);
 }
 
-auto reverse(concepts::number_type auto t)
+auto reverse(concepts::arithmetic_p auto t)
 {
 	for(size_t i=0; i<sizeof(t)>>1; i++)
 	{
@@ -89,5 +95,5 @@ auto *reverse(auto *data, size_t len)
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_ALGORITHM_DETAIL_BYTE_ORDER_H
+#endif //LIBGS_CORE_UTILS_DETAIL_BYTE_ORDER_H
 

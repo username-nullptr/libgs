@@ -26,10 +26,11 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_FORMATTER_H
-#define LIBGS_CORE_CXX_FORMATTER_H
+#ifndef LIBGS_CORE_UTILS_FORMATTER_H
+#define LIBGS_CORE_UTILS_FORMATTER_H
 
-#include <libgs/core/cxx/utilities.h>
+#include <libgs/core/utils/string_tools.h>
+#include <libgs/core/cxx/tools.h>
 #include <filesystem>
 #include <optional>
 #include <thread>
@@ -111,9 +112,7 @@ struct LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
 	{
 		if( ov )
 			return m_formatter.format(*ov, context);
-		return format_to(context.out(), libgs::s_str<CharT,
-			'o','p','t','i','o','n','a','l','(','n','u','l','l',')'
-		>);
+		return format_to(context.out(), l_str(CharT,"optional(null)"));
 	}
 
 	constexpr auto parse(auto &context) noexcept {
@@ -142,12 +141,8 @@ private:
 template <libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const error_code &error, auto &context) const
-	{
-		return format_to(context.out(),
-			libgs::s_str<CharT,'{','}',' ','(','{','}',')'>,
-			error.message(), error.value()
-		);
+	auto format(const error_code &error, auto &context) const {
+		return format_to(context.out(), l_str(CharT,"{} ({})"), error.message(), error.value());
 	}
 };
 
@@ -156,9 +151,8 @@ struct LIBGS_CORE_TAPI formatter<asio::ip::basic_endpoint<Protocol>, CharT> : li
 {
 	auto format(const asio::ip::basic_endpoint<Protocol> &endpoint, auto &context) const
 	{
-		return format_to(context.out(),
-			libgs::s_str<CharT,'{','}',':','{','}'>,
-			libgs::mbstoxx<CharT>(endpoint.address().to_string()), endpoint.port()
+		return format_to(context.out(), l_str(CharT,"{}:{}"),
+			libgs::strtls::detail::ascii_transition<CharT>(endpoint.address().to_string()), endpoint.port()
 		);
 	}
 };
@@ -167,7 +161,7 @@ template <libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<asio::ip::address, CharT>
 {
 	auto format(const asio::ip::address &addr, auto &context) const {
-		return m_formatter.format(libgs::mbstoxx<CharT>(addr.to_string()), context);
+		return m_formatter.format(libgs::strtls::detail::ascii_transition<CharT>(addr.to_string()), context);
 	}
 	constexpr auto parse(auto &context) noexcept {
 		return m_formatter.parse(context);
@@ -180,12 +174,8 @@ private:
 template <typename Fir, typename Sec, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const std::pair<Fir,Sec> &pair, auto &context) const
-	{
-		return format_to(context.out(),
-			libgs::s_str<CharT,'\'','{','}','\'','-','\'','{','}','\''>,
-			pair.first, pair.second
-		);
+	auto format(const std::pair<Fir,Sec> &pair, auto &context) const {
+		return format_to(context.out(), l_str(CharT,"'{}'-'{}'"), pair.first, pair.second);
 	}
 };
 
@@ -194,8 +184,7 @@ struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_fo
 {
 	auto format(const std::shared_ptr<T> &ptr, auto &context) const
 	{
-		return format_to(context.out(),
-			libgs::s_str<CharT,'{','}',':','(','{','}',')'>,
+		return format_to(context.out(), l_str(CharT,"{}:({})"),
 			libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get())
 		);
 	}
@@ -218,4 +207,4 @@ private:
 } //namespace std
 
 
-#endif //LIBGS_CORE_CXX_FORMATTER_H
+#endif //LIBGS_CORE_UTILS_FORMATTER_H

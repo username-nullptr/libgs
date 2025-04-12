@@ -27,8 +27,6 @@
 *************************************************************************************/
 
 #include "args_parser.h"
-#include "algorithm/base.h"
-
 #include <unordered_set>
 #include <iostream>
 
@@ -46,10 +44,12 @@ struct arg_info
 };
 using args_cache = std::unordered_map<std::string, arg_info>;
 
-class LIBGS_DECL_HIDDEN args_parser_impl
+class LIBGS_DECL_HIDDEN args_parser::impl
 {
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
 public:
-	explicit args_parser_impl(std::string &help_title);
+	explicit impl(std::string &help_title);
 	void add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification);
 
 public:
@@ -58,20 +58,20 @@ public:
 	[[noreturn]] void print_help() const;
 
 public:
-	args_cache m_group;
-	args_cache m_flag;
+	args_cache m_group {};
+	args_cache m_flag {};
 
-	std::string m_version;
-	std::string m_v;
+	std::string m_version {};
+	std::string m_v {};
 
-	std::string m_help_title;
-	std::string m_help;
-	std::string m_help_ex;
+	std::string m_help_title {};
+	std::string m_help {};
+	std::string m_help_ex {};
 
 	bool m_h = false;
 };
 
-args_parser_impl::args_parser_impl(std::string &help_title) :
+args_parser::impl::impl(std::string &help_title) :
 	m_help_title(std::move(help_title))
 {
 
@@ -90,7 +90,7 @@ static bool check(const std::string &str)
 	return true;
 }
 
-void args_parser_impl::add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification)
+void args_parser::impl::add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification)
 {
 	static size_t id_source = 0;
 	char buf[128] = "";
@@ -99,7 +99,7 @@ void args_parser_impl::add(args_cache &cache, const std::string &rule, const std
 	auto str_list = string_list::from_string(rule, ",");
 	for(auto &arg : str_list)
 	{
-		arg = str_trimmed(arg);
+		arg = strtls::trimmed(arg);
 		if( not check(arg) or arg == "--" )
 			continue;
 
@@ -114,19 +114,19 @@ void args_parser_impl::add(args_cache &cache, const std::string &rule, const std
 	m_help += "    " + rule + " :\n        " + description + "\n\n";
 }
 
-[[noreturn]] void args_parser_impl::print_version() const
+[[noreturn]] void args_parser::impl::print_version() const
 {
 	std::cout << "\n" << m_version << "\n\n" << std::flush;
 	exit(0);
 }
 
-[[noreturn]] void args_parser_impl::print_v() const
+[[noreturn]] void args_parser::impl::print_v() const
 {
 	std::cout << "\n" << m_v << "\n\n" << std::flush;
 	exit(0);
 }
 
-[[noreturn]] void args_parser_impl::print_help() const
+[[noreturn]] void args_parser::impl::print_help() const
 {
 	std::cout << "\n";
 	if( not m_help_title.empty() )
@@ -138,7 +138,7 @@ void args_parser_impl::add(args_cache &cache, const std::string &rule, const std
 		std::cout << "    --version:";
 	else
 		std::cout << "    -v, --version:";
-	std::cout << "\n        Viewing server version.\n\n";
+	std::cout << "\n        Viewing version.\n\n";
 
 	if( m_h )
 		std::cout << "    -h, --help:";
@@ -156,7 +156,7 @@ void args_parser_impl::add(args_cache &cache, const std::string &rule, const std
 /*---------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 args_parser::args_parser(std::string help_title) :
-	m_impl(new args_parser_impl(help_title))
+	m_impl(new impl(help_title))
 {
 
 }

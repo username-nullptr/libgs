@@ -26,11 +26,12 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_STRING_TOOLS_H
-#define LIBGS_CORE_CXX_STRING_TOOLS_H
+#ifndef LIBGS_CORE_UTILS_STRING_TOOLS_H
+#define LIBGS_CORE_UTILS_STRING_TOOLS_H
 
+#include <libgs/core/cxx/string_concepts.h>
+#include <libgs/core/cxx/type_traits.h>
 #include <libgs/core/cxx/attributes.h>
-#include <libgs/core/cxx/concepts.h>
 
 namespace libgs::strtls
 {
@@ -41,11 +42,11 @@ namespace libgs::strtls
 #define LIBGS_CHAR32(s)  LIBGS_CAT(U , s)
 
 #define string_literal(_type, _str) \
-	[] <concepts::character CharT> () consteval { \
-			 if constexpr( is_wchar_v <CharT> ) return  L##_str; \
-		else if constexpr( is_char8_v <CharT> ) return u8##_str; \
-		else if constexpr( is_char16_v<CharT> ) return  u##_str; \
-		else if constexpr( is_char32_v<CharT> ) return  U##_str; \
+	[] <libgs::concepts::character CharT> () consteval { \
+			 if constexpr( libgs::is_wchar_v <CharT> ) return  L##_str; \
+		else if constexpr( libgs::is_char8_v <CharT> ) return u8##_str; \
+		else if constexpr( libgs::is_char16_v<CharT> ) return  u##_str; \
+		else if constexpr( libgs::is_char32_v<CharT> ) return  U##_str; \
 		else									return     _str; \
 	} .template operator()<_type>()
 
@@ -83,120 +84,110 @@ using get_char_t = typename get_char<Text>::type;
 [[nodiscard]] LIBGS_CORE_TAPI bool is_ascii(const concepts::any_string_p auto &str) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int8_t to_int8 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint8_t to_uint8 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int16_t to_int16 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t to_uint16 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int32_t to_int32 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint32_t to_uint32 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int64_t to_int64 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 [[nodiscard]] LIBGS_CORE_TAPI uint64_t to_uint64 (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI float to_float (
-	const concepts::any_text_p auto &str
+	const concepts::any_text_p auto &text
 );
 [[nodiscard]] LIBGS_CORE_TAPI double to_double (
-	const concepts::any_text_p auto &str
+	const concepts::any_text_p auto &text
 );
 [[nodiscard]] LIBGS_CORE_TAPI long double to_ldouble (
-	const concepts::any_text_p auto &str
+	const concepts::any_text_p auto &text
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI bool to_bool (
-	const concepts::any_text_p auto &str, size_t base = 10
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 
 template <concepts::integral_p T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith (
-	const concepts::any_text_p auto &str, size_t base = 10
-);
-
-template <concepts::floating_p T>
-[[nodiscard]] LIBGS_CORE_TAPI T to_arith (
-	const concepts::any_text_p auto &str
+	const concepts::any_text_p auto &text, size_t base = 10
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI int8_t to_int8_or (
-	const concepts::any_text_p auto &str, size_t base = 10, int8_t default_value = 0
+	const concepts::any_text_p auto &text, int8_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint8_t to_uint8_or (
-	const concepts::any_text_p auto &str, size_t base = 10, uint8_t default_value = 0
+	const concepts::any_text_p auto &text, uint8_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int16_t to_int16_or (
-	const concepts::any_text_p auto &str, size_t base = 10, int16_t default_value = 0
+	const concepts::any_text_p auto &text, int16_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t to_uint16_or (
-	const concepts::any_text_p auto &str, size_t base = 10, uint16_t default_value = 0
+	const concepts::any_text_p auto &text, uint16_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int32_t to_int32_or (
-	const concepts::any_text_p auto &str, size_t base = 10, int32_t default_value = 0
+	const concepts::any_text_p auto &text, int32_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint32_t to_uint32_or (
-	const concepts::any_text_p auto &str, size_t base = 10, uint32_t default_value = 0
+	const concepts::any_text_p auto &text, uint32_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI int64_t to_int64_or (
-	const concepts::any_text_p auto &str, size_t base = 10, int64_t default_value = 0
+	const concepts::any_text_p auto &text, int64_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI uint64_t to_uint64_or (
-	const concepts::any_text_p auto &str, size_t base = 10, uint64_t default_value = 0
+	const concepts::any_text_p auto &text, uint64_t default_value = 0, size_t base = 10
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI float to_float_or (
-	const concepts::any_text_p auto &str, float default_value = 0.0
+	const concepts::any_text_p auto &text, float default_value = 0.0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI double to_double_or (
-	const concepts::any_text_p auto &str, double default_value = 0.0
+	const concepts::any_text_p auto &text, double default_value = 0.0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI long double to_ldouble_or (
-	const concepts::any_text_p auto &str, long double default_value = 0.0
+	const concepts::any_text_p auto &text, long double default_value = 0.0
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI bool to_bool_or (
-	const concepts::any_text_p auto &str, size_t base = 10, bool default_value = false
+	const concepts::any_text_p auto &text, bool default_value = false, size_t base = 10
 ) noexcept;
 
 template <concepts::integral_p T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith_or (
-	const concepts::any_text_p auto &str, size_t base = 10, T default_value = 0
+	const concepts::any_text_p auto &text, T default_value = static_cast<T>(0), size_t base = 10
 ) noexcept;
 
-template <concepts::floating_p T>
-[[nodiscard]] LIBGS_CORE_TAPI T to_arith_or (
-	const concepts::any_text_p auto &str, T default_value = 0.0
-);
-
 [[nodiscard]] LIBGS_CORE_TAPI auto to_lower (
-	concepts::any_text_p auto &&str
+	concepts::any_text_p auto &&text
 );
 [[nodiscard]] LIBGS_CORE_TAPI auto to_upper (
-	concepts::any_text_p auto &&str
+	concepts::any_text_p auto &&text
 );
 
 template <concepts::any_string_p Str>
@@ -226,7 +217,7 @@ template <concepts::any_string_p Str>
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto trimmed (
-	const concepts::any_text_p auto &str
+	const concepts::any_text_p auto &text
 );
 
 template <concepts::any_string_p Str, concepts::text_p<get_char_t<Str>> Find>
@@ -234,8 +225,16 @@ template <concepts::any_string_p Str, concepts::text_p<get_char_t<Str>> Find>
 	const Str &str, const Find &find, bool step = true
 );
 
+[[nodiscard]] LIBGS_CORE_TAPI auto file_name (
+	const concepts::any_text_p auto &file_name
+);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto file_path (
+	const concepts::any_text_p auto &file_name
+);
+
 } //namespace libgs::strtls
-#include <libgs/core/cxx/detail/string_tools.h>
+#include <libgs/core/utils/detail/string_tools.h>
 
 
-#endif //LIBGS_CORE_CXX_STRING_TOOLS_H
+#endif //LIBGS_CORE_UTILS_STRING_TOOLS_H

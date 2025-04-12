@@ -26,17 +26,17 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_ALGORITHM_DETAIL_MIME_TYPE_H
-#define LIBGS_CORE_ALGORITHM_DETAIL_MIME_TYPE_H
+#ifndef LIBGS_CORE_DETAIL_MIME_TYPE_H
+#define LIBGS_CORE_DETAIL_MIME_TYPE_H
 
 #include <fstream>
 
-namespace libgs { namespace detail
+namespace libgs::mime_type { namespace detail
 {
 
 template <typename FS>
-[[nodiscard]] LIBGS_CORE_TAPI bool is_text_file(FS &stream)
-	requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+[[nodiscard]] LIBGS_CORE_TAPI bool is_text(FS &stream)
+	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
 {
 	char buf[0x4000] = {0};
 	stream.read(buf, sizeof(buf));
@@ -63,12 +63,12 @@ template <typename FS>
 	return true;
 }
 
-[[nodiscard]] LIBGS_CORE_API std::string mime_search
+[[nodiscard]] LIBGS_CORE_API std::string search
 (const mime_head_map &mimes, const char *buf, size_t size);
 
 template <typename FS>
-[[nodiscard]] LIBGS_CORE_TAPI std::string mime_from_magic(FS &stream)
-	requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+[[nodiscard]] LIBGS_CORE_TAPI std::string from_magic(FS &stream)
+	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
 {
 	if( not stream.is_open() )
 		return "unknown";
@@ -84,36 +84,36 @@ template <typename FS>
 		if( is_text_file(stream) )
 			return "text/plain";
 	}
-	auto mime_type = mime_search(signatures_map(), buf, size);
+	auto mime_type = search(signatures_map(), buf, size);
 	if( mime_type.empty() and size > 4 )
-		mime_type = mime_search(signatures_map_offset4(), buf + 4, size - 4);
+		mime_type = search(signatures_map_offset4(), buf + 4, size - 4);
 	return mime_type;
 }
 
 } //namespace detail
 
 template <typename FS>
-std::string mime_type(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+std::string get(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
 {
-	return detail::mime_from_magic(stream);
+	return detail::from_magic(stream);
 }
 
 template <typename FS>
-bool is_text_file(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+bool is_text(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
 {
 	if( stream.is_open() )
-		return is_text_file(stream);
+		return detail::is_text(stream);
 	return false;
 }
 
 template <typename FS>
-bool is_binary_file(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+bool is_binary(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
 {
-	return not is_text_file(stream);
+	return not is_text(stream);
 }
 
 template <typename FS>
-std::string text_file_encoding(FS &stream) requires is_char_fstream_v<FS> or is_char_ifstream_v<FS>
+std::string text_encoding(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
 {
 	std::string result = "unknown";
 	if( not stream.is_open() )
@@ -168,7 +168,7 @@ std::string text_file_encoding(FS &stream) requires is_char_fstream_v<FS> or is_
 	return result;
 }
 
-} //namespace libgs
+} //namespace libgs::mime_type
 
 
-#endif //LIBGS_CORE_ALGORITHM_DETAIL_MIME_TYPE_H
+#endif //LIBGS_CORE_DETAIL_MIME_TYPE_H

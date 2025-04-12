@@ -39,7 +39,6 @@ class LIBGS_CORE_API sha1
 public:
 	sha1();
 	sha1(std::string_view text);
-	sha1(std::wstring_view text);
 	sha1(const sha1 &other);
 	sha1(sha1 &&other) noexcept;
 	~sha1();
@@ -51,26 +50,19 @@ public:
 public:
 	sha1 &append(uint8_t x);
 	sha1 &append(char c);
-	sha1 &append(wchar_t c);
 	sha1 &append(const void *data, size_t size);
 	sha1 &append(std::string_view text);
-	sha1 &append(std::wstring_view text);
 
 public:
 	void operator+=(uint8_t x);
 	void operator+=(char c);
 	void operator+=(wchar_t c);
 	void operator+=(const std::string &text);
-	void operator+=(const std::wstring &text);
 
 public:
 	sha1 &finalize();
 	[[nodiscard]] std::string hex(bool upper_case = true) const;
 	[[nodiscard]] std::string base64() const;
-
-public:
-	[[nodiscard]] std::wstring whex(bool upper_case = true) const;
-	[[nodiscard]] std::wstring wbase64() const;
 
 private:
 	class impl;

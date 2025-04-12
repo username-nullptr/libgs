@@ -29,9 +29,6 @@
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
-#include <libgs/core/cxx/fstream_concepts.h>
-#include <libgs/core/cxx/asio_concepts.h>
-#include <libgs/core/cxx/attributes.h>
 #include <chrono>
 #include <format>
 
@@ -65,24 +62,6 @@ namespace errc = asio::error;
 template <concepts::character CharT, typename...Args>
 using format_string = std::basic_format_string<CharT, std::type_identity_t<Args>...>;
 
-using mutable_buffer = asio::ASIO_MUTABLE_BUFFER;
-
-class LIBGS_CORE_VAPI const_buffer : public asio::ASIO_CONST_BUFFER
-{
-public:
-	using asio::ASIO_CONST_BUFFER::ASIO_CONST_BUFFER;
-	const_buffer &operator=(const const_buffer&) = default;
-	const_buffer(const asio::ASIO_CONST_BUFFER &buf);
-	const_buffer(const mutable_buffer &buf);
-	const_buffer(const char *buf);
-	const_buffer(const std::string &buf);
-	const_buffer(std::string_view buf);
-	const_buffer &operator=(const mutable_buffer &buf);
-};
-
-template <typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args);
-
 template <size_t N>
 struct byte_type {};
 
@@ -103,7 +82,6 @@ using uintptr_t = sizeof_type<void*>::unsigned_t;
 using intptr_t  = sizeof_type<void*>::signed_t;
 
 } //namespace libgs
-#include <libgs/core/cxx/detail/type_traits.h>
 
 
 #endif //LIBGS_CORE_CXX_TYPE_TRAITS_H

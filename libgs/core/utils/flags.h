@@ -26,11 +26,12 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_FLAGS_H
-#define LIBGS_CORE_FLAGS_H
+#ifndef LIBGS_CORE_UTILS_FLAGS_H
+#define LIBGS_CORE_UTILS_FLAGS_H
 
+#include <libgs/core/cxx/type_traits.h>
+#include <libgs/core/cxx/attributes.h>
 #include <initializer_list>
-#include <libgs/core/cxx/utilities.h>
 
 namespace libgs { namespace concepts
 {
@@ -88,7 +89,7 @@ private:
 };
 
 } //namespace libgs
-#include <libgs/core/cxx/detail/flags.h>
+#include <libgs/core/utils/detail/flags.h>
 
 #define LIBGS_DECLARE_FLAGS(v_flags, v_enum)  using v_flags = libgs::flags<v_enum>
 
@@ -101,4 +102,4 @@ private:
 	{ return f2 | f1; }
 
 
-#endif //LIBGS_CORE_FLAGS_H
+#endif //LIBGS_CORE_UTILS_FLAGS_H

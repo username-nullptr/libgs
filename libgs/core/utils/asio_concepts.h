@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_ASIO_CONCEPTS_H
-#define LIBGS_CORE_CXX_ASIO_CONCEPTS_H
+#ifndef LIBGS_CORE_UTILS_ASIO_CONCEPTS_H
+#define LIBGS_CORE_UTILS_ASIO_CONCEPTS_H
 
 #include <libgs/core/cxx/concepts.h>
 
@@ -192,4 +192,4 @@ concept awaitable_void_func = awaitable_ret_func<Func,void>;
 } //namespace libgs::concepts
 
 
-#endif //LIBGS_CORE_CXX_ASIO_CONCEPTS_H
+#endif //LIBGS_CORE_UTILS_ASIO_CONCEPTS_H

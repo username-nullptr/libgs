@@ -28,14 +28,13 @@
 
 #include "mime_type.h"
 #include "libgs/core/app_utls.h"
-#include "base.h"
 
 #include <unordered_map>
 #include <fstream>
 
 namespace fs = std::filesystem;
 
-namespace libgs
+namespace libgs::mime_type
 {
 
 #undef TEXT
@@ -982,7 +981,7 @@ static mime_head_map g_signatures_map_offset4
 namespace detail
 {
 
-std::string mime_search(const mime_head_map &mimes, const char *buf, size_t size)
+std::string search(const mime_head_map &mimes, const char *buf, size_t size)
 {
 	if( size == 0 )
 		return "text/plain";
@@ -995,7 +994,6 @@ std::string mime_search(const mime_head_map &mimes, const char *buf, size_t size
 		do {
 			if( ++index == key.size() )
 				return value;
-
 			else if( index == size or key[index] > buf[index] )
 				return "unknown";
 		}
@@ -1006,17 +1004,6 @@ std::string mime_search(const mime_head_map &mimes, const char *buf, size_t size
 }
 
 } //namespace detail
-
-void set_suffix_map(suffix_type_map map)
-{
-	g_suffix_hash = std::move(map);
-}
-
-void insert_suffix_map(suffix_type_map map)
-{
-	for(auto &[key,value] : map)
-		g_suffix_hash[std::move(key)] = std::move(value);
-}
 
 suffix_type_map &suffix_map()
 {
@@ -1033,15 +1020,15 @@ mime_head_map &signatures_map_offset4()
 	return g_signatures_map_offset4;
 }
 
-static std::string mime_from_magic(const fs::path &file_name)
+[[nodiscard]] static std::string mime_from_magic(const fs::path &file_name)
 {
 	std::ifstream file(app::absolute_path(file_name));
-	auto mime_type = detail::mime_from_magic(file);
+	auto mime_type = detail::from_magic(file);
 	file.close();
 	return mime_type;
 }
 
-std::string mime_type(const fs::path &file_name, bool magic_first)
+std::string get(const fs::path &file_name, bool magic_first)
 {
 	if( magic_first )
 	{
@@ -1049,48 +1036,48 @@ std::string mime_type(const fs::path &file_name, bool magic_first)
 		if( type != "unknown" )
 			return type;
 
-		auto name = libgs::file_name(file_name.string());
+		auto name = strtls::file_name(file_name.string());
 		auto pos = name.rfind('.');
 
 		if( pos == std::string::npos )
 			return type;
 
-		auto it = g_suffix_hash.find(str_to_lower(name.substr(pos)));
+		auto it = g_suffix_hash.find(strtls::to_lower(name.substr(pos)));
 		if( it == g_suffix_hash.end() )
 			return type;
 		return it->second;
 	}
-	auto name = libgs::file_name(file_name.string());
+	auto name = strtls::file_name(file_name.string());
 	auto pos = name.rfind('.');
 
 	if( pos == std::string::npos )
 		return mime_from_magic(file_name);
 
-	auto it = g_suffix_hash.find(str_to_lower(name.substr(pos)));
+	auto it = g_suffix_hash.find(strtls::to_lower(name.substr(pos)));
 	if( it == g_suffix_hash.end() )
 		return mime_from_magic(file_name);
 	return it->second;
 }
 
-bool is_text_file(const fs::path &file_name)
+bool is_text(const fs::path &file_name)
 {
 	std::ifstream file(file_name);
-	bool res = is_text_file(file);
+	bool res = is_text(file);
 	file.close();
 	return res;
 }
 
-bool is_binary_file(const fs::path &file_name)
+bool is_binary(const fs::path &file_name)
 {
-	return not is_text_file(file_name);
+	return not is_text(file_name);
 }
 
-std::string text_file_encoding(const fs::path &file_name)
+std::string text_encoding(const fs::path &file_name)
 {
 	std::ifstream file(file_name);
-	auto res = text_file_encoding(file);
+	auto res = text_encoding(file);
 	file.close();
 	return res;
 }
 
-} //namespace libgs
+} //namespace libgs::mime_type

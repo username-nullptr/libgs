@@ -35,18 +35,16 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_TAPI auto from_percent_encoding (
-	concepts::string_type auto &&str
+	concepts::any_string_p auto &&str
 );
 
-template <concepts::weak_string_type Str,
-		  concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg =
-		  	std::basic_string_view<get_string_char_t<Str>>>
-[[nodiscard]] LIBGS_CORE_TAPI std::string to_percent_encoding (
+template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> StrArg =
+		  std::basic_string_view<strtls::get_char_t<Str>>>
+[[nodiscard]] LIBGS_CORE_TAPI auto to_percent_encoding (
 	const Str &str, StrArg &&exclude = {}, StrArg &&include = {}, char percent = '%'
 );
 
-template <concepts::weak_string_type Str,
-		  concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg>
+template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> StrArg>
 [[nodiscard]] LIBGS_CORE_TAPI int32_t wildcard_match (
 	const Str &rule, const StrArg &str
 );

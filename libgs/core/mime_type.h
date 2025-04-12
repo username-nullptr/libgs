@@ -26,68 +26,54 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_OPT_TOKEN_H
-#define LIBGS_CORE_CXX_OPT_TOKEN_H
+#ifndef LIBGS_CORE_MIME_TYPE_H
+#define LIBGS_CORE_MIME_TYPE_H
 
-#include <libgs/core/cxx/type_traits.h>
+#include <libgs/core/global.h>
+#include <unordered_map>
+#include <map>
 
-#ifdef LIBGS_USING_BOOST_ASIO
-# include <boost/asio/experimental/awaitable_operators.hpp>
-# include <boost/asio/spawn.hpp>
-#else
-# include <asio/experimental/awaitable_operators.hpp>
-#endif //LIBGS_USING_BOOST_ASIO
-
-namespace libgs
+namespace libgs::mime_type
 {
 
-template <concepts::exec Exec = asio::any_io_executor>
-using use_basic_awaitable_t = asio::use_awaitable_t<Exec>;
+using path_t = std::filesystem::path;
+using suffix_type_map = std::unordered_map<std::string, std::string>;
+using mime_head_map = std::map<std::string, std::string>;
 
-using use_awaitable_t = use_basic_awaitable_t<asio::any_io_executor>;
-constexpr auto use_awaitable = asio::use_awaitable;
+[[nodiscard]] LIBGS_CORE_API suffix_type_map &suffix_map();
+[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map();
+[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map_offset4();
 
-template <typename Allocator = std::allocator<void>>
-using use_basic_future_t = asio::use_future_t<Allocator>;
+[[nodiscard]] LIBGS_CORE_API
+std::string get(const path_t &file_name, bool magic_first = false);
 
-using use_future_t = use_basic_future_t<std::allocator<void>>;
-constexpr auto use_future = asio::use_future;
+[[nodiscard]] LIBGS_CORE_API
+bool is_text(const path_t &file_name);
 
-using detached_t = asio::detached_t;
-constexpr auto detached = asio::detached;
+[[nodiscard]] LIBGS_CORE_API
+bool is_binary(const path_t &file_name);
 
-using deferred_t = asio::deferred_t;
-constexpr auto deferred = asio::deferred;
+[[nodiscard]] LIBGS_CORE_API
+std::string text_encoding(const path_t &file_name);
 
-struct use_sync_t {};
-constexpr use_sync_t use_sync;
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI std::string get(FS &stream)
+	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
 
-template <typename Token>
-using redirect_error_t = asio::redirect_error_t<Token>;
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI bool is_text(FS &stream)
+	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
 
-template <typename Token, typename CancellationSlot>
-using cancellation_slot_binder = asio::cancellation_slot_binder<Token, CancellationSlot>;
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI bool is_binary(FS &stream)
+	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
 
-template <typename Token>
-class LIBGS_CORE_TAPI redirect_time_t
-{
-public:
-	using token_t = Token;
+template <typename FS>
+[[nodiscard]] LIBGS_CORE_TAPI std::string text_encoding(FS &stream)
+	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
 
-	template <typename Rep, typename Period>
-	redirect_time_t(auto &&token, const duration<Rep,Period> &timeout);
-
-	token_t token;
-	milliseconds time {0};
-};
-
-template <typename Token, typename Rep, typename Period>
-[[nodiscard]] LIBGS_CORE_TAPI auto redirect_time (
-	Token &&token, const duration<Rep,Period> &timeout
-);
-
-} //namespace libgs
-#include <libgs/core/cxx/detail/opt_token.h>
+} //namespace libgs::mime_type
+#include <libgs/core/detail/mime_type.h>
 
 
-#endif //LIBGS_CORE_CXX_OPT_TOKEN_H
+#endif //LIBGS_CORE_MIME_TYPE_H

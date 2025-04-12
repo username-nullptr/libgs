@@ -29,17 +29,16 @@
 #ifndef LIBGS_CORE_DETAIL_STRING_LIST_H
 #define LIBGS_CORE_DETAIL_STRING_LIST_H
 
-#include <libgs/core/algorithm/base.h>
-
 namespace libgs
 {
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-template <concepts::weak_basic_string_type<CharT> Str>
-std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join(const Str &splits)
+template <concepts::text_p<CharT> Text>
+typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::join(const Text &splits)
 {
 	string_t result;
-	auto view = transition_string_view(splits);
+	auto view = strtls::to_view(splits);
 
 	for(auto &str : *this)
 		result += str + string_t(view.data(), view.size());
@@ -49,12 +48,12 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join(c
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-template <concepts::weak_basic_string_type<CharT> Str>
-std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
-(size_t index, size_t length, const Str &splits)
+template <concepts::text_p<CharT> Text>
+typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::join(size_t index, size_t length, const Text &splits)
 {
 	string_t result;
-	auto view = transition_string_view(splits);
+	auto view = strtls::to_view(splits);
 
 	auto end = index + length;
 	if( end > this->size() )
@@ -70,21 +69,21 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-template <concepts::weak_basic_string_type<CharT> Str>
-std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
-(size_t index, const Str &splits)
+template <concepts::text_p<CharT> Text>
+typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::join(size_t index, const Text &splits)
 {
 	return join(index, this->size(), splits);
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::string_list_iterator<CharT,Container,Args...> Iter,
-		  concepts::weak_basic_string_type<CharT> Str>
-std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
-(Iter begin, Iter end, const Str &splits)
+		  concepts::text_p<CharT> Text>
+typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::join(Iter begin, Iter end, const Text &splits)
 {
 	string_t result;
-	auto view = transition_string_view(splits);
+	auto view = strtls::to_view(splits);
 
 	for(auto it=begin; it!=end; ++it)
 		result += *it + string_t(view.data(), view.size());
@@ -94,18 +93,18 @@ std::basic_string<CharT> basic_string_container<CharT,Container,Args...>::join
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-template <concepts::weak_basic_string_type<CharT> Str>
+template <concepts::text_p<CharT> Text>
 basic_string_container<CharT,Container,Args...>
 basic_string_container<CharT,Container,Args...>::from_string
-(concepts::basic_string_type<char_t> auto &&str, const Str &splits, bool ignore_empty)
+(concepts::string_p<char_t> auto &&str, const Text &splits, bool ignore_empty)
 {
 	basic_string_container result;
-	auto view = transition_string_view(splits);
+	auto view = strtls::to_view(splits);
 
 	if( view.empty() )
 		return result;
 
-	string_t strs(std::forward<Str>(str));
+	string_t strs(std::forward<Text>(str));
 	strs += view;
 
 	auto pos = strs.find(view);
@@ -129,12 +128,11 @@ namespace std
 {
 
 template <libgs::concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-class LIBGS_CORE_TAPI formatter<libgs::basic_string_container<CharT,Container,Args...>, CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::basic_string_container<CharT,Container,Args...>, CharT>
 {
 	template <char...Chars>
 	static constexpr auto s_str = libgs::s_str<CharT,Chars...>;
 
-public:
 	auto format(const libgs::basic_string_container<CharT,Container,Args...> &container, auto &context) const
 	{
 		if( container.empty() )

@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_CXX_EXCEPTION_H
 #define LIBGS_CORE_CXX_EXCEPTION_H
 
-#include <libgs/core/cxx/utilities.h>
+#include <libgs/core/cxx/attributes.h>
 #include <exception>
 #include <format>
 

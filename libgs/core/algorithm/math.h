@@ -37,12 +37,12 @@ namespace libgs
 
 template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end) requires
-	std::is_arithmetic_v<std::remove_cvref_t<decltype(*begin)>>;
+	concepts::arithmetic_p<decltype(*begin)>;
 
 template <typename Iter>
 [[nodiscard]] LIBGS_CORE_TAPI auto mean(Iter begin, Iter end, auto &&func) requires (
-	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(*begin))>> or
-	std::is_arithmetic_v<std::remove_cvref_t<decltype(*func(begin))>>
+	concepts::arithmetic_p<decltype(*func(*begin))> or
+	concepts::arithmetic_p<decltype(*func(begin))>
 );
 
 } //namespace libgs

@@ -35,8 +35,6 @@
 namespace libgs::cmdline
 {
 
-class args_parser_impl;
-
 class LIBGS_CORE_API args_parser
 {
 	LIBGS_DISABLE_COPY_MOVE(args_parser)
@@ -74,7 +72,8 @@ public:
 	arguments parsing(int argc, const char *argv[]); // exit if other.
 
 private:
-	args_parser_impl *m_impl;
+	class impl;
+	impl *m_impl;
 };
 
 } //namespace libgs::cmdline

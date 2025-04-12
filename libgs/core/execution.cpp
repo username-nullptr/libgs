@@ -55,6 +55,7 @@ int exec()
 
 	g_run_flag = true;
 	auto &ioc = io_context();
+	ioc.restart();
 
 	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
 	for(;;)

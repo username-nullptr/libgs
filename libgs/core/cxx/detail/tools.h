@@ -74,6 +74,11 @@ constexpr const T *as_const(const T *v)
 	return v;
 }
 
+constexpr auto &&return_reference(auto &&value)
+{
+	return std::forward<decltype(value)>(value);
+}
+
 decltype(auto) get_executor_helper(concepts::sched auto &&exec)
 {
 	using Exec = decltype(exec);

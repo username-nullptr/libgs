@@ -24,52 +24,89 @@
 *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
 *   SOFTWARE.                                                                       *
 *                                                                                   *
+
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_UTILITIES_H
-#define LIBGS_CORE_CXX_UTILITIES_H
+#ifndef LIBGS_CORE_UTILS_DETAIL_UTILITIES_H
+#define LIBGS_CORE_UTILS_DETAIL_UTILITIES_H
 
-#include <libgs/core/cxx/initialize.h>
-#include <libgs/core/cxx/tools.h>
-#include <utility>
+#include <libgs/core/utils/string_tools.h>
 
 namespace libgs
 {
 
-enum class ip_type {
-	v4, v6, loopback
-};
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper
+(const concepts::any_string_p auto &address, uint16_t port) :
+	value(asio::ip::address::from_string(strtls::to_view(address).data()), port)
+{
+
+}
 
 template <typename Protocol>
-struct LIBGS_CORE_TAPI basic_endpoint_wrapper
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper
+(const concepts::any_string_p auto &address) :
+	basic_endpoint_wrapper(std::forward<decltype(address)>(address), 0)
 {
-	using protocol_t = Protocol;
-	using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
-	endpoint_t value;
 
-	basic_endpoint_wrapper() = default;
-	basic_endpoint_wrapper(const concepts::any_string_p auto &address, uint16_t port);
-	basic_endpoint_wrapper(const concepts::any_string_p auto &address);
+}
 
-	basic_endpoint_wrapper(ip_type type, uint16_t port);
-	basic_endpoint_wrapper(ip_type type);
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(ip_type type, uint16_t port)
+{
+	if( type == ip_type::v4 )
+		value = endpoint_t(asio::ip::address_v4::any(), port);
+	else if( type == ip_type::v6 )
+		value = endpoint_t(asio::ip::address_v6::any(), port);
+	else
+		value = endpoint_t(asio::ip::address_v4::loopback(), port);
+}
 
-	template <typename...Args>
-	basic_endpoint_wrapper(Args&&...args) requires
-		concepts::constructible<endpoint_t,Args&&...>;
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(ip_type type) :
+	basic_endpoint_wrapper(type, 0)
+{
+}
 
-	operator endpoint_t&();
-	operator const endpoint_t&() const;
+template <typename Protocol>
+template <typename...Args>
+basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper(Args&&...args) requires
+	concepts::constructible<endpoint_t,Args&&...>
+{
+	if constexpr( sizeof...(Args) == 2 )
+	{
+		auto tuple = std::forward_as_tuple(std::forward<Args>(args)...);
+		value = endpoint_t(std::get<0>(tuple), static_cast<uint16_t>(std::get<1>(tuple)));
+	}
+	else
+		value = endpoint_t(std::forward<Args>(args)...);
+}
 
-	endpoint_t &operator*();
-	endpoint_t *operator->();
-};
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::operator endpoint_t&()
+{
+	return value;
+}
 
-using tcp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::tcp>;
-using udp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::udp>;
+template <typename Protocol>
+basic_endpoint_wrapper<Protocol>::operator const endpoint_t&() const
+{
+	return value;
+}
+
+template <typename Protocol>
+typename basic_endpoint_wrapper<Protocol>::endpoint_t &basic_endpoint_wrapper<Protocol>::operator*()
+{
+	return value;
+}
+
+template <typename Protocol>
+typename basic_endpoint_wrapper<Protocol>::endpoint_t *basic_endpoint_wrapper<Protocol>::operator->()
+{
+	return &value;
+}
 
 } //namespace libgs
-#include <libgs/core/cxx/detail/utilities.h>
 
 
-#endif //LIBGS_CORE_CXX_UTILITIES_H
+#endif //LIBGS_CORE_UTILS_DETAIL_UTILITIES_H

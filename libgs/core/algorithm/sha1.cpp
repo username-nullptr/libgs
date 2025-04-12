@@ -66,22 +66,22 @@ public:
 			w[i] = make_word(ptr + (i << 2));
 
 #define SHA1_LOAD(i) \
-	w[i & 15] = rol32(w[(i + 13) & 15] ^ w[(i + 8) & 15] ^ w[(i + 2) & 15] ^ w[i & 15], 1);
+	w[(i) & 15] = rol32(w[((i) + 13) & 15] ^ w[((i) + 8) & 15] ^ w[((i) + 2) & 15] ^ w[(i) & 15], 1);
 
 #define SHA1_ROUND_0(v,u,x,y,z,i) \
-	z += ((u & (x ^ y)) ^ y) + w[i & 15] + c0 + rol32(v, 5); u = rol32(u, 30);
+	z += (((u) & ((x) ^ (y))) ^ (y)) + w[(i) & 15] + c0 + rol32((v), 5); (u) = rol32((u), 30);
 
 #define SHA1_ROUND_1(v,u,x,y,z,i) \
-	SHA1_LOAD(i) z += ((u & (x ^ y)) ^ y) + w[i & 15] + c0 + rol32(v, 5); u = rol32(u, 30);
+	SHA1_LOAD(i) (z) += (((u) & ((x) ^ (y))) ^ (y)) + w[(i) & 15] + c0 + rol32((v), 5); (u) = rol32((u), 30);
 
 #define SHA1_ROUND_2(v,u,x,y,z,i) \
-	SHA1_LOAD(i) z += (u ^ x ^ y) + w[i & 15] + c1 + rol32(v, 5); u = rol32(u, 30);
+	SHA1_LOAD(i) (z) += ((u) ^ (x) ^ (y)) + w[(i) & 15] + c1 + rol32((v), 5); (u) = rol32((u), 30);
 
 #define SHA1_ROUND_3(v,u,x,y,z,i) \
-	SHA1_LOAD(i) z += (((u | x) & y) | (u & x)) + w[i & 15] + c2 + rol32(v, 5); u = rol32(u, 30);
+	SHA1_LOAD(i) (z) += ((((u) | (x)) & (y)) | ((u) & (x))) + w[(i) & 15] + c2 + rol32((v), 5); (u) = rol32((u), 30);
 
 #define SHA1_ROUND_4(v,u,x,y,z,i) \
-	SHA1_LOAD(i) z += (u ^ x ^ y) + w[i & 15] + c3 + rol32(v, 5); u = rol32(u, 30);
+	SHA1_LOAD(i) (z) += ((u) ^ (x) ^ (y)) + w[(i) & 15] + c3 + rol32((v), 5); (u) = rol32((u), 30);
 
 		SHA1_ROUND_0(a, b, c, d, e,  0);
 		SHA1_ROUND_0(e, a, b, c, d,  1);
@@ -220,12 +220,6 @@ sha1::sha1(std::string_view text) :
 	append(text);
 }
 
-sha1::sha1(std::wstring_view text) :
-	m_impl(new impl())
-{
-	append(text);
-}
-
 sha1::sha1(const sha1 &other) :
 	m_impl(new impl())
 {
@@ -275,11 +269,6 @@ sha1 &sha1::append(char c)
 	return append(static_cast<uint8_t>(c));
 }
 
-sha1 &sha1::append(wchar_t c)
-{
-	return append(wcstombs(c));
-}
-
 sha1 &sha1::append(const void *data, size_t size)
 {
 	if( data == nullptr )
@@ -310,15 +299,6 @@ sha1 &sha1::append(std::string_view text)
 	return append(text.data(), text.size());
 }
 
-sha1 &sha1::append(std::wstring_view text)
-{
-	if( text.empty() )
-		return *this;
-
-	auto tmp = wcstombs(text);
-	return append(tmp.data(), tmp.size());
-}
-
 void sha1::operator+=(uint8_t x)
 {
 	append(x);
@@ -329,17 +309,7 @@ void sha1::operator+=(char c)
 	append(c);
 }
 
-void sha1::operator+=(wchar_t c)
-{
-	append(c);
-}
-
 void sha1::operator+=(const std::string &text)
-{
-	append(text);
-}
-
-void sha1::operator+=(const std::wstring &text)
 {
 	append(text);
 }
@@ -375,10 +345,10 @@ std::string sha1::hex(bool upper_case) const
 std::string sha1::base64() const
 {
 	static constexpr const char *table =
-			"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-			"abcdefghijklmnopqrstuvwxyz"
-			"0123456789"
-			"+/";
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"abcdefghijklmnopqrstuvwxyz"
+		"0123456789"
+		"+/";
 
 	uint32_t triples[7]
 	{
@@ -403,16 +373,6 @@ std::string sha1::base64() const
 	}
 	_base64[(--i << 2) + 3] = '=';
 	return _base64;
-}
-
-[[nodiscard]] std::wstring sha1::whex(bool upper_case) const
-{
-	return mbstowcs(hex(upper_case));
-}
-
-[[nodiscard]] std::wstring sha1::wbase64() const
-{
-	return mbstowcs(base64());
 }
 
 } //namespace libgs

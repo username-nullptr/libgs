@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_FLAGS_H
-#define LIBGS_CORE_DETAIL_FLAGS_H
+#ifndef LIBGS_CORE_UTILS_DETAIL_FLAGS_H
+#define LIBGS_CORE_UTILS_DETAIL_FLAGS_H
 
 namespace libgs
 {
@@ -166,4 +166,4 @@ constexpr inline int flags<Enum>::initializer_list_helper(iterator it, iterator 
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_DETAIL_FLAGS_H
+#endif //LIBGS_CORE_UTILS_DETAIL_FLAGS_H

@@ -26,15 +26,30 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "byte_order.h"
+#ifndef LIBGS_CORE_UTILS_BYTE_ORDER_H
+#define LIBGS_CORE_UTILS_BYTE_ORDER_H
+
+#include <libgs/core/cxx/type_traits.h>
+#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/concepts.h>
 
 namespace libgs
 {
 
-bool is_little_endian()
-{
-	static constexpr const uint32_t i = 0x12345678;
-	return *reinterpret_cast<const char*>(&i) == 0x78;
-}
+[[nodiscard]] LIBGS_CORE_VAPI bool is_little_endian();
+[[nodiscard]] LIBGS_CORE_VAPI bool is_big_endian();
+
+[[nodiscard]] LIBGS_CORE_TAPI auto hton(concepts::arithmetic_p auto t);
+LIBGS_CORE_TAPI auto *hton(auto *data, size_t len = 1);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto ntoh(concepts::arithmetic_p auto t);
+LIBGS_CORE_TAPI auto *ntoh(auto *data, size_t len = 1);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto reverse(concepts::arithmetic_p auto t);
+LIBGS_CORE_TAPI auto *reverse(auto *data, size_t len = 1);
 
 } //namespace libgs
+#include <libgs/core/utils/detail/byte_order.h>
+
+
+#endif //LIBGS_CORE_UTILS_BYTE_ORDER_H

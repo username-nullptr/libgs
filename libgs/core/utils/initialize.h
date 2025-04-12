@@ -26,20 +26,32 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_DETAIL_RETURN_TOOLS_H
-#define LIBGS_CORE_CXX_DETAIL_RETURN_TOOLS_H
+#ifndef LIBGS_CORE_UTILS_INITIALIZE_H
+#define LIBGS_CORE_UTILS_INITIALIZE_H
 
-#include <utility>
+#include <libgs/core/cxx/cplusplus.h>
+#include <libgs/core/cxx/attributes.h>
 
-namespace libgs
-{
+#define LIBGS_AUTO_FUNC_NAME  LIBGS_AUTO_XX_NAME(__libgs_auto_xx_name_)
 
-constexpr auto &&return_reference(auto &&value)
-{
-	return std::forward<decltype(value)>(value);
-}
+#define LIBGS_REGISTRATION \
+	static void LIBGS_AUTO_FUNC_NAME(); \
+	namespace { \
+		struct LIBGS_AUTO_XX_NAME(__libgs_auto_register_) { \
+			LIBGS_AUTO_XX_NAME(__libgs_auto_register_)() { \
+				LIBGS_AUTO_FUNC_NAME(); \
+			} \
+		}; \
+	} \
+	static const LIBGS_AUTO_XX_NAME(__libgs_auto_register_) LIBGS_AUTO_XX_NAME(__auto_register_); \
+	static void LIBGS_AUTO_FUNC_NAME()
 
-} //namespace libgs
+#ifdef _MSC_VER
+# define LIBGS_PLUGIN_REGISTRATION LIBGS_REGISTRATION
+#else //GNU & Clang ...
+# define LIBGS_PLUGIN_REGISTRATION \
+	LIBGS_GNU_ATTR_INIT static void LIBGS_AUTO_XX_NAME(__libgs_auto_register_)()
+#endif //_MSC_VER
 
 
-#endif //LIBGS_CORE_CXX_DETAIL_RETURN_TOOLS_H
+#endif //LIBGS_CORE_UTILS_INITIALIZE_H

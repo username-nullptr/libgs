@@ -30,6 +30,7 @@
 #define LIBGS_CORE_CXX_STRING_CONCEPTS_H
 
 #include <libgs/core/cxx/concepts.h>
+#include <string>
 
 namespace libgs
 {

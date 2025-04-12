@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <set>
 
 namespace libgs { namespace concepts
 {
@@ -60,24 +61,24 @@ public:
 	constexpr char_t space = 0x20;
 
 public:
-	template <concepts::weak_basic_string_type<CharT> Str = char_t>
-	[[nodiscard]] string_t join(const Str &splits = space);
+	template <concepts::text_p<CharT> Text = char_t>
+	[[nodiscard]] string_t join(const Text &splits = space);
 
-	template <concepts::weak_basic_string_type<CharT> Str = char_t>
-	[[nodiscard]] string_t join(size_t index, size_t length, const Str &splits = space);
+	template <concepts::text_p<CharT> Text = char_t>
+	[[nodiscard]] string_t join(size_t index, size_t length, const Text &splits = space);
 
-	template <concepts::weak_basic_string_type<CharT> Str = char_t>
-	[[nodiscard]] string_t join(size_t index, const Str &splits = space);
+	template <concepts::text_p<CharT> Text = char_t>
+	[[nodiscard]] string_t join(size_t index, const Text &splits = space);
 
-	template <concepts::string_list_iterator<CharT,Container> Iter,
-			  concepts::weak_basic_string_type<CharT> Str = char_t>
+	template <concepts::string_list_iterator<CharT,Container,Args...> Iter,
+			  concepts::text_p<CharT> Text = char_t>
 	[[nodiscard]] static string_t join (
-		Iter begin, Iter end, const Str &splits = space
+		Iter begin, Iter end, const Text &splits = space
 	);
 
-	template <concepts::weak_basic_string_type<CharT> Str = char_t>
+	template <concepts::text_p<CharT> Str = char_t>
 	[[nodiscard]] static basic_string_container from_string (
-		concepts::basic_string_type<char_t> auto &&str, const Str &splits = space,
+		concepts::string_p<char_t> auto &&str, const Str &splits = space,
 		bool ignore_empty = true
 	);
 };

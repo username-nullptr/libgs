@@ -33,23 +33,53 @@ namespace libgs::app
 {
 
 template <typename Arg0, typename...Args>
-bool setenv
-(std::string_view key, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+bool setenv(std::string_view key,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
 {
-	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...));
+	return setenv(key,
+		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)
+	);
 }
 
 template <typename Arg0, typename...Args>
-bool setenv
-(std::string_view key, bool overwrite, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+bool setenv(error_code &error, std::string_view key,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
 {
-	return setenv(key, std::format(fmt_value, std::forward<Args>(args)...), overwrite);
+	return setenv(error, key,
+		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)
+	);
 }
 
-template <concepts::char_string_type T>
+template <typename Arg0, typename...Args>
+bool setenv(std::string_view key, bool overwrite,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args)
+{
+	return setenv(key,
+		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...),
+		overwrite
+	);
+}
+
+template <typename Arg0, typename...Args>
+bool setenv(error_code &error, std::string_view key, bool overwrite,
+	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
+{
+	return setenv(error, key,
+		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...),
+		overwrite
+	);
+}
+
+template <concepts::string_p<char> T>
 bool setenv(std::string_view key, T &&value, bool overwrite)
 {
 	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
+}
+
+template <concepts::string_p<char> T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
+bool setenv(error_code &error, std::string_view key, T &&value, bool overwrite) noexcept
+{
+	return setenv(error, key, std::format("{}", std::forward<T>(value)), overwrite);
 }
 
 inline namespace literals

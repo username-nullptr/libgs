@@ -26,32 +26,50 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_INITIALIZE_H
-#define LIBGS_CORE_CXX_INITIALIZE_H
+#ifndef LIBGS_CORE_UTILS_UTILITIES_H
+#define LIBGS_CORE_UTILS_UTILITIES_H
 
-#include <libgs/core/cxx/cplusplus.h>
+#include <libgs/core/utils/asio_concepts.h>
+#include <libgs/core/cxx/string_concepts.h>
 #include <libgs/core/cxx/attributes.h>
 
-#define LIBGS_AUTO_FUNC_NAME  LIBGS_AUTO_XX_NAME(__libgs_auto_xx_name_)
+namespace libgs
+{
 
-#define LIBGS_REGISTRATION \
-	static void LIBGS_AUTO_FUNC_NAME(); \
-	namespace { \
-		struct LIBGS_AUTO_XX_NAME(__libgs_auto_register_) { \
-			LIBGS_AUTO_XX_NAME(__libgs_auto_register_)() { \
-				LIBGS_AUTO_FUNC_NAME(); \
-			} \
-		}; \
-	} \
-	static const LIBGS_AUTO_XX_NAME(__libgs_auto_register_) LIBGS_AUTO_XX_NAME(__auto_register_); \
-	static void LIBGS_AUTO_FUNC_NAME()
+enum class ip_type {
+	v4, v6, loopback
+};
 
-#ifdef _MSC_VER
-# define LIBGS_PLUGIN_REGISTRATION LIBGS_REGISTRATION
-#else //GNU & Clang ...
-# define LIBGS_PLUGIN_REGISTRATION \
-	LIBGS_GNU_ATTR_INIT static void LIBGS_AUTO_XX_NAME(__libgs_auto_register_)()
-#endif //_MSC_VER
+template <typename Protocol>
+struct LIBGS_CORE_TAPI basic_endpoint_wrapper
+{
+	using protocol_t = Protocol;
+	using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
+	endpoint_t value;
+
+	basic_endpoint_wrapper() = default;
+	basic_endpoint_wrapper(const concepts::any_string_p auto &address, uint16_t port);
+	basic_endpoint_wrapper(const concepts::any_string_p auto &address);
+
+	basic_endpoint_wrapper(ip_type type, uint16_t port);
+	basic_endpoint_wrapper(ip_type type);
+
+	template <typename...Args>
+	basic_endpoint_wrapper(Args&&...args) requires
+		concepts::constructible<endpoint_t,Args&&...>;
+
+	operator endpoint_t&();
+	operator const endpoint_t&() const;
+
+	endpoint_t &operator*();
+	endpoint_t *operator->();
+};
+
+using tcp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::tcp>;
+using udp_endpoint_wrapper = basic_endpoint_wrapper<asio::ip::udp>;
+
+} //namespace libgs
+#include <libgs/core/utils/detail/utils.h>
 
 
-#endif //LIBGS_CORE_CXX_INITIALIZE_H
+#endif //LIBGS_CORE_UTILS_UTILITIES_H

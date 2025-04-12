@@ -29,9 +29,7 @@
 #ifndef LIBGS_CORE_CXX_TOOLS_H
 #define LIBGS_CORE_CXX_TOOLS_H
 
-#include <libgs/core/cxx/token_concepts.h>
 #include <libgs/core/cxx/remove_repeat.h>
-#include <libgs/core/cxx/string_tools.h>
 #include <libgs/core/cxx/type_traits.h>
 
 #ifdef __GNUC__
@@ -65,13 +63,7 @@ template <typename T>
 template <typename T>
 [[nodiscard]] constexpr const T *as_const(const T *v);
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::sched auto &&exec
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) unbound_token (
-	concepts::any_tf_opt_token auto &&token
-);
+[[nodiscard]] constexpr auto &&return_reference(auto &&value);
 
 template <typename...Args>
 constexpr void ignore_unused(Args&&...) {}

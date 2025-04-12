@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_TOKEN_CONCEPTS_H
-#define LIBGS_CORE_CXX_TOKEN_CONCEPTS_H
+#ifndef LIBGS_CORE_UTILS_TOKEN_CONCEPTS_H
+#define LIBGS_CORE_UTILS_TOKEN_CONCEPTS_H
 
-#include <libgs/core/cxx/opt_token.h>
+#include <libgs/core/utils/opt_token.h>
 
 namespace libgs
 {
@@ -381,4 +381,4 @@ concept yield_context = is_basic_yield_context_v<T>;
 } //namespace libgs::operators
 
 
-#endif //LIBGS_CORE_CXX_TOKEN_CONCEPTS_H
+#endif //LIBGS_CORE_UTILS_TOKEN_CONCEPTS_H

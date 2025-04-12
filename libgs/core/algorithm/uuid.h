@@ -35,7 +35,7 @@ namespace libgs
 {
 
 template <concepts::character CharT>
-union LIBGS_CORE_TAPI basic_uuid // version 4
+union LIBGS_CORE_TAPI basic_uuid final // version 4
 {
 public:
 	using char_t = CharT;

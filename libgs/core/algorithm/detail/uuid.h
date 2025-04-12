@@ -67,32 +67,46 @@ basic_uuid<CharT> basic_uuid<CharT>::generate()
 template <concepts::character CharT>
 basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 {
-	if constexpr( is_char_v )
-	{
-		if( basic_uuid.size() == 38 ) //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+	do {
+		size_t star_idx = 0;
+		size_t idxes[4] = { 8, 13, 18, 23 };
+		if( basic_uuid.size() == 40 ) //{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}
 		{
-			std::sscanf(basic_uuid.data(), "%08" SCNx32 "-%04" SCNx16 "-%04" SCNx16 "-%02" SCNx8 "%02" SCNx8 "-%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8,
-						&internals.d0, &internals.d1, &internals.d2, &internals.d3[0], &internals.d3[1], &internals.d3[2], &internals.d3[3], &internals.d3[4], &internals.d3[5], &internals.d3[6], &internals.d3[7]);
+			if( basic_uuid[0] != static_cast<char_t>('{') or basic_uuid[39] != static_cast<char_t>('}') )
+				break;
+			star_idx = 1;
+			for(auto &idx : idxes)
+				idx += 1;
 		}
-		else if( basic_uuid.size() == 40 ) //{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}
+		else if( basic_uuid.size() != 38 ) //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+			break;
+		for(auto &idx : idxes)
 		{
-			std::sscanf(basic_uuid.data(), "{%08" SCNx32 "-%04" SCNx16 "-%04" SCNx16 "-%02" SCNx8 "%02" SCNx8 "-%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "%02" SCNx8 "}",
-						&internals.d0, &internals.d1, &internals.d2, &internals.d3[0], &internals.d3[1], &internals.d3[2], &internals.d3[3], &internals.d3[4], &internals.d3[5], &internals.d3[6], &internals.d3[7]);
+			if( basic_uuid[idx] != static_cast<char_t>('-') )
+				break;
 		}
+		try {
+			internals.d0 = strtls::to_uint32(basic_uuid.substr(star_idx,8), 16);
+			star_idx += 8 + 1;
+
+			internals.d1 = strtls::to_uint16(basic_uuid.substr(star_idx,4), 16);
+			star_idx += 4 + 1;
+			internals.d2 = strtls::to_uint16(basic_uuid.substr(star_idx,4), 16);
+			star_idx += 4 + 1;
+
+			for(size_t i=0; i<8; i++)
+			{
+				internals.d3[i] = strtls::to_uint8(basic_uuid.substr(star_idx,2), 16);
+				star_idx += 2 + 1;
+			}
+		}
+		catch(...) {
+			break;
+		}
+		return *this;
 	}
-	else
-	{
-		if( basic_uuid.size() == 38 ) //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
-		{
-			std::swscanf(basic_uuid.data(), L"%08" LIBGS_WCHAR(SCNx32) L"-%04" LIBGS_WCHAR(SCNx16) L"-%04" LIBGS_WCHAR(SCNx16) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8),
-						 &internals.d0, &internals.d1, &internals.d2, &internals.d3[0], &internals.d3[1], &internals.d3[2], &internals.d3[3], &internals.d3[4], &internals.d3[5], &internals.d3[6], &internals.d3[7]);
-		}
-		else if( basic_uuid.size() == 40 ) //{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}
-		{
-			std::swscanf(basic_uuid.data(), L"{%08" LIBGS_WCHAR(SCNx32) L"-%04" LIBGS_WCHAR(SCNx16) L"-%04" LIBGS_WCHAR(SCNx16) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"-%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"%02" LIBGS_WCHAR(SCNx8) L"}",
-						 &internals.d0, &internals.d1, &internals.d2, &internals.d3[0], &internals.d3[1], &internals.d3[2], &internals.d3[3], &internals.d3[4], &internals.d3[5], &internals.d3[6], &internals.d3[7]);
-		}
-	}
+	while(0);
+	std::memset(this, 0, sizeof(*this));
 	return *this;
 }
 
@@ -123,36 +137,22 @@ bool basic_uuid<CharT>::operator>(const basic_uuid &other) const
 template <concepts::character CharT>
 std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
 {
-	if constexpr( is_char_v )
+	char buffer[41] = ""; //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+	if( parcel )
 	{
-		char buffer[41] = ""; //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
-		if( parcel )
-		{
-			std::snprintf(buffer, 40, "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-						 internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2], internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]);
-		}
-		else
-		{
-			std::snprintf(buffer, 40, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
-						 internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2], internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]);
-		}
-		return buffer;
+		std::snprintf(buffer, 40, "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+			internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2],
+			internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]
+		);
 	}
 	else
 	{
-		wchar_t buffer[41] = L""; //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
-		if( parcel )
-		{
-			std::swprintf(buffer, 40, L"{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-						  internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2], internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]);
-		}
-		else
-		{
-			std::swprintf(buffer, 40, L"%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
-						  internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2], internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]);
-		}
-		return buffer;
+		std::snprintf(buffer, 40, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+			internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2],
+			internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]
+		);
 	}
+	return strtls::detail::ascii_transition<char_t>(buffer);
 }
 
 } //namespace libgs

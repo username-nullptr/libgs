@@ -26,31 +26,30 @@
 *                                                                                   *
 *************************************************************************************/
 
+#ifndef LIBGS_CORE_ALGORITHM_DETAIL_MISC_H
+#define LIBGS_CORE_ALGORITHM_DETAIL_MISC_H
+
 namespace libgs { namespace detail
 {
 
 template <concepts::character CharT>
 constexpr CharT to_hex_upper(unsigned int value) noexcept
 {
-	return s_str<CharT,
-		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
-	>[value & 0xF];
+	return l_str(CharT,"0123456789ABCDEF")[value & 0xF];
 }
 
 template <concepts::character CharT>
 constexpr CharT to_hex_lower(unsigned int value) noexcept
 {
-	return s_str<CharT,
-		'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'
-	>[value & 0xF];
+	return l_str(CharT,"0123456789abcdef")[value & 0xF];
 }
 
 } //namespace detail
 
-auto from_percent_encoding(concepts::string_type auto &&str)
+auto from_percent_encoding(concepts::any_string_p auto &&str)
 {
 	using Str = decltype(str);
-	using char_t = get_string_char_t<Str>;
+	using char_t = strtls::get_char_t<Str>;
 
 	std::basic_string<char_t> result(std::forward<Str>(str));
 	if( result.empty() )
@@ -104,81 +103,63 @@ auto from_percent_encoding(concepts::string_type auto &&str)
 	return result;
 }
 
-template <concepts::weak_string_type Str, concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg>
-std::string to_percent_encoding(const Str &str, StrArg &&exclude, StrArg &&include, char percent)
+template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> StrArg>
+auto to_percent_encoding(const Str &str, StrArg &&exclude, StrArg &&include, char percent)
 {
-	using char_t = get_string_char_t<Str>;
-	if constexpr( not is_char_v<char_t> )
-	{
-		std::basic_string_view<char_t> view(str);
-		constexpr auto char_len = sizeof(char_t);
+	using char_t = strtls::get_char_t<Str>;
+	std::basic_string<char_t> result;
 
-		std::string char_str(view.size() * char_len, '\0');
-		for(size_t i=0; i<view.size(); i++)
-		{
-			auto &wc = view[i];
-			for(size_t j=0; j<char_len; j++)
-				char_str[i * char_len + j] = wc >> (8 * (char_len - 1 - j));
-		}
-		return to_percent_encoding(std::move(char_str),
-			std::forward<StrArg>(exclude), std::forward<StrArg>(include), percent
-		);
-	}
-	else
-	{
-		auto str_view = transition_string_view(str);
-		auto exclude_view = transition_string_view(exclude);
-		auto include_view = transition_string_view(include);
-
-		std::string result;
-		if( str_view.empty() )
-			return result;
-
-		const auto contains = [](std::string_view view, char c) {
-			return not view.empty() and memchr(view.data(), c, view.size()) != nullptr;
-		};
-		size_t length = 0;
-		result.resize(str_view.size());
-		bool expanded = false;
-
-		for(auto &c : str_view)
-		{
-			if( c != percent and
-			    ((c >= 0x61 and c <= 0x7A) // ALPHA
-			     or (c >= 0x41 and c <= 0x5A) // ALPHA
-			     or (c >= 0x30 and c <= 0x39) // DIGIT
-			     or c == 0x2D // -
-			     or c == 0x2E // .
-			     or c == 0x5F // _
-			     or c == 0x7E // ~
-			     or contains(exclude_view, c)) and
-			    not contains(include_view, c) )
-			{
-				result[length++] = c;
-			}
-			else
-			{
-				if( not expanded )
-				{
-					result.resize(str_view.size() * 3);
-					expanded = true;
-				}
-				result[length++] = percent;
-				result[length++] = detail::to_hex_upper<char>((c & 0xf0) >> 4);
-				result[length++] = detail::to_hex_upper<char>(c & 0xf);
-			}
-		}
-		if( expanded )
-			result = result.substr(0, length);
+	decltype(auto) str_view = strtls::to_view(str);
+	if( str_view.empty() )
 		return result;
+
+	decltype(auto) exclude_view = strtls::to_view(exclude);
+	decltype(auto) include_view = strtls::to_view(include);
+
+	const auto contains = [](std::basic_string_view<char_t> view, char_t c) {
+		return not view.empty() and view.find(c) != std::basic_string_view<char_t>::npos;
+	};
+	size_t length = 0;
+	result.resize(str_view.size());
+	bool expanded = false;
+
+	for(auto &c : str_view)
+	{
+		if( c != percent and
+		    ((c >= static_cast<char_t>(0x61) and c <= static_cast<char_t>(0x7A)) // ALPHA
+		     or (c >= static_cast<char_t>(0x41) and c <= static_cast<char_t>(0x5A)) // ALPHA
+		     or (c >= static_cast<char_t>(0x30) and c <= static_cast<char_t>(0x39)) // DIGIT
+		     or c == static_cast<char_t>(0x2D) // -
+		     or c == static_cast<char_t>(0x2E) // .
+		     or c == static_cast<char_t>(0x5F) // _
+		     or c == static_cast<char_t>(0x7E) // ~
+		     or contains(exclude_view, c)) and
+		    not contains(include_view, c) )
+		{
+			result[length++] = c;
+		}
+		else
+		{
+			if( not expanded )
+			{
+				result.resize(str_view.size() * 3);
+				expanded = true;
+			}
+			result[length++] = percent;
+			result[length++] = detail::to_hex_upper<char_t>((c & static_cast<char_t>(0xf0)) >> 4);
+			result[length++] = detail::to_hex_upper<char_t>(c & static_cast<char_t>(0xf));
+		}
 	}
+	if( expanded )
+		result = result.substr(0, length);
+	return result;
 }
 
-template <concepts::weak_string_type Str, concepts::weak_basic_string_type<get_string_char_t<Str>> StrArg>
+template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> StrArg>
 int32_t wildcard_match(const Str &rule, const StrArg &str)
 {
-	auto rule_view = transition_string_view(rule);
-	auto str_view = transition_string_view(str);
+	auto rule_view = strtls::to_view(rule);
+	auto str_view = strtls::to_view(str);
 
 	size_t rule_len = rule_view.size();
 	size_t str_len = str_view.size();
@@ -215,3 +196,6 @@ int32_t wildcard_match(const Str &rule, const StrArg &str)
 }
 
 } //namespace libgs
+
+
+#endif //LIBGS_CORE_ALGORITHM_DETAIL_MISC_H
