@@ -29,18 +29,38 @@
 #ifndef LIBGS_CORE_MODULES_H
 #define LIBGS_CORE_MODULES_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/string_vector.h>
 
 namespace libgs { namespace concepts
 {
 
 template <typename Func>
-concept modules_init_func =
-	is_function_v<Func> and function_traits<Func>::arg_count == 0 and (
-		std::is_same_v<typename function_traits<Func>::return_type,void> or
-		std::is_same_v<typename function_traits<Func>::return_type,std::future<void>> or
-		std::is_same_v<typename function_traits<Func>::return_type,asio::awaitable<void>>
-	);
+concept modules_init_func = []() consteval -> bool
+{
+	if constexpr( not is_function_v<Func> )
+		return false;
+	else
+	{
+		using return_t = typename function_traits<Func>::return_type;
+		if constexpr( not std::is_same_v<return_t,void> and
+					  not std::is_same_v<return_t,std::future<void>> and
+					  not std::is_same_v<return_t,asio::awaitable<void>> )
+			return false;
+		else
+		{
+			constexpr auto arg_count = function_traits<Func>::arg_count;
+			if constexpr( arg_count == 0 )
+				return true;
+			else if constexpr( arg_count == 1 )
+			{
+				using arg_t = std::tuple_element_t<0, typename function_traits<Func>::arg_types>;
+				return std::is_same_v<std::remove_cvref_t<arg_t>, string_vector>;
+			}
+			else
+				return false;
+		}
+	}
+}();
 
 } //namespace concepts
 
@@ -59,26 +79,28 @@ public:
 	static constexpr level_t level_6 = 6;
 
 public:
-	using init_func_t        = std::function<void()>;
-	using future_init_func_t = std::function<std::future<void>()>;
-	using await_init_func_t  = std::function<awaitable<void>()>;
+	using func0_t        = std::function<void()>;
+	using future_func0_t = std::function<std::future<void>()>;
+	using await_func0_t  = std::function<awaitable<void>()>;
+
+	using func1_t        = std::function<void(string_vector)>;
+	using future_func1_t = std::function<std::future<void>(string_vector)>;
+	using await_func1_t  = std::function<awaitable<void>(string_vector)>;
 
 	using func_obj_t = std::variant <
-		init_func_t, future_init_func_t, await_init_func_t
+		func0_t, future_func0_t, await_func0_t,
+		func1_t, future_func1_t, await_func1_t
 	>;
 
 public:
-	/* awiatable as the return value of the initializer
-	 * must be executed by co_run_init,
-	 * run_init execution will ignore it.
-	 * */
-	static void reg_init(concepts::modules_init_func auto &&func, level_t level = level_6);
-
-	static awaitable<void> co_run_init();
-	static void run_init();
+	static void reg_init (
+		concepts::modules_init_func auto &&func,
+		level_t level = level_6
+	);
+	static void do_init(const string_vector &args = {});
 
 private:
-	static void reg_init_p(func_obj_t func, level_t level);
+	class impl;
 };
 
 #define LIBGS_MODULE_INIT(_level, _func) \

@@ -1,17 +1,22 @@
 #include "modules.h"
+#include <libgs/core/execution.h>
+#include <ranges>
 #include <map>
 
 namespace libgs
 {
 
-using level_t            = modules::level_t;
-using init_func_t        = modules::init_func_t;
-using future_init_func_t = modules::future_init_func_t;
-using await_init_func_t  = modules::await_init_func_t;
-using func_obj_t         = modules::func_obj_t;
+enum variant_type
+{
+	func0_e, future_func0_e, await_func0_e,
+	func1_e, future_func1_e, await_func1_e
+};
 
-using func_list_t = std::list<func_obj_t>;
-using func_map_t  = std::map<level_t,func_list_t>;
+using func_obj_t = modules::func_obj_t;
+using level_t = modules::level_t;
+
+using func_vector_t = std::vector<func_obj_t>;
+using func_map_t = std::map<level_t, func_vector_t>;
 
 static func_map_t &init_map()
 {
@@ -19,58 +24,90 @@ static func_map_t &init_map()
 	return map;
 }
 
-awaitable<void> modules::co_run_init()
-{
-	auto map = std::move(init_map());
-	for(auto &[level, func_list] : map)
-	{
-		std::list<std::future<void>> future_list;
-		for(auto &var : func_list)
-		{
-			if( var.index() == 0 )
-				std::get<init_func_t>(var)();
-			else if( var.index() == 1 )
-				future_list.emplace_back(std::get<future_init_func_t>(var)());
-			else
-				co_await std::get<await_init_func_t>(var)();
-		}
-		for(auto &futrue : future_list)
-			co_await co_wait(futrue);
-	}
-	co_return ;
-}
-
-void modules::run_init()
-{
-	auto map = std::move(init_map());
-	for(auto &[level, func_list] : map)
-	{
-		std::list<std::future<void>> future_list;
-		for(auto &var : func_list)
-		{
-			if( var.index() == 0 )
-				std::get<init_func_t>(var)();
-			else if( var.index() == 1 )
-				future_list.emplace_back(std::get<future_init_func_t>(var)());
-		}
-		for(auto &futrue : future_list)
-			futrue.wait();
-	}
-}
-
-void modules::reg_init_p(func_obj_t func, level_t level)
+void modules::impl::reg_init(func_obj_t func, level_t level)
 {
 	auto res = [&func]() -> bool
 	{
-		if( func.index() == 0 )
-			return std::get<0>(func) != nullptr;
-		else if( func.index() == 1 )
-			return std::get<1>(func) != nullptr;
-		return std::get<2>(func) != nullptr;
+		if( func.index() == func0_e )
+			return std::get<func0_t>(func) != nullptr;
+
+		else if( func.index() == func1_e )
+			return std::get<func1_t>(func) != nullptr;
+
+		else if( func.index() == future_func0_e )
+			return std::get<future_func0_t>(func) != nullptr;
+
+		else if( func.index() == future_func1_e )
+			return std::get<future_func1_t>(func) != nullptr;
+
+		else if( func.index() == await_func0_e )
+			return std::get<await_func0_t>(func) != nullptr;
+
+		return std::get<await_func1_t>(func) != nullptr;
 	}();
 	if( not res )
-		throw std::runtime_error("libgs::modules::reg_init_p: Invalid function object.");
+		throw std::runtime_error("libgs::modules::reg_init: Invalid function object.");
 	init_map()[level].emplace_back(std::move(func));
+}
+
+void modules::do_init(const string_vector &args)
+{
+	if( is_run() )
+	{
+		throw std::runtime_error (
+			"libgs::modules::do_init: The executor is already running."
+		);
+	}
+	for(auto map = std::move(init_map()); auto &func_vector : std::views::values(map))
+	{
+		std::vector<func0_t> func0_vector;
+		std::vector<func1_t> func1_vector;
+		std::vector<std::future<void>> future_vector;
+
+		for(auto &var : func_vector)
+		{
+			if( var.index() == func0_e )
+				func0_vector.emplace_back(std::get<func0_t>(std::move(var)));
+
+			else if( var.index() == func1_e )
+				func1_vector.emplace_back(std::get<func1_t>(std::move(var)));
+
+			else if( var.index() == future_func0_e )
+				future_vector.emplace_back(std::get<future_func0_t>(var)());
+
+			else if( var.index() == future_func1_e )
+				future_vector.emplace_back(std::get<future_func1_t>(var)(args));
+
+			else if( var.index() == future_func0_e )
+			{
+				future_vector.emplace_back (
+					dispatch(std::get<await_func0_t>(var)(), use_future)
+				);
+			}
+			else if( var.index() == future_func1_e )
+			{
+				future_vector.emplace_back (
+					dispatch(std::get<await_func1_t>(var)(args), use_future)
+				);
+			}
+		}
+		for(auto &func0 : func0_vector)
+			func0();
+		for(auto &func1 : func1_vector)
+			func1(args);
+
+		dispatch([&]() mutable -> awaitable<void>
+		{
+			co_await local_dispatch([&]
+			{
+				for(auto &futrue : future_vector)
+					futrue.wait();
+			},
+			use_awaitable);
+			exit();
+		});
+		exec();
+	}
 }
 
 } //namespace libgs

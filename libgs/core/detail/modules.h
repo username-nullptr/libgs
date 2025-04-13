@@ -32,19 +32,42 @@
 namespace libgs
 {
 
+class LIBGS_CORE_API modules::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl);
+
+public:
+	static void reg_init(func_obj_t func, level_t level);
+};
+
 void modules::reg_init(concepts::modules_init_func auto &&func, level_t level)
 {
 	using Func = std::decay_t<decltype(func)>;
+	using arg_count = typename function_traits<Func>::arg_count;
 	using return_t = typename function_traits<Func>::return_type;
 
-	if constexpr( std::is_same_v<return_t,void> )
-		reg_init_p(init_func_t(std::forward<Func>(func)), level);
+	if constexpr( arg_count::value == 0 )
+	{
+		if constexpr( std::is_same_v<return_t,void> )
+			impl::reg_init(init_func0_t(std::forward<Func>(func)), level);
 
-	else if constexpr( std::is_same_v<return_t,std::future<void>> )
-		reg_init_p(future_init_func_t(std::forward<Func>(func)), level);
+		else if constexpr( std::is_same_v<return_t,std::future<void>> )
+			impl::reg_init(future_init_func0_t(std::forward<Func>(func)), level);
 
-	else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-		reg_init_p(await_init_func_t(std::forward<Func>(func)), level);
+		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
+			impl::reg_init(await_init_func0_t(std::forward<Func>(func)), level);
+	}
+	else
+	{
+		if constexpr( std::is_same_v<return_t,void> )
+			impl::reg_init(init_func1_t(std::forward<Func>(func)), level);
+
+		else if constexpr( std::is_same_v<return_t,std::future<void>> )
+			impl::reg_init(future_init_func1_t(std::forward<Func>(func)), level);
+
+		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
+			impl::reg_init(await_init_func1_t(std::forward<Func>(func)), level);
+	}
 }
 
 } //namespace libgs

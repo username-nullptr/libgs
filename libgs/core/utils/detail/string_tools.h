@@ -111,7 +111,7 @@ template <concepts::character CharT, typename T>
 	return static_cast<T>(!!res);
 }
 
-[[nodiscard]] LIBGS_CORE_TAPI int16_t to_int8(const auto &str, size_t base, std::optional<int8_t> odv = {})
+[[nodiscard]] LIBGS_CORE_TAPI int8_t to_int8(const auto &str, size_t base, std::optional<int8_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_char_t<str_t>;
@@ -127,7 +127,7 @@ template <concepts::character CharT, typename T>
 	return try_to_booltot<char_t>(view, odv);
 }
 
-[[nodiscard]] LIBGS_CORE_TAPI uint16_t to_uint8(const auto &str, size_t base, std::optional<uint8_t> odv = {})
+[[nodiscard]] LIBGS_CORE_TAPI uint8_t to_uint8(const auto &str, size_t base, std::optional<uint8_t> odv = {})
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_char_t<str_t>;

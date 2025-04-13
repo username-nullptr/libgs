@@ -144,7 +144,7 @@ template <typename, concepts::character>
 struct is_std_string_view : std::false_type {};
 
 template <concepts::character CharT, typename...Args>
-struct is_std_string_view<std::basic_string<CharT,Args...>,CharT> : std::true_type {};
+struct is_std_string_view<std::basic_string_view<CharT,Args...>,CharT> : std::true_type {};
 
 template <typename T, concepts::character CharT>
 constexpr bool is_std_string_view_v = is_std_string_view<T,CharT>::value;

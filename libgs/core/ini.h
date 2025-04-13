@@ -133,10 +133,10 @@ public:
 	using char_t = CharT;
 	using executor_t = Exec;
 
-	template <typename...Args>
-	using map_temp = Map<Args...>;
+	template <typename Key, typename Value, typename...Args>
+	using map_temp = Map<Key,Value,Args...>;
 
-	using ini_keys_t = basic_ini_keys<CharT,map_temp,MapArgs...>;
+	using ini_keys_t = basic_ini_keys<char_t,map_temp,MapArgs...>;
 	using string_t = std::basic_string<char_t>;
 
 	using group_map_t = map_temp<string_t,ini_keys_t,MapArgs...>;

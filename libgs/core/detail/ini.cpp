@@ -50,16 +50,17 @@ static struct io_work
 {
 	// Don't destruct it.
 	// An exception occurs when the main function exits in Win10.
-	asio::io_context *ioc = new asio::io_context();
+	io_context_t *ioc = new io_context_t();
 
-	std::thread thread {[this]
-	{
-		const asio::io_context::work worker(*ioc); LIBGS_UNUSED(worker);
+	using io_worker_t = asio::executor_work_guard<io_context_t::executor_type>;
+	io_worker_t io_worker = make_work_guard(*ioc);
+
+	std::thread thread {[this] {
 		ioc->run();
 	}};
 	~io_work()
 	{
-		ioc->stop();
+		io_worker.reset();
 		if( not thread.joinable() )
 			return ;
 		try {
