@@ -33,7 +33,7 @@ namespace libgs
 {
 
 template <concepts::character CharT, typename Traits, class Alloc>
-basic_value<CharT,Traits,Alloc>::basic_value(concepts::basic_value_arg<char_t> auto &&arg)
+basic_value<CharT,Traits,Alloc>::basic_value(concepts::value_arg_p<char_t> auto &&arg)
 {
 	set(std::forward<decltype(arg)>(arg));
 }
@@ -100,35 +100,35 @@ basic_value<CharT,Traits,Alloc>::operator const string_t&&() const && noexcept
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::integral_type T>
+template <concepts::integral_p T>
 T basic_value<CharT,Traits,Alloc>::get(size_t base) const
 {
-	return libgs::ston<T>(m_str, base);
+	return strtls::to_arith<T>(m_str, base);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::float_type T>
+template <concepts::floating_p T>
 T basic_value<CharT,Traits,Alloc>::get() const
 {
-	return libgs::ston<T>(m_str);
+	return strtls::to_arith<T>(m_str);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::integral_type T>
+template <concepts::integral_p T>
 T basic_value<CharT,Traits,Alloc>::get_or(size_t base, T def_value) const noexcept
 {
-	return libgs::ston_or<T>(m_str, base, def_value);
+	return strtls::to_arith_or<T>(m_str, base, def_value);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::float_type T>
+template <concepts::floating_p T>
 T basic_value<CharT,Traits,Alloc>::get_or(T def_value) const noexcept
 {
-	return libgs::ston_or<T>(m_str, def_value);
+	return strtls::to_arith_or<T>(m_str, def_value);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::basic_vgs<CharT> T>
+template <concepts::vgs<CharT> T>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get() & noexcept
 {
 	if constexpr( std::is_same_v<T,string_t> )
@@ -140,7 +140,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get() & noexcept
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::basic_rvgs<CharT> T>
+template <concepts::rvgs<CharT> T>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get() && noexcept
 {
 	if constexpr( std::is_same_v<T,string_t> )
@@ -150,7 +150,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get() && noexcept
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::basic_vgs<CharT> T>
+template <concepts::vgs<CharT> T>
 auto &&basic_value<CharT,Traits,Alloc>::get() const & noexcept
 {
 	if constexpr( std::is_same_v<T,string_t> )
@@ -162,7 +162,7 @@ auto &&basic_value<CharT,Traits,Alloc>::get() const & noexcept
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <concepts::basic_rvgs<CharT> T>
+template <concepts::rvgs<CharT> T>
 auto &&basic_value<CharT,Traits,Alloc>::get() const && noexcept
 {
 	if constexpr( std::is_same_v<T,string_t> )
@@ -303,47 +303,47 @@ void basic_value<CharT,Traits,Alloc>::set(format_string<Arg0, Args...> fmt, Arg0
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-void basic_value<CharT,Traits,Alloc>::set(concepts::basic_value_arg<char_t> auto &&arg)
+void basic_value<CharT,Traits,Alloc>::set(concepts::value_arg_p<char_t> auto &&arg)
 {
 	using Arg = decltype(arg);
 	using arg_t = std::remove_cvref_t<Arg>;
 
 	if constexpr( std::is_same_v<arg_t, std::basic_string_view<char_t>> )
 		m_str = string_t(arg.data(), arg.size());
-	else if constexpr( is_basic_string_v<Arg, char_t> )
+	else if constexpr( is_string_v<Arg, char_t> )
 		m_str = std::forward<Arg>(arg);
 	else
-		m_str = std::format(s_str<char_t>('{','}'), std::forward<Arg>(arg));
+		m_str = std::format(l_str(char_t,"{}"), std::forward<Arg>(arg));
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 bool basic_value<CharT,Traits,Alloc>::is_alpha() const noexcept
 {
-	return libgs::is_alpha(m_str);
+	return strtls::is_alpha(m_str);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 bool basic_value<CharT,Traits,Alloc>::is_digit() const noexcept
 {
-	return libgs::is_digit(m_str);
+	return strtls::is_digit(m_str);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 bool basic_value<CharT,Traits,Alloc>::is_rlnum() const noexcept
 {
-	return libgs::is_rlnum(m_str);
+	return strtls::is_rlnum(m_str);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 bool basic_value<CharT,Traits,Alloc>::is_alnum() const noexcept
 {
-	return libgs::is_alnum(m_str);
+	return strtls::is_alnum(m_str);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 bool basic_value<CharT,Traits,Alloc>::is_ascii() const noexcept
 {
-	return libgs::is_ascii(m_str);
+	return strtls::is_ascii(m_str);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
@@ -420,7 +420,7 @@ auto basic_value<CharT,Traits,Alloc>::operator<=>(const string_t &str) const
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 basic_value<CharT,Traits,Alloc> &basic_value<CharT,Traits,Alloc>::operator=
-(concepts::basic_value_arg<char_t> auto &&arg)
+(concepts::value_arg_p<char_t> auto &&arg)
 {
 	set(std::forward<decltype(arg)>(arg));
 	return *this;

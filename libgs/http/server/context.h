@@ -101,10 +101,10 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using basic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using wbasic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;

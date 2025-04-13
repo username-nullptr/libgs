@@ -29,8 +29,7 @@
 #ifndef LIBGS_CORE_VALUE_H
 #define LIBGS_CORE_VALUE_H
 
-#include <libgs/core/algorithm/base.h>
-#include <deque>
+#include <libgs/core/global.h>
 
 namespace libgs
 {
@@ -41,144 +40,92 @@ template <concepts::character CharT,
 class basic_value;
 
 template <typename, concepts::character>
-struct is_basic_value : std::false_type {};
+struct is_value : std::false_type {};
 
 template <concepts::character CharT, typename...Args>
-struct is_basic_value<basic_value<CharT,Args...>,CharT> : std::true_type {};
+struct is_value<basic_value<CharT,Args...>,CharT> : std::true_type {};
 
 template <typename T, concepts::character CharT>
-constexpr bool is_basic_value_v = is_basic_value<T,CharT>::value;
+constexpr bool is_value_v = is_value<T,CharT>::value;
 
 template <typename T>
-using is_value = is_basic_value<T,char>;
+struct is_any_value : std::disjunction <
+	is_value<T,char>, is_value<T,wchar_t>,
+	is_value<T,char8_t>, is_value<T,char16_t>, is_value<T,char32_t>
+> {};
 
 template <typename T>
-constexpr bool is_value_v = is_value<T>::value;
-
-template <typename T>
-using is_std_wvalue = is_basic_value<T,wchar_t>;
-
-template <typename T>
-constexpr bool is_std_wvalue_v = is_std_wvalue<T>::value;
-
-template <typename T>
-using is_std_u8value = is_basic_value<T,char8_t>;
-
-template <typename T>
-constexpr bool is_std_u8value_v = is_std_u8value<T>::value;
-
-template <typename T>
-using is_std_u16value = is_basic_value<T,char16_t>;
-
-template <typename T>
-constexpr bool is_std_u16value_v = is_std_u16value<T>::value;
-
-template <typename T>
-using is_std_u32value = is_basic_value<T,char32_t>;
-
-template <typename T>
-constexpr bool is_std_u32value_v = is_std_u32value<T>::value;
+constexpr bool is_any_value_v = is_any_value<T>::value;
 
 namespace concepts
 {
 
 template <typename T, typename CharT>
-concept basic_text_arg = []() consteval -> bool
+concept text_arg = []() consteval -> bool
 {
-	using rcr_T = std::remove_cvref_t<T>;
-
-	if constexpr( is_basic_string_v<T,CharT> or std::is_arithmetic_v<rcr_T> or std::is_enum_v<rcr_T> )
+	if constexpr( is_string_v<T,CharT> or std::is_arithmetic_v<T> or std::is_enum_v<T> )
 		return true;
 	else
 	{
-		using traits_t = typename rcr_T::traits_t;
-		using allocator_t = typename rcr_T::allocator_t;
-		return std::is_base_of_v<basic_value<CharT,traits_t,allocator_t>, rcr_T>;
+		using traits_t = typename T::traits_t;
+		using allocator_t = typename T::allocator_t;
+		return std::is_base_of_v<basic_value<CharT,traits_t,allocator_t>, T>;
 	}
 }();
 
-template <typename T>
-concept text_arg = basic_text_arg<T,char>;
+template <typename T, typename CharT>
+concept text_arg_p = text_arg<std::remove_cvref_t<T>, CharT>;
 
 template <typename T>
-concept u8text_arg = basic_text_arg<T,char8_t>;
+concept any_text_arg =
+	text_arg<T,char> or text_arg<T,wchar_t> or
+	text_arg<T,char8_t> or text_arg<T,char16_t> or text_arg<T,char32_t>;
 
 template <typename T>
-concept u16text_arg = basic_text_arg<T,char16_t>;
-
-template <typename T>
-concept u32text_arg = basic_text_arg<T,char32_t>;
-
-template <typename T>
-concept wtext_arg = basic_text_arg<T,wchar_t>;
+concept any_text_arg_p = any_text_arg<std::remove_cvref_t<T>>;
 
 template <typename T, typename CharT>
-concept basic_value_arg = basic_text_arg<T,CharT> or requires(T &&rv) {
-	std::format(s_str<CharT>('{','}'), std::forward<T>(rv));
+concept value_arg = text_arg<T,CharT> or requires(T &&rv) {
+	std::format(l_str(CharT,"{}"), std::forward<T>(rv));
 };
 
-template <typename T>
-concept value_arg = basic_value_arg<T,char>;
+template <typename T, typename CharT>
+concept value_arg_p = value_arg<std::remove_cvref_t<T>, CharT>;
 
 template <typename T>
-concept u8value_arg = basic_value_arg<T,char8_t>;
+concept any_value_arg =
+	value_arg<T,char> or value_arg<T,wchar_t> or
+	value_arg<T,char8_t> or value_arg<T,char16_t> or value_arg<T,char32_t>;
 
 template <typename T>
-concept u16value_arg = basic_value_arg<T,char16_t>;
-
-template <typename T>
-concept u32value_arg = basic_value_arg<T,char32_t>;
-
-template <typename T>
-concept wvalue_arg = basic_value_arg<T,wchar_t>;
+concept any_value_arg_p = any_value_arg<std::remove_cvref_t<T>>;
 
 template <typename T, typename CharT>
-concept basic_rvgs =
-	is_basic_std_string_v<T,CharT> or
-	is_basic_value_v<T,CharT>;
+concept rvgs = is_std_string_v<T,CharT> or is_value_v<T,CharT>;
 
 template <typename T>
-concept rvgs = basic_rvgs<T,char>;
-
-template <typename T>
-concept u8rvgs = basic_rvgs<T,char8_t>;
-
-template <typename T>
-concept u16rvgs = basic_rvgs<T,char16_t>;
-
-template <typename T>
-concept u32rvgs = basic_rvgs<T,char32_t>;
-
-template <typename T>
-concept wrvgs = basic_rvgs<T,wchar_t>;
+concept any_rvgs =
+	rvgs<T, char> or rvgs<T, wchar_t> or
+	rvgs<T, char8_t> or rvgs<T, char16_t> or rvgs<T, char32_t>;
 
 template <typename T, typename CharT>
-concept basic_vgs =
-	basic_rvgs<T,CharT> or
-	is_basic_std_string_view_v<T,CharT>;
+concept vgs = rvgs<T,CharT> or is_std_string_view_v<T,CharT>;
 
 template <typename T>
-concept vgs = basic_vgs<T,char>;
+concept any_vgs =
+	vgs<T,char> or vgs<T,wchar_t> or
+	vgs<T,char8_t> or vgs<T,char16_t> or vgs<T,char32_t>;
 
-template <typename T>
-concept u8vgs = basic_vgs<T,char8_t>;
-
-template <typename T>
-concept u16vgs = basic_vgs<T,char16_t>;
-
-template <typename T>
-concept u32vgs = basic_vgs<T,char32_t>;
-
-template <typename T>
-concept wvgs = basic_vgs<T,wchar_t>;
-
-}//namespace concepts
+} //namespace concepts
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 class LIBGS_CORE_TAPI basic_value
 {
 public:
 	using char_t = CharT;
+	static_assert(is_char_v<char_t> or is_wchar_v<char_t>,
+		"The standard library 'format' does not support char8_t, char16_t, char32_t"
+	);
 	using traits_t = Traits;
 	using allocator_t = Alloc;
 
@@ -190,7 +137,7 @@ public:
 
 public:
 	basic_value() = default;
-	basic_value(concepts::basic_value_arg<char_t> auto &&arg);
+	basic_value(concepts::value_arg_p<char_t> auto &&arg);
 
 	template <typename Arg0, typename...Args>
 	basic_value(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
@@ -210,28 +157,28 @@ public:
 	operator const string_t&&() const && noexcept;
 
 public:
-	template <concepts::integral_type T>
+	template <concepts::integral_p T>
 	[[nodiscard]] T get(size_t base = 10) const;
 
-	template <concepts::float_type T>
+	template <concepts::floating_p T>
 	[[nodiscard]] T get() const;
 
-	template <concepts::integral_type T>
+	template <concepts::integral_p T>
 	[[nodiscard]] T get_or(size_t base = 10, T def_value = 0) const noexcept;
 
-	template <concepts::float_type T>
+	template <concepts::floating_p T>
 	[[nodiscard]] T get_or(T def_value = 0.0) const noexcept;
 
-	template <concepts::basic_vgs<CharT> T = string_t>
+	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] decltype(auto) get() & noexcept;
 
-	template <concepts::basic_rvgs<CharT> T = string_t>
+	template <concepts::rvgs<CharT> T = string_t>
 	[[nodiscard]] decltype(auto) get() && noexcept;
 
-	template <concepts::basic_vgs<CharT> T = string_t>
+	template <concepts::vgs<CharT> T = string_t>
 	[[nodiscard]] auto &&get() const & noexcept;
 
-	template <concepts::basic_rvgs<CharT> T = string_t>
+	template <concepts::rvgs<CharT> T = string_t>
 	[[nodiscard]] auto &&get() const && noexcept;
 
 	[[nodiscard]] string_t &get() & noexcept;
@@ -262,7 +209,7 @@ public:
 public:
 	template <typename Arg0, typename...Args>
 	void set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	void set(concepts::basic_value_arg<char_t> auto &&arg);
+	void set(concepts::value_arg_p<char_t> auto &&arg);
 
 public:
 	[[nodiscard]] bool is_alpha() const noexcept;
@@ -290,7 +237,7 @@ public:
 	[[nodiscard]] auto operator<=>(const string_t &str) const;
 
 public:
-	basic_value &operator=(concepts::basic_value_arg<char_t> auto &&arg);
+	basic_value &operator=(concepts::value_arg_p<char_t> auto &&arg);
 	basic_value &operator=(const basic_value&) = default;
 	basic_value &operator=(basic_value&&) noexcept = default;
 
@@ -299,25 +246,25 @@ protected:
 };
 
 using value    = basic_value<char    >;
-using u8value  = basic_value<char8_t >;
-using u16value = basic_value<char16_t>;
-using u32value = basic_value<char32_t>;
 using wvalue   = basic_value<wchar_t >;
+// using u8value  = basic_value<char8_t >;
+// using u16value = basic_value<char16_t>;
+// using u32value = basic_value<char32_t>;
 
 using value_t    = value   ;
-using u8value_t  = u8value ;
-using u16value_t = u16value;
-using u32value_t = u32value;
 using wvalue_t   = wvalue  ;
+// using u8value_t  = u8value ;
+// using u16value_t = u16value;
+// using u32value_t = u32value;
 
 template <concepts::character CharT, typename...StrArgs>
 using basic_value_optl = std::optional<basic_value<CharT,StrArgs...>>;
 
 using value_optl    = basic_value_optl<char    >;
-using u8value_optl  = basic_value_optl<char8_t >;
-using u16value_optl = basic_value_optl<char16_t>;
-using u32value_optl = basic_value_optl<char32_t>;
 using wvalue_optl   = basic_value_optl<wchar_t >;
+// using u8value_optl  = basic_value_optl<char8_t >;
+// using u16value_optl = basic_value_optl<char16_t>;
+// using u32value_optl = basic_value_optl<char32_t>;
 
 } //namespace libgs
 #include <libgs/core/detail/value.h>

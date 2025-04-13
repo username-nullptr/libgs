@@ -123,8 +123,8 @@ public:
 			error = make_error_code(parse_errno::IHL);
 			return false;
 		}
-		header_insert(str_to_lower(str_trimmed(line_buf.substr(0, colon_index))),
-					  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))), error);
+		header_insert(str_to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+					  from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1))), error);
 		return false;
 	}
 
@@ -222,8 +222,8 @@ public:
 					error = make_error_code(parse_errno::SFE);
 					break;
 				}
-				header_insert(str_to_lower(str_trimmed(line_buf.substr(0, colon_index))),
-							  from_percent_encoding(str_trimmed(line_buf.substr(colon_index + 1))), error);
+				header_insert(str_to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+							  from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1))), error);
 			}
 		}
 		while( not m_src_buf.empty() );

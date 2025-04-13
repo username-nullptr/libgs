@@ -21,27 +21,23 @@ static func_map_t &init_map()
 
 awaitable<void> modules::co_run_init()
 {
-	return dispatch([]() -> awaitable<void>
+	auto map = std::move(init_map());
+	for(auto &[level, func_list] : map)
 	{
-		auto map = std::move(init_map());
-		for(auto &[level, func_list] : map)
+		std::list<std::future<void>> future_list;
+		for(auto &var : func_list)
 		{
-			std::list<std::future<void>> future_list;
-			for(auto &var : func_list)
-			{
-				if( var.index() == 0 )
-					std::get<init_func_t>(var)();
-				else if( var.index() == 1 )
-					future_list.emplace_back(std::get<future_init_func_t>(var)());
-				else
-					co_await std::get<await_init_func_t>(var)();
-			}
-			for(auto &futrue : future_list)
-				co_await co_wait(futrue);
+			if( var.index() == 0 )
+				std::get<init_func_t>(var)();
+			else if( var.index() == 1 )
+				future_list.emplace_back(std::get<future_init_func_t>(var)());
+			else
+				co_await std::get<await_init_func_t>(var)();
 		}
-		co_return ;
-	},
-	use_awaitable);
+		for(auto &futrue : future_list)
+			co_await co_wait(futrue);
+	}
+	co_return ;
 }
 
 void modules::run_init()

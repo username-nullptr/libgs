@@ -129,7 +129,7 @@ public:
 			auto list = string_list::from_string(line_buf, ';');
 			for(auto &statement : list)
 			{
-				statement = str_trimmed(statement);
+				statement = strtls::trimmed(statement);
 				auto pos = statement.find('=');
 
 				if( pos == std::string::npos )
@@ -137,8 +137,8 @@ public:
 					error = parser_t::make_error_code(parse_errno::IHL);
 					return ;
 				}
-				auto key = str_trimmed(statement.substr(0,pos));
-				auto value = str_trimmed(statement.substr(pos+1));
+				auto key = strtls::trimmed(statement.substr(0,pos));
+				auto value = strtls::trimmed(statement.substr(pos+1));
 				m_cookies[mbstoxx<char_t>(std::move(key))] = mbstoxx<char_t>(std::move(value));
 			}
 		});
@@ -162,7 +162,7 @@ public:
 		}
 		for(auto &str : string_list_t::from_string(it->second.to_string(), string_pool::comma))
 		{
-			if( str_to_lower(str_trimmed(str)) == string_pool::gzip )
+			if( str_to_lower(strtls::trimmed(str)) == string_pool::gzip )
 			{
 				m_support_gzip = true;
 				break;

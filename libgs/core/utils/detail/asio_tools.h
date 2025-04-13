@@ -32,32 +32,32 @@
 namespace libgs
 {
 
-inline const_buffer::const_buffer(const asio::ASIO_CONST_BUFFER &buf) :
-	asio::ASIO_CONST_BUFFER(buf.data(), buf.size())
+inline const_buffer::const_buffer(const asio::const_buffer &buf) :
+	asio::const_buffer(buf.data(), buf.size())
 {
 
 }
 
 inline const_buffer::const_buffer(const mutable_buffer &buf) :
-	asio::ASIO_CONST_BUFFER(buf.data(), buf.size())
+	asio::const_buffer(buf.data(), buf.size())
 {
 
 }
 
 inline const_buffer::const_buffer(const char *buf) :
-	asio::ASIO_CONST_BUFFER(buf, strlen(buf))
+	asio::const_buffer(buf, strlen(buf))
 {
 
 }
 
 inline const_buffer::const_buffer(const std::string &buf) :
-	asio::ASIO_CONST_BUFFER(buf.c_str(), buf.size())
+	asio::const_buffer(buf.c_str(), buf.size())
 {
 
 }
 
 inline const_buffer::const_buffer(std::string_view buf) :
-	asio::ASIO_CONST_BUFFER(buf.data(), buf.size())
+	asio::const_buffer(buf.data(), buf.size())
 {
 
 }

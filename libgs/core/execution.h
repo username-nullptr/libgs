@@ -40,8 +40,26 @@ using io_executor_t = io_context_t::executor_type;
 [[nodiscard]] LIBGS_CORE_API io_context_t &io_context() noexcept;
 [[nodiscard]] LIBGS_CORE_API io_executor_t get_executor() noexcept;
 
+/*
+ * Start event scheduling;
+ * This function will block until it returns after calling
+ * exit or terminate.
+ */
 LIBGS_CORE_API int exec();
+
+/*
+ * End event scheduling;
+ * The exec function will return after
+ * all the ready tasks have been completed.
+ */
 LIBGS_CORE_API void exit(int code = 0);
+
+/*
+ * End event scheduling;
+ * The exec function will return as soon as
+ * current task is completed.
+ */
+LIBGS_CORE_API void terminate(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
 
@@ -49,16 +67,7 @@ namespace concepts
 {
 
 template <typename Work>
-concept dispatch_work = []() consteval -> bool
-{
-	if constexpr( callable<Work> )
-		return true;
-	else
-	{
-		using work_t = std::remove_cvref_t<Work>;
-		return awaitable_type<work_t> and std::is_rvalue_reference_v<Work&&>;
-	}
-}();
+concept dispatch_work = callable<Work> or awaitable_p<Work&&>;
 
 template <typename Token, typename Work>
 concept dispatch_token = []() consteval -> bool
@@ -68,7 +77,7 @@ concept dispatch_token = []() consteval -> bool
 	else
 	{
 		using work_t = std::remove_cvref_t<Work>;
-		if constexpr( awaitable_type<work_t> )
+		if constexpr( awaitable<work_t> )
 		{
 			using return_t = typename work_t::value_type;
 			if constexpr( std::is_void_v<return_t> )
@@ -102,40 +111,54 @@ concept dispatch_token = []() consteval -> bool
 
 } //namespace concepts
 
+/*
+ * If the current context is consistent with the executor context,
+ * the work is executed immediately, otherwise it is pushed to the work queue.
+ */
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI decltype(auto) dispatch (
 	concepts::sched auto &&exec, Work &&work, Token &&token = detached
 );
 
+/*
+ * If the current context is consistent with main executor context [libgs::io_context()],
+ * the work is executed immediately, otherwise it is pushed to the work queue.
+ */
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI decltype(auto) dispatch (
 	Work &&work, Token &&token = detached
 );
 
+// Push a work to a work queue.
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI decltype(auto) post (
 	concepts::sched auto &&exec, Work &&work, Token &&token = detached
 );
 
+// Push a work to a work queue.
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = const detached_t&>
 LIBGS_CORE_TAPI decltype(auto) post (
 	Work &&work, Token &&token = detached
 );
 
+// Temporarily start an executor in the current context to perform a work.
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 LIBGS_CORE_TAPI auto local_dispatch (
-	concepts::execution_context auto &exec, Work &&work, Token &&token
+	concepts::exec_context auto &exec, Work &&work, Token &&token
 );
 
+// Temporarily start an executor in the current context to perform a work.
 template <typename Work>
-LIBGS_CORE_TAPI auto local_dispatch(concepts::execution_context auto &exec, Work &&work)
+LIBGS_CORE_TAPI auto local_dispatch(concepts::exec_context auto &exec, Work &&work)
 	requires concepts::dispatch_token<detached_t, Work>;
 
+// Temporarily start an executor in the current context to perform a work.
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 LIBGS_CORE_TAPI auto local_dispatch (
 	Work &&work, Token &&token
 );
 
+// Temporarily start an executor in the current context to perform a work.
 template <typename Work>
 LIBGS_CORE_TAPI auto local_dispatch(Work &&work)
 	requires concepts::dispatch_token<detached_t, Work>;
@@ -190,7 +213,7 @@ concept async_wake_up = std::is_rvalue_reference_v<Handler> and (
 
 } //namespace concepts
 
-template <concepts::execution Exec, typename...Args>
+template <concepts::exec Exec, typename...Args>
 class LIBGS_CORE_TAPI basic_async_work
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_async_work)
@@ -215,12 +238,13 @@ public:
 template <typename...Args>
 using async_work = basic_async_work<asio::any_io_executor, Args...>;
 
-LIBGS_CORE_TAPI void delete_later(const concepts::execution auto &exec, auto *obj);
-LIBGS_CORE_TAPI void delete_later(concepts::execution_context auto &exec, auto *obj);
+// Delayed destructor.
+LIBGS_CORE_TAPI void delete_later(const concepts::exec auto &exec, auto *obj);
+LIBGS_CORE_TAPI void delete_later(concepts::exec_context auto &exec, auto *obj);
 LIBGS_CORE_TAPI void delete_later(auto *obj);
 
 template <typename NativeExec>
-struct is_match_default_execution
+struct is_match_def_exec
 {
 	static constexpr bool value =
 		is_exec_v<NativeExec> and
@@ -230,13 +254,13 @@ struct is_match_default_execution
 };
 
 template <typename NativeExec>
-constexpr bool is_match_default_execution_v = is_match_default_execution<NativeExec>::value;
+constexpr bool is_match_def_exec_v = is_match_def_exec<NativeExec>::value;
 
 namespace concepts
 {
 
 template <typename NativeExec>
-concept match_default_execution = is_match_default_execution_v<NativeExec>;
+concept match_def_exec = is_match_def_exec_v<NativeExec>;
 
 }} //namespace libgs::concepts
 #include <libgs/core/detail/execution.h>

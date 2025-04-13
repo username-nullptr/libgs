@@ -37,7 +37,7 @@ namespace libgs::http
 
 template <core_concepts::character CharT,
 		  concepts::any_exec_stream Stream = asio::ip::tcp::socket,
-		  core_concepts::execution Exec = asio::any_io_executor>
+		  core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_server
 {
 	LIBGS_DISABLE_COPY(basic_server)
@@ -70,14 +70,14 @@ public:
 	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t,char_t>;
 
 public:
-	template <core_concepts::execution Exec0 = io_executor_t>
+	template <core_concepts::exec Exec0 = io_executor_t>
 	explicit basic_server (
 		basic_acceptor_wrap<socket_t> &&next_layer,
 		const Exec0 &service_exec = libgs::get_executor()
 	);
 	basic_server (
 		basic_acceptor_wrap<socket_t> &&next_layer,
-		core_concepts::execution_context auto &service_exec
+		core_concepts::exec_context auto &service_exec
 	);
 	~basic_server();
 
@@ -143,10 +143,10 @@ private:
 	std::shared_ptr<impl> m_impl;
 };
 
-template <core_concepts::execution Exec, core_concepts::execution ServiceExec = asio::any_io_executor>
+template <core_concepts::exec Exec, core_concepts::exec ServiceExec = asio::any_io_executor>
 using basic_tcp_server = basic_server<char, asio::basic_stream_socket<asio::ip::tcp,ServiceExec>, Exec>;
 
-template <core_concepts::execution Exec, core_concepts::execution ServiceExec = asio::any_io_executor>
+template <core_concepts::exec Exec, core_concepts::exec ServiceExec = asio::any_io_executor>
 using wbasic_tcp_server = basic_server<wchar_t, asio::basic_stream_socket<asio::ip::tcp,ServiceExec>, Exec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
@@ -162,10 +162,10 @@ using wserver = wtcp_server;
 namespace libgs { namespace http
 {
 
-template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
+template <concepts::exec Exec, concepts::exec ServiceExec = asio::any_io_executor>
 using basic_ssl_tcp_server = basic_server<char, asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>>, Exec>;
 
-template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
+template <concepts::exec Exec, concepts::exec ServiceExec = asio::any_io_executor>
 using wbasic_ssl_tcp_server = basic_server<wchar_t, asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>>, Exec>;
 
 using ssl_tcp_server = basic_ssl_tcp_server<asio::any_io_executor>;
@@ -179,10 +179,10 @@ using wssl_server = wssl_tcp_server;
 namespace https
 {
 
-template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
+template <concepts::exec Exec, concepts::exec ServiceExec = asio::any_io_executor>
 using basic_tcp_server = http::basic_ssl_tcp_server<Exec,ServiceExec>;
 
-template <concepts::execution Exec, concepts::execution ServiceExec = asio::any_io_executor>
+template <concepts::exec Exec, concepts::exec ServiceExec = asio::any_io_executor>
 using wbasic_tcp_server = http::wbasic_ssl_tcp_server<Exec,ServiceExec>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;

@@ -40,8 +40,6 @@ class LIBGS_CORE_VAPI shared_mutex
 
 public:
 	using native_handle_t = mutex;
-
-public:
 	shared_mutex() = default;
 	~shared_mutex() noexcept(false);
 
@@ -110,12 +108,6 @@ class LIBGS_CORE_VAPI shared_lock
 
 public:
 	using mutex_t = shared_mutex;
-
-private:
-	mutex_t *m_mutex;
-	bool m_owns = false;
-
-public:
 	explicit shared_lock(mutex_t &mutex);
 	~shared_lock() noexcept(noexcept(m_mutex->unlock_shared()));
 
@@ -150,6 +142,9 @@ public:
 public:
 	[[nodiscard]] bool is_locked() const noexcept;
 	[[nodiscard]] mutex_t *mutex() noexcept;
+
+private:
+	mutex_t *m_mutex;
 };
 
 using shared_unique_lock = unique_lock<shared_mutex>;

@@ -52,11 +52,15 @@ public:
 public:
 	// ./a.out -f filename
 	// ./a.out --file=filename
-	args_parser &add_group(const std::string &rule, const std::string &description, const std::string &identification = {});
+	args_parser &add_group (
+		const std::string &rule, const std::string &description, const std::string &identification = {}
+	);
 
 	// ./a.out -abc
 	// ./a.out -a -b -c
-	args_parser &add_flag(const std::string &rule, const std::string &description, const std::string &identification = {});
+	args_parser &add_flag (
+		const std::string &rule, const std::string &description, const std::string &identification = {}
+	);
 
 public:
 	args_parser &set_version(std::string d);

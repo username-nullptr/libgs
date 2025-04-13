@@ -2,7 +2,7 @@
 // basic_streambuf.hpp
 // ~~~~~~~~~~~~~~~~~~~
 //
-// Copyright (c) 2003-2024 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2025 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -119,8 +119,8 @@ public:
   /// The type used to represent the output sequence as a list of buffers.
   typedef implementation_defined mutable_buffers_type;
 #else
-  typedef ASIO_CONST_BUFFER const_buffers_type;
-  typedef ASIO_MUTABLE_BUFFER mutable_buffers_type;
+  typedef const_buffer const_buffers_type;
+  typedef mutable_buffer mutable_buffers_type;
 #endif
 
   /// Construct a basic_streambuf object.
@@ -192,7 +192,7 @@ public:
   const_buffers_type data() const noexcept
   {
     return asio::buffer(asio::const_buffer(gptr(),
-          (pptr() - gptr()) * sizeof(character)));
+          (pptr() - gptr()) * sizeof(char_type)));
   }
 
   /// Get a list of buffers that represents the output sequence, with the given
@@ -215,7 +215,7 @@ public:
   {
     reserve(n);
     return asio::buffer(asio::mutable_buffer(
-          pptr(), n * sizeof(character)));
+          pptr(), n * sizeof(char_type)));
   }
 
   /// Move characters from the output sequence to the input sequence.
@@ -347,7 +347,7 @@ protected:
 
 private:
   std::size_t max_size_;
-  std::vector<character, Allocator> buffer_;
+  std::vector<char_type, Allocator> buffer_;
 
   // Helper function to get the preferred size for reading data.
   friend std::size_t read_size_helper(

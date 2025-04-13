@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream = asio::ip::tcp::socket,
-		  core_concepts::execution Exec = asio::any_io_executor>
+		  core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_session_pool
 {
 	LIBGS_DISABLE_COPY(basic_session_pool)
@@ -80,10 +80,10 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution MainExec, core_concepts::execution SockExec>
+template <core_concepts::exec MainExec, core_concepts::exec SockExec>
 using basic_tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using tcp_session_pool = basic_tcp_session_pool<asio::any_io_executor, Exec>;
 
 using session_pool = tcp_session_pool<asio::any_io_executor>;
@@ -91,7 +91,7 @@ using session_pool = tcp_session_pool<asio::any_io_executor>;
 template <typename>
 struct is_session_pool : std::false_type {};
 
-template <concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
 struct is_session_pool<basic_session_pool<Stream,Exec>> : std::true_type {};
 
 template <typename T>

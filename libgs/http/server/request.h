@@ -165,10 +165,10 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using basic_tcp_server_request = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using wbasic_tcp_server_request = basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;

@@ -55,7 +55,7 @@ template <concepts::character CharT>
 }
 
 template <concepts::character CharT>
-[[nodiscard]] LIBGS_CORE_TAPI auto _sto_float(auto &&func, std::basic_string_view<CharT> text)
+[[nodiscard]] LIBGS_CORE_TAPI auto _sto_float(auto &&func, std::basic_string_view<CharT> str)
 {
 	size_t index = 0;
 	auto res = func({str.data(), str.size()}, &index);
@@ -440,24 +440,25 @@ template <concepts::floating_p T>
 }
 
 template <concepts::character CharT>
-[[nodiscard]] LIBGS_CORE_TAPI size_t replace(std::basic_string<CharT> &str, const auto &cond)
+LIBGS_CORE_TAPI size_t replace
+(std::basic_string<CharT> &str, std::basic_string_view<CharT> find, std::basic_string_view<CharT> repl, bool step)
 {
-	if( cond.find == cond.repl )
+	if( find == repl )
 		return 0;
 
 	size_t sum = 0;
 	size_t find_pos = 0;
 	for(;;)
 	{
-		auto start = str.find(cond.find, find_pos);
+		auto start = str.find(find, find_pos);
 		if( start == std::basic_string<CharT>::npos )
 			break;
 
-		str.replace(start, cond.find.size(), cond.repl);
+		str.replace(start, find.size(), repl);
 		find_pos = start;
 
-		if( cond.step )
-			find_pos += cond.repl.size();
+		if( step )
+			find_pos += repl.size();
 		sum++;
 	}
 	return sum;
@@ -473,7 +474,7 @@ template <concepts::character CharT>
 
 } //namespace detail
 
-decltype(auto) to_view(concepts::any_text auto &&text)
+decltype(auto) to_view(concepts::any_text_p auto &&text)
 {
 	using Text = decltype(text);
 	using char_t = get_char_t<Text>;
@@ -754,27 +755,28 @@ auto to_upper(concepts::any_text_p auto &&text)
 }
 
 template <concepts::any_string_p Str>
-str_replace_condition<Str>::str_replace_condition(Str &&optd, Str &&find, Str &&repl, bool step) :
-	optd(to_view(optd)), find(to_view(find)), repl(to_view(repl)), step(step)
+auto replace(Str &&str, concepts::text_p<get_char_t<Str>> auto &&find,
+			 concepts::text_p<get_char_t<Str>> auto &&repl, bool step)
 {
-
-}
-
-template <concepts::any_string_p Str>
-auto replace(const str_replace_condition<Str> &cond)
-{
-	using char_t = get_char_t<Str>;
-	std::basic_string<char_t> result(cond.optd);
-	detail::replace<char_t>(result, cond);
+	std::basic_string<get_char_t<Str>> result(std::forward<Str>(str));
+	detail::replace(result,
+		to_view(std::forward<decltype(find)>(find)),
+		to_view(std::forward<decltype(repl)>(repl)),
+		step
+	);
 	return result;
 }
 
 template <concepts::any_string_p Str>
-auto replace(const str_replace_condition<Str> &cond, size_t &count)
+auto replace(size_t &count, Str &&str, concepts::text_p<get_char_t<Str>> auto &&find,
+			 concepts::text_p<get_char_t<Str>> auto &&repl, bool step)
 {
-	using char_t = get_char_t<Str>;
-	std::basic_string<char_t> result(cond.optd);
-	count = detail::replace<char_t>(result, cond);
+	std::basic_string<get_char_t<Str>> result(std::forward<Str>(str));
+	count = detail::replace(result,
+		to_view(std::forward<decltype(find)>(find)),
+		to_view(std::forward<decltype(repl)>(repl)),
+		step
+	);
 	return result;
 }
 
@@ -853,7 +855,7 @@ auto file_name(const concepts::any_text_p auto &file_name)
 	else
 	{
 		decltype(auto) view = to_view(file_name);
-		auto pos = detail::find_separator(file_name);
+		auto pos = detail::find_separator(view);
 
 		if( pos == str_view_t::npos )
 			return str_t(view);
@@ -876,7 +878,7 @@ auto file_path(const concepts::any_text_p auto &file_name)
 	else
 	{
 		decltype(auto) view = to_view(file_name);
-		auto pos = detail::find_separator(file_name);
+		auto pos = detail::find_separator(view);
 
 		if( pos == str_view_t::npos )
 			return str_t(l_str(char_t,"./"));

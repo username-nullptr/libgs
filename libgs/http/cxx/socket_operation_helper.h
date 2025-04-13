@@ -68,7 +68,7 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>> :
 	public socket_operation_helper_base<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 {
@@ -106,7 +106,7 @@ public:
 
 #ifdef LIBGS_ENABLE_OPENSSL
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
 	public socket_operation_helper_base<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
 {

@@ -41,11 +41,11 @@ namespace libgs::http
 template <typename>
 struct is_stream : std::false_type {};
 
-template <concepts::execution Exec>
+template <concepts::exec Exec>
 struct is_stream<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
 
 #ifdef LIBGS_ENABLE_OPENSSL
-template <concepts::execution Exec>
+template <concepts::exec Exec>
 struct is_stream<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
 #endif //LIBGS_ENABLE_OPENSSL
 

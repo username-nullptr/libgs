@@ -42,17 +42,17 @@ namespace libgs::strtls
 #define LIBGS_CHAR32(s)  LIBGS_CAT(U , s)
 
 #define string_literal(_type, _str) \
-	[] <libgs::concepts::character CharT> () consteval { \
-			 if constexpr( libgs::is_wchar_v <CharT> ) return  L##_str; \
-		else if constexpr( libgs::is_char8_v <CharT> ) return u8##_str; \
-		else if constexpr( libgs::is_char16_v<CharT> ) return  u##_str; \
-		else if constexpr( libgs::is_char32_v<CharT> ) return  U##_str; \
-		else									return     _str; \
+	[] <libgs::concepts::character __CharT_> () consteval { \
+			 if constexpr( libgs::is_wchar_v <__CharT_> ) return  L##_str; \
+		else if constexpr( libgs::is_char8_v <__CharT_> ) return u8##_str; \
+		else if constexpr( libgs::is_char16_v<__CharT_> ) return  u##_str; \
+		else if constexpr( libgs::is_char32_v<__CharT_> ) return  U##_str; \
+		else                                              return     _str; \
 	} .template operator()<_type>()
 
 #define l_str(_type, _str)  string_literal(_type, _str)
 
-template <concepts::any_text_p>
+template <typename>
 struct get_char;
 
 template <concepts::text_p<char> Text>
@@ -74,7 +74,7 @@ template <concepts::any_text_p Text>
 using get_char_t = typename get_char<Text>::type;
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) to_view (
-	concepts::any_text auto &&str
+	concepts::any_text_p auto &&text
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI bool is_alpha(const concepts::any_string_p auto &str) noexcept;
@@ -191,29 +191,17 @@ template <concepts::integral_p T>
 );
 
 template <concepts::any_string_p Str>
-struct LIBGS_CORE_TAPI str_replace_condition
-{
-	using char_t = get_char_t<Str>;
-	using string_view_t = std::basic_string_view<char_t>;
-
-	string_view_t optd;
-	string_view_t find;
-	string_view_t repl;
-	bool step = true;
-
-	str_replace_condition (
-		Str &&optd, Str &&find, Str &&repl, bool step = true
-	);
-};
-
-template <concepts::any_string_p Str>
 [[nodiscard]] LIBGS_CORE_TAPI auto replace (
-	const str_replace_condition<Str> &cond
+	Str &&str,
+	concepts::text_p<get_char_t<Str>> auto &&find, concepts::text_p<get_char_t<Str>> auto &&repl,
+	bool step = true
 );
 
 template <concepts::any_string_p Str>
 [[nodiscard]] LIBGS_CORE_TAPI auto replace (
-	const str_replace_condition<Str> &cond, size_t &count
+	size_t &count, Str &&str,
+	concepts::text_p<get_char_t<Str>> auto &&find, concepts::text_p<get_char_t<Str>> auto &&repl,
+	bool step = true
 );
 
 [[nodiscard]] LIBGS_CORE_TAPI auto trimmed (

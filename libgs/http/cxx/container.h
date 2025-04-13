@@ -123,12 +123,12 @@ template <typename Value, typename Default>
 	core_concepts::string_type auto &&key, Default &&def_value
 ) requires std::is_same_v<Value,std::remove_cvref_t<Default>>;
 
-template <core_concepts::text_arg T = value>
+template <core_concepts::text_arg_p T = value>
 [[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) get_attr_map_value(const attr_map &map,
 	core_concepts::string_type auto &&key
 );
 
-template <core_concepts::text_arg T = value>
+template <core_concepts::text_arg_p T = value>
 [[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) get_attr_map_value_or(const attr_map &map,
 	core_concepts::string_type auto &&key, T &&def_value
 );

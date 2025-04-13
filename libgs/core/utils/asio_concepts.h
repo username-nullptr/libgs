@@ -153,6 +153,9 @@ namespace concepts
 template <typename T>
 concept awaitable = is_awaitable_v<T>;
 
+template <typename T>
+concept awaitable_p = std::is_rvalue_reference_v<T> and awaitable<std::remove_cvref_t<T>>;
+
 template <typename Func>
 concept awaitable_func =
 	is_functor_v<Func> and

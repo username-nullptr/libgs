@@ -49,13 +49,86 @@ class LIBGS_DECL_HIDDEN args_parser::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	explicit impl(std::string &help_title);
-	void add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification);
+	explicit impl(std::string &help_title) :
+		m_help_title(std::move(help_title)) {}
+
+	void add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification)
+	{
+		static size_t id_source = 0;
+		char buf[128] = "";
+		std::snprintf(buf, 128, "%zu", id_source++);
+
+		auto str_list = string_list::from_string(rule, ",");
+		for(auto &arg : str_list)
+		{
+			arg = strtls::trimmed(arg);
+			if( not check(arg) or arg == "--" )
+				continue;
+
+			else if( arg.size() == 1 )
+			{
+				if( arg != "-" )
+					cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
+			}
+			else
+				cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
+		}
+		m_help += "    " + rule + " :\n        " + description + "\n\n";
+	}
 
 public:
-	[[noreturn]] void print_version() const;
-	[[noreturn]] void print_v() const;
-	[[noreturn]] void print_help() const;
+	[[noreturn]] void print_version() const
+	{
+		std::cout << "\n" << m_version << "\n\n" << std::flush;
+		exit(0);
+	}
+
+	[[noreturn]] void print_v() const
+	{
+		std::cout << "\n" << m_v << "\n\n" << std::flush;
+		exit(0);
+	}
+
+	[[noreturn]] void print_help() const
+	{
+		std::cout << "\n";
+		if( not m_help_title.empty() )
+			std::cout << m_help_title << "\n\n";
+
+		std::cout << m_help;
+
+		if( m_v.empty() )
+			std::cout << "    --version:";
+		else
+			std::cout << "    -v, --version:";
+		std::cout << "\n        Viewing version.\n\n";
+
+		if( m_h )
+			std::cout << "    -h, --help:";
+		else
+			std::cout << "    --help:";
+		std::cout << "\n        Viewing help.\n\n";
+
+		if( not m_help_ex.empty() )
+			std::cout << m_help_ex << "\n\n";
+
+		std::cout << std::flush;
+		exit(0);
+	}
+
+private:
+	static bool check(const std::string &str)
+	{
+		if( str.empty() )
+			return false;
+
+		for(size_t i=1; i<str.size()-1; i++)
+		{
+			if( str[i] < 33 or str[i] == 61 or str[i] == 92 or str[i] > 126 )
+				return false;
+		}
+		return true;
+	}
 
 public:
 	args_cache m_group {};
@@ -70,88 +143,6 @@ public:
 
 	bool m_h = false;
 };
-
-args_parser::impl::impl(std::string &help_title) :
-	m_help_title(std::move(help_title))
-{
-
-}
-
-static bool check(const std::string &str)
-{
-	if( str.empty() )
-		return false;
-
-	for(size_t i=1; i<str.size()-1; i++)
-	{
-		if( str[i] < 33 or str[i] == 61 or str[i] == 92 or str[i] > 126 )
-			return false;
-	}
-	return true;
-}
-
-void args_parser::impl::add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification)
-{
-	static size_t id_source = 0;
-	char buf[128] = "";
-	std::snprintf(buf, 128, "%zu", id_source++);
-
-	auto str_list = string_list::from_string(rule, ",");
-	for(auto &arg : str_list)
-	{
-		arg = strtls::trimmed(arg);
-		if( not check(arg) or arg == "--" )
-			continue;
-
-		else if( arg.size() == 1 )
-		{
-			if( arg != "-" )
-				cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
-		}
-		else
-			cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
-	}
-	m_help += "    " + rule + " :\n        " + description + "\n\n";
-}
-
-[[noreturn]] void args_parser::impl::print_version() const
-{
-	std::cout << "\n" << m_version << "\n\n" << std::flush;
-	exit(0);
-}
-
-[[noreturn]] void args_parser::impl::print_v() const
-{
-	std::cout << "\n" << m_v << "\n\n" << std::flush;
-	exit(0);
-}
-
-[[noreturn]] void args_parser::impl::print_help() const
-{
-	std::cout << "\n";
-	if( not m_help_title.empty() )
-		std::cout << m_help_title << "\n\n";
-
-	std::cout << m_help;
-
-	if( m_v.empty() )
-		std::cout << "    --version:";
-	else
-		std::cout << "    -v, --version:";
-	std::cout << "\n        Viewing version.\n\n";
-
-	if( m_h )
-		std::cout << "    -h, --help:";
-	else
-		std::cout << "    --help:";
-	std::cout << "\n        Viewing help.\n\n";
-
-	if( not m_help_ex.empty() )
-		std::cout << m_help_ex << "\n\n";
-
-	std::cout << std::flush;
-	exit(0);
-}
 
 /*---------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -296,8 +287,8 @@ arguments args_parser::parsing(int argc, const char *argv[], string_list &other)
 		if( it != m_impl->m_group.end() )
 		{
 			if( i + 1 == argc or
-				m_impl->m_group.find(argv[i+1]) != m_impl->m_group.end() or
-				m_impl->m_flag.find(argv[i+1]) != m_impl->m_flag.end() )
+				m_impl->m_group.contains(argv[i+1]) or
+				m_impl->m_flag.contains(argv[i+1]))
 			{
 				std::cerr << "Invalid arguments." << std::endl;
 				exit(-1);
@@ -388,8 +379,8 @@ arguments args_parser::parsing(int argc, const char *argv[], string_list &other)
 		if( it2 != m_impl->m_group.end() )
 		{
 			if( i + 1 == argc or
-				m_impl->m_group.find(argv[i+1]) != m_impl->m_group.end() or
-				m_impl->m_flag.find(argv[i+1]) != m_impl->m_flag.end() )
+				m_impl->m_group.contains(argv[i+1]) or
+				m_impl->m_flag.contains(argv[i+1]))
 			{
 				std::cerr << "Invalid arguments." << std::endl;
 				exit(-1);
@@ -422,10 +413,10 @@ using namespace libgs::cmdline;
 
 bool operator&(const args_parser::arguments &args_hash, const std::string &key)
 {
-	return args_hash.find(key) != args_hash.end();
+	return args_hash.contains(key);
 }
 
 bool operator&(const std::string &key, const args_parser::arguments &args_hash)
 {
-	return args_hash.find(key) != args_hash.end();
+	return args_hash.contains(key);
 }

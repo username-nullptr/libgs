@@ -35,6 +35,9 @@ static std::atomic_int g_exit_code {0};
 
 static std::atomic_bool g_run_flag {false};
 
+using io_worker_t = asio::executor_work_guard<io_context_t::executor_type>;
+static std::unique_ptr<io_worker_t> g_io_worker;
+
 io_context_t &io_context() noexcept
 {
 	// Don't destruct it.
@@ -57,7 +60,7 @@ int exec()
 	auto &ioc = io_context();
 	ioc.restart();
 
-	asio::io_context::work io_work(ioc); LIBGS_UNUSED(io_work);
+	g_io_worker = std::make_unique<io_worker_t>(ioc.get_executor());
 	for(;;)
 	{
 		ioc.run();
@@ -68,13 +71,24 @@ int exec()
 	return g_exit_code;
 }
 
+static void do_exit(int code)
+{
+	if( g_run_flag )
+	{
+		g_exit_code = code;
+		g_run_flag = false;
+	}
+}
+
 void exit(int code)
 {
-	if( not g_run_flag )
-		return ;
+	do_exit(code);
+	g_io_worker->reset();
+}
 
-	g_exit_code = code;
-	g_run_flag = false;
+void terminate(int code)
+{
+	do_exit(code);
 	io_context().stop();
 }
 

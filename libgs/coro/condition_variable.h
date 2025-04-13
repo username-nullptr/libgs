@@ -46,19 +46,19 @@ public:
 
 public:
 	template <typename Mutex>
-    [[nodiscard]] awaitable<void> wait(co_unique_lock<Mutex> &lock) noexcept;
+    [[nodiscard]] awaitable<void> wait(unique_lock<Mutex> &lock) noexcept;
 
     template <typename Mutex>
-    [[nodiscard]] awaitable<void> wait(co_unique_lock<Mutex> &lock, auto pred);
+    [[nodiscard]] awaitable<void> wait(unique_lock<Mutex> &lock, auto pred);
 
 	template <typename Mutex>
     [[nodiscard]] awaitable<void> wait (
-    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock
+    	concepts::sched auto &&exec, unique_lock<Mutex> &lock
     ) noexcept;
 
     template <typename Mutex>
     [[nodiscard]] awaitable<void> wait (
-    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock, auto pred
+    	concepts::sched auto &&exec, unique_lock<Mutex> &lock, auto pred
     );
 
     void notify_one() noexcept;
@@ -67,40 +67,40 @@ public:
 public:
     template <typename Mutex, typename Rep, typename Period>
     [[nodiscard]] awaitable<bool> wait_for (
-    	co_unique_lock<Mutex> &lock, const duration<Rep,Period> &rtime
+    	unique_lock<Mutex> &lock, const duration<Rep,Period> &rtime
     );
     template <typename Mutex, typename Rep, typename Period>
     [[nodiscard]] awaitable<bool> wait_for (
-    	co_unique_lock<Mutex> &lock, const duration<Rep,Period> &rtime, auto pred
+    	unique_lock<Mutex> &lock, const duration<Rep,Period> &rtime, auto pred
     );
     template <typename Mutex, typename Clock, typename Duration>
     [[nodiscard]] awaitable<bool> wait_until (
-    	co_unique_lock<Mutex> &lock, const time_point<Clock,Duration> &atime
+    	unique_lock<Mutex> &lock, const time_point<Clock,Duration> &atime
     );
     template <typename Mutex, typename Clock, typename Duration>
     [[nodiscard]] awaitable<bool> wait_until (
-    	co_unique_lock<Mutex> &lock, const time_point<Clock,Duration> &atime, auto pred
+    	unique_lock<Mutex> &lock, const time_point<Clock,Duration> &atime, auto pred
     );
 
 public:
     template <typename Mutex, typename Rep, typename Period>
     [[nodiscard]] awaitable<bool> wait_for (
-    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, unique_lock<Mutex> &lock,
     	const duration<Rep,Period> &rtime
     );
     template <typename Mutex, typename Rep, typename Period>
     [[nodiscard]] awaitable<bool> wait_for (
-    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, unique_lock<Mutex> &lock,
     	const duration<Rep,Period> &rtime, auto pred
     );
     template <typename Mutex, typename Clock, typename Duration>
     [[nodiscard]] awaitable<bool> wait_until (
-    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, unique_lock<Mutex> &lock,
     	const time_point<Clock,Duration> &atime
     );
     template <typename Mutex, typename Clock, typename Duration>
     [[nodiscard]] awaitable<bool> wait_until (
-    	concepts::sched auto &&exec, co_unique_lock<Mutex> &lock,
+    	concepts::sched auto &&exec, unique_lock<Mutex> &lock,
     	const time_point<Clock,Duration> &atime, auto pred
     );
 

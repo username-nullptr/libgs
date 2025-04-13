@@ -83,7 +83,7 @@ public:
 	{
 		if( url.empty() )
 			return ;
-		auto resource_line = str_trimmed(url);
+		auto resource_line = strtls::trimmed(url);
 		if( resource_line.size() >= 8 )
 		{
 			if( str_to_lower(resource_line.substr(0,4)) == string_pool::url_header )

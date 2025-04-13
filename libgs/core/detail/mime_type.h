@@ -81,7 +81,7 @@ template <typename FS>
 	if( size < buf_len )
 	{
 		stream.seekg(0, std::ios_base::beg);
-		if( is_text_file(stream) )
+		if( is_text(stream) )
 			return "text/plain";
 	}
 	auto mime_type = search(signatures_map(), buf, size);

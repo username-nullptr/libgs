@@ -351,7 +351,7 @@ concept dis_func_tf_opt_token = is_dis_func_tf_opt_token_v<Token>;
 
 #ifdef LIBGS_USING_BOOST_ASIO
 
-template <concepts::execution Exec>
+template <concepts::exec Exec>
 using basic_yield_context = asio::basic_yield_context<Exec>;
 
 using yield_context = asio::yield_context;
@@ -359,7 +359,7 @@ using yield_context = asio::yield_context;
 template <typename>
 struct is_basic_yield_context : std::false_type {};
 
-template <concepts::execution Exec>
+template <concepts::exec Exec>
 struct is_basic_yield_context<basic_yield_context<Exec>> : std::true_type {};
 
 template <typename T>

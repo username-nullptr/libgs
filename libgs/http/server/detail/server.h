@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 class basic_server<CharT,Stream,Exec>::impl : public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -502,8 +502,8 @@ public:
 	std::atomic_bool m_is_start {false};
 };
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
-template <core_concepts::execution Exec0>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
+template <core_concepts::exec Exec0>
 basic_server<CharT,Stream,Exec>::basic_server
 (basic_acceptor_wrap<socket_t> &&next_layer, const Exec0 &service_exec) :
 	m_impl(new impl(std::move(next_layer), service_exec))
@@ -511,21 +511,21 @@ basic_server<CharT,Stream,Exec>::basic_server
 
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec>::basic_server
-(basic_acceptor_wrap<socket_t> &&next_layer, core_concepts::execution_context auto &service_exec) :
+(basic_acceptor_wrap<socket_t> &&next_layer, core_concepts::exec_context auto &service_exec) :
 	m_impl(new impl(std::move(next_layer), service_exec.get_executor()))
 {
 
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec>::~basic_server()
 {
 	stop();
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <typename Stream0, typename Exec0>
 basic_server<CharT,Stream,Exec>::basic_server(basic_server<CharT,Stream0,Exec0> &&other) noexcept
 	requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
@@ -535,7 +535,7 @@ basic_server<CharT,Stream,Exec>::basic_server(basic_server<CharT,Stream0,Exec0> 
 
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <typename Stream0, typename Exec0>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::operator=
 (basic_server<CharT,Stream0,Exec0> &&other) noexcept
@@ -547,7 +547,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::operator=
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind(endpoint_wrapper_t ep)
 {
 	error_code error;
@@ -557,7 +557,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind(endpoint_
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind
 (endpoint_wrapper_t ep, error_code &error) noexcept
 {
@@ -579,7 +579,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::bind
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start(size_t max)
 {
 	error_code error;
@@ -589,7 +589,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start(size_t m
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start
 (size_t max, error_code &error) noexcept
 {
@@ -597,14 +597,14 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::start
 (error_code &error) noexcept
 {
 	return start(asio::socket_base::max_listen_connections, error);
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <method...Method, typename Func, typename...AopPtrs>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
@@ -630,7 +630,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <method...Method>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr)
@@ -653,7 +653,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <method...Method>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr)
@@ -676,7 +676,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_request
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <typename Func>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_default(Func &&func)
 	requires detail::concepts::request_handler<Func,socket_t,char_t>
@@ -685,7 +685,7 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::on_default(Fun
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec>&
 basic_server<CharT,Stream,Exec>::on_server_error(server_error_handler_t func)
 {
@@ -693,7 +693,7 @@ basic_server<CharT,Stream,Exec>::on_server_error(server_error_handler_t func)
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec>&
 basic_server<CharT,Stream,Exec>::on_service_error(service_error_handler_t func)
 {
@@ -701,7 +701,7 @@ basic_server<CharT,Stream,Exec>::on_service_error(service_error_handler_t func)
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec>&
 basic_server<CharT,Stream,Exec>::unbound_request(string_view_t path_rule)
 {
@@ -711,21 +711,21 @@ basic_server<CharT,Stream,Exec>::unbound_request(string_view_t path_rule)
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_server_error()
 {
 	m_impl->m_server_error_handler = {};
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::unbound_service_error()
 {
 	m_impl->m_service_error_handler = {};
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <typename Rep, typename Period>
 basic_server<CharT,Stream,Exec>&
 basic_server<CharT,Stream,Exec>::set_first_reading_time(const duration<Rep,Period> &d)
@@ -737,7 +737,7 @@ basic_server<CharT,Stream,Exec>::set_first_reading_time(const duration<Rep,Perio
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 template <typename Rep, typename Period>
 basic_server<CharT,Stream,Exec>&
 basic_server<CharT,Stream,Exec>::set_keepalive_time(const duration<Rep,Period> &d)
@@ -747,21 +747,21 @@ basic_server<CharT,Stream,Exec>::set_keepalive_time(const duration<Rep,Period> &
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 awaitable<void> basic_server<CharT,Stream,Exec>::co_stop() noexcept
 {
 	m_impl->m_is_start = false;
 	co_return co_await m_impl->m_next_layer.acceptor().co_stop();
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 const typename basic_server<CharT,Stream,Exec>::executor_t&
 basic_server<CharT,Stream,Exec>::get_executor() noexcept
 {
 	return m_impl->m_next_layer.acceptor().get_executor();
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::stop() noexcept
 {
 	m_impl->m_is_start = false;
@@ -769,20 +769,20 @@ basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::stop() noexcep
 	return *this;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 basic_server<CharT,Stream,Exec> &basic_server<CharT,Stream,Exec>::cancel() noexcept
 {
 	return stop();
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 const typename basic_server<CharT,Stream,Exec>::next_layer_t&
 basic_server<CharT,Stream,Exec>::next_layer() const
 {
 	return m_impl->m_next_layer;
 }
 
-template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::execution Exec>
+template <core_concepts::character CharT, concepts::any_exec_stream Stream, core_concepts::exec Exec>
 typename basic_server<CharT,Stream,Exec>::next_layer_t&
 basic_server<CharT,Stream,Exec>::next_layer()
 {

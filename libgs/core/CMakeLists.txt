@@ -47,7 +47,11 @@ set(${target_name}_headers
 	algorithm.h
 	app_utls.h
 	lock_free_queue.h
+	string_container.h
+	string_vector.h
+	string_deque.h
 	string_list.h
+	string_set.h
 	value.h
 	args_parser.h
 	ini.h
@@ -75,7 +79,11 @@ set(${target_name}_detail_headers
 	detail/shared_mutex.h
 	detail/app_utls.h
 	detail/lock_free_queue.h
+	detail/string_container.h
+	detail/string_vector.h
+	detail/string_deque.h
 	detail/string_list.h
+	detail/string_set.h
 	detail/value.h
 	detail/ini.h
 	detail/execution.h

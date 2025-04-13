@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORO_UTILITIES_H
-#define LIBGS_CORO_UTILITIES_H
+#ifndef LIBGS_CORO_UTILS_H
+#define LIBGS_CORO_UTILS_H
 
-#include <libgs/core/execution.h>
+#include <libgs/coro/global.h>
 
 #ifdef LIBGS_USING_BOOST_ASIO
 # include <boost/asio/experimental/awaitable_operators.hpp>
@@ -44,90 +44,90 @@ namespace libgs::coro
 {
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = const use_awaitable_t&>
-[[nodiscard]] LIBGS_CORE_TAPI auto sleep_for (
+[[nodiscard]] LIBGS_CORO_TAPI auto sleep_for (
 	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token = use_awaitable
 );
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = const use_awaitable_t&>
-[[nodiscard]] LIBGS_CORE_TAPI auto sleep_for (
+[[nodiscard]] LIBGS_CORO_TAPI auto sleep_for (
 	const duration<Rep,Period> &rtime, Token &&token = use_awaitable
 );
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = const use_awaitable_t&>
-[[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
+[[nodiscard]] LIBGS_CORO_TAPI auto sleep_until (
 	concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
 );
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = const use_awaitable_t&>
-[[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
+[[nodiscard]] LIBGS_CORO_TAPI auto sleep_until (
 	const time_point<Rep,Period> &atime, Token &&token = use_awaitable
 );
 
 template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI awaitable<T> wait (
+[[nodiscard]] LIBGS_CORO_TAPI awaitable<T> wait (
 	const std::future<T> &future
 );
 
-[[nodiscard]] LIBGS_CORE_VAPI awaitable<void> wait (
+[[nodiscard]] LIBGS_CORO_VAPI awaitable<void> wait (
 	const asio::thread_pool &pool
 );
 
-[[nodiscard]] LIBGS_CORE_VAPI awaitable<void> wait (
+[[nodiscard]] LIBGS_CORO_VAPI awaitable<void> wait (
 	const std::thread &thread
 );
 
 template <concepts::sched Exec = io_executor_t>
-[[nodiscard]] LIBGS_CORE_TAPI awaitable<asio::any_io_executor> goto_exec (
+[[nodiscard]] LIBGS_CORO_TAPI awaitable<asio::any_io_executor> goto_exec (
 	Exec &&exec = get_executor()
 );
 
-[[nodiscard]] LIBGS_CORE_VAPI awaitable<asio::any_io_executor> goto_thread();
+[[nodiscard]] LIBGS_CORO_VAPI awaitable<asio::any_io_executor> goto_thread();
 
 template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI bool check_error (
+LIBGS_CORO_TAPI bool check_error (
 	Token &token, const error_code &error, const char *message = nullptr
 ) requires (not std::is_const_v<Token>);
 
 #ifdef LIBGS_USING_BOOST_ASIO
 
-template<typename Rep, typename Period, concepts::execution YCExec, concepts::sched Exec = YCExec>
-[[nodiscard]] LIBGS_CORE_TAPI error_code sleep_for (
+template<typename Rep, typename Period, concepts::exec YCExec, concepts::sched Exec = YCExec>
+[[nodiscard]] LIBGS_CORO_TAPI error_code sleep_for (
 	const std::chrono::duration<Rep,Period> &rtime, basic_yield_context<Exec> yc, Exec &&exec = yc.get_executor()
 );
 
-template<typename Clock, typename Duration, concepts::execution YCExec, concepts::sched Exec = YCExec>
-[[nodiscard]] LIBGS_CORE_TAPI error_code sleep_until (
+template<typename Clock, typename Duration, concepts::exec YCExec, concepts::sched Exec = YCExec>
+[[nodiscard]] LIBGS_CORO_TAPI error_code sleep_until (
 	const std::chrono::time_point<Clock,Duration> &atime, yield_context yc, Exec &&exec = yc.get_executor()
 );
 
-template <typename T, concepts::execution YCExec>
-[[nodiscard]] LIBGS_CORE_TAPI T wait(basic_yield_context<YCExec> yc, const std::future<T> &future);
+template <typename T, concepts::exec YCExec>
+[[nodiscard]] LIBGS_CORO_TAPI T wait(basic_yield_context<YCExec> yc, const std::future<T> &future);
 
-template <concepts::execution YCExec>
-[[nodiscard]] LIBGS_CORE_VAPI void wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool);
+template <concepts::exec YCExec>
+[[nodiscard]] LIBGS_CORO_VAPI void wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool);
 
-template <concepts::execution YCExec>
-[[nodiscard]] LIBGS_CORE_VAPI void wait(basic_yield_context<YCExec> yc, const std::thread &thread);
+template <concepts::exec YCExec>
+[[nodiscard]] LIBGS_CORO_VAPI void wait(basic_yield_context<YCExec> yc, const std::thread &thread);
 
-template <concepts::execution YCExec, concepts::sched Exec = YCExec>
-[[nodiscard]] LIBGS_CORE_TAPI asio::any_io_executor goto_exec (
+template <concepts::exec YCExec, concepts::sched Exec = YCExec>
+[[nodiscard]] LIBGS_CORO_TAPI asio::any_io_executor goto_exec (
 	basic_yield_context<YCExec> yc, Exec &&exec = yc.get_executor()
 );
 
-template <concepts::execution YCExec>
-[[nodiscard]] LIBGS_CORE_VAPI asio::any_io_executor goto_thread (
+template <concepts::exec YCExec>
+[[nodiscard]] LIBGS_CORO_VAPI asio::any_io_executor goto_thread (
 	basic_yield_context<YCExec> yc
 );
 
-template <concepts::execution Exec>
-LIBGS_CORE_VAPI bool check_error (
+template <concepts::exec Exec>
+LIBGS_CORO_VAPI bool check_error (
 	basic_yield_context<Exec> &yc, const error_code &error, const char *message = nullptr
 );
 
 #endif //LIBGS_USING_BOOST_ASIO
 
 } //namespace libgs::coro
-#include <libgs/coro/detail/utilities.h>
+#include <libgs/coro/detail/utils.h>
 
 
-#endif //LIBGS_CORO_UTILITIES_H
+#endif //LIBGS_CORO_UTILS_H

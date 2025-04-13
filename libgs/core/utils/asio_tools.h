@@ -36,14 +36,14 @@
 namespace libgs
 {
 
-using mutable_buffer = asio::ASIO_MUTABLE_BUFFER;
+using mutable_buffer = asio::mutable_buffer;
 
-class LIBGS_CORE_VAPI const_buffer : public asio::ASIO_CONST_BUFFER
+class LIBGS_CORE_VAPI const_buffer : public asio::const_buffer
 {
 public:
-	using asio::ASIO_CONST_BUFFER::ASIO_CONST_BUFFER;
+	using asio::const_buffer::const_buffer;
 	const_buffer &operator=(const const_buffer&) = default;
-	const_buffer(const asio::ASIO_CONST_BUFFER &buf);
+	const_buffer(const asio::const_buffer &buf);
 	const_buffer(const mutable_buffer &buf);
 	const_buffer(const char *buf);
 	const_buffer(const std::string &buf);

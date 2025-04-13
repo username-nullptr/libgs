@@ -30,6 +30,7 @@
 #define LIBGS_CORE_UTILS_FORMATTER_H
 
 #include <libgs/core/utils/string_tools.h>
+#include <libgs/core/cxx/formatter.h>
 #include <libgs/core/cxx/tools.h>
 #include <filesystem>
 #include <optional>
@@ -37,24 +38,7 @@
 #include <atomic>
 #include <memory>
 
-namespace libgs
-{
-
-template <concepts::character CharT>
-struct LIBGS_CORE_TAPI no_parse_formatter
-{
-	constexpr auto parse(std::basic_format_parse_context<CharT> &context) noexcept
-	{
-		for(auto it=context.begin(); it!=context.end(); ++it)
-		{
-			if( *it == 0x7D )
-				return it;
-		}
-		return context.end();
-	}
-};
-
-namespace detail
+namespace libgs { namespace detail
 {
 
 inline uint64_t thread_id_helper(void *id) {

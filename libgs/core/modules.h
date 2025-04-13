@@ -30,17 +30,16 @@
 #define LIBGS_CORE_MODULES_H
 
 #include <libgs/core/global.h>
-#include <libgs/core/coro.h>
 
 namespace libgs { namespace concepts
 {
 
 template <typename Func>
 concept modules_init_func =
-	is_function_v<Func> and (function_traits<Func>::arg_count == 0) and (
+	is_function_v<Func> and function_traits<Func>::arg_count == 0 and (
 		std::is_same_v<typename function_traits<Func>::return_type,void> or
 		std::is_same_v<typename function_traits<Func>::return_type,std::future<void>> or
-		std::is_same_v<typename function_traits<Func>::return_type,awaitable<void>>
+		std::is_same_v<typename function_traits<Func>::return_type,asio::awaitable<void>>
 	);
 
 } //namespace concepts

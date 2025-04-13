@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORO_DETAIL_UTILITIES_H
-#define LIBGS_CORO_DETAIL_UTILITIES_H
+#ifndef LIBGS_CORO_DETAIL_UTILS_H
+#define LIBGS_CORO_DETAIL_UTILS_H
 
 #include <thread>
 
@@ -169,7 +169,7 @@ bool check_error(Token &token, const error_code &error, const char *message)
 
 #ifdef LIBGS_USING_BOOST_ASIO
 
-template <concepts::execution YCExec>
+template <concepts::exec YCExec>
 auto co_post(concepts::sched auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
@@ -212,7 +212,7 @@ auto co_post(concepts::sched auto &&exec, basic_yield_context<YCExec> yc, concep
 	}
 }
 
-template <concepts::execution YCExec>
+template <concepts::exec YCExec>
 auto co_dispatch(concepts::sched auto &&exec, basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
@@ -255,7 +255,7 @@ auto co_dispatch(concepts::sched auto &&exec, basic_yield_context<YCExec> yc, co
 	}
 }
 
-template <concepts::execution YCExec>
+template <concepts::exec YCExec>
 auto co_thread(basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 {
 	using yield_context = basic_yield_context<YCExec>;
@@ -301,7 +301,7 @@ auto co_thread(basic_yield_context<YCExec> yc, concepts::callable auto &&func)
 namespace detail
 {
 
-template<concepts::execution YCExec, typename Exec>
+template<concepts::exec YCExec, typename Exec>
 error_code sleep_x(const auto &stdtime, basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	error_code error;
@@ -312,21 +312,21 @@ error_code sleep_x(const auto &stdtime, basic_yield_context<YCExec> yc, Exec &&e
 
 } //namespace detail
 
-template<typename Rep, typename Period, concepts::execution YCExec, concepts::sched Exec>
+template<typename Rep, typename Period, concepts::exec YCExec, concepts::sched Exec>
 error_code sleep_for
 (const std::chrono::duration<Rep,Period> &rtime, basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	return detail::sleep_x(rtime, yc, std::forward<Exec>(exec));
 }
 
-template<typename Clock, typename Duration, concepts::execution YCExec, concepts::sched Exec>
+template<typename Clock, typename Duration, concepts::exec YCExec, concepts::sched Exec>
 error_code sleep_until
 (const std::chrono::time_point<Clock,Duration> &atime, basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	return detail::sleep_x(atime, yc, std::forward<Exec>(exec));
 }
 
-template <typename T, concepts::execution YCExec>
+template <typename T, concepts::exec YCExec>
 T wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
 {
 	return co_thread(yc, [&future] {
@@ -334,7 +334,7 @@ T wait(basic_yield_context<YCExec> yc, const std::future<T> &future)
 	});
 }
 
-template <concepts::execution YCExec>
+template <concepts::exec YCExec>
 void wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 {
 	co_thread(yc, [&pool] {
@@ -342,7 +342,7 @@ void wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 	});
 }
 
-template <concepts::execution YCExec>
+template <concepts::exec YCExec>
 void wait(basic_yield_context<YCExec> yc, const std::thread &thread)
 {
 	co_thread(yc, [&thread] {
@@ -350,7 +350,7 @@ void wait(basic_yield_context<YCExec> yc, const std::thread &thread)
 	});
 }
 
-template <concepts::execution YCExec, concepts::sched Exec>
+template <concepts::exec YCExec, concepts::sched Exec>
 asio::any_io_executor goto_exec(basic_yield_context<YCExec> yc, Exec &&exec)
 {
 	return asio::async_initiate<basic_yield_context<YCExec>, void()>
@@ -364,7 +364,7 @@ asio::any_io_executor goto_exec(basic_yield_context<YCExec> yc, Exec &&exec)
 	yc);
 }
 
-template <concepts::execution YCExec>
+template <concepts::exec YCExec>
 asio::any_io_executor goto_thread(basic_yield_context<YCExec> yc)
 {
 	return asio::async_initiate<basic_yield_context<YCExec>, void()>([](auto handler)
@@ -377,7 +377,7 @@ asio::any_io_executor goto_thread(basic_yield_context<YCExec> yc)
 	yc);
 }
 
-template <concepts::execution Exec>
+template <concepts::exec Exec>
 bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const char *message)
 {
 	if( not error )
@@ -393,4 +393,4 @@ bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const c
 } //namespace libgs::coro
 
 
-#endif //LIBGS_CORO_DETAIL_UTILITIES_H
+#endif //LIBGS_CORO_DETAIL_UTILS_H

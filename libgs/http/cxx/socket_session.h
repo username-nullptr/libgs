@@ -73,7 +73,7 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::execution Exec = asio::any_io_executor>
+template <core_concepts::exec Exec = asio::any_io_executor>
 using basic_tcp_socket_session = basic_socket_session<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
 using tcp_socket_session = basic_tcp_socket_session<asio::any_io_executor>;

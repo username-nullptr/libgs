@@ -31,7 +31,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-#include "libgs/core/algorithm/base.h"
 #include "libgs/core/app_utls.h"
 
 namespace fs = std::filesystem;
@@ -61,13 +60,13 @@ fs::path file_path(error_code &error) noexcept
 
 	if( len == 0 )
 		set_error(error);
-	return str_replace(std::wstring(buf,len), {L"\\", L"/"});
+	return strtls::replace(std::wstring(buf,len), L"\\", L"/");
 }
 
 bool set_current_directory(error_code &error, const fs::path &path) noexcept
 {
 	error = error_code();
-	auto wpath = str_replace(path.wstring(), {L"/", L"\\"});
+	auto wpath = strtls::replace(path.wstring(), L"/", L"\\");
 
 	if( SetCurrentDirectoryW(wpath.c_str()) )
 		return true;
@@ -86,10 +85,10 @@ fs::path current_directory(error_code &error) noexcept
 	if( len == 0 )
 		set_error(error);
 
-	auto path = str_replace(std::wstring(buf,len), {L"\\", L"/"});
+	auto path = strtls::replace(std::wstring(buf,len), L"\\", L"/");
 	if( not path.ends_with(L"/") )
 		path += L"/";
-	return buf;
+	return path;
 }
 
 bool is_absolute_path(const fs::path &path) noexcept
@@ -134,14 +133,14 @@ fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 			result.clear();
 			return result;
 		}
-		auto home = str_replace(std::wstring(tmp,len), {L"\\", L"/"});
+		auto home = strtls::replace(std::wstring(tmp,len), L"\\", L"/");
 		if( home.ends_with(L"/") )
 			home.pop_back();
 
 		result = home + result.erase(0,1);
 	}
-	result = str_replace(std::move(result), {L"/./", L"/", false});
-	result = str_replace(std::move(result), {L"//", L"/", false});
+	result = strtls::replace(std::move(result), L"/./", L"/", false);
+	result = strtls::replace(std::move(result), L"//", L"/", false);
 	return result;
 }
 
@@ -182,7 +181,7 @@ envs_t getenvs(error_code &error) noexcept
 		if( buf[i] == '=' )
 		{
 			auto m = i;
-			while( buf[++i] != '\0' );
+			while( buf[++i] != '\0' ) {}
 
 			envs.emplace(std::string(buf+start, m-start), std::string(buf+m+1, i-m-1));
 			start = i + 1;

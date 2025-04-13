@@ -29,6 +29,8 @@
 #ifndef LIBGS_CORE_CXX_DETAIL_EXCEPTION_H
 #define LIBGS_CORE_CXX_DETAIL_EXCEPTION_H
 
+#include <libgs/core/cxx/formatter.h>
+
 namespace libgs
 {
 
@@ -77,9 +79,8 @@ private:
 };
 
 template <>
-class formatter<libgs::system_error, char> : public libgs::no_parse_formatter<char>
+struct formatter<libgs::system_error, char> : libgs::no_parse_formatter<char>
 {
-public:
 	auto format(const libgs::system_error &ex, auto &context) const
 	{
 		return format_to(context.out(), "{} ({})", ex.what(), ex.code().value());

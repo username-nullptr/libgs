@@ -254,7 +254,7 @@ decltype(auto) post(Work &&work, Token &&token)
 }
 
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
-auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &&token)
+auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&token)
 {
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
@@ -342,7 +342,7 @@ auto local_dispatch(concepts::execution_context auto &exec, Work &&work, Token &
 }
 
 template <typename Work>
-auto local_dispatch(concepts::execution_context auto &exec, Work &&work)
+auto local_dispatch(concepts::exec_context auto &exec, Work &&work)
 	requires concepts::dispatch_token<detached_t, Work>
 {
 	using work_t = std::remove_cvref_t<Work>;
@@ -628,7 +628,7 @@ LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&hand
 
 } //namespace detail
 
-template <concepts::execution Exec, typename...Args>
+template <concepts::exec Exec, typename...Args>
 template <concepts::async_opt_token<Args...> Token>
 auto basic_async_work<Exec,Args...>::handle
 (concepts::sched auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token)
@@ -649,7 +649,7 @@ auto basic_async_work<Exec,Args...>::handle
 	ntoken);
 }
 
-template <concepts::execution Exec, typename...Args>
+template <concepts::exec Exec, typename...Args>
 template <concepts::async_opt_token<Args...> Token>
 auto basic_async_work<Exec,Args...>::handle(concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token)
 {
@@ -669,12 +669,12 @@ auto basic_async_work<Exec,Args...>::handle(concepts::async_wake_up<handler_t&&>
 	ntoken);
 }
 
-void delete_later(const concepts::execution auto &exec, auto *obj)
+void delete_later(const concepts::exec auto &exec, auto *obj)
 {
 	asio::post(exec, [obj]{ delete obj; });
 }
 
-void delete_later(concepts::execution_context auto &exec, auto *obj)
+void delete_later(concepts::exec_context auto &exec, auto *obj)
 {
 	asio::post(exec, [obj]{ delete obj; });
 }

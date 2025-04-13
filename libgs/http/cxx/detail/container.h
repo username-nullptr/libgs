@@ -257,7 +257,7 @@ template <typename Value, typename Default>
 	return it == map.end() ? std::forward<Default>(def_value) : it->second;
 }
 
-template <core_concepts::text_arg T>
+template <core_concepts::text_arg_p T>
 decltype(auto) get_attr_map_value
 (const attr_map &map, core_concepts::string_type auto &&key)
 {
@@ -270,7 +270,7 @@ decltype(auto) get_attr_map_value
 		return as_const(value.template get<def_t>());
 }
 
-template <core_concepts::text_arg T>
+template <core_concepts::text_arg_p T>
 decltype(auto) get_attr_map_value_or
 (const attr_map &map, core_concepts::string_type auto &&key, T &&def_value)
 {

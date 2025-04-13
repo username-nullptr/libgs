@@ -51,10 +51,10 @@ public:
 	[[nodiscard]] virtual bool exception(context_t &context, const std::exception &ex);
 };
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using basic_tcp_aop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using wbasic_tcp_aop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
@@ -63,10 +63,10 @@ using wtcp_aop = wbasic_tcp_aop<asio::any_io_executor>;
 template <concepts::stream Stream, core_concepts::character CharT>
 using basic_aop_ptr = std::shared_ptr<basic_aop<Stream,CharT>>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using basic_tcp_aop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using wbasic_tcp_aop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
@@ -80,10 +80,10 @@ public:
 	[[nodiscard]] virtual awaitable<void> service(context_t &context) = 0;
 };
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using basic_tcp_ctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using wbasic_tcp_ctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
@@ -92,10 +92,10 @@ using wtcp_ctrlr_aop = wbasic_tcp_ctrlr_aop<asio::any_io_executor>;
 template <concepts::stream Stream, core_concepts::character CharT>
 using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Stream,CharT>>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 using wbasic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
 
 using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;

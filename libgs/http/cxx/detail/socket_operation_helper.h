@@ -250,7 +250,7 @@ socket_operation_helper_base<Stream>::socket() noexcept
 	return m_impl->m_socket;
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 template <core_concepts::opt_token<error_code> Token>
 auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 connect(endpoint_t ep, Token &&token)
@@ -293,14 +293,14 @@ connect(endpoint_t ep, Token &&token)
 		this->socket().async_connect(std::move(ep), std::forward<Token>(token));
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 get_option(auto &option, error_code &error) noexcept
 {
 	this->socket().get_option(option, error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 get_option(auto &option)
 {
@@ -310,27 +310,27 @@ get_option(auto &option)
 		throw system_error(error, "libgs::http::socket_operation_helper::get_option");
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 non_blocking(bool mode, error_code &error) noexcept
 {
 	this->socket().non_blocking(mode, error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 non_blocking(bool mode) noexcept
 {
 	this->socket().non_blocking(mode);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::non_blocking() const
 {
 	return this->socket().non_blocking();
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::cancel() noexcept
 {
 	if( this->socket().is_open() )
@@ -341,7 +341,7 @@ void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::can
 	}
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::close() noexcept
 {
 	if( this->socket().is_open() )
@@ -352,7 +352,7 @@ void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::clo
 	}
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 typename socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
 socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_endpoint() noexcept
 {
@@ -360,7 +360,7 @@ socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_e
 	return this->socket().remote_endpoint(error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 typename socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
 socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::local_endpoint() noexcept
 {
@@ -368,7 +368,7 @@ socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::local_en
 	return this->socket().local_endpoint(error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_open() noexcept
 {
 	return this->socket().is_open();
@@ -376,7 +376,7 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_
 
 #ifdef LIBGS_ENABLE_OPENSSL
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 template <core_concepts::opt_token<error_code> Token>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 connect(endpoint_t ep, Token &&token)
@@ -438,14 +438,14 @@ connect(endpoint_t ep, Token &&token)
 	}
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 get_option(auto &option, error_code &error) noexcept
 {
 	this->socket().next_layer().get_option(option, error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 get_option(auto &option)
 {
@@ -455,27 +455,27 @@ get_option(auto &option)
 		throw std::system_error(error, "libgs::http::socket_operation_helper::get_option");
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 non_blocking(bool mode, error_code &error) noexcept
 {
 	this->socket().next_layer().non_blocking(mode, error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 non_blocking(bool mode) noexcept
 {
 	this->socket().next_layer().non_blocking(mode);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::non_blocking() const
 {
 	return this->socket().next_layer().non_blocking();
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::cancel() noexcept
 {
 	if( this->socket().next_layer().is_open() )
@@ -486,7 +486,7 @@ void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 	}
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::close() noexcept
 {
 	if( this->socket().next_layer().is_open() )
@@ -498,7 +498,7 @@ void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 	}
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 typename socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::remote_endpoint() noexcept
 {
@@ -506,7 +506,7 @@ socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tc
 	return this->socket().next_layer().remote_endpoint(error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 typename socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::local_endpoint() noexcept
 {
@@ -514,14 +514,14 @@ socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tc
 	return this->socket().next_layer().local_endpoint(error);
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 const typename socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::executor_t&
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::get_executor() noexcept
 {
 	return this->socket().next_layer().get_executor();
 }
 
-template <core_concepts::execution Exec>
+template <core_concepts::exec Exec>
 bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::is_open() noexcept
 {
 	return this->socket().next_layer().is_open();

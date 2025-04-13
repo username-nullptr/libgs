@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-set(PRO_VERSION 0.5.19)
+set(PRO_VERSION 0.6.0)
 set(PRO_NAME LibGS)
 
 project(${PRO_NAME} VERSION ${PRO_VERSION} LANGUAGES C CXX)
