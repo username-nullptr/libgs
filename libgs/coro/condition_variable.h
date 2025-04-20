@@ -42,7 +42,7 @@ class LIBGS_CORE_VAPI condition_variable
 
 public:
 	condition_variable();
-	~condition_variable() noexcept(false);
+	~condition_variable();
 
 public:
 	template <typename Mutex>

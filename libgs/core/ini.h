@@ -60,29 +60,29 @@ public:
 public:
 	template <concepts::text_arg_p<CharT> T = value_t>
 	[[nodiscard]] decltype(auto) read_or (
-		concepts::string_p<char_t> auto &&key, T &&def_value = T()
+		const concepts::text_p<char_t> auto &key, T &&def_value = T()
 	) const noexcept;
 
 	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] auto read(concepts::string_p<char_t> auto &&key) const;
+	[[nodiscard]] auto read(const concepts::text_p<char_t> auto &key) const;
 
 	void write (
-		concepts::string_p<char_t> auto &&key,
+		const concepts::text_p<char_t> auto &key,
 		concepts::value_arg_p<char_t> auto &&value
 	) noexcept;
 
 public:
-	[[nodiscard]] value_t operator[](concepts::string_p<char_t> auto &&key) const;
-	[[nodiscard]] value_t &operator[](concepts::string_p<char_t> auto &&key) noexcept;
+	[[nodiscard]] value_t operator[](const concepts::text_p<char_t> auto &key) const;
+	[[nodiscard]] value_t &operator[](const concepts::text_p<char_t> auto &key) noexcept;
 
 #if LIBGS_CPLUSPLUS >= 202100L
 	decltype(auto) operator[] (
-		concepts::string_p<char_t> auto &&key,
+		const concepts::text_p<char_t> auto &key,
 		concepts::value_arg_p<char_t> auto &&def_value
 	) const noexcept;
 
 	decltype(auto) operator[] (
-		concepts::string_p<char_t> auto &&key,
+		const concepts::text_p<char_t> auto &key,
 		concepts::value_arg_p<char_t> auto &&def_value
 	) noexcept;
 #endif //LIBGS_CPLUSPLUS
@@ -111,8 +111,8 @@ public:
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
 public:
-	[[nodiscard]] iterator find(concepts::string_p<char_t> auto &&key) noexcept;
-	[[nodiscard]] const_iterator find(concepts::string_p<char_t> auto &&key) const noexcept;
+	[[nodiscard]] iterator find(const concepts::text_p<char_t> auto &key) noexcept;
+	[[nodiscard]] const_iterator find(const concepts::text_p<char_t> auto &key) const noexcept;
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
@@ -151,21 +151,15 @@ public:
 		string_t key;
 
 		group_key (
-			concepts::string_p<char_t> auto &&group,
-			concepts::string_p<char_t> auto &&key
+			const concepts::text_p<char_t> auto &group,
+			const concepts::text_p<char_t> auto &key
 		) noexcept;
 
-		template <concepts::string_p<CharT> Str>
-		group_key(const std::pair<Str,Str> &pair) noexcept;
+		template <concepts::text<CharT> Text0, concepts::text<CharT> Text1>
+		group_key(const std::pair<Text0,Text1> &pair) noexcept;
 
-		template <concepts::string_p<CharT> Str>
-		group_key(std::pair<Str,Str> &&pair) noexcept;
-
-		template <concepts::string_p<CharT> Str>
-		group_key(const std::tuple<Str,Str> &tuple) noexcept;
-
-		template <concepts::string_p<CharT> Str>
-		group_key(std::tuple<Str,Str> &&tuple) noexcept;
+		template <concepts::text<CharT> Text0, concepts::text<CharT> Text1>
+		group_key(const std::tuple<Text0,Text1> &tuple) noexcept;
 	};
 
 public:
@@ -198,19 +192,19 @@ public:
 
 public:
 	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] decltype(auto) read_or(group_key gk, T &&def_value = T()) const noexcept;
+	[[nodiscard]] decltype(auto) read_or(const group_key &gk, T &&def_value = T()) const noexcept;
 
 	template <concepts::text_arg_p<CharT> T = value_t>
 	[[nodiscard]] decltype(auto) read_or (
-		concepts::string_p<char_t> auto &&path, T &&def_value = T()
+		const concepts::string_p<char_t> auto &path, T &&def_value = T()
 	) const;
 
 	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] auto read(group_key gk) const;
+	[[nodiscard]] auto read(const group_key &gk) const;
 
 	template <concepts::text_arg_p<CharT> T = value_t>
 	[[nodiscard]] auto read (
-		concepts::string_p<char_t> auto &&path
+		const concepts::string_p<char_t> auto &path
 	) const;
 
 public:
@@ -219,40 +213,40 @@ public:
 	) noexcept;
 
 	void write (
-		concepts::string_p<char_t> auto &&path,
+		const concepts::string_p<char_t> auto &path,
 		concepts::value_arg_p<char_t> auto &&value
 	) noexcept;
 
 public:
-	[[nodiscard]] const ini_keys_t &group(concepts::string_p<char_t> auto &&group) const;
-	[[nodiscard]] ini_keys_t &group(concepts::string_p<char_t> auto &&group);
+	[[nodiscard]] const ini_keys_t &group(const concepts::text_p<char_t> auto &group) const;
+	[[nodiscard]] ini_keys_t &group(const concepts::text_p<char_t> auto &group);
 
-	[[nodiscard]] const ini_keys_t &operator[](concepts::string_p<char_t> auto &&group) const;
-	[[nodiscard]] ini_keys_t &operator[](concepts::string_p<char_t> auto &&group) noexcept;
+	[[nodiscard]] const ini_keys_t &operator[](const concepts::text_p<char_t> auto &group) const;
+	[[nodiscard]] ini_keys_t &operator[](const concepts::text_p<char_t> auto &group) noexcept;
 
-	[[nodiscard]] value_t operator[](group_key gk) const;
+	[[nodiscard]] value_t operator[](const group_key &gk) const;
 	[[nodiscard]] value_t &operator[](group_key gk) noexcept;
 
 #if LIBGS_CPLUSPLUS >= 202100L
 	[[nodiscard]] value_t operator[] (
-		concepts::string_p<char_t> auto &&group,
-		concepts::string_p<char_t> auto &&key
+		const concepts::text_p<char_t> auto &group,
+		const concepts::text_p<char_t> auto &key
 	) const;
 
 	[[nodiscard]] value_t &operator[] (
-		concepts::string_p<char_t> auto &&group,
-		concepts::string_p<char_t> auto &&key
+		concepts::text_p<char_t> auto &&group,
+		concepts::text_p<char_t> auto &&key
 	) noexcept;
 
 	[[nodiscard]] decltype(auto) operator[] (
-		concepts::string_p<char_t> auto &&group,
-		concepts::string_p<char_t> auto &&key,
+		const concepts::text_p<char_t> auto &group,
+		const concepts::text_p<char_t> auto &key,
 		concepts::value_arg_p<char_t> auto &&def_value
 	) const noexcept;
 
 	[[nodiscard]] decltype(auto) operator[] (
-		concepts::string_p<char_t> auto &&group,
-		concepts::string_p<char_t> auto &&key,
+		const concepts::text_p<char_t> auto &group,
+		const concepts::text_p<char_t> auto &key,
 		concepts::value_arg_p<char_t> auto &&def_value
 	) noexcept;
 #endif //LIBGS_CPLUSPLUS
@@ -299,8 +293,8 @@ public:
 	void cancel();
 
 public:
-	[[nodiscard]] iterator find(concepts::string_p<char_t> auto &&group) noexcept;
-	[[nodiscard]] const_iterator find(concepts::string_p<char_t> auto &&group) const noexcept;
+	[[nodiscard]] iterator find(const concepts::text_p<char_t> auto &group) noexcept;
+	[[nodiscard]] const_iterator find(const concepts::text_p<char_t> auto &group) const noexcept;
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;

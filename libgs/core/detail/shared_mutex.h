@@ -35,13 +35,18 @@
 namespace libgs
 {
 
-inline spin_shared_mutex::~spin_shared_mutex() noexcept(false)
+inline spin_shared_mutex::~spin_shared_mutex()
 {
+#if 0
 	if( m_read_count == 0 )
 		return ;
 	throw runtime_error (
 		"libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared."
 	);
+#else
+	m_read_count = 0;
+	m_native_handle.unlock();
+#endif
 }
 
 inline void spin_shared_mutex::lock()

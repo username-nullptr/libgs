@@ -70,6 +70,17 @@ static struct io_work
 }
 g_io_work;
 
+using path_t = std::filesystem::path;
+
+path_t ini_tmp_file(const path_t &file_name)
+{
+#ifdef _WIN32
+	return strtls::file_path(file_name.wstring()) + L"libgs.tmp.ini";
+#else
+	return strtls::file_path(file_name.string()) + ".libgs.tmp.ini";
+#endif
+}
+
 void ini_commit_io_work(std::function<void()> work)
 {
 	asio::post(*g_io_work.ioc, std::move(work));

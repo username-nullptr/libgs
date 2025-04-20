@@ -32,13 +32,18 @@
 namespace libgs::coro
 {
 
-inline shared_mutex::~shared_mutex() noexcept(false)
+inline shared_mutex::~shared_mutex()
 {
+#if
 	if( m_read_count == 0 )
 		return ;
 	throw runtime_error (
 		"libgs::shared_mutex: Destruct a mutex that has not yet been unlock_shared."
 	);
+#else
+	m_read_count = 0;
+	m_native_handle.unlock();
+#endif
 }
 
 awaitable<void> shared_mutex::lock(concepts::sched auto &&exec)

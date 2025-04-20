@@ -45,7 +45,7 @@ class LIBGS_CORE_TAPI basic_semaphore
 	);
 public:
 	explicit basic_semaphore(size_t initial_count = max_v);
-	~basic_semaphore() noexcept(false);
+	~basic_semaphore();
 
 public:
 	[[nodiscard]] awaitable<void> acquire(concepts::sched auto &&exec);

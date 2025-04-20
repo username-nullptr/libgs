@@ -43,13 +43,15 @@ public:
 	using wake_up_t = detail::lock_wake_up;
 
 	impl() = default;
-	~impl() noexcept(false)
+	~impl()
 	{
+#if 0
 		if( not m_native_handle )
 			return ;
 		throw runtime_error (
 			"libgs::mutex: Destruct a mutex that has not yet been unlocked."
 		);
+#endif
 	}
 
 public:
@@ -97,7 +99,7 @@ inline mutex::mutex() :
 
 }
 
-inline mutex::~mutex() noexcept(false)
+inline mutex::~mutex()
 {
 	delete m_impl;
 }

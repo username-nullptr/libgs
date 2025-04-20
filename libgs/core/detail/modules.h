@@ -43,30 +43,29 @@ public:
 void modules::reg_init(concepts::modules_init_func auto &&func, level_t level)
 {
 	using Func = std::decay_t<decltype(func)>;
-	using arg_count = typename function_traits<Func>::arg_count;
 	using return_t = typename function_traits<Func>::return_type;
 
-	if constexpr( arg_count::value == 0 )
+	if constexpr( function_traits<Func>::arg_count == 0 )
 	{
 		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(init_func0_t(std::forward<Func>(func)), level);
+			impl::reg_init(func0_t(std::forward<Func>(func)), level);
 
 		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_init_func0_t(std::forward<Func>(func)), level);
+			impl::reg_init(future_func0_t(std::forward<Func>(func)), level);
 
 		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_init_func0_t(std::forward<Func>(func)), level);
+			impl::reg_init(await_func0_t(std::forward<Func>(func)), level);
 	}
 	else
 	{
 		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(init_func1_t(std::forward<Func>(func)), level);
+			impl::reg_init(func1_t(std::forward<Func>(func)), level);
 
 		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_init_func1_t(std::forward<Func>(func)), level);
+			impl::reg_init(future_func1_t(std::forward<Func>(func)), level);
 
 		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_init_func1_t(std::forward<Func>(func)), level);
+			impl::reg_init(await_func1_t(std::forward<Func>(func)), level);
 	}
 }
 

@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_TYPES_H
 #define LIBGS_HTTP_TYPES_H
 
-#include <libgs/core/cxx/flags.h>
+#include <libgs/core/utils/flags.h>
 #include <libgs/http/version.h>
 #include <libgs/http/header.h>
 #include <libgs/http/cookie.h>

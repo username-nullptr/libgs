@@ -35,13 +35,15 @@ namespace libgs { namespace detail
 template <concepts::character CharT>
 constexpr CharT to_hex_upper(unsigned int value) noexcept
 {
-	return l_str(CharT,"0123456789ABCDEF")[value & 0xF];
+	constexpr auto str = l_str(CharT,"0123456789ABCDEF");
+	return str[value & 0xF];
 }
 
 template <concepts::character CharT>
 constexpr CharT to_hex_lower(unsigned int value) noexcept
 {
-	return l_str(CharT,"0123456789abcdef")[value & 0xF];
+	constexpr auto str = l_str(CharT,"0123456789abcdef");
+	return str[value & 0xF];
 }
 
 } //namespace detail

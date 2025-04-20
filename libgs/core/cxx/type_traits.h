@@ -35,7 +35,7 @@
 namespace libgs
 {
 
-using size_t = std::size_t;
+using size_t  = std::size_t;
 
 template<typename Rep, typename Period>
 using duration = std::chrono::duration<Rep, Period>;

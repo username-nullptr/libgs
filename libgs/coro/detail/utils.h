@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORO_DETAIL_UTILS_H
 #define LIBGS_CORO_DETAIL_UTILS_H
 
+#include <libgs/core/execution.h>
 #include <thread>
 
 namespace libgs::coro
@@ -37,25 +38,25 @@ namespace libgs::coro
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
 {
-	return sleep_for(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
+	return libgs::sleep_for(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 {
-	return sleep_for(rtime, std::forward<Token>(token));
+	return libgs::sleep_for(rtime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
-	return sleep_for(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
+	return libgs::sleep_for(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
-	return sleep_for(atime, std::forward<Token>(token));
+	return libgs::sleep_for(atime, std::forward<Token>(token));
 }
 
 template <typename T>

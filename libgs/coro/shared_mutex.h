@@ -41,7 +41,7 @@ class LIBGS_CORE_VAPI shared_mutex
 public:
 	using native_handle_t = mutex;
 	shared_mutex() = default;
-	~shared_mutex() noexcept(false);
+	~shared_mutex();
 
 public:
 	[[nodiscard]] awaitable<void> lock(concepts::sched auto &&exec);

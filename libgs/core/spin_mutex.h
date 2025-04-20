@@ -43,7 +43,7 @@ public:
 
 public:
 	spin_mutex() = default;
-	~spin_mutex() noexcept(false);
+	~spin_mutex();
 
 public:
 	void lock();

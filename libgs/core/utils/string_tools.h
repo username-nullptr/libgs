@@ -73,6 +73,10 @@ struct get_char<Text> { using type = char32_t; };
 template <concepts::any_text_p Text>
 using get_char_t = typename get_char<Text>::type;
 
+[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) to_string (
+	concepts::any_text_p auto &&text
+);
+
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) to_view (
 	concepts::any_text_p auto &&text
 );
@@ -130,6 +134,11 @@ template <concepts::integral_p T>
 	const concepts::any_text_p auto &text, size_t base = 10
 );
 
+template <concepts::floating_p T>
+[[nodiscard]] LIBGS_CORE_TAPI T to_arith (
+	const concepts::any_text_p auto &text
+);
+
 [[nodiscard]] LIBGS_CORE_TAPI int8_t to_int8_or (
 	const concepts::any_text_p auto &text, int8_t default_value = 0, size_t base = 10
 ) noexcept;
@@ -181,6 +190,11 @@ template <concepts::integral_p T>
 template <concepts::integral_p T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith_or (
 	const concepts::any_text_p auto &text, T default_value = static_cast<T>(0), size_t base = 10
+) noexcept;
+
+template <concepts::floating_p T>
+[[nodiscard]] LIBGS_CORE_TAPI T to_arith_or (
+	const concepts::any_text_p auto &text, T default_value = static_cast<T>(0)
 ) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI auto to_lower (

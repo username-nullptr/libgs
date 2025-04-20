@@ -63,14 +63,19 @@ namespace concepts
 template <typename T, typename CharT>
 concept text_arg = []() consteval -> bool
 {
-	if constexpr( is_string_v<T,CharT> or std::is_arithmetic_v<T> or std::is_enum_v<T> )
-		return true;
-	else
+	if( is_any_char_v<CharT> )
 	{
-		using traits_t = typename T::traits_t;
-		using allocator_t = typename T::allocator_t;
-		return std::is_base_of_v<basic_value<CharT,traits_t,allocator_t>, T>;
+		if constexpr( std::is_same_v<T,CharT> or is_string_v<T,CharT> or
+					  std::is_arithmetic_v<T> or std::is_enum_v<T> )
+			return true;
+		else
+		{
+			using traits_t = typename T::traits_t;
+			using allocator_t = typename T::allocator_t;
+			return std::is_base_of_v<basic_value<CharT,traits_t,allocator_t>, T>;
+		}
 	}
+	return false;
 }();
 
 template <typename T, typename CharT>

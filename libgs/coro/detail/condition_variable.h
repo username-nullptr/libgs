@@ -52,7 +52,7 @@ inline condition_variable::condition_variable() :
 
 }
 
-inline condition_variable::~condition_variable() noexcept(false)
+inline condition_variable::~condition_variable()
 {
 	delete m_impl;
 }

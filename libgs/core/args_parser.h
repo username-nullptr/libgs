@@ -40,7 +40,7 @@ class LIBGS_CORE_API args_parser
 	LIBGS_DISABLE_COPY_MOVE(args_parser)
 
 public:
-	using arguments = std::unordered_map<std::string, libgs::value>;
+	using arguments = std::unordered_map<std::string, value>;
 
 public:
 	explicit args_parser(std::string help_title = {});

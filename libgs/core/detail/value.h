@@ -308,10 +308,8 @@ void basic_value<CharT,Traits,Alloc>::set(concepts::value_arg_p<char_t> auto &&a
 	using Arg = decltype(arg);
 	using arg_t = std::remove_cvref_t<Arg>;
 
-	if constexpr( std::is_same_v<arg_t, std::basic_string_view<char_t>> )
-		m_str = string_t(arg.data(), arg.size());
-	else if constexpr( is_string_v<Arg, char_t> )
-		m_str = std::forward<Arg>(arg);
+	if constexpr( is_any_char_v<arg_t> or is_any_string_v<arg_t> )
+		m_str = strtls::to_string(std::forward<Arg>(arg));
 	else
 		m_str = std::format(l_str(char_t,"{}"), std::forward<Arg>(arg));
 }

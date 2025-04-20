@@ -474,12 +474,25 @@ template <concepts::character CharT>
 
 } //namespace detail
 
+decltype(auto) to_string(concepts::any_text_p auto &&text)
+{
+	using Text = decltype(text);
+	using char_t = get_char_t<Text>;
+
+	if constexpr( is_any_std_string_v<Text> )
+		return return_reference(std::forward<Text>(text));
+	else if constexpr( is_any_char_v<std::remove_cvref_t<Text>> )
+		return std::basic_string<char_t>(&text,1);
+	else
+		return std::basic_string<char_t>(std::forward<Text>(text));
+}
+
 decltype(auto) to_view(concepts::any_text_p auto &&text)
 {
 	using Text = decltype(text);
 	using char_t = get_char_t<Text>;
 
-	if constexpr( is_any_char_v<Text> )
+	if constexpr( is_any_char_v<std::remove_cvref_t<Text>> )
 		return std::basic_string_view<char_t>(&text,1);
 
 	else if constexpr( is_any_std_string_view_v<Text> )
@@ -654,6 +667,12 @@ template <concepts::integral_p T>
 	return detail::to_arith<T>(text, base);
 }
 
+template <concepts::floating_p T>
+[[nodiscard]] T to_arith(const concepts::any_text_p auto &text)
+{
+	return detail::to_arith<T>(text);
+}
+
 int8_t to_int8_or(const concepts::any_text_p auto &text, int8_t default_value, size_t base) noexcept
 {
 	return detail::to_int8(text, base, default_value);
@@ -718,6 +737,12 @@ template <concepts::integral_p T>
 [[nodiscard]] T to_arith_or(const concepts::any_text_p auto &text, T default_value, size_t base) noexcept
 {
 	return detail::to_arith<T>(text, base, default_value);
+}
+
+template <concepts::floating_p T>
+[[nodiscard]] T to_arith_or(const concepts::any_text_p auto &text, T default_value) noexcept
+{
+	return detail::to_arith<T>(text, default_value);
 }
 
 auto to_lower(concepts::any_text_p auto &&text)

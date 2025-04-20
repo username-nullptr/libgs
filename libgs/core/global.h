@@ -34,6 +34,7 @@
 #include <libgs/core/cxx/operators.h>
 
 #include <libgs/core/utils/fstream_concepts.h>
+#include <libgs/core/utils/initialize.h>
 #include <libgs/core/utils/asio_tools.h>
 #include <libgs/core/utils/formatter.h>
 

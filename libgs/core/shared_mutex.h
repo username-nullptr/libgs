@@ -54,7 +54,7 @@ public:
 
 public:
 	spin_shared_mutex() = default;
-	~spin_shared_mutex() noexcept(false);
+	~spin_shared_mutex();
 
 public:
 	void lock();

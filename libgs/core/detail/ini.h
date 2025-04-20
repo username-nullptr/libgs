@@ -33,15 +33,26 @@
 #include <libgs/core/app_utls.h>
 #include <fstream>
 
-namespace libgs
+namespace libgs { namespace detail
 {
+
+template <concepts::character CharT>
+[[nodiscard]] LIBGS_CORE_TAPI std::basic_string<CharT>
+ini_replace(const concepts::text_p<CharT> auto &text)
+{
+	return strtls::replace(strtls::to_string(text),
+		static_cast<CharT>(' '), static_cast<CharT>('_')
+	);
+}
+
+} //namespace detail
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::text_arg_p<CharT> T>
 decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
-(concepts::string_p<char_t> auto &&key, T &&def_value) const noexcept
+(const concepts::text_p<char_t> auto &key, T &&def_value) const noexcept
 {
-	auto it = m_keys.find(nosview(key));
+	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	using def_t = std::remove_cvref_t<T>;
 
 	if constexpr( std::is_same_v<def_t, value_t> )
@@ -63,9 +74,9 @@ decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::text_arg_p<CharT> T>
-auto basic_ini_keys<CharT,Map,MapArgs...>::read(concepts::string_p<char_t> auto &&key) const
+auto basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key) const
 {
-	auto it = m_keys.find(nosview(key));
+	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	if( it == m_keys.end() )
 	{
 		throw runtime_error("libgs::basic_ini_keys: read: The key '{}' is not exists.",
@@ -81,42 +92,45 @@ auto basic_ini_keys<CharT,Map,MapArgs...>::read(concepts::string_p<char_t> auto 
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini_keys<CharT,Map,MapArgs...>::write
-(concepts::string_p<char_t> auto &&key, concepts::value_arg_p<char_t> auto &&value) noexcept
+(const concepts::text_p<char_t> auto &key, concepts::value_arg_p<char_t> auto &&value) noexcept
 {
-	m_keys[nosview(std::forward<decltype(key)>(key))] = std::forward<decltype(value)>(value);
+	m_keys[detail::ini_replace<char_t>(key)] = std::forward<decltype(value)>(value);
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 basic_value<CharT> basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&key) const
+(const concepts::text_p<char_t> auto &key) const
 {
-	return read<value_t>(std::forward<decltype(key)>(key));
+	return read<value_t>(key);
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 basic_value<CharT> &basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&key) noexcept
+(const concepts::text_p<char_t> auto &key) noexcept
 {
-	return m_keys[nosview(std::forward<decltype(key)>(key))];
+	return m_keys[detail::ini_replace<char_t>(key)];
 }
 
 #if LIBGS_CPLUSPLUS >= 202100L
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&key, concepts::value_arg_p<char_t> auto &&def_value) const noexcept
+(const concepts::text_p<char_t> auto &key, concepts::value_arg_p<char_t> auto &&def_value) const noexcept
 {
-	return read_or(std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value));
+	return read_or(key, std::forward<decltype(def_value)>(def_value));
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&key, concepts::value_arg_p<char_t> auto &&def_value) noexcept
+(const concepts::text_p<char_t> auto &key, concepts::value_arg_p<char_t> auto &&def_value) noexcept
 {
 	using Def = decltype(def_value);
 	using def_t = std::remove_cvref_t<Def>;
 
-	auto &value = *m_keys.emplace(nosview(std::forward<decltype(key)>(key)), std::forward<Def>(def_value)).first;
+	auto &value = *m_keys.emplace (
+		detail::ini_replace<char_t>(key),
+		std::forward<Def>(def_value)
+	).first;
 	if constexpr( std::is_same_v<def_t, value_t> )
 		return return_reference(value);
 	else
@@ -211,16 +225,16 @@ basic_ini_keys<CharT,Map,MapArgs...>::rend() const noexcept
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
-basic_ini_keys<CharT,Map,MapArgs...>::find(concepts::string_p<char_t> auto &&key) noexcept
+basic_ini_keys<CharT,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &key) noexcept
 {
-	return m_keys.find(nosview(std::forward<decltype(key)>(key)));
+	return m_keys.find(detail::ini_replace<char_t>(key));
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
-basic_ini_keys<CharT,Map,MapArgs...>::find(concepts::string_p<char_t> auto &&key) const noexcept
+basic_ini_keys<CharT,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &key) const noexcept
 {
-	return m_keys.find(nosview(std::forward<decltype(key)>(key)));
+	return m_keys.find(detail::ini_replace<char_t>(key));
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
@@ -264,6 +278,7 @@ private:
 [[nodiscard]] LIBGS_CORE_API ini_error_category &ini_key_is_empty() noexcept;
 [[nodiscard]] LIBGS_CORE_API ini_error_category &ini_invalid_value() noexcept;
 
+[[nodiscard]] LIBGS_CORE_API std::filesystem::path ini_tmp_file(const std::filesystem::path &file_name);
 LIBGS_CORE_API void ini_commit_io_work(std::function<void()> work);
 
 } //namespace detail
@@ -287,7 +302,7 @@ public:
 	impl& operator=(impl&&) = default;
 
 	template <typename Exec0>
-	impl(typename basic_ini<CharT,Exec0,Map,MapArgs...>::impl &&other) :
+	impl(typename basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other) :
 		m_exec(std::move(other.m_exec)),
 		m_file_name(std::move(other.m_file_name)),
 		m_groups(std::move(other.m_groups)),
@@ -300,7 +315,7 @@ public:
 	}
 
 	template <typename Exec0>
-	impl &operator=(typename basic_ini<CharT,Exec0,Map,MapArgs...>::impl &&other)
+	impl &operator=(typename basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other)
 	{
 		m_exec = std::move(other.m_exec);
 		m_file_name = std::move(other.m_file_name);
@@ -311,11 +326,15 @@ public:
 	}
 
 public:
-	void set_file_name(const path_t &file_name)
-	{
+	[[nodiscard]] static auto replace(const auto &text) {
+		return detail::ini_replace<char_t>(text);
+	}
+
+	void set_file_name(const path_t &file_name) {
 		m_file_name = app::absolute_path(file_name);
 	}
 
+public:
 	void load(error_code &error, const std::function<bool()> &cancelled)
 	{
 		error = error_code();
@@ -324,7 +343,7 @@ public:
 			error = std::make_error_code(std::errc::no_such_file_or_directory);
 			return ;
 		}
-		std::basic_ifstream<CharT> file;
+		std::basic_ifstream<char_t> file;
 		auto prev = file.exceptions();
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		try {
@@ -371,20 +390,26 @@ public:
 
 	void sync(error_code &error, const std::function<bool()> &cancelled)
 	{
-		std::basic_ofstream<CharT> file;
+		std::basic_ofstream<char_t> file;
+		auto file_name = detail::ini_tmp_file(m_file_name);
 		auto prev = file.exceptions();
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		try {
-			file.open(m_file_name, std::ios_base::out | std::ios_base::trunc);
+			file.open(file_name, std::ios_base::out | std::ios_base::trunc);
 			for(auto &[group, keys] : m_groups)
 			{
 				if( cancelled() )
 				{
 					error = make_error_code(asio::error::operation_aborted);
+					try {
+						file.close();
+						std::filesystem::remove(file_name);
+					}
+					catch(...) {}
 					return ;
 				}
 				file << l_str(char_t,"[")
-					 << (is_ascii(group) ? group : to_percent_encoding(group))
+					 << (strtls::is_ascii(group) ? group : to_percent_encoding(group))
 					 << l_str(char_t,"]")
 					 << l_str(char_t,"\n");
 
@@ -393,7 +418,7 @@ public:
 					if( key.empty() or value->empty() )
 						continue;
 
-					file << (is_ascii(key) ? key : to_percent_encoding(key))
+					file << (strtls::is_ascii(key) ? key : to_percent_encoding(key))
 						 << l_str(char_t,"=");
 
 					if( value.is_rlnum() )
@@ -420,10 +445,11 @@ public:
 		}
 		file.exceptions(prev);
 		file.close();
+		std::filesystem::rename(file_name, m_file_name, error);
 	}
 
 public:
-	[[nodiscard]] std::pair<string_t,string_t> from_path(std::basic_string_view<CharT> path, const char *func)
+	[[nodiscard]] std::pair<string_t,string_t> from_path(std::basic_string_view<char_t> path, const char *func)
 	{
 		string_vector_t str_list;
 		str_list = string_vector_t::from_string(path, 0x2F/*/*/);
@@ -480,7 +506,9 @@ private:
 				"libgs::basic_ini"
 			);
 		}
-		auto group = from_percent_encoding(strtls::trimmed(string_t(str.c_str() + 1, str.size() - 2)));
+		auto group = from_percent_encoding (
+			strtls::trimmed(string_t(str.c_str() + 1, str.size() - 2))
+		);
 		if( group.empty() )
 		{
 			throw system_error (
@@ -488,6 +516,7 @@ private:
 				"libgs::basic_ini"
 			);
 		}
+		group = detail::ini_replace<char_t>(group);
 		m_groups[group];
 		return group;
 	}
@@ -565,7 +594,7 @@ private:
 			}
 			value = value.substr(1, value.size() - 2);
 		}
-		m_groups[curr_group][key] = from_percent_encoding(value);
+		m_groups[curr_group][detail::ini_replace<char_t>(key)] = from_percent_encoding(value);
 	}
 
 public:
@@ -583,44 +612,26 @@ public:
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key
-(concepts::string_p<char_t> auto &&group, concepts::string_p<char_t> auto &&key) noexcept :
-	group(std::forward<decltype(group)>(group)), key(std::forward<decltype(key)>(key))
+(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key) noexcept :
+	group(impl::replace(group)), key(impl::replace(key))
 {
 
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::string_p<CharT> Str>
-basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key(const std::pair<Str,Str> &pair) noexcept :
-	group(pair.first), key(pair.second)
+template <concepts::text<CharT> Text0, concepts::text<CharT> Text1>
+basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key(const std::pair<Text0,Text1> &pair) noexcept :
+	group(impl::replace(pair.first)), key(impl::replace(pair.second))
 {
 
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::string_p<CharT> Str>
-basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key(std::pair<Str,Str> &&pair) noexcept :
-	group(std::move(pair.first)), key(std::move(pair.second))
-{
-
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::string_p<CharT> Str>
-basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key(const std::tuple<Str,Str> &tuple) noexcept :
-	group(std::get<0>(tuple)), key(std::get<1>(tuple))
-{
-
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::string_p<CharT> Str>
-basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key(std::tuple<Str,Str> &&tuple) noexcept :
-	group(std::move(std::get<0>(tuple))), key(std::move(std::get<1>(tuple)))
+template <concepts::text<CharT> Text0, concepts::text<CharT> Text1>
+basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key(const std::tuple<Text0,Text1> &tuple) noexcept :
+	group(impl::replace(std::get<0>(tuple))), key(impl::replace(std::get<1>(tuple)))
 {
 
 }
@@ -721,7 +732,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::file_name() const noexcept
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::text_arg_p<CharT> T>
-decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(group_key gk, T &&def_value) const noexcept
+decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(const group_key &gk, T &&def_value) const noexcept
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	using def_t = std::remove_cvref_t<T>;
@@ -753,16 +764,16 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::text_arg_p<CharT> T>
 decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or
-(concepts::string_p<char_t> auto &&path, T &&def_value) const
+(const concepts::string_p<char_t> auto &path, T &&def_value) const
 {
-	auto pair = m_impl->from_path(std::forward<decltype(path)>(path), "read_or");
+	auto pair = m_impl->from_path(path, "read_or");
 	return read_or(std::move(pair), std::forward<T>(def_value));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::text_arg_p<CharT> T>
-auto basic_ini<CharT,Exec,Map,MapArgs...>::read(group_key gk) const
+auto basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk) const
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	if( it == m_impl->m_groups.end() )
@@ -778,10 +789,10 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <concepts::text_arg_p<CharT> T>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::read
-(concepts::string_p<char_t> auto &&path) const
+(const concepts::string_p<char_t> auto &path) const
 {
 	return read<std::remove_cvref_t<T>> (
-		m_impl->from_path(std::forward<decltype(path)>(path), "read")
+		m_impl->from_path(path, "read")
 	);
 }
 
@@ -798,26 +809,26 @@ void basic_ini<CharT,Exec,Map,MapArgs...>::write
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::write
-(concepts::string_p<char_t> auto &&path, concepts::value_arg_p<char_t> auto &&value) noexcept
+(const concepts::string_p<char_t> auto &path, concepts::value_arg_p<char_t> auto &&value) noexcept
 {
-	auto pair = m_impl->from_path(std::forward<decltype(path)>(path), "write");
+	auto pair = m_impl->from_path(path, "write");
 	write(std::move(pair), std::forward<decltype(value)>(value));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 const typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
-basic_ini<CharT,Exec,Map,MapArgs...>::group(concepts::string_p<char_t> auto &&group) const
+basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group) const
 {
-	return remove_const(this)->group(std::forward<decltype(group)>(group));
+	return remove_const(this)->group(group);
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
-basic_ini<CharT,Exec,Map,MapArgs...>::group(concepts::string_p<char_t> auto &&group)
+basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group)
 {
-	auto it = m_impl->m_groups.find(nosview(group));
+	auto it = m_impl->m_groups.find(impl::replace(group));
 	if( it != m_impl->m_groups.end() )
 	{
 		throw runtime_error("basic_ini: group: The group '{}' is not exists.",
@@ -830,25 +841,25 @@ basic_ini<CharT,Exec,Map,MapArgs...>::group(concepts::string_p<char_t> auto &&gr
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 const typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
-basic_ini<CharT,Exec,Map,MapArgs...>::operator[](concepts::string_p<char_t> auto &&group) const
+basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const concepts::text_p<char_t> auto &group) const
 {
-	return this->group(std::forward<decltype(group)>(group));
+	return this->group(group);
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
-basic_ini<CharT,Exec,Map,MapArgs...>::operator[](concepts::string_p<char_t> auto &&group) noexcept
+basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const concepts::text_p<char_t> auto &group) noexcept
 {
-	return m_impl->m_groups[nosview(std::forward<decltype(group)>(group))];
+	return m_impl->m_groups[impl::replace(group)];
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t
-basic_ini<CharT,Exec,Map,MapArgs...>::operator[](group_key gk) const
+basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const group_key &gk) const
 {
-	return (*this)[std::move(gk.group)][std::move(gk.key)];
+	return (*this)[gk.group][gk.key];
 }
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -864,15 +875,15 @@ basic_ini<CharT,Exec,Map,MapArgs...>::operator[](group_key gk) noexcept
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&group, concepts::string_p<char_t> auto &&key) const
+(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key) const
 {
-	return (*this)[std::forward<decltype(group)>(group)][std::forward<decltype(key)>(key)];
+	return (*this)[group][key];
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t &basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&group, concepts::string_p<char_t> auto &&key) noexcept
+(concepts::text_p<char_t> auto &&group, concepts::text_p<char_t> auto &&key) noexcept
 {
 	return (*this)[std::forward<decltype(group)>(group)][std::forward<decltype(key)>(key)];
 }
@@ -880,24 +891,22 @@ typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t &basic_ini<CharT,Exec,Map
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&group,
- concepts::string_p<char_t> auto &&key,
- concepts::value_arg_p<char_t> auto &&def_value) noexcept
+(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key,
+ concepts::value_arg_p<char_t> auto &&def_value) const noexcept
 {
-	return (*this)[std::forward<decltype(group)>(group)] [
-		std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value)
+	return (*this)[group] [
+		key, std::forward<decltype(def_value)>(def_value)
 	];
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
-(concepts::string_p<char_t> auto &&group,
- concepts::string_p<char_t> auto &&key,
- concepts::value_arg_p<char_t> auto &&def_value) const noexcept
+(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key,
+ concepts::value_arg_p<char_t> auto &&def_value) noexcept
 {
-	return (*this)[std::forward<decltype(group)>(group)] [
-		std::forward<decltype(key)>(key), std::forward<decltype(def_value)>(def_value)
+	return (*this)[group] [
+		key, std::forward<decltype(def_value)>(def_value)
 	];
 }
 
@@ -1157,17 +1166,17 @@ void basic_ini<CharT,Exec,Map,MapArgs...>::cancel()
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::iterator
-basic_ini<CharT,Exec,Map,MapArgs...>::find(concepts::string_p<char_t> auto &&group) noexcept
+basic_ini<CharT,Exec,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &group) noexcept
 {
-	return m_impl->m_groups.find(nosview(std::forward<decltype(group)>(group)));
+	return m_impl->m_groups.find(impl::replace(group));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
-basic_ini<CharT,Exec,Map,MapArgs...>::find(concepts::string_p<char_t> auto &&group) const noexcept
+basic_ini<CharT,Exec,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &group) const noexcept
 {
-	return m_impl->m_groups.find(nosview(std::forward<decltype(group)>(group)));
+	return m_impl->m_groups.find(impl::replace(group));
 }
 
 template <concepts::character CharT, concepts::exec Exec,

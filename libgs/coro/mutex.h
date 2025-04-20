@@ -43,7 +43,7 @@ public:
 
 public:
 	mutex();
-	~mutex() noexcept(false);
+	~mutex();
 
 public:
 	[[nodiscard]] awaitable<void> lock(concepts::sched auto &&exec);

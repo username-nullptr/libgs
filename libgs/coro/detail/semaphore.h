@@ -56,14 +56,19 @@ public:
 		}
 	}
 
-	~impl() noexcept(false)
+	~impl()
 	{
+#if 0
 		auto wake_up = m_wait_queue.dequeue();
 		if( not wake_up )
 			return ;
 		throw runtime_error (
 			"libgs::basic_semaphore: Destruct a basic_semaphore with unreleased resources."
 		);
+#else
+		while( m_counter < max_v )
+			release_one();
+#endif
 	}
 
 public:
@@ -131,7 +136,7 @@ basic_semaphore<Max>::basic_semaphore(size_t initial_count) :
 }
 
 template<size_t Max>
-basic_semaphore<Max>::~basic_semaphore() noexcept(false)
+basic_semaphore<Max>::~basic_semaphore()
 {
 	delete m_impl;
 }
