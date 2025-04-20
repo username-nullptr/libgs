@@ -30,7 +30,6 @@
 
 #include "libgs/core/app_utls.h"
 #include "libgs/core/shared_mutex.h"
-#include "libgs/core/algorithm/base.h"
 #include <unistd.h>
 
 /* extern char **environ; */
@@ -113,8 +112,8 @@ fs::path absolute_path(error_code &error, const fs::path &path) noexcept
 
 		result = home + result.erase(0,1);
 	}
-	result = str_replace(std::move(result), {"/./", "/", false});
-	result = str_replace(std::move(result), {"//", "/", false});
+	result = strtls::replace(std::move(result), "/./", "/", false);
+	result = strtls::replace(std::move(result), "//", "/", false);
 	return result;
 }
 

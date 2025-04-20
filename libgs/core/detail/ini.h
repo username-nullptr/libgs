@@ -606,7 +606,7 @@ public:
 	milliseconds m_sync_period {0};
 	bool m_sync_on_delete = false;
 
-	std::list<std::shared_ptr<bool>> m_cancel_list {};
+	std::vector<std::shared_ptr<bool>> m_cancel_vector {};
 };
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -1029,7 +1029,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 	else
 	{
 		auto cflag = std::make_shared<bool>(false);
-		m_impl->m_cancel_list.emplace_back(cflag);
+		m_impl->m_cancel_vector.emplace_back(cflag);
 
 		auto slot = asio::get_associated_cancellation_slot(token);
 		cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(slot)]{
@@ -1098,7 +1098,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(Token &&token)
 	else
 	{
 		auto cflag = std::make_shared<bool>(false);
-		m_impl->m_cancel_list.emplace_back(cflag);
+		m_impl->m_cancel_vector.emplace_back(cflag);
 
 		auto slot = asio::get_associated_cancellation_slot(token);
 		cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(slot)]{
@@ -1158,7 +1158,7 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::cancel()
 {
-	auto flags = std::move(m_impl->m_cancel_list);
+	auto flags = std::move(m_impl->m_cancel_vector);
 	for(auto flag : flags)
 		*flag = true;
 }
