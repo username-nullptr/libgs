@@ -34,74 +34,39 @@
 namespace libgs::http
 {
 
-template <core_concepts::character CharT>
-struct basic_cookie_attribute;
-
-#define LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY \
-	X_MACRO( domain    , "Domain"   ) \
-	X_MACRO( path      , "Path"     ) \
-	X_MACRO( size      , "Size"     ) \
-	X_MACRO( expires   , "Expires"  ) \
-	X_MACRO( max_age   , "Max-Age"  ) \
-	X_MACRO( http_only , "HttpOnly" ) \
-	X_MACRO( secure    , "Secure"   ) \
-	X_MACRO( same_site , "SameSite" ) \
-	X_MACRO( priority  , "Priority" )
-
-template <> struct basic_cookie_attribute<char>
+struct cookie_attribute
 {
-#define X_MACRO(n,s) static constexpr const char *n = s;
-	LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY
-#undef X_MACRO
+static constexpr const char
+	*domain    = "Domain"  ,
+	*path      = "Path"    ,
+	*size      = "Size"    ,
+	*expires   = "Expires" ,
+	*max_age   = "Max-Age" ,
+	*http_only = "HttpOnly",
+	*secure    = "Secure"  ,
+	*same_site = "SameSite",
+	*priority  = "Priority";
 };
 
-template <> struct basic_cookie_attribute<wchar_t>
-{
-#define X_MACRO(n,s) static constexpr const wchar_t *n = L##s;
-	LIBGS_HTTP_COOKEI_ATTRUBUTE_KEY
-#undef X_MACRO
-};
-
-using cookie_attribute = basic_cookie_attribute<char>;
-using wcookie_attribute = basic_cookie_attribute<wchar_t>;
-
-template <core_concepts::character CharT>
-using basic_cookie_attributes = std::map <
-	std::basic_string<CharT>,
-	basic_value<CharT>,
-	basic_less_case_insensitive<CharT>
->;
-
-using cookie_attributes = basic_cookie_attributes<char>;
-using wcookie_attributes = basic_cookie_attributes<wchar_t>;
-
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_cookie
+class LIBGS_HTTP_TAPI cookie
 {
 public:
-	using char_t = CharT;
-	using string_t = std::basic_string<char_t>;
-	using value_t = basic_value<char_t>;
-
-	using attribute_t = basic_cookie_attribute<char_t>;
-	using attributes_t = basic_cookie_attributes<char_t>;
-
-	using pair_init_t = basic_key_attr_init<char_t>;
-	using key_init_t = basic_key_init<char_t>;
+	using attributes_t = map<value>;
 
 public:
-	basic_cookie();
-	basic_cookie(value_t v);
+	cookie();
+	cookie(value_t v);
+	virtual ~cookie() = default;
 
-	basic_cookie(const basic_cookie &other) = default;
-	basic_cookie &operator=(const basic_cookie &other) = default;
-	basic_cookie(basic_cookie &&other) noexcept = default;
-	basic_cookie &operator=(basic_cookie &&other) noexcept = default;
-	virtual ~basic_cookie() = default;
+	cookie(const cookie &other) = default;
+	cookie &operator=(const cookie &other) = default;
+
+	cookie(cookie &&other) noexcept = default;
+	cookie &operator=(cookie &&other) noexcept = default;
 
 public:
-	basic_cookie &set_value(value_t v) noexcept;
-	basic_cookie &operator=(value_t v) noexcept;
+	cookie &set_value(value_t v) noexcept;
+	cookie &operator=(value_t v) noexcept;
 
 public:
 	[[nodiscard]] const value_t &value() const noexcept;
@@ -111,8 +76,17 @@ public:
 	operator value_t&() noexcept;
 
 public:
-	[[nodiscard]] string_t domain() const;
-	[[nodiscard]] string_t path() const;
+	template <typename...Args>
+	attributes_t &attributes(Args&&...args) requires
+		core_concepts::constructible<attributes_t,Args...>;
+
+	[[nodiscard]] const attributes_t &attributes() const noexcept;
+	[[nodiscard]] attributes_t &attributes() noexcept;
+
+
+public:
+	[[nodiscard]] std::string_view domain() const;
+	[[nodiscard]] std::string_view path() const;
 	[[nodiscard]] size_t size() const;
 
 	[[nodiscard]] uint64_t expires() const;
@@ -121,12 +95,12 @@ public:
 	[[nodiscard]] bool http_only() const;
 	[[nodiscard]] bool secure() const;
 
-	[[nodiscard]] string_t same_site() const;
-	[[nodiscard]] string_t priority() const;
+	[[nodiscard]] std::string_view same_site() const;
+	[[nodiscard]] std::string_view priority() const;
 
 public:
-	[[nodiscard]] string_t domain_or(string_t default_value = {}) const noexcept;
-	[[nodiscard]] string_t path_or(string_t default_value = {}) const noexcept;
+	[[nodiscard]] std::string_view domain_or(std::string_view default_value = {}) const noexcept;
+	[[nodiscard]] std::string_view path_or(std::string_view default_value = {}) const noexcept;
 	[[nodiscard]] size_t size_or(size_t default_value = 0) const noexcept;
 
 	[[nodiscard]] uint64_t expires_or(uint64_t default_value = 0) const noexcept;
@@ -135,22 +109,22 @@ public:
 	[[nodiscard]] bool http_only_or(bool default_value = false) const noexcept;
 	[[nodiscard]] bool secure_or(bool default_value = false) const noexcept;
 
-	[[nodiscard]] string_t same_site_or(string_t default_value = {}) const noexcept;
-	[[nodiscard]] string_t priority_or(string_t default_value = {}) const noexcept;
+	[[nodiscard]] std::string_view same_site_or(std::string_view default_value = {}) const noexcept;
+	[[nodiscard]] std::string_view priority_or(std::string_view default_value = {}) const noexcept;
 
 public:
-	basic_cookie &set_domain(string_t domain);
-	basic_cookie &set_path(string_t path);
-	basic_cookie &set_size(size_t size);
+	cookie &set_domain(string_t domain);
+	cookie &set_path(string_t path);
+	cookie &set_size(size_t size);
 
-	basic_cookie &set_expires(uint64_t seconds);
-	basic_cookie &set_max_age(uint64_t seconds);
+	cookie &set_expires(uint64_t seconds);
+	cookie &set_max_age(uint64_t seconds);
 
-	basic_cookie &set_http_only(bool flag);
-	basic_cookie &set_secure(bool flag);
+	cookie &set_http_only(bool flag);
+	cookie &set_secure(bool flag);
 
-	basic_cookie &set_same_site(string_t sst);
-	basic_cookie &set_priority(string_t pt);
+	cookie &set_same_site(string_t sst);
+	cookie &set_priority(string_t pt);
 
 public:
 	basic_cookie &unset_domain();
@@ -196,44 +170,15 @@ protected:
 	attributes_t m_attributes;
 };
 
-using cookie = basic_cookie<char>;
-using wcookie = basic_cookie<wchar_t>;
+using cookie_attributes = cookie::attributes_t;
 
 template <core_concepts::character CharT>
-using basic_cookie_values = std::map <
-	std::basic_string<CharT>,
-	basic_value<CharT>,
-	basic_less_case_insensitive<CharT>
->;
-
-using cookie_values = basic_cookie_values<char>;
-using wcookie_values = basic_cookie_values<wchar_t>;
+using cookie_values = map<value>;
 
 template <core_concepts::character CharT>
-using basic_cookies = std::map <
-	std::basic_string<CharT>,
-	basic_cookie<CharT>,
-	basic_less_case_insensitive<CharT>
->;
+using cookies = map<cookie>;
 
-using cookies = basic_cookies<char>;
-using wcookies = basic_cookies<wchar_t>;
-
-template <core_concepts::character CharT>
-using basic_cookie_init = basic_pair_init<CharT,basic_cookie<CharT>>;
-
-using cookie_init  = basic_cookie_init<char>;
-using wcookie_init = basic_cookie_init<wchar_t>;
-
-namespace concepts
-{
-
-template <typename CharT, typename...Args>
-concept set_cookie_params = set_pair_params <
-	CharT, basic_cookie<CharT>, Args...
->;
-
-}} //namespace libgs::http::concepts
+} //namespace libgs::http::concepts
 #include <libgs/http/detail/cookie.h>
 
 

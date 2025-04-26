@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CXX_DETAIL_FILE_OPT_TOKEN_H
 #define LIBGS_HTTP_CXX_DETAIL_FILE_OPT_TOKEN_H
 
-#include <libgs/core/algorithm/mime_type.h>
+#include <libgs/core/mime_type.h>
 #include <libgs/core/app_utls.h>
 
 namespace libgs::http
@@ -75,14 +75,14 @@ inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::
 	return error;
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&stream) :
 	stream(new fstream_t(std::move(stream)))
 {
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&stream, const file_range &range) :
 	stream(new fstream_t(std::move(stream))),
 	range(range)
@@ -90,27 +90,27 @@ file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&stream, con
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::single>::~file_opt_token()
 {
 	if( stream.use_count() == 1 and stream->is_open() )
 		stream->close();
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 error_code file_opt_token<FS&&,file_optype::single>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream) :
 	stream(&stream)
 {
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream, const file_range &range) :
 	stream(&stream),
 	range(range)
@@ -118,7 +118,7 @@ file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream, const
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 error_code file_opt_token<FS&,file_optype::single>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
@@ -187,21 +187,21 @@ inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base
 	return error;
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream) :
 	stream(new fstream_t(std::move(stream)))
 {
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, const file_range &range) :
 	file_opt_token(std::move(stream), file_ranges{range})
 {
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, file_ranges ranges) :
 	stream(new fstream_t(std::move(stream))),
 	ranges(std::move(ranges))
@@ -209,7 +209,7 @@ file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, f
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 template <concepts::file_ranges_init_list...Args>
 file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, Args&&...ranges) :
 	file_opt_token(std::move(stream), file_ranges{std::forward<Args>(ranges)...})
@@ -217,7 +217,7 @@ file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, A
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::multiple>::file_opt_token(file_opt_token<type,file_optype::single> opt) :
 	stream(std::move(opt.stream))
 {
@@ -225,34 +225,34 @@ file_opt_token<FS&&,file_optype::multiple>::file_opt_token(file_opt_token<type,f
 		ranges.emplace_back(*opt.range);
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::multiple>::~file_opt_token()
 {
 	if( stream.use_count() == 1 and stream->is_open() )
 		stream->close();
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 error_code file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream) :
 	stream(new fstream_t(std::move(stream)))
 {
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, const file_range &range) :
 	file_opt_token(stream, file_ranges{range})
 {
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, file_ranges ranges) :
 	stream(stream),
 	ranges(std::move(ranges))
@@ -260,7 +260,7 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, fil
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 template <concepts::file_ranges_init_list...Args>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, Args&&...ranges) :
 	file_opt_token(stream, file_ranges{std::forward<Args>(ranges)...})
@@ -268,7 +268,7 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, Arg
 
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(file_opt_token<type,file_optype::single> opt) :
 	stream(opt.stream)
 {
@@ -276,7 +276,7 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(file_opt_token<type,fi
 		ranges.emplace_back(*opt.range);
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 error_code file_opt_token<FS&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
 {
 	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
@@ -318,7 +318,7 @@ auto make_file_opt_token(std::filesystem::path file_name, Args&&...args) noexcep
 }
 
 template <typename...Args>
-auto make_file_opt_token(core_concepts::fstream_wkn auto &&stream, Args&&...args) noexcept
+auto make_file_opt_token(core_concepts::any_fstream_p auto &&stream, Args&&...args) noexcept
 {
 	using fstream_t = decltype(stream);
 	return detail::make_file_opt_token<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
@@ -330,7 +330,7 @@ std::optional<size_t> file_size(concepts::file_opt_token auto &opt, io_permissio
 	using fstream_t = typename opt_t::fstream_t;
 
 	std::optional<size_t> size;
-	if constexpr( is_fstream_v<fstream_t> )
+	if constexpr( is_any_fstream_v<fstream_t> )
 	{
 		if( mode & io_permission::read )
 		{
@@ -353,7 +353,7 @@ std::optional<size_t> file_size(concepts::file_opt_token auto &opt, io_permissio
 			}
 		}
 	}
-	if constexpr( is_ifstream_v<fstream_t> )
+	if constexpr( is_any_ifstream_v<fstream_t> )
 	{
 		if( mode & io_permission::read )
 		{
@@ -382,9 +382,9 @@ std::string mime_type(concepts::file_opt_token auto &opt)
 	using type = typename opt_t::type;
 
 	if constexpr( std::is_same_v<type,void> )
-		return libgs::mime_type(opt.file_name);
+		return mime_type::get(opt.file_name);
 	else if constexpr( opt_t::permissions & io_permission::read )
-		return libgs::mime_type(opt.stream);
+		return mime_type::get(opt.stream);
 	else
 		return "Unknown";
 }
@@ -402,13 +402,13 @@ inline auto operator| (std::string_view file_name, file_ranges ranges)
 	return make_file_opt_token(file_name, std::move(ranges));
 }
 
-auto operator| (core_concepts::fstream_wkn auto &&stream, const file_range &range)
+auto operator| (core_concepts::any_fstream_p auto &&stream, const file_range &range)
 {
 	using fstream_t = decltype(stream);
 	return make_file_opt_token(std::forward<fstream_t>(stream), range);
 }
 
-auto operator| (core_concepts::fstream_wkn auto &&stream, file_ranges ranges)
+auto operator| (core_concepts::any_fstream_p auto &&stream, file_ranges ranges)
 {
 	using fstream_t = decltype(stream);
 	return make_file_opt_token(std::forward<fstream_t>(stream), std::move(ranges));

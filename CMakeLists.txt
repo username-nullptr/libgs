@@ -11,9 +11,9 @@ include(utility)
 check_compiler_version(CMAKE_CXX_STANDARD)
 
 message(STATUS "")
-message(STATUS "${PRO_NAME}: using C++: " ${CMAKE_CXX_STANDARD})
-message(STATUS "${PRO_NAME}: build type: " ${CMAKE_BUILD_TYPE})
-message(STATUS "${PRO_NAME}: install prefix: " ${CMAKE_INSTALL_PREFIX})
+message(STATUS "${PRO_NAME}: Using C++: " ${CMAKE_CXX_STANDARD})
+message(STATUS "${PRO_NAME}: Build type: " ${CMAKE_BUILD_TYPE})
+message(STATUS "${PRO_NAME}: Install prefix: " ${CMAKE_INSTALL_PREFIX})
 
 set(output_dir ${CMAKE_BINARY_DIR}/output)
 
@@ -28,10 +28,11 @@ include_directories(.)
 add_subdirectory(libgs)
 add_subdirectory(test)
 
-option(BUILD_EXAMPLES "-- ${PRO_NAME}: enable this to build the examples" ON)
-
+option(BUILD_EXAMPLES
+	"-- ${PRO_NAME}: Enable this to build the examples." ON
+)
 if (BUILD_EXAMPLES)
-	message(STATUS "${PRO_NAME}: enable this to build the examples.")
+	message(STATUS "${PRO_NAME}: Enable this to build the examples.")
 	add_subdirectory(examples)
 endif()
 

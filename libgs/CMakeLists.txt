@@ -1,3 +1,6 @@
+option(BUILD_STATIC
+	"-- ${PRO_NAME}: Build static libraries." OFF
+)
 if (WIN32)
 	set(OS_CPP win)
 	set(IS_CPP winnt)

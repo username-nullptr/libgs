@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
 #define LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
 
-#include <libgs/core/coro.h>
+#include <libgs/coro.h>
 
 namespace libgs::http
 {

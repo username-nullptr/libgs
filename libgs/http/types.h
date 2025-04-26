@@ -34,10 +34,6 @@
 #include <libgs/http/header.h>
 #include <libgs/http/cookie.h>
 
-#if defined(__WINNT) || defined(_WINDOWS) // Fucking Microsoft !!!
-# undef DELETE
-#endif //_WINDOWS
-
 namespace libgs::http
 {
 
@@ -113,24 +109,28 @@ using status_t = status::type;
 LIBGS_HTTP_VAPI bool status_check(status_t s, bool _throw = true);
 
 #define LIBGS_HTTP_METHOD_TABLE \
-X_MACRO( GET     , 0x0001 , "GET"     ) \
-X_MACRO( PUT     , 0x0002 , "PUT"     ) \
-X_MACRO( POST    , 0x0004 , "POST"    ) \
-X_MACRO( HEAD    , 0x0008 , "HEAD"    ) \
-X_MACRO( PATCH   , 0x0010 , "PATCH"   ) \
-X_MACRO( DELETE  , 0x0020 , "DELETE"  ) \
-X_MACRO( OPTIONS , 0x0040 , "OPTIONS" ) \
-X_MACRO( TRACE   , 0x0080 , "TRACE"   ) \
-X_MACRO( CONNECT , 0x0100 , "CONNECT" )
+X_MACRO( get     , 0x0001 , "GET"     ) \
+X_MACRO( put     , 0x0002 , "PUT"     ) \
+X_MACRO( post    , 0x0004 , "POST"    ) \
+X_MACRO( head    , 0x0008 , "HEAD"    ) \
+X_MACRO( patch   , 0x0010 , "PATCH"   ) \
+X_MACRO( delet   , 0x0020 , "DELETE"  ) \
+X_MACRO( options , 0x0040 , "OPTIONS" ) \
+X_MACRO( trace   , 0x0080 , "TRACE"   ) \
+X_MACRO( connect , 0x0100 , "CONNECT" )
 
 enum class method
 {
 #define X_MACRO(e,v,d) e=(v),
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
-	all   = GET | PUT | POST | HEAD | PATCH | DELETE | OPTIONS | TRACE | CONNECT,
-	begin = GET,
-	end   = CONNECT
+
+#define X_MACRO(e,v,d) e|
+	all = LIBGS_HTTP_METHOD_TABLE 0,
+#undef X_MACRO
+
+	begin = get,
+	end   = connect
 };
 using method_t = method;
 LIBGS_DECLARE_FLAGS(methods, method);
@@ -154,51 +154,17 @@ enum class redirect
 using redirect_t = redirect;
 LIBGS_HTTP_VAPI bool redirect_check(redirect type, bool _throw = true);
 
-template <core_concepts::character CharT>
-using basic_parameters = std::map <
-	std::basic_string<CharT>,
-	basic_value<CharT>,
-	basic_less_case_insensitive<CharT>
->;
-
-using parameters = basic_parameters<char>;
-using wparameters = basic_parameters<wchar_t>;
-
-template <status_t Status, core_concepts::character CharT>
-[[nodiscard]] consteval const CharT *status_description();
+using parameters = map<value>;
 
 template <status_t Status>
 [[nodiscard]] consteval const char *status_description();
-
-template <status_t Status>
-[[nodiscard]] consteval const wchar_t *wstatus_description();
-
-template <core_concepts::character CharT>
-[[nodiscard]] LIBGS_HTTP_TAPI const CharT *status_description(status_t s);
-
 [[nodiscard]] LIBGS_HTTP_VAPI const char *status_description(status_t s);
-[[nodiscard]] LIBGS_HTTP_VAPI const wchar_t *wstatus_description(status_t s);
-
-template <method Method, core_concepts::character CharT>
-[[nodiscard]] consteval const CharT *method_string();
 
 template <method Method>
 [[nodiscard]] consteval const char *method_string();
-
-template <method Method>
-[[nodiscard]] consteval const wchar_t *wmethod_string();
-
-template <core_concepts::character CharT>
-[[nodiscard]] LIBGS_HTTP_TAPI const CharT *method_string(method m);
-
 [[nodiscard]] LIBGS_HTTP_TAPI const char *method_string(method m);
-[[nodiscard]] LIBGS_HTTP_TAPI const wchar_t *wmethod_string(method m);
-
-template <core_concepts::character CharT>
-[[nodiscard]] LIBGS_HTTP_TAPI method from_method_string(std::basic_string_view<CharT> str);
 
 [[nodiscard]] LIBGS_HTTP_VAPI method from_method_string(std::string_view str);
-[[nodiscard]] LIBGS_HTTP_VAPI method from_method_string(std::wstring_view str);
 
 } //namespace libgs::http
 #include <libgs/http/detail/types.h>

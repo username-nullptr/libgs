@@ -88,7 +88,7 @@ using type = size_t; constexpr type
 	combine  = single | multiple;
 }
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token_base
 {
 	using path_t = std::filesystem::path;
@@ -122,7 +122,7 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::single> : file_opt_token
 	file_opt_token &operator=(const file_opt_token&) = default;
 };
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token_base<FS&&>
 {
 	using type = FS&&;
@@ -142,7 +142,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token
 	file_opt_token &operator=(const file_opt_token&) = default;
 };
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::single> : file_opt_token_base<FS&>
 {
 	using type = FS&;
@@ -186,7 +186,7 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::multiple> : file_opt_tok
 	file_opt_token &operator=(const file_opt_token&) = default;
 };
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_token_base<FS&&>
 {
 	using type = FS&&;
@@ -212,7 +212,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_tok
 	file_opt_token &operator=(const file_opt_token&) = default;
 };
 
-template <core_concepts::fstream_wkn FS>
+template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_token_base<FS&>
 {
 	using type = FS&;
@@ -248,7 +248,7 @@ template <typename...Args>
 
 template <typename...Args>
 [[nodiscard]] LIBGS_HTTP_TAPI auto make_file_opt_token (
-	core_concepts::fstream_wkn auto &&stream, Args&&...args
+	core_concepts::any_fstream_p auto &&stream, Args&&...args
 ) noexcept;
 
 template <core_concepts::character, typename>
@@ -326,7 +326,7 @@ template <typename T, typename CharT,
 	io_permission::type Perms = io_permission::read_write
 >
 concept basic_file_opt_token_arg =
-	core_concepts::weak_string_type<T> or
+	core_concepts::any_text_p<T> or
 	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
 	basic_file_opt_token<T,CharT,Types,Perms>;
 
@@ -367,8 +367,8 @@ namespace operators
 [[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::filesystem::path file_name, const file_range &range);
 [[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::filesystem::path file_name, file_ranges ranges);
 
-[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::fstream_wkn auto &&stream, const file_range &range);
-[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::fstream_wkn auto &&stream, file_ranges ranges);
+[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::any_fstream_p auto &&stream, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::any_fstream_p auto &&stream, file_ranges ranges);
 
 template <typename T>
 [[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> operator|

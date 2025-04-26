@@ -58,7 +58,7 @@ template <version_t Version>
 [[nodiscard]] LIBGS_HTTP_VAPI const char *version_string(version_t v);
 
 [[nodiscard]] LIBGS_HTTP_TAPI version_t version_number (
-	const core_concepts::string_type auto &vs, bool _throw = true
+	const core_concepts::string_p<char> auto &vs, bool _throw = true
 );
 
 } //namespace libgs::http

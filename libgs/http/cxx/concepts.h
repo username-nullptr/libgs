@@ -69,7 +69,13 @@ template <typename Stream>
 concept stream = is_stream_v<Stream>;
 
 template <typename Stream>
+concept stream_p = is_stream_v<std::remove_cvref_t<Stream>>;
+
+template <typename Stream>
 concept any_exec_stream = is_any_exec_stream_v<Stream>;
+
+template <typename Stream>
+concept any_exec_stream_p = is_any_exec_stream_v<std::remove_cvref_t<Stream>>;
 
 template <typename Token, typename...Signatures>
 concept ioop_token =

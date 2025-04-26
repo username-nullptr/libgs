@@ -99,7 +99,12 @@ set(all_files
 )
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 
-add_library(${target_name} SHARED ${all_files})
+if (BUILD_STATIC)
+	add_library(${target_name} STATIC ${all_files})
+else ()
+	add_library(${target_name} SHARED ${all_files})
+endif ()
+
 target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
 
 if (UNIX)

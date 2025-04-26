@@ -41,16 +41,16 @@ struct LIBGS_HTTP_TAPI basic_path_opt_token
 	using string_view_t = std::basic_string_view<char_t>;
 	std::list<string_view_t> paths;
 
-	template <core_concepts::basic_string_type<CharT> Str>
+	template <core_concepts::string_p<CharT> Str>
 	basic_path_opt_token(Str &&path);
 
-	template <core_concepts::basic_string_type<CharT> Str>
+	template <core_concepts::string<CharT> Str>
 	basic_path_opt_token(std::list<Str> &&paths);
 
-	template <core_concepts::basic_string_type<CharT> Str>
+	template <core_concepts::string<CharT> Str>
 	basic_path_opt_token(std::initializer_list<Str> paths);
 
-	template <core_concepts::basic_string_type<CharT>...Str>
+	template <core_concepts::string_p<CharT>...Str>
 	basic_path_opt_token(Str&&...paths);
 };
 

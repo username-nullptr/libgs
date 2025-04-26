@@ -94,7 +94,7 @@ inline const char *version_string(version_t v)
 //	return "";
 }
 
-version_t version_number(const core_concepts::string_type auto &vs, bool _throw)
+version_t version_number(const core_concepts::string_p<char> auto &vs, bool _throw)
 {
 #define X_MACRO(e,v,s) if( vs == s ) return version::e;
 	LIBGS_HTTP_VERSION_TABLE

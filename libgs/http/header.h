@@ -60,9 +60,7 @@ static constexpr const char
 	* upgrade           = "Upgrade"          ;
 };
 
-using headers = std::map <
-	std::string, value, basic_less_case_insensitive<char>
->;
+using headers = map<value>;
 
 } //namespace libgs::http
 

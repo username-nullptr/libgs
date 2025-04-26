@@ -29,11 +29,8 @@
 #ifndef LIBGS_HTTP_DETAIL_TYPES_H
 #define LIBGS_HTTP_DETAIL_TYPES_H
 
-namespace libgs::http { namespace detail
+namespace libgs::http
 {
-
-template <core_concepts::character T>
-struct string_pool;
 
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
 	static constexpr const _type *root       = __VA_ARGS__##"/"                        ; \
@@ -45,51 +42,8 @@ struct string_pool;
 	static constexpr const _type *set_cookie = __VA_ARGS__##"set-cookie"               ; \
 	static constexpr const _type *text_plain = __VA_ARGS__##"text/plain; charset=utf-8";
 
-template <>
-struct string_pool<char> {
-	LIBGS_HTTP_DETAIL_STRING_POOL(char);
-};
 
-template <>
-struct string_pool<wchar_t> {
-	LIBGS_HTTP_DETAIL_STRING_POOL(wchar_t,L);
-};
 
-#undef LIBGS_HTTP_DETAIL_STRING_POOL
-
-template <status_t, core_concepts::character>
-struct status_description;
-
-#define X_MACRO(e,v,d) \
-	template <typename CharT> \
-	struct status_description<v,CharT> { \
-		static constexpr const CharT *get() { \
-			if constexpr( std::is_same_v<CharT,char> ) \
-				return d; \
-			else \
-				return L##d; \
-		} \
-	};
-	LIBGS_HTTP_STATUS_TABLE
-#undef X_MACRO
-
-template <method, core_concepts::character>
-struct method_string;
-
-#define X_MACRO(e,v,d) \
-	template <typename CharT> \
-	struct method_string<method::e,CharT> { \
-		static constexpr const CharT *get() { \
-			if constexpr( std::is_same_v<CharT,char> ) \
-				return d; \
-			else \
-				return L##d; \
-		} \
-	};
-	LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-
-} //namespace detail
 
 inline bool status_check(status_t s, bool _throw)
 {
@@ -144,31 +98,19 @@ inline bool redirect_check(redirect type, bool _throw)
 	return false;
 }
 
-template <status_t Status, core_concepts::character CharT>
-consteval const CharT *status_description()
-{
-	return detail::status_description<Status,CharT>::get();
-}
-
 template <status_t Status>
 consteval const char *status_description()
 {
-	return status_description<Status,char>();
-}
+#define X_MACRO(e,v,d) Status == status::e and
+	static_assert(LIBGS_HTTP_STATUS_TABLE true, "Invalid http status.");
+#undef X_MACRO
 
-template <status_t Status>
-consteval const wchar_t *wstatus_description()
-{
-	return status_description<Status,wchar_t>();
-}
-
-template <core_concepts::character CharT>
-const CharT *status_description(status_t s)
-{
-	if constexpr( is_char_v<CharT> )
-		return status_description(s);
+#define X_MACRO(e,v,d) \
+	if constexpr( Status == status::e ) return d;
+	LIBGS_HTTP_STATUS_TABLE
+#undef X_MACRO
 	else
-		return wstatus_description(s);
+		return "";
 }
 
 inline const char *status_description(status_t s)
@@ -184,44 +126,20 @@ inline const char *status_description(status_t s)
 //	return "";
 }
 
-inline const wchar_t *wstatus_description(status_t s)
-{
-	switch(s)
-	{
-#define X_MACRO(e,v,d) case status::e: return LIBGS_WCHAR(d);
-		LIBGS_HTTP_STATUS_TABLE
-#undef X_MACRO
-		default: break;
-	}
-	throw runtime_error("libgs::http: Invalid http status: '{}'.", s);
-//	return L"";
-}
-
-template <method Method, core_concepts::character CharT>
-consteval const CharT *method_string()
-{
-	return detail::method_string<Method,CharT>::get();
-}
 
 template <method Method>
 consteval const char *method_string()
 {
-	return method_string<Method,char>();
-}
+#define X_MACRO(e,v,d) Method == method::e and
+	static_assert(LIBGS_HTTP_METHOD_TABLE true, "Invalid http method.");
+#undef X_MACRO
 
-template <method Method>
-consteval const wchar_t *wmethod_string()
-{
-	return method_string<Method,wchar_t>();
-}
-
-template <core_concepts::character CharT>
-const CharT *method_string(method m)
-{
-	if constexpr( is_char_v<CharT> )
-		return method_string(m);
+#define X_MACRO(e,v,d) \
+if constexpr( Method == method::e ) return d;
+	LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
 	else
-		return wmethod_string(m);
+		return "";
 }
 
 inline const char *method_string(method m)
@@ -237,42 +155,12 @@ inline const char *method_string(method m)
 //	return "";
 }
 
-inline const wchar_t *wmethod_string(method m)
-{
-	switch(m)
-	{
-#define X_MACRO(e,v,d) case method::e: return LIBGS_WCHAR(d);
-	LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-		default: break;
-	}
-	throw runtime_error("libgs::http: Invalid http method: '{}'.", m);
-//	return L"";
-}
-
-template <core_concepts::character CharT>
-method from_method_string(std::basic_string_view<CharT> str)
-{
-	if constexpr( is_char_v<CharT> )
-		return from_method_string(static_cast<std::string_view>(str));
-	else
-		return from_method_string(static_cast<std::wstring_view>(str));
-}
-
 inline method from_method_string(std::string_view str)
 {
 #define X_MACRO(e,v,d) if( str == d ) return method::e;
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 	throw runtime_error("libgs::http: Invalid http method: '{}'.", str);
-}
-
-inline method from_method_string(std::wstring_view str)
-{
-#define X_MACRO(e,v,d) if( str == LIBGS_WCHAR(d) ) return method::e;
-	LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-	throw runtime_error("libgs::http: Invalid http method: '{}'.", wcstombs(str));
 }
 
 } //namespace libgs::http
