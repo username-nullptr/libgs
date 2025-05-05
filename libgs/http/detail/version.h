@@ -68,7 +68,7 @@ struct version_string;
 
 #define X_MACRO(e,v,s) \
 	template <> struct version_string<version::e> { \
-		constexpr const char *value = s; \
+		static constexpr const char *value = s; \
 	};
 	LIBGS_HTTP_VERSION_TABLE
 #undef X_MACRO

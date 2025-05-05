@@ -63,8 +63,8 @@ public:
 		const concepts::text_p<char_t> auto &key, T &&def_value = T()
 	) const noexcept;
 
-	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] auto read(const concepts::text_p<char_t> auto &key) const;
+	template <concepts::value_get<CharT> T = value_t>
+	[[nodiscard]] T read(const concepts::text_p<char_t> auto &key) const;
 
 	void write (
 		const concepts::text_p<char_t> auto &key,
@@ -199,11 +199,11 @@ public:
 		const concepts::string_p<char_t> auto &path, T &&def_value = T()
 	) const;
 
-	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] auto read(const group_key &gk) const;
+	template <concepts::value_get<CharT> T = value_t>
+	[[nodiscard]] T read(const group_key &gk) const;
 
-	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] auto read (
+	template <concepts::value_get<CharT> T = value_t>
+	[[nodiscard]] T read (
 		const concepts::string_p<char_t> auto &path
 	) const;
 

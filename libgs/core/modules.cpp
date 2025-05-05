@@ -78,13 +78,13 @@ void modules::do_init(const string_vector &args)
 			else if( var.index() == future_func1_e )
 				future_vector.emplace_back(std::get<future_func1_t>(var)(args));
 
-			else if( var.index() == future_func0_e )
+			else if( var.index() == await_func0_e )
 			{
 				future_vector.emplace_back (
 					dispatch(std::get<await_func0_t>(var)(), use_future)
 				);
 			}
-			else if( var.index() == future_func1_e )
+			else if( var.index() == await_func1_e )
 			{
 				future_vector.emplace_back (
 					dispatch(std::get<await_func1_t>(var)(args), use_future)
@@ -96,18 +96,20 @@ void modules::do_init(const string_vector &args)
 		for(auto &func1 : func1_vector)
 			func1(args);
 
-		dispatch([&]() mutable -> awaitable<void>
+		std::thread thread([&]
 		{
-			co_await local_dispatch([&]
-			{
-				for(auto &futrue : future_vector)
-					futrue.wait();
-			},
-			use_awaitable);
+			for(auto &futrue : future_vector)
+				futrue.wait();
 			exit();
 		});
 		exec();
+		try { thread.join(); } catch(...){}
 	}
+}
+
+void modules::do_init(int argc, const char *argv[])
+{
+	return do_init(string_vector(argv, argv + argc));
 }
 
 } //namespace libgs

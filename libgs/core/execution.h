@@ -47,19 +47,8 @@ using io_executor_t = io_context_t::executor_type;
  */
 LIBGS_CORE_API int exec();
 
-/*
- * End event scheduling;
- * The exec function will return after
- * all the ready tasks have been completed.
- */
+// End event scheduling;
 LIBGS_CORE_API void exit(int code = 0);
-
-/*
- * End event scheduling;
- * The exec function will return as soon as
- * current task is completed.
- */
-LIBGS_CORE_API void terminate(int code = 0);
 
 [[nodiscard]] LIBGS_CORE_API bool is_run();
 
@@ -72,9 +61,7 @@ concept dispatch_work = callable<Work> or awaitable_p<Work&&>;
 template <typename Token, typename Work>
 concept dispatch_token = []() consteval -> bool
 {
-	if constexpr( not dispatch_work<Work> )
-		return false;
-	else
+	if constexpr( dispatch_work<Work> )
 	{
 		using work_t = std::remove_cvref_t<Work>;
 		if constexpr( is_awaitable_v<work_t> )
@@ -85,28 +72,24 @@ concept dispatch_token = []() consteval -> bool
 			else
 				return opt_token<Token, std::exception_ptr, return_t>;
 		}
-		else
+		else if constexpr( callable<Work> )
 		{
-			if constexpr( not callable<Work> )
-				return false;
-			else
+			using return_t = std::invoke_result_t<Work>;
+			if constexpr( is_awaitable_v<return_t> )
 			{
-				using return_t = std::invoke_result_t<Work>;
-				if constexpr( is_awaitable_v<return_t> )
-				{
-					using nreturn_t = typename return_t::value_type;
-					if constexpr( std::is_void_v<nreturn_t> )
-						return opt_token<Token, std::exception_ptr>;
-					else
-						return opt_token<Token, std::exception_ptr, nreturn_t>;
-				}
-				else if constexpr( std::is_void_v<return_t> )
+				using nreturn_t = typename return_t::value_type;
+				if constexpr( std::is_void_v<nreturn_t> )
 					return opt_token<Token, std::exception_ptr>;
 				else
-					return opt_token<Token, std::exception_ptr, return_t>;
+					return opt_token<Token, std::exception_ptr, nreturn_t>;
 			}
+			else if constexpr( std::is_void_v<return_t> )
+				return opt_token<Token, std::exception_ptr>;
+			else
+				return opt_token<Token, std::exception_ptr, return_t>;
 		}
 	}
+	return false;
 }();
 
 } //namespace concepts

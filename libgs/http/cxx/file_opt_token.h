@@ -39,7 +39,7 @@ namespace libgs::http
 struct LIBGS_HTTP_VAPI file_range {
 	size_t begin = 0, total = 0;
 };
-using file_ranges = std::list<file_range>;
+using file_ranges = std::vector<file_range>;
 
 namespace concepts
 {
@@ -59,7 +59,7 @@ using type = size_t; constexpr type
 	read_write = read | write;
 }
 
-template <core_concepts::fstream>
+template <core_concepts::any_fstream>
 struct get_io_permissions;
 
 template <core_concepts::character CharT>
@@ -77,7 +77,7 @@ struct get_io_permissions<std::basic_ifstream<CharT>> {
 	static constexpr auto value = io_permission::read;
 };
 
-template <core_concepts::fstream FS>
+template <core_concepts::any_fstream FS>
 constexpr auto io_permissions_v = get_io_permissions<FS>::value;
 
 namespace file_optype

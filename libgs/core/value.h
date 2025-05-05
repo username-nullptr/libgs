@@ -68,11 +68,12 @@ concept text_arg = []() consteval -> bool
 		if constexpr( std::is_same_v<T,CharT> or is_string_v<T,CharT> or
 					  std::is_arithmetic_v<T> or std::is_enum_v<T> )
 			return true;
-		else
+
+		else if constexpr( requires { typename T::traits_t; typename T::allocator_t; } )
 		{
 			using traits_t = typename T::traits_t;
 			using allocator_t = typename T::allocator_t;
-			return std::is_base_of_v<basic_value<CharT,traits_t,allocator_t>, T>;
+			return std::is_base_of_v<basic_value<CharT, traits_t, allocator_t>, T>;
 		}
 	}
 	return false;
@@ -256,12 +257,6 @@ using wvalue   = basic_value<wchar_t >;
 // using u16value = basic_value<char16_t>;
 // using u32value = basic_value<char32_t>;
 
-using value_t    = value   ;
-using wvalue_t   = wvalue  ;
-// using u8value_t  = u8value ;
-// using u16value_t = u16value;
-// using u32value_t = u32value;
-
 template <concepts::character CharT, typename...StrArgs>
 using basic_value_optl = std::optional<basic_value<CharT,StrArgs...>>;
 
@@ -271,7 +266,15 @@ using wvalue_optl   = basic_value_optl<wchar_t >;
 // using u16value_optl = basic_value_optl<char16_t>;
 // using u32value_optl = basic_value_optl<char32_t>;
 
-} //namespace libgs
+namespace concepts
+{
+
+template <typename T, typename CharT>
+concept value_get = requires(const basic_value<CharT> &value) {
+	value.template get<T>();
+};
+
+}} //namespace libgs::concepts
 #include <libgs/core/detail/value.h>
 
 

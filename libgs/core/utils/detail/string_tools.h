@@ -42,7 +42,12 @@ template <concepts::character CharT>
 		return std::basic_string<CharT>(&text,1);
 
 	else if constexpr( std::is_same_v<get_char_t<Text>, CharT> )
-		return std::forward<Text>(text);
+	{
+		if constexpr( std::is_same_v<str_t, std::basic_string<CharT>> )
+			return text;
+		else
+			return to_string(text);
+	}
 	else
 	{
 		decltype(auto) view = to_view(std::forward<Text>(text));
@@ -336,7 +341,7 @@ template <concepts::integral_p T>
 	auto view = to_view(str);
 
 	if constexpr( std::is_same_v<T, bool> )
-		return to_bool<char_t>(view, base);
+		return to_bool(view, base);
 	else
 	{
 		using string_t = std::basic_string<char_t>;

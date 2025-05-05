@@ -52,22 +52,11 @@ enum class parse_errno
 #undef X_MACRO
 };
 
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_parser_base final
+class LIBGS_HTTP_VAPI parser_base final
 {
-	LIBGS_DISABLE_COPY(basic_parser_base)
+	LIBGS_DISABLE_COPY(parser_base)
 
 public:
-	using char_t = CharT;
-	using string_t = std::basic_string<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
-
-	using value_t = basic_value<char_t>;
-	using value_optl_t = basic_value_optl<char_t>;
-
-	using header_t = basic_header<char_t>;
-	using headers_t = basic_headers<char_t>;
-
 	using parse_begin_handler = std::function <
 		version_t(std::string_view line_buf, error_code &error)
 	>;
@@ -76,26 +65,26 @@ public:
 	>;
 
 public:
-	explicit basic_parser_base(size_t init_buf_size = 0xFFFF);
-	~basic_parser_base();
+	explicit parser_base(size_t init_buf_size = 0xFFFF);
+	~parser_base();
 
-	basic_parser_base(basic_parser_base &&other) noexcept;
-	basic_parser_base &operator=(basic_parser_base &&other) noexcept;
+	parser_base(parser_base &&other) noexcept;
+	parser_base &operator=(parser_base &&other) noexcept;
 
 public:
-	basic_parser_base &on_parse_begin(parse_begin_handler func);
-	basic_parser_base &on_parse_cookie(parse_cookie_handler func);
-	static error_code make_error_code(parse_errno errc);
+	parser_base &on_parse_begin(parse_begin_handler func);
+	parser_base &on_parse_cookie(parse_cookie_handler func);
+	[[nodiscard]] static error_code make_error_code(parse_errno errc);
 
 	bool append(const const_buffer &buf, error_code &error);
 	bool append(const const_buffer &buf);
 
-	basic_parser_base &operator<<(const const_buffer &buf);
-	basic_parser_base &reset();
+	parser_base &operator<<(const const_buffer &buf);
+	parser_base &reset();
 
 public:
 	[[nodiscard]] version_t version() const noexcept;
-	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const http::headers &headers() const noexcept;
 
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
@@ -106,16 +95,13 @@ public:
 	[[nodiscard]] bool is_eof() const noexcept;
 
 public:
-	basic_parser_base &unset_parse_begin();
-	basic_parser_base &unset_parse_cookie();
+	parser_base &unset_parse_begin();
+	parser_base &unset_parse_cookie();
 
 private:
 	class impl;
 	impl *m_impl;
 };
-
-using parser_base = basic_parser_base<char>;
-using wparser_base = basic_parser_base<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/detail/parser_base.h>

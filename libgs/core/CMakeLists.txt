@@ -80,10 +80,6 @@ set(${target_name}_detail_headers
 	detail/app_utls.h
 	detail/lock_free_queue.h
 	detail/string_container.h
-	detail/string_vector.h
-	detail/string_deque.h
-	detail/string_list.h
-	detail/string_set.h
 	detail/value.h
 	detail/ini.h
 	detail/execution.h
@@ -105,6 +101,9 @@ else ()
 	add_library(${target_name} SHARED ${all_files})
 endif ()
 
+set_target_properties(${target_name} PROPERTIES
+	VERSION ${PRO_VERSION} SOVERSION MAJOR_VERSION
+)
 target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
 
 if (UNIX)
@@ -118,5 +117,6 @@ endif()
 set_target_properties(${target_name} PROPERTIES
 	LIBRARY_OUTPUT_DIRECTORY ${output_dir}/bin
 	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/bin
+	ARCHIVE_OUTPUT_DIRECTORY ${output_dir}/bin
 )
 install(TARGETS ${target_name} DESTINATION ${install_dir})

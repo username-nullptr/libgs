@@ -31,27 +31,25 @@
 
 #include <libgs/http/cxx/attributes.h>
 #include <libgs/http/cxx/concepts.h>
-#include <libgs/core/value.h>
 #include <map>
 #include <set>
 
 namespace libgs::http
 {
 
+using key_t = std::string;
+
 struct LIBGS_HTTP_VAPI less_case_insensitive {
-	bool operator()(const std::string &v1, const std::string &v2) const;
+	bool operator()(const key_t &v1, const key_t &v2) const;
 };
 
 template <typename Value>
-using map = std::map <
-	std::string, Value, less_case_insensitive
->;
+using map = std::map<key_t, Value, less_case_insensitive>;
 
-using set = std::set <
-	value, less_case_insensitive
->;
+template <typename Value>
+using set = std::set<Value>;
 
-} //namespace libgs::http
+} //namespace libgs::http::concepts::container
 #include <libgs/http/cxx/detail/container.h>
 
 

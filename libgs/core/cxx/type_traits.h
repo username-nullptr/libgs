@@ -29,6 +29,8 @@
 #ifndef LIBGS_CORE_CXX_TYPE_TRAITS_H
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
+#include <libgs/core/cxx/string_concepts.h>
+#include <asio/error.hpp>
 #include <chrono>
 #include <format>
 

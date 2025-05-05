@@ -47,59 +47,20 @@ using is_bool = std::is_same<T, bool>;
 template <typename T>
 constexpr bool is_bool_v = is_bool<T>::value;
 
+template <typename>
+struct is_tuple : std::false_type {};
+
+template <typename... Args>
+struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_tuple_v = is_tuple<T>::value;
+
 template <typename T0, typename T1>
 using is_dsame = std::is_same<std::decay_t<T0>, T1>;
 
 template <typename T0, typename T1>
 constexpr bool is_dsame_v = is_dsame<std::decay_t<T0>, T1>::value;
-
-namespace concepts
-{
-
-template <typename T, typename Iter>
-concept iterator = requires(decltype(std::declval<Iter>()) begin, decltype(std::declval<Iter>()) end)
-{
-	++begin == --end;
-	T{ *begin };
-	T{ *end   };
-};
-
-template <typename Iter>
-concept any_iterator = requires(decltype(std::declval<Iter>()) begin, decltype(std::declval<Iter>()) end)
-{
-	++begin == --end;
-	*begin;
-	*end;
-};
-
-} //namespace concepts
-
-template <typename>
-struct match_iterator;
-
-template <concepts::any_iterator T>
-struct match_iterator<T> {
-	using type = T;
-};
-
-template <typename T, size_t N>
-struct match_iterator<T[N]> {
-	using type = decltype(std::declval<T[N]>() + 1);
-};
-
-template <typename T>
-struct match_iterator<T[]> {
-	using type = decltype(std::declval<T[]>() + 1);
-};
-
-template <typename T, size_t N>
-struct match_iterator<T(&)[N]> : match_iterator<T[N]> {};
-
-template <typename T>
-struct match_iterator<T(&)[]> : match_iterator<T[]> {};
-
-template <typename T>
-using match_iterator_t = typename match_iterator<T>::type;
 
 namespace concepts
 {
@@ -189,33 +150,6 @@ concept base_of = std::is_base_of_v<Base,T>;
 
 template <typename T, typename...Args>
 concept all_types = std::conjunction_v<std::is_same<T,std::remove_cvref_t<Args>>...>;
-
-template <typename T, typename...Args>
-concept container_params = []() consteval -> bool
-{
-	if constexpr( sizeof...(Args) == 0 )
-		return false;
-	else if constexpr( constructible<T,Args...> )
-		return true;
-
-	else if constexpr( sizeof...(Args) == 1 )
-	{
-		using container_t = std::tuple_element_t<0,std::tuple<Args...>>;
-		return requires(const container_t &container)
-		{
-			T{ *std::begin(container) };
-			T{ *std::end  (container) };
-		};
-	}
-	else if constexpr( sizeof...(Args) == 2 )
-	{
-		using tuple_t = std::tuple<Args...>;
-		using begin_t = match_iterator_t<std::tuple_element_t<0,tuple_t>>;
-		using end_t = match_iterator_t<std::tuple_element_t<1,tuple_t>>;
-		return iterator<T,begin_t> and iterator<T,end_t>;
-	}
-	return false;
-}();
 
 }} //namespace libgs::concepts
 

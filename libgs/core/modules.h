@@ -98,6 +98,7 @@ public:
 		level_t level = level_6
 	);
 	static void do_init(const string_vector &args = {});
+	static void do_init(int argc, const char *argv[]);
 
 private:
 	class impl;

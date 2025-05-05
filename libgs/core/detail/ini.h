@@ -55,39 +55,30 @@ decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	using def_t = std::remove_cvref_t<T>;
 
-	if constexpr( std::is_same_v<def_t, value_t> )
-		return it == m_keys.end() ? std::forward<T>(def_value) : it->second;
-
-	else if constexpr( is_string_v<def_t, char_t> )
+	if constexpr( is_string_v<def_t, char_t> )
 	{
 		return it == m_keys.end() ?
-			value_t(std::forward<T>(def_value)).template get<string_t>() :
-			it->second.template get<string_t>();
+			strtls::to_string(std::forward<T>(def_value)) : *it->second;
 	}
 	else
 	{
-		return it == m_keys.end() ?
-			value_t(std::forward<T>(def_value)).template get<def_t>() :
+		return it == m_keys.end() ? std::forward<T>(def_value) :
 			it->second.template get<def_t>();
 	}
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::text_arg_p<CharT> T>
-auto basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key) const
+template <concepts::value_get<CharT> T>
+T basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key) const
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	if( it == m_keys.end() )
 	{
 		throw runtime_error("libgs::basic_ini_keys: read: The key '{}' is not exists.",
-			xxtombs(std::forward<decltype(key)>(key))
+			strtls::detail::ascii_transition<char>(std::forward<decltype(key)>(key))
 		);
 	}
-	using def_t = std::remove_cvref_t<T>;
-	if constexpr( std::is_same_v<def_t, value_t> )
-		return it->second;
-	else
-		return it->second.template get<def_t>();
+	return it->second.template get<T>();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
@@ -457,7 +448,7 @@ public:
 		if( str_list.size() != 2 )
 		{
 			throw runtime_error("libgs::basic_ini: {}: The path '{}' is invalid.",
-				func, xxtombs(path)
+				func, strtls::detail::ascii_transition<char>(path)
 			);
 		}
 		return std::make_pair(str_list[0], str_list[1]);
@@ -468,32 +459,34 @@ public:
 	{
 		using namespace std::chrono;
 		auto msec = std::chrono::duration_cast<milliseconds>(period);
+		if( msec == m_sync_period )
+			return ;
 
-		if( m_sync_period != 0ms and msec == 0ms )
-			m_timer.cancel();
-		else if( m_sync_period == 0ms and msec != 0ms )
-		{
-			dispatch([self = this->shared_from_this()]() -> awaitable<void>
-			{
-				error_code error;
-				while( not error )
-				{
-					self->m_timer.expires_after(self->m_sync_period);
-					using namespace operators;
-
-					co_await self->m_timer.async_wait(use_awaitable | error);
-					if( error )
-						break;
-					detail::ini_commit_io_work([self]
-					{
-						error_code error; LIBGS_UNUSED(error);
-						self->sync(error, []{return false;});
-					});
-				}
-				co_return ;
-			});
-		}
+		m_timer.cancel();
 		m_sync_period = std::move(msec);
+
+		if( msec == 0ms )
+			return ;
+
+		dispatch([self = this->shared_from_this()]() -> awaitable<void>
+		{
+			error_code error;
+			while( not error )
+			{
+				self->m_timer.expires_after(self->m_sync_period);
+				using namespace operators;
+
+				co_await self->m_timer.async_wait(use_awaitable | error);
+				if( error )
+					break;
+				detail::ini_commit_io_work([self]
+				{
+					error_code error; LIBGS_UNUSED(error);
+					self->sync(error, []{return false;});
+				});
+			}
+			co_return ;
+		});
 	}
 
 private:
@@ -772,28 +765,26 @@ decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::text_arg_p<CharT> T>
-auto basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk) const
+template <concepts::value_get<CharT> T>
+T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk) const
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	if( it == m_impl->m_groups.end() )
 	{
 		throw runtime_error("libgs::basic_ini: read: The group '{}' is not exists.",
-			xxtombs(std::forward<decltype(gk.group)>(gk.group))
+			strtls::detail::ascii_transition<char>(std::forward<decltype(gk.group)>(gk.group))
 		);
 	}
-	return it->second.template read<std::remove_cvref_t<T>>(std::move(gk.key));
+	return it->second.template read<T>(std::move(gk.key));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::text_arg_p<CharT> T>
-auto basic_ini<CharT,Exec,Map,MapArgs...>::read
+template <concepts::value_get<CharT> T>
+T basic_ini<CharT,Exec,Map,MapArgs...>::read
 (const concepts::string_p<char_t> auto &path) const
 {
-	return read<std::remove_cvref_t<T>> (
-		m_impl->from_path(path, "read")
-	);
+	return read<T>(m_impl->from_path(path, "read"));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -832,7 +823,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto 
 	if( it != m_impl->m_groups.end() )
 	{
 		throw runtime_error("basic_ini: group: The group '{}' is not exists.",
-			xxtombs(std::forward<decltype(group)>(group))
+			strtls::detail::ascii_transition<char>(std::forward<decltype(group)>(group))
 		);
 	}
 	return it->second;

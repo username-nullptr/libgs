@@ -1,10 +1,20 @@
 cmake_minimum_required(VERSION 3.12)
-set(PRO_VERSION 0.6.0)
+
+set(MAJOR_VERSION 0)
+set(MINOR_VERSION 6)
+set(PATCH_VERSION 1)
+
+set(PRO_VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION})
 set(PRO_NAME LibGS)
 
 project(${PRO_NAME} VERSION ${PRO_VERSION} LANGUAGES C CXX)
-add_definitions(-DLIBGS_VERSION_STR="${PRO_VERSION}-dev")
 
+add_definitions (
+	-DLIBGS_MAJOR_VERSION=${MAJOR_VERSION}
+	-DLIBGS_MINOR_VERSION=${MINOR_VERSION}
+	-DLIBGS_PATCH_VERSION=${PATCH_VERSION}
+	-DLIBGS_VERSION_STR="${PRO_VERSION}-dev"
+)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(utility)
@@ -21,6 +31,7 @@ add_subdirectory(3rd_party)
 include(3rd_party)
 
 if (CMAKE_BUILD_TYPE AND (CMAKE_BUILD_TYPE STREQUAL "Debug"))
+	add_compile_options(-rdynamic)
 	add_definitions(-DLIBGS_DEBUG)
 endif()
 

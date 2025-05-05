@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_HEADER_H
 
 #include <libgs/http/global.h>
+#include <libgs/core/value.h>
 
 namespace libgs::http
 {

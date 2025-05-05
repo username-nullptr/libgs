@@ -49,17 +49,17 @@ class LIBGS_DECL_HIDDEN args_parser::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	explicit impl(std::string &help_title) :
+	explicit impl(std::string help_title) :
 		m_help_title(std::move(help_title)) {}
 
-	void add(args_cache &cache, const std::string &rule, const std::string &description, const std::string &identification)
+	void add(args_cache &cache, std::string_view rule, std::string_view description, std::string_view identification)
 	{
 		static size_t id_source = 0;
 		char buf[128] = "";
 		std::snprintf(buf, 128, "%zu", id_source++);
 
-		auto str_list = string_list::from_string(rule, ",");
-		for(auto &arg : str_list)
+		auto str_vector = string_vector::from_string(rule, ",");
+		for(auto &arg : str_vector)
 		{
 			arg = strtls::trimmed(arg);
 			if( not check(arg) or arg == "--" )
@@ -68,12 +68,24 @@ public:
 			else if( arg.size() == 1 )
 			{
 				if( arg != "-" )
-					cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
+				{
+					cache.emplace(arg, arg_info {
+						buf, identification.empty()? arg : std::string(identification)
+					});
+				}
 			}
 			else
-				cache.emplace(arg, arg_info{buf, identification.empty()? arg : identification});
+			{
+				cache.emplace(arg, arg_info {
+					buf, identification.empty()? arg : std::string(identification)
+				});
+			}
 		}
-		m_help += "    " + rule + " :\n        " + description + "\n\n";
+		m_help += "    ";
+		m_help += rule;
+		m_help += " :\n        ";
+		m_help += description;
+		m_help += "\n\n";
 	}
 
 public:
@@ -147,7 +159,7 @@ public:
 /*---------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 args_parser::args_parser(std::string help_title) :
-	m_impl(new impl(help_title))
+	m_impl(new impl(std::move(help_title)))
 {
 
 }
@@ -163,13 +175,13 @@ args_parser &args_parser::set_help_title(std::string text)
 	return *this;
 }
 
-args_parser &args_parser::add_group(const std::string &rule, const std::string &description, const std::string &identification)
+args_parser &args_parser::add_group(std::string_view rule, std::string_view description, std::string_view identification)
 {
 	m_impl->add(m_impl->m_group, rule, description, identification);
 	return *this;
 }
 
-args_parser &args_parser::add_flag(const std::string &rule, const std::string &description, const std::string &identification)
+args_parser &args_parser::add_flag(std::string_view rule, std::string_view description, std::string_view identification)
 {
 	m_impl->add(m_impl->m_flag, rule, description, identification);
 	return *this;
@@ -214,14 +226,20 @@ static void group_check_duplication(parsing_cache &cache, const std::string &gro
 	}
 }
 
-arguments args_parser::parsing(int argc, const char *argv[], string_list &other)
+arguments args_parser::parsing(int argc, const char *argv[], string_vector &other)
+{
+	return parsing({argv, argv + argc}, other);
+}
+
+arguments args_parser::parsing(const string_vector &args, string_vector &other)
 {
 	arguments result;
 	parsing_cache cache;
+	auto argc = args.size();
 
-	for(int i=1; i<argc; i++)
+	for(size_t i=1; i<argc; i++)
 	{
-		std::string arg(argv[i]);
+		std::string arg(args[i]);
 		if( arg == "-" or arg == "--" )
 		{
 			std::cerr << "Invalid arguments." << std::endl;
@@ -287,14 +305,14 @@ arguments args_parser::parsing(int argc, const char *argv[], string_list &other)
 		if( it != m_impl->m_group.end() )
 		{
 			if( i + 1 == argc or
-				m_impl->m_group.contains(argv[i+1]) or
-				m_impl->m_flag.contains(argv[i+1]))
+				m_impl->m_group.contains(args[i+1]) or
+				m_impl->m_flag.contains(args[i+1]))
 			{
 				std::cerr << "Invalid arguments." << std::endl;
 				exit(-1);
 			}
 			group_check_duplication(cache, it->second.group);
-			result.emplace(it->second.iden, argv[i+1]);
+			result.emplace(it->second.iden, args[i+1]);
 			i++;
 			continue ;
 		}
@@ -379,14 +397,14 @@ arguments args_parser::parsing(int argc, const char *argv[], string_list &other)
 		if( it2 != m_impl->m_group.end() )
 		{
 			if( i + 1 == argc or
-				m_impl->m_group.contains(argv[i+1]) or
-				m_impl->m_flag.contains(argv[i+1]))
+				m_impl->m_group.contains(args[i+1]) or
+				m_impl->m_flag.contains(args[i+1]))
 			{
 				std::cerr << "Invalid arguments." << std::endl;
 				exit(-1);
 			}
 			group_check_duplication(cache, it2->second.group);
-			result.emplace(it2->second.iden, argv[i+1]);
+			result.emplace(it2->second.iden, args[i+1]);
 			i++;
 			continue ;
 		}
@@ -397,8 +415,13 @@ arguments args_parser::parsing(int argc, const char *argv[], string_list &other)
 
 arguments args_parser::parsing(int argc, const char *argv[])
 {
-	string_list other;
-	auto res = parsing(argc, argv, other);
+	return parsing({argv, argv + argc});
+}
+
+arguments args_parser::parsing(const string_vector &args)
+{
+	string_vector other;
+	auto res = parsing(args, other);
 	if( not other.empty() )
 	{
 		std::cerr << "Invalid arguments." << std::endl;

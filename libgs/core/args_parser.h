@@ -29,8 +29,8 @@
 #ifndef LIBGS_CORE_ARGS_PARSER_H
 #define LIBGS_CORE_ARGS_PARSER_H
 
+#include <libgs/core/string_vector.h>
 #include <libgs/core/value.h>
-#include <libgs/core/string_list.h>
 
 namespace libgs::cmdline
 {
@@ -53,13 +53,13 @@ public:
 	// ./a.out -f filename
 	// ./a.out --file=filename
 	args_parser &add_group (
-		const std::string &rule, const std::string &description, const std::string &identification = {}
+		std::string_view rule, std::string_view description, std::string_view identification = {}
 	);
 
 	// ./a.out -abc
 	// ./a.out -a -b -c
 	args_parser &add_flag (
-		const std::string &rule, const std::string &description, const std::string &identification = {}
+		std::string_view rule, std::string_view description, std::string_view identification = {}
 	);
 
 public:
@@ -72,8 +72,12 @@ public:
 	args_parser &set_help_extension(std::string d);
 
 public:
-	arguments parsing(int argc, const char *argv[], string_list &other);
-	arguments parsing(int argc, const char *argv[]); // exit if other.
+	arguments parsing(int argc, const char *argv[], string_vector &other);
+	arguments parsing(const string_vector &args, string_vector &other);
+
+	// exit if other.
+	arguments parsing(int argc, const char *argv[]);
+	arguments parsing(const string_vector &args);
 
 private:
 	class impl;

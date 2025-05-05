@@ -64,32 +64,28 @@ int exec()
 	for(;;)
 	{
 		ioc.run();
+		ioc.restart();
 		if( not g_run_flag )
 			break;
-		ioc.restart();
 	}
 	return g_exit_code;
 }
 
-static void do_exit(int code)
+void exit(int code)
 {
 	if( g_run_flag )
 	{
 		g_exit_code = code;
 		g_run_flag = false;
 	}
-}
-
-void exit(int code)
-{
-	do_exit(code);
-	g_io_worker->reset();
-}
-
-void terminate(int code)
-{
-	do_exit(code);
 	io_context().stop();
+	g_io_worker.reset();
+
+	while( g_run_flag )
+	{
+		g_run_flag = false;
+		io_context().stop();
+	}
 }
 
 bool is_run()

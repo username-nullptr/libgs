@@ -34,34 +34,9 @@
 namespace libgs::http
 {
 
-namespace detail
-{
-
-template <core_concepts::character T>
-struct _parser_static_string;
-
-#define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
-	static constexpr const _type *comma = __VA_ARGS__##",";
-
-template <>
-struct _parser_static_string<char> {
-	LIBGS_HTTP_DETAIL_STRING_POOL(char);
-};
-
-template <>
-struct _parser_static_string<wchar_t> {
-	LIBGS_HTTP_DETAIL_STRING_POOL(wchar_t,L);
-};
-
-#undef LIBGS_HTTP_DETAIL_STRING_POOL
-
-} //namespace detail
-
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_parser_base<CharT>::impl
+class LIBGS_HTTP_TAPI parser_base::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	struct string_pool : detail::string_pool<char_t>, detail::_parser_static_string<char_t> {};
 
 public:
 	impl(size_t init_buf_size) {
@@ -89,8 +64,11 @@ public:
 			if( m_state == state::waiting_request )
 			{
 				if( not m_parse_begin )
-					throw runtime_error("libgs::http::parser: state_handler_waiting_begin == NULL.");
-
+				{
+					throw runtime_error (
+						"libgs::http::parser: state_handler_waiting_begin == NULL."
+					);
+				}
 				m_version = m_parse_begin(line_buf, error);
 				if( error )
 				{
@@ -123,23 +101,23 @@ public:
 			error = make_error_code(parse_errno::IHL);
 			return false;
 		}
-		header_insert(str_to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+		header_insert(strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
 					  from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1))), error);
 		return false;
 	}
 
 	bool set_read_body_state(error_code &error)
 	{
-		auto it = m_headers.find(basic_header<char_t>::content_length);
+		auto it = m_headers.find(header::content_length);
 		if( it != m_headers.end() )
 		{
-			m_content_length = it->second.template get<size_t>();
+			m_content_length = it->second.get<size_t>();
 			parse_length();
 		}
 		else if( m_version == version::v11 )
 		{
-			it = m_headers.find(basic_header<char_t>::transfer_encoding);
-			if( it == m_headers.end() or it->second.to_string() != string_pool::chunked )
+			it = m_headers.find(header::transfer_encoding);
+			if( it == m_headers.end() or it->second.to_string() != "chunked" )
 				m_state = state::finished;
 			else
 			{
@@ -191,7 +169,7 @@ public:
 					break;
 				}
 				try {
-					_size = ston<size_t>(line_buf, 16);
+					_size = strtls::to_arith<size_t>(line_buf, 16);
 				}
 				catch(...) {
 					error = make_error_code(parse_errno::SFE);
@@ -222,7 +200,7 @@ public:
 					error = make_error_code(parse_errno::SFE);
 					break;
 				}
-				header_insert(str_to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+				header_insert(strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
 							  from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1))), error);
 			}
 		}
@@ -239,7 +217,7 @@ public:
 			m_parse_cookie(value, error);
 		}
 		else
-			m_headers[mbstoxx<char_t>(key)] = mbstoxx<char_t>(value);
+			m_headers[std::move(key)] = std::move(value);
 	}
 
 	void reset()
@@ -275,7 +253,7 @@ public:
 	inline static error_category s_error_category;
 
 	static error_code make_error_code(parse_errno errc) {
-		return error_code(static_cast<int>(errc), s_error_category);
+		return { static_cast<int>(errc), s_error_category };
 	}
 
 #undef LIBGS_HTTP_PARSER_ERRNO
@@ -294,8 +272,8 @@ public:
 	m_state = state::waiting_request;
 	std::string m_src_buf;
 
-	version_t m_version;
-	headers_t m_headers;
+	version_t m_version {};
+	http::headers m_headers;
 
 	std::string m_partial_body;
 	size_t m_content_length = 0;
@@ -304,28 +282,24 @@ public:
 	parse_cookie_handler m_parse_cookie;
 };
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT>::basic_parser_base(size_t init_buf_size) :
+inline parser_base::parser_base(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT>::~basic_parser_base()
+inline parser_base::~parser_base()
 {
 	delete m_impl;
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT>::basic_parser_base(basic_parser_base &&other) noexcept :
+inline parser_base::parser_base(parser_base &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::operator=(basic_parser_base &&other) noexcept
+inline parser_base &parser_base::operator=(parser_base &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -335,30 +309,26 @@ basic_parser_base<CharT> &basic_parser_base<CharT>::operator=(basic_parser_base 
 	return *this;
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::on_parse_begin(parse_begin_handler func)
+inline parser_base &parser_base::on_parse_begin(parse_begin_handler func)
 {
 	m_impl->m_parse_begin = std::move(func);
 	return *this;
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::on_parse_cookie(parse_cookie_handler func)
+inline parser_base &parser_base::on_parse_cookie(parse_cookie_handler func)
 {
 	m_impl->m_parse_cookie = std::move(func);
 	return *this;
 }
 
-template <core_concepts::character CharT>
-error_code basic_parser_base<CharT>::make_error_code(parse_errno errc)
+inline error_code parser_base::make_error_code(parse_errno errc)
 {
 	return impl::make_error_code(errc);
 }
 
-template <core_concepts::character CharT>
-bool basic_parser_base<CharT>::append(const const_buffer &buf, error_code &error)
+inline bool parser_base::append(const const_buffer &buf, error_code &error)
 {
-	using state = typename impl::state;
+	using state = impl::state;
 	std::string str_buf(reinterpret_cast<const char*>(buf.data()), buf.size());
 
 	error = error_code();
@@ -372,7 +342,7 @@ bool basic_parser_base<CharT>::append(const const_buffer &buf, error_code &error
 		error = make_error_code(parse_errno::RE);
 		return false;
 	}
-	m_impl->m_src_buf.append(std::move(str_buf));
+	m_impl->m_src_buf += str_buf;
 	if( m_impl->m_state <= state::reading_headers )
 		return m_impl->parse_header(error);
 
@@ -384,8 +354,7 @@ bool basic_parser_base<CharT>::append(const const_buffer &buf, error_code &error
 	return m_impl->parse_chunked(error);
 }
 
-template <core_concepts::character CharT>
-bool basic_parser_base<CharT>::append(const const_buffer&buf)
+inline bool parser_base::append(const const_buffer&buf)
 {
 	error_code error;
 	bool res = append(buf, error);
@@ -394,34 +363,29 @@ bool basic_parser_base<CharT>::append(const const_buffer&buf)
 	return res;
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::operator<<(const const_buffer &buf)
+inline parser_base &parser_base::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::reset()
+inline parser_base &parser_base::reset()
 {
 	m_impl->reset();
 	return *this;
 }
 
-template <core_concepts::character CharT>
-version_t basic_parser_base<CharT>::version() const noexcept
+inline version_t parser_base::version() const noexcept
 {
 	return m_impl->m_version;
 }
 
-template <core_concepts::character CharT>
-const typename basic_parser_base<CharT>::headers_t &basic_parser_base<CharT>::headers() const noexcept
+inline const headers &parser_base::headers() const noexcept
 {
 	return m_impl->m_headers;
 }
 
-template <core_concepts::character CharT>
-std::string basic_parser_base<CharT>::take_partial_body(size_t size)
+inline std::string parser_base::take_partial_body(size_t size)
 {
 	if( size == 0 )
 		return {};
@@ -433,40 +397,34 @@ std::string basic_parser_base<CharT>::take_partial_body(size_t size)
 	return res;
 }
 
-template <core_concepts::character CharT>
-std::string basic_parser_base<CharT>::take_body()
+inline std::string parser_base::take_body()
 {
 	return std::move(m_impl->m_partial_body);
 }
 
-template <core_concepts::character CharT>
-bool basic_parser_base<CharT>::can_read_from_device() const noexcept
+inline bool parser_base::can_read_from_device() const noexcept
 {
 	return m_impl->m_state > impl::state::reading_headers and
 		   m_impl->m_state < impl::state::finished;
 }
 
-template <core_concepts::character CharT>
-bool basic_parser_base<CharT>::is_finished() const noexcept
+inline bool parser_base::is_finished() const noexcept
 {
 	return m_impl->m_state == impl::state::finished;
 }
 
-template <core_concepts::character CharT>
-bool basic_parser_base<CharT>::is_eof() const noexcept
+inline bool parser_base::is_eof() const noexcept
 {
 	return m_impl->m_partial_body.empty() and not can_read_from_device();
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::unset_parse_begin()
+inline parser_base &parser_base::unset_parse_begin()
 {
 	m_impl->m_parse_begin = {};
 	return *this;
 }
 
-template <core_concepts::character CharT>
-basic_parser_base<CharT> &basic_parser_base<CharT>::unset_parse_cookie()
+inline parser_base &parser_base::unset_parse_cookie()
 {
 	m_impl->m_parse_cookie = {};
 	return *this;
