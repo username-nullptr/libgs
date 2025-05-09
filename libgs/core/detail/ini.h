@@ -349,7 +349,7 @@ public:
 					error = make_error_code(asio::error::operation_aborted);
 					return ;
 				}
-				else if( file.peek() == EOF )
+				else if( file.eof() or file.peek() == EOF )
 					break;
 
 				std::getline(file, buf);

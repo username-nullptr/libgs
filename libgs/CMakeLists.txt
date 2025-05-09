@@ -1,4 +1,4 @@
-option(BUILD_STATIC
+option(LIBGS_BUILD_STATIC
 	"-- ${PRO_NAME}: Build static libraries." OFF
 )
 if (WIN32)

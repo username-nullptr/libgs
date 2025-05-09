@@ -95,7 +95,7 @@ set(all_files
 )
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 
-if (BUILD_STATIC)
+if (LIBGS_BUILD_STATIC)
 	add_library(${target_name} STATIC ${all_files})
 else ()
 	add_library(${target_name} SHARED ${all_files})
