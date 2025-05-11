@@ -49,7 +49,7 @@ static constexpr const char
 	*priority  = "Priority";
 };
 
-class LIBGS_HTTP_VAPI cookie
+class LIBGS_HTTP_API cookie final
 {
 public:
 	using value_t = libgs::value;
@@ -59,20 +59,21 @@ public:
 public:
 	cookie();
 	cookie(value_t value);
-	virtual ~cookie() = default;
+	~cookie();
 
-	cookie(const cookie &other) = default;
-	cookie &operator=(const cookie &other) = default;
+	cookie(const cookie &other);
+	cookie &operator=(const cookie &other);
 
-	cookie(cookie &&other) noexcept = default;
-	cookie &operator=(cookie &&other) noexcept = default;
+	cookie(cookie &&other) noexcept;
+	cookie &operator=(cookie &&other) noexcept;
 
 public:
 	cookie &set_value(value_t value) noexcept;
 	cookie &operator=(value_t v) noexcept;
 
-	template <core_concepts::value_get<char> T = value_t>
-	[[nodiscard]] T value() noexcept;
+	template <typename T>
+	[[nodiscard]] decltype(auto) value() requires
+		core_concepts::value_get<char,T>;
 
 	[[nodiscard]] value_t value() noexcept;
 	operator value_t() noexcept;
@@ -140,13 +141,13 @@ public:
 	cookie &unset_secure();
 
 public:
-	template <core_concepts::value_get<char> T = value_t>
-	[[nodiscard]] T attribute(const core_concepts::text_p<char> auto &key) const;
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) attribute(const core_concepts::text_p<char> auto &key)
+		const requires core_concepts::value_get<char,T>;
 
-	template <core_concepts::text_arg_p<char> T = value_t>
-	[[nodiscard]] decltype(auto) attribute_or (
-		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const noexcept;
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) attribute_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
+		const requires core_concepts::value_get_or<char,T>;
 
 public:
 	cookie &set_attribute(core_concepts::text_p<char> auto &&key, value_t attr) noexcept;
@@ -155,9 +156,9 @@ public:
 	[[nodiscard]] const attributes_t &attributes() const noexcept;
 	[[nodiscard]] attributes_t &attributes() noexcept;
 
-protected:
-	value_t m_value;
-	attributes_t m_attributes;
+private:
+	class impl;
+	impl *m_impl;
 };
 
 using cookie_attributes = cookie::attributes_t;

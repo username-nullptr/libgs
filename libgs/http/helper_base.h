@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-template <core_concepts::character CharT, version_t Version = version::v11>
+template <version_t Version = version::v11>
 class LIBGS_HTTP_TAPI basic_helper_base final
 {
 	LIBGS_DISABLE_COPY(basic_helper_base)

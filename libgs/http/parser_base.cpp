@@ -26,20 +26,47 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_DETAIL_PARSER_BASE_H
-#define LIBGS_HTTP_DETAIL_PARSER_BASE_H
-
+#include "parser_base.h"
 #include <libgs/core/algorithm/misc.h>
 
 namespace libgs::http
 {
 
-class LIBGS_HTTP_TAPI parser_base::impl
+static class LIBGS_DECL_HIDDEN error_category : public std::error_category
+{
+	LIBGS_DISABLE_COPY_MOVE(error_category)
+
+public:
+	error_category() = default;
+
+	[[nodiscard]] const char *name() const noexcept override {
+		return "libgs::http::request_parser_error";
+	}
+
+	[[nodiscard]] std::string message(int code) const override
+	{
+		switch(static_cast<parse_errno>(code))
+		{
+#define X_MACRO(e,v,d) case parse_errno::e: return d;
+			LIBGS_HTTP_PARSER_ERRNO
+#undef X_MACRO
+			default: break;
+		}
+		return "Unknown error.";
+	}
+}
+g_error_category;
+
+[[nodiscard]] static error_code make_error_code(parse_errno errc) {
+	return { static_cast<int>(errc), g_error_category };
+}
+
+class LIBGS_DECL_HIDDEN parser_base::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl(size_t init_buf_size) {
+	explicit impl(size_t init_buf_size) {
 		m_src_buf.reserve(init_buf_size);
 	}
 
@@ -229,35 +256,6 @@ public:
 	}
 
 public:
-	class error_category : public std::error_category
-	{
-		LIBGS_DISABLE_COPY_MOVE(error_category)
-
-	public:
-		error_category() = default;
-		[[nodiscard]] const char *name() const noexcept override {
-			return "libgs::http::request_parser_error";
-		}
-		[[nodiscard]] std::string message(int code) const override
-		{
-			switch(static_cast<parse_errno>(code))
-			{
-#define X_MACRO(e,v,d) case parse_errno::e: return d;
-				LIBGS_HTTP_PARSER_ERRNO
-#undef X_MACRO
-				default: break;
-			}
-			return "Unknown error.";
-		}
-	};
-	inline static error_category s_error_category;
-
-	static error_code make_error_code(parse_errno errc) {
-		return { static_cast<int>(errc), s_error_category };
-	}
-
-#undef LIBGS_HTTP_PARSER_ERRNO
-public:
 	enum class state
 	{
 		waiting_request,      // GET /path HTTP/1.1\r\n
@@ -282,24 +280,24 @@ public:
 	parse_cookie_handler m_parse_cookie;
 };
 
-inline parser_base::parser_base(size_t init_buf_size) :
+parser_base::parser_base(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
-inline parser_base::~parser_base()
+parser_base::~parser_base()
 {
 	delete m_impl;
 }
 
-inline parser_base::parser_base(parser_base &&other) noexcept :
+parser_base::parser_base(parser_base &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
-inline parser_base &parser_base::operator=(parser_base &&other) noexcept
+parser_base &parser_base::operator=(parser_base &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -309,24 +307,24 @@ inline parser_base &parser_base::operator=(parser_base &&other) noexcept
 	return *this;
 }
 
-inline parser_base &parser_base::on_parse_begin(parse_begin_handler func)
+parser_base &parser_base::on_parse_begin(parse_begin_handler func)
 {
 	m_impl->m_parse_begin = std::move(func);
 	return *this;
 }
 
-inline parser_base &parser_base::on_parse_cookie(parse_cookie_handler func)
+parser_base &parser_base::on_parse_cookie(parse_cookie_handler func)
 {
 	m_impl->m_parse_cookie = std::move(func);
 	return *this;
 }
 
-inline error_code parser_base::make_error_code(parse_errno errc)
+error_code parser_base::make_error_code(parse_errno errc)
 {
-	return impl::make_error_code(errc);
+	return http::make_error_code(errc);
 }
 
-inline bool parser_base::append(const const_buffer &buf, error_code &error)
+bool parser_base::append(const const_buffer &buf, error_code &error)
 {
 	using state = impl::state;
 	std::string str_buf(reinterpret_cast<const char*>(buf.data()), buf.size());
@@ -354,7 +352,7 @@ inline bool parser_base::append(const const_buffer &buf, error_code &error)
 	return m_impl->parse_chunked(error);
 }
 
-inline bool parser_base::append(const const_buffer&buf)
+bool parser_base::append(const const_buffer&buf)
 {
 	error_code error;
 	bool res = append(buf, error);
@@ -363,29 +361,29 @@ inline bool parser_base::append(const const_buffer&buf)
 	return res;
 }
 
-inline parser_base &parser_base::operator<<(const const_buffer &buf)
+parser_base &parser_base::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-inline parser_base &parser_base::reset()
+parser_base &parser_base::reset()
 {
 	m_impl->reset();
 	return *this;
 }
 
-inline version_t parser_base::version() const noexcept
+version_t parser_base::version() const noexcept
 {
 	return m_impl->m_version;
 }
 
-inline const headers &parser_base::headers() const noexcept
+const headers &parser_base::headers() const noexcept
 {
 	return m_impl->m_headers;
 }
 
-inline std::string parser_base::take_partial_body(size_t size)
+std::string parser_base::take_partial_body(size_t size)
 {
 	if( size == 0 )
 		return {};
@@ -397,40 +395,37 @@ inline std::string parser_base::take_partial_body(size_t size)
 	return res;
 }
 
-inline std::string parser_base::take_body()
+std::string parser_base::take_body()
 {
 	return std::move(m_impl->m_partial_body);
 }
 
-inline bool parser_base::can_read_from_device() const noexcept
+bool parser_base::can_read_from_device() const noexcept
 {
 	return m_impl->m_state > impl::state::reading_headers and
 		   m_impl->m_state < impl::state::finished;
 }
 
-inline bool parser_base::is_finished() const noexcept
+bool parser_base::is_finished() const noexcept
 {
 	return m_impl->m_state == impl::state::finished;
 }
 
-inline bool parser_base::is_eof() const noexcept
+bool parser_base::is_eof() const noexcept
 {
 	return m_impl->m_partial_body.empty() and not can_read_from_device();
 }
 
-inline parser_base &parser_base::unset_parse_begin()
+parser_base &parser_base::unset_parse_begin()
 {
 	m_impl->m_parse_begin = {};
 	return *this;
 }
 
-inline parser_base &parser_base::unset_parse_cookie()
+parser_base &parser_base::unset_parse_cookie()
 {
 	m_impl->m_parse_cookie = {};
 	return *this;
 }
 
 } //namespace libgs::http
-
-
-#endif //LIBGS_HTTP_DETAIL_PARSER_BASE_H

@@ -70,7 +70,7 @@ public:
 				return false;
 	 		}
 		*/
-		return m_native_handle.compare_exchange_weak(flag, true);
+		return m_native_handle.compare_exchange_strong(flag, true);
 	}
 
 	[[nodiscard]] awaitable<bool> try_lock_x

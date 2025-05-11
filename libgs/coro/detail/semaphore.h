@@ -89,7 +89,7 @@ public:
 				return false;
 	 		}
 		*/
-		return m_counter.compare_exchange_weak(counter, counter - 1);
+		return m_counter.compare_exchange_strong(counter, counter - 1);
 	}
 
 	[[nodiscard]] awaitable<bool> try_acquire_x

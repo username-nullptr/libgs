@@ -66,7 +66,7 @@ inline bool spin_mutex::try_lock()
 			return false;
 	 	}
 	*/
-	return m_native_handle.compare_exchange_weak(flag, true);
+	return m_native_handle.compare_exchange_strong(flag, true);
 }
 
 inline void spin_mutex::unlock()

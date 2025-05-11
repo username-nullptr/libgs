@@ -28,7 +28,7 @@
 
 #ifdef __unix__
 
-#include "library_impl.hii"
+#include "library_impl.ipp"
 #include <libgs/core/app_utls.h>
 #include <dlfcn.h>
 

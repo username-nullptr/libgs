@@ -1,17 +1,4 @@
-option(LIBGS_BUILD_STATIC
-	"-- ${PRO_NAME}: Build static libraries." OFF
-)
-if (WIN32)
-	set(OS_CPP win)
-	set(IS_CPP winnt)
-elseif (UNIX)
-	if (APPLE)
-		set(OS_CPP apple)
-	else ()
-		set(OS_CPP unix)
-	endif ()
-	set(IS_CPP posix)
-endif()
+include(project)
 
 add_subdirectory(core)
 add_subdirectory(http)

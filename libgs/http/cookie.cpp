@@ -1,0 +1,393 @@
+
+/************************************************************************************
+*                                                                                   *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*                                                                                   *
+*   This file is part of LIBGS                                                      *
+*   License: MIT License                                                            *
+*                                                                                   *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
+*                                                                                   *
+*   The above copyright notice and this permission notice shall be included in      *
+*   all copies or substantial portions of the Software.                             *
+*                                                                                   *
+*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
+*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
+*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
+*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
+*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
+*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
+*   SOFTWARE.                                                                       *
+*                                                                                   *
+*************************************************************************************/
+
+#include "cookie.h"
+
+namespace libgs::http
+{
+
+class LIBGS_DECL_HIDDEN cookie::impl
+{
+public:
+	impl() = default;
+	explicit impl(value_t value) :
+		m_value(std::move(value)) {}
+
+	impl(const impl &other) = default;
+	impl &operator=(const impl &other) = default;
+
+	impl(impl &&other) noexcept = default;
+	impl &operator=(impl &&other) noexcept = default;
+
+
+public:
+	value_t m_value;
+	attributes_t m_attributes {
+		{ cookie_attribute::path, "/" }
+	};
+};
+
+cookie::cookie() :
+	m_impl(new impl())
+{
+
+}
+
+cookie::cookie(value_t value) :
+	m_impl(new impl(std::move(value)))
+{
+
+}
+
+cookie &cookie::set_value(value_t value) noexcept
+{
+	m_impl->m_value = std::move(value);
+	return *this;
+}
+
+cookie &cookie::operator=(value_t v) noexcept
+{
+	m_impl->m_value = std::move(v);
+	return *this;
+}
+
+cookie::value_t cookie::value() noexcept
+{
+	return m_impl->m_value;
+}
+
+cookie::operator value_t() noexcept
+{
+	return m_impl->m_value;
+}
+
+std::string cookie::domain() const
+{
+	auto it = attributes().find(cookie_attribute::domain);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::domain: key 'Domain' not exists."
+		);
+	}
+	return it->second.to_string();
+}
+
+std::string cookie::path() const
+{
+	auto it = attributes().find(cookie_attribute::path);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::path: key 'Path' not exists."
+		);
+	}
+	return it->second.to_string();
+}
+
+std::string cookie::same_site() const
+{
+	auto it = attributes().find(cookie_attribute::same_site);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::same_site: key 'SameSite' not exists."
+		);
+	}
+	return it->second.to_string();
+}
+
+std::string cookie::priority() const
+{
+	auto it = attributes().find(cookie_attribute::priority);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::priority: key 'Priority' not exists."
+		);
+	}
+	return it->second.to_string();
+}
+
+uint64_t cookie::expires() const
+{
+	auto it = attributes().find(cookie_attribute::expires);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::expires: key 'Expires' not exists."
+		);
+	}
+	return it->second.get<uint64_t>();
+}
+
+uint64_t cookie::max_age() const
+{
+	auto it = attributes().find(cookie_attribute::max_age);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::max_age: key 'Max-age' not exists."
+		);
+	}
+	return it->second.get<uint64_t>();
+}
+
+size_t cookie::size() const
+{
+	auto it = attributes().find(cookie_attribute::size);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::cookies_size: key 'Size' not exists."
+		);
+	}
+	return it->second.get<size_t>();
+}
+
+bool cookie::http_only() const
+{
+	auto it = attributes().find(cookie_attribute::http_only);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::http_only: key 'HttpOnly' not exists."
+		);
+	}
+	return it->second.to_bool();
+}
+
+bool cookie::secure() const
+{
+	auto it = attributes().find(cookie_attribute::secure);
+	if( it == attributes().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::secure: key 'Secure' not exists."
+		);
+	}
+	return it->second.to_bool();
+}
+
+std::string cookie::domain_or(const value_t &def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::domain);
+	return it == attributes().end() ? *def_value : *it->second;
+}
+
+std::string cookie::domain_or(value_t &&def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::domain);
+	return it == attributes().end() ? *std::move(def_value) : *it->second;
+}
+
+std::string cookie::path_or(const value_t &def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::path);
+	return it == attributes().end() ? *def_value : *it->second;
+}
+
+std::string cookie::path_or(value_t &&def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::path);
+	return it == attributes().end() ? *std::move(def_value) : *it->second;
+}
+
+std::string cookie::same_site_or(const value_t &def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::same_site);
+	return it == attributes().end() ? *def_value : *it->second;
+}
+
+std::string cookie::same_site_or(value_t &&def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::same_site);
+	return it == attributes().end() ? *std::move(def_value) : *it->second;
+}
+
+std::string cookie::priority_or(const value_t &def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::priority);
+	return it == attributes().end() ? *def_value : *it->second;
+}
+
+std::string cookie::priority_or(value_t &&def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::priority);
+	return it == attributes().end() ? *std::move(def_value) : *it->second;
+}
+
+uint64_t cookie::expires_or(uint64_t def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::expires);
+	return it == attributes().end() ? def_value : it->second.get<uint64_t>();
+}
+
+uint64_t cookie::max_age_or(uint64_t def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::max_age);
+	return it == attributes().end() ? def_value : it->second.get<uint64_t>();
+}
+
+size_t cookie::size_or(size_t def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::size);
+	return it == attributes().end() ? def_value : it->second.get<size_t>();
+}
+
+bool cookie::http_only_or(bool def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::http_only);
+	return it == attributes().end() ? def_value : it->second.to_bool();
+}
+
+bool cookie::secure_or(bool def_value) const noexcept
+{
+	auto it = attributes().find(cookie_attribute::secure);
+	return it == attributes().end() ? def_value : it->second.to_bool();
+}
+
+cookie &cookie::set_domain(value_t domain)
+{
+	attributes()[cookie_attribute::domain] = std::move(domain);
+	return *this;
+}
+
+cookie &cookie::set_path(value_t path)
+{
+	attributes()[cookie_attribute::path] = std::move(path);
+	return *this;
+}
+
+cookie &cookie::set_same_site(value_t sst)
+{
+	attributes()[cookie_attribute::same_site] = std::move(sst);
+	return *this;
+}
+
+cookie &cookie::set_priority(value_t pt)
+{
+	attributes()[cookie_attribute::priority] = std::move(pt);
+	return *this;
+}
+
+cookie &cookie::set_expires(uint64_t seconds)
+{
+	attributes()[cookie_attribute::expires] = seconds;
+	return *this;
+}
+
+cookie &cookie::set_max_age(uint64_t seconds)
+{
+	attributes()[cookie_attribute::max_age] = seconds;
+	return *this;
+}
+
+cookie &cookie::set_size(size_t size)
+{
+	attributes()[cookie_attribute::size] = size;
+	return *this;
+}
+
+cookie &cookie::set_http_only(bool flag)
+{
+	attributes()[cookie_attribute::http_only] = flag;
+	return *this;
+}
+
+cookie &cookie::set_secure(bool flag)
+{
+	attributes()[cookie_attribute::secure] = flag;
+	return *this;
+}
+
+cookie &cookie::unset_domain()
+{
+	attributes().erase(cookie_attribute::domain);
+	return *this;
+}
+
+cookie &cookie::unset_path()
+{
+	attributes().erase(cookie_attribute::path);
+	return *this;
+}
+
+cookie &cookie::unset_same_site()
+{
+	attributes().erase(cookie_attribute::same_site);
+	return *this;
+}
+
+cookie &cookie::unset_priority()
+{
+	attributes().erase(cookie_attribute::priority);
+	return *this;
+}
+
+cookie &cookie::unset_expires()
+{
+	attributes().erase(cookie_attribute::expires);
+	return *this;
+}
+
+cookie &cookie::unset_max_age()
+{
+	attributes().erase(cookie_attribute::max_age);
+	return *this;
+}
+
+cookie &cookie::unset_size()
+{
+	attributes().erase(cookie_attribute::size);
+	return *this;
+}
+
+cookie &cookie::unset_http_only()
+{
+	attributes().erase(cookie_attribute::http_only);
+	return *this;
+}
+
+cookie &cookie::unset_secure()
+{
+	attributes().erase(cookie_attribute::secure);
+	return *this;
+}
+
+const cookie::attributes_t &cookie::attributes() const noexcept
+{
+	return m_impl->m_attributes;
+}
+
+cookie::attributes_t &cookie::attributes() noexcept
+{
+	return m_impl->m_attributes;
+}
+
+} //namespace libgs::http

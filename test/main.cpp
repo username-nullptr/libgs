@@ -7,6 +7,7 @@
 
 #include <list>
 #include <iostream>
+#include <libgs/http/cookie.h>
 #include <libgs/http/parser_base.h>
 // #include <libgs/http/server/request_parser.h>
 

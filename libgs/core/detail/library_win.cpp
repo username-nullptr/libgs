@@ -28,7 +28,7 @@
 
 #if defined(__WINNT__) || defined(_WINDOWS)
 
-#include "library_impl.hii"
+#include "library_impl.ipp"
 #include <libgs/core/app_utls.h>
 
 namespace fs = std::filesystem;

@@ -4,7 +4,7 @@
 int main(int argc, const char *argv[])
 {
 	spdlog::set_level(spdlog::level::trace);
-	libgs::string_list others;
+	libgs::string_vector others;
 
 	auto args = libgs::cmdline::args_parser("help:")
 		.add_group("-f,--file", "123", "a")

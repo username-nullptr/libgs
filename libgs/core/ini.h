@@ -58,34 +58,22 @@ public:
 	virtual ~basic_ini_keys() = default;
 
 public:
-	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] decltype(auto) read_or (
-		const concepts::text_p<char_t> auto &key, T &&def_value = T()
-	) const noexcept;
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) read_or(const concepts::text_p<char_t> auto &key, T &&def_value = T())
+		const requires concepts::value_get_or<CharT,T>;
 
-	template <concepts::value_get<CharT> T = value_t>
-	[[nodiscard]] T read(const concepts::text_p<char_t> auto &key) const;
+	template <typename T = value_t>
+	[[nodiscard]] T read(const concepts::text_p<char_t> auto &key)
+		const requires concepts::value_get<CharT,T>;
 
 	void write (
 		const concepts::text_p<char_t> auto &key,
-		concepts::value_arg_p<char_t> auto &&value
+		concepts::value_set<char_t> auto &&value
 	) noexcept;
 
 public:
 	[[nodiscard]] value_t operator[](const concepts::text_p<char_t> auto &key) const;
 	[[nodiscard]] value_t &operator[](const concepts::text_p<char_t> auto &key) noexcept;
-
-#if LIBGS_CPLUSPLUS >= 202100L
-	decltype(auto) operator[] (
-		const concepts::text_p<char_t> auto &key,
-		concepts::value_arg_p<char_t> auto &&def_value
-	) const noexcept;
-
-	decltype(auto) operator[] (
-		const concepts::text_p<char_t> auto &key,
-		concepts::value_arg_p<char_t> auto &&def_value
-	) noexcept;
-#endif //LIBGS_CPLUSPLUS
 
 public:
 	using iterator = typename map_t::iterator;
@@ -191,30 +179,30 @@ public:
 	[[nodiscard]] virtual path_t file_name() const noexcept;
 
 public:
-	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] decltype(auto) read_or(const group_key &gk, T &&def_value = T()) const noexcept;
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) read_or(const group_key &gk, T &&def_value = T())
+		const requires concepts::value_get_or<CharT,T>;
 
-	template <concepts::text_arg_p<CharT> T = value_t>
-	[[nodiscard]] decltype(auto) read_or (
-		const concepts::string_p<char_t> auto &path, T &&def_value = T()
-	) const;
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) read_or(const concepts::string_p<char_t> auto &path, T &&def_value = T())
+		const requires concepts::value_get_or<CharT,T>;
 
-	template <concepts::value_get<CharT> T = value_t>
-	[[nodiscard]] T read(const group_key &gk) const;
+	template <typename T = value_t>
+	[[nodiscard]] T read(const group_key &gk) const
+		requires concepts::value_get<CharT,T>;
 
-	template <concepts::value_get<CharT> T = value_t>
-	[[nodiscard]] T read (
-		const concepts::string_p<char_t> auto &path
-	) const;
+	template <typename T = value_t>
+	[[nodiscard]] T read(const concepts::string_p<char_t> auto &path) const
+		requires concepts::value_get<CharT,T>;
 
 public:
 	void write (
-		group_key gk, concepts::value_arg_p<char_t> auto &&value
+		group_key gk, concepts::value_set<char_t> auto &&value
 	) noexcept;
 
 	void write (
 		const concepts::string_p<char_t> auto &path,
-		concepts::value_arg_p<char_t> auto &&value
+		concepts::value_set<char_t> auto &&value
 	) noexcept;
 
 public:
@@ -236,18 +224,6 @@ public:
 	[[nodiscard]] value_t &operator[] (
 		concepts::text_p<char_t> auto &&group,
 		concepts::text_p<char_t> auto &&key
-	) noexcept;
-
-	[[nodiscard]] decltype(auto) operator[] (
-		const concepts::text_p<char_t> auto &group,
-		const concepts::text_p<char_t> auto &key,
-		concepts::value_arg_p<char_t> auto &&def_value
-	) const noexcept;
-
-	[[nodiscard]] decltype(auto) operator[] (
-		const concepts::text_p<char_t> auto &group,
-		const concepts::text_p<char_t> auto &key,
-		concepts::value_arg_p<char_t> auto &&def_value
 	) noexcept;
 #endif //LIBGS_CPLUSPLUS
 

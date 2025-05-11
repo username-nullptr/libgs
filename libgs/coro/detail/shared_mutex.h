@@ -104,7 +104,7 @@ inline void shared_mutex::unlock_shared()
 			return false;
 		}
 	*/
-	m_read_count.compare_exchange_weak(counter, counter - 1);
+	m_read_count.compare_exchange_strong(counter, counter - 1);
 }
 
 template<typename Rep, typename Period>

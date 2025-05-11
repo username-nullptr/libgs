@@ -37,16 +37,12 @@ namespace libgs { namespace concepts
 template <typename Func>
 concept modules_init_func = []() consteval -> bool
 {
-	if constexpr( not is_function_v<Func> )
-		return false;
-	else
+	if constexpr( is_function_v<Func> )
 	{
 		using return_t = typename function_traits<Func>::return_type;
-		if constexpr( not std::is_same_v<return_t,void> and
-					  not std::is_same_v<return_t,std::future<void>> and
-					  not std::is_same_v<return_t,asio::awaitable<void>> )
-			return false;
-		else
+		if constexpr( std::is_same_v<return_t,void> or
+					  std::is_same_v<return_t,std::future<void>> or
+					  std::is_same_v<return_t,asio::awaitable<void>> )
 		{
 			constexpr auto arg_count = function_traits<Func>::arg_count;
 			if constexpr( arg_count == 0 )
@@ -60,6 +56,7 @@ concept modules_init_func = []() consteval -> bool
 				return false;
 		}
 	}
+	return false;
 }();
 
 } //namespace concepts

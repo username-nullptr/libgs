@@ -52,7 +52,7 @@ enum class parse_errno
 #undef X_MACRO
 };
 
-class LIBGS_HTTP_VAPI parser_base final
+class LIBGS_HTTP_API parser_base final
 {
 	LIBGS_DISABLE_COPY(parser_base)
 
@@ -104,7 +104,6 @@ private:
 };
 
 } //namespace libgs::http
-#include <libgs/http/detail/parser_base.h>
 
 
 #endif //LIBGS_HTTP_PARSER_BASE_H

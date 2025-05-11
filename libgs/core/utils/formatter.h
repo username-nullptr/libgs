@@ -53,7 +53,7 @@ inline uint64_t thread_id_helper(uint64_t id) {
 namespace std
 {
 
-template <typename T, libgs::concepts::character CharT> requires is_enum_v<T>
+template <libgs::concepts::enumerate T, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<T,CharT>
 {
 	auto format(T e, auto &context) const {

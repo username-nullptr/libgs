@@ -48,9 +48,10 @@ ini_replace(const concepts::text_p<CharT> auto &text)
 } //namespace detail
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::text_arg_p<CharT> T>
+template <typename T>
 decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
-(const concepts::text_p<char_t> auto &key, T &&def_value) const noexcept
+(const concepts::text_p<char_t> auto &key, T &&def_value)
+	const requires concepts::value_get_or<CharT,T>
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	using def_t = std::remove_cvref_t<T>;
@@ -68,8 +69,9 @@ decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::value_get<CharT> T>
-T basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key) const
+template <typename T>
+T basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key)
+	const requires concepts::value_get<CharT,T>
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	if( it == m_keys.end() )
@@ -83,7 +85,7 @@ T basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini_keys<CharT,Map,MapArgs...>::write
-(const concepts::text_p<char_t> auto &key, concepts::value_arg_p<char_t> auto &&value) noexcept
+(const concepts::text_p<char_t> auto &key, concepts::value_set<char_t> auto &&value) noexcept
 {
 	m_keys[detail::ini_replace<char_t>(key)] = std::forward<decltype(value)>(value);
 }
@@ -101,34 +103,6 @@ basic_value<CharT> &basic_ini_keys<CharT,Map,MapArgs...>::operator[]
 {
 	return m_keys[detail::ini_replace<char_t>(key)];
 }
-
-#if LIBGS_CPLUSPLUS >= 202100L
-
-template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(const concepts::text_p<char_t> auto &key, concepts::value_arg_p<char_t> auto &&def_value) const noexcept
-{
-	return read_or(key, std::forward<decltype(def_value)>(def_value));
-}
-
-template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(const concepts::text_p<char_t> auto &key, concepts::value_arg_p<char_t> auto &&def_value) noexcept
-{
-	using Def = decltype(def_value);
-	using def_t = std::remove_cvref_t<Def>;
-
-	auto &value = *m_keys.emplace (
-		detail::ini_replace<char_t>(key),
-		std::forward<Def>(def_value)
-	).first;
-	if constexpr( std::is_same_v<def_t, value_t> )
-		return return_reference(value);
-	else
-		return value.template get<def_t>();
-}
-
-#endif //LIBGS_CPLUSPLUS
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
@@ -724,8 +698,9 @@ basic_ini<CharT,Exec,Map,MapArgs...>::file_name() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::text_arg_p<CharT> T>
-decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(const group_key &gk, T &&def_value) const noexcept
+template <typename T>
+decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(const group_key &gk, T &&def_value)
+	const requires concepts::value_get_or<CharT,T>
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	using def_t = std::remove_cvref_t<T>;
@@ -755,9 +730,10 @@ decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(const group_key &gk
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::text_arg_p<CharT> T>
+template <typename T>
 decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or
-(const concepts::string_p<char_t> auto &path, T &&def_value) const
+(const concepts::string_p<char_t> auto &path, T &&def_value)
+	const requires concepts::value_get_or<CharT,T>
 {
 	auto pair = m_impl->from_path(path, "read_or");
 	return read_or(std::move(pair), std::forward<T>(def_value));
@@ -765,8 +741,9 @@ decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::value_get<CharT> T>
-T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk) const
+template <typename T>
+T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk)
+	const requires concepts::value_get<CharT,T>
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	if( it == m_impl->m_groups.end() )
@@ -780,9 +757,9 @@ T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk) const
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::value_get<CharT> T>
-T basic_ini<CharT,Exec,Map,MapArgs...>::read
-(const concepts::string_p<char_t> auto &path) const
+template <typename T>
+T basic_ini<CharT,Exec,Map,MapArgs...>::read(const concepts::string_p<char_t> auto &path)
+	const requires concepts::value_get<CharT,T>
 {
 	return read<T>(m_impl->from_path(path, "read"));
 }
@@ -790,7 +767,7 @@ T basic_ini<CharT,Exec,Map,MapArgs...>::read
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::write
-(group_key gk, concepts::value_arg_p<char_t> auto &&value) noexcept
+(group_key gk, concepts::value_set<char_t> auto &&value) noexcept
 {
 	m_impl->m_groups[std::move(gk.group)].write (
 		std::move(gk.key), std::forward<decltype(value)>(value)
@@ -800,7 +777,7 @@ void basic_ini<CharT,Exec,Map,MapArgs...>::write
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::write
-(const concepts::string_p<char_t> auto &path, concepts::value_arg_p<char_t> auto &&value) noexcept
+(const concepts::string_p<char_t> auto &path, concepts::value_set<char_t> auto &&value) noexcept
 {
 	auto pair = m_impl->from_path(path, "write");
 	write(std::move(pair), std::forward<decltype(value)>(value));
@@ -877,28 +854,6 @@ typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t &basic_ini<CharT,Exec,Map
 (concepts::text_p<char_t> auto &&group, concepts::text_p<char_t> auto &&key) noexcept
 {
 	return (*this)[std::forward<decltype(group)>(group)][std::forward<decltype(key)>(key)];
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
-(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key,
- concepts::value_arg_p<char_t> auto &&def_value) const noexcept
-{
-	return (*this)[group] [
-		key, std::forward<decltype(def_value)>(def_value)
-	];
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
-(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key,
- concepts::value_arg_p<char_t> auto &&def_value) noexcept
-{
-	return (*this)[group] [
-		key, std::forward<decltype(def_value)>(def_value)
-	];
 }
 
 #endif //LIBGS_CPLUSPLUS
