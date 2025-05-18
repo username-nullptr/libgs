@@ -162,11 +162,7 @@ private:
 };
 
 using cookie_attributes = cookie::attributes_t;
-
-template <core_concepts::character CharT>
 using cookie_values = map<value>;
-
-template <core_concepts::character CharT>
 using cookies = map<cookie>;
 
 } //namespace libgs::http::concepts

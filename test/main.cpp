@@ -8,8 +8,9 @@
 #include <list>
 #include <iostream>
 #include <libgs/http/cookie.h>
-#include <libgs/http/parser_base.h>
-// #include <libgs/http/server/request_parser.h>
+#include <libgs/http/server/request_parser.h>
+
+#include <libgs/core/execution.h>
 
 using namespace std::chrono_literals;
 // using namespace libgs::operators;
@@ -18,7 +19,12 @@ int main()
 {
 	// spdlog::set_level(spdlog::level::trace);
 
-
+	libgs::post([]
+	{
+		std::cout << "0000000000000" << std::endl;
+		libgs::exit(111);
+	});
+	return libgs::exec();
 
 
 // 	libgs::http::request_arg req_arg;
