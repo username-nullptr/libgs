@@ -272,7 +272,7 @@ std::function<void()> post(concepts::sched auto &&exec, const duration<Rep,Perio
 	{
 		LIBGS_UNUSED(timer);
 		if( error.value() != errc::operation_aborted )
-			dispatch(std::move(exec), std::forward<Work>(work));
+			dispatch(std::move(exec), std::move(work));
 	});
 	return cancel;
 }
