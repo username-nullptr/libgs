@@ -167,7 +167,7 @@ struct is_string
 	static constexpr bool value =
 		is_std_string_v<T,CharT> or is_std_string_view_v<T,CharT> or
 		std::is_same_v<T, const CharT*> or std::is_same_v<T, CharT*> or
-		is_char_array_v<CharT, T>;
+		is_char_array_v<CharT, std::remove_const_t<T>>;
 };
 
 template <typename T, concepts::character CharT>

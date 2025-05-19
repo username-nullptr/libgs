@@ -38,7 +38,7 @@ namespace libgs
 template <typename Protocol>
 basic_endpoint_wrapper<Protocol>::basic_endpoint_wrapper
 (const concepts::any_string_p auto &address, uint16_t port) :
-	value(asio::ip::address::from_string(strtls::to_view(address).data()), port)
+	value(asio::ip::make_address(strtls::to_view(address)), port)
 {
 
 }

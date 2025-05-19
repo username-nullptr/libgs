@@ -1,6 +1,7 @@
 include(project)
 
 add_subdirectory(core)
+add_subdirectory(coro)
 add_subdirectory(http)
 # add_subdirectory(web)
 

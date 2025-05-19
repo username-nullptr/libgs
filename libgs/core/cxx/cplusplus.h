@@ -43,6 +43,9 @@
 
 #define LIBGS_UNUSED(x)  (void)(x)
 
+#define LIBGS_SHARP_IMPL(a)  #a
+#define LIBGS_SHARP(a)  LIBGS_SHARP_IMPL(a)
+
 #define LIBGS_CAT_IMPL(a,b)  a##b
 #define LIBGS_CAT(a,b)  LIBGS_CAT_IMPL(a,b)
 

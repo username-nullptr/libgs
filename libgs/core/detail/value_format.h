@@ -57,6 +57,23 @@ struct is_any_value : std::disjunction <
 template <typename T>
 constexpr bool is_any_value_v = is_any_value<T>::value;
 
+namespace concepts
+{
+
+template <typename T, typename CharT>
+concept value = is_value_v<T,CharT>;
+
+template <typename T, typename CharT>
+concept value_p = is_value_v<std::remove_cvref_t<T>,CharT>;
+
+template <typename T>
+concept any_value = is_any_value_v<T>;
+
+template <typename T>
+concept any_value_p = is_any_value_v<std::remove_cvref_t<T>>;
+
+} //namespace concepts
+
 template <typename T, concepts::character CharT = char>
 class LIBGS_CORE_TAPI value_default_serializer
 {
@@ -112,12 +129,11 @@ public:
 	constexpr decltype(auto) set(concepts::string_p<CharT> auto &&data) {
 		return return_reference(std::forward<decltype(data)>(data));
 	}
-
-	template <typename T0>
-	constexpr decltype(auto) get(T0 &&value) requires is_value_v<T0,CharT>
+	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value)
 	{
-		if constexpr( is_std_string_v<T,CharT> or std::is_rvalue_reference_v<T0> )
-			return return_reference(*std::forward<T0>(value));
+		using Value = decltype(value);
+		if constexpr( is_std_string_v<T,CharT> or std::is_rvalue_reference_v<Value> )
+			return return_reference(*std::forward<Value>(value));
 		else
 			return std::basic_string_view<CharT>(*value);
 	}
@@ -127,9 +143,8 @@ template <concepts::character CharT>
 class LIBGS_CORE_TAPI value_serializer<basic_value<CharT>,CharT>
 {
 public:
-	template <typename T0>
-	constexpr decltype(auto) get(T0 &&value) requires is_value_v<T0,CharT> {
-		return return_reference(std::forward<T0>(value));
+	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) {
+		return return_reference(std::forward<decltype(value)>(value));
 	}
 };
 

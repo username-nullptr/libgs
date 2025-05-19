@@ -60,7 +60,7 @@ public:
 public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) read_or(const concepts::text_p<char_t> auto &key, T &&def_value = T())
-		const requires concepts::value_get_or<CharT,T>;
+		const requires concepts::value_get<CharT,T>;
 
 	template <typename T = value_t>
 	[[nodiscard]] T read(const concepts::text_p<char_t> auto &key)
@@ -181,11 +181,11 @@ public:
 public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) read_or(const group_key &gk, T &&def_value = T())
-		const requires concepts::value_get_or<CharT,T>;
+		const requires concepts::value_get<CharT,T>;
 
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) read_or(const concepts::string_p<char_t> auto &path, T &&def_value = T())
-		const requires concepts::value_get_or<CharT,T>;
+		const requires concepts::value_get<CharT,T>;
 
 	template <typename T = value_t>
 	[[nodiscard]] T read(const group_key &gk) const

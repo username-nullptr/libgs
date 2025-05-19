@@ -39,10 +39,10 @@ include_directories(.)
 add_subdirectory(libgs)
 add_subdirectory(test)
 
-option(BUILD_EXAMPLES
+option(LIBGS_BUILD_EXAMPLES
 	"-- ${PRO_NAME}: Enable this to build the examples." ON
 )
-if (BUILD_EXAMPLES)
+if (LIBGS_BUILD_EXAMPLES)
 	message(STATUS "${PRO_NAME}: Enable this to build the examples.")
 	add_subdirectory(examples)
 endif()
