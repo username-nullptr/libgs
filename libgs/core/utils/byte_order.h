@@ -48,6 +48,12 @@ LIBGS_CORE_TAPI auto *ntoh(auto *data, size_t len = 1);
 [[nodiscard]] LIBGS_CORE_TAPI auto reverse(concepts::arithmetic_p auto t);
 LIBGS_CORE_TAPI auto *reverse(auto *data, size_t len = 1);
 
+[[nodiscard]] LIBGS_CORE_TAPI auto to_big_endian(concepts::arithmetic_p auto t);
+LIBGS_CORE_TAPI auto *to_big_endian(auto *data, size_t len = 1);
+
+[[nodiscard]] LIBGS_CORE_TAPI auto to_little_endian(concepts::arithmetic_p auto t);
+LIBGS_CORE_TAPI auto *to_little_endian(auto *data, size_t len = 1);
+
 } //namespace libgs
 #include <libgs/core/utils/detail/byte_order.h>
 

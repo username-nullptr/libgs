@@ -69,10 +69,7 @@ auto reverse(concepts::arithmetic_p auto t)
 	{
 		auto m = reinterpret_cast<char*>(&t) + i;
 		auto n = reinterpret_cast<char*>(&t) + sizeof(t) - i - 1;
-
-		*m ^= *n;
-		*n ^= *m;
-		*m ^= *n;
+		std::swap(*m, *n);
 	}
 	return t;
 }
@@ -81,15 +78,28 @@ auto *reverse(auto *data, size_t len)
 {
 	auto array = reinterpret_cast<char*>(data);
 	for(size_t i=0; i<len>>1; i++)
-	{
-		auto &m = array[i];
-		auto &n = array[len - i - 1];
-
-		m ^= n;
-		n ^= m;
-		m ^= n;
-	}
+		std::swap(array[i], array[len - i - 1]);
 	return data;
+}
+
+auto to_big_endian(concepts::arithmetic_p auto t)
+{
+	return is_big_endian() ? t : reverse(t);
+}
+
+auto *to_big_endian(auto *data, size_t len)
+{
+	return is_big_endian() ? data : reverse(data, len);
+}
+
+auto to_little_endian(concepts::arithmetic_p auto t)
+{
+	return is_little_endian() ? t : reverse(t);
+}
+
+auto *to_little_endian(auto *data, size_t len)
+{
+	return is_little_endian() ? data : reverse(data, len);
 }
 
 } //namespace libgs
