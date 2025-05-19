@@ -124,6 +124,42 @@ LIBGS_CORE_TAPI decltype(auto) post (
 	Work &&work, Token &&token = detached
 );
 
+/*
+ * Push a work to a work queue.
+ * The work will be executed after the specified relative time.
+ */
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+LIBGS_CORE_TAPI std::function<void()> post (
+	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work
+);
+
+/*
+ * Push a work to a work queue.
+ * The work will be executed after the specified relative time.
+ */
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+LIBGS_CORE_TAPI std::function<void()> post (
+	const duration<Rep,Period> &rtime, Work &&work
+);
+
+/*
+ * Push a work to a work queue.
+ * The work will be executed at the specified absolute time.
+ */
+template <concepts::dispatch_work Work, typename Clock, typename Duration>
+LIBGS_CORE_TAPI std::function<void()> post (
+	concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work
+);
+
+/*
+ * Push a work to a work queue.
+ * The work will be executed at the specified absolute time.
+ */
+template <concepts::dispatch_work Work, typename Clock, typename Duration>
+LIBGS_CORE_TAPI std::function<void()> post (
+	const time_point<Clock,Duration> &atime, Work &&work
+);
+
 // Temporarily start an executor in the current context to perform a work.
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 LIBGS_CORE_TAPI auto local_dispatch (
@@ -176,14 +212,14 @@ template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_s
 	const duration<Rep,Period> &rtime, Token &&token = {}
 );
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
+template <typename Clock, typename Duration, concepts::co_sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
-	concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token = use_awaitable
+	concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Token &&token = use_awaitable
 );
 
-template <typename Rep, typename Period, concepts::sleep_opt_token Token = use_sync_t>
+template <typename Clock, typename Duration, concepts::sleep_opt_token Token = use_sync_t>
 [[nodiscard]] LIBGS_CORE_TAPI auto sleep_until (
-	const time_point<Rep,Period> &atime, Token &&token = {}
+	const time_point<Clock,Duration> &atime, Token &&token = {}
 );
 
 namespace concepts

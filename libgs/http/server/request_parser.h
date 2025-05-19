@@ -34,47 +34,38 @@
 namespace libgs::http
 {
 
-class LIBGS_HTTP_TAPI basic_request_parser final
+class LIBGS_HTTP_TAPI request_parser final
 {
-	LIBGS_DISABLE_COPY(basic_request_parser)
+	LIBGS_DISABLE_COPY(request_parser)
 
 public:
-	using char_t = CharT;
-	using string_t = std::basic_string<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
-
-	using value_t = basic_value<char_t>;
-	using header_t = basic_header<char_t>;
-	using headers_t = basic_headers<char_t>;
-
-	using parameters_t = basic_parameters<char_t>;
-	using cookies_t = basic_cookie_values<char_t>;
-	using path_args_t = std::vector<std::pair<string_t,value_t>>;
+	using value_t = libgs::value;
+	using path_args_t = std::vector<std::pair<std::string,value_t>>;
 
 public:
-	explicit basic_request_parser(size_t init_buf_size = 0xFFFF);
-	~basic_request_parser();
+	explicit request_parser(size_t init_buf_size = 0xFFFF);
+	~request_parser();
 
-	basic_request_parser(basic_request_parser &&other) noexcept;
-	basic_request_parser &operator=(basic_request_parser &&other) noexcept;
+	request_parser(request_parser &&other) noexcept;
+	request_parser &operator=(request_parser &&other) noexcept;
 
 public:
 	bool append(const const_buffer &buf, error_code &error);
 	bool append(const const_buffer &buf);
 
-	basic_request_parser &operator<<(const const_buffer &buf);
-	[[nodiscard]] int32_t path_match(string_view_t rule);
+	request_parser &operator<<(const const_buffer &buf);
+	[[nodiscard]] int32_t path_match(std::string_view rule);
 
 public:
 	[[nodiscard]] method_t method() const noexcept;
-	[[nodiscard]] string_view_t path() const noexcept;
+	[[nodiscard]] std::string_view path() const noexcept;
 	[[nodiscard]] version_t version() const noexcept;
 
 public:
-	[[nodiscard]] const parameters_t &parameters() const noexcept;
+	[[nodiscard]] const http::parameters &parameters() const noexcept;
 	[[nodiscard]] const path_args_t &path_args() const noexcept;
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
+	[[nodiscard]] const http::headers &headers() const noexcept;
+	[[nodiscard]] const cookie_values &cookies() const noexcept;
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;
@@ -86,18 +77,14 @@ public:
 	[[nodiscard]] std::string take_body();
 	[[nodiscard]] bool is_finished() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
-	basic_request_parser &reset();
+	request_parser &reset();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using request_parser = basic_request_parser<char>;
-using wrequest_parser = basic_request_parser<wchar_t>;
-
 } //namespace libgs::http
-#include <libgs/http/server/detail/request_parser.h>
 
 
 #endif //LIBGS_HTTP_SERVER_REQUEST_PARSER_H

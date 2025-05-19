@@ -26,43 +26,18 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
-#define LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H
-
+#include "request_parser.h"
+#include <libgs/core/algorithm/misc.h>
+#include <libgs/core/string_vector.h>
 #include <libgs/http/parser_base.h>
-#include <libgs/core/string_list.h>
 #include <ranges>
 
-namespace libgs::http { namespace detail
+namespace libgs::http
 {
 
-template <core_concepts::character T>
-struct _request_parser_static_string;
-
-#define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
-	static constexpr const _type *comma = __VA_ARGS__##",";
-
-template <>
-struct _request_parser_static_string<char> {
-	LIBGS_HTTP_DETAIL_STRING_POOL(char);
-};
-
-template <>
-struct _request_parser_static_string<wchar_t> {
-	LIBGS_HTTP_DETAIL_STRING_POOL(wchar_t,L);
-};
-
-#undef LIBGS_HTTP_DETAIL_STRING_POOL
-
-} //namespace detail
-
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_request_parser<CharT>::impl
+class LIBGS_HTTP_TAPI request_parser::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	struct string_pool : detail::string_pool<char_t>, detail::_request_parser_static_string<char_t> {};
-	using string_list_t = basic_string_list<char_t>;
-	using parser_t = basic_parser_base<char_t>;
 
 public:
 	explicit impl(size_t init_buf_size) :
@@ -72,10 +47,10 @@ public:
 		.on_parse_begin([this](std::string_view line_buf, error_code &error)
 		{
 			auto version = version::nan;
-			auto request_line_parts = string_list::from_string(line_buf, ' ');
-			if( request_line_parts.size() != 3 or not str_to_upper(request_line_parts[2]).starts_with("HTTP/") )
+			auto request_line_parts = string_vector::from_string(line_buf, ' ');
+			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
-				error = parser_t::make_error_code(parse_errno::IRL);
+				error = parser_base::make_error_code(parse_errno::IRL);
 				return version;
 			}
 			method_t method;
@@ -84,7 +59,7 @@ public:
 			}
 			catch(const std::exception&)
 			{
-				error = parser_t::make_error_code(parse_errno::IHM);
+				error = parser_base::make_error_code(parse_errno::IHM);
 				return version;
 			}
 			m_method = method;
@@ -94,39 +69,39 @@ public:
 			auto pos = url_line.find('?');
 
 			if( pos == std::string::npos )
-				m_path = mbstoxx<char_t>(url_line);
+				m_path = url_line;
 			else
 			{
-				m_path = mbstoxx<char_t>(url_line.substr(0, pos));
+				m_path = url_line.substr(0, pos);
 				auto parameters_string = url_line.substr(pos + 1);
 
-				for(auto &para_str : string_list::from_string(parameters_string, '&'))
+				for(auto &para_str : string_vector::from_string(parameters_string, '&'))
 				{
 					pos = para_str.find('=');
 					if( pos == std::string::npos )
-						m_parameters.emplace(mbstoxx<char_t>(para_str), mbstoxx<char_t>(para_str));
+						m_parameters.emplace(para_str, para_str);
 					else
-						m_parameters.emplace(mbstoxx<char_t>(para_str.substr(0, pos)), mbstoxx<char_t>(para_str.substr(pos+1)));
+						m_parameters.emplace(para_str.substr(0, pos), para_str.substr(pos+1));
 				}
 			}
-			if( not m_path.starts_with(string_pool::root) )
+			if( not m_path.starts_with("/") )
 			{
-				error = parser_t::make_error_code(parse_errno::IHP);
+				error = parser_base::make_error_code(parse_errno::IHP);
 				return version;
 			}
-			auto n_it = std::unique(m_path.begin(), m_path.end(), [](char_t c0, char_t c1){
-				return c0 == c1 and c0 == 0x2F/*/*/;
+			auto n_it = std::unique(m_path.begin(), m_path.end(), [](char c0, char c1){
+				return c0 == c1 and c0 == '/';
 			});
 			if( n_it != m_path.end() )
 				m_path.erase(n_it, m_path.end());
 
-			if( m_path.size() > 1 and m_path.ends_with(string_pool::root) )
+			if( m_path.size() > 1 and m_path.ends_with("/") )
 				m_path.pop_back();
 			return version;
 		})
 		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
 		{
-			auto list = string_list::from_string(line_buf, ';');
+			auto list = string_vector::from_string(line_buf, ';');
 			for(auto &statement : list)
 			{
 				statement = strtls::trimmed(statement);
@@ -134,12 +109,12 @@ public:
 
 				if( pos == std::string::npos )
 				{
-					error = parser_t::make_error_code(parse_errno::IHL);
+					error = parser_base::make_error_code(parse_errno::IHL);
 					return ;
 				}
 				auto key = strtls::trimmed(statement.substr(0,pos));
 				auto value = strtls::trimmed(statement.substr(pos+1));
-				m_cookies[mbstoxx<char_t>(std::move(key))] = mbstoxx<char_t>(std::move(value));
+				m_cookies[std::move(key)] = std::move(value);
 			}
 		});
 	}
@@ -148,21 +123,21 @@ public:
 	void set_attribute()
 	{
 		auto headers = m_parser.headers();
-		auto it = headers.find(basic_header<char_t>::connection);
+		auto it = headers.find(header::connection);
 		if( it == headers.end() )
 			m_keep_alive = m_parser.version() != version::v10;
 		else
-			m_keep_alive = str_to_lower(it->second.to_string()) != string_pool::close;
+			m_keep_alive = strtls::to_lower(it->second.to_string()) != "close";
 
-		it = headers.find(basic_header<char_t>::accept_encoding);
+		it = headers.find(header::accept_encoding);
 		if( it == headers.end() )
 		{
 			m_support_gzip = false;
 			return ;
 		}
-		for(auto &str : string_list_t::from_string(it->second.to_string(), string_pool::comma))
+		for(auto &str : string_vector::from_string(it->second.to_string(), ","))
 		{
-			if( str_to_lower(strtls::trimmed(str)) == string_pool::gzip )
+			if( strtls::to_lower(strtls::trimmed(str)) == "gzip" )
 			{
 				m_support_gzip = true;
 				break;
@@ -171,40 +146,36 @@ public:
 	}
 
 public:
-	parser_t m_parser;
-	method_t m_method = method_t::GET;
+	parser_base m_parser;
+	method_t m_method = method_t::get;
 
-	string_t m_path {};
-	parameters_t m_parameters {};
+	std::string m_path {};
+	http::parameters m_parameters {};
 	path_args_t m_path_args {};
-	cookies_t m_cookies {};
+	cookie_values m_cookies {};
 
 	bool m_keep_alive = true;
 	bool m_support_gzip = false;
 };
 
-template <core_concepts::character CharT>
-basic_request_parser<CharT>::basic_request_parser(size_t init_buf_size) :
+request_parser::request_parser(size_t init_buf_size) :
 	m_impl(new impl(init_buf_size))
 {
 
 }
 
-template <core_concepts::character CharT>
-basic_request_parser<CharT>::~basic_request_parser()
+request_parser::~request_parser()
 {
 	delete m_impl;
 }
 
-template <core_concepts::character CharT>
-basic_request_parser<CharT>::basic_request_parser(basic_request_parser &&other) noexcept :
+request_parser::request_parser(request_parser &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
 }
 
-template <core_concepts::character CharT>
-basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_request_parser &&other) noexcept
+request_parser &request_parser::operator=(request_parser &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -214,8 +185,7 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::operator=(basic_reques
 	return *this;
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::append(const const_buffer &buf, error_code &error)
+bool request_parser::append(const const_buffer &buf, error_code &error)
 {
 	bool res = m_impl->m_parser.append(buf, error);
 	if( not error )
@@ -223,34 +193,28 @@ bool basic_request_parser<CharT>::append(const const_buffer &buf, error_code &er
 	return res;
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::append(const const_buffer &buf)
+bool request_parser::append(const const_buffer &buf)
 {
 	bool res = m_impl->m_parser.append(buf);
 	m_impl->set_attribute();
 	return res;
 }
 
-template <core_concepts::character CharT>
-basic_request_parser<CharT> &basic_request_parser<CharT>::operator<<(const const_buffer &buf)
+request_parser &request_parser::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-template <core_concepts::character CharT>
-int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
+int32_t request_parser::path_match(std::string_view rule)
 {
-	constexpr const char_t *root = detail::string_pool<char_t>::root;
-	using string_list_t = basic_string_list<char_t>;
+	auto rule_list = rule == "/" ?
+		string_vector{{rule.data(), rule.size()}} :
+		string_vector::from_string(rule, "/");
 
-	auto rule_list = rule == root ?
-		string_list_t{{rule.data(), rule.size()}} :
-		string_list_t::from_string(rule, root/*/*/);
-
-	auto path_list = string_list_t::from_string(m_impl->m_path, root/*/*/);
+	auto path_list = string_vector::from_string(m_impl->m_path, "/");
 	if( path_list.empty() )
-		path_list.emplace_back(root);
+		path_list.emplace_back("/");
 	if( path_list.size() < rule_list.size() )
 		return -1;
 
@@ -259,7 +223,7 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 
 	for(auto &format : std::ranges::reverse_view(rule_list))
 	{
-		if( not format.starts_with(0x7B/*{*/) or not format.ends_with(0x7D/*}*/)  )
+		if( not format.starts_with('{') or not format.ends_with('}')  )
 			break;
 		else if( format.size() == 2 )
 		{
@@ -270,7 +234,7 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 		bool res = true;
 		for(size_t i=1; i<format.size()-1; i++)
 		{
-			if( format[i] == 0x7B/*{*/ or format[i] == 0x7D/*}*/ )
+			if( format[i] == '{' or format[i] == '}' )
 			{
 				res = false;
 				break;
@@ -278,21 +242,21 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 		}
 		if( res )
 		{
-			string_t key(format.c_str() + 1, format.size() - 2);
+			std::string key(format.c_str() + 1, format.size() - 2);
 			vector.emplace_back(std::make_pair(std::move(key), value_t()));
 			--index;
 		}
 	}
 	std::reverse(vector.begin(), vector.end());
 
-	auto rule_before = rule_list.join(0, index, root/*/*/);
-	string_t path_before;
+	auto rule_before = rule_list.join(0, index, "/");
+	std::string path_before;
 
 	index = path_list.size() - vector.size();
 	if( vector.empty() )
-		path_before = path_list.join(root/*/*/);
+		path_before = path_list.join("/");
 	else
-		path_before = path_list.join(0, index, root/*/*/);
+		path_before = path_list.join(0, index, "/");
 
 	auto weight = wildcard_match(rule_before, path_before);
 	if( weight < 0 )
@@ -307,96 +271,77 @@ int32_t basic_request_parser<CharT>::path_match(string_view_t rule)
 	return weight;
 }
 
-template <core_concepts::character CharT>
-method_t basic_request_parser<CharT>::method() const noexcept
+method_t request_parser::method() const noexcept
 {
 	return m_impl->m_method;
 }
 
-template <core_concepts::character CharT>
-std::basic_string_view<CharT> basic_request_parser<CharT>::path() const noexcept
+std::string_view request_parser::path() const noexcept
 {
 	return m_impl->m_path;
 }
 
-template <core_concepts::character CharT>
-version_t basic_request_parser<CharT>::version() const noexcept
+version_t request_parser::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }
 
-template <core_concepts::character CharT>
-const typename basic_request_parser<CharT>::parameters_t&
-basic_request_parser<CharT>::parameters() const noexcept
+const parameters &request_parser::parameters() const noexcept
 {
 	return m_impl->m_parameters;
 }
 
-template <core_concepts::character CharT>
-const typename basic_request_parser<CharT>::path_args_t&
-basic_request_parser<CharT>::path_args() const noexcept
+const request_parser::path_args_t &request_parser::path_args() const noexcept
 {
 	return m_impl->m_path_args;
 }
 
-template <core_concepts::character CharT>
-const typename basic_request_parser<CharT>::headers_t&
-basic_request_parser<CharT>::headers() const noexcept
+const headers &request_parser::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }
 
-template <core_concepts::character CharT>
-const typename basic_request_parser<CharT>::cookies_t&
-basic_request_parser<CharT>::cookies() const noexcept
+const cookie_values &request_parser::cookies() const noexcept
 {
 	return m_impl->m_cookies;
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::keep_alive() const noexcept
+bool request_parser::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::support_gzip() const noexcept
+bool request_parser::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::can_read_from_device() const noexcept
+bool request_parser::can_read_from_device() const noexcept
 {
 	return m_impl->m_parser.can_read_from_device();
 }
 
-template <core_concepts::character CharT>
-std::string basic_request_parser<CharT>::take_partial_body(size_t size)
+std::string request_parser::take_partial_body(size_t size)
 {
 	return m_impl->m_parser.take_partial_body(size);
 }
 
-template <core_concepts::character CharT>
-std::string basic_request_parser<CharT>::take_body()
+std::string request_parser::take_body()
 {
 	return m_impl->m_parser.take_body();
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::is_finished() const noexcept
+bool request_parser::is_finished() const noexcept
 {
 	return m_impl->m_parser.is_finished();
 }
 
-template <core_concepts::character CharT>
-bool basic_request_parser<CharT>::is_eof() const noexcept
+bool request_parser::is_eof() const noexcept
 {
 	return m_impl->m_parser.is_eof();
 }
 
-template <core_concepts::character CharT>
-basic_request_parser<CharT> &basic_request_parser<CharT>::reset()
+request_parser &request_parser::reset()
 {
 	m_impl->m_parser.reset();
 	m_impl->m_path.clear();
@@ -406,5 +351,3 @@ basic_request_parser<CharT> &basic_request_parser<CharT>::reset()
 }
 
 } //namespace libgs::http
-
-#endif //LIBGS_HTTP_SERVER_DETAIL_REQUEST_PARSER_H

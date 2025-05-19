@@ -253,6 +253,50 @@ decltype(auto) post(Work &&work, Token &&token)
 	return post(io_context(), std::forward<Work>(work), std::forward<Token>(token));
 }
 
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+std::function<void()> post(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work)
+{
+	auto time = rtime.count() < 0 ? asio::steady_timer::duration(0) :
+		std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
+
+	auto timer = std::make_shared<asio::steady_timer>(
+		std::forward<decltype(exec)>(exec), time
+	);
+	std::function<void()> cancel = [timer]() mutable {
+		timer->cancel();
+	};
+	timer->async_wait([timer,
+		exec = get_executor_helper(exec),
+		work = std::forward<Work>(work)
+	](const error_code &error) mutable
+	{
+		LIBGS_UNUSED(timer);
+		if( error.value() != errc::operation_aborted )
+			dispatch(std::move(exec), std::forward<Work>(work));
+	});
+	return cancel;
+}
+
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+std::function<void()> post(const duration<Rep,Period> &rtime, Work &&work)
+{
+	return post(io_context(), rtime, std::forward<Work>(work));
+}
+
+template <concepts::dispatch_work Work, typename Clock, typename Duration>
+std::function<void()> post(concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work)
+{
+	return post(std::forward<decltype(exec)>(exec),
+		atime - std::chrono::system_clock::now(), std::forward<Work>(work)
+	);
+}
+
+template <concepts::dispatch_work Work, typename Clock, typename Duration>
+std::function<void()> post(const time_point<Clock,Duration> &atime, Work &&work)
+{
+	return post(io_context(), atime, std::forward<Work>(work));
+}
+
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&token)
 {
@@ -485,11 +529,12 @@ namespace detail
 {
 
 template <typename Exec, typename Token>
-[[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
+[[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &rtime, Token &&token)
 {
-	asio::steady_timer timer(std::forward<Exec>(exec),
-		std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
-	);
+	auto time = rtime.count() < 0 ? asio::steady_timer::duration(0) :
+		std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
+
+	asio::steady_timer timer(std::forward<Exec>(exec), time);
 	co_await timer.async_wait(std::forward<Token>(token));
 
 	using namespace operators;
@@ -512,23 +557,30 @@ template <typename Exec, typename Token>
 }
 
 template <typename Token>
-[[nodiscard]] awaitable<error_code> co_sleep_x(const auto &stdtime, Token &&token)
+[[nodiscard]] awaitable<error_code> co_sleep_x(const auto &rtime, Token &&token)
 {
 	co_return co_await co_sleep_x(co_await asio::this_coro::executor,
-		stdtime, std::forward<Token>(token)
+		rtime, std::forward<Token>(token)
 	);
 }
 
-template <typename Exec, typename Token>
-auto sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
+} //namespace detail
+
+template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
+auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
 {
+	using Exec = decltype(exec);
 	using token_t = std::remove_cvref_t<Token>;
+
 	if constexpr( is_void_func_v<token_t> )
 	{
-		auto timer = std::make_shared<asio::steady_timer>(std::forward<Exec>(exec),
-			std::chrono::duration_cast<asio::steady_timer::duration>(stdtime)
+		auto time = rtime.count() < 0 ? asio::steady_timer::duration(0) :
+			std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
+
+		auto timer = std::make_shared<asio::steady_timer>(
+			std::forward<Exec>(exec), time
 		);
-		timer.async_wait(
+		timer->async_wait(
 		[timer, callback = std::forward<Token>(token)](const error_code &error)
 		{
 			LIBGS_UNUSED(timer);
@@ -537,18 +589,10 @@ auto sleep_x(Exec &&exec, const auto &stdtime, Token &&token)
 	}
 	else
 	{
-		return co_sleep_x(std::forward<Exec>(exec),
-			stdtime, std::forward<Token>(token)
+		return detail::co_sleep_x(std::forward<Exec>(exec),
+			rtime, std::forward<Token>(token)
 		);
 	}
-}
-
-} //namespace detail
-
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
-{
-	return detail::sleep_x(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
@@ -567,20 +611,18 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
 auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
-	return detail::sleep_x(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
+	return sleep_for(std::forward<decltype(exec)>(exec),
+		atime - std::chrono::system_clock::now(),
+		std::forward<Token>(token)
+	);
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
-	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( is_void_func_v<token_t> )
-		sleep_for(get_executor(), atime, std::forward<Token>(token));
-
-	else if constexpr( is_async_opt_token_v<token_t> )
-		return detail::co_sleep_x(atime, std::forward<Token>(token));
-	else
-		std::this_thread::sleep_until(atime);
+	return sleep_for(atime - std::chrono::system_clock::now(),
+		std::forward<Token>(token)
+	);
 }
 
 namespace concepts::detail
