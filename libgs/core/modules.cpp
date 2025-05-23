@@ -58,7 +58,7 @@ void modules::do_init(const string_vector &args)
 			"libgs::modules::do_init: The executor is already running."
 		);
 	}
-	for(auto map = std::move(init_map()); auto &func_vector : std::views::values(map))
+	for(auto &func_vector : std::views::values(init_map()))
 	{
 		std::vector<func0_t> func0_vector;
 		std::vector<func1_t> func1_vector;
@@ -96,15 +96,20 @@ void modules::do_init(const string_vector &args)
 		for(auto &func1 : func1_vector)
 			func1(args);
 
-		std::thread thread([&]
+		std::thread thread;
+		post([&]() mutable
 		{
-			for(auto &futrue : future_vector)
-				futrue.wait();
-			exit();
+			thread = std::thread ([&]
+			{
+				for(auto &futrue : future_vector)
+					futrue.wait();
+				exit();
+			});
 		});
 		exec();
 		try { thread.join(); } catch(...){}
 	}
+	init_map().clear();
 }
 
 void modules::do_init(int argc, const char *argv[])

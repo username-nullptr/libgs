@@ -66,13 +66,11 @@ public:
 public:
 	[[nodiscard]] string_t &to_string() & noexcept;
 	[[nodiscard]] const string_t &to_string() const & noexcept;
-	[[nodiscard]] string_t &&to_string() && noexcept;
-	[[nodiscard]] const string_t &&to_string() const && noexcept;
+	[[nodiscard]] string_t to_string() && noexcept;
 
 	operator string_t&() & noexcept;
 	operator const string_t&() const & noexcept;
-	operator string_t&&() && noexcept;
-	operator const string_t&&() const && noexcept;
+	operator string_t() && noexcept;
 
 public:
 	template <typename T, typename...Args>
@@ -108,10 +106,8 @@ public:
 		requires concepts::value_get_or<CharT,T,Args...>;
 
 	[[nodiscard]] string_t &get() & noexcept;
-	[[nodiscard]] string_t &&get() && noexcept;
-
 	[[nodiscard]] const string_t &get() const & noexcept;
-	[[nodiscard]] const string_t &&get() const && noexcept;
+	[[nodiscard]] string_t &&get() && noexcept;
 
 public:
 	[[nodiscard]] bool to_bool(size_t base = 10) const;
@@ -147,8 +143,7 @@ public:
 public:
 	[[nodiscard]] string_t &operator*() & noexcept;
 	[[nodiscard]] const string_t &operator*() const & noexcept;
-	[[nodiscard]] string_t &&operator*() && noexcept;
-	[[nodiscard]] const string_t &&operator*() const && noexcept;
+	[[nodiscard]] string_t operator*() && noexcept;
 
 	string_t *operator->() noexcept;
 	const string_t *operator->() const noexcept;

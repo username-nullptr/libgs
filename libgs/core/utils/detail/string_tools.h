@@ -485,7 +485,7 @@ decltype(auto) to_string(concepts::any_text_p auto &&text)
 	using char_t = get_char_t<Text>;
 
 	if constexpr( is_any_std_string_v<Text> )
-		return return_reference(std::forward<Text>(text));
+		return std::forward<Text>(text);
 	else if constexpr( is_any_char_v<std::remove_cvref_t<Text>> )
 		return std::basic_string<char_t>(&text,1);
 	else
@@ -501,7 +501,7 @@ decltype(auto) to_view(concepts::any_text_p auto &&text)
 		return std::basic_string_view<char_t>(&text,1);
 
 	else if constexpr( is_any_std_string_view_v<Text> )
-		return return_reference(std::forward<Text>(text));
+		return std::forward<Text>(text);
 	else
 		return std::basic_string_view<char_t>(std::forward<Text>(text));
 }

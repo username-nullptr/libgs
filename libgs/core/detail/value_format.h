@@ -127,13 +127,13 @@ class LIBGS_CORE_TAPI value_serializer<T,CharT>
 {
 public:
 	constexpr decltype(auto) set(concepts::string_p<CharT> auto &&data) {
-		return return_reference(std::forward<decltype(data)>(data));
+		return std::forward<decltype(data)>(data);
 	}
 	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value)
 	{
 		using Value = decltype(value);
-		if constexpr( is_std_string_v<T,CharT> or std::is_rvalue_reference_v<Value> )
-			return return_reference(*std::forward<Value>(value));
+		if constexpr( is_std_string_v<T,CharT> )
+			return *std::forward<Value>(value);
 		else
 			return std::basic_string_view<CharT>(*value);
 	}
@@ -144,7 +144,7 @@ class LIBGS_CORE_TAPI value_serializer<basic_value<CharT>,CharT>
 {
 public:
 	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) {
-		return return_reference(std::forward<decltype(value)>(value));
+		return std::forward<decltype(value)>(value);
 	}
 };
 

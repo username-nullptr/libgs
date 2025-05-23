@@ -331,7 +331,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 			std::thread([&exec, finished, counter]() mutable {
 				*counter = detail::dispatch_poll(exec, *finished);
 			}).detach();
-			return return_reference(std::move(future));
+			return std::move(future);
 		}
 		else if constexpr( is_async_opt_token_v<ntoken_t> )
 		{
@@ -341,7 +341,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 			std::thread([&exec, finished, counter]() mutable {
 				*counter = detail::dispatch_poll(exec, *finished);
 			}).detach();
-			return return_reference(std::move(a));
+			return std::move(a);
 		}
 		else if constexpr( is_awaitable_v<return_t> )
 		{
@@ -444,7 +444,7 @@ auto local_dispatch(Work &&work, Token &&token)
 			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
 				*counter = detail::dispatch_poll(*ioc, *finished);
 			}).detach();
-			return return_reference(std::move(future));
+			return std::move(future);
 		}
 		else if constexpr( is_async_opt_token_v<token_t> )
 		{
@@ -455,7 +455,7 @@ auto local_dispatch(Work &&work, Token &&token)
 			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
 				*counter = detail::dispatch_poll(*ioc, *finished);
 			}).detach();
-			return return_reference(std::move(a));
+			return std::move(a);
 		}
 		else if constexpr( is_awaitable_v<return_t> )
 		{

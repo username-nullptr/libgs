@@ -74,7 +74,7 @@ constexpr const T *as_const(const T *v)
 	return v;
 }
 
-constexpr auto &&return_reference(auto &&value)
+constexpr decltype(auto) return_reference(auto &&value)
 {
 	return std::forward<decltype(value)>(value);
 }
