@@ -32,6 +32,7 @@
 #include <libgs/core/cxx/cplusplus.h>
 #include <libgs/core/cxx/exception.h>
 #include <libgs/core/cxx/operators.h>
+#include <libgs/core/cxx/tools.h>
 
 #include <libgs/core/utils/container_concepts.h>
 #include <libgs/core/utils/fstream_concepts.h>

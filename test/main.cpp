@@ -10,22 +10,42 @@
 #include <libgs/http/cookie.h>
 #include <libgs/http/server/request_parser.h>
 
+#include <libgs/core/observer.h>
 #include <libgs/core/execution.h>
+
+#include "libgs/coro/utils.h"
 
 using namespace std::chrono_literals;
 // using namespace libgs::operators;
+
+class aaa : public libgs::observer<aaa,int>
+{
+public:
+	using observer::observer;
+	ptr_t on_aaa(callback_t callback) {
+		return set_callback(std::move(callback));
+	}
+};
 
 int main()
 {
 	// spdlog::set_level(spdlog::level::trace);
 
-	libgs::post([]
+	auto a = aaa::make();
+	a->on_aaa([](int i)
 	{
-		std::cout << "0000000000000" << std::endl;
-		libgs::exit(111);
+		std::cout << "aaa: " << i << std::endl;
+	});
+	libgs::dispatch([a]() -> libgs::awaitable<void>
+	{
+		for(int i=0; i<3; i++)
+		{
+			a->trigger(i);
+			co_await libgs::coro::sleep_for(1s);
+		}
+		co_return libgs::exit();
 	});
 	return libgs::exec();
-
 
 // 	libgs::http::request_arg req_arg;
 // 	req_arg

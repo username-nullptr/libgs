@@ -31,7 +31,6 @@ add_subdirectory(3rd_party)
 include(3rd_party)
 
 if (CMAKE_BUILD_TYPE AND (CMAKE_BUILD_TYPE STREQUAL "Debug"))
-	add_compile_options(-rdynamic)
 	add_definitions(-DLIBGS_DEBUG)
 endif()
 

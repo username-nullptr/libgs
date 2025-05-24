@@ -26,55 +26,53 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_UTILS_ASIO_TOOLS_H
-#define LIBGS_CORE_UTILS_ASIO_TOOLS_H
+#ifndef LIBGS_CORE_OBSERVER_H
+#define LIBGS_CORE_OBSERVER_H
 
-#include <libgs/core/utils/token_concepts.h>
-#include <libgs/core/utils/asio_concepts.h>
-#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/execution.h>
 
 namespace libgs
 {
 
-using mutable_buffer = asio::mutable_buffer;
-
-class LIBGS_CORE_VAPI const_buffer : public asio::const_buffer
+template <typename Derived, typename...Args>
+class LIBGS_CORE_TAPI observer : public std::enable_shared_from_this<
+	crtp_derived_t<Derived, observer<Derived,Args...>>>
 {
+	LIBGS_DISABLE_COPY_MOVE(observer)
+	using derived_t = crtp_derived_t<Derived,observer>;
+
 public:
-	using asio::const_buffer::const_buffer;
-	const_buffer &operator=(const const_buffer&) = default;
-	const_buffer(const asio::const_buffer &buf);
-	const_buffer(const mutable_buffer &buf);
-	const_buffer(const char *buf);
-	const_buffer(const std::string &buf);
-	const_buffer(std::string_view buf);
-	const_buffer &operator=(const mutable_buffer &buf);
+	using callback_t = std::function<void(Args...)>;
+	using ptr_t = std::shared_ptr<derived_t>;
+
+	template <concepts::sched Exec>
+	explicit observer(Exec &&exec = io_context());
+	virtual ~observer() = 0;
+
+public:
+	template <concepts::sched Exec, typename...Args0>
+	[[nodiscard]] static ptr_t make(Exec &&exec, Args0&&...args) requires
+		concepts::constructible<derived_t,Exec,Args0...>;
+
+	template <typename...Args0>
+	[[nodiscard]] static ptr_t make(Args0&&...args) requires
+		concepts::constructible<derived_t,io_context_t&,Args0...> or
+		concepts::constructible<derived_t,Args0...>;
+
+	template <typename...Args0>
+	static void trigger(Args0&&...args) requires
+		concepts::callable<callback_t,Args0...>;
+
+protected:
+	ptr_t set_callback(callback_t func);
+
+private:
+	class impl;
+	impl *m_impl = nullptr;
 };
-
-template <typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args);
-
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::sched auto &&exec
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) unbound_token (
-	concepts::any_tf_opt_token auto &&token
-);
-
-template <concepts::any_tf_opt_token Token>
-struct token_unbound
-{
-	using type = std::remove_cvref_t <
-		decltype(unbound_token(std::declval<Token>()))
-	>;
-};
-
-template <concepts::any_tf_opt_token Token>
-using token_unbound_t = typename token_unbound<Token>::type;
 
 } //namespace libgs
-#include <libgs/core/utils/detail/asio_tools.h>
+#include <libgs/core/detail/observer.h>
 
 
-#endif //LIBGS_CORE_UTILS_ASIO_TOOLS_H
+#endif //LIBGS_CORE_OBSERVER_H

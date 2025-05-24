@@ -26,55 +26,15 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_UTILS_ASIO_TOOLS_H
-#define LIBGS_CORE_UTILS_ASIO_TOOLS_H
+#include "libgs/core/observer.h"
 
-#include <libgs/core/utils/token_concepts.h>
-#include <libgs/core/utils/asio_concepts.h>
-#include <libgs/core/cxx/attributes.h>
-
-namespace libgs
+namespace libgs::detail
 {
 
-using mutable_buffer = asio::mutable_buffer;
-
-class LIBGS_CORE_VAPI const_buffer : public asio::const_buffer
+obs_map_t &observer_map() noexcept
 {
-public:
-	using asio::const_buffer::const_buffer;
-	const_buffer &operator=(const const_buffer&) = default;
-	const_buffer(const asio::const_buffer &buf);
-	const_buffer(const mutable_buffer &buf);
-	const_buffer(const char *buf);
-	const_buffer(const std::string &buf);
-	const_buffer(std::string_view buf);
-	const_buffer &operator=(const mutable_buffer &buf);
-};
+	static obs_map_t map;
+	return map;
+}
 
-template <typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args);
-
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::sched auto &&exec
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) unbound_token (
-	concepts::any_tf_opt_token auto &&token
-);
-
-template <concepts::any_tf_opt_token Token>
-struct token_unbound
-{
-	using type = std::remove_cvref_t <
-		decltype(unbound_token(std::declval<Token>()))
-	>;
-};
-
-template <concepts::any_tf_opt_token Token>
-using token_unbound_t = typename token_unbound<Token>::type;
-
-} //namespace libgs
-#include <libgs/core/utils/detail/asio_tools.h>
-
-
-#endif //LIBGS_CORE_UTILS_ASIO_TOOLS_H
+} //nnamespace libgs::detail

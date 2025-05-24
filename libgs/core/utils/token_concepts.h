@@ -378,7 +378,7 @@ concept yield_context = is_basic_yield_context_v<T>;
 
 #endif //LIBGS_USING_BOOST_ASIO
 
-} //namespace libgs::operators
+} //namespace libgs
 
 
 #endif //LIBGS_CORE_UTILS_TOKEN_CONCEPTS_H

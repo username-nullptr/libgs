@@ -42,7 +42,7 @@
 namespace libgs
 {
 
-using std_type_id = decltype(typeid(void).hash_code());
+using std_typeid_t = decltype(typeid(void).hash_code());
 
 template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI const char *type_name();
@@ -67,17 +67,6 @@ template <typename T>
 
 template <typename...Args>
 constexpr void ignore_unused(Args&&...) {}
-
-template <concepts::any_tf_opt_token Token>
-struct token_unbound
-{
-	using type = std::remove_cvref_t <
-		decltype(unbound_token(std::declval<Token>()))
-	>;
-};
-
-template <concepts::any_tf_opt_token Token>
-using token_unbound_t = typename token_unbound<Token>::type;
 
 template <typename T, typename U> requires std::is_class_v<T>
 struct class_member
