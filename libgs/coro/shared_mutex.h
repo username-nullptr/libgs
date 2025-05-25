@@ -34,7 +34,7 @@
 namespace libgs::coro
 {
 
-class LIBGS_CORE_VAPI shared_mutex
+class LIBGS_CORO_VAPI shared_mutex
 {
 	LIBGS_DISABLE_COPY_MOVE(shared_mutex)
 
@@ -102,7 +102,7 @@ private:
 	native_handle_t m_native_handle;
 };
 
-class LIBGS_CORE_VAPI shared_lock
+class LIBGS_CORO_VAPI shared_lock
 {
 	LIBGS_DISABLE_COPY(shared_lock)
 

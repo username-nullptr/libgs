@@ -34,113 +34,78 @@
 namespace libgs::http
 {
 
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_response_helper final
+class LIBGS_HTTP_API response_helper final
 {
-	LIBGS_DISABLE_COPY(basic_response_helper)
+	LIBGS_DISABLE_COPY(response_helper)
 
 public:
-	using char_t = CharT;
-	using string_t = std::basic_string<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
-
-	using value_t = basic_value<char_t>;
-	using value_set_t = basic_value_set<char_t>;
-
-	using header_t = basic_header<char_t>;
-	using headers_t = basic_headers<char_t>;
-
-	using cookie_t = basic_cookie<char_t>;
-	using cookies_t = basic_cookies<char_t>;
-
-	using key_init_t = basic_key_init<char_t>;
-	using attr_init_t = basic_attr_init<char_t>;
-	using pair_init_t = basic_key_attr_init<char_t>;
-	using cookie_init_t = basic_cookie_init<char_t>;
-	using map_helper_t = basic_attr_map_helper<char_t>;
-
-	using helper_t = basic_helper_base<char_t>;
-	using pro_state_t = typename helper_t::state_t;
+	using headers_t = http::headers;
+	using cookies_t = http::cookies;
+	using value_t = libgs::value;
 
 public:
-	explicit basic_response_helper(version_t version, const headers_t &request_headers = {});
-	explicit basic_response_helper(const headers_t &request_headers = {}); // default V1.1
-	~basic_response_helper();
+	explicit response_helper(version_enum version, const headers_t &req_headers = {});
+	explicit response_helper(const headers_t &req_headers = {}); // default V1.1
+	~response_helper();
 
-	basic_response_helper(basic_response_helper &&other) noexcept ;
-	basic_response_helper &operator=(basic_response_helper &&other) noexcept;
+	response_helper(response_helper &&other) noexcept;
+	response_helper &operator=(response_helper &&other) noexcept;
 
 public:
-	basic_response_helper &set_status(status_t status);
-	basic_response_helper &set_header(pair_init_t headers) noexcept;
-	basic_response_helper &set_cookie(cookie_init_t headers) noexcept;
-	basic_response_helper &set_chunk_attribute(attr_init_t attributes) noexcept;
+	response_helper &set_header (
+		core_concepts::text_p<char> auto &&key, value_t value
+	) noexcept;
 
-	template <typename...Args>
-	basic_response_helper &set_header(Args&&...args) noexcept requires
-		concepts::set_key_attr_params<char_t,Args...>;
+	response_helper &unset_header (
+		const core_concepts::text_p<char> auto &key
+	) noexcept;
 
-	template <typename...Args>
-	basic_response_helper &set_cookie(Args&&...args) noexcept requires
-		concepts::set_cookie_params<char_t,Args...>;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] headers_t &headers() noexcept;
 
-	template <typename...Args>
-	basic_response_helper &set_chunk_attribute(Args&&...args) noexcept requires
-		concepts::set_attr_params<char_t,Args...>;
+public:
+	response_helper &set_cookie (
+		http::cookie cookie
+	) noexcept;
 
-	basic_response_helper &set_redirect (
-		core_concepts::basic_string_type<char_t> auto &&url,
+	response_helper &unset_cookie (
+		const core_concepts::text_p<char> auto &key
+	) noexcept;
+
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
+	[[nodiscard]] cookies_t &cookies() noexcept;
+
+public:
+	response_helper &set_chunk_attribute(value_t attr) noexcept;
+	response_helper &unset_chunk_attribute(const value_t &attr) noexcept;
+
+	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
+	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
+
+public:
+	response_helper &set_status(status_enum status);
+	[[nodiscard]] status_enum status() const noexcept;
+
+	response_helper &set_redirect (
+		core_concepts::text_p<char> auto &&url,
 		redirect type = redirect::moved_permanently
 	);
 
 public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const map_helper_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
-public:
-	[[nodiscard]] version_t version() const noexcept;
-	[[nodiscard]] status_t status() const noexcept;
-
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] const value_set_t &chunk_attributes() const noexcept;
-
-public:
-	template <typename...Args>
-	basic_response_helper &unset_header(Args&&...args) noexcept requires
-		concepts::unset_pair_params<char_t,Args...>;
-
-	template <typename...Args>
-	basic_response_helper &unset_cookie(Args&&...args) noexcept requires
-		concepts::unset_pair_params<char_t,Args...>;
-
-	template <typename...Args>
-	basic_response_helper &unset_chunk_attribute(Args&&...args) noexcept requires
-		concepts::unset_attr_params<char_t,Args...>;
-
-	basic_response_helper &unset_header(key_init_t headers) noexcept;
-	basic_response_helper &clear_header() noexcept;
-
-	basic_response_helper &unset_cookie(key_init_t headers) noexcept;
-	basic_response_helper &clear_cookie() noexcept;
-
-	basic_response_helper &unset_chunk_attribute(attr_init_t headers) noexcept;
-	basic_response_helper &clear_chunk_attribute() noexcept;
-
-	basic_response_helper &reset() noexcept;
-	[[nodiscard]] pro_state_t pro_state() const noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
+	[[nodiscard]] helper_state pro_state() const noexcept;
+	response_helper &reset() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using response_helper = basic_response_helper<char>;
-using wresponse_helper = basic_response_helper<wchar_t>;
-
 } //namespace libgs::http
-#include <libgs/http/server/detail/response_helper.h>
 
 
 #endif //LIBGS_HTTP_SERVER_RESPONSE_HELPER_H

@@ -47,7 +47,7 @@ template <typename Value>
 using map = std::map<key_t, Value, less_case_insensitive>;
 
 template <typename Value>
-using set = std::set<Value>;
+using set = std::set<Value, less_case_insensitive>;
 
 } //namespace libgs::http::concepts::container
 #include <libgs/http/cxx/detail/container.h>

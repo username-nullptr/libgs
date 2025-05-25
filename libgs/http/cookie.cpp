@@ -64,6 +64,37 @@ cookie::cookie(value_t value) :
 
 }
 
+cookie::~cookie()
+{
+	delete m_impl;
+}
+
+cookie::cookie(const cookie &other) :
+	m_impl(new impl(*other.m_impl))
+{
+
+}
+
+cookie &cookie::operator=(const cookie &other)
+{
+	if( this != &other )
+		*m_impl = *other.m_impl;
+	return *this;
+}
+
+cookie::cookie(cookie &&other) noexcept :
+	m_impl(new impl(std::move(*other.m_impl)))
+{
+
+}
+
+cookie &cookie::operator=(cookie &&other) noexcept
+{
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
+	return *this;
+}
+
 cookie &cookie::set_value(value_t value) noexcept
 {
 	m_impl->m_value = std::move(value);

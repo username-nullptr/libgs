@@ -35,7 +35,7 @@
 namespace libgs::http
 {
 
-class LIBGS_HTTP_TAPI request_parser::impl
+class LIBGS_DECL_HIDDEN request_parser::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -46,16 +46,16 @@ public:
 		m_parser
 		.on_parse_begin([this](std::string_view line_buf, error_code &error)
 		{
-			auto version = version::nan;
+			auto version = static_cast<version_enum>(-1);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
 			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
 				error = parser_base::make_error_code(parse_errno::IRL);
 				return version;
 			}
-			method_t method;
+			method_enum method;
 			try {
-				method = from_method_string(request_line_parts[0]);
+				method = method::from_string(request_line_parts[0]);
 			}
 			catch(const std::exception&)
 			{
@@ -63,7 +63,7 @@ public:
 				return version;
 			}
 			m_method = method;
-			version = version_number(request_line_parts[2].substr(5,3));
+			version = version::from_string(request_line_parts[2].substr(5,3));
 
 			auto url_line = from_percent_encoding(request_line_parts[1]);
 			auto pos = url_line.find('?');
@@ -147,7 +147,7 @@ public:
 
 public:
 	parser_base m_parser;
-	method_t m_method = method_t::get;
+	method_enum m_method = method_enum::get;
 
 	std::string m_path {};
 	http::parameters m_parameters {};
@@ -271,7 +271,7 @@ int32_t request_parser::path_match(std::string_view rule)
 	return weight;
 }
 
-method_t request_parser::method() const noexcept
+method_enum request_parser::method() const noexcept
 {
 	return m_impl->m_method;
 }
@@ -281,7 +281,7 @@ std::string_view request_parser::path() const noexcept
 	return m_impl->m_path;
 }
 
-version_t request_parser::version() const noexcept
+version_enum request_parser::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }

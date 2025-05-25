@@ -34,32 +34,21 @@
 namespace libgs::http
 {
 
-template <version_t Version = version::v11>
+enum class helper_state {
+	header, content_length, chunk, finish
+};
+
+template <version_enum Version = version::v11>
 class LIBGS_HTTP_TAPI basic_helper_base final
 {
 	LIBGS_DISABLE_COPY(basic_helper_base)
 
 public:
-	using char_t = CharT;
-	constexpr static version_t version_v = Version;
+	constexpr static version_enum version_v = Version;
+	using state_t = helper_state;
 
-	using string_t = std::basic_string<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
-
-	using value_t = basic_value<char_t>;
-	using value_set_t = basic_value_set<char_t>;
-
-	using header_t = basic_header<char_t>;
-	using headers_t = basic_headers<char_t>;
-
-	using attr_init_t = basic_attr_init<char_t>;
-	using pair_init_t = basic_key_attr_init<char_t>;
-	using key_init_t = basic_key_init<char_t>;
-	using map_helper_t = basic_attr_map_helper<char_t>;
-
-	enum class state_t {
-		header, content_length, chunk, finish
-	};
+	using headers_t = http::headers;
+	using value_t = libgs::value;
 
 public:
 	basic_helper_base();
@@ -69,43 +58,31 @@ public:
 	basic_helper_base &operator=(basic_helper_base &&other) noexcept;
 
 public:
-	template <typename...Args>
-	basic_helper_base &set_header(Args&&...args) noexcept requires
-		concepts::set_key_attr_params<char_t,Args...>;
+	basic_helper_base &set_header (
+		core_concepts::text_p<char> auto &&key, value_t value
+	) noexcept;
 
-	basic_helper_base &set_header(pair_init_t headers) noexcept;
-
-	template <typename...Args>
-	basic_helper_base &set_chunk_attribute(Args&&...args) noexcept requires
-		concepts::set_attr_params<char_t,Args...>;
-
-	basic_helper_base &set_chunk_attribute(attr_init_t attributes) noexcept;
+	basic_helper_base &unset_header (
+		const core_concepts::text_p<char> auto &key
+	) noexcept;
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] const value_set_t &chunk_attributes() const noexcept;
-	[[nodiscard]] consteval version_t version() const noexcept;
-	[[nodiscard]] state_t state() const noexcept;
+	[[nodiscard]] headers_t &headers() noexcept;
+
+public:
+	basic_helper_base &set_chunk_attribute(value_t attr) noexcept;
+	basic_helper_base &unset_chunk_attribute(const value_t &attr) noexcept;
+
+	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
+	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
 
 public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const map_helper_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
-public:
-	template <typename...Args>
-	basic_helper_base &unset_header(Args&&...args) requires
-		concepts::unset_pair_params<char_t,Args...>;
-
-	basic_helper_base &unset_header(key_init_t headers) noexcept;
-	basic_helper_base &clear_headers() noexcept;
-
-	template <typename...Args>
-	basic_helper_base &unset_chunk_attribute(Args&&...args) requires
-		concepts::unset_attr_params<char_t,Args...>;
-
-	basic_helper_base &unset_chunk_attribute(attr_init_t attributes) noexcept;
-	basic_helper_base &clear_chunk_attributes() noexcept;
-
+	[[nodiscard]] consteval version_enum version() const noexcept;
+	[[nodiscard]] state_t state() const noexcept;
 	basic_helper_base &reset();
 
 private:

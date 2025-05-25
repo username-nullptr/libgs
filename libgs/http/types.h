@@ -98,15 +98,9 @@ X_MACRO( loop_detected                   , 508 , "Loop Detected"                
 X_MACRO( not_extended                    , 510 , "Not Extended"                    ) \
 X_MACRO( network_authentication_required , 511 , "Network Authentication Required" )
 
-struct LIBGS_HTTP_VAPI status
-{
-	using type = uint32_t;
-#define X_MACRO(e,v,d) static constexpr type e = (v);
-	LIBGS_HTTP_STATUS_TABLE
+#define X_MACRO(e,v,d) e = (v),
+LIBGS_HTTP_DEFINE_ENUM(uint32_t, status, LIBGS_HTTP_STATUS_TABLE, description);
 #undef X_MACRO
-};
-using status_t = status::type;
-LIBGS_HTTP_VAPI bool status_check(status_t s, bool _throw = true);
 
 #define LIBGS_HTTP_METHOD_TABLE \
 X_MACRO( get     , 0x0001 , "GET"     ) \
@@ -119,52 +113,28 @@ X_MACRO( options , 0x0040 , "OPTIONS" ) \
 X_MACRO( trace   , 0x0080 , "TRACE"   ) \
 X_MACRO( connect , 0x0100 , "CONNECT" )
 
-enum class method
-{
-#define X_MACRO(e,v,d) e=(v),
-	LIBGS_HTTP_METHOD_TABLE
+#define X_MACRO(e,v,d) e = (v),
+LIBGS_HTTP_DEFINE_ENUM(uint16_t, method, LIBGS_HTTP_METHOD_TABLE, string,
+	[[nodiscard]] static constexpr enumeration from_string(std::string_view str);
+	constexpr method(std::string_view str);
+);
 #undef X_MACRO
-
-#define X_MACRO(e,v,d) e|
-	all = LIBGS_HTTP_METHOD_TABLE 0,
-#undef X_MACRO
-
-	begin = get,
-	end   = connect
-};
-using method_t = method;
-LIBGS_DECLARE_FLAGS(methods, method);
-LIBGS_HTTP_VAPI bool method_check(method m, bool _throw = true);
+LIBGS_DECLARE_FLAGS(methods, method_enum);
 
 #define LIBGS_HTTP_REDIRECT_TYPE_TABLE \
-X_MACRO( moved_permanently  , static_cast<int>(status::moved_permanently ) ) \
-X_MACRO( permanent_redirect , static_cast<int>(status::permanent_redirect) ) \
-X_MACRO( found              , static_cast<int>(status::found             ) ) \
-X_MACRO( see_other          , static_cast<int>(status::see_other         ) ) \
-X_MACRO( temporary_redirect , static_cast<int>(status::temporary_redirect) ) \
-X_MACRO( multiple_choices   , static_cast<int>(status::multiple_choices  ) ) \
-X_MACRO( not_modified       , static_cast<int>(status::not_modified      ) )
+X_MACRO( moved_permanently  , status::moved_permanently  , "Moved Permanently"  ) \
+X_MACRO( permanent_redirect , status::permanent_redirect , "Permanent Redirect" ) \
+X_MACRO( found              , status::found              , "Found"              ) \
+X_MACRO( see_other          , status::see_other          , "See Other"          ) \
+X_MACRO( temporary_redirect , status::temporary_redirect , "Temporary Redirect" ) \
+X_MACRO( multiple_choices   , status::multiple_choices   , "Multiple Choices"   ) \
+X_MACRO( not_modified       , status::not_modified       , "Not Modified"       )
 
-enum class redirect
-{
-#define X_MACRO(e,v) e=(v),
-	LIBGS_HTTP_REDIRECT_TYPE_TABLE
+#define X_MACRO(e,v,d) e = (v),
+LIBGS_HTTP_DEFINE_ENUM(uint32_t, redirect, LIBGS_HTTP_REDIRECT_TYPE_TABLE, description);
 #undef X_MACRO
-};
-using redirect_t = redirect;
-LIBGS_HTTP_VAPI bool redirect_check(redirect type, bool _throw = true);
 
 using parameters = map<value>;
-
-template <status_t Status>
-[[nodiscard]] consteval const char *status_description();
-[[nodiscard]] LIBGS_HTTP_VAPI const char *status_description(status_t s);
-
-template <method Method>
-[[nodiscard]] consteval const char *method_string();
-[[nodiscard]] LIBGS_HTTP_TAPI const char *method_string(method m);
-
-[[nodiscard]] LIBGS_HTTP_VAPI method from_method_string(std::string_view str);
 
 } //namespace libgs::http
 #include <libgs/http/detail/types.h>

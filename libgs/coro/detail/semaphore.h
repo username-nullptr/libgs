@@ -38,7 +38,7 @@ namespace libgs::coro
 {
 
 template<size_t Max>
-class LIBGS_CORE_TAPI basic_semaphore<Max>::impl
+class LIBGS_CORO_TAPI basic_semaphore<Max>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 

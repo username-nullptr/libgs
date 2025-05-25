@@ -34,7 +34,7 @@
 namespace libgs::http
 {
 
-class LIBGS_HTTP_TAPI request_parser final
+class LIBGS_HTTP_API request_parser final
 {
 	LIBGS_DISABLE_COPY(request_parser)
 
@@ -57,9 +57,9 @@ public:
 	[[nodiscard]] int32_t path_match(std::string_view rule);
 
 public:
-	[[nodiscard]] method_t method() const noexcept;
+	[[nodiscard]] method_enum method() const noexcept;
 	[[nodiscard]] std::string_view path() const noexcept;
-	[[nodiscard]] version_t version() const noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
 
 public:
 	[[nodiscard]] const http::parameters &parameters() const noexcept;

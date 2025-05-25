@@ -33,7 +33,7 @@ namespace libgs::coro
 {
 
 // TODO ... ...
-class LIBGS_CORE_VAPI condition_variable::impl
+class LIBGS_CORO_VAPI condition_variable::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 

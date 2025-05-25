@@ -34,7 +34,7 @@
 namespace libgs::coro::detail
 {
 
-class LIBGS_CORE_VAPI lock_wake_up final :
+class LIBGS_CORO_VAPI lock_wake_up final :
 	public std::enable_shared_from_this<lock_wake_up>
 {
 	LIBGS_DISABLE_COPY_MOVE(lock_wake_up)

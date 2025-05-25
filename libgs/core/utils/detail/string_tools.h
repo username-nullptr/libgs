@@ -516,7 +516,7 @@ bool is_alpha(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::all_of(string_view_t(str), [](auto c){
 			return std::isalpha(c);
 		});
 	}
@@ -532,7 +532,7 @@ bool is_digit(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::all_of(string_view_t(str), [](auto c){
 			return std::isdigit(c);
 		});
 	}
@@ -584,7 +584,7 @@ bool is_alnum(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::all_of(string_view_t(str), [](auto c){
 			return std::isalnum(c);
 		});
 	}
@@ -600,7 +600,7 @@ bool is_ascii(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::ranges::all_of(string_view_t(str), [](auto c){
+		return std::all_of(string_view_t(str), [](auto c){
 			return c <= 0x7F;
 		});
 	}

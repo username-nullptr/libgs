@@ -32,6 +32,7 @@
 namespace libgs::http
 {
 
+/*
 #define LIBGS_HTTP_DETAIL_STRING_POOL(_type, ...) \
 	static constexpr const _type *root       = __VA_ARGS__##"/"                        ; \
 	static constexpr const _type *close      = __VA_ARGS__##"close"                    ; \
@@ -41,126 +42,199 @@ namespace libgs::http
 	static constexpr const _type *websocket  = __VA_ARGS__##"websocket"                ; \
 	static constexpr const _type *set_cookie = __VA_ARGS__##"set-cookie"               ; \
 	static constexpr const _type *text_plain = __VA_ARGS__##"text/plain; charset=utf-8";
+*/
 
-
-
-
-inline bool status_check(status_t s, bool _throw)
+inline bool status::check(enumeration status, bool _throw)
 {
-	switch(s)
+	switch(status)
 	{
-#define X_MACRO(e,v,d) case http::status::e:
+#define X_MACRO(e,v,d) case e:
 		LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
 			return true;
 		default:
 			if( _throw )
-				throw runtime_error("libgs::http::status_check: Invalid http status: '{}'.", s);
+			{
+				throw runtime_error (
+					"libgs::http::status::check: Invalid http status: '{}'.",
+					status
+				);
+			}
 			break;
 	}
 	return false;
 }
 
-inline void method_check(uint32_t m)
+template <status_enum Status>
+consteval bool status::is_valid()
 {
-	method_check(static_cast<method>(m));
-}
-
-inline bool method_check(method m, bool _throw)
-{
-	switch(m)
-	{
-#define X_MACRO(e,v,d) case http::method::e:
-		LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-			return true;
-		default:
-			if( _throw )
-				throw runtime_error("libgs::http::method_check: Invalid http method: '{}'.", m);
-			break;
-	}
-	return false;
-}
-
-inline bool redirect_check(redirect type, bool _throw)
-{
-	switch(type)
-	{
-#define X_MACRO(e,v) case redirect::e:
-		LIBGS_HTTP_REDIRECT_TYPE_TABLE
-#undef X_MACRO
-			return true;
-		default:
-			if( _throw )
-				throw runtime_error("libgs::http::redirect_check: Invalid redirect type: '{}'.", type);
-			break;
-	}
-	return false;
-}
-
-template <status_t Status>
-consteval const char *status_description()
-{
-#define X_MACRO(e,v,d) Status == status::e and
-	static_assert(LIBGS_HTTP_STATUS_TABLE true, "Invalid http status.");
-#undef X_MACRO
-
-#define X_MACRO(e,v,d) \
-	if constexpr( Status == status::e ) return d;
+#define X_MACRO(e,v,d) if constexpr( Status == e ) return true;
 	LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
-	else
-		return "";
+	else return false;
 }
 
-inline const char *status_description(status_t s)
+inline const char *status::description(enumeration status, bool _throw)
 {
-	switch(s)
+	switch(status)
 	{
-#define X_MACRO(e,v,d) case status::e: return d;
+#define X_MACRO(e,v,d) case e: return d;
 		LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
-		default: break;
+	default:
+		if( _throw )
+		{
+			throw runtime_error (
+				"libgs::http::status::description: Invalid http status: '{}'.",
+				status
+			);
+		}
+		break;
 	}
-	throw runtime_error("libgs::http: Invalid http status: '{}'.", s);
-//	return "";
+	return "";
 }
 
-
-template <method Method>
-consteval const char *method_string()
+template <status_enum Status>
+consteval const char *status::description() requires is_valid_v<Status>
 {
-#define X_MACRO(e,v,d) Method == method::e and
-	static_assert(LIBGS_HTTP_METHOD_TABLE true, "Invalid http method.");
+#define X_MACRO(e,v,d) if constexpr( Status == e ) return d;
+	LIBGS_HTTP_STATUS_TABLE
 #undef X_MACRO
-
-#define X_MACRO(e,v,d) \
-if constexpr( Method == method::e ) return d;
-	LIBGS_HTTP_METHOD_TABLE
-#undef X_MACRO
-	else
-		return "";
+	else return "";
 }
 
-inline const char *method_string(method m)
+inline bool method::check(enumeration method, bool _throw)
 {
-	switch(m)
+	switch(method)
 	{
-#define X_MACRO(e,v,d) case method::e: return d;
+#define X_MACRO(e,v,d) case e:
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
-		default: break;
+			return true;
+	default:
+		if( _throw )
+		{
+			throw runtime_error (
+				"libgs::http::method::check: Invalid http method: '{}'.",
+				method
+			);
+		}
+		break;
 	}
-	throw runtime_error("libgs::http: Invalid http method: '{}'.", m);
-//	return "";
+	return false;
 }
 
-inline method from_method_string(std::string_view str)
+template <method_enum Method>
+consteval bool method::is_valid()
+{
+#define X_MACRO(e,v,d) if constexpr( Method == e ) return true;
+	LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
+	else return false;
+}
+
+inline const char *method::string(enumeration method, bool _throw)
+{
+	switch(method)
+	{
+#define X_MACRO(e,v,d) case e: return d;
+	LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
+	default:
+		if( _throw )
+		{
+			throw runtime_error (
+				"libgs::http::method::string: Invalid http method: '{}'.",
+				method
+			);
+		}
+		break;
+	}
+	return "";
+}
+
+template <method_enum Method>
+consteval const char *method::string() requires is_valid_v<Method>
+{
+#define X_MACRO(e,v,d) if constexpr( Method == e ) return d;
+	LIBGS_HTTP_METHOD_TABLE
+#undef X_MACRO
+	else return "";
+}
+
+constexpr method_enum method::from_string(std::string_view str)
 {
 #define X_MACRO(e,v,d) if( str == d ) return method::e;
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
-	throw runtime_error("libgs::http: Invalid http method: '{}'.", str);
+	throw runtime_error (
+		"libgs::http::method::from_string: Invalid http method: '{}'.", str
+	);
+}
+
+constexpr method::method(std::string_view str) :
+	value(from_string(str))
+{
+
+}
+
+inline bool redirect::check(enumeration redirect, bool _throw)
+{
+	switch(redirect)
+	{
+#define X_MACRO(e,v,d) case e:
+	LIBGS_HTTP_REDIRECT_TYPE_TABLE
+#undef X_MACRO
+		return true;
+	default:
+		if( _throw )
+		{
+			throw runtime_error (
+				"libgs::http::redirect::check: Invalid http redirect type: '{}'.",
+				redirect
+			);
+		}
+		break;
+	}
+	return "";
+}
+
+template <redirect_enum Redirect>
+consteval bool redirect::is_valid()
+{
+#define X_MACRO(e,v,d) if constexpr( Redirect == e ) return true;
+	LIBGS_HTTP_REDIRECT_TYPE_TABLE
+#undef X_MACRO
+	else return false;
+}
+
+inline const char *redirect::description(enumeration redirect, bool _throw)
+{
+	switch(redirect)
+	{
+#define X_MACRO(e,v,d) case e: return d;
+		LIBGS_HTTP_REDIRECT_TYPE_TABLE
+	#undef X_MACRO
+		default:
+		if( _throw )
+		{
+			throw runtime_error (
+				"libgs::http::redirect::string: Invalid http redirect type: '{}'.",
+				redirect
+			);
+		}
+		break;
+	}
+	return "";
+}
+
+template <redirect_enum Redirect>
+consteval const char *redirect::description() requires is_valid_v<Redirect>
+{
+#define X_MACRO(e,v,d) if constexpr( Redirect == e ) return d;
+	LIBGS_HTTP_REDIRECT_TYPE_TABLE
+#undef X_MACRO
+	else return "";
 }
 
 } //namespace libgs::http

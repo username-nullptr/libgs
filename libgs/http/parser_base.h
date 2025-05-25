@@ -58,7 +58,7 @@ class LIBGS_HTTP_API parser_base final
 
 public:
 	using parse_begin_handler = std::function <
-		version_t(std::string_view line_buf, error_code &error)
+		version_enum(std::string_view line_buf, error_code &error)
 	>;
 	using parse_cookie_handler = std::function <
 		void(std::string_view line_buf, error_code &error)
@@ -83,7 +83,7 @@ public:
 	parser_base &reset();
 
 public:
-	[[nodiscard]] version_t version() const noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] const http::headers &headers() const noexcept;
 
 	[[nodiscard]] std::string take_partial_body(size_t size);

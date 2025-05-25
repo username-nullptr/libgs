@@ -35,7 +35,7 @@
 namespace libgs::coro
 {
 
-class LIBGS_CORE_VAPI mutex::impl
+class LIBGS_CORO_VAPI mutex::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 

@@ -29,13 +29,13 @@
 #ifndef LIBGS_CORO_SEMAPHORE_H
 #define LIBGS_CORO_SEMAPHORE_H
 
-#include <libgs/core/global.h>
+#include <libgs/coro/global.h>
 
 namespace libgs::coro
 {
 
 template<size_t Max = std::numeric_limits<size_t>::max()>
-class LIBGS_CORE_TAPI basic_semaphore
+class LIBGS_CORO_TAPI basic_semaphore
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_semaphore)
 	constexpr static size_t max_v = Max;

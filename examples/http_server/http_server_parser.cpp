@@ -1,19 +1,28 @@
 #include <libgs/http/server/request_parser.h>
-#include <libgs/core/coro.h>
+#include <libgs/coro.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
+using namespace libgs::operators;
 
 asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socket::endpoint_type ep)
 {
 	libgs::http::request_parser parser;
+	std::error_code error;
 	try {
 		char rbuf[4096] = "";
 		for(;;)
 		{
-			auto var = co_await (socket.async_read_some(asio::buffer(rbuf,4096), asio::use_awaitable) or
-								 libgs::co_sleep_for(5s));
-			if( var.index() == 1 )
+			auto var = co_await (
+				socket.async_read_some (
+					asio::buffer(rbuf,4096), asio::use_awaitable | error
+				) or
+				libgs::coro::sleep_for(5s)
+			);
+			if( error )
+				throw std::system_error(error);
+
+			else if( var.index() == 1 )
 			{
 				spdlog::error("socket error: read timeout.");
 				break;
@@ -26,10 +35,10 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 				continue;
 
 			spdlog::debug("Version:{} - Method:{} - Path:{}",
-						  parser.version(),
-						  method_string(parser.method()),
-						  parser.path());
-
+				libgs::http::version::number(parser.version()),
+				libgs::http::method::string(parser.method()),
+				parser.path()
+			);
 			for(auto &[key,value] : parser.parameters())
 				spdlog::debug("Parameter: {}: {}", key, value);
 
@@ -41,14 +50,18 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 
 			spdlog::debug("partial_body: {}\n", parser.take_body());
 
-			auto wbuf = std::format("HTTP/1.1 200 OK\r\n"
-									"{}:close\r\n"
-									"{}:11\r\n"
-									"\r\n"
-									"Hello world",
-									libgs::http::header::connection,
-									libgs::http::header::content_length);
-			co_await asio::async_write(socket, asio::buffer(wbuf, wbuf.size()), asio::use_awaitable);
+			auto wbuf = std::format(
+				"HTTP/1.1 200 OK\r\n"
+				"{}:close\r\n"
+				"{}:11\r\n"
+				"\r\n"
+				"Hello world",
+				libgs::http::header::connection,
+				libgs::http::header::content_length
+			);
+			co_await asio::async_write (
+				socket, asio::buffer(wbuf, wbuf.size()), asio::use_awaitable
+			);
 			socket.close();
 			break;
 		}
@@ -68,11 +81,12 @@ int main()
 	libgs::dispatch([]() -> libgs::awaitable<void>
 	{
 		asio::ip::tcp::acceptor server(libgs::io_context());
+		std::error_code error;
 		try {
 			server.bind({asio::ip::tcp::v4(), port});
 			for(;;)
 			{
-				auto socket = co_await server.async_accept(asio::use_awaitable);
+				auto socket = co_await server.async_accept(asio::use_awaitable | error);
 				auto ep = socket.remote_endpoint();
 
 				spdlog::debug("new connction: {}", ep);

@@ -85,9 +85,9 @@ set(http_server_sources
 	http_server/http_session.cpp
 	http_server/https_server.cpp
 )
-set_target(gs_core ${http_server_sources})
+set_target(gs_http ${http_server_sources})
 
 set(http_client_sources
 	http_client/session_pool.cpp
 )
-set_target(gs_core ${http_client_sources})
+set_target(gs_http ${http_client_sources})

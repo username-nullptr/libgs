@@ -270,7 +270,7 @@ public:
 	m_state = state::waiting_request;
 	std::string m_src_buf;
 
-	version_t m_version {};
+	version_enum m_version {};
 	http::headers m_headers;
 
 	std::string m_partial_body;
@@ -373,7 +373,7 @@ parser_base &parser_base::reset()
 	return *this;
 }
 
-version_t parser_base::version() const noexcept
+version_enum parser_base::version() const noexcept
 {
 	return m_impl->m_version;
 }

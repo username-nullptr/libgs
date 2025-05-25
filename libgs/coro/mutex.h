@@ -29,12 +29,12 @@
 #ifndef LIBGS_CORO_MUTEX_H
 #define LIBGS_CORO_MUTEX_H
 
-#include <libgs/core/global.h>
+#include <libgs/coro/global.h>
 
 namespace libgs::coro
 {
 
-class LIBGS_CORE_VAPI mutex
+class LIBGS_CORO_VAPI mutex
 {
 	LIBGS_DISABLE_COPY_MOVE(mutex)
 
@@ -79,7 +79,7 @@ private:
 };
 
 template <typename Mutex = mutex>
-class LIBGS_CORE_TAPI unique_lock
+class LIBGS_CORO_TAPI unique_lock
 {
 	LIBGS_DISABLE_COPY(unique_lock)
 
