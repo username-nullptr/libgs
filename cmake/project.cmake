@@ -36,12 +36,11 @@ function(add_project target_name)
 		add_library(${target_name} STATIC ${all_files})
 	else ()
 		add_library(${target_name} SHARED ${all_files})
-	endif ()
-
-	if (LIBGS_ADD_LIBRARY_VERSION)
-		set_target_properties(${target_name} PROPERTIES
-			VERSION ${PRO_VERSION} SOVERSION ${MAJOR_VERSION}
-		)
+		if (LIBGS_ADD_LIBRARY_VERSION)
+			set_target_properties(${target_name} PROPERTIES
+				VERSION ${PRO_VERSION} SOVERSION ${MAJOR_VERSION}
+			)
+		endif ()
 	endif ()
 
 	target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
