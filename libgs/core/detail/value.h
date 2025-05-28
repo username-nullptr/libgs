@@ -41,7 +41,7 @@ basic_value<CharT,Traits,Alloc>::basic_value(concepts::value_set<char_t> auto &&
 template <concepts::character CharT, typename Traits, class Alloc>
 template <typename Arg0, typename...Args>
 basic_value<CharT,Traits,Alloc>::basic_value
-(format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
+(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
 	basic_value(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 

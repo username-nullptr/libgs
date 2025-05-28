@@ -46,7 +46,7 @@ public:
 		m_parser
 		.on_parse_begin([this](std::string_view line_buf, error_code &error)
 		{
-			auto version = static_cast<version_enum>(-1);
+			auto version = static_cast<version_enum>(0);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
 			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{

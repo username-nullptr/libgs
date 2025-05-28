@@ -749,7 +749,7 @@ T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk)
 	if( it == m_impl->m_groups.end() )
 	{
 		throw runtime_error("libgs::basic_ini: read: The group '{}' is not exists.",
-			strtls::detail::ascii_transition<char>(std::forward<decltype(gk.group)>(gk.group))
+			strtls::detail::ascii_transition<char>(gk.group)
 		);
 	}
 	return it->second.template read<T>(std::move(gk.key));

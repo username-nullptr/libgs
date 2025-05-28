@@ -29,22 +29,25 @@
 #ifndef LIBGS_CORE_DETAIL_LIBRARY_H
 #define LIBGS_CORE_DETAIL_LIBRARY_H
 
-namespace libgs { namespace detail
+namespace libgs
 {
-
-template <typename T>
-struct tuple_reverse;
-
-template <typename...Args>
-struct tuple_reverse<std::tuple<Args...>>
-{
-
-};
-
-} //namespace detail
 
 template <concepts::function Func>
 auto library::interface(std::string_view ifname) const
+{
+	auto func = interface_or<Func>(ifname);
+	if( not func )
+	{
+		throw runtime_error (
+			"libgs::library::interface: interface not found: '{}'",
+			ifname
+		);
+	}
+	return func;
+}
+
+template <concepts::function Func>
+auto library::interface_or(std::string_view ifname) const
 {
 	using function_t = std::function<typename function_traits<Func>::call_type>;
 	using pointer_t = typename function_traits<Func>::pointer_type;
@@ -54,7 +57,23 @@ auto library::interface(std::string_view ifname) const
 template <concepts::function Func, typename Arg0, typename...Args>
 auto library::interface(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const
 {
-	return interface<Func>(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...));
+	auto func = interface_or<Func>(fmt_value, arg0, args...);
+	if( not func )
+	{
+		throw runtime_error (
+			"libgs::library::interface: interface not found: '{}'",
+			std::format(fmt_value, arg0, args...)
+		);
+	}
+	return func;
+}
+
+template <concepts::function Func, typename Arg0, typename...Args>
+auto library::interface_or(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const
+{
+	return interface<Func>(std::format(
+		fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...
+	));
 }
 
 } //namespace libgs

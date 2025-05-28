@@ -69,9 +69,15 @@ inline const_buffer &const_buffer::operator=(const mutable_buffer &buf)
 }
 
 template <typename...Args>
-auto buffer(Args&&...args)
+auto buffer(Args&&...args) requires (sizeof...(Args) > 0)
 {
-	return asio::buffer(std::forward<Args>(args)...);
+	using tuple_t = std::tuple<Args...>;
+	using buf_t = std::tuple_element_t<0,tuple_t>;
+
+	if constexpr( std::is_same_v<std::remove_cvref_t<buf_t>, std::nullptr_t> )
+		return asio::buffer("",0);
+	else
+		return asio::buffer(std::forward<Args>(args)...);
 }
 
 decltype(auto) get_executor_helper(concepts::sched auto &&exec)

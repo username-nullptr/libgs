@@ -52,7 +52,8 @@ public:
 };
 
 template <typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args);
+[[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args)
+	requires (sizeof...(Args) > 0);
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
 	concepts::sched auto &&exec

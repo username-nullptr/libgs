@@ -85,6 +85,14 @@ void library::unload()
 
 void *library::interface(std::string_view ifname) const
 {
+	auto func = interface_or(ifname);
+	if( not func )
+		throw runtime_error("libgs::library::interface: interface not found: '{}'", ifname);
+	return func;
+}
+
+void *library::interface_or(std::string_view ifname) const
+{
 	if( not is_loaded() )
 		throw runtime_error("libgs::library::interface: dll not load.");
 	return m_impl->interface(ifname);

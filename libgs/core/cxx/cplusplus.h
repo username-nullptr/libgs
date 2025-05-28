@@ -35,6 +35,16 @@
 # define LIBGS_CPLUSPLUS  __cplusplus
 #endif //_MSC_VER
 
+#if LIBGS_CPLUSPLUS < 202002L
+# error "libgs requires at least C++20"
+#elif LIBGS_CPLUSPLUS < 202307L
+# define LIBGS_STD_CXX 20
+#elif LIBGS_CPLUSPLUS < 202600L
+# define LIBGS_STD_CXX 23
+#else /* experimental */
+# define LIBGS_STD_CXX 2b
+#endif //LIBGS_CPLUSPLUS
+
 #if defined(_WIN64) || defined(__x86_64__) || defined(__arm64__) || defined(__aarch64__)
 # define LIBGS_OS_64BIT
 #else

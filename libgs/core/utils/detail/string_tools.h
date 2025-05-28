@@ -29,6 +29,8 @@
 #ifndef LIBGS_CORE_UTILS_DETAIL_STRING_TOOLS_H
 #define LIBGS_CORE_UTILS_DETAIL_STRING_TOOLS_H
 
+#include <ranges>
+
 namespace libgs::strtls { namespace detail
 {
 
@@ -516,9 +518,16 @@ bool is_alpha(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::all_of(string_view_t(str), [](auto c){
+#if LIBGS_STD_CXX < 23
+		string_view_t view(str);
+		return std::all_of(view.begin(), view.end(), [](auto c){
 			return std::isalpha(c);
 		});
+#else
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return std::isalpha(c);
+		});
+#endif
 	}
 }
 
@@ -532,9 +541,16 @@ bool is_digit(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::all_of(string_view_t(str), [](auto c){
+#if LIBGS_STD_CXX < 23
+		string_view_t view(str);
+		return std::all_of(view.begin(), view.end(), [](auto c){
 			return std::isdigit(c);
 		});
+#else
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return std::isdigit(c);
+		});
+#endif
 	}
 }
 
@@ -584,9 +600,16 @@ bool is_alnum(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::all_of(string_view_t(str), [](auto c){
+#if LIBGS_STD_CXX < 23
+		string_view_t view(str);
+		return std::all_of(view.begin(), view.end(), [](auto c){
 			return std::isalnum(c);
 		});
+#else
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return std::isalnum(c);
+		});
+#endif
 	}
 }
 
@@ -600,9 +623,16 @@ bool is_ascii(const concepts::any_string_p auto &str) noexcept
 		using char_t = get_char_t<Str>;
 		using string_view_t = std::basic_string_view<char_t>;
 
-		return std::all_of(string_view_t(str), [](auto c){
+#if LIBGS_STD_CXX < 23
+		string_view_t view(str);
+		return std::all_of(view.begin(), view.end(), [](auto c){
 			return c <= 0x7F;
 		});
+#else
+		return std::ranges::all_of(string_view_t(str), [](auto c){
+			return c <= 0x7F;
+		});
+#endif
 	}
 }
 

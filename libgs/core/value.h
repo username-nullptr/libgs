@@ -51,7 +51,9 @@ public:
 	using str_view_t = std::basic_string_view<char_t,traits_t>;
 
 	template <typename...Args>
-	using format_string = libgs::format_string<char_t,Args...>;
+	using format_string = std::basic_format_string <
+		char_t, std::type_identity_t<Args>...
+	>;
 
 public:
 	basic_value() = default;

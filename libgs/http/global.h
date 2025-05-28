@@ -32,10 +32,10 @@
 #include <libgs/http/cxx/container.h>
 
 #define LIBGS_HTTP_DEFINE_ENUM(_type, _struct, _list, _str_func, ...) \
-	struct LIBGS_HTTP_VAPI _struct { \
+	struct _struct { \
 		enum enumeration : _type { _list } value = {}; \
-		_struct(enumeration e) : value(e) {} \
-		_struct() = default; \
+		constexpr _struct(enumeration e) : value(e) {} \
+		constexpr _struct() = default; \
 		static bool check(enumeration e, bool _throw = true); \
 		bool check(bool _throw = true) const { return check(value, _throw); } \
 		[[nodiscard]] static const char *_str_func(enumeration e, bool _throw = true); \

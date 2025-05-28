@@ -143,6 +143,9 @@ template <concepts::character CharT>
 class LIBGS_CORE_TAPI value_serializer<basic_value<CharT>,CharT>
 {
 public:
+	constexpr decltype(auto) set(concepts::value_p<CharT> auto &&value) {
+		return *std::forward<decltype(value)>(value);
+	}
 	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) {
 		return std::forward<decltype(value)>(value);
 	}

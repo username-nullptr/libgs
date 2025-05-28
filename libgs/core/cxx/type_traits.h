@@ -61,9 +61,6 @@ using time_point = std::chrono::time_point<Clock, Duration>;
 using error_code = asio::error_code;
 namespace errc = asio::error;
 
-template <concepts::character CharT, typename...Args>
-using format_string = std::basic_format_string<CharT, std::type_identity_t<Args>...>;
-
 template <size_t N>
 struct byte_type {};
 
