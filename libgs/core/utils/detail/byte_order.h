@@ -76,10 +76,14 @@ auto reverse(concepts::arithmetic_p auto t)
 
 auto *reverse(auto *data, size_t len)
 {
-	auto array = reinterpret_cast<char*>(data);
-	len *= sizeof(*data);
-	for(size_t i=0; i<len>>1; i++)
-		std::swap(array[i], array[len - i - 1]);
+	for(size_t i=0; i<len; i++)
+	{
+		auto array = reinterpret_cast<char*>(data[i]);
+		auto type_len = sizeof(data[i]);
+
+		for(size_t j=0; j<type_len>>1; j++)
+			std::swap(array[j], array[len - j - 1]);
+	}
 	return data;
 }
 
