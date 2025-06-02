@@ -39,6 +39,7 @@ class LIBGS_HTTP_API response_helper final
 	LIBGS_DISABLE_COPY(response_helper)
 
 public:
+	using next_layer_t = std::shared_ptr<helper_base>;
 	using headers_t = http::headers;
 	using cookies_t = http::cookies;
 	using value_t = libgs::value;
@@ -98,6 +99,8 @@ public:
 
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] helper_state pro_state() const noexcept;
+
+	[[nodiscard]] next_layer_t next_layer() noexcept;
 	response_helper &reset() noexcept;
 
 private:
@@ -106,6 +109,7 @@ private:
 };
 
 } //namespace libgs::http
+#include <libgs/http/server/detail/response_helper.h>
 
 
 #endif //LIBGS_HTTP_SERVER_RESPONSE_HELPER_H

@@ -73,7 +73,7 @@ public:
 
 	template <typename T>
 	[[nodiscard]] decltype(auto) value() requires
-		core_concepts::value_get<char,T>;
+		core_concepts::value_get<T,char>;
 
 	[[nodiscard]] value_t value() noexcept;
 	operator value_t() noexcept;
@@ -143,11 +143,11 @@ public:
 public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) attribute(const core_concepts::text_p<char> auto &key)
-		const requires core_concepts::value_get<char,T>;
+		const requires core_concepts::value_get<T,char>;
 
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) attribute_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
-		const requires core_concepts::value_get_or<char,T>;
+		const requires core_concepts::value_get_or<T,char>;
 
 public:
 	cookie &set_attribute(core_concepts::text_p<char> auto &&key, value_t attr) noexcept;

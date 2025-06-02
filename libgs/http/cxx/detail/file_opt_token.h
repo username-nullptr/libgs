@@ -324,7 +324,7 @@ auto make_file_opt_token(core_concepts::any_fstream_p auto &&stream, Args&&...ar
 	return detail::make_file_opt_token<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
 }
 
-std::optional<size_t> file_size(concepts::file_opt_token auto &opt, io_permission::type mode)
+std::optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permission::type mode)
 {
 	using opt_t = std::remove_cvref_t<decltype(opt)>;
 	using fstream_t = typename opt_t::fstream_t;
@@ -376,7 +376,7 @@ std::optional<size_t> file_size(concepts::file_opt_token auto &opt, io_permissio
 	return size;
 }
 
-std::string mime_type(concepts::file_opt_token auto &opt)
+std::string mime_type(concepts::any_file_opt_token auto &opt)
 {
 	using opt_t = std::remove_cvref_t<decltype(opt)>;
 	using type = typename opt_t::type;
@@ -392,12 +392,12 @@ std::string mime_type(concepts::file_opt_token auto &opt)
 namespace operators
 {
 
-inline auto operator| (std::string_view file_name, const file_range &range)
+inline auto operator| (std::filesystem::path file_name, const file_range &range)
 {
 	return make_file_opt_token(file_name, range);
 }
 
-inline auto operator| (std::string_view file_name, file_ranges ranges)
+inline auto operator| (std::filesystem::path file_name, file_ranges ranges)
 {
 	return make_file_opt_token(file_name, std::move(ranges));
 }

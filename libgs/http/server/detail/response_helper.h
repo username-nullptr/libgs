@@ -26,66 +26,49 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_AOP_H
-#define LIBGS_HTTP_SERVER_AOP_H
-
-#include <libgs/http/server/context.h>
+#ifndef LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
+#define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H
 
 namespace libgs::http
 {
 
-template <concepts::stream Stream>
-class basic_aop
+response_helper &response_helper::set_header
+(core_concepts::text_p<char> auto &&key, value_t value) noexcept
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_aop)
+	next_layer()->set_header(std::forward<decltype(key)>(key), std::move(value));
+	return *this;
+}
 
-public:
-	using context_t = basic_service_context<Stream>;
-	basic_aop() = default;
-	virtual ~basic_aop() = 0;
-
-public:
-	[[nodiscard]] virtual awaitable<bool> before(context_t &context);
-	[[nodiscard]] virtual awaitable<bool> after(context_t &context);
-	[[nodiscard]] virtual bool exception(context_t &context, const std::exception &ex);
-};
-
-template <core_concepts::exec Exec>
-using basic_tcp_aop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-
-using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
-
-template <concepts::stream Stream>
-using basic_aop_ptr = std::shared_ptr<basic_aop<Stream>>;
-
-template <core_concepts::exec Exec>
-using basic_tcp_aop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-
-using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
-
-template <concepts::stream Stream>
-class basic_ctrlr_aop : public basic_aop<Stream>
+response_helper &response_helper::unset_header
+(const core_concepts::text_p<char> auto &key) noexcept
 {
-public:
-	using context_t = basic_service_context<Stream>;
-	[[nodiscard]] virtual awaitable<void> service(context_t &context) = 0;
-};
+	next_layer()->unset_header(key);
+	return *this;
+}
 
-template <core_concepts::exec Exec>
-using basic_tcp_ctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+response_helper &response_helper::unset_cookie
+(const core_concepts::text_p<char> auto &key) noexcept
+{
+	cookies().erase(key);
+	return *this;
+}
 
-using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
-
-template <concepts::stream Stream>
-using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Stream>>;
-
-template <core_concepts::exec Exec>
-using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-
-using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;
+response_helper &response_helper::set_redirect(core_concepts::text_p<char> auto &&url, redirect type)
+{
+	switch(type)
+	{
+#define X_MACRO(e,v,d) case redirect::e : set_status(v); break;
+		LIBGS_HTTP_REDIRECT_TYPE_TABLE
+#undef X_MACRO
+		default: throw runtime_error (
+			"libgs::http::response_helper::redirect: Invalid redirect type: '{}'.", type
+		);
+	}
+	set_header(header::location, std::forward<decltype(url)>(url));
+	return *this;
+}
 
 } //namespace libgs::http
-#include <libgs/http/server/detail/aop.h>
 
 
-#endif //LIBGS_HTTP_SERVER_AOP_H
+#endif //LIBGS_HTTP_SERVER_DETAIL_RESPONSE_HELPER_H

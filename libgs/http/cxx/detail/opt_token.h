@@ -42,8 +42,8 @@ basic_path_opt_token<CharT>::basic_path_opt_token(Str &&path) :
 
 template <core_concepts::character CharT>
 template <core_concepts::string<CharT> Str>
-basic_path_opt_token<CharT>::basic_path_opt_token(std::list<Str> &&paths) :
-	paths{std::forward<std::list<Str>>(paths)}
+basic_path_opt_token<CharT>::basic_path_opt_token(std::vector<Str> &&paths) :
+	paths{std::forward<std::vector<Str>>(paths)}
 {
 
 }

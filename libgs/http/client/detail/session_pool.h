@@ -40,7 +40,7 @@ class LIBGS_HTTP_TAPI basic_session_pool<Stream,Exec>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	template <core_concepts::match_execution<executor_t> Exec0>
+	template <core_concepts::match_exec<executor_t> Exec0>
 	explicit impl(const Exec0 &exec) : m_exec(exec) {}
 	impl() : m_exec(libgs::get_executor()) {}
 
@@ -84,14 +84,14 @@ public:
 };
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool(const core_concepts::match_execution<executor_t> auto &exec) :
+basic_session_pool<Stream,Exec>::basic_session_pool(const core_concepts::match_exec<executor_t> auto &exec) :
 	m_impl(new impl(exec))
 {
 
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_execution_context<executor_t> auto &context) :
+basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_exec_context<executor_t> auto &context) :
 	m_impl(new impl(context.get_executor()))
 {
 
@@ -99,7 +99,7 @@ basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_executi
 
 template <concepts::stream Stream, core_concepts::exec Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool() requires
-	core_concepts::match_default_execution<executor_t> :
+	core_concepts::match_def_exec<executor_t> :
 	m_impl(new impl())
 {
 
@@ -140,7 +140,7 @@ auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
 template <concepts::stream Stream, core_concepts::exec Exec>
 template <typename Token>
 auto basic_session_pool<Stream,Exec>::get
-(core_concepts::match_execution_or_context<socket_executor_t> auto &&exec, const endpoint_t &ep, Token &&token)
+(core_concepts::match_sched<socket_executor_t> auto &&exec, const endpoint_t &ep, Token &&token)
 	requires core_concepts::tf_opt_token<Token,error_code,session_t>
 {
 	using token_t = std::remove_cvref_t<Token>;

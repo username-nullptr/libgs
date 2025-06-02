@@ -32,7 +32,7 @@ int main()
 		co_return ;
 	});
 #else
-	spool.get(/*pool,*/{asio::ip::address::from_string("127.0.0.1"),8080},
+	spool.get(/*pool,*/{asio::ip::make_address_v4("127.0.0.1"),8080},
 	[&pool](const std::error_code &error, libgs::http::session_pool::session_t session)
 	{
 		LIBGS_UNUSED(error);

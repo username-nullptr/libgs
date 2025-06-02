@@ -77,35 +77,35 @@ public:
 public:
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get(Args&&...args) &
-		requires concepts::value_get<CharT,T,Args...>;
+		requires concepts::value_get<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get(Args&&...args) &&
-		requires concepts::value_get<CharT,T,Args...>;
+		requires concepts::value_get<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get(Args&&...args) const &
-		requires concepts::value_get<CharT,T,Args...>;
+		requires concepts::value_get<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get(Args&&...args) const &&
-		requires concepts::value_get<CharT,T,Args...>;
+		requires concepts::value_get<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) &
-		requires concepts::value_get_or<CharT,T,Args...>;
+		requires concepts::value_get_or<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) &&
-		requires concepts::value_get_or<CharT,T,Args...>;
+		requires concepts::value_get_or<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) const &
-		requires concepts::value_get_or<CharT,T,Args...>;
+		requires concepts::value_get_or<T,CharT,Args...>;
 
 	template <typename T, typename...Args>
 	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) const &&
-		requires concepts::value_get_or<CharT,T,Args...>;
+		requires concepts::value_get_or<T,CharT,Args...>;
 
 	[[nodiscard]] string_t &get() & noexcept;
 	[[nodiscard]] const string_t &get() const & noexcept;

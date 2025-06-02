@@ -49,10 +49,10 @@ public:
 	using endpoint_t = typename session_t::endpoint_t;
 
 public:
-	explicit basic_session_pool(const core_concepts::match_execution<executor_t> auto &exec);
-	explicit basic_session_pool(core_concepts::match_execution_context<executor_t> auto &context);
+	explicit basic_session_pool(const core_concepts::match_exec<executor_t> auto &exec);
+	explicit basic_session_pool(core_concepts::match_exec_context<executor_t> auto &context);
 
-	basic_session_pool() requires core_concepts::match_default_execution<executor_t>;
+	basic_session_pool() requires core_concepts::match_def_exec<executor_t>;
 	~basic_session_pool();
 
 	basic_session_pool(basic_session_pool &&other) noexcept;
@@ -65,7 +65,7 @@ public:
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get (
-		core_concepts::match_execution_or_context<socket_executor_t> auto &&exec,
+		core_concepts::match_sched<socket_executor_t> auto &&exec,
 		const endpoint_t &ep, Token &&token = {}
 	) requires core_concepts::tf_opt_token<Token,error_code,session_t>;
 

@@ -35,55 +35,55 @@
 namespace libgs
 {
 
-template <concepts::character, typename>
+template <typename, concepts::character>
 struct is_fstream : std::false_type {};
 
 template <concepts::character CharT>
-struct is_fstream<CharT,std::basic_fstream<CharT>> : std::true_type {};
+struct is_fstream<std::basic_fstream<CharT>,CharT> : std::true_type {};
 
-template <concepts::character CharT, typename T>
-constexpr bool is_fstream_v = is_fstream<CharT,T>::value;
+template <typename T, concepts::character CharT>
+constexpr bool is_fstream_v = is_fstream<T,CharT>::value;
 
 template <typename T>
 struct is_any_fstream : std::disjunction <
-	is_fstream<char,T>, is_fstream<wchar_t,T>,
-	is_fstream<char8_t,T>, is_fstream<char16_t,T>, is_fstream<char32_t,T>
+	is_fstream<T,char>, is_fstream<T,wchar_t>,
+	is_fstream<T,char8_t>, is_fstream<T,char16_t>, is_fstream<T,char32_t>
 > {};
 
 template <typename T>
 constexpr bool is_any_fstream_v = is_any_fstream<T>::value;
 
-template <concepts::character, typename>
+template <typename, concepts::character>
 struct is_ofstream : std::false_type {};
 
 template <concepts::character CharT>
-struct is_ofstream<CharT,std::basic_ofstream<CharT>> : std::true_type {};
+struct is_ofstream<std::basic_ofstream<CharT>,CharT> : std::true_type {};
 
-template <concepts::character CharT, typename T>
-constexpr bool is_ofstream_v = is_ofstream<CharT,T>::value;
+template <typename T, concepts::character CharT>
+constexpr bool is_ofstream_v = is_ofstream<T,CharT>::value;
 
 template <typename T>
 struct is_any_ofstream : std::disjunction <
-	is_ofstream<char,T>, is_ofstream<wchar_t,T>,
-	is_ofstream<char8_t,T>, is_ofstream<char16_t,T>, is_ofstream<char32_t,T>
+	is_ofstream<T,char>, is_ofstream<T,wchar_t>,
+	is_ofstream<T,char8_t>, is_ofstream<T,char16_t>, is_ofstream<T,char32_t>
 > {};
 
 template <typename T>
 constexpr bool is_any_ofstream_v = is_any_ofstream<T>::value;
 
-template <concepts::character, typename>
+template <typename, concepts::character>
 struct is_ifstream : std::false_type {};
 
 template <concepts::character CharT>
-struct is_ifstream<CharT,std::basic_ifstream<CharT>> : std::true_type {};
+struct is_ifstream<std::basic_ifstream<CharT>,CharT> : std::true_type {};
 
-template <concepts::character CharT, typename T>
-constexpr bool is_ifstream_v = is_ifstream<CharT,T>::value;
+template <typename T, concepts::character CharT>
+constexpr bool is_ifstream_v = is_ifstream<T,CharT>::value;
 
 template <typename T>
 struct is_any_ifstream : std::disjunction <
-	is_ifstream<char,T>, is_ifstream<wchar_t,T>,
-	is_ifstream<char8_t,T>, is_ifstream<char16_t,T>, is_ifstream<char32_t,T>
+	is_ifstream<T,char>, is_ifstream<T,wchar_t>,
+	is_ifstream<T,char8_t>, is_ifstream<T,char16_t>, is_ifstream<T,char32_t>
 > {};
 
 template <typename T>
@@ -94,9 +94,9 @@ namespace concepts
 
 template <typename T, typename CharT>
 concept fstream =
-	is_fstream_v<CharT,T> or
-	is_ofstream_v<CharT,T> or
-	is_ifstream_v<CharT,T>;
+	is_fstream_v<T,CharT> or
+	is_ofstream_v<T,CharT> or
+	is_ifstream_v<T,CharT>;
 
 template <typename T, typename CharT>
 concept fstream_p = fstream<std::remove_reference_t<T>,CharT>;

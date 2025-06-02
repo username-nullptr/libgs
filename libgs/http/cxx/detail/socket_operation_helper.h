@@ -125,7 +125,9 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 			{
 				error_code error;
 				auto sum = co_await task(error);
-				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::read");
+				coro::check_error(remove_const(token),
+					error, "libgs::http::socket_operation_helper::read"
+				);
 				co_return sum;
 			},
 			token);
@@ -211,7 +213,9 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 			{
 				error_code error;
 				auto sum = co_await task(error);
-				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::write");
+				coro::check_error(remove_const(token),
+					error, "libgs::http::socket_operation_helper::write"
+				);
 				co_return sum;
 			},
 			token);
@@ -272,7 +276,9 @@ connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		this->socket().async_connect(ep, token[error]);
-		check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
+		coro::check_error(remove_const(token),
+			error, "libgs::http::socket_operation_helper::connect"
+		);
 	}
 #endif //LIBGS_USING_BOOST_ASIO
 	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
@@ -284,7 +290,9 @@ connect(endpoint_t ep, Token &&token)
 		{
 			error_code error;
 			co_await socket.async_connect(ep, use_awaitable | error);
-			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
+			coro::check_error(remove_const(token),
+				error, "libgs::http::socket_operation_helper::connect"
+			);
 			co_return ;
 		},
 		token);
@@ -401,10 +409,12 @@ connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		this->socket().next_layer().async_connect(ep, token[error]);
-		if( check_error(token, error, "libgs::http::socket_operation_helper::connect") )
+		if( coro::check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 		{
 			this->socket().async_handshake(std::move(ep), token[error]);
-			check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
+			coro::check_error(remove_const(token),
+				error, "libgs::http::socket_operation_helper::connect"
+			);
 		}
 	}
 #endif //LIBGS_USING_BOOST_ASIO
@@ -417,10 +427,12 @@ connect(endpoint_t ep, Token &&token)
 		{
 			error_code error;
 			co_await socket.next_layer().async_connect(ep, use_awaitable | error);
-			if( not check_error(token, error, "libgs::http::socket_operation_helper::connect") )
+			if( not coro::check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 			{
 				co_await socket.async_handshake(std::move(ep), use_awaitable | error);
-				check_error(remove_const(token), error, "libgs::http::socket_operation_helper::connect");
+				coro::check_error(remove_const(token),
+					error, "libgs::http::socket_operation_helper::connect"
+				);
 			}
 			co_return ;
 		},

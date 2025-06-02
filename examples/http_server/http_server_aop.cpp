@@ -71,7 +71,7 @@ int main()
 	libgs::http::server server(std::move(acceptor));
 	server.bind({libgs::ip_type::v4, port})
 
-	.on_request<libgs::http::method::GET>("/*",
+	.on_request<libgs::http::method::get>("/*",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		co_await context.response().write("hello libgs", asio::use_awaitable);
@@ -79,7 +79,7 @@ int main()
 	},
 	new aop(), new aop())
 
-	.on_request<libgs::http::method::GET>("/ctrlr*", new controller())
+	.on_request<libgs::http::method::get>("/ctrlr*", new controller())
 
 	.on_server_error([](std::error_code error)
 	{

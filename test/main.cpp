@@ -7,9 +7,7 @@
 
 #include <list>
 #include <iostream>
-#include <libgs/http/cookie.h>
-#include <libgs/http/server/request_parser.h>
-#include <libgs/http/server/response_helper.h>
+#include <libgs/http/server.h>
 
 #include <libgs/core/observer.h>
 #include <libgs/core/execution.h>
@@ -26,6 +24,10 @@ public:
 		return set_callback(std::move(callback));
 	}
 };
+
+class base {};
+
+class derived : public base {};
 
 int main()
 {
