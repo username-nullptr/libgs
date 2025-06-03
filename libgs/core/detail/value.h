@@ -372,6 +372,12 @@ bool basic_value<CharT,Traits,Alloc>::operator==(const string_t &str) const
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
+bool basic_value<CharT,Traits,Alloc>::operator==(const char_t *str) const
+{
+	return m_str == str;
+}
+
+template <concepts::character CharT, typename Traits, typename Alloc>
 auto basic_value<CharT,Traits,Alloc>::operator<=>(const basic_value &other) const
 {
 	return m_str <=> other.to_string();
@@ -385,6 +391,12 @@ auto basic_value<CharT,Traits,Alloc>::operator<=>(const str_view_t &str) const
 
 template <concepts::character CharT, typename Traits, typename Alloc>
 auto basic_value<CharT,Traits,Alloc>::operator<=>(const string_t &str) const
+{
+	return m_str <=> str;
+}
+
+template <concepts::character CharT, typename Traits, typename Alloc>
+auto basic_value<CharT,Traits,Alloc>::operator<=>(const char_t *str) const
 {
 	return m_str <=> str;
 }
