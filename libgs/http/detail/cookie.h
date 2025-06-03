@@ -33,14 +33,14 @@ namespace libgs::http
 {
 
 template <typename T>
-decltype(auto) cookie::value() requires core_concepts::value_get<char,T>
+decltype(auto) cookie::value() requires core_concepts::value_get<T,char>
 {
 	return value().get<T>();
 }
 
 template <typename T>
 decltype(auto) cookie::attribute(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<char,T>
+	const requires core_concepts::value_get<T,char>
 {
 	auto it = attributes().find(key);
 	if( it == attributes().end() )
@@ -55,7 +55,7 @@ decltype(auto) cookie::attribute(const core_concepts::text_p<char> auto &key)
 template <typename T>
 decltype(auto) cookie::attribute_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<char,T>
+	const requires core_concepts::value_get_or<T,char>
 {
 	auto it = attributes().find(key);
 	using def_t = std::remove_cvref_t<T>;

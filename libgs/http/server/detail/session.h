@@ -30,64 +30,63 @@
 #define LIBGS_HTTP_SERVER_DETAIL_SESSION_H
 
 #include <libgs/core/algorithm/uuid.h>
-#include <libgs/core/coro.h>
-#include <spdlog/spdlog.h>
+#include <libgs/coro.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::character CharT>
-class basic_session<CharT>::impl
+class LIBGS_HTTP_VAPI session::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	impl(basic_session *q_ptr, const duration<Rep,Period> &seconds, const executor_t &exec) :
+	impl(session *q_ptr, const duration<Rep,Period> &seconds, const executor_t &exec) :
 		q_ptr(q_ptr), m_second(seconds.count()), m_timer(exec) {}
 
 public:
 	void start()
 	{
 		if( m_restart )
-		{
 			m_timer.cancel();
-			return ;
-		}
-		else if( m_valid )
-			return ;
+		else if( not m_valid )
+			dispatch(work());
+	}
 
-		libgs::dispatch([_self = this->q_ptr]() -> awaitable<void>
+private:
+	awaitable<void> work()
+	{
+		auto self = q_ptr->shared_from_this();
+		error_code error;
+		for(;;)
 		{
-			auto self = _self->shared_from_this();
-			error_code error;
-			for(;;)
-			{
-				self->m_impl->m_restart = false;
-				self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
+			self->m_impl->m_restart = false;
+			self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
 
-				using namespace libgs::operators;
-				co_await self->m_impl->m_timer.async_wait(use_awaitable|error);
-				if( self.use_count() == 1 )
-					break;
-
-				if( error and error.value() != errc::operation_aborted )
-					spdlog::error("libgs::http::session: timer error: '{}'.", error);
-				if( self->m_impl->m_restart )
-					continue;
-
-				self->m_impl->m_valid = false;
-				self->m_impl->m_timeout_handle();
+			using namespace libgs::operators;
+			co_await self->m_impl->m_timer.async_wait(use_awaitable|error);
+			if( self.use_count() == 1 )
 				break;
+
+			if( error and error.value() != errc::operation_aborted )
+			{
+				if( self->m_impl->m_error_handle )
+					self->m_impl->m_error_handle(error);
 			}
-			co_return ;
-		});
+			if( self->m_impl->m_restart )
+				continue;
+
+			self->m_impl->m_valid = false;
+			self->m_impl->m_timeout_handle();
+			break;
+		}
+		co_return ;
 	}
 
 public:
-	basic_session *q_ptr = nullptr;
-	const string_t m_id = basic_uuid<char_t>::generate();
-	time_point m_create_time = std::chrono::system_clock::now();
+	session *q_ptr = nullptr;
+	const std::string m_id = uuid::generate();
+	time_point_t m_create_time = std::chrono::system_clock::now();
 
 	attributes_t m_attributes {};
 	std::atomic<uint64_t> m_second;
@@ -97,107 +96,95 @@ public:
 
 	asio::steady_timer m_timer;
 	std::function<void()> m_timeout_handle {};
+	std::function<void(error_code)> m_error_handle {};
 };
 
-template <core_concepts::character CharT>
 template <typename Rep, typename Period>
-basic_session<CharT>::basic_session(const duration<Rep,Period> &seconds, const executor_t &exec) :
+session::session(const duration<Rep,Period> &seconds, const executor_t &exec) :
 	m_impl(new impl(this, seconds, exec))
 {
 	m_impl->start();
 }
 
-template <core_concepts::character CharT>
-basic_session<CharT>::basic_session(const executor_t &exec) :
-	basic_session(std::chrono::seconds(60), exec)
+inline session::session(const executor_t &exec) :
+	session(std::chrono::seconds(60), exec)
 {
 
 }
 
-template <core_concepts::character CharT>
-basic_session<CharT>::~basic_session()
+inline session::~session()
 {
-	spdlog::debug("libgs::http::basic_session::~basic_session: '{}'", xxtombs(id()));
 	delete m_impl;
 }
 
-template <core_concepts::character CharT>
-std::basic_string_view<CharT> basic_session<CharT>::id() const noexcept
+inline std::string_view session::id() const noexcept
 {
 	return m_impl->m_id;
 }
 
-template <core_concepts::character CharT>
-typename basic_session<CharT>::time_point basic_session<CharT>::create_time() const noexcept
+inline session::time_point_t session::create_time() const noexcept
 {
 	return m_impl->m_create_time;
 }
 
-template <core_concepts::character CharT>
-bool basic_session<CharT>::is_valid() const noexcept
+inline bool session::is_valid() const noexcept
 {
 	return m_impl->m_valid;
 }
 
-template <core_concepts::character CharT>
-std::any basic_session<CharT>::attribute(string_view_t key) const
+std::any session::attribute(const core_concepts::text_p<char> auto &key) const
 {
-	auto it = m_impl->m_attributes.find({key.data(), key.size()});
+	auto it = m_impl->m_attributes.find(strtls::to_string(key));
 	if( it == m_impl->m_attributes.end() )
-		throw runtime_error("libgs::http::session::attribute: key '{}' not exists.", xxtombs(key));
+	{
+		throw runtime_error (
+			"libgs::http::session::attribute: key '{}' not exists.", key
+		);
+	}
 	return it->second;
 }
 
-template <core_concepts::character CharT>
-std::any basic_session<CharT>::attribute_or(string_view_t key, std::any default_value) const noexcept
+std::any session::attribute_or(const core_concepts::text_p<char> auto &key, std::any default_value) const noexcept
 {
-	auto it = m_impl->m_attributes.find({key.data(), key.size()});
+	auto it = m_impl->m_attributes.find(strtls::to_string(key));
 	return it == m_impl->m_attributes.end() ? std::move(default_value) : it->second;
 }
 
-template <core_concepts::character CharT>
-const basic_session_attributes<CharT> &basic_session<CharT>::attributes() const noexcept
+session &session::set_attribute(core_concepts::text_p<char> auto &&key, std::any value) noexcept
+{
+	m_impl->m_attributes[strtls::to_string(std::forward<decltype(key)>(key))] = std::move(value);
+	return *this;
+}
+
+session &session::unset_attribute(const core_concepts::text_p<char> auto &key) noexcept
+{
+	m_impl->m_attributes.erase(strtls::to_string(key));
+	return *this;
+}
+
+inline const session::attributes_t &session::attributes() const noexcept
 {
 	return m_impl->m_attributes;
 }
 
-template <core_concepts::character CharT>
-basic_session<CharT> &basic_session<CharT>::set_attribute(string_view_t key, const std::any &value)
+inline session::attributes_t &session::attributes() noexcept
 {
-	m_impl->m_attributes[{key.data(), key.size()}] = value;
-	return *this;
+	return m_impl->m_attributes;
 }
 
-template <core_concepts::character CharT>
-basic_session<CharT> &basic_session<CharT>::set_attribute(string_view_t key, std::any &&value)
-{
-	m_impl->m_attributes[{key.data(), key.size()}] = std::move(value);
-	return *this;
-}
-
-template <core_concepts::character CharT>
-basic_session<CharT> &basic_session<CharT>::unset_attribute(string_view_t key)
-{
-	m_impl->m_attributes.erase(key);
-	return *this;
-}
-
-template <core_concepts::character CharT>
-std::chrono::seconds basic_session<CharT>::lifecycle() const noexcept
+inline std::chrono::seconds session::lifecycle() const noexcept
 {
 	return std::chrono::seconds(m_impl->m_second);
 }
 
-template <core_concepts::character CharT>
-void basic_session<CharT>::invalidate()
+inline void session::invalidate()
 {
 	m_impl->m_valid = false;
 	m_impl->m_timer.cancel();
 }
 
-template <core_concepts::character CharT>
 template <typename Rep, typename Period>
-basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration<Rep,Period> &seconds)
+session &session::set_lifecycle(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
 	m_impl->m_second = sc::duration_cast<sc::seconds>(seconds).count();
@@ -208,35 +195,44 @@ basic_session<CharT> &basic_session<CharT>::set_lifecycle(const duration<Rep,Per
 	return *this;
 }
 
-template <core_concepts::character CharT>
 template <typename Rep, typename Period>
-basic_session<CharT> &basic_session<CharT>::expand(const duration<Rep,Period> &seconds)
+session &session::expand(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
 	m_impl->m_second += sc::duration_cast<sc::seconds>(seconds).count();
 	return expand();
 }
 
-template <core_concepts::character CharT>
-basic_session<CharT> &basic_session<CharT>::expand()
+inline session &session::expand()
 {
 	m_impl->m_restart = true;
 	m_impl->start();
 	return *this;
 }
 
-template <core_concepts::character CharT>
 template <core_concepts::callable Func>
-basic_session<CharT> &basic_session<CharT>::on_timeout(Func &&func)
+session &session::on_timeout(Func &&func)
 {
 	m_impl->m_timeout_handle = std::forward<Func>(func);
 	return *this;
 }
 
-template <core_concepts::character CharT>
-basic_session<CharT> &basic_session<CharT>::unbind_timeout()
+template <core_concepts::callable<error_code> Func>
+session &session::on_error(Func &&func)
+{
+	m_impl->m_error_handle = std::forward<Func>(func);
+	return *this;
+}
+
+inline session &session::unbind_timeout()
 {
 	m_impl->m_timeout_handle = nullptr;
+	return *this;
+}
+
+inline session &session::unbind_error()
+{
+	m_impl->m_error_handle = nullptr;
 	return *this;
 }
 

@@ -51,7 +51,7 @@ template <concepts::character CharT, template <typename,typename,typename...> cl
 template <typename T>
 decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
 (const concepts::text_p<char_t> auto &key, T &&def_value)
-	const requires concepts::value_get<CharT,T>
+	const requires concepts::value_get<T,CharT>
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	using def_t = std::remove_cvref_t<T>;
@@ -71,7 +71,7 @@ decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 template <typename T>
 T basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key)
-	const requires concepts::value_get<CharT,T>
+	const requires concepts::value_get<T,CharT>
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
 	if( it == m_keys.end() )
@@ -700,7 +700,7 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <typename T>
 decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(const group_key &gk, T &&def_value)
-	const requires concepts::value_get<CharT,T>
+	const requires concepts::value_get<T,CharT>
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	using def_t = std::remove_cvref_t<T>;
@@ -733,7 +733,7 @@ template <concepts::character CharT, concepts::exec Exec,
 template <typename T>
 decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or
 (const concepts::string_p<char_t> auto &path, T &&def_value)
-	const requires concepts::value_get<CharT,T>
+	const requires concepts::value_get<T,CharT>
 {
 	auto pair = m_impl->from_path(path, "read_or");
 	return read_or(std::move(pair), std::forward<T>(def_value));
@@ -743,7 +743,7 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <typename T>
 T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk)
-	const requires concepts::value_get<CharT,T>
+	const requires concepts::value_get<T,CharT>
 {
 	auto it = m_impl->m_groups.find(gk.group);
 	if( it == m_impl->m_groups.end() )
@@ -759,7 +759,7 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 template <typename T>
 T basic_ini<CharT,Exec,Map,MapArgs...>::read(const concepts::string_p<char_t> auto &path)
-	const requires concepts::value_get<CharT,T>
+	const requires concepts::value_get<T,CharT>
 {
 	return read<T>(m_impl->from_path(path, "read"));
 }

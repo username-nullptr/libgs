@@ -137,6 +137,10 @@ public:
 		else
 			return std::basic_string_view<CharT>(*value);
 	}
+	constexpr decltype(auto) get_or
+	(concepts::value_p<CharT> auto &&value, concepts::string_p<CharT> auto&&) {
+		return get(std::forward<decltype(value)>(value));
+	}
 };
 
 template <concepts::character CharT>
@@ -148,6 +152,10 @@ public:
 	}
 	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) {
 		return std::forward<decltype(value)>(value);
+	}
+	constexpr decltype(auto) get_or
+	(concepts::value_p<CharT> auto &&value, basic_value<CharT>) {
+		return get(std::forward<decltype(value)>(value));
 	}
 };
 
@@ -166,7 +174,7 @@ concept any_value_set =
 	value_set<T,char> or value_set<T,wchar_t> or
 	value_set<T,char8_t> or value_set<T,char16_t> or value_set<T,char32_t>;
 
-template <typename CharT, typename T, typename...Args>
+template <typename T, typename CharT, typename...Args>
 concept value_get = requires (
 	value_serializer<std::remove_cvref_t<T>,CharT> serializer,
 	const basic_value<CharT> &value, Args&&...args) {
@@ -175,10 +183,10 @@ concept value_get = requires (
 
 template <typename T, typename...Args>
 concept any_value_get =
-	value_get<char,T,Args...> or value_get<wchar_t,T,Args...> or
-	value_get<char8_t,T,Args...> or value_get<char16_t,T,Args...> or value_get<char32_t,T,Args...>;
+	value_get<T,char,Args...> or value_get<T,wchar_t,Args...> or
+	value_get<T,char8_t,Args...> or value_get<T,char16_t,Args...> or value_get<T,char32_t,Args...>;
 
-template <typename CharT, typename T, typename...Args>
+template <typename T, typename CharT, typename...Args>
 concept value_get_or = requires (
 	value_serializer<std::remove_cvref_t<T>,CharT> serializer,
 	const basic_value<CharT> &value, T &&def_data, Args&&...args) {
@@ -187,8 +195,8 @@ concept value_get_or = requires (
 
 template <typename T, typename...Args>
 concept any_value_get_or =
-	value_get_or<char,T,Args...> or value_get_or<wchar_t,T,Args...> or
-	value_get_or<char8_t,T,Args...> or value_get_or<char16_t,T,Args...> or value_get_or<char32_t,T,Args...>;
+	value_get_or<T,char,Args...> or value_get_or<T,wchar_t,Args...> or
+	value_get_or<T,char8_t,Args...> or value_get_or<T,char16_t,Args...> or value_get_or<T,char32_t,Args...>;
 
 }} //namespace libgs::concepts
 

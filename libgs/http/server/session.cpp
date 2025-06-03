@@ -26,28 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_DETAIL_HELPER_BASE_H
-#define LIBGS_HTTP_DETAIL_HELPER_BASE_H
+#include "session.h"
 
 namespace libgs::http
 {
 
-helper_base &helper_base::set_header
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	headers()[strtls::to_string(std::forward<decltype(key)>(key))]
-		= std::forward<value_t>(value);
-	return *this;
-}
-
-helper_base &helper_base::unset_header
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	headers().erase(strtls::to_string(key));
-	return *this;
-}
 
 } //namespace libgs::http
-
-
-#endif //LIBGS_HTTP_DETAIL_HELPER_BASE_H

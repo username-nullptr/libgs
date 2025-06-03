@@ -32,25 +32,25 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream, core_concepts::character CharT>
-basic_aop<Stream,CharT>::~basic_aop() = default;
+template <concepts::stream Stream>
+basic_aop<Stream>::~basic_aop() = default;
 
-template <concepts::stream Stream, core_concepts::character CharT>
-awaitable<bool> basic_aop<Stream,CharT>::before(context_t &context)
+template <concepts::stream Stream>
+awaitable<bool> basic_aop<Stream>::before(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concepts::stream Stream, core_concepts::character CharT>
-awaitable<bool> basic_aop<Stream,CharT>::after(context_t &context)
+template <concepts::stream Stream>
+awaitable<bool> basic_aop<Stream>::after(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concepts::stream Stream, core_concepts::character CharT>
-bool basic_aop<Stream,CharT>::exception(context_t &context, const std::exception &ex)
+template <concepts::stream Stream>
+bool basic_aop<Stream>::exception(context_t &context, const std::exception &ex)
 {
 	ignore_unused(context, ex);
 	return false;
@@ -59,19 +59,19 @@ bool basic_aop<Stream,CharT>::exception(context_t &context, const std::exception
 namespace detail::concepts
 {
 
-template <typename Stream, typename CharT, typename...Args>
+template <typename Stream, typename...Args>
 concept aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_aop_ptr<Stream,CharT>> { basic_aop_ptr<Stream,CharT>(std::forward<Args>(args))... };
+	std::vector<basic_aop_ptr<Stream>> { basic_aop_ptr<Stream>(std::forward<Args>(args))... };
 };
 
-template <typename Stream, typename CharT, typename...Args>
+template <typename Stream, typename...Args>
 concept ctrlr_aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_ctrlr_aop_ptr<Stream,CharT>> { basic_ctrlr_aop_ptr<Stream,CharT>(std::forward<Args>(args))... };
+	std::vector<basic_ctrlr_aop_ptr<Stream>> { basic_ctrlr_aop_ptr<Stream>(std::forward<Args>(args))... };
 };
 
-template <typename Func, typename Stream, typename CharT>
-concept request_handler = requires(Func &&func, basic_service_context<Stream,CharT> &context) {
-	std::is_same_v<awaitable_return_type_t<decltype(func(context))>,void>;
+template <typename Func, typename Stream>
+concept request_handler = requires(Func &&func, basic_service_context<Stream> &context) {
+	std::is_same_v<awaitable_ret_t<decltype(func(context))>,void>;
 };
 
 }} //namespace libgs::http::detail::concepts

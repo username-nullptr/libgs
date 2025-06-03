@@ -47,13 +47,20 @@ class response_helper::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl() = default;
 	impl(version_enum version, const headers_t &req_headers) :
-		m_req_headers(&req_headers), m_version(version) {}
+		m_req_headers(&req_headers)
+	{
+		http::version::check(version);
+		if( version == version::v10 )
+			m_helper = std::make_shared<helper_base_v10>();
+		else if( version == version::v11 )
+			m_helper = std::make_shared<helper_base_v11>();
+		// else ... ...
+	}
 
 	[[nodiscard]] bool request_chunked() const
 	{
-		if( m_version < version::v11 )
+		if( m_helper->version() < version::v11 )
 			return false;
 
 		auto it = m_req_headers->find(header::transfer_encoding);
@@ -63,9 +70,8 @@ public:
 
 public:
 	const headers_t *m_req_headers = nullptr;
-	basic_helper_base<> m_helper;
+	next_layer_t m_helper {};
 
-	version_enum m_version = version::v11;
 	status_enum m_status = status::ok;
 	cookies_t m_cookies {};
 };
@@ -90,8 +96,7 @@ response_helper::~response_helper()
 response_helper::response_helper(response_helper &&other) noexcept :
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl();
-	other.m_impl->m_req_headers = m_impl->m_req_headers;
+	other.m_impl = new impl(version(), *m_impl->m_req_headers);
 }
 
 response_helper &response_helper::operator=(response_helper &&other) noexcept
@@ -100,46 +105,24 @@ response_helper &response_helper::operator=(response_helper &&other) noexcept
 		return *this;
 	delete m_impl;
 	m_impl = other.m_impl;
-	other.m_impl = new impl();
-	other.m_impl->m_req_headers = m_impl->m_req_headers;
-	return *this;
-}
-
-response_helper &response_helper::set_header
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	m_impl->m_helper.set_header(std::forward<decltype(key)>(key), std::move(value));
-	return *this;
-}
-
-response_helper &response_helper::unset_header
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	m_impl->m_helper.unset_header(key);
+	other.m_impl = new impl(version(), *m_impl->m_req_headers);
 	return *this;
 }
 
 const headers &response_helper::headers() const noexcept
 {
-	return m_impl->m_helper.headers();
+	return m_impl->m_helper->headers();
 }
 
 headers &response_helper::headers() noexcept
 {
-	return m_impl->m_helper.headers();
+	return m_impl->m_helper->headers();
 }
 
 response_helper &response_helper::set_cookie(http::cookie cookie) noexcept
 {
 	auto key = *cookie.value();
 	m_impl->m_cookies[std::move(key)] = std::move(cookie);
-	return *this;
-}
-
-response_helper &response_helper::unset_cookie
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	m_impl->m_cookies.erase(key);
 	return *this;
 }
 
@@ -155,24 +138,24 @@ cookies &response_helper::cookies() noexcept
 
 response_helper &response_helper::set_chunk_attribute(value_t attr) noexcept
 {
-	m_impl->m_helper.set_chunk_attribute(std::move(attr));
+	m_impl->m_helper->set_chunk_attribute(std::move(attr));
 	return *this;
 }
 
 response_helper &response_helper::unset_chunk_attribute(const value_t &attr) noexcept
 {
-	m_impl->m_helper.unset_chunk_attribute(attr);
+	m_impl->m_helper->unset_chunk_attribute(attr);
 	return *this;
 }
 
 const std::set<value> &response_helper::chunk_attributes() const noexcept
 {
-	return m_impl->m_helper.chunk_attributes();
+	return m_impl->m_helper->chunk_attributes();
 }
 
 std::set<value> &response_helper::chunk_attributes() noexcept
 {
-	return m_impl->m_helper.chunk_attributes();
+	return m_impl->m_helper->chunk_attributes();
 }
 
 response_helper &response_helper::set_status(status_enum status)
@@ -187,37 +170,23 @@ status_enum response_helper::status() const noexcept
 	return m_impl->m_status;
 }
 
-response_helper &response_helper::set_redirect(core_concepts::text_p<char> auto &&url, redirect type)
-{
-	switch(type)
-	{
-#define X_MACRO(e,v,d) case redirect::e : set_status(v); break;
-		LIBGS_HTTP_REDIRECT_TYPE_TABLE
-#undef X_MACRO
-		default: throw runtime_error (
-			"libgs::http::response_helper::redirect: Invalid redirect type: '{}'.", type
-		);
-	}
-	return set_header(header::location, std::forward<decltype(url)>(url));
-}
-
 std::string response_helper::header_data(size_t body_size)
 {
-	if( m_impl->m_helper.state() != helper_state::header )
+	if( m_impl->m_helper->state() != helper_state::header )
 		return {};
 
 	std::string buf;
 	buf.reserve(4096);
 
 	buf = std::format("HTTP/{} {} {}\r\n",
-		version::string(m_impl->m_version), m_impl->m_status,
+		version::string(version()), m_impl->m_status,
 		status::description(m_impl->m_status)
 	);
-	m_impl->m_helper.unset_header("set-cookie");
+	m_impl->m_helper->unset_header("set-cookie");
 
 	if( m_impl->request_chunked() )
-		m_impl->m_helper.set_header(header::transfer_encoding, "chunked");
-	buf += m_impl->m_helper.header_data(body_size);
+		m_impl->m_helper->set_header(header::transfer_encoding, "chunked");
+	buf += m_impl->m_helper->header_data(body_size);
 
 	for(auto &[ckey,cookie] : m_impl->m_cookies)
 	{
@@ -233,27 +202,31 @@ std::string response_helper::header_data(size_t body_size)
 
 std::string response_helper::body_data(const const_buffer &buffer)
 {
-	return m_impl->m_helper.body_data(buffer);
+	return m_impl->m_helper->body_data(buffer);
 }
 
 std::string response_helper::chunk_end_data(const headers_t &headers)
 {
-	return m_impl->m_helper.chunk_end_data(headers);
+	return m_impl->m_helper->chunk_end_data(headers);
 }
 
 version_enum response_helper::version() const noexcept
 {
-	return m_impl->m_version;
+	return m_impl->m_helper->version();
 }
 
 helper_state response_helper::pro_state() const noexcept
 {
-	return m_impl->m_helper.state();
+	return m_impl->m_helper->state();
+}
+
+response_helper::next_layer_t response_helper::next_layer() noexcept
+{
+	return m_impl->m_helper;
 }
 
 response_helper &response_helper::reset() noexcept
 {
-	m_impl->m_version = version::v11;
 	m_impl->m_status = status::ok;
 	m_impl->m_cookies.clear();
 	m_impl->m_helper.reset();

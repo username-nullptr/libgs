@@ -35,22 +35,20 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream, core_concepts::character CharT>
+template <concepts::stream Stream>
 class basic_service_context
 {
 	LIBGS_DISABLE_COPY(basic_service_context)
 
 public:
-	using char_t = CharT;
 	using stream_t = Stream;
-	using parser_t = basic_request_parser<char_t>;
+	using parser_t = request_parser;
 
-	using request_t = basic_server_request<stream_t,char_t>;
-	using response_t = basic_server_response<stream_t,char_t>;
+	using request_t = basic_server_request<stream_t>;
+	using response_t = basic_server_response<stream_t>;
+
+	using session_t = http::session;
 	using executor_t = typename stream_t::executor_type;
-
-	using session_t = basic_session<char_t>;
-	using session_ptr = basic_session_ptr<char_t>;
 
 public:
 	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);
@@ -60,11 +58,11 @@ public:
 	basic_service_context &operator=(basic_service_context &&other) noexcept;
 
 	template<typename Stream0>
-	basic_service_context(basic_service_context<Stream0,char_t> &&other) noexcept
+	basic_service_context(basic_service_context<Stream0> &&other) noexcept
 		requires core_concepts::constructible<Stream,Stream0&&>;
 
 	template<typename Stream0>
-	basic_service_context &operator=(basic_service_context<Stream0,char_t> &&other) noexcept
+	basic_service_context &operator=(basic_service_context<Stream0> &&other) noexcept
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
@@ -83,7 +81,7 @@ public: // Fucking msvc !!!
 
 	template <typename...Args>
 	[[nodiscard]] session_ptr session(Args&&...args) noexcept
-		requires core_concepts::constructible<basic_session<char_t>, Args...>;
+		requires core_concepts::constructible<session_t, Args...>;
 
 	template <typename Session>
 	[[nodiscard]] std::shared_ptr<Session> session() const requires
@@ -102,13 +100,11 @@ private:
 };
 
 template <core_concepts::exec Exec>
-using basic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,char>;
+using basic_tcp_service_context =
+	basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
-template <core_concepts::exec Exec>
-using wbasic_tcp_service_context = basic_service_context<asio::basic_stream_socket<asio::ip::tcp,Exec>,wchar_t>;
-
-using tcp_service_context = basic_tcp_service_context<asio::any_io_executor>;
-using wtcp_service_context = wbasic_tcp_service_context<asio::any_io_executor>;
+using tcp_service_context =
+	basic_tcp_service_context<asio::any_io_executor>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/context.h>

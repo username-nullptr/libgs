@@ -83,20 +83,27 @@ public:
 	parser_base &reset();
 
 public:
-	[[nodiscard]] version_enum version() const noexcept;
-	[[nodiscard]] const http::headers &headers() const noexcept;
+	template <typename T = value>
+	[[nodiscard]] decltype(auto) header(const core_concepts::text_p<char> auto &key)
+		const requires core_concepts::value_get<T,char>;
 
+	template <typename T = value>
+	[[nodiscard]] decltype(auto) header_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
+		const requires core_concepts::value_get_or<T,char>;
+
+	[[nodiscard]] const http::headers &headers() const noexcept;
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
 
 public:
+	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] bool can_read_from_device() const noexcept;
 	[[nodiscard]] bool is_finished() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
 
 public:
-	parser_base &unset_parse_begin();
-	parser_base &unset_parse_cookie();
+	parser_base &unbind_parse_begin();
+	parser_base &unbind_parse_cookie();
 
 private:
 	class impl;
@@ -104,6 +111,7 @@ private:
 };
 
 } //namespace libgs::http
+#include <libgs/http/detail/parser_base.h>
 
 
 #endif //LIBGS_HTTP_PARSER_BASE_H

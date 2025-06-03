@@ -35,23 +35,14 @@
 namespace libgs::http
 {
 
-template <core_concepts::character CharT>
-class basic_session_set<CharT>::impl
+class LIBGS_HTTP_VAPI session_set::impl
 {
 	LIBGS_DISABLE_COPY(impl)
-	using session_ptr = basic_session_ptr<char_t>;
 
 public:
-	impl()
-	{
-		if constexpr( is_char_v<char_t> )
-			m_cookie_key = "session";
-		else
-			m_cookie_key = L"session";
-	}
+	impl() = default;
 
-public:
-	session_ptr find(string_view_t id, bool _throw = true)
+	session_ptr find(std::string_view id, bool _throw = true)
 	{
 		spin_shared_shared_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
 		auto it = m_session_map.find(id);
@@ -59,7 +50,11 @@ public:
 		if( it == m_session_map.end() )
 		{
 			if( _throw )
-				throw runtime_error("libgs::http::session_set: <map>: id '{}' not exists.", xxtombs(id));
+			{
+				throw runtime_error (
+					"libgs::http::session_set: <map>: id '{}' not exists.", id
+				);
+			}
 			return {};
 		}
 		it->second->expand();
@@ -74,42 +69,41 @@ public:
 		return pair;
 	}
 
-	void erase(string_view_t id)
+	void erase(std::string_view id)
 	{
 		m_map_mutex.lock();
-		m_session_map.erase(string_t(id.data(), id.size()));
+		m_session_map.erase(std::string(id.data(), id.size()));
 		m_map_mutex.unlock();
 	}
 
 public:
 	std::chrono::seconds m_lifecycle {60};
-	string_t m_cookie_key {};
-	std::map<string_view_t, session_ptr> m_session_map {};
+	std::string m_cookie_key = "session";
+
+	std::map<std::string_view, session_ptr> m_session_map {};
 	spin_shared_mutex m_map_mutex;
+
+	std::function<void(session_ptr,error_code)> m_error_handle {};
 };
 
-template <core_concepts::character CharT>
-basic_session_set<CharT>::basic_session_set() :
+inline session_set::session_set() :
 	m_impl(new impl())
 {
 
 }
 
-template <core_concepts::character CharT>
-basic_session_set<CharT>::~basic_session_set()
+inline session_set::~session_set()
 {
 	delete m_impl;
 }
 
-template <core_concepts::character CharT>
-basic_session_set<CharT>::basic_session_set(basic_session_set &&other) noexcept :
+inline session_set::session_set(session_set &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <core_concepts::character CharT>
-basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set &&other) noexcept
+inline session_set &session_set::operator=(session_set &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -119,130 +113,158 @@ basic_session_set<CharT> &basic_session_set<CharT>::operator=(basic_session_set 
 	return *this;
 }
 
-template <core_concepts::character CharT>
 template <typename Session, typename...Args>
-std::shared_ptr<Session> basic_session_set<CharT>::make(Args&&...args) noexcept requires
-	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>
+std::shared_ptr<Session> session_set::make(Args&&...args) noexcept requires
+	core_concepts::base_of<Session,session> and core_concepts::constructible<Session,Args...>
 {
-	auto session = std::make_shared<Session>(std::forward<Args>(args)...);
+	auto session = std::make_shared<Session>(
+		std::forward<Args>(args)...
+	);
 	m_impl->emplace(session);
 	auto id = session->id();
 
-	session->on_timeout([this, id = std::move(id)]{
+	session->on_timeout([this, id]{
 		m_impl->erase(id);
 	});
 	session->set_lifecycle(lifecycle());
+
+	session->on_error([this, id = std::move(id)](const error_code &error)
+	{
+		if( m_impl->m_error_handle )
+			m_impl->m_error_handle(get(id), error);
+	});
 	return session;
 }
 
-template <core_concepts::character CharT>
 template <typename...Args>
-basic_session_ptr<CharT> basic_session_set<CharT>::make(Args&&...args) noexcept
-	requires core_concepts::constructible<session_t,Args...>
+session_ptr session_set::make(Args&&...args) noexcept
+	requires core_concepts::constructible<session,Args...>
 {
-	auto session = std::make_shared<session_t>(std::forward<Args>(args)...);
-	m_impl->emplace(session);
-	auto id = session->id();
-
-	session->on_timeout([this, id = std::move(id)]{
-		m_impl->erase(id);
-	});
-	session->set_lifecycle(lifecycle());
-	return session;
+	return make<session>(std::forward<Args>(args)...);
 }
 
-template <core_concepts::character CharT>
 template <typename Session, typename...Args>
-std::shared_ptr<Session> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args) requires
-	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>
+std::shared_ptr<Session> session_set::get_or_make
+(const core_concepts::text_p<char> auto &id, Args&&...args) requires
+	core_concepts::base_of<Session,session> and
+	core_concepts::constructible<Session,Args...>
 {
-	auto ptr = m_impl->find(id, false);
+	auto id_view = strtls::to_view(id);
+	auto ptr = m_impl->find(id_view, false);
 	if( not ptr )
 		return make<Session>(std::forward<Args>(args)...);
 
 	auto rptr = std::dynamic_pointer_cast<Session>(ptr);
 	if( not rptr )
-		throw runtime_error("libgs::http::session_set::get_or_make: type error.", xxtombs(id));
+	{
+		throw runtime_error (
+			"libgs::http::session_set::get_or_make: type error [id = {}].", id_view
+		);
+	}
 	return rptr;
 }
 
-template <core_concepts::character CharT>
 template <typename...Args>
-basic_session_ptr<CharT> basic_session_set<CharT>::get_or_make(string_view_t id, Args&&...args) noexcept
-	requires core_concepts::constructible<session_t,Args...>
+session_ptr session_set::get_or_make
+(const core_concepts::text_p<char> auto &id, Args&&...args) noexcept
+	requires core_concepts::constructible<session,Args...>
 {
-	auto ptr = m_impl->find(id, false);
+	auto ptr = m_impl->find(strtls::to_view(id), false);
 	if( not ptr )
 		return make(std::forward<Args>(args)...);
 	return ptr;
 }
 
-template <core_concepts::character CharT>
 template <typename Session>
-std::shared_ptr<Session> basic_session_set<CharT>::get(string_view_t id)
-	requires core_concepts::base_of<Session,session_t>
+std::shared_ptr<Session> session_set::get(const core_concepts::text_p<char> auto &id)
+	requires core_concepts::base_of<Session,session>
 {
-	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id));
+	auto id_view = strtls::to_view(id);
+	auto ptr = std::dynamic_pointer_cast<Session>(
+		m_impl->find(id_view)
+	);
 	if( not ptr )
-		throw runtime_error("libgs::http::session_set::get: type error.", xxtombs(id));
+	{
+		throw runtime_error(
+			"libgs::http::session_set::get: type error [id = {}].", id_view
+		);
+	}
 	return ptr;
 }
 
-template <core_concepts::character CharT>
 template <typename Session>
-std::shared_ptr<Session> basic_session_set<CharT>::get_or(string_view_t id)
-	requires core_concepts::base_of<Session,session_t>
+std::shared_ptr<Session> session_set::get_or(const core_concepts::text_p<char> auto &id)
+	requires core_concepts::base_of<Session,session>
 {
-	auto ptr = std::dynamic_pointer_cast<Session>(m_impl->find(id, false));
+	auto id_view = strtls::to_view(id);
+	auto ptr = std::dynamic_pointer_cast<Session>(
+		m_impl->find(id_view, false)
+	);
 	if( not ptr )
-		throw runtime_error("libgs::http::session_set::get_or: type error.", xxtombs(id));
+	{
+		throw runtime_error(
+			"libgs::http::session_set::get_or: type error [id = {}].", id_view
+		);
+	}
 	return ptr;
 }
 
-template <core_concepts::character CharT>
-basic_session_ptr<CharT> basic_session_set<CharT>::get(string_view_t id)
+session_ptr session_set::get(const core_concepts::text_p<char> auto &id)
 {
-	return m_impl->find(id);
+	return m_impl->find(strtls::to_view(id));
 }
 
-template <core_concepts::character CharT>
-basic_session_ptr<CharT> basic_session_set<CharT>::get_or(string_view_t id) noexcept
+session_ptr session_set::get_or(const core_concepts::text_p<char> auto &id) noexcept
 {
-	return m_impl->find(id, false);
+	return m_impl->find(strtls::to_view(id), false);
 }
 
-template <core_concepts::character CharT>
 template <typename Rep, typename Period>
-basic_session_set<CharT> &basic_session_set<CharT>::set_lifecycle(const duration<Rep,Period> &seconds)
+session_set &session_set::set_lifecycle(const duration<Rep,Period> &seconds)
 {
 	namespace sc = std::chrono;
+	using namespace std::chrono_literals;
+
 	m_impl->m_lifecycle = sc::duration_cast<sc::seconds>(seconds);
-	if( m_impl->m_lifecycle == 0 )
-		m_impl->m_lifecycle = 1;
-	m_impl->m_restart = true;
-	m_impl->start();
+	if( m_impl->m_lifecycle.count() == 0 )
+		m_impl->m_lifecycle = 1s;
 	return *this;
 }
 
-template <core_concepts::character CharT>
-std::chrono::seconds basic_session_set<CharT>::lifecycle() const noexcept
+inline std::chrono::seconds session_set::lifecycle() const noexcept
 {
 	return std::chrono::seconds(m_impl->m_lifecycle);
 }
 
-template <core_concepts::character CharT>
-basic_session_set<CharT> &basic_session_set<CharT>::set_cookie_key(string_view_t key)
+session_set &session_set::set_cookie_key(core_concepts::text_p<char> auto &&key)
 {
-	if( key.empty() )
-		throw runtime_error("libgs::http::session::set_cookie_key: key is empty.", xxtombs(key));
-	m_impl->m_cookie_key = std::string(key.data(), key.size());
+	auto key_str = strtls::to_string(std::forward<decltype(key)>(key));
+	if( key_str.empty() )
+	{
+		throw runtime_error (
+			"libgs::http::session::set_cookie_key: key is empty."
+		);
+	}
+	m_impl->m_cookie_key = std::move(key_str);
 	return *this;
 }
 
-template <core_concepts::character CharT>
-std::basic_string_view<CharT> basic_session_set<CharT>::cookie_key() noexcept
+inline std::string_view session_set::cookie_key() noexcept
 {
 	return m_impl->m_cookie_key;
+}
+
+template <core_concepts::callable<session_ptr,error_code> Func>
+session_set &session_set::on_error(Func &&func)
+{
+	m_impl->m_error_handle = std::forward<Func>(func);
+	return *this;
+}
+
+inline session_set &session_set::unbind_error()
+{
+	m_impl->m_error_handle = nullptr;
+	return *this;
 }
 
 } //namespace libgs::http

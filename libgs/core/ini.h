@@ -60,11 +60,11 @@ public:
 public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) read_or(const concepts::text_p<char_t> auto &key, T &&def_value = T())
-		const requires concepts::value_get<CharT,T>;
+		const requires concepts::value_get<T,CharT>;
 
 	template <typename T = value_t>
 	[[nodiscard]] T read(const concepts::text_p<char_t> auto &key)
-		const requires concepts::value_get<CharT,T>;
+		const requires concepts::value_get<T,CharT>;
 
 	void write (
 		const concepts::text_p<char_t> auto &key,
@@ -181,19 +181,19 @@ public:
 public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) read_or(const group_key &gk, T &&def_value = T())
-		const requires concepts::value_get<CharT,T>;
+		const requires concepts::value_get<T,CharT>;
 
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) read_or(const concepts::string_p<char_t> auto &path, T &&def_value = T())
-		const requires concepts::value_get<CharT,T>;
+		const requires concepts::value_get<T,CharT>;
 
 	template <typename T = value_t>
 	[[nodiscard]] T read(const group_key &gk) const
-		requires concepts::value_get<CharT,T>;
+		requires concepts::value_get<T,CharT>;
 
 	template <typename T = value_t>
 	[[nodiscard]] T read(const concepts::string_p<char_t> auto &path) const
-		requires concepts::value_get<CharT,T>;
+		requires concepts::value_get<T,CharT>;
 
 public:
 	void write (

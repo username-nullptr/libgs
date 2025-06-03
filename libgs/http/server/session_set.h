@@ -35,68 +35,68 @@
 namespace libgs::http
 {
 
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_session_set
+class LIBGS_HTTP_VAPI session_set
 {
-	LIBGS_DISABLE_COPY(basic_session_set)
+	LIBGS_DISABLE_COPY(session_set)
 
 public:
-	using char_t = CharT;
-	using session_t = basic_session<char_t>;
-	using string_t = std::basic_string_view<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
+	session_set();
+	~session_set();
 
-public:
-	basic_session_set();
-	~basic_session_set();
-
-	basic_session_set(basic_session_set &&other) noexcept;
-	basic_session_set &operator=(basic_session_set &&other) noexcept;
+	session_set(session_set &&other) noexcept;
+	session_set &operator=(session_set &&other) noexcept;
 
 public: // Fucking msvc !!!
 	template <typename Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept requires
-		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>;
+		core_concepts::base_of<Session,session> and core_concepts::constructible<Session,Args...>;
 
 	template <typename...Args>
-	[[nodiscard]] std::shared_ptr<session_t> make(Args&&...args) noexcept requires
-		core_concepts::constructible<session_t,Args...>;
+	[[nodiscard]] std::shared_ptr<session> make(Args&&...args) noexcept requires
+		core_concepts::constructible<session,Args...>;
 
 	template <typename Session, typename...Args>
-	[[nodiscard]] std::shared_ptr<Session> get_or_make(string_view_t id,Args&&...args) requires
-		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session,Args...>;
+	[[nodiscard]] std::shared_ptr<Session> get_or_make (
+		const core_concepts::text_p<char> auto &id, Args&&...args
+	) requires
+		core_concepts::base_of<Session,session> and
+		core_concepts::constructible<Session,Args...>;
 
 	template <typename...Args>
-	[[nodiscard]] std::shared_ptr<session_t> get_or_make(string_view_t id, Args&&...args) noexcept
-		requires core_concepts::constructible<session_t,Args...>;
+	[[nodiscard]] std::shared_ptr<session> get_or_make (
+		const core_concepts::text_p<char> auto &id, Args&&...args
+	) noexcept requires
+		core_concepts::constructible<session,Args...>;
 
 public: // Fucking msvc !!!
 	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> get(string_view_t id) requires
-		core_concepts::base_of<Session,session_t>;
+	[[nodiscard]] std::shared_ptr<Session> get(const core_concepts::text_p<char> auto &id) requires
+		core_concepts::base_of<Session,session>;
 
 	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> get_or(string_view_t id) requires
-		core_concepts::base_of<Session,session_t>;
+	[[nodiscard]] std::shared_ptr<Session> get_or(const core_concepts::text_p<char> auto &id) requires
+		core_concepts::base_of<Session,session>;
 
-	[[nodiscard]] std::shared_ptr<session_t> get(string_view_t id);
-	[[nodiscard]] std::shared_ptr<session_t> get_or(string_view_t id) noexcept;
+	[[nodiscard]] std::shared_ptr<session> get(const core_concepts::text_p<char> auto &id);
+	[[nodiscard]] std::shared_ptr<session> get_or(const core_concepts::text_p<char> auto &id) noexcept;
 
 public:
 	template <typename Rep, typename Period>
-	basic_session_set &set_lifecycle(const duration<Rep,Period> &seconds);
+	session_set &set_lifecycle(const duration<Rep,Period> &seconds);
 	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
 
-	basic_session_set &set_cookie_key(string_view_t key);
-	[[nodiscard]] string_view_t cookie_key() noexcept;
+	session_set &set_cookie_key(core_concepts::text_p<char> auto &&key);
+	[[nodiscard]] std::string_view cookie_key() noexcept;
+
+public:
+	template <core_concepts::callable<session_ptr,error_code> Func>
+	session_set &on_error(Func &&func);
+	session_set &unbind_error();
 
 private:
 	class impl;
 	impl *m_impl;
 };
-
-using session_set = basic_session_set<char>;
-using wsession_set = basic_session_set<wchar_t>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/session_set.h>

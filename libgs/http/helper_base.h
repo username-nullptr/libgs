@@ -38,31 +38,24 @@ enum class helper_state {
 	header, content_length, chunk, finish
 };
 
-template <version_enum Version = version::v11>
-class LIBGS_HTTP_TAPI basic_helper_base final
+class LIBGS_HTTP_API helper_base
 {
-	LIBGS_DISABLE_COPY(basic_helper_base)
+	LIBGS_DISABLE_COPY_MOVE(helper_base)
 
 public:
-	constexpr static version_enum version_v = Version;
 	using state_t = helper_state;
-
 	using headers_t = http::headers;
 	using value_t = libgs::value;
 
-public:
-	basic_helper_base();
-	~basic_helper_base();
-
-	basic_helper_base(basic_helper_base &&other) noexcept;
-	basic_helper_base &operator=(basic_helper_base &&other) noexcept;
+	helper_base();
+	virtual ~helper_base() = 0;
 
 public:
-	basic_helper_base &set_header (
+	helper_base &set_header (
 		core_concepts::text_p<char> auto &&key, value_t value
 	) noexcept;
 
-	basic_helper_base &unset_header (
+	helper_base &unset_header (
 		const core_concepts::text_p<char> auto &key
 	) noexcept;
 
@@ -70,25 +63,52 @@ public:
 	[[nodiscard]] headers_t &headers() noexcept;
 
 public:
-	basic_helper_base &set_chunk_attribute(value_t attr) noexcept;
-	basic_helper_base &unset_chunk_attribute(const value_t &attr) noexcept;
+	helper_base &set_chunk_attribute(value_t attr) noexcept;
+	helper_base &unset_chunk_attribute(const value_t &attr) noexcept;
 
 	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
 	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
 
 public:
-	[[nodiscard]] std::string header_data(size_t body_size = 0);
-	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+	[[nodiscard]] virtual std::string header_data(size_t body_size);
+	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer);
+	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers);
 
-	[[nodiscard]] consteval version_enum version() const noexcept;
+	[[nodiscard]] std::string header_data();
+	[[nodiscard]] std::string chunk_end_data();
+
+public:
+	[[nodiscard]] virtual version_enum version() const noexcept = 0;
 	[[nodiscard]] state_t state() const noexcept;
-	basic_helper_base &reset();
+	helper_base &reset();
 
-private:
+protected:
 	class impl;
 	impl *m_impl;
 };
+
+class LIBGS_HTTP_API helper_base_v10 final : public helper_base
+{
+	LIBGS_DISABLE_COPY_MOVE(helper_base_v10)
+
+public:
+	using helper_base::helper_base;
+	[[nodiscard]] version_enum version() const noexcept override;
+};
+
+class LIBGS_HTTP_API helper_base_v11 final : public helper_base
+{
+	LIBGS_DISABLE_COPY_MOVE(helper_base_v11)
+
+public:
+	using helper_base::helper_base;
+	[[nodiscard]] std::string header_data(size_t body_size) override;
+	[[nodiscard]] version_enum version() const noexcept override;
+};
+
+// ... ...
+// class LIBGS_HTTP_API helper_base_v12 final : public helper_base
+// class LIBGS_HTTP_API helper_base_v20 final : public helper_base
 
 } //namespace libgs::http
 #include <libgs/http/detail/helper_base.h>

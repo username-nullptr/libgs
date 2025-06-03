@@ -42,6 +42,9 @@ public:
 	using value_t = libgs::value;
 	using path_args_t = std::vector<std::pair<std::string,value_t>>;
 
+	using parameters_t = http::parameters;
+	using headers_t = http::headers;
+
 public:
 	explicit request_parser(size_t init_buf_size = 0xFFFF);
 	~request_parser();
@@ -62,10 +65,62 @@ public:
 	[[nodiscard]] version_enum version() const noexcept;
 
 public:
-	[[nodiscard]] const http::parameters &parameters() const noexcept;
-	[[nodiscard]] const path_args_t &path_args() const noexcept;
-	[[nodiscard]] const http::headers &headers() const noexcept;
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) parameter (
+		const core_concepts::text_p<char> auto &key
+	) const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) parameter_or (
+		const core_concepts::text_p<char> auto &key, T &&def_value = {}
+	) const requires core_concepts::value_get_or<T,char>;
+
+	[[nodiscard]] const parameters_t &parameters() const noexcept;
+
+public:
+	template <typename T = value>
+	[[nodiscard]] decltype(auto) header(const core_concepts::text_p<char> auto &key)
+		const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value>
+	[[nodiscard]] decltype(auto) header_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
+		const requires core_concepts::value_get_or<T,char>;
+
+	[[nodiscard]] const headers_t &headers() const noexcept;
+
+public:
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) cookie (
+		const core_concepts::text_p<char> auto &key
+	) const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) cookie_or (
+		const core_concepts::text_p<char> auto &key, T &&def_value = {}
+	) const requires core_concepts::value_get_or<T,char>;
+
 	[[nodiscard]] const cookie_values &cookies() const noexcept;
+
+public:
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) path_arg (
+		const core_concepts::text_p<char> auto &key
+	) const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) path_arg(size_t index)
+		const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) path_arg_or (
+		const core_concepts::text_p<char> auto &key, T &&def_value = {}
+	) const requires core_concepts::value_get_or<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) path_arg_or(size_t index, T &&def_value = {})
+		const requires core_concepts::value_get_or<T,char>;
+
+	[[nodiscard]] const path_args_t &path_args() const noexcept;
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;

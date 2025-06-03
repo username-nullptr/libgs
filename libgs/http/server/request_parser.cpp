@@ -296,7 +296,7 @@ const request_parser::path_args_t &request_parser::path_args() const noexcept
 	return m_impl->m_path_args;
 }
 
-const headers &request_parser::headers() const noexcept
+const request_parser::headers_t &request_parser::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }

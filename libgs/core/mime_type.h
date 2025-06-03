@@ -58,19 +58,19 @@ std::string text_encoding(const path_t &file_name);
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI std::string get(FS &stream)
-	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
+	requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>;
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI bool is_text(FS &stream)
-	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
+	requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>;
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI bool is_binary(FS &stream)
-	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
+	requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>;
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI std::string text_encoding(FS &stream)
-	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>;
+	requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>;
 
 } //namespace libgs::mime_type
 #include <libgs/core/detail/mime_type.h>

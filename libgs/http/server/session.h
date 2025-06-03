@@ -30,86 +30,85 @@
 #define LIBGS_HTTP_SERVER_SESSION_H
 
 #include <libgs/http/types.h>
+#include <libgs/core/execution.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::character CharT>
-using basic_session_attributes = std::map<std::basic_string<CharT>, std::any>;
-
-using session_attributes = basic_session_attributes<char>;
-using wsession_attributes = basic_session_attributes<wchar_t>;
-
-template <core_concepts::character CharT>
-class LIBGS_HTTP_TAPI basic_session :
-	public std::enable_shared_from_this<basic_session<CharT>>
+class LIBGS_HTTP_VAPI session : public std::enable_shared_from_this<session>
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_session)
+	LIBGS_DISABLE_COPY_MOVE(session)
 
 public:
-	using char_t = CharT;
 	using executor_t = asio::any_io_executor;
 
 	template <typename Rep, typename Period = std::ratio<1>>
-	using duration = std::chrono::duration<Rep,Period>;
-	using time_point = decltype(std::chrono::system_clock::now());
+	using duration_t = std::chrono::duration<Rep,Period>;
+	using time_point_t = decltype(std::chrono::system_clock::now());
 
-	using string_t = std::basic_string<char_t>;
-	using string_view_t = std::basic_string_view<char_t>;
-	using value_t = basic_value<char_t>;
-	using attributes_t = basic_session_attributes<char_t>;
+	using value_t = libgs::value;
+	using attributes_t = map<std::any>;
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	explicit basic_session(const duration<Rep,Period> &seconds, const executor_t &exec = get_executor());
+	explicit session(const duration_t<Rep,Period> &seconds, const executor_t &exec = get_executor());
 
-	explicit basic_session(const executor_t &exec = get_executor());
-	virtual ~basic_session();
+	explicit session(const executor_t &exec = get_executor());
+	virtual ~session();
 
 public:
-	[[nodiscard]] string_view_t id() const noexcept;
-	[[nodiscard]] time_point create_time() const noexcept;
+	[[nodiscard]] std::string_view id() const noexcept;
+	[[nodiscard]] time_point_t create_time() const noexcept;
 	[[nodiscard]] bool is_valid() const noexcept;
 
 public:
-	[[nodiscard]] std::any attribute(string_view_t key) const;
-	[[nodiscard]] std::any attribute_or(string_view_t key, std::any default_value = {}) const noexcept;
-	[[nodiscard]] const attributes_t &attributes() const noexcept;
+	[[nodiscard]] std::any attribute (
+		const core_concepts::text_p<char> auto &key
+	) const;
 
-public:
-	basic_session &set_attribute(string_view_t key, const std::any &value);
-	basic_session &set_attribute(string_view_t key, std::any &&value);
-	basic_session &unset_attribute(string_view_t key);
+	[[nodiscard]] std::any attribute_or (
+		const core_concepts::text_p<char> auto &key, std::any default_value = {}
+	) const noexcept;
+
+	session &set_attribute (
+		core_concepts::text_p<char> auto &&key, std::any value
+	) noexcept;
+
+	session &unset_attribute (
+		const core_concepts::text_p<char> auto &key
+	) noexcept;
+
+	[[nodiscard]] const attributes_t &attributes() const noexcept;
+	[[nodiscard]] attributes_t &attributes() noexcept;
 
 public:
 	[[nodiscard]] std::chrono::seconds lifecycle() const noexcept;
 	void invalidate();
 
 	template <typename Rep, typename Period = std::ratio<1>>
-	basic_session &set_lifecycle(const duration<Rep,Period> &seconds);
+	session &set_lifecycle(const duration_t<Rep,Period> &seconds);
 
 	template <typename Rep, typename Period = std::ratio<1>>
-	basic_session &expand(const duration<Rep,Period> &seconds);
-	basic_session &expand();
+	session &expand(const duration_t<Rep,Period> &seconds);
+	session &expand();
 
 public:
 	template <core_concepts::callable Func>
-	basic_session &on_timeout(Func &&func);
-	basic_session &unbind_timeout();
+	session &on_timeout(Func &&func);
+
+	template <core_concepts::callable<error_code> Func>
+	session &on_error(Func &&func);
+
+	session &unbind_timeout();
+	session &unbind_error();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using session = basic_session<char>;
-using wsession = basic_session<wchar_t>;
-
-template <core_concepts::character CharT>
-using basic_session_ptr = std::shared_ptr<basic_session<CharT>>;
-
-using session_ptr = basic_session_ptr<char>;
-using wsession_ptr = basic_session_ptr<wchar_t>;
+using session_attributes = session::attributes_t;
+using session_ptr = std::shared_ptr<session>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/session.h>

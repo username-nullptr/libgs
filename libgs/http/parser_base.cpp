@@ -373,11 +373,6 @@ parser_base &parser_base::reset()
 	return *this;
 }
 
-version_enum parser_base::version() const noexcept
-{
-	return m_impl->m_version;
-}
-
 const headers &parser_base::headers() const noexcept
 {
 	return m_impl->m_headers;
@@ -400,6 +395,11 @@ std::string parser_base::take_body()
 	return std::move(m_impl->m_partial_body);
 }
 
+version_enum parser_base::version() const noexcept
+{
+	return m_impl->m_version;
+}
+
 bool parser_base::can_read_from_device() const noexcept
 {
 	return m_impl->m_state > impl::state::reading_headers and
@@ -416,13 +416,13 @@ bool parser_base::is_eof() const noexcept
 	return m_impl->m_partial_body.empty() and not can_read_from_device();
 }
 
-parser_base &parser_base::unset_parse_begin()
+parser_base &parser_base::unbind_parse_begin()
 {
 	m_impl->m_parse_begin = {};
 	return *this;
 }
 
-parser_base &parser_base::unset_parse_cookie()
+parser_base &parser_base::unbind_parse_cookie()
 {
 	m_impl->m_parse_cookie = {};
 	return *this;

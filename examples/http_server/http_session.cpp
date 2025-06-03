@@ -12,7 +12,7 @@ int main()
 	libgs::http::server server(std::move(acceptor));
 	server.bind({libgs::ip_type::v4, port})
 
-	.on_request<libgs::http::method::GET>("/*",
+	.on_request<libgs::http::method::get>("/*",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto session = context.session();

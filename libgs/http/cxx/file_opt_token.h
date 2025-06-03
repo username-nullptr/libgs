@@ -251,43 +251,35 @@ template <typename...Args>
 	core_concepts::any_fstream_p auto &&stream, Args&&...args
 ) noexcept;
 
-template <core_concepts::character, typename>
-struct is_basic_file_opt_token : std::false_type {};
+template <typename, core_concepts::character>
+struct is_file_opt_token : std::false_type {};
 
-template <core_concepts::character CharT, typename T>
-struct is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::single>>
+template <typename T, core_concepts::character CharT>
+struct is_file_opt_token<file_opt_token<T,file_optype::single>,CharT>
 {
 	static constexpr bool value =
-		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::character>;
+		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::char_type>;
 };
 
-template <core_concepts::character CharT, typename T>
-struct is_basic_file_opt_token<CharT,file_opt_token<T,file_optype::multiple>>
+template <typename T, core_concepts::character CharT>
+struct is_file_opt_token<file_opt_token<T,file_optype::multiple>,CharT>
 {
 	static constexpr bool value =
-		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::character>;
+		std::is_same_v<CharT, typename file_opt_token<T,file_optype::single>::fstream_t::char_type>;
 };
 
-template <core_concepts::character CharT, typename T>
-constexpr bool is_basic_file_opt_token_v = is_basic_file_opt_token<CharT,T>::value;
+template <typename T, core_concepts::character CharT>
+constexpr bool is_file_opt_token_v = is_file_opt_token<T,CharT>::value;
 
 template <typename T>
-using is_char_file_opt_token = is_basic_file_opt_token<char,T>;
+struct is_any_file_opt_token : std::disjunction <
+	is_file_opt_token<T,char>, is_file_opt_token<T,wchar_t>,
+	is_file_opt_token<T,char16_t>, is_file_opt_token<T,char32_t>,
+	is_file_opt_token<T,char8_t>
+> {};
 
 template <typename T>
-constexpr bool is_char_file_opt_token_v = is_char_file_opt_token<T>::value;
-
-template <typename T>
-using is_wchar_file_opt_token = is_basic_file_opt_token<wchar_t,T>;
-
-template <typename T>
-constexpr bool is_wchar_file_opt_token_v = is_wchar_file_opt_token<T>::value;
-
-template <typename T>
-struct is_file_opt_token : std::disjunction<is_char_file_opt_token<T>, is_wchar_file_opt_token<T>> {};
-
-template <typename T>
-constexpr bool is_file_opt_token_v = is_file_opt_token<T>::value;
+constexpr bool is_any_file_opt_token_v = is_any_file_opt_token<T>::value;
 
 namespace concepts
 {
@@ -296,8 +288,8 @@ template <typename T, typename CharT,
 	file_optype::type Types = file_optype::combine,
 	io_permission::type Perms = io_permission::read_write
 >
-concept basic_file_opt_token =
-	is_basic_file_opt_token_v<CharT,std::remove_cvref_t<T>> and
+concept file_opt_token =
+	is_file_opt_token_v<std::remove_cvref_t<T>,CharT> and
 	!!(std::remove_cvref_t<T>::optype & Types) and
 	!!(std::remove_cvref_t<T>::permissions & Perms);
 
@@ -305,94 +297,92 @@ template <typename T,
 	file_optype::type Types = file_optype::combine,
 	io_permission::type Perms = io_permission::read_write
 >
-concept char_file_opt_token = basic_file_opt_token<T,char,Types,Perms>;
-
-template <typename T,
-	file_optype::type Types = file_optype::combine,
-	io_permission::type Perms = io_permission::read_write
->
-concept wchar_file_opt_token = basic_file_opt_token<T,wchar_t,Types,Perms>;
-
-template <typename T,
-	file_optype::type Types = file_optype::combine,
-	io_permission::type Perms = io_permission::read_write
->
-concept file_opt_token =
-	char_file_opt_token<T,Types,Perms> or
-	wchar_file_opt_token<T,Types,Perms>;
+concept any_file_opt_token =
+	file_opt_token<T,char,Types,Perms> or
+	file_opt_token<T,wchar_t,Types,Perms> or
+	file_opt_token<T,char16_t,Types,Perms> or
+	file_opt_token<T,char32_t,Types,Perms> or
+	file_opt_token<T,char8_t,Types,Perms>;
 
 template <typename T, typename CharT,
 	file_optype::type Types = file_optype::combine,
 	io_permission::type Perms = io_permission::read_write
 >
-concept basic_file_opt_token_arg =
+concept file_opt_token_p =
 	core_concepts::any_text_p<T> or
 	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
-	basic_file_opt_token<T,CharT,Types,Perms>;
+	file_opt_token<T,CharT,Types,Perms>;
 
 template <typename T,
 	file_optype::type Types = file_optype::combine,
 	io_permission::type Perms = io_permission::read_write
 >
-concept char_file_opt_token_arg = basic_file_opt_token_arg<T,char,Types,Perms>;
-
-template <typename T,
-	file_optype::type Types = file_optype::combine,
-	io_permission::type Perms = io_permission::read_write
->
-concept wchar_file_opt_token_arg = basic_file_opt_token_arg<T,wchar_t,Types,Perms>;
-
-template <typename T,
-	file_optype::type Types = file_optype::combine,
-	io_permission::type Perms = io_permission::read_write
->
-concept file_opt_token_arg =
-	char_file_opt_token_arg<T,Types,Perms> or
-	wchar_file_opt_token_arg<T,Types,Perms>;
+concept any_file_opt_token_p =
+	file_opt_token_p<T,char,Types,Perms> or
+	file_opt_token_p<T,wchar_t,Types,Perms> or
+	file_opt_token_p<T,char16_t,Types,Perms> or
+	file_opt_token_p<T,char32_t,Types,Perms> or
+	file_opt_token_p<T,char8_t,Types,Perms>;
 
 } //namespace concepts
 
-[[nodiscard]] LIBGS_CORE_TAPI std::optional<size_t> file_size(
-	concepts::file_opt_token auto &opt,
+[[nodiscard]] LIBGS_CORE_TAPI std::optional<size_t> file_size (
+	concepts::any_file_opt_token auto &opt,
 	io_permission::type mode = io_permission::read_write
 );
 
-[[nodiscard]] LIBGS_CORE_TAPI std::string mime_type(
-	concepts::file_opt_token auto &opt
+[[nodiscard]] LIBGS_CORE_TAPI std::string mime_type (
+	concepts::any_file_opt_token auto &opt
 );
 
 namespace operators
 {
 
-[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::filesystem::path file_name, const file_range &range);
-[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (std::filesystem::path file_name, file_ranges ranges);
+[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (
+	std::filesystem::path file_name, const file_range &range
+);
 
-[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::any_fstream_p auto &&stream, const file_range &range);
-[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (core_concepts::any_fstream_p auto &&stream, file_ranges ranges);
+[[nodiscard]] LIBGS_HTTP_VAPI auto operator| (
+	std::filesystem::path file_name, file_ranges ranges
+);
 
-template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> operator|
-(file_opt_token<T,file_optype::single> opt, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (
+	core_concepts::any_fstream_p auto &&stream, const file_range &range
+);
 
-template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> operator|
-(file_opt_token<T,file_optype::single> opt, file_ranges ranges);
-
-template <typename T>
-LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator|
-(file_opt_token<T,file_optype::multiple> &opt, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_TAPI auto operator| (
+	core_concepts::any_fstream_p auto &&stream, file_ranges ranges
+);
 
 template <typename T>
-LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator|
-(file_opt_token<T,file_optype::multiple> &opt, file_ranges ranges);
+[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> operator| (
+	file_opt_token<T,file_optype::single> opt, const file_range &range
+);
 
 template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &&operator|
-(file_opt_token<T,file_optype::multiple> &&opt, const file_range &range);
+[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> operator| (
+	file_opt_token<T,file_optype::single> opt, file_ranges ranges
+);
 
 template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &&operator|
-(file_opt_token<T,file_optype::multiple> &&opt, file_ranges ranges);
+LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator| (
+	file_opt_token<T,file_optype::multiple> &opt, const file_range &range
+);
+
+template <typename T>
+LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &operator| (
+	file_opt_token<T,file_optype::multiple> &opt, file_ranges ranges
+);
+
+template <typename T>
+[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &&operator| (
+	file_opt_token<T,file_optype::multiple> &&opt, const file_range &range
+);
+
+template <typename T>
+[[nodiscard]] LIBGS_HTTP_TAPI file_opt_token<T,file_optype::multiple> &&operator| (
+	file_opt_token<T,file_optype::multiple> &&opt, file_ranges ranges
+);
 
 }} //namespace libgs::http::operators
 #include <libgs/http/cxx/detail/file_opt_token.h>

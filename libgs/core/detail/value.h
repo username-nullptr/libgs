@@ -89,7 +89,7 @@ basic_value<CharT,Traits,Alloc>::operator string_t() && noexcept
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) &
-	requires concepts::value_get<CharT,T,Args...>
+	requires concepts::value_get<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get(*this, std::forward<Args>(args)...);
@@ -98,7 +98,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) &
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) &&
-	requires concepts::value_get<CharT,T,Args...>
+	requires concepts::value_get<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get(std::move(*this), std::forward<Args>(args)...);
@@ -107,7 +107,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) &&
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) const &
-	requires concepts::value_get<CharT,T,Args...>
+	requires concepts::value_get<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get(*this, std::forward<Args>(args)...);
@@ -116,7 +116,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) const &
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) const &&
-	requires concepts::value_get<CharT,T,Args...>
+	requires concepts::value_get<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get(std::move(*this), std::forward<Args>(args)...);
@@ -125,7 +125,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) const &&
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) &
-	requires concepts::value_get_or<CharT,T,Args...>
+	requires concepts::value_get_or<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get_or(*this, std::forward<T>(def_value), std::forward<Args>(args)...);
@@ -134,7 +134,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...a
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) &&
-	requires concepts::value_get_or<CharT,T,Args...>
+	requires concepts::value_get_or<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get_or(std::move(*this), std::forward<T>(def_value), std::forward<Args>(args)...);
@@ -143,7 +143,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...a
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) const &
-	requires concepts::value_get_or<CharT,T,Args...>
+	requires concepts::value_get_or<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get_or(*this, std::forward<T>(def_value), std::forward<Args>(args)...);
@@ -152,7 +152,7 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...a
 template <concepts::character CharT, typename Traits, typename Alloc>
 template <typename T, typename...Args>
 decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) const &&
-	requires concepts::value_get_or<CharT,T,Args...>
+	requires concepts::value_get_or<T,CharT,Args...>
 {
 	return value_serializer<std::remove_cvref_t<T>,char_t>()
 		.get_or(std::move(*this), std::forward<T>(def_value), std::forward<Args>(args)...);

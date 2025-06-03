@@ -36,7 +36,7 @@ namespace libgs::mime_type { namespace detail
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI bool is_text(FS &stream)
-	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
+	requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>
 {
 	char buf[0x4000] = {0};
 	stream.read(buf, sizeof(buf));
@@ -68,7 +68,7 @@ template <typename FS>
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI std::string from_magic(FS &stream)
-	requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
+	requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>
 {
 	if( not stream.is_open() )
 		return "unknown";
@@ -93,13 +93,13 @@ template <typename FS>
 } //namespace detail
 
 template <typename FS>
-std::string get(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
+std::string get(FS &stream) requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>
 {
 	return detail::from_magic(stream);
 }
 
 template <typename FS>
-bool is_text(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
+bool is_text(FS &stream) requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>
 {
 	if( stream.is_open() )
 		return detail::is_text(stream);
@@ -107,13 +107,13 @@ bool is_text(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS
 }
 
 template <typename FS>
-bool is_binary(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
+bool is_binary(FS &stream) requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>
 {
 	return not is_text(stream);
 }
 
 template <typename FS>
-std::string text_encoding(FS &stream) requires is_fstream_v<char,FS> or is_ifstream_v<char,FS>
+std::string text_encoding(FS &stream) requires is_fstream_v<FS,char> or is_ifstream_v<FS,char>
 {
 	std::string result = "unknown";
 	if( not stream.is_open() )

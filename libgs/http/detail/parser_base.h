@@ -26,28 +26,47 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_DETAIL_HELPER_BASE_H
-#define LIBGS_HTTP_DETAIL_HELPER_BASE_H
+#ifndef LIBGS_HTTP_DETAIL_PARSER_BASE_H
+#define LIBGS_HTTP_DETAIL_PARSER_BASE_H
 
 namespace libgs::http
 {
 
-helper_base &helper_base::set_header
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
+template <typename T>
+decltype(auto) parser_base::header(const core_concepts::text_p<char> auto &key)
+	const requires core_concepts::value_get<T,char>
 {
-	headers()[strtls::to_string(std::forward<decltype(key)>(key))]
-		= std::forward<value_t>(value);
-	return *this;
+	auto it = headers().find(key);
+	if( it == headers().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::attributes: key '{}' not exists.", key
+		);
+	}
+	return it->second.template get<T>();
 }
 
-helper_base &helper_base::unset_header
-(const core_concepts::text_p<char> auto &key) noexcept
+template <typename T>
+decltype(auto) parser_base::header_or
+(const core_concepts::text_p<char> auto &key, T &&def_value)
+	const requires core_concepts::value_get_or<T,char>
 {
-	headers().erase(strtls::to_string(key));
-	return *this;
+	auto it = headers().find(key);
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( is_string_v<def_t, char> )
+	{
+		return it == headers().end() ?
+			strtls::to_string(std::forward<T>(def_value)) : *it->second;
+	}
+	else
+	{
+		return it == headers().end() ? std::forward<T>(def_value) :
+			it->second.template get<def_t>();
+	}
 }
 
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_DETAIL_HELPER_BASE_H
+#endif //LIBGS_HTTP_DETAIL_PARSER_BASE_H
