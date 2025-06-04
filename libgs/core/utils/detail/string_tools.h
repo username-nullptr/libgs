@@ -124,14 +124,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<int8_t>(_sto_int<char_t>(
-			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint8_t to_uint8(const auto &str, size_t base, std::optional<uint8_t> odv = {})
@@ -140,15 +140,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<uint8_t>(_sto_int<char_t>(
-			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI int16_t to_int16(const auto &str, size_t base, std::optional<int16_t> odv = {})
@@ -157,15 +156,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<int16_t>(_sto_int<char_t>(
-			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint16_t to_uint16(const auto &str, size_t base, std::optional<uint8_t> odv = {})
@@ -174,15 +172,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<uint16_t>(_sto_int<char_t>(
-			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI int32_t to_int32(const auto &str, size_t base, std::optional<int32_t> odv = {})
@@ -191,15 +188,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<int32_t>(_sto_int<char_t>(
-			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint32_t to_uint32(const auto &str, size_t base, std::optional<uint32_t> odv = {})
@@ -208,15 +204,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<uint32_t>(_sto_int<char_t>(
-			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI int64_t to_int64(const auto &str, size_t base, std::optional<int64_t> odv = {})
@@ -225,15 +220,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<int64_t>(_sto_int<char_t>(
-			static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), view, base
+			static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI uint64_t to_uint64(const auto &str, size_t base, std::optional<uint64_t> odv = {})
@@ -242,15 +236,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return static_cast<uint64_t>(_sto_int<char_t>(
-			static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), view, base
+			static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _str, base
 		));
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI float to_float(const auto &str, std::optional<float> odv = {})
@@ -259,15 +252,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return _sto_float<char_t>(
-			static_cast<float(*)(const string_t&,size_t*)>(std::stof), view
+			static_cast<float(*)(const string_t&,size_t*)>(std::stof), _str
 		);
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI double to_double(const auto &str, std::optional<double> odv = {})
@@ -276,15 +268,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return _sto_float<char_t>(
-			static_cast<double(*)(const string_t&,size_t*)>(std::stod), view
+			static_cast<double(*)(const string_t&,size_t*)>(std::stod), _str
 		);
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI long double to_ldouble(const auto &str, std::optional<long double> odv = {})
@@ -293,15 +284,14 @@ template <concepts::character CharT, typename T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		return _sto_float<char_t>(
-			static_cast<long double(*)(const string_t&,size_t*)>(std::stold), view
+			static_cast<long double(*)(const string_t&,size_t*)>(std::stold), _str
 		);
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
-
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 [[nodiscard]] LIBGS_CORE_TAPI bool to_bool(const auto &str, size_t base, std::optional<bool> odv = {})
@@ -312,16 +302,16 @@ template <concepts::character CharT, typename T>
 	else
 	{
 		using char_t = get_char_t<str_t>;
-		std::basic_string_view<char_t> view(str);
+		auto _str = trimmed(str);
 
-		int res = _to_bool<char_t>(view);
+		int res = _to_bool<char_t>(_str);
 		if( res < 0 )
 		{
 			using char_t = get_char_t<str_t>;
 			using string_t = std::basic_string<char_t>;
 			try {
 				return /*!!*/_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 				);
 			}
 			catch(...)
@@ -340,10 +330,10 @@ template <concepts::integral_p T>
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_char_t<str_t>;
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 
 	if constexpr( std::is_same_v<T, bool> )
-		return to_bool(view, base);
+		return to_bool(_str, base);
 	else
 	{
 		using string_t = std::basic_string<char_t>;
@@ -351,66 +341,66 @@ template <concepts::integral_p T>
 			if constexpr( std::is_same_v<T, char> )
 			{
 				return static_cast<char>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned char> )
 			{
 				return static_cast<unsigned char>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, short> )
 			{
 				return static_cast<short>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned short> )
 			{
 				return static_cast<unsigned short>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, int> )
 			{
 				return static_cast<int>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned int> )
 			{
 				return static_cast<unsigned int>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, long> )
 			{
 				return static_cast<long>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), view, base
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned long> )
 			{
 				return static_cast<unsigned long>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), view, base
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, long long> )
 			{
 				return static_cast<long long>(_sto_int<char_t>(
-					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), view, base
+					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _str, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned long long> )
 			{
 				return static_cast<unsigned long long>(_sto_int<char_t>(
-					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), view, base
+					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _str, base
 				));
 			}
 		}
 		catch(std::exception&) {}
-		return try_to_booltot<char_t>(view, odv);
+		return try_to_booltot<char_t>(_str, odv);
 	}
 }
 
@@ -421,29 +411,29 @@ template <concepts::floating_p T>
 	using char_t = get_char_t<str_t>;
 	using string_t = std::basic_string<char_t>;
 
-	auto view = to_view(str);
+	auto _str = trimmed(str);
 	try {
 		if constexpr( std::is_same_v<T, float> )
 		{
 			return _sto_float<char_t>(
-				static_cast<float(*)(const string_t&,size_t*)>(std::stof), view
+				static_cast<float(*)(const string_t&,size_t*)>(std::stof), _str
 			);
 		}
 		else if constexpr( std::is_same_v<T, double> )
 		{
 			return _sto_float<char_t>(
-				static_cast<double(*)(const string_t&,size_t*)>(std::stod), view
+				static_cast<double(*)(const string_t&,size_t*)>(std::stod), _str
 			);
 		}
 		else if constexpr( std::is_same_v<T, long double> )
 		{
 			return _sto_float<char_t>(
-				static_cast<long double(*)(const string_t&,size_t*)>(std::stold), view
+				static_cast<long double(*)(const string_t&,size_t*)>(std::stold), _str
 			);
 		}
 	}
 	catch(std::exception&) {}
-	return try_to_booltot<char_t>(view, odv);
+	return try_to_booltot<char_t>(_str, odv);
 }
 
 template <concepts::character CharT>
