@@ -26,52 +26,17 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_MODULES_H
-#define LIBGS_CORE_DETAIL_MODULES_H
+#include "global.h"
 
-namespace libgs
+namespace libgs::utils
 {
 
-class LIBGS_CORE_API modules::impl
+asio::thread_pool &thread_pool() noexcept
 {
-	LIBGS_DISABLE_COPY_MOVE(impl);
-
-public:
-	static void reg_init(func_obj_t func, level_t level);
-};
-
-template <typename T>
-void modules::reg_init(concepts::modules_init_func auto &&func, T level)
-	requires is_level_v<T>
-{
-	using Func = std::decay_t<decltype(func)>;
-	using return_t = typename function_traits<Func>::return_type;
-
-	if constexpr( function_traits<Func>::arg_count == 0 )
-	{
-		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-	}
-	else
-	{
-		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-	}
+	static asio::thread_pool pool (
+		std::thread::hardware_concurrency()
+	);
+	return pool;
 }
 
-} //namespace libgs
-
-
-#endif //LIBGS_CORE_DETAIL_MODULES_H
+} //namespace libgs::utils

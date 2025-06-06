@@ -51,25 +51,25 @@ public:
 
 } //namespace detail
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-class observer_base<Derived,Funcs...>::impl
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+class basic_observer_base<Derived,Exec,Funcs...>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	template <concepts::sched Exec>
-	explicit impl(Exec &&exec) :
-		m_exec(get_executor_helper(std::forward<Exec>(exec))) {}
+	template <typename Exec0>
+	explicit impl(Exec0 &&exec) :
+		m_exec(get_executor_helper(std::forward<Exec0>(exec))) {}
 
 public:
 	asio::any_io_executor m_exec {};
 	callbacks_t m_callbacks {};
 };
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-template <concepts::sched Exec>
-observer_base<Derived,Funcs...>::observer_base(Exec &&exec) :
-	m_impl(new impl(std::forward<Exec>(exec)))
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <concepts::match_sched<Exec> Exec0>
+basic_observer_base<Derived,Exec,Funcs...>::basic_observer_base(Exec0 &&exec) :
+	m_impl(new impl(std::forward<Exec0>(exec)))
 {
 	detail::observer::mutex().lock();
 	auto [it, inserted] = detail::observer::map()[typeid(derived_t).hash_code()]
@@ -79,8 +79,8 @@ observer_base<Derived,Funcs...>::observer_base(Exec &&exec) :
 	assert(inserted);
 }
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-observer_base<Derived,Funcs...>::~observer_base()
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+basic_observer_base<Derived,Exec,Funcs...>::~basic_observer_base()
 {
 	detail::observer::mutex().lock();
 	detail::observer::map()[typeid(derived_t).hash_code()]
@@ -90,27 +90,27 @@ observer_base<Derived,Funcs...>::~observer_base()
 	delete m_impl;
 }
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <typename...Args0>
-typename observer_base<Derived,Funcs...>::ptr_t
-observer_base<Derived,Funcs...>::make(Args0&&...args) requires
+typename basic_observer_base<Derived,Exec,Funcs...>::ptr_t
+basic_observer_base<Derived,Exec,Funcs...>::make(Args0&&...args) requires
 	concepts::constructible<derived_t,Args0...>
 {
 	return std::make_shared<derived_t>(std::forward<Args0>(args)...);
 }
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <size_t Idx>
-typename observer_base<Derived,Funcs...>::ptr_t
-observer_base<Derived,Funcs...>::on_triggered(callback_t<Idx> func) requires idx_valid_v<Idx>
+typename basic_observer_base<Derived,Exec,Funcs...>::ptr_t
+basic_observer_base<Derived,Exec,Funcs...>::on_triggered(callback_t<Idx> func) requires idx_valid_v<Idx>
 {
 	std::get<Idx>(m_impl->m_callbacks) = std::move(func);
 	return this->shared_from_this();
 }
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <size_t Idx, typename...Args0>
-void observer_base<Derived,Funcs...>::trigger(Args0&&...args)
+void basic_observer_base<Derived,Exec,Funcs...>::trigger(Args0&&...args)
 	requires idx_valid_v<Idx> and concepts::callable<callback_t<Idx>,Args0...>
 {
 	std::vector<std::function<void()>> functions;
@@ -135,6 +135,13 @@ void observer_base<Derived,Funcs...>::trigger(Args0&&...args)
 	detail::observer::mutex().unlock();
 	for(auto &func : functions)
 		func();
+}
+
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+typename basic_observer_base<Derived,Exec,Funcs...>::executor_t
+basic_observer_base<Derived,Exec,Funcs...>::get_executor() noexcept
+{
+	return m_impl->m_exec;
 }
 
 } //namespace libgs

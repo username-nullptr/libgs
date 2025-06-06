@@ -80,9 +80,9 @@ public:
 	using future_func0_t = std::function<std::future<void>()>;
 	using await_func0_t  = std::function<awaitable<void>()>;
 
-	using func1_t        = std::function<void(string_vector)>;
-	using future_func1_t = std::function<std::future<void>(string_vector)>;
-	using await_func1_t  = std::function<awaitable<void>(string_vector)>;
+	using func1_t        = std::function<void(string_vector&)>;
+	using future_func1_t = std::function<std::future<void>(string_vector&)>;
+	using await_func1_t  = std::function<awaitable<void>(string_vector&)>;
 
 	using func_obj_t = std::variant <
 		func0_t, future_func0_t, await_func0_t,
@@ -90,12 +90,16 @@ public:
 	>;
 
 public:
-	static void reg_init (
-		concepts::modules_init_func auto &&func,
-		level_t level = level_6
-	);
-	static void do_init(const string_vector &args = {});
-	static void do_init(int argc, const char *argv[]);
+	template <typename T>
+	static constexpr bool is_level_v =
+		concepts::integral_p<T> or std::is_enum_v<std::remove_cvref_t<T>>;
+
+	template <typename T = level_t>
+	static void reg_init(concepts::modules_init_func auto &&func, T level = level_6)
+		requires is_level_v<T>;
+
+	static string_vector do_init(const string_vector &args = {});
+	static string_vector do_init(int argc, const char *argv[]);
 
 private:
 	class impl;

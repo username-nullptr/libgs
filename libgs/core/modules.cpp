@@ -50,7 +50,7 @@ void modules::impl::reg_init(func_obj_t func, level_t level)
 	init_map()[level].emplace_back(std::move(func));
 }
 
-void modules::do_init(const string_vector &args)
+string_vector modules::do_init(const string_vector &args)
 {
 	if( is_run() )
 	{
@@ -58,6 +58,7 @@ void modules::do_init(const string_vector &args)
 			"libgs::modules::do_init: The executor is already running."
 		);
 	}
+	auto _args = args;
 	for(auto &func_vector : std::views::values(init_map()))
 	{
 		std::vector<func0_t> func0_vector;
@@ -76,7 +77,7 @@ void modules::do_init(const string_vector &args)
 				future_vector.emplace_back(std::get<future_func0_t>(var)());
 
 			else if( var.index() == future_func1_e )
-				future_vector.emplace_back(std::get<future_func1_t>(var)(args));
+				future_vector.emplace_back(std::get<future_func1_t>(var)(_args));
 
 			else if( var.index() == await_func0_e )
 			{
@@ -87,14 +88,14 @@ void modules::do_init(const string_vector &args)
 			else if( var.index() == await_func1_e )
 			{
 				future_vector.emplace_back (
-					dispatch(std::get<await_func1_t>(var)(args), use_future)
+					dispatch(std::get<await_func1_t>(var)(_args), use_future)
 				);
 			}
 		}
 		for(auto &func0 : func0_vector)
 			func0();
 		for(auto &func1 : func1_vector)
-			func1(args);
+			func1(_args);
 
 		std::thread thread;
 		post([&]() mutable
@@ -110,9 +111,10 @@ void modules::do_init(const string_vector &args)
 		try { thread.join(); } catch(...){}
 	}
 	init_map().clear();
+	return _args;
 }
 
-void modules::do_init(int argc, const char *argv[])
+string_vector modules::do_init(int argc, const char *argv[])
 {
 	return do_init(string_vector(argv, argv + argc));
 }

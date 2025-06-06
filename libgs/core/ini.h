@@ -133,6 +133,9 @@ public:
 	using path_t = std::filesystem::path;
 	using value_t = basic_value<char_t>;
 
+	using unit_data_t = typename ini_keys_t::map_t;
+	using data_t = map_temp<string_t,unit_data_t>;
+
 	struct group_key
 	{
 		string_t group;
@@ -160,6 +163,17 @@ public:
 		const path_t &file_name = {}
 	);
 	explicit basic_ini(const path_t &file_name = {}) requires
+		concepts::match_def_exec<executor_t>;
+
+	explicit basic_ini (
+		concepts::match_exec_context<executor_t> auto &exec,
+		data_t data, const path_t &file_name = {}
+	);
+	explicit basic_ini (
+		const concepts::match_exec<executor_t> auto &exec,
+		data_t data, const path_t &file_name = {}
+	);
+	explicit basic_ini(data_t data, const path_t &file_name = {}) requires
 		concepts::match_def_exec<executor_t>;
 
 	virtual ~basic_ini();
@@ -274,6 +288,9 @@ public:
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
+
+	void set_data(data_t data);
+	[[nodiscard]] data_t data() const;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 

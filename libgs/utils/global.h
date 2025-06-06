@@ -26,52 +26,26 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_MODULES_H
-#define LIBGS_CORE_DETAIL_MODULES_H
+#ifndef LIBGS_UTILS_GLOBAL_H
+#define LIBGS_UTILS_GLOBAL_H
 
-namespace libgs
+#include <libgs/core/global.h>
+
+#ifdef libgs_utils_EXPORTS
+# define LIBGS_UTILS_API  LIBGS_DECL_EXPORT
+#else //libgs_utils_EXPORTS
+# define LIBGS_UTILS_API  LIBGS_DECL_IMPORT
+#endif //libgs_utils_EXPORTS
+
+#define LIBGS_UTILS_VAPI
+#define LIBGS_UTILS_TAPI
+
+namespace libgs::utils
 {
 
-class LIBGS_CORE_API modules::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl);
+[[nodiscard]] LIBGS_UTILS_API asio::thread_pool &thread_pool() noexcept;
 
-public:
-	static void reg_init(func_obj_t func, level_t level);
-};
-
-template <typename T>
-void modules::reg_init(concepts::modules_init_func auto &&func, T level)
-	requires is_level_v<T>
-{
-	using Func = std::decay_t<decltype(func)>;
-	using return_t = typename function_traits<Func>::return_type;
-
-	if constexpr( function_traits<Func>::arg_count == 0 )
-	{
-		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-	}
-	else
-	{
-		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-	}
-}
-
-} //namespace libgs
+} //namespace libgs::utils
 
 
-#endif //LIBGS_CORE_DETAIL_MODULES_H
+#endif //LIBGS_UTILS_GLOBAL_H

@@ -302,28 +302,30 @@ public:
 	}
 
 public:
-	void load(error_code &error, const std::function<bool()> &cancelled)
+	// It may be executed within the thread, so the const modifier provides protection.
+	[[nodiscard]] data_t load(error_code &error, const std::function<bool()> &cancelled) const
 	{
+		data_t data;
 		error = error_code();
 		if( not exists(m_file_name) )
 		{
 			error = std::make_error_code(std::errc::no_such_file_or_directory);
-			return ;
+			return data;
 		}
 		std::basic_ifstream<char_t> file;
 		auto prev = file.exceptions();
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		try {
 			file.open(m_file_name);
+			unit_data_t *curr_group = nullptr;
 			string_t buf;
-			string_t curr_group;
 
 			for(size_t line=1;; line++)
 			{
 				if( cancelled() )
 				{
 					error = make_error_code(asio::error::operation_aborted);
-					return ;
+					return data;
 				}
 				else if( file.eof() or file.peek() == EOF )
 					break;
@@ -341,21 +343,33 @@ public:
 				buf = strtls::trimmed(list[0]);
 
 				if( buf.starts_with(static_cast<char_t>('[')) )
-					curr_group = parsing_group(buf, line);
+					curr_group = &data[parsing_group(buf, line)];
 				else
-					parsing_key_value(curr_group, buf, line);
+				{
+					auto [key, value] = parsing_key_value(buf, line);
+					if( not curr_group )
+					{
+						throw system_error (
+							std::error_code(static_cast<int>(line), detail::ini_no_group_specified()),
+							"libgs::basic_ini"
+						);
+					}
+					(*curr_group)[std::move(key)] = std::move(value);
+				}
 			}
 		}
 		catch(const std::system_error &ex)
 		{
 			error = ex.code();
-			return ;
+			data.clear();
 		}
 		file.exceptions(prev);
 		file.close();
+		return data;
 	}
 
-	void sync(error_code &error, const std::function<bool()> &cancelled)
+	// It may be executed within the thread, so the const modifier provides protection.
+	void sync(data_t data, error_code &error, const std::function<bool()> &cancelled) const
 	{
 		std::basic_ofstream<char_t> file;
 		auto file_name = detail::ini_tmp_file(m_file_name);
@@ -363,7 +377,7 @@ public:
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		try {
 			file.open(file_name, std::ios_base::out | std::ios_base::trunc);
-			for(auto &[group, keys] : m_groups)
+			for(auto &[group, values] : data)
 			{
 				if( cancelled() )
 				{
@@ -380,7 +394,7 @@ public:
 					 << l_str(char_t,"]")
 					 << l_str(char_t,"\n");
 
-				for(auto &[key, value] : keys)
+				for(auto &[key, value] : values)
 				{
 					if( key.empty() or value->empty() )
 						continue;
@@ -455,18 +469,39 @@ public:
 				co_await self->m_timer.async_wait(use_awaitable | error);
 				if( error )
 					break;
-				detail::ini_commit_io_work([self]
+				detail::ini_commit_io_work([self, data = self->data()]
 				{
 					error_code error; LIBGS_UNUSED(error);
-					self->sync(error, []{return false;});
+					self->sync(std::move(data), error, []{return false;});
 				});
 			}
 			co_return ;
 		});
 	}
 
+public:
+	void set_data(data_t data)
+	{
+		for(auto &[group, values] : data)
+		{
+			for(auto &[key, value] : values)
+				m_groups[std::move(group)][std::move(key)] = std::move(value);
+		}
+	}
+
+	[[nodiscard]] data_t data() const
+	{
+		data_t data;
+		for(auto &[group, values] : m_groups)
+		{
+			for(auto &[key, value] : values)
+				data[group][key] = value;
+		}
+		return data;
+	}
+
 private:
-	[[nodiscard]] string_t parsing_group(const string_t &str, size_t line)
+	[[nodiscard]] string_t parsing_group(const string_t &str, size_t line) const
 	{
 		if( str.size() < 3 or not str.ends_with(static_cast<char_t>(']')) )
 		{
@@ -485,21 +520,12 @@ private:
 				"libgs::basic_ini"
 			);
 		}
-		group = detail::ini_replace<char_t>(group);
-		m_groups[group];
-		return group;
+		return detail::ini_replace<char_t>(group);
 	}
 
-	void parsing_key_value(const string_t &curr_group, const string_t &str, size_t line)
+	[[nodiscard]] std::pair<string_t,value_t> parsing_key_value(const string_t &str, size_t line) const
 	{
-		if( curr_group.empty() )
-		{
-			throw system_error (
-				std::error_code(static_cast<int>(line), detail::ini_no_group_specified()),
-				"libgs::basic_ini"
-			);
-		}
-		else if( str.size() < 2 )
+		if( str.size() < 2 )
 		{
 			throw system_error (
 				std::error_code(static_cast<int>(line), detail::ini_invalid_key_value_line()),
@@ -563,7 +589,9 @@ private:
 			}
 			value = value.substr(1, value.size() - 2);
 		}
-		m_groups[curr_group][detail::ini_replace<char_t>(key)] = from_percent_encoding(value);
+		return std::pair<string_t,value_t>(
+			detail::ini_replace<char_t>(key), from_percent_encoding(value)
+		);
 	}
 
 public:
@@ -627,6 +655,33 @@ template <concepts::character CharT, concepts::exec Exec,
 basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini(const path_t &file_name)
 	requires concepts::match_def_exec<executor_t> :
 	basic_ini(io_context(), file_name)
+{
+
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini
+(concepts::match_exec_context<executor_t> auto &exec, data_t data, const path_t &file_name) :
+	basic_ini(exec.get_executor(), std::move(data), file_name)
+{
+
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini
+(const concepts::match_exec<executor_t> auto &exec, data_t data, const path_t &file_name)
+{
+	m_impl = std::make_shared<impl>(exec, file_name);
+	set_data(std::move(data));
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini(data_t data, const path_t &file_name)
+	requires concepts::match_def_exec<executor_t> :
+	basic_ini(io_context(), std::move(data), file_name)
 {
 
 }
@@ -965,7 +1020,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 		return false;
 	};
 	if constexpr( std::is_same_v<Token,error_code&> )
-		m_impl->load(token, std::move(cancelled));
+		set_data(m_impl->load(token, std::move(cancelled)));
 
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -984,18 +1039,19 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 			return *cflag or state.cancelled() != asio::cancellation_type::none;
 		};
 		return async_work<error_code>::handle(get_executor(),
-		[this, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
+		[impl = m_impl, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			detail::ini_commit_io_work([
-				this, impl = m_impl, cancelled = std::move(cancelled),
+				impl, cancelled = std::move(cancelled),
 				handle = std::make_shared<handle_t>(std::move(handle)), exec
 			]() mutable
 			{
-				LIBGS_UNUSED(impl);
 				error_code error;
-				m_impl->load(error, cancelled);
-				dispatch(exec, [handle = std::move(handle), error]() mutable {
+				auto data = impl->load(error, cancelled); // !!! thread
+				dispatch(exec, [impl, data = std::move(data), handle = std::move(handle), error]() mutable
+				{
+					impl->set_data(std::move(data));
 					std::move(*handle)(error);
 				});
 			});
@@ -1034,7 +1090,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(Token &&token)
 		return false;
 	};
 	if constexpr( std::is_same_v<Token,error_code&> )
-		m_impl->sync(token, std::move(cancelled));
+		m_impl->sync(data(), token, std::move(cancelled));
 
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -1053,17 +1109,16 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(Token &&token)
 			return *cflag or state.cancelled() != asio::cancellation_type::none;
 		};
 		return async_work<error_code>::handle(get_executor(),
-		[this, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
+		[impl = m_impl, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
 			detail::ini_commit_io_work([
-				this, impl = m_impl, cancelled = std::move(cancelled),
+				impl, data = impl->data(), cancelled = std::move(cancelled),
 				handle = std::make_shared<handle_t>(std::move(handle)), exec
 			]() mutable
 			{
-				LIBGS_UNUSED(impl);
 				error_code error;
-				m_impl->sync(error, cancelled);
+				impl->sync(std::move(data), error, cancelled);
 				dispatch(exec, [handle = std::move(handle), error]() mutable {
 					std::move(*handle)(error);
 				});
@@ -1139,6 +1194,20 @@ template <concepts::character CharT, concepts::exec Exec,
 size_t basic_ini<CharT,Exec,Map,MapArgs...>::size() const noexcept
 {
 	return m_impl->m_groups.size();
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+void basic_ini<CharT,Exec,Map,MapArgs...>::set_data(data_t data)
+{
+	m_impl->set_data(std::move(data));
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+typename basic_ini<CharT,Exec,Map,MapArgs...>::data_t basic_ini<CharT,Exec,Map,MapArgs...>::data() const
+{
+	return m_impl->data();
 }
 
 template <concepts::character CharT, concepts::exec Exec,

@@ -500,6 +500,8 @@ decltype(auto) to_view(concepts::any_text_p auto &&text)
 
 bool is_alpha(const concepts::any_string_p auto &str) noexcept
 {
+	auto _str = detail::ascii_transition<char>(str);
+
 	using Str = decltype(str);
 	if constexpr( concepts::character<Str> )
 		return std::isalpha(str);

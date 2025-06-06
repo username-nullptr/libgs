@@ -1,0 +1,140 @@
+
+/************************************************************************************
+*                                                                                   *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*                                                                                   *
+*   This file is part of LIBGS                                                      *
+*   License: MIT License                                                            *
+*                                                                                   *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
+*                                                                                   *
+*   The above copyright notice and this permission notice shall be included in      *
+*   all copies or substantial portions of the Software.                             *
+*                                                                                   *
+*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
+*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
+*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
+*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
+*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
+*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
+*   SOFTWARE.                                                                       *
+*                                                                                   *
+*************************************************************************************/
+
+#ifndef LIBGS_UTILS_DETAIL_LOG_H
+#define LIBGS_UTILS_DETAIL_LOG_H
+
+namespace libgs::utils
+{
+
+template <logger::level_t Lv, typename Arg0, typename...Args>
+logger &logger::write(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	check_level<Lv>();
+	_log(Lv, loc, std::format(std::move(msg), std::forward<Arg0>(arg0), std::forward<Args>(args)...));
+	return *this;
+}
+
+template <logger::level_t Lv, typename T>
+logger &logger::write(const source_loc &loc, T &&msg)
+{
+	check_level<Lv>();
+	_log(Lv, loc, std::format("{}", std::forward<T>(msg)));
+	return *this;
+}
+
+template <typename Arg0, typename...Args>
+logger &logger::trace(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	return write<level_t::trace>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
+}
+
+template <typename T>
+logger &logger::trace(const source_loc &loc, T &&msg)
+{
+	return write<level_t::trace>(std::move(loc), std::forward<T>(msg));
+}
+
+template <typename Arg0, typename...Args>
+logger &logger::debug(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	return write<level_t::debug>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
+}
+
+template <typename T>
+logger &logger::debug(const source_loc &loc, T &&msg)
+{
+	return write<level_t::debug>(std::move(loc), std::forward<T>(msg));
+}
+
+template <typename Arg0, typename...Args>
+logger &logger::info(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	return write<level_t::info>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
+}
+
+template <typename T>
+logger &logger::info(const source_loc &loc, T &&msg)
+{
+	return write<level_t::info>(std::move(loc), std::forward<T>(msg));
+}
+
+template <typename Arg0, typename...Args>
+logger &logger::warning(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	return write<level_t::warning>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
+}
+
+template <typename T>
+logger &logger::warning(const source_loc &loc, T &&msg)
+{
+	return write<level_t::warning>(std::move(loc), std::forward<T>(msg));
+}
+
+template <typename Arg0, typename...Args>
+logger &logger::error(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	return write<level_t::error>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
+}
+
+template <typename T>
+logger &logger::error(const source_loc &loc, T &&msg)
+{
+	return write<level_t::error>(std::move(loc), std::forward<T>(msg));
+}
+
+template <typename Arg0, typename...Args>
+logger &logger::critical(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	return write<level_t::critical>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);
+}
+
+template <typename T>
+logger &logger::critical(const source_loc &loc, T &&msg)
+{
+	return write<level_t::critical>(std::move(loc), std::forward<T>(msg));
+}
+
+template <logger::level_t Lv>
+consteval void logger::check_level()
+{
+	static_assert (
+		Lv == level_t::trace or
+		Lv == level_t::debug or
+		Lv == level_t::info or
+		Lv == level_t::warning or
+		Lv == level_t::error or
+		Lv == level_t::critical,
+		"logger: Code bug: Invalid level."
+	);
+}
+
+} //namespace libgs::utils
+
+
+#endif //LIBGS_UTILS_DETAIL_LOG_H

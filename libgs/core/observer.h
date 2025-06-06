@@ -34,16 +34,17 @@
 namespace libgs
 {
 
-template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-class LIBGS_CORE_TAPI observer_base : public std::enable_shared_from_this<
-	crtp_derived_t<Derived, observer_base<Derived,Funcs...>>>
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+class LIBGS_CORE_TAPI basic_observer_base : public std::enable_shared_from_this<
+	crtp_derived_t<Derived, basic_observer_base<Derived,Exec,Funcs...>>>
 {
-	LIBGS_DISABLE_COPY_MOVE(observer_base)
-	using derived_t = crtp_derived_t<Derived,observer_base>;
+	LIBGS_DISABLE_COPY_MOVE(basic_observer_base)
+	using derived_t = crtp_derived_t<Derived,basic_observer_base>;
 
 public:
 	using ptr_t = std::shared_ptr<derived_t>;
 	using callbacks_t = std::tuple<std::function<Funcs>...>;
+	using executor_t = Exec;
 
 	template <size_t Idx>
 	using callback_t = std::tuple_element_t<Idx,callbacks_t>;
@@ -51,9 +52,10 @@ public:
 	template <size_t Idx>
 	static constexpr bool idx_valid_v = Idx < sizeof...(Funcs);
 
-	template <concepts::sched Exec = io_context_t&>
-	explicit observer_base(Exec &&exec = io_context());
-	virtual ~observer_base();
+public:
+	template <concepts::match_sched<Exec> Exec0 = io_context_t&>
+	explicit basic_observer_base(Exec0 &&exec = io_context());
+	virtual ~basic_observer_base();
 
 public:
 	template <typename...Args0>
@@ -68,13 +70,21 @@ public:
 	static void trigger(Args0&&...args) requires
 		idx_valid_v<Idx> and concepts::callable<callback_t<Idx>,Args0...>;
 
+	[[nodiscard]] executor_t get_executor() noexcept;
+
 private:
 	class impl;
 	impl *m_impl = nullptr;
 };
 
+template <concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+using basic_observer = basic_observer_base<void, Exec, Funcs...>;
+
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+using observer_base = basic_observer_base<Derived, asio::any_io_executor, Funcs...>;
+
 template <concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-using observer = observer_base<void, Funcs...>;
+using observer = basic_observer<asio::any_io_executor, Funcs...>;
 
 } //namespace libgs
 #include <libgs/core/detail/observer.h>

@@ -30,6 +30,8 @@
 #define LIBGS_LIBGS_H
 
 #include <libgs/core.h>
+#include <libgs/coro.h>
+#include <libgs/abus.h>
 #include <libgs/http.h>
 
 #endif //LIBGS_LIBGS_H
