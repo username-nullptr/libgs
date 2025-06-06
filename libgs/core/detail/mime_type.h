@@ -80,6 +80,7 @@ template <typename FS>
 	auto size = static_cast<size_t>(stream.gcount());
 	if( size < buf_len )
 	{
+		stream.clear();
 		stream.seekg(0, std::ios_base::beg);
 		if( is_text(stream) )
 			return "text/plain";

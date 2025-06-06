@@ -111,6 +111,11 @@ concept callable = requires(Func &&func, Args&&...args) {
 	func(std::forward<Args>(args)...);
 };
 
+template <typename Func>
+concept std_func_temp = requires(Func *func) {
+	std::function<Func>(func);
+};
+
 template <typename Struct, typename...Args>
 concept constructible = requires(Args&&...args) {
 	Struct(std::forward<Args>(args)...);

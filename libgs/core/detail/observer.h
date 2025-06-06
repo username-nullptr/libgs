@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_DETAIL_OBSERVER_H
 #define LIBGS_CORE_DETAIL_OBSERVER_H
 
+#include <libgs/core/spin_mutex.h>
 #include <cassert>
 #include <set>
 #include <map>
@@ -36,14 +37,22 @@
 namespace libgs { namespace detail
 {
 
-using obs_set_t = std::set<void*>;
-using obs_map_t = std::map<std_typeid_t, obs_set_t>;
-[[nodiscard]] LIBGS_CORE_API obs_map_t &observer_map() noexcept;
+class LIBGS_CORE_API observer
+{
+	LIBGS_DISABLE_COPY_MOVE(observer)
+
+public:
+	using set_t = std::set<void*>;
+	using map_t = std::map<std_typeid_t, set_t>;
+
+	[[nodiscard]] static map_t &map() noexcept;
+	[[nodiscard]] static spin_mutex &mutex() noexcept;
+};
 
 } //namespace detail
 
-template <typename Derived, typename...Args>
-class observer<Derived,Args...>::impl
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+class observer_base<Derived,Funcs...>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -54,75 +63,78 @@ public:
 
 public:
 	asio::any_io_executor m_exec {};
-	callback_t m_callback {};
+	callbacks_t m_callbacks {};
 };
 
-template <typename Derived, typename...Args>
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <concepts::sched Exec>
-observer<Derived,Args...>::observer(Exec &&exec) :
+observer_base<Derived,Funcs...>::observer_base(Exec &&exec) :
 	m_impl(new impl(std::forward<Exec>(exec)))
 {
-	auto [it, inserted] = detail::observer_map()[typeid(derived_t).hash_code()]
+	detail::observer::mutex().lock();
+	auto [it, inserted] = detail::observer::map()[typeid(derived_t).hash_code()]
 		.emplace(static_cast<void*>(m_impl));
+
+	detail::observer::mutex().unlock();
 	assert(inserted);
 }
 
-template <typename Derived, typename...Args>
-observer<Derived,Args...>::~observer()
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+observer_base<Derived,Funcs...>::~observer_base()
 {
-	detail::observer_map()[typeid(derived_t).hash_code()]
+	detail::observer::mutex().lock();
+	detail::observer::map()[typeid(derived_t).hash_code()]
 		.erase(static_cast<void*>(m_impl));
+
+	detail::observer::mutex().unlock();
 	delete m_impl;
 }
 
-template <typename Derived, typename...Args>
-template <concepts::sched Exec, typename...Args0>
-typename observer<Derived,Args...>::ptr_t
-observer<Derived,Args...>::make(Exec &&exec, Args0&&...args) requires
-	concepts::constructible<derived_t,Exec,Args0...>
-{
-	return std::make_shared<derived_t>(
-		std::forward<Exec>(exec), std::forward<Args0>(args)...
-	);
-}
-
-template <typename Derived, typename...Args>
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <typename...Args0>
-typename observer<Derived,Args...>::ptr_t
-observer<Derived,Args...>::make(Args0&&...args) requires
-	concepts::constructible<derived_t,io_context_t&,Args0...> or
+typename observer_base<Derived,Funcs...>::ptr_t
+observer_base<Derived,Funcs...>::make(Args0&&...args) requires
 	concepts::constructible<derived_t,Args0...>
 {
-	if constexpr( concepts::constructible<derived_t,io_context_t&,Args0...> )
-		return make(io_context(), std::forward<Args0>(args)...);
-	else
-		return std::make_shared<derived_t>(std::forward<Args0>(args)...);
+	return std::make_shared<derived_t>(std::forward<Args0>(args)...);
 }
 
-template <typename Derived, typename...Args>
-template <typename...Args0>
-void observer<Derived,Args...>::trigger(Args0&&...args)
-	requires concepts::callable<callback_t,Args0...>
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <size_t Idx>
+typename observer_base<Derived,Funcs...>::ptr_t
+observer_base<Derived,Funcs...>::on_triggered(callback_t<Idx> func) requires idx_valid_v<Idx>
 {
-	for(auto &ptr : detail::observer_map()[typeid(derived_t).hash_code()])
+	std::get<Idx>(m_impl->m_callbacks) = std::move(func);
+	return this->shared_from_this();
+}
+
+template <typename Derived, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <size_t Idx, typename...Args0>
+void observer_base<Derived,Funcs...>::trigger(Args0&&...args)
+	requires idx_valid_v<Idx> and concepts::callable<callback_t<Idx>,Args0...>
+{
+	std::vector<std::function<void()>> functions;
+	detail::observer::mutex().lock();
+
+	for(auto &ptr : detail::observer::map()[typeid(derived_t).hash_code()])
 	{
 		auto obj = static_cast<impl*>(ptr);
-		if( not obj->m_callback )
+		auto func = std::get<Idx>(obj->m_callbacks);
+
+		if( not func )
 			continue;
 
-		dispatch(obj->m_exec,
-		[func = obj->m_callback, ...args = std::forward<Args0>(args)]() mutable {
-			func(std::forward<Args0>(args)...);
+		functions.emplace_back (
+		[exec = obj->m_exec, func = std::move(func), ...args = std::forward<Args0>(args)]() mutable
+		{
+			dispatch(exec, [func = std::move(func), ...args = std::move(args)]() mutable {
+				func(std::move(args)...);
+			});
 		});
 	}
-}
-
-template <typename Derived, typename...Args>
-typename observer<Derived,Args...>::ptr_t
-observer<Derived,Args...>::set_callback(callback_t func)
-{
-	m_impl->m_callback = std::move(func);
-	return this->shared_from_this();
+	detail::observer::mutex().unlock();
+	for(auto &func : functions)
+		func();
 }
 
 } //namespace libgs

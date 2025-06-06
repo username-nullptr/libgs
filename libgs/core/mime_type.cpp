@@ -998,7 +998,6 @@ std::string search(const mime_head_map &mimes, const char *buf, size_t size)
 				return "unknown";
 		}
 		while( key[index] == buf[index] );
-		break;
 	}
 	return "unknown";
 }

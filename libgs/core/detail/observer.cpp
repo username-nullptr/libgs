@@ -31,10 +31,16 @@
 namespace libgs::detail
 {
 
-obs_map_t &observer_map() noexcept
+observer::map_t &observer::map() noexcept
 {
-	static obs_map_t map;
+	static map_t map;
 	return map;
+}
+
+spin_mutex &observer::mutex() noexcept
+{
+	static spin_mutex mutex;
+	return mutex;
 }
 
 } //nnamespace libgs::detail
