@@ -54,7 +54,7 @@ class LIBGS_HTTP_API cookie final
 public:
 	using value_t = libgs::value;
 	using string_t = std::string;
-	using attributes_t = map<value_t>;
+	using attributes_t = value_map;
 
 public:
 	cookie();
@@ -147,7 +147,7 @@ public:
 
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) attribute_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
+		const requires core_concepts::value_get<T,char>;
 
 public:
 	cookie &set_attribute(core_concepts::text_p<char> auto &&key, value_t attr) noexcept;
@@ -162,7 +162,7 @@ private:
 };
 
 using cookie_attributes = cookie::attributes_t;
-using cookie_values = map<value>;
+using cookie_values = value_map;
 using cookies = map<cookie>;
 
 } //namespace libgs::http::concepts

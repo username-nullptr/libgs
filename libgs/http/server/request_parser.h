@@ -73,18 +73,20 @@ public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) parameter_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
 
 public:
 	template <typename T = value>
-	[[nodiscard]] decltype(auto) header(const core_concepts::text_p<char> auto &key)
-		const requires core_concepts::value_get<T,char>;
+	[[nodiscard]] decltype(auto) header (
+		const core_concepts::text_p<char> auto &key
+	) const requires core_concepts::value_get<T,char>;
 
 	template <typename T = value>
-	[[nodiscard]] decltype(auto) header_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
+	[[nodiscard]] decltype(auto) header_or (
+		const core_concepts::text_p<char> auto &key, T &&def_value = {}
+	) const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
 
@@ -97,7 +99,7 @@ public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) cookie_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const cookie_values &cookies() const noexcept;
 
@@ -114,11 +116,11 @@ public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) path_arg_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) path_arg_or(size_t index, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
+		const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const path_args_t &path_args() const noexcept;
 
@@ -140,6 +142,7 @@ private:
 };
 
 } //namespace libgs::http
+#include <libgs/http/server/detail/request_parser.h>
 
 
 #endif //LIBGS_HTTP_SERVER_REQUEST_PARSER_H

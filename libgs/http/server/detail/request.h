@@ -501,19 +501,9 @@ decltype(auto) basic_server_request<Stream>::path_arg
 (const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
-	auto key_view = strtls::to_view(key);
-	const auto &vector = m_impl->m_parser->path_args();
-
-	for(const auto &[_key,value] : vector)
-	{
-		if( _key == key_view )
-			return value.template get<T>();
-	}
-	throw runtime_error (
-		"libgs::http::server_request::path_arg: key '{}' not exists.",
-		key_view
+	return m_impl->m_parser->path_arg (
+		std::forward<decltype(key)>(key)
 	);
-	//	return {};
 }
 
 template <concepts::stream Stream>
@@ -521,15 +511,7 @@ template <typename T>
 decltype(auto) basic_server_request<Stream>::path_arg(size_t index)
 	const requires core_concepts::value_get<T,char>
 {
-	const auto &vector = m_impl->m_parser->path_args();
-	if( index >= vector.size() )
-	{
-		throw runtime_error (
-			"libgs::http::server_request::path_arg: Index '{}' out-of-bounds access.",
-			index
-		);
-	}
-	return vector[index].second.template get<T>();
+	return m_impl->m_parser->path_arg(index);
 }
 
 template <concepts::stream Stream>
@@ -538,29 +520,9 @@ decltype(auto) basic_server_request<Stream>::path_arg_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
-	auto key_view = strtls::to_view(key);
-	const auto &vector = m_impl->m_parser->path_args();
-
-	const value_t *value = nullptr;
-	for(const auto &[_key,_value] : vector)
-	{
-		if( _key == key )
-		{
-			value = &_value;
-			break;
-		}
-	}
-	using def_t = std::remove_cvref_t<T>;
-	if constexpr( is_string_v<def_t, char> )
-	{
-		return value ? *value :
-			strtls::to_string(std::forward<T>(def_value));
-	}
-	else
-	{
-		return value ? value->get<def_t>() :
-			std::forward<T>(def_value);
-	}
+	return m_impl->m_parser->path_arg_or (
+		std::forward<decltype(key)>(key), std::forward<T>(def_value)
+	);
 }
 
 template <concepts::stream Stream>
@@ -568,21 +530,9 @@ template <typename T>
 decltype(auto) basic_server_request<Stream>::path_arg_or(size_t index, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
-	using def_t = std::remove_cvref_t<T>;
-	const auto &vector = m_impl->m_parser->path_args();
-
-	if( index >= vector.size() )
-	{
-		if constexpr( is_string_v<def_t, char> )
-			return strtls::to_string(std::forward<T>(def_value));
-		else
-			return std::forward<T>(def_value);
-
-	}
-	if constexpr( is_string_v<def_t, char> )
-		return vector[index].second;
-	else
-		return vector[index].second.template get<def_t>();
+	return m_impl->m_parser->path_arg_or (
+		index, std::forward<T>(def_value)
+	);
 }
 
 template <concepts::stream Stream>

@@ -46,6 +46,13 @@ response_helper &response_helper::unset_header
 	return *this;
 }
 
+response_helper &response_helper::set_cookie
+(core_concepts::text_p<char> auto &&key, http::cookie cookie) noexcept
+{
+	cookies()[strtls::to_string(std::forward<decltype(key)>(key))] = std::move(cookie);
+	return *this;
+}
+
 response_helper &response_helper::unset_cookie
 (const core_concepts::text_p<char> auto &key) noexcept
 {

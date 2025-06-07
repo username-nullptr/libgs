@@ -39,6 +39,76 @@ inline bool less_case_insensitive::operator()(const key_t &v1, const key_t &v2) 
 	});
 }
 
+template <typename T>
+decltype(auto) value_map_get
+(const value_map &map, const core_concepts::text_p<char> auto &key, const char *msg)
+	requires core_concepts::value_get<T,char>
+{
+	auto key_str = strtls::to_string(key);
+	auto it = map.find(key_str);
+
+	if( it == map.end() )
+	{
+		throw runtime_error (
+			"{}: key '{}' not exists.", msg, key_str
+		);
+	}
+	return it->second.template get<T>();
+}
+
+template <typename T>
+decltype(auto) value_map_get_or
+(const value_map &map, const core_concepts::text_p<char> auto &key, T &&def_value)
+	requires core_concepts::value_get<T,char>
+{
+	auto it = map.find(strtls::to_string(key));
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( is_string_v<def_t, char> )
+	{
+		return it == map.end() ?
+			strtls::to_string(std::forward<T>(def_value)) : *it->second;
+	}
+	else
+	{
+		return it == map.end() ? std::forward<T>(def_value) :
+			it->second.template get<def_t>();
+	}
+}
+
+template <typename T>
+decltype(auto) value_set_get(const value_set &set, const value &node, const char *msg)
+	requires core_concepts::value_get<T,char>
+{
+	auto it = set.find(node);
+	if( it == set.end() )
+	{
+		throw runtime_error (
+			"{}: node '{}' not exists.", msg, node
+		);
+	}
+	return it->template get<T>();
+}
+
+template <typename T>
+decltype(auto) value_set_get_or(const value_set &set, value &node, T &&def_value)
+	requires core_concepts::value_get<T,char>
+{
+	auto it = set.find(node);
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( is_string_v<def_t, char> )
+	{
+		return it == set.end() ?
+			strtls::to_string(std::forward<T>(def_value)) : *it;
+	}
+	else
+	{
+		return it == set.end() ? std::forward<T>(def_value) :
+			it->template get<def_t>();
+	}
+}
+
 } //namespace libgs::http
 
 

@@ -899,9 +899,9 @@ basic_server_response<Stream>::headers() noexcept
 
 template <concepts::stream Stream>
 basic_server_response<Stream> &basic_server_response<Stream>::set_cookie
-(cookie_t cookie) noexcept
+(core_concepts::text_p<char> auto &&key, cookie_t cookie) noexcept
 {
-	m_impl->m_helper.set_cookie(std::move(cookie));
+	m_impl->m_helper.set_cookie(std::forward<decltype(key)>(key), std::move(cookie));
 	return *this;
 }
 

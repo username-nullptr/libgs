@@ -40,7 +40,12 @@ class basic_server<Stream,Exec>::impl : public std::enable_shared_from_this<impl
 
 public:
 	explicit impl(basic_acceptor_wrap<socket_t> &&next_layer, const service_exec_t &service_exec) :
-		m_next_layer(std::move(next_layer)), m_service_exec(service_exec) {}
+		m_next_layer(std::move(next_layer)), m_service_exec(service_exec)
+	{
+		m_sss.on_error([this](const session_ptr&, const error_code &error) {
+			call_on_server_error(error);
+		});
+	}
 
 	template <typename Stream0, typename Exec0>
 	impl(typename basic_server<Stream0,Exec0>::impl &&other) noexcept :
@@ -136,9 +141,11 @@ public:
 				abd = true;
 			}
 			self->m_next_layer.acceptor().cancel();
-			error_code error;
-			self->m_next_layer.acceptor().close(error);
+			error_code _error; LIBGS_UNUSED(_error);
+
+			self->m_next_layer.acceptor().close(_error);
 			self->m_is_start = false;
+
 			if( abd )
 				forced_termination();
 			co_return ;

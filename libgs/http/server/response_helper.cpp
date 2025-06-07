@@ -119,13 +119,6 @@ headers &response_helper::headers() noexcept
 	return m_impl->m_helper->headers();
 }
 
-response_helper &response_helper::set_cookie(http::cookie cookie) noexcept
-{
-	auto key = *cookie.value();
-	m_impl->m_cookies[std::move(key)] = std::move(cookie);
-	return *this;
-}
-
 const cookies &response_helper::cookies() const noexcept
 {
 	return m_impl->m_cookies;

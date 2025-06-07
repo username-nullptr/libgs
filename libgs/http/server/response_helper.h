@@ -66,7 +66,7 @@ public:
 
 public:
 	response_helper &set_cookie (
-		http::cookie cookie
+		core_concepts::text_p<char> auto &&key, http::cookie cookie
 	) noexcept;
 
 	response_helper &unset_cookie (

@@ -86,7 +86,7 @@ public:
 
 public:
 	basic_server_response &set_cookie (
-		cookie_t cookie
+		core_concepts::text_p<char> auto &&key, cookie_t cookie
 	) noexcept;
 
 	 basic_server_response &unset_cookie (

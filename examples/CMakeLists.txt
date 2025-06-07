@@ -59,7 +59,7 @@ function(set_target)
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${sources})
 endfunction()
 
-set(core_sources
+set(sources
 	core/algorithm.cpp
 	core/app_utls.cpp
 	core/lock_free_queue.cpp
@@ -68,26 +68,32 @@ set(core_sources
 	core/argv_parse.cpp
 	core/library.cpp
 )
-set_target(gs_core ${core_sources})
+set_target(gs_core ${sources})
 add_subdirectory(core/modules)
 
-set(coro_sources
+set(sources
 	coro/coroutine.cpp
 	coro/mutex.cpp
 	coro/semaphore.cpp
 )
-set_target(gs_core ${coro_sources})
+set_target(gs_core ${sources})
 
-set(http_server_sources
+set(sources
 	http_server/http_server_parser.cpp
 	http_server/http_server.cpp
 	http_server/http_server_aop.cpp
 	http_server/http_session.cpp
 	http_server/https_server.cpp
 )
-set_target(gs_http ${http_server_sources})
+set_target(gs_http ${sources})
 
-set(http_client_sources
+set(sources
 	http_client/session_pool.cpp
 )
-set_target(gs_http ${http_client_sources})
+set_target(gs_http ${sources})
+
+set(sources
+	utils/logger.cpp
+	utils/settings.cpp
+)
+set_target(gs_utils ${sources})

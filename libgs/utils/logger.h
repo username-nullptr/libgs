@@ -31,7 +31,6 @@
 
 #include <libgs/utils/global.h>
 
-// spdlog有bug，动态库封装不能暴露，否则会内存错乱（可能是头文件单例实例化导致）
 namespace libgs::utils
 {
 

@@ -42,34 +42,19 @@ template <typename T>
 decltype(auto) cookie::attribute(const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
-	auto it = attributes().find(key);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::attributes: key '{}' not exists.", key
-		);
-	}
-	return it->second.template get<T>();
+	return value_map_get (
+		attributes(), key, "libgs::http::cookie::attributes"
+	);
 }
 
 template <typename T>
 decltype(auto) cookie::attribute_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
+	const requires core_concepts::value_get<T,char>
 {
-	auto it = attributes().find(key);
-	using def_t = std::remove_cvref_t<T>;
-
-	if constexpr( is_string_v<def_t, char> )
-	{
-		return it == attributes().end() ?
-			strtls::to_string(std::forward<T>(def_value)) : *it->second;
-	}
-	else
-	{
-		return it == attributes().end() ? std::forward<T>(def_value) :
-			it->second.template get<def_t>();
-	}
+	return value_map_get_or (
+		attributes(), key, std::forward<T>(def_value)
+	);
 }
 
 cookie &cookie::set_attribute(core_concepts::text_p<char> auto &&key, value_t attr) noexcept

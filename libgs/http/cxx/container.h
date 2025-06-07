@@ -31,6 +31,7 @@
 
 #include <libgs/http/cxx/attributes.h>
 #include <libgs/http/cxx/concepts.h>
+#include <libgs/core/value.h>
 #include <map>
 #include <set>
 
@@ -48,6 +49,29 @@ using map = std::map<key_t, Value, less_case_insensitive>;
 
 template <typename Value>
 using set = std::set<Value, less_case_insensitive>;
+
+using value_map = map<value>;
+using value_set = set<value>;
+
+template <typename T = value>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_map_get (
+	const value_map &map, const core_concepts::text_p<char> auto &key, const char *msg
+) requires core_concepts::value_get<T,char>;
+
+template <typename T>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_map_get_or (
+	const value_map &map, const core_concepts::text_p<char> auto &key, T &&def_value = {}
+) requires core_concepts::value_get<T,char>;
+
+template <typename T = value>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_set_get (
+	const value_set &set, const value &node, const char *msg
+) requires core_concepts::value_get<T,char>;
+
+template <typename T>
+[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_set_get_or (
+	const value_map &set, const value &node, T &&def_value = {}
+) requires core_concepts::value_get<T,char>;
 
 } //namespace libgs::http::concepts::container
 #include <libgs/http/cxx/detail/container.h>

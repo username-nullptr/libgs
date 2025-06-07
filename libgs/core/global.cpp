@@ -27,11 +27,12 @@
 *************************************************************************************/
 
 #include "global.h"
-#include <map>
 
 #ifdef __unix__
 # include <sys/types.h>
 # include <unistd.h>
+#elif _WIN32
+# include <map>
 #endif //__unix__
 
 namespace libgs
