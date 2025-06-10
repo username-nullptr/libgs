@@ -114,11 +114,11 @@ template <concepts::enumerate T, concepts::character CharT>
 class LIBGS_CORE_TAPI value_serializer<T,CharT> : public value_default_serializer<T,CharT>
 {
 public:
-	constexpr T get(const basic_value<CharT> &value, size_t base) {
+	constexpr T get(const basic_value<CharT> &value, size_t base = 10) {
 		return static_cast<T>(value_serializer<int,CharT>().get(value, base));
 	}
-	constexpr T get_or(const basic_value<CharT> &value, T def_data) {
-		return static_cast<T>(value_serializer<int,CharT>().get_or(value, def_data));
+	constexpr T get_or(const basic_value<CharT> &value, T def_data, size_t base = 10) {
+		return static_cast<T>(value_serializer<int,CharT>().get_or(value, def_data, base));
 	}
 };
 

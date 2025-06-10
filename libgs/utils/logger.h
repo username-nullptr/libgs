@@ -72,6 +72,7 @@ class LIBGS_UTILS_API logger
 	~logger();
 
 public:
+	[[nodiscard]] static std::vector<std::string> names() noexcept;
 	static logger &instance(std::string_view name, bool create = true);
 	static logger &instance(); // "default"
 

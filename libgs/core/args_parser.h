@@ -31,6 +31,7 @@
 
 #include <libgs/core/string_vector.h>
 #include <libgs/core/value.h>
+#include <map>
 
 namespace libgs::cmdline
 {
@@ -40,7 +41,7 @@ class LIBGS_CORE_API args_parser
 	LIBGS_DISABLE_COPY_MOVE(args_parser)
 
 public:
-	using arguments = std::unordered_map<std::string, value>;
+	using arguments = std::map<std::string, value>;
 
 public:
 	explicit args_parser(std::string help_title = {});

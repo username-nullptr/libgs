@@ -85,6 +85,15 @@ using logger_ptr = std::unique_ptr<logger, no_deleter>;
 static std::map<std::string, logger_ptr> g_instances;
 static spin_shared_mutex g_instances_lock;
 
+std::vector<std::string> logger::names() noexcept
+{
+	std::vector<std::string> names;
+	spin_shared_unique_lock locker(g_instances_lock);
+	for(auto &pair : g_instances)
+		names.emplace_back(pair.first);
+	return names;
+}
+
 logger &logger::instance(std::string_view name, bool create)
 {
 	std::string _name(name.data(), name.size());

@@ -38,15 +38,16 @@ class lock_free_queue<T>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl() : m_head(new node(T())), m_tail(m_head.load()) {}
+	impl() = default;
 	~impl()
 	{
-		do {
-			auto n = m_head.load();
-			m_head.store(n->next.load());
-			delete n;
-		}
-		while( m_head.load() );
+		auto current = m_head.load(std::memory_order_relaxed);
+        while( current )
+        {
+            auto next = current->next.load(std::memory_order_relaxed);
+            delete current;
+            current = next;
+        }
 	}
 
 public:
@@ -58,8 +59,8 @@ public:
 		template <typename...Args>
 		explicit node(Args&&...args) : data(std::forward<Args>(args)...) {}
 	};
-	std::atomic<node*> m_head {};
-	std::atomic<node*> m_tail {};
+	std::atomic<node*> m_head {nullptr};
+	std::atomic<node*> m_tail {nullptr};
 };
 
 template <concepts::copy_or_move_constructible T>
@@ -109,14 +110,28 @@ template <concepts::copy_or_move_constructible T>
 template <typename...Args>
 void lock_free_queue<T>::emplace(Args&&...args)
 {
-	auto n = new typename impl::node(std::forward<Args>(args)...);
-	auto tail = m_impl->m_tail.load(std::memory_order_relaxed);
+	using node_t = typename impl::node;
+	auto n = new node_t(std::forward<Args>(args)...);
+	node_t *tail = nullptr;
 	for(;;)
 	{
-		auto next = tail->next.load();
+		tail = m_impl->m_tail.load(std::memory_order_acquire);
+        if( not tail )
+        {
+            node_t *tmp = nullptr;
+            if( m_impl->m_head.compare_exchange_weak
+            	(tmp, n, std::memory_order_acq_rel, std::memory_order_relaxed) )
+            {
+                m_impl->m_tail.store(n, std::memory_order_release);
+                return ;
+            }
+            continue;
+        }
+		auto next = tail->next.load(std::memory_order_acquire);
 		if( not next )
 		{
-			if( tail->next.compare_exchange_weak(next, n) )
+			if( tail->next.compare_exchange_weak
+				(next, n, std::memory_order_acq_rel, std::memory_order_relaxed) )
 			{
 				m_impl->m_tail.compare_exchange_strong(tail, n);
 				return ;
@@ -125,7 +140,12 @@ void lock_free_queue<T>::emplace(Args&&...args)
 		// The 'next' is not empty,
 		// which means that another thread is also being inserted
 		// and the temporary tail node needs to be updated.
-		else m_impl->m_tail.compare_exchange_strong(tail, next);
+		else
+		{
+			m_impl->m_tail.compare_exchange_strong (
+				tail, next, std::memory_order_release, std::memory_order_relaxed
+			);
+		}
 	}
 }
 
@@ -133,33 +153,36 @@ template <concepts::copy_or_move_constructible T>
 std::optional<T> lock_free_queue<T>::dequeue()
 {
 	typename impl::node *head = nullptr;
-	std::optional<T> data;
 	for(;;)
 	{
-		head = m_impl->m_head.load();
-		auto tail = m_impl->m_tail.load();
-		auto next = head->next.load();
+		head = m_impl->m_head.load(std::memory_order_acquire);
+		if( not head )
+			return {};
 
-		if( head == m_impl->m_head.load() )
+		auto tail = m_impl->m_tail.load(std::memory_order_acquire);
+		auto next = head->next.load(std::memory_order_acquire);
+
+		if( head != m_impl->m_head.load(std::memory_order_relaxed) )
+			continue;
+
+		else if( head == tail ) // Queue may be empty.
 		{
-			if( head == tail ) // Queue may be empty.
-			{
-				if( next == nullptr ) // Queue is empty.
-					return data;
+			if( not next ) // Queue is empty.
+				return {};
 
-				// Another thread is inserting.
-				m_impl->m_tail.compare_exchange_weak(tail, next);
-			}
-			else // pop front
-			{
-				data = std::move(next->data);
-				if( m_impl->m_head.compare_exchange_weak(head, next) )
-					break;
-			}
+			// Another thread is inserting.
+			m_impl->m_tail.compare_exchange_weak (
+				tail, next, std::memory_order_release, std::memory_order_relaxed
+			);
+		}
+		else if( m_impl->m_head.compare_exchange_weak
+				 (head, next, std::memory_order_acq_rel, std::memory_order_relaxed) )
+		{
+			delete head;
+			return std::move(head->data);
 		}
 	}
-	delete head;
-	return data;
+	return {};
 }
 
 template <concepts::copy_or_move_constructible T>

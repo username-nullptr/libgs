@@ -54,6 +54,15 @@ using settings_ptr = std::unique_ptr<settings, no_deleter>;
 static std::map<std::string, settings_ptr> g_instances;
 static spin_shared_mutex g_instances_lock;
 
+std::vector<std::string> settings::names() noexcept
+{
+	std::vector<std::string> names;
+	spin_shared_shared_lock locker(g_instances_lock);
+	for( auto &pair : g_instances )
+		names.push_back(pair.first);
+	return names;
+}
+
 settings &settings::instance(std::string_view name, bool create)
 {
 	std::string _name(name.data(), name.size());
