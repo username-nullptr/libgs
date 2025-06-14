@@ -64,7 +64,7 @@ public:
 	}
 
 public:
-	void set_status(status_enum status) {
+	void set_status(protocol::status_enum status) {
 		m_helper.set_status(status);
 	}
 
@@ -75,13 +75,13 @@ public:
 public:
 	[[nodiscard]] size_t write(const const_buffer &body, error_code &error) noexcept
 	{
-		if( pro_state() == helper_state::finish )
+		if( pro_state() == protocol::generator_state::finish )
 			return 0;
 
 		error = error_code();
 		size_t sum = 0;
 
-		if( pro_state() == helper_state::header )
+		if( pro_state() == protocol::generator_state::header )
 		{
 			sum += write_header(body.size(), error);
 			if( error )
@@ -94,13 +94,13 @@ public:
 
 	[[nodiscard]] awaitable<size_t> co_write(const const_buffer &body, error_code &error) noexcept
 	{
-		if( pro_state() == helper_state::finish )
+		if( pro_state() == protocol::generator_state::finish )
 			co_return 0;
 
 		error = error_code();
 		size_t sum = 0;
 
-		if( pro_state() == helper_state::header )
+		if( pro_state() == protocol::generator_state::header )
 		{
 			sum += co_await co_write_header(body.size(), error);
 			if( error )
@@ -128,7 +128,7 @@ public:
 	template <typename Opt>
 	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error)
 	{
-		if( pro_state() != helper_state::header )
+		if( pro_state() != protocol::generator_state::header )
 			return 0;
 
 		fot_data data = 0;
@@ -141,15 +141,15 @@ public:
 			auto ranges = from_file_range(token.ranges, data.fsize, error);
 			return error ? 0 : range_transfer(token, ranges, data, error);
 		}
-		auto it = m_next_layer.headers().find(header::range);
+		auto it = m_next_layer.headers().find(protocol::header::range);
 		if( it == m_next_layer.headers().end() )
 			return default_transfer(token, data, error);
 
 		std::vector<range_value> ranges;
 		auto status = range_text_parsing(it->second.to_string(), data.fsize, ranges);
-		if( status != status::ok )
+		if( status != protocol::status::ok )
 		{
-			set_status(status::range_not_satisfiable);
+			set_status(protocol::status::range_not_satisfiable);
 			auto buf = std::format("{} ({})", status_description(status), status);
 			return write(buffer(buf, buf.size()), error);
 		}
@@ -159,7 +159,7 @@ public:
 	template <typename Opt>
 	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error)
 	{
-		if( pro_state() != helper_state::header )
+		if( pro_state() != protocol::generator_state::header )
 			co_return 0;
 
 		fot_data data;
@@ -172,16 +172,16 @@ public:
 			auto ranges = from_file_range(token.ranges, data.fsize, error);
 			co_return error ? 0 : co_await co_range_transfer(token, ranges, data, error);
 		}
-		auto it = m_next_layer.headers().find(header::range);
+		auto it = m_next_layer.headers().find(protocol::header::range);
 		if( it == m_next_layer.headers().end() )
 			co_return co_await co_default_transfer(token, data, error);
 
 		std::vector<range_value> ranges;
 		auto status = range_text_parsing(it->second.to_string(), data.fsize, ranges);
-		if( status != status::ok )
+		if( status != protocol::status::ok )
 		{
-			set_status(status::range_not_satisfiable);
-			auto buf = std::format("{} ({})", status::description(status), status);
+			set_status(protocol::status::range_not_satisfiable);
+			auto buf = std::format("{} ({})", protocol::status::description(status), status);
 			co_return co_await co_write(buffer(buf, buf.size()), error);
 		}
 		co_return co_await co_range_transfer(token, ranges, data, error);
@@ -190,7 +190,7 @@ public:
 public:
 	[[nodiscard]] size_t chunk_end(const headers_t &headers, error_code &error)
 	{
-		if( pro_state() != helper_state::chunk )
+		if( pro_state() != protocol::generator_state::chunk )
 			return 0;
 		auto buf = m_helper.chunk_end_data(headers);
 		if( buf.empty() )
@@ -200,7 +200,7 @@ public:
 
 	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error)
 	{
-		if( pro_state() != helper_state::chunk )
+		if( pro_state() != protocol::generator_state::chunk )
 			co_return 0;
 		auto buf = m_helper.chunk_end_data(headers);
 		if( buf.empty() )
@@ -226,7 +226,7 @@ private:
 		if( data.fsize == 0 )
 			return sum;
 
-		m_helper.set_header(header::content_type, data.mtype);
+		m_helper.set_header(protocol::header::content_type, data.mtype);
 		sum += write_header(data.fsize, error);
 		if( error )
 			return sum;
@@ -258,7 +258,7 @@ private:
 		if( data.fsize == 0 )
 			co_return sum;
 
-		m_helper.set_header(header::content_type, data.mtype);
+		m_helper.set_header(protocol::header::content_type, data.mtype);
 		sum += co_await co_write_header(data.fsize, error);
 		if( error )
 			co_return sum;
@@ -286,16 +286,16 @@ public:
 	[[nodiscard]] size_t range_transfer
 	(auto &&opt, const std::vector<range_value> &ranges, const fot_data &data, error_code &error)
 	{
-		set_status(status::partial_content);
+		set_status(protocol::status::partial_content);
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
 			m_helper
-			.set_header(header::accept_ranges , "bytes"    )
-			.set_header(header::content_type  , data.mtype )
-			.set_header(header::content_length, range.total)
+			.set_header(protocol::header::accept_ranges , "bytes"    )
+			.set_header(protocol::header::content_type  , data.mtype )
+			.set_header(protocol::header::content_length, range.total)
 
-			.set_header(header::content_range , value_t {
+			.set_header(protocol::header::content_range , value_t {
 				"{}-{}/{}", range.begin, range.end, range.total
 			});
 			return send_range(opt.stream, "", "", ranges, error);
@@ -308,10 +308,10 @@ public:
 				system_clock::now().time_since_epoch()
 			).count()
 		);
-		m_helper.set_header(header::content_type,
+		m_helper.set_header(protocol::header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
-		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
+		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
 		for(auto &range : ranges)
@@ -338,8 +338,8 @@ public:
 		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
 		m_helper
-		.set_header(header::content_length, content_length)
-		.set_header(header::accept_ranges , "bytes");
+		.set_header(protocol::header::content_length, content_length)
+		.set_header(protocol::header::accept_ranges , "bytes");
 
 		return send_range (
 			opt.stream, boundary, ct_line, ranges, error
@@ -349,16 +349,16 @@ public:
 	[[nodiscard]] awaitable<size_t> co_range_transfer
 	(auto &&opt, const std::vector<range_value> &ranges, const fot_data &data, error_code &error)
 	{
-		set_status(status::partial_content);
+		set_status(protocol::status::partial_content);
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
 			m_helper
-			.set_header(header::accept_ranges , "bytes"    )
-			.set_header(header::content_type  , data.mtype )
-			.set_header(header::content_length, range.total)
+			.set_header(protocol::header::accept_ranges , "bytes"    )
+			.set_header(protocol::header::content_type  , data.mtype )
+			.set_header(protocol::header::content_length, range.total)
 
-			.set_header(header::content_range, value_t {
+			.set_header(protocol::header::content_range, value_t {
 				"{}-{}/{}", range.begin, range.end, range.total
 			});
 			co_return co_await co_send_range(opt.stream, "", "", ranges, error);
@@ -369,10 +369,10 @@ public:
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
 		);
-		m_helper.set_header(header::content_type,
+		m_helper.set_header(protocol::header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
-		auto ct_line = std::format("{}: {}", header::content_type, data.mtype);
+		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
 		std::size_t content_length = 0;
 
 		for(auto &range: ranges)
@@ -399,8 +399,8 @@ public:
 		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
 		m_helper
-		.set_header(header::content_length, content_length)
-		.set_header(header::accept_ranges , "bytes");
+		.set_header(protocol::header::content_length, content_length)
+		.set_header(protocol::header::accept_ranges , "bytes");
 
 		co_return co_await co_send_range (
 			opt.stream, boundary, ct_line, ranges, error
@@ -605,7 +605,7 @@ private:
 	}
 
 private:
-	[[nodiscard]] status_enum range_text_parsing
+	[[nodiscard]] protocol::status_enum range_text_parsing
 	(std::string_view range_str_view, size_t file_size, std::vector<range_value> &ranges)
 	{
 		std::string range_str(range_str_view.data(), range_str_view.size());
@@ -615,16 +615,16 @@ private:
 				range_str.erase(i,1);
 		}
 		if( range_str.empty() )
-			return status::bad_request;
+			return protocol::status::bad_request;
 
 		// bytes=x-y, m-n, i-j ...
 		else if( range_str.substr(0,6) != "bytes=" )
-			return status::range_not_satisfiable;
+			return protocol::status::range_not_satisfiable;
 
 		// x-y, m-n, i-j ...
 		auto cl_range_str = range_str.substr(6);
 		if( cl_range_str.empty() )
-			return status::range_not_satisfiable;
+			return protocol::status::range_not_satisfiable;
 
 		// (x-y) ( m-n) ( i-j) ...
 		for(auto &sub_range_str : string_vector::from_string(cl_range_str, ','))
@@ -634,16 +634,16 @@ private:
 
 			auto str_vector = string_vector::from_string(sub_range_str, '-', false);
 			if( str_vector.size() != 2 )
-				return status::range_not_satisfiable;
+				return protocol::status::range_not_satisfiable;
 
 			else if( str_vector[0].empty() )
 			{
 				if( str_vector[1].empty() )
-					return status::range_not_satisfiable;
+					return protocol::status::range_not_satisfiable;
 
 				range.total = strtls::to_arith_or<size_t>(str_vector[1]);
 				if( range.total == 0 or range.total > file_size )
-					return status::range_not_satisfiable;
+					return protocol::status::range_not_satisfiable;
 
 				range.begin = file_size - range.total;
 				range.end   = file_size - 1;
@@ -651,13 +651,13 @@ private:
 			else if( str_vector[1].empty() )
 			{
 				if( str_vector[0].empty() )
-					return status::range_not_satisfiable;
+					return protocol::status::range_not_satisfiable;
 
 				range.begin = strtls::to_arith_or<size_t>(str_vector[0]);
 				range.end   = file_size - 1;
 
 				if( range.begin > range.end )
-					return status::range_not_satisfiable;
+					return protocol::status::range_not_satisfiable;
 				range.total = file_size - range.begin;
 			}
 			else
@@ -666,15 +666,15 @@ private:
 				range.end   = strtls::to_arith_or<size_t>(str_vector[1]);
 
 				if( range.begin > range.end or range.end >= file_size )
-					return status::range_not_satisfiable;
+					return protocol::status::range_not_satisfiable;
 				range.total = range.end - range.begin + 1;
 			}
 			range.cr_line = std::format("{}: bytes {}-{}/{}",
-				header::content_range, range.begin, range.end, file_size
+				protocol::header::content_range, range.begin, range.end, file_size
 			);
 			ranges.emplace_back(std::move(range));
 		}
-		return status::ok;
+		return protocol::status::ok;
 	}
 
 	[[nodiscard]] std::vector<range_value> from_file_range
@@ -695,7 +695,7 @@ private:
 			value.end   = end;
 
 			value.cr_line = std::format("{}: bytes {}-{}/{}",
-				header::content_range, value.begin, value.end, file_size
+				protocol::header::content_range, value.begin, value.end, file_size
 			);
 			vector.emplace_back(std::move(value));
 		}
@@ -842,14 +842,16 @@ basic_server_response<Stream>::basic_server_response
 template <concepts::stream Stream>
 template <typename Stream0>
 basic_server_response<Stream> &basic_server_response<Stream>::operator=
-(basic_server_response<Stream0> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
+(basic_server_response<Stream0> &&other) noexcept requires
+	core_concepts::assignable<Stream,Stream0&&>
 {
 	*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::set_status(status_enum status)
+basic_server_response<Stream>&
+basic_server_response<Stream>::set_status(protocol::status_enum status)
 {
 	m_impl->set_status(status);
 	return *this;
@@ -862,7 +864,7 @@ std::string_view basic_server_response<Stream>::version() const noexcept
 }
 
 template <concepts::stream Stream>
-status_enum basic_server_response<Stream>::status() const noexcept
+protocol::status_enum basic_server_response<Stream>::status() const noexcept
 {
 	return m_impl->m_helper.status();
 }
@@ -1023,7 +1025,7 @@ auto basic_server_response<Stream>::write(Token &&token)
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_server_response<Stream>::redirect
-(core_concepts::text_p<char> auto &&url, redirect_enum redi, Token &&token)
+(core_concepts::text_p<char> auto &&url, protocol::redirect_enum redi, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
@@ -1093,7 +1095,9 @@ auto basic_server_response<Stream>::redirect
 (core_concepts::text_p<char> auto &&url, Token &&token)
 {
 	return redirect (
-		std::forward<decltype(url)>(url), redirect_enum::moved_permanently, std::forward<Token>(token)
+		std::forward<decltype(url)>(url),
+		protocol::redirect_enum::moved_permanently,
+		std::forward<Token>(token)
 	);
 }
 
@@ -1225,7 +1229,7 @@ auto basic_server_response<Stream>::chunk_end(Token &&token)
 template <concepts::stream Stream>
 bool basic_server_response<Stream>::is_finished() const noexcept
 {
-	return m_impl->pro_state() == helper_state::finish;
+	return m_impl->pro_state() == protocol::generator_state::finish;
 }
 
 template <concepts::stream Stream>

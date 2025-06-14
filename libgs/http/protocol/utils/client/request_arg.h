@@ -26,75 +26,78 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H
 
-namespace libgs::http
+#include <libgs/http/protocol/utils/client/url.h>
+
+namespace libgs::http::protocol
 {
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
+class LIBGS_HTTP_API request_arg
 {
+public:
+	using url_t = protocol::url;
+	using value_t = libgs::value;
 
-}
+	using header_t = protocol::header;
+	using headers_t = protocol::headers;
+	using cookies_t = protocol::cookie_values;
 
-session::~session()
-{
-	delete m_impl;
-}
+public:
+	request_arg(url_t url);
+	request_arg();
+	~request_arg();
 
-std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
+	request_arg(const request_arg &other) noexcept;
+	request_arg &operator=(const request_arg &other) noexcept;
 
-session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
+	request_arg(request_arg &&other) noexcept;
+	request_arg &operator=(request_arg &&other) noexcept;
 
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
+public:
+	request_arg &set_url(url_t url);
+	[[nodiscard]] const url_t &url() const noexcept;
+	[[nodiscard]] url_t &url() noexcept;
 
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
+public:
+	request_arg &set_header (
+		core_concepts::text_p<char> auto &&key, value_t value
+	) noexcept;
 
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
+	request_arg &unset_header (
+		const core_concepts::text_p<char> auto &key
+	) noexcept;
 
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] headers_t &headers() noexcept;
 
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
+public:
+	request_arg &set_cookie (
+		core_concepts::text_p<char> auto &&key, value_t value
+	) noexcept;
 
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
+	request_arg &unset_cookie (
+		const core_concepts::text_p<char> auto &key
+	) noexcept;
 
-session &session::unbind_timeout()
-{
-	m_impl->m_timeout_handle = nullptr;
-	return *this;
-}
+	[[nodiscard]] const headers_t &cookies() const noexcept;
+	[[nodiscard]] headers_t &cookies() noexcept;
 
-session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
-	return *this;
-}
+public:
+	request_arg &set_chunk_attribute(value_t attr) noexcept;
+	request_arg &unset_chunk_attribute(const value_t &attr) noexcept;
+
+	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
+	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
+};
 
 } //namespace libgs::http
+#include <libgs/http/protocol/utils/client/detail/request_arg.h>
+
+
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H

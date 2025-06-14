@@ -69,7 +69,7 @@ public:
 
 	~impl()
 	{
-		if( m_parser->version() == version::v10 )
+		if( m_parser->version() == protocol::version::v10 )
 			socket_operation_helper<next_layer_t>(m_next_layer).close();
 	}
 
@@ -392,13 +392,13 @@ basic_server_request<Stream> &basic_server_request<Stream>::operator=
 }
 
 template <concepts::stream Stream>
-method_enum basic_server_request<Stream>::method() const noexcept
+protocol::method_enum basic_server_request<Stream>::method() const noexcept
 {
 	return m_impl->m_parser->method();
 }
 
 template <concepts::stream Stream>
-version_enum basic_server_request<Stream>::version() const noexcept
+protocol::version_enum basic_server_request<Stream>::version() const noexcept
 {
 	return m_impl->m_parser->version();
 }
@@ -490,7 +490,7 @@ decltype(auto) basic_server_request<Stream>::cookie_or
 }
 
 template <concepts::stream Stream>
-const cookie_values &basic_server_request<Stream>::cookies() const noexcept
+const protocol::cookie_values &basic_server_request<Stream>::cookies() const noexcept
 {
 	return m_impl->m_parser->cookies();
 }
@@ -791,9 +791,9 @@ bool basic_server_request<Stream>::support_gzip() const noexcept
 template <concepts::stream Stream>
 bool basic_server_request<Stream>::is_chunked() const noexcept
 {
-	if( version() < version_enum::v11 )
+	if( version() < protocol::version::v11 )
 		return false;
-	auto it = m_impl->m_headers.find(header::transfer_encoding);
+	auto it = m_impl->m_headers.find(protocol::header::transfer_encoding);
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == "chunked";
 }
 

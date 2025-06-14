@@ -26,75 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_H
 
-namespace libgs::http
-{
+#include <libgs/http/protocol/utils/generator.h>
+#include <libgs/http/protocol/utils/parser.h>
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
-{
-
-}
-
-session::~session()
-{
-	delete m_impl;
-}
-
-std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
-
-session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
-
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
-
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
-
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
-
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
-
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
-
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
-
-session &session::unbind_timeout()
-{
-	m_impl->m_timeout_handle = nullptr;
-	return *this;
-}
-
-session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
-	return *this;
-}
-
-} //namespace libgs::http
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_H

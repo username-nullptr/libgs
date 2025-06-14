@@ -29,8 +29,8 @@
 #ifndef LIBGS_HTTP_SERVER_RESPONSE_H
 #define LIBGS_HTTP_SERVER_RESPONSE_H
 
+#include <libgs/http/protocol/utils/server/generator.h>
 #include <libgs/http/server/request.h>
-#include <libgs/http/server/response_helper.h>
 
 namespace libgs::http
 {
@@ -44,12 +44,12 @@ public:
 	using next_layer_t = basic_server_request<Stream>;
 	using executor_t = typename next_layer_t::executor_t;
 
-	using helper_t = response_helper;
+	using helper_t = protocol::server_generator;
 	using value_t = typename next_layer_t::value_t;
 	using headers_t = typename next_layer_t::headers_t;
 
-	using cookie_t = http::cookie;
-	using cookies_t = http::cookies;
+	using cookie_t = protocol::cookie;
+	using cookies_t = protocol::cookies;
 
 
 public:
@@ -69,8 +69,8 @@ public:
 
 public:
 	[[nodiscard]] std::string_view version() const noexcept;
-	basic_server_response &set_status(status_enum status);
-	[[nodiscard]] status_enum status() const noexcept;
+	basic_server_response &set_status(protocol::status_enum status);
+	[[nodiscard]] protocol::status_enum status() const noexcept;
 
 public:
 	basic_server_response &set_header (
@@ -111,10 +111,14 @@ public:
 	auto write(Token &&token = {});
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(core_concepts::text_p<char> auto &&url, redirect_enum redi, Token &&token = {});
+	auto redirect(core_concepts::text_p<char> auto &&url,
+		protocol::redirect_enum redi, Token &&token = {}
+	);
 
 	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(core_concepts::text_p<char> auto &&url, Token &&token = {});
+	auto redirect(core_concepts::text_p<char> auto &&url,
+		Token &&token = {}
+	);
 
 public:
 	template <typename T>

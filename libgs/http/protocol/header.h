@@ -26,75 +26,43 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#ifndef LIBGS_HTTP_PROTOCOL_HEADER_H
+#define LIBGS_HTTP_PROTOCOL_HEADER_H
 
-namespace libgs::http
+#include <libgs/http/global.h>
+
+namespace libgs::http::protocol
 {
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
+struct header
 {
+static constexpr const char
+	* accept_language   = "Accept-Language"  ,
+	* accept_encoding   = "Accept-Encoding"  ,
+	* accept_ranges     = "Accept-Ranges"    ,
+	* accept            = "Accept"           ,
+	* age               = "Age"              ,
+	* content_encoding  = "Content-Encoding" ,
+	* content_length    = "Content-Length"   ,
+	* cache_control     = "Cache-Control"    ,
+	* content_range     = "Content-Range"    ,
+	* content_type      = "Content-Type"     ,
+	* connection        = "Connection"       ,
+	* expires           = "Expires"          ,
+	* host              = "Host"             ,
+	* last_modified     = "Last-Modified"    ,
+	* location          = "Location"         ,
+	* origin            = "Origin"           ,
+	* referer           = "Referer"          ,
+	* range             = "Range"            ,
+	* transfer_encoding = "Transfer-Encoding",
+	* user_agent        = "User-Agent"       ,
+	* upgrade           = "Upgrade"          ;
+};
 
-}
+using headers = map<value>;
 
-session::~session()
-{
-	delete m_impl;
-}
+} //namespace libgs::http::protocol
 
-std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
 
-session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
-
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
-
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
-
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
-
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
-
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
-
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
-
-session &session::unbind_timeout()
-{
-	m_impl->m_timeout_handle = nullptr;
-	return *this;
-}
-
-session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
-	return *this;
-}
-
-} //namespace libgs::http
+#endif //LIBGS_HTTP_PROTOCOL_HEADER_H
