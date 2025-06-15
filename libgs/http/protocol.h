@@ -26,23 +26,9 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
-#define LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
+#ifndef LIBGS_HTTP_PROTOCOL_H
+#define LIBGS_HTTP_PROTOCOL_H
 
-namespace libgs::http
-{
+#include <libgs/http/protocol/utils.h>
 
-template <concepts::socket_session Session>
-class LIBGS_HTTP_TAPI basic_reply<Session>::impl
-{
-	LIBGS_DISABLE_COPY(impl)
-
-public:
-
-};
-
-
-} //namespace libgs::http
-
-
-#endif //LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
+#endif //LIBGS_HTTP_PROTOCOL_H

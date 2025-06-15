@@ -36,9 +36,9 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream>
-class LIBGS_HTTP_VAPI basic_server_response
+class LIBGS_HTTP_VAPI basic_response
 {
-	LIBGS_DISABLE_COPY(basic_server_response)
+	LIBGS_DISABLE_COPY(basic_response)
 
 public:
 	using next_layer_t = basic_server_request<Stream>;
@@ -53,31 +53,31 @@ public:
 
 
 public:
-	explicit basic_server_response(next_layer_t &&next_layer);
-	~basic_server_response();
+	explicit basic_response(next_layer_t &&next_layer);
+	~basic_response();
 
-	basic_server_response(basic_server_response &&other) noexcept;
-	basic_server_response &operator=(basic_server_response &&other) noexcept;
+	basic_response(basic_response &&other) noexcept;
+	basic_response &operator=(basic_response &&other) noexcept;
 
 	template <typename Stream0>
-	basic_server_response(basic_server_response<Stream0> &&other) noexcept
+	basic_response(basic_response<Stream0> &&other) noexcept
 		requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0>&&>;
 
 	template <typename Stream0>
-	basic_server_response &operator=(basic_server_response<Stream0> &&other) noexcept
+	basic_response &operator=(basic_response<Stream0> &&other) noexcept
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
 	[[nodiscard]] std::string_view version() const noexcept;
-	basic_server_response &set_status(protocol::status_enum status);
+	basic_response &set_status(protocol::status_enum status);
 	[[nodiscard]] protocol::status_enum status() const noexcept;
 
 public:
-	basic_server_response &set_header (
+	basic_response &set_header (
 		core_concepts::text_p<char> auto &&key, value_t value
 	) noexcept;
 
-	basic_server_response &unset_header (
+	basic_response &unset_header (
 		const core_concepts::text_p<char> auto &key
 	) noexcept;
 
@@ -85,11 +85,11 @@ public:
 	[[nodiscard]] headers_t &headers() noexcept;
 
 public:
-	basic_server_response &set_cookie (
+	basic_response &set_cookie (
 		core_concepts::text_p<char> auto &&key, cookie_t cookie
 	) noexcept;
 
-	 basic_server_response &unset_cookie (
+	 basic_response &unset_cookie (
 		const core_concepts::text_p<char> auto &key
 	) noexcept;
 
@@ -97,8 +97,8 @@ public:
 	[[nodiscard]] cookies_t &cookies() noexcept;
 
 public:
-	basic_server_response &set_chunk_attribute(value_t attr) noexcept;
-	basic_server_response &unset_chunk_attribute(const value_t &attr) noexcept;
+	basic_response &set_chunk_attribute(value_t attr) noexcept;
+	basic_response &unset_chunk_attribute(const value_t &attr) noexcept;
 
 	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
 	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
@@ -138,7 +138,7 @@ public:
 public:
 	[[nodiscard]] bool is_finished() const noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
-	basic_server_response &cancel() noexcept;
+	basic_response &cancel() noexcept;
 
 public:
 	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
@@ -151,7 +151,7 @@ private:
 
 template <core_concepts::exec Exec>
 using basic_tcp_server_response =
-	basic_server_response<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+	basic_response<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
 using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
 using server_response = tcp_server_response;

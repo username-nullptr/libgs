@@ -35,10 +35,21 @@
 namespace libgs::http
 {
 
+template <protocol::model, concepts::stream Stream>
+class basic_request;
+
+template <protocol::model Model, core_concepts::exec Exec>
+using basic_tcp_request = basic_request<Model,
+	asio::basic_stream_socket<asio::ip::tcp,Exec>
+>;
+
 template <concepts::stream Stream>
-class LIBGS_HTTP_TAPI basic_server_request
+using basic_server_request = basic_request<protocol::model::server,Stream>;
+
+template <concepts::stream Stream>
+class LIBGS_HTTP_TAPI basic_request<protocol::model::server,Stream>
 {
-	LIBGS_DISABLE_COPY(basic_server_request)
+	LIBGS_DISABLE_COPY(basic_request)
 
 public:
 	using next_layer_t = Stream;
@@ -54,19 +65,19 @@ public:
 
 public:
 	template <typename NextLayer>
-	basic_server_request(NextLayer &&next_layer, parser_t &parser)
+	basic_request(NextLayer &&next_layer, parser_t &parser)
 		requires core_concepts::constructible<next_layer_t,NextLayer&&>;
-	~basic_server_request();
+	~basic_request();
 
-	basic_server_request(basic_server_request &&other) noexcept;
-	basic_server_request &operator=(basic_server_request &&other) noexcept;
+	basic_request(basic_request &&other) noexcept;
+	basic_request &operator=(basic_request &&other) noexcept;
 
 	template <typename Stream0>
-	basic_server_request(basic_server_request<Stream0> &&other) noexcept
+	basic_request(basic_server_request<Stream0> &&other) noexcept
 		requires core_concepts::constructible<Stream,Stream0&&>;
 
 	template <typename Stream0>
-	basic_server_request &operator=(basic_server_request<Stream0> &&other) noexcept
+	basic_request &operator=(basic_server_request<Stream0> &&other) noexcept
 		requires core_concepts::assignable<Stream,Stream0&&>;
 
 public:
@@ -161,7 +172,7 @@ public:
 	[[nodiscard]] endpoint_t local_endpoint() const;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
-	basic_server_request &cancel() noexcept;
+	basic_request &cancel() noexcept;
 
 public:
 	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
@@ -173,8 +184,9 @@ private:
 };
 
 template <core_concepts::exec Exec>
-using basic_tcp_server_request =
-	basic_server_request<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+using basic_tcp_server_request = basic_server_request<
+	asio::basic_stream_socket<asio::ip::tcp,Exec>
+>;
 
 using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
 using server_request = tcp_server_request;

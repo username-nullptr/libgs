@@ -57,7 +57,7 @@ public:
 	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
 
 	using request_t = basic_server_request<socket_t>;
-	using response_t = basic_server_response<socket_t>;
+	using response_t = basic_response<socket_t>;
 
 	using aop_t = basic_aop<socket_t>;
 	using ctrlr_aop_t = basic_ctrlr_aop<socket_t>;

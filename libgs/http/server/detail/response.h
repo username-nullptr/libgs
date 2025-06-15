@@ -36,11 +36,11 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream>
-class basic_server_response<Stream>::impl
+class basic_response<Stream>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
-	using response_t = basic_server_response;
+	using response_t = basic_response;
 	using sock_helper_t = socket_operation_helper<typename next_layer_t::next_layer_t>;
 
 public:
@@ -49,7 +49,7 @@ public:
 		m_next_layer(std::move(next_layer)) {}
 
 	template <typename Stream0>
-	impl &operator=(typename basic_server_response<Stream0>::impl &&other) noexcept
+	impl &operator=(typename basic_response<Stream0>::impl &&other) noexcept
 	{
 		m_helper = std::move(other.m_helper);
 		m_next_layer = std::move(other.m_next_layer);
@@ -801,28 +801,28 @@ public:
 };
 
 template <concepts::stream Stream>
-basic_server_response<Stream>::basic_server_response(next_layer_t &&next_layer) :
+basic_response<Stream>::basic_response(next_layer_t &&next_layer) :
 	m_impl(new impl(std::move(next_layer)))
 {
 
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream>::~basic_server_response()
+basic_response<Stream>::~basic_response()
 {
 	delete m_impl;
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream>::basic_server_response(basic_server_response &&other) noexcept :
+basic_response<Stream>::basic_response(basic_response &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::operator=
-(basic_server_response &&other) noexcept
+basic_response<Stream> &basic_response<Stream>::operator=
+(basic_response &&other) noexcept
 {
 	if( this != &other )
 		*m_impl = std::move(*other.m_impl);
@@ -831,8 +831,8 @@ basic_server_response<Stream> &basic_server_response<Stream>::operator=
 
 template <concepts::stream Stream>
 template <typename Stream0>
-basic_server_response<Stream>::basic_server_response
-(basic_server_response<Stream0> &&other) noexcept
+basic_response<Stream>::basic_response
+(basic_response<Stream0> &&other) noexcept
 	requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0>&&> :
 	m_impl(new impl(this, std::move(*other.m_impl)))
 {
@@ -841,8 +841,8 @@ basic_server_response<Stream>::basic_server_response
 
 template <concepts::stream Stream>
 template <typename Stream0>
-basic_server_response<Stream> &basic_server_response<Stream>::operator=
-(basic_server_response<Stream0> &&other) noexcept requires
+basic_response<Stream> &basic_response<Stream>::operator=
+(basic_response<Stream0> &&other) noexcept requires
 	core_concepts::assignable<Stream,Stream0&&>
 {
 	*m_impl = std::move(*other.m_impl);
@@ -850,27 +850,27 @@ basic_server_response<Stream> &basic_server_response<Stream>::operator=
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream>&
-basic_server_response<Stream>::set_status(protocol::status_enum status)
+basic_response<Stream>&
+basic_response<Stream>::set_status(protocol::status_enum status)
 {
 	m_impl->set_status(status);
 	return *this;
 }
 
 template <concepts::stream Stream>
-std::string_view basic_server_response<Stream>::version() const noexcept
+std::string_view basic_response<Stream>::version() const noexcept
 {
 	return m_impl->m_helper.version();
 }
 
 template <concepts::stream Stream>
-protocol::status_enum basic_server_response<Stream>::status() const noexcept
+protocol::status_enum basic_response<Stream>::status() const noexcept
 {
 	return m_impl->m_helper.status();
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::set_header
+basic_response<Stream> &basic_response<Stream>::set_header
 (core_concepts::text_p<char> auto &&key, value_t value) noexcept
 {
 	m_impl->m_helper.set_header(std::forward<decltype(key)>(key), std::move(value));
@@ -878,7 +878,7 @@ basic_server_response<Stream> &basic_server_response<Stream>::set_header
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::unset_header
+basic_response<Stream> &basic_response<Stream>::unset_header
 (const core_concepts::text_p<char> auto &key) noexcept
 {
 	m_impl->m_helper.unset_header(key);
@@ -886,21 +886,21 @@ basic_server_response<Stream> &basic_server_response<Stream>::unset_header
 }
 
 template <concepts::stream Stream>
-const typename basic_server_response<Stream>::headers_t&
-	basic_server_response<Stream>::headers() const noexcept
+const typename basic_response<Stream>::headers_t&
+	basic_response<Stream>::headers() const noexcept
 {
 	return m_impl->m_helper.headers();
 }
 
 template <concepts::stream Stream>
-typename basic_server_response<Stream>::headers_t&
-basic_server_response<Stream>::headers() noexcept
+typename basic_response<Stream>::headers_t&
+basic_response<Stream>::headers() noexcept
 {
 	return m_impl->m_helper.headers();
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::set_cookie
+basic_response<Stream> &basic_response<Stream>::set_cookie
 (core_concepts::text_p<char> auto &&key, cookie_t cookie) noexcept
 {
 	m_impl->m_helper.set_cookie(std::forward<decltype(key)>(key), std::move(cookie));
@@ -908,7 +908,7 @@ basic_server_response<Stream> &basic_server_response<Stream>::set_cookie
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::unset_cookie
+basic_response<Stream> &basic_response<Stream>::unset_cookie
 (const core_concepts::text_p<char> auto &key) noexcept
 {
 	m_impl->m_helper.unset_cookie(key);
@@ -916,52 +916,52 @@ basic_server_response<Stream> &basic_server_response<Stream>::unset_cookie
 }
 
 template <concepts::stream Stream>
-const typename basic_server_response<Stream>::cookies_t&
-basic_server_response<Stream>::cookies() const noexcept
+const typename basic_response<Stream>::cookies_t&
+basic_response<Stream>::cookies() const noexcept
 {
 	return m_impl->m_helper.cookies();
 }
 
 template <concepts::stream Stream>
-typename basic_server_response<Stream>::cookies_t&
-basic_server_response<Stream>::cookies() noexcept
+typename basic_response<Stream>::cookies_t&
+basic_response<Stream>::cookies() noexcept
 {
 	return m_impl->m_helper.cookies();
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream>&
-basic_server_response<Stream>::set_chunk_attribute(value_t attr) noexcept
+basic_response<Stream>&
+basic_response<Stream>::set_chunk_attribute(value_t attr) noexcept
 {
 	m_impl->m_helper.set_chunk_attribute(std::move(attr));
 	return *this;
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream>&
-basic_server_response<Stream>::unset_chunk_attribute(const value_t &attr) noexcept
+basic_response<Stream>&
+basic_response<Stream>::unset_chunk_attribute(const value_t &attr) noexcept
 {
 	m_impl->m_helper.unset_chunk_attribute(attr);
 	return *this;
 }
 
 template <concepts::stream Stream>
-const std::set<typename basic_server_response<Stream>::value_t>&
-basic_server_response<Stream>::chunk_attributes() const noexcept
+const std::set<typename basic_response<Stream>::value_t>&
+basic_response<Stream>::chunk_attributes() const noexcept
 {
 	return m_impl->m_helper.chunk_attributes();
 }
 
 template <concepts::stream Stream>
-std::set<typename basic_server_response<Stream>::value_t>&
-basic_server_response<Stream>::chunk_attributes() noexcept
+std::set<typename basic_response<Stream>::value_t>&
+basic_response<Stream>::chunk_attributes() noexcept
 {
 	return m_impl->m_helper.chunk_attributes();
 }
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::write(const const_buffer &body, Token &&token)
+auto basic_response<Stream>::write(const const_buffer &body, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
@@ -1017,14 +1017,14 @@ auto basic_server_response<Stream>::write(const const_buffer &body, Token &&toke
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::write(Token &&token)
+auto basic_response<Stream>::write(Token &&token)
 {
 	return write({nullptr,0}, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::redirect
+auto basic_response<Stream>::redirect
 (core_concepts::text_p<char> auto &&url, protocol::redirect_enum redi, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -1091,7 +1091,7 @@ auto basic_server_response<Stream>::redirect
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::redirect
+auto basic_response<Stream>::redirect
 (core_concepts::text_p<char> auto &&url, Token &&token)
 {
 	return redirect (
@@ -1103,7 +1103,7 @@ auto basic_server_response<Stream>::redirect
 
 template <concepts::stream Stream>
 template <typename T, core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::send_file(T &&opt, Token &&token)
+auto basic_response<Stream>::send_file(T &&opt, Token &&token)
 	requires file_opt_token<T>
 {
 	using opt_t = decltype(opt);
@@ -1165,7 +1165,7 @@ auto basic_server_response<Stream>::send_file(T &&opt, Token &&token)
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::chunk_end(const headers_t &headers, Token &&token)
+auto basic_response<Stream>::chunk_end(const headers_t &headers, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code&> )
@@ -1221,41 +1221,41 @@ auto basic_server_response<Stream>::chunk_end(const headers_t &headers, Token &&
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_response<Stream>::chunk_end(Token &&token)
+auto basic_response<Stream>::chunk_end(Token &&token)
 {
 	return chunk_end({}, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream>
-bool basic_server_response<Stream>::is_finished() const noexcept
+bool basic_response<Stream>::is_finished() const noexcept
 {
 	return m_impl->pro_state() == protocol::generator_state::finish;
 }
 
 template <concepts::stream Stream>
-typename basic_server_response<Stream>::executor_t
-basic_server_response<Stream>::get_executor() noexcept
+typename basic_response<Stream>::executor_t
+basic_response<Stream>::get_executor() noexcept
 {
 	return m_impl->m_next_layer.get_executor();
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_server_response<Stream>::cancel() noexcept
+basic_response<Stream> &basic_response<Stream>::cancel() noexcept
 {
 	m_impl->m_next_layer->m_impl->m_socket->cancel();
 	return *this;
 }
 
 template <concepts::stream Stream>
-const typename basic_server_response<Stream>::next_layer_t&
-basic_server_response<Stream>::next_layer() const noexcept
+const typename basic_response<Stream>::next_layer_t&
+basic_response<Stream>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
 template <concepts::stream Stream>
-typename basic_server_response<Stream>::next_layer_t&
-basic_server_response<Stream>::next_layer() noexcept
+typename basic_response<Stream>::next_layer_t&
+basic_response<Stream>::next_layer() noexcept
 {
 	return m_impl->m_next_layer;
 }

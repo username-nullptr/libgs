@@ -129,13 +129,13 @@ basic_server_request<Stream> &basic_service_context<Stream>::request() noexcept
 }
 
 template <concepts::stream Stream>
-const basic_server_response<Stream> &basic_service_context<Stream>::response() const noexcept
+const basic_response<Stream> &basic_service_context<Stream>::response() const noexcept
 {
 	return m_impl->m_response;
 }
 
 template <concepts::stream Stream>
-basic_server_response<Stream> &basic_service_context<Stream>::response() noexcept
+basic_response<Stream> &basic_service_context<Stream>::response() noexcept
 {
 	return m_impl->m_response;
 }
