@@ -59,6 +59,16 @@ public:
     system_error(int v, const std::error_category& ecat, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 };
 
+class LIBGS_CORE_VAPI invalid_argument : public std::invalid_argument
+{
+public:
+	using std::invalid_argument::invalid_argument;
+	~invalid_argument() noexcept override = default;
+
+	template <typename Arg0, typename...Args>
+	invalid_argument(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+};
+
 } //namespace libgs
 #include <libgs/core/cxx/detail/exception.h>
 

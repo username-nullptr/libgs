@@ -68,7 +68,7 @@ private:
 			if( self.use_count() == 1 )
 				break;
 
-			if( error and error.value() != errc::operation_aborted )
+			if( error and error != errc::operation_aborted )
 			{
 				if( self->m_impl->m_error_handle )
 					self->m_impl->m_error_handle(error);

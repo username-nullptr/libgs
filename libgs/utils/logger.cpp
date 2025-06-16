@@ -162,7 +162,7 @@ logger &logger::set_config(config_t conf)
     	spd_level::info, spd_level::warn, "Default logger is null"
     );
 	if( conf.path.empty() )
-		conf.path = PCHAR("/");
+		return *this;
 
 	auto path = app::absolute_path(conf.path).ptostr() + PCHAR("/");
 	std::string suffix(name());

@@ -112,7 +112,7 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 				sum += co_await socket.async_read_some (
 					asio_buf, use_awaitable | error
 				);
-				if( error and error.value() == errc::interrupted )
+				if( error and error == errc::interrupted )
 					continue;
 				break;
 			}
@@ -200,7 +200,7 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 				sum += co_await asio::async_write (
 					socket, asio_buf, use_awaitable | error
 				);
-				if( error and error.value() == errc::interrupted )
+				if( error and error == errc::interrupted )
 					continue;
 				break;
 			}

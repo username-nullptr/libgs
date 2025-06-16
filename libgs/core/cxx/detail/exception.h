@@ -55,6 +55,13 @@ system_error::system_error(int v, const std::error_category &ecat, std::format_s
 
 }
 
+template <typename Arg0, typename...Args>
+invalid_argument::invalid_argument(std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
+	std::invalid_argument(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
 } //namespace libgs
 
 namespace std

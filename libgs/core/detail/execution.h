@@ -271,7 +271,7 @@ std::function<void()> post(concepts::sched auto &&exec, const duration<Rep,Perio
 	](const error_code &error) mutable
 	{
 		LIBGS_UNUSED(timer);
-		if( error.value() != errc::operation_aborted )
+		if( error != errc::operation_aborted )
 			dispatch(std::move(exec), std::move(work));
 	});
 	return cancel;
