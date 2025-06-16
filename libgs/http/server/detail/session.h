@@ -54,7 +54,7 @@ public:
 	}
 
 private:
-	awaitable<void> work()
+	[[nodiscard]] awaitable<void> work()
 	{
 		auto self = q_ptr->shared_from_this();
 		error_code error;
@@ -106,32 +106,6 @@ session::session(const duration<Rep,Period> &seconds, const executor_t &exec) :
 	m_impl->start();
 }
 
-inline session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
-{
-
-}
-
-inline session::~session()
-{
-	delete m_impl;
-}
-
-inline std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
-
-inline session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
-
-inline bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
-
 std::any session::attribute(const core_concepts::text_p<char> auto &key) const
 {
 	auto it = m_impl->m_attributes.find(strtls::to_string(key));
@@ -162,27 +136,6 @@ session &session::unset_attribute(const core_concepts::text_p<char> auto &key) n
 	return *this;
 }
 
-inline const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
-
-inline session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
-
-inline std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
-
-inline void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
-
 template <typename Rep, typename Period>
 session &session::set_lifecycle(const duration<Rep,Period> &seconds)
 {
@@ -203,13 +156,6 @@ session &session::expand(const duration<Rep,Period> &seconds)
 	return expand();
 }
 
-inline session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
-
 template <core_concepts::callable Func>
 session &session::on_timeout(Func &&func)
 {
@@ -221,18 +167,6 @@ template <core_concepts::callable<error_code> Func>
 session &session::on_error(Func &&func)
 {
 	m_impl->m_error_handle = std::forward<Func>(func);
-	return *this;
-}
-
-inline session &session::unbind_timeout()
-{
-	m_impl->m_timeout_handle = nullptr;
-	return *this;
-}
-
-inline session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
 	return *this;
 }
 

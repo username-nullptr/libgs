@@ -26,75 +26,43 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_REQUEST_ARG_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_REQUEST_ARG_H
 
-namespace libgs::http
+namespace libgs::http::protocol
 {
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
+request_arg &request_arg::set_header
+(core_concepts::text_p<char> auto &&key, value_t value) noexcept
 {
-
-}
-
-session::~session()
-{
-	delete m_impl;
-}
-
-std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
-
-session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
-
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
-
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
-
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
-
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
-
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
-
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
+	headers()[strtls::to_string(std::forward<decltype(key)>(key))]
+		= std::forward<value_t>(value);
 	return *this;
 }
 
-session &session::unbind_timeout()
+request_arg &request_arg::unset_header
+(const core_concepts::text_p<char> auto &key) noexcept
 {
-	m_impl->m_timeout_handle = nullptr;
+	headers().erase(strtls::to_string(key));
 	return *this;
 }
 
-session &session::unbind_error()
+request_arg &request_arg::set_cookie
+(core_concepts::text_p<char> auto &&key, value_t value) noexcept
 {
-	m_impl->m_error_handle = nullptr;
+	cookies()[strtls::to_string(std::forward<decltype(key)>(key))]
+		= std::forward<value_t>(value);
 	return *this;
 }
 
-} //namespace libgs::http
+request_arg &request_arg::unset_cookie
+(const core_concepts::text_p<char> auto &key) noexcept
+{
+	cookies().erase(strtls::to_string(key));
+	return *this;
+}
+
+} //namespace libgs::http::protocol
+
+
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_REQUEST_ARG_H

@@ -35,7 +35,7 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream>
-class LIBGS_HTTP_TAPI basic_server_request<Stream>::impl
+class LIBGS_HTTP_TAPI basic_request<protocol::model::server,Stream>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 	using sock_helper_t = socket_operation_helper<next_layer_t>;
@@ -69,7 +69,7 @@ public:
 
 	~impl()
 	{
-		if( m_parser->version() == version::v10 )
+		if( m_parser->version() == protocol::version::v10 )
 			socket_operation_helper<next_layer_t>(m_next_layer).close();
 	}
 
@@ -345,7 +345,7 @@ public:
 
 template <concepts::stream Stream>
 template <typename NextLayer>
-basic_server_request<Stream>::basic_server_request(NextLayer &&next_layer, parser_t &parser)
+basic_request<protocol::model::server,Stream>::basic_request(NextLayer &&next_layer, parser_t &parser)
 	requires core_concepts::constructible<next_layer_t,NextLayer&&> :
 	m_impl(new impl(std::forward<NextLayer>(next_layer), parser))
 {
@@ -353,20 +353,21 @@ basic_server_request<Stream>::basic_server_request(NextLayer &&next_layer, parse
 }
 
 template <concepts::stream Stream>
-basic_server_request<Stream>::~basic_server_request()
+basic_request<protocol::model::server,Stream>::~basic_request()
 {
 	delete m_impl;
 }
 
 template <concepts::stream Stream>
-basic_server_request<Stream>::basic_server_request(basic_server_request &&other) noexcept :
+basic_request<protocol::model::server,Stream>::basic_request(basic_request &&other) noexcept :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
 
 }
 
 template <concepts::stream Stream>
-basic_server_request<Stream> &basic_server_request<Stream>::operator=(basic_server_request &&other) noexcept
+basic_request<protocol::model::server,Stream>&
+basic_request<protocol::model::server,Stream>::operator=(basic_request &&other) noexcept
 {
 	if( this != &other )
 		*m_impl = std::move(*other.m_impl);
@@ -375,7 +376,7 @@ basic_server_request<Stream> &basic_server_request<Stream>::operator=(basic_serv
 
 template <concepts::stream Stream>
 template <typename Stream0>
-basic_server_request<Stream>::basic_server_request(basic_server_request<Stream0> &&other) noexcept
+basic_request<protocol::model::server,Stream>::basic_request(basic_server_request<Stream0> &&other) noexcept
 	requires core_concepts::constructible<Stream,Stream0&&> :
 	m_impl(new impl(std::move(*other.m_impl)))
 {
@@ -384,7 +385,7 @@ basic_server_request<Stream>::basic_server_request(basic_server_request<Stream0>
 
 template <concepts::stream Stream>
 template <typename Stream0>
-basic_server_request<Stream> &basic_server_request<Stream>::operator=
+basic_request<protocol::model::server,Stream> &basic_request<protocol::model::server,Stream>::operator=
 (basic_server_request<Stream0> &&other) noexcept requires core_concepts::assignable<Stream,Stream0&&>
 {
 	*m_impl = std::move(*other.m_impl);
@@ -392,26 +393,26 @@ basic_server_request<Stream> &basic_server_request<Stream>::operator=
 }
 
 template <concepts::stream Stream>
-method_enum basic_server_request<Stream>::method() const noexcept
+protocol::method_enum basic_request<protocol::model::server,Stream>::method() const noexcept
 {
 	return m_impl->m_parser->method();
 }
 
 template <concepts::stream Stream>
-version_enum basic_server_request<Stream>::version() const noexcept
+protocol::version_enum basic_request<protocol::model::server,Stream>::version() const noexcept
 {
 	return m_impl->m_parser->version();
 }
 
 template <concepts::stream Stream>
-std::string_view basic_server_request<Stream>::path() const noexcept
+std::string_view basic_request<protocol::model::server,Stream>::path() const noexcept
 {
 	return m_impl->m_parser->path();
 }
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::parameter
+decltype(auto) basic_request<protocol::model::server,Stream>::parameter
 (const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
@@ -422,7 +423,7 @@ decltype(auto) basic_server_request<Stream>::parameter
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::parameter_or
+decltype(auto) basic_request<protocol::model::server,Stream>::parameter_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
@@ -432,15 +433,15 @@ decltype(auto) basic_server_request<Stream>::parameter_or
 }
 
 template <concepts::stream Stream>
-const typename basic_server_request<Stream>::parameters_t&
-basic_server_request<Stream>::parameters() const noexcept
+const typename basic_request<protocol::model::server,Stream>::parameters_t&
+basic_request<protocol::model::server,Stream>::parameters() const noexcept
 {
 	return m_impl->m_parser->parameters();
 }
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::header
+decltype(auto) basic_request<protocol::model::server,Stream>::header
 (const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
@@ -451,7 +452,7 @@ decltype(auto) basic_server_request<Stream>::header
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::header_or
+decltype(auto) basic_request<protocol::model::server,Stream>::header_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
@@ -461,15 +462,15 @@ decltype(auto) basic_server_request<Stream>::header_or
 }
 
 template <concepts::stream Stream>
-const typename basic_server_request<Stream>::headers_t&
-basic_server_request<Stream>::headers() const noexcept
+const typename basic_request<protocol::model::server,Stream>::headers_t&
+basic_request<protocol::model::server,Stream>::headers() const noexcept
 {
 	return m_impl->m_parser->headers();
 }
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::cookie
+decltype(auto) basic_request<protocol::model::server,Stream>::cookie
 (const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
@@ -480,7 +481,7 @@ decltype(auto) basic_server_request<Stream>::cookie
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::cookie_or
+decltype(auto) basic_request<protocol::model::server,Stream>::cookie_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
@@ -490,14 +491,15 @@ decltype(auto) basic_server_request<Stream>::cookie_or
 }
 
 template <concepts::stream Stream>
-const cookie_values &basic_server_request<Stream>::cookies() const noexcept
+const protocol::cookie_values&
+basic_request<protocol::model::server,Stream>::cookies() const noexcept
 {
 	return m_impl->m_parser->cookies();
 }
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::path_arg
+decltype(auto) basic_request<protocol::model::server,Stream>::path_arg
 (const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
@@ -508,7 +510,7 @@ decltype(auto) basic_server_request<Stream>::path_arg
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::path_arg(size_t index)
+decltype(auto) basic_request<protocol::model::server,Stream>::path_arg(size_t index)
 	const requires core_concepts::value_get<T,char>
 {
 	return m_impl->m_parser->path_arg(index);
@@ -516,7 +518,7 @@ decltype(auto) basic_server_request<Stream>::path_arg(size_t index)
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::path_arg_or
+decltype(auto) basic_request<protocol::model::server,Stream>::path_arg_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
@@ -527,7 +529,7 @@ decltype(auto) basic_server_request<Stream>::path_arg_or
 
 template <concepts::stream Stream>
 template <typename T>
-decltype(auto) basic_server_request<Stream>::path_arg_or(size_t index, T &&def_value)
+decltype(auto) basic_request<protocol::model::server,Stream>::path_arg_or(size_t index, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
 	return m_impl->m_parser->path_arg_or (
@@ -536,21 +538,21 @@ decltype(auto) basic_server_request<Stream>::path_arg_or(size_t index, T &&def_v
 }
 
 template <concepts::stream Stream>
-const typename basic_server_request<Stream>::path_args_t&
-basic_server_request<Stream>::path_args() const noexcept
+const typename basic_request<protocol::model::server,Stream>::path_args_t&
+basic_request<protocol::model::server,Stream>::path_args() const noexcept
 {
 	return m_impl->m_parser->path_args();
 }
 
 template <concepts::stream Stream>
-int32_t basic_server_request<Stream>::path_match(std::string_view rule)
+int32_t basic_request<protocol::model::server,Stream>::path_match(std::string_view rule)
 {
 	return m_impl->m_parser->path_match(rule);
 }
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_request<Stream>::read(const mutable_buffer &buf, Token &&token)
+auto basic_request<protocol::model::server,Stream>::read(const mutable_buffer &buf, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
@@ -613,7 +615,7 @@ auto basic_server_request<Stream>::read(const mutable_buffer &buf, Token &&token
 
 template <concepts::stream Stream>
 template <core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_request<Stream>::read(Token &&token)
+auto basic_request<protocol::model::server,Stream>::read(Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( std::is_same_v<token_t, error_code> )
@@ -710,7 +712,7 @@ auto basic_server_request<Stream>::read(Token &&token)
 
 template <concepts::stream Stream>
 template <typename T, core_concepts::dis_func_tf_opt_token Token>
-auto basic_server_request<Stream>::save_file(T &&opt, Token &&token)
+auto basic_request<protocol::model::server,Stream>::save_file(T &&opt, Token &&token)
 	requires file_opt_token<T>
 {
 	using opt_t = decltype(opt);
@@ -777,73 +779,77 @@ auto basic_server_request<Stream>::save_file(T &&opt, Token &&token)
 }
 
 template <concepts::stream Stream>
-bool basic_server_request<Stream>::keep_alive() const noexcept
+bool basic_request<protocol::model::server,Stream>::keep_alive() const noexcept
 {
 	return m_impl->m_parser->keep_alive();
 }
 
 template <concepts::stream Stream>
-bool basic_server_request<Stream>::support_gzip() const noexcept
+bool basic_request<protocol::model::server,Stream>::support_gzip() const noexcept
 {
 	return m_impl->m_parser->support_gzip();
 }
 
 template <concepts::stream Stream>
-bool basic_server_request<Stream>::is_chunked() const noexcept
+bool basic_request<protocol::model::server,Stream>::is_chunked() const noexcept
 {
-	if( version() < version_enum::v11 )
+	if( version() < protocol::version::v11 )
 		return false;
-	auto it = m_impl->m_headers.find(header::transfer_encoding);
+	auto it = m_impl->m_headers.find(protocol::header::transfer_encoding);
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == "chunked";
 }
 
 template <concepts::stream Stream>
-bool basic_server_request<Stream>::can_read_body() const noexcept
+bool basic_request<protocol::model::server,Stream>::can_read_body() const noexcept
 {
 	return not is_eof();
 }
 
 template <concepts::stream Stream>
-bool basic_server_request<Stream>::is_eof() const noexcept
+bool basic_request<protocol::model::server,Stream>::is_eof() const noexcept
 {
 	return m_impl->is_eof();
 }
 
 template <concepts::stream Stream>
-typename basic_server_request<Stream>::endpoint_t basic_server_request<Stream>::remote_endpoint() const
+typename basic_request<protocol::model::server,Stream>::endpoint_t
+basic_request<protocol::model::server,Stream>::remote_endpoint() const
 {
 	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).remote_endpoint();
 }
 
 template <concepts::stream Stream>
-typename basic_server_request<Stream>::endpoint_t basic_server_request<Stream>::local_endpoint() const
+typename basic_request<protocol::model::server,Stream>::endpoint_t
+basic_request<protocol::model::server,Stream>::local_endpoint() const
 {
 	return socket_operation_helper<next_layer_t>(m_impl->m_next_layer).local_endpoint();
 }
 
 template <concepts::stream Stream>
-typename basic_server_request<Stream>::executor_t basic_server_request<Stream>::get_executor() noexcept
+typename basic_request<protocol::model::server,Stream>::executor_t
+basic_request<protocol::model::server,Stream>::get_executor() noexcept
 {
 	return m_impl->get_executor();
 }
 
 template <concepts::stream Stream>
-basic_server_request<Stream> &basic_server_request<Stream>::cancel() noexcept
+basic_request<protocol::model::server,Stream>&
+basic_request<protocol::model::server,Stream>::cancel() noexcept
 {
 	m_impl->m_next_layer.cancel();
 	return *this;
 }
 
 template <concepts::stream Stream>
-const typename basic_server_request<Stream>::next_layer_t&
-basic_server_request<Stream>::next_layer() const noexcept
+const typename basic_request<protocol::model::server,Stream>::next_layer_t&
+basic_request<protocol::model::server,Stream>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
 template <concepts::stream Stream>
-typename basic_server_request<Stream>::next_layer_t&
-basic_server_request<Stream>::next_layer() noexcept
+typename basic_request<protocol::model::server,Stream>::next_layer_t&
+basic_request<protocol::model::server,Stream>::next_layer() noexcept
 {
 	return m_impl->m_next_layer;
 }

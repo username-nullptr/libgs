@@ -29,13 +29,13 @@
 #ifndef LIBGS_HTTP_SERVER_SESSION_H
 #define LIBGS_HTTP_SERVER_SESSION_H
 
-#include <libgs/http/types.h>
+#include <libgs/http/protocol/types.h>
 #include <libgs/core/execution.h>
 
 namespace libgs::http
 {
 
-class LIBGS_HTTP_VAPI session : public std::enable_shared_from_this<session>
+class LIBGS_HTTP_API session : public std::enable_shared_from_this<session>
 {
 	LIBGS_DISABLE_COPY_MOVE(session)
 

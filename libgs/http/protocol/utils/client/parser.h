@@ -26,75 +26,76 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_PARSER_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_PARSER_H
 
-namespace libgs::http
+#include <libgs/http/protocol/utils/core/parser.h>
+
+namespace libgs::http::protocol
 {
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
+template <>
+class LIBGS_HTTP_API parser<model::client>
 {
+	LIBGS_DISABLE_COPY(parser)
 
-}
+public:
+	using value_t = libgs::value;
 
-session::~session()
-{
-	delete m_impl;
-}
+	using cookie_t = protocol::cookie;
+	using cookies_t = protocol::cookies;
 
-std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
+	using header_t = protocol::header;
+	using headers_t = protocol::headers;
 
-session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
+public:
+	explicit parser(size_t init_buf_size = 0xFFFF);
+	~parser();
 
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
+	parser(parser &&other) noexcept;
+	parser &operator=(parser &&other) noexcept;
 
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
+public:
+	bool append(const const_buffer &buf, error_code &error);
+	bool append(const const_buffer &buf);
+	bool operator<<(const const_buffer &buf);
 
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
+public:
+	[[nodiscard]] std::string_view version() const noexcept;
+	[[nodiscard]] status_enum status() const noexcept;
 
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
+	[[nodiscard]] const value_t &header(std::string_view key) const;
+	[[nodiscard]] const cookie_t &cookie(std::string_view key) const;
 
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
+	[[nodiscard]] value_t header_or(std::string_view key, value_t def_value = {}) const noexcept;
+	[[nodiscard]] cookie_t cookie_or(std::string_view key, value_t def_value = {}) const noexcept;
 
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
+public:
+	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const cookies_t &cookies() const noexcept;
+	[[nodiscard]] const std::vector<value_t> &chunk_attributes() const noexcept;
 
-session &session::unbind_timeout()
-{
-	m_impl->m_timeout_handle = nullptr;
-	return *this;
-}
+public:
+	[[nodiscard]] bool keep_alive() const noexcept;
+	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool can_read_from_device() const noexcept;
 
-session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
-	return *this;
-}
+public:
+	[[nodiscard]] std::string take_partial_body(size_t size);
+	[[nodiscard]] std::string take_body();
+	[[nodiscard]] bool is_finished() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
+	parser &reset();
 
-} //namespace libgs::http
+private:
+	class impl;
+	impl *m_impl;
+};
+
+using client_parser = parser<model::client>;
+
+} //namespace libgs::http::protocol
+#include <libgs/http/protocol/utils/client/detail/parser.h>
+
+
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_PARSER_H

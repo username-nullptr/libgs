@@ -56,9 +56,8 @@ public:
 	using server_error_handler_t = std::function<bool(error_code)>;
 	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
 
-	using parser_t = request_parser;
 	using request_t = basic_server_request<socket_t>;
-	using response_t = basic_server_response<socket_t>;
+	using response_t = basic_response<socket_t>;
 
 	using aop_t = basic_aop<socket_t>;
 	using ctrlr_aop_t = basic_ctrlr_aop<socket_t>;
@@ -96,15 +95,15 @@ public:
 	basic_server &start(error_code &error) noexcept;
 
 public:
-	template <method_enum...Method, typename Func, typename...AopPtrs>
+	template <protocol::method_enum...Method, typename Func, typename...AopPtrs>
 	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
 		detail::concepts::request_handler<Func,socket_t> and
 		detail::concepts::aop_ptr_list<socket_t,AopPtrs...>;
 
-	template <method_enum...Method>
+	template <protocol::method_enum...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
 
-	template <method_enum...Method>
+	template <protocol::method_enum...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>
@@ -157,8 +156,8 @@ using server = tcp_server;
 namespace libgs { namespace http
 {
 
-template <concepts::exec Exec,
-		  concepts::exec ServiceExec = asio::any_io_executor>
+template <core_concepts::exec Exec,
+		  core_concepts::exec ServiceExec = asio::any_io_executor>
 using basic_ssl_tcp_server =
 	basic_server<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>>, Exec>;
 

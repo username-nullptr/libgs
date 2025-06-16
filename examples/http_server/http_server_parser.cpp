@@ -1,4 +1,4 @@
-#include <libgs/http/server/request_parser.h>
+#include <libgs/http/protocol/utils/server/parser.h>
 #include <libgs/coro.h>
 #include <spdlog/spdlog.h>
 
@@ -7,7 +7,7 @@ using namespace libgs::operators;
 
 asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socket::endpoint_type ep)
 {
-	libgs::http::request_parser parser;
+	libgs::http::protocol::server_parser parser;
 	std::error_code error;
 	try {
 		char rbuf[4096] = "";
@@ -35,8 +35,8 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 				continue;
 
 			spdlog::debug("Version:{} - Method:{} - Path:{}",
-				libgs::http::version::number(parser.version()),
-				libgs::http::method::string(parser.method()),
+				libgs::http::protocol::version::number(parser.version()),
+				libgs::http::protocol::method::string(parser.method()),
 				parser.path()
 			);
 			for(auto &[key,value] : parser.parameters())
@@ -56,8 +56,8 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 				"{}:11\r\n"
 				"\r\n"
 				"Hello world",
-				libgs::http::header::connection,
-				libgs::http::header::content_length
+				libgs::http::protocol::header::connection,
+				libgs::http::protocol::header::content_length
 			);
 			co_await asio::async_write (
 				socket, asio::buffer(wbuf, wbuf.size()), asio::use_awaitable

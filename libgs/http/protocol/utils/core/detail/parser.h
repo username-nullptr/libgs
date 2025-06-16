@@ -26,75 +26,47 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_parser_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_parser_H
 
-namespace libgs::http
+namespace libgs::http::protocol
 {
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
+template <typename T>
+decltype(auto) parser<model::base>::header(const core_concepts::text_p<char> auto &key)
+	const requires core_concepts::value_get<T,char>
 {
-
+	auto it = headers().find(key);
+	if( it == headers().end() )
+	{
+		throw runtime_error (
+			"libgs::http::cookie::attributes: key '{}' not exists.", key
+		);
+	}
+	return it->second.template get<T>();
 }
 
-session::~session()
+template <typename T>
+decltype(auto) parser<model::base>::header_or
+(const core_concepts::text_p<char> auto &key, T &&def_value)
+	const requires core_concepts::value_get_or<T,char>
 {
-	delete m_impl;
+	auto it = headers().find(key);
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( is_string_v<def_t, char> )
+	{
+		return it == headers().end() ?
+			strtls::to_string(std::forward<T>(def_value)) : *it->second;
+	}
+	else
+	{
+		return it == headers().end() ? std::forward<T>(def_value) :
+			it->second.template get<def_t>();
+	}
 }
 
-std::string_view session::id() const noexcept
-{
-	return m_impl->m_id;
-}
+} //namespace libgs::http::protocol
 
-session::time_point_t session::create_time() const noexcept
-{
-	return m_impl->m_create_time;
-}
 
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
-
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
-
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
-
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
-
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
-
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
-	return *this;
-}
-
-session &session::unbind_timeout()
-{
-	m_impl->m_timeout_handle = nullptr;
-	return *this;
-}
-
-session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
-	return *this;
-}
-
-} //namespace libgs::http
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_parser_H

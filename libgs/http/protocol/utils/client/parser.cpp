@@ -26,75 +26,151 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "session.h"
+#include "parser.h"
 
-namespace libgs::http
+namespace libgs::http::protocol
 {
 
-session::session(const executor_t &exec) :
-	session(std::chrono::seconds(60), exec)
+class LIBGS_DECL_HIDDEN parser<model::client>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	explicit impl(size_t init_buf_size) :
+		m_parser(init_buf_size)
+	{
+		m_parser
+		.on_parse_begin([this](std::string_view line_buf, error_code &error)
+		{
+			// TODO ... ...
+			return version_enum::v11;
+		})
+		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
+		{
+			// TODO ... ...
+		});
+	}
+
+public:
+	base_parser m_parser;
+	status_enum m_status = status::ok;
+	std::string m_description = status::description<status::ok>();
+	cookies_t m_cookies {};
+};
+
+parser<model::client>::parser(size_t init_buf_size) :
+	m_impl(new impl(init_buf_size))
 {
 
 }
 
-session::~session()
+parser<model::client>::~parser()
 {
 	delete m_impl;
 }
 
-std::string_view session::id() const noexcept
+parser<model::client>::parser(parser &&other) noexcept :
+	m_impl(other.m_impl)
 {
-	return m_impl->m_id;
+	other.m_impl = new impl(0xFFFF);
 }
 
-session::time_point_t session::create_time() const noexcept
+parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
 {
-	return m_impl->m_create_time;
-}
-
-bool session::is_valid() const noexcept
-{
-	return m_impl->m_valid;
-}
-
-const session::attributes_t &session::attributes() const noexcept
-{
-	return m_impl->m_attributes;
-}
-
-session::attributes_t &session::attributes() noexcept
-{
-	return m_impl->m_attributes;
-}
-
-std::chrono::seconds session::lifecycle() const noexcept
-{
-	return std::chrono::seconds(m_impl->m_second);
-}
-
-void session::invalidate()
-{
-	m_impl->m_valid = false;
-	m_impl->m_timer.cancel();
-}
-
-session &session::expand()
-{
-	m_impl->m_restart = true;
-	m_impl->start();
+	if( this == &other )
+        return *this;
+	delete m_impl;
+	m_impl = other.m_impl;
+	other.m_impl = new impl(0xFFFF);
 	return *this;
 }
 
-session &session::unbind_timeout()
+bool parser<model::client>::append(const const_buffer &buf, error_code &error)
 {
-	m_impl->m_timeout_handle = nullptr;
+
+	return false;
+}
+
+bool parser<model::client>::append(const const_buffer &buf)
+{
+
+	return false;
+}
+
+bool parser<model::client>::operator<<(const const_buffer &buf)
+{
+
+	return false;
+}
+
+std::string_view parser<model::client>::version() const noexcept
+{
+
+	return "";
+}
+
+status_enum parser<model::client>::status() const noexcept
+{
+
+	return status_enum::service_unavailable;
+}
+
+const headers &parser<model::client>::headers() const noexcept
+{
+	return m_impl->m_parser.headers();
+}
+
+const cookies &parser<model::client>::cookies() const noexcept
+{
+	return m_impl->m_cookies;
+}
+
+bool parser<model::client>::keep_alive() const noexcept
+{
+
+	return false;
+}
+
+bool parser<model::client>::support_gzip() const noexcept
+{
+
+	return false;
+}
+
+bool parser<model::client>::can_read_from_device() const noexcept
+{
+
+	return false;
+}
+
+std::string parser<model::client>::take_partial_body(size_t size)
+{
+
+	return "";
+}
+
+std::string parser<model::client>::take_body()
+{
+
+	return "";
+}
+
+bool parser<model::client>::is_finished() const noexcept
+{
+
+	return false;
+}
+
+bool parser<model::client>::is_eof() const noexcept
+{
+
+	return false;
+}
+
+parser<model::client> &parser<model::client>::reset()
+{
+
 	return *this;
 }
 
-session &session::unbind_error()
-{
-	m_impl->m_error_handle = nullptr;
-	return *this;
-}
-
-} //namespace libgs::http
+} //namespace libgs::http::protocol

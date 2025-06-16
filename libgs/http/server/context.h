@@ -42,10 +42,10 @@ class basic_service_context
 
 public:
 	using stream_t = Stream;
-	using parser_t = request_parser;
+	using parser_t = protocol::server_parser;
 
 	using request_t = basic_server_request<stream_t>;
-	using response_t = basic_server_response<stream_t>;
+	using response_t = basic_response<stream_t>;
 
 	using session_t = http::session;
 	using executor_t = typename stream_t::executor_type;

@@ -26,64 +26,44 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_REQUEST_H
-#define LIBGS_HTTP_SERVER_REQUEST_H
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H
 
-#include <libgs/http/protocol/utils/server/parser.h>
-#include <libgs/http/cxx/socket_operation_helper.h>
+#include <libgs/http/protocol/utils/core/parser.h>
 
-namespace libgs::http
+namespace libgs::http::protocol
 {
 
-template <protocol::model, concepts::stream Stream>
-class basic_request;
-
-template <protocol::model Model, core_concepts::exec Exec>
-using basic_tcp_request = basic_request<Model,
-	asio::basic_stream_socket<asio::ip::tcp,Exec>
->;
-
-template <concepts::stream Stream>
-using basic_server_request = basic_request<protocol::model::server,Stream>;
-
-template <concepts::stream Stream>
-class LIBGS_HTTP_TAPI basic_request<protocol::model::server,Stream>
+template <>
+class LIBGS_HTTP_API parser<model::server> final
 {
-	LIBGS_DISABLE_COPY(basic_request)
+	LIBGS_DISABLE_COPY(parser)
 
 public:
-	using next_layer_t = Stream;
-	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
-
-	using parser_t = protocol::server_parser;
-	using value_t = parser_t::value_t;
-	using path_args_t = parser_t::path_args_t;
+	using value_t = libgs::value;
+	using path_args_t = std::vector<std::pair<std::string,value_t>>;
 
 	using parameters_t = protocol::parameters;
 	using headers_t = protocol::headers;
 
 public:
-	template <typename NextLayer>
-	basic_request(NextLayer &&next_layer, parser_t &parser)
-		requires core_concepts::constructible<next_layer_t,NextLayer&&>;
-	~basic_request();
+	explicit parser(size_t init_buf_size = 0xFFFF);
+	~parser();
 
-	basic_request(basic_request &&other) noexcept;
-	basic_request &operator=(basic_request &&other) noexcept;
-
-	template <typename Stream0>
-	basic_request(basic_server_request<Stream0> &&other) noexcept
-		requires core_concepts::constructible<Stream,Stream0&&>;
-
-	template <typename Stream0>
-	basic_request &operator=(basic_server_request<Stream0> &&other) noexcept
-		requires core_concepts::assignable<Stream,Stream0&&>;
+	parser(parser &&other) noexcept;
+	parser &operator=(parser &&other) noexcept;
 
 public:
-	[[nodiscard]] protocol::method_enum method() const noexcept;
-	[[nodiscard]] protocol::version_enum version() const noexcept;
+	bool append(const const_buffer &buf, error_code &error);
+	bool append(const const_buffer &buf);
+
+	parser &operator<<(const const_buffer &buf);
+	[[nodiscard]] int32_t path_match(std::string_view rule);
+
+public:
+	[[nodiscard]] method_enum method() const noexcept;
 	[[nodiscard]] std::string_view path() const noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
 
 public:
 	template <typename T = value_t>
@@ -94,20 +74,20 @@ public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) parameter_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
 
 public:
-	template <typename T = value_t>
+	template <typename T = value>
 	[[nodiscard]] decltype(auto) header (
 		const core_concepts::text_p<char> auto &key
 	) const requires core_concepts::value_get<T,char>;
 
-	template <typename T = value_t>
+	template <typename T = value>
 	[[nodiscard]] decltype(auto) header_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const headers_t &headers() const noexcept;
 
@@ -120,9 +100,9 @@ public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) cookie_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
-	[[nodiscard]] const protocol::cookie_values &cookies() const noexcept;
+	[[nodiscard]] const cookie_values &cookies() const noexcept;
 
 public:
 	template <typename T = value_t>
@@ -137,62 +117,35 @@ public:
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) path_arg_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
+	) const requires core_concepts::value_get<T,char>;
 
 	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) path_arg_or(size_t index, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
+		const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const path_args_t &path_args() const noexcept;
-	int32_t path_match(std::string_view rule);
-
-public:
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto read(const mutable_buffer &buf, Token &&token = {});
-
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto read(Token &&token = {});
-
-	template <typename T>
-	static constexpr bool file_opt_token = concepts::file_opt_token_p <
-		T, char, file_optype::single, io_permission::write
-	>;
-	template <typename T, core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto save_file(T &&opt, Token &&token = {}) requires file_opt_token<T>;
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;
 	[[nodiscard]] bool support_gzip() const noexcept;
-	[[nodiscard]] bool is_chunked() const noexcept;
-	[[nodiscard]] bool can_read_body() const noexcept;
+	[[nodiscard]] bool can_read_from_device() const noexcept;
+
+public:
+	[[nodiscard]] std::string take_partial_body(size_t size);
+	[[nodiscard]] std::string take_body();
+	[[nodiscard]] bool is_finished() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
-
-public:
-	[[nodiscard]] endpoint_t remote_endpoint() const;
-	[[nodiscard]] endpoint_t local_endpoint() const;
-
-	[[nodiscard]] executor_t get_executor() noexcept;
-	basic_request &cancel() noexcept;
-
-public:
-	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
-	[[nodiscard]] next_layer_t &next_layer() noexcept;
+	parser &reset();
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-template <core_concepts::exec Exec>
-using basic_tcp_server_request = basic_server_request<
-	asio::basic_stream_socket<asio::ip::tcp,Exec>
->;
+using server_parser = parser<model::server>;
 
-using tcp_server_request = basic_tcp_server_request<asio::any_io_executor>;
-using server_request = tcp_server_request;
-
-} //namespace libgs::http
-#include <libgs/http/server/detail/request.h>
+} //namespace libgs::http::protocol
+#include <libgs/http/protocol/utils/server/detail/parser.h>
 
 
-#endif //LIBGS_HTTP_SERVER_REQUEST_H
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H

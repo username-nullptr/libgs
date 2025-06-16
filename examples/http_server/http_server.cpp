@@ -12,13 +12,13 @@ int main()
 	libgs::http::server server(std::move(acceptor));
 	server.bind({libgs::ip_type::v4, port})
 
-	.on_request<libgs::http::method::get>("/*",
+	.on_request<libgs::http::protocol::method::get>("/*",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
 		spdlog::debug("Version:{} - Method:{} - Path:{}",
 					  request.version(),
-					  libgs::http::method::string(request.method()),
+					  libgs::http::protocol::method::string(request.method()),
 					  request.path());
 
 		for(auto &[key,value] : request.parameters())
@@ -37,7 +37,7 @@ int main()
 		// co_await context.response().write("hello world", asio::use_awaitable);
 		co_return ;
 	})
-	.on_request<libgs::http::method::get>("/aa*bb?cc/{arg0}/{arg1}",
+	.on_request<libgs::http::protocol::method::get>("/aa*bb?cc/{arg0}/{arg1}",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
@@ -54,7 +54,7 @@ int main()
 		// co_await context.response().write("hello world", asio::use_awaitable);
 		co_return ;
 	})
-	.on_request<libgs::http::method::get>("/hello",
+	.on_request<libgs::http::protocol::method::get>("/hello",
 	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 //		co_await context.response().write("hello world !!!", asio::use_awaitable);

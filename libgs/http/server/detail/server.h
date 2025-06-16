@@ -205,7 +205,7 @@ private:
 		using namespace std::chrono_literals;
 		const auto *time = &m_first_reading_time;
 
-		parser_t parser;
+		protocol::server_parser parser;
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size] = {0};
 		for(;;)
@@ -278,26 +278,26 @@ private:
 		}
 		if( not handler )
 		{
-			context.response().set_status(status::not_found);
+			context.response().set_status(protocol::status::not_found);
 			co_return ;
 		}
 		auto method = context.request().method();
 		if( (handler->method & method) == 0 )
 		{
-			if( method == method::head )
+			if( method == protocol::method::head )
 			{
 				co_await context.response()
-					.set_header(header::content_type,"text/plain")
+					.set_header(protocol::header::content_type,"text/plain")
 					.write(use_awaitable);
 			}
-			if( method == method::options )
+			if( method == protocol::method::options )
 			{
 				co_await context.response()
-					.set_header(header::content_type,"text/plain")
+					.set_header(protocol::header::content_type,"text/plain")
 					.write(options_response_body(handler->method), use_awaitable);
 			}
 			else
-				context.response().set_status(status::method_not_allowed);
+				context.response().set_status(protocol::status::method_not_allowed);
 			co_return ;
 		}
 		try
@@ -344,19 +344,19 @@ private:
 				"</body>"
 				"</html>";
 			std::string data;
-			if( context.response().status() == status::ok )
+			if( context.response().status() == protocol::status::ok )
 				data = std::format(def_html, "Welcome to LIBGS", "");
 			else
 			{
 				auto status = std::format (
 					"<h2>{} ({})</h2>",
-					status::description(context.response().status()),
+					protocol::status::description(context.response().status()),
 					context.response().status()
 				);
 				data = std::format(def_html, "LIBGS", status);
 			}
 			co_await context.response()
-				.set_header(header::content_type, "text/html")
+				.set_header(protocol::header::content_type, "text/html")
 				.write(data, use_awaitable);
 		}
 		catch(const std::exception &ex) {
@@ -375,19 +375,25 @@ private:
 
 	void call_on_service_error(context_t &context, const std::exception &ex)
 	{
-		context.response().set_status(status::internal_server_error);
+		context.response().set_status(protocol::status::internal_server_error);
 		if( m_service_error_handler and m_service_error_handler(context, ex) )
 			return ;
 		throw ex;
 	}
 
-	[[nodiscard]] std::string options_response_body(methods method)
+	[[nodiscard]] std::string options_response_body(protocol::methods method)
 	{
 		std::string sum;
-		for(uint16_t i=method::get; i<=method::connect; i<<=1)
+		for(uint16_t i=protocol::method::get; i<=protocol::method::connect; i<<=1)
 		{
-			if( method & i )
-				sum += std::format("{};", method::string(static_cast<method_enum>(i)));
+			if( method & i == 0 )
+				continue;
+
+			sum += std::format("{};",
+				protocol::method::string (
+					static_cast<protocol::method_enum>(i)
+				)
+			);
 		}
 		if( not sum.empty() )
 			sum.pop_back();
@@ -451,12 +457,12 @@ public:
 	{
 		explicit tk_handler(ctrlr_aop_ptr_t aop) : aop(std::move(aop)) {}
 
-		template <method_enum...Method>
+		template <protocol::method_enum...Method>
 		tk_handler &bind_method()
 		{
 			if constexpr( sizeof...(Method) == 0 )
 			{
-#define X_MACRO(e,v,d) method |= method_enum::e;
+#define X_MACRO(e,v,d) method |= protocol::method_enum::e;
 				LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 			}
@@ -468,7 +474,7 @@ public:
 			}
 			return *this;
 		}
-		methods method {};
+		protocol::methods method {};
 		ctrlr_aop_ptr_t aop {};
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
@@ -592,7 +598,7 @@ basic_server<Stream,Exec> &basic_server<Stream,Exec>::start
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <method_enum...Method, typename Func, typename...AopPtrs>
+template <protocol::method_enum...Method, typename Func, typename...AopPtrs>
 basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
 	detail::concepts::request_handler<Func,socket_t> and
@@ -618,7 +624,7 @@ basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <method_enum...Method>
+template <protocol::method_enum...Method>
 basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr)
 {
@@ -641,7 +647,7 @@ basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
 }
 
 template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <method_enum...Method>
+template <protocol::method_enum...Method>
 basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr)
 {

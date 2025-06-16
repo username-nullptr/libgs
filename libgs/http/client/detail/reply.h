@@ -29,13 +29,11 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REPLY_H
 
-#include <libgs/http/client/reply_parser.h>
-
 namespace libgs::http
 {
 
-template <core_concepts::character CharT, concepts::socket_session Session>
-class LIBGS_HTTP_TAPI basic_client_reply<CharT,Session>::impl
+template <concepts::socket_session Session>
+class LIBGS_HTTP_TAPI basic_reply<Session>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
