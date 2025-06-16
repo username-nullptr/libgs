@@ -107,7 +107,7 @@ private:
 
 #define LIBGS_MODULE_INIT(_level, _func) \
 	LIBGS_REGISTRATION { \
-		libgs::modules::reg_init(_func, static_cast<libgs::modules::level_t>(_level)); \
+		libgs::modules::reg_init(_func, _level); \
 	}
 
 #define LIBGS_MODULE_INIT_DEF(_func) \

@@ -124,12 +124,17 @@ void basic_observer_base<Derived,Exec,Funcs...>::trigger(Args0&&...args)
 		if( not func )
 			continue;
 
-		functions.emplace_back (
-		[exec = obj->m_exec, func = std::move(func), ...args = std::forward<Args0>(args)]() mutable
+		functions.emplace_back([exec = obj->m_exec, func, args...]() mutable
 		{
-			dispatch(exec, [func = std::move(func), ...args = std::move(args)]() mutable {
-				func(std::move(args)...);
-			});
+			using return_t = decltype(func(std::move(args)...));
+			if constexpr( is_awaitable_v<return_t> )
+				dispatch(exec, func(std::move(args)...));
+			else
+			{
+				dispatch(exec, [func = std::move(func), ...args = std::move(args)]() mutable {
+					func(std::move(args)...);
+				});
+			}
 		});
 	}
 	detail::observer::mutex().unlock();
