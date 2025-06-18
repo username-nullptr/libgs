@@ -10,7 +10,7 @@ set(all_files
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${all_files})
 
 add_executable(${target_name} ${all_files})
-target_link_libraries(${target_name} PUBLIC gs_core)
+target_link_libraries(${target_name} PUBLIC gs.core)
 
 set_target_properties(${target_name} PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/examples/core/

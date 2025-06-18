@@ -43,7 +43,8 @@ function(add_project target_name)
 		endif ()
 	endif ()
 
-	target_compile_definitions(${target_name} PRIVATE ${target_name}_EXPORTS)
+	string(REPLACE "." "_" target_micro "${target_name}")
+	target_compile_definitions(${target_name} PRIVATE ${target_micro}_EXPORTS)
 	target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 	if (NOT ${ARGN} STREQUAL "")

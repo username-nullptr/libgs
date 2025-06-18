@@ -68,7 +68,7 @@ set(sources
 	core/argv_parse.cpp
 	core/library.cpp
 )
-set_target(gs_core ${sources})
+set_target(gs.core ${sources})
 add_subdirectory(core/modules)
 
 set(sources
@@ -76,7 +76,7 @@ set(sources
 	coro/mutex.cpp
 	coro/semaphore.cpp
 )
-set_target(gs_core ${sources})
+set_target(gs.core ${sources})
 
 set(sources
 	http_server/http_server_parser.cpp
@@ -85,15 +85,15 @@ set(sources
 	http_server/http_session.cpp
 	http_server/https_server.cpp
 )
-set_target(gs_http ${sources})
+set_target(gs.http ${sources})
 
 set(sources
 	http_client/session_pool.cpp
 )
-set_target(gs_http ${sources})
+set_target(gs.http ${sources})
 
 set(sources
 	utils/logger.cpp
 	utils/settings.cpp
 )
-set_target(gs_utils ${sources})
+set_target(gs.utils ${sources})
