@@ -270,7 +270,7 @@ private:
 		while( not opt.stream->eof() )
 		{
 			opt.stream->read(fr_buf, buf_size);
-			auto size = opt.stream->gcount();
+			auto size = static_cast<size_t>(opt.stream->gcount());
 			if( size == 0 )
 				break;
 
@@ -530,7 +530,7 @@ private:
 				if( value.total <= buf_size )
 				{
 					stream->read(buf, value.total);
-					auto size = stream->gcount();
+					auto size = static_cast<size_t>(stream->gcount());
 
 					sum += co_await co_write_body(buffer(buf,size), error);
 					if( error )
@@ -540,7 +540,7 @@ private:
 					break;
 				}
 				stream->read(buf, buf_size);
-				auto size = stream->gcount();
+				auto size = static_cast<size_t>(stream->gcount());
 
 				sum += co_await co_write_body(buffer(buf,size), error);
 				if( error )
@@ -574,7 +574,7 @@ private:
 				if( value.total <= buf_size )
 				{
 					stream->read(buf, value.total);
-					auto size = stream->gcount();
+					auto size = static_cast<size_t>(stream->gcount());
 					if( size == 0 )
 						break;
 
@@ -589,7 +589,7 @@ private:
 					break;
 				}
 				stream->read(buf, buf_size);
-				auto size = stream->gcount();
+				auto size = static_cast<size_t>(stream->gcount());
 
 				sum += co_await co_write_body(buffer(buf,size), error);
 				if( error )

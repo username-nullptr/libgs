@@ -182,7 +182,9 @@ std::optional<T> lock_free_queue<T>::dequeue()
 			return std::move(head->data);
 		}
 	}
+#ifndef _MSC_VER
 	return {};
+#endif //_MSC_VER
 }
 
 template <concepts::copy_or_move_constructible T>

@@ -98,6 +98,7 @@
 #endif //SPDLOG_USE_STD_FORMAT
 
 #ifdef _MSC_VER
+# pragma warning(disable: 4251)
 # pragma warning(disable: 4819)
 #endif //_MSC_VER
 

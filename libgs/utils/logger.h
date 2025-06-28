@@ -115,11 +115,7 @@ public:
 	};
 
 	template <typename...Args>
-#ifdef _WIN32
-    using fmt_str_t = spdlog::format_string_t<Args...>;
-#else
     using fmt_str_t = std::format_string<Args...>;
-#endif
 
 public:
 	template <level_t Lv, typename Arg0, typename...Args>

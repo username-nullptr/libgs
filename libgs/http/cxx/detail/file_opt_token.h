@@ -338,7 +338,7 @@ std::optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permi
 			if( opt.stream->good() )
 			{
 				opt.stream->seekg(0, std::ios::end);
-				size = opt.stream->tellg();
+				size = static_cast<size_t>(opt.stream->tellg());
 				opt.stream->seekg(cur, std::ios::beg);
 			}
 		}
@@ -348,7 +348,7 @@ std::optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permi
 			if( opt.stream->good() )
 			{
 				opt.stream->seekp(0, std::ios::end);
-				size = opt.stream->tellp();
+				size = static_cast<size_t>(opt.stream->tellp());
 				opt.stream->seekp(cur, std::ios::beg);
 			}
 		}
@@ -359,7 +359,7 @@ std::optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permi
 		{
 			auto cur = opt.stream->tellg();
 			opt.stream->seekg(0, std::ios::end);
-			size = opt.stream->tellg();
+			size = static_cast<size_t>(opt.stream->tellg());
 			opt.stream->seekg(cur, std::ios::beg);
 		}
 	}
@@ -369,7 +369,7 @@ std::optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permi
 		{
 			auto cur = opt.stream->tellp();
 			opt.stream->seekp(0, std::ios::end);
-			size = opt.stream->tellp();
+			size = static_cast<size_t>(opt.stream->tellp());
 			opt.stream->seekp(cur, std::ios::beg);
 		}
 	}

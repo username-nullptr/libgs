@@ -31,11 +31,11 @@
 
 #include <libgs/core/global.h>
 
-#ifdef libgs_utils_EXPORTS
+#ifdef gs_utils_EXPORTS
 # define LIBGS_UTILS_API  LIBGS_DECL_EXPORT
-#else //libgs_utils_EXPORTS
+#else //gs_utils_EXPORTS
 # define LIBGS_UTILS_API  LIBGS_DECL_IMPORT
-#endif //libgs_utils_EXPORTS
+#endif //gs_utils_EXPORTS
 
 #define LIBGS_UTILS_VAPI
 #define LIBGS_UTILS_TAPI
