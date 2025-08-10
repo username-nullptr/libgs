@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_DETAIL_SOCKET_SESSION_H
-#define LIBGS_HTTP_CXX_DETAIL_SOCKET_SESSION_H
+#ifndef LIBGS_HTTP_UTILS_DETAIL_SOCKET_SESSION_H
+#define LIBGS_HTTP_UTILS_DETAIL_SOCKET_SESSION_H
 
 namespace libgs::http
 {
@@ -151,4 +151,4 @@ basic_socket_session<Stream>::get_executor() noexcept
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CXX_DETAIL_SOCKET_SESSION_H
+#endif //LIBGS_HTTP_UTILS_DETAIL_SOCKET_SESSION_H

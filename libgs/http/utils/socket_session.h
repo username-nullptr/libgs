@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_SOCKET_SESSION_H
-#define LIBGS_HTTP_CXX_SOCKET_SESSION_H
+#ifndef LIBGS_HTTP_UTILS_SOCKET_SESSION_H
+#define LIBGS_HTTP_UTILS_SOCKET_SESSION_H
 
-#include <libgs/http/cxx/socket_operation_helper.h>
+#include <libgs/http/utils/socket_operation_helper.h>
 
 namespace libgs::http
 {
@@ -95,7 +95,7 @@ template <typename T>
 concept socket_session = is_socket_session_v<T>;
 
 }} //namespace libgs::http::concepts
-#include <libgs/http/cxx/detail/socket_session.h>
+#include <libgs/http/utils/detail/socket_session.h>
 
 
-#endif //LIBGS_HTTP_CXX_SOCKET_SESSION_H
+#endif //LIBGS_HTTP_UTILS_SOCKET_SESSION_H

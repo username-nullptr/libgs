@@ -26,42 +26,46 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_OPT_TOKEN_H
-#define LIBGS_HTTP_CXX_OPT_TOKEN_H
-
-#include <libgs/http/cxx/file_opt_token.h>
+#ifndef LIBGS_HTTP_UTILS_DETAIL_PATH_OPT_TOKEN_H
+#define LIBGS_HTTP_UTILS_DETAIL_PATH_OPT_TOKEN_H
 
 namespace libgs::http
 {
 
 template <core_concepts::character CharT>
-struct LIBGS_HTTP_TAPI basic_path_opt_token
+template <core_concepts::string_p<CharT> Str>
+basic_path_opt_token<CharT>::basic_path_opt_token(Str &&path) :
+	paths{std::forward<Str>(path)}
 {
-	using char_t = CharT;
-	using string_view_t = std::basic_string_view<char_t>;
-	std::vector<string_view_t> paths;
 
-	template <core_concepts::string_p<CharT> Str>
-	basic_path_opt_token(Str &&path);
+}
 
-	template <core_concepts::string<CharT> Str>
-	basic_path_opt_token(std::vector<Str> &&paths);
+template <core_concepts::character CharT>
+template <core_concepts::string<CharT> Str>
+basic_path_opt_token<CharT>::basic_path_opt_token(std::vector<Str> &&paths) :
+	paths{std::forward<std::vector<Str>>(paths)}
+{
 
-	template <core_concepts::string<CharT> Str>
-	basic_path_opt_token(std::initializer_list<Str> paths);
+}
 
-	template <core_concepts::string_p<CharT>...Str>
-	basic_path_opt_token(Str&&...paths);
-};
+template <core_concepts::character CharT>
+template <core_concepts::string<CharT> Str>
+basic_path_opt_token<CharT>::basic_path_opt_token(std::initializer_list<Str> paths)
+{
+	for(auto &path : paths)
+		this->paths.emplace_back(path);
+}
 
-using path_opt_token  = basic_path_opt_token<char>;
-using wpath_opt_token = basic_path_opt_token<wchar_t>;
+template <core_concepts::character CharT>
+template <core_concepts::string_p<CharT>...Str>
+basic_path_opt_token<CharT>::basic_path_opt_token(Str&&...paths)
+{
+	(void) std::initializer_list<int> {
+		(this->paths.emplace_back(std::forward<Str>(paths)), 0) ...
+	};
+}
 
-template <typename...Args>
-using callback_t = std::function<void(Args...)>;
-
-} //namespace libgs::http::operators
-#include <libgs/http/cxx/detail/opt_token.h>
+} //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CXX_OPT_TOKEN_H
+#endif //LIBGS_HTTP_UTILS_DETAIL_PATH_OPT_TOKEN_H

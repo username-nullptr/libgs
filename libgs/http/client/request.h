@@ -29,38 +29,50 @@
 #ifndef LIBGS_HTTP_CLIENT_REQUEST_H
 #define LIBGS_HTTP_CLIENT_REQUEST_H
 
-#include <libgs/http/client/reply.h>
+#include <libgs/http/protocol/utils/client/request_arg.h>
+#include <libgs/http/utils/request_template.h>
+#include <libgs/http/client/session_pool.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::character CharT, method Method,
-		  concepts::session_pool SessionPool = session_pool,
-		  version_t Version = version::v11>
-class LIBGS_HTTP_TAPI basic_client_request
+template <protocol::method_enum Method,
+		  concepts::session_pool SessionPool,
+		  protocol::version_enum Version>
+class client_request_targ;
+
+template <protocol::method_enum Method,
+		  concepts::session_pool SessionPool,
+		  protocol::version_enum Version>
+using basic_client_request = basic_request<protocol::model::client,
+	client_request_targ<Method,SessionPool,Version>
+>;
+
+template <protocol::method_enum Method,
+		  concepts::session_pool SessionPool,
+		  protocol::version_enum Version>
+class LIBGS_HTTP_TAPI basic_request<protocol::model::client,
+	client_request_targ<Method,SessionPool,Version>>
 {
-	LIBGS_DISABLE_COPY(basic_client_request)
+	LIBGS_DISABLE_COPY(basic_request)
 
 public:
-	using char_t = CharT;
 	using session_pool_t = SessionPool;
 	using session_t = typename session_pool_t::session_t;
+	using executor_t = session_pool_t::executor_t;
 
-	using map_helper_t = basic_attr_map_helper<char_t>;
-	using reply_t = basic_client_reply<char_t,session_t>;
-	using request_arg_t = basic_request_arg<char_t>;
-
-	using headers_t = typename request_arg_t::headers_t;
-	using executor_t = typename session_pool_t::executor_t;
+	using request_arg_t = protocol::request_arg;
+	using headers_t = request_arg_t::headers_t;
 
 	static constexpr auto method_v = Method;
 	static constexpr auto version_v = Version;
 
+	using method_t = protocol::method;
 	static constexpr auto put_or_post =
-		method_v == method_t::POST or method_v == method_t::PUT;
+		method_v == method_t::post or method_v == method_t::put;
 
 public:
-	basic_client_request(session_pool_t &pool, request_arg_t arg = {});
+	explicit basic_client_request(session_pool_t &pool, request_arg_t arg = {});
 	~basic_client_request();
 
 	basic_client_request(basic_client_request &&other) noexcept;
@@ -73,35 +85,33 @@ public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {}) requires put_or_post;
 
-	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto send_file (
-		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
-		Token &&token = {}
-	) requires put_or_post;
+public:
+	template <typename T>
+	static constexpr bool file_opt_token = concepts::file_opt_token_p <
+		T, char, file_optype::combine, io_permission::read
+	>;
+	template <typename T, core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
+	auto send_file(T &&opt, Token &&token = {}) requires file_opt_token<T> and put_or_post;
 
+public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto chunk_end(const map_helper_t &headers, Token &&token = {}) requires put_or_post;
+	auto chunk_end(const headers_t &headers, Token &&token = {}) requires put_or_post;
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(Token &&token = {}) requires put_or_post;
-
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto wait_reply(Token &&token = {}) const requires
-		core_concepts::tf_opt_token<error_code,reply_t>;
 
 public:
 	basic_client_request &set_arg(request_arg_t arg);
 	[[nodiscard]] const request_arg_t &arg() const noexcept;
 	[[nodiscard]] request_arg_t &arg() noexcept;
 
-public:
 	[[nodiscard]] bool is_finished() const noexcept;
 	basic_client_request &cancel() noexcept;
 	basic_client_request &reset() noexcept;
 
 public:
-	[[nodiscard]] consteval method_t method() const noexcept;
-	[[nodiscard]] consteval version_t version() const noexcept;
+	[[nodiscard]] consteval protocol::method_enum method() const noexcept;
+	[[nodiscard]] consteval protocol::version_enum version() const noexcept;
 
 	[[nodiscard]] const session_pool_t &session_pool() const noexcept;
 	[[nodiscard]] session_pool_t &session_pool() noexcept;
@@ -111,6 +121,9 @@ private:
 	class impl;
 	impl *m_impl;
 };
+
+template <protocol::method_enum Method, protocol::version_enum Version = protocol::version::v11>
+using client_request = basic_client_request<Method, session_pool, Version>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/request.h>

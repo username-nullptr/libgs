@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_FILE_OPT_TOKEN_H
-#define LIBGS_HTTP_CXX_FILE_OPT_TOKEN_H
+#ifndef LIBGS_HTTP_UTILS_FILE_OPT_TOKEN_H
+#define LIBGS_HTTP_UTILS_FILE_OPT_TOKEN_H
 
 #include <libgs/http/cxx/attributes.h>
 #include <libgs/http/cxx/concepts.h>
@@ -385,7 +385,7 @@ template <typename T>
 );
 
 }} //namespace libgs::http::operators
-#include <libgs/http/cxx/detail/file_opt_token.h>
+#include <libgs/http/utils/detail/file_opt_token.h>
 
 
-#endif //LIBGS_HTTP_CXX_FILE_OPT_TOKEN_H
+#endif //LIBGS_HTTP_UTILS_FILE_OPT_TOKEN_H

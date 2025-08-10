@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
 #define LIBGS_HTTP_CLIENT_SESSION_POOL_H
 
-#include <libgs/http/cxx/socket_session.h>
+#include <libgs/http/utils/socket_session.h>
 
 namespace libgs::http
 {

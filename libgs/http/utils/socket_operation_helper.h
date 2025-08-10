@@ -26,10 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
-#define LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
+#ifndef LIBGS_HTTP_UTILS_SOCKET_OPERATION_HELPER_H
+#define LIBGS_HTTP_UTILS_SOCKET_OPERATION_HELPER_H
 
-#include <libgs/http/cxx/opt_token.h>
+#include <libgs/http/utils/opt_token.h>
 
 namespace libgs::http
 {
@@ -145,7 +145,7 @@ public:
 #endif //LIBGS_ENABLE_OPENSSL
 
 } //namespace libgs::http
-#include <libgs/http/cxx/detail/socket_operation_helper.h>
+#include <libgs/http/utils/detail/socket_operation_helper.h>
 
 
-#endif //LIBGS_HTTP_CXX_SOCKET_OPERATION_HELPER_H
+#endif //LIBGS_HTTP_UTILS_SOCKET_OPERATION_HELPER_H

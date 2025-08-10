@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_DETAIL_FILE_OPT_TOKEN_H
-#define LIBGS_HTTP_CXX_DETAIL_FILE_OPT_TOKEN_H
+#ifndef LIBGS_HTTP_UTILS_DETAIL_FILE_OPT_TOKEN_H
+#define LIBGS_HTTP_UTILS_DETAIL_FILE_OPT_TOKEN_H
 
 #include <libgs/core/mime_type.h>
 #include <libgs/core/app_utls.h>
@@ -467,4 +467,4 @@ file_opt_token<T,file_optype::multiple> &&operator|
 }} //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CXX_DETAIL_FILE_OPT_TOKEN_H
+#endif //LIBGS_HTTP_UTILS_DETAIL_FILE_OPT_TOKEN_H

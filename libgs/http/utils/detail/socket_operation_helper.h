@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
-#define LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
+#ifndef LIBGS_HTTP_UTILS_DETAIL_SOCKET_OPERATION_HELPER_H
+#define LIBGS_HTTP_UTILS_DETAIL_SOCKET_OPERATION_HELPER_H
 
 #include <libgs/coro.h>
 
@@ -544,4 +544,4 @@ bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CXX_DETAIL_SOCKET_OPERATION_HELPER_H
+#endif //LIBGS_HTTP_UTILS_DETAIL_SOCKET_OPERATION_HELPER_H

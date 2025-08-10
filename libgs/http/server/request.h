@@ -30,18 +30,11 @@
 #define LIBGS_HTTP_SERVER_REQUEST_H
 
 #include <libgs/http/protocol/utils/server/parser.h>
-#include <libgs/http/cxx/socket_operation_helper.h>
+#include <libgs/http/utils/socket_operation_helper.h>
+#include <libgs/http/utils/request_template.h>
 
 namespace libgs::http
 {
-
-template <protocol::model, concepts::stream Stream>
-class basic_request;
-
-template <protocol::model Model, core_concepts::exec Exec>
-using basic_tcp_request = basic_request<Model,
-	asio::basic_stream_socket<asio::ip::tcp,Exec>
->;
 
 template <concepts::stream Stream>
 using basic_server_request = basic_request<protocol::model::server,Stream>;
