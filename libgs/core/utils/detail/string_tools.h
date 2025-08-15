@@ -325,8 +325,9 @@ template <concepts::character CharT, typename T>
 	}
 }
 
-template <concepts::integral_p T>
+template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith(const auto &str, size_t base, std::optional<T> odv = {})
+	requires concepts::integral_p<T> or concepts::enumerate_p<T>
 {
 	using str_t = std::remove_cvref_t<decltype(str)>;
 	using char_t = get_char_t<str_t>;
@@ -334,6 +335,8 @@ template <concepts::integral_p T>
 
 	if constexpr( std::is_same_v<T, bool> )
 		return to_bool(_str, base);
+	else if constexpr( concepts::enumerate_p<T> )
+		return static_cast<T>(to_arith<int>(_str, base, odv));
 	else
 	{
 		using string_t = std::basic_string<char_t>;
@@ -688,8 +691,9 @@ bool to_bool(const concepts::any_text_p auto &text, size_t base)
 	return detail::to_bool(text, base);
 }
 
-template <concepts::integral_p T>
+template <typename T>
 [[nodiscard]] T to_arith(const concepts::any_text_p auto &text, size_t base)
+	requires concepts::integral_p<T> or concepts::enumerate_p<T>
 {
 	return detail::to_arith<T>(text, base);
 }
@@ -760,8 +764,9 @@ bool to_bool_or(const concepts::any_text_p auto &text, bool default_value, size_
 	return detail::to_bool(text, base, default_value);
 }
 
-template <concepts::integral_p T>
-[[nodiscard]] T to_arith_or(const concepts::any_text_p auto &text, T default_value, size_t base) noexcept
+template <typename T>
+[[nodiscard]] T to_arith_or(const concepts::any_text_p auto &text, T default_value, size_t base)
+	noexcept requires concepts::integral_p<T> or concepts::enumerate_p<T>
 {
 	return detail::to_arith<T>(text, base, default_value);
 }

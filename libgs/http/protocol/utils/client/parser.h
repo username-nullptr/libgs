@@ -58,10 +58,10 @@ public:
 public:
 	bool append(const const_buffer &buf, error_code &error);
 	bool append(const const_buffer &buf);
-	bool operator<<(const const_buffer &buf);
+	parser &operator<<(const const_buffer &buf);
 
 public:
-	[[nodiscard]] std::string_view version() const noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] status_enum status() const noexcept;
 
 	[[nodiscard]] const value_t &header(std::string_view key) const;

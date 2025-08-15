@@ -89,6 +89,7 @@ set_target(gs.http ${sources})
 
 set(sources
 	http_client/session_pool.cpp
+	http_client/protocol.cpp
 )
 set_target(gs.http ${sources})
 

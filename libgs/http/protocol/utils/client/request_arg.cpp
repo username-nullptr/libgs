@@ -6,9 +6,9 @@ namespace libgs::http::protocol
 class LIBGS_DECL_HIDDEN request_arg::impl
 {
 public:
-	explicit impl(url_t &&url) :
-		m_url(std::move(url)) {}
-
+	explicit impl(url_t &&url) : m_url(std::move(url)) {
+		m_headers[header_t::host] = m_url.address();
+	}
 	impl(const impl &other) = default;
 	impl &operator=(const impl &other) = default;
 

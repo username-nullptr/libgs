@@ -27,6 +27,7 @@
 *************************************************************************************/
 
 #include "parser.h"
+#include <libgs/core/string_vector.h>
 
 namespace libgs::http::protocol
 {
@@ -42,13 +43,87 @@ public:
 		m_parser
 		.on_parse_begin([this](std::string_view line_buf, error_code &error)
 		{
-			// TODO ... ...
-			return version_enum::v11;
+			auto version = static_cast<version_enum>(0);
+			auto request_line_parts = string_vector::from_string(line_buf, ' ');
+			if( request_line_parts.size() < 2 or not strtls::to_upper(request_line_parts[0]).starts_with("HTTP/") )
+			{
+				error = base_parser::make_error_code(parse_errno::IRPYL);
+				return version;
+			}
+			version = version::from_string(request_line_parts[0].substr(5,3));
+			m_status = strtls::to_arith_or<status_enum>(request_line_parts[1]);
+
+			if( m_status == static_cast<status_enum>(0) )
+				error = base_parser::make_error_code(parse_errno::IHSC);
+
+			if( request_line_parts.size() > 2 )
+				m_description = request_line_parts.join(2, ' ');
+			else
+				m_description = status::description(m_status);
+			return version;
 		})
 		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
 		{
-			// TODO ... ...
+			auto vector = string_vector::from_string(line_buf, ';');
+			if( vector.empty() )
+			{
+				error = base_parser::make_error_code(parse_errno::ICL);
+				return;
+			}
+			vector[0] = strtls::trimmed(vector[0]);
+			auto pos = vector[0].find('=');
+
+			if( pos == std::string::npos )
+			{
+				error = base_parser::make_error_code(parse_errno::ICL);
+				return;
+			}
+			auto key = strtls::trimmed(vector[0].substr(0, pos));
+			auto value = strtls::trimmed(vector[0].substr(pos + 1));
+			auto &cookie = m_cookies[std::move(key)] = std::move(value);
+
+			for(size_t i=1; i<vector.size(); i++)
+			{
+				auto &statement = vector[i];
+				statement = strtls::trimmed(statement);
+				pos = statement.find('=');
+
+				if( pos == std::string::npos )
+				{
+					error = base_parser::make_error_code(parse_errno::ICL);
+					return ;
+				}
+				key = strtls::trimmed(statement.substr(0,pos));
+				value = strtls::trimmed(statement.substr(pos+1));
+				cookie.set_attribute(std::move(key), std::move(value));
+			}
 		});
+	}
+
+public:
+	void set_attribute()
+	{
+		auto headers = m_parser.headers();
+		auto it = headers.find(header::connection);
+		if( it == headers.end() )
+			m_keep_alive = m_parser.version() != version::v10;
+		else
+			m_keep_alive = strtls::to_lower(it->second.to_string()) != "close";
+
+		it = headers.find(header::accept_encoding);
+		if( it == headers.end() )
+		{
+			m_support_gzip = false;
+			return ;
+		}
+		for(auto &str : string_vector::from_string(it->second.to_string(), ","))
+		{
+			if( strtls::to_lower(strtls::trimmed(str)) == "gzip" )
+			{
+				m_support_gzip = true;
+				break;
+			}
+		}
 	}
 
 public:
@@ -56,6 +131,9 @@ public:
 	status_enum m_status = status::ok;
 	std::string m_description = status::description<status::ok>();
 	cookies_t m_cookies {};
+
+	bool m_keep_alive = false;
+	bool m_support_gzip = false;
 };
 
 parser<model::client>::parser(size_t init_buf_size) :
@@ -87,32 +165,28 @@ parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
 
 bool parser<model::client>::append(const const_buffer &buf, error_code &error)
 {
-
-	return false;
+	return m_impl->m_parser.append(buf, error);
 }
 
 bool parser<model::client>::append(const const_buffer &buf)
 {
-
-	return false;
+	return m_impl->m_parser.append(buf);
 }
 
-bool parser<model::client>::operator<<(const const_buffer &buf)
+parser<model::client> &parser<model::client>::operator<<(const const_buffer &buf)
 {
-
-	return false;
+	append(buf);
+	return *this;
 }
 
-std::string_view parser<model::client>::version() const noexcept
+version_enum parser<model::client>::version() const noexcept
 {
-
-	return "";
+	return m_impl->m_parser.version();
 }
 
 status_enum parser<model::client>::status() const noexcept
 {
-
-	return status_enum::service_unavailable;
+	return m_impl->m_status;
 }
 
 const headers &parser<model::client>::headers() const noexcept
@@ -127,49 +201,47 @@ const cookies &parser<model::client>::cookies() const noexcept
 
 bool parser<model::client>::keep_alive() const noexcept
 {
-
-	return false;
+	return m_impl->m_keep_alive;
 }
 
 bool parser<model::client>::support_gzip() const noexcept
 {
-
-	return false;
+	return m_impl->m_support_gzip;
 }
 
 bool parser<model::client>::can_read_from_device() const noexcept
 {
-
-	return false;
+	return m_impl->m_parser.can_read_from_device();
 }
 
 std::string parser<model::client>::take_partial_body(size_t size)
 {
-
-	return "";
+	return m_impl->m_parser.take_partial_body(size);
 }
 
 std::string parser<model::client>::take_body()
 {
-
-	return "";
+	return m_impl->m_parser.take_body();
 }
 
 bool parser<model::client>::is_finished() const noexcept
 {
-
-	return false;
+	return m_impl->m_parser.is_finished();
 }
 
 bool parser<model::client>::is_eof() const noexcept
 {
-
-	return false;
+	return m_impl->m_parser.is_eof();
 }
 
 parser<model::client> &parser<model::client>::reset()
 {
-
+	m_impl->m_parser.reset();
+	m_impl->m_status = status::ok;
+	m_impl->m_description = status::description<status::ok>();
+	m_impl->m_cookies.clear();
+	m_impl->m_keep_alive = false;
+	m_impl->m_support_gzip = false;
 	return *this;
 }
 

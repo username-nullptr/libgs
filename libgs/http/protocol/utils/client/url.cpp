@@ -28,7 +28,7 @@ public:
 			{
 				if( resource_line[4] == 's' and resource_line.size() > 8 )
 				{
-					if( resource_line[6] == '/' and resource_line[7] == '/' )
+					if( resource_line[5] == ':' and resource_line[6] == '/' and resource_line[7] == '/' )
 					{
 						m_protocol = "https";
 						resource_line = resource_line.substr(8);

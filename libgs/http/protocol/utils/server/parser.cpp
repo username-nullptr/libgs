@@ -49,7 +49,7 @@ public:
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
 			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
-				error = base_parser::make_error_code(parse_errno::IRL);
+				error = base_parser::make_error_code(parse_errno::IREQL);
 				return version;
 			}
 			method_enum method;
@@ -100,15 +100,20 @@ public:
 		})
 		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
 		{
-			auto list = string_vector::from_string(line_buf, ';');
-			for(auto &statement : list)
+			auto vector = string_vector::from_string(line_buf, ';');
+			if( vector.empty() )
+			{
+				error = base_parser::make_error_code(parse_errno::ICL);
+				return;
+			}
+			for(auto &statement : vector)
 			{
 				statement = strtls::trimmed(statement);
 				auto pos = statement.find('=');
 
 				if( pos == std::string::npos )
 				{
-					error = base_parser::make_error_code(parse_errno::IHL);
+					error = base_parser::make_error_code(parse_errno::ICL);
 					return ;
 				}
 				auto key = strtls::trimmed(statement.substr(0,pos));
@@ -153,7 +158,7 @@ public:
 	path_args_t m_path_args {};
 	cookie_values m_cookies {};
 
-	bool m_keep_alive = true;
+	bool m_keep_alive = false;
 	bool m_support_gzip = false;
 };
 
@@ -346,6 +351,8 @@ parser<model::server> &parser<model::server>::reset()
 	m_impl->m_path.clear();
 	m_impl->m_parameters.clear();
 	m_impl->m_cookies.clear();
+	m_impl->m_keep_alive = false;
+	m_impl->m_support_gzip = false;
 	return *this;
 }
 

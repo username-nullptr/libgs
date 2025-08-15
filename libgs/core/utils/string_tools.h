@@ -129,10 +129,9 @@ using get_char_t = typename get_char<Text>::type;
 	const concepts::any_text_p auto &text, size_t base = 10
 );
 
-template <concepts::integral_p T>
-[[nodiscard]] LIBGS_CORE_TAPI T to_arith (
-	const concepts::any_text_p auto &text, size_t base = 10
-);
+template <typename T>
+[[nodiscard]] LIBGS_CORE_TAPI T to_arith(const concepts::any_text_p auto &text, size_t base = 10)
+	requires concepts::integral_p<T> or concepts::enumerate_p<T>;
 
 template <concepts::floating_p T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith (
@@ -187,10 +186,10 @@ template <concepts::floating_p T>
 	const concepts::any_text_p auto &text, bool default_value = false, size_t base = 10
 ) noexcept;
 
-template <concepts::integral_p T>
+template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith_or (
 	const concepts::any_text_p auto &text, T default_value = static_cast<T>(0), size_t base = 10
-) noexcept;
+) noexcept requires concepts::integral_p<T> or concepts::enumerate_p<T>;
 
 template <concepts::floating_p T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith_or (
