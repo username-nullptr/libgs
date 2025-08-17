@@ -59,7 +59,7 @@ class LIBGS_HTTP_TAPI basic_request<protocol::model::client,
 public:
 	using session_pool_t = SessionPool;
 	using session_t = typename session_pool_t::session_t;
-	using executor_t = session_pool_t::executor_t;
+	using executor_t = typename session_pool_t::executor_t;
 
 	using request_arg_t = protocol::request_arg;
 	using headers_t = request_arg_t::headers_t;
