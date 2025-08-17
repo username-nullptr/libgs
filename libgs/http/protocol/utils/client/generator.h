@@ -36,7 +36,7 @@ namespace libgs::http::protocol
 {
 
 template <>
-class LIBGS_HTTP_TAPI generator<model::client> final
+class LIBGS_HTTP_API generator<model::client> final
 {
 	LIBGS_DISABLE_COPY(generator)
 

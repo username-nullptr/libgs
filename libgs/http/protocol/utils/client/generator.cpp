@@ -4,7 +4,7 @@
 namespace libgs::http::protocol
 {
 
-class LIBGS_HTTP_TAPI generator<model::client>::impl
+class LIBGS_DECL_HIDDEN generator<model::client>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
