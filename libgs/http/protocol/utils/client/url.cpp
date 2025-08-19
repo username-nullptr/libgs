@@ -1,6 +1,6 @@
 #include "url.h"
-
-#include "libgs/core/string_vector.h"
+#include <libgs/core/algorithm/misc.h>
+#include <libgs/core/string_vector.h>
 
 namespace libgs::http::protocol
 {
@@ -21,51 +21,11 @@ public:
 	{
 		if( url.empty() )
 			return ;
-		auto resource_line = strtls::trimmed(url);
-		if( resource_line.size() >= 8 )
-		{
-			if( strtls::to_lower(resource_line.substr(0,4)) == "http" )
-			{
-				if( resource_line[4] == 's' and resource_line.size() > 8 )
-				{
-					if( resource_line[5] == ':' and resource_line[6] == '/' and resource_line[7] == '/' )
-					{
-						m_protocol = "https";
-						resource_line = resource_line.substr(8);
-					}
-				}
-				else if( resource_line[4] == ':' )
-				{
-					if( resource_line[5] == '/' and resource_line[6] == '/' )
-					{
-						m_protocol = "http";
-						resource_line = resource_line.substr(7);
-					}
-				}
-			}
-		}
-		std::string addpth;
-		auto pos = resource_line.find("?");
-		if( pos == std::string::npos )
-			addpth = std::move(resource_line);
-		else
-		{
-			addpth = resource_line.substr(0,pos);
-			auto parameters_string = resource_line.substr(pos + 1);
 
-			for(auto &para_str : string_vector::from_string(parameters_string, "&"))
-			{
-				pos = para_str.find("=");
-				if( pos == std::string::npos )
-				{
-					auto key = para_str;
-					m_parameters.emplace(std::move(key), std::move(para_str));
-				}
-				else
-					m_parameters.emplace(para_str.substr(0, pos), para_str.substr(pos+1));
-			}
-		}
-		pos = addpth.find("/");
+		auto addpth = parse_parameters(
+			set_header(strtls::trimmed(url))
+		);
+		auto pos = addpth.find("/");
 		if( pos == std::string::npos )
 		{
 			m_address = std::move(addpth);
@@ -74,21 +34,78 @@ public:
 		else
 		{
 			m_address = addpth.substr(0,pos);
-			m_path = addpth.substr(pos);
+			m_path = strtls::replace (
+				from_percent_encoding(addpth.substr(pos)),
+				"//", '/', false
+			);
 		}
 		if( m_address.empty() )
+		{
 			m_address = "127.0.0.1";
+			return ;
+		}
+		pos = m_address.rfind(":");
+		if( pos == std::string::npos )
+			m_port = m_protocol == "https" ? 443 : 80;
 		else
 		{
-			pos = m_address.rfind(":");
-			if( pos == std::string::npos )
-				m_port = m_protocol == "https" ? 443 : 80;
-			else
+			m_port = strtls::to_uint16(m_address.substr(pos+1));
+			m_address = m_address.substr(0,pos);
+		}
+	}
+
+private:
+	[[nodiscard]] std::string set_header(std::string resource_line)
+	{
+		if( resource_line.size() < 8 or strtls::to_lower(resource_line.substr(0,4)) != "http" )
+			return "";
+
+		if( resource_line[4] == 's' and resource_line.size() > 8 )
+		{
+			if( resource_line[5] == ':' and resource_line[6] == '/' and resource_line[7] == '/' )
 			{
-				m_port = strtls::to_uint16(m_address.substr(pos+1));
-				m_address = m_address.substr(0,pos);
+				m_protocol = "https";
+				resource_line = resource_line.substr(8);
 			}
 		}
+		else if( resource_line[4] == ':' )
+		{
+			if( resource_line[5] == '/' and resource_line[6] == '/' )
+			{
+				m_protocol = "http";
+				resource_line = resource_line.substr(7);
+			}
+		}
+		return resource_line;
+	}
+
+	[[nodiscard]] std::string parse_parameters(std::string resource_line)
+	{
+		auto pos = resource_line.find("?");
+		if( pos == std::string::npos )
+			return std::move(resource_line);
+
+		auto addpth = resource_line.substr(0,pos);
+		auto parameters_string = resource_line.substr(pos + 1);
+
+		for(auto &para_str : string_vector::from_string(parameters_string, "&"))
+		{
+			pos = para_str.find("=");
+			if( pos == std::string::npos )
+			{
+				para_str = from_percent_encoding(para_str);
+				auto key = para_str;
+				m_parameters.emplace(std::move(key), std::move(para_str));
+			}
+			else
+			{
+				m_parameters.emplace (
+					from_percent_encoding(para_str.substr(0, pos)),
+					from_percent_encoding(para_str.substr(pos + 1))
+				);
+			}
+		}
+		return addpth;
 	}
 
 public:

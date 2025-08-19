@@ -61,8 +61,8 @@ auto from_percent_encoding(concepts::any_string_p auto &&str)
 	auto data = result.data();
 
 	size_t i = 0;
-	size_t len = str.size();
 	size_t outlen = 0;
+	size_t len = result.size();
 
 	int a = 0, b = 0;
 	char_t c = 0;

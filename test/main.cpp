@@ -11,8 +11,9 @@
 #include <libgs/http/protocol/utils/client/parser.h>
 #include <libgs/http/server.h>
 
-#include <libgs/core/observer.h>
+#include <libgs/core/algorithm/misc.h>
 #include <libgs/core/execution.h>
+#include <libgs/core/observer.h>
 #include <libgs/coro/utils.h>
 
 using namespace std::chrono_literals;
@@ -53,10 +54,10 @@ int main()
 		auto sum = co_await async_write(socket, asio::buffer(text), asio::use_awaitable);
 
 		libgs::http::protocol::client_parser parser;
+		char buffer[0xFFFF];
 		for(;;)
 		{
-			char buffer[0xFFFF];
-			sum = co_await socket.async_receive(asio::buffer(buffer, 0xFFFF), asio::use_awaitable);
+			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable);
 
 			std::error_code error;
 			bool res = parser.append({buffer, sum}, error);
@@ -69,11 +70,22 @@ int main()
 			if( res )
 				break;
 		}
-		text.clear();
-		do {
-			text += parser.take_body();
+		text = parser.take_body();
+		while( parser.can_read_from_device() )
+		{
+			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable);
+
+			std::error_code error;
+			bool res = parser.append({buffer, sum}, error);
+
+			if( error )
+			{
+				std::cerr << "Error: " << error << std::endl;
+				co_return ;
+			}
+			if( res )
+				text += parser.take_body();
 		}
-		while( parser.can_read_from_device() );
 
 		int i = 0;
 		i = 11;

@@ -53,7 +53,7 @@ int main()
 		char buffer[0xFFFF];
 		for(;;)
 		{
-			sum = co_await socket.async_receive(asio::buffer(buffer, 0xFFFF), asio::use_awaitable | error);
+			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable | error);
 			if( error )
 			{
 				spdlog::info("Failed to read from server: {}", error);
@@ -68,11 +68,24 @@ int main()
 			if( res )
 				break;
 		}
-		text.clear();
-		do {
-			text += parser.take_body();
+		text = parser.take_body();
+		while( parser.can_read_from_device() )
+		{
+			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable | error);
+			if( error )
+			{
+				spdlog::info("Failed to read from server: {}", error);
+				co_return ;
+			}
+			bool res = parser.append({buffer, sum}, error);
+			if( error )
+			{
+				spdlog::info("Failed to parse reply-body: {}", error);
+				co_return ;
+			}
+			if( res )
+				text += parser.take_body();
 		}
-		while( parser.can_read_from_device() );
 
 		// Do something ...
 		co_return ;

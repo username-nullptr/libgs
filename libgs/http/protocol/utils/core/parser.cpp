@@ -175,7 +175,7 @@ public:
 			auto pos = m_src_buf.find("\r\n");
 			if( pos == std::string::npos )
 			{
-				if( m_src_buf.size() >= 1024 )
+				if( m_src_buf.size() > 8192 )
 					error = make_error_code(parse_errno::HLTL);
 				break;
 			}

@@ -85,17 +85,13 @@ std::string generator<model::client>::header_data(method_enum method, size_t bod
 
 	auto buf = std::string(method::string(method)) + " ";
 	{
-		std::string path(url.path());
+		auto path = to_percent_encoding(url.path(), '/');
 		if( not url.parameters().empty() )
 		{
 			path += "?";
-			std::string params;
-
 			for(auto &[key,value] : url.parameters())
-				params += key + "=" + *value + "&";
-
-			params.pop_back();
-			path += to_percent_encoding(params);
+				path += to_percent_encoding(key) + "=" + to_percent_encoding(*value) + "&";
+			path.pop_back();
 		}
 		buf += path + " HTTP/"
 			+ version::string(m_impl->m_generator->version())
