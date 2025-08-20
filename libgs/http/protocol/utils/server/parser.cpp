@@ -78,9 +78,9 @@ public:
 				{
 					pos = para_str.find('=');
 					if( pos == std::string::npos )
-						m_parameters.emplace(para_str, para_str);
+						m_parameters.emplace_back(para_str, para_str);
 					else
-						m_parameters.emplace(para_str.substr(0, pos), para_str.substr(pos+1));
+						m_parameters.emplace_back(para_str.substr(0, pos), para_str.substr(pos+1));
 				}
 			}
 			if( not m_path.starts_with("/") )

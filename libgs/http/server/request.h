@@ -85,9 +85,17 @@ public:
 	) const requires core_concepts::value_get<T,char>;
 
 	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) parameter(size_t index)
+		const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) parameter_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
 	) const requires core_concepts::value_get_or<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) parameter_or(size_t index, T &&def_value = {})
+		const requires core_concepts::value_get_or<T,char>;
 
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
 

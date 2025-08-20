@@ -135,7 +135,7 @@ X_MACRO( not_modified       , status::not_modified       , "Not Modified"       
 LIBGS_HTTP_DEFINE_ENUM(uint32_t, redirect, LIBGS_HTTP_REDIRECT_TYPE_TABLE, description);
 #undef X_MACRO
 
-using parameters = map<value>;
+using parameters = parameter_map;
 
 } //namespace libgs::http::protocol
 #include <libgs/http/protocol/detail/types.h>

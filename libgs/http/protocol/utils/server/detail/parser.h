@@ -36,18 +36,60 @@ template <typename T>
 decltype(auto) parser<model::server>::parameter(const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
-	return value_map_get (
-		parameters(), key, "libgs::http::parser<model::server>::parameter"
-	);
+	auto it = parameters().find(strtls::to_view(key));
+	if( it == parameters().end() )
+	{
+		throw runtime_error (
+			"libgs::http::parser<model::server>::parameter: key '{}' not exists.", key
+		);
+	}
+	return it->second.template get<T>();
+}
+
+template <typename T>
+decltype(auto) parser<model::server>::parameter(size_t index)
+	const requires core_concepts::value_get<T,char>
+{
+	if( index >= parameters().size() )
+	{
+		throw runtime_error (
+			"libgs::http::parser<model::server>::parameter: index out of range."
+		);
+	}
+	return parameters()[index].second.get<T>();
 }
 
 template <typename T>
 decltype(auto) parser<model::server>::parameter_or(const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get<T,char>
 {
-	return value_map_get_or (
-		parameters(), key, std::forward<T>(def_value)
-	);
+	auto it = parameters().find(strtls::to_view(key));
+	using def_t = std::remove_cvref_t<T>;
+
+	if constexpr( is_string_v<def_t, char> )
+	{
+		return it == parameters().end() ?
+			strtls::to_string(std::forward<T>(def_value)) : *it->second;
+	}
+	else
+	{
+		return it == parameters().end() ? std::forward<T>(def_value) :
+			it->second.template get<def_t>();
+	}
+}
+
+template <typename T>
+decltype(auto) parser<model::server>::parameter_or(size_t index, T &&def_value)
+	const requires core_concepts::value_get<T,char>
+{
+	if( index < parameters().size() )
+		return parameters()[index].second.get<T>();
+
+	using def_t = std::remove_cvref_t<T>;
+	if constexpr( is_string_v<def_t, char> )
+		return strtls::to_string(std::forward<T>(def_value));
+	else
+		return std::forward<T>(def_value);
 }
 
 template <typename T>
@@ -90,9 +132,7 @@ template <typename T>
 decltype(auto) parser<model::server>::path_arg(const core_concepts::text_p<char> auto &key)
 	const requires core_concepts::value_get<T,char>
 {
-	auto it = std::ranges::find(path_args(), key, [](const auto &pair) {
-		return return_reference(pair.first);
-	});
+	auto it = path_args().find(strtls::to_view(key));
 	if( it == path_args().end() )
 	{
 		throw runtime_error (
@@ -119,9 +159,7 @@ template <typename T>
 decltype(auto) parser<model::server>::path_arg_or(const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get<T,char>
 {
-	auto it = std::ranges::find(path_args(), key, [](const auto &pair) {
-		return return_reference(pair.first);
-	});
+	auto it = path_args().find(strtls::to_view(key));
 	using def_t = std::remove_cvref_t<T>;
 
 	if constexpr( is_string_v<def_t, char> )

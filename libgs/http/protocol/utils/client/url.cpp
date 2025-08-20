@@ -95,11 +95,11 @@ private:
 			{
 				para_str = from_percent_encoding(para_str);
 				auto key = para_str;
-				m_parameters.emplace(std::move(key), std::move(para_str));
+				m_parameters.emplace_back(std::move(key), std::move(para_str));
 			}
 			else
 			{
-				m_parameters.emplace (
+				m_parameters.emplace_back (
 					from_percent_encoding(para_str.substr(0, pos)),
 					from_percent_encoding(para_str.substr(pos + 1))
 				);

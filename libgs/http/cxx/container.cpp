@@ -26,71 +26,66 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_CONTAINER_H
-#define LIBGS_HTTP_CXX_CONTAINER_H
-
-#include <libgs/http/cxx/attributes.h>
-#include <libgs/http/cxx/concepts.h>
-#include <libgs/core/value.h>
-#include <map>
-#include <set>
+#include "container.h"
 
 namespace libgs::http
 {
 
-using key_t = std::string;
-
-struct LIBGS_HTTP_API less_case_insensitive {
-	[[nodiscard]] bool operator()(const key_t &v1, const key_t &v2) const;
-};
-
-template <typename Value>
-using map = std::map<key_t, Value, less_case_insensitive>;
-
-template <typename Value>
-using set = std::set<Value, less_case_insensitive>;
-
-using value_map = map<value>;
-using value_set = set<value>;
-
-template <typename T = value>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_map_get (
-	const value_map &map, const core_concepts::text_p<char> auto &key, const char *msg
-) requires core_concepts::value_get<T,char>;
-
-template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_map_get_or (
-	const value_map &map, const core_concepts::text_p<char> auto &key, T &&def_value = {}
-) requires core_concepts::value_get<T,char>;
-
-template <typename T = value>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_set_get (
-	const value_set &set, const value &node, const char *msg
-) requires core_concepts::value_get<T,char>;
-
-template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_set_get_or (
-	const value_map &set, const value &node, T &&def_value = {}
-) requires core_concepts::value_get<T,char>;
-
-using kv_vector = std::vector<std::pair<std::string,value>>;
-
-class LIBGS_HTTP_API parameter_map : public kv_vector
+bool less_case_insensitive::operator()(const key_t &v1, const key_t &v2) const
 {
-public:
-	using kv_vector::kv_vector;
-	using kv_vector::operator[];
+	return std::lexicographical_compare (
+	v1.begin(), v1.end(), v2.begin(), v2.end(), [](char c1, char c2)
+	{
+		return std::tolower(c1) < std::tolower(c2);
+	});
+}
 
-	[[nodiscard]] iterator find(std::string_view key);
-	[[nodiscard]] const_iterator find(std::string_view key) const;
+parameter_map::iterator parameter_map::find(std::string_view key)
+{
+	return std::ranges::find(*this, key, [](const auto &pair) {
+		return return_reference(pair.first);
+	});
+}
 
-	value &operator[](std::string_view key);
-	value &operator[](std::string &&key);
-	[[nodiscard]] const value &operator[](std::string_view key) const;
-};
+parameter_map::const_iterator parameter_map::find(std::string_view key) const
+{
+	return std::ranges::find(*this, key, [](const auto &pair) {
+		return return_reference(pair.first);
+	});
+}
+
+value &parameter_map::operator[](std::string_view key)
+{
+	auto it = find(key);
+	if( it == end() )
+	{
+		emplace_back(key, value{});
+		it = std::prev(end());
+	}
+	return it->second;
+}
+
+value &parameter_map::operator[](std::string &&key)
+{
+	auto it = find(key);
+	if( it == end() )
+	{
+		emplace_back(std::move(key), value{});
+		it = std::prev(end());
+	}
+	return it->second;
+}
+
+const value &parameter_map::operator[](std::string_view key) const
+{
+	auto it = find(key);
+	if( it == end() )
+	{
+		throw std::out_of_range (
+			"libgs::http::parameter_map: key not found"
+		);
+	}
+	return it->second;
+}
 
 } //namespace libgs::http
-#include <libgs/http/cxx/detail/container.h>
-
-
-#endif //LIBGS_HTTP_CXX_CONTAINER_H

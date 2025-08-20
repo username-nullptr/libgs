@@ -423,12 +423,30 @@ decltype(auto) basic_request<protocol::model::server,Stream>::parameter
 
 template <concepts::stream Stream>
 template <typename T>
+decltype(auto) basic_request<protocol::model::server,Stream>::parameter(size_t index)
+	const requires core_concepts::value_get<T,char>
+{
+	return m_impl->m_parser->parameter(index);
+}
+
+template <concepts::stream Stream>
+template <typename T>
 decltype(auto) basic_request<protocol::model::server,Stream>::parameter_or
 (const core_concepts::text_p<char> auto &key, T &&def_value)
 	const requires core_concepts::value_get_or<T,char>
 {
 	return m_impl->m_parser->parameter_or (
 		std::forward<decltype(key)>(key), std::forward<T>(def_value)
+	);
+}
+
+template <concepts::stream Stream>
+template <typename T>
+decltype(auto) basic_request<protocol::model::server,Stream>::parameter_or(size_t index, T &&def_value)
+	const requires core_concepts::value_get_or<T,char>
+{
+	return m_impl->m_parser->parameter_or (
+		index, std::forward<T>(def_value)
 	);
 }
 

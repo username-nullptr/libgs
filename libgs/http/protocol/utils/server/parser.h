@@ -41,7 +41,7 @@ class LIBGS_HTTP_API parser<model::server> final
 
 public:
 	using value_t = libgs::value;
-	using path_args_t = std::vector<std::pair<std::string,value_t>>;
+	using path_args_t = parameter_map;
 
 	using parameters_t = protocol::parameters;
 	using headers_t = protocol::headers;
@@ -72,9 +72,17 @@ public:
 	) const requires core_concepts::value_get<T,char>;
 
 	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) parameter(size_t index)
+		const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
 	[[nodiscard]] decltype(auto) parameter_or (
 		const core_concepts::text_p<char> auto &key, T &&def_value = {}
 	) const requires core_concepts::value_get<T,char>;
+
+	template <typename T = value_t>
+	[[nodiscard]] decltype(auto) parameter_or(size_t index, T &&def_value = {})
+		const requires core_concepts::value_get<T,char>;
 
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
 
