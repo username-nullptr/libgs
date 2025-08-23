@@ -70,9 +70,9 @@ public:
 	[[nodiscard]] const string_t &to_string() const & noexcept;
 	[[nodiscard]] string_t to_string() && noexcept;
 
-	operator string_t&() & noexcept;
-	operator const string_t&() const & noexcept;
-	operator string_t() && noexcept;
+	[[nodiscard]] operator string_t&() & noexcept;
+	[[nodiscard]] operator const string_t&() const & noexcept;
+	[[nodiscard]] operator string_t() && noexcept;
 
 public:
 	template <typename T, typename...Args>

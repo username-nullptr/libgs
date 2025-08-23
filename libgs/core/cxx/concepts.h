@@ -104,6 +104,11 @@ concept callable_ret = requires(Func &&func, Args&&...args) {
 };
 
 template <typename Func, typename...Args>
+concept callable_novoid = requires(Func &&func, Args&&...args) {
+	not std::is_same_v<decltype(func(std::forward<Args>(args)...)), void>;
+};
+
+template <typename Func, typename...Args>
 concept callable_void = callable_ret<Func, void, Args...>;
 
 template <typename Func, typename...Args>
@@ -149,6 +154,9 @@ concept copy_or_movable = copyable<T> or movable<T>;
 
 template <typename T>
 concept copy_or_move_constructible = copy_constructible<T> or move_constructible<T>;
+
+template <typename T>
+concept optional_value = copy_or_move_constructible<T> and concepts::constructible<T>;
 
 template <typename T, typename Base>
 concept base_of = std::is_base_of_v<Base,T>;

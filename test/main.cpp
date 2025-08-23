@@ -22,76 +22,42 @@ using namespace std::chrono_literals;
 int main()
 {
 	// spdlog::set_level(spdlog::level::trace);
-	libgs::dispatch([]() -> libgs::awaitable<void>
+
+	libgs::optional<int> opt0 = 123;
+
+	auto fff = [](int ii)
 	{
-		using tcp_t = asio::ip::tcp;
-		using udp_t = asio::ip::udp;
+		return libgs::make_optional(234);
+	};
 
-		udp_t::resolver resolver(libgs::io_context());
-		auto results = co_await resolver.async_resolve (
-			"baidu.com", "", asio::use_awaitable
-		);
-		if( results.empty() )
-		{
-			std::cerr << "Failed to resolve api domain" << std::endl;
-			co_return ;
-		}
+	constexpr bool bbbbb = libgs::optional<int>::and_then_v<decltype(fff)>;
+	static_assert(bbbbb, "2222222222222");
 
-		tcp_t::endpoint ep (
-			results.begin()->endpoint().address(), 443
-		);
-		tcp_t::socket socket(libgs::io_context());
-		co_await socket.async_connect(ep, asio::use_awaitable);
-
-		libgs::http::protocol::url url("http://www.baidu.com");
-		libgs::http::protocol::request_arg arg(url);
-
-		arg.set_header("Connection", "keep-alive")
-		   .set_header("Host", "www.baidu.com");
-
-		libgs::http::protocol::client_generator generator(arg);
-		auto text = generator.header_data<libgs::http::protocol::method::get>();
-		auto sum = co_await async_write(socket, asio::buffer(text), asio::use_awaitable);
-
-		libgs::http::protocol::client_parser parser;
-		char buffer[0xFFFF];
-		for(;;)
-		{
-			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable);
-
-			std::error_code error;
-			bool res = parser.append({buffer, sum}, error);
-
-			if( error )
-			{
-				std::cerr << "Error: " << error << std::endl;
-				co_return ;
-			}
-			if( res )
-				break;
-		}
-		text = parser.take_body();
-		while( parser.can_read_from_device() )
-		{
-			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable);
-
-			std::error_code error;
-			bool res = parser.append({buffer, sum}, error);
-
-			if( error )
-			{
-				std::cerr << "Error: " << error << std::endl;
-				co_return ;
-			}
-			if( res )
-				text += parser.take_body();
-		}
-
-		int i = 0;
-		i = 11;
-
-		co_return ;
+	auto opt1 = opt0
+	.and_then([](int ii)
+	{
+		return libgs::make_optional(456);
+	})
+	.or_else([]
+	{
+		return libgs::make_optional(789);
 	});
-	return libgs::exec();
-	// return 0;
+
+	std::cout << *opt1 << std::endl;
+
+	libgs::optional<std::string> opt2;
+
+	auto opt3 = opt2
+	.and_then([](std::string_view ii)
+	{
+		return libgs::make_optional(3.14);
+	})
+	.or_else([]
+	{
+		return libgs::make_optional(1.414);
+	});
+
+	std::cout << *opt3 << std::endl;
+
+	return 0;
 }

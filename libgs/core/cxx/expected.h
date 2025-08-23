@@ -26,58 +26,66 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_GLOBAL_H
-#define LIBGS_CORE_GLOBAL_H
+#ifndef LIBGS_CORE_CXX_EXPECTED_H
+#define LIBGS_CORE_CXX_EXPECTED_H
 
-#include <libgs/core/cxx/cplusplus.h>
-#include <libgs/core/cxx/operators.h>
-#include <libgs/core/cxx/expected.h>
-#include <libgs/core/utils.h>
+#include <libgs/core/cxx/optional.h>
 
 namespace libgs
 {
 
-using io_expected = expected<size_t,error_code>;
-
-[[nodiscard]] LIBGS_CORE_API const char *version_string();
-
-[[nodiscard]] LIBGS_CORE_API const char *text_code();
-
-LIBGS_CORE_API std::thread::id this_thread_id();
-
-[[noreturn]] LIBGS_CORE_API void forced_termination();
-
-template<typename Rep, typename Period>
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token, const duration<Rep,Period> &def_time
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token
-);
-
-[[nodiscard]] constexpr decltype(auto) unbound_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token
-);
-
-namespace operators
+template <concepts::optional_value Value, concepts::optional_value Error>
+class LIBGS_CORE_TAPI expected : public optional_base<Value>
 {
+public:
+	using value_t = Value;
+    using error_t = Error;
 
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, error_code &error)
-    requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
+	template <typename...Args>
+	expected(Args&&...args) requires
+		concepts::constructible<value_t,Args...>;
 
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, const asio::cancellation_slot &slot)
-    requires (not is_cancellation_slot_binder_v<std::remove_cvref_t<Token>>);
+	template <typename...Args>
+	expected(Args&&...args) requires
+		concepts::constructible<error_t,Args...>;
 
-template <typename Rep, typename Period>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
-    concepts::any_async_opt_token auto &&token, const duration<Rep,Period> &d
-);
+	expected(const expected &other) requires
+		concepts::copy_constructible<value_t> and
+		concepts::copy_constructible<error_t>;
 
-}} //namespace libgs
-#include <libgs/core/detail/global.h>
+	expected &operator=(const expected &other) requires
+		concepts::copy_constructible<value_t> and
+		concepts::copy_constructible<error_t>;
+
+	expected(expected &&other) requires
+		concepts::move_constructible<value_t> and
+		concepts::move_constructible<error_t>;
+
+	expected &operator=(expected &&other) requires
+		concepts::move_constructible<value_t> and
+		concepts::move_constructible<error_t>;
+
+public:
+	[[nodiscard]] const error_t &error() const & noexcept;
+	[[nodiscard]] error_t &&error() const && noexcept;
+
+	[[nodiscard]] error_t &error() & noexcept;
+	[[nodiscard]] error_t &&error() && noexcept;
+
+public:
+	template <concepts::optional_value Value0, concepts::optional_value Error0>
+	[[nodiscard]] auto and_then(concepts::callable_ret<expected<Value0,Error0>,value_t> auto &&func)
+		requires concepts::constructible<Error0,error_t>;
+
+	[[nodiscard]] expected or_else(concepts::callable_ret<expected,error_t> auto &&func);
+	[[nodiscard]] expected or_else(value_t value);
+
+private:
+	error_t m_error;
+};
+
+} //namespace libgs
+#include <libgs/core/cxx/detail/expected.h>
 
 
-#endif //LIBGS_CORE_GLOBAL_H
+#endif //LIBGS_CORE_CXX_EXPECTED_H
