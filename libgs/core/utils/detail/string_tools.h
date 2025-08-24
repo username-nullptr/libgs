@@ -30,6 +30,7 @@
 #define LIBGS_CORE_UTILS_DETAIL_STRING_TOOLS_H
 
 #include <ranges>
+#include <algorithm>
 
 namespace libgs::strtls { namespace detail
 {
@@ -66,9 +67,13 @@ template <concepts::character CharT>
 {
 	size_t index = 0;
 	auto res = func({str.data(), str.size()}, &index);
-	if( index < str.size() )
-		throw std::runtime_error("Cannot convert string to arithmetic.");
-	return res;
+
+	using result_t = decltype(res);
+	optional<result_t> opt;
+
+	if( index >= str.size() )
+		opt = res;
+	return opt;
 }
 
 template <concepts::character CharT>
@@ -76,13 +81,18 @@ template <concepts::character CharT>
 {
 	size_t index = 0;
 	auto res = func({str.data(), str.size()}, &index, static_cast<int>(base));
-	if( index < str.size() )
-	{
-		res = static_cast<decltype(res)>(_sto_float<CharT>(
-			static_cast<long double(*)(const std::basic_string<CharT>&,size_t*)>(std::stold), str
-		));
-	}
-	return res;
+
+	using result_t = decltype(res);
+
+	if( index >= str.size() )
+		return optional<result_t>(res);
+
+	auto opt = _sto_float<CharT>(
+		static_cast<long double(*)(const std::basic_string<CharT>&,size_t*)>(std::stold), str
+	);
+	return opt ?
+		optional<result_t>(static_cast<result_t>(*opt)) :
+		optional<result_t>();
 }
 
 template <concepts::character CharT>
@@ -106,305 +116,19 @@ template <concepts::character CharT>
 }
 
 template <concepts::character CharT, typename T>
-[[nodiscard]] LIBGS_CORE_TAPI T try_to_booltot(std::basic_string_view<CharT> str, const std::optional<T> &odv)
+[[nodiscard]] LIBGS_CORE_TAPI optional<T> try_to_booltot(std::basic_string_view<CharT> str)
 {
 	int res = _to_bool<CharT>(str);
 	if( res < 0 )
-	{
-		if( odv )
-			return *odv;
-		throw std::runtime_error("Cannot convert string to arithmetic.");
-	}
+		return {};
 	return static_cast<T>(!!res);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI int8_t to_int8(const auto &str, size_t base, std::optional<int8_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<int8_t>(_sto_int<char_t>(
-			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI uint8_t to_uint8(const auto &str, size_t base, std::optional<uint8_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<uint8_t>(_sto_int<char_t>(
-			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI int16_t to_int16(const auto &str, size_t base, std::optional<int16_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<int16_t>(_sto_int<char_t>(
-			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI uint16_t to_uint16(const auto &str, size_t base, std::optional<uint8_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<uint16_t>(_sto_int<char_t>(
-			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI int32_t to_int32(const auto &str, size_t base, std::optional<int32_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<int32_t>(_sto_int<char_t>(
-			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI uint32_t to_uint32(const auto &str, size_t base, std::optional<uint32_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<uint32_t>(_sto_int<char_t>(
-			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI int64_t to_int64(const auto &str, size_t base, std::optional<int64_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<int64_t>(_sto_int<char_t>(
-			static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI uint64_t to_uint64(const auto &str, size_t base, std::optional<uint64_t> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return static_cast<uint64_t>(_sto_int<char_t>(
-			static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _str, base
-		));
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI float to_float(const auto &str, std::optional<float> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return _sto_float<char_t>(
-			static_cast<float(*)(const string_t&,size_t*)>(std::stof), _str
-		);
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI double to_double(const auto &str, std::optional<double> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return _sto_float<char_t>(
-			static_cast<double(*)(const string_t&,size_t*)>(std::stod), _str
-		);
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI long double to_ldouble(const auto &str, std::optional<long double> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		return _sto_float<char_t>(
-			static_cast<long double(*)(const string_t&,size_t*)>(std::stold), _str
-		);
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
-}
-
-[[nodiscard]] LIBGS_CORE_TAPI bool to_bool(const auto &str, size_t base, std::optional<bool> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	if constexpr( concepts::character<str_t> )
-		return str != 0x30;
-	else
-	{
-		using char_t = get_char_t<str_t>;
-		auto _str = trimmed(str);
-
-		int res = _to_bool<char_t>(_str);
-		if( res < 0 )
-		{
-			using char_t = get_char_t<str_t>;
-			using string_t = std::basic_string<char_t>;
-			try {
-				return /*!!*/_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-				);
-			}
-			catch(...)
-			{
-				if( odv.has_value() )
-					return *odv;
-				throw std::runtime_error("Cannot convert string to arithmetic.");
-			}
-		}
-		return res > 0;
-	}
 }
 
 template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI T to_arith(const auto &str, size_t base, std::optional<T> odv = {})
 	requires concepts::integral_p<T> or concepts::enumerate_p<T>
 {
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	auto _str = trimmed(str);
 
-	if constexpr( std::is_same_v<T, bool> )
-		return to_bool(_str, base);
-	else if constexpr( concepts::enumerate_p<T> )
-		return static_cast<T>(to_arith<int>(_str, base, odv));
-	else
-	{
-		using string_t = std::basic_string<char_t>;
-		try {
-			if constexpr( std::is_same_v<T, char> )
-			{
-				return static_cast<char>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, unsigned char> )
-			{
-				return static_cast<unsigned char>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, short> )
-			{
-				return static_cast<short>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, unsigned short> )
-			{
-				return static_cast<unsigned short>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, int> )
-			{
-				return static_cast<int>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, unsigned int> )
-			{
-				return static_cast<unsigned int>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, long> )
-			{
-				return static_cast<long>(_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, unsigned long> )
-			{
-				return static_cast<unsigned long>(_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, long long> )
-			{
-				return static_cast<long long>(_sto_int<char_t>(
-					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _str, base
-				));
-			}
-			else if constexpr( std::is_same_v<T, unsigned long long> )
-			{
-				return static_cast<unsigned long long>(_sto_int<char_t>(
-					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _str, base
-				));
-			}
-		}
-		catch(std::exception&) {}
-		return try_to_booltot<char_t>(_str, odv);
-	}
 }
 
 template <concepts::floating_p T>
@@ -473,6 +197,53 @@ template <concepts::character CharT>
 }
 
 } //namespace detail
+
+template <concepts::character CharT>
+std::basic_string<CharT> to_string(concepts::arithmetic_p auto &&value, size_t base, bool uppercase)
+{
+	if( base < 2 or base > 36 )
+	{
+		throw std::invalid_argument (
+			"libgs::strtls::to_string: Invalid base - must be between 2 and 36"
+		);
+	}
+	std::basic_string<CharT> result;
+	if( value == 0 )
+		return result;
+
+	bool is_negative = false;
+	using T = std::remove_cvref_t<decltype(value)>;
+
+	if constexpr( std::is_signed_v<T> )
+	{
+		if( value < 0 )
+		{
+			is_negative = true;
+			value = -value;
+		}
+	}
+	constexpr auto digits_lower = l_str(CharT,"0123456789abcdefghijklmnopqrstuvwxyz");
+	constexpr auto digits_upper = l_str(CharT,"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+	const CharT *digits = uppercase ? digits_upper : digits_lower;
+
+	while( value > 0 )
+	{
+		auto remainder = static_cast<unsigned int>(value % base);
+		result.insert(result.begin(), digits[remainder]);
+		value = value / base;
+	}
+	if( is_negative )
+		result.insert(result.begin(), static_cast<CharT>('-'));
+	return result;
+}
+
+template <concepts::character CharT>
+std::basic_string<CharT> to_string(concepts::floating_p auto &&value)
+{
+	std::basic_ostringstream<CharT> oss;
+	oss << value;
+	return oss.str();
+}
 
 decltype(auto) to_string(concepts::any_text_p auto &&text)
 {
@@ -631,150 +402,319 @@ bool is_ascii(const concepts::any_string_p auto &str) noexcept
 	}
 }
 
-int8_t to_int8(const concepts::any_text_p auto &text, size_t base)
+optional<int8_t> to_int8(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_int8(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol),
+			_text, base
+		);
+		if( opt )
+			return static_cast<int8_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,int8_t>(_text);
 }
 
-uint8_t to_uint8(const concepts::any_text_p auto &text, size_t base)
+optional<uint8_t> to_uint8(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_uint8(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul),
+			_text, base
+		);
+		if( opt )
+			return static_cast<uint8_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,uint8_t>(_text);
 }
 
-int16_t to_int16(const concepts::any_text_p auto &text, size_t base)
+optional<int16_t> to_int16(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_int16(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol),
+			_text, base
+		);
+		if( opt )
+			return static_cast<int16_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,int16_t>(_text);
 }
 
-uint16_t to_uint16(const concepts::any_text_p auto &text, size_t base)
+optional<uint16_t> to_uint16(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_uint16(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul),
+			_text, base
+		);
+		if( opt )
+			return static_cast<uint16_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,uint16_t>(_text);
 }
 
-int32_t to_int32(const concepts::any_text_p auto &text, size_t base)
+optional<int32_t> to_int32(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_int32(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol),
+			_text, base
+		);
+		if( opt )
+			return static_cast<int32_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,int32_t>(_text);
 }
 
-uint32_t to_uint32(const concepts::any_text_p auto &text, size_t base)
+optional<uint32_t> to_uint32(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_uint32(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul),
+			_text, base
+		);
+		if( opt )
+			return static_cast<uint32_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,uint32_t>(_text);
 }
 
-int64_t to_int64(const concepts::any_text_p auto &text, size_t base)
+optional<int64_t> to_int64(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_int64(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll),
+			_text, base
+		);
+		if( opt )
+			return static_cast<int64_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,int64_t>(_text);
 }
 
-uint64_t to_uint64(const concepts::any_text_p auto &text, size_t base)
+optional<uint64_t> to_uint64(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_uint64(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		auto opt = detail::_sto_int<char_t>(
+			static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull),
+			_text, base
+		);
+		if( opt )
+			return static_cast<uint64_t>(*opt);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,uint64_t>(_text);
 }
 
-float to_float(const concepts::any_text_p auto &text)
+optional<float> to_float(const concepts::any_text_p auto &text)
 {
-	return detail::to_float(text);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		return detail::_sto_float<char_t>(
+			static_cast<float(*)(const string_t&,size_t*)>(std::stof), _text
+		);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,float>(_text);
 }
 
-double to_double(const concepts::any_text_p auto &text)
+optional<double> to_double(const concepts::any_text_p auto &text)
 {
-	return detail::to_double(text);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		return detail::_sto_float<char_t>(
+			static_cast<double(*)(const string_t&,size_t*)>(std::stod), _text
+		);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,double>(_text);
 }
 
-long double to_ldouble(const concepts::any_text_p auto &text)
+optional<long double> to_ldouble(const concepts::any_text_p auto &text)
 {
-	return detail::to_ldouble(text);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		return detail::_sto_float<char_t>(
+			static_cast<long double(*)(const string_t&,size_t*)>(std::stold), _text
+		);
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t,long double>(_text);
 }
 
-bool to_bool(const concepts::any_text_p auto &text, size_t base)
+optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base)
 {
-	return detail::to_bool(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	if constexpr( concepts::character<text_t> )
+		return text != 0x30;
+	else
+	{
+		using char_t = get_char_t<text_t>;
+		auto _text = trimmed(text);
+
+		int res = detail::_to_bool<char_t>(_text);
+		if( res < 0 )
+		{
+			using string_t = std::basic_string<char_t>;
+			try {
+				return /*!!*/detail::_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
+				);
+			}
+			catch(...) {
+				return {};
+			}
+		}
+		return res > 0;
+	}
 }
 
 template <typename T>
-[[nodiscard]] T to_arith(const concepts::any_text_p auto &text, size_t base)
+[[nodiscard]] optional<T> to_arith(const concepts::any_text_p auto &text, size_t base)
 	requires concepts::integral_p<T> or concepts::enumerate_p<T>
 {
-	return detail::to_arith<T>(text, base);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	auto _text = trimmed(text);
+
+	if constexpr( std::is_same_v<T, bool> )
+		return to_bool(_text, base);
+	else if constexpr( concepts::enumerate_p<T> )
+		return static_cast<T>(to_arith<int>(_text, base));
+	else
+	{
+		using string_t = std::basic_string<char_t>;
+		try {
+			if constexpr( std::is_same_v<T, char> )
+			{
+				return static_cast<char>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned char> )
+			{
+				return static_cast<unsigned char>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, short> )
+			{
+				return static_cast<short>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned short> )
+			{
+				return static_cast<unsigned short>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, int> )
+			{
+				return static_cast<int>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned int> )
+			{
+				return static_cast<unsigned int>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, long> )
+			{
+				return static_cast<long>(_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned long> )
+			{
+				return static_cast<unsigned long>(_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, long long> )
+			{
+				return static_cast<long long>(_sto_int<char_t>(
+					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _text, base
+				));
+			}
+			else if constexpr( std::is_same_v<T, unsigned long long> )
+			{
+				return static_cast<unsigned long long>(_sto_int<char_t>(
+					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _text, base
+				));
+			}
+		}
+		catch(std::exception&) {}
+		return detail::try_to_booltot<char_t>(_text);
+	}
 }
 
 template <concepts::floating_p T>
-[[nodiscard]] T to_arith(const concepts::any_text_p auto &text)
+[[nodiscard]] optional<T> to_arith(const concepts::any_text_p auto &text)
 {
 	return detail::to_arith<T>(text);
-}
-
-int8_t to_int8_or(const concepts::any_text_p auto &text, int8_t default_value, size_t base) noexcept
-{
-	return detail::to_int8(text, base, default_value);
-}
-
-uint8_t to_uint8_or(const concepts::any_text_p auto &text, uint8_t default_value, size_t base) noexcept
-{
-	return detail::to_int8(text, base, default_value);
-}
-
-int16_t to_int16_or(const concepts::any_text_p auto &text, int16_t default_value, size_t base) noexcept
-{
-	return detail::to_int16(text, base, default_value);
-}
-
-uint16_t to_uint16_or(const concepts::any_text_p auto &text, uint16_t default_value, size_t base) noexcept
-{
-	return detail::to_uint16(text, base, default_value);
-}
-
-int32_t to_int32_or(const concepts::any_text_p auto &text, int32_t default_value, size_t base) noexcept
-{
-	return detail::to_int32(text, base, default_value);
-}
-
-uint32_t to_uint32_or(const concepts::any_text_p auto &text, uint32_t default_value, size_t base) noexcept
-{
-	return detail::to_uint32(text, base, default_value);
-}
-
-int64_t to_int64_or(const concepts::any_text_p auto &text, int64_t default_value, size_t base) noexcept
-{
-	return detail::to_int64(text, base, default_value);
-}
-
-uint64_t to_uint64_or(const concepts::any_text_p auto &text, uint64_t default_value, size_t base) noexcept
-{
-	return detail::to_uint64(text, base, default_value);
-}
-
-float to_float_or(const concepts::any_text_p auto &text, float default_value) noexcept
-{
-	return detail::to_float(text, default_value);
-}
-
-double to_double_or(const concepts::any_text_p auto &text, double default_value) noexcept
-{
-	return detail::to_double(text, default_value);
-}
-
-long double to_ldouble_or(const concepts::any_text_p auto &text, long double default_value) noexcept
-{
-	return detail::to_ldouble(text, default_value);
-}
-
-bool to_bool_or(const concepts::any_text_p auto &text, bool default_value, size_t base) noexcept
-{
-	return detail::to_bool(text, base, default_value);
-}
-
-template <typename T>
-[[nodiscard]] T to_arith_or(const concepts::any_text_p auto &text, T default_value, size_t base)
-	noexcept requires concepts::integral_p<T> or concepts::enumerate_p<T>
-{
-	return detail::to_arith<T>(text, base, default_value);
-}
-
-template <concepts::floating_p T>
-[[nodiscard]] T to_arith_or(const concepts::any_text_p auto &text, T default_value) noexcept
-{
-	return detail::to_arith<T>(text, default_value);
 }
 
 auto to_lower(concepts::any_text_p auto &&text)

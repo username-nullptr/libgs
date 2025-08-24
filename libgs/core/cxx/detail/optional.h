@@ -182,22 +182,22 @@ Value &&optional_base<Value>::operator*() &&
 }
 
 template <concepts::optional_value Value>
+const Value *optional_base<Value>::operator->() const
+{
+	return &value();
+}
+
+template <concepts::optional_value Value>
+Value *optional_base<Value>::operator->()
+{
+	return &value();
+}
+
+template <concepts::optional_value Value>
 bool optional_base<Value>::operator==(const optional_base &other) const
 	requires std::equality_comparable<value_t>
 {
 	return has_value() and other.has_value() and value() == other.value();
-}
-
-template <concepts::optional_value Value>
-const Value *optional_base<Value>::operator->() const requires address_v
-{
-	return &value();
-}
-
-template <concepts::optional_value Value>
-Value *optional_base<Value>::operator->() requires address_v
-{
-	return &value();
 }
 
 template <concepts::optional_value Value>

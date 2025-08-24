@@ -83,15 +83,11 @@ public:
 	[[nodiscard]] value_t &operator*() &;
 	[[nodiscard]] value_t &&operator*() &&;
 
+	[[nodiscard]] const value_t *operator->() const;
+	[[nodiscard]] value_t *operator->();
+
 	[[nodiscard]] bool operator==(const optional_base &other) const
 		requires std::equality_comparable<value_t>;
-
-public:
-	static constexpr bool address_v = requires(value_t value) {
-		value.operator->();
-	};
-	[[nodiscard]] const value_t *operator->() const requires address_v;
-	[[nodiscard]] value_t *operator->() requires address_v;
 
 private:
 	value_t m_value {};
