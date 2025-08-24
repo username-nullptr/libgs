@@ -91,44 +91,19 @@ public:
 	[[nodiscard]] decltype(auto) get(Args&&...args) const &&
 		requires concepts::value_get<T,CharT,Args...>;
 
-	template <typename T, typename...Args>
-	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) &
-		requires concepts::value_get_or<T,CharT,Args...>;
-
-	template <typename T, typename...Args>
-	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) &&
-		requires concepts::value_get_or<T,CharT,Args...>;
-
-	template <typename T, typename...Args>
-	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) const &
-		requires concepts::value_get_or<T,CharT,Args...>;
-
-	template <typename T, typename...Args>
-	[[nodiscard]] decltype(auto) get_or(T &&def_value = T(), Args&&...args) const &&
-		requires concepts::value_get_or<T,CharT,Args...>;
-
 	[[nodiscard]] string_t &get() & noexcept;
 	[[nodiscard]] const string_t &get() const & noexcept;
 	[[nodiscard]] string_t &&get() && noexcept;
 
 public:
-	[[nodiscard]] bool to_bool(size_t base = 10) const;
-	[[nodiscard]] int32_t to_int(size_t base = 10) const;
-	[[nodiscard]] uint32_t to_uint(size_t base = 10) const;
-	[[nodiscard]] int64_t to_long(size_t base = 10) const;
-	[[nodiscard]] uint64_t to_ulong(size_t base = 10) const;
-	[[nodiscard]] float to_float() const;
-	[[nodiscard]] double to_double() const;
-	[[nodiscard]] long double to_ldouble() const;
-
-	[[nodiscard]] bool to_bool_or(bool def_value = false, size_t base = 10) const noexcept;
-	[[nodiscard]] int32_t to_int_or(int32_t def_value = 0, size_t base = 10) const noexcept;
-	[[nodiscard]] uint32_t to_uint_or(uint32_t def_value = 0, size_t base = 10) const noexcept;
-	[[nodiscard]] int64_t to_long_or(int64_t def_value = 0, size_t base = 10) const noexcept;
-	[[nodiscard]] uint64_t to_ulong_or(uint64_t def_value = 0, size_t base = 10) const noexcept;
-	[[nodiscard]] float to_float_or(float def_value = 0.0) const noexcept;
-	[[nodiscard]] double to_double_or(double def_value = 0.0) const noexcept;
-	[[nodiscard]] long double to_ldouble_or(long double def_value = 0.0) const noexcept;
+	[[nodiscard]] optional<bool> to_bool(size_t base = 10) const noexcept;
+	[[nodiscard]] optional<int32_t> to_int(size_t base = 10) const noexcept;
+	[[nodiscard]] optional<uint32_t> to_uint(size_t base = 10) const noexcept;
+	[[nodiscard]] optional<int64_t> to_long(size_t base = 10) const noexcept;
+	[[nodiscard]] optional<uint64_t> to_ulong(size_t base = 10) const noexcept;
+	[[nodiscard]] optional<float> to_float() const noexcept;
+	[[nodiscard]] optional<double> to_double() const noexcept;
+	[[nodiscard]] optional<long double> to_ldouble() const noexcept;
 
 public:
 	template <typename Arg0, typename...Args>

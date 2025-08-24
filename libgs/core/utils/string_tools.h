@@ -82,15 +82,15 @@ template <concepts::character CharT = char>
 template <concepts::character CharT = char>
 [[nodiscard]] LIBGS_CORE_TAPI std::basic_string<CharT> to_string (
 	concepts::floating_p auto &&value
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) to_string (
 	concepts::any_text_p auto &&text
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI decltype(auto) to_view (
 	concepts::any_text_p auto &&text
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI bool is_alpha(const concepts::any_string_p auto &str) noexcept;
 [[nodiscard]] LIBGS_CORE_TAPI bool is_digit(const concepts::any_string_p auto &str) noexcept;
@@ -100,54 +100,60 @@ template <concepts::character CharT = char>
 
 [[nodiscard]] LIBGS_CORE_TAPI optional<int8_t> to_int8 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
+
 [[nodiscard]] LIBGS_CORE_TAPI optional<uint8_t> to_uint8 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI optional<int16_t> to_int16 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
+
 [[nodiscard]] LIBGS_CORE_TAPI optional<uint16_t> to_uint16 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI optional<int32_t> to_int32 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
+
 [[nodiscard]] LIBGS_CORE_TAPI optional<uint32_t> to_uint32 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI optional<int64_t> to_int64 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
+
 [[nodiscard]] LIBGS_CORE_TAPI optional<uint64_t> to_uint64 (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI optional<float> to_float (
 	const concepts::any_text_p auto &text
-);
+) noexcept;
+
 [[nodiscard]] LIBGS_CORE_TAPI optional<double> to_double (
 	const concepts::any_text_p auto &text
-);
+) noexcept;
+
 [[nodiscard]] LIBGS_CORE_TAPI optional<long double> to_ldouble (
 	const concepts::any_text_p auto &text
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI optional<bool> to_bool (
 	const concepts::any_text_p auto &text, size_t base = 10
-);
+) noexcept;
 
 template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI optional<T> to_arith(const concepts::any_text_p auto &text, size_t base = 10)
-	requires concepts::integral_p<T> or concepts::enumerate_p<T>;
+	noexcept requires concepts::integral_p<T> or concepts::enumerate_p<T>;
 
 template <concepts::floating_p T>
 [[nodiscard]] LIBGS_CORE_TAPI optional<T> to_arith (
 	const concepts::any_text_p auto &text
-);
+) noexcept;
 
 [[nodiscard]] LIBGS_CORE_TAPI auto to_lower (
 	concepts::any_text_p auto &&text

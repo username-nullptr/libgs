@@ -90,11 +90,8 @@ template <concepts::integral T, concepts::character CharT>
 class LIBGS_CORE_TAPI value_serializer<T,CharT> : public value_default_serializer<T,CharT>
 {
 public:
-	constexpr T get(const basic_value<CharT> &value, size_t base = 10) {
+	constexpr optional<T> get(const basic_value<CharT> &value, size_t base = 10) noexcept {
 		return strtls::to_arith<T>(*value, base);
-	}
-	constexpr T get_or(const basic_value<CharT> &value, T def_data, size_t base = 10) {
-		return strtls::to_arith_or<T>(*value, def_data, base);
 	}
 };
 
@@ -102,11 +99,8 @@ template <concepts::floating T, concepts::character CharT>
 class LIBGS_CORE_TAPI value_serializer<T,CharT> : public value_default_serializer<T,CharT>
 {
 public:
-	constexpr T get(const basic_value<CharT> &value) {
+	constexpr optional<T> get(const basic_value<CharT> &value) noexcept {
 		return strtls::to_arith<T>(*value);
-	}
-	constexpr T get_or(const basic_value<CharT> &value, T def_data) {
-		return strtls::to_arith_or<T>(*value, def_data);
 	}
 };
 
@@ -114,11 +108,8 @@ template <concepts::enumerate T, concepts::character CharT>
 class LIBGS_CORE_TAPI value_serializer<T,CharT> : public value_default_serializer<T,CharT>
 {
 public:
-	constexpr T get(const basic_value<CharT> &value, size_t base = 10) {
+	constexpr optional<T> get(const basic_value<CharT> &value, size_t base = 10) noexcept {
 		return static_cast<T>(value_serializer<int,CharT>().get(value, base));
-	}
-	constexpr T get_or(const basic_value<CharT> &value, T def_data, size_t base = 10) {
-		return static_cast<T>(value_serializer<int,CharT>().get_or(value, def_data, base));
 	}
 };
 
@@ -129,17 +120,13 @@ public:
 	constexpr decltype(auto) set(concepts::string_p<CharT> auto &&data) {
 		return std::forward<decltype(data)>(data);
 	}
-	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value)
+	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) noexcept
 	{
 		using Value = decltype(value);
 		if constexpr( is_std_string_v<T,CharT> )
 			return *std::forward<Value>(value);
 		else
 			return std::basic_string_view<CharT>(*value);
-	}
-	constexpr decltype(auto) get_or
-	(concepts::value_p<CharT> auto &&value, concepts::string_p<CharT> auto&&) {
-		return get(std::forward<decltype(value)>(value));
 	}
 };
 
@@ -150,12 +137,8 @@ public:
 	constexpr decltype(auto) set(concepts::value_p<CharT> auto &&value) {
 		return *std::forward<decltype(value)>(value);
 	}
-	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) {
+	constexpr decltype(auto) get(concepts::value_p<CharT> auto &&value) noexcept {
 		return std::forward<decltype(value)>(value);
-	}
-	constexpr decltype(auto) get_or
-	(concepts::value_p<CharT> auto &&value, basic_value<CharT>) {
-		return get(std::forward<decltype(value)>(value));
 	}
 };
 
@@ -185,18 +168,6 @@ template <typename T, typename...Args>
 concept any_value_get =
 	value_get<T,char,Args...> or value_get<T,wchar_t,Args...> or
 	value_get<T,char8_t,Args...> or value_get<T,char16_t,Args...> or value_get<T,char32_t,Args...>;
-
-template <typename T, typename CharT, typename...Args>
-concept value_get_or = requires (
-	value_serializer<std::remove_cvref_t<T>,CharT> serializer,
-	const basic_value<CharT> &value, T &&def_data, Args&&...args) {
-	serializer.get_or(value, std::forward<T>(def_data), std::forward<Args>(args)...);
-};
-
-template <typename T, typename...Args>
-concept any_value_get_or =
-	value_get_or<T,char,Args...> or value_get_or<T,wchar_t,Args...> or
-	value_get_or<T,char8_t,Args...> or value_get_or<T,char16_t,Args...> or value_get_or<T,char32_t,Args...>;
 
 }} //namespace libgs::concepts
 

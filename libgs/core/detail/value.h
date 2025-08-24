@@ -123,42 +123,6 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) const &&
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-template <typename T, typename...Args>
-decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) &
-	requires concepts::value_get_or<T,CharT,Args...>
-{
-	return value_serializer<std::remove_cvref_t<T>,char_t>()
-		.get_or(*this, std::forward<T>(def_value), std::forward<Args>(args)...);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-template <typename T, typename...Args>
-decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) &&
-	requires concepts::value_get_or<T,CharT,Args...>
-{
-	return value_serializer<std::remove_cvref_t<T>,char_t>()
-		.get_or(std::move(*this), std::forward<T>(def_value), std::forward<Args>(args)...);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-template <typename T, typename...Args>
-decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) const &
-	requires concepts::value_get_or<T,CharT,Args...>
-{
-	return value_serializer<std::remove_cvref_t<T>,char_t>()
-		.get_or(*this, std::forward<T>(def_value), std::forward<Args>(args)...);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-template <typename T, typename...Args>
-decltype(auto) basic_value<CharT,Traits,Alloc>::get_or(T &&def_value, Args&&...args) const &&
-	requires concepts::value_get_or<T,CharT,Args...>
-{
-	return value_serializer<std::remove_cvref_t<T>,char_t>()
-		.get_or(std::move(*this), std::forward<T>(def_value), std::forward<Args>(args)...);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
 typename basic_value<CharT,Traits,Alloc>::string_t&
 basic_value<CharT,Traits,Alloc>::get() & noexcept
 {
@@ -180,99 +144,51 @@ basic_value<CharT,Traits,Alloc>::get() && noexcept
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-bool basic_value<CharT,Traits,Alloc>::to_bool(size_t base) const
+optional<bool> basic_value<CharT,Traits,Alloc>::to_bool(size_t base) const noexcept
 {
 	return get<bool>(base);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-int32_t basic_value<CharT,Traits,Alloc>::to_int(size_t base) const
+optional<int32_t> basic_value<CharT,Traits,Alloc>::to_int(size_t base) const noexcept
 {
 	return get<int32_t>(base);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-uint32_t basic_value<CharT,Traits,Alloc>::to_uint(size_t base) const
+optional<uint32_t> basic_value<CharT,Traits,Alloc>::to_uint(size_t base) const noexcept
 {
 	return get<uint32_t>(base);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-int64_t basic_value<CharT,Traits,Alloc>::to_long(size_t base) const
+optional<int64_t> basic_value<CharT,Traits,Alloc>::to_long(size_t base) const noexcept
 {
 	return get<int64_t>(base);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-uint64_t basic_value<CharT,Traits,Alloc>::to_ulong(size_t base) const
+optional<uint64_t> basic_value<CharT,Traits,Alloc>::to_ulong(size_t base) const noexcept
 {
 	return get<uint64_t>(base);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-float basic_value<CharT,Traits,Alloc>::to_float() const
+optional<float> basic_value<CharT,Traits,Alloc>::to_float() const noexcept
 {
 	return get<float>();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-double basic_value<CharT,Traits,Alloc>::to_double() const
+optional<double> basic_value<CharT,Traits,Alloc>::to_double() const noexcept
 {
 	return get<double>();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-long double basic_value<CharT,Traits,Alloc>::to_ldouble() const
+optional<long double> basic_value<CharT,Traits,Alloc>::to_ldouble() const noexcept
 {
 	return get<long double>();
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-bool basic_value<CharT,Traits,Alloc>::to_bool_or(bool def_value, size_t base) const noexcept
-{
-	return get_or(def_value, base);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-int32_t basic_value<CharT,Traits,Alloc>::to_int_or(int32_t def_value, size_t base) const noexcept
-{
-	return get_or(def_value, base);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-uint32_t basic_value<CharT,Traits,Alloc>::to_uint_or(uint32_t def_value, size_t base) const noexcept
-{
-	return get_or(def_value, base);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-int64_t basic_value<CharT,Traits,Alloc>::to_long_or(int64_t def_value, size_t base) const noexcept
-{
-	return get_or(def_value, base);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-uint64_t basic_value<CharT,Traits,Alloc>::to_ulong_or(uint64_t def_value, size_t base) const noexcept
-{
-	return get_or(def_value, base);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-float basic_value<CharT,Traits,Alloc>::to_float_or(float def_value) const noexcept
-{
-	return get_or(def_value);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-double basic_value<CharT,Traits,Alloc>::to_double_or(double def_value) const noexcept
-{
-	return get_or(def_value);
-}
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-long double basic_value<CharT,Traits,Alloc>::to_ldouble_or(long double def_value) const noexcept
-{
-	return get_or(def_value);
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>

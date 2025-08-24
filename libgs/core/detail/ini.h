@@ -48,39 +48,11 @@ ini_replace(const concepts::text_p<CharT> auto &text)
 } //namespace detail
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-template <typename T>
-decltype(auto) basic_ini_keys<CharT,Map,MapArgs...>::read_or
-(const concepts::text_p<char_t> auto &key, T &&def_value)
-	const requires concepts::value_get<T,CharT>
+optional<basic_value<CharT>> basic_ini_keys<CharT,Map,MapArgs...>::read
+(const concepts::text_p<char_t> auto &key) const noexcept
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
-	using def_t = std::remove_cvref_t<T>;
-
-	if constexpr( is_string_v<def_t, char_t> )
-	{
-		return it == m_keys.end() ?
-			strtls::to_string(std::forward<T>(def_value)) : *it->second;
-	}
-	else
-	{
-		return it == m_keys.end() ? std::forward<T>(def_value) :
-			it->second.template get<def_t>();
-	}
-}
-
-template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-template <typename T>
-T basic_ini_keys<CharT,Map,MapArgs...>::read(const concepts::text_p<char_t> auto &key)
-	const requires concepts::value_get<T,CharT>
-{
-	auto it = m_keys.find(detail::ini_replace<char_t>(key));
-	if( it == m_keys.end() )
-	{
-		throw runtime_error("libgs::basic_ini_keys: read: The key '{}' is not exists.",
-			strtls::detail::ascii_transition<char>(std::forward<decltype(key)>(key))
-		);
-	}
-	return it->second.template get<T>();
+	return it == m_keys.end() ? optional<value_t>() : it->second;
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
@@ -91,10 +63,10 @@ void basic_ini_keys<CharT,Map,MapArgs...>::write
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-basic_value<CharT> basic_ini_keys<CharT,Map,MapArgs...>::operator[]
-(const concepts::text_p<char_t> auto &key) const
+optional<basic_value<CharT>> basic_ini_keys<CharT,Map,MapArgs...>::operator[]
+(const concepts::text_p<char_t> auto &key) const noexcept
 {
-	return read<value_t>(key);
+	return read(key);
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
@@ -755,70 +727,20 @@ basic_ini<CharT,Exec,Map,MapArgs...>::file_name() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <typename T>
-decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or(const group_key &gk, T &&def_value)
-	const requires concepts::value_get<T,CharT>
+optional<basic_value<CharT>> basic_ini<CharT,Exec,Map,MapArgs...>::read
+(const group_key &gk) const noexcept
 {
 	auto it = m_impl->m_groups.find(gk.group);
-	using def_t = std::remove_cvref_t<T>;
-
-	if constexpr( std::is_same_v<def_t, value_t> )
-	{
-		return it == m_impl->m_groups.end() ?
-			std::forward<T>(def_value) : it->second.read_or (
-				std::move(gk.key), std::forward<T>(def_value)
-			);
-	}
-	else if constexpr( is_string_v<def_t, char_t> )
-	{
-		return it == m_impl->m_groups.end() ?
-			value_t(std::forward<T>(def_value)).template get<string_t>() : it->second.read_or (
-				std::move(gk.key), std::forward<T>(def_value)
-			);
-	}
-	else
-	{
-		return it == m_impl->m_groups.end() ?
-			value_t(std::forward<T>(def_value)).template get<def_t>() : it->second.read_or (
-				std::move(gk.key), std::forward<T>(def_value)
-			);
-	}
+	return it == m_impl->m_groups.end() ?
+		optional<value_t>() : it->second.read(std::move(gk.key));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <typename T>
-decltype(auto) basic_ini<CharT,Exec,Map,MapArgs...>::read_or
-(const concepts::string_p<char_t> auto &path, T &&def_value)
-	const requires concepts::value_get<T,CharT>
+optional<basic_value<CharT>> basic_ini<CharT,Exec,Map,MapArgs...>::read
+(const concepts::string_p<char_t> auto &path) const noexcept
 {
-	auto pair = m_impl->from_path(path, "read_or");
-	return read_or(std::move(pair), std::forward<T>(def_value));
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <typename T>
-T basic_ini<CharT,Exec,Map,MapArgs...>::read(const group_key &gk)
-	const requires concepts::value_get<T,CharT>
-{
-	auto it = m_impl->m_groups.find(gk.group);
-	if( it == m_impl->m_groups.end() )
-	{
-		throw runtime_error("libgs::basic_ini: read: The group '{}' is not exists.",
-			strtls::detail::ascii_transition<char>(gk.group)
-		);
-	}
-	return it->second.template read<T>(std::move(gk.key));
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <typename T>
-T basic_ini<CharT,Exec,Map,MapArgs...>::read(const concepts::string_p<char_t> auto &path)
-	const requires concepts::value_get<T,CharT>
-{
-	return read<T>(m_impl->from_path(path, "read"));
+	return read(m_impl->from_path(path, "read"));
 }
 
 template <concepts::character CharT, concepts::exec Exec,

@@ -238,14 +238,14 @@ std::basic_string<CharT> to_string(concepts::arithmetic_p auto &&value, size_t b
 }
 
 template <concepts::character CharT>
-std::basic_string<CharT> to_string(concepts::floating_p auto &&value)
+std::basic_string<CharT> to_string(concepts::floating_p auto &&value) noexcept
 {
 	std::basic_ostringstream<CharT> oss;
 	oss << value;
 	return oss.str();
 }
 
-decltype(auto) to_string(concepts::any_text_p auto &&text)
+decltype(auto) to_string(concepts::any_text_p auto &&text) noexcept
 {
 	using Text = decltype(text);
 	using char_t = get_char_t<Text>;
@@ -258,7 +258,7 @@ decltype(auto) to_string(concepts::any_text_p auto &&text)
 		return std::basic_string<char_t>(std::forward<Text>(text));
 }
 
-decltype(auto) to_view(concepts::any_text_p auto &&text)
+decltype(auto) to_view(concepts::any_text_p auto &&text) noexcept
 {
 	using Text = decltype(text);
 	using char_t = get_char_t<Text>;
@@ -402,7 +402,7 @@ bool is_ascii(const concepts::any_string_p auto &str) noexcept
 	}
 }
 
-optional<int8_t> to_int8(const concepts::any_text_p auto &text, size_t base)
+optional<int8_t> to_int8(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -421,7 +421,7 @@ optional<int8_t> to_int8(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,int8_t>(_text);
 }
 
-optional<uint8_t> to_uint8(const concepts::any_text_p auto &text, size_t base)
+optional<uint8_t> to_uint8(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -440,7 +440,7 @@ optional<uint8_t> to_uint8(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,uint8_t>(_text);
 }
 
-optional<int16_t> to_int16(const concepts::any_text_p auto &text, size_t base)
+optional<int16_t> to_int16(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -459,7 +459,7 @@ optional<int16_t> to_int16(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,int16_t>(_text);
 }
 
-optional<uint16_t> to_uint16(const concepts::any_text_p auto &text, size_t base)
+optional<uint16_t> to_uint16(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -478,7 +478,7 @@ optional<uint16_t> to_uint16(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,uint16_t>(_text);
 }
 
-optional<int32_t> to_int32(const concepts::any_text_p auto &text, size_t base)
+optional<int32_t> to_int32(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -497,7 +497,7 @@ optional<int32_t> to_int32(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,int32_t>(_text);
 }
 
-optional<uint32_t> to_uint32(const concepts::any_text_p auto &text, size_t base)
+optional<uint32_t> to_uint32(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -516,7 +516,7 @@ optional<uint32_t> to_uint32(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,uint32_t>(_text);
 }
 
-optional<int64_t> to_int64(const concepts::any_text_p auto &text, size_t base)
+optional<int64_t> to_int64(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -535,7 +535,7 @@ optional<int64_t> to_int64(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,int64_t>(_text);
 }
 
-optional<uint64_t> to_uint64(const concepts::any_text_p auto &text, size_t base)
+optional<uint64_t> to_uint64(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -554,7 +554,7 @@ optional<uint64_t> to_uint64(const concepts::any_text_p auto &text, size_t base)
 	return detail::try_to_booltot<char_t,uint64_t>(_text);
 }
 
-optional<float> to_float(const concepts::any_text_p auto &text)
+optional<float> to_float(const concepts::any_text_p auto &text) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -570,7 +570,7 @@ optional<float> to_float(const concepts::any_text_p auto &text)
 	return detail::try_to_booltot<char_t,float>(_text);
 }
 
-optional<double> to_double(const concepts::any_text_p auto &text)
+optional<double> to_double(const concepts::any_text_p auto &text) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -586,7 +586,7 @@ optional<double> to_double(const concepts::any_text_p auto &text)
 	return detail::try_to_booltot<char_t,double>(_text);
 }
 
-optional<long double> to_ldouble(const concepts::any_text_p auto &text)
+optional<long double> to_ldouble(const concepts::any_text_p auto &text) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -602,7 +602,7 @@ optional<long double> to_ldouble(const concepts::any_text_p auto &text)
 	return detail::try_to_booltot<char_t,long double>(_text);
 }
 
-optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base)
+optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base) noexcept
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	if constexpr( concepts::character<text_t> )
@@ -631,7 +631,7 @@ optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base)
 
 template <typename T>
 [[nodiscard]] optional<T> to_arith(const concepts::any_text_p auto &text, size_t base)
-	requires concepts::integral_p<T> or concepts::enumerate_p<T>
+	noexcept requires concepts::integral_p<T> or concepts::enumerate_p<T>
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	using char_t = get_char_t<text_t>;
@@ -712,7 +712,7 @@ template <typename T>
 }
 
 template <concepts::floating_p T>
-[[nodiscard]] optional<T> to_arith(const concepts::any_text_p auto &text)
+[[nodiscard]] optional<T> to_arith(const concepts::any_text_p auto &text) noexcept
 {
 	return detail::to_arith<T>(text);
 }

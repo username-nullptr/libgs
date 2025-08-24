@@ -58,13 +58,9 @@ public:
 	virtual ~basic_ini_keys() = default;
 
 public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) read_or(const concepts::text_p<char_t> auto &key, T &&def_value = T())
-		const requires concepts::value_get<T,CharT>;
-
-	template <typename T = value_t>
-	[[nodiscard]] T read(const concepts::text_p<char_t> auto &key)
-		const requires concepts::value_get<T,CharT>;
+	[[nodiscard]] optional<value_t> read (
+		const concepts::text_p<char_t> auto &key
+	) const noexcept;
 
 	void write (
 		const concepts::text_p<char_t> auto &key,
@@ -72,8 +68,13 @@ public:
 	) noexcept;
 
 public:
-	[[nodiscard]] value_t operator[](const concepts::text_p<char_t> auto &key) const;
-	[[nodiscard]] value_t &operator[](const concepts::text_p<char_t> auto &key) noexcept;
+	[[nodiscard]] optional<value_t> operator[] (
+		const concepts::text_p<char_t> auto &key
+	) const noexcept;
+
+	[[nodiscard]] value_t &operator[] (
+		const concepts::text_p<char_t> auto &key
+	) noexcept;
 
 public:
 	using iterator = typename map_t::iterator;
@@ -193,21 +194,13 @@ public:
 	[[nodiscard]] virtual path_t file_name() const noexcept;
 
 public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) read_or(const group_key &gk, T &&def_value = T())
-		const requires concepts::value_get<T,CharT>;
+	[[nodiscard]] optional<value_t> read (
+		const group_key &gk
+	) const noexcept;
 
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) read_or(const concepts::string_p<char_t> auto &path, T &&def_value = T())
-		const requires concepts::value_get<T,CharT>;
-
-	template <typename T = value_t>
-	[[nodiscard]] T read(const group_key &gk) const
-		requires concepts::value_get<T,CharT>;
-
-	template <typename T = value_t>
-	[[nodiscard]] T read(const concepts::string_p<char_t> auto &path) const
-		requires concepts::value_get<T,CharT>;
+	[[nodiscard]] optional<value_t> read (
+		const concepts::string_p<char_t> auto &path
+	)const noexcept;
 
 public:
 	void write (
