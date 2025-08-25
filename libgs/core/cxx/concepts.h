@@ -98,23 +98,21 @@ concept function = is_function_v<Func>;
 template <typename T>
 concept void_function = is_void_func_v<T>;
 
-template <typename Func, typename Res, typename...Args>
-concept callable_ret = requires(Func &&func, Args&&...args) {
-	std::is_same_v<decltype(func(std::forward<Args>(args)...)), Res>;
-};
-
-template <typename Func, typename...Args>
-concept callable_novoid = requires(Func &&func, Args&&...args) {
-	not std::is_same_v<decltype(func(std::forward<Args>(args)...)), void>;
-};
-
-template <typename Func, typename...Args>
-concept callable_void = callable_ret<Func, void, Args...>;
-
 template <typename Func, typename...Args>
 concept callable = requires(Func &&func, Args&&...args) {
 	func(std::forward<Args>(args)...);
 };
+
+template <typename Func, typename Res, typename...Args>
+concept callable_ret = callable<Func,Args...> and
+	std::is_same_v<std::invoke_result_t<Func,Args...>, Res>;
+
+template <typename Func, typename...Args>
+concept callable_novoid = callable<Func,Args...> and
+	not std::is_void_v<std::invoke_result_t<Func,Args...>>;
+
+template <typename Func, typename...Args>
+concept callable_void = callable_ret<Func, void, Args...>;
 
 template <typename Func>
 concept std_func_temp = requires(Func *func) {

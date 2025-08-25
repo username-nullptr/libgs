@@ -73,11 +73,11 @@ private:
 #if !defined(_MSC_VER) || !_HAS_CXX23
 
 template <libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<std::thread::id, CharT>
+struct LIBGS_CORE_TAPI formatter<thread::id, CharT>
 {
-	auto format(const std::thread::id &tid, auto &context) const
+	auto format(const thread::id &tid, auto &context) const
 	{
-		auto handle = *reinterpret_cast<const std::thread::native_handle_type*>(&tid);
+		auto handle = *reinterpret_cast<const thread::native_handle_type*>(&tid);
 		return m_formatter.format(libgs::detail::thread_id_helper(handle), context);
 	}
 
@@ -92,9 +92,9 @@ private:
 #endif //_MSC_VER && _HAS_CXX23
 
 template <typename T, libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<std::optional<T>, CharT>
+struct LIBGS_CORE_TAPI formatter<optional<T>, CharT>
 {
-	auto format(const std::optional<T> &ov, auto &context) const
+	auto format(const optional<T> &ov, auto &context) const
 	{
 		if( ov )
 			return m_formatter.format(*ov, context);
@@ -110,9 +110,51 @@ private:
 };
 
 template <typename T, libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<std::atomic<T>, CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::optional<T>, CharT>
 {
-	auto format(const std::atomic<T> &n, auto &context) const {
+	auto format(const libgs::optional<T> &ov, auto &context) const
+	{
+		if( ov )
+			return m_formatter.format(*ov, context);
+		return format_to(context.out(), l_str(CharT,"optional(null)"));
+	}
+
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<T, CharT> m_formatter;
+};
+
+template <typename T, typename E, libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::expected<T,E>, CharT>
+{
+	auto format(const libgs::expected<T,E> &ov, auto &context)
+	{
+		m_has_formatter = ov.has_value();
+		return m_has_formatter ?
+			m_value_formatter.format(*ov, context) :
+			m_error_formatter.format(ov.error(), context);
+	}
+
+	constexpr auto parse(auto &context) noexcept
+	{
+		return m_has_formatter ?
+			m_value_formatter.parse(context) :
+			m_error_formatter.parse(context);
+	}
+
+private:
+	formatter<T, CharT> m_value_formatter;
+	formatter<E, CharT> m_error_formatter;
+	bool m_has_formatter = false;
+};
+
+template <typename T, libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<atomic<T>, CharT>
+{
+	auto format(const atomic<T> &n, auto &context) const {
 		return m_formatter.format(n.load(), context);
 	}
 
@@ -154,21 +196,21 @@ struct LIBGS_CORE_TAPI formatter<asio::ip::address, CharT>
 	}
 
 private:
-	formatter<std::basic_string<CharT>, CharT> m_formatter;
+	formatter<basic_string<CharT>, CharT> m_formatter;
 };
 
 template <typename Fir, typename Sec, libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<std::pair<Fir,Sec>, CharT> : libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<pair<Fir,Sec>, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const std::pair<Fir,Sec> &pair, auto &context) const {
+	auto format(const pair<Fir,Sec> &pair, auto &context) const {
 		return format_to(context.out(), l_str(CharT,"'{}'-'{}'"), pair.first, pair.second);
 	}
 };
 
 template <typename T, libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<shared_ptr<T>, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const std::shared_ptr<T> &ptr, auto &context) const
+	auto format(const shared_ptr<T> &ptr, auto &context) const
 	{
 		return format_to(context.out(), l_str(CharT,"{}:({})"),
 			libgs::type_name<T>(), reinterpret_cast<void*>(ptr.get())
@@ -177,9 +219,9 @@ struct LIBGS_CORE_TAPI formatter<std::shared_ptr<T>, CharT> : libgs::no_parse_fo
 };
 
 template <libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<std::filesystem::path, CharT>
+struct LIBGS_CORE_TAPI formatter<filesystem::path, CharT>
 {
-	auto format(const std::filesystem::path &path, auto &context) const {
+	auto format(const filesystem::path &path, auto &context) const {
 		return m_formatter.format(path.string<CharT>(), context);
 	}
 	constexpr auto parse(auto &context) noexcept {
@@ -187,7 +229,7 @@ struct LIBGS_CORE_TAPI formatter<std::filesystem::path, CharT>
 	}
 
 private:
-	formatter<std::basic_string<CharT>, CharT> m_formatter;
+	formatter<basic_string<CharT>, CharT> m_formatter;
 };
 
 } //namespace std

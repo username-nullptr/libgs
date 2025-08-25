@@ -91,6 +91,15 @@ expected<Value,Error> &expected<Value,Error>::operator=(expected &&other) requir
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
+template <typename...Args>
+void expected<Value,Error>::error(Args&&...args) requires
+	concepts::constructible<error_t,Args...>
+{
+	m_error = value_t(std::forward<Args>(args)...);
+	this->m_has_value = false;
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
 const Error &expected<Value,Error>::error() const & noexcept
 {
 	return m_error;
@@ -115,23 +124,48 @@ Error &&expected<Value,Error>::error() && noexcept
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-template <concepts::optional_value Value0, concepts::optional_value Error0>
-auto expected<Value,Error>::and_then(concepts::callable_ret<expected<Value0,Error0>,value_t> auto &&func)
-	requires concepts::constructible<Error0,error_t>
+template <typename Func>
+auto expected<Value,Error>::and_then(Func &&func) requires and_then_v<Func>
 {
-	return this->has_value() ? func(this->value()) : expected<Value0,Error0>(error());
+	using result_t = std::invoke_result_t<Func,value_t>;
+	return this->has_value() ? func(this->value()) : result_t();
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> expected<Value,Error>::or_else(concepts::callable_ret<expected,error_t> auto &&func)
+template <typename Token>
+expected<Value,Error> expected<Value,Error>::or_else(Token &&token) requires or_else_v<Token>
 {
-	return this->has_value() ? *this : func();
-}
-
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> expected<Value,Error>::or_else(value_t value)
-{
-	return this->has_value() ? *this : expected(value);
+	if constexpr( concepts::callable_ret<Token,expected,error_t> )
+	{
+		return this->has_value() ?
+			*this : token(error());
+	}
+	else if constexpr( concepts::callable_ret<Token,expected,error_t> )
+	{
+		return this->has_value() ?
+			*this : expected(token(error()));
+	}
+	else if constexpr( concepts::callable_ret<Token,expected> )
+	{
+		return this->has_value() ?
+			*this : token();
+	}
+	else if constexpr( concepts::callable_ret<Token,error_t> )
+	{
+		return this->has_value() ?
+			*this : expected(token());
+	}
+	else if constexpr( concepts::callable_void<Token> )
+	{
+		if( not this->has_value() )
+			token();
+		return *this;
+	}
+	else
+	{
+		return this->has_value() ?
+			*this : expected(std::forward<Token>(token));
+	}
 }
 
 } //namespace libgs

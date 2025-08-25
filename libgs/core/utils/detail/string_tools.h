@@ -83,16 +83,15 @@ template <concepts::character CharT>
 	auto res = func({str.data(), str.size()}, &index, static_cast<int>(base));
 
 	using result_t = decltype(res);
-
 	if( index >= str.size() )
 		return optional<result_t>(res);
 
 	auto opt = _sto_float<CharT>(
 		static_cast<long double(*)(const std::basic_string<CharT>&,size_t*)>(std::stold), str
 	);
-	return opt ?
-		optional<result_t>(static_cast<result_t>(*opt)) :
-		optional<result_t>();
+	return opt.and_then([](auto value) {
+		return make_optional(static_cast<result_t>(value));
+	});
 }
 
 template <concepts::character CharT>
@@ -122,45 +121,6 @@ template <concepts::character CharT, typename T>
 	if( res < 0 )
 		return {};
 	return static_cast<T>(!!res);
-}
-
-template <typename T>
-[[nodiscard]] LIBGS_CORE_TAPI T to_arith(const auto &str, size_t base, std::optional<T> odv = {})
-	requires concepts::integral_p<T> or concepts::enumerate_p<T>
-{
-
-}
-
-template <concepts::floating_p T>
-[[nodiscard]] LIBGS_CORE_TAPI T to_arith(const auto &str, std::optional<T> odv = {})
-{
-	using str_t = std::remove_cvref_t<decltype(str)>;
-	using char_t = get_char_t<str_t>;
-	using string_t = std::basic_string<char_t>;
-
-	auto _str = trimmed(str);
-	try {
-		if constexpr( std::is_same_v<T, float> )
-		{
-			return _sto_float<char_t>(
-				static_cast<float(*)(const string_t&,size_t*)>(std::stof), _str
-			);
-		}
-		else if constexpr( std::is_same_v<T, double> )
-		{
-			return _sto_float<char_t>(
-				static_cast<double(*)(const string_t&,size_t*)>(std::stod), _str
-			);
-		}
-		else if constexpr( std::is_same_v<T, long double> )
-		{
-			return _sto_float<char_t>(
-				static_cast<long double(*)(const string_t&,size_t*)>(std::stold), _str
-			);
-		}
-	}
-	catch(std::exception&) {}
-	return try_to_booltot<char_t>(_str, odv);
 }
 
 template <concepts::character CharT>
@@ -647,61 +607,61 @@ template <typename T>
 		try {
 			if constexpr( std::is_same_v<T, char> )
 			{
-				return static_cast<char>(_sto_int<char_t>(
+				return static_cast<char>(detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned char> )
 			{
-				return static_cast<unsigned char>(_sto_int<char_t>(
+				return static_cast<unsigned char>(detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, short> )
 			{
-				return static_cast<short>(_sto_int<char_t>(
+				return static_cast<short>(detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned short> )
 			{
-				return static_cast<unsigned short>(_sto_int<char_t>(
+				return static_cast<unsigned short>(detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, int> )
 			{
-				return static_cast<int>(_sto_int<char_t>(
+				return static_cast<int>(detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned int> )
 			{
-				return static_cast<unsigned int>(_sto_int<char_t>(
+				return static_cast<unsigned int>(detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, long> )
 			{
-				return static_cast<long>(_sto_int<char_t>(
+				return static_cast<long>(detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned long> )
 			{
-				return static_cast<unsigned long>(_sto_int<char_t>(
+				return static_cast<unsigned long>(detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, long long> )
 			{
-				return static_cast<long long>(_sto_int<char_t>(
+				return static_cast<long long>(detail::_sto_int<char_t>(
 					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _text, base
 				));
 			}
 			else if constexpr( std::is_same_v<T, unsigned long long> )
 			{
-				return static_cast<unsigned long long>(_sto_int<char_t>(
+				return static_cast<unsigned long long>(detail::_sto_int<char_t>(
 					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _text, base
 				));
 			}
@@ -714,7 +674,33 @@ template <typename T>
 template <concepts::floating_p T>
 [[nodiscard]] optional<T> to_arith(const concepts::any_text_p auto &text) noexcept
 {
-	return detail::to_arith<T>(text);
+	using text_t = std::remove_cvref_t<decltype(text)>;
+	using char_t = get_char_t<text_t>;
+	using string_t = std::basic_string<char_t>;
+
+	auto _text = trimmed(text);
+	try {
+		if constexpr( std::is_same_v<T, float> )
+		{
+			return detail::_sto_float<char_t>(
+				static_cast<float(*)(const string_t&,size_t*)>(std::stof), _text
+			);
+		}
+		else if constexpr( std::is_same_v<T, double> )
+		{
+			return detail::_sto_float<char_t>(
+				static_cast<double(*)(const string_t&,size_t*)>(std::stod), _text
+			);
+		}
+		else if constexpr( std::is_same_v<T, long double> )
+		{
+			return detail::_sto_float<char_t>(
+				static_cast<long double(*)(const string_t&,size_t*)>(std::stold), _text
+			);
+		}
+	}
+	catch(std::exception&) {}
+	return detail::try_to_booltot<char_t>(_text);
 }
 
 auto to_lower(concepts::any_text_p auto &&text)

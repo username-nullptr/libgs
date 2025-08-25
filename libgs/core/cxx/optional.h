@@ -109,8 +109,14 @@ public:
 	template <typename Func>
 	[[nodiscard]] auto and_then(Func &&func) requires and_then_v<Func>;
 
-	[[nodiscard]] optional or_else(concepts::callable_ret<optional> auto &&func);
-	[[nodiscard]] optional or_else(value_t value);
+	template <typename Token>
+	static constexpr bool or_else_v =
+		concepts::callable_ret<Token,optional> or
+		concepts::callable_void<Token> or
+		std::same_as<std::remove_cvref_t<Token>,value_t>;
+
+	template <typename Token>
+	[[nodiscard]] optional or_else(Token &&token) requires or_else_v<Token>;
 };
 
 template <concepts::optional_value Value>

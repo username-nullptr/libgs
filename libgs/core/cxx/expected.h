@@ -66,6 +66,10 @@ public:
 		concepts::move_constructible<error_t>;
 
 public:
+	template <typename...Args>
+	void error(Args&&...args) requires
+		concepts::constructible<error_t,Args...>;
+
 	[[nodiscard]] const error_t &error() const & noexcept;
 	[[nodiscard]] error_t &&error() const && noexcept;
 
@@ -73,12 +77,24 @@ public:
 	[[nodiscard]] error_t &&error() && noexcept;
 
 public:
-	template <concepts::optional_value Value0, concepts::optional_value Error0>
-	[[nodiscard]] auto and_then(concepts::callable_ret<expected<Value0,Error0>,value_t> auto &&func)
-		requires concepts::constructible<Error0,error_t>;
+	template <concepts::callable_novoid<value_t> Func>
+	static constexpr bool and_then_v = requires(Func func, value_t value) {
+		[]<typename U0, typename U1>(expected<U0,U1>) {} (func(value));
+	};
 
-	[[nodiscard]] expected or_else(concepts::callable_ret<expected,error_t> auto &&func);
-	[[nodiscard]] expected or_else(value_t value);
+	template <typename Func>
+	[[nodiscard]] auto and_then(Func &&func) requires and_then_v<Func>;
+
+	template <typename Token>
+	static constexpr bool or_else_v =
+		concepts::callable_ret<Token,expected,error_t> or
+		concepts::callable_ret<Token,error_t,error_t> or
+		concepts::callable_ret<Token,expected> or
+		concepts::callable_ret<Token,error_t> or
+		std::same_as<std::remove_cvref_t<Token>,value_t>;
+
+	template <typename Token>
+	[[nodiscard]] expected or_else(Token &&token) requires or_else_v<Token>;
 
 private:
 	error_t m_error;

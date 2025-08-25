@@ -209,15 +209,25 @@ auto optional<Value>::and_then(Func &&func) requires and_then_v<Func>
 }
 
 template <concepts::optional_value Value>
-optional<Value> optional<Value>::or_else(concepts::callable_ret<optional> auto &&func)
+template <typename Token>
+optional<Value> optional<Value>::or_else(Token &&token) requires or_else_v<Token>
 {
-	return this->has_value() ? *this : func();
-}
-
-template <concepts::optional_value Value>
-optional<Value> optional<Value>::or_else(value_t value)
-{
-	return this->has_value() ? *this : optional(value);
+	if constexpr( concepts::callable_ret<Token,optional> )
+	{
+		return this->has_value() ?
+			*this : token();
+	}
+	else if constexpr( concepts::callable_void<Token> )
+	{
+		if( not this->has_value() )
+			token();
+		return *this;
+	}
+	else
+	{
+		return this->has_value() ?
+			*this : optional(std::forward<Token>(token));
+	}
 }
 
 template <concepts::optional_value Value>

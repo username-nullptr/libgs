@@ -58,21 +58,14 @@ public:
 	template <concepts::function Func>
 	[[nodiscard]] auto interface(std::string_view ifname) const;
 
-	template <concepts::function Func>
-	[[nodiscard]] auto interface_or(std::string_view ifname) const;
-
 	template <concepts::function Func, typename Arg0, typename...Args>
 	[[nodiscard]] auto interface (
 		std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
 	) const;
 
-	template <concepts::function Func, typename Arg0, typename...Args>
-	[[nodiscard]] auto interface_or (
-		std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
+	[[nodiscard]] optional<void*> interface (
+		std::string_view ifname
 	) const;
-
-	[[nodiscard]] void *interface(std::string_view ifname) const;
-	[[nodiscard]] void *interface_or(std::string_view ifname) const;
 
 public:
 	[[nodiscard]] bool exists(std::string_view ifname) const;

@@ -11,13 +11,10 @@ int main()
 		auto func_addr = library.interface("func");
 		spdlog::debug("function address: {}", func_addr);
 
-		if( not func_addr )
-		{
-			spdlog::error("interface not found.");
-			return -1;
-		}
-		auto func = library.interface<int(int)>("func");
-		int res = func(111);
+		auto func = library.interface<int(int)>("func").or_else([]{
+			throw std::runtime_error("interface not found.");
+		});
+		int res = (*func)(111);
 
 		spdlog::debug("call return: {}", res);
 	}

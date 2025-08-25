@@ -35,41 +35,16 @@ namespace libgs
 template <concepts::function Func>
 auto library::interface(std::string_view ifname) const
 {
-	auto func = interface_or<Func>(ifname);
-	if( not func )
-	{
-		throw runtime_error (
-			"libgs::library::interface: interface not found: '{}'",
-			ifname
-		);
-	}
-	return func;
-}
-
-template <concepts::function Func>
-auto library::interface_or(std::string_view ifname) const
-{
 	using function_t = std::function<typename function_traits<Func>::call_type>;
 	using pointer_t = typename function_traits<Func>::pointer_type;
-	return function_t(reinterpret_cast<pointer_t>(interface(ifname)));
+
+	return interface(ifname).and_then([](void *ptr) {
+		return optional<function_t>(reinterpret_cast<pointer_t>(ptr));
+	});
 }
 
 template <concepts::function Func, typename Arg0, typename...Args>
 auto library::interface(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const
-{
-	auto func = interface_or<Func>(fmt_value, arg0, args...);
-	if( not func )
-	{
-		throw runtime_error (
-			"libgs::library::interface: interface not found: '{}'",
-			std::format(fmt_value, arg0, args...)
-		);
-	}
-	return func;
-}
-
-template <concepts::function Func, typename Arg0, typename...Args>
-auto library::interface_or(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) const
 {
 	return interface<Func>(std::format(
 		fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...
