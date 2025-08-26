@@ -32,30 +32,67 @@
 namespace libgs
 {
 
-template <concepts::optional_value Value, concepts::optional_value Error>
+template <concepts::optional_value Error>
 template <typename...Args>
-expected<Value,Error>::expected(Args&&...args) requires
-	concepts::constructible<value_t,Args...> :
-	optional_base<Value>(std::forward<Args>(args)...)
+unexpected<Error>::unexpected(Args&&...args) requires
+	concepts::constructible<error_t,Args...> :
+	m_error(std::forward<Args>(args)...)
+{
+
+}
+
+template <concepts::optional_value Error>
+template <typename...Args>
+void unexpected<Error>::despair(Args&&...args) requires
+	concepts::constructible<error_t,Args...>
+{
+	m_error = error_t(std::forward<Args>(args)...);
+}
+
+template <concepts::optional_value Error>
+const Error &unexpected<Error>::error() const & noexcept
+{
+	return m_error;
+}
+
+template <concepts::optional_value Error>
+Error &&unexpected<Error>::error() const && noexcept
+{
+	return std::move(m_error);
+}
+
+template <concepts::optional_value Error>
+Error &unexpected<Error>::error() & noexcept
+{
+	return m_error;
+}
+
+template <concepts::optional_value Error>
+Error &&unexpected<Error>::error() && noexcept
+{
+	return std::move(m_error);
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+expected<Value,Error>::expected(value_t value) :
+	optional_base<value_t>(std::move(value))
 {
 
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-template <typename...Args>
-expected<Value,Error>::expected(Args&&...args) requires
-	concepts::constructible<error_t,Args...> :
-	m_error(std::forward<Args>(args)...)
+expected<Value,Error>::expected(unexpected<error_t> une) :
+	unexpected<error_t>(std::move(une))
 {
-	this->m_has_value = false;
+
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
 expected<Value,Error>::expected(const expected &other) requires
 	concepts::copy_constructible<value_t> and
 	concepts::copy_constructible<error_t> :
-	optional_base<Value>(other),
-	m_error(other.m_error)
+	optional_base<value_t>(other),
+	unexpected<error_t>(other)
 {
 
 }
@@ -65,8 +102,8 @@ expected<Value,Error> &expected<Value,Error>::operator=(const expected &other) r
 	concepts::copy_constructible<value_t> and
 	concepts::copy_constructible<error_t>
 {
-	optional_base<Value>::operator=(other);
-	m_error = other.m_error;
+	optional_base<value_t>::operator=(other);
+	unexpected<error_t>::operator=(other);
 	return *this;
 }
 
@@ -75,7 +112,7 @@ expected<Value,Error>::expected(expected &&other) requires
 	concepts::move_constructible<value_t> and
 	concepts::move_constructible<error_t> :
 	optional_base<Value>(std::move(other)),
-	m_error(std::move(other.m_error))
+	unexpected<error_t>(std::move(other))
 {
 
 }
@@ -86,41 +123,33 @@ expected<Value,Error> &expected<Value,Error>::operator=(expected &&other) requir
 	concepts::move_constructible<error_t>
 {
 	optional_base<Value>::operator=(std::move(other));
-	m_error = std::move(other.m_error);
+	unexpected<error_t>::operator=(std::move(other));
 	return *this;
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-template <typename...Args>
-void expected<Value,Error>::error(Args&&...args) requires
-	concepts::constructible<error_t,Args...>
+expected<Value,Error> &expected<Value,Error>::operator=(value_t value) noexcept
 {
-	m_error = value_t(std::forward<Args>(args)...);
+	optional_base<Value>::operator=(std::move(value));
+	return *this;
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+expected<Value,Error> &expected<Value,Error>::operator=(unexpected<error_t> une) noexcept
+{
+	this->m_error = std::move(une.error());
 	this->m_has_value = false;
+	return *this;
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-const Error &expected<Value,Error>::error() const & noexcept
+template <typename Func>
+auto expected<Value,Error>::transform(Func &&func) requires transform_v<Func>
 {
-	return m_error;
-}
-
-template <concepts::optional_value Value, concepts::optional_value Error>
-Error &&expected<Value,Error>::error() const && noexcept
-{
-	return std::move(m_error);
-}
-
-template <concepts::optional_value Value, concepts::optional_value Error>
-Error &expected<Value,Error>::error() & noexcept
-{
-	return m_error;
-}
-
-template <concepts::optional_value Value, concepts::optional_value Error>
-Error &&expected<Value,Error>::error() && noexcept
-{
-	return std::move(m_error);
+	using result_t = std::invoke_result_t<Func,value_t>;
+	return this->has_value() ?
+		expected<result_t,error_t>(func(this->value())) :
+		expected<result_t,error_t>();
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
@@ -132,40 +161,50 @@ auto expected<Value,Error>::and_then(Func &&func) requires and_then_v<Func>
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-template <typename Token>
-expected<Value,Error> expected<Value,Error>::or_else(Token &&token) requires or_else_v<Token>
+template <typename Func>
+expected<Value,Error> expected<Value,Error>::or_else(Func &&func) requires or_else_v<Func>
 {
-	if constexpr( concepts::callable_ret<Token,expected,error_t> )
-	{
-		return this->has_value() ?
-			*this : token(error());
-	}
-	else if constexpr( concepts::callable_ret<Token,expected,error_t> )
-	{
-		return this->has_value() ?
-			*this : expected(token(error()));
-	}
-	else if constexpr( concepts::callable_ret<Token,expected> )
-	{
-		return this->has_value() ?
-			*this : token();
-	}
-	else if constexpr( concepts::callable_ret<Token,error_t> )
-	{
-		return this->has_value() ?
-			*this : expected(token());
-	}
-	else if constexpr( concepts::callable_void<Token> )
+	if constexpr( or_else_0_v<Func> )
+		return this->has_value() ? *this : func(this->error());
+
+	else if constexpr( or_else_1_v<Func> )
+		return this->has_value() ? *this : func();
+
+	else if constexpr( or_else_2_v<Func> )
 	{
 		if( not this->has_value() )
-			token();
+			func(this->error());
 		return *this;
 	}
-	else
+	else if constexpr( or_else_3_v<Func> )
 	{
-		return this->has_value() ?
-			*this : expected(std::forward<Token>(token));
+		if( not this->has_value() )
+			func();
+		return *this;
 	}
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+expected<Value,Error> expected<Value,Error>::or_else(value_t value)
+{
+	return this->has_value() ?
+		*this : expected(std::move(value));
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+const expected<Value,Error> &expected<Value,Error>::exception() const requires exception_v
+{
+	if( not this->has_value() )
+		this->error().exception();
+	return *this;
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+expected<Value,Error> &expected<Value,Error>::exception() requires exception_v
+{
+	if( not this->has_value() )
+		this->error().exception();
+	return *this;
 }
 
 } //namespace libgs

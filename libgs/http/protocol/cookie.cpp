@@ -117,190 +117,67 @@ cookie::operator value_t() noexcept
 	return m_impl->m_value;
 }
 
-std::string cookie::domain() const
+optional<std::string> cookie::domain() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::domain);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::domain: key 'Domain' not exists."
-		);
-	}
-	return it->second.to_string();
+	return it == attributes().end() ?
+		optional<std::string>() : make_optional(*it->second);
 }
 
-std::string cookie::path() const
+optional<std::string> cookie::path() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::path);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::path: key 'Path' not exists."
-		);
-	}
-	return it->second.to_string();
+	return it == attributes().end() ?
+		optional<std::string>() : make_optional(*it->second);
 }
 
-std::string cookie::same_site() const
+optional<std::string> cookie::same_site() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::same_site);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::same_site: key 'SameSite' not exists."
-		);
-	}
-	return it->second.to_string();
+	return it == attributes().end() ?
+		optional<std::string>() : make_optional(*it->second);
 }
 
-std::string cookie::priority() const
+optional<std::string> cookie::priority() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::priority);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::priority: key 'Priority' not exists."
-		);
-	}
-	return it->second.to_string();
+	return it == attributes().end() ?
+		optional<std::string>() : make_optional(*it->second);
 }
 
-uint64_t cookie::expires() const
+optional<uint64_t> cookie::expires() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::expires);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::expires: key 'Expires' not exists."
-		);
-	}
-	return it->second.get<uint64_t>();
+	return it == attributes().end() ?
+		optional<uint64_t>() : it->second.get<uint64_t>();
 }
 
-uint64_t cookie::max_age() const
+optional<uint64_t> cookie::max_age() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::max_age);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::max_age: key 'Max-age' not exists."
-		);
-	}
-	return it->second.get<uint64_t>();
+	return it == attributes().end() ?
+		optional<uint64_t>() : it->second.get<uint64_t>();
 }
 
-size_t cookie::size() const
+optional<size_t> cookie::size() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::size);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::cookies_size: key 'Size' not exists."
-		);
-	}
-	return it->second.get<size_t>();
+	return it == attributes().end() ?
+		optional<size_t>() : it->second.get<size_t>();
 }
 
-bool cookie::http_only() const
+optional<bool> cookie::http_only() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::http_only);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::http_only: key 'HttpOnly' not exists."
-		);
-	}
-	return it->second.to_bool();
+	return it == attributes().end() ?
+		optional<bool>() : it->second.to_bool();
 }
 
-bool cookie::secure() const
-{
-	auto it = attributes().find(cookie_attribute::secure);
-	if( it == attributes().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::secure: key 'Secure' not exists."
-		);
-	}
-	return it->second.to_bool();
-}
-
-std::string cookie::domain_or(const value_t &def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::domain);
-	return it == attributes().end() ? *def_value : *it->second;
-}
-
-std::string cookie::domain_or(value_t &&def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::domain);
-	return it == attributes().end() ? *std::move(def_value) : *it->second;
-}
-
-std::string cookie::path_or(const value_t &def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::path);
-	return it == attributes().end() ? *def_value : *it->second;
-}
-
-std::string cookie::path_or(value_t &&def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::path);
-	return it == attributes().end() ? *std::move(def_value) : *it->second;
-}
-
-std::string cookie::same_site_or(const value_t &def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::same_site);
-	return it == attributes().end() ? *def_value : *it->second;
-}
-
-std::string cookie::same_site_or(value_t &&def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::same_site);
-	return it == attributes().end() ? *std::move(def_value) : *it->second;
-}
-
-std::string cookie::priority_or(const value_t &def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::priority);
-	return it == attributes().end() ? *def_value : *it->second;
-}
-
-std::string cookie::priority_or(value_t &&def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::priority);
-	return it == attributes().end() ? *std::move(def_value) : *it->second;
-}
-
-uint64_t cookie::expires_or(uint64_t def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::expires);
-	return it == attributes().end() ? def_value : it->second.get<uint64_t>();
-}
-
-uint64_t cookie::max_age_or(uint64_t def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::max_age);
-	return it == attributes().end() ? def_value : it->second.get<uint64_t>();
-}
-
-size_t cookie::size_or(size_t def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::size);
-	return it == attributes().end() ? def_value : it->second.get<size_t>();
-}
-
-bool cookie::http_only_or(bool def_value) const noexcept
+optional<bool> cookie::secure() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::http_only);
-	return it == attributes().end() ? def_value : it->second.to_bool();
-}
-
-bool cookie::secure_or(bool def_value) const noexcept
-{
-	auto it = attributes().find(cookie_attribute::secure);
-	return it == attributes().end() ? def_value : it->second.to_bool();
+	return it == attributes().end() ?
+		optional<bool>() : it->second.to_bool();
 }
 
 cookie &cookie::set_domain(value_t domain)

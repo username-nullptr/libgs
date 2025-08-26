@@ -89,8 +89,8 @@ template <concepts::character CharT>
 	auto opt = _sto_float<CharT>(
 		static_cast<long double(*)(const std::basic_string<CharT>&,size_t*)>(std::stold), str
 	);
-	return opt.and_then([](auto value) {
-		return make_optional(static_cast<result_t>(value));
+	return opt.transform([](auto value) {
+		return static_cast<result_t>(value);
 	});
 }
 
@@ -577,7 +577,7 @@ optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base) noexc
 		{
 			using string_t = std::basic_string<char_t>;
 			try {
-				return /*!!*/detail::_sto_int<char_t>(
+				return !!detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
 				);
 			}
@@ -667,7 +667,7 @@ template <typename T>
 			}
 		}
 		catch(std::exception&) {}
-		return detail::try_to_booltot<char_t>(_text);
+		return detail::try_to_booltot<char_t,T>(_text);
 	}
 }
 
@@ -700,7 +700,7 @@ template <concepts::floating_p T>
 		}
 	}
 	catch(std::exception&) {}
-	return detail::try_to_booltot<char_t>(_text);
+	return detail::try_to_booltot<char_t,T>(_text);
 }
 
 auto to_lower(concepts::any_text_p auto &&text)

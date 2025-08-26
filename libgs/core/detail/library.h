@@ -38,8 +38,8 @@ auto library::interface(std::string_view ifname) const
 	using function_t = std::function<typename function_traits<Func>::call_type>;
 	using pointer_t = typename function_traits<Func>::pointer_type;
 
-	return interface(ifname).and_then([](void *ptr) {
-		return optional<function_t>(reinterpret_cast<pointer_t>(ptr));
+	return interface(ifname).transform([](void *ptr) {
+		return function_t(reinterpret_cast<pointer_t>(ptr));
 	});
 }
 

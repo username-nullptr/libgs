@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_CXX_OPTIONAL_H
 #define LIBGS_CORE_CXX_OPTIONAL_H
 
+#include <optional>
 #include <libgs/core/cxx/attributes.h>
 #include <libgs/core/cxx/concepts.h>
 
@@ -41,10 +42,7 @@ class LIBGS_CORE_TAPI optional_base
 public:
 	using value_t = Value;
 	optional_base() = default;
-
-	template <typename...Args>
-	optional_base(Args&&...args) requires
-		concepts::constructible<value_t,Args...>;
+	optional_base(value_t value);
 
 	optional_base(const optional_base &other) requires
 		concepts::copy_constructible<value_t>;
@@ -75,6 +73,7 @@ public:
 	[[nodiscard]] value_t value_or(value_t default_value = {}) const && noexcept;
 
 public:
+	optional_base &operator=(value_t value) noexcept;
 	[[nodiscard]] operator bool() const noexcept;
 
 	[[nodiscard]] const value_t &operator*() const &;
@@ -89,7 +88,7 @@ public:
 	[[nodiscard]] bool operator==(const optional_base &other) const
 		requires std::equality_comparable<value_t>;
 
-private:
+protected:
 	value_t m_value {};
 	bool m_has_value = false;
 };
@@ -100,6 +99,15 @@ class LIBGS_CORE_TAPI optional : public optional_base<Value>
 public:
 	using value_t = Value;
 	using optional_base<Value>::optional_base;
+	void reset() noexcept;
+
+public:
+	template <concepts::callable_novoid<value_t> Func>
+	static constexpr bool transform_v =
+		concepts::optional_value<std::invoke_result_t<Func,value_t>>;
+
+	template <typename Func>
+	[[nodiscard]] auto transform(Func &&func) requires transform_v<Func>;
 
 	template <concepts::callable_novoid<value_t> Func>
 	static constexpr bool and_then_v = requires(Func func, value_t value) {
@@ -109,21 +117,21 @@ public:
 	template <typename Func>
 	[[nodiscard]] auto and_then(Func &&func) requires and_then_v<Func>;
 
-	template <typename Token>
+	template <typename Func>
 	static constexpr bool or_else_v =
-		concepts::callable_ret<Token,optional> or
-		concepts::callable_void<Token> or
-		std::same_as<std::remove_cvref_t<Token>,value_t>;
+		concepts::callable_ret<Func,optional> or
+		concepts::callable_void<Func>;
 
-	template <typename Token>
-	[[nodiscard]] optional or_else(Token &&token) requires or_else_v<Token>;
+	template <typename Func>
+	[[nodiscard]] optional or_else(Func &&func) requires or_else_v<Func>;
+	[[nodiscard]] optional or_else(value_t value);
 };
 
-template <concepts::optional_value Value>
-[[nodiscard]] optional<Value> make_optional(Value &&args);
+template <concepts::optional_value_p Value>
+[[nodiscard]] constexpr auto make_optional(Value &&value);
 
 template <concepts::optional_value Value, typename...Args>
-[[nodiscard]] optional<Value> make_optional(Args&&...args)
+[[nodiscard]] LIBGS_CORE_TAPI optional<Value> make_optional(Args&&...args)
 	requires concepts::constructible<Value,Args...>;
 
 } //namespace libgs

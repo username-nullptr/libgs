@@ -96,7 +96,7 @@ void library::impl::set_file_name(fs::path file_name)
 #endif
 	for(auto &name : candidates)
 	{
-		auto abs_name = app::absolute_path(name);
+		auto abs_name = *app::absolute_path(name).or_else("");
 		if( not fs::exists(abs_name) )
 			continue;
 

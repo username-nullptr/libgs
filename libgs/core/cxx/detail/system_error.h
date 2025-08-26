@@ -26,51 +26,72 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_APP_UTILS_H
-#define LIBGS_CORE_DETAIL_APP_UTILS_H
+#ifndef LIBGS_CORE_CXX_DETAIL_SYSTEM_ERROR_H
+#define LIBGS_CORE_CXX_DETAIL_SYSTEM_ERROR_H
 
-namespace libgs::app
+namespace libgs
 {
 
-template <typename Arg0, typename...Args>
-error_code setenv(std::string_view key,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
+inline error_code::error_code(const std::error_code &error) :
+	std::error_code(error)
 {
-	return setenv(key,
-		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)
-	);
+
 }
 
-template <typename Arg0, typename...Args>
-error_code setenv(std::string_view key, bool overwrite,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
+inline error_code::error_code(std::error_code &&error) :
+	std::error_code(std::move(error))
 {
-	return setenv(key,
-		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...),
-		overwrite
-	);
+
 }
 
-template <concepts::string_p<char> T>
-error_code setenv(std::string_view key, T &&value, bool overwrite)
+inline const error_code &error_code::exception() const
 {
-	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
+	if( not *this )
+		throw std::system_error(*this);
+	return *this;
 }
 
-inline namespace literals
+inline error_code &error_code::exception()
 {
-
-inline path_t operator""_abs(const char *path, size_t len)
-{
-	return *absolute_path(std::string(path, len)).exception();
+	if( not *this )
+		throw std::system_error(*this);
+	return *this;
 }
 
-inline path_t operator""_abs(const wchar_t *path, size_t len)
+template <typename Func>
+auto error_code::and_then(Func &&func) requires and_then_v<Func>
 {
-	return *absolute_path(std::wstring(path, len)).exception();
+	if constexpr( concepts::callable_ret<Func,error_code> )
+		return operator bool() ? *this : func(*this);
+
+	else if constexpr( concepts::callable_void<Func> )
+		return operator bool() ? *this : func();
 }
 
-}} //namespace libgs::app::literals
+template <typename Func>
+error_code error_code::or_else(Func &&func) requires or_else_v<Func>
+{
+	if constexpr( concepts::callable_ret<Func,error_code,error_code> )
+		return operator bool() ? func(*this) : *this;
+
+	else if constexpr( concepts::callable_ret<Func,error_code> )
+		return operator bool() ? func() : *this;
+
+	else if constexpr( concepts::callable_void<Func,error_code> )
+	{
+		if( *this )
+			func(*this);
+		return *this;
+	}
+	else if constexpr( concepts::callable_void<Func> )
+	{
+		if( *this )
+			func();
+		return *this;
+	}
+}
+
+} //namespace libgs
 
 
-#endif //LIBGS_CORE_DETAIL_APP_UTILS_H
+#endif //LIBGS_CORE_CXX_DETAIL_SYSTEM_ERROR_H

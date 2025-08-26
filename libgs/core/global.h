@@ -37,7 +37,13 @@
 namespace libgs
 {
 
-using io_expected = expected<size_t,error_code>;
+template <concepts::optional_value Value>
+using sys_expected = expected<Value,error_code>;
+
+using sys_unexpected = unexpected<error_code>;
+
+using io_expected = sys_expected<size_t>;
+using io_unexpected = sys_unexpected;
 
 [[nodiscard]] LIBGS_CORE_API const char *version_string();
 

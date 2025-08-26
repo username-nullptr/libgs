@@ -34,20 +34,40 @@
 namespace libgs
 {
 
+template <concepts::optional_value Error>
+class LIBGS_CORE_TAPI unexpected
+{
+public:
+    using error_t = Error;
+
+	template <typename...Args>
+	unexpected(Args&&...args) requires
+		concepts::constructible<error_t,Args...>;
+
+	template <typename...Args>
+	void despair(Args&&...args) requires
+		concepts::constructible<error_t,Args...>;
+
+public:
+	[[nodiscard]] const error_t &error() const & noexcept;
+	[[nodiscard]] error_t &&error() const && noexcept;
+
+	[[nodiscard]] error_t &error() & noexcept;
+	[[nodiscard]] error_t &&error() && noexcept;
+
+protected:
+	error_t m_error;
+};
+
 template <concepts::optional_value Value, concepts::optional_value Error>
-class LIBGS_CORE_TAPI expected : public optional_base<Value>
+class LIBGS_CORE_TAPI expected : public optional_base<Value>, public unexpected<Error>
 {
 public:
 	using value_t = Value;
     using error_t = Error;
 
-	template <typename...Args>
-	expected(Args&&...args) requires
-		concepts::constructible<value_t,Args...>;
-
-	template <typename...Args>
-	expected(Args&&...args) requires
-		concepts::constructible<error_t,Args...>;
+	expected(value_t value);
+	expected(unexpected<error_t> une = {});
 
 	expected(const expected &other) requires
 		concepts::copy_constructible<value_t> and
@@ -65,18 +85,17 @@ public:
 		concepts::move_constructible<value_t> and
 		concepts::move_constructible<error_t>;
 
-public:
-	template <typename...Args>
-	void error(Args&&...args) requires
-		concepts::constructible<error_t,Args...>;
-
-	[[nodiscard]] const error_t &error() const & noexcept;
-	[[nodiscard]] error_t &&error() const && noexcept;
-
-	[[nodiscard]] error_t &error() & noexcept;
-	[[nodiscard]] error_t &&error() && noexcept;
+	expected &operator=(value_t value) noexcept;
+	expected &operator=(unexpected<error_t> une) noexcept;
 
 public:
+	template <concepts::callable_novoid<value_t> Func>
+	static constexpr bool transform_v =
+		concepts::optional_value<typename function_traits<Func>::return_type>;
+
+	template <typename Func>
+	[[nodiscard]] auto transform(Func &&func) requires transform_v<Func>;
+
 	template <concepts::callable_novoid<value_t> Func>
 	static constexpr bool and_then_v = requires(Func func, value_t value) {
 		[]<typename U0, typename U1>(expected<U0,U1>) {} (func(value));
@@ -85,19 +104,41 @@ public:
 	template <typename Func>
 	[[nodiscard]] auto and_then(Func &&func) requires and_then_v<Func>;
 
-	template <typename Token>
+	template <typename Func>
+	static constexpr bool or_else_0_v = requires(Func func, error_t error) {
+		[]<typename U0, typename U1>(expected<U0,U1>) {} (func(error));
+	};
+
+	template <typename Func>
+	static constexpr bool or_else_1_v = requires(Func func) {
+		[]<typename U0, typename U1>(expected<U0,U1>) {} (func());
+	};
+
+	template <typename Func>
+	static constexpr bool or_else_2_v = requires(Func func, error_t error) {
+		{ func(error) } -> std::same_as<void>;
+	};
+
+	template <typename Func>
+	static constexpr bool or_else_3_v = requires(Func func) {
+		{ func() } -> std::same_as<void>;
+	};
+
+	template <typename Func>
 	static constexpr bool or_else_v =
-		concepts::callable_ret<Token,expected,error_t> or
-		concepts::callable_ret<Token,error_t,error_t> or
-		concepts::callable_ret<Token,expected> or
-		concepts::callable_ret<Token,error_t> or
-		std::same_as<std::remove_cvref_t<Token>,value_t>;
+		or_else_0_v<Func> or or_else_1_v<Func> or
+		or_else_2_v<Func> or or_else_3_v<Func>;
 
-	template <typename Token>
-	[[nodiscard]] expected or_else(Token &&token) requires or_else_v<Token>;
+	template <typename Func>
+	[[nodiscard]] expected or_else(Func &&func) requires or_else_v<Func>;
+	[[nodiscard]] expected or_else(value_t value);
 
-private:
-	error_t m_error;
+public:
+	static constexpr bool exception_v = requires(error_t error) {
+		error.exception();
+	};
+	const expected &exception() const requires exception_v;
+	expected &exception() requires exception_v;
 };
 
 } //namespace libgs

@@ -50,10 +50,8 @@ void check_optional_has_value(const optional_base<Value> &opt)
 } //namespace detail
 
 template <concepts::optional_value Value>
-template <typename...Args>
-optional_base<Value>::optional_base(Args&&...args) requires
-	concepts::constructible<value_t,Args...> :
-	m_value(std::forward<Args>(args)...),
+optional_base<Value>::optional_base(value_t value) :
+	m_value(std::move(value)),
 	m_has_value(true)
 {
 
@@ -152,6 +150,14 @@ Value optional_base<Value>::value_or(value_t default_value) const && noexcept
 }
 
 template <concepts::optional_value Value>
+optional_base<Value> &optional_base<Value>::operator=(value_t value) noexcept
+{
+	m_value = std::move(value);
+	m_has_value = true;
+	return *this;
+}
+
+template <concepts::optional_value Value>
 optional_base<Value>::operator bool() const noexcept
 {
 	return has_value();
@@ -201,6 +207,22 @@ bool optional_base<Value>::operator==(const optional_base &other) const
 }
 
 template <concepts::optional_value Value>
+void optional<Value>::reset() noexcept
+{
+	this->m_value = value_t();
+	this->m_has_value = false;
+}
+
+template <concepts::optional_value Value>
+template <typename Func>
+auto optional<Value>::transform(Func &&func) requires transform_v<Func>
+{
+	using result_t = std::invoke_result_t<Func,value_t>;
+	return this->has_value() ?
+		make_optional(func(this->value())) : optional<result_t>();
+}
+
+template <concepts::optional_value Value>
 template <typename Func>
 auto optional<Value>::and_then(Func &&func) requires and_then_v<Func>
 {
@@ -209,31 +231,33 @@ auto optional<Value>::and_then(Func &&func) requires and_then_v<Func>
 }
 
 template <concepts::optional_value Value>
-template <typename Token>
-optional<Value> optional<Value>::or_else(Token &&token) requires or_else_v<Token>
+template <typename Func>
+optional<Value> optional<Value>::or_else(Func &&func) requires or_else_v<Func>
 {
-	if constexpr( concepts::callable_ret<Token,optional> )
+	if constexpr( concepts::callable_ret<Func,optional> )
 	{
 		return this->has_value() ?
-			*this : token();
+			*this : func();
 	}
-	else if constexpr( concepts::callable_void<Token> )
+	else if constexpr( concepts::callable_void<Func> )
 	{
 		if( not this->has_value() )
-			token();
+			func();
 		return *this;
-	}
-	else
-	{
-		return this->has_value() ?
-			*this : optional(std::forward<Token>(token));
 	}
 }
 
 template <concepts::optional_value Value>
-optional<Value> make_optional(Value &&args)
+optional<Value> optional<Value>::or_else(value_t value)
 {
-	return optional<Value>(std::forward<Value>(args));
+	return this->has_value() ?
+		*this : optional(std::move(value));
+}
+
+template <concepts::optional_value_p Value>
+constexpr auto make_optional(Value &&value)
+{
+	return optional<std::remove_cvref_t<Value>>(std::forward<Value>(value));
 }
 
 template <concepts::optional_value Value, typename...Args>

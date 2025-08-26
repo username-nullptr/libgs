@@ -58,21 +58,27 @@ inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::
 	if( file_name.empty() )
 		return std::make_error_code(std::errc::invalid_argument);
 
-	error_code error;
-	auto abs_name = app::absolute_path(error, file_name);
-	if( error )
-		return error;
+	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<int>
+	{
+		file_name = std::move(abs_name);
+		namespace fs = std::filesystem;
 
-	file_name = std::move(abs_name);
-	namespace fs = std::filesystem;
-
-	if( (mode & std::ios_base::out) == 0 and not exists(file_name) )
-		return std::make_error_code(std::errc::no_such_file_or_directory);
-
-	stream->open(file_name, mode);
-	if( not stream->is_open() )
-		return std::make_error_code(static_cast<std::errc>(errno));
-	return error;
+		if( (mode & std::ios_base::out) == 0 and not exists(file_name) )
+		{
+			return sys_unexpected (
+				std::make_error_code(std::errc::no_such_file_or_directory)
+			);
+		}
+		stream->open(file_name, mode);
+		if( not stream->is_open() )
+		{
+			return sys_unexpected (
+				std::make_error_code(static_cast<std::errc>(errno))
+			);
+		}
+		return 0;
+	})
+	.error();
 }
 
 template <core_concepts::any_fstream_p FS>
@@ -170,21 +176,27 @@ inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base
 	if( file_name.empty() )
 		return std::make_error_code(std::errc::invalid_argument);
 
-	error_code error;
-	auto abs_name = app::absolute_path(error, file_name);
-	if( error )
-		return error;
+	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<int>
+	{
+		file_name = std::move(abs_name);
+		namespace fs = std::filesystem;
 
-	file_name = std::move(abs_name);
-	namespace fs = std::filesystem;
-
-	if( (mode & std::ios_base::out) == 0 and not exists(file_name) )
-		return std::make_error_code(std::errc::no_such_file_or_directory);
-
-	stream->open(file_name, mode);
-	if( not stream->is_open() )
-		return std::make_error_code(static_cast<std::errc>(errno));
-	return error;
+		if( (mode & std::ios_base::out) == 0 and not exists(file_name) )
+		{
+			return sys_unexpected (
+				std::make_error_code(std::errc::no_such_file_or_directory)
+			);
+		}
+		stream->open(file_name, mode);
+		if( not stream->is_open() )
+		{
+			return sys_unexpected (
+				std::make_error_code(static_cast<std::errc>(errno))
+			);
+		}
+		return 0;
+	})
+	.error();
 }
 
 template <core_concepts::any_fstream_p FS>

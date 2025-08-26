@@ -34,12 +34,17 @@
 namespace libgs
 {
 
+template <concepts::copy_or_move_constructible T, size_t N = 0>
+class LIBGS_CORE_TAPI lock_free_queue;
+
+// linked list : no upper limit.
 template <concepts::copy_or_move_constructible T>
-class LIBGS_CORE_TAPI lock_free_queue
+class LIBGS_CORE_TAPI lock_free_queue<T,0>
 {
 	LIBGS_DISABLE_COPY(lock_free_queue)
 
 public:
+	using value_t = T;
 	lock_free_queue();
 	~lock_free_queue();
 
@@ -55,6 +60,25 @@ public: // safe
 
 	std::optional<T> dequeue();
 	bool dequeue(T &data);
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+// circular queue
+template <concepts::copy_or_move_constructible T, size_t N>
+class LIBGS_CORE_TAPI lock_free_queue
+{
+	LIBGS_DISABLE_COPY(lock_free_queue)
+
+public:
+	using value_t = T;
+	static constexpr size_t capacity_v = N;
+	static consteval size_t capacity() noexcept;
+
+public:
+	// TODO ... ...
 
 private:
 	class impl;

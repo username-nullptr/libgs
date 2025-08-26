@@ -38,25 +38,6 @@ decltype(auto) cookie::value() requires core_concepts::value_get<T,char>
 	return value().get<T>();
 }
 
-template <typename T>
-decltype(auto) cookie::attribute(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
-{
-	return value_map_get (
-		attributes(), key, "libgs::http::cookie::attributes"
-	);
-}
-
-template <typename T>
-decltype(auto) cookie::attribute_or
-(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get<T,char>
-{
-	return value_map_get_or (
-		attributes(), key, std::forward<T>(def_value)
-	);
-}
-
 cookie &cookie::set_attribute(core_concepts::text_p<char> auto &&key, value_t attr) noexcept
 {
 	attributes()[strtls::to_string(std::forward<decltype(key)>(key))] = std::move(attr);
@@ -67,6 +48,11 @@ cookie &cookie::unset_attribute(const core_concepts::text_p<char> auto &key) noe
 {
 	attributes().erase(strtls::to_string(key));
 	return *this;
+}
+
+optional<value> cookie::attribute(const core_concepts::text_p<char> auto &key) noexcept
+{
+	return value_map_get(attributes(), key);
 }
 
 } //namespace libgs::http::protocol

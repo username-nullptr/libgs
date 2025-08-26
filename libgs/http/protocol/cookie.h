@@ -53,7 +53,6 @@ class LIBGS_HTTP_API cookie final
 {
 public:
 	using value_t = libgs::value;
-	using string_t = std::string;
 	using attributes_t = value_map;
 
 public:
@@ -79,38 +78,18 @@ public:
 	operator value_t() noexcept;
 
 public:
-	[[nodiscard]] string_t domain() const;
-	[[nodiscard]] string_t path() const;
+	[[nodiscard]] optional<std::string> domain() const noexcept;
+	[[nodiscard]] optional<std::string> path() const noexcept;
 
-	[[nodiscard]] string_t same_site() const;
-	[[nodiscard]] string_t priority() const;
+	[[nodiscard]] optional<std::string> same_site() const noexcept;
+	[[nodiscard]] optional<std::string> priority() const noexcept;
 
-	[[nodiscard]] uint64_t expires() const;
-	[[nodiscard]] uint64_t max_age() const;
-	[[nodiscard]] size_t size() const;
+	[[nodiscard]] optional<uint64_t> expires() const noexcept;
+	[[nodiscard]] optional<uint64_t> max_age() const noexcept;
+	[[nodiscard]] optional<size_t> size() const noexcept;
 
-	[[nodiscard]] bool http_only() const;
-	[[nodiscard]] bool secure() const;
-
-public:
-	[[nodiscard]] string_t domain_or(const value_t &def_value = {}) const noexcept;
-	[[nodiscard]] string_t domain_or(value_t &&def_value = {}) const noexcept;
-
-	[[nodiscard]] string_t path_or(const value_t &def_value = {}) const noexcept;
-	[[nodiscard]] string_t path_or(value_t &&def_value = {}) const noexcept;
-
-	[[nodiscard]] string_t same_site_or(const value_t &def_value = {}) const noexcept;
-	[[nodiscard]] string_t same_site_or(value_t &&def_value = {}) const noexcept;
-
-	[[nodiscard]] string_t priority_or(const value_t &def_value = {}) const noexcept;
-	[[nodiscard]] string_t priority_or(value_t &&def_value = {}) const noexcept;
-
-	[[nodiscard]] uint64_t expires_or(uint64_t def_value = 0) const noexcept;
-	[[nodiscard]] uint64_t max_age_or(uint64_t def_value = 0) const noexcept;
-	[[nodiscard]] size_t size_or(size_t def_value = 0) const noexcept;
-
-	[[nodiscard]] bool http_only_or(bool def_value = false) const noexcept;
-	[[nodiscard]] bool secure_or(bool def_value = false) const noexcept;
+	[[nodiscard]] optional<bool> http_only() const noexcept;
+	[[nodiscard]] optional<bool> secure() const noexcept;
 
 public:
 	cookie &set_domain(value_t domain);
@@ -141,18 +120,10 @@ public:
 	cookie &unset_secure();
 
 public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) attribute(const core_concepts::text_p<char> auto &key)
-		const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) attribute_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
-		const requires core_concepts::value_get<T,char>;
-
-public:
 	cookie &set_attribute(core_concepts::text_p<char> auto &&key, value_t attr) noexcept;
 	cookie &unset_attribute(const core_concepts::text_p<char> auto &key) noexcept;
 
+	[[nodiscard]] optional<value_t> attribute(const core_concepts::text_p<char> auto &key) noexcept;
 	[[nodiscard]] const attributes_t &attributes() const noexcept;
 	[[nodiscard]] attributes_t &attributes() noexcept;
 

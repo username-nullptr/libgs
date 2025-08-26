@@ -104,12 +104,14 @@ concept callable = requires(Func &&func, Args&&...args) {
 };
 
 template <typename Func, typename Res, typename...Args>
-concept callable_ret = callable<Func,Args...> and
-	std::is_same_v<std::invoke_result_t<Func,Args...>, Res>;
+concept callable_ret = requires(Func &&func, Args&&...args) {
+	{ func(std::forward<Args>(args)...) } -> std::same_as<Res>;
+};
 
 template <typename Func, typename...Args>
-concept callable_novoid = callable<Func,Args...> and
-	not std::is_void_v<std::invoke_result_t<Func,Args...>>;
+concept callable_novoid = requires(Func &&func, Args&&...args) {
+	requires not std::is_void_v<decltype(func(std::forward<Args>(args)...))>;
+};
 
 template <typename Func, typename...Args>
 concept callable_void = callable_ret<Func, void, Args...>;
@@ -120,14 +122,10 @@ concept std_func_temp = requires(Func *func) {
 };
 
 template <typename Struct, typename...Args>
-concept constructible = requires(Args&&...args) {
-	Struct(std::forward<Args>(args)...);
-};
+concept constructible = std::constructible_from<Struct,Args...>;
 
-template <typename T, typename Arg>
-concept assignable = requires(Arg &&args) {
-	std::declval<T>() = (std::forward<Arg>(args));
-};
+template <typename L, typename R>
+concept assignable = std::assignable_from<L,R>;
 
 template <typename T>
 concept copyable = std::copyable<T>;
@@ -155,6 +153,9 @@ concept copy_or_move_constructible = copy_constructible<T> or move_constructible
 
 template <typename T>
 concept optional_value = copy_or_move_constructible<T> and concepts::constructible<T>;
+
+template <typename T>
+concept optional_value_p = optional_value<std::remove_cvref_t<T>>;
 
 template <typename T, typename Base>
 concept base_of = std::is_base_of_v<Base,T>;

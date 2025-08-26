@@ -33,7 +33,7 @@ namespace libgs
 {
 
 template <concepts::copy_or_move_constructible T>
-class lock_free_queue<T>::impl
+class lock_free_queue<T,0>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -64,27 +64,27 @@ public:
 };
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T>::lock_free_queue() :
+lock_free_queue<T,0>::lock_free_queue() :
 	m_impl(new impl())
 {
 
 }
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T>::~lock_free_queue()
+lock_free_queue<T,0>::~lock_free_queue()
 {
 	delete m_impl;
 }
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T>::lock_free_queue(lock_free_queue &&other) noexcept :
+lock_free_queue<T,0>::lock_free_queue(lock_free_queue &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T> &lock_free_queue<T>::operator=(lock_free_queue &&other) noexcept
+lock_free_queue<T> &lock_free_queue<T,0>::operator=(lock_free_queue &&other) noexcept
 {
 	if( &other == this )
 		return *this;
@@ -95,20 +95,20 @@ lock_free_queue<T> &lock_free_queue<T>::operator=(lock_free_queue &&other) noexc
 }
 
 template <concepts::copy_or_move_constructible T>
-void lock_free_queue<T>::enqueue(const T &data) requires concepts::copy_constructible<T>
+void lock_free_queue<T,0>::enqueue(const T &data) requires concepts::copy_constructible<T>
 {
 	emplace(data);
 }
 
 template <concepts::copy_or_move_constructible T>
-void lock_free_queue<T>::enqueue(T &&data)
+void lock_free_queue<T,0>::enqueue(T &&data)
 {
 	emplace(std::move(data));
 }
 
 template <concepts::copy_or_move_constructible T>
 template <typename...Args>
-void lock_free_queue<T>::emplace(Args&&...args)
+void lock_free_queue<T,0>::emplace(Args&&...args)
 {
 	using node_t = typename impl::node;
 	auto n = new node_t(std::forward<Args>(args)...);
@@ -150,7 +150,7 @@ void lock_free_queue<T>::emplace(Args&&...args)
 }
 
 template <concepts::copy_or_move_constructible T>
-std::optional<T> lock_free_queue<T>::dequeue()
+std::optional<T> lock_free_queue<T,0>::dequeue()
 {
 	typename impl::node *head = nullptr;
 	for(;;)
@@ -188,7 +188,7 @@ std::optional<T> lock_free_queue<T>::dequeue()
 }
 
 template <concepts::copy_or_move_constructible T>
-bool lock_free_queue<T>::dequeue(T &data)
+bool lock_free_queue<T,0>::dequeue(T &data)
 {
 	auto _data = dequeue();
 	if( _data )
@@ -197,6 +197,12 @@ bool lock_free_queue<T>::dequeue(T &data)
 		return true;
 	}
 	return false;
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+consteval size_t lock_free_queue<T,N>::capacity() noexcept
+{
+	return capacity_v;
 }
 
 } //namespace libgs

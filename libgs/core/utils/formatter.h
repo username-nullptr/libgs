@@ -127,10 +127,50 @@ private:
 	formatter<T, CharT> m_formatter;
 };
 
+template <typename E, libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::unexpected<E>, CharT>
+{
+	auto format(const libgs::unexpected<E> &ov, auto &context) {
+		return m_formatter.format(ov.error(), context);
+	}
+
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<E, CharT> m_formatter;
+};
+
 template <typename T, typename E, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<libgs::expected<T,E>, CharT>
 {
-	auto format(const libgs::expected<T,E> &ov, auto &context)
+	auto format(const libgs::expected<T,E> &ov, auto &context) const
+	{
+		m_has_formatter = ov.has_value();
+		return m_has_formatter ?
+			m_value_formatter.format(*ov, context) :
+			m_error_formatter.format(ov.error(), context);
+	}
+
+	constexpr auto parse(auto &context) noexcept
+	{
+		return m_has_formatter ?
+			m_value_formatter.parse(context) :
+			m_error_formatter.parse(context);
+	}
+
+private:
+	formatter<T, CharT> m_value_formatter;
+	formatter<E, CharT> m_error_formatter;
+	mutable bool m_has_formatter = false;
+};
+
+#if LIBGS_STD_CXX >= 23
+template <typename T, typename E, libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<expected<T,E>, CharT>
+{
+	auto format(const expected<T,E> &ov, auto &context)
 	{
 		m_has_formatter = ov.has_value();
 		return m_has_formatter ?
@@ -150,6 +190,7 @@ private:
 	formatter<E, CharT> m_error_formatter;
 	bool m_has_formatter = false;
 };
+#endif //LIBGS_STD_CXX >= 23
 
 template <typename T, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<atomic<T>, CharT>
@@ -173,6 +214,9 @@ struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<
 		return format_to(context.out(), l_str(CharT,"{} ({})"), error.message(), error.value());
 	}
 };
+
+template <libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::error_code, CharT> : formatter<error_code, CharT> {};
 
 template <typename Protocol, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<asio::ip::basic_endpoint<Protocol>, CharT> : libgs::no_parse_formatter<CharT>

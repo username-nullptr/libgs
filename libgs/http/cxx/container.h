@@ -53,25 +53,13 @@ using set = std::set<Value, less_case_insensitive>;
 using value_map = map<value>;
 using value_set = set<value>;
 
-template <typename T = value>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_map_get (
-	const value_map &map, const core_concepts::text_p<char> auto &key, const char *msg
-) requires core_concepts::value_get<T,char>;
+[[nodiscard]] LIBGS_HTTP_TAPI optional<value> value_map_get (
+	const value_map &map, const core_concepts::text_p<char> auto &key
+) noexcept;
 
-template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_map_get_or (
-	const value_map &map, const core_concepts::text_p<char> auto &key, T &&def_value = {}
-) requires core_concepts::value_get<T,char>;
-
-template <typename T = value>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_set_get (
-	const value_set &set, const value &node, const char *msg
-) requires core_concepts::value_get<T,char>;
-
-template <typename T>
-[[nodiscard]] LIBGS_HTTP_TAPI decltype(auto) value_set_get_or (
-	const value_map &set, const value &node, T &&def_value = {}
-) requires core_concepts::value_get<T,char>;
+[[nodiscard]] LIBGS_HTTP_VAPI optional<value> value_set_get (
+	const value_set &set, const value &node
+) noexcept;
 
 using kv_vector = std::vector<std::pair<std::string,value>>;
 

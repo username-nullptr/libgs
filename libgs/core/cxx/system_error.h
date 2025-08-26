@@ -26,51 +26,50 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_APP_UTILS_H
-#define LIBGS_CORE_DETAIL_APP_UTILS_H
+#ifndef LIBGS_CORE_CXX_SYSTEM_ERROR_H
+#define LIBGS_CORE_CXX_SYSTEM_ERROR_H
 
-namespace libgs::app
+#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/concepts.h>
+#include <system_error>
+
+namespace libgs
 {
 
-template <typename Arg0, typename...Args>
-error_code setenv(std::string_view key,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
+class LIBGS_CORE_VAPI error_code : public std::error_code
 {
-	return setenv(key,
-		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)
-	);
-}
+public:
+	using std::error_code::error_code;
+	using std::error_code::operator=;
 
-template <typename Arg0, typename...Args>
-error_code setenv(std::string_view key, bool overwrite,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
-{
-	return setenv(key,
-		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...),
-		overwrite
-	);
-}
+	error_code(const std::error_code &error);
+	error_code(std::error_code &&error);
 
-template <concepts::string_p<char> T>
-error_code setenv(std::string_view key, T &&value, bool overwrite)
-{
-	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
-}
+	const error_code &exception() const;
+	error_code &exception();
 
-inline namespace literals
-{
+public:
+	template <typename Func>
+	static constexpr bool and_then_v =
+		concepts::callable_ret<Func,error_code> or
+		concepts::callable_void<Func>;
 
-inline path_t operator""_abs(const char *path, size_t len)
-{
-	return *absolute_path(std::string(path, len)).exception();
-}
+	template <typename Func>
+	[[nodiscard]] auto and_then(Func &&func) requires and_then_v<Func>;
 
-inline path_t operator""_abs(const wchar_t *path, size_t len)
-{
-	return *absolute_path(std::wstring(path, len)).exception();
-}
+	template <typename Func>
+	static constexpr bool or_else_v =
+		concepts::callable_ret<Func,error_code,error_code> or
+		concepts::callable_void<Func,error_code> or
+		concepts::callable_ret<Func,error_code> or
+		concepts::callable_void<Func>;
 
-}} //namespace libgs::app::literals
+	template <typename Func>
+	[[nodiscard]] error_code or_else(Func &&func) requires or_else_v<Func>;
+};
+
+} //namespace libgs
+#include <libgs/core/cxx/detail/system_error.h>
 
 
-#endif //LIBGS_CORE_DETAIL_APP_UTILS_H
+#endif //LIBGS_CORE_CXX_SYSTEM_ERROR_H

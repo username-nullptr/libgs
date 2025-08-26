@@ -1021,7 +1021,11 @@ mime_head_map &signatures_map_offset4()
 
 [[nodiscard]] static std::string mime_from_magic(const fs::path &file_name)
 {
-	std::ifstream file(app::absolute_path(file_name));
+	auto opt = app::absolute_path(file_name);
+	if( not opt )
+		return "unknown";
+
+	std::ifstream file(*opt);
 	auto mime_type = detail::from_magic(file);
 	file.close();
 	return mime_type;

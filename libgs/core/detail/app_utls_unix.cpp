@@ -44,44 +44,77 @@ static void set_error(error_code &error)
 	error.assign(errno, std::system_category());
 }
 
-fs::path file_path(error_code &error) noexcept
+sys_expected<path_t> file_path() noexcept
 {
-	error = error_code();
+	sys_expected<path_t> result;
 	char exe_name[1024] = "";
 
 	if( readlink("/proc/self/exe", exe_name, sizeof(exe_name)) < 0 )
-		set_error(error);
-	return exe_name;
+		set_error(result.error());
+	else
+		result = exe_name;
+	return result;
 }
 
-bool set_current_directory(error_code &error, const fs::path &path) noexcept
+error_code set_current_directory(const path_t &path) noexcept
 {
-	error = error_code();
+	error_code error;
     auto str = path.string();
 
 	if( chdir(str.data()) < 0 )
-	{
 		set_error(error);
-		return false;
-	}
-	return true;
+	return error;
 }
 
-fs::path current_directory(error_code &error) noexcept
+sys_expected<path_t> current_directory() noexcept
 {
-	error = error_code();
+	sys_expected<path_t> result;
 	char buf[1024] = "";
 
 	if( getcwd(buf, sizeof(buf)) == nullptr )
-		set_error(error);
-
-	std::string str(buf);
-	if( not str.ends_with("/") )
-		str += "/";
-	return str;
+		set_error(result.error());
+	else
+	{
+		std::string str(buf);
+		if( not str.ends_with("/") )
+			str += "/";
+		result = str;
+	}
+	return result;
 }
 
-bool is_absolute_path(const fs::path &path) noexcept
+sys_expected<path_t> absolute_path(const path_t &path) noexcept
+{
+	auto str = path.string();
+	sys_expected<path_t> result;
+
+	if( not is_absolute_path(path) )
+	{
+		result = dir_path().transform([&](const path_t &dir) -> path_t {
+			return dir.string() + str;
+		});
+	}
+	else if( str.starts_with("~") )
+	{
+		auto tmp = ::getenv("HOME");
+		if( not tmp )
+			set_error(result.error());
+		else
+		{
+			std::string home(tmp);
+			if( home.ends_with("/") )
+				home.pop_back();
+			result = home + str.erase(0,1);
+		}
+	}
+	return result.transform([](const path_t &path) -> path_t
+	{
+		auto str = strtls::replace(path.string(), "/./", "/", false);
+		return strtls::replace(std::move(str), "//", "/", false);
+	});
+}
+
+bool is_absolute_path(const path_t &path) noexcept
 {
 	auto str = path.string();
 	if( str.starts_with("/") )
@@ -91,58 +124,25 @@ bool is_absolute_path(const fs::path &path) noexcept
 	return false;
 }
 
-fs::path absolute_path(error_code &error, const fs::path &path) noexcept
+static spin_shared_mutex g_env_mutex;
+
+sys_expected<std::string> getenv(std::string_view key) noexcept
 {
-	error = error_code();
-	auto str = path.string();
-	auto result = str;
+	g_env_mutex.lock_shared();
+	auto value = ::getenv(key.data());
+	g_env_mutex.unlock_shared();
 
-	if( not is_absolute_path(path) )
-		result = dir_path().string() + result;
-
-	else if( str.starts_with("~") )
-	{
-		auto tmp = ::getenv("HOME");
-		if( tmp == nullptr )
-			set_error(error);
-
-		std::string home(tmp);
-		if( home.ends_with("/") )
-			home.pop_back();
-
-		result = home + result.erase(0,1);
-	}
-	result = strtls::replace(std::move(result), "/./", "/", false);
-	result = strtls::replace(std::move(result), "//", "/", false);
+	sys_expected<std::string> result;
+	if( value )
+		result = value;
+	else
+		set_error(result.error());
 	return result;
 }
 
-using optional_string = std::optional<std::string>;
-
-using envs_t = std::map<std::string, std::string>;
-
-static spin_shared_mutex g_env_mutex;
-
-optional_string getenv(error_code &error, std::string_view key) noexcept
+sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 {
-	error = error_code();
-
-	g_env_mutex.lock_shared();
-	auto value = ::getenv(key.data());
-
-	g_env_mutex.unlock_shared();
-	if( value )
-		return {value};
-
-	set_error(error);
-	return {};
-}
-
-envs_t getenvs(error_code &error) noexcept
-{
-	error = error_code();
-
-	envs_t envs;
+	std::map<std::string,std::string> envs;
 	g_env_mutex.lock_shared();
 
 	for(int i=0; environ[i]!=nullptr; i++)
@@ -159,30 +159,24 @@ envs_t getenvs(error_code &error) noexcept
 	return envs;
 }
 
-bool setenv(error_code &error, std::string_view key, std::string_view value, bool overwrite) noexcept
+error_code setenv(std::string_view key, std::string_view value, bool overwrite) noexcept
 {
-	error = error_code();
+	error_code error;
 	spin_shared_unique_lock locker(g_env_mutex);
 
 	if( ::setenv(key.data(), value.data(), overwrite) != 0 )
-	{
 		set_error(error);
-		return false;
-	}
-	return true;
+	return error;
 }
 
-bool unsetenv(error_code &error, std::string_view key) noexcept
+error_code unsetenv(std::string_view key) noexcept
 {
-	error = error_code();
+	error_code error;
 	spin_shared_unique_lock locker(g_env_mutex);
 
 	if( ::unsetenv(key.data()) != 0 )
-	{
 		set_error(error);
-		return false;
-	}
-	return true;
+	return error;
 }
 
 } //namespace libgs::app

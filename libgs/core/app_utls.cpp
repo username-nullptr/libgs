@@ -33,101 +33,17 @@ namespace fs = std::filesystem;
 namespace libgs::app
 {
 
-fs::path file_path()
+sys_expected<path_t> dir_path() noexcept
 {
-	error_code error;
-	auto path = file_path(error);
-	if( error )
-		throw system_error(error, "libgs::app::file_path");
-	return path;
-}
+	return file_path().transform([](const path_t &path) -> path_t
+	{
+		auto file_name = path.wstring();
+		auto index = file_name.find_last_of(L'/');
 
-fs::path dir_path()
-{
-	error_code error;
-	auto path = dir_path(error);
-	if( error )
-		throw system_error(error, "libgs::app::dir_path");
-	return path;
-}
-
-fs::path dir_path(error_code &error) noexcept
-{
-	auto file_name = file_path(error).wstring();
-	if( error )
-		return {};
-
-	auto index = file_name.find_last_of(L'/');
-	if( index == std::wstring::npos or index == file_name.size() - 1 )
-		return L"./";
-	return file_name.erase(index + 1);
-}
-
-bool set_current_directory(const fs::path &path)
-{
-	error_code error;
-	bool res = set_current_directory(error, path);
-	if( error )
-		throw system_error(error, "libgs::app::set_current_directory");
-	return res;
-}
-
-fs::path current_directory()
-{
-	error_code error;
-	auto path = current_directory(error);
-	if( error )
-		throw system_error(error, "libgs::app::current_directory");
-	return path;
-}
-
-fs::path absolute_path(const fs::path &path)
-{
-	error_code error;
-	auto apath = absolute_path(error, path);
-	if( error )
-		throw system_error(error, "libgs::app::absolute_path");
-	return apath;
-}
-
-using optional_string = std::optional<std::string>;
-
-using envs_t = std::map<std::string, std::string>;
-
-optional_string getenv(std::string_view key)
-{
-	error_code error;
-	auto res = getenv(error, key);
-	if( error )
-		throw system_error(error, "libgs::app::getenv");
-	return res;
-}
-
-envs_t getenvs()
-{
-	error_code error;
-	auto res = getenvs(error);
-	if( error )
-		throw system_error(error, "libgs::app::getenvs");
-	return res;
-}
-
-bool setenv(std::string_view key, std::string_view value, bool overwrite)
-{
-	error_code error;
-	auto res = setenv(error, key, value, overwrite);
-	if( error )
-		throw system_error(error, "libgs::app::setenv");
-	return res;
-}
-
-bool unsetenv(std::string_view key)
-{
-	error_code error;
-	auto res = unsetenv(error, key);
-	if( error )
-		throw system_error(error, "libgs::app::unsetenv");
-	return res;
+		if( index == std::wstring::npos or index == file_name.size() - 1 )
+			return L"./";
+		return file_name.erase(index + 1);
+	});
 }
 
 } //namespace libgs::app
