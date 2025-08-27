@@ -56,8 +56,7 @@ public:
 	parser &operator=(parser &&other) noexcept;
 
 public:
-	bool append(const const_buffer &buf, error_code &error);
-	bool append(const const_buffer &buf);
+	sys_expected<bool> append(const const_buffer &buf);
 	parser &operator<<(const const_buffer &buf);
 
 public:

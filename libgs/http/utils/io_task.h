@@ -26,50 +26,70 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_SYSTEM_ERROR_H
-#define LIBGS_CORE_CXX_SYSTEM_ERROR_H
+#ifndef LIBGS_HTTP_UTILS_IO_TASK_H
+#define LIBGS_HTTP_UTILS_IO_TASK_H
 
-#include <libgs/core/cxx/attributes.h>
-#include <libgs/core/cxx/concepts.h>
-#include <system_error>
+#include <libgs/http/cxx/attributes.h>
 
-namespace libgs
+namespace libgs::http
 {
 
-class LIBGS_CORE_VAPI error_code : public std::error_code
+template <concepts::callable Func, bool Async = true>
+class LIBGS_HTTP_TAPI io_task
 {
-public:
-	using std::error_code::error_code;
-	using std::error_code::operator=;
-
-	error_code(const std::error_code &error);
-	error_code(std::error_code &&error);
-
-	const error_code &exception(const std::string &what = "") const;
-	error_code &exception(const std::string &what = "");
+	LIBGS_DISABLE_COPY(io_task)
 
 public:
-	template <typename Func>
-	static constexpr bool and_then_v =
-		concepts::callable_ret<Func,error_code> or
-		concepts::callable_void<Func>;
+	using function_t = Func;
+	using return_t = function_traits<function_t>::return_type;
 
-	template <typename Func>
-	auto and_then(Func &&func) requires and_then_v<Func>;
+	explicit io_task(function_t func);
+	~io_task();
 
-	template <typename Func>
-	static constexpr bool or_else_v =
-		concepts::callable_ret<Func,error_code,error_code> or
-		concepts::callable_void<Func,error_code> or
-		concepts::callable_ret<Func,error_code> or
-		concepts::callable_void<Func>;
+	io_task(io_task &&other) noexcept;
+	io_task &operator=(io_task &&other) noexcept;
 
-	template <typename Func>
-	error_code or_else(Func &&func) requires or_else_v<Func>;
+public:
+	template <typename Rep, typename Period>
+	auto sync(const duration<Rep,Period> &timeout = {}) noexcept;
+
+	template <typename Clock, typename Duration>
+	auto sync(const time_point<Clock,Duration> &timeout) noexcept;
+
+	template <typename Rep, typename Period>
+	auto coro(const duration<Rep,Period> &timeout = {}) noexcept;
+
+	template <typename Clock, typename Duration>
+	auto coro(const time_point<Clock,Duration> &timeout) noexcept;
+
+public:
+	static constexpr bool async_enabled_v = Async;
+	static consteval bool async_enabled() noexcept;
+
+	auto async(concepts::callable<return_t> auto &&callback)
+		noexcept requires async_enabled_v;
+
+	template <typename Rep, typename Period>
+	auto async(const duration<Rep,Period> &timeout,
+		concepts::callable<return_t> auto &&callback
+	) noexcept requires async_enabled_v;
+
+	template <typename Clock, typename Duration>
+	auto async(const time_point<Clock,Duration> &timeout,
+		concepts::callable<return_t> auto &&callback
+	) noexcept requires async_enabled_v;
+
+	template <typename Rep, typename Period>
+	auto async(const duration<Rep,Period> &timeout = {})
+		noexcept requires async_enabled_v;
+
+private:
+	class impl;
+	impl *m_impl = nullptr;
 };
 
-} //namespace libgs
-#include <libgs/core/cxx/detail/system_error.h>
+} //namespace libgs::http
+#include <libgs/http/utils/detail/io_task.h>
 
 
-#endif //LIBGS_CORE_CXX_SYSTEM_ERROR_H
+#endif //LIBGS_HTTP_UTILS_IO_TASK_H

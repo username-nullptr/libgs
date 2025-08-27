@@ -4,25 +4,28 @@
 
 using namespace std::chrono_literals;
 
-static libgs::lock_free_queue<int> queue;
+// 0: linked list  >0: circular buffer
+static constexpr size_t capacity = 2048;
+
+static libgs::lock_free_queue<int,capacity> queue;
 
 void producer_0()
 {
-	libgs::sleep_for(1ms);
+	libgs::sleep_for(1000us);
 	for(int i=0; i<200; i++)
 		queue.enqueue(i);
 }
 
 void producer_1()
 {
-	libgs::sleep_for(1ms);
+	libgs::sleep_for(950us);
 	for(int i=200; i<400; i++)
 		queue.enqueue(i);
 }
 
 void producer_2()
 {
-	libgs::sleep_for(1ms);
+	libgs::sleep_for(900us);
 	for(int i=400; i<600; i++)
 		queue.enqueue(i);
 }

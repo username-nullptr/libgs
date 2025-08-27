@@ -123,6 +123,12 @@ std::filesystem::path settings::file_name() const noexcept
 	return m_impl->m_ini.file_name();
 }
 
+optional<value> settings::get(group_key_t gk)
+{
+	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
+	return m_impl->m_ini.read(std::move(gk));
+}
+
 class LIBGS_DECL_HIDDEN settings::observer::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)

@@ -270,7 +270,7 @@ public:
 	void set_file_name(const path_t &file_name)
 	{
 		if( not file_name.empty() )
-			m_file_name = app::absolute_path(file_name);
+			m_file_name = *app::absolute_path(file_name).or_else();
 	}
 
 public:

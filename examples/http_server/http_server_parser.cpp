@@ -8,7 +8,7 @@ using namespace libgs::operators;
 asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socket::endpoint_type ep)
 {
 	libgs::http::protocol::server_parser parser;
-	std::error_code error;
+	libgs::error_code error;
 	try {
 		char rbuf[4096] = "";
 		for(;;)

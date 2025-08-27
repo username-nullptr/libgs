@@ -47,38 +47,10 @@ public:
 	std::string m_name;
 };
 
-template <typename T>
-decltype(auto) settings::get_or(group_key_t gk, T &&def_value)
-	requires concepts::value_get<T,char>
+optional<value> settings::get(concepts::string_p<char> auto &&path)
 {
 	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
-	return m_impl->m_ini.read_or(std::move(gk), std::forward<T>(def_value));
-}
-
-template <typename T>
-decltype(auto) settings::get_or(concepts::string_p<char> auto &&path, T &&def_value)
-	requires concepts::value_get<T,char>
-{
-	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
-	return m_impl->m_ini.read_or (
-		std::forward<decltype(path)>(path), std::forward<T>(def_value)
-	);
-}
-
-template <typename T>
-auto settings::get(group_key_t gk)
-	requires concepts::value_get<T,char>
-{
-	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
-	return m_impl->m_ini.read<T>(std::move(gk));
-}
-
-template <typename T>
-auto settings::get(concepts::string_p<char> auto &&path)
-	requires concepts::value_get<T,char>
-{
-	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
-	return m_impl->m_ini.read<T>(std::forward<decltype(path)>(path));
+	return m_impl->m_ini.read(std::forward<decltype(path)>(path));
 }
 
 settings &settings::set(const group_key_t &gk, const concepts::value_set<char> auto &value) noexcept

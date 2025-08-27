@@ -32,160 +32,28 @@
 namespace libgs::http::protocol
 {
 
-template <typename T>
-decltype(auto) parser<model::server>::parameter(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> parser<model::server>::parameter(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = parameters().find(strtls::to_view(key));
-	if( it == parameters().end() )
-	{
-		throw runtime_error (
-			"libgs::http::parser<model::server>::parameter: key '{}' not exists.", key
-		);
-	}
-	return it->second.template get<T>();
+	return it == parameters().end() ?
+		optional<value>() : make_optional(it->second);
 }
 
-template <typename T>
-decltype(auto) parser<model::server>::parameter(size_t index)
-	const requires core_concepts::value_get<T,char>
+optional<value> parser<model::server>::header(const core_concepts::text_p<char> auto &key) const noexcept
 {
-	if( index >= parameters().size() )
-	{
-		throw runtime_error (
-			"libgs::http::parser<model::server>::parameter: index out of range."
-		);
-	}
-	return parameters()[index].second.get<T>();
+	return value_map_get(headers(), key);
 }
 
-template <typename T>
-decltype(auto) parser<model::server>::parameter_or(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get<T,char>
+optional<value> parser<model::server>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
 {
-	auto it = parameters().find(strtls::to_view(key));
-	using def_t = std::remove_cvref_t<T>;
-
-	if constexpr( is_string_v<def_t, char> )
-	{
-		return it == parameters().end() ?
-			strtls::to_string(std::forward<T>(def_value)) : *it->second;
-	}
-	else
-	{
-		return it == parameters().end() ? std::forward<T>(def_value) :
-			it->second.template get<def_t>();
-	}
+	return value_map_get(cookies(), key);
 }
 
-template <typename T>
-decltype(auto) parser<model::server>::parameter_or(size_t index, T &&def_value)
-	const requires core_concepts::value_get<T,char>
-{
-	if( index < parameters().size() )
-		return parameters()[index].second.get<T>();
-
-	using def_t = std::remove_cvref_t<T>;
-	if constexpr( is_string_v<def_t, char> )
-		return strtls::to_string(std::forward<T>(def_value));
-	else
-		return std::forward<T>(def_value);
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::header(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
-{
-	return value_map_get (
-		headers(), key, "libgs::http::parser<model::server>::header"
-	);
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::header_or(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get<T,char>
-{
-	return value_map_get_or (
-		headers(), key, std::forward<T>(def_value)
-	);
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::cookie(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
-{
-	return value_map_get (
-		cookies(), key, "libgs::http::parser<model::server>::cookie"
-	);
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::cookie_or(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get<T,char>
-{
-	return value_map_get_or (
-		cookies(), key, std::forward<T>(def_value)
-	);
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::path_arg(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> parser<model::server>::path_arg(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = path_args().find(strtls::to_view(key));
-	if( it == path_args().end() )
-	{
-		throw runtime_error (
-			"libgs::http::parser<model::server>::path_arg: key '{}' not exists.", key
-		);
-	}
-	return it->second.template get<T>();
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::path_arg(size_t index)
-	const requires core_concepts::value_get<T,char>
-{
-	if( index >= path_args().size() )
-	{
-		throw runtime_error (
-			"libgs::http::parser<model::server>::path_arg: index out of range."
-		);
-	}
-	return path_args()[index].second.get<T>();
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::path_arg_or(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get<T,char>
-{
-	auto it = path_args().find(strtls::to_view(key));
-	using def_t = std::remove_cvref_t<T>;
-
-	if constexpr( is_string_v<def_t, char> )
-	{
-		return it == path_args().end() ?
-			strtls::to_string(std::forward<T>(def_value)) : *it->second;
-	}
-	else
-	{
-		return it == path_args().end() ? std::forward<T>(def_value) :
-			it->second.template get<def_t>();
-	}
-}
-
-template <typename T>
-decltype(auto) parser<model::server>::path_arg_or(size_t index, T &&def_value)
-	const requires core_concepts::value_get<T,char>
-{
-	if( index < path_args().size() )
-		return path_args()[index].second.get<T>();
-
-	using def_t = std::remove_cvref_t<T>;
-	if constexpr( is_string_v<def_t, char> )
-		return strtls::to_string(std::forward<T>(def_value));
-	else
-		return std::forward<T>(def_value);
+	return it == path_args().end() ?
+		optional<value>() : make_optional(it->second);
 }
 
 } //namespace libgs::http::protocol

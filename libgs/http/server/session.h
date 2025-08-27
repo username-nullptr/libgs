@@ -62,12 +62,8 @@ public:
 	[[nodiscard]] bool is_valid() const noexcept;
 
 public:
-	[[nodiscard]] std::any attribute (
+	[[nodiscard]] optional<std::any> attribute (
 		const core_concepts::text_p<char> auto &key
-	) const;
-
-	[[nodiscard]] std::any attribute_or (
-		const core_concepts::text_p<char> auto &key, std::any default_value = {}
 	) const noexcept;
 
 	session &set_attribute (

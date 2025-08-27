@@ -112,10 +112,10 @@ public:
 				if( error )
 					return sum;
 
-				bool res = m_parser->append({body.data(), tmp_sum}, error);
-				if( error )
+				auto expected = m_parser->append({body.data(), tmp_sum});
+				if( not expected )
 					return sum;
-				else if( res )
+				else if( *expected )
 					break;
 			}
 		}
@@ -167,10 +167,10 @@ public:
 					if( error )
 						co_return sum;
 
-					bool res = m_parser->append({body.data(), tmp_sum}, error);
-					if( error )
+					auto expected = m_parser->append({body.data(), tmp_sum});
+					if( not expected )
 						co_return sum;
-					else if( res )
+					else if( *expected )
 						break;
 				}
 			}
@@ -411,10 +411,8 @@ std::string_view basic_request<protocol::model::server,Stream>::path() const noe
 }
 
 template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::parameter
-(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> basic_request<protocol::model::server,Stream>::parameter
+(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	return m_impl->m_parser->parameter (
 		std::forward<decltype(key)>(key)
@@ -422,32 +420,9 @@ decltype(auto) basic_request<protocol::model::server,Stream>::parameter
 }
 
 template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::parameter(size_t index)
-	const requires core_concepts::value_get<T,char>
+optional<value> basic_request<protocol::model::server,Stream>::parameter(size_t index) const
 {
 	return m_impl->m_parser->parameter(index);
-}
-
-template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::parameter_or
-(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	return m_impl->m_parser->parameter_or (
-		std::forward<decltype(key)>(key), std::forward<T>(def_value)
-	);
-}
-
-template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::parameter_or(size_t index, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	return m_impl->m_parser->parameter_or (
-		index, std::forward<T>(def_value)
-	);
 }
 
 template <concepts::stream Stream>
@@ -458,24 +433,11 @@ basic_request<protocol::model::server,Stream>::parameters() const noexcept
 }
 
 template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::header
-(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> basic_request<protocol::model::server,Stream>::header
+(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	return m_impl->m_parser->header (
 		std::forward<decltype(key)>(key)
-	);
-}
-
-template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::header_or
-(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	return m_impl->m_parser->header_or (
-		std::forward<decltype(key)>(key), std::forward<T>(def_value)
 	);
 }
 
@@ -487,24 +449,11 @@ basic_request<protocol::model::server,Stream>::headers() const noexcept
 }
 
 template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::cookie
-(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> basic_request<protocol::model::server,Stream>::cookie
+(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	return m_impl->m_parser->cookie (
 		std::forward<decltype(key)>(key)
-	);
-}
-
-template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::cookie_or
-(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	return m_impl->m_parser->cookie_or (
-		std::forward<decltype(key)>(key), std::forward<T>(def_value)
 	);
 }
 
@@ -516,10 +465,8 @@ basic_request<protocol::model::server,Stream>::cookies() const noexcept
 }
 
 template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::path_arg
-(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> basic_request<protocol::model::server,Stream>::path_arg
+(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	return m_impl->m_parser->path_arg (
 		std::forward<decltype(key)>(key)
@@ -527,32 +474,9 @@ decltype(auto) basic_request<protocol::model::server,Stream>::path_arg
 }
 
 template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::path_arg(size_t index)
-	const requires core_concepts::value_get<T,char>
+optional<value> basic_request<protocol::model::server,Stream>::path_arg(size_t index) const
 {
 	return m_impl->m_parser->path_arg(index);
-}
-
-template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::path_arg_or
-(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	return m_impl->m_parser->path_arg_or (
-		std::forward<decltype(key)>(key), std::forward<T>(def_value)
-	);
-}
-
-template <concepts::stream Stream>
-template <typename T>
-decltype(auto) basic_request<protocol::model::server,Stream>::path_arg_or(size_t index, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	return m_impl->m_parser->path_arg_or (
-		index, std::forward<T>(def_value)
-	);
 }
 
 template <concepts::stream Stream>

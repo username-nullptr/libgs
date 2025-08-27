@@ -66,10 +66,10 @@ public:
 	using headers_t = protocol::headers;
 
 	using parse_begin_handler = std::function <
-		version_enum(std::string_view line_buf, error_code &error)
+		sys_expected<version_enum>(std::string_view line_buf)
 	>;
 	using parse_cookie_handler = std::function <
-		void(std::string_view line_buf, error_code &error)
+		error_code(std::string_view line_buf)
 	>;
 
 public:
@@ -84,22 +84,14 @@ public:
 	parser &on_parse_cookie(parse_cookie_handler func);
 	[[nodiscard]] static error_code make_error_code(parse_errno errc);
 
-	bool append(const const_buffer &buf, error_code &error);
-	bool append(const const_buffer &buf);
-
+	sys_expected<bool> append(const const_buffer &buf);
 	parser &operator<<(const const_buffer &buf);
 	parser &reset();
 
 public:
-	template <typename T = value>
-	[[nodiscard]] decltype(auto) header(const core_concepts::text_p<char> auto &key)
-		const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value>
-	[[nodiscard]] decltype(auto) header_or(const core_concepts::text_p<char> auto &key, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
-
+	[[nodiscard]] optional<value> header(const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] const headers_t &headers() const noexcept;
+
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
 

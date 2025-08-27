@@ -42,14 +42,6 @@ unexpected<Error>::unexpected(Args&&...args) requires
 }
 
 template <concepts::optional_value Error>
-template <typename...Args>
-void unexpected<Error>::despair(Args&&...args) requires
-	concepts::constructible<error_t,Args...>
-{
-	m_error = error_t(std::forward<Args>(args)...);
-}
-
-template <concepts::optional_value Error>
 const Error &unexpected<Error>::error() const & noexcept
 {
 	return m_error;
@@ -128,18 +120,46 @@ expected<Value,Error> &expected<Value,Error>::operator=(expected &&other) requir
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
+template <typename...Args>
+expected<Value,Error> &expected<Value,Error>::emplace(Args&&...args) requires
+	concepts::constructible<value_t,Args...>
+{
+	this->m_value = value_t(std::forward<Args>(args)...);
+	this->m_error = error_t();
+	this->m_has_value = true;
+	return *this;
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+template <typename...Args>
+expected<Value,Error> &expected<Value,Error>::despair(Args&&...args) requires
+	concepts::constructible<error_t,Args...>
+{
+	this->m_error = error_t(std::forward<Args>(args)...);
+	this->m_value = value_t();
+	this->m_has_value = false;
+	return *this;
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
+expected<Value,Error> &expected<Value,Error>::despair(unexpected<error_t> une)
+{
+	this->m_error = une.error();
+	this->m_value = value_t();
+	this->m_has_value = false;
+	return *this;
+}
+
+template <concepts::optional_value Value, concepts::optional_value Error>
 expected<Value,Error> &expected<Value,Error>::operator=(value_t value) noexcept
 {
-	optional_base<Value>::operator=(std::move(value));
-	return *this;
+	return emplace(std::move(value));
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
 expected<Value,Error> &expected<Value,Error>::operator=(unexpected<error_t> une) noexcept
 {
-	this->m_error = std::move(une.error());
-	this->m_has_value = false;
-	return *this;
+	return despair(std::move(une));
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
@@ -192,18 +212,20 @@ expected<Value,Error> expected<Value,Error>::or_else(value_t value)
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-const expected<Value,Error> &expected<Value,Error>::exception() const requires exception_v
+const expected<Value,Error> &expected<Value,Error>::exception(const std::string &what)
+	const requires exception_v
 {
 	if( not this->has_value() )
-		this->error().exception();
+		this->error().exception(what);
 	return *this;
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::exception() requires exception_v
+expected<Value,Error> &expected<Value,Error>::exception(const std::string &what)
+	requires exception_v
 {
 	if( not this->has_value() )
-		this->error().exception();
+		this->error().exception(what);
 	return *this;
 }
 

@@ -32,38 +32,10 @@
 namespace libgs::http::protocol
 {
 
-template <typename T>
-decltype(auto) parser<model::base>::header(const core_concepts::text_p<char> auto &key)
-	const requires core_concepts::value_get<T,char>
+optional<value> parser<model::base>::header(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = headers().find(key);
-	if( it == headers().end() )
-	{
-		throw runtime_error (
-			"libgs::http::cookie::attributes: key '{}' not exists.", key
-		);
-	}
-	return it->second.template get<T>();
-}
-
-template <typename T>
-decltype(auto) parser<model::base>::header_or
-(const core_concepts::text_p<char> auto &key, T &&def_value)
-	const requires core_concepts::value_get_or<T,char>
-{
-	auto it = headers().find(key);
-	using def_t = std::remove_cvref_t<T>;
-
-	if constexpr( is_string_v<def_t, char> )
-	{
-		return it == headers().end() ?
-			strtls::to_string(std::forward<T>(def_value)) : *it->second;
-	}
-	else
-	{
-		return it == headers().end() ? std::forward<T>(def_value) :
-			it->second.template get<def_t>();
-	}
+	return it == headers().end() ? optional<value>() : make_optional(it->second);
 }
 
 } //namespace libgs::http::protocol

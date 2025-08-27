@@ -108,7 +108,7 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::single> : file_opt_token
 	using type = void;
 	std::shared_ptr<fstream_t> stream {new fstream_t()};
 	path_t file_name;
-	std::optional<file_range> range;
+	optional<file_range> range;
 
 	file_opt_token(path_t file_name);
 	file_opt_token(path_t file_name, const file_range &range);
@@ -128,7 +128,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token
 	using type = FS&&;
 	using fstream_t = typename file_opt_token_base<type>::fstream_t;
 	std::shared_ptr<fstream_t> stream;
-	std::optional<file_range> range;
+	optional<file_range> range;
 
 	file_opt_token(fstream_t &&stream);
 	file_opt_token(fstream_t &&stream, const file_range &range);
@@ -148,7 +148,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::single> : file_opt_token_
 	using type = FS&;
 	using fstream_t = typename file_opt_token_base<type>::fstream_t;
 	fstream_t *stream = nullptr;
-	std::optional<file_range> range;
+	optional<file_range> range;
 
 	file_opt_token(fstream_t &stream);
 	file_opt_token(fstream_t &stream, const file_range &range);
@@ -326,7 +326,7 @@ concept any_file_opt_token_p =
 
 } //namespace concepts
 
-[[nodiscard]] LIBGS_CORE_TAPI std::optional<size_t> file_size (
+[[nodiscard]] LIBGS_CORE_TAPI optional<size_t> file_size (
 	concepts::any_file_opt_token auto &opt,
 	io_permission::type mode = io_permission::read_write
 );

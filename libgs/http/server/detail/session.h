@@ -106,22 +106,11 @@ session::session(const duration<Rep,Period> &seconds, const executor_t &exec) :
 	m_impl->start();
 }
 
-std::any session::attribute(const core_concepts::text_p<char> auto &key) const
+optional<std::any> session::attribute(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = m_impl->m_attributes.find(strtls::to_string(key));
-	if( it == m_impl->m_attributes.end() )
-	{
-		throw runtime_error (
-			"libgs::http::session::attribute: key '{}' not exists.", key
-		);
-	}
-	return it->second;
-}
-
-std::any session::attribute_or(const core_concepts::text_p<char> auto &key, std::any default_value) const noexcept
-{
-	auto it = m_impl->m_attributes.find(strtls::to_string(key));
-	return it == m_impl->m_attributes.end() ? std::move(default_value) : it->second;
+	return it == m_impl->m_attributes.end() ?
+		optional<std::any>() : optional<std::any>(it->second);
 }
 
 session &session::set_attribute(core_concepts::text_p<char> auto &&key, std::any value) noexcept

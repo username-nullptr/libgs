@@ -95,15 +95,6 @@ optional_base<Value> &optional_base<Value>::operator=(optional_base &&other) req
 }
 
 template <concepts::optional_value Value>
-template <typename...Args>
-void optional_base<Value>::emplace(Args&&...args) requires
-	concepts::constructible<value_t,Args...>
-{
-	m_value = value_t(std::forward<Args>(args)...);
-	m_has_value = true;
-}
-
-template <concepts::optional_value Value>
 bool optional_base<Value>::has_value() const noexcept
 {
 	return m_has_value;
@@ -147,14 +138,6 @@ template <concepts::optional_value Value>
 Value optional_base<Value>::value_or(value_t default_value) const && noexcept
 {
 	return has_value() ? std::move(m_value) : std::move(default_value);
-}
-
-template <concepts::optional_value Value>
-optional_base<Value> &optional_base<Value>::operator=(value_t value) noexcept
-{
-	m_value = std::move(value);
-	m_has_value = true;
-	return *this;
 }
 
 template <concepts::optional_value Value>
@@ -207,10 +190,29 @@ bool optional_base<Value>::operator==(const optional_base &other) const
 }
 
 template <concepts::optional_value Value>
-void optional<Value>::reset() noexcept
+template <typename...Args>
+optional<Value> &optional<Value>::emplace(Args&&...args) requires
+	concepts::constructible<value_t,Args...>
+{
+	this->m_value = value_t(std::forward<Args>(args)...);
+	this->m_has_value = true;
+	return *this;
+}
+
+template <concepts::optional_value Value>
+optional<Value> &optional<Value>::operator=(value_t value) noexcept
+{
+	this->m_value = std::move(value);
+	this->m_has_value = true;
+	return *this;
+}
+
+template <concepts::optional_value Value>
+optional<Value> &optional<Value>::reset() noexcept
 {
 	this->m_value = value_t();
 	this->m_has_value = false;
+	return *this;
 }
 
 template <concepts::optional_value Value>
@@ -239,7 +241,8 @@ optional<Value> optional<Value>::or_else(Func &&func) requires or_else_v<Func>
 		return this->has_value() ?
 			*this : func();
 	}
-	else if constexpr( concepts::callable_void<Func> )
+	else
+	// else if constexpr( concepts::callable_void<Func> )
 	{
 		if( not this->has_value() )
 			func();

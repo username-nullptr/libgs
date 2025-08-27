@@ -66,6 +66,20 @@ namespace operators
 {
 
 template <concepts::any_async_tf_opt_token Token>
+auto operator|(Token &&token, std::error_code &error)
+	requires (not is_redirect_error_v<std::remove_cvref_t<Token>>)
+{
+	if constexpr( is_redirect_time_v<Token> )
+	{
+		auto _token = asio::redirect_error(token.token, error);
+		using token_t = std::remove_cvref_t<decltype(_token)>;
+		return redirect_time_t<token_t>(std::move(_token), token.time);
+	}
+	else
+		return asio::redirect_error(std::forward<Token>(token), error);
+}
+
+template <concepts::any_async_tf_opt_token Token>
 auto operator|(Token &&token, error_code &error)
 	requires (not is_redirect_error_v<std::remove_cvref_t<Token>>)
 {

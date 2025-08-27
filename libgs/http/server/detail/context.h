@@ -153,7 +153,7 @@ std::shared_ptr<Session> basic_service_context<Stream>::session(Args&&...args) r
 	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session, Args...>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_sss->template get_or_make<Session>(session_id, std::forward<Args>(args)...);
 	response().set_cookie(session_cookie, protocol::cookie(session->id()));
 	return session;
@@ -165,7 +165,7 @@ session_ptr basic_service_context<Stream>::session(Args&&...args) noexcept
 	requires core_concepts::constructible<session_t, Args...>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_sss->get_or_make(session_id, std::forward<Args>(args)...);
 	response().set_cookie(session_cookie, protocol::cookie(session->id()));
 	return session;
@@ -177,7 +177,7 @@ std::shared_ptr<Session> basic_service_context<Stream>::session() const
 	requires core_concepts::base_of<Session,session_t>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_sss->template get<Session>(session_id);
 	response().set_cookie(session_cookie, protocol::cookie(session->id()));
 	return session;
@@ -189,7 +189,7 @@ std::shared_ptr<Session> basic_service_context<Stream>::session_or()
 	requires core_concepts::base_of<Session,session_t>
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_sss->template get_or<Session>(session_id);
 	response().set_cookie(session_cookie, protocol::cookie(session->id()));
 	return session;
@@ -199,7 +199,7 @@ template <concepts::stream Stream>
 session_ptr basic_service_context<Stream>::session() const
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_sss->get(session_id);
 	response().set_cookie(session_cookie, protocol::cookie(session->id()));
 	return session;
@@ -209,7 +209,7 @@ template <concepts::stream Stream>
 session_ptr basic_service_context<Stream>::session_or() noexcept
 {
 	auto session_cookie = m_impl->m_sss->cookie_key();
-	auto session_id = request().cookie_or(session_cookie).to_string();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_sss->get_or(session_id);
 	response().set_cookie(session_cookie, protocol::cookie(session->id()));
 	return session;

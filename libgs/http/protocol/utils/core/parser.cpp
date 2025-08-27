@@ -71,18 +71,19 @@ public:
 	}
 
 public:
-	[[nodiscard]] bool parse_header(error_code &error)
+	[[nodiscard]] sys_expected<bool> parse_header()
 	{
+		sys_expected result = false;
 		do {
 			auto pos = m_src_buf.find("\r\n");
 			if( pos == std::string::npos )
 			{
-				if( m_src_buf.size() < 1024 )
+				if( m_src_buf.size() < 8192 )
 					break;
 				else if( m_state == state::waiting_request )
-					error = make_error_code(parse_errno::RLTL);
+					result.despair(make_error_code(parse_errno::RLTL));
 				else if( m_state == state::reading_headers )
-					error = make_error_code(parse_errno::HLTL);
+					result.despair(make_error_code(parse_errno::HLTL));
 				break;
 			}
 			auto line_buf = m_src_buf.substr(0, pos);
@@ -96,45 +97,67 @@ public:
 						"libgs::http::parser: state_handler_waiting_begin == NULL."
 					);
 				}
-				m_version = m_parse_begin(line_buf, error);
-				if( error )
+				m_parse_begin(line_buf)
+				.transform([&](version_enum version)
 				{
-					m_src_buf.clear();
-					break;
-				}
-				m_state = state::reading_headers;
+					m_version = version;
+					m_state = state::reading_headers;
+					return m_version;
+				})
+				.or_else([&](const error_code &error)
+				{
+					result.despair(error);
+					reset();
+				});
 			}
 			else if( m_state == state::reading_headers )
 			{
-				if( state_handler_reading_headers(line_buf, error) )
-					return true;
-				else if( error )
+				result = *state_handler_reading_headers(line_buf);
+				if( result and *result )
 					break;
 			}
 		}
 		while( not m_src_buf.empty() );
-		return false;
+		return result;
 	}
 
-	[[nodiscard]] bool state_handler_reading_headers(std::string_view line_buf, error_code &error)
+	[[nodiscard]] sys_expected<bool> state_handler_reading_headers(std::string_view line_buf)
 	{
+		sys_expected result = false;
 		if( line_buf.empty() )
-			return set_read_body_state(error);
-
+		{
+			set_read_body_state()
+			.and_then([&]{
+				result = true;
+			})
+			.or_else([&](const error_code &error) {
+				result.despair(error);
+			});
+			return result;
+		}
 		auto colon_index = line_buf.find(':');
 		if( colon_index == std::string::npos )
 		{
 			reset();
-			error = make_error_code(parse_errno::IHL);
-			return false;
+			return result.despair (
+				make_error_code(parse_errno::IHL)
+			);
 		}
-		header_insert(strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
-					  from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1))), error);
-		return false;
+		header_insert (
+			strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+			from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1)))
+		)
+		.or_else([&](const error_code &error)
+		{
+			result.despair(error);
+			reset();
+		});
+		return result;
 	}
 
-	bool set_read_body_state(error_code &error)
+	[[nodiscard]] error_code set_read_body_state()
 	{
+		error_code error;
 		auto it = m_headers.find(header::content_length);
 		if( it != m_headers.end() )
 		{
@@ -149,12 +172,12 @@ public:
 			else
 			{
 				m_state = state::chunked_wait_size;
-				parse_chunked(error);
+				error = parse_chunked().error();
 			}
 		}
 		else
 			m_state = state::finished;
-		return true;
+		return error;
 	}
 
 	void parse_length() noexcept
@@ -165,18 +188,20 @@ public:
 		m_partial_body += std::string(m_src_buf.c_str(), rsize);
 		m_src_buf.clear();
 
-		m_state = m_content_length > m_partial_body.size() ? state::reading_length : state::finished;
+		m_state = m_content_length > m_partial_body.size() ?
+			state::reading_length : state::finished;
 	}
 
-	bool parse_chunked(error_code &error)
+	sys_expected<bool> parse_chunked()
 	{
+		sys_expected result = false;
 		std::size_t _size = 0;
 		do {
 			auto pos = m_src_buf.find("\r\n");
 			if( pos == std::string::npos )
 			{
 				if( m_src_buf.size() > 8192 )
-					error = make_error_code(parse_errno::HLTL);
+					result.despair(make_error_code(parse_errno::HLTL));
 				break;
 			}
 			auto line_buf = m_src_buf.substr(0, pos + 2);
@@ -192,14 +217,14 @@ public:
 
 				if( line_buf.size() > 16 )
 				{
-					error = make_error_code(parse_errno::SFE);
+					result.despair(make_error_code(parse_errno::SFE));
 					break;
 				}
 				try {
 					_size = strtls::to_arith<size_t>(line_buf, 16);
 				}
 				catch(...) {
-					error = make_error_code(parse_errno::SFE);
+					result.despair(make_error_code(parse_errno::SFE));
 					break;
 				}
 				m_state = _size == 0 ? state::chunked_wait_headers : state::chunked_wait_content;
@@ -219,37 +244,50 @@ public:
 				{
 					m_state = state::finished;
 					m_src_buf.clear();
-					return true;
+					result = true;
+					break;
 				}
 				auto colon_index = line_buf.find(':');
 				if( colon_index == std::string::npos )
 				{
-					error = make_error_code(parse_errno::SFE);
+					result.despair(make_error_code(parse_errno::SFE));
 					break;
 				}
-				header_insert(strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
-							  from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1))), error);
+				header_insert (
+					strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+					from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1)))
+				)
+				.or_else([&](const error_code &error)
+				{
+					result.despair(error);
+					reset();
+				});
 			}
 		}
 		while( not m_src_buf.empty() );
-		return false;
+		return result;
 	}
 
-	void header_insert(std::string key, std::string value, error_code &error)
+	[[nodiscard]] error_code header_insert(std::string key, std::string value)
 	{
 		if( key == "cookie" or key == "set-cookie" )
 		{
 			if( not m_parse_cookie )
-				throw runtime_error("libgs::http::parser: state_handler_waiting_begin == NULL.");
-			m_parse_cookie(value, error);
+			{
+				throw runtime_error (
+					"libgs::http::parser: state_handler_waiting_begin == NULL."
+				);
+			}
+			return m_parse_cookie(value);
 		}
-		else
-			m_headers[std::move(key)] = std::move(value);
+		m_headers[std::move(key)] = std::move(value);
+		return {};
 	}
 
 	void reset()
 	{
 		m_state = state::waiting_request;
+		m_version = static_cast<version_enum>(0);
 		m_src_buf.clear();
 		m_headers.clear();
 		m_partial_body.clear();
@@ -270,7 +308,7 @@ public:
 	m_state = state::waiting_request;
 	std::string m_src_buf;
 
-	version_enum m_version {};
+	version_enum m_version = static_cast<version_enum>(0);
 	headers_t m_headers;
 
 	std::string m_partial_body;
@@ -324,41 +362,27 @@ error_code parser<model::base>::make_error_code(parse_errno errc)
 	return protocol::make_error_code(errc);
 }
 
-bool parser<model::base>::append(const const_buffer &buf, error_code &error)
+sys_expected<bool> parser<model::base>::append(const const_buffer &buf)
 {
 	using state = impl::state;
 	std::string str_buf(reinterpret_cast<const char*>(buf.data()), buf.size());
 
-	error = error_code();
 	if( str_buf.empty() )
-	{
-		error = make_error_code(parse_errno::IDE);
-		return false;
-	}
+		return { make_error_code(parse_errno::IDE) };
+
 	else if( m_impl->m_state == state::finished )
-	{
-		error = make_error_code(parse_errno::RE);
-		return false;
-	}
+		return { make_error_code(parse_errno::RE) };
+
 	m_impl->m_src_buf += str_buf;
 	if( m_impl->m_state <= state::reading_headers )
-		return m_impl->parse_header(error);
+		return m_impl->parse_header();
 
 	else if( m_impl->m_state == state::reading_length )
 	{
 		m_impl->parse_length();
-		return true;
+		return {};
 	}
-	return m_impl->parse_chunked(error);
-}
-
-bool parser<model::base>::append(const const_buffer&buf)
-{
-	error_code error;
-	bool res = append(buf, error);
-	if( error )
-		throw system_error(error, "libgs::http::parser");
-	return res;
+	return m_impl->parse_chunked();
 }
 
 parser<model::base> &parser<model::base>::operator<<(const const_buffer &buf)

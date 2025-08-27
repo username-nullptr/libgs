@@ -33,12 +33,14 @@ namespace libgs
 {
 
 template <concepts::copy_or_move_constructible T>
-class lock_free_queue<T,0>::impl
+class lock_free_queue<T>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl() = default;
+	constexpr explicit impl(size_t capacity) :
+		m_capacity(check_capacity(capacity)) {}
+
 	~impl()
 	{
 		auto current = m_head.load(std::memory_order_relaxed);
@@ -50,10 +52,19 @@ public:
         }
 	}
 
+	[[nodiscard]] bool is_full(std::memory_order order) const noexcept {
+		return m_size.load(order) >= m_capacity;
+	}
+
+private:
+	constexpr static size_t check_capacity(size_t capacity) {
+		return capacity > 0 ? capacity : std::numeric_limits<size_t>::max();
+	}
+
 public:
 	struct node
 	{
-		T data;
+		element_t data;
 		std::atomic<node*> next {nullptr};
 
 		template <typename...Args>
@@ -61,30 +72,33 @@ public:
 	};
 	std::atomic<node*> m_head {nullptr};
 	std::atomic<node*> m_tail {nullptr};
+
+	std::atomic<size_t> m_size {0};
+	const size_t m_capacity = 0;
 };
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T,0>::lock_free_queue() :
-	m_impl(new impl())
+constexpr lock_free_queue<T>::lock_free_queue(size_t capacity) :
+	m_impl(new impl(capacity))
 {
 
 }
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T,0>::~lock_free_queue()
+lock_free_queue<T>::~lock_free_queue()
 {
 	delete m_impl;
 }
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T,0>::lock_free_queue(lock_free_queue &&other) noexcept :
+lock_free_queue<T>::lock_free_queue(lock_free_queue &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
 template <concepts::copy_or_move_constructible T>
-lock_free_queue<T> &lock_free_queue<T,0>::operator=(lock_free_queue &&other) noexcept
+lock_free_queue<T> &lock_free_queue<T>::operator=(lock_free_queue &&other) noexcept
 {
 	if( &other == this )
 		return *this;
@@ -95,26 +109,35 @@ lock_free_queue<T> &lock_free_queue<T,0>::operator=(lock_free_queue &&other) noe
 }
 
 template <concepts::copy_or_move_constructible T>
-void lock_free_queue<T,0>::enqueue(const T &data) requires concepts::copy_constructible<T>
+bool lock_free_queue<T>::enqueue(const element_t &data) requires concepts::copy_constructible<T>
 {
-	emplace(data);
+	return emplace(data);
 }
 
 template <concepts::copy_or_move_constructible T>
-void lock_free_queue<T,0>::enqueue(T &&data)
+bool lock_free_queue<T>::enqueue(element_t &&data)
 {
-	emplace(std::move(data));
+	return emplace(std::move(data));
 }
 
 template <concepts::copy_or_move_constructible T>
 template <typename...Args>
-void lock_free_queue<T,0>::emplace(Args&&...args)
+bool lock_free_queue<T>::emplace(Args&&...args)
 {
-	using node_t = typename impl::node;
+	if( m_impl->is_full(std::memory_order_relaxed) )
+		return false;
+
+	using node_t = impl::node;
 	auto n = new node_t(std::forward<Args>(args)...);
+
 	node_t *tail = nullptr;
 	for(;;)
 	{
+		if( m_impl->is_full(std::memory_order_acquire) )
+		{
+			delete n;
+			break;
+		}
 		tail = m_impl->m_tail.load(std::memory_order_acquire);
         if( not tail )
         {
@@ -123,7 +146,8 @@ void lock_free_queue<T,0>::emplace(Args&&...args)
             	(tmp, n, std::memory_order_acq_rel, std::memory_order_relaxed) )
             {
                 m_impl->m_tail.store(n, std::memory_order_release);
-                return ;
+            	m_impl->m_size.fetch_add(1, std::memory_order_release);
+                return true;
             }
             continue;
         }
@@ -134,7 +158,8 @@ void lock_free_queue<T,0>::emplace(Args&&...args)
 				(next, n, std::memory_order_acq_rel, std::memory_order_relaxed) )
 			{
 				m_impl->m_tail.compare_exchange_strong(tail, n);
-				return ;
+				m_impl->m_size.fetch_add(1, std::memory_order_release);
+				return true;
 			}
 		}
 		// The 'next' is not empty,
@@ -147,10 +172,11 @@ void lock_free_queue<T,0>::emplace(Args&&...args)
 			);
 		}
 	}
+	return false;
 }
 
 template <concepts::copy_or_move_constructible T>
-std::optional<T> lock_free_queue<T,0>::dequeue()
+optional<T> lock_free_queue<T>::dequeue()
 {
 	typename impl::node *head = nullptr;
 	for(;;)
@@ -178,8 +204,11 @@ std::optional<T> lock_free_queue<T,0>::dequeue()
 		else if( m_impl->m_head.compare_exchange_weak
 				 (head, next, std::memory_order_acq_rel, std::memory_order_relaxed) )
 		{
+			auto data = std::move(head->data);
 			delete head;
-			return std::move(head->data);
+
+			m_impl->m_size.fetch_sub(1, std::memory_order_release);
+			return std::move(data);
 		}
 	}
 #ifndef _MSC_VER
@@ -188,7 +217,168 @@ std::optional<T> lock_free_queue<T,0>::dequeue()
 }
 
 template <concepts::copy_or_move_constructible T>
-bool lock_free_queue<T,0>::dequeue(T &data)
+bool lock_free_queue<T>::dequeue(T &data)
+{
+	auto _data = dequeue();
+	if( _data )
+	{
+		data = std::move(*_data);
+		return true;
+	}
+	return false;
+}
+
+template <concepts::copy_or_move_constructible T>
+constexpr size_t lock_free_queue<T>::capacity() const noexcept
+{
+	return m_impl->m_capacity;
+}
+
+template <concepts::copy_or_move_constructible T>
+bool lock_free_queue<T>::empty() const noexcept
+{
+	return size() == 0;
+}
+
+template <concepts::copy_or_move_constructible T>
+bool lock_free_queue<T>::full() const noexcept
+{
+	return m_impl->is_full(std::memory_order_acquire);
+}
+
+template <concepts::copy_or_move_constructible T>
+size_t lock_free_queue<T>::size() const noexcept
+{
+	return m_impl->m_size.load(std::memory_order_acquire);
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+class lock_free_queue<T,N>::impl
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	impl() = default;
+	~impl() = default;
+
+    [[nodiscard]] static constexpr size_t index_for(size_t idx) noexcept
+	{
+        if constexpr( is_power_of_two(capacity_v) )
+            return idx & (capacity_v - 1);  // 位运算，更高效
+        else
+            return idx % capacity_v;  // 模运算，兼容性更好
+    }
+
+private:
+	[[nodiscard]] static consteval bool is_power_of_two(size_t n) noexcept {
+		return n > 0 and (n & (n - 1)) == 0;
+	}
+
+public:
+	alignas(64) std::unique_ptr<element_t> m_buffer[N] {};
+	alignas(64) std::atomic<size_t> m_read_idx {0};
+	alignas(64) std::atomic<size_t> m_write_idx {0};
+};
+
+template <concepts::copy_or_move_constructible T, size_t N>
+consteval size_t lock_free_queue<T,N>::capacity() noexcept
+{
+	return capacity_v;
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+lock_free_queue<T,N>::lock_free_queue() :
+	m_impl(new impl())
+{
+
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+lock_free_queue<T,N>::~lock_free_queue()
+{
+	delete m_impl;
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+lock_free_queue<T,N>::lock_free_queue(lock_free_queue &&other) noexcept :
+	m_impl(other.m_impl)
+{
+	other.m_impl = new impl();
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+lock_free_queue<T,N> &lock_free_queue<T,N>::operator=(lock_free_queue &&other) noexcept
+{
+	if( &other == this )
+		return *this;
+	delete m_impl;
+	m_impl = other.m_impl;
+	other.m_impl = new impl();
+	return *this;
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+bool lock_free_queue<T,N>::enqueue(const element_t &data) requires concepts::copy_constructible<T>
+{
+	return emplace(data);
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+bool lock_free_queue<T,N>::enqueue(element_t &&data)
+{
+	return emplace(std::move(data));
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+template <typename...Args>
+bool lock_free_queue<T,N>::emplace(Args&&...args)
+{
+	auto w_idx = m_impl->m_write_idx.load(std::memory_order_relaxed);
+	for(;;)
+	{
+		auto r_idx = m_impl->m_read_idx.load(std::memory_order_acquire);
+
+		// is full ?
+		if( w_idx - r_idx >= capacity_v )
+			return false;
+
+		// try to update write index
+		if( m_impl->m_write_idx.compare_exchange_weak
+			(w_idx, w_idx + 1, std::memory_order_release, std::memory_order_relaxed) )
+		{
+			m_impl->m_buffer[impl::index_for(w_idx)] =
+				std::make_unique<element_t>(std::forward<Args>(args)...);
+			break;
+		}
+		// failed, retry
+	}
+	return true;
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+optional<T> lock_free_queue<T,N>::dequeue()
+{
+	auto r_idx = m_impl->m_read_idx.load(std::memory_order_relaxed);
+	for(;;)
+	{
+		auto w_idx = m_impl->m_write_idx.load(std::memory_order_acquire);
+
+		// is empty ?
+		if( r_idx == w_idx )
+			break;
+
+		// try to update read index
+		if( m_impl->m_read_idx.compare_exchange_weak
+			(r_idx, r_idx + 1, std::memory_order_release, std::memory_order_relaxed) )
+			return std::move(*m_impl->m_buffer[impl::index_for(r_idx)]);
+
+		// failed, retry
+	}
+	return {};
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+bool lock_free_queue<T,N>::dequeue(element_t &data)
 {
 	auto _data = dequeue();
 	if( _data )
@@ -200,9 +390,24 @@ bool lock_free_queue<T,0>::dequeue(T &data)
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
-consteval size_t lock_free_queue<T,N>::capacity() noexcept
+bool lock_free_queue<T,N>::empty() const noexcept
 {
-	return capacity_v;
+	return m_impl->m_read_idx.load(std::memory_order_acquire) ==
+		   m_impl->m_write_idx.load(std::memory_order_acquire);
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+bool lock_free_queue<T,N>::full() const noexcept
+{
+	return size() >= capacity_v;
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
+size_t lock_free_queue<T,N>::size() const noexcept
+{
+	auto w_idx = m_impl->m_write_idx.load(std::memory_order_acquire);
+	auto r_idx = m_impl->m_read_idx.load(std::memory_order_acquire);
+	return w_idx - r_idx;
 }
 
 } //namespace libgs

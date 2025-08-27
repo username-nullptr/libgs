@@ -1,4 +1,4 @@
-// #include <libgs/http/server.h>
+#include <libgs/http/server.h>
 #include <libgs/core/lock_free_queue.h>
 #include <libgs/core/app_utls.h>
 #include <iostream>

@@ -599,8 +599,13 @@ template <typename T>
 
 	if constexpr( std::is_same_v<T, bool> )
 		return to_bool(_text, base);
+
 	else if constexpr( concepts::enumerate_p<T> )
-		return static_cast<T>(to_arith<int>(_text, base));
+	{
+		return to_arith<int>(_text, base).transform([](int value) {
+			return static_cast<T>(value);
+		});
+	}
 	else
 	{
 		using string_t = std::basic_string<char_t>;

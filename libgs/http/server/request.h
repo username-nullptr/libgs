@@ -79,70 +79,18 @@ public:
 	[[nodiscard]] std::string_view path() const noexcept;
 
 public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) parameter (
-		const core_concepts::text_p<char> auto &key
-	) const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) parameter(size_t index)
-		const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) parameter_or (
-		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) parameter_or(size_t index, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
-
+	[[nodiscard]] optional<value_t> parameter(const core_concepts::text_p<char> auto &key) const noexcept;
+	[[nodiscard]] optional<value_t> parameter(size_t index) const;
 	[[nodiscard]] const parameters_t &parameters() const noexcept;
 
-public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) header (
-		const core_concepts::text_p<char> auto &key
-	) const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) header_or (
-		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
-
+	[[nodiscard]] optional<value_t> header(const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] const headers_t &headers() const noexcept;
 
-public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) cookie (
-		const core_concepts::text_p<char> auto &key
-	) const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) cookie_or (
-		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
-
+	[[nodiscard]] optional<value_t> cookie(const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] const protocol::cookie_values &cookies() const noexcept;
 
-public:
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) path_arg (
-		const core_concepts::text_p<char> auto &key
-	) const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) path_arg(size_t index)
-		const requires core_concepts::value_get<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) path_arg_or (
-		const core_concepts::text_p<char> auto &key, T &&def_value = {}
-	) const requires core_concepts::value_get_or<T,char>;
-
-	template <typename T = value_t>
-	[[nodiscard]] decltype(auto) path_arg_or(size_t index, T &&def_value = {})
-		const requires core_concepts::value_get_or<T,char>;
+	[[nodiscard]] optional<value_t> path_arg(const core_concepts::text_p<char> auto &key) const noexcept;
+	[[nodiscard]] optional<value_t> path_arg(size_t index) const;
 
 	[[nodiscard]] const path_args_t &path_args() const noexcept;
 	int32_t path_match(std::string_view rule);

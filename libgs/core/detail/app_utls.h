@@ -62,12 +62,14 @@ inline namespace literals
 
 inline path_t operator""_abs(const char *path, size_t len)
 {
-	return *absolute_path(std::string(path, len)).exception();
+	return *absolute_path(std::string(path, len))
+		.exception(R"(libgs::app::operator""_abs<char>)");
 }
 
 inline path_t operator""_abs(const wchar_t *path, size_t len)
 {
-	return *absolute_path(std::wstring(path, len)).exception();
+	return *absolute_path(std::wstring(path, len))
+		.exception(R"(libgs::app::operator""_abs<wchar_t>)");
 }
 
 }} //namespace libgs::app::literals

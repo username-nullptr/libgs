@@ -152,7 +152,7 @@ using u16value = basic_value<char16_t>;
 using u32value = basic_value<char32_t>;
 
 template <concepts::character CharT, typename...StrArgs>
-using basic_value_optl = std::optional<basic_value<CharT,StrArgs...>>;
+using basic_value_optl = optional<basic_value<CharT,StrArgs...>>;
 
 using value_optl    = basic_value_optl<char    >;
 using wvalue_optl   = basic_value_optl<wchar_t >;

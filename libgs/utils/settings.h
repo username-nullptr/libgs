@@ -55,27 +55,13 @@ public:
 	[[nodiscard]] path_t file_name() const noexcept;
 
 public:
-	template <typename T = value>
-	[[nodiscard]] decltype(auto) get_or(group_key_t gk, T &&def_value = T())
-		requires concepts::value_get<T,char>;
-
-	template <typename T = value>
-	[[nodiscard]] decltype(auto) get_or (
-		concepts::string_p<char> auto &&path, T &&def_value = T()
-	) requires concepts::value_get<T,char>;
-
-	template <typename T = value>
-	[[nodiscard]] auto get(group_key_t gk)
-		requires concepts::value_get<T,char>;
-
-	template <typename T = value>
-	[[nodiscard]] auto get (
-		concepts::string_p<char> auto &&path
-	) requires concepts::value_get<T,char>;
+	[[nodiscard]] optional<value> get(group_key_t gk);
+	[[nodiscard]] optional<value> get(concepts::string_p<char> auto &&path);
 
 public:
 	settings &set (
-		const group_key_t &gk, const concepts::value_set<char> auto &value
+		const group_key_t &gk,
+		const concepts::value_set<char> auto &value
 	) noexcept;
 
 	settings &set (

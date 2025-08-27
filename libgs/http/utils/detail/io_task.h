@@ -26,50 +26,25 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_SYSTEM_ERROR_H
-#define LIBGS_CORE_CXX_SYSTEM_ERROR_H
+#ifndef LIBGS_HTTP_UTILS_DETAIL_IO_TASK_H
+#define LIBGS_HTTP_UTILS_DETAIL_IO_TASK_H
 
-#include <libgs/core/cxx/attributes.h>
-#include <libgs/core/cxx/concepts.h>
-#include <system_error>
-
-namespace libgs
+namespace libgs::http
 {
 
-class LIBGS_CORE_VAPI error_code : public std::error_code
+template <concepts::callable Func, bool Async>
+class LIBGS_HTTP_TAPI io_task::impl
 {
-public:
-	using std::error_code::error_code;
-	using std::error_code::operator=;
-
-	error_code(const std::error_code &error);
-	error_code(std::error_code &&error);
-
-	const error_code &exception(const std::string &what = "") const;
-	error_code &exception(const std::string &what = "");
+	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	template <typename Func>
-	static constexpr bool and_then_v =
-		concepts::callable_ret<Func,error_code> or
-		concepts::callable_void<Func>;
+	explicit impl(function_t func) :
+		m_func(std::move(func)) {}
 
-	template <typename Func>
-	auto and_then(Func &&func) requires and_then_v<Func>;
-
-	template <typename Func>
-	static constexpr bool or_else_v =
-		concepts::callable_ret<Func,error_code,error_code> or
-		concepts::callable_void<Func,error_code> or
-		concepts::callable_ret<Func,error_code> or
-		concepts::callable_void<Func>;
-
-	template <typename Func>
-	error_code or_else(Func &&func) requires or_else_v<Func>;
+	function_t m_func {};
 };
 
-} //namespace libgs
-#include <libgs/core/cxx/detail/system_error.h>
+} //namespace libgs::http
 
 
-#endif //LIBGS_CORE_CXX_SYSTEM_ERROR_H
+#endif //LIBGS_HTTP_UTILS_DETAIL_IO_TASK_H

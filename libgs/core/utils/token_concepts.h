@@ -206,7 +206,8 @@ template <typename Token = use_sync_t>
 struct is_sync_opt_token
 {
 	static constexpr bool value =
-		std::is_same_v<Token,asio::error_code&> or
+		std::is_same_v<Token,error_code&> or
+		std::is_same_v<Token,std::error_code&> or
 		std::is_same_v<std::remove_cvref_t<Token>,use_sync_t>;
 };
 

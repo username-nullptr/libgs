@@ -57,10 +57,6 @@ public:
 		concepts::move_constructible<value_t>;
 
 public:
-	template <typename...Args>
-	void emplace(Args&&...args) requires
-		concepts::constructible<value_t,Args...>;
-
 	[[nodiscard]] bool has_value() const noexcept;
 
 	[[nodiscard]] const value_t &value() const &;
@@ -73,7 +69,6 @@ public:
 	[[nodiscard]] value_t value_or(value_t default_value = {}) const && noexcept;
 
 public:
-	optional_base &operator=(value_t value) noexcept;
 	[[nodiscard]] operator bool() const noexcept;
 
 	[[nodiscard]] const value_t &operator*() const &;
@@ -94,12 +89,18 @@ protected:
 };
 
 template <concepts::optional_value Value>
-class LIBGS_CORE_TAPI optional : public optional_base<Value>
+class LIBGS_CORE_TAPI optional final : public optional_base<Value>
 {
 public:
 	using value_t = Value;
 	using optional_base<Value>::optional_base;
-	void reset() noexcept;
+
+	template <typename...Args>
+	optional &emplace(Args&&...args) requires
+		concepts::constructible<value_t,Args...>;
+
+	optional &operator=(value_t value) noexcept;
+	optional &reset() noexcept;
 
 public:
 	template <concepts::callable_novoid<value_t> Func>
@@ -115,7 +116,7 @@ public:
 	};
 
 	template <typename Func>
-	[[nodiscard]] auto and_then(Func &&func) requires and_then_v<Func>;
+	auto and_then(Func &&func) requires and_then_v<Func>;
 
 	template <typename Func>
 	static constexpr bool or_else_v =
@@ -123,8 +124,8 @@ public:
 		concepts::callable_void<Func>;
 
 	template <typename Func>
-	[[nodiscard]] optional or_else(Func &&func) requires or_else_v<Func>;
-	[[nodiscard]] optional or_else(value_t value);
+	optional or_else(Func &&func) requires or_else_v<Func>;
+	[[nodiscard]] optional or_else(value_t value = {});
 };
 
 template <concepts::optional_value_p Value>

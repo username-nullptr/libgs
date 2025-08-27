@@ -164,7 +164,7 @@ logger &logger::set_config(config_t conf)
 	if( conf.path.empty() )
 		return *this;
 
-	auto path = app::absolute_path(conf.path).ptostr() + PCHAR("/");
+	auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
 	std::string suffix(name());
 
     auto file_name = path + PCHAR("daily/daily.log");

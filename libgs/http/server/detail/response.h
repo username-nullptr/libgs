@@ -641,7 +641,7 @@ private:
 				if( str_vector[1].empty() )
 					return protocol::status::range_not_satisfiable;
 
-				range.total = strtls::to_arith_or<size_t>(str_vector[1]);
+				range.total = *strtls::to_arith<size_t>(str_vector[1]).or_else();
 				if( range.total == 0 or range.total > file_size )
 					return protocol::status::range_not_satisfiable;
 
@@ -653,7 +653,7 @@ private:
 				if( str_vector[0].empty() )
 					return protocol::status::range_not_satisfiable;
 
-				range.begin = strtls::to_arith_or<size_t>(str_vector[0]);
+				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
 				range.end   = file_size - 1;
 
 				if( range.begin > range.end )
@@ -662,8 +662,8 @@ private:
 			}
 			else
 			{
-				range.begin = strtls::to_arith_or<size_t>(str_vector[0]);
-				range.end   = strtls::to_arith_or<size_t>(str_vector[1]);
+				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
+				range.end   = *strtls::to_arith<size_t>(str_vector[1]).or_else();
 
 				if( range.begin > range.end or range.end >= file_size )
 					return protocol::status::range_not_satisfiable;
@@ -775,14 +775,16 @@ private:
 		if( error )
 			return std::forward<Opt>(opt);
 
-		auto size = file_size(opt, io_permission::write);
-		if( not size )
+		file_size(opt, io_permission::write)
+		.transform([&](auto value)
 		{
+			data.mtype = mime_type(opt);
+			data.fsize = value;
+			return value;
+		})
+		.or_else([&]{
 			error = make_error_code(std::errc::permission_denied);
-			return std::forward<Opt>(opt);
-		}
-		data.fsize = *size;
-		data.mtype = mime_type(opt);
+		});
 		return std::forward<Opt>(opt);
 	}
 

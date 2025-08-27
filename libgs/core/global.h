@@ -70,6 +70,10 @@ namespace operators
 {
 
 template <concepts::any_async_tf_opt_token Token>
+LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, std::error_code &error)
+    requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
+
+template <concepts::any_async_tf_opt_token Token>
 LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, error_code &error)
     requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
 

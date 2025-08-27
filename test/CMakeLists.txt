@@ -11,8 +11,8 @@ endif ()
 
 target_include_directories(${target_name} PRIVATE ${OpenSSL_DIR}/include)
 target_link_directories(${target_name} PRIVATE ${OpenSSL_DIR}/lib)
-target_link_libraries(${target_name} PRIVATE gs.core)
-#target_link_libraries(${target_name} PRIVATE gs.http)
+#target_link_libraries(${target_name} PRIVATE gs.core)
+target_link_libraries(${target_name} PRIVATE gs.http)
 
 #target_link_libraries(${target_name} PRIVATE crypto ssl)
 

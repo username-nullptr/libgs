@@ -59,13 +59,13 @@ int main()
 				spdlog::info("Failed to read from server: {}", error);
 				co_return ;
 			}
-			bool res = parser.append({buffer, sum}, error);
-			if( error )
+			auto expected = parser.append({buffer, sum});
+			if( not expected )
 			{
-				spdlog::info("Failed to parse reply: {}", error);
+				spdlog::info("Failed to parse reply: {}", expected.error());
 				co_return ;
 			}
-			if( res )
+			if( *expected )
 				break;
 		}
 		text = parser.take_body();
@@ -77,13 +77,13 @@ int main()
 				spdlog::info("Failed to read from server: {}", error);
 				co_return ;
 			}
-			bool res = parser.append({buffer, sum}, error);
-			if( error )
+			auto expected = parser.append({buffer, sum});
+			if( not expected )
 			{
-				spdlog::info("Failed to parse reply-body: {}", error);
+				spdlog::info("Failed to parse reply-body: {}", expected.error());
 				co_return ;
 			}
-			if( res )
+			if( *expected )
 				text += parser.take_body();
 		}
 

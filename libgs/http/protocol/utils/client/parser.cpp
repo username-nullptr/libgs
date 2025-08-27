@@ -41,43 +41,44 @@ public:
 		m_parser(init_buf_size)
 	{
 		m_parser
-		.on_parse_begin([this](std::string_view line_buf, error_code &error)
+		.on_parse_begin([this](std::string_view line_buf)
 		{
-			auto version = static_cast<version_enum>(0);
+			sys_expected result = static_cast<version_enum>(0);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
+
 			if( request_line_parts.size() < 2 or not strtls::to_upper(request_line_parts[0]).starts_with("HTTP/") )
 			{
-				error = base_parser::make_error_code(parse_errno::IRPYL);
-				return version;
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IRPYL)
+				);
 			}
-			version = version::from_string(request_line_parts[0].substr(5,3));
-			m_status = strtls::to_arith_or<status_enum>(request_line_parts[1]);
+			result = version::from_string(request_line_parts[0].substr(5,3));
+			m_status = *strtls::to_arith<status_enum>(request_line_parts[1]).or_else();
 
 			if( m_status == static_cast<status_enum>(0) )
-				error = base_parser::make_error_code(parse_errno::IHSC);
-
+			{
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IHSC)
+				);
+			}
 			if( request_line_parts.size() > 2 )
 				m_description = request_line_parts.join(2, ' ');
 			else
 				m_description = status::description(m_status);
-			return version;
+			return result;
 		})
-		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
+		.on_parse_cookie([this](std::string_view line_buf)
 		{
 			auto vector = string_vector::from_string(line_buf, ';');
 			if( vector.empty() )
-			{
-				error = base_parser::make_error_code(parse_errno::ICL);
-				return;
-			}
+				return base_parser::make_error_code(parse_errno::ICL);
+
 			vector[0] = strtls::trimmed(vector[0]);
 			auto pos = vector[0].find('=');
 
 			if( pos == std::string::npos )
-			{
-				error = base_parser::make_error_code(parse_errno::ICL);
-				return;
-			}
+				return base_parser::make_error_code(parse_errno::ICL);
+
 			auto key = strtls::trimmed(vector[0].substr(0, pos));
 			auto value = strtls::trimmed(vector[0].substr(pos + 1));
 			auto &cookie = m_cookies[std::move(key)] = std::move(value);
@@ -89,14 +90,13 @@ public:
 				pos = statement.find('=');
 
 				if( pos == std::string::npos )
-				{
-					error = base_parser::make_error_code(parse_errno::ICL);
-					return ;
-				}
+					return base_parser::make_error_code(parse_errno::ICL);
+
 				key = strtls::trimmed(statement.substr(0,pos));
 				value = strtls::trimmed(statement.substr(pos+1));
 				cookie.set_attribute(std::move(key), std::move(value));
 			}
+			return error_code();
 		});
 	}
 
@@ -163,12 +163,7 @@ parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
 	return *this;
 }
 
-bool parser<model::client>::append(const const_buffer &buf, error_code &error)
-{
-	return m_impl->m_parser.append(buf, error);
-}
-
-bool parser<model::client>::append(const const_buffer &buf)
+sys_expected<bool> parser<model::client>::append(const const_buffer &buf)
 {
 	return m_impl->m_parser.append(buf);
 }

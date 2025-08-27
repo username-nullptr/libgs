@@ -336,12 +336,12 @@ auto make_file_opt_token(core_concepts::any_fstream_p auto &&stream, Args&&...ar
 	return detail::make_file_opt_token<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
 }
 
-std::optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permission::type mode)
+optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permission::type mode)
 {
 	using opt_t = std::remove_cvref_t<decltype(opt)>;
-	using fstream_t = typename opt_t::fstream_t;
+	using fstream_t = opt_t::fstream_t;
 
-	std::optional<size_t> size;
+	optional<size_t> size;
 	if constexpr( is_any_fstream_v<fstream_t> )
 	{
 		if( mode & io_permission::read )

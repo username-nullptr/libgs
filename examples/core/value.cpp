@@ -24,7 +24,7 @@ int main()
 	spdlog::debug("{} - {}", v4, v4.to_float(), v4.to_int());
 
 	libgs::value v5 = "hello";
-	spdlog::debug("{} - {}", v5, v5.to_int_or()/*, v5.to_int()*/); // throw !!!
+	spdlog::debug("{} - {}", v5, v5.to_int().or_else()/*, v5.to_int()*/); // throw !!!
 #elif defined(_WIN32)
 	libgs::wvalue v0 = L"11";
 	spdlog::debug(L"{} - {}", v0, v0.to_int());

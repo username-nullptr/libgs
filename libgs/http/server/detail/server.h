@@ -219,12 +219,7 @@ private:
 					break;
 
 				auto size = std::get<0>(var);
-				if( size == 0 )
-					break;
-
-				error_code error;
-				parser.append({buf, size}, error);
-				if( error )
+				if( size == 0 or not parser.append({buf, size}) )
 					break;
 			}
 			catch(std::system_error &ex)

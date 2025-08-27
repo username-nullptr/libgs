@@ -43,14 +43,16 @@ public:
 		m_parser(init_buf_size)
 	{
 		m_parser
-		.on_parse_begin([this](std::string_view line_buf, error_code &error)
+		.on_parse_begin([this](std::string_view line_buf)
 		{
-			auto version = static_cast<version_enum>(0);
+			sys_expected result = static_cast<version_enum>(0);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
+
 			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
-				error = base_parser::make_error_code(parse_errno::IREQL);
-				return version;
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IREQL)
+				);
 			}
 			method_enum method;
 			try {
@@ -58,11 +60,12 @@ public:
 			}
 			catch(const std::exception&)
 			{
-				error = base_parser::make_error_code(parse_errno::IHM);
-				return version;
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IHM)
+				);
 			}
 			m_method = method;
-			version = version::from_string(request_line_parts[2].substr(5,3));
+			result = version::from_string(request_line_parts[2].substr(5,3));
 
 			auto url_line = from_percent_encoding(request_line_parts[1]);
 			auto pos = url_line.find('?');
@@ -85,8 +88,9 @@ public:
 			}
 			if( not m_path.starts_with("/") )
 			{
-				error = base_parser::make_error_code(parse_errno::IHP);
-				return version;
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IHP)
+				);
 			}
 			auto n_it = std::unique(m_path.begin(), m_path.end(), [](char c0, char c1){
 				return c0 == c1 and c0 == '/';
@@ -96,30 +100,27 @@ public:
 
 			if( m_path.size() > 1 and m_path.ends_with("/") )
 				m_path.pop_back();
-			return version;
+			return result;
 		})
-		.on_parse_cookie([this](std::string_view line_buf, error_code &error)
+		.on_parse_cookie([this](std::string_view line_buf)
 		{
 			auto vector = string_vector::from_string(line_buf, ';');
 			if( vector.empty() )
-			{
-				error = base_parser::make_error_code(parse_errno::ICL);
-				return;
-			}
+				return base_parser::make_error_code(parse_errno::ICL);
+
 			for(auto &statement : vector)
 			{
 				statement = strtls::trimmed(statement);
 				auto pos = statement.find('=');
 
 				if( pos == std::string::npos )
-				{
-					error = base_parser::make_error_code(parse_errno::ICL);
-					return ;
-				}
+					return base_parser::make_error_code(parse_errno::ICL);
+
 				auto key = strtls::trimmed(statement.substr(0,pos));
 				auto value = strtls::trimmed(statement.substr(pos+1));
 				m_cookies[std::move(key)] = std::move(value);
 			}
+			return error_code();
 		});
 	}
 
@@ -189,19 +190,13 @@ parser<model::server> &parser<model::server>::operator=(parser &&other) noexcept
 	return *this;
 }
 
-bool parser<model::server>::append(const const_buffer &buf, error_code &error)
+sys_expected<bool> parser<model::server>::append(const const_buffer &buf)
 {
-	bool res = m_impl->m_parser.append(buf, error);
-	if( not error )
+	return m_impl->m_parser.append(buf).transform([this](bool finished)
+	{
 		m_impl->set_attribute();
-	return res;
-}
-
-bool parser<model::server>::append(const const_buffer &buf)
-{
-	bool res = m_impl->m_parser.append(buf);
-	m_impl->set_attribute();
-	return res;
+		return finished;
+	});
 }
 
 parser<model::server> &parser<model::server>::operator<<(const const_buffer &buf)
@@ -290,14 +285,20 @@ version_enum parser<model::server>::version() const noexcept
 	return m_impl->m_parser.version();
 }
 
+optional<value> parser<model::server>::parameter(size_t index) const
+{
+	if( index >= parameters().size() )
+	{
+		throw runtime_error (
+			"libgs::http::parser<model::server>::parameter: index out of range."
+		);
+	}
+	return parameters()[index].second;
+}
+
 const parameters &parser<model::server>::parameters() const noexcept
 {
 	return m_impl->m_parameters;
-}
-
-const parser<model::server>::path_args_t &parser<model::server>::path_args() const noexcept
-{
-	return m_impl->m_path_args;
 }
 
 const parser<model::server>::headers_t &parser<model::server>::headers() const noexcept
@@ -308,6 +309,22 @@ const parser<model::server>::headers_t &parser<model::server>::headers() const n
 const cookie_values &parser<model::server>::cookies() const noexcept
 {
 	return m_impl->m_cookies;
+}
+
+optional<value> parser<model::server>::path_arg(size_t index) const
+{
+	if( index >= path_args().size() )
+	{
+		throw runtime_error (
+			"libgs::http::parser<model::server>::path_arg: index out of range."
+		);
+	}
+	return path_args()[index].second;
+}
+
+const parser<model::server>::path_args_t &parser<model::server>::path_args() const noexcept
+{
+	return m_impl->m_path_args;
 }
 
 bool parser<model::server>::keep_alive() const noexcept

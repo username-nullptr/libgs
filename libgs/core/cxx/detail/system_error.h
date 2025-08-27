@@ -44,17 +44,17 @@ inline error_code::error_code(std::error_code &&error) :
 
 }
 
-inline const error_code &error_code::exception() const
+inline const error_code &error_code::exception(const std::string &what) const
 {
 	if( not *this )
-		throw std::system_error(*this);
+		throw std::system_error(*this, what);
 	return *this;
 }
 
-inline error_code &error_code::exception()
+inline error_code &error_code::exception(const std::string &what)
 {
 	if( not *this )
-		throw std::system_error(*this);
+		throw std::system_error(*this, what);
 	return *this;
 }
 
@@ -62,10 +62,14 @@ template <typename Func>
 auto error_code::and_then(Func &&func) requires and_then_v<Func>
 {
 	if constexpr( concepts::callable_ret<Func,error_code> )
-		return operator bool() ? *this : func(*this);
+		return operator bool() ? *this : func();
 
 	else if constexpr( concepts::callable_void<Func> )
-		return operator bool() ? *this : func();
+	{
+		if( not *this )
+			func();
+		return *this;
+	}
 }
 
 template <typename Func>
