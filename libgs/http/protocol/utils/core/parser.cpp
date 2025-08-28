@@ -73,7 +73,7 @@ public:
 public:
 	[[nodiscard]] sys_expected<bool> parse_header()
 	{
-		sys_expected result = false;
+		sys_expected<bool> result = false;
 		do {
 			auto pos = m_src_buf.find("\r\n");
 			if( pos == std::string::npos )
@@ -123,7 +123,7 @@ public:
 
 	[[nodiscard]] sys_expected<bool> state_handler_reading_headers(std::string_view line_buf)
 	{
-		sys_expected result = false;
+		sys_expected<bool> result = false;
 		if( line_buf.empty() )
 		{
 			set_read_body_state()
@@ -194,7 +194,7 @@ public:
 
 	sys_expected<bool> parse_chunked()
 	{
-		sys_expected result = false;
+		sys_expected<bool> result = false;
 		std::size_t _size = 0;
 		do {
 			auto pos = m_src_buf.find("\r\n");

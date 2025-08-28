@@ -10,6 +10,18 @@ int main()
 {
 	// spdlog::set_level(spdlog::level::trace);
 
+	libgs::sys_expected<> sed;
+	sed = sed
+	.transform([]{
+
+	})
+	.and_then([]{
+		return libgs::sys_expected();
+	})
+	.or_else([]{
+	})
+	.or_else();
+
 	auto aaa = libgs::strtls::to_int32("555")
 		.transform([](int32_t iii) {
 			std::cout << iii << std::endl;

@@ -45,7 +45,7 @@ public:
 		m_parser
 		.on_parse_begin([this](std::string_view line_buf)
 		{
-			sys_expected result = static_cast<version_enum>(0);
+			sys_expected<version_enum> result = static_cast<version_enum>(0);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
 
 			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )

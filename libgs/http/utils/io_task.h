@@ -34,16 +34,17 @@
 namespace libgs::http
 {
 
-template <concepts::callable Func, bool Async = true>
+template <core_concepts::expected_value Value, bool Async = true>
 class LIBGS_HTTP_TAPI io_task
 {
 	LIBGS_DISABLE_COPY(io_task)
 
 public:
-	using function_t = Func;
-	using return_t = function_traits<function_t>::return_type;
+	using value_t = Value;
+	using expected_t = sys_expected<value_t>;
+	using awaitable_t = awaitable<expected_t>;
 
-	explicit io_task(function_t func);
+	explicit io_task(awaitable_t &&task);
 	~io_task();
 
 	io_task(io_task &&other) noexcept;
@@ -51,37 +52,59 @@ public:
 
 public:
 	template <typename Rep, typename Period>
-	auto sync(const duration<Rep,Period> &timeout = {}) noexcept;
+	auto sync(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0));
 
 	template <typename Clock, typename Duration>
-	auto sync(const time_point<Clock,Duration> &timeout) noexcept;
+	auto sync(const time_point<Clock,Duration> &timeout);
 
 	template <typename Rep, typename Period>
-	auto coro(const duration<Rep,Period> &timeout = {}) noexcept;
+	auto coro(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0));
 
 	template <typename Clock, typename Duration>
-	auto coro(const time_point<Clock,Duration> &timeout) noexcept;
+	auto coro(const time_point<Clock,Duration> &timeout);
 
 public:
 	static constexpr bool async_enabled_v = Async;
 	static consteval bool async_enabled() noexcept;
 
-	auto async(concepts::callable<return_t> auto &&callback)
-		noexcept requires async_enabled_v;
+	auto async(core_concepts::callable<value_t> auto &&callback)
+		requires async_enabled_v;
 
 	template <typename Rep, typename Period>
 	auto async(const duration<Rep,Period> &timeout,
-		concepts::callable<return_t> auto &&callback
-	) noexcept requires async_enabled_v;
+		core_concepts::callable<value_t> auto &&callback
+	) requires async_enabled_v;
 
 	template <typename Clock, typename Duration>
 	auto async(const time_point<Clock,Duration> &timeout,
-		concepts::callable<return_t> auto &&callback
-	) noexcept requires async_enabled_v;
+		core_concepts::callable<value_t> auto &&callback
+	) requires async_enabled_v;
 
 	template <typename Rep, typename Period>
-	auto async(const duration<Rep,Period> &timeout = {})
-		noexcept requires async_enabled_v;
+	auto async(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
+		requires async_enabled_v;
+
+public:
+	template <typename Func>
+	static constexpr bool transform_v = requires(expected_t exp, Func func) {
+		exp.transform(func);
+	};
+	template <typename Func>
+	auto transform(Func &&func) const requires transform_v<Func>;
+
+	template <typename Func>
+	static constexpr bool and_then_v = requires(expected_t exp, Func func) {
+		exp.and_then(func);
+	};
+	template <typename Func>
+	auto and_then(Func &&func) const requires and_then_v<Func>;
+
+	template <typename Token>
+	static constexpr bool or_else_v = requires(expected_t exp, Token token) {
+		exp.or_else(token);
+	};
+	template <typename Func>
+	auto or_else(Func &&func) const requires or_else_v<Func>;
 
 private:
 	class impl;

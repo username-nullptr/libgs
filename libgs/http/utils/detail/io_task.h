@@ -32,17 +32,88 @@
 namespace libgs::http
 {
 
-template <concepts::callable Func, bool Async>
-class LIBGS_HTTP_TAPI io_task::impl
+template <core_concepts::expected_value Value, bool Async>
+class LIBGS_HTTP_TAPI io_task<Value,Async>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	explicit impl(function_t func) :
-		m_func(std::move(func)) {}
+	explicit impl(awaitable_t &&task) :
+		m_task(std::make_shared<awaitable_t>(std::move(task))) {}
 
-	function_t m_func {};
+	~impl()
+	{
+		if( m_task )
+			sync();
+	}
+
+public:
+	template <typename Rep, typename Period>
+	auto sync(const duration<Rep,Period> &timeout) noexcept
+	{
+
+	}
+
+	template <typename Clock, typename Duration>
+	auto sync(const time_point<Clock,Duration> &timeout) noexcept
+	{
+
+	}
+
+	auto sync() noexcept
+	{
+
+	}
+
+public:
+	template <typename Rep, typename Period>
+	auto coro(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
+	{
+
+	}
+
+	template <typename Clock, typename Duration>
+	auto coro(const time_point<Clock,Duration> &timeout)
+	{
+
+	}
+
+	auto coro()
+	{
+
+	}
+
+public:
+	std::shared_ptr<awaitable_t> m_task;
 };
+
+template <core_concepts::expected_value Value, bool Async>
+io_task<Value,Async>::io_task(awaitable_t &&task) :
+	m_impl(new impl(std::move(task)))
+{
+
+}
+
+template <core_concepts::expected_value Value, bool Async>
+io_task<Value,Async>::~io_task()
+{
+	delete m_impl;
+}
+
+template <core_concepts::expected_value Value, bool Async>
+template <typename Rep, typename Period>
+auto io_task<Value,Async>::coro(const duration<Rep,Period> &timeout)
+{
+	return m_impl->coro(timeout);
+}
+
+template <core_concepts::expected_value Value, bool Async>
+template <typename Clock, typename Duration>
+auto io_task<Value,Async>::coro(const time_point<Clock,Duration> &timeout)
+{
+	return m_impl->coro(timeout);
+}
+
 
 } //namespace libgs::http
 

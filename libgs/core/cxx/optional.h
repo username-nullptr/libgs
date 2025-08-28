@@ -108,15 +108,14 @@ public:
 		concepts::optional_value<std::invoke_result_t<Func,value_t>>;
 
 	template <typename Func>
-	[[nodiscard]] auto transform(Func &&func) requires transform_v<Func>;
+	[[nodiscard]] auto transform(Func &&func) const requires transform_v<Func>;
 
 	template <concepts::callable_novoid<value_t> Func>
 	static constexpr bool and_then_v = requires(Func func, value_t value) {
 		[]<typename U>(optional<U>) {} (func(value));
 	};
-
 	template <typename Func>
-	auto and_then(Func &&func) requires and_then_v<Func>;
+	auto and_then(Func &&func) const requires and_then_v<Func>;
 
 	template <typename Func>
 	static constexpr bool or_else_v =
@@ -124,8 +123,8 @@ public:
 		concepts::callable_void<Func>;
 
 	template <typename Func>
-	optional or_else(Func &&func) requires or_else_v<Func>;
-	[[nodiscard]] optional or_else(value_t value = {});
+	optional or_else(Func &&func) const requires or_else_v<Func>;
+	[[nodiscard]] optional or_else(value_t value = {}) const;
 };
 
 template <concepts::optional_value_p Value>

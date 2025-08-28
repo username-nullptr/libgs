@@ -88,6 +88,8 @@ template <concepts::optional_value Value>
 optional_base<Value> &optional_base<Value>::operator=(optional_base &&other) requires
 	concepts::move_constructible<value_t>
 {
+	if( this == &other )
+		return *this;
 	m_value = std::move(other.m_value);
 	m_has_value = other.m_has_value;
 	other.m_has_value = false;
@@ -217,7 +219,7 @@ optional<Value> &optional<Value>::reset() noexcept
 
 template <concepts::optional_value Value>
 template <typename Func>
-auto optional<Value>::transform(Func &&func) requires transform_v<Func>
+auto optional<Value>::transform(Func &&func) const requires transform_v<Func>
 {
 	using result_t = std::invoke_result_t<Func,value_t>;
 	return this->has_value() ?
@@ -226,7 +228,7 @@ auto optional<Value>::transform(Func &&func) requires transform_v<Func>
 
 template <concepts::optional_value Value>
 template <typename Func>
-auto optional<Value>::and_then(Func &&func) requires and_then_v<Func>
+auto optional<Value>::and_then(Func &&func) const requires and_then_v<Func>
 {
 	using result_t = std::invoke_result_t<Func,value_t>;
 	return this->has_value() ? func(this->value()) : result_t();
@@ -234,7 +236,7 @@ auto optional<Value>::and_then(Func &&func) requires and_then_v<Func>
 
 template <concepts::optional_value Value>
 template <typename Func>
-optional<Value> optional<Value>::or_else(Func &&func) requires or_else_v<Func>
+optional<Value> optional<Value>::or_else(Func &&func) const requires or_else_v<Func>
 {
 	if constexpr( concepts::callable_ret<Func,optional> )
 	{
@@ -251,7 +253,7 @@ optional<Value> optional<Value>::or_else(Func &&func) requires or_else_v<Func>
 }
 
 template <concepts::optional_value Value>
-optional<Value> optional<Value>::or_else(value_t value)
+optional<Value> optional<Value>::or_else(value_t value) const
 {
 	return this->has_value() ?
 		*this : optional(std::move(value));
