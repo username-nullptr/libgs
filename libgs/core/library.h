@@ -48,11 +48,8 @@ public:
 	library &operator=(library &&other) noexcept;
 
 public:
-	void load(error_code &error) noexcept;
-	void load();
-
-	void unload(error_code &error) noexcept;
-	void unload();
+	sys_expected<> load() noexcept;
+	sys_expected<> unload() noexcept;
 
 public:
 	template <concepts::function Func>

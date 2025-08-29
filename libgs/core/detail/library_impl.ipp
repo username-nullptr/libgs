@@ -82,31 +82,30 @@ public:
 	}
 
 public:
-	void load(error_code &error)
+	[[nodiscard]] error_code load()
 	{
-		error = error_code();
 		if( m_handle )
 		{
 			++m_load_count;
-			return ;
+			return {};
 		}
-		load_native(error);
-		if( not error )
+		if( not load_native() )
 			++m_load_count;
+		return {};
 	}
 
-	void unload(error_code &error)
+	[[nodiscard]] error_code unload()
 	{
 		if( not m_handle )
-			return ;
+			return {};
 		--m_load_count;
 
 		if( not m_load_count )
 		{
-			unload_native(error);
-			if( not error )
+			if( not unload_native() )
 				m_handle = nullptr;
 		}
+		return {};
 	}
 
 public:
@@ -115,8 +114,8 @@ public:
 
 private:
 	void set_file_name(path_t file_name);
-	void load_native(error_code &error);
-	void unload_native(error_code &error);
+	[[nodiscard]] error_code load_native();
+	[[nodiscard]] error_code unload_native();
 
 public:
 	path_t m_file_name;

@@ -109,7 +109,7 @@ class LIBGS_CORE_TAPI value_serializer<T,CharT> : public value_default_serialize
 {
 public:
 	constexpr optional<T> get(const basic_value<CharT> &value, size_t base = 10) noexcept {
-		return static_cast<T>(value_serializer<int,CharT>().get(value, base));
+		return static_cast<T>(*value_serializer<int,CharT>().get(value, base).or_else());
 	}
 };
 

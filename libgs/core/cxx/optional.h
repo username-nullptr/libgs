@@ -104,11 +104,13 @@ public:
 
 public:
 	template <concepts::callable_novoid<value_t> Func>
-	static constexpr bool transform_v =
-		concepts::optional_value<std::invoke_result_t<Func,value_t>>;
+	static constexpr bool transform_v = requires(Func func, value_t value) {
+		{ func(value) } -> concepts::optional_value;
+	};
+		// concepts::optional_value<std::invoke_result_t<Func,value_t>>;
 
 	template <typename Func>
-	[[nodiscard]] auto transform(Func &&func) const requires transform_v<Func>;
+	auto transform(Func &&func) const requires transform_v<Func>;
 
 	template <concepts::callable_novoid<value_t> Func>
 	static constexpr bool and_then_v = requires(Func func, value_t value) {

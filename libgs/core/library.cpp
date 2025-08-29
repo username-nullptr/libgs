@@ -57,30 +57,16 @@ library &library::operator=(library &&other) noexcept
 	return *this;
 }
 
-void library::load(error_code &error) noexcept
+sys_expected<> library::load() noexcept
 {
-	m_impl->load(error);
+	auto error = m_impl->load();
+	return error ? sys_expected<>(error) : sys_expected();
 }
 
-void library::load()
+sys_expected<> library::unload() noexcept
 {
-	error_code error;
-	load(error);
-	if( error )
-		throw system_error(error, "Cannot load library: '{}'", file_name());
-}
-
-void library::unload(error_code &error) noexcept
-{
-	m_impl->load(error);
-}
-
-void library::unload()
-{
-	error_code error;
-	unload(error);
-	if( error )
-		throw system_error(error, "Cannot unload library: '{}'", file_name());
+	auto error = m_impl->unload();
+	return error ? sys_expected<>(error) : sys_expected();
 }
 
 optional<void*> library::interface(std::string_view ifname) const

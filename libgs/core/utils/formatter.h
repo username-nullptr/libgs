@@ -166,6 +166,28 @@ private:
 	mutable bool m_has_formatter = false;
 };
 
+template <typename E, libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::expected<void,E>, CharT>
+{
+	auto format(const libgs::expected<void,E> &ov, auto &context) const
+	{
+		m_has_formatter = ov.has_value();
+		return m_has_formatter ?
+			std::basic_string<CharT>(l_str(CharT,"OK")) :
+			m_formatter.format(ov.error(), context);
+	}
+
+	constexpr auto parse(auto &context) noexcept
+	{
+		return m_has_formatter ?
+			context.begin() : m_formatter.parse(context);
+	}
+
+private:
+	formatter<E, CharT> m_formatter;
+	mutable bool m_has_formatter = false;
+};
+
 #if LIBGS_STD_CXX >= 23
 template <typename T, typename E, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<expected<T,E>, CharT>
