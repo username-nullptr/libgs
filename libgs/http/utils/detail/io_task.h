@@ -240,6 +240,12 @@ basic_io_task<Exec,Value,Async>::expected_t basic_io_task<Exec,Value,Async>::syn
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
+basic_io_task<Exec,Value,Async>::expected_t basic_io_task<Exec,Value,Async>::operator()()
+{
+	return sync();
+}
+
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 basic_io_task<Exec,Value,Async>::awaitable_t basic_io_task<Exec,Value,Async>::coro()
 {
 	return m_impl->check_task("libgs::http::io_task::coro")->coro();

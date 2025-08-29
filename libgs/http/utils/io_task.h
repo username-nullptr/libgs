@@ -59,6 +59,7 @@ public:
 
 public:
 	expected_t sync();
+	expected_t operator()();
 	[[nodiscard]] awaitable_t coro();
 
 	template <typename Rep, typename Period>

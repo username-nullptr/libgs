@@ -35,24 +35,57 @@ int main()
 
 	libgs::http::io_task<void> task(std::move(coro_task()), std::move(sync_task));
 
-	auto sss = task
+	// task
+	// .transform([]
+	// {
+	// 	std::cout << "0000000000000" << std::endl;
+	// })
+	// .and_then([]
+	// {
+	// 	std::cout << "1111111111111111111" << std::endl;
+	// 	return libgs::sys_expected();
+	// })
+	// .or_else([]
+	// {
+	// 	std::cout << "22222222222222" << std::endl;
+	// });
+
+	// libgs::dispatch([&]() -> libgs::awaitable<void>
+	// {
+	// 	(co_await task.coro())
+	// 	.transform([]
+	// 	{
+	// 		std::cout << "0000000000000" << std::endl;
+	// 	})
+	// 	.and_then([]
+	// 	{
+	// 		std::cout << "1111111111111111111" << std::endl;
+	// 		return libgs::sys_expected();
+	// 	})
+	// 	.or_else([]
+	// 	{
+	// 		std::cout << "22222222222222" << std::endl;
+	// 	});
+	// 	libgs::exit(0);
+	// });
+
+	task.async([](libgs::sys_expected<> expected)
+	{
+		expected
 		.transform([]
 		{
-
+			std::cout << "0000000000000" << std::endl;
 		})
 		.and_then([]
 		{
+			std::cout << "1111111111111111111" << std::endl;
 			return libgs::sys_expected();
 		})
 		.or_else([]
 		{
-
-		})
-		.or_else();
-
-	libgs::dispatch([&]() -> libgs::awaitable<void>
-	{
-		auto asd = task.async();
+			std::cout << "22222222222222" << std::endl;
+		});
+		libgs::exit(0);
 	});
-	return 0;
+	return libgs::exec();
 }

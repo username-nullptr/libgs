@@ -29,7 +29,6 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 
-#include <libgs/http/utils/io_task.h>
 #include <regex>
 
 namespace libgs::http
