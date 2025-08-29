@@ -34,55 +34,71 @@
 namespace libgs::http
 {
 
-template <core_concepts::expected_value Value, bool Async = true>
-class LIBGS_HTTP_TAPI io_task
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async = true>
+class LIBGS_HTTP_TAPI basic_io_task
 {
-	LIBGS_DISABLE_COPY(io_task)
+	LIBGS_DISABLE_COPY(basic_io_task)
 
 public:
+	using executor_t = Exec;
 	using value_t = Value;
+
 	using expected_t = sys_expected<value_t>;
+	using unexpected_t = sys_unexpected;
+
+	using sync_func_t = std::function<expected_t()>;
 	using awaitable_t = awaitable<expected_t>;
+	using future_t = std::future<expected_t>;
 
-	explicit io_task(awaitable_t &&task);
-	~io_task();
+	basic_io_task(core_concepts::sched auto &&exec, awaitable_t &&coro_task, sync_func_t &&sync_task);
+	basic_io_task(awaitable_t &&coro_task, sync_func_t &&sync_task);
+	~basic_io_task();
 
-	io_task(io_task &&other) noexcept;
-	io_task &operator=(io_task &&other) noexcept;
+	basic_io_task(basic_io_task &&other) noexcept;
+	basic_io_task &operator=(basic_io_task &&other) noexcept;
 
 public:
-	template <typename Rep, typename Period>
-	auto sync(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0));
-
-	template <typename Clock, typename Duration>
-	auto sync(const time_point<Clock,Duration> &timeout);
+	expected_t sync();
 
 	template <typename Rep, typename Period>
-	auto coro(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0));
+	[[nodiscard]] awaitable_t coro(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0));
 
 	template <typename Clock, typename Duration>
-	auto coro(const time_point<Clock,Duration> &timeout);
+	[[nodiscard]] awaitable_t coro(const time_point<Clock,Duration> &timeout);
 
 public:
 	static constexpr bool async_enabled_v = Async;
 	static consteval bool async_enabled() noexcept;
 
-	auto async(core_concepts::callable<value_t> auto &&callback)
+	void async(core_concepts::callable<expected_t> auto &&callback)
 		requires async_enabled_v;
 
 	template <typename Rep, typename Period>
-	auto async(const duration<Rep,Period> &timeout,
-		core_concepts::callable<value_t> auto &&callback
+	void async(const duration<Rep,Period> &timeout,
+		core_concepts::callable<expected_t> auto &&callback
 	) requires async_enabled_v;
 
 	template <typename Clock, typename Duration>
-	auto async(const time_point<Clock,Duration> &timeout,
-		core_concepts::callable<value_t> auto &&callback
+	void async(const time_point<Clock,Duration> &timeout,
+		core_concepts::callable<expected_t> auto &&callback
 	) requires async_enabled_v;
 
 	template <typename Rep, typename Period>
-	auto async(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
+	future_t async(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
 		requires async_enabled_v;
+
+	template <typename Clock, typename Duration>
+	future_t async(const time_point<Clock,Duration> &timeout)
+		requires async_enabled_v;
+
+public:
+	template <typename Rep, typename Period>
+	void detach(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
+		noexcept requires async_enabled_v;
+
+	template <typename Clock, typename Duration>
+	void detach(const time_point<Clock,Duration> &timeout)
+		noexcept requires async_enabled_v;
 
 public:
 	template <typename Func>
@@ -103,13 +119,16 @@ public:
 	static constexpr bool or_else_v = requires(expected_t exp, Token token) {
 		exp.or_else(token);
 	};
-	template <typename Func>
-	auto or_else(Func &&func) const requires or_else_v<Func>;
+	template <typename Token>
+	auto or_else(Token &&token) const requires or_else_v<Token>;
 
 private:
 	class impl;
 	impl *m_impl = nullptr;
 };
+
+template <core_concepts::expected_value Value, bool Async = true>
+using io_task = basic_io_task<asio::any_io_executor, Value, Async>;
 
 } //namespace libgs::http
 #include <libgs/http/utils/detail/io_task.h>

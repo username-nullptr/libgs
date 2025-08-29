@@ -491,18 +491,10 @@ public:
 };
 
 template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <core_concepts::exec Exec0>
+template <core_concepts::sched Exec0>
 basic_server<Stream,Exec>::basic_server
-(basic_acceptor_wrap<socket_t> &&next_layer, const Exec0 &service_exec) :
-	m_impl(new impl(std::move(next_layer), service_exec))
-{
-
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec>::basic_server
-(basic_acceptor_wrap<socket_t> &&next_layer, core_concepts::exec_context auto &service_exec) :
-	m_impl(new impl(std::move(next_layer), service_exec.get_executor()))
+(basic_acceptor_wrap<socket_t> &&next_layer, Exec0 &&service_exec) :
+	m_impl(new impl(std::move(next_layer), get_executor_helper(std::forward<Exec0>(service_exec))))
 {
 
 }

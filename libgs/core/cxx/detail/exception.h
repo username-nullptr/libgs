@@ -62,6 +62,13 @@ invalid_argument::invalid_argument(std::format_string<Arg0, Args...> fmt_value, 
 
 }
 
+template <typename Arg0, typename...Args>
+logic_error::logic_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
+	std::logic_error(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
 } //namespace libgs
 
 namespace std

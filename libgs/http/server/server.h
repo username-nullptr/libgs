@@ -44,10 +44,10 @@ class LIBGS_HTTP_TAPI basic_server
 public:
 	using socket_t = Stream;
 	using executor_t = Exec;
-	using service_exec_t = typename socket_t::executor_type;
+	using service_exec_t = socket_t::executor_type;
 
 	using next_layer_t = basic_acceptor_wrap<socket_t>;
-	using endpoint_t = typename next_layer_t::acceptor_t::endpoint_type;
+	using endpoint_t = next_layer_t::acceptor_t::endpoint_type;
 	using endpoint_wrapper_t = basic_endpoint_wrapper<typename endpoint_t::protocol_type>;
 
 	using path_opt_token_t = basic_path_opt_token<char>;
@@ -65,14 +65,10 @@ public:
 	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t>;
 
 public:
-	template <core_concepts::exec Exec0 = io_executor_t>
+	template <core_concepts::sched Exec0 = io_executor_t>
 	explicit basic_server (
 		basic_acceptor_wrap<socket_t> &&next_layer,
-		const Exec0 &service_exec = libgs::get_executor()
-	);
-	basic_server (
-		basic_acceptor_wrap<socket_t> &&next_layer,
-		core_concepts::exec_context auto &service_exec
+		Exec0 &&service_exec = libgs::get_executor()
 	);
 	~basic_server();
 

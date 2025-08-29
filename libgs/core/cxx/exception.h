@@ -69,6 +69,16 @@ public:
 	invalid_argument(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
 };
 
+class LIBGS_CORE_VAPI logic_error : public std::logic_error
+{
+public:
+	using std::logic_error::logic_error;
+    ~logic_error() noexcept override = default;
+
+	template <typename Arg0, typename...Args>
+	logic_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+};
+
 } //namespace libgs
 #include <libgs/core/cxx/detail/exception.h>
 
