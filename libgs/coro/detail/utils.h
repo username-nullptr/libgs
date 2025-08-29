@@ -50,13 +50,13 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
-	return libgs::sleep_for(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
+	return libgs::sleep_until(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
-	return libgs::sleep_for(atime, std::forward<Token>(token));
+	return libgs::sleep_until(atime, std::forward<Token>(token));
 }
 
 template <typename T>
