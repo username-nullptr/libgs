@@ -35,9 +35,9 @@ namespace libgs::http
 {
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
-class LIBGS_HTTP_TAPI basic_io_task<Exec,Value,Async>::impl
+class LIBGS_HTTP_TAPI basic_io_task<Exec,Value,Async>::impl : public std::enable_shared_from_this<impl>
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(impl)
 
 public:
 	explicit impl(const auto &exec, awaitable_t &&coro_task, sync_func_t &&sync_task) :
@@ -50,6 +50,9 @@ public:
 		if( m_sync_task )
 			sync();
 	}
+
+	impl(impl &&other) noexcept = default;
+	impl &operator=(impl &&other) noexcept = default;
 
 public:
 	impl *check_task(std::string_view msg)
@@ -67,6 +70,27 @@ public:
 	}
 
 public:
+	[[nodiscard]] awaitable_t coro()
+	{
+		expected_t expected;
+		auto exec = co_await coro::goto_exec(m_exec);
+		try {
+			expected = co_await std::move(m_coro_task);
+		}
+		catch(const std::system_error &ex) {
+			expected.despair(ex.code());
+		}
+		catch(...)
+		{
+			expected.despair (
+				make_error_code(std::errc::io_error)
+			);
+		}
+		m_sync_task = {};
+		co_await coro::goto_exec(exec);
+		co_return expected;
+	}
+
 	template <typename Rep, typename Period>
 	[[nodiscard]] awaitable_t coro(const duration<Rep,Period> &timeout) {
 		return coro(std::chrono::system_clock::now() + timeout);
@@ -79,7 +103,7 @@ public:
 		auto exec = co_await coro::goto_exec(m_exec);
 		try {
 			auto var = co_await (
-				std::move(*m_coro_task) or coro::sleep_until(timeout)
+				std::move(m_coro_task) or coro::sleep_until(timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::move(std::get<0>(var));
@@ -104,53 +128,44 @@ public:
 		co_return expected;
 	}
 
-	[[nodiscard]] awaitable_t coro()
+public:
+	void async(core_concepts::callable<expected_t> auto &&callback)
 	{
-		expected_t expected;
-		auto exec = co_await coro::goto_exec(m_exec);
-		try {
-			expected = co_await std::move(*m_coro_task);
-		}
-		catch(const std::system_error &ex) {
-			expected.despair(ex.code());
-		}
-		catch(...)
-		{
-			expected.despair (
-				make_error_code(std::errc::io_error)
-			);
-		}
-		m_sync_task = {};
-		co_await coro::goto_exec(exec);
-		co_return expected;
+		using callback_t = decltype(callback);
+		dispatch(m_exec,
+		[self = this->shared_from_this(), callback = std::forward<callback_t>(callback)]
+		() -> awaitable<void> {
+			callback(co_await self->coro());
+		},
+		detached);
 	}
 
-public:
 	template <typename Rep, typename Period>
 	void async(const duration<Rep,Period> &timeout, core_concepts::callable<expected_t> auto &&callback)
 	{
 		using callback_t = decltype(callback);
-		dispatch(m_exec, coro(timeout), std::forward<callback_t>(callback));
+		dispatch(m_exec,
+		[self = this->shared_from_this(), timeout, callback = std::forward<callback_t>(callback)]
+		() -> awaitable<void> {
+			callback(co_await self->coro(timeout));
+		},
+		detached);
 	}
 
 	template <typename Clock, typename Duration>
 	void async(const time_point<Clock,Duration> &timeout, core_concepts::callable<expected_t> auto &&callback)
 	{
 		using callback_t = decltype(callback);
-		dispatch(m_exec, coro(timeout), std::forward<callback_t>(callback));
+		async(std::chrono::system_clock::now() + timeout, std::forward<callback_t>(callback));
 	}
 
-	void async(core_concepts::callable<expected_t> auto &&callback)
-	{
-		using callback_t = decltype(callback);
-		dispatch(m_exec, coro(), std::forward<callback_t>(callback));
+public:
+	[[nodiscard]] future_t async() {
+		return dispatch(m_exec, coro(), use_future);
 	}
 
 	template <typename Rep, typename Period>
-	[[nodiscard]] future_t async(const duration<Rep,Period> &timeout)
-	{
-		if( timeout.count() == 0 )
-			return dispatch(m_exec, coro(), use_future);
+	[[nodiscard]] future_t async(const duration<Rep,Period> &timeout) {
 		return dispatch(m_exec, coro(timeout), use_future);
 	}
 
@@ -160,11 +175,12 @@ public:
 	}
 
 public:
+	void detach() noexcept {
+		dispatch(m_exec, coro(), detached);
+	}
+
 	template <typename Rep, typename Period>
-	void detach(const duration<Rep,Period> &timeout) noexcept
-	{
-		if( timeout.count() == 0 )
-			dispatch(m_exec, coro(), detached);
+	void detach(const duration<Rep,Period> &timeout) noexcept {
 		dispatch(m_exec, coro(timeout), detached);
 	}
 
@@ -182,7 +198,7 @@ public:
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 basic_io_task<Exec,Value,Async>::basic_io_task
 (core_concepts::sched auto &&exec, awaitable_t &&coro_task, sync_func_t &&sync_task) :
-	m_impl(new impl (
+	m_impl(std::make_shared<impl>(
 		get_executor_helper(std::forward<decltype(exec)>(exec)),
 		std::move(coro_task), std::move(sync_task)
 	))
@@ -192,15 +208,29 @@ basic_io_task<Exec,Value,Async>::basic_io_task
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 basic_io_task<Exec,Value,Async>::basic_io_task(awaitable_t &&coro_task, sync_func_t &&sync_task) :
-	m_impl(new impl(get_executor(), std::move(coro_task), std::move(sync_task)))
+	m_impl(std::make_shared<impl>(
+		get_executor(), std::move(coro_task), std::move(sync_task))
+	)
 {
 
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
-basic_io_task<Exec,Value,Async>::~basic_io_task()
+basic_io_task<Exec,Value,Async>::~basic_io_task() = default;
+
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
+basic_io_task<Exec,Value,Async>::basic_io_task(basic_io_task &&other) noexcept :
+	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
-	delete m_impl;
+
+}
+
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
+basic_io_task<Exec,Value,Async> &basic_io_task<Exec,Value,Async>::operator=(basic_io_task &&other) noexcept
+{
+	if( this == &other )
+		*m_impl = std::move(*other.m_impl);
+	return *this;
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
@@ -210,12 +240,17 @@ basic_io_task<Exec,Value,Async>::expected_t basic_io_task<Exec,Value,Async>::syn
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
+basic_io_task<Exec,Value,Async>::awaitable_t basic_io_task<Exec,Value,Async>::coro()
+{
+	return m_impl->check_task("libgs::http::io_task::coro")->coro();
+}
+
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 template <typename Rep, typename Period>
 basic_io_task<Exec,Value,Async>::awaitable_t
 basic_io_task<Exec,Value,Async>::coro(const duration<Rep,Period> &timeout)
 {
-	m_impl->check_task("libgs::http::io_task::coro");
-	return timeout.count() == 0 ? m_impl->coro() : m_impl->coro(timeout);
+	return m_impl->check_task("libgs::http::io_task::coro")->coro(timeout);
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
@@ -259,6 +294,13 @@ void basic_io_task<Exec,Value,Async>::async
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
+basic_io_task<Exec,Value,Async>::future_t basic_io_task<Exec,Value,Async>::async()
+	requires async_enabled_v
+{
+	return m_impl->async();
+}
+
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 template <typename Rep, typename Period>
 basic_io_task<Exec,Value,Async>::future_t
 basic_io_task<Exec,Value,Async>::async(const duration<Rep,Period> &timeout)
@@ -274,6 +316,12 @@ basic_io_task<Exec,Value,Async>::async(const time_point<Clock,Duration> &timeout
 	requires async_enabled_v
 {
 	return m_impl->async(timeout);
+}
+
+template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
+void basic_io_task<Exec,Value,Async>::detach() noexcept requires async_enabled_v
+{
+	m_impl->detach();
 }
 
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
@@ -295,7 +343,7 @@ void basic_io_task<Exec,Value,Async>::detach(const time_point<Clock,Duration> &t
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 template <typename Func>
 auto basic_io_task<Exec,Value,Async>::transform(Func &&func)
-	const requires transform_v<Func>
+	requires transform_v<Func>
 {
 	return sync().transform(std::forward<Func>(func));
 }
@@ -303,7 +351,7 @@ auto basic_io_task<Exec,Value,Async>::transform(Func &&func)
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 template <typename Func>
 auto basic_io_task<Exec,Value,Async>::and_then(Func &&func)
-	const requires and_then_v<Func>
+	requires and_then_v<Func>
 {
 	return sync().and_then(std::forward<Func>(func));
 }
@@ -311,7 +359,7 @@ auto basic_io_task<Exec,Value,Async>::and_then(Func &&func)
 template <core_concepts::exec Exec, core_concepts::expected_value Value, bool Async>
 template <typename Token>
 auto basic_io_task<Exec,Value,Async>::or_else(Token &&token)
-	const requires or_else_v<Token>
+	requires or_else_v<Token>
 {
 	return sync().or_else(std::forward<Token>(token));
 }

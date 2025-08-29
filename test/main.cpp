@@ -4,36 +4,55 @@
 #include <iostream>
 
 using namespace std::chrono_literals;
-// using namespace libgs::operators;
+using namespace libgs::operators;
 
 int main()
 {
 	// spdlog::set_level(spdlog::level::trace);
 
-	libgs::sys_expected<> sed;
-	sed = sed
-	.transform([]{
+	asio::ip::tcp::socket socket(libgs::io_context());
 
-	})
-	.and_then([]{
-		return libgs::sys_expected();
-	})
-	.or_else([]{
-	})
-	.or_else();
+	auto coro_task = [&]() -> libgs::awaitable<libgs::sys_expected<>>
+	{
+		libgs::error_code error;
+		co_await socket.async_connect (
+			{asio::ip::make_address("127.0.0.1"), 80},
+			libgs::use_awaitable | error
+		);
+		co_return error ?
+			libgs::sys_expected<void>(error) :
+			libgs::sys_expected();
+	};
 
-	auto aaa = libgs::strtls::to_int32("555")
-		.transform([](int32_t iii) {
-			std::cout << iii << std::endl;
-			return std::string("hello");
+	auto sync_task = [&]
+	{
+		libgs::error_code error;
+		socket.connect({asio::ip::make_address("127.0.0.1"), 80}, error);
+		return error ?
+			libgs::sys_expected<void>(error) :
+			libgs::sys_expected();
+	};
+
+	libgs::http::io_task<void> task(std::move(coro_task()), std::move(sync_task));
+
+	auto sss = task
+		.transform([]
+		{
+
 		})
-		.and_then([](std::string_view iii) {
-			std::cout << iii << std::endl;
-			return libgs::optional<int32_t>(234);
+		.and_then([]
+		{
+			return libgs::sys_expected();
 		})
-		.or_else(123);
+		.or_else([]
+		{
 
-	std::cout << *aaa << std::endl;
+		})
+		.or_else();
 
+	libgs::dispatch([&]() -> libgs::awaitable<void>
+	{
+		auto asd = task.async();
+	});
 	return 0;
 }

@@ -59,9 +59,10 @@ public:
 
 public:
 	expected_t sync();
+	[[nodiscard]] awaitable_t coro();
 
 	template <typename Rep, typename Period>
-	[[nodiscard]] awaitable_t coro(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0));
+	[[nodiscard]] awaitable_t coro(const duration<Rep,Period> &timeout);
 
 	template <typename Clock, typename Duration>
 	[[nodiscard]] awaitable_t coro(const time_point<Clock,Duration> &timeout);
@@ -83,8 +84,10 @@ public:
 		core_concepts::callable<expected_t> auto &&callback
 	) requires async_enabled_v;
 
+	future_t async() requires async_enabled_v;
+
 	template <typename Rep, typename Period>
-	future_t async(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
+	future_t async(const duration<Rep,Period> &timeout)
 		requires async_enabled_v;
 
 	template <typename Clock, typename Duration>
@@ -92,6 +95,8 @@ public:
 		requires async_enabled_v;
 
 public:
+	void detach() noexcept requires async_enabled_v;
+
 	template <typename Rep, typename Period>
 	void detach(const duration<Rep,Period> &timeout = std::chrono::milliseconds(0))
 		noexcept requires async_enabled_v;
@@ -106,25 +111,25 @@ public:
 		exp.transform(func);
 	};
 	template <typename Func>
-	auto transform(Func &&func) const requires transform_v<Func>;
+	auto transform(Func &&func) requires transform_v<Func>;
 
 	template <typename Func>
 	static constexpr bool and_then_v = requires(expected_t exp, Func func) {
 		exp.and_then(func);
 	};
 	template <typename Func>
-	auto and_then(Func &&func) const requires and_then_v<Func>;
+	auto and_then(Func &&func) requires and_then_v<Func>;
 
 	template <typename Token>
 	static constexpr bool or_else_v = requires(expected_t exp, Token token) {
 		exp.or_else(token);
 	};
 	template <typename Token>
-	auto or_else(Token &&token) const requires or_else_v<Token>;
+	auto or_else(Token &&token) requires or_else_v<Token>;
 
 private:
 	class impl;
-	impl *m_impl = nullptr;
+	std::shared_ptr<impl> m_impl;
 };
 
 template <core_concepts::expected_value Value, bool Async = true>
