@@ -45,7 +45,7 @@ sys_expected<path_t> file_path() noexcept;
 sys_expected<path_t> dir_path() noexcept;
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-error_code set_current_directory(const path_t &path) noexcept;
+sys_expected<> set_current_directory(const path_t &path) noexcept;
 
 [[nodiscard]] LIBGS_CORE_API
 sys_expected<path_t> current_directory() noexcept;
@@ -63,23 +63,23 @@ sys_expected<std::string> getenv(std::string_view key) noexcept;
 sys_expected<std::map<std::string,std::string>> getenvs() noexcept;
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-error_code setenv(std::string_view key, std::string_view value, bool overwrite = true) noexcept;
+sys_expected<> setenv(std::string_view key, std::string_view value, bool overwrite = true) noexcept;
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-error_code unsetenv(std::string_view key) noexcept;
+sys_expected<> unsetenv(std::string_view key) noexcept;
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-error_code setenv(std::string_view key,
+sys_expected<> setenv(std::string_view key,
 	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
 ) noexcept;
 
 template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-error_code setenv(std::string_view key, bool overwrite,
+sys_expected<> setenv(std::string_view key, bool overwrite,
 	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
 ) noexcept;
 
 template <concepts::string_p<char> T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-error_code setenv(std::string_view key, T &&value, bool overwrite = true);
+sys_expected<> setenv(std::string_view key, T &&value, bool overwrite = true);
 
 } //namespace libgs::app
 #include <libgs/core/detail/app_utls.h>

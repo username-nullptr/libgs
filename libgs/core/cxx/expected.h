@@ -66,7 +66,7 @@ public:
     using error_t = Error;
 
 	expected(value_t value);
-	expected(unexpected<error_t> une = {});
+	expected(unexpected<error_t> une);
 
 	expected(const expected &other) requires
 		concepts::copy_constructible<value_t> and

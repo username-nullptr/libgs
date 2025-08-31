@@ -380,7 +380,7 @@ sys_expected<bool> parser<model::base>::append(const const_buffer &buf)
 	else if( m_impl->m_state == state::reading_length )
 	{
 		m_impl->parse_length();
-		return {};
+		return true;
 	}
 	return m_impl->parse_chunked();
 }
