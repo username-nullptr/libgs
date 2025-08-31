@@ -39,40 +39,40 @@ namespace fs = std::filesystem;
 namespace libgs::app
 {
 
-static void set_error(error_code &error)
+[[nodiscard]] static error_code sys_error()
 {
-	error.assign(errno, std::system_category());
+	return { errno, std::system_category() };
 }
 
 sys_expected<path_t> file_path() noexcept
 {
-	sys_expected<path_t> result;
+	sys_expected<path_t> result {""};
 	char exe_name[1024] = "";
 
 	if( readlink("/proc/self/exe", exe_name, sizeof(exe_name)) < 0 )
-		set_error(result.error());
+		result.despair(sys_error());
 	else
 		result = exe_name;
 	return result;
 }
 
-error_code set_current_directory(const path_t &path) noexcept
+sys_expected<> set_current_directory(const path_t &path) noexcept
 {
-	error_code error;
+	sys_expected<> result;
     auto str = path.string();
 
 	if( chdir(str.data()) < 0 )
-		set_error(error);
-	return error;
+		result.despair(sys_error());
+	return result;
 }
 
 sys_expected<path_t> current_directory() noexcept
 {
-	sys_expected<path_t> result;
+	sys_expected<path_t> result {""};
 	char buf[1024] = "";
 
 	if( getcwd(buf, sizeof(buf)) == nullptr )
-		set_error(result.error());
+		result.despair(sys_error());
 	else
 	{
 		std::string str(buf);
@@ -86,7 +86,7 @@ sys_expected<path_t> current_directory() noexcept
 sys_expected<path_t> absolute_path(const path_t &path) noexcept
 {
 	auto str = path.string();
-	sys_expected<path_t> result;
+	sys_expected<path_t> result {""};
 
 	if( not is_absolute_path(path) )
 	{
@@ -98,7 +98,7 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 	{
 		auto tmp = ::getenv("HOME");
 		if( not tmp )
-			set_error(result.error());
+			result.despair(sys_error());
 		else
 		{
 			std::string home(tmp);
@@ -132,11 +132,11 @@ sys_expected<std::string> getenv(std::string_view key) noexcept
 	auto value = ::getenv(key.data());
 	g_env_mutex.unlock_shared();
 
-	sys_expected<std::string> result;
+	sys_expected<std::string> result {""};
 	if( value )
 		result = value;
 	else
-		set_error(result.error());
+		result.despair(sys_error());
 	return result;
 }
 
@@ -159,24 +159,24 @@ sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 	return envs;
 }
 
-error_code setenv(std::string_view key, std::string_view value, bool overwrite) noexcept
+sys_expected<> setenv(std::string_view key, std::string_view value, bool overwrite) noexcept
 {
-	error_code error;
+	sys_expected<> result;
 	spin_shared_unique_lock locker(g_env_mutex);
 
 	if( ::setenv(key.data(), value.data(), overwrite) != 0 )
-		set_error(error);
-	return error;
+		result.despair(sys_error());
+	return result;
 }
 
-error_code unsetenv(std::string_view key) noexcept
+sys_expected<> unsetenv(std::string_view key) noexcept
 {
-	error_code error;
+	sys_expected<> result;
 	spin_shared_unique_lock locker(g_env_mutex);
 
 	if( ::unsetenv(key.data()) != 0 )
-		set_error(error);
-	return error;
+		result.despair(sys_error());
+	return result;
 }
 
 } //namespace libgs::app
