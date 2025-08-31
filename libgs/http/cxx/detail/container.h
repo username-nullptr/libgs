@@ -36,13 +36,13 @@ optional<value> value_map_get
 (const value_map &map, const core_concepts::text_p<char> auto &key) noexcept
 {
 	auto it = map.find(strtls::to_string(key));
-	return it == map.end() ? optional<value>() : make_optional(it->second);
+	return it == map.end() ? optional<value>() : libgs::make_optional(it->second);
 }
 
 inline optional<value> value_set_get(const value_set &set, const value &node) noexcept
 {
 	auto it = set.find(node);
-	return it == set.end() ? optional<value>() : make_optional(*it);
+	return it == set.end() ? optional<value>() : libgs::make_optional(*it);
 }
 
 } //namespace libgs::http

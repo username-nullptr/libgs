@@ -103,7 +103,7 @@ void library::impl::set_file_name(fs::path file_name)
 	};
 	for(auto &name : candidates)
 	{
-		auto abs_name = app::absolute_path(name);
+		auto abs_name = *app::absolute_path(name).or_else();
 		if( not fs::exists(abs_name) )
 			continue;
 
@@ -112,25 +112,23 @@ void library::impl::set_file_name(fs::path file_name)
 	}
 }
 
-void library::impl::load_native(error_code &error)
+error_code library::impl::load_native()
 {
-	error = error_code();
 	if( not fs::exists(m_file_name) )
-	{
-		error = std::make_error_code(std::errc::no_such_file_or_directory);
-		return ;
-	}
+		return std::make_error_code(std::errc::no_such_file_or_directory);
+
 	auto _file_name = m_file_name.wstring();
 	m_handle = LoadLibraryW(_file_name.c_str());
 	if( m_handle )
-		error = error_code(static_cast<int>(GetLastError()), g_library_category);
+		return { static_cast<int>(GetLastError()), g_library_category };
+	return {};
 }
 
-void library::impl::unload_native(error_code &error)
+error_code library::impl::unload_native()
 {
-	error = error_code();
 	if( not FreeLibrary(m_handle) )
-		error = error_code(static_cast<int>(GetLastError()), g_library_category);
+		return { static_cast<int>(GetLastError()), g_library_category };
+	return {};
 }
 
 } //namespace libgs

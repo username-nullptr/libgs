@@ -177,7 +177,7 @@ auto expected<Value,Error>::transform(Func &&func) const requires transform_v<Fu
 	using result_t = std::invoke_result_t<Func,value_t>;
 	return this->has_value() ?
 		expected<result_t,error_t>(func(this->value())) :
-		expected<result_t,error_t>();
+		expected<result_t,error_t>(this->error());
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
@@ -185,7 +185,7 @@ template <typename Func>
 auto expected<Value,Error>::and_then(Func &&func) const requires and_then_v<Func>
 {
 	using result_t = std::invoke_result_t<Func,value_t>;
-	return this->has_value() ? func(this->value()) : result_t();
+	return this->has_value() ? func(this->value()) : result_t(this->error());
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>

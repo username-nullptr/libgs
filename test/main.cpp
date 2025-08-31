@@ -53,6 +53,7 @@ int main()
 	libgs::dispatch([&]() -> libgs::awaitable<void>
 	{
 		auto asd = task.async();
+		co_return ;
 	});
 	return 0;
 }

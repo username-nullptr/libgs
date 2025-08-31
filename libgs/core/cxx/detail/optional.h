@@ -223,7 +223,7 @@ auto optional<Value>::transform(Func &&func) const requires transform_v<Func>
 {
 	using result_t = std::invoke_result_t<Func,value_t>;
 	return this->has_value() ?
-		make_optional(func(this->value())) : optional<result_t>();
+		libgs::make_optional(func(this->value())) : optional<result_t>();
 }
 
 template <concepts::optional_value Value>

@@ -33,7 +33,7 @@ namespace libgs::app
 {
 
 template <typename Arg0, typename...Args>
-error_code setenv(std::string_view key,
+sys_expected<> setenv(std::string_view key,
 	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
 {
 	return setenv(key,
@@ -42,7 +42,7 @@ error_code setenv(std::string_view key,
 }
 
 template <typename Arg0, typename...Args>
-error_code setenv(std::string_view key, bool overwrite,
+sys_expected<> setenv(std::string_view key, bool overwrite,
 	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
 {
 	return setenv(key,
@@ -52,7 +52,7 @@ error_code setenv(std::string_view key, bool overwrite,
 }
 
 template <concepts::string_p<char> T>
-error_code setenv(std::string_view key, T &&value, bool overwrite)
+sys_expected<> setenv(std::string_view key, T &&value, bool overwrite)
 {
 	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
 }

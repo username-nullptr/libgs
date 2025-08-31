@@ -52,7 +52,7 @@ optional<basic_value<CharT>> basic_ini_keys<CharT,Map,MapArgs...>::read
 (const concepts::text_p<char_t> auto &key) const noexcept
 {
 	auto it = m_keys.find(detail::ini_replace<char_t>(key));
-	return it == m_keys.end() ? optional<value_t>() : make_optional(it->second);
+	return it == m_keys.end() ? optional<value_t>() : libgs::make_optional(it->second);
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
