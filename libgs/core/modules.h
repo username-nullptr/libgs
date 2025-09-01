@@ -39,7 +39,7 @@ concept modules_init_func = []() consteval -> bool
 {
 	if constexpr( is_function_v<Func> )
 	{
-		using return_t = typename function_traits<Func>::return_type;
+		using return_t = function_traits<Func>::return_type;
 		if constexpr( std::is_same_v<return_t,void> or
 					  std::is_same_v<return_t,std::future<void>> or
 					  std::is_same_v<return_t,asio::awaitable<void>> )

@@ -92,7 +92,7 @@ basic_observer_base<Derived,Exec,Funcs...>::~basic_observer_base()
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <typename...Args0>
-typename basic_observer_base<Derived,Exec,Funcs...>::ptr_t
+basic_observer_base<Derived,Exec,Funcs...>::ptr_t
 basic_observer_base<Derived,Exec,Funcs...>::make(Args0&&...args) requires
 	concepts::constructible<derived_t,Args0...>
 {
@@ -101,7 +101,7 @@ basic_observer_base<Derived,Exec,Funcs...>::make(Args0&&...args) requires
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <size_t Idx>
-typename basic_observer_base<Derived,Exec,Funcs...>::ptr_t
+basic_observer_base<Derived,Exec,Funcs...>::ptr_t
 basic_observer_base<Derived,Exec,Funcs...>::on_triggered(callback_t<Idx> func) requires idx_valid_v<Idx>
 {
 	std::get<Idx>(m_impl->m_callbacks) = std::move(func);
@@ -143,7 +143,7 @@ void basic_observer_base<Derived,Exec,Funcs...>::trigger(Args0&&...args)
 }
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-typename basic_observer_base<Derived,Exec,Funcs...>::executor_t
+basic_observer_base<Derived,Exec,Funcs...>::executor_t
 basic_observer_base<Derived,Exec,Funcs...>::get_executor() noexcept
 {
 	return m_impl->m_exec;

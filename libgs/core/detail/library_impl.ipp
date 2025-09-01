@@ -84,28 +84,32 @@ public:
 public:
 	[[nodiscard]] error_code load()
 	{
+		error_code error;
 		if( m_handle )
 		{
 			++m_load_count;
-			return {};
+			return error;
 		}
-		if( not load_native() )
+		error = load_native();
+		if( not error )
 			++m_load_count;
-		return {};
+		return error;
 	}
 
 	[[nodiscard]] error_code unload()
 	{
+		error_code error;
 		if( not m_handle )
-			return {};
+			return error;
 		--m_load_count;
 
 		if( not m_load_count )
 		{
-			if( not unload_native() )
+			error = unload_native();
+			if( not error )
 				m_handle = nullptr;
 		}
-		return {};
+		return error;
 	}
 
 public:

@@ -239,7 +239,8 @@ expected<Value,Error> &expected<Value,Error>::exception(const std::string &what)
 
 template <concepts::optional_value Error>
 expected<void,Error>::expected(unexpected<error_t> une) :
-	unexpected<error_t>(std::move(une))
+	unexpected<error_t>(std::move(une)),
+	m_has_value(false)
 {
 
 }
