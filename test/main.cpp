@@ -87,5 +87,11 @@ int main()
 		});
 		libgs::exit(0);
 	});
+
+	// libgs::dispatch([&]() -> libgs::awaitable<void>
+	// {
+	// 	auto asd = task.async();
+	// 	co_return ;
+	// });
 	return libgs::exec();
 }

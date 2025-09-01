@@ -121,28 +121,28 @@ optional<std::string> cookie::domain() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::domain);
 	return it == attributes().end() ?
-		optional<std::string>() : make_optional(*it->second);
+		optional<std::string>() : libgs::make_optional(*it->second);
 }
 
 optional<std::string> cookie::path() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::path);
 	return it == attributes().end() ?
-		optional<std::string>() : make_optional(*it->second);
+		optional<std::string>() : libgs::make_optional(*it->second);
 }
 
 optional<std::string> cookie::same_site() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::same_site);
 	return it == attributes().end() ?
-		optional<std::string>() : make_optional(*it->second);
+		optional<std::string>() : libgs::make_optional(*it->second);
 }
 
 optional<std::string> cookie::priority() const noexcept
 {
 	auto it = attributes().find(cookie_attribute::priority);
 	return it == attributes().end() ?
-		optional<std::string>() : make_optional(*it->second);
+		optional<std::string>() : libgs::make_optional(*it->second);
 }
 
 optional<uint64_t> cookie::expires() const noexcept

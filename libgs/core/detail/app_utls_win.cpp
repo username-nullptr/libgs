@@ -30,7 +30,6 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
-
 #include "libgs/core/app_utls.h"
 
 namespace fs = std::filesystem;
@@ -48,50 +47,88 @@ static LPSTR convert_error_code_to_string(DWORD errc)
 }
 #endif
 
-static void set_error(error_code &error)
+[[nodiscard]] static error_code sys_error()
 {
-	error.assign(static_cast<int>(GetLastError()), std::system_category());
+	return { static_cast<int>(GetLastError()), std::system_category() };
 }
 
-fs::path file_path(error_code &error) noexcept
+sys_expected<path_t> file_path() noexcept
 {
 	WCHAR buf[MAX_PATH] {0};
 	auto len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
 
+	sys_expected<path_t> result {L""};
 	if( len == 0 )
-		set_error(error);
-	return strtls::replace(std::wstring(buf,len), L"\\", L"/");
+		result.despair(sys_error());
+	else
+		result = strtls::replace(std::wstring(buf,len), L"\\", L"/");
+	return result;
 }
 
-bool set_current_directory(error_code &error, const fs::path &path) noexcept
+sys_expected<> set_current_directory(const path_t &path) noexcept
 {
-	error = error_code();
+	sys_expected<> result;
 	auto wpath = strtls::replace(path.wstring(), L"/", L"\\");
 
-	if( SetCurrentDirectoryW(wpath.c_str()) )
-		return true;
-
-	set_error(error);
-	return false;
+	if( not SetCurrentDirectoryW(wpath.c_str()) )
+		result.despair(sys_error());
+	return result;
 }
 
-fs::path current_directory(error_code &error) noexcept
+sys_expected<path_t> current_directory() noexcept
 {
-	error = error_code();
-
 	wchar_t buf[1024] {0};
 	auto len = GetCurrentDirectoryW(1023, buf);
 
+	sys_expected<path_t> result {L""};
 	if( len == 0 )
-		set_error(error);
-
-	auto path = strtls::replace(std::wstring(buf,len), L"\\", L"/");
-	if( not path.ends_with(L"/") )
-		path += L"/";
-	return path;
+		result.despair(sys_error());
+	else
+	{
+		auto path = strtls::replace(std::wstring(buf,len), L"\\", L"/");
+		if( not path.ends_with(L"/") )
+			path += L"/";
+		result = path;
+	}
+	return result;
 }
 
-bool is_absolute_path(const fs::path &path) noexcept
+constexpr size_t g_max_buf_size = 4096;
+
+sys_expected<path_t> absolute_path(const path_t &path) noexcept
+{
+	auto wpath = path.wstring();
+	sys_expected<path_t> result {L""};
+
+	if( not is_absolute_path(path) )
+	{
+		result = dir_path().transform([&](const path_t &dir) -> path_t {
+			return dir.wstring() + wpath;
+		});
+	}
+	else if( wpath.starts_with(L"~") )
+	{
+		wchar_t tmp[g_max_buf_size] {0};
+		auto len = GetEnvironmentVariableW(L"USERPROFILE", tmp, g_max_buf_size);
+
+		if( len == 0 or len > g_max_buf_size )
+			result.despair(sys_error());
+		else
+		{
+			auto home = strtls::replace(std::wstring(tmp,len), L"\\", L"/");
+			if( home.ends_with(L"/") )
+				home.pop_back();
+			result = home + wpath.erase(0,1);
+		}
+	}
+	return result.transform([](const path_t &path) -> path_t
+	{
+		auto str = strtls::replace(path.wstring(), L"/./", L"/", false);
+		return strtls::replace(std::move(str), L"//", L"/", false);
+	});
+}
+
+bool is_absolute_path(const path_t &path) noexcept
 {
 	auto wpath = path.wstring();
 	if( wpath.starts_with(L"/") )
@@ -111,70 +148,28 @@ bool is_absolute_path(const fs::path &path) noexcept
 	return false;
 }
 
-constexpr size_t g_max_buf_size = 4096;
-
-fs::path absolute_path(error_code &error, const fs::path &path) noexcept
+sys_expected<std::string> getenv(std::string_view key) noexcept
 {
-	error = error_code();
-	auto wpath = path.wstring();
-	auto result = wpath;
-
-	if( not is_absolute_path(path) )
-		result = dir_path().wstring() + result;
-
-	else if( wpath.starts_with(L"~") )
-	{
-		wchar_t tmp[g_max_buf_size] {0};
-		auto len = GetEnvironmentVariableW(L"USERPROFILE", tmp, g_max_buf_size);
-
-		if( len == 0 or len > g_max_buf_size )
-		{
-			set_error(error);
-			result.clear();
-			return result;
-		}
-		auto home = strtls::replace(std::wstring(tmp,len), L"\\", L"/");
-		if( home.ends_with(L"/") )
-			home.pop_back();
-
-		result = home + result.erase(0,1);
-	}
-	result = strtls::replace(std::move(result), L"/./", L"/", false);
-	result = strtls::replace(std::move(result), L"//", L"/", false);
-	return result;
-}
-
-using optional_string = std::optional<std::string>;
-
-using envs_t = std::map<std::string, std::string>;
-
-optional_string getenv(error_code &error, std::string_view key) noexcept
-{
-	error = error_code();
-
 	char buf[g_max_buf_size] = "";
 	auto len = GetEnvironmentVariable(key.data(), buf, g_max_buf_size);
 
+	sys_expected<std::string> result {""};
 	if( len == 0 )
-	{
-		set_error(error);
-		return {};
-	}
-	return std::string(buf,len);
+		result.despair(sys_error());
+	else
+		result = std::string(buf,len);
+	return result;
 }
 
-envs_t getenvs(error_code &error) noexcept
+sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 {
-	error = error_code();
+	using envs_t = std::map<std::string,std::string>;
+	sys_expected<envs_t> result {envs_t{}};
 
-	envs_t envs;
 	auto buf = GetEnvironmentStrings();
-
 	if( buf == nullptr )
-	{
-		set_error(error);
-		return envs;
-	}
+		return result.despair(sys_error());
+
 	size_t start = 0;
 	for(size_t i=0; ;i++)
 	{
@@ -183,34 +178,33 @@ envs_t getenvs(error_code &error) noexcept
 			auto m = i;
 			while( buf[++i] != '\0' ) {}
 
-			envs.emplace(std::string(buf+start, m-start), std::string(buf+m+1, i-m-1));
+			result.value().emplace (
+				std::string(buf + start, m - start),
+				std::string(buf + m + 1, i - m - 1)
+			);
 			start = i + 1;
 		}
 		else if( buf[i] == '\0' )
 			break;
 	}
-	return envs;
+	return result;
 }
 
-bool setenv(error_code &error, std::string_view key, std::string_view value, bool overwrite) noexcept
+sys_expected<> setenv(std::string_view key, std::string_view value, bool overwrite) noexcept
 {
-	error = error_code();
-	if( (not overwrite and libgs::app::getenv(key).has_value()) or
+	sys_expected<> result;
+	if( (not overwrite and app::getenv(key).has_value()) or
 		SetEnvironmentVariable(key.data(), value.data()) )
-		return true;
-
-	set_error(error);
-	return false;
+		return result;
+	return result.despair(sys_error());
 }
 
-bool unsetenv(error_code &error, std::string_view key) noexcept
+sys_expected<> unsetenv(std::string_view key) noexcept
 {
-	error = error_code();
-	 if( SetEnvironmentVariable(key.data(), nullptr) )
-		 return true;
-
-	set_error(error);
-	return false;
+	sys_expected<> result;
+	if( SetEnvironmentVariable(key.data(), nullptr) )
+		return result;
+	return result.despair(sys_error());
 }
 
 } //namespace libgs::app
