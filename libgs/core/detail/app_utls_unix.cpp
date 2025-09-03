@@ -86,7 +86,7 @@ sys_expected<path_t> current_directory() noexcept
 sys_expected<path_t> absolute_path(const path_t &path) noexcept
 {
 	auto str = path.string();
-	sys_expected<path_t> result {""};
+	sys_expected<path_t> result = path;
 
 	if( not is_absolute_path(path) )
 	{
@@ -159,12 +159,12 @@ sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 	return envs;
 }
 
-sys_expected<> setenv(std::string_view key, std::string_view value, bool overwrite) noexcept
+sys_expected<> setenv(std::string_view key, const libgs::value &value, bool overwrite) noexcept
 {
 	sys_expected<> result;
 	spin_shared_unique_lock locker(g_env_mutex);
 
-	if( ::setenv(key.data(), value.data(), overwrite) != 0 )
+	if( ::setenv(key.data(), value->c_str(), overwrite) != 0 )
 		result.despair(sys_error());
 	return result;
 }

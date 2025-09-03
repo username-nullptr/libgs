@@ -29,8 +29,7 @@
 #ifndef LIBGS_CORE_APP_UTILS_H
 #define LIBGS_CORE_APP_UTILS_H
 
-#include <libgs/core/global.h>
-#include <optional>
+#include <libgs/core/value.h>
 #include <map>
 
 namespace libgs::app
@@ -63,23 +62,10 @@ sys_expected<std::string> getenv(std::string_view key) noexcept;
 sys_expected<std::map<std::string,std::string>> getenvs() noexcept;
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
-sys_expected<> setenv(std::string_view key, std::string_view value, bool overwrite = true) noexcept;
+sys_expected<> setenv(std::string_view key, const libgs::value &value, bool overwrite = true) noexcept;
 
 /*[[nodiscard]]*/ LIBGS_CORE_API
 sys_expected<> unsetenv(std::string_view key) noexcept;
-
-template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-sys_expected<> setenv(std::string_view key,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
-) noexcept;
-
-template <typename Arg0, typename...Args> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-sys_expected<> setenv(std::string_view key, bool overwrite,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args
-) noexcept;
-
-template <concepts::string_p<char> T> /* [[nodiscard]] */ LIBGS_CORE_TAPI
-sys_expected<> setenv(std::string_view key, T &&value, bool overwrite = true);
 
 } //namespace libgs::app
 #include <libgs/core/detail/app_utls.h>

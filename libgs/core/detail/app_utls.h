@@ -29,35 +29,7 @@
 #ifndef LIBGS_CORE_DETAIL_APP_UTILS_H
 #define LIBGS_CORE_DETAIL_APP_UTILS_H
 
-namespace libgs::app
-{
-
-template <typename Arg0, typename...Args>
-sys_expected<> setenv(std::string_view key,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
-{
-	return setenv(key,
-		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)
-	);
-}
-
-template <typename Arg0, typename...Args>
-sys_expected<> setenv(std::string_view key, bool overwrite,
-	std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) noexcept
-{
-	return setenv(key,
-		std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...),
-		overwrite
-	);
-}
-
-template <concepts::string_p<char> T>
-sys_expected<> setenv(std::string_view key, T &&value, bool overwrite)
-{
-	return setenv(key, std::format("{}", std::forward<T>(value)), overwrite);
-}
-
-inline namespace literals
+namespace libgs::app:: inline literals
 {
 
 inline path_t operator""_abs(const char *path, size_t len)
@@ -72,7 +44,7 @@ inline path_t operator""_abs(const wchar_t *path, size_t len)
 		.exception(R"(libgs::app::operator""_abs<wchar_t>)");
 }
 
-}} //namespace libgs::app::literals
+} //namespace libgs::app::literals
 
 
 #endif //LIBGS_CORE_DETAIL_APP_UTILS_H
