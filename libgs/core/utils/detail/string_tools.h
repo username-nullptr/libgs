@@ -612,63 +612,81 @@ template <typename T>
 		try {
 			if constexpr( std::is_same_v<T, char> )
 			{
-				return static_cast<char>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				));
+				)
+				.transform([](long value) {
+					return static_cast<char>(value);
+				});
 			}
 			else if constexpr( std::is_same_v<T, unsigned char> )
 			{
-				return static_cast<unsigned char>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				));
+				)
+				.transform([](unsigned long value) {
+					return static_cast<unsigned char>(value);
+				});
 			}
 			else if constexpr( std::is_same_v<T, short> )
 			{
-				return static_cast<short>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				));
+				)
+				.transform([](long value) {
+					return static_cast<short>(value);
+				});
 			}
 			else if constexpr( std::is_same_v<T, unsigned short> )
 			{
-				return static_cast<unsigned short>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				));
+				)
+				.transform([](unsigned long value) {
+					return static_cast<unsigned short>(value);
+				});
 			}
 			else if constexpr( std::is_same_v<T, int> )
 			{
-				return static_cast<int>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				));
+				)
+				.transform([](long value) {
+					return static_cast<int>(value);
+				});
 			}
 			else if constexpr( std::is_same_v<T, unsigned int> )
 			{
-				return static_cast<unsigned int>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				));
+				)
+				.transform([](unsigned long value) {
+					return static_cast<unsigned int>(value);
+				});
 			}
 			else if constexpr( std::is_same_v<T, long> )
 			{
-				return static_cast<long>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				));
+				);
 			}
 			else if constexpr( std::is_same_v<T, unsigned long> )
 			{
-				return static_cast<unsigned long>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				));
+				);
 			}
 			else if constexpr( std::is_same_v<T, long long> )
 			{
-				return static_cast<long long>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _text, base
-				));
+				);
 			}
 			else if constexpr( std::is_same_v<T, unsigned long long> )
 			{
-				return static_cast<unsigned long long>(detail::_sto_int<char_t>(
+				return detail::_sto_int<char_t>(
 					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _text, base
-				));
+				);
 			}
 		}
 		catch(std::exception&) {}
