@@ -104,7 +104,7 @@ template <size_t Idx>
 basic_observer_base<Derived,Exec,Funcs...>::ptr_t
 basic_observer_base<Derived,Exec,Funcs...>::on_triggered(callback_t<Idx> func) requires idx_valid_v<Idx>
 {
-	std::get<Idx>(m_impl->m_callbacks) = std::move(func);
+	std::get<Idx>(m_impl->m_callbacks).emplace_back(std::move(func));
 	return this->shared_from_this();
 }
 
@@ -119,22 +119,34 @@ void basic_observer_base<Derived,Exec,Funcs...>::trigger(Args0&&...args)
 	for(auto &ptr : detail::observer::map()[typeid(derived_t).hash_code()])
 	{
 		auto obj = static_cast<impl*>(ptr);
-		auto func = std::get<Idx>(obj->m_callbacks);
+		auto &funcs = std::get<Idx>(obj->m_callbacks);
 
-		if( not func )
+		if( funcs.empty() )
 			continue;
 
-		functions.emplace_back([exec = obj->m_exec, func, args...]() mutable
+		functions.emplace_back([exec = obj->m_exec, funcs, args...]() mutable
 		{
-			using return_t = decltype(func(std::move(args)...));
-			if constexpr( is_awaitable_v<return_t> )
-				dispatch(exec, func(std::move(args)...));
-			else
+			auto call = [exec = std::move(exec)]<typename...Args>(auto func, Args&&...args)
 			{
-				dispatch(exec, [func = std::move(func), ...args = std::move(args)]() mutable {
-					func(std::move(args)...);
-				});
-			}
+				using return_t = decltype(func(std::forward<Args>(args)...));
+				if constexpr( is_awaitable_v<return_t> )
+				{
+					libgs::dispatch(exec, [func = std::move(func), ...args = std::forward<Args>(args)]
+					() mutable -> awaitable<void> {
+						co_await func(std::move(args)...);
+						co_return ;
+					});
+				}
+				else
+				{
+					libgs::dispatch(exec, [func = std::move(func), ...args = std::forward<Args>(args)]() mutable {
+						func(std::move(args)...);
+					});
+				}
+			};
+			for(size_t i=0; i<funcs.size()-1; i++)
+				call(std::move(funcs[i]), args...);
+			call(std::move(funcs.back()), std::move(args)...);
 		});
 	}
 	detail::observer::mutex().unlock();

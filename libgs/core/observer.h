@@ -43,11 +43,12 @@ class LIBGS_CORE_TAPI basic_observer_base : public std::enable_shared_from_this<
 
 public:
 	using ptr_t = std::shared_ptr<derived_t>;
-	using callbacks_t = std::tuple<std::function<Funcs>...>;
+	using callbacks_t = std::tuple<std::vector<std::function<Funcs>>...>;
+	using callbacks_tuple_t = std::tuple<std::function<Funcs>...>;
 	using executor_t = Exec;
 
 	template <size_t Idx>
-	using callback_t = std::tuple_element_t<Idx,callbacks_t>;
+	using callback_t = std::tuple_element_t<Idx,callbacks_tuple_t>;
 
 	template <size_t Idx>
 	static constexpr bool idx_valid_v = Idx < sizeof...(Funcs);
