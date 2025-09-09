@@ -31,8 +31,13 @@
 
 #include <libgs/core/cxx/optional.h>
 
-namespace libgs
+namespace libgs { namespace concepts
 {
+
+template <typename Value>
+concept expected_value = optional_value<Value> or std::is_void_v<Value>;
+
+} //namespace libgs::concepts
 
 template <concepts::optional_value Error>
 class LIBGS_CORE_TAPI unexpected
@@ -102,9 +107,9 @@ public:
 
 public:
 	template <concepts::callable_novoid<value_t> Func>
-	static constexpr bool transform_v =
-		concepts::optional_value<std::invoke_result_t<Func,value_t>>;
-
+	static constexpr bool transform_v = requires(Func func, value_t value) {
+		{ func(value) } -> concepts::expected_value;
+	};
 	template <typename Func>
 	auto transform(Func &&func) const requires transform_v<Func>;
 
@@ -238,13 +243,7 @@ private:
 	bool m_has_value = true;
 };
 
-namespace concepts
-{
-
-template <typename Value>
-concept expected_value = optional_value<Value> or std::is_void_v<Value>;
-
-}} //namespace libgs::concepts
+} //namespace libgs
 #include <libgs/core/cxx/detail/expected.h>
 
 

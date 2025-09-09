@@ -202,7 +202,7 @@ struct is_any_async_tf_opt_token
 template <typename Token>
 constexpr bool is_any_async_tf_opt_token_v = is_any_async_tf_opt_token<Token>::value;
 
-template <typename Token = use_sync_t>
+template <typename Token>
 struct is_sync_opt_token
 {
 	static constexpr bool value =
@@ -211,7 +211,7 @@ struct is_sync_opt_token
 		std::is_same_v<std::remove_cvref_t<Token>,use_sync_t>;
 };
 
-template <typename Token = use_sync_t>
+template <typename Token>
 constexpr bool is_sync_opt_token_v = is_sync_opt_token<Token>::value;
 
 template <typename Token, typename...Args>

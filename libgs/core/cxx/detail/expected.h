@@ -175,9 +175,21 @@ template <typename Func>
 auto expected<Value,Error>::transform(Func &&func) const requires transform_v<Func>
 {
 	using result_t = std::invoke_result_t<Func,value_t>;
-	return this->has_value() ?
-		expected<result_t,error_t>(func(this->value())) :
-		expected<result_t,error_t>(this->error());
+	if constexpr( std::is_void_v<result_t> )
+	{
+		if( this->has_value() )
+		{
+			func(this->value());
+			return expected<void,error_t>();
+		}
+		return expected<void,error_t>(this->error());
+	}
+	else
+	{
+		return this->has_value() ?
+			expected<result_t,error_t>(func(this->value())) :
+			expected<result_t,error_t>(this->error());
+	}
 }
 
 template <concepts::optional_value Value, concepts::optional_value Error>
@@ -204,7 +216,8 @@ expected<Value,Error> expected<Value,Error>::or_else(Func &&func) const requires
 			func(this->error());
 		return *this;
 	}
-	else if constexpr( or_else_3_v<Func> )
+	// else if constexpr( or_else_3_v<Func> )
+	else
 	{
 		if( not this->has_value() )
 			func();
@@ -365,7 +378,8 @@ expected<void,Error> expected<void,Error>::or_else(Func &&func) const requires o
 			func(this->error());
 		return *this;
 	}
-	else if constexpr( or_else_3_v<Func> )
+	// else if constexpr( or_else_3_v<Func> )
+	else
 	{
 		if( not has_value() )
 			func();

@@ -107,8 +107,6 @@ public:
 	static constexpr bool transform_v = requires(Func func, value_t value) {
 		{ func(value) } -> concepts::optional_value;
 	};
-		// concepts::optional_value<std::invoke_result_t<Func,value_t>>;
-
 	template <typename Func>
 	auto transform(Func &&func) const requires transform_v<Func>;
 

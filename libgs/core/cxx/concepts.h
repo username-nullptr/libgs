@@ -108,13 +108,18 @@ concept callable_ret = requires(Func &&func, Args&&...args) {
 	{ func(std::forward<Args>(args)...) } -> std::same_as<Res>;
 };
 
-template <typename Func, typename...Args>
-concept callable_novoid = requires(Func &&func, Args&&...args) {
-	requires not std::is_void_v<decltype(func(std::forward<Args>(args)...))>;
+template <typename Func, typename Res, typename...Args>
+concept callable_noret = requires(Func &&func, Args&&...args) {
+	requires not std::is_same_v<decltype(func(std::forward<Args>(args)...)), Res>;
 };
 
 template <typename Func, typename...Args>
 concept callable_void = callable_ret<Func, void, Args...>;
+
+template <typename Func, typename...Args>
+concept callable_novoid = requires(Func &&func, Args&&...args) {
+	requires not std::is_void_v<decltype(func(std::forward<Args>(args)...))>;
+};
 
 template <typename Func>
 concept std_func_temp = requires(Func *func) {

@@ -1,6 +1,11 @@
-#include <libgs/http/server.h>
+// #include <libgs/http/server.h>
 #include <libgs/core/lock_free_queue.h>
+#include <libgs/core/string_vector.h>
+#include <libgs/core/execution.h>
 #include <libgs/core/app_utls.h>
+#include <libgs/core/modules.h>
+
+#include <spdlog/spdlog.h>
 #include <iostream>
 
 using namespace std::chrono_literals;
@@ -10,88 +15,29 @@ int main()
 {
 	// spdlog::set_level(spdlog::level::trace);
 
-	asio::ip::tcp::socket socket(libgs::io_context());
-
-	auto coro_task = [&]() -> libgs::awaitable<libgs::sys_expected<>>
-	{
-		libgs::error_code error;
-		co_await socket.async_connect (
-			{asio::ip::make_address("127.0.0.1"), 80},
-			libgs::use_awaitable | error
-		);
-		co_return error ?
-			libgs::sys_expected<void>(error) :
-			libgs::sys_expected();
-	};
-
-	auto sync_task = [&]
-	{
-		libgs::error_code error;
-		socket.connect({asio::ip::make_address("127.0.0.1"), 80}, error);
-		return error ?
-			libgs::sys_expected<void>(error) :
-			libgs::sys_expected();
-	};
-
-	libgs::http::io_task<void> task(std::move(coro_task()), std::move(sync_task));
-
-	// task
-	// .transform([]
-	// {
-	// 	std::cout << "0000000000000" << std::endl;
-	// })
-	// .and_then([]
-	// {
-	// 	std::cout << "1111111111111111111" << std::endl;
-	// 	return libgs::sys_expected();
-	// })
-	// .or_else([]
-	// {
-	// 	std::cout << "22222222222222" << std::endl;
-	// });
-
-	// libgs::dispatch([&]() -> libgs::awaitable<void>
-	// {
-	// 	(co_await task.coro())
-	// 	.transform([]
-	// 	{
-	// 		std::cout << "0000000000000" << std::endl;
-	// 	})
-	// 	.and_then([]
-	// 	{
-	// 		std::cout << "1111111111111111111" << std::endl;
-	// 		return libgs::sys_expected();
-	// 	})
-	// 	.or_else([]
-	// 	{
-	// 		std::cout << "22222222222222" << std::endl;
-	// 	});
-	// 	libgs::exit(0);
-	// });
-
-	task.async([](libgs::sys_expected<> expected)
-	{
-		expected
-		.transform([]
-		{
-			std::cout << "0000000000000" << std::endl;
-		})
-		.and_then([]
-		{
-			std::cout << "1111111111111111111" << std::endl;
-			return libgs::sys_expected();
-		})
-		.or_else([]
-		{
-			std::cout << "22222222222222" << std::endl;
-		});
-		libgs::exit(0);
+	libgs::modules::reg_init("a0", []{
+		spdlog::info("a0 init: {}", std::this_thread::get_id());
+	});
+	libgs::modules::reg_init("b0", []{
+		spdlog::info("b0 init: {}", std::this_thread::get_id());
+	});
+	libgs::modules::reg_init("a1", {.after = { "a0", "b0" }}, []{
+		spdlog::info("a1 init: {}", std::this_thread::get_id());
+	});
+	libgs::modules::reg_init("a2", {.after = { "a1" }}, []{
+		spdlog::info("a2 init: {}", std::this_thread::get_id());
+	});
+	libgs::modules::reg_init("b2", {.after = { "a1" }}, []{
+		spdlog::info("b2 init: {}", std::this_thread::get_id());
+	});
+	libgs::modules::reg_init("a3", {.after = { "b2" }}, []{
+		spdlog::info("a3 init: {}", std::this_thread::get_id());
 	});
 
-	// libgs::dispatch([&]() -> libgs::awaitable<void>
-	// {
-	// 	auto asd = task.async();
-	// 	co_return ;
-	// });
+	std::cout << libgs::modules::sprint() << std::endl;
+
+	libgs::modules::do_init(libgs::io_context(), []{
+		libgs::exit(0);
+	});
 	return libgs::exec();
 }

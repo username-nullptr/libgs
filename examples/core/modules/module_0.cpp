@@ -1,7 +1,7 @@
 #include <libgs/core/modules.h>
 #include <spdlog/spdlog.h>
 
-LIBGS_MODULE_INIT(0,[]
+LIBGS_MODULE_INIT("module.0", {.after = {"hello.world"}}, []
 {
 	spdlog::info("module 0 initialized.");
 });

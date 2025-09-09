@@ -29,46 +29,123 @@
 #ifndef LIBGS_CORE_DETAIL_MODULES_H
 #define LIBGS_CORE_DETAIL_MODULES_H
 
-namespace libgs
+#include <libgs/core/execution.h>
+
+namespace libgs { namespace detail
 {
 
-class LIBGS_CORE_API modules::impl
+class LIBGS_CORE_API modules
 {
-	LIBGS_DISABLE_COPY_MOVE(impl);
+	LIBGS_DISABLE_COPY_MOVE(modules);
 
 public:
-	static void reg_init(func_obj_t func, level_t level);
+	using func0_t = std::function<void()>;
+	using func1_t = std::function<void(const string_vector&)>;
+
+	enum class state {
+		finished, not_register
+	};
+	using func_obj_t = std::variant <
+		func0_t, func1_t, state
+	>;
+	static void reg_init(std::string name,
+		libgs::modules::dependency depy, func_obj_t func
+	);
+	static void do_init(const string_vector &args,
+		std::function<void()> callback = {}
+	);
 };
 
-template <typename T>
-void modules::reg_init(concepts::modules_init_func auto &&func, T level)
-	requires is_level_v<T>
+} //namespace detail
+
+void modules::reg_init(std::string name, dependency depy, concepts::modules_init_func auto &&func)
 {
-	using Func = std::decay_t<decltype(func)>;
-	using return_t = typename function_traits<Func>::return_type;
-
-	if constexpr( function_traits<Func>::arg_count == 0 )
+	using Func = decltype(func);
+	if constexpr( concepts::modules_init_func0<Func> )
 	{
-		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
-
-		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_func0_t(std::forward<Func>(func)), static_cast<level_t>(level));
+		detail::modules::reg_init(std::move(name), std::move(depy),
+			detail::modules::func0_t(std::forward<Func>(func))
+		);
 	}
+	else /* if constexpr( concepts::modules_init_func1<Func> ) */
+	{
+		detail::modules::reg_init(std::move(name), std::move(depy),
+			detail::modules::func1_t(std::forward<Func>(func))
+		);
+	}
+}
+
+void modules::reg_init(std::string name, concepts::modules_init_func auto &&func)
+{
+	using Func = decltype(func);
+	reg_init(std::move(name), {}, std::forward<Func>(func));
+}
+
+template <concepts::modules_init_token Token>
+auto modules::do_init(int argc, const char *argv[], Token &&token)
+{
+	return do_init({argv, argv + argc}, std::forward<Token>(token));
+}
+
+template <concepts::modules_init_token Token>
+auto modules::do_init(const string_vector &args, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_sync_opt_token_v<token_t> )
+		detail::modules::do_init(args);
+
+	else if constexpr( is_use_future_v<token_t> )
+	{
+		std::promise<void> promise;
+		auto future = promise.get_future();
+		detail::modules::do_init(args, [promise = std::move(promise)]() mutable {
+			promise.set_value();
+		});
+		return future;
+	}
+	else if constexpr( is_detached_v<token_t> )
+		detail::modules::do_init(args, []{});
 	else
-	{
-		if constexpr( std::is_same_v<return_t,void> )
-			impl::reg_init(func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
+		detail::modules::do_init(args, std::forward<Token>(token));
+}
 
-		else if constexpr( std::is_same_v<return_t,std::future<void>> )
-			impl::reg_init(future_func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
+template <concepts::modules_init_token Token>
+auto modules::do_init(Token &&token)
+{
+	return do_init({}, std::forward<Token>(token));
+}
 
-		else if constexpr( std::is_same_v<return_t,awaitable<void>> )
-			impl::reg_init(await_func1_t(std::forward<Func>(func)), static_cast<level_t>(level));
-	}
+auto modules::do_init
+(int argc, const char **argv, concepts::sched auto &&exec, concepts::callable auto &&callback)
+{
+	using Exec = decltype(exec);
+	using Func = decltype(callback);
+	return do_init(argc, argv,
+	[exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(callback)] {
+		libgs::dispatch(exec, std::move(func));
+	});
+}
+
+auto modules::do_init
+(const string_vector &args, concepts::sched auto &&exec, concepts::callable auto &&callback)
+{
+	using Exec = decltype(exec);
+	using Func = decltype(callback);
+	return do_init(args,
+	[exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(callback)] {
+		libgs::dispatch(exec, std::move(func));
+	});
+}
+
+auto modules::do_init
+(concepts::sched auto &&exec, concepts::callable auto &&callback)
+{
+	using Exec = decltype(exec);
+	using Func = decltype(callback);
+	return do_init(
+	[exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(callback)] {
+		libgs::dispatch(exec, std::move(func));
+	});
 }
 
 } //namespace libgs
