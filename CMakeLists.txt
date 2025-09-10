@@ -47,5 +47,8 @@ if (LIBGS_BUILD_EXAMPLES)
 endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES libgs.h)
-install(DIRECTORY libgs/ DESTINATION include/libgs/ FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 install(FILES libgs.h DESTINATION include/)
+
+install(DIRECTORY libgs/ DESTINATION include/libgs/
+	FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)

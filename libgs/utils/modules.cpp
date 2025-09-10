@@ -28,7 +28,7 @@ class LIBGS_DECL_HIDDEN initializer
 		std::atomic_bool success {true};
 
 		using ptr_t = std::shared_ptr<node_t>;
-		std::unordered_map<std::string,ptr_t> children;
+		std::unordered_map<std::string,ptr_t> children {};
 	};
 	using node_ptr = node_t::ptr_t;
 	using dsd_t = std::unordered_map<std::string,node_ptr>;
@@ -244,8 +244,8 @@ private:
 				{
 					if( success )
 					{
-						libgs_utils_log_info (
-							"utils::modules: <{}> initializing ...", name
+						libgs_utils_clog_info("LibGS.Utils",
+							"modules: <{}> initializing ...", name
 						);
 						if( node->init.index() == func0_e )
 							success = std::get<detail::modules::func0_t>(std::move(node->init))();
@@ -259,22 +259,22 @@ private:
 
 						if( success )
 						{
-							libgs_utils_log_info (
-								"utils::modules: <{}> ok.", name
+							libgs_utils_clog_info("LibGS.Utils",
+								"modules: <{}> ok.", name
 							);
 						}
 						else
 						{
-							libgs_utils_log_error (
-								"utils::modules: <{}> failed.", name
+							libgs_utils_clog_error("LibGS.Utils",
+								"modules: <{}> failed.", name
 							);
 							unexpected.failures.emplace_back(name);
 						}
 					}
 					else
 					{
-						libgs_utils_log_warning (
-							"utils::modules: <{}> cannot be initialized "
+						libgs_utils_clog_warning("LibGS.Utils",
+							"modules: <{}> cannot be initialized "
 							"because the parent module failed to initialize.",
 							name
 						);
@@ -286,8 +286,8 @@ private:
 				}
 				else if( std::get<state_t>(std::move(node->init)) == state_t::not_register )
 				{
-					libgs_utils_log_error (
-						"utils::modules: <{}> is not registered.", name
+					libgs_utils_log_error("LibGS.Utils",
+						"modules: <{}> is not registered.", name
 					);
 					unexpected.unregistered.emplace_back(name);
 					success = false;
@@ -318,7 +318,7 @@ private:
 	{
 		for(auto it=dsd->begin(); it!=dsd->end(); ++it)
 		{
-			if( (*it).first == name )
+			if( it->first == name )
 				return { dsd, it };
 
 			if( auto [_dsd, _it] = do_find_node(&it->second->children, name);
@@ -328,7 +328,7 @@ private:
 		return { dsd, dsd->end() };
 	}
 
-	[[nodiscard]] node_ptr make_node(func_obj_t init) noexcept
+	[[nodiscard]] static node_ptr make_node(func_obj_t init) noexcept
 	{
 		auto n = std::make_shared<node_t>();
 		n->init = std::move(init);
@@ -346,7 +346,8 @@ private:
 		return path;
 	}
 
-	bool do_detect_cycle(const dsd_t &dsd, std::unordered_set<std::string> &visited, std::vector<std::string> &path)
+	static bool do_detect_cycle
+	(const dsd_t &dsd, std::unordered_set<std::string> &visited, std::vector<std::string> &path)
 	{
 		for(auto &[child_name, child_node] : dsd)
 		{
@@ -386,14 +387,14 @@ public:
 							const std::string &prefix,
 							bool is_last)
 	{
-		if( current_path.find(node) != current_path.end() )
+		if( current_path.contains(node) )
 		{
 			buffer += std::format("{}{}{} (Circular)\n",
 				prefix, is_last ? "└─" : "├─", name
 			);
 			return ;
 		}
-		bool is_already_expanded = fully_expanded.find(node) != fully_expanded.end();
+		bool is_already_expanded = fully_expanded.contains(node);
 		std::string reg_state;
 
 		if( node->init.index() == func_state )
@@ -412,9 +413,7 @@ public:
 		current_path.emplace(node);
 
 		auto child_prefix = prefix + (is_last ? "  " : "│ ");
-		auto &children = node->children;
-
-		if( not children.empty() )
+		if( auto &children = node->children; not children.empty() )
 		{
 			auto it = children.begin();
 			for(; std::next(it)!=children.end(); ++it)

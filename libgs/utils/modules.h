@@ -30,6 +30,7 @@
 #define LIBGS_UTILS_MODULES_H
 
 #include <libgs/core/string_vector.h>
+#include <libgs/core/string_set.h>
 #include <libgs/utils/global.h>
 
 namespace libgs::utils
@@ -42,8 +43,8 @@ class LIBGS_UTILS_API modules
 public:
 	struct dependency
 	{
-		string_vector before;
-		string_vector after;
+		string_set before {};
+		string_set after {};
 	};
 	template <typename Func>
 	static constexpr bool init_func_v =
