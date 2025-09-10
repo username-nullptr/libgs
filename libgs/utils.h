@@ -30,6 +30,7 @@
 #define LIBGS_UTILS_H
 
 #include <libgs/utils/logger.h>
+#include <libgs/utils/modules.h>
 #include <libgs/utils/settings.h>
 
 #endif //LIBGS_UTILS_H

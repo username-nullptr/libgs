@@ -1,10 +1,10 @@
 #include <spdlog/spdlog.h>
-#include <libgs/core/modules.h>
+#include <libgs/utils/modules.h>
 #include <libgs/coro.h>
 
 using namespace std::chrono_literals;
 
-LIBGS_MODULE_INIT("hello.world.await", []
+LIBGS_UTILS_MODULE_INIT("hello.world.await", []
 {
 	libgs::dispatch([]() -> libgs::awaitable<void>
 	{

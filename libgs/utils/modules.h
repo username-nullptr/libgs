@@ -26,39 +26,16 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_MODULES_H
-#define LIBGS_CORE_MODULES_H
+#ifndef LIBGS_UTILS_MODULES_H
+#define LIBGS_UTILS_MODULES_H
 
 #include <libgs/core/string_vector.h>
+#include <libgs/utils/global.h>
 
-namespace libgs { namespace concepts
+namespace libgs::utils
 {
 
-template <typename Func>
-concept modules_init_func0 = requires(Func func) {
-	requires not is_awaitable_v<decltype(func())>;
-};
-
-template <typename Func>
-concept modules_init_func1 = requires(Func func, string_vector args) {
-	requires not is_awaitable_v<decltype(func(args))>;
-};
-
-template <typename Func>
-concept modules_init_func =
-	modules_init_func0<Func> or
-	modules_init_func1<Func>;
-
-template <typename Token>
-concept modules_init_token =
-	std::is_same_v<std::remove_cvref_t<Token>, use_sync_t> or
-	std::is_same_v<std::remove_cvref_t<Token>, use_future_t> or
-	std::is_same_v<std::remove_cvref_t<Token>, detached_t> or
-	callable<Token>;
-
-} //namespace concepts
-
-class LIBGS_CORE_API modules
+class LIBGS_UTILS_API modules
 {
 	LIBGS_DISABLE_COPY_MOVE(modules)
 
@@ -68,44 +45,76 @@ public:
 		string_vector before;
 		string_vector after;
 	};
-	static void reg_init(std::string name, dependency depy,
-		concepts::modules_init_func auto &&func
-	);
-	static void reg_init(std::string name,
-		concepts::modules_init_func auto &&func
-	);
+	template <typename Func>
+	static constexpr bool init_func_v =
+		concepts::callable_ret<Func,bool> or concepts::callable_ret<Func,bool,string_vector> or
+		concepts::callable_void<Func> or concepts::callable_void<Func,string_vector>;
+
+	template <typename Func>
+	static void reg_init(std::string name, dependency depy, Func &&func)
+		requires init_func_v<Func>;
+
+	template <typename Func>
+	static void reg_init(std::string name, Func &&func)
+		requires init_func_v<Func>;
 
 public:
-	template <concepts::modules_init_token Token = use_sync_t>
-	[[nodiscard]] static auto do_init(int argc, const char **argv, Token &&token = {});
+	struct unexpected
+	{
+		std::vector<std::string> failures;
+		std::vector<std::string> unregistered;
+		std::vector<std::string> children;
+	};
 
-	template <concepts::modules_init_token Token = use_sync_t>
-	[[nodiscard]] static auto do_init(const string_vector &args, Token &&token = {});
+	template <typename Func>
+	static constexpr bool init_callable_v =
+		concepts::callable<Func,unexpected> or concepts::callable<Func>;
 
-	template <concepts::modules_init_token Token = use_sync_t>
-	[[nodiscard]] static auto do_init(Token &&token = {});
+	template <typename Token>
+	static constexpr bool init_token_v =
+		std::is_same_v<std::remove_cvref_t<Token>, use_sync_t> or
+		std::is_same_v<std::remove_cvref_t<Token>, use_future_t> or
+		std::is_same_v<std::remove_cvref_t<Token>, detached_t> or
+		init_callable_v<Token>;
 
-	[[nodiscard]] static auto do_init(int argc, const char **argv,
-		concepts::sched auto &&exec, concepts::callable auto &&callback
-	);
-	[[nodiscard]] static auto do_init(const string_vector &args,
-		concepts::sched auto &&exec, concepts::callable auto &&callback
-	);
-	[[nodiscard]] static auto do_init (
-		concepts::sched auto &&exec, concepts::callable auto &&callback
-	);
+	template <typename Token = use_sync_t>
+	static auto do_init(int argc, const char **argv, Token &&token = {})
+		requires init_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	static auto do_init(const string_vector &args, Token &&token = {})
+		requires init_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	static auto do_init(Token &&token = {})
+		requires init_token_v<Token>;
+
+	template <typename Func>
+	static auto do_init(int argc, const char **argv,
+		concepts::sched auto &&exec, Func &&callback
+	) requires init_callable_v<Func>;
+
+	template <typename Func>
+	static auto do_init(const string_vector &args,
+		concepts::sched auto &&exec, Func &&callback
+	) requires init_callable_v<Func>;
+
+	template <typename Func>
+	static auto do_init (
+		concepts::sched auto &&exec, Func &&callback
+	) requires init_callable_v<Func>;
 
 public:
 	[[nodiscard]] static std::string sprint() noexcept;
 };
 
-#define LIBGS_MODULE_INIT(_name, ...) \
+#define LIBGS_UTILS_MODULE_INIT(_name, ...) \
 	LIBGS_REGISTRATION { \
-		libgs::modules::reg_init(_name, __VA_ARGS__); \
+		libgs::utils::modules::reg_init(_name, __VA_ARGS__); \
 	}
 
-} //namespace libgs
-#include <libgs/core/detail/modules.h>
+} //namespace libgs::utils
+#include <libgs/utils/detail/modules.h>
 
 
-#endif //LIBGS_CORE_MODULES_H
+#endif //LIBGS_UTILS_MODULES_H

@@ -1,10 +1,9 @@
-#include <libgs/core/modules.h>
-#include <libgs/core/execution.h>
+#include <libgs/utils/modules.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
 
-LIBGS_MODULE_INIT("module.3", []
+LIBGS_UTILS_MODULE_INIT("module.3", []
 {
 	spdlog::info("module 1 future 0 start initialization ...");
 

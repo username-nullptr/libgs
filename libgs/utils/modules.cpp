@@ -1,17 +1,20 @@
 #include "modules.h"
+#include "logger.h"
+
 #include <unordered_map>
 #include <unordered_set>
-#include <iostream>
 
-namespace libgs
+namespace libgs::utils
 {
 
 enum variant_type {
-	func0_e, func1_e, func_state
+	func0_e, func1_e, func2_e, func3_e, func_state
 };
 using state_t = detail::modules::state;
 using func_obj_t = detail::modules::func_obj_t;
+
 using dependency_t = modules::dependency;
+using unexpected_t = modules::unexpected;
 
 class LIBGS_DECL_HIDDEN initializer
 {
@@ -22,6 +25,7 @@ class LIBGS_DECL_HIDDEN initializer
 	{
 		func_obj_t init;
 		std::atomic_size_t counter {0};
+		std::atomic_bool success {true};
 
 		using ptr_t = std::shared_ptr<node_t>;
 		std::unordered_map<std::string,ptr_t> children;
@@ -56,8 +60,12 @@ public:
 		{
 			if( func.index() == func0_e )
 				return std::get<detail::modules::func0_t>(func) != nullptr;
-			// else if( func.index() == func1_e )
-			return std::get<detail::modules::func1_t>(func) != nullptr;
+			else if( func.index() == func1_e )
+				return std::get<detail::modules::func1_t>(func) != nullptr;
+			else if( func.index() == func2_e )
+				return std::get<detail::modules::func2_t>(func) != nullptr;
+			// else if( func.index() == func3_e )
+			return std::get<detail::modules::func3_t>(func) != nullptr;
 		}();
 		if( not res )
 		{
@@ -69,7 +77,7 @@ public:
 		m_names.emplace(std::move(name));
 	}
 
-	void operator()(string_vector args, std::function<void()> callback)
+	void operator()(string_vector args, std::function<void(unexpected_t)> callback)
 	{
 		auto cycle = detect_cycle();
 		if( not cycle.empty() )
@@ -202,12 +210,12 @@ private:
 	}
 
 private:
-	void init(string_vector args, std::function<void()> callback)
+	void init(string_vector args, std::function<void(unexpected_t)> callback)
 	{
-		bool sync = not callback;
-		std::thread thread([this, args = std::move(args), callback = std::move(callback)]() mutable
+		std::thread([this, args = std::move(args), callback = std::move(callback)]
 		{
-			do_init(m_dsd, args);
+			unexpected_t unexpected;
+			do_init(m_dsd, true, args, unexpected);
 
 			std::mutex mutex;
 			std::unique_lock locker(mutex);
@@ -216,53 +224,88 @@ private:
 				return m_counter == 0;
 			});
 			if( callback )
-				callback();
-		});
-		if( sync )
-			thread.join();
-		else
-			thread.detach();
+				callback(std::move(unexpected));
+		})
+		.detach();
 	}
 
-	void do_init(const dsd_t &nodes, const string_vector &args)
+	void do_init(const dsd_t &nodes, bool success, const string_vector &args, unexpected_t &unexpected)
 	{
 		for(auto &[name, node] : nodes)
 		{
+			if( node->success )
+				node->success = success;
 			if( --node->counter > 0 )
 				continue;
 
-			std::thread([this, name, node, &args]() mutable
+			std::thread([this, name, node, success = node->success.load(), &args, &unexpected]() mutable
 			{
-				if( node->init.index() == func0_e or node->init.index() == func1_e )
+				if( node->init.index() != func_state )
 				{
-					if( node->init.index() == func0_e )
-						std::get<detail::modules::func0_t>(std::move(node->init))();
-					else if( node->init.index() == func1_e )
-						std::get<detail::modules::func1_t>(std::move(node->init))(args);
+					if( success )
+					{
+						libgs_utils_log_info (
+							"utils::modules: <{}> initializing ...", name
+						);
+						if( node->init.index() == func0_e )
+							success = std::get<detail::modules::func0_t>(std::move(node->init))();
+						else if( node->init.index() == func1_e )
+							success = std::get<detail::modules::func1_t>(std::move(node->init))(args);
 
-					node->init = detail::modules::state::finished;
-					if( --m_counter == 0 )
-					{
-						m_condition.notify_all();
-						return ;
+						else if( node->init.index() == func2_e )
+							std::get<detail::modules::func2_t>(std::move(node->init))();
+						else if( node->init.index() == func3_e )
+							std::get<detail::modules::func3_t>(std::move(node->init))(args);
+
+						if( success )
+						{
+							libgs_utils_log_info (
+								"utils::modules: <{}> ok.", name
+							);
+						}
+						else
+						{
+							libgs_utils_log_error (
+								"utils::modules: <{}> failed.", name
+							);
+							unexpected.failures.emplace_back(name);
+						}
 					}
-				}
-				else /* if( node->init.index() == func_state ) */
-				{
-					if( std::get<state_t>(std::move(node->init)) == state_t::not_register )
+					else
 					{
-						auto text = std::format(
-							"libgs::modules::reg_init: Module '{}' is not registered.",
+						libgs_utils_log_warning (
+							"utils::modules: <{}> cannot be initialized "
+							"because the parent module failed to initialize.",
 							name
 						);
-						std::cerr << text << std::endl;
-						throw runtime_error(text);
+						unexpected.children.emplace_back(name);
 					}
+					node->init = detail::modules::state::finished;
+					if( try_notify() )
+						return ;
 				}
-				do_init(std::move(node->children), args);
+				else if( std::get<state_t>(std::move(node->init)) == state_t::not_register )
+				{
+					libgs_utils_log_error (
+						"utils::modules: <{}> is not registered.", name
+					);
+					unexpected.unregistered.emplace_back(name);
+					success = false;
+				}
+				do_init(std::move(node->children), success, args, unexpected);
 			})
 			.detach();
 		}
+	}
+
+	[[nodiscard]] bool try_notify() noexcept
+	{
+		if( --m_counter == 0 )
+		{
+			m_condition.notify_all();
+			return true;
+		}
+		return false;
 	}
 
 private:
@@ -404,7 +447,7 @@ void modules::reg_init(std::string name, dependency_t depy, func_obj_t func)
 	initializer::instance().join(std::move(name), std::move(depy), std::move(func));
 }
 
-void modules::do_init(const string_vector &args, std::function<void()> callback)
+void modules::do_init(const string_vector &args, std::function<void(unexpected_t)> callback)
 {
 	initializer::instance()(args, std::move(callback));
 }
@@ -416,4 +459,4 @@ std::string modules::sprint() noexcept
 	return initializer::instance().sprint_dsd();
 }
 
-} //namespace libgs
+} //namespace libgs::utils

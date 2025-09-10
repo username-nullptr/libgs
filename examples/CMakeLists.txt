@@ -69,7 +69,6 @@ set(sources
 	core/library.cpp
 )
 set_target(gs.core ${sources})
-add_subdirectory(core/modules)
 
 set(sources
 	coro/coroutine.cpp
@@ -98,3 +97,4 @@ set(sources
 	utils/settings.cpp
 )
 set_target(gs.utils ${sources})
+add_subdirectory(utils/modules)
