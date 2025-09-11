@@ -221,7 +221,7 @@ void basic_session_pool<Stream,Exec>::operator<<(socket_t &&socket)
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-typename basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get_executor() noexcept
+basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get_executor() noexcept
 {
 	return m_impl->m_exec;
 }

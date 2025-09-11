@@ -43,8 +43,8 @@ public:
 	using socket_t = Stream;
     using opt_helper_t = socket_operation_helper<socket_t>;
 
-	using executor_t = typename opt_helper_t::executor_t;
-	using endpoint_t = typename opt_helper_t::endpoint_t;
+	using executor_t = opt_helper_t::executor_t;
+	using endpoint_t = opt_helper_t::endpoint_t;
 
 public:
   	template <typename Func>

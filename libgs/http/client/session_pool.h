@@ -43,10 +43,10 @@ class LIBGS_HTTP_TAPI basic_session_pool
 public:
 	using socket_t = Stream;
 	using session_t = basic_socket_session<socket_t>;
-	using socket_executor_t = typename socket_t::executor_type;
+	using socket_executor_t = socket_t::executor_type;
 
 	using executor_t = Exec;
-	using endpoint_t = typename session_t::endpoint_t;
+	using endpoint_t = session_t::endpoint_t;
 
 public:
 	explicit basic_session_pool(const core_concepts::match_exec<executor_t> auto &exec);

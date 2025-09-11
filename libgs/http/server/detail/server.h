@@ -48,7 +48,7 @@ public:
 	}
 
 	template <typename Stream0, typename Exec0>
-	impl(typename basic_server<Stream0,Exec0>::impl &&other) noexcept :
+	impl(basic_server<Stream0,Exec0>::impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)),
 		m_service_exec(other.m_service_exec),
 		m_request_handler_map(std::move(other.m_request_handler_map)),
@@ -79,7 +79,7 @@ public:
 	}
 
 	template <typename Stream0, typename Exec0>
-	impl &operator=(typename basic_server<Stream0,Exec0>::impl &&other) noexcept
+	impl &operator=(basic_server<Stream0,Exec0>::impl &&other) noexcept
 	{
 		m_next_layer = std::move(other.m_next_layer);
 		m_service_exec = other.m_service_exec;

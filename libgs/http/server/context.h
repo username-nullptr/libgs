@@ -48,7 +48,7 @@ public:
 	using response_t = basic_response<stream_t>;
 
 	using session_t = http::session;
-	using executor_t = typename stream_t::executor_type;
+	using executor_t = stream_t::executor_type;
 
 public:
 	basic_service_context(stream_t &&stream, parser_t &parser, session_set &sss);

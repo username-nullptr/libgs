@@ -308,14 +308,14 @@ basic_client_request<Method,SessionPool,Version>::set_arg(request_arg_t arg)
 }
 
 template <protocol::method_enum Method, concepts::session_pool SessionPool, protocol::version_enum Version>
-const typename basic_client_request<Method,SessionPool,Version>::request_arg_t&
+const basic_client_request<Method,SessionPool,Version>::request_arg_t&
 basic_client_request<Method,SessionPool,Version>::arg() const noexcept
 {
 	return m_impl->arg();
 }
 
 template <protocol::method_enum Method, concepts::session_pool SessionPool, protocol::version_enum Version>
-typename basic_client_request<Method,SessionPool,Version>::request_arg_t&
+basic_client_request<Method,SessionPool,Version>::request_arg_t&
 basic_client_request<Method,SessionPool,Version>::arg() noexcept
 {
 	return m_impl->arg();
@@ -357,21 +357,21 @@ consteval version_t basic_client_request<Method,SessionPool,Version>::version() 
 }
 
 template <protocol::method_enum Method, concepts::session_pool SessionPool, protocol::version_enum Version>
-const typename basic_client_request<Method,SessionPool,Version>::session_pool_t&
+const basic_client_request<Method,SessionPool,Version>::session_pool_t&
 basic_client_request<Method,SessionPool,Version>::session_pool() const noexcept
 {
 	return m_impl->m_pool;
 }
 
 template <protocol::method_enum Method, concepts::session_pool SessionPool, protocol::version_enum Version>
-typename basic_client_request<Method,SessionPool,Version>::session_pool_t&
+basic_client_request<Method,SessionPool,Version>::session_pool_t&
 basic_client_request<Method,SessionPool,Version>::session_pool() noexcept
 {
 	return m_impl->m_pool;
 }
 
 template <protocol::method_enum Method, concepts::session_pool SessionPool, protocol::version_enum Version>
-typename basic_client_request<Method,SessionPool,Version>::executor_t
+basic_client_request<Method,SessionPool,Version>::executor_t
 basic_client_request<Method,SessionPool,Version>::get_executor() noexcept
 {
 	return m_impl->m_pool.get_executor();

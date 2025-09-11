@@ -42,11 +42,11 @@ class LIBGS_HTTP_VAPI basic_response
 
 public:
 	using next_layer_t = basic_server_request<Stream>;
-	using executor_t = typename next_layer_t::executor_t;
+	using executor_t = next_layer_t::executor_t;
 
 	using helper_t = protocol::server_generator;
-	using value_t = typename next_layer_t::value_t;
-	using headers_t = typename next_layer_t::headers_t;
+	using value_t = next_layer_t::value_t;
+	using headers_t = next_layer_t::headers_t;
 
 	using cookie_t = protocol::cookie;
 	using cookies_t = protocol::cookies;

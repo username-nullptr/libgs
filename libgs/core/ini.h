@@ -51,7 +51,7 @@ public:
 	using map_t = Map<string_t,value_t,MapArgs...>;
 
 	template <typename...Args>
-	using format_string = typename value_t::template format_string<Args...>;
+	using format_string = value_t::template format_string<Args...>;
 
 public:
 	basic_ini_keys() = default;
@@ -77,10 +77,10 @@ public:
 	) noexcept;
 
 public:
-	using iterator = typename map_t::iterator;
-	using const_iterator = typename map_t::const_iterator;
-	using reverse_iterator = typename map_t::reverse_iterator;
-	using const_reverse_iterator = typename map_t::const_reverse_iterator;
+	using iterator = map_t::iterator;
+	using const_iterator = map_t::const_iterator;
+	using reverse_iterator = map_t::reverse_iterator;
+	using const_reverse_iterator = map_t::const_reverse_iterator;
 
 public:
 	[[nodiscard]] iterator begin() noexcept;
@@ -134,7 +134,7 @@ public:
 	using path_t = std::filesystem::path;
 	using value_t = basic_value<char_t>;
 
-	using unit_data_t = typename ini_keys_t::map_t;
+	using unit_data_t = ini_keys_t::map_t;
 	using data_t = map_temp<string_t,unit_data_t>;
 
 	struct group_key
@@ -235,10 +235,10 @@ public:
 #endif //LIBGS_CPLUSPLUS
 
 public:
-	using iterator = typename group_map_t::iterator;
-	using const_iterator = typename group_map_t::const_iterator;
-	using reverse_iterator = typename group_map_t::reverse_iterator;
-	using const_reverse_iterator = typename group_map_t::const_reverse_iterator;
+	using iterator = group_map_t::iterator;
+	using const_iterator = group_map_t::const_iterator;
+	using reverse_iterator = group_map_t::reverse_iterator;
+	using const_reverse_iterator = group_map_t::const_reverse_iterator;
 
 public:
 	[[nodiscard]] iterator begin() noexcept;

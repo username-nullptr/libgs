@@ -47,8 +47,8 @@ public:
 	using session_pool_t = SessionPool;
 	using string_view_t = std::basic_string_view<char_t>;
 
-	using socket_t = typename session_pool_t::socket_t;
-	using executor_t = typename session_pool_t::executor_t;
+	using socket_t = session_pool_t::socket_t;
+	using executor_t = session_pool_t::executor_t;
 
 	static constexpr auto version_v = Version;
 

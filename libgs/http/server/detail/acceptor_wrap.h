@@ -42,13 +42,13 @@ acceptor_wrap<Exec>::acceptor_wrap(acceptor_t &&acceptor) :
 }
 
 template <core_concepts::exec Exec>
-const typename acceptor_wrap<Exec>::acceptor_t &acceptor_wrap<Exec>::acceptor() const
+const acceptor_wrap<Exec>::acceptor_t &acceptor_wrap<Exec>::acceptor() const
 {
 	return m_acceptor;
 }
 
 template <core_concepts::exec Exec>
-typename acceptor_wrap<Exec>::acceptor_t &acceptor_wrap<Exec>::acceptor()
+acceptor_wrap<Exec>::acceptor_t &acceptor_wrap<Exec>::acceptor()
 {
 	return m_acceptor;
 }

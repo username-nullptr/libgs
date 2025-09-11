@@ -44,8 +44,8 @@ class LIBGS_HTTP_TAPI socket_operation_helper_base
 
 public:
 	using socket_t = Stream;
-	using executor_t = typename socket_t::executor_type;
-	using endpoint_t = typename socket_t::endpoint_type;
+	using executor_t = socket_t::executor_type;
+	using endpoint_t = socket_t::endpoint_type;
 
 public:
 	socket_operation_helper_base(socket_t &socket);
@@ -80,9 +80,9 @@ public:
 	>;
 	using base_t::base_t;
 
-	using socket_t = typename base_t::socket_t;
-	using executor_t = typename base_t::executor_t;
-	using endpoint_t = typename base_t::endpoint_t;
+	using socket_t = base_t::socket_t;
+	using executor_t = base_t::executor_t;
+	using endpoint_t = base_t::endpoint_t;
 
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
@@ -118,9 +118,9 @@ public:
 	>;
 	using base_t::base_t;
 
-	using socket_t = typename base_t::socket_t;
-	using executor_t = typename base_t::executor_t;
-	using endpoint_t = typename base_t::endpoint_t;
+	using socket_t = base_t::socket_t;
+	using executor_t = base_t::executor_t;
+	using endpoint_t = base_t::endpoint_t;
 
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>

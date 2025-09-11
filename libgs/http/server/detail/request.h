@@ -46,7 +46,7 @@ public:
 		m_next_layer(std::forward<Native>(next_layer)), m_parser(&parser) {}
 
 	template <typename Stream0>
-	impl(typename basic_server_request<Stream0>::impl &&other) noexcept :
+	impl(basic_server_request<Stream0>::impl &&other) noexcept :
 		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
 
 	impl(impl &&other) noexcept :
@@ -195,7 +195,7 @@ public:
 		constexpr size_t tcp_buf_size = 0xFFFF;
 		char buf[tcp_buf_size] {0};
 
-		using pos_t = typename Opt::pos_t;
+		using pos_t = Opt::pos_t;
 		if( token.range->total == 0 )
 		{
 			while( can_read_body() )

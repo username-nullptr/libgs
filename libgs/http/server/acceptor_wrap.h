@@ -78,8 +78,8 @@ class LIBGS_HTTP_TAPI basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tc
 
 public:
 	using base_t = detail::acceptor_wrap<Exec>;
-	using executor_t = typename base_t::executor_t;
-	using acceptor_t = typename base_t::acceptor_t;
+	using executor_t = base_t::executor_t;
+	using acceptor_t = base_t::acceptor_t;
 
 	template <typename Exec0>
 	using basic_socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec0>;
@@ -112,8 +112,8 @@ class LIBGS_HTTP_TAPI basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_s
 
 public:
 	using base_t = detail::acceptor_wrap<Exec>;
-	using executor_t = typename base_t::executor_t;
-	using acceptor_t = typename base_t::acceptor_t;
+	using executor_t = base_t::executor_t;
+	using acceptor_t = base_t::acceptor_t;
 
 	template <typename Exec0>
 	using basic_socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec0>>;

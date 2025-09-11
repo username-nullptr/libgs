@@ -32,7 +32,6 @@
 #include <libgs/http/protocol/utils/server/parser.h>
 #include <libgs/http/utils/socket_operation_helper.h>
 #include <libgs/http/utils/request_template.h>
-#include <libgs/http/utils/io_task.h>
 
 namespace libgs::http
 {
@@ -47,8 +46,8 @@ class LIBGS_HTTP_TAPI basic_request<protocol::model::server,Stream>
 
 public:
 	using next_layer_t = Stream;
-	using executor_t = typename next_layer_t::executor_type;
-	using endpoint_t = typename socket_operation_helper<next_layer_t>::endpoint_t;
+	using executor_t = next_layer_t::executor_type;
+	using endpoint_t = socket_operation_helper<next_layer_t>::endpoint_t;
 
 	using parser_t = protocol::server_parser;
 	using value_t = parser_t::value_t;

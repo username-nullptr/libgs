@@ -43,7 +43,7 @@ class LIBGS_HTTP_TAPI basic_reply
 
 public:
 	using session_t = Session;
-	using executor_t = typename session_t::executor_t;
+	using executor_t = session_t::executor_t;
 
 	using request_arg_t = protocol::request_arg;
 	using url_t = request_arg_t::url_t;

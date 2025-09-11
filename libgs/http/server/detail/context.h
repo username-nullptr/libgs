@@ -42,14 +42,14 @@ public:
 		m_response(request_t(std::move(stream), parser)), m_sss(&sss) {}
 
 	template<typename Stream0>
-	impl(typename basic_service_context<Stream0>::impl &&other) noexcept :
+	impl(basic_service_context<Stream0>::impl &&other) noexcept :
 		m_response(std::move(other)), m_sss(other.m_sss) {}
 
 	impl(impl &&other) noexcept :
 		m_response(std::move(other)), m_sss(other.m_sss) {}
 
 	template<typename Stream0>
-	impl &operator=(typename basic_service_context<Stream0>::impl &&other) noexcept
+	impl &operator=(basic_service_context<Stream0>::impl &&other) noexcept
 	{
 		m_response = std::move(other);
 		m_sss = other.m_sss;

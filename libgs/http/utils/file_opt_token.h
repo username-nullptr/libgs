@@ -93,7 +93,7 @@ struct LIBGS_HTTP_TAPI file_opt_token_base
 {
 	using path_t = std::filesystem::path;
 	using fstream_t = std::remove_cvref_t<FS>;
-	using pos_t = typename fstream_t::pos_type;
+	using pos_t = fstream_t::pos_type;
 
 	static constexpr auto permissions = io_permissions_v<fstream_t>;
 	static constexpr auto optype = file_optype::single;
@@ -126,7 +126,7 @@ template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token_base<FS&&>
 {
 	using type = FS&&;
-	using fstream_t = typename file_opt_token_base<type>::fstream_t;
+	using fstream_t = file_opt_token_base<type>::fstream_t;
 	std::shared_ptr<fstream_t> stream;
 	optional<file_range> range;
 
@@ -146,7 +146,7 @@ template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::single> : file_opt_token_base<FS&>
 {
 	using type = FS&;
-	using fstream_t = typename file_opt_token_base<type>::fstream_t;
+	using fstream_t = file_opt_token_base<type>::fstream_t;
 	fstream_t *stream = nullptr;
 	optional<file_range> range;
 
@@ -190,7 +190,7 @@ template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_token_base<FS&&>
 {
 	using type = FS&&;
-	using fstream_t = typename file_opt_token_base<type>::fstream_t;
+	using fstream_t = file_opt_token_base<type>::fstream_t;
 	std::shared_ptr<fstream_t> stream;
 	file_ranges ranges;
 
@@ -216,7 +216,7 @@ template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_token_base<FS&>
 {
 	using type = FS&;
-	using fstream_t = typename file_opt_token_base<type>::fstream_t;
+	using fstream_t = file_opt_token_base<type>::fstream_t;
 	fstream_t *stream = nullptr;
 	file_ranges ranges;
 

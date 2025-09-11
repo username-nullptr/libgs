@@ -49,7 +49,7 @@ public:
 		m_next_layer(std::move(next_layer)) {}
 
 	template <typename Stream0>
-	impl &operator=(typename basic_response<Stream0>::impl &&other) noexcept
+	impl &operator=(basic_response<Stream0>::impl &&other) noexcept
 	{
 		m_helper = std::move(other.m_helper);
 		m_next_layer = std::move(other.m_next_layer);

@@ -107,21 +107,21 @@ consteval version_t basic_client<CharT,SessionPool,Version>::version() const noe
 }
 
 template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
-const typename basic_client<CharT,SessionPool,Version>::session_pool_t&
+const basic_client<CharT,SessionPool,Version>::session_pool_t&
 basic_client<CharT,SessionPool,Version>::session_pool() const noexcept
 {
 	return m_impl->m_session_pool;
 }
 
 template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
-typename basic_client<CharT,SessionPool,Version>::session_pool_t&
+basic_client<CharT,SessionPool,Version>::session_pool_t&
 basic_client<CharT,SessionPool,Version>::session_pool() noexcept
 {
 	return m_impl->m_session_pool;
 }
 
 template <core_concepts::character CharT, concepts::session_pool SessionPool, version_t Version>
-typename basic_client<CharT,SessionPool,Version>::executor_t
+basic_client<CharT,SessionPool,Version>::executor_t
 basic_client<CharT,SessionPool,Version>::get_executor() noexcept
 {
 	return session_pool().get_executor();
