@@ -55,7 +55,7 @@ public:
 
 public:
 	template <concepts::match_sched<Exec> Exec0 = io_context_t&>
-	explicit basic_observer_base(Exec0 &&exec = io_context());
+	explicit basic_observer_base(uint64_t id, Exec0 &&exec = io_context());
 	virtual ~basic_observer_base();
 
 public:
@@ -68,7 +68,7 @@ public:
 		requires idx_valid_v<Idx>;
 
 	template <size_t Idx, typename...Args0>
-	static void trigger(Args0&&...args) requires
+	static void trigger(uint64_t id, Args0&&...args) requires
 		idx_valid_v<Idx> and concepts::callable<callback_t<Idx>,Args0...>;
 
 	[[nodiscard]] executor_t get_executor() noexcept;

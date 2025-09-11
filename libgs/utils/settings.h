@@ -70,8 +70,8 @@ public:
 	) noexcept;
 
 public:
-    class LIBGS_UTILS_API observer final : public observer_base<observer,
-		void(std::string_view,std::string_view,value), void(std::string_view)>
+    class LIBGS_UTILS_API observer final : public
+		observer_base<observer, void(std::string_view,value), void()>
 	{
     	LIBGS_DISABLE_COPY_MOVE(observer)
 

@@ -39,7 +39,7 @@ add_subdirectory(libgs)
 add_subdirectory(test)
 
 option(LIBGS_BUILD_EXAMPLES
-	"-- ${PRO_NAME}: Enable this to build the examples." ON
+	"-- ${PRO_NAME}: Enable this to build the examples." OFF
 )
 if (LIBGS_BUILD_EXAMPLES)
 	message(STATUS "${PRO_NAME}: Enable this to build the examples.")

@@ -58,18 +58,19 @@ class basic_observer_base<Derived,Exec,Funcs...>::impl
 
 public:
 	template <typename Exec0>
-	explicit impl(Exec0 &&exec) :
-		m_exec(get_executor_helper(std::forward<Exec0>(exec))) {}
+	impl(size_t id, Exec0 &&exec) :
+		m_exec(get_executor_helper(std::forward<Exec0>(exec))), m_id(id) {}
 
 public:
 	asio::any_io_executor m_exec {};
 	callbacks_t m_callbacks {};
+	uint64_t m_id = 0;
 };
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <concepts::match_sched<Exec> Exec0>
-basic_observer_base<Derived,Exec,Funcs...>::basic_observer_base(Exec0 &&exec) :
-	m_impl(new impl(std::forward<Exec0>(exec)))
+basic_observer_base<Derived,Exec,Funcs...>::basic_observer_base(uint64_t id, Exec0 &&exec) :
+	m_impl(new impl(id, std::forward<Exec0>(exec)))
 {
 	detail::observer::mutex().lock();
 	auto [it, inserted] = detail::observer::map()[typeid(derived_t).hash_code()]
@@ -110,7 +111,7 @@ basic_observer_base<Derived,Exec,Funcs...>::on_triggered(callback_t<Idx> func) r
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 template <size_t Idx, typename...Args0>
-void basic_observer_base<Derived,Exec,Funcs...>::trigger(Args0&&...args)
+void basic_observer_base<Derived,Exec,Funcs...>::trigger(uint64_t id, Args0&&...args)
 	requires idx_valid_v<Idx> and concepts::callable<callback_t<Idx>,Args0...>
 {
 	std::vector<std::function<void()>> functions;
@@ -121,7 +122,7 @@ void basic_observer_base<Derived,Exec,Funcs...>::trigger(Args0&&...args)
 		auto obj = static_cast<impl*>(ptr);
 		auto &funcs = std::get<Idx>(obj->m_callbacks);
 
-		if( funcs.empty() )
+		if( id != obj->m_id or funcs.empty() )
 			continue;
 
 		functions.emplace_back([exec = obj->m_exec, funcs, args...]() mutable

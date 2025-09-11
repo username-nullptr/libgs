@@ -173,7 +173,7 @@ struct awaitable_ret<asio::awaitable<T>> {
 };
 
 template <concepts::awaitable T>
-using awaitable_ret_t = typename awaitable_ret<T>::type;
+using awaitable_ret_t = awaitable_ret<T>::type;
 
 namespace concepts
 {

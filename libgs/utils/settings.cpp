@@ -140,7 +140,8 @@ public:
 };
 
 settings::observer::observer(std::string name, asio::any_io_executor exec) :
-	observer_base<observer, void(std::string_view,std::string_view,value), void(std::string_view)>(exec),
+	observer_base<observer, void(std::string_view,value), void()>
+	(std::hash<std::string>()(name), exec),
 	m_impl(new impl(std::move(name)))
 {
 
@@ -154,23 +155,12 @@ std::string_view settings::observer::name() const noexcept
 settings::observer::ptr_t settings::observer::on_changed
 (std::function<void(std::string_view,value)> func)
 {
-	on_triggered<0>([name = m_impl->m_name, func = std::move(func)]
-	(std::string_view _name, std::string_view path, const value &val)
-	{
-		if( _name == name )
-			func(path, val);
-	});
-	return shared_from_this();
+	return on_triggered<0>(std::move(func));
 }
 
 settings::observer::ptr_t settings::observer::on_loaded(std::function<void()> func)
 {
-	on_triggered<1>([name = m_impl->m_name, func = std::move(func)](std::string_view _name)
-	{
-		if( _name == name )
-			func();
-	});
-	return shared_from_this();
+	return on_triggered<1>(std::move(func));
 }
 
 std::string_view settings::name() const noexcept
