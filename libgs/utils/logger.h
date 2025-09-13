@@ -82,6 +82,7 @@ public:
  	struct config_t
 	{
 		std::filesystem::path path {};
+ 		bool line_break = false;
 
  		struct {
 			level_t console = level_t::info;

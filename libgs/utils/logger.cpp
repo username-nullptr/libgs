@@ -227,8 +227,9 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 		if( not logger )
 			continue;
 
-		logger->log(src_loc, conflevel(lv),
-			std::format("[{}]: \n{}\n", name(), strtls::trimmed(msg))
+		logger->log(src_loc, conflevel(lv), m_impl->m_config.line_break ?
+			std::format("[{}]: \n{}\n", name(), strtls::trimmed(msg)) :
+			std::format("[{}]: {}", name(), strtls::trimmed(msg))
 		);
 		logger->flush();
 	}
