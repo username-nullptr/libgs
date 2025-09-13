@@ -62,7 +62,7 @@ public:
 	auto write(const const_buffer &body, Token &&token)
 	{
 		using token_t = std::remove_cvref_t<Token>;
-		if constexpr( std::is_same_v<token_t, error_code> )
+		if constexpr( is_error_code_token_v<Token> )
 			return token ? 0 : base_write(body, token);
 
 		else if constexpr( is_sync_opt_token_v<token_t> )
@@ -79,7 +79,7 @@ public:
 			// TODO ... ...
 		}
 #endif //LIBGS_USING_BOOST_ASIO
-		else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+		else if constexpr( is_redirect_time_v<token_t> )
 		{
 			auto ntoken = unbound_redirect_time(token);
 			return asio::co_spawn(get_executor(),

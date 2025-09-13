@@ -62,7 +62,7 @@ struct remove_repeat<std::tuple<Args...>>
 			has_tof_args_v<FArgs, SaveArgs...>,
 			std::tuple<SaveArgs...>, std::tuple<FArgs, SaveArgs...>
 		>;
-		using type = typename remove_repeat_helper<std::tuple<RArgs...>, inn_type>::type;
+		using type = remove_repeat_helper<std::tuple<RArgs...>, inn_type>::type;
 	};
 
 	template<typename...SaveArgs>
@@ -70,7 +70,7 @@ struct remove_repeat<std::tuple<Args...>>
 		using type = std::tuple<SaveArgs...>;
 	};
 
-	using type = typename remove_repeat_helper<std::tuple<Args...>, std::tuple<>>::type;
+	using type = remove_repeat_helper<std::tuple<Args...>, std::tuple<>>::type;
 };
 
 template<typename...Args>

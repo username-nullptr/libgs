@@ -77,98 +77,98 @@ basic_value<CharT> &basic_ini_keys<CharT,Map,MapArgs...>::operator[]
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
+basic_ini_keys<CharT,Map,MapArgs...>::iterator
 basic_ini_keys<CharT,Map,MapArgs...>::begin() noexcept
 {
 	return m_keys.begin();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::cbegin() const noexcept
 {
 	return m_keys.cbegin();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::begin() const noexcept
 {
 	return m_keys.begin();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
+basic_ini_keys<CharT,Map,MapArgs...>::iterator
 basic_ini_keys<CharT,Map,MapArgs...>::end() noexcept
 {
 	return m_keys.end();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::cend() const noexcept
 {
 	return m_keys.cend();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::end() const noexcept
 {
 	return m_keys.end();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::reverse_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::rbegin() noexcept
 {
 	return m_keys.rbegin();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::crbegin() const noexcept
 {
 	return m_keys.crbegin();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::rbegin() const noexcept
 {
 	return m_keys.rbegin();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::reverse_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::rend() noexcept
 {
 	return m_keys.rend();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::crend() const noexcept
 {
 	return m_keys.crend();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_reverse_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::rend() const noexcept
 {
 	return m_keys.rend();
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::iterator
+basic_ini_keys<CharT,Map,MapArgs...>::iterator
 basic_ini_keys<CharT,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &key) noexcept
 {
 	return m_keys.find(detail::ini_replace<char_t>(key));
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
+basic_ini_keys<CharT,Map,MapArgs...>::const_iterator
 basic_ini_keys<CharT,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &key) const noexcept
 {
 	return m_keys.find(detail::ini_replace<char_t>(key));
@@ -275,10 +275,10 @@ public:
 
 public:
 	// It may be executed within the thread, so the const modifier provides protection.
-	[[nodiscard]] data_t load(error_code &error, const std::function<bool()> &cancelled) const
+	[[nodiscard]] data_t load(auto &error, const std::function<bool()> &cancelled) const
 	{
 		data_t data;
-		error = error_code();
+		error = std::error_code();
 		if( not exists(m_file_name) )
 		{
 			error = std::make_error_code(std::errc::no_such_file_or_directory);
@@ -941,7 +941,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 	std::function<bool()> cancelled = []{
 		return false;
 	};
-	if constexpr( std::is_same_v<Token,error_code&> )
+	if constexpr( is_error_code_token_v<Token> )
 		set_data(m_impl->load(token, std::move(cancelled)));
 
 	else if constexpr( is_sync_opt_token_v<Token> )

@@ -966,7 +966,7 @@ template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_response<Stream>::write(const const_buffer &body, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 		return token ? 0 : m_impl->write(body, token);
 
 	else if constexpr( is_sync_opt_token_v<token_t> )
@@ -983,7 +983,7 @@ auto basic_response<Stream>::write(const const_buffer &body, Token &&token)
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+	else if constexpr( is_redirect_time_v<token_t> )
 	{
 		auto ntoken = unbound_redirect_time(token);
 		return asio::co_spawn(get_executor(),
@@ -1030,7 +1030,7 @@ auto basic_response<Stream>::redirect
 (core_concepts::text_p<char> auto &&url, protocol::redirect_enum redi, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		if( not token )
 		{
@@ -1055,7 +1055,7 @@ auto basic_response<Stream>::redirect
 	else
 	{
 		m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
-		if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+		if constexpr( is_redirect_time_v<token_t> )
 		{
 			auto ntoken = unbound_redirect_time(token);
 			return asio::co_spawn(get_executor(),
@@ -1111,7 +1111,7 @@ auto basic_response<Stream>::send_file(T &&opt, Token &&token)
 	using opt_t = decltype(opt);
 	using token_t = std::remove_cvref_t<Token>;
 
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 		return token ? 0 : m_impl->send_file(std::forward<opt_t>(opt), token);
 
 	else if constexpr( is_sync_opt_token_v<token_t> )
@@ -1128,7 +1128,7 @@ auto basic_response<Stream>::send_file(T &&opt, Token &&token)
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+	else if constexpr( is_redirect_time_v<token_t> )
 	{
 		auto ntoken = unbound_redirect_time(token);
 		return asio::co_spawn(get_executor(), [

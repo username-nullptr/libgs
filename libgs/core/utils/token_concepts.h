@@ -203,11 +203,21 @@ template <typename Token>
 constexpr bool is_any_async_tf_opt_token_v = is_any_async_tf_opt_token<Token>::value;
 
 template <typename Token>
-struct is_sync_opt_token
+struct is_error_code_token
 {
 	static constexpr bool value =
 		std::is_same_v<Token,error_code&> or
-		std::is_same_v<Token,std::error_code&> or
+		std::is_same_v<Token,std::error_code&>;
+};
+
+template <typename Token>
+constexpr bool is_error_code_token_v = is_error_code_token<Token>::value;
+
+template <typename Token>
+struct is_sync_opt_token
+{
+	static constexpr bool value =
+		is_error_code_token_v<Token> or
 		std::is_same_v<std::remove_cvref_t<Token>,use_sync_t>;
 };
 

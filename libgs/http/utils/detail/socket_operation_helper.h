@@ -62,7 +62,7 @@ template <core_concepts::opt_token<error_code,size_t> Token>
 auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		size_t sum = 0;
 		for(;;)
@@ -150,7 +150,7 @@ template <core_concepts::opt_token<error_code,size_t> Token>
 auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		size_t sum = 0;
 		for(;;)
@@ -260,7 +260,7 @@ auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 connect(endpoint_t ep, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 		this->socket().connect(std::move(ep), token);
 
 	else if constexpr( is_sync_opt_token_v<token_t> )
@@ -390,7 +390,7 @@ void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 connect(endpoint_t ep, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		this->socket().next_layer().connect(ep, token);
 		if( not token )

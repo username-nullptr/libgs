@@ -497,7 +497,7 @@ template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_request<protocol::model::server,Stream>::read(const mutable_buffer &buf, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		m_impl->set_blocking(token);
 		return token ? 0 : m_impl->read(buf, token);
@@ -516,7 +516,7 @@ auto basic_request<protocol::model::server,Stream>::read(const mutable_buffer &b
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+	else if constexpr( is_redirect_time_v<token_t> )
 	{
 		auto ntoken = unbound_redirect_time(token);
 		return asio::co_spawn(get_executor(),
@@ -560,7 +560,7 @@ template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_request<protocol::model::server,Stream>::read(Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		std::string sum;
 		do {
@@ -590,7 +590,7 @@ auto basic_request<protocol::model::server,Stream>::read(Token &&token)
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+	else if constexpr( is_redirect_time_v<token_t> )
 	{
 		auto ntoken = unbound_redirect_time(token);
 		return asio::co_spawn(get_executor(),
@@ -660,7 +660,7 @@ auto basic_request<protocol::model::server,Stream>::save_file(T &&opt, Token &&t
 	using opt_t = decltype(opt);
 	using token_t = std::remove_cvref_t<Token>;
 
-	if constexpr( std::is_same_v<token_t, error_code> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
 		m_impl->set_blocking(token);
 		return token ? 0 : m_impl->save_file(std::forward<opt_t>(opt), token);
@@ -679,7 +679,7 @@ auto basic_request<protocol::model::server,Stream>::save_file(T &&opt, Token &&t
 		// TODO ... ...
 	}
 #endif //LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_redirect_time_v<std::remove_cvref_t<Token>> )
+	else if constexpr( is_redirect_time_v<token_t> )
 	{
 		auto ntoken = unbound_redirect_time(token);
 		return asio::co_spawn(get_executor(), [
