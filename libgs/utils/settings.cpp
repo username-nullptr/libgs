@@ -55,15 +55,6 @@ using settings_ptr = std::unique_ptr<settings, no_deleter>;
 static std::map<std::string, settings_ptr> g_instances;
 static spin_shared_mutex g_instances_lock;
 
-std::vector<std::string> settings::names() noexcept
-{
-	std::vector<std::string> names;
-	spin_shared_shared_lock locker(g_instances_lock);
-	for( auto &pair : g_instances )
-		names.push_back(pair.first);
-	return names;
-}
-
 settings &settings::instance(std::string_view name, bool create)
 {
 	std::string _name(name.data(), name.size());
@@ -116,19 +107,44 @@ sys_expected<> settings::load(const path_t &file_path)
 	std::error_code error;
 	m_impl->m_ini_lock.lock();
 	m_impl->m_ini.load_or(file_path, error);
-	auto _file_path = m_impl->m_ini.file_name();
+	auto _file_name = m_impl->m_ini.file_name();
 	m_impl->m_ini_lock.unlock();
 
 	if( error )
 	{
 		libgs_utils_clog_info("LibGS.Utils",
 			"settings: load file '{}' failed: '{}'.",
-			_file_path, error
+			_file_name, error
 		);
 		return sys_unexpected(error);
 	}
 	loaded();
 	return {};
+}
+
+sys_expected<> settings::sync()
+{
+	std::error_code error;
+	ini().sync(error);
+
+	if( error )
+	{
+		libgs_utils_clog_info("LibGS.Utils",
+			"settings: sync file '{}' failed: '{}'.",
+			file_name(), error
+		);
+		return sys_unexpected(error);
+	}
+	return {};
+}
+
+std::vector<std::string> settings::names() noexcept
+{
+	std::vector<std::string> names;
+	spin_shared_shared_lock locker(g_instances_lock);
+	for( auto &pair : g_instances )
+		names.push_back(pair.first);
+	return names;
 }
 
 std::filesystem::path settings::file_name() const noexcept

@@ -58,7 +58,7 @@ public:
 		template <concepts::sched Exec0, concepts::function Func0>
 		adapter_impl(Exec0 &&exec, Func0 &&slot) :
 			m_func([exec = get_executor_helper(std::forward<Exec0>(exec)),
-			slot = std::forward<Func0>(slot)](Args...args)
+					slot = std::forward<Func0>(slot)](Args...args)
 			{
 				auto args_tuple = std::make_tuple(std::move(args)...);
 				using indices = std::make_index_sequence<function_traits<Func0>::arg_count>;
@@ -172,12 +172,10 @@ void basic_signal_base<Derived,Func,Exec>::emit(Args&&...args) const noexcept
 		slots.emplace_back(slot);
 	m_impl->m_mutex.unlock();
 
-	if( not slots.empty() )
-	{
-		for(size_t i=0; i<slots.size(); i++)
-			(*slots[i])(args...);
-		(*slots.back())(std::forward<Args>(args)...);
-	}
+	size_t i = 0;
+	for(; i<slots.size()-1; i++)
+		(*slots[i])(args...);
+	(*slots[i])(std::forward<Args>(args)...);
 }
 
 template <typename Derived, concepts::std_func_temp Func, concepts::exec Exec>

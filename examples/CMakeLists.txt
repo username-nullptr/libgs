@@ -94,6 +94,7 @@ set_target(gs.http ${sources})
 
 set(sources
 	utils/logger.cpp
+	utils/signal_slot.cpp
 	utils/settings.cpp
 )
 set_target(gs.utils ${sources})

@@ -46,11 +46,13 @@ public:
 	using path_t = ini_t::path_t;
 	using group_key_t = ini_t::group_key;
 
-	[[nodiscard]] static std::vector<std::string> names() noexcept;
 	[[nodiscard]] static settings &instance(std::string_view name, bool create = true);
 	[[nodiscard]] static settings &instance();
 
 	sys_expected<> load(const path_t &file_path = {});
+	sys_expected<> sync();
+
+	[[nodiscard]] static std::vector<std::string> names() noexcept;
 	[[nodiscard]] path_t file_name() const noexcept;
 
 public:
