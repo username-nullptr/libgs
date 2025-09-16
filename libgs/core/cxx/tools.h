@@ -77,7 +77,7 @@ struct class_member
 };
 
 template <typename T, typename U> requires std::is_class_v<T>
-using class_member_t = typename class_member<T,U>::type;
+using class_member_t = class_member<T,U>::type;
 
 template <typename Derived, typename Base>
 struct crtp_derived { using type = Derived; };
@@ -86,7 +86,7 @@ template <typename Base>
 struct crtp_derived<void,Base> { using type = Base; };
 
 template <typename Derived, typename Base>
-using crtp_derived_t = typename crtp_derived<Derived, Base>::type;
+using crtp_derived_t = crtp_derived<Derived, Base>::type;
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/tools.h>

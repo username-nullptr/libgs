@@ -26,9 +26,9 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "libgs/core/observer.h"
+#include "libgs/utils/observer.h"
 
-namespace libgs::detail
+namespace libgs::utils::detail
 {
 
 observer::map_t &observer::map() noexcept
@@ -43,4 +43,4 @@ spin_mutex &observer::mutex() noexcept
 	return mutex;
 }
 
-} //nnamespace libgs::detail
+} //nnamespace libgs::utils::detail

@@ -26,18 +26,18 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_OBSERVER_H
-#define LIBGS_CORE_DETAIL_OBSERVER_H
+#ifndef LIBGS_UTILS_DETAIL_OBSERVER_H
+#define LIBGS_UTILS_DETAIL_OBSERVER_H
 
 #include <libgs/core/spin_mutex.h>
 #include <cassert>
 #include <set>
 #include <map>
 
-namespace libgs { namespace detail
+namespace libgs::utils { namespace detail
 {
 
-class LIBGS_CORE_API observer
+class LIBGS_UTILS_API observer
 {
 	LIBGS_DISABLE_COPY_MOVE(observer)
 
@@ -52,7 +52,7 @@ public:
 } //namespace detail
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-class basic_observer_base<Derived,Exec,Funcs...>::impl
+class LIBGS_UTILS_TAPI basic_observer_base<Derived,Exec,Funcs...>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -162,7 +162,7 @@ basic_observer_base<Derived,Exec,Funcs...>::get_executor() noexcept
 	return m_impl->m_exec;
 }
 
-} //namespace libgs
+} //namespace libgs::utils
 
 
-#endif //LIBGS_CORE_DETAIL_OBSERVER_H
+#endif //LIBGS_UTILS_DETAIL_OBSERVER_H

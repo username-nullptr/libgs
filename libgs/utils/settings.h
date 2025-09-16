@@ -26,11 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_APP_CONFIG_H
-#define LIBGS_UTILS_APP_CONFIG_H
+#ifndef LIBGS_UTILS_SETTINGS_H
+#define LIBGS_UTILS_SETTINGS_H
 
-#include <libgs/utils/global.h>
-#include <libgs/core/observer.h>
+#include <libgs/utils/signal_slot.h>
 #include <libgs/core/ini.h>
 
 namespace libgs::utils
@@ -51,7 +50,7 @@ public:
 	[[nodiscard]] static settings &instance(std::string_view name, bool create = true);
 	[[nodiscard]] static settings &instance();
 
-	settings &set_file_name(const path_t &file_path);
+	sys_expected<> load(const path_t &file_path = {});
 	[[nodiscard]] path_t file_name() const noexcept;
 
 public:
@@ -70,26 +69,8 @@ public:
 	) noexcept;
 
 public:
-    class LIBGS_UTILS_API observer final : public
-		observer_base<observer, void(std::string_view,value), void()>
-	{
-    	LIBGS_DISABLE_COPY_MOVE(observer)
-
-	public:
-		explicit observer(std::string name, asio::any_io_executor exec);
-    	[[nodiscard]] std::string_view name() const noexcept;
-
-		ptr_t on_changed(std::function<void(std::string_view,value)> func);
-		ptr_t on_loaded(std::function<void()> func);
-
-    private:
-    	class impl;
-    	impl *m_impl = nullptr;
-	};
-	using observer_ptr = observer::ptr_t;
-
-	template <concepts::sched Exec = io_context_t&>
-	[[nodiscard]] observer_ptr make_observer(Exec &&exec = io_context());
+	signal<void(std::string_view,value)> changed;
+	signal<void()> loaded;
 
 public:
 	[[nodiscard]] std::string_view name() const noexcept;
@@ -105,4 +86,4 @@ private:
 #include <libgs/utils/detail/settings.h>
 
 
-#endif //LIBGS_UTILS_APP_CONFIG_H
+#endif //LIBGS_UTILS_SETTINGS_H

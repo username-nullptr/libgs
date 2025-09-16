@@ -27,6 +27,7 @@
 *************************************************************************************/
 
 #include "settings.h"
+#include "logger.h"
 
 using namespace std::chrono_literals;
 using namespace libgs::operators;
@@ -91,30 +92,43 @@ settings &settings::instance()
 	return instance("default");
 }
 
-
 static std::map<std::filesystem::path, const settings*> g_file_paths;
 static spin_mutex g_file_paths_lock;
 
-settings &settings::set_file_name(const path_t &file_path)
+sys_expected<> settings::load(const path_t &file_path)
 {
-	spin_unique_lock locker(g_file_paths_lock);
-	auto [it, inserted] = g_file_paths.emplace(file_path, this);
-
-	if( not inserted and it->second != this )
+	if( not file_path.empty() )
 	{
-		throw runtime_error (
-			"settings::set_file_name: File '{}' is already used by another instance.",
-			file_path.string()
-		);
-	}
-	g_file_paths.erase(it);
-	g_file_paths.emplace(file_path, this);
-	locker.unlock();
+		spin_unique_lock locker(g_file_paths_lock);
+		auto [it, inserted] = g_file_paths.emplace(file_path, this);
 
+		if( not inserted and it->second != this )
+		{
+			throw runtime_error (
+				"settings::set_file_name: File '{}' is already used by another instance.",
+				file_path.string()
+			);
+		}
+		g_file_paths.erase(it);
+		g_file_paths.emplace(file_path, this);
+		locker.unlock();
+	}
+	std::error_code error;
 	m_impl->m_ini_lock.lock();
-	m_impl->m_ini.set_file_name(file_path);
+	m_impl->m_ini.load_or(file_path, error);
+	auto _file_path = m_impl->m_ini.file_name();
 	m_impl->m_ini_lock.unlock();
-	return *this;
+
+	if( error )
+	{
+		libgs_utils_clog_info("LibGS.Utils",
+			"settings: load file '{}' failed: '{}'.",
+			_file_path, error
+		);
+		return sys_unexpected(error);
+	}
+	loaded();
+	return {};
 }
 
 std::filesystem::path settings::file_name() const noexcept
@@ -127,40 +141,6 @@ optional<value> settings::get(group_key_t gk)
 {
 	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
 	return m_impl->m_ini.read(std::move(gk));
-}
-
-class LIBGS_DECL_HIDDEN settings::observer::impl
-{
-	LIBGS_DISABLE_COPY_MOVE(impl)
-
-public:
-	explicit impl(std::string name) :
-		m_name(std::move(name)) {}
-	std::string m_name;
-};
-
-settings::observer::observer(std::string name, asio::any_io_executor exec) :
-	observer_base<observer, void(std::string_view,value), void()>
-	(std::hash<std::string>()(name), exec),
-	m_impl(new impl(std::move(name)))
-{
-
-}
-
-std::string_view settings::observer::name() const noexcept
-{
-	return m_impl->m_name;
-}
-
-settings::observer::ptr_t settings::observer::on_changed
-(std::function<void(std::string_view,value)> func)
-{
-	return on_triggered<0>(std::move(func));
-}
-
-settings::observer::ptr_t settings::observer::on_loaded(std::function<void()> func)
-{
-	return on_triggered<1>(std::move(func));
 }
 
 std::string_view settings::name() const noexcept

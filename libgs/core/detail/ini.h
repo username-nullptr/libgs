@@ -239,7 +239,7 @@ public:
 	impl& operator=(impl&&) = default;
 
 	template <typename Exec0>
-	impl(typename basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other) :
+	impl(basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other) :
 		m_exec(std::move(other.m_exec)),
 		m_file_name(std::move(other.m_file_name)),
 		m_groups(std::move(other.m_groups)),
@@ -252,7 +252,7 @@ public:
 	}
 
 	template <typename Exec0>
-	impl &operator=(typename basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other)
+	impl &operator=(basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other)
 	{
 		m_exec = std::move(other.m_exec);
 		m_file_name = std::move(other.m_file_name);
@@ -712,21 +712,6 @@ basic_ini<CharT,Exec,Map,MapArgs...>::operator=(basic_ini<char_t,Exec0,map_temp,
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-void basic_ini<CharT,Exec,Map,MapArgs...>::set_file_name(const path_t &file_name)
-{
-	m_impl->set_file_name(file_name);
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::path_t
-basic_ini<CharT,Exec,Map,MapArgs...>::file_name() const noexcept
-{
-	return m_impl->m_file_name;
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
 optional<basic_value<CharT>> basic_ini<CharT,Exec,Map,MapArgs...>::read
 (const group_key &gk) const noexcept
 {
@@ -764,7 +749,7 @@ void basic_ini<CharT,Exec,Map,MapArgs...>::write
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-const typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
+const basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group) const
 {
 	return remove_const(this)->group(group);
@@ -772,7 +757,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto 
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
+basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group)
 {
 	auto it = m_impl->m_groups.find(impl::replace(group));
@@ -787,7 +772,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto 
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-const typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
+const basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const concepts::text_p<char_t> auto &group) const
 {
 	return this->group(group);
@@ -795,7 +780,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const concepts::text_p<char_t> 
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
+basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const concepts::text_p<char_t> auto &group) noexcept
 {
 	return m_impl->m_groups[impl::replace(group)];
@@ -803,7 +788,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const concepts::text_p<char_t> 
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t
+basic_ini<CharT,Exec,Map,MapArgs...>::value_t
 basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const group_key &gk) const
 {
 	return (*this)[gk.group][gk.key];
@@ -811,7 +796,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::operator[](const group_key &gk) const
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t&
+basic_ini<CharT,Exec,Map,MapArgs...>::value_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::operator[](group_key gk) noexcept
 {
 	return (*this)[std::move(gk.group)][std::move(gk.key)];
@@ -821,7 +806,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::operator[](group_key gk) noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
+basic_ini<CharT,Exec,Map,MapArgs...>::value_t basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
 (const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key) const
 {
 	return (*this)[group][key];
@@ -829,7 +814,7 @@ typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t basic_ini<CharT,Exec,Map,
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t &basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
+basic_ini<CharT,Exec,Map,MapArgs...>::value_t &basic_ini<CharT,Exec,Map,MapArgs...>::operator[]
 (concepts::text_p<char_t> auto &&group, concepts::text_p<char_t> auto &&key) noexcept
 {
 	return (*this)[std::forward<decltype(group)>(group)][std::forward<decltype(key)>(key)];
@@ -839,7 +824,7 @@ typename basic_ini<CharT,Exec,Map,MapArgs...>::value_t &basic_ini<CharT,Exec,Map
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::begin() noexcept
 {
 	return m_impl->m_groups.begin();
@@ -847,7 +832,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::begin() noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::cbegin() const noexcept
 {
 	return m_impl->m_groups.cbegin();
@@ -855,7 +840,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::cbegin() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::begin() const noexcept
 {
 	return m_impl->m_groups.begin();
@@ -863,7 +848,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::begin() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::end() noexcept
 {
 	return m_impl->m_groups.end();
@@ -871,7 +856,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::end() noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::cend() const noexcept
 {
 	return m_impl->m_groups.cend();
@@ -879,7 +864,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::cend() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::end() const noexcept
 {
 	return m_impl->m_groups.end();
@@ -887,7 +872,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::end() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::reverse_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::reverse_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::rbegin() noexcept
 {
 	return m_impl->m_groups.rbegin();
@@ -895,7 +880,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::rbegin() noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::crbegin() const noexcept
 {
 	return m_impl->m_groups.crbegin();
@@ -903,7 +888,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::crbegin() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::rbegin() const noexcept
 {
 	return m_impl->m_groups.rbegin();
@@ -911,7 +896,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::rbegin() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::reverse_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::reverse_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::rend() noexcept
 {
 	return m_impl->m_groups.rend();
@@ -919,7 +904,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::rend() noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::crend() const noexcept
 {
 	return m_impl->m_groups.crend();
@@ -927,10 +912,30 @@ basic_ini<CharT,Exec,Map,MapArgs...>::crend() const noexcept
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_reverse_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::rend() const noexcept
 {
 	return m_impl->m_groups.rend();
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+template <concepts::opt_token<error_code> Token>
+auto basic_ini<CharT,Exec,Map,MapArgs...>::load(const path_t &file_name, Token &&token)
+{
+	if( not file_name.empty() )
+		m_impl->set_file_name(file_name);
+	return load(std::forward<Token>(token));
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+template <concepts::opt_token<error_code> Token>
+auto basic_ini<CharT,Exec,Map,MapArgs...>::load_or(const path_t &file_name, Token &&token)
+{
+	if( not file_name.empty() )
+		m_impl->set_file_name(file_name);
+	return load_or(std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -1090,7 +1095,7 @@ void basic_ini<CharT,Exec,Map,MapArgs...>::cancel()
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &group) noexcept
 {
 	return m_impl->m_groups.find(impl::replace(group));
@@ -1098,7 +1103,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
+basic_ini<CharT,Exec,Map,MapArgs...>::const_iterator
 basic_ini<CharT,Exec,Map,MapArgs...>::find(const concepts::text_p<char_t> auto &group) const noexcept
 {
 	return m_impl->m_groups.find(impl::replace(group));
@@ -1127,14 +1132,22 @@ void basic_ini<CharT,Exec,Map,MapArgs...>::set_data(data_t data)
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::data_t basic_ini<CharT,Exec,Map,MapArgs...>::data() const
+basic_ini<CharT,Exec,Map,MapArgs...>::data_t basic_ini<CharT,Exec,Map,MapArgs...>::data() const
 {
 	return m_impl->data();
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-typename basic_ini<CharT,Exec,Map,MapArgs...>::executor_t
+basic_ini<CharT,Exec,Map,MapArgs...>::path_t
+basic_ini<CharT,Exec,Map,MapArgs...>::file_name() const noexcept
+{
+	return m_impl->m_file_name;
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+basic_ini<CharT,Exec,Map,MapArgs...>::executor_t
 basic_ini<CharT,Exec,Map,MapArgs...>::get_executor() noexcept
 {
 	return m_impl->m_exec;

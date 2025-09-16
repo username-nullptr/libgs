@@ -190,10 +190,6 @@ public:
 		requires concepts::match_exec<Exec0,executor_t>;
 
 public:
-	virtual void set_file_name(const path_t &file_name);
-	[[nodiscard]] virtual path_t file_name() const noexcept;
-
-public:
 	[[nodiscard]] optional<value_t> read (
 		const group_key &gk
 	) const noexcept;
@@ -259,6 +255,12 @@ public:
 
 public:
 	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load(const path_t &file_name, Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load_or(const path_t &file_name, Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
 	auto load(Token &&token = {});
 
 	template <concepts::opt_token<error_code> Token = use_sync_t>
@@ -285,6 +287,7 @@ public:
 	void set_data(data_t data);
 	[[nodiscard]] data_t data() const;
 
+	[[nodiscard]] path_t file_name() const noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 protected:

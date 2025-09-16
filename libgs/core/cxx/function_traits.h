@@ -101,6 +101,14 @@ struct function_traits<R(Args...)>
 	using return_type = R;
 	using arg_types = std::tuple<Args...>;
 
+    template <size_t N> requires (N < arg_count)
+    struct arg_type {
+        using type = std::tuple_element_t<N, arg_types>;
+    };
+
+    template <size_t N> requires (N < arg_count)
+	using arg_type_t = arg_type<N>::type;
+
 	using pointer_type = R(*)(Args...);
 	using call_type = R(Args...);
 };

@@ -59,10 +59,7 @@ settings &settings::set(const group_key_t &gk, const concepts::value_set<char> a
 	m_impl->m_ini.write(gk, value);
 	m_impl->m_ini_lock.unlock();
 
-	observer::trigger<0>(
-		std::hash<std::string_view>()(name()),
-		gk.group + "/" + gk.key, value
-	);
+	changed(gk.group + "/" + gk.key, value);
 	return *this;
 }
 
@@ -73,19 +70,8 @@ settings &settings::set
 	m_impl->m_ini.write(path, value);
 	m_impl->m_ini_lock.unlock();
 
-	observer::trigger<0>(
-		std::hash<std::string_view>()(name()),
-		path, value
-	);
+	changed(path, value);
 	return *this;
-}
-
-template <concepts::sched Exec>
-settings::observer_ptr settings::make_observer(Exec &&exec)
-{
-	return observer::make(std::string(name()),
-		get_executor_helper(std::forward<Exec>(exec))
-	);
 }
 
 } //namespace libgs::utils

@@ -26,16 +26,17 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_OBSERVER_H
-#define LIBGS_CORE_OBSERVER_H
+#ifndef LIBGS_UTILS_OBSERVER_H
+#define LIBGS_UTILS_OBSERVER_H
 
 #include <libgs/core/execution.h>
+#include <libgs/utils/global.h>
 
-namespace libgs
+namespace libgs::utils
 {
 
 template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-class LIBGS_CORE_TAPI basic_observer_base : public std::enable_shared_from_this<
+class LIBGS_UTILS_TAPI basic_observer_base : public std::enable_shared_from_this<
 	crtp_derived_t<Derived, basic_observer_base<Derived,Exec,Funcs...>>>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_observer_base)
@@ -87,8 +88,8 @@ using observer_base = basic_observer_base<Derived, asio::any_io_executor, Funcs.
 template <concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
 using observer = basic_observer<asio::any_io_executor, Funcs...>;
 
-} //namespace libgs
-#include <libgs/core/detail/observer.h>
+} //namespace libgs::utils
+#include <libgs/utils/detail/observer.h>
 
 
-#endif //LIBGS_CORE_OBSERVER_H
+#endif //LIBGS_UTILS_OBSERVER_H
