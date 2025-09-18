@@ -26,69 +26,63 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_GLOBAL_H
-#define LIBGS_CORE_GLOBAL_H
+#ifndef LIBGS_CORE_CXX_MEMORY_CONCEPTS_H
+#define LIBGS_CORE_CXX_MEMORY_CONCEPTS_H
 
-#include <libgs/core/cxx/memory_concepts.h>
-#include <libgs/core/cxx/cplusplus.h>
-#include <libgs/core/cxx/operators.h>
-#include <libgs/core/cxx/expected.h>
-#include <libgs/core/utils.h>
+#include <memory>
 
 namespace libgs
 {
 
-template <concepts::expected_value Value = void>
-using sys_expected = expected<Value,error_code>;
+template <typename>
+struct is_shared_ptr : std::false_type {};
 
-using sys_unexpected = unexpected<error_code>;
+template <typename T>
+struct is_shared_ptr<std::shared_ptr<T>> : std::true_type {};
 
-using io_expected = sys_expected<size_t>;
-using io_unexpected = sys_unexpected;
+template <typename T>
+constexpr bool is_shared_ptr_v = is_shared_ptr<T>::value;
 
-[[nodiscard]] LIBGS_CORE_API const char *version_string();
+template <typename>
+struct is_unique_ptr : std::false_type {};
 
-[[nodiscard]] LIBGS_CORE_API const char *text_code();
+template <typename T>
+struct is_unique_ptr<std::unique_ptr<T>> : std::true_type {};
 
-LIBGS_CORE_API std::thread::id this_thread_id();
+template <typename T>
+constexpr bool is_unique_ptr_v = is_unique_ptr<T>::value;
 
-[[noreturn]] LIBGS_CORE_API void forced_termination();
+template <typename>
+struct is_weak_ptr : std::false_type {};
 
-template<typename Rep, typename Period>
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token, const duration<Rep,Period> &def_time
-);
+template <typename T>
+struct is_weak_ptr<std::weak_ptr<T>> : std::true_type {};
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token
-);
+template <typename T>
+constexpr bool is_weak_ptr_v = is_weak_ptr<T>::value;
 
-[[nodiscard]] constexpr decltype(auto) unbound_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token
-);
-
-namespace operators
+namespace concepts
 {
 
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, std::error_code &error)
-    requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
+template <typename T>
+concept shared_ptr = is_shared_ptr_v<T>;
 
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, error_code &error)
-    requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
+template <typename T>
+concept shared_ptr_p = is_shared_ptr_v<std::remove_cvref_t<T>>;
 
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, const asio::cancellation_slot &slot)
-    requires (not is_cancellation_slot_binder_v<std::remove_cvref_t<Token>>);
+template <typename T>
+concept unique_ptr = is_unique_ptr_v<T>;
 
-template <typename Rep, typename Period>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
-    concepts::any_async_opt_token auto &&token, const duration<Rep,Period> &d
-);
+template <typename T>
+concept unique_ptr_p = is_unique_ptr_v<std::remove_cvref_t<T>>;
 
-}} //namespace libgs
-#include <libgs/core/detail/global.h>
+template <typename T>
+concept weak_ptr = is_weak_ptr_v<T>;
+
+template <typename T>
+concept weak_ptr_p = is_weak_ptr_v<std::remove_cvref_t<T>>;
+
+}} //namespace libgs::concepts
 
 
-#endif //LIBGS_CORE_GLOBAL_H
+#endif //LIBGS_CORE_CXX_MEMORY_CONCEPTS_H

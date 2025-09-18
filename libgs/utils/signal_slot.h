@@ -30,45 +30,87 @@
 #define LIBGS_UTILS_SIGNAL_SLOT_H
 
 #include <libgs/utils/global.h>
-#include <libgs/core/execution.h>
 
 namespace libgs::utils
 {
 
-template <typename Derived, concepts::std_func_temp Func, concepts::exec Exec = asio::any_io_executor>
-class LIBGS_UTILS_TAPI basic_signal_base
+enum class slot_mode
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_signal_base)
+	sync,         // Direct blocking call. (thread unsafe)
+	async,        // Non-blocking call. (depends on the executor)
+	backpressure  // Thread-safe blocking call. (depends on the executor; otherwise, it will cause a deadlock)
+};
+
+template <typename Derived, concepts::std_func_temp Func>
+class LIBGS_UTILS_TAPI signal_base
+{
+	LIBGS_DISABLE_COPY_MOVE(signal_base)
 
 public:
-	using derived_t = crtp_derived_t<Derived,basic_signal_base>;
+	using derived_t = crtp_derived_t<Derived,signal_base>;
 	using function_t = Func;
-	using executor_t = Exec;
 
-	template <concepts::match_sched<Exec> Exec0 = io_context_t&>
-	explicit basic_signal_base(Exec0 &&exec = io_context());
-	~basic_signal_base();
+	signal_base();
+	~signal_base();
 
 public:
-	template <concepts::function Func0>
+	template <slot_mode Mode, concepts::function Func0>
 	static constexpr bool is_slot_v = []() consteval
 	{
-		using func_tr0 = function_traits<Func0     >;
+		using func0_tr = function_traits<Func0     >;
 		using func_tr  = function_traits<function_t>;
 
-		return func_tr0::arg_count <= func_tr::arg_count and
-			[]<size_t...Is>(std::index_sequence<Is...>)
-			{
-				return (std::is_convertible_v <
-					typename func_tr ::template arg_type_t<Is>,
-					typename func_tr0::template arg_type_t<Is>
-				> && ...);
-			}
-			(std::make_index_sequence<func_tr0::arg_count>{});
+		if constexpr( Mode == slot_mode::sync and is_awaitable_v<typename func0_tr::return_type> )
+			return false;
+		else
+		{
+			return func0_tr::arg_count <= func_tr::arg_count and
+				[]<size_t...Is>(std::index_sequence<Is...>)
+				{
+					return (std::is_convertible_v <
+						typename func_tr ::template arg_type_t<Is>,
+						typename func0_tr::template arg_type_t<Is>
+					> && ...);
+				}
+				(std::make_index_sequence<func0_tr::arg_count>{});
+		}
 	}();
 
-	template <concepts::function...Funcs> requires (sizeof...(Funcs) > 0)
-	static constexpr bool is_slots_v = (is_slot_v<Funcs> && ...);
+	template <slot_mode Mode, concepts::function Func0>
+	static constexpr bool is_global_slot_v =
+		not function_traits<Func0>::is_member_func and
+		is_slot_v<Mode, Func0>;
+
+	template <typename Obj>
+	static constexpr bool is_observer_v =
+		is_shared_ptr_v<std::remove_cvref_t<Obj>>;
+
+	template <slot_mode Mode, typename Obj, concepts::function Func0>
+	static constexpr bool is_obj_slot_v = []() consteval
+	{
+		if constexpr( not is_observer_v<Obj> )
+			return false;
+		else
+		{
+			using func0_tr = function_traits<Func0>;
+			if constexpr( func0_tr::is_member_func )
+			{
+				using obj_t = std::remove_cvref_t<Obj>::element_type;
+				if constexpr( std::is_same_v<typename func0_tr::class_t, obj_t> )
+					return is_slot_v<Mode,Func0>;
+				else
+					return false;
+			}
+			else
+				return is_global_slot_v<Mode,Func0>;
+		}
+	}();
+
+	template <slot_mode Mode, concepts::function...Funcs> requires (sizeof...(Funcs) > 0)
+	static constexpr bool is_global_slots_v = (is_global_slot_v<Mode,Funcs> && ...);
+
+	template <slot_mode Mode, typename Obj, concepts::function...Funcs> requires (sizeof...(Funcs) > 0)
+	static constexpr bool is_obj_slots_v = (is_obj_slot_v<Mode,Obj,Funcs> && ...);
 
 	template <typename...Args>
 	static constexpr bool is_callable_v =
@@ -77,19 +119,53 @@ public:
 		};
 
 public:
+	template <slot_mode Mode, typename...Funcs>
+	derived_t &connect(Funcs&&...funcs) noexcept
+		requires is_global_slots_v<Mode,Funcs...>;
+
+	template <slot_mode Mode, typename Obj, typename...Funcs>
+	derived_t &connect(Obj &&observer, Funcs&&...funcs)
+		requires is_obj_slots_v<Mode,Obj,Funcs...>;
+
+	template <slot_mode Mode, concepts::sched Exec0, typename...Funcs>
+	derived_t &connect(Exec0 &&exec, Funcs&&...funcs) noexcept
+		requires is_global_slots_v<Mode,Funcs...>;
+
+	template <slot_mode Mode, typename Obj, concepts::sched Exec0, typename...Funcs>
+	derived_t &connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
+		requires is_obj_slots_v<Mode,Obj,Funcs...>;
+
+public:
 	template <typename...Funcs>
 	derived_t &connect(Funcs&&...funcs) noexcept
-		requires is_slots_v<Funcs...>;
+		requires is_global_slots_v<slot_mode::sync,Funcs...>;
+
+	template <typename Obj, typename...Funcs>
+	derived_t &connect(Obj &&observer, Funcs&&...funcs)
+		requires is_obj_slots_v<slot_mode::sync,Obj,Funcs...>;
 
 	template <concepts::sched Exec0, typename...Funcs>
 	derived_t &connect(Exec0 &&exec, Funcs&&...funcs) noexcept
-		requires is_slots_v<Funcs...>;
+		requires is_global_slots_v<slot_mode::sync,Funcs...>;
 
-	template <typename...Func0>
-	derived_t &disconnect(Func0&&...funcs) noexcept
-		requires is_slots_v<Func0...>;
+	template <typename Obj, concepts::sched Exec0, typename...Funcs>
+	derived_t &connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
+		requires is_obj_slots_v<slot_mode::sync,Obj,Funcs...>;
+
+public:
+	template <typename...Funcs>
+	derived_t &disconnect(Funcs&&...funcs) noexcept
+		requires is_global_slots_v<slot_mode::async,Funcs...>;
+
+	template <typename Obj, typename...Funcs>
+	derived_t &disconnect(const Obj &observer, Funcs&&...funcs)
+		requires is_obj_slots_v<slot_mode::async,Obj,Funcs...>;
 
 	derived_t &disconnect() noexcept;
+
+	template <typename Obj>
+	derived_t &disconnect(const Obj &observer)
+		requires is_observer_v<Obj>;
 
 public:
 	template <typename...Args>
@@ -105,14 +181,8 @@ private:
 	impl *m_impl;
 };
 
-template <typename Derived, concepts::std_func_temp Func>
-using signal_base = basic_signal_base<Derived,Func>;
-
-template <concepts::std_func_temp Func, concepts::exec Exec = asio::any_io_executor>
-using basic_signal = basic_signal_base<void,Func,Exec>;
-
 template <concepts::std_func_temp Func>
-using signal = basic_signal<Func>;
+using signal = signal_base<void,Func>;
 
 } //namespace libgs::utils
 #include <libgs/utils/detail/signal_slot.h>
