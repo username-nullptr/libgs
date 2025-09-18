@@ -29,7 +29,7 @@
 #ifndef LIBGS_UTILS_DETAIL_SIGNAL_SLOT_H
 #define LIBGS_UTILS_DETAIL_SIGNAL_SLOT_H
 
-#include <libgs/core/spin_mutex.h>
+#include <libgs/core/shared_mutex.h>
 #include <libgs/core/execution.h>
 
 namespace libgs::utils
@@ -48,7 +48,8 @@ public:
 
 public:
 	template <typename Ret, typename...Args>
-	class LIBGS_UTILS_TAPI adapter_impl<Ret(Args...)>
+	class LIBGS_UTILS_TAPI adapter_impl<Ret(Args...)> :
+		public std::enable_shared_from_this<adapter_impl<Ret(Args...)>>
 	{
 		LIBGS_DISABLE_COPY_MOVE(adapter_impl)
 
@@ -151,8 +152,8 @@ public:
 						{
 							if constexpr( Mode == slot_mode::backpressure )
 							{
-								libgs::dispatch(exec, [obj, is_valid = std::move(is_valid),
-									slot = std::move(slot), args = std::move(args)]() -> awaitable<void>
+								libgs::dispatch(exec,
+								[obj, is_valid, slot, args = std::move(args)]() -> awaitable<void>
 								{
 									if( is_valid() )
 										co_await (obj->*slot)(std::move(std::get<Is>(args))...);
@@ -162,8 +163,8 @@ public:
 							}
 							else
 							{
-								libgs::dispatch(exec, [obj, is_valid = std::move(is_valid),
-									slot = std::move(slot), args = std::move(args)]() -> awaitable<void>
+								libgs::dispatch(exec,
+								[obj, is_valid, slot, args = std::move(args)]() -> awaitable<void>
 								{
 									if( is_valid() )
 										co_await (obj->*slot)(std::move(std::get<Is>(args))...);
@@ -173,8 +174,8 @@ public:
 						}
 						else if constexpr( Mode == slot_mode::async )
 						{
-							libgs::dispatch(exec, [obj, is_valid = std::move(is_valid),
-								slot = std::move(slot), args = std::move(args)]
+							libgs::dispatch(exec,
+							[obj, is_valid, slot, args = std::move(args)]
 							{
 								if( is_valid() )
 									(obj->*slot)(std::move(std::get<Is>(args))...);
@@ -190,8 +191,8 @@ public:
 					{
 						if constexpr( Mode == slot_mode::backpressure )
 						{
-							libgs::dispatch(exec, [is_valid = std::move(is_valid),
-								slot = std::move(slot), args = std::move(args)]() -> awaitable<void>
+							libgs::dispatch(exec,
+							[is_valid, slot, args = std::move(args)]() -> awaitable<void>
 							{
 								if( is_valid() )
 									co_await slot(std::move(std::get<Is>(args))...);
@@ -201,8 +202,8 @@ public:
 						}
 						else
 						{
-							libgs::dispatch(exec, [is_valid = std::move(is_valid),
-								slot = std::move(slot), args = std::move(args)]() -> awaitable<void>
+							libgs::dispatch(exec,
+							[is_valid, slot, args = std::move(args)]() -> awaitable<void>
 							{
 								if( is_valid() )
 									co_await slot(std::move(std::get<Is>(args))...);
@@ -212,8 +213,7 @@ public:
 					}
 					else if constexpr( Mode == slot_mode::async )
 					{
-						libgs::dispatch(exec, [is_valid = std::move(is_valid),
-							slot = std::move(slot), args = std::move(args)]
+						libgs::dispatch(exec, [is_valid, slot, args = std::move(args)]
 						{
 							if( is_valid() )
 								slot(std::move(std::get<Is>(args))...);
@@ -339,7 +339,7 @@ public:
 
 public:
 	std::deque<slot_info_ptr> m_slots;
-	spin_mutex m_mutex;
+	spin_shared_mutex m_mutex;
 };
 
 template <typename Derived, concepts::std_func_temp Func>
@@ -419,6 +419,7 @@ signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs
 			std::forward<Exec0>(exec), std::forward<Funcs>(funcs)
 		),
 	0)...};
+	m_impl->m_mutex.unlock();
 	return static_cast<derived_t&>(*this);
 }
 
@@ -531,7 +532,7 @@ void signal_base<Derived,Func>::emit(Args&&...args) const noexcept
 {
 	std::vector<typename impl::adapter_ptr> nonblock_slots;
 	std::vector<typename impl::adapter_ptr> block_slots;
-	m_impl->m_mutex.lock();
+	m_impl->m_mutex.lock_shared();
 	for(auto it=m_impl->m_slots.begin(); it!=m_impl->m_slots.end();)
 	{
 		if( (*it)->slot->m_is_valid() )
@@ -545,13 +546,30 @@ void signal_base<Derived,Func>::emit(Args&&...args) const noexcept
 		else
 			it = m_impl->m_slots.erase(it);
 	}
-	m_impl->m_mutex.unlock();
+	m_impl->m_mutex.unlock_shared();
 
 	for(auto &slot : nonblock_slots)
 		(*slot)(args...);
 
 	for(auto &slot : block_slots)
 		(*slot)(args...);
+}
+
+template <typename Derived, concepts::std_func_temp Func>
+template <typename...Args>
+awaitable<void> signal_base<Derived,Func>::co_emit(Args&&...args) const noexcept
+	requires is_callable_v<Args...>
+{
+	return async_work<>::handle(
+	[this, ...args = std::forward<Args>(args)](async_work<>::handler_t &&wake_up)
+	{
+		std::thread([this, wake_up = std::move(wake_up), ...args = std::move(args)]() mutable
+		{
+			emit(std::move(args)...);
+			std::move(wake_up)();
+		})
+		.detach();
+	});
 }
 
 template <typename Derived, concepts::std_func_temp Func>

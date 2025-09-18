@@ -173,6 +173,10 @@ public:
 		requires is_callable_v<Args...>;
 
 	template <typename...Args>
+	[[nodiscard]] awaitable<void> co_emit(Args&&...args) const noexcept
+		requires is_callable_v<Args...>;
+
+	template <typename...Args>
 	void operator()(Args&&...args) const noexcept
 		requires is_callable_v<Args...>;
 
