@@ -193,13 +193,23 @@ optional<T> lock_free_queue<T>::dequeue()
 
 		else if( head == tail ) // Queue may be empty.
 		{
-			if( not next ) // Queue is empty.
-				return {};
+			if( next ) // Another thread is inserting.
+			{
+				m_impl->m_tail.compare_exchange_weak (
+					tail, next, std::memory_order_release, std::memory_order_relaxed
+				);
+			}
+			else if( m_impl->m_head.compare_exchange_weak
+					 (head, next, std::memory_order_acq_rel, std::memory_order_relaxed) )
+			{
+				m_impl->m_tail.store(next, std::memory_order_release);
 
-			// Another thread is inserting.
-			m_impl->m_tail.compare_exchange_weak (
-				tail, next, std::memory_order_release, std::memory_order_relaxed
-			);
+				auto data = std::move(head->data);
+				delete head;
+
+				m_impl->m_size.fetch_sub(1, std::memory_order_release);
+				return std::move(data);
+			}
 		}
 		else if( m_impl->m_head.compare_exchange_weak
 				 (head, next, std::memory_order_acq_rel, std::memory_order_relaxed) )

@@ -5,7 +5,7 @@
 using namespace std::chrono_literals;
 
 // 0: linked list  >0: circular buffer
-static constexpr size_t capacity = 2048;
+static constexpr size_t capacity = 0;
 
 static libgs::lock_free_queue<int,capacity> queue;
 
@@ -34,9 +34,10 @@ void consumer_0()
 {
 	for(int i=0;; i++)
 	{
+		auto size = queue.size();
 		auto op = queue.dequeue();
 		if( op )
-			spdlog::debug("{} : {}", i, *op);
+			spdlog::debug("{} | {} : {}", size, i, *op);
 		else
 			break;
 	}
