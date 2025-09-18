@@ -19,6 +19,15 @@ void fff(int i)
 
 int main()
 {
+	auto timer = libgs::make_timer(500ms, []() -> libgs::awaitable<void>
+	{
+		libgs_utils_log_info("------------------");
+		co_return ;
+	});
+	libgs::post(2.5s, [&timer]() mutable {
+		timer.reset();
+	});
+
 	libgs::utils::signal<void(int,const char*)> sig;
 	asio::io_context ioc;
 
@@ -60,7 +69,7 @@ int main()
 	}).detach();
 
 	using namespace std::chrono_literals;
-	libgs::post(2s, []{
+	libgs::post(5s, []{
 		libgs::exit();
 	});
 	return libgs::exec();

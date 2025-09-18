@@ -222,6 +222,21 @@ template <typename Clock, typename Duration, concepts::sleep_opt_token Token = u
 	const time_point<Clock,Duration> &atime, Token &&token = {}
 );
 
+class timer_task;
+using timer_task_ptr = std::shared_ptr<timer_task>;
+
+// If the timer_task is destructed, then the timer will be destroyed.
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+LIBGS_CORE_TAPI [[nodiscard]] timer_task_ptr make_timer (
+	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work, bool immediately = false
+);
+
+// If the timer_task is destructed, then the timer will be destroyed.
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+LIBGS_CORE_TAPI [[nodiscard]] timer_task_ptr make_timer (
+	const duration<Rep,Period> &rtime, Work &&work, bool immediately = false
+);
+
 namespace concepts
 {
 

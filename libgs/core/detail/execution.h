@@ -29,6 +29,8 @@
 #ifndef LIBGS_CORE_DETAIL_EXECUTION_H
 #define LIBGS_CORE_DETAIL_EXECUTION_H
 
+#include <iostream>
+
 namespace libgs { namespace detail
 {
 
@@ -622,6 +624,83 @@ auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
 	return sleep_for(atime - std::chrono::system_clock::now(),
 		std::forward<Token>(token)
+	);
+}
+
+class LIBGS_CORE_TAPI timer_task
+{
+	LIBGS_DISABLE_COPY_MOVE(timer_task)
+
+public:
+	using executor_t = asio::any_io_executor;
+
+	template <concepts::match_sched<executor_t> Exec, concepts::dispatch_work Work>
+	timer_task(Exec &&exec, const asio::steady_timer::duration &rtime, Work &&work, bool immediately) :
+		m_timer(std::make_shared<asio::steady_timer>(exec))
+	{
+		libgs::dispatch(std::forward<Exec>(exec),
+		[timer = std::weak_ptr(m_timer), rtime, func = std::forward<Work>(work), immediately]
+		() -> awaitable<void>
+		{
+			using namespace operators;
+			std::error_code error;
+
+			auto sleep = [&]() -> awaitable<bool>
+			{
+				if( timer.expired() )
+					co_return false;
+				auto _timer = timer.lock();
+
+				_timer->expires_after(rtime);
+				co_await _timer->async_wait(use_awaitable | error);
+				co_return error ? false : true;
+			};
+			if( not immediately )
+			{
+				if( not co_await sleep() )
+					co_return ;
+			}
+			using return_t = std::invoke_result_t<Work>;
+			for(;;)
+			{
+				if constexpr( is_awaitable_v<return_t> )
+					co_await func();
+				else
+					func();
+
+				if( not co_await sleep() )
+					break;
+			}
+			co_return ;
+		});
+	}
+
+	~timer_task() {
+		std::cerr << "timer_task is destroyed" << std::endl;
+		m_timer->cancel();
+	}
+
+private:
+	std::shared_ptr<asio::steady_timer> m_timer;
+};
+
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+timer_task_ptr make_timer
+(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work, bool immediately)
+{
+	return std::make_shared<timer_task>(std::forward<decltype(exec)>(exec),
+		std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
+		std::forward<Work>(work), immediately
+	);
+}
+
+template <concepts::dispatch_work Work, typename Rep, typename Period>
+timer_task_ptr make_timer
+(const duration<Rep,Period> &rtime, Work &&work, bool immediately)
+{
+	return std::make_shared<timer_task>(io_context(),
+		std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
+		std::forward<Work>(work), immediately
 	);
 }
 
