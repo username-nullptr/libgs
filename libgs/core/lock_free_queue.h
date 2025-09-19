@@ -89,7 +89,7 @@ public:
 	lock_free_queue(lock_free_queue &&other) noexcept; // unsafe
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
 
-public:
+public: // safe
 	bool enqueue(const element_t &data) requires concepts::copy_constructible<T>;
 	bool enqueue(element_t &&data);
 

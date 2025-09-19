@@ -29,8 +29,6 @@
 #ifndef LIBGS_CORE_DETAIL_EXECUTION_H
 #define LIBGS_CORE_DETAIL_EXECUTION_H
 
-#include <iostream>
-
 namespace libgs { namespace detail
 {
 
@@ -676,7 +674,6 @@ public:
 	}
 
 	~timer_task() {
-		std::cerr << "timer_task is destroyed" << std::endl;
 		m_timer->cancel();
 	}
 
