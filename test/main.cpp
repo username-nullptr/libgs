@@ -8,6 +8,7 @@
 #include <libgs/utils/signal_slot.h>
 #include <libgs/utils/logger.h>
 #include <iostream>
+#include <memory>
 
 using namespace std::chrono_literals;
 using namespace libgs::operators;
@@ -31,7 +32,7 @@ int main()
 	libgs::utils::signal<void(int,const char*)> sig;
 	asio::io_context ioc;
 
-	auto obj = std::shared_ptr<int>(new int {0});
+	auto obj = std::make_shared<int>(int {0});
 
 	sig
 	.connect<libgs::utils::slot_mode::async>(

@@ -66,7 +66,7 @@ concept dispatch_token = []() consteval -> bool
 		using work_t = std::remove_cvref_t<Work>;
 		if constexpr( is_awaitable_v<work_t> )
 		{
-			using return_t = typename work_t::value_type;
+			using return_t = work_t::value_type;
 			if constexpr( std::is_void_v<return_t> )
 				return opt_token<Token, std::exception_ptr>;
 			else
@@ -77,7 +77,7 @@ concept dispatch_token = []() consteval -> bool
 			using return_t = std::invoke_result_t<Work>;
 			if constexpr( is_awaitable_v<return_t> )
 			{
-				using nreturn_t = typename return_t::value_type;
+				using nreturn_t = return_t::value_type;
 				if constexpr( std::is_void_v<nreturn_t> )
 					return opt_token<Token, std::exception_ptr>;
 				else

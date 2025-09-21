@@ -17,12 +17,16 @@ int main()
 		{
 			libgs_utils_log_info("0000: {} {}", i, d);
 		},
-		[](bool i, bool d) -> libgs::awaitable<void>
+		[](bool i, bool d)
 		{
 			libgs_utils_log_info("1111: {} {}", i, d);
-			co_return ;
 		}
 	)
+	.connect<libgs::utils::slot_mode::async>([](bool i, bool d) -> libgs::awaitable<void>
+	{
+		libgs_utils_log_info("1111: {} {}", i, d);
+		co_return ;
+	})
 	.connect(fff)
 	.connect(ioc, [](float i)
 	{
