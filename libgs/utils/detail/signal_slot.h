@@ -92,37 +92,42 @@ public:
 						if constexpr( Mode == slot_mode::backpressure )
 						{
 							libgs::dispatch(exec,
-								slot(std::move (
-									static_cast<func0_tr::template arg_type_t<Is>>
-									(std::get<Is>(args))
-								)...),
+								slot(static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move (std::get<Is>(args)))...
+								),
 								use_future
 							).wait();
 						}
 						else
 						{
 							libgs::dispatch(exec,
-								slot(std::move (
-									static_cast<func0_tr::template arg_type_t<Is>>
-									(std::get<Is>(args))
-								)...)
+								slot(static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(std::get<Is>(args)))...
+								)
 							);
 						}
 					}
 					else if constexpr( Mode == slot_mode::async )
 					{
+#ifdef _MSC_VER
 						libgs::dispatch(exec, [slot, ...args0 = std::move(std::get<Is>(args))]{
-							slot(std::move (
-								static_cast<func0_tr::template arg_type_t<Is>>(args0)
-							)...);
+							slot(static_cast<func0_tr::template arg_type_t<Is>>
+								(std::move (args0))...
+							);
 						});
+#else //_MSC_VER
+						libgs::dispatch(exec, [slot, args = std::move(args)]{
+							slot(static_cast<func0_tr::template arg_type_t<Is>>
+								(std::move(std::get<Is>(args)))...
+							);
+						});
+#endif //_MSC_VER
 					}
 					else
 					{
-						slot(std::move (
-							static_cast<func0_tr::template arg_type_t<Is>>
-							(std::get<Is>(args))
-						)...);
+						slot(static_cast<func0_tr::template arg_type_t<Is>>
+							(std::move (std::get<Is>(args)))...
+						);
 					}
 				}
 				(indices{});
@@ -159,6 +164,7 @@ public:
 				{
 					using return_t = function_traits<Func0>::return_type;
 					// There are too many nested structures, but it's better than template specialization.
+#ifdef _MSC_VER
 					if constexpr( func0_tr::is_member_func )
 					{
 						if constexpr( is_awaitable_v<return_t> )
@@ -171,9 +177,10 @@ public:
 								{
 									if( not is_valid() )
 										co_return ;
-									co_await (obj->*slot)(std::move (
-										static_cast<func0_tr::template arg_type_t<Is>>(args0)
-									)...);
+									co_await (obj->*slot) (
+										static_cast<func0_tr::template arg_type_t<Is>>
+										(std::move(args0))...
+									);
 									co_return ;
 								},
 								use_future).wait();
@@ -186,9 +193,10 @@ public:
 								{
 									if( not is_valid() )
 										co_return ;
-									co_await (obj->*slot)(std::move (
-										static_cast<func0_tr::template arg_type_t<Is>>(args0)
-									)...);
+									co_await (obj->*slot) (
+										static_cast<func0_tr::template arg_type_t<Is>>
+										(std::move(args0))...
+									);
 									co_return ;
 								});
 							}
@@ -200,19 +208,20 @@ public:
 							{
 								if( not is_valid() )
 									return ;
-								(obj->*slot)(std::move (
-									static_cast<func0_tr::template arg_type_t<Is>>(args0)
-								)...);
+								(obj->*slot) (
+									static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(args0))...
+								);
 							});
 						}
 						else
 						{
 							if( not is_valid() )
 								return ;
-							(obj->*slot)(std::move (
+							(obj->*slot) (
 								static_cast<func0_tr::template arg_type_t<Is>>
-								(std::get<Is>(args))
-							)...);
+								(std::move(std::get<Is>(args)))...
+							);
 						}
 					}
 					else if constexpr( is_awaitable_v<return_t> )
@@ -225,9 +234,10 @@ public:
 							{
 								if( not is_valid() )
 									co_return ;
-								co_await slot(std::move (
-									static_cast<func0_tr::template arg_type_t<Is>>(args0)
-								)...);
+								co_await slot (
+									static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(args0))...
+								);
 								co_return ;
 							},
 							use_future).wait();
@@ -240,9 +250,10 @@ public:
 							{
 								if( not is_valid() )
 									co_return ;
-								co_await slot(std::move (
-									static_cast<func0_tr::template arg_type_t<Is>>(args0)
-								)...);
+								co_await slot (
+									static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(args0))...
+								);
 								co_return ;
 							});
 						}
@@ -254,20 +265,128 @@ public:
 						{
 							if( not is_valid() )
 								return ;
-							slot(std::move (
-								static_cast<func0_tr::template arg_type_t<Is>>(args0)
-							)...);
+							slot(static_cast<func0_tr::template arg_type_t<Is>>
+								(std::move(args0))...
+							);
 						});
 					}
 					else
 					{
 						if( not is_valid() )
 							return ;
-						slot(std::move (
-							static_cast<func0_tr::template arg_type_t<Is>>
-							(std::get<Is>(args))
-						)...);
+						slot(static_cast<func0_tr::template arg_type_t<Is>>
+							(std::move(std::get<Is>(args)))...
+						);
 					}
+#else //_MSC_VER
+					if constexpr( func0_tr::is_member_func )
+					{
+						if constexpr( is_awaitable_v<return_t> )
+						{
+							if constexpr( Mode == slot_mode::backpressure )
+							{
+								libgs::dispatch(exec,
+								[obj, is_valid, slot, args = std::move(args)]() -> awaitable<void>
+								{
+									if( not is_valid() )
+										co_return ;
+									co_await (obj->*slot) (
+										static_cast<func0_tr::template arg_type_t<Is>>
+										(std::move(std::get<Is>(args)))...
+									);
+									co_return ;
+								},
+								use_future).wait();
+							}
+							else
+							{
+								libgs::dispatch(exec, [obj, is_valid, slot, args = std::move(args)]
+								() -> awaitable<void>
+								{
+									if( not is_valid() )
+										co_return ;
+									co_await (obj->*slot) (
+										static_cast<func0_tr::template arg_type_t<Is>>
+										(std::move(std::get<Is>(args)))...
+									);
+									co_return ;
+								});
+							}
+						}
+						else if constexpr( Mode == slot_mode::async )
+						{
+							libgs::dispatch(exec, [obj, is_valid, slot, args = std::move(args)]
+							{
+								if( not is_valid() )
+									return ;
+								(obj->*slot) (
+									static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(std::get<Is>(args)))...
+								);
+							});
+						}
+						else
+						{
+							if( not is_valid() )
+								return ;
+							(obj->*slot) (
+								static_cast<func0_tr::template arg_type_t<Is>>
+								(std::move(std::get<Is>(args)))...
+							);
+						}
+					}
+					else if constexpr( is_awaitable_v<return_t> )
+					{
+						if constexpr( Mode == slot_mode::backpressure )
+						{
+							libgs::dispatch(exec, [is_valid, slot, args = std::move(args)]
+							() -> awaitable<void>
+							{
+								if( not is_valid() )
+									co_return ;
+								co_await slot (
+									static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(std::get<Is>(args)))...
+								);
+								co_return ;
+							},
+							use_future).wait();
+						}
+						else
+						{
+							libgs::dispatch(exec,
+							[is_valid, slot, args = std::move(args)]() -> awaitable<void>
+							{
+								if( not is_valid() )
+									co_return ;
+								co_await slot (
+									static_cast<func0_tr::template arg_type_t<Is>>
+									(std::move(std::get<Is>(args)))...
+								);
+								co_return ;
+							});
+						}
+					}
+					else if constexpr( Mode == slot_mode::async )
+					{
+						libgs::dispatch(exec, [is_valid, slot, args = std::move(args)]
+						{
+							if( not is_valid() )
+								return ;
+							slot(static_cast<func0_tr::template arg_type_t<Is>>
+								(std::move(std::get<Is>(args)))...
+							);
+						});
+					}
+					else
+					{
+						if( not is_valid() )
+							return ;
+						slot(static_cast<func0_tr::template arg_type_t<Is>>
+							(std::move(std::get<Is>(args)))...
+						);
+					}
+#endif //_MSC_VER
 				}
 				(indices{});
 			};

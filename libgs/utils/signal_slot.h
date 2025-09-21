@@ -85,31 +85,29 @@ public:
 	static constexpr bool is_observer_v =
 		is_shared_ptr_v<std::remove_cvref_t<Obj>>;
 
-	template <slot_mode Mode, typename Obj, concepts::function Func0> requires is_observer_v<Obj>
+	template <slot_mode Mode, typename Obj, concepts::function Func0>
+	requires is_observer_v<Obj>
 	static constexpr bool is_obj_slot_v = []() consteval
 	{
-		// if constexpr( not is_observer_v<Obj> )
-		// 	return false;
-		// else
-		// {
-			using func0_tr = function_traits<Func0>;
-			if constexpr( func0_tr::is_member_func )
-			{
-				using obj_t = std::remove_cvref_t<Obj>::element_type;
-				if constexpr( std::is_same_v<typename func0_tr::class_t, obj_t> )
-					return is_slot_v<Mode,Func0>;
-				else
-					return false;
-			}
+		using func0_tr = function_traits<Func0>;
+		if constexpr( func0_tr::is_member_func )
+		{
+			using obj_t = std::remove_cvref_t<Obj>::element_type;
+			if constexpr( std::is_same_v<typename func0_tr::class_t, obj_t> )
+				return is_slot_v<Mode,Func0>;
 			else
-				return is_global_slot_v<Mode,Func0>;
-		// }
+				return false;
+		}
+		else
+			return is_global_slot_v<Mode,Func0>;
 	}();
 
-	template <slot_mode Mode, concepts::function...Funcs> requires (sizeof...(Funcs) > 0)
+	template <slot_mode Mode, concepts::function...Funcs>
+	requires (sizeof...(Funcs) > 0)
 	static constexpr bool is_global_slots_v = (is_global_slot_v<Mode,Funcs> && ...);
 
-	template <slot_mode Mode, typename Obj, concepts::function...Funcs> requires (is_observer_v<Obj> and sizeof...(Funcs) > 0)
+	template <slot_mode Mode, typename Obj, concepts::function...Funcs>
+	requires (is_observer_v<Obj> and sizeof...(Funcs) > 0)
 	static constexpr bool is_obj_slots_v = (is_obj_slot_v<Mode,Obj,Funcs> && ...);
 
 	template <typename...Args>
