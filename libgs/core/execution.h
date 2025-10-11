@@ -88,6 +88,8 @@ concept dispatch_token = []() consteval -> bool
 			else
 				return opt_token<Token, std::exception_ptr, return_t>;
 		}
+		else
+			return false;
 	}
 	return false;
 }();
@@ -124,12 +126,14 @@ LIBGS_CORE_TAPI decltype(auto) post (
 	Work &&work, Token &&token = detached
 );
 
+using work_canceller_t = std::function<void()>;
+
 /*
  * Push a work to a work queue.
  * The work will be executed after the specified relative time.
  */
 template <concepts::dispatch_work Work, typename Rep, typename Period>
-LIBGS_CORE_TAPI std::function<void()> post (
+LIBGS_CORE_TAPI work_canceller_t post (
 	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work
 );
 
@@ -138,7 +142,7 @@ LIBGS_CORE_TAPI std::function<void()> post (
  * The work will be executed after the specified relative time.
  */
 template <concepts::dispatch_work Work, typename Rep, typename Period>
-LIBGS_CORE_TAPI std::function<void()> post (
+LIBGS_CORE_TAPI work_canceller_t post (
 	const duration<Rep,Period> &rtime, Work &&work
 );
 
@@ -147,7 +151,7 @@ LIBGS_CORE_TAPI std::function<void()> post (
  * The work will be executed at the specified absolute time.
  */
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
-LIBGS_CORE_TAPI std::function<void()> post (
+LIBGS_CORE_TAPI work_canceller_t post (
 	concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work
 );
 
@@ -156,7 +160,7 @@ LIBGS_CORE_TAPI std::function<void()> post (
  * The work will be executed at the specified absolute time.
  */
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
-LIBGS_CORE_TAPI std::function<void()> post (
+LIBGS_CORE_TAPI work_canceller_t post (
 	const time_point<Clock,Duration> &atime, Work &&work
 );
 
@@ -222,18 +226,21 @@ template <typename Clock, typename Duration, concepts::sleep_opt_token Token = u
 	const time_point<Clock,Duration> &atime, Token &&token = {}
 );
 
-class timer_task;
-using timer_task_ptr = std::shared_ptr<timer_task>;
+namespace concepts
+{
 
-// If the timer_task is destructed, then the timer will be destroyed.
-template <concepts::dispatch_work Work, typename Rep, typename Period>
-LIBGS_CORE_TAPI [[nodiscard]] timer_task_ptr make_timer (
+template <typename Work>
+concept timer_work = dispatch_work<Work> or callable<Work,work_canceller_t>;
+
+} //namespace concepts
+
+template <concepts::timer_work Work, typename Rep, typename Period>
+LIBGS_CORE_TAPI work_canceller_t start_timer (
 	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work, bool immediately = false
 );
 
-// If the timer_task is destructed, then the timer will be destroyed.
-template <concepts::dispatch_work Work, typename Rep, typename Period>
-LIBGS_CORE_TAPI [[nodiscard]] timer_task_ptr make_timer (
+template <concepts::timer_work Work, typename Rep, typename Period>
+LIBGS_CORE_TAPI work_canceller_t start_timer (
 	const duration<Rep,Period> &rtime, Work &&work, bool immediately = false
 );
 

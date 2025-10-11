@@ -28,6 +28,8 @@
 
 #ifndef LIBGS_CORE_DETAIL_EXECUTION_H
 #define LIBGS_CORE_DETAIL_EXECUTION_H
+#include "libgs/utils/logger.h"
+#include "spdlog/spdlog.h"
 
 namespace libgs { namespace detail
 {
@@ -52,7 +54,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 
 	if constexpr( is_awaitable_v<return_t> )
 	{
-		using co_return_t = typename return_t::value_type;
+		using co_return_t = return_t::value_type;
 		if constexpr( std::is_void_v<co_return_t> )
 		{
 			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
@@ -254,15 +256,23 @@ decltype(auto) post(Work &&work, Token &&token)
 }
 
 template <concepts::dispatch_work Work, typename Rep, typename Period>
-std::function<void()> post(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work)
+work_canceller_t post(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work)
 {
-	auto time = rtime.count() < 0 ? asio::steady_timer::duration(0) :
-		std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
-
+	asio::steady_timer::duration time;
+	if constexpr( std::is_signed_v<decltype(rtime.count())> )
+	{
+		time = rtime.count() <= 0 ? asio::steady_timer::duration(0) :
+			std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
+	}
+	else
+	{
+		time = rtime.count() == 0 ? asio::steady_timer::duration(0) :
+			std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
+	}
 	auto timer = std::make_shared<asio::steady_timer>(
 		std::forward<decltype(exec)>(exec), time
 	);
-	std::function<void()> cancel = [timer]() mutable {
+	work_canceller_t cancel = [timer]() mutable {
 		timer->cancel();
 	};
 	timer->async_wait([timer,
@@ -278,13 +288,13 @@ std::function<void()> post(concepts::sched auto &&exec, const duration<Rep,Perio
 }
 
 template <concepts::dispatch_work Work, typename Rep, typename Period>
-std::function<void()> post(const duration<Rep,Period> &rtime, Work &&work)
+work_canceller_t post(const duration<Rep,Period> &rtime, Work &&work)
 {
 	return post(io_context(), rtime, std::forward<Work>(work));
 }
 
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
-std::function<void()> post(concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work)
+work_canceller_t post(concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work)
 {
 	return post(std::forward<decltype(exec)>(exec),
 		atime - std::chrono::system_clock::now(), std::forward<Work>(work)
@@ -292,7 +302,7 @@ std::function<void()> post(concepts::sched auto &&exec, const time_point<Clock,D
 }
 
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
-std::function<void()> post(const time_point<Clock,Duration> &atime, Work &&work)
+work_canceller_t post(const time_point<Clock,Duration> &atime, Work &&work)
 {
 	return post(io_context(), atime, std::forward<Work>(work));
 }
@@ -345,7 +355,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 		}
 		else if constexpr( is_awaitable_v<return_t> )
 		{
-			using co_return_t = typename return_t::value_type;
+			using co_return_t = return_t::value_type;
 			auto counter = std::make_shared<size_t>(0);
 
 			if constexpr( std::is_void_v<co_return_t> )
@@ -459,7 +469,7 @@ auto local_dispatch(Work &&work, Token &&token)
 		}
 		else if constexpr( is_awaitable_v<return_t> )
 		{
-			using co_return_t = typename return_t::value_type;
+			using co_return_t = return_t::value_type;
 			auto counter = std::make_shared<size_t>(0);
 			asio::io_context ioc;
 
@@ -625,80 +635,79 @@ auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 	);
 }
 
-class LIBGS_CORE_TAPI timer_task
+template <concepts::timer_work Work, typename Rep, typename Period>
+work_canceller_t start_timer(concepts::sched auto &&exec,
+	const duration<Rep,Period> &rtime, Work &&work, bool immediately)
 {
-	LIBGS_DISABLE_COPY_MOVE(timer_task)
-
-public:
-	using executor_t = asio::any_io_executor;
-
-	template <concepts::match_sched<executor_t> Exec, concepts::dispatch_work Work>
-	timer_task(Exec &&exec, const asio::steady_timer::duration &rtime, Work &&work, bool immediately) :
-		m_timer(std::make_shared<asio::steady_timer>(exec))
+	if constexpr( std::is_signed_v<decltype(rtime.count())> )
 	{
-		libgs::dispatch(std::forward<Exec>(exec),
-		[timer = std::weak_ptr(m_timer), rtime, func = std::forward<Work>(work), immediately]
-		() -> awaitable<void>
+		if( rtime.count() <= 0 )
+			throw runtime_error("libgs::start_timer: Invalid time duration");
+	}
+	else
+	{
+		if( rtime.count() == 0 )
+			throw runtime_error("libgs::start_timer: Invalid time duration");
+	}
+	auto timer = std::make_shared<asio::steady_timer>(exec);
+	auto cancel = std::make_shared<bool>(false);
+
+	work_canceller_t canceller = [timer, cancel]() mutable
+	{
+		*cancel = true;
+		timer->cancel();
+	};
+	libgs::dispatch(std::forward<decltype(exec)>(exec), [
+		timer = std::move(timer), cancel = std::move(cancel),
+		canceller, rtime, func = std::forward<Work>(work), immediately
+	]() -> awaitable<void>
+	{
+		using namespace operators;
+		error_code error;
+
+		auto sleep = [&]() -> awaitable<bool>
 		{
-			using namespace operators;
-			std::error_code error;
-
-			auto sleep = [&]() -> awaitable<bool>
+			if( *cancel )
+				co_return false;
+			timer->expires_after(rtime);
+			co_await timer->async_wait(use_awaitable | error);
+			co_return not error;
+		};
+		if( not immediately )
+		{
+			if( not co_await sleep() )
+				co_return ;
+		}
+		for(;;)
+		{
+			if constexpr( concepts::callable<Work,work_canceller_t> )
 			{
-				if( timer.expired() )
-					co_return false;
-				auto _timer = timer.lock();
-
-				_timer->expires_after(rtime);
-				co_await _timer->async_wait(use_awaitable | error);
-				co_return error ? false : true;
-			};
-			if( not immediately )
-			{
-				if( not co_await sleep() )
-					co_return ;
+				using return_t = decltype(std::declval<Work>()(canceller));
+				if constexpr( is_awaitable_v<return_t> )
+					co_await func(canceller);
+				else
+					func(canceller);
 			}
-			using return_t = std::invoke_result_t<Work>;
-			for(;;)
+			else
 			{
+				using return_t = std::invoke_result_t<Work>;
 				if constexpr( is_awaitable_v<return_t> )
 					co_await func();
 				else
 					func();
-
-				if( not co_await sleep() )
-					break;
 			}
-			co_return ;
-		});
-	}
-
-	~timer_task() {
-		m_timer->cancel();
-	}
-
-private:
-	std::shared_ptr<asio::steady_timer> m_timer;
-};
-
-template <concepts::dispatch_work Work, typename Rep, typename Period>
-timer_task_ptr make_timer
-(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work, bool immediately)
-{
-	return std::make_shared<timer_task>(std::forward<decltype(exec)>(exec),
-		std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
-		std::forward<Work>(work), immediately
-	);
+			if( not co_await sleep() )
+				break;
+		}
+		co_return ;
+	});
+	return canceller;
 }
 
-template <concepts::dispatch_work Work, typename Rep, typename Period>
-timer_task_ptr make_timer
-(const duration<Rep,Period> &rtime, Work &&work, bool immediately)
+template <concepts::timer_work Work, typename Rep, typename Period>
+work_canceller_t start_timer(const duration<Rep,Period> &rtime, Work &&work, bool immediately)
 {
-	return std::make_shared<timer_task>(io_context(),
-		std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
-		std::forward<Work>(work), immediately
-	);
+	return start_timer(io_context(), rtime, std::forward<Work>(work), immediately);
 }
 
 namespace concepts::detail
@@ -728,7 +737,7 @@ template <>
 struct initiate_token<> : initiate_token<void> {};
 
 template <typename...Args>
-using initiate_token_t = typename initiate_token<Args...>::type;
+using initiate_token_t = initiate_token<Args...>::type;
 
 template <typename Exec, typename WakeUp, typename Handler>
 LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&handler)

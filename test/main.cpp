@@ -20,13 +20,13 @@ void fff(int i)
 
 int main()
 {
-	auto timer = libgs::make_timer(500ms, []() -> libgs::awaitable<void>
+	auto canceller = libgs::start_timer(500ms, []() -> libgs::awaitable<void>
 	{
 		libgs_utils_log_info("------------------");
 		co_return ;
 	});
-	libgs::post(2.5s, [&timer]() mutable {
-		timer.reset();
+	libgs::post(2.5s, [&canceller]() mutable {
+		canceller();
 	});
 
 	libgs::utils::signal<void(int,const char*)> sig;

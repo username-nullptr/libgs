@@ -56,7 +56,8 @@ public: // safe
 	bool enqueue(element_t &&data);
 
 	template <typename...Args>
-	bool emplace(Args&&...args);
+	bool emplace(Args&&...args) requires
+		concepts::constructible<T,Args...>;
 
 	optional<element_t> dequeue();
 	bool dequeue(element_t &data);
@@ -94,7 +95,8 @@ public: // safe
 	bool enqueue(element_t &&data);
 
 	template <typename...Args>
-	bool emplace(Args&&...args);
+	bool emplace(Args&&...args) requires
+		concepts::constructible<T,Args...>;
 
 	optional<element_t> dequeue();
 	bool dequeue(element_t &data);

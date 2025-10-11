@@ -38,22 +38,31 @@ class lock_free_queue<T>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
+	struct node
+	{
+		std::atomic_bool constructing {true};
+		std::unique_ptr<element_t> data {};
+		std::atomic<node*> next {nullptr};
+	};
+
+public:
 	constexpr explicit impl(size_t capacity) :
-		m_capacity(check_capacity(capacity)) {}
+		m_capacity(check_capacity(capacity))
+	{
+		auto dummy = new node();
+		m_head.store(dummy, std::memory_order_release);
+		m_tail.store(dummy, std::memory_order_release);
+	}
 
 	~impl()
 	{
 		auto current = m_head.load(std::memory_order_relaxed);
-        while( current )
-        {
-            auto next = current->next.load(std::memory_order_relaxed);
-            delete current;
-            current = next;
-        }
-	}
-
-	[[nodiscard]] bool is_full(std::memory_order order) const noexcept {
-		return m_size.load(order) >= m_capacity;
+		while( current )
+		{
+			auto next = current->next.load(std::memory_order_relaxed);
+			delete current;
+			current = next;
+		}
 	}
 
 private:
@@ -62,17 +71,8 @@ private:
 	}
 
 public:
-	struct node
-	{
-		element_t data;
-		std::atomic<node*> next {nullptr};
-
-		template <typename...Args>
-		explicit node(Args&&...args) : data(std::forward<Args>(args)...) {}
-	};
 	std::atomic<node*> m_head {nullptr};
 	std::atomic<node*> m_tail {nullptr};
-
 	std::atomic<size_t> m_size {0};
 	const size_t m_capacity = 0;
 };
@@ -109,7 +109,8 @@ lock_free_queue<T> &lock_free_queue<T>::operator=(lock_free_queue &&other) noexc
 }
 
 template <concepts::copy_or_move_constructible T>
-bool lock_free_queue<T>::enqueue(const element_t &data) requires concepts::copy_constructible<T>
+bool lock_free_queue<T>::enqueue(const element_t &data)
+	requires concepts::copy_constructible<T>
 {
 	return emplace(data);
 }
@@ -123,107 +124,62 @@ bool lock_free_queue<T>::enqueue(element_t &&data)
 template <concepts::copy_or_move_constructible T>
 template <typename...Args>
 bool lock_free_queue<T>::emplace(Args&&...args)
+	requires concepts::constructible<T,Args...>
 {
-	if( m_impl->is_full(std::memory_order_relaxed) )
-		return false;
-
-	using node_t = impl::node;
-	auto n = new node_t(std::forward<Args>(args)...);
-
-	node_t *tail = nullptr;
 	for(;;)
 	{
-		if( m_impl->is_full(std::memory_order_acquire) )
+		if( m_impl->m_size.load(std::memory_order_acquire) >= capacity() )
+			return false; // full
+
+		auto node = new impl::node();
+		auto old_tail = m_impl->m_tail.load(std::memory_order_relaxed);
+
+		if( not m_impl->m_tail.compare_exchange_weak(old_tail,
+			node, std::memory_order_release, std::memory_order_relaxed) )
 		{
-			delete n;
-			break;
+			// There are other threads that have executed ahead of this one.
+			delete node;
+			continue;
 		}
-		tail = m_impl->m_tail.load(std::memory_order_acquire);
-        if( not tail )
-        {
-            node_t *tmp = nullptr;
-            if( m_impl->m_head.compare_exchange_weak
-            	(tmp, n, std::memory_order_acq_rel, std::memory_order_relaxed) )
-            {
-                m_impl->m_tail.store(n, std::memory_order_release);
-            	m_impl->m_size.fetch_add(1, std::memory_order_release);
-                return true;
-            }
-            continue;
-        }
-		auto next = tail->next.load(std::memory_order_acquire);
-		if( not next )
-		{
-			if( tail->next.compare_exchange_weak
-				(next, n, std::memory_order_acq_rel, std::memory_order_relaxed) )
-			{
-				m_impl->m_tail.compare_exchange_strong(tail, n);
-				m_impl->m_size.fetch_add(1, std::memory_order_release);
-				return true;
-			}
-		}
-		// The 'next' is not empty,
-		// which means that another thread is also being inserted
-		// and the temporary tail node needs to be updated.
-		else
-		{
-			m_impl->m_tail.compare_exchange_strong (
-				tail, next, std::memory_order_release, std::memory_order_relaxed
-			);
-		}
+		old_tail->next.store(node, std::memory_order_release);
+		node->data = std::make_unique<element_t>(std::forward<Args>(args)...);
+
+		// Construct time slice protection.
+		node->constructing.store(false, std::memory_order_release);
+		break;
 	}
+	m_impl->m_size.fetch_add(1, std::memory_order_release);
 	return false;
 }
 
 template <concepts::copy_or_move_constructible T>
 optional<T> lock_free_queue<T>::dequeue()
 {
-	typename impl::node *head = nullptr;
+	std::unique_ptr<element_t> elem;
 	for(;;)
 	{
-		head = m_impl->m_head.load(std::memory_order_acquire);
-		if( not head )
-			return {};
+		if( m_impl->m_size.load(std::memory_order_acquire) == 0 )
+			return {}; // empty
 
-		auto tail = m_impl->m_tail.load(std::memory_order_acquire);
-		auto next = head->next.load(std::memory_order_acquire);
+		auto old_head = m_impl->m_head.load(std::memory_order_relaxed);
+		auto next = old_head->next.load(std::memory_order_acquire);
 
-		if( head != m_impl->m_head.load(std::memory_order_relaxed) )
-			continue;
+		if( not next )
+			return {}; // empty
 
-		else if( head == tail ) // Queue may be empty.
-		{
-			if( next ) // Another thread is inserting.
-			{
-				m_impl->m_tail.compare_exchange_weak (
-					tail, next, std::memory_order_release, std::memory_order_relaxed
-				);
-			}
-			else if( m_impl->m_head.compare_exchange_weak
-					 (head, next, std::memory_order_acq_rel, std::memory_order_relaxed) )
-			{
-				m_impl->m_tail.store(next, std::memory_order_release);
+		// Wait for the node to be constructed.
+		while( next->constructing.load(std::memory_order_relaxed) ) {}
 
-				auto data = std::move(head->data);
-				delete head;
+		if( not m_impl->m_head.compare_exchange_strong(old_head,
+			next, std::memory_order_release, std::memory_order_relaxed) )
+			continue;  // There are other threads that have executed ahead of this one.
 
-				m_impl->m_size.fetch_sub(1, std::memory_order_release);
-				return std::move(data);
-			}
-		}
-		else if( m_impl->m_head.compare_exchange_weak
-				 (head, next, std::memory_order_acq_rel, std::memory_order_relaxed) )
-		{
-			auto data = std::move(head->data);
-			delete head;
-
-			m_impl->m_size.fetch_sub(1, std::memory_order_release);
-			return std::move(data);
-		}
+		elem = std::move(next->data);
+		delete old_head;
+		break;
 	}
-#ifndef _MSC_VER
-	return {};
-#endif //_MSC_VER
+	m_impl->m_size.fetch_sub(1, std::memory_order_release);
+	return std::move(*elem);
 }
 
 template <concepts::copy_or_move_constructible T>
@@ -253,7 +209,7 @@ bool lock_free_queue<T>::empty() const noexcept
 template <concepts::copy_or_move_constructible T>
 bool lock_free_queue<T>::full() const noexcept
 {
-	return m_impl->is_full(std::memory_order_acquire);
+	return size() == capacity();
 }
 
 template <concepts::copy_or_move_constructible T>
@@ -271,12 +227,12 @@ public:
 	impl() = default;
 	~impl() = default;
 
-    [[nodiscard]] static constexpr size_t index_for(size_t idx) noexcept
+    [[nodiscard]] static constexpr size_t next_index(size_t idx) noexcept
 	{
         if constexpr( is_power_of_two(capacity_v) )
-            return idx & (capacity_v - 1);  // 位运算，更高效
+    		return idx & (capacity_v - 1);
         else
-            return idx % capacity_v;  // 模运算，兼容性更好
+            return idx % capacity_v;
     }
 
 private:
@@ -285,9 +241,15 @@ private:
 	}
 
 public:
-	alignas(64) std::unique_ptr<element_t> m_buffer[N] {};
-	alignas(64) std::atomic<size_t> m_read_idx {0};
-	alignas(64) std::atomic<size_t> m_write_idx {0};
+	enum class node_state {
+		writable, writing, readable, reading
+	};
+	std::atomic<node_state> m_states[N] {};
+	std::unique_ptr<element_t> m_buffer[N] {};
+
+	alignas(64) std::atomic<size_t> m_head {0};
+	alignas(64) std::atomic<size_t> m_tail {0};
+	alignas(64) std::atomic<size_t> m_size {0};
 };
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -328,7 +290,8 @@ lock_free_queue<T,N> &lock_free_queue<T,N>::operator=(lock_free_queue &&other) n
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
-bool lock_free_queue<T,N>::enqueue(const element_t &data) requires concepts::copy_constructible<T>
+bool lock_free_queue<T,N>::enqueue(const element_t &data)
+	requires concepts::copy_constructible<T>
 {
 	return emplace(data);
 }
@@ -342,25 +305,50 @@ bool lock_free_queue<T,N>::enqueue(element_t &&data)
 template <concepts::copy_or_move_constructible T, size_t N>
 template <typename...Args>
 bool lock_free_queue<T,N>::emplace(Args&&...args)
+	requires concepts::constructible<T,Args...>
 {
-	auto w_idx = m_impl->m_write_idx.load(std::memory_order_relaxed);
 	for(;;)
 	{
-		auto r_idx = m_impl->m_read_idx.load(std::memory_order_acquire);
+		auto curr_size = m_impl->m_size.load(std::memory_order_acquire);
+		if( curr_size >= capacity_v )
+			return false; // full
 
-		// is full ?
-		if( w_idx - r_idx >= capacity_v )
-			return false;
-
-		// try to update write index
-		if( m_impl->m_write_idx.compare_exchange_weak
-			(w_idx, w_idx + 1, std::memory_order_release, std::memory_order_relaxed) )
-		{
-			m_impl->m_buffer[impl::index_for(w_idx)] =
-				std::make_unique<element_t>(std::forward<Args>(args)...);
+		else if( m_impl->m_size.compare_exchange_strong(curr_size,
+			curr_size + 1, std::memory_order_acquire, std::memory_order_relaxed) )
 			break;
+	}
+	constexpr size_t max_retries = 3;
+	size_t retries = 0;
+
+	auto curr_tail = m_impl->m_tail.load(std::memory_order_relaxed);
+	auto next_tail = impl::next_index(curr_tail);
+	for(;;)
+	{
+		// Update the index first.
+		auto expected = impl::node_state::writable;
+		if( not m_impl->m_states[next_tail].compare_exchange_strong(expected,
+			impl::node_state::writing, std::memory_order_acquire, std::memory_order_relaxed) )
+		{
+			// There are other threads that have executed ahead of this one.
+			if( ++retries >= max_retries )
+			{
+				m_impl->m_tail.compare_exchange_strong(curr_tail,
+					impl::next_index(curr_tail), std::memory_order_relaxed, std::memory_order_relaxed
+				);
+				curr_tail = m_impl->m_tail.load(std::memory_order_relaxed);
+				next_tail = impl::next_index(curr_tail);
+				retries = 0;
+			}
+			continue;
 		}
-		// failed, retry
+		m_impl->m_buffer[next_tail] =
+			std::make_unique<element_t>(std::forward<Args>(args)...);
+
+		m_impl->m_states[next_tail].store (
+			impl::node_state::readable, std::memory_order_release
+		);
+		m_impl->m_tail.store(next_tail + 1, std::memory_order_release);
+		break;
 	}
 	return true;
 }
@@ -368,23 +356,49 @@ bool lock_free_queue<T,N>::emplace(Args&&...args)
 template <concepts::copy_or_move_constructible T, size_t N>
 optional<T> lock_free_queue<T,N>::dequeue()
 {
-	auto r_idx = m_impl->m_read_idx.load(std::memory_order_relaxed);
+	std::unique_ptr<element_t> elem;
 	for(;;)
 	{
-		auto w_idx = m_impl->m_write_idx.load(std::memory_order_acquire);
+		auto curr_size = m_impl->m_size.load(std::memory_order_acquire);
+		if( curr_size == 0 )
+			return {}; // empty
 
-		// is empty ?
-		if( r_idx == w_idx )
+		else if( m_impl->m_size.compare_exchange_strong(curr_size,
+			curr_size - 1, std::memory_order_acquire, std::memory_order_relaxed) )
 			break;
-
-		// try to update read index
-		if( m_impl->m_read_idx.compare_exchange_weak
-			(r_idx, r_idx + 1, std::memory_order_release, std::memory_order_relaxed) )
-			return std::move(*m_impl->m_buffer[impl::index_for(r_idx)]);
-
-		// failed, retry
 	}
-	return {};
+	constexpr size_t max_retries = 3;
+	size_t retries = 0;
+
+	auto curr_head = m_impl->m_head.load(std::memory_order_relaxed);
+	auto next_head = impl::next_index(curr_head);
+	for(;;)
+	{
+		auto expected = impl::node_state::readable;
+		if( not m_impl->m_states[next_head].compare_exchange_strong(expected,
+			impl::node_state::reading, std::memory_order_acquire, std::memory_order_relaxed) )
+		{
+			// There are other threads that have executed ahead of this one.
+			if( ++retries >= max_retries )
+			{
+				m_impl->m_head.compare_exchange_strong(curr_head,
+					impl::next_index(curr_head), std::memory_order_relaxed, std::memory_order_relaxed
+				);
+				curr_head = m_impl->m_head.load(std::memory_order_relaxed);
+				next_head = impl::next_index(curr_head);
+				retries = 0;
+			}
+			continue;
+		}
+		elem = std::move(m_impl->m_buffer[next_head]);
+
+		m_impl->m_states[next_head].store (
+			impl::node_state::writable, std::memory_order_release
+		);
+		m_impl->m_head.store(next_head + 1, std::memory_order_release);
+		break;
+	}
+	return std::move(*elem);
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -402,22 +416,19 @@ bool lock_free_queue<T,N>::dequeue(element_t &data)
 template <concepts::copy_or_move_constructible T, size_t N>
 bool lock_free_queue<T,N>::empty() const noexcept
 {
-	return m_impl->m_read_idx.load(std::memory_order_acquire) ==
-		   m_impl->m_write_idx.load(std::memory_order_acquire);
+	return size() == 0;
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
 bool lock_free_queue<T,N>::full() const noexcept
 {
-	return size() >= capacity_v;
+	return size() == capacity_v;
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
 size_t lock_free_queue<T,N>::size() const noexcept
 {
-	auto w_idx = m_impl->m_write_idx.load(std::memory_order_acquire);
-	auto r_idx = m_impl->m_read_idx.load(std::memory_order_acquire);
-	return w_idx - r_idx;
+	return m_impl->m_size.load(std::memory_order_acquire);
 }
 
 } //namespace libgs

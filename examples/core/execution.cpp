@@ -36,7 +36,7 @@ int main()
 	 * If the last parameter is true,
 	 * the task will be executed immediately.
 	 */
-	auto timer = libgs::make_timer(1s, /* ioc, */ []{
+	libgs::start_timer(1s, /* ioc, */ []{
 		spdlog::info("timer");
 	}
 	/*, true*/);

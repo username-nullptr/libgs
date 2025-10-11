@@ -93,4 +93,6 @@ bool is_run()
 	return g_run_flag;
 }
 
+
+
 } //namespace libgs
