@@ -44,6 +44,12 @@ template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> St
 	const Str &str, StrArg &&exclude = {}, StrArg &&include = {}, char percent = '%'
 );
 
+/*
+ * return:
+ *   <0: Completely mismatched.
+ *   =0: equality.
+ *   >0: The smaller the value is, the higher the matching degree will be.
+ */
 template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> StrArg>
 [[nodiscard]] LIBGS_CORE_TAPI int32_t wildcard_match (
 	const Str &rule, const StrArg &str
