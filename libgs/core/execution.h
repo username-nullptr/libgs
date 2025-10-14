@@ -47,6 +47,9 @@ using io_executor_t = io_context_t::executor_type;
  */
 LIBGS_CORE_API int exec();
 
+LIBGS_CORE_API void exec(io_context_t &ioc);
+LIBGS_CORE_API void exec_detach(io_context_t &ioc);
+
 // End event scheduling;
 LIBGS_CORE_API void exit(int code = 0);
 

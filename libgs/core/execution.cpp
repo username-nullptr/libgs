@@ -71,6 +71,17 @@ int exec()
 	return g_exit_code;
 }
 
+void exec(io_context_t &ioc)
+{
+	io_worker_t work(ioc.get_executor()); (void)work;
+	ioc.run();
+}
+
+void exec_detach(io_context_t &ioc)
+{
+    std::thread([&ioc]{exec(ioc);}).detach();
+}
+
 void exit(int code)
 {
 	if( g_run_flag )

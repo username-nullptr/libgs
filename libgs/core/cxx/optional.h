@@ -83,6 +83,12 @@ public:
 	[[nodiscard]] bool operator==(const optional_base &other) const
 		requires std::equality_comparable<value_t>;
 
+public:
+	void operator+(const optional_base&) = delete;
+	void operator-(const optional_base&) = delete;
+	void operator/(const optional_base&) = delete;
+	void operator%(const optional_base&) = delete;
+
 protected:
 	value_t m_value {};
 	bool m_has_value = false;
