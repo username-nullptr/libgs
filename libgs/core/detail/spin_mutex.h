@@ -46,9 +46,13 @@ inline spin_mutex::~spin_mutex()
 
 inline void spin_mutex::lock()
 {
-	while( m_native_handle )
-		std::this_thread::yield();
-	m_native_handle = true;
+	bool expected = false;
+	while( not m_native_handle.compare_exchange_weak(expected, true,
+		std::memory_order_acquire, std::memory_order_relaxed) )
+    {
+        expected = false;
+        std::this_thread::yield(); // 自旋等待
+    }
 }
 
 inline bool spin_mutex::try_lock()
@@ -66,15 +70,17 @@ inline bool spin_mutex::try_lock()
 			return false;
 	 	}
 	*/
-	return m_native_handle.compare_exchange_strong(flag, true);
+	return m_native_handle.compare_exchange_strong(flag, true,
+		std::memory_order_acquire, std::memory_order_relaxed
+	);
 }
 
 inline void spin_mutex::unlock()
 {
-	m_native_handle	= false;
+	m_native_handle.store(false, std::memory_order_relaxed);
 }
 
-inline typename spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
+inline spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
 {
 	return m_native_handle;
 }

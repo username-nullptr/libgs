@@ -66,34 +66,52 @@ inline void spin_shared_mutex::unlock()
 
 inline void spin_shared_mutex::lock_shared()
 {
-	if( ++m_read_count == 1 )
+	if( m_read_count.fetch_add(1, std::memory_order_relaxed) == 0 )
 		m_native_handle.lock();
 }
 
 inline bool spin_shared_mutex::try_lock_shared()
 {
-	if( ++m_read_count == 1 )
-		return m_native_handle.try_lock();
+	if( m_read_count.load(std::memory_order_relaxed) == 0 )
+	{
+		if( m_native_handle.try_lock() )
+		{
+			m_read_count.store(1, std::memory_order_relaxed);
+			return true;
+		}
+		return false;
+	}
+	m_read_count.fetch_add(1, std::memory_order_relaxed);
 	return true;
 }
 
 inline void spin_shared_mutex::unlock_shared()
 {
-	auto counter = m_read_count.load();
-	/*
-		if( m_read_count == counter )
-		{
-			m_read_count = counter - 1;
+	for(;;)
+	{
+		auto counter = m_read_count.load(std::memory_order_relaxed);
+		/*
+			if( m_read_count == counter )
+			{
+				m_read_count = counter - 1;
+				return ;
+			}
+			else
+			{
+				counter = m_read_count;
+				return ;
+			}
+		*/
+		if( counter == 0 )
 			return ;
-		}
-		else
-		{
-			counter = m_read_count;
-			return ;
-		}
-	*/
-	if( counter > 0 and m_read_count.compare_exchange_weak(counter, counter - 1) )
-		m_native_handle.unlock();
+
+		if( not m_read_count.compare_exchange_strong(counter, counter - 1) )
+			continue;
+
+		counter = m_read_count.load(std::memory_order_relaxed);
+		if( counter == 0 )
+			m_native_handle.unlock();
+	}
 }
 
 inline spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept

@@ -70,6 +70,8 @@ public:
 	native_handle_t &native_handle() noexcept;
 
 private:
+	alignas(64) std::atomic_bool m_flag {false};
+
 	std::atomic_uint m_read_count {0};
 	native_handle_t m_native_handle;
 };
