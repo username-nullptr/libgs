@@ -665,11 +665,12 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 		using namespace operators;
 		error_code error;
 
+		auto atime = std::chrono::steady_clock::now() + rtime;
 		auto sleep = [&]() -> awaitable<bool>
 		{
 			if( *cancel )
 				co_return false;
-			timer->expires_after(rtime);
+			timer->expires_at(atime);
 			co_await timer->async_wait(use_awaitable | error);
 			co_return not error;
 		};
@@ -698,6 +699,7 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 			}
 			if( not co_await sleep() )
 				break;
+			atime += rtime;
 		}
 		co_return ;
 	});
