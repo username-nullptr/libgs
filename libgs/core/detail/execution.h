@@ -541,10 +541,15 @@ namespace detail
 template <typename Exec, typename Token>
 [[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &rtime, Token &&token)
 {
-	auto time = rtime.count() < 0 ? asio::steady_timer::duration(0) :
-		std::chrono::duration_cast<asio::steady_timer::duration>(rtime);
-
-	asio::steady_timer timer(std::forward<Exec>(exec), time);
+	using duration_t = std::remove_cvref_t<decltype(rtime)>;
+	if( rtime <= duration_t() )
+	{
+		co_return co_await async_work<error_code>::handle (
+			[](async_work<error_code>::handler_t &&wake_up) {
+				std::move(wake_up)(error_code());
+			});
+	}
+	asio::steady_timer timer(std::forward<Exec>(exec), rtime);
 	co_await timer.async_wait(std::forward<Token>(token));
 
 	using namespace operators;
@@ -621,18 +626,21 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
 auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
+	using namespace std::chrono_literals;
+	auto now = std::chrono::system_clock::now();
+	auto rtime = atime > now ? atime - now : 0ns;
 	return sleep_for(std::forward<decltype(exec)>(exec),
-		atime - std::chrono::system_clock::now(),
-		std::forward<Token>(token)
+		rtime, std::forward<Token>(token)
 	);
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
-	return sleep_for(atime - std::chrono::system_clock::now(),
-		std::forward<Token>(token)
-	);
+	using namespace std::chrono_literals;
+	auto now = std::chrono::system_clock::now();
+	auto rtime = atime > now ? atime - now : 0ns;
+	return sleep_for(rtime, std::forward<Token>(token));
 }
 
 template <concepts::timer_work Work, typename Rep, typename Period>

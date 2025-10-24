@@ -50,9 +50,6 @@ class LIBGS_CORE_VAPI spin_shared_mutex
 	LIBGS_DISABLE_COPY_MOVE(spin_shared_mutex)
 
 public:
-	using native_handle_t = spin_mutex;
-
-public:
 	spin_shared_mutex() = default;
 	~spin_shared_mutex();
 
@@ -66,14 +63,9 @@ public:
 	[[nodiscard]] bool try_lock_shared();
 	void unlock_shared();
 
-public:
-	native_handle_t &native_handle() noexcept;
-
 private:
-	alignas(64) std::atomic_bool m_flag {false};
-
-	std::atomic_uint m_read_count {0};
-	native_handle_t m_native_handle;
+	alignas(64) std::atomic_bool m_write_flag {false};
+	alignas(64) std::atomic_size_t m_read_count {0};
 };
 
 using spin_shared_shared_lock = std::shared_lock<spin_shared_mutex>;

@@ -43,80 +43,102 @@ inline spin_shared_mutex::~spin_shared_mutex()
 	throw runtime_error (
 		"libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared."
 	);
-#else
-	m_read_count = 0;
-	m_native_handle.unlock();
 #endif
 }
 
 inline void spin_shared_mutex::lock()
 {
-	m_native_handle.lock();
+	using namespace std::chrono;
+	constexpr auto max_spin_duration = 64us;
+
+	auto start = high_resolution_clock::now();
+	bool expected = false;
+
+	while( not m_write_flag.compare_exchange_weak(expected, true,
+		std::memory_order_acquire, std::memory_order_relaxed) )
+    {
+        expected = false;
+		if( high_resolution_clock::now() - start < max_spin_duration )
+			spin_mutex::none_instruction();
+		else
+		{
+			std::this_thread::yield();
+			start = high_resolution_clock::now();
+		}
+    }
+	while( m_read_count.load(std::memory_order_relaxed) > 0 )
+	{
+		if( high_resolution_clock::now() - start < max_spin_duration )
+			spin_mutex::none_instruction();
+		else
+		{
+			std::this_thread::yield();
+			start = high_resolution_clock::now();
+		}
+	}
 }
 
 inline bool spin_shared_mutex::try_lock()
 {
-	return m_native_handle.try_lock();
+	if( m_write_flag.load(std::memory_order_acquire) or
+		m_read_count.load(std::memory_order_acquire) > 0 )
+		return false;
+
+	bool expected = false;
+	return m_write_flag.compare_exchange_strong(expected, true,
+		std::memory_order_acquire, std::memory_order_relaxed
+	);
 }
 
 inline void spin_shared_mutex::unlock()
 {
-	m_native_handle.unlock();
+	m_write_flag.store(false, std::memory_order_relaxed);
 }
 
 inline void spin_shared_mutex::lock_shared()
 {
-	if( m_read_count.fetch_add(1, std::memory_order_relaxed) == 0 )
-		m_native_handle.lock();
+	using namespace std::chrono;
+	constexpr auto max_spin_duration = 64us;
+	auto start = high_resolution_clock::now();
+	for(;;)
+	{
+		while( m_write_flag.load(std::memory_order_acquire) )
+		{
+			if( high_resolution_clock::now() - start < max_spin_duration )
+				spin_mutex::none_instruction();
+			else
+			{
+				std::this_thread::yield();
+				start = high_resolution_clock::now();
+			}
+		}
+		m_read_count.fetch_add(1, std::memory_order_relaxed);
+		if( m_write_flag.load(std::memory_order_acquire) )
+		{
+			m_read_count.fetch_sub(1, std::memory_order_relaxed);
+			continue;
+		}
+		break;
+	}
 }
 
 inline bool spin_shared_mutex::try_lock_shared()
 {
-	if( m_read_count.load(std::memory_order_relaxed) == 0 )
+	if( m_write_flag.load(std::memory_order_acquire) )
+		return false;
+
+	m_read_count.fetch_add(1, std::memory_order_relaxed);
+	if( m_write_flag.load(std::memory_order_acquire) )
 	{
-		if( m_native_handle.try_lock() )
-		{
-			m_read_count.store(1, std::memory_order_relaxed);
-			return true;
-		}
+		m_read_count.fetch_sub(1, std::memory_order_relaxed);
 		return false;
 	}
-	m_read_count.fetch_add(1, std::memory_order_relaxed);
 	return true;
 }
 
 inline void spin_shared_mutex::unlock_shared()
 {
-	for(;;)
-	{
-		auto counter = m_read_count.load(std::memory_order_relaxed);
-		/*
-			if( m_read_count == counter )
-			{
-				m_read_count = counter - 1;
-				return ;
-			}
-			else
-			{
-				counter = m_read_count;
-				return ;
-			}
-		*/
-		if( counter == 0 )
-			return ;
-
-		if( not m_read_count.compare_exchange_strong(counter, counter - 1) )
-			continue;
-
-		counter = m_read_count.load(std::memory_order_relaxed);
-		if( counter == 0 )
-			m_native_handle.unlock();
-	}
-}
-
-inline spin_shared_mutex::native_handle_t &spin_shared_mutex::native_handle() noexcept
-{
-	return m_native_handle;
+	m_read_count.fetch_sub(1, std::memory_order_relaxed);
 }
 
 } //namesapace libgs

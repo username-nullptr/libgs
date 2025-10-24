@@ -343,9 +343,16 @@ public:
 	// It may be executed within the thread, so the const modifier provides protection.
 	void sync(data_t data, error_code &error, const std::function<bool()> &cancelled) const
 	{
-		std::basic_ofstream<char_t> file;
 		auto file_name = detail::ini_tmp_file(m_file_name);
+		auto path = strtls::file_path(file_name.wstring());
+
+		namespace fs = std::filesystem;
+		if( not fs::exists(path) and not fs::create_directories(path, error) )
+			return ;
+
+		std::basic_ofstream<char_t> file;
 		auto prev = file.exceptions();
+
 		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		try {
 			file.open(file_name, std::ios_base::out | std::ios_base::trunc);
@@ -1006,6 +1013,15 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load_or(Token &&token)
 		},
 		std::forward<Token>(token));
 	}
+}
+
+template <concepts::character CharT, concepts::exec Exec,
+		  template<typename,typename,typename...> class Map, typename...MapArgs>
+template <concepts::opt_token<error_code> Token>
+auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(const path_t &file_name, Token &&token)
+{
+	m_impl->set_file_name(file_name);
+	return sync(std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec,

@@ -46,31 +46,42 @@ inline spin_mutex::~spin_mutex()
 
 inline void spin_mutex::lock()
 {
+	using namespace std::chrono;
+	constexpr auto max_spin_duration = 64us;
+
+	auto start = high_resolution_clock::now();
 	bool expected = false;
+
 	while( not m_native_handle.compare_exchange_weak(expected, true,
 		std::memory_order_acquire, std::memory_order_relaxed) )
     {
         expected = false;
-        std::this_thread::yield(); // 自旋等待
+		if( high_resolution_clock::now() - start < max_spin_duration )
+			none_instruction();
+		else
+		{
+			std::this_thread::yield();
+			start = high_resolution_clock::now();
+		}
     }
 }
 
 inline bool spin_mutex::try_lock()
 {
-	bool flag = false;
+	bool expected = false;
 	/*
-		if( m_native_handle == flag )
+		if( m_native_handle == expected )
 	 	{
 	 		m_native_handle = true;
 	 		return true;
 		}
 	 	else
 	 	{
-	 		flag = m_native_handle;
+	 		expected = m_native_handle;
 			return false;
 	 	}
 	*/
-	return m_native_handle.compare_exchange_strong(flag, true,
+	return m_native_handle.compare_exchange_strong(expected, true,
 		std::memory_order_acquire, std::memory_order_relaxed
 	);
 }
@@ -83,6 +94,21 @@ inline void spin_mutex::unlock()
 inline spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
 {
 	return m_native_handle;
+}
+
+inline void spin_mutex::none_instruction() noexcept
+{
+#if defined(__x86_64__) || defined(__i386__)
+	asm volatile("pause" : : : "memory");
+#elif defined(__aarch64__) || defined(__arm__)
+	asm volatile("yield" : : : "memory");
+#elif defined(__riscv)
+	asm volatile("wfi" : : : "memory");
+#elif defined(__powerpc__) || defined(__ppc__)
+	asm volatile("or 0, 0, 0" : : : "memory");
+#else // Unknown
+	asm volatile("" : : : "memory");
+#endif // CPU Architecture
 }
 
 } //namespace libgs

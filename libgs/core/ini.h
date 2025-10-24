@@ -267,6 +267,9 @@ public:
 	auto load_or(Token &&token = {});
 
 	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto sync(const path_t &file_name, Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
 	auto sync(Token &&token = {});
 
 	template <typename Rep, typename Period>

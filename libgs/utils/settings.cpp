@@ -124,8 +124,22 @@ sys_expected<> settings::load(const path_t &file_path)
 
 sys_expected<> settings::sync()
 {
+	libgs::ini ini;
+	m_impl->m_ini_lock.lock_shared();
+
+	for(auto &[group, map] : m_impl->m_ini)
+	{
+		for(auto &[key, value] : map)
+			ini[group][key] = value;
+	}
+	m_impl->m_ini_lock.unlock_shared();
+
 	std::error_code error;
-	ini().sync(error);
+	static std::mutex mutex;
+
+	mutex.lock();
+	ini.sync(error);
+	mutex.unlock();
 
 	if( error )
 	{
