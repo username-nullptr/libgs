@@ -3,7 +3,7 @@
 
 using namespace std::chrono_literals;
 
-LIBGS_UTILS_MODULE_INIT("module.1", {.before = {"module.3"}}, []
+LIBGS_UTILS_MODULE_INIT("module.1", {.children = {"module.3"}}, []
 {
 	spdlog::info("module 0 future 0 start initialization ...");
 
