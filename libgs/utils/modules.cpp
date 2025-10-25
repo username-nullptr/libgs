@@ -41,7 +41,7 @@ public:
 	}
 
 public:
-	void join(std::string name, dependency_t depy, func_obj_t func)
+	void join(std::string name, const dependency_t &depy, func_obj_t func)
 	{
 		if( name.empty() )
 		{
@@ -73,12 +73,21 @@ public:
 				"libgs::modules::reg_init: Invalid function object."
 			);
 		}
-		dsd_emplace(name, std::move(depy), std::move(func));
+		dsd_emplace(name, depy, std::move(func));
 		m_names.emplace(std::move(name));
 	}
 
 	void operator()(string_vector args, std::function<void(unexpected_t)> callback)
 	{
+		if( m_names.empty() )
+			return ;
+
+		else if( m_counter == 0 )
+		{
+			throw runtime_error (
+				"libgs::modules::reg_init: Initialization has been completed. Do not call again."
+			);
+		}
 		auto cycle = detect_cycle();
 		if( not cycle.empty() )
 		{
@@ -122,91 +131,83 @@ public:
 	}
 
 private:
-	node_ptr dsd_emplace(const std::string &name, dependency_t depy, func_obj_t func)
+	void dsd_emplace(std::string name, const dependency_t &depy, func_obj_t func)
 	{
-		auto ptr = make_node(std::move(func));
-		if( depy.before.empty() and depy.after.empty() )
+		auto [sub_dsd, sub_it] = find_node(name);
+		if( sub_it == sub_dsd->end() )
 		{
-			if( auto [dsd, it] = find_node(name); it != dsd->end() )
-			{
-				it->second->init = std::move(ptr->init);
-				return it->second;
-			}
-		}
-		++m_counter;
+			auto node = make_node(std::move(func));
+			children_reorganize(node, depy.children);
 
-		for(auto &parent_name : depy.after)
+			if( depy.parents.empty() )
+			{
+				node->counter = 1;
+				m_dsd.emplace(std::move(name), std::move(node));
+				return ;
+			}
+			return parent_reorganize (
+				name, node, depy.parents
+			);
+		}
+		auto sub_node = sub_it->second;
+		sub_node->init = std::move(func);
+
+		children_reorganize(sub_node, depy.children);
+		if( depy.parents.empty() )
+			return ;
+
+		else if( sub_dsd == &m_dsd )
 		{
-			if( parent_name == name )
-			{
-				throw runtime_error (
-					"libgs::modules::reg_init: In 'after', "
-					"'{}' is dependent on itself.",
-					name
-				);
-			}
-			if( auto it = std::ranges::find(depy.before, parent_name); it != depy.before.end() )
-			{
-				throw runtime_error (
-					"libgs::modules::reg_init: There is a module with the same name "
-					"between [before:'{}'] and [after:'{}'] (Circular dependency).",
-					parent_name, *it
-				);
-			}
-			if( auto [parents, parent_it] = find_node(parent_name); parent_it == parents->end() )
-			{
-				make_node(state_t::not_register)->children.emplace(name, ptr);
-				++ptr->counter;
-			}
+			m_dsd.erase(sub_it);
+			sub_node->counter = 0;
+		}
+		parent_reorganize (
+			name, sub_node, depy.parents
+		);
+	}
+
+	void children_reorganize(const node_ptr &node, const string_set &children)
+	{
+		for(auto &child : children)
+		{
+			auto [child_dsd, child_it] = find_node(child);
+			node_ptr child_node {};
+
+			if( child_it == child_dsd->end() )
+				child_node = make_node(state_t::not_register);
 			else
 			{
-				auto &children = parent_it->second->children;
-				if( auto child_it = children.find(name); child_it == children.end() )
+				child_node = child_it->second;
+				if( child_dsd == &m_dsd )
 				{
-					children.emplace(name, ptr);
-					++ptr->counter;
-				}
-				else
-				{
-					child_it->second->init = std::move(ptr->init);
-					ptr = child_it->second;
-					--m_counter;
+					m_dsd.erase(child_it);
+					child_node->counter = 0;
 				}
 			}
+			++child_node->counter;
+			node->children.emplace(child, std::move(child_node));
 		}
-		for(auto &child_name : depy.before)
-		{
-			if( child_name == name )
-			{
-				throw runtime_error (
-					"libgs::modules::reg_init: In 'before', "
-					"'{}' is dependent on itself.",
-					name
-				);
-			}
-			if( auto [children, child_it] = find_node(child_name); child_it == children->end() )
-			{
-				auto child = make_node(state_t::not_register);
-				++child->counter;
-				ptr->children.emplace(child_name, std::move(child));
-			}
-			else if( auto it = ptr->children.find(child_name); it == ptr->children.end() )
-			{
-				ptr->children.emplace(child_name, child_it->second);
-				++child_it->second->counter;
+	}
 
-				if( it = m_dsd.find(child_name); it != m_dsd.end() )
-				{
-					m_dsd.erase(it);
-					--child_it->second->counter;
-				}
+	void parent_reorganize(const std::string &name, const node_ptr &node, const string_set &parents)
+	{
+		for(auto &parent : parents)
+		{
+			auto [parent_dsd, parent_it] = find_node(parent);
+			node_ptr parent_node {};
+
+			if( parent_it == parent_dsd->end() )
+			{
+				parent_node = make_node(state_t::not_register);
+				parent_node->counter = 1;
+				m_dsd.emplace(parent, parent_node);
 			}
+			else
+				parent_node = parent_it->second;
+
+			parent_node->children.emplace(name, node);
+			++node->counter;
 		}
-		if( ptr->counter == 0 )
-			ptr->counter = 1;
-		if( depy.after.empty() and ptr->counter == 1 )
-			m_dsd.emplace(name, ptr);
-		return ptr;
 	}
 
 private:
@@ -292,7 +293,7 @@ private:
 					unexpected.unregistered.emplace_back(name);
 					success = false;
 				}
-				do_init(std::move(node->children), success, args, unexpected);
+				do_init(node->children, success, args, unexpected);
 			})
 			.detach();
 		}
@@ -328,10 +329,11 @@ private:
 		return { dsd, dsd->end() };
 	}
 
-	[[nodiscard]] static node_ptr make_node(func_obj_t init) noexcept
+	[[nodiscard]] node_ptr make_node(func_obj_t init) noexcept
 	{
 		auto n = std::make_shared<node_t>();
 		n->init = std::move(init);
+		++m_counter;
 		return n;
 	}
 
@@ -400,7 +402,7 @@ public:
 		if( node->init.index() == func_state )
 		{
 			if( std::get<state_t>(node->init) == state_t::not_register )
-				reg_state = "[NoReg]";
+				reg_state = " [NoReg]";
 		}
 		buffer += std::format("{}{}{}{}{}\n",
 			prefix, is_last ? "└─" : "├─", name, reg_state,
@@ -432,18 +434,19 @@ public:
 	}
 
 private:
-	std::unordered_set<std::string> m_names {};
+	std::unordered_set<std::string> m_names {};  // Used solely for repetitive testing.
 	std::condition_variable m_condition {};
 	std::atomic_size_t m_counter {0};
+	dsd_t all_nodes {};
 	dsd_t m_dsd {};
 };
 
 namespace detail
 {
 
-void modules::reg_init(std::string name, dependency_t depy, func_obj_t func)
+void modules::reg_init(std::string name, const dependency_t &depy, func_obj_t func)
 {
-	initializer::instance().join(std::move(name), std::move(depy), std::move(func));
+	initializer::instance().join(std::move(name), depy, std::move(func));
 }
 
 void modules::do_init(const string_vector &args, std::function<void(unexpected_t)> callback)

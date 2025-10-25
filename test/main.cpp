@@ -3,6 +3,8 @@
 #include <libgs/core/string_vector.h>
 #include <libgs/core/execution.h>
 #include <libgs/core/app_utls.h>
+
+#include <libgs/coro/utils.h>
 #include <libgs/utils/modules.h>
 
 #include <libgs/utils/signal_slot.h>
@@ -13,65 +15,38 @@
 using namespace std::chrono_literals;
 using namespace libgs::operators;
 
-void fff(int i)
-{
-	libgs_utils_log_info("2222: {}", i);
-}
-
 int main()
 {
-	auto canceller = libgs::start_timer(500ms, []() -> libgs::awaitable<void>
+	libgs::utils::modules::reg_init("a0", {.parents = {"e0"}}, []
 	{
-		libgs_utils_log_info("------------------");
-		co_return ;
-	});
-	libgs::post(2.5s, [&canceller]() mutable {
-		canceller();
+		spdlog::info("a0 init");
 	});
 
-	libgs::utils::signal<void(int,const char*)> sig;
-	asio::io_context ioc;
-
-	auto obj = std::make_shared<int>(int {0});
-
-	sig
-	.connect<libgs::utils::slot_mode::async>(
-		[](bool i, std::string_view d)
-		{
-			libgs_utils_log_info("0000: {} {}", i, d);
-		},
-		[](bool i, bool d) -> libgs::awaitable<void>
-		{
-			libgs_utils_log_info("1111: {} {}", i, d);
-			co_return ;
-		}
-	)
-	.connect(fff)
-	.connect(ioc, [](float i)
+	libgs::utils::modules::reg_init("b0", {.parents = {"c0"}}, []
 	{
-		libgs_utils_log_info("3333: {}", i);
-	})
-	.connect(obj, [](int i, const char *d)
+		spdlog::info("b0 init");
+	});
+
+	libgs::utils::modules::reg_init("c0", []
 	{
-		libgs_utils_log_info("444: {} {}", i, d);
+		spdlog::info("c0 init");
 	});
 
-	sig(11, "hello");
-
-	sig.disconnect(fff);
-
-	libgs::post([&]{
-		obj.reset();
-		sig(22, "world");
+	libgs::utils::modules::reg_init("d0", {.children = {"a0"}, .parents = {"c0"}}, []
+	{
+		spdlog::info("d0 init");
 	});
 
-	std::thread([&] {
-		ioc.run();
-	}).detach();
+	libgs::utils::modules::reg_init("e0", []
+	{
+		spdlog::info("e0 init");
+	});
 
-	using namespace std::chrono_literals;
-	libgs::post(5s, []{
-		libgs::exit();
+	std::cout << libgs::utils::modules::sprint() << std::endl;
+
+	libgs::utils::modules::do_init([]
+	{
+		libgs::exit(123);
 	});
 	return libgs::exec();
 }

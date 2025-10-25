@@ -52,7 +52,7 @@ public:
 		func0_t, func1_t, func2_t, func3_t, state
 	>;
 	static void reg_init(std::string name,
-		utils::modules::dependency depy, func_obj_t func
+		const utils::modules::dependency &depy, func_obj_t func
 	);
 	static void do_init(const string_vector &args,
 		std::function<void(utils::modules::unexpected)> callback

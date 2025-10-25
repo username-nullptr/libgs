@@ -759,7 +759,14 @@ template <concepts::character CharT, concepts::exec Exec,
 const basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group) const
 {
-	return remove_const(this)->group(group);
+	auto it = m_impl->m_groups.find(impl::replace(group));
+	if( it != m_impl->m_groups.end() )
+	{
+		throw runtime_error("basic_ini: group: The group '{}' is not exists.",
+			strtls::detail::ascii_transition<char>(std::forward<decltype(group)>(group))
+		);
+	}
+	return it->second;
 }
 
 template <concepts::character CharT, concepts::exec Exec,

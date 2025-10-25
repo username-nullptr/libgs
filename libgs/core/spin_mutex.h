@@ -55,7 +55,14 @@ public:
 	static void none_instruction() noexcept;
 
 private:
+#ifdef _MSC_VER
+# pragma warning(push)
+# pragma warning(disable: 4324)
+#endif
 	alignas(64) native_handle_t m_native_handle {false};
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 };
 
 using spin_unique_lock = std::unique_lock<spin_mutex>;

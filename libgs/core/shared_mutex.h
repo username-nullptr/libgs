@@ -64,8 +64,15 @@ public:
 	void unlock_shared();
 
 private:
+#ifdef _MSC_VER
+# pragma warning(push)
+# pragma warning(disable: 4324)
+#endif
 	alignas(64) std::atomic_bool m_write_flag {false};
 	alignas(64) std::atomic_size_t m_read_count {0};
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 };
 
 using spin_shared_shared_lock = std::shared_lock<spin_shared_mutex>;

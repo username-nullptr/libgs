@@ -541,14 +541,6 @@ namespace detail
 template <typename Exec, typename Token>
 [[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &rtime, Token &&token)
 {
-	using duration_t = std::remove_cvref_t<decltype(rtime)>;
-	if( rtime <= duration_t() )
-	{
-		co_return co_await async_work<error_code>::handle (
-			[](async_work<error_code>::handler_t &&wake_up) {
-				std::move(wake_up)(error_code());
-			});
-	}
 	asio::steady_timer timer(std::forward<Exec>(exec), rtime);
 	co_await timer.async_wait(std::forward<Token>(token));
 
@@ -626,21 +618,126 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
 auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
 {
-	using namespace std::chrono_literals;
-	auto now = std::chrono::system_clock::now();
-	auto rtime = atime > now ? atime - now : 0ns;
-	return sleep_for(std::forward<decltype(exec)>(exec),
-		rtime, std::forward<Token>(token)
-	);
+	using Exec = decltype(exec);
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( Rep::is_steady )
+	{
+		auto now = Rep::now();
+		if constexpr( is_void_func_v<token_t> )
+		{
+			if( now < atime )
+			{
+				auto timer = std::make_shared<asio::steady_timer>(
+					std::forward<Exec>(exec), atime - now
+				);
+				timer->async_wait(
+				[timer, callback = std::forward<Token>(token)](const error_code &error)
+				{
+					LIBGS_UNUSED(timer);
+					callback(error);
+				});
+			}
+			else
+			{
+				libgs::post(std::forward<Exec>(exec), [callback = std::forward<Token>(token)]{
+					callback(error_code());
+				});
+			}
+		}
+		else
+		{
+			if( now < atime )
+			{
+				return detail::co_sleep_x(std::forward<Exec>(exec),
+					atime - now, std::forward<Token>(token)
+				);
+			}
+			return +[]() -> awaitable<error_code> {
+				co_return error_code();
+			}();
+		}
+	}
+	else
+	{
+		if constexpr( is_void_func_v<token_t> )
+		{
+			auto now = Rep::now();
+			if( now < atime )
+			{
+				libgs::dispatch([exec = get_executor_helper(std::forward<Exec>(exec)),
+					atime, now, callback = std::forward<Token>(token)]() mutable -> awaitable<void>
+				{
+					using namespace operators;
+					error_code error;
+
+					while( now < atime )
+					{
+						co_await detail::co_sleep_x(std::forward<Exec>(exec),
+							atime - now, use_awaitable | error
+						);
+						if( error )
+							break;
+						now = Rep::now();
+					}
+					callback(error);
+					co_return ;
+				});
+			}
+			else
+			{
+				libgs::post(std::forward<Exec>(exec), [callback = std::forward<Token>(token)]{
+					callback(error_code());
+				});
+			}
+		}
+		else
+		{
+			return libgs::dispatch([exec = get_executor_helper(std::forward<Exec>(exec)),
+				atime, token = std::forward<Token>(token)]() -> awaitable<error_code>
+			{
+				auto now = Rep::now();
+				while( now < atime )
+				{
+					auto error = co_await detail::co_sleep_x (
+						exec, atime - now, token
+					);
+					if( error )
+						co_return error;
+					now = Rep::now();
+				}
+				co_return error_code();
+			},
+			token);
+		}
+	}
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
 auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 {
-	using namespace std::chrono_literals;
-	auto now = std::chrono::system_clock::now();
-	auto rtime = atime > now ? atime - now : 0ns;
-	return sleep_for(rtime, std::forward<Token>(token));
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_void_func_v<token_t> )
+		sleep_until(get_executor(), atime, std::forward<Token>(token));
+
+	else if constexpr( is_async_opt_token_v<token_t> )
+	{
+		return libgs::dispatch(
+		[atime, token = std::forward<Token>(token)]() -> awaitable<error_code>
+		{
+			auto now = Rep::now();
+			while( now < atime )
+			{
+				if( auto error = co_await detail::co_sleep_x(atime - now, token) )
+					co_return error;
+				now = Rep::now();
+			}
+			co_return error_code();
+		},
+		token);
+	}
+	else
+		std::this_thread::sleep_for(atime);
 }
 
 template <concepts::timer_work Work, typename Rep, typename Period>

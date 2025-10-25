@@ -196,9 +196,7 @@ template <typename Token>
 concept sleep_opt_token = []() consteval -> bool
 {
 	using token_t = std::remove_cvref_t<Token>;
-	return
-		not is_use_future_v<token_t> and
-		not is_deferred_v<token_t> and
+	return not is_deferred_v<token_t> and
 		opt_token<token_t,error_code>;
 }();
 

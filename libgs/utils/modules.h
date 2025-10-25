@@ -43,8 +43,8 @@ class LIBGS_UTILS_API modules
 public:
 	struct dependency
 	{
-		string_set before {};
-		string_set after {};
+		string_set children {};
+		string_set parents {};
 	};
 	template <typename Func>
 	static constexpr bool init_func_v =

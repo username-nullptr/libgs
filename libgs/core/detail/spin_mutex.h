@@ -98,17 +98,21 @@ inline spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
 
 inline void spin_mutex::none_instruction() noexcept
 {
-#if defined(__x86_64__) || defined(__i386__)
+#ifdef _MSC_VER
+	__asm pause;
+#elif defined(__GNUC__)
+# if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 	asm volatile("pause" : : : "memory");
-#elif defined(__aarch64__) || defined(__arm__)
+# elif defined(__aarch64__) || defined(__arm64__) || defined(__arm__)
 	asm volatile("yield" : : : "memory");
-#elif defined(__riscv)
-	asm volatile("wfi" : : : "memory");
-#elif defined(__powerpc__) || defined(__ppc__)
+# elif defined(__powerpc__) || defined(__ppc__)
 	asm volatile("or 0, 0, 0" : : : "memory");
-#else // Unknown
+# elif defined(__riscv)
+	asm volatile("wfi" : : : "memory");
+# else // Unknown
 	asm volatile("" : : : "memory");
-#endif // CPU Architecture
+# endif // CPU Architecture
+#endif //_MSC_VER
 }
 
 } //namespace libgs
