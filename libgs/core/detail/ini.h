@@ -389,9 +389,15 @@ public:
 					}
 					else
 					{
-						file << l_str(char_t,"\"")
-						     << (value.is_ascii() ? value.to_string() : to_percent_encoding(value.to_string()))
-						     << l_str(char_t,"\"");
+						auto str = value.to_string();
+						if( str == "true" or str == "false" )
+							file << str;
+						else
+						{
+							file << l_str(char_t,"\"")
+							     << (value.is_ascii() ? str : to_percent_encoding(str))
+							     << l_str(char_t,"\"");
+						}
 					}
 					file << l_str(char_t,"\n");
 				}

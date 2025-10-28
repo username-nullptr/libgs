@@ -287,7 +287,7 @@ private:
 				}
 				else if( std::get<state_t>(std::move(node->init)) == state_t::not_register )
 				{
-					libgs_utils_log_error("LibGS.Utils",
+					libgs_utils_clog_error("LibGS.Utils",
 						"modules: <{}> is not registered.", name
 					);
 					unexpected.unregistered.emplace_back(name);

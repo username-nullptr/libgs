@@ -737,7 +737,7 @@ auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 		token);
 	}
 	else
-		std::this_thread::sleep_for(atime);
+		std::this_thread::sleep_until(atime);
 }
 
 template <concepts::timer_work Work, typename Rep, typename Period>
