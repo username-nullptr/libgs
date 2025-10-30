@@ -406,7 +406,7 @@ public:
 		}
 		buffer += std::format("{}{}{}{}{}\n",
 			prefix, is_last ? "└─" : "├─", name, reg_state,
-			is_already_expanded ? " (Unfolded)" : ""
+			is_already_expanded ? " (Expanded)" : ""
 		);
 		if( is_already_expanded )
 			return ;

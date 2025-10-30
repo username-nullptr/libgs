@@ -34,6 +34,11 @@
 namespace libgs
 {
 
+// TODO ... ...
+enum class queue_type {
+	linked, circular
+};
+
 template <concepts::copy_or_move_constructible T, size_t N = 0>
 class LIBGS_CORE_TAPI lock_free_queue;
 
@@ -82,7 +87,7 @@ class LIBGS_CORE_TAPI lock_free_queue
 public:
 	using element_t = T;
 	static constexpr size_t capacity_v = N;
-	static consteval size_t capacity() noexcept;
+	[[nodiscard]] static consteval size_t capacity() noexcept;
 
 	lock_free_queue();
 	~lock_free_queue();
