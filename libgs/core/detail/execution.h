@@ -541,7 +541,9 @@ namespace detail
 template <typename Exec, typename Token>
 [[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &rtime, Token &&token)
 {
-	asio::steady_timer timer(std::forward<Exec>(exec), rtime);
+	asio::steady_timer timer(std::forward<Exec>(exec),
+		std::chrono::duration_cast<asio::steady_timer::duration>(rtime)
+	);
 	co_await timer.async_wait(std::forward<Token>(token));
 
 	using namespace operators;
