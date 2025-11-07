@@ -3,7 +3,7 @@
 *                                                                                   *
 *   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
-*   This file is part of LIBGS3                                                       *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
@@ -26,31 +26,13 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_FORMATTER_H
-#define LIBGS_CORE_CXX_FORMATTER_H
+#if defined(__WINNT__) || defined(_WINDOWS)
 
-#include <libgs/core/cxx/string_concepts.h>
-#include <libgs/core/cxx/attributes.h>
-#include <format>
-
-namespace libgs
+namespace libgs::utils::detail
 {
 
-template <concepts::character CharT>
-struct LIBGS_CORE_TAPI no_parse_formatter
-{
-	constexpr auto parse(std::basic_format_parse_context<CharT> &context) noexcept
-	{
-		for(auto it=context.begin(); it!=context.end(); ++it)
-		{
-			if( *it == 0x7D )
-				return it;
-		}
-		return context.end();
-	}
-};
+// TODO ... ...
 
-} //namespace libgs
+} //namespace libgs::utils::detail
 
-
-#endif //LIBGS_CORE_CXX_FORMATTER_H
+#endif //Windows

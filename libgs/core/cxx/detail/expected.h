@@ -182,13 +182,15 @@ auto expected<Value,Error>::transform(Func &&func) const requires transform_v<Fu
 			func(this->value());
 			return expected<void,error_t>();
 		}
-		return expected<void,error_t>(this->error());
+		return expected<void,error_t> (
+			unexpected<error_t>(this->error())
+		);
 	}
 	else
 	{
 		return this->has_value() ?
 			expected<result_t,error_t>(func(this->value())) :
-			expected<result_t,error_t>(this->error());
+			expected<result_t,error_t>(unexpected<error_t>(this->error()));
 	}
 }
 

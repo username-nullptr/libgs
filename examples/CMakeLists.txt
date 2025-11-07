@@ -97,6 +97,7 @@ set(sources
 	utils/logger.cpp
 	utils/signal_slot.cpp
 	utils/settings.cpp
+	utils/process.cpp
 )
 set_target(gs.utils ${sources})
 add_subdirectory(utils/modules)

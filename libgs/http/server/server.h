@@ -43,7 +43,7 @@ class LIBGS_HTTP_TAPI basic_server
 
 public:
 	using socket_t = Stream;
-	using executor_t = Exec;
+	using executor_t = Exec::executor_type;
 	using service_exec_t = socket_t::executor_type;
 
 	using next_layer_t = basic_acceptor_wrap<socket_t>;

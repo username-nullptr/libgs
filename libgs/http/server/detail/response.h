@@ -780,7 +780,6 @@ private:
 		{
 			data.mtype = mime_type(opt);
 			data.fsize = value;
-			return value;
 		})
 		.or_else([&]{
 			error = make_error_code(std::errc::permission_denied);

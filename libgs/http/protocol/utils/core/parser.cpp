@@ -102,7 +102,6 @@ public:
 				{
 					m_version = version;
 					m_state = state::reading_headers;
-					return m_version;
 				})
 				.or_else([&](const error_code &error)
 				{

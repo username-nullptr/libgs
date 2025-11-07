@@ -70,7 +70,7 @@ public:
 	using value_t = Value;
     using error_t = Error;
 
-	expected(value_t value);
+	expected(value_t value = {});
 	expected(unexpected<error_t> une);
 
 	expected(const expected &other) requires
@@ -106,7 +106,7 @@ public:
 	expected &operator=(unexpected<error_t> une) noexcept;
 
 public:
-	template <concepts::callable_novoid<value_t> Func>
+	template <concepts::callable<value_t> Func>
 	static constexpr bool transform_v = requires(Func func, value_t value) {
 		{ func(value) } -> concepts::expected_value;
 	};
@@ -194,7 +194,7 @@ public:
 
 	template <concepts::callable_novoid Func>
 	static constexpr bool and_then_v = requires(Func func) {
-		[]<typename U>(expected<void,U>) {} (func());
+		[]<typename U0, typename U1>(expected<U0,U1>) {} (func());
 	};
 	template <typename Func>
 	auto and_then(Func &&func) const requires and_then_v<Func>;

@@ -617,15 +617,15 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 		std::this_thread::sleep_for(rtime);
 }
 
-template <typename Rep, typename Period, concepts::co_sleep_opt_token Token>
-auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
+template <typename Clock, typename Duration, concepts::co_sleep_opt_token Token>
+auto sleep_until(concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Token &&token)
 {
 	using Exec = decltype(exec);
 	using token_t = std::remove_cvref_t<Token>;
 
-	if constexpr( Rep::is_steady )
+	if constexpr( Clock::is_steady )
 	{
-		auto now = Rep::now();
+		auto now = Clock::now();
 		if constexpr( is_void_func_v<token_t> )
 		{
 			if( now < atime )
@@ -664,7 +664,7 @@ auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atim
 	{
 		if constexpr( is_void_func_v<token_t> )
 		{
-			auto now = Rep::now();
+			auto now = Clock::now();
 			if( now < atime )
 			{
 				libgs::dispatch([exec = get_executor_helper(std::forward<Exec>(exec)),
@@ -680,7 +680,7 @@ auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atim
 						);
 						if( error )
 							break;
-						now = Rep::now();
+						now = Clock::now();
 					}
 					callback(error);
 					co_return ;
@@ -698,7 +698,7 @@ auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atim
 			return libgs::dispatch([exec = get_executor_helper(std::forward<Exec>(exec)),
 				atime, token = std::forward<Token>(token)]() -> awaitable<error_code>
 			{
-				auto now = Rep::now();
+				auto now = Clock::now();
 				while( now < atime )
 				{
 					auto error = co_await detail::co_sleep_x (
@@ -706,7 +706,7 @@ auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atim
 					);
 					if( error )
 						co_return error;
-					now = Rep::now();
+					now = Clock::now();
 				}
 				co_return error_code();
 			},
@@ -715,8 +715,8 @@ auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atim
 	}
 }
 
-template <typename Rep, typename Period, concepts::sleep_opt_token Token>
-auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
+template <typename Clock, typename Duration, concepts::sleep_opt_token Token>
+auto sleep_until(const time_point<Clock,Duration> &atime, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_void_func_v<token_t> )
@@ -727,12 +727,12 @@ auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
 		return libgs::dispatch(
 		[atime, token = std::forward<Token>(token)]() -> awaitable<error_code>
 		{
-			auto now = Rep::now();
+			auto now = Clock::now();
 			while( now < atime )
 			{
 				if( auto error = co_await detail::co_sleep_x(atime - now, token) )
 					co_return error;
-				now = Rep::now();
+				now = Clock::now();
 			}
 			co_return error_code();
 		},

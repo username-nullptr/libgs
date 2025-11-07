@@ -31,6 +31,7 @@
 
 #include <libgs/core/cxx/function_traits.h>
 #include <concepts>
+#include <chrono>
 
 namespace libgs
 {
@@ -61,6 +62,30 @@ using is_dsame = std::is_same<std::decay_t<T0>, T1>;
 
 template <typename T0, typename T1>
 constexpr bool is_dsame_v = is_dsame<std::decay_t<T0>, T1>::value;
+
+template <typename T>
+struct is_time_point : std::false_type {};
+
+template <typename Clock, typename Duration>
+struct is_time_point<std::chrono::time_point<Clock, Duration>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_time_point_v = is_time_point<T>::value;
+
+template <typename T>
+struct is_duration : std::false_type {};
+
+template <typename Rep, typename Period>
+struct is_duration<std::chrono::duration<Rep, Period>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_duration_v = is_duration<T>::value;
+
+template <typename T>
+struct is_time : std::disjunction<is_time_point<T>, is_duration<T>> {};
+
+template <typename T>
+constexpr bool is_time_v = is_time<T>::value;
 
 namespace concepts
 {
@@ -167,6 +192,24 @@ concept base_of = std::is_base_of_v<Base,T>;
 
 template <typename T, typename...Args>
 concept all_types = std::conjunction_v<std::is_same<T,std::remove_cvref_t<Args>>...>;
+
+template <typename T>
+concept time_point = is_time_point_v<T>;
+
+template <typename T>
+concept time_point_p = time_point<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept duration = is_duration_v<T>;
+
+template <typename T>
+concept duration_p = duration<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept time = is_time_v<T>;
+
+template <typename T>
+concept time_p = time<std::remove_cvref_t<T>>;
 
 }} //namespace libgs::concepts
 

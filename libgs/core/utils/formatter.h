@@ -50,7 +50,22 @@ inline uint64_t thread_id_helper(uint64_t id) {
 	return id;
 }
 
-}} //namespace libgs::detail
+} //namespace detail
+
+namespace concepts
+{
+
+template <typename CharT, typename...Args>
+concept formatter = sizeof...(Args) > 0 and requires(Args&&...args) {
+	(std::format(l_str(CharT,"{}"), std::forward<Args>(args)), ...);
+};
+
+template <typename...Args>
+concept any_formatter =
+	formatter<char,Args...> or formatter<wchar_t,Args...> or
+	formatter<char8_t,Args...> or formatter<char16_t,Args...> or formatter<char32_t,Args...>;
+
+}} //namespace libgs::concepts
 
 namespace std
 {
