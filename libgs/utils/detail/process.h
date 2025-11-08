@@ -47,7 +47,7 @@ public:
 	void add_arg(const path_t &arg) const noexcept;
 
 public:
-	void start(std::error_code &error) const noexcept;
+	[[nodiscard]] sys_expected<> start() const noexcept;
 	void terminate() const noexcept;
 	void kill() const noexcept;
 	void detach() const noexcept;
@@ -190,23 +190,14 @@ public:
 	[[nodiscard]] sys_expected<> start(const string_t &cmd, Args&&...args) noexcept
 	{
 		set(cmd, std::forward<Args>(args)...);
-		std::error_code error;
-		m_detail.start(error);
-		if( error )
-			return sys_unexpected(error);
-		return {};
+		return m_detail.start();
 	}
 
 	[[nodiscard]] sys_expected<> start(const string_t &cmd, const args_t &args) noexcept
 	{
 		if( not cmd.empty() )
 			set(cmd, args);
-
-		std::error_code error;
-		m_detail.start(error);
-		if( error )
-			return sys_unexpected(error);
-		return {};
+		return m_detail.start();
 	}
 
 	void terminate() noexcept {
@@ -758,16 +749,25 @@ auto basic_process<CharT,Exec>::run(const string_t &cmd, const args_t &args, Tok
 {
 	using token_t = std::remove_cvref_t<Token>;
 	auto exp0 = start(cmd, args);
-	if( exp0 )
+
+	if constexpr( is_detached_v<token_t> )
 	{
-		if constexpr( is_detached_v<token_t> )
+		detach();
+		return sys_expected<int>(0);
+	}
+	else if constexpr( is_redirect_time_v<token_t> )
+	{
+		using ntoken_t = std::remove_cvref_t<decltype(unbound_redirect_time(token))>;
+		using nntoken_t = std::remove_cvref_t<decltype(unbound_token(token))>;
+		if constexpr( is_detached_v<ntoken_t> or is_detached_v<nntoken_t> )
 		{
 			detach();
 			return sys_expected<int>(0);
 		}
-		else
-			return join(std::forward<Token>(token));
 	}
+	if( exp0 )
+		return join(std::forward<Token>(token));
+
 	if constexpr( is_error_code_token_v<Token> )
 	{
 		token = exp0.error();
@@ -790,9 +790,10 @@ auto basic_process<CharT,Exec>::run(const string_t &cmd, const args_t &args, Tok
 
 		else if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
 		{
-			return [error = exp0.error()]() -> awaitable<sys_expected<int>> {
-				co_return sys_expected<int>(sys_unexpected(error));
-			}();
+			return async_work<sys_expected<int>>::handle(
+				[error = exp0.error()](auto wake_up) mutable {
+					std::move(wake_up)(sys_unexpected(error));
+				});
 		}
 		else if constexpr( is_use_future_v<nntoken_t> )
 		{
@@ -812,9 +813,10 @@ auto basic_process<CharT,Exec>::run(const string_t &cmd, const args_t &args, Tok
 
 		else if constexpr( is_use_awaitable_v<ntoken_t> or is_deferred_v<ntoken_t> )
 		{
-			return [error = exp0.error()]() -> awaitable<sys_expected<int>> {
-				co_return sys_expected<int>(sys_unexpected(error));
-			}();
+			return async_work<sys_expected<int>>::handle(
+				[error = exp0.error()](auto wake_up) mutable {
+					std::move(wake_up)(sys_unexpected(error));
+				});
 		}
 		else if constexpr( is_use_future_v<ntoken_t> )
 		{
@@ -902,51 +904,7 @@ template <concepts::character CharT, concepts::exec Exec>
 template <concepts::match_sched<Exec> Exec0, concepts::opt_token<error_code> Token>
 auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, const args_t &args, Token &&token) noexcept
 {
-	process obj(exec, cmd, args);
-	auto exp0 = obj.start();
-
-	using expected_t = sys_expected<int>;
-	using token_t = std::remove_cvref_t<Token>;
-
-	if constexpr( is_sync_opt_token_v<Token> )
-	{
-		if( exp0 )
-			return obj.join(token);
-		return expected_t(exp0.error());
-	}
-	else if constexpr( is_use_awaitable_v<token_t> or is_deferred_v<token_t> )
-	{
-		if( exp0 )
-			return obj.join(token);
-
-		return [error = exp0.error()]() -> awaitable<expected_t> {
-			co_return error;
-		}();
-	}
-	else if constexpr( is_use_future_v<token_t> )
-	{
-		if( exp0 )
-			return obj.join(token);
-
-		std::promise<expected_t> promise;
-		promise.set_value({exp0.error()});
-		return promise.get_future();
-	}
-	else if constexpr( is_detached_v<token_t> )
-	{
-		if( exp0 )
-			obj.detach();
-	}
-	else
-	{
-		if( exp0 )
-			return obj.join(std::forward<Token>(token));
-
-		libgs::dispatch(std::forward<Exec0>(exec),
-		[callback = std::forward<Token>(token), error = exp0.error()]{
-			callback(error);
-		});
-	}
+	return process(exec, cmd, args).run(std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec>

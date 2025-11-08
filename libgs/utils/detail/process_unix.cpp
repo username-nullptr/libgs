@@ -29,7 +29,7 @@
 #ifdef __unix__
 
 #include <libgs/utils/process.h>
-#include "logger.h"
+#include <libgs/utils/logger.h>
 
 #include <libgs/coro/utils.h>
 #include <utility>
@@ -40,6 +40,8 @@
 
 namespace libgs::utils::detail
 {
+
+namespace fs = std::filesystem;
 
 using namespace std::chrono_literals;
 using namespace operators;
@@ -70,19 +72,18 @@ public:
 	}
 
 public:
-	void start(bool is_pipe, std::string_view cmd, const args_t &args, std::string_view work_path,
-		const envs_t &envs, std::error_code &error) noexcept
+	[[nodiscard]] sys_expected<> start(bool is_pipe, std::string_view cmd,
+		const args_t &args, std::string_view work_path, const envs_t &envs) noexcept
 	{
-		error.clear();
+		sys_expected<> expected;
 		if( m_state == process_state::running )
-			return ;
+			return expected;
 
 		else if( cmd.empty() )
 		{
-			error = std::make_error_code (
+			return expected.despair(std::make_error_code (
 				std::errc::no_such_file_or_directory
-			);
-			return ;
+			));
 		}
 		// From the perspective of the child process.
 		int stdin_pipe [2] {-1,-1};
@@ -91,9 +92,9 @@ public:
 
 		if( pipe2(stdin_pipe, O_NONBLOCK) < 0 )
 		{
-			error = std::make_error_code (
+			expected.despair(std::make_error_code (
 				static_cast<std::errc>(errno)
-			);
+			));
 			goto stdin_error;
 		}
 
@@ -101,9 +102,9 @@ public:
 			m_stdout.close();
 		if( pipe2(stdout_pipe, O_NONBLOCK) < 0 )
 		{
-			error = std::make_error_code (
+			expected.despair(std::make_error_code (
 				static_cast<std::errc>(errno)
-			);
+			));
 			goto stdout_error;
 		}
 
@@ -111,22 +112,25 @@ public:
 			m_stderr.close();
 		if( pipe2(stderr_pipe, O_NONBLOCK) < 0 )
 		{
-			error = std::make_error_code (
+			expected.despair(std::make_error_code (
 				static_cast<std::errc>(errno)
-			);
+			));
 			goto stderr_error;
 		}
 
 		m_pid = vfork();
 		if( m_pid < 0 )
 		{
-			error = std::make_error_code (
+			expected.despair(std::make_error_code (
 				static_cast<std::errc>(errno)
-			);
+			));
 			goto vfork_error;
 		}
 		else if( m_pid == 0 ) //child
 		{
+			fcntl(stdin_pipe[0], F_SETFL,
+				fcntl(stdin_pipe[0], F_GETFL) | O_NONBLOCK
+			);
 			fcntl(stdout_pipe[1], F_SETFL,
 				fcntl(stdout_pipe[1], F_GETFL) & ~O_NONBLOCK
 			);
@@ -143,35 +147,60 @@ public:
 			for(auto &[key, value] : envs)
 				setenv(key.c_str(), value->c_str(), true);
 
-			if( is_pipe )
+			default_shell()
+			.transform([&](const std::string &shell)
 			{
-				auto shell = default_shell();
-				res = execlp(shell.c_str(), shell.c_str(), "-c", cmd.data(), nullptr);
-			}
-			else
+				if( is_pipe )
+					res = execlp(shell.c_str(), shell.c_str(), "-c", cmd.data(), nullptr);
+				else
+				{
+					auto _args = new const char *[3 + args.size() + 1] {
+						shell.c_str(), "-c", cmd.data(), nullptr
+					};
+					for(size_t i=0; i<args.size(); i++)
+					{
+						if( not args[i].empty() )
+							_args[3 + i] = args[i].c_str();
+					}
+					res = execvp(shell.c_str(), const_cast<char**>(_args));
+					delete[] _args;
+				}
+				return shell;
+			})
+			.or_else([&]
 			{
-				auto _args = new const char *[args.size() + 2] {
+				if( is_pipe )
+				{
+					expected.despair(std::make_error_code (
+						std::errc::no_such_file_or_directory
+					));
+					_exit(-1);
+				}
+				auto _args = new const char *[1 + args.size() + 1] {
 					cmd.data(), nullptr
 				};
 				for(size_t i=0; i<args.size(); i++)
 				{
 					if( not args[i].empty() )
-						_args[i + 1] = args[i].c_str();
+						_args[1 + i] = args[i].c_str();
 				}
 				res = execvp(cmd.data(), const_cast<char**>(_args));
 				delete[] _args;
-			}
+			});
 			perror("||| *** *** *** Error: execvp *** >>> ");
 			_exit(res);
 		}
+		if( not expected )
+			goto exec_error;
+
 		m_stdin.assign(stdin_pipe[1]);
-		// close(stdin_pipe[0]);
+		close(stdin_pipe[0]);
 
 		m_stdout.assign(stdout_pipe[0]);
-		// close(stdout_pipe[1]);
+		close(stdout_pipe[1]);
 
 		m_stderr.assign(stderr_pipe[0]);
-		// close(stderr_pipe[1]);
+		close(stderr_pipe[1]);
 
 		m_state = process_state::running;
 		m_thread = std::thread([self = shared_from_this()]
@@ -210,22 +239,35 @@ public:
 			self->m_thread.detach();
 			self->m_thread = {};
 		});
-		return ;
+		return expected;
 
+	exec_error: {
+		m_state = process_state::crashed;
+		m_exit_code = 255;
+		m_pid = -1;
+
+		m_cv.notify_all();
+		auto vector = std::move(m_co_join_list);
+		for(auto &timer : vector)
+			timer->cancel();
+	}
 	vfork_error:
 		close(stderr_pipe[0]);
 		close(stderr_pipe[1]);
+		stderr_pipe[0] = stderr_pipe[1] = -1;
 
 	stderr_error:
 		close(stdout_pipe[0]);
 		close(stdout_pipe[1]);
+		stdout_pipe[0] = stdout_pipe[1] = -1;
 
 	stdout_error:
 		close(stdin_pipe[0]);
 		close(stdin_pipe[1]);
+		stdin_pipe[0] = stdin_pipe[1] = -1;
 
 	stdin_error:
-		return ;
+		return expected;
 	}
 
 	void _throw() noexcept
@@ -333,15 +375,15 @@ public:
 
 		if( timeout == 0ns )
 		{
-			timer->expires_after(std::chrono::hours (
-				std::numeric_limits<std::chrono::hours::rep>::max()
+			using duration_t = asio::steady_timer::duration;
+			timer->expires_after(duration_t (
+				std::numeric_limits<duration_t::rep>::max()
 			));
 		}
 		else
 			timer->expires_after(timeout);
 
-		m_co_join_list.emplace_back(
-		);
+		m_co_join_list.emplace_back(timer);
 		if( cancel_slot.is_connected() )
 			co_await timer->async_wait(use_awaitable | cancel_slot | error);
 		else
@@ -373,6 +415,10 @@ public:
 			error = make_error_code(std::errc::no_such_process);
 			return io_unexpected(error);
 		}
+		error = m_stdin.non_blocking(false, error);
+		if( error )
+			return {error};
+
 		auto sum = asio::write(m_stdin, buf, error);
 		if( error )
 			return {error};
@@ -387,6 +433,15 @@ public:
 		auto buf_ptr = std::make_shared<std::string>(
 			static_cast<const char*>(buf.data()), buf.size()
 		);
+		std::error_code error;
+		error = m_stdin.non_blocking(true, error);
+		if( error )
+		{
+			libgs_utils_clog_warning("LibGS.Utils",
+				"process::write<detach>: {}", error
+			);
+			return ;
+		}
 		asio::async_write(m_stdin, asio::buffer(*buf_ptr),
 		[buf_ptr](const std::error_code &error, size_t)
 		{
@@ -408,6 +463,10 @@ public:
 			error = make_error_code(std::errc::no_such_process);
 			co_return io_unexpected(error);
 		}
+		error = m_stdin.non_blocking(true, error);
+		if( error )
+			co_return io_unexpected(error);
+
 		awaitable<size_t> task {};
 		if( cancel_slot.is_connected() )
 		{
@@ -466,16 +525,20 @@ public:
 			}
 			stream = &m_stdout;
 		}
-		stream->non_blocking(true, error);
+		error = stream->non_blocking(true, error);
 		if( error )
 			return {error};
 
 		char c = 0;
-		int res = ::read(m_stdout.native_handle(), &c, 1);
+		auto res = ::read(m_stdout.native_handle(), &c, 1);
 		if( res == 0 )
 			return io_unexpected(make_error_code(errc::eof));
 		else if( res == 1 )
 			sum = 1;
+
+		error = stream->non_blocking(false, error);
+		if( error )
+			return {error};
 
 		auto char_buf = static_cast<char*>(buf.data());
 		char_buf[0] = c;
@@ -494,16 +557,42 @@ public:
 		if( m_state == process_state::idle )
 			return ;
 
-		else if( channel == read_channel_t::stdout )
+		std::error_code error;
+		descriptor_t *stream = nullptr;
+
+		if( channel == read_channel_t::stdout )
 		{
 			if( not m_stdout.is_open() )
-				return;
+			{
+				libgs_utils_clog_warning (
+					"LibGS.Utils", "process::read<detach>: {}",
+					make_error_code(std::errc::no_such_process)
+				);
+				return ;
+			}
+			stream = &m_stdout;
 		}
-		else if( not m_stderr.is_open() )
+		else
+		{
+			if( not m_stderr.is_open() )
+			{
+				libgs_utils_clog_warning (
+					"LibGS.Utils", "process::read_stderr<detach>: {}",
+					make_error_code(std::errc::no_such_process)
+				);
+				return ;
+			}
+			stream = &m_stdout;
+		}
+		error = stream->non_blocking(true, error);
+		if( error )
+		{
+			libgs_utils_clog_warning("LibGS.Utils",
+				"process::read<detach>: {}", error
+			);
 			return ;
-
-		(channel == read_channel_t::stdout ? m_stdout : m_stderr)
-		.async_read_some(buf, [](const std::error_code &error, size_t)
+		}
+		stream->async_read_some(buf, [](const std::error_code &error, size_t)
 		{
 			if( not error )
 				return ;
@@ -523,30 +612,36 @@ public:
 			error = make_error_code(std::errc::no_such_process);
 			co_return io_unexpected(error);
 		}
-		else if( channel == read_channel_t::stdout )
+		descriptor_t *stream = nullptr;
+
+		if( channel == read_channel_t::stdout )
 		{
 			if( not m_stdout.is_open() )
 			{
 				error = make_error_code(std::errc::no_such_process);
 				co_return io_unexpected(error);
 			}
-		}
-		else if( not m_stderr.is_open() )
-		{
-			error = make_error_code(std::errc::no_such_process);
-			co_return io_unexpected(error);
-		}
-		awaitable<size_t> task {};
-		if( cancel_slot.is_connected() )
-		{
-			task = (channel == read_channel_t::stdout ? m_stdout : m_stderr)
-				.async_read_some(buf, use_awaitable | cancel_slot | error);
+			stream = &m_stdout;
 		}
 		else
 		{
-			task = (channel == read_channel_t::stdout ? m_stdout : m_stderr)
-				.async_read_some(buf, use_awaitable | error);
+			if( not m_stderr.is_open() )
+			{
+				error = make_error_code(std::errc::no_such_process);
+				co_return io_unexpected(error);
+			}
+			stream = &m_stdout;
 		}
+		error = stream->non_blocking(true, error);
+		if( error )
+			co_return io_unexpected(error);
+
+		awaitable<size_t> task {};
+		if( cancel_slot.is_connected() )
+			task = stream->async_read_some(buf, use_awaitable | cancel_slot | error);
+		else
+			task = stream->async_read_some(buf, use_awaitable | error);
+
 		size_t sum = 0;
 		if( timeout == 0ns )
 			sum = co_await std::move(task);
@@ -586,16 +681,16 @@ private:
 		return 0;
 	}
 
-	[[nodiscard]] static std::string default_shell() noexcept
+	[[nodiscard]] static optional<std::string> default_shell() noexcept
 	{
 		auto shell = getenv("SHELL");
 		if( shell and strlen(shell) > 0 )
-			return shell;
+			return {shell};
 
 		auto pw = getpwuid(getuid());
 		if( pw and pw->pw_shell and strlen(pw->pw_shell) > 0 )
-			return pw->pw_shell;
-		return "/bin/sh";
+			return {pw->pw_shell};
+		return {};
 	}
 
 public:
@@ -716,11 +811,11 @@ void process::add_arg(const path_t &arg) const noexcept
 		m_impl->m_args.emplace_back(word.we_wordv[i]);
 }
 
-void process::start(std::error_code &error) const noexcept
+sys_expected<> process::start() const noexcept
 {
-	m_impl->m_vindicator->start (
+	return m_impl->m_vindicator->start (
 		m_impl->m_is_pipe, m_impl->m_cmd, m_impl->m_args,
-		m_impl->m_work_path.string(), m_impl->m_envs, error
+		m_impl->m_work_path.string(), m_impl->m_envs
 	);
 }
 

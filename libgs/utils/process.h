@@ -97,7 +97,7 @@ public:
 
 	template <typename Token>
 	static constexpr bool join_token_v =
-		not is_detached_v<Token> and task_token_v<Token>;
+		task_token_v<Token> and not is_detached_v<Token>;
 
 	template <typename Token = std::chrono::nanoseconds>
 	auto join(Token &&token = {}) noexcept
