@@ -206,14 +206,21 @@ public:
 		m_thread = std::thread([self = shared_from_this()]
 		{
 			int status = 0;
-			while( waitpid(self->m_pid, &status, 0) < 0 )
+			for(;;)
 			{
-				int err = errno;
-				libgs_utils_clog_error("LibGS.Utils",
-					"process: waitpid failed: '{}' ({}), retrying...",
-					strerror(err), err
-				);
-				sleep_for(10us);
+				status = waitpid(self->m_pid, &status, 0);
+				if( status < 0 )
+				{
+					int err = errno;
+					libgs_utils_clog_error("LibGS.Utils",
+						"process: waitpid failed: '{}' ({}), retrying...",
+						strerror(err), err
+					);
+					sleep_for(10us);
+					continue;
+				}
+				else if( not WIFSTOPPED(status) and not WIFCONTINUED(status) )
+					break;
 			}
 			if( WIFEXITED(status) )
 			{
@@ -222,7 +229,14 @@ public:
 			}
 			else
 			{
-				self->m_exit_code = 255;
+				if( WIFSIGNALED(status) )
+				{
+					auto signal = WTERMSIG(status);
+					self->m_exit_code = signal;
+				}
+				else
+					self->m_exit_code = 255;
+
 				self->m_state = process_state::crashed;
 			}
 			self->m_cv.notify_all();
