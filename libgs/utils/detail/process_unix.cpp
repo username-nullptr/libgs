@@ -208,8 +208,8 @@ public:
 			int status = 0;
 			for(;;)
 			{
-				status = waitpid(self->m_pid, &status, 0);
-				if( status < 0 )
+				int res = waitpid(self->m_pid, &status, 0);
+				if( res < 0 )
 				{
 					int err = errno;
 					libgs_utils_clog_error("LibGS.Utils",

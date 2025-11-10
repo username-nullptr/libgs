@@ -229,7 +229,7 @@ public:
 	[[nodiscard]] expected or_else() const;
 
 public:
-	[[nodiscard]] operator bool() const noexcept;
+	[[nodiscard]] explicit operator bool() const noexcept;
 	expected &operator=(unexpected<error_t> une) noexcept;
 
 public:

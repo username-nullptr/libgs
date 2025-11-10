@@ -69,7 +69,7 @@ public:
 	[[nodiscard]] value_t value_or(value_t default_value = {}) const && noexcept;
 
 public:
-	[[nodiscard]] operator bool() const noexcept;
+	[[nodiscard]] explicit operator bool() const noexcept;
 
 	[[nodiscard]] const value_t &operator*() const &;
 	[[nodiscard]] value_t &&operator*() const &&;

@@ -89,17 +89,22 @@ public:
 	requires is_observer_v<Obj>
 	static constexpr bool is_obj_slot_v = []() consteval
 	{
-		using func0_tr = function_traits<Func0>;
-		if constexpr( func0_tr::is_member_func )
+		if constexpr( is_observer_v<Obj> )
 		{
-			using obj_t = std::remove_cvref_t<Obj>::element_type;
-			if constexpr( std::is_same_v<typename func0_tr::class_t, obj_t> )
-				return is_slot_v<Mode,Func0>;
+			using func0_tr = function_traits<Func0>;
+			if constexpr( func0_tr::is_member_func )
+			{
+				using obj_t = std::remove_cvref_t<Obj>::element_type;
+				if constexpr( std::is_same_v<typename func0_tr::class_t, obj_t> )
+					return is_slot_v<Mode,Func0>;
+				else
+					return false;
+			}
 			else
-				return false;
+				return is_global_slot_v<Mode,Func0>;
 		}
 		else
-			return is_global_slot_v<Mode,Func0>;
+			return false;
 	}();
 
 	template <slot_mode Mode, concepts::function...Funcs>
