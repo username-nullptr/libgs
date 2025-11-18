@@ -1,9 +1,9 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
-*   This file is part of LIBGS3                                                       *
+*   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
 *                                                                                   *
 *   Permission is hereby granted, free of charge, to any person obtaining a copy    *
