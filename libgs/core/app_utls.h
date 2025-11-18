@@ -67,6 +67,12 @@ sys_expected<> setenv(std::string_view key, const libgs::value &value, bool over
 /*[[nodiscard]]*/ LIBGS_CORE_API
 sys_expected<> unsetenv(std::string_view key) noexcept;
 
+[[nodiscard]] LIBGS_CORE_API
+sys_expected<std::string> current_user() noexcept;
+
+[[nodiscard]] LIBGS_CORE_API
+sys_expected<path_t> home_directory() noexcept;
+
 } //namespace libgs::app
 #include <libgs/core/detail/app_utls.h>
 

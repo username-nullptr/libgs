@@ -53,6 +53,11 @@ using read_channel_t = process::read_channel;
 using args_t = std::vector<std::string>;
 using envs_t = std::map<std::string, value>;
 
+[[nodiscard]] static error_code sys_error()
+{
+	return { errno, std::system_category() };
+}
+
 class LIBGS_DECL_HIDDEN vindicator final :
 	public std::enable_shared_from_this<vindicator>
 {
@@ -92,9 +97,7 @@ public:
 
 		if( pipe2(stdin_pipe, O_NONBLOCK) < 0 )
 		{
-			expected.despair(std::make_error_code (
-				static_cast<std::errc>(errno)
-			));
+			expected.despair(sys_error());
 			goto stdin_error;
 		}
 
@@ -102,9 +105,7 @@ public:
 			m_stdout.close();
 		if( pipe2(stdout_pipe, O_NONBLOCK) < 0 )
 		{
-			expected.despair(std::make_error_code (
-				static_cast<std::errc>(errno)
-			));
+			expected.despair(sys_error());
 			goto stdout_error;
 		}
 
@@ -112,18 +113,14 @@ public:
 			m_stderr.close();
 		if( pipe2(stderr_pipe, O_NONBLOCK) < 0 )
 		{
-			expected.despair(std::make_error_code (
-				static_cast<std::errc>(errno)
-			));
+			expected.despair(sys_error());
 			goto stderr_error;
 		}
 
 		m_pid = vfork();
 		if( m_pid < 0 )
 		{
-			expected.despair(std::make_error_code (
-				static_cast<std::errc>(errno)
-			));
+			expected.despair(sys_error());
 			goto vfork_error;
 		}
 		else if( m_pid == 0 ) //child
@@ -941,9 +938,127 @@ int process::exit_code() const noexcept
 	return m_impl->m_vindicator->exit_code();
 }
 
-uint64_t process::pid() const noexcept
+pid_t process::pid() const noexcept
 {
 	return m_impl->m_vindicator->pid();
+}
+
+sys_expected<uint64_t> process::self_pid() noexcept
+{
+	// Always successful on unix/linux.
+	return getpid();
+}
+
+sys_expected<> process::terminate(pid_t pid) noexcept
+{
+	if( ::kill(pid, SIGTERM) == 0 )
+		return {};
+	return sys_unexpected(sys_error());
+}
+
+sys_expected<> process::kill(pid_t pid) noexcept
+{
+	if( ::kill(pid, SIGKILL) == 0 )
+		return {};
+	return sys_unexpected(sys_error());
+}
+
+static fs::path g_pid_file {};
+
+static void singleton_cleanup()
+{
+	if( not g_pid_file.empty() )
+		unlink(g_pid_file.c_str());
+}
+
+static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_view key)
+{
+	sys_expected<uint64_t> result;
+	{
+		auto g_pid_path = path.empty() ? "/tmp" : path.string();
+		while( g_pid_path.ends_with("/") )
+			g_pid_path.pop_back();
+
+		g_pid_path += "/.libgs.utils.process";
+		namespace fs = std::filesystem;
+
+		if( not fs::exists(g_pid_path) )
+		{
+			std::error_code error;
+			if( not fs::create_directories(g_pid_path, error) )
+				return result.despair(error);
+		}
+		g_pid_file = g_pid_path + std::format("/{}", key);
+	}
+	auto curr_pid = getpid();
+	bool created = false;
+
+	int fd = open(g_pid_file.c_str(),
+		O_WRONLY | O_CREAT | O_EXCL, 0644
+	);
+	if( fd >= 0 )
+	{
+		auto pid_str = std::to_string(curr_pid);
+		::write(fd, pid_str.c_str(), pid_str.size());
+		close(fd);
+
+		if( chmod(g_pid_file.c_str(), 0444) == 0 )
+			created = true;
+		else
+		{
+			result.despair(sys_error());
+			chmod(g_pid_file.c_str(), 0644);
+			unlink(g_pid_file.c_str());
+			return result;
+		}
+	}
+	if( created )
+	{
+		atexit(singleton_cleanup);
+		result = curr_pid;
+		return result;
+	}
+	::pid_t existing_pid = 0;
+	auto fp = fopen(g_pid_file.c_str(), "r");
+	if( not fp )
+		return result.despair(sys_error());
+
+	char buf[1024] {0};
+	if( std::fgets(buf, sizeof(buf), fp) )
+	{
+		if( auto opt = strtls::to_int32(strtls::trimmed(buf)) )
+			existing_pid = *opt;
+		else
+		{
+			fclose(fp);
+			unlink(g_pid_file.c_str());
+			return do_set_single(path, key);
+		}
+	}
+	fclose(fp);
+
+	if( ::kill(existing_pid, 0) == 0 )
+	{
+		result = existing_pid;
+		return result;
+	}
+	if( unlink(g_pid_file.c_str()) == 0 )
+		return do_set_single(path, key);
+	return result.despair(sys_error());
+}
+
+sys_expected<uint64_t> process::set_single(const fs::path &path, std::string_view key)
+{
+	static std::atomic_bool flag {false};
+	if( bool expected = false;
+		not flag.compare_exchange_strong(expected, true,
+		std::memory_order_acquire, std::memory_order_relaxed) )
+	{
+		throw std::runtime_error (
+			"libgs::app::set_single: Another instance is running (Prohibition of concurrent operation)."
+		);
+	}
+	return do_set_single(path, key);
 }
 
 } //namespace libgs::utils::detail

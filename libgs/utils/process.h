@@ -36,6 +36,8 @@
 namespace libgs::utils
 {
 
+using pid_t = uint64_t;
+
 enum class process_state {
 	idle, running, exited, crashed
 };
@@ -134,7 +136,7 @@ public:
 	[[nodiscard]] state_t state() const noexcept;
 	[[nodiscard]] int exit_code() const noexcept;
 
-	[[nodiscard]] uint64_t pid() const noexcept;
+	[[nodiscard]] pid_t pid() const noexcept;
 	[[nodiscard]] executor_t get_executor() const noexcept;
 
 public:
@@ -149,6 +151,19 @@ public:
 
 	template <concepts::match_sched<Exec> Exec0, concepts::opt_token<error_code> Token = use_sync_t>
 	static auto exec(Exec0 &&exec, const string_t &cmd, Token &&token = {}) noexcept;
+
+public:
+	[[nodiscard]] static sys_expected<pid_t> self_pid() noexcept;
+	static sys_expected<> terminate(pid_t pid) noexcept;
+	static sys_expected<> kill(pid_t pid) noexcept;
+
+	// @return existing pid or self pid.
+	[[nodiscard]] static sys_expected<pid_t> set_single(const path_t &path, std::string_view key);
+	/*
+	 * @path default to home directory.
+	 * @return existing pid or self pid.
+	 */
+	[[nodiscard]] static sys_expected<pid_t> set_single(std::string_view key);
 
 private:
 	class impl;

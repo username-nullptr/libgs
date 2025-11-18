@@ -86,17 +86,17 @@ basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
 				break;
 		}
 		try {
-			internals.d0 = strtls::to_uint32(basic_uuid.substr(star_idx,8), 16);
+			internals.d0 = *strtls::to_uint32(basic_uuid.substr(star_idx,8), 16).or_else();
 			star_idx += 8 + 1;
 
-			internals.d1 = strtls::to_uint16(basic_uuid.substr(star_idx,4), 16);
+			internals.d1 = *strtls::to_uint16(basic_uuid.substr(star_idx,4), 16).or_else();
 			star_idx += 4 + 1;
-			internals.d2 = strtls::to_uint16(basic_uuid.substr(star_idx,4), 16);
+			internals.d2 = *strtls::to_uint16(basic_uuid.substr(star_idx,4), 16).or_else();
 			star_idx += 4 + 1;
 
 			for(size_t i=0; i<8; i++)
 			{
-				internals.d3[i] = strtls::to_uint8(basic_uuid.substr(star_idx,2), 16);
+				internals.d3[i] = *strtls::to_uint8(basic_uuid.substr(star_idx,2), 16).or_else();
 				star_idx += 2 + 1;
 			}
 		}

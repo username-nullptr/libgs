@@ -49,7 +49,7 @@ public:
 			m_port = m_protocol == "https" ? 443 : 80;
 		else
 		{
-			m_port = strtls::to_uint16(m_address.substr(pos+1));
+			m_port = *strtls::to_uint16(m_address.substr(pos+1)).or_else();
 			m_address = m_address.substr(0,pos);
 		}
 	}

@@ -160,7 +160,7 @@ public:
 		auto it = m_headers.find(header::content_length);
 		if( it != m_headers.end() )
 		{
-			m_content_length = it->second.get<size_t>();
+			m_content_length = *it->second.get<size_t>().or_else();
 			parse_length();
 		}
 		else if( m_version == version::v11 )
@@ -220,7 +220,7 @@ public:
 					break;
 				}
 				try {
-					_size = strtls::to_arith<size_t>(line_buf, 16);
+					_size = *strtls::to_arith<size_t>(line_buf, 16).or_else();
 				}
 				catch(...) {
 					result.despair(make_error_code(parse_errno::SFE));

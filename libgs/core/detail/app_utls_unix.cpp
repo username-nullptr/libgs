@@ -30,7 +30,9 @@
 
 #include "libgs/core/app_utls.h"
 #include "libgs/core/shared_mutex.h"
+
 #include <unistd.h>
+#include <pwd.h>
 
 /* extern char **environ; */
 
@@ -96,16 +98,9 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 	}
 	else if( str.starts_with("~") )
 	{
-		auto tmp = ::getenv("HOME");
-		if( not tmp )
-			result.despair(sys_error());
-		else
-		{
-			std::string home(tmp);
-			if( home.ends_with("/") )
-				home.pop_back();
-			result = home + str.erase(0,1);
-		}
+		result = home_directory().transform([&](const path_t &_path) -> path_t {
+			return _path.string() + str.erase(0,1);
+		});
 	}
 	return result.transform([](const path_t &path) -> path_t
 	{
@@ -177,6 +172,54 @@ sys_expected<> unsetenv(std::string_view key) noexcept
 	if( ::unsetenv(key.data()) != 0 )
 		result.despair(sys_error());
 	return result;
+}
+
+sys_expected<std::string> current_user() noexcept
+{
+	auto uid = getuid();
+	passwd pwd {};
+	passwd *result = nullptr;
+	char buf[1024] {0};
+
+	auto res = getpwuid_r(uid, &pwd, buf, sizeof(buf), &result);
+	sys_expected<std::string> expected {};
+
+	if( res != 0 or not result )
+		return expected.despair(sys_error());
+
+	expected = pwd.pw_name;
+	return expected;
+}
+
+sys_expected<path_t> home_directory() noexcept
+{
+	auto uid = getuid();
+	passwd pwd {};
+	passwd *result = nullptr;
+	char buf[1024] {0};
+
+	auto res = getpwuid_r(uid, &pwd, buf, sizeof(buf), &result);
+	sys_expected<path_t> expected {};
+
+	if( res != 0 or not result )
+		return expected.despair(sys_error());
+
+	std::string path {};
+	if( pwd.pw_dir and strlen(pwd.pw_dir) > 0 )
+		path = pwd.pw_dir;
+	else
+	{
+		auto home = ::getenv("HOME");
+		if( home and strlen(home) > 0 )
+			path = home;
+		else
+			return expected.despair(sys_error());
+	}
+	if( path.ends_with("/") )
+		path.pop_back();
+
+	expected = std::move(path);
+	return expected;
 }
 
 } //namespace libgs::app

@@ -54,8 +54,6 @@ public:
 	void cancel() const noexcept;
 
 public:
-
-
 	[[nodiscard]] sys_expected<int> join (
 		std::error_code &error, const std::chrono::nanoseconds &timeout = {}
 	) const noexcept;
@@ -142,7 +140,19 @@ public:
 public:
 	[[nodiscard]] process_state state() const noexcept;
 	[[nodiscard]] int exit_code() const noexcept;
-	[[nodiscard]] uint64_t pid() const noexcept;
+	[[nodiscard]] pid_t pid() const noexcept;
+
+public:
+	[[nodiscard]] static sys_expected<pid_t> self_pid() noexcept;
+	static sys_expected<> terminate(pid_t pid) noexcept;
+	static sys_expected<> kill(pid_t pid) noexcept;
+
+	[[nodiscard]] static sys_expected<pid_t> set_single (
+		const path_t &path, std::string_view key
+	);
+	[[nodiscard]] static sys_expected<pid_t> set_single (
+		std::string_view key
+	);
 
 private:
 	class impl;
@@ -608,8 +618,28 @@ public:
 	[[nodiscard]] int exit_code() const noexcept {
 		return m_detail.exit_code();
 	}
-	[[nodiscard]] uint64_t pid() const noexcept {
+	[[nodiscard]] pid_t pid() const noexcept {
 		return m_detail.pid();
+	}
+
+public:
+	[[nodiscard]] static sys_expected<pid_t> self_pid() noexcept {
+		return detail::process::self_pid();
+	}
+	static sys_expected<> terminate(pid_t pid) noexcept {
+		return detail::process::terminate(pid);
+	}
+	static sys_expected<> kill(pid_t pid) noexcept {
+		return detail::process::kill(pid);
+	}
+
+	[[nodiscard]] static sys_expected<pid_t>
+	set_single(const path_t &path, std::string_view key) {
+		return detail::process::set_single(path, key);
+	}
+	[[nodiscard]] static sys_expected<pid_t>
+	set_single(std::string_view key) {
+		return detail::process::set_single(key);
 	}
 
 private:
@@ -874,7 +904,7 @@ int basic_process<CharT,Exec>::exit_code() const noexcept
 }
 
 template <concepts::character CharT, concepts::exec Exec>
-uint64_t basic_process<CharT,Exec>::pid() const noexcept
+pid_t basic_process<CharT,Exec>::pid() const noexcept
 {
 	return m_impl->pid();
 }
@@ -912,6 +942,36 @@ template <concepts::match_sched<Exec> Exec0, concepts::opt_token<error_code> Tok
 auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, Token &&token) noexcept
 {
 	return exec(cmd, {}, std::forward<Token>(token));
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+sys_expected<pid_t> basic_process<CharT,Exec>::self_pid() noexcept
+{
+	return impl::self_pid();
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+sys_expected<> basic_process<CharT,Exec>::terminate(pid_t pid) noexcept
+{
+	return impl::terminate(pid);
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+sys_expected<> basic_process<CharT,Exec>::kill(pid_t pid) noexcept
+{
+	return impl::kill(pid);
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+sys_expected<pid_t> basic_process<CharT,Exec>::set_single(const path_t &path, std::string_view key)
+{
+	return impl::set_single(path, key);
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+sys_expected<pid_t> basic_process<CharT,Exec>::set_single(std::string_view key)
+{
+	return impl::set_single(key);
 }
 
 } //namespace libgs::utils

@@ -112,7 +112,7 @@ std::string generator<model::base>::header_data(size_t body_size)
 	}
 	else
 	{
-		m_impl->m_content_length = it->second.get<size_t>();
+		m_impl->m_content_length = *it->second.get<size_t>().or_else();
 		m_impl->m_state = state_t::content_length;
 	}
 	std::string buf;
@@ -216,7 +216,7 @@ std::string generator_v11<model::base>::header_data(size_t body_size)
 	}
 	else
 	{
-		m_impl->m_content_length = it->second.get<size_t>();
+		m_impl->m_content_length = *it->second.get<size_t>().or_else();
 		m_impl->m_state = state_t::content_length;
 	}
 	std::string buf;
