@@ -316,21 +316,20 @@ public:
 	}
 
 public:
-	[[nodiscard]] sys_expected<int> join
-	(std::chrono::nanoseconds timeout, std::error_code &error) noexcept
+	[[nodiscard]] sys_expected<int> join(std::chrono::nanoseconds timeout) noexcept
 	{
-		error.clear();
 		auto state = m_state.load();
-
 		if( state == process_state::idle )
 		{
-			error = make_error_code(std::errc::no_such_process);
-			return sys_unexpected(error);
+			return sys_unexpected (
+				make_error_code(std::errc::no_such_process)
+			);
 		}
 		else if( state == process_state::crashed )
 		{
-			error = make_error_code(std::errc::io_error);
-			return sys_unexpected(error);
+			return sys_unexpected (
+				make_error_code(std::errc::io_error)
+			);
 		}
 		else if( state == process_state::exited )
 			return m_exit_code.load();
@@ -351,32 +350,34 @@ public:
 		state = m_state.load();
 		if( state == process_state::running )
 		{
-			error = make_error_code(errc::timed_out);
-			return sys_unexpected(error);
+			return sys_unexpected (
+				make_error_code(errc::timed_out)
+			);
 		}
 		else if( state != process_state::exited )
 		{
-			error = make_error_code(std::errc::io_error);
-			return sys_unexpected(error);
+			return sys_unexpected (
+				make_error_code(std::errc::io_error)
+			);
 		}
 		return m_exit_code.load();
 	}
 
-	[[nodiscard]] awaitable<sys_expected<int>> co_join(const std::chrono::nanoseconds &timeout,
-		asio::cancellation_slot cancel_slot, std::error_code &error) noexcept
+	[[nodiscard]] awaitable<sys_expected<int>> co_join
+	(const std::chrono::nanoseconds &timeout, asio::cancellation_slot cancel_slot) noexcept
 	{
-		error.clear();
 		auto state = m_state.load();
-
 		if( state == process_state::idle )
 		{
-			error = make_error_code(std::errc::no_such_process);
-			co_return sys_unexpected(error);
+			co_return sys_unexpected (
+				make_error_code(std::errc::no_such_process)
+			);
 		}
 		else if( state == process_state::crashed )
 		{
-			error = make_error_code(std::errc::io_error);
-			co_return sys_unexpected(error);
+			co_return sys_unexpected (
+				make_error_code(std::errc::io_error)
+			);
 		}
 		else if( state == process_state::exited )
 			co_return m_exit_code.load();
@@ -395,6 +396,8 @@ public:
 			timer->expires_after(timeout);
 
 		m_co_join_list.emplace_back(timer);
+		std::error_code error;
+
 		if( cancel_slot.is_connected() )
 			co_await timer->async_wait(use_awaitable | cancel_slot | error);
 		else
@@ -410,22 +413,23 @@ public:
 		}
 		else if( state != process_state::exited )
 		{
-			error = make_error_code(std::errc::io_error);
-			co_return sys_unexpected(error);
+			co_return sys_unexpected (
+				make_error_code(std::errc::io_error)
+			);
 		}
-		error.clear();
 		co_return m_exit_code.load();
 	}
 
 public:
-	io_expected write(const const_buffer &buf, std::error_code &error) noexcept
+	[[nodiscard]] io_expected write(const const_buffer &buf) noexcept
 	{
-		error.clear();
 		if( m_state != process_state::running )
 		{
-			error = make_error_code(std::errc::no_such_process);
-			return io_unexpected(error);
+			return io_unexpected (
+				make_error_code(std::errc::no_such_process)
+			);
 		}
+		std::error_code error;
 		error = m_stdin.non_blocking(false, error);
 		if( error )
 			return {error};
@@ -465,15 +469,16 @@ public:
 		});
 	}
 
-	awaitable<io_expected> co_write(const const_buffer &buf, asio::cancellation_slot cancel_slot,
-		const std::chrono::nanoseconds &timeout, std::error_code &error) noexcept
+	[[nodiscard]] awaitable<io_expected> co_write(const const_buffer &buf,
+		asio::cancellation_slot cancel_slot, const std::chrono::nanoseconds &timeout) noexcept
 	{
-		error.clear();
 		if( m_state != process_state::running )
 		{
-			error = make_error_code(std::errc::no_such_process);
-			co_return io_unexpected(error);
+			co_return io_unexpected (
+				make_error_code(std::errc::no_such_process)
+			);
 		}
+		std::error_code error;
 		error = m_stdin.non_blocking(true, error);
 		if( error )
 			co_return io_unexpected(error);
@@ -507,13 +512,13 @@ public:
 	}
 
 public:
-	io_expected read(read_channel_t channel, const mutable_buffer &buf, std::error_code &error) noexcept
+	[[nodiscard]] io_expected read(read_channel_t channel, const mutable_buffer &buf) noexcept
 	{
-		error.clear();
 		if( m_state == process_state::idle )
 		{
-			error = make_error_code(std::errc::no_such_process);
-			return io_unexpected(error);
+			return io_unexpected (
+				make_error_code(std::errc::no_such_process)
+			);
 		}
 		size_t sum = 0;
 		descriptor_t *stream = nullptr;
@@ -522,8 +527,9 @@ public:
 		{
 			if( not m_stdout.is_open() )
 			{
-				error = make_error_code(std::errc::no_such_process);
-				return io_unexpected(error);
+				return io_unexpected (
+					make_error_code(std::errc::no_such_process)
+				);
 			}
 			stream = &m_stdout;
 		}
@@ -531,11 +537,13 @@ public:
 		{
 			if( not m_stderr.is_open() )
 			{
-				error = make_error_code(std::errc::no_such_process);
-				return io_unexpected(error);
+				return io_unexpected (
+					make_error_code(std::errc::no_such_process)
+				);
 			}
 			stream = &m_stdout;
 		}
+		std::error_code error;
 		error = stream->non_blocking(true, error);
 		if( error )
 			return {error};
@@ -614,14 +622,13 @@ public:
 	}
 
 	awaitable<io_expected> co_read(read_channel_t channel, const mutable_buffer &buf,
-		asio::cancellation_slot cancel_slot, const std::chrono::nanoseconds &timeout,
-		std::error_code &error) noexcept
+		asio::cancellation_slot cancel_slot, const std::chrono::nanoseconds &timeout) noexcept
 	{
-		error.clear();
 		if( m_state == process_state::idle )
 		{
-			error = make_error_code(std::errc::no_such_process);
-			co_return io_unexpected(error);
+			co_return io_unexpected (
+				make_error_code(std::errc::no_such_process)
+			);
 		}
 		descriptor_t *stream = nullptr;
 
@@ -629,8 +636,9 @@ public:
 		{
 			if( not m_stdout.is_open() )
 			{
-				error = make_error_code(std::errc::no_such_process);
-				co_return io_unexpected(error);
+				co_return io_unexpected (
+					make_error_code(std::errc::no_such_process)
+				);
 			}
 			stream = &m_stdout;
 		}
@@ -638,11 +646,13 @@ public:
 		{
 			if( not m_stderr.is_open() )
 			{
-				error = make_error_code(std::errc::no_such_process);
-				co_return io_unexpected(error);
+				co_return io_unexpected (
+					make_error_code(std::errc::no_such_process)
+				);
 			}
-			stream = &m_stdout;
+			stream = &m_stderr;
 		}
+		std::error_code error;
 		error = stream->non_blocking(true, error);
 		if( error )
 			co_return io_unexpected(error);
@@ -852,21 +862,21 @@ void process::cancel() const noexcept
 }
 
 sys_expected<int> process::join
-(std::error_code &error, const std::chrono::nanoseconds &timeout) const noexcept
+(const std::chrono::nanoseconds &timeout) const noexcept
 {
-	return m_impl->m_vindicator->join(timeout, error);
+	return m_impl->m_vindicator->join(timeout);
 }
 
-awaitable<sys_expected<int>> process::co_join(std::error_code &error,
-	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
+awaitable<sys_expected<int>> process::co_join
+(asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
 {
-	return m_impl->m_vindicator->co_join(timeout, cancel_slot, error);
+	return m_impl->m_vindicator->co_join(timeout, cancel_slot);
 }
 
-io_expected process::write(std::error_code &error, const const_buffer &buf) const noexcept
+io_expected process::write(const const_buffer &buf) const noexcept
 {
 	if( buf.size() > 0 )
-		return m_impl->m_vindicator->write(buf, error);
+		return m_impl->m_vindicator->write(buf);
 	return 0;
 }
 
@@ -876,22 +886,21 @@ void process::write_detach(const const_buffer &buf) const noexcept
 		m_impl->m_vindicator->write_detach(buf);
 }
 
-awaitable<io_expected> process::co_write(std::error_code &error, const const_buffer &buf,
+awaitable<io_expected> process::co_write(const const_buffer &buf,
 	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
 {
 	if( buf.size() > 0 )
 	{
 		co_return co_await m_impl->m_vindicator
-			->co_write(buf, cancel_slot, timeout, error);
+			->co_write(buf, cancel_slot, timeout);
 	}
 	co_return 0;
 }
 
-io_expected process::read(read_channel channel,
-	std::error_code &error, const mutable_buffer &buf) const noexcept
+io_expected process::read(read_channel channel, const mutable_buffer &buf) const noexcept
 {
 	if( buf.size() > 0 )
-		return m_impl->m_vindicator->read(channel, buf, error);
+		return m_impl->m_vindicator->read(channel, buf);
 	return 0;
 }
 
@@ -901,14 +910,13 @@ void process::read_detach(read_channel channel, const mutable_buffer &buf) const
 		m_impl->m_vindicator->read_detach(channel, buf);
 }
 
-awaitable<io_expected> process::co_read(read_channel channel,
-	std::error_code &error, const mutable_buffer &buf, asio::cancellation_slot cancel_slot,
-	std::chrono::nanoseconds timeout) const noexcept
+awaitable<io_expected> process::co_read(read_channel channel, const mutable_buffer &buf,
+	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
 {
 	if( buf.size() > 0 )
 	{
 		co_return co_await m_impl->m_vindicator
-			->co_read(channel, buf, cancel_slot, timeout, error);
+			->co_read(channel, buf, cancel_slot, timeout);
 	}
 	co_return 0;
 }

@@ -55,17 +55,17 @@ public:
 
 public:
 	[[nodiscard]] sys_expected<int> join (
-		std::error_code &error, const std::chrono::nanoseconds &timeout = {}
+		const std::chrono::nanoseconds &timeout = {}
 	) const noexcept;
 
 	[[nodiscard]] awaitable<sys_expected<int>> co_join (
-		std::error_code &error, asio::cancellation_slot cancel_slot,
+		asio::cancellation_slot cancel_slot,
 		std::chrono::nanoseconds timeout = {}
 	) const noexcept;
 
 	template <typename Clock, typename Duration>
-	[[nodiscard]] sys_expected<int> join(std::error_code &error,
-		const std::chrono::time_point<Clock,Duration> &timeout) noexcept
+	[[nodiscard]] sys_expected<int> join
+	(const std::chrono::time_point<Clock,Duration> &timeout) noexcept
 	{
 		auto no_wait = [this]
 		{
@@ -107,29 +107,22 @@ public:
 	}
 
 public:
-	[[nodiscard]] io_expected write (
-		std::error_code &error, const const_buffer &buf
-	) const noexcept;
-
+	[[nodiscard]] io_expected write(const const_buffer &buf) const noexcept;
 	void write_detach(const const_buffer &buf) const noexcept;
 
-	[[nodiscard]] awaitable<io_expected> co_write (
-		std::error_code &error, const const_buffer &buf,
+	[[nodiscard]] awaitable<io_expected> co_write(const const_buffer &buf,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout = {}
 	) const noexcept;
 
 	enum class read_channel {
 		stdout, stderr
 	};
-	[[nodiscard]] io_expected read(read_channel channel,
-		std::error_code &error, const mutable_buffer &buf
-	) const noexcept;
-
+	[[nodiscard]] io_expected read(read_channel channel, const mutable_buffer &buf) const noexcept;
 	void read_detach(read_channel channel, const mutable_buffer &buf) const noexcept;
 
-	[[nodiscard]] awaitable<io_expected> co_read (
-		read_channel channel, std::error_code &error, const mutable_buffer &buf,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout = {}
+	[[nodiscard]] awaitable<io_expected> co_read(read_channel channel,
+		const mutable_buffer &buf, asio::cancellation_slot cancel_slot,
+		std::chrono::nanoseconds timeout = {}
 	) const noexcept;
 
 public:
@@ -231,19 +224,19 @@ public:
 		if constexpr( is_error_code_token_v<Token> )
 		{
 			using namespace std::chrono_literals;
-			return m_detail.join(token, 0ns);
+			return m_detail.join(0ns)
+				.or_else([&token](const error_code &error) {
+					token = error;
+				});
 		}
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
 			using namespace std::chrono_literals;
-			std::error_code error; LIBGS_UNUSED(error);
-			return m_detail.join(error, 0ns);
+			return m_detail.join(0ns);
 		}
 		else if constexpr( is_time_v<token_t> )
-		{
-			std::error_code error; LIBGS_UNUSED(error);
-			return m_detail.join(error, token);
-		}
+			return m_detail.join(token);
+
 		else if constexpr( is_redirect_time_v<token_t> )
 		{
 			decltype(auto) ntoken = unbound_redirect_time(token);
@@ -263,8 +256,7 @@ public:
 				}
 				else
 				{
-					std::error_code error;
-					return m_detail.co_join(error,
+					return m_detail.co_join (
 						asio::get_associated_cancellation_slot(nntoken),
 						get_associated_redirect_time(token)
 					);
@@ -293,9 +285,8 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						std::error_code error; LIBGS_UNUSED(error);
 						promise->set_value(co_await self->m_detail.co_join (
-							error, cancel_slot, timeout
+							cancel_slot, timeout
 						));
 						co_return ;
 					});
@@ -326,8 +317,7 @@ public:
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken)
 				]() mutable -> awaitable<void>
 				{
-					std::error_code error; LIBGS_UNUSED(error);
-					auto expected = co_await self->m_detail.co_join(error, cancel_slot, timeout);
+					auto expected = co_await self->m_detail.co_join(cancel_slot, timeout);
 					expected
 					.transform([&callback = ntoken](int code) {
 						callback(error_code(), code);
@@ -356,8 +346,10 @@ public:
 
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
-			error_code error; LIBGS_UNUSED(error);
-			return write(buf, error);
+			return write(buf)
+				.or_else([&token](const error_code &error) {
+					token = error;
+				});
 		}
 		else if constexpr( is_redirect_time_v<token_t> )
 		{
@@ -378,8 +370,7 @@ public:
 				}
 				else
 				{
-					std::error_code error; LIBGS_UNUSED(error);
-					return m_detail.co_write(error, buf,
+					return m_detail.co_write(buf,
 						asio::get_associated_cancellation_slot(nntoken),
 						get_associated_redirect_time(token)
 					);
@@ -413,9 +404,8 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						std::error_code error; LIBGS_UNUSED(error);
 						promise->set_value(self->m_detail.write (
-							error, {buf->data(), buf->size()}, cancel_slot, timeout
+							{buf->data(), buf->size()}, cancel_slot, timeout
 						));
 						co_return ;
 					});
@@ -455,9 +445,8 @@ public:
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 					]() mutable -> awaitable<void>
 					{
-						std::error_code error; LIBGS_UNUSED(error);
 						auto expected = co_await self->m_detail.co_write (
-							error, buf, cancel_slot, timeout
+							buf, cancel_slot, timeout
 						);
 						expected
 						.transform([&callback = nntoken](int code) {
@@ -485,8 +474,12 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		if constexpr( is_error_code_token_v<Token> )
-			return m_detail.read(Channel, token, buf);
-
+		{
+			return m_detail.read(Channel, buf)
+				.or_else([&](const error_code &error) {
+					token = error;
+				});
+		}
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
 			error_code error; LIBGS_UNUSED(error);
@@ -494,7 +487,7 @@ public:
 		}
 		else if constexpr( is_redirect_time_v<token_t> )
 		{
-			auto ntoken = unbound_redirect_time(token);
+			decltype(auto) ntoken = unbound_redirect_time(token);
 			using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
 
 			decltype(auto) nntoken = unbound_token(ntoken);
@@ -511,8 +504,7 @@ public:
 				}
 				else
 				{
-					std::error_code error; LIBGS_UNUSED(error);
-					return m_detail.co_read(Channel, error, buf,
+					return m_detail.co_read(Channel, buf,
 						asio::get_associated_cancellation_slot(nntoken),
 						get_associated_redirect_time(token)
 					);
@@ -541,9 +533,8 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						std::error_code error; LIBGS_UNUSED(error);
 						promise->set_value(self->m_detail.read (
-							Channel, error, buf, cancel_slot, timeout
+							Channel, buf, cancel_slot, timeout
 						));
 						co_return ;
 					});
@@ -579,9 +570,8 @@ public:
 					cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 				]() mutable -> awaitable<void>
 				{
-					std::error_code error; LIBGS_UNUSED(error);
 					auto expected = co_await self->m_detail.co_read (
-						Channel, error, buf, cancel_slot, timeout
+						Channel, buf, cancel_slot, timeout
 					);
 					expected
 					.transform([&callback = nntoken](int code) {
@@ -602,10 +592,10 @@ public:
 
 public:
 	void set_work_path(path_t path) noexcept {
-		m_detail.set_work_path(path);
+		m_detail.set_work_path(std::move(path));
 	}
 	void setenv(std::string_view key, libgs::value value) noexcept {
-		m_detail.setenv(key, value);
+		m_detail.setenv(key, std::move(value));
 	}
 	void unsetenv(std::string_view key) noexcept {
 		m_detail.unsetenv(key);
@@ -876,13 +866,13 @@ auto basic_process<CharT,Exec>::run(Token &&token) noexcept
 template <concepts::character CharT, concepts::exec Exec>
 void basic_process<CharT,Exec>::set_work_path(path_t path) noexcept
 {
-	m_impl->set_work_path(path);
+	m_impl->set_work_path(std::move(path));
 }
 
 template <concepts::character CharT, concepts::exec Exec>
 void basic_process<CharT,Exec>::setenv(std::string_view key, libgs::value value) noexcept
 {
-	m_impl->setenv(key, value);
+	m_impl->setenv(key, std::move(value));
 }
 
 template <concepts::character CharT, concepts::exec Exec>
