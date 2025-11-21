@@ -29,7 +29,9 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
 #define LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
 
+#include <libgs/coro/utils.h>
 #include <map>
+#include <set>
 
 namespace libgs::http
 {
@@ -38,10 +40,10 @@ template <concepts::stream Stream, core_concepts::exec Exec>
 class LIBGS_HTTP_TAPI basic_session_pool<Stream,Exec>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using opt_helper_t = session_t::opt_helper_t;
 
 public:
-	template <core_concepts::match_exec<executor_t> Exec0>
-	explicit impl(const Exec0 &exec) : m_exec(exec) {}
+	explicit impl(const auto &exec) : m_exec(exec) {}
 	impl() : m_exec(libgs::get_executor()) {}
 
 	~impl() {
@@ -49,7 +51,85 @@ public:
 	}
 
 public:
-	[[nodiscard]] session_t get(const endpoint_t &ep, auto &&exec)
+	[[nodiscard]] sys_expected<session_t> get(const endpoint_t &ep, auto &&exec) noexcept
+	{
+		auto session = _get(ep, std::forward<decltype(exec)>(exec));
+		auto &sock_helper = session.opt_helper();
+
+		if( sock_helper.is_open() )
+			return std::move(session);
+
+		std::error_code error;
+		sock_helper.connect(ep, error);
+
+		if( error )
+		{
+			m_sock_map.erase(ep);
+			return sys_unexpected(error);
+		}
+		return std::move(session);
+	}
+
+	[[nodiscard]] awaitable<sys_expected<session_t>> co_get(const endpoint_t &ep, auto &&exec,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		auto session = _get(ep, std::forward<decltype(exec)>(exec));
+		auto &sock_helper = session.opt_helper();
+
+		if( sock_helper.is_open() )
+			co_return std::move(session);
+		m_curr_tasks.emplace(&sock_helper);
+
+		using namespace libgs::operators;
+		using namespace std::chrono_literals;
+
+		std::error_code error;
+		auto task = sock_helper.connect(ep, use_awaitable | cancel_slot | error);
+
+		if( timeout == 0ns )
+		{
+			co_await std::move(task);
+			m_curr_tasks.erase(&sock_helper);
+			if( error )
+			{
+				m_sock_map.erase(ep);
+				co_return sys_unexpected(error);
+			}
+			co_return std::move(session);
+		}
+		auto var = co_await(std::move(task) or
+			coro::sleep_for(sock_helper.get_executor(), timeout)
+		);
+		m_curr_tasks.erase(&sock_helper);
+
+		if( var.index() == 0 )
+			co_return std::move(session);
+
+		else if( not std::get<1>(var) )
+			co_return sys_unexpected(make_error_code(errc::timed_out));
+
+		co_return sys_unexpected(std::get<1>(var));
+	}
+
+	[[nodiscard]] sys_expected<session_t> co_get(std::error_code &error, const endpoint_t &ep, auto &&exec,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		auto expected = co_await co_get(std::forward<decltype(exec)>(exec),
+			std::move(cancel_slot), std::move(timeout)
+		);
+		if( not expected )
+			error = expected.error();
+		co_return expected;
+	}
+
+	void emplace(socket_t &&socket)
+	{
+		if( socket.is_open() )
+			m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+	}
+
+private:
+	[[nodiscard]] session_t _get(const endpoint_t &ep, auto &&exec) noexcept
 	{
 		socket_t socket(exec);
 		auto it = m_sock_map.find(ep);
@@ -63,6 +143,8 @@ public:
 		}
 		return session_t(std::move(socket), [this, valid = m_valid](socket_t &&sock) mutable
 		{
+			if( not sock.is_open() )
+				return ;
 			dispatch(m_exec, [this, valid = std::move(valid), sock = std::move(sock)]() mutable
 			{
 				if( *valid )
@@ -71,36 +153,25 @@ public:
 		});
 	}
 
-	void emplace(socket_t &&socket)
-	{
-		if( socket.is_open() )
-			m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
-	}
-
 public:
 	std::shared_ptr<bool> m_valid {new bool(true)};
 	std::map<endpoint_t,socket_t> m_sock_map;
+
+	std::set<const opt_helper_t*> m_curr_tasks {};
 	executor_t m_exec;
 };
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool(const core_concepts::match_exec<executor_t> auto &exec) :
-	m_impl(new impl(exec))
-{
-
-}
-
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_exec_context<executor_t> auto &context) :
-	m_impl(new impl(context.get_executor()))
-{
-
-}
-
-template <concepts::stream Stream, core_concepts::exec Exec>
 basic_session_pool<Stream,Exec>::basic_session_pool() requires
-	core_concepts::match_def_exec<executor_t> :
+	core_concepts::match_sched<io_executor_t,executor_t> :
 	m_impl(new impl())
+{
+
+}
+
+template <concepts::stream Stream, core_concepts::exec Exec>
+basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_sched<Exec> auto &&exec) :
+	m_impl(new impl(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 
 }
@@ -144,80 +215,144 @@ auto basic_session_pool<Stream,Exec>::get
 	requires core_concepts::tf_opt_token<Token,error_code,session_t>
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code&> )
+	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto sess = m_impl->get(ep, exec);
-		if( auto &helper = sess.opt_helper(); not helper.is_open() )
-			helper.connect(ep, token);
-		return sess;
+		return m_impl->get(ep, std::forward<decltype(exec)>(exec))
+			.or_else([&token](const error_code &error) {
+				token = error;
+			});
 	}
-	else if constexpr( is_sync_opt_token_v<token_t> )
+	else if constexpr( is_sync_opt_token_v<Token> )
+		return m_impl->get(ep, std::forward<decltype(exec)>(exec));
+
+	else if constexpr( is_redirect_time_v<token_t> )
 	{
-		error_code error;
-		auto sess = get(ep, error);
-		if( error )
-			throw system_error(error, "libgs::http::basic_session_pool::get");
-		return sess;
+		decltype(auto) ntoken = unbound_redirect_time(token);
+		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+
+		decltype(auto) nntoken = unbound_token(ntoken);
+		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
+
+		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+		{
+			if constexpr( is_redirect_error_v<ntoken_t> )
+			{
+				return m_impl->co_get(ntoken.ec_, ep, std::forward<decltype(exec)>(exec),
+					asio::get_associated_cancellation_slot(nntoken),
+					get_associated_redirect_time(token)
+				);
+			}
+			else
+			{
+				return m_impl->co_get(ep, std::forward<decltype(exec)>(exec),
+					asio::get_associated_cancellation_slot(nntoken),
+					get_associated_redirect_time(token)
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<nntoken_t> )
+		{
+			auto promise = std::make_shared<std::promise<io_expected>>();
+			if constexpr( is_redirect_error_v<ntoken_t> )
+			{
+				libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(), ntoken, ep,
+					exec = get_executor_helper(std::forward<decltype(exec)>(exec)), promise = std::move(promise),
+					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					timeout = get_associated_redirect_time(token)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await co_get (
+						ntoken.ec_, ep, exec, cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			else
+			{
+				libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(), ep,
+					exec = get_executor_helper(std::forward<decltype(exec)>(exec)), promise = std::move(promise),
+					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					timeout = get_associated_redirect_time(token)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await co_get (
+						ep, exec, cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			return promise->get_future();
+		}
+		else if constexpr( is_redirect_error_v<ntoken_t> )
+		{
+			libgs::dispatch(m_impl->m_session.get_executor(), [
+				impl = m_impl->shared_from_this(), ntoken, nntoken, ep,
+				exec = get_executor_helper(std::forward<decltype(exec)>(exec)),
+				timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await impl->co_get (
+					ntoken.ec_, ep, exec, cancel_slot, timeout
+				);
+				expected
+				.transform([&callback = nntoken](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = nntoken](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+		else
+		{
+			libgs::dispatch(m_impl->m_session.get_executor(), [
+				impl = m_impl->shared_from_this(), nntoken, ep,
+				exec = get_executor_helper(std::forward<decltype(exec)>(exec)),
+				timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await impl->co_get (
+					ep, exec, cancel_slot, timeout
+				);
+				expected
+				.transform([&callback = nntoken](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = nntoken](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
 	}
-#ifdef LIBGS_USING_BOOST_ASIO
-	else if constexpr( is_yield_context_v<token_t> )
-	{
-		if( auto &helper = sess.opt_helper(); not helper.is_open() )
-			helper.connect(std::move(ep), std::forward<Token>(token));
-		return std::move(sess);
-	}
-#endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
 		using namespace libgs::operators;
 		using namespace std::chrono_literals;
-
-		decltype(auto) ntoken = unbound_redirect_time(token);
-		decltype(auto) rtoken = unbound_token(ntoken);
-
-		return async_work<error_code,session_t>::handle(get_executor(), [
-			self_exec = get_executor(), ep = std::move(ep), sess = m_impl->get(ep, exec),
-			timeout = get_associated_redirect_time(token), ntoken = std::move(ntoken)
-		](auto wake_up) mutable
-		{
-			using wake_up_t = std::remove_cvref_t<decltype(wake_up)>;
-			asio::co_spawn(self_exec, [
-				wake_up = std::make_shared<wake_up_t>(std::move(wake_up)), ep = std::move(ep),
-				sess = std::move(sess), timeout = std::move(timeout), ntoken = std::move(ntoken)
-			]() mutable -> awaitable<void>
-			{
-				auto &helper = sess.opt_helper();
-				std::error_code error;
-
-				if( helper.is_open() )
-					std::move(*wake_up)(error, std::move(sess));
-
-				auto var = co_await (
-					helper.connect(std::move(ep), use_awaitable | error) or
-					sleep_for(/*get_executor(),*/timeout, use_awaitable)
-				);
-				if( var.index() == 1 and not error )
-					error = make_error_code(errc::timed_out);
-
-				std::move(*wake_up)(error, std::move(sess));
-				co_return ;
-			},
-			detached | asio::get_associated_cancellation_slot(ntoken));
-		},
-		rtoken);
+		return get(std::forward<decltype(exec)>(exec), ep, token | 0ns);
 	}
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-void basic_session_pool<Stream,Exec>::emplace(socket_t &&socket)
+basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::emplace(socket_t &&socket)
 {
 	m_impl->emplace(std::move(socket));
+	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
 void basic_session_pool<Stream,Exec>::operator<<(socket_t &&socket)
 {
 	emplace(std::move(socket));
+}
+
+template <concepts::stream Stream, core_concepts::exec Exec>
+basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::cancel() noexcept
+{
+	for(auto &task : m_impl->m_curr_tasks)
+		task->cancel();
+	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
@@ -230,4 +365,3 @@ basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get
 
 
 #endif //LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
-

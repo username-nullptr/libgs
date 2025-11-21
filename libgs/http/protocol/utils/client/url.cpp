@@ -150,6 +150,12 @@ url::url(std::string_view url) :
 
 }
 
+url::url(const char *url) :
+	m_impl(new impl(url))
+{
+
+}
+
 url::url() : url(std::string_view())
 {
 

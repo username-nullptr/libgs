@@ -30,7 +30,6 @@
 #define LIBGS_CORE_CXX_TYPE_TRAITS_H
 
 #include <libgs/core/cxx/string_concepts.h>
-#include <libgs/core/cxx/system_error.h>
 #include <asio/error.hpp>
 #include <chrono>
 #include <format>
@@ -59,6 +58,7 @@ using years  = std::chrono::years ;
 template<typename Clock, typename Duration>
 using time_point = std::chrono::time_point<Clock, Duration>;
 
+using error_code = std::error_code; //asio::error_code;
 namespace errc = asio::error;
 
 template <size_t N>

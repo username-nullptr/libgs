@@ -59,8 +59,11 @@ public:
 	) const noexcept;
 
 	[[nodiscard]] awaitable<sys_expected<int>> co_join (
-		asio::cancellation_slot cancel_slot,
-		std::chrono::nanoseconds timeout = {}
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout = {}
+	) const noexcept;
+
+	[[nodiscard]] awaitable<sys_expected<int>> co_join(std::error_code &error,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout = {}
 	) const noexcept;
 
 	template <typename Clock, typename Duration>
@@ -114,6 +117,10 @@ public:
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout = {}
 	) const noexcept;
 
+	[[nodiscard]] awaitable<io_expected> co_write(std::error_code &error, const const_buffer &buf,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout = {}
+	) const noexcept;
+
 	enum class read_channel {
 		stdout, stderr
 	};
@@ -122,6 +129,11 @@ public:
 
 	[[nodiscard]] awaitable<io_expected> co_read(read_channel channel,
 		const mutable_buffer &buf, asio::cancellation_slot cancel_slot,
+		std::chrono::nanoseconds timeout = {}
+	) const noexcept;
+
+	[[nodiscard]] awaitable<io_expected> co_read(read_channel channel,
+		std::error_code &error, const mutable_buffer &buf, asio::cancellation_slot cancel_slot,
 		std::chrono::nanoseconds timeout = {}
 	) const noexcept;
 
@@ -342,15 +354,15 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		if constexpr( is_error_code_token_v<Token> )
-			return m_detail.write(token, buf);
-
-		else if constexpr( is_sync_opt_token_v<Token> )
 		{
 			return write(buf)
 				.or_else([&token](const error_code &error) {
 					token = error;
 				});
 		}
+		else if constexpr( is_sync_opt_token_v<Token> )
+			return m_detail.write(buf);
+
 		else if constexpr( is_redirect_time_v<token_t> )
 		{
 			decltype(auto) ntoken = unbound_redirect_time(token);
@@ -390,7 +402,7 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						promise->set_value(self->m_detail.write (
+						promise->set_value(co_await self->m_detail.co_write (
 							ntoken.ec_, {buf->data(), buf->size()}, cancel_slot, timeout
 						));
 						co_return ;
@@ -404,7 +416,7 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						promise->set_value(self->m_detail.write (
+						promise->set_value(co_await self->m_detail.co_write (
 							{buf->data(), buf->size()}, cancel_slot, timeout
 						));
 						co_return ;
@@ -481,10 +493,8 @@ public:
 				});
 		}
 		else if constexpr( is_sync_opt_token_v<Token> )
-		{
-			error_code error; LIBGS_UNUSED(error);
-			return read<Channel>(buf, error);
-		}
+			return m_detail.read(Channel, buf);
+
 		else if constexpr( is_redirect_time_v<token_t> )
 		{
 			decltype(auto) ntoken = unbound_redirect_time(token);
@@ -520,7 +530,7 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						promise->set_value(self->m_detail.read (
+						promise->set_value(co_await self->m_detail.co_read (
 							Channel, ntoken.ec_, buf, cancel_slot, timeout
 						));
 						co_return ;
@@ -533,7 +543,7 @@ public:
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
-						promise->set_value(self->m_detail.read (
+						promise->set_value(co_await self->m_detail.co_read (
 							Channel, buf, cancel_slot, timeout
 						));
 						co_return ;
@@ -656,18 +666,17 @@ basic_process<CharT,Exec>::basic_process(string_t cmd, Args&&...args) requires
 }
 
 template <concepts::character CharT, concepts::exec Exec>
-template <concepts::match_sched<Exec> Exec0>
-basic_process<CharT,Exec>::basic_process(Exec0 &&exec, string_t cmd, args_t args) :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Exec0>(exec))))
+basic_process<CharT,Exec>::basic_process(concepts::match_sched<Exec> auto &&exec, string_t cmd, args_t args) :
+	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 	m_impl->set(std::move(cmd), std::move(args));
 }
 
 template <concepts::character CharT, concepts::exec Exec>
-template <concepts::match_sched<Exec> Exec0, typename...Args>
-basic_process<CharT,Exec>::basic_process(Exec0 &&exec, string_t cmd, Args&&...args)
+template <typename...Args>
+basic_process<CharT,Exec>::basic_process(concepts::match_sched<Exec> auto &&exec, string_t cmd, Args&&...args)
 	requires concepts::formatter<char_t,Args...> :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Exec0>(exec))))
+	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 	m_impl->set(std::move(cmd), std::forward<Args>(args)...);
 }

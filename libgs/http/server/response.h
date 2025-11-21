@@ -44,7 +44,7 @@ public:
 	using next_layer_t = basic_server_request<Stream>;
 	using executor_t = next_layer_t::executor_t;
 
-	using helper_t = protocol::server_generator;
+	using generator_t = protocol::server_generator;
 	using value_t = next_layer_t::value_t;
 	using headers_t = next_layer_t::headers_t;
 
@@ -119,6 +119,10 @@ public:
 	auto redirect(core_concepts::text_p<char> auto &&url,
 		Token &&token = {}
 	);
+
+	// TODO: Expect: 100-continue ... ...
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto continues(Token &&token = {});
 
 public:
 	template <typename T>

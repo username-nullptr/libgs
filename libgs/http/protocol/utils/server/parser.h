@@ -40,6 +40,8 @@ class LIBGS_HTTP_API parser<model::server> final
 	LIBGS_DISABLE_COPY(parser)
 
 public:
+	using stage_t = protocol::stage;
+
 	using value_t = libgs::value;
 	using path_args_t = parameter_map;
 
@@ -81,13 +83,11 @@ public:
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;
 	[[nodiscard]] bool support_gzip() const noexcept;
-	[[nodiscard]] bool can_read_from_device() const noexcept;
 
-public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
-	[[nodiscard]] bool is_finished() const noexcept;
-	[[nodiscard]] bool is_eof() const noexcept;
+
+	[[nodiscard]] stage_t stage() const noexcept;
 	parser &reset();
 
 private:

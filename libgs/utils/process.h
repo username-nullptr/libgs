@@ -67,12 +67,13 @@ public:
 		concepts::match_sched<io_executor_t,Exec> and
 		concepts::formatter<char_t,Args...>;
 
-	template <concepts::match_sched<Exec> Exec0>
-	basic_process(Exec0 &&exec, string_t cmd = {}, args_t args = {});
-
-	template <concepts::match_sched<Exec> Exec0, typename...Args>
-	basic_process(Exec0 &&exec, string_t cmd, Args&&...args)
-		requires concepts::formatter<char_t,Args...>;
+	basic_process(concepts::match_sched<Exec> auto &&exec,
+		string_t cmd = {}, args_t args = {}
+	);
+	template <typename...Args>
+	basic_process(concepts::match_sched<Exec> auto &&exec,
+		string_t cmd, Args&&...args
+	) requires concepts::formatter<char_t,Args...>;
 
 	basic_process(basic_process &&other) noexcept;
 	basic_process &operator=(basic_process &&other) noexcept;
@@ -99,7 +100,7 @@ public:
 
 	template <typename Token>
 	static constexpr bool join_token_v =
-		task_token_v<Token> and not is_detached_v<Token>;
+		task_token_v<Token> and not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename Token = std::chrono::nanoseconds>
 	auto join(Token &&token = {}) noexcept

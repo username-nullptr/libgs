@@ -61,7 +61,12 @@ protected:
 };
 
 template <typename Value, concepts::optional_value Error>
-class expected;
+class expected
+{
+	static_assert(concepts::optional_value<Value>,
+		"libgs::expected<Value,Error>: Value must be optional_value."
+	);
+};
 
 template <concepts::optional_value Value, concepts::optional_value Error>
 class LIBGS_CORE_TAPI expected<Value,Error> final : public optional_base<Value>, public unexpected<Error>

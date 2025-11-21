@@ -40,6 +40,7 @@ class LIBGS_HTTP_API parser<model::client>
 	LIBGS_DISABLE_COPY(parser)
 
 public:
+	using stage_t = protocol::stage;
 	using value_t = libgs::value;
 
 	using cookie_t = protocol::cookie;
@@ -63,27 +64,23 @@ public:
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] status_enum status() const noexcept;
 
-	[[nodiscard]] const value_t &header(std::string_view key) const;
-	[[nodiscard]] const cookie_t &cookie(std::string_view key) const;
-
-	[[nodiscard]] value_t header_or(std::string_view key, value_t def_value = {}) const noexcept;
-	[[nodiscard]] cookie_t cookie_or(std::string_view key, value_t def_value = {}) const noexcept;
-
-public:
+	[[nodiscard]] optional<value_t> header(const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] const headers_t &headers() const noexcept;
+
+	[[nodiscard]] optional<cookie_t> cookie(const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] const cookies_t &cookies() const noexcept;
+
 	[[nodiscard]] const std::vector<value_t> &chunk_attributes() const noexcept;
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;
 	[[nodiscard]] bool support_gzip() const noexcept;
-	[[nodiscard]] bool can_read_from_device() const noexcept;
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
-	[[nodiscard]] bool is_finished() const noexcept;
-	[[nodiscard]] bool is_eof() const noexcept;
+
+	[[nodiscard]] stage_t stage() const noexcept;
 	parser &reset();
 
 private:

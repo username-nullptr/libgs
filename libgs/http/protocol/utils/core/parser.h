@@ -57,12 +57,17 @@ enum class parse_errno
 #undef X_MACRO
 };
 
+enum class stage {
+	header, body, finished
+};
+
 template <>
 class LIBGS_HTTP_API parser<model::base> final
 {
 	LIBGS_DISABLE_COPY(parser)
 
 public:
+	using stage_t = protocol::stage;
 	using headers_t = protocol::headers;
 
 	using parse_begin_handler = std::function <
@@ -95,11 +100,8 @@ public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
 
-public:
 	[[nodiscard]] version_enum version() const noexcept;
-	[[nodiscard]] bool can_read_from_device() const noexcept;
-	[[nodiscard]] bool is_finished() const noexcept;
-	[[nodiscard]] bool is_eof() const noexcept;
+	[[nodiscard]] stage_t stage() const noexcept;
 
 public:
 	parser &unbind_parse_begin();

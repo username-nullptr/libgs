@@ -31,124 +31,152 @@
 
 #include <libgs/http/client/session_pool.h>
 #include <libgs/http/client/request.h>
+#include <libgs/http/client/reply.h>
 
 namespace libgs::http
 {
 
-template <core_concepts::character CharT,
-		  concepts::session_pool SessionPool = session_pool,
-		  version_t Version = version::v11>
+template <concepts::session_pool SessionPool,
+		  protocol::version_enum Version = protocol::version::v11>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
 
 public:
-	using char_t = CharT;
 	using session_pool_t = SessionPool;
-	using string_view_t = std::basic_string_view<char_t>;
-
-	using socket_t = session_pool_t::socket_t;
-	using executor_t = session_pool_t::executor_t;
-
 	static constexpr auto version_v = Version;
 
-	template <method Method>
-	using request_t = basic_client_request <
-		char_t, Method, session_pool_t, version_v
-	>;
-	using request_arg_t = basic_request_arg<char_t>;
-	using url_t = typename request_arg_t::url_t;
+	using session_t = session_pool_t::session_t;
+	using executor_t = session_pool_t::executor_t;
+
+	template <protocol::method_enum Method>
+	using request_t = basic_client_request<Method, session_t, version_v>;
+
+	template <protocol::method_enum Method>
+	using request_ptr = std::shared_ptr<request_t<Method>>;
+
+	using reply_t = basic_reply<session_t>;
+	using reply_ptr = std::shared_ptr<reply_t>;
+
+	using request_arg_t = protocol::request_arg;
+	using url_t = protocol::url;
 
 public:
-	explicit basic_client(const core_concepts::match_execution<executor_t> auto &exec);
-	explicit basic_client(core_concepts::match_execution_context<executor_t> auto &context);
-	basic_client() requires core_concepts::match_default_execution<executor_t>;
+	basic_client() requires
+		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	~basic_client();
+	explicit basic_client (
+		core_concepts::match_sched<executor_t> auto &&exec
+	);
+	explicit basic_client(session_pool_t &&pool);
+
 	basic_client(basic_client &&other) noexcept;
 	basic_client &operator=(basic_client &&other) noexcept;
+	~basic_client();
 
 public:
-	template <method Method, core_concepts::tf_opt_token<error_code,request_t<Method>> Token = use_sync_t>
-	[[nodiscard]] auto request(request_arg_t arg, Token &&token = {});
-
-	template <method Method, core_concepts::tf_opt_token<error_code,request_t<Method>> Token = use_sync_t>
-	[[nodiscard]] auto request(request_arg_t arg, const const_buffer &body, Token &&token = {})
-		requires (Method == method::POST or Method == method::PUT);
-
-	template <method Method, core_concepts::tf_opt_token<error_code,request_t<Method>> Token = use_sync_t>
-	[[nodiscard]] auto request(request_arg_t arg,
-		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
-		Token &&token = {}
-	) requires (Method == method::POST or Method == method::PUT);
+	template <typename Token>
+	static constexpr bool request_token_v =
+		core_concepts::tf_opt_token<Token,error_code> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
 
 public:
-	template <core_concepts::tf_opt_token<error_code,request_t<method::GET>> Token = use_sync_t>
-	[[nodiscard]] auto get(request_arg_t arg, Token &&token = {});
+	template <protocol::method_enum Method, typename Token = use_sync_t>
+	[[nodiscard]] auto request(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
 
-	template <core_concepts::tf_opt_token<error_code,request_t<method::POST>> Token = use_sync_t>
-	[[nodiscard]] auto post(request_arg_t arg, const const_buffer &body, Token &&token = {});
+	template <protocol::method_enum Method, typename Token = use_sync_t>
+	[[nodiscard]] auto request(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
 
-	template <core_concepts::tf_opt_token<error_code,request_t<method::POST>> Token = use_sync_t>
-	[[nodiscard]] auto post(request_arg_t arg,
-		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
-		Token &&token = {}
-	);
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::PUT>> Token = use_sync_t>
-	[[nodiscard]] auto put(request_arg_t arg, const const_buffer &body, Token &&token = {});
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::PUT>> Token = use_sync_t>
-	[[nodiscard]] auto put(request_arg_t arg,
-		concepts::char_file_opt_token_arg<file_optype::combine, io_permission::read> auto &&opt,
-		Token &&token = {}
-	);
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::HEAD>> Token = use_sync_t>
-	[[nodiscard]] auto head(request_arg_t arg, Token &&token = {});
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::PATCH>> Token = use_sync_t>
-	[[nodiscard]] auto patch(request_arg_t arg, Token &&token = {});
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::DELETE>> Token = use_sync_t>
-	[[nodiscard]] auto Delete(request_arg_t arg, Token &&token = {});
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::OPTIONS>> Token = use_sync_t>
-	[[nodiscard]] auto options(request_arg_t arg, Token &&token = {});
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::TRACE>> Token = use_sync_t>
-	[[nodiscard]] auto trace(request_arg_t arg, Token &&token = {});
-
-	template <core_concepts::tf_opt_token<error_code,request_t<method::CONNECT>> Token = use_sync_t>
-	[[nodiscard]] auto connect(request_arg_t arg, Token &&token = {});
+	template <protocol::method_enum Method, typename Token = use_sync_t>
+	[[nodiscard]] auto reply(const request_ptr<Method> &request, Token &&token = {});
 
 public:
-	template <method Method>
-	[[nodiscard]] request_t<Method> make_request(request_arg_t arg);
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_get(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
 
-	[[nodiscard]] request_t<method::GET> make_get(request_arg_t arg);
-	[[nodiscard]] request_t<method::POST> make_post(request_arg_t arg);
-	[[nodiscard]] request_t<method::PUT> make_put(request_arg_t arg);
-	[[nodiscard]] request_t<method::HEAD> make_head(request_arg_t arg);
-	[[nodiscard]] request_t<method::PATCH> make_patch(request_arg_t arg);
-	[[nodiscard]] request_t<method::DELETE> make_delete(request_arg_t arg);
-	[[nodiscard]] request_t<method::OPTIONS> make_options(request_arg_t arg);
-	[[nodiscard]] request_t<method::TRACE> make_trace(request_arg_t arg);
-	[[nodiscard]] request_t<method::CONNECT> make_connect(request_arg_t arg);
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_put(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_post(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_head(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_patch(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_delete(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_options(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_trace(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_connect(url_t url, request_arg_t arg, Token &&token = {})
+		noexcept requires request_token_v<Token>;
 
 public:
-	[[nodiscard]] consteval version_t version() const noexcept;
-	[[nodiscard]] const session_pool_t &session_pool() const noexcept;
-	[[nodiscard]] session_pool_t &session_pool() noexcept;
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_get(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_put(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_post(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_head(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_patch(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_delete(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_options(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_trace(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto req_connect(url_t url, Token &&token = {})
+		noexcept requires request_token_v<Token>;
+
+public:
+	[[nodiscard]] static consteval protocol::version_enum version() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
-
-
+template <protocol::version_enum Version = protocol::version::v11>
+using client = basic_client<session_pool, Version>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/client.h>

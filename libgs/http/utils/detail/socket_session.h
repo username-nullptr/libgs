@@ -102,7 +102,7 @@ basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(basic_sock
 		return *this;
 	delete m_impl;
 	m_impl = other.m_impl;
-	other.m_impl = new impl({},{});
+	other.m_impl = new impl();
 	return *this;
 }
 
@@ -114,35 +114,35 @@ basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(socket_t &
 }
 
 template <concepts::stream Stream>
-const typename basic_socket_session<Stream>::socket_t&
+const basic_socket_session<Stream>::socket_t&
 basic_socket_session<Stream>::socket() const noexcept
 {
 	return m_impl->m_socket;
 }
 
 template <concepts::stream Stream>
-typename basic_socket_session<Stream>::socket_t&
+basic_socket_session<Stream>::socket_t&
 basic_socket_session<Stream>::socket() noexcept
 {
 	return m_impl->m_socket;
 }
 
 template <concepts::stream Stream>
-const typename basic_socket_session<Stream>::opt_helper_t&
+const basic_socket_session<Stream>::opt_helper_t&
 basic_socket_session<Stream>::opt_helper() const noexcept
 {
 	return m_impl->m_opt_helper;
 }
 
 template <concepts::stream Stream>
-typename basic_socket_session<Stream>::opt_helper_t&
+basic_socket_session<Stream>::opt_helper_t&
 basic_socket_session<Stream>::opt_helper() noexcept
 {
 	return m_impl->m_opt_helper;
 }
 
 template <concepts::stream Stream>
-typename basic_socket_session<Stream>::executor_t
+basic_socket_session<Stream>::executor_t
 basic_socket_session<Stream>::get_executor() noexcept
 {
 	return m_impl->m_socket.get_executor();

@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H
 
-#include <libgs/http/protocol/utils/client/url.h>
+#include <libgs/http/protocol/types.h>
 
 namespace libgs::http::protocol
 {
@@ -37,15 +37,12 @@ namespace libgs::http::protocol
 class LIBGS_HTTP_API request_arg
 {
 public:
-	using url_t = protocol::url;
 	using value_t = libgs::value;
-
 	using header_t = protocol::header;
 	using headers_t = protocol::headers;
 	using cookies_t = protocol::cookie_values;
 
 public:
-	request_arg(url_t url);
 	request_arg();
 	~request_arg();
 
@@ -54,11 +51,6 @@ public:
 
 	request_arg(request_arg &&other) noexcept;
 	request_arg &operator=(request_arg &&other) noexcept;
-
-public:
-	request_arg &set_url(url_t url);
-	[[nodiscard]] const url_t &url() const noexcept;
-	[[nodiscard]] url_t &url() noexcept;
 
 public:
 	request_arg &set_header (

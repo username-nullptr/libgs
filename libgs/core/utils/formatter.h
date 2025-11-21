@@ -252,9 +252,6 @@ struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<
 	}
 };
 
-template <libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<libgs::error_code, CharT> : formatter<error_code, CharT> {};
-
 template <typename Protocol, libgs::concepts::character CharT>
 struct LIBGS_CORE_TAPI formatter<asio::ip::basic_endpoint<Protocol>, CharT> : libgs::no_parse_formatter<CharT>
 {

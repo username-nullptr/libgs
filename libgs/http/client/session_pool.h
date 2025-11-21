@@ -49,10 +49,10 @@ public:
 	using endpoint_t = session_t::endpoint_t;
 
 public:
-	explicit basic_session_pool(const core_concepts::match_exec<executor_t> auto &exec);
-	explicit basic_session_pool(core_concepts::match_exec_context<executor_t> auto &context);
+	basic_session_pool() requires
+		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	basic_session_pool() requires core_concepts::match_def_exec<executor_t>;
+	explicit basic_session_pool(core_concepts::match_sched<Exec> auto &&exec);
 	~basic_session_pool();
 
 	basic_session_pool(basic_session_pool &&other) noexcept;
@@ -70,9 +70,10 @@ public:
 	) requires core_concepts::tf_opt_token<Token,error_code,session_t>;
 
 public:
-	void emplace(socket_t &&socket);
+	basic_session_pool &emplace(socket_t &&socket);
 	void operator<<(socket_t &&socket);
 
+	basic_session_pool &cancel() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:

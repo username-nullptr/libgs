@@ -81,6 +81,8 @@ public:
 	using base_t::base_t;
 
 	using socket_t = base_t::socket_t;
+	using protocol_t = socket_t::protocol_type;
+
 	using executor_t = base_t::executor_t;
 	using endpoint_t = base_t::endpoint_t;
 
@@ -119,6 +121,8 @@ public:
 	using base_t::base_t;
 
 	using socket_t = base_t::socket_t;
+	using protocol_t = socket_t::next_layer_type::protocol_type;
+
 	using executor_t = base_t::executor_t;
 	using endpoint_t = base_t::endpoint_t;
 

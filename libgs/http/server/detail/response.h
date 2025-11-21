@@ -45,31 +45,31 @@ class basic_response<Stream>::impl
 
 public:
 	explicit impl(next_layer_t &&next_layer) :
-		m_helper(next_layer.version(), next_layer.headers()),
+		m_generator(next_layer.version(), next_layer.headers()),
 		m_next_layer(std::move(next_layer)) {}
 
 	template <typename Stream0>
 	impl &operator=(basic_response<Stream0>::impl &&other) noexcept
 	{
-		m_helper = std::move(other.m_helper);
+		m_generator = std::move(other.m_generator);
 		m_next_layer = std::move(other.m_next_layer);
 		return *this;
 	}
 
 	impl &operator=(impl &&other) noexcept
 	{
-		m_helper = std::move(other.m_helper);
+		m_generator = std::move(other.m_generator);
 		m_next_layer = std::move(other.m_next_layer);
 		return *this;
 	}
 
 public:
 	void set_status(protocol::status_enum status) {
-		m_helper.set_status(status);
+		m_generator.set_status(status);
 	}
 
 	[[nodiscard]] auto pro_state() const noexcept {
-		return m_helper.pro_state();
+		return m_generator.pro_state();
 	}
 
 public:
@@ -192,7 +192,7 @@ public:
 	{
 		if( pro_state() != protocol::generator_state::chunk )
 			return 0;
-		auto buf = m_helper.chunk_end_data(headers);
+		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			return 0;
 		return write_body(buffer(buf), error);
@@ -202,7 +202,7 @@ public:
 	{
 		if( pro_state() != protocol::generator_state::chunk )
 			co_return 0;
-		auto buf = m_helper.chunk_end_data(headers);
+		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			co_return 0;
 		co_return co_await co_write_body(buffer(buf), error);
@@ -226,7 +226,7 @@ private:
 		if( data.fsize == 0 )
 			return sum;
 
-		m_helper.set_header(protocol::header::content_type, data.mtype);
+		m_generator.set_header(protocol::header::content_type, data.mtype);
 		sum += write_header(data.fsize, error);
 		if( error )
 			return sum;
@@ -258,7 +258,7 @@ private:
 		if( data.fsize == 0 )
 			co_return sum;
 
-		m_helper.set_header(protocol::header::content_type, data.mtype);
+		m_generator.set_header(protocol::header::content_type, data.mtype);
 		sum += co_await co_write_header(data.fsize, error);
 		if( error )
 			co_return sum;
@@ -290,7 +290,7 @@ public:
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
-			m_helper
+			m_generator
 			.set_header(protocol::header::accept_ranges , "bytes"    )
 			.set_header(protocol::header::content_type  , data.mtype )
 			.set_header(protocol::header::content_length, range.total)
@@ -308,7 +308,7 @@ public:
 				system_clock::now().time_since_epoch()
 			).count()
 		);
-		m_helper.set_header(protocol::header::content_type,
+		m_generator.set_header(protocol::header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
 		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
@@ -337,7 +337,7 @@ public:
 		}
 		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
-		m_helper
+		m_generator
 		.set_header(protocol::header::content_length, content_length)
 		.set_header(protocol::header::accept_ranges , "bytes");
 
@@ -353,7 +353,7 @@ public:
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
-			m_helper
+			m_generator
 			.set_header(protocol::header::accept_ranges , "bytes"    )
 			.set_header(protocol::header::content_type  , data.mtype )
 			.set_header(protocol::header::content_length, range.total)
@@ -369,7 +369,7 @@ public:
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
 		);
-		m_helper.set_header(protocol::header::content_type,
+		m_generator.set_header(protocol::header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
 		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
@@ -398,7 +398,7 @@ public:
 		}
 		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
 
-		m_helper
+		m_generator
 		.set_header(protocol::header::content_length, content_length)
 		.set_header(protocol::header::accept_ranges , "bytes");
 
@@ -455,17 +455,15 @@ private:
 		}
 		for(auto &value: ranges)
 		{
-			std::string body;
-			body.reserve(2 + boundary.size() + 2 +
-						 ct_line.size() + 2 +
-						 value.cr_line.size() + 2 +
-						 2);
-
-			body.append("--").append(boundary).append("\r\n")
-				.append(ct_line).append("\r\n")
-				.append(value.cr_line).append("\r\n"
-											  "\r\n");
-
+			auto body = std::format (
+				"--{}\r\n"
+				"{}\r\n"
+				"{}\r\n"
+				"\r\n",
+				boundary,
+				ct_line,
+				value.cr_line
+			);
 			sum += write_body(buffer(body, body.size()), error);
 			if( error )
 				return sum;
@@ -501,7 +499,7 @@ private:
 //				sleep_for(512us);
 			}
 		}
-		auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
+		auto abuf = std::format("--{}--\r\n", boundary);
 		sum += write_body(buffer(abuf, abuf.size()), error);
 		return sum;
 	}
@@ -553,17 +551,15 @@ private:
 		}
 		for(auto &value : ranges)
 		{
-			std::string body;
-			body.reserve(2 + boundary.size() + 2 +
-						 ct_line.size() + 2 +
-						 value.cr_line.size() + 2 +
-						 2);
-
-			body.append("--").append(boundary).append("\r\n")
-				.append(ct_line).append("\r\n")
-				.append(value.cr_line).append("\r\n"
-											  "\r\n");
-
+			auto body = std::format (
+				"--{}\r\n"
+				"{}\r\n"
+				"{}\r\n"
+				"\r\n",
+				boundary,
+				ct_line,
+				value.cr_line
+			);
 			sum += co_await co_write_body(buffer(body, body.size()), error);
 			if( error )
 				co_return sum;
@@ -599,7 +595,7 @@ private:
 //				co_await sleep_for(get_executor(), 512us);
 			}
 		}
-		auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
+		auto abuf = std::format("--{}--\r\n", boundary);
 		sum += co_await co_write_body(buffer(abuf, abuf.size()), error);
 		co_return sum;
 	}
@@ -704,19 +700,19 @@ private:
 
 private:
 	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept {
-		return base_write(m_helper.header_data(size), error);
+		return base_write(m_generator.header_data(size), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_header(size_t size, error_code &error) noexcept {
-		co_return co_await co_base_write(m_helper.header_data(size), error);
+		co_return co_await co_base_write(m_generator.header_data(size), error);
 	}
 
 	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept {
-		return base_write(m_helper.body_data(body), error);
+		return base_write(m_generator.body_data(body), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_body(const const_buffer &body, error_code &error) noexcept {
-		co_return co_await co_base_write(m_helper.body_data(body), error);
+		co_return co_await co_base_write(m_generator.body_data(body), error);
 	}
 
 private:
@@ -750,7 +746,7 @@ private:
 		if constexpr( is_any_string_v<Opt> or is_fstream_v<Opt,char> or is_ofstream_v<Opt,char> )
 		{
 			using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
-			using type = typename token_t::type;
+			using type = token_t::type;
 			return _file_opt_token_helper (
 				http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
 				data, error
@@ -758,7 +754,7 @@ private:
 		}
 		else if constexpr( Opt::optype == file_optype::single )
 		{
-			using type = typename std::remove_cvref_t<Opt>::type;
+			using type = std::remove_cvref_t<Opt>::type;
 			return _file_opt_token_helper (
 				http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
 				data, error
@@ -797,7 +793,7 @@ private:
 	}
 
 public:
-	helper_t m_helper;
+	generator_t m_generator;
 	next_layer_t m_next_layer;
 };
 
@@ -861,20 +857,20 @@ basic_response<Stream>::set_status(protocol::status_enum status)
 template <concepts::stream Stream>
 std::string_view basic_response<Stream>::version() const noexcept
 {
-	return m_impl->m_helper.version();
+	return m_impl->m_generator.version();
 }
 
 template <concepts::stream Stream>
 protocol::status_enum basic_response<Stream>::status() const noexcept
 {
-	return m_impl->m_helper.status();
+	return m_impl->m_generator.status();
 }
 
 template <concepts::stream Stream>
 basic_response<Stream> &basic_response<Stream>::set_header
 (core_concepts::text_p<char> auto &&key, value_t value) noexcept
 {
-	m_impl->m_helper.set_header(std::forward<decltype(key)>(key), std::move(value));
+	m_impl->m_generator.set_header(std::forward<decltype(key)>(key), std::move(value));
 	return *this;
 }
 
@@ -882,29 +878,27 @@ template <concepts::stream Stream>
 basic_response<Stream> &basic_response<Stream>::unset_header
 (const core_concepts::text_p<char> auto &key) noexcept
 {
-	m_impl->m_helper.unset_header(key);
+	m_impl->m_generator.unset_header(key);
 	return *this;
 }
 
 template <concepts::stream Stream>
-const typename basic_response<Stream>::headers_t&
-	basic_response<Stream>::headers() const noexcept
+const basic_response<Stream>::headers_t &basic_response<Stream>::headers() const noexcept
 {
-	return m_impl->m_helper.headers();
+	return m_impl->m_generator.headers();
 }
 
 template <concepts::stream Stream>
-typename basic_response<Stream>::headers_t&
-basic_response<Stream>::headers() noexcept
+basic_response<Stream>::headers_t &basic_response<Stream>::headers() noexcept
 {
-	return m_impl->m_helper.headers();
+	return m_impl->m_generator.headers();
 }
 
 template <concepts::stream Stream>
 basic_response<Stream> &basic_response<Stream>::set_cookie
 (core_concepts::text_p<char> auto &&key, cookie_t cookie) noexcept
 {
-	m_impl->m_helper.set_cookie(std::forward<decltype(key)>(key), std::move(cookie));
+	m_impl->m_generator.set_cookie(std::forward<decltype(key)>(key), std::move(cookie));
 	return *this;
 }
 
@@ -912,29 +906,27 @@ template <concepts::stream Stream>
 basic_response<Stream> &basic_response<Stream>::unset_cookie
 (const core_concepts::text_p<char> auto &key) noexcept
 {
-	m_impl->m_helper.unset_cookie(key);
+	m_impl->m_generator.unset_cookie(key);
 	return *this;
 }
 
 template <concepts::stream Stream>
-const typename basic_response<Stream>::cookies_t&
-basic_response<Stream>::cookies() const noexcept
+const basic_response<Stream>::cookies_t &basic_response<Stream>::cookies() const noexcept
 {
-	return m_impl->m_helper.cookies();
+	return m_impl->m_generator.cookies();
 }
 
 template <concepts::stream Stream>
-typename basic_response<Stream>::cookies_t&
-basic_response<Stream>::cookies() noexcept
+basic_response<Stream>::cookies_t &basic_response<Stream>::cookies() noexcept
 {
-	return m_impl->m_helper.cookies();
+	return m_impl->m_generator.cookies();
 }
 
 template <concepts::stream Stream>
 basic_response<Stream>&
 basic_response<Stream>::set_chunk_attribute(value_t attr) noexcept
 {
-	m_impl->m_helper.set_chunk_attribute(std::move(attr));
+	m_impl->m_generator.set_chunk_attribute(std::move(attr));
 	return *this;
 }
 
@@ -942,7 +934,7 @@ template <concepts::stream Stream>
 basic_response<Stream>&
 basic_response<Stream>::unset_chunk_attribute(const value_t &attr) noexcept
 {
-	m_impl->m_helper.unset_chunk_attribute(attr);
+	m_impl->m_generator.unset_chunk_attribute(attr);
 	return *this;
 }
 
@@ -950,14 +942,14 @@ template <concepts::stream Stream>
 const std::set<typename basic_response<Stream>::value_t>&
 basic_response<Stream>::chunk_attributes() const noexcept
 {
-	return m_impl->m_helper.chunk_attributes();
+	return m_impl->m_generator.chunk_attributes();
 }
 
 template <concepts::stream Stream>
 std::set<typename basic_response<Stream>::value_t>&
 basic_response<Stream>::chunk_attributes() noexcept
 {
-	return m_impl->m_helper.chunk_attributes();
+	return m_impl->m_generator.chunk_attributes();
 }
 
 template <concepts::stream Stream>
@@ -1033,7 +1025,7 @@ auto basic_response<Stream>::redirect
 	{
 		if( not token )
 		{
-			m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
+			m_impl->m_generator.set_redirect(std::forward<decltype(url)>(url), redi);
 			return m_impl->write({nullptr,0}, token, "redirect");
 		}
 	}
@@ -1053,7 +1045,7 @@ auto basic_response<Stream>::redirect
 #endif //LIBGS_USING_BOOST_ASIO
 	else
 	{
-		m_impl->m_helper.set_redirect(std::forward<decltype(url)>(url), redi);
+		m_impl->m_generator.set_redirect(std::forward<decltype(url)>(url), redi);
 		if constexpr( is_redirect_time_v<token_t> )
 		{
 			auto ntoken = unbound_redirect_time(token);
@@ -1169,7 +1161,7 @@ template <core_concepts::dis_func_tf_opt_token Token>
 auto basic_response<Stream>::chunk_end(const headers_t &headers, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( std::is_same_v<token_t, error_code&> )
+	if constexpr( std::is_same_v<Token, error_code&> )
 		return token ? 0 : m_impl->chunk_end(headers, token, "chunk_end");
 
 	else if constexpr( is_sync_opt_token_v<token_t> )
@@ -1234,8 +1226,7 @@ bool basic_response<Stream>::is_finished() const noexcept
 }
 
 template <concepts::stream Stream>
-typename basic_response<Stream>::executor_t
-basic_response<Stream>::get_executor() noexcept
+basic_response<Stream>::executor_t basic_response<Stream>::get_executor() noexcept
 {
 	return m_impl->m_next_layer.get_executor();
 }
@@ -1248,15 +1239,13 @@ basic_response<Stream> &basic_response<Stream>::cancel() noexcept
 }
 
 template <concepts::stream Stream>
-const typename basic_response<Stream>::next_layer_t&
-basic_response<Stream>::next_layer() const noexcept
+const basic_response<Stream>::next_layer_t &basic_response<Stream>::next_layer() const noexcept
 {
 	return m_impl->m_next_layer;
 }
 
 template <concepts::stream Stream>
-typename basic_response<Stream>::next_layer_t&
-basic_response<Stream>::next_layer() noexcept
+basic_response<Stream>::next_layer_t &basic_response<Stream>::next_layer() noexcept
 {
 	return m_impl->m_next_layer;
 }

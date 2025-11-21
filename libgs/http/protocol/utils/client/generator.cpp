@@ -38,8 +38,8 @@ class LIBGS_DECL_HIDDEN generator<model::client>::impl
 
 public:
 	impl() = default;
-	explicit impl(version_enum version, request_arg_t request) :
-		m_req_arg(std::move(request))
+	explicit impl(version_enum version, url_t url, request_arg_t request) :
+		m_req_arg(std::move(request)), m_url(std::move(url))
 	{
 		version_t::check(version);
 		if( version == version::v10 )
@@ -49,19 +49,20 @@ public:
 		// else ... ...
 	}
 
+public:
 	next_layer_t m_generator;
 	request_arg_t m_req_arg;
-	headers_t m_auto_headers;
+	url_t m_url {};
 };
 
-generator<model::client>::generator(request_arg_t request) :
-	generator(version_enum::v11, std::move(request))
+generator<model::client>::generator(version_enum version, url_t url, request_arg_t request) :
+	m_impl(new impl(version, std::move(url), std::move(request)))
 {
 
 }
 
-generator<model::client>::generator(version_enum version, request_arg_t request) :
-	m_impl(new impl(version, std::move(request)))
+generator<model::client>::generator(url_t url, request_arg_t request) :
+	generator(version_enum::v11, std::move(url), std::move(request))
 {
 
 }
@@ -87,10 +88,33 @@ generator<model::client> &generator<model::client>::operator=(generator &&other)
 	return *this;
 }
 
+generator<model::client> &generator<model::client>::set_url(url_t url)
+{
+	m_impl->m_url = std::move(url);
+	return *this;
+}
+
 generator<model::client> &generator<model::client>::set_arg(request_arg_t arg)
 {
 	m_impl->m_req_arg = std::move(arg);
 	return *this;
+}
+
+generator<model::client> &generator<model::client>::set(url_t url, request_arg_t arg)
+{
+	m_impl->m_url = std::move(url);
+	m_impl->m_req_arg = std::move(arg);
+	return *this;
+}
+
+const url &generator<model::client>::url() const noexcept
+{
+	return m_impl->m_url;
+}
+
+url &generator<model::client>::url() noexcept
+{
+	return m_impl->m_url;
 }
 
 const request_arg &generator<model::client>::arg() const noexcept
@@ -109,7 +133,7 @@ std::string generator<model::client>::header_data(method_enum method, size_t bod
 		return {};
 
 	auto &arg = this->arg();
-	auto &url = arg.url();
+	auto &url = this->url();
 
 	auto buf = std::string(method::string(method)) + " ";
 	{
@@ -125,6 +149,7 @@ std::string generator<model::client>::header_data(method_enum method, size_t bod
 			+ version::string(m_impl->m_generator->version())
 			+ "\r\n";
 	}
+	m_impl->m_generator->set_header(header::host, url.address());
 	for(auto &[key,value] : arg.headers())
 		m_impl->m_generator->set_header(key, value);
 
@@ -154,9 +179,18 @@ version_enum generator<model::client>::version() const noexcept
 	return m_impl->m_generator->version();
 }
 
+generator_state generator<model::client>::pro_state() const noexcept
+{
+	return m_impl->m_generator->state();
+}
+
+generator<model::client>::next_layer_t generator<model::client>::next_layer() noexcept
+{
+	return m_impl->m_generator;
+}
+
 generator<model::client> &generator<model::client>::reset() noexcept
 {
-	m_impl->m_auto_headers.clear();
 	m_impl->m_generator.reset();
 	return *this;
 }

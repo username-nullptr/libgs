@@ -30,11 +30,16 @@
 #define LIBGS_CORE_CXX_EXCEPTION_H
 
 #include <libgs/core/cxx/attributes.h>
+#include <source_location>
 #include <exception>
 #include <format>
 
 namespace libgs
 {
+
+[[nodiscard]] LIBGS_CORE_VAPI std::string with_location (
+	std::string_view msg, std::source_location loc = std::source_location::current()
+);
 
 class LIBGS_CORE_VAPI runtime_error : public std::runtime_error
 {
@@ -43,20 +48,12 @@ public:
     ~runtime_error() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
-	runtime_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
-};
+	runtime_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
-class LIBGS_CORE_VAPI system_error : public std::system_error
-{
 public:
-	using std::system_error::system_error;
-    ~system_error() noexcept override = default;
-
-	template <typename Arg0, typename...Args>
-    system_error(std::error_code ec, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
-
-	template <typename Arg0, typename...Args>
-    system_error(int v, const std::error_category& ecat, std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+	static void loc_throw(std::string_view msg,
+		std::source_location loc = std::source_location::current()
+	);
 };
 
 class LIBGS_CORE_VAPI invalid_argument : public std::invalid_argument
@@ -66,7 +63,12 @@ public:
 	~invalid_argument() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
-	invalid_argument(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+	invalid_argument(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
+public:
+	static void loc_throw(std::string_view msg,
+		std::source_location loc = std::source_location::current()
+	);
 };
 
 class LIBGS_CORE_VAPI logic_error : public std::logic_error
@@ -76,7 +78,33 @@ public:
     ~logic_error() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
-	logic_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args);
+	logic_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
+public:
+	static void loc_throw(std::string_view msg,
+		std::source_location loc = std::source_location::current()
+	);
+};
+
+class LIBGS_CORE_VAPI system_error : public std::system_error
+{
+public:
+	using std::system_error::system_error;
+    ~system_error() noexcept override = default;
+
+	template <typename Arg0, typename...Args>
+    system_error(std::error_code ec, std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
+	template <typename Arg0, typename...Args>
+    system_error(int v, const std::error_category &ecat, std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
+public:
+	static void loc_throw(const std::error_code &ec,
+		std::source_location loc = std::source_location::current()
+	);
+	static void loc_throw(const std::error_code &ec, std::string_view msg,
+		std::source_location loc = std::source_location::current()
+	);
 };
 
 } //namespace libgs

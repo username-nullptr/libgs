@@ -73,10 +73,10 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 				break;
 
 			auto asio_buf = libgs::buffer (
-				reinterpret_cast<char*>(buffer.data()) + sum,
+				static_cast<char*>(buffer.data()) + sum,
 				buffer.size() - sum
 			);
-			sum += socket().read(asio_buf, token);
+			sum += socket().read_some(asio_buf, token);
 			if( token and token.value() == errc::interrupted )
 				continue;
 			break;
@@ -106,7 +106,7 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 			for(;;)
 			{
 				auto asio_buf = libgs::buffer (
-					reinterpret_cast<char*>(buffer.data()) + sum,
+					static_cast<char*>(buffer.data()) + sum,
 					buffer.size() - sum
 				);
 				sum += co_await socket.async_read_some (
@@ -161,7 +161,7 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 				break;
 
 			auto asio_buf = libgs::buffer (
-				reinterpret_cast<const char*>(buffer.data()) + sum,
+				static_cast<const char*>(buffer.data()) + sum,
 				buffer.size() - sum
 			);
 			sum += asio::write(socket(), asio_buf, token);
@@ -194,7 +194,7 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 			for(;;)
 			{
 				auto asio_buf = libgs::buffer (
-					reinterpret_cast<const char*>(buffer.data()) + sum,
+					static_cast<const char*>(buffer.data()) + sum,
 					buffer.size() - sum
 				);
 				sum += co_await asio::async_write (
@@ -234,21 +234,21 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 }
 
 template <concepts::stream Stream>
-typename socket_operation_helper_base<Stream>::executor_t
+socket_operation_helper_base<Stream>::executor_t
 socket_operation_helper_base<Stream>::get_executor() noexcept
 {
 	return m_impl->m_socket.get_executor();
 }
 
 template <concepts::stream Stream>
-const typename socket_operation_helper_base<Stream>::socket_t&
+const socket_operation_helper_base<Stream>::socket_t&
 socket_operation_helper_base<Stream>::socket() const noexcept
 {
 	return m_impl->m_socket;
 }
 
 template <concepts::stream Stream>
-typename socket_operation_helper_base<Stream>::socket_t&
+socket_operation_helper_base<Stream>::socket_t&
 socket_operation_helper_base<Stream>::socket() noexcept
 {
 	return m_impl->m_socket;
@@ -361,7 +361,7 @@ void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::clo
 }
 
 template <core_concepts::exec Exec>
-typename socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
+socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
 socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_endpoint() noexcept
 {
 	error_code error; ignore_unused(error);
@@ -369,7 +369,7 @@ socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_e
 }
 
 template <core_concepts::exec Exec>
-typename socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
+socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
 socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::local_endpoint() noexcept
 {
 	error_code error; ignore_unused(error);

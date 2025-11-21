@@ -1,4 +1,6 @@
 // #include <libgs/http/server.h>
+#include <libgs/http/client/client.h>
+
 #include <libgs/core/lock_free_queue.h>
 #include <libgs/core/string_vector.h>
 #include <libgs/core/execution.h>
@@ -10,6 +12,7 @@
 #include <libgs/utils/signal_slot.h>
 #include <libgs/utils/process.h>
 #include <libgs/utils/logger.h>
+
 #include <iostream>
 #include <memory>
 
@@ -18,42 +21,70 @@ using namespace libgs::operators;
 
 int main()
 {
-	// libgs::utils::process aaaa;
+#if 0
+	libgs::http::client<> client;
+	client.req_get("http://www.baidu.com")
 
-	// libgs::dispatch([&]() -> libgs::awaitable<void>
-	// {
-	// 	libgs::error_code error;
-	// 	auto aaa = co_await aaaa.run("bbb", libgs::use_awaitable | error);
-	//
-	// 	spdlog::info("000000000000000 ==== {}", aaa);
-	//
-	// 	char buffer[1024] {0};
-	// 	auto bbb = co_await aaaa.read({buffer, 1024}, libgs::use_awaitable | error);
-	//
-	// 	spdlog::info("1111111111 ==== {}", bbb);
-	//
-	// 	auto ccc = co_await aaaa.write({buffer, 111}, libgs::use_awaitable | error);
-	//
-	// 	spdlog::info("22222222222222 ==== {}", ccc);
-	//
-	// 	libgs::exit(111);
-	// 	co_return ;
-	// });
-	// return libgs::exec();
-
-	libgs::utils::process::exec (
-		// "lshw 2>/dev/null "
-		// " | grep -m 1 'serial:' "
-		// " | awk '{print substr($2, length($2)-7)}' "
-		"aaa | aed"
-	)
-	.transform([](int code)
+	.and_then([](const auto &request)
 	{
-		spdlog::info("exit code: {}", code);
+		// request->arg().set_header(libgs::http::protocol::header::expect, "100-continue");
+		return request->write().transform([&](size_t) {
+			return request;
+		});
+	})
+	.and_then([&](const auto &request) {
+		return client.reply(request);
+	})
+	.and_then([&](const auto &reply)
+	{
+		auto asd = reply->header(libgs::http::protocol::header::content_length);
+		return reply->read();
+	})
+	.transform([](std::string_view body)
+	{
+		size_t sss = body.size();
+		int i = 0;
+		i = 11;
 	})
 	.or_else([](const libgs::error_code &error)
 	{
-		spdlog::error("process crashed: {}", error);
+		spdlog::error("--------------- {}", error);
 	});
 	return 0;
+#else
+	libgs::dispatch([&]() -> libgs::awaitable<void>
+	{
+		libgs::http::client<> client;
+		try {
+			auto request = *(co_await client.req_get (
+				"http://www.baidu.com", libgs::use_awaitable
+			)).or_else([](const auto &error) {
+				libgs::system_error::loc_throw(error);
+			});
+
+			(co_await request->write(libgs::use_awaitable))
+			.or_else([](const auto &error) {
+				libgs::system_error::loc_throw(error);
+			});
+
+			auto reply = *(co_await client.reply(request, libgs::use_awaitable))
+			.or_else([](const auto &error) {
+				libgs::system_error::loc_throw(error);
+			});
+
+			auto body = *(co_await reply->read(libgs::use_awaitable))
+			.or_else([](const auto &error) {
+				libgs::system_error::loc_throw(error);
+			});
+
+			int i = 0;
+			i = 11;
+		}
+		catch(const std::exception &ex) {
+			spdlog::error("=------=-========= {}", ex);
+		}
+		co_return libgs::exit(0);
+	});
+	return libgs::exec();
+#endif
 }

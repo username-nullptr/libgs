@@ -125,13 +125,11 @@ public:
 		sys_expected<bool> result = false;
 		if( line_buf.empty() )
 		{
-			set_read_body_state()
-			.and_then([&]{
-				result = true;
-			})
-			.or_else([&](const error_code &error) {
+			auto error = set_read_body_state();
+			if( error )
 				result.despair(error);
-			});
+			else
+				result = true;
 			return result;
 		}
 		auto colon_index = line_buf.find(':');
@@ -142,15 +140,15 @@ public:
 				make_error_code(parse_errno::IHL)
 			);
 		}
-		header_insert (
+		auto error = header_insert (
 			strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
 			from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1)))
-		)
-		.or_else([&](const error_code &error)
+		);
+		if( error )
 		{
 			result.despair(error);
 			reset();
-		});
+		}
 		return result;
 	}
 
@@ -181,14 +179,16 @@ public:
 
 	void parse_length() noexcept
 	{
-		auto rsize = m_partial_body.size() + m_src_buf.size();
-		rsize = rsize > m_content_length ? m_content_length - m_partial_body.size() : m_src_buf.size();
+		auto rsize = m_content_length - m_content_length_counter;
+		if( rsize > m_src_buf.size() )
+			rsize = m_src_buf.size();
 
-		m_partial_body += std::string(m_src_buf.c_str(), rsize);
+		m_content_length_counter += rsize;
+		m_partial_body += m_src_buf.substr(0, rsize);
 		m_src_buf.clear();
 
-		m_state = m_content_length > m_partial_body.size() ?
-			state::reading_length : state::finished;
+		m_state = m_content_length_counter == m_content_length ?
+			state::finished : state::reading_length;
 	}
 
 	sys_expected<bool> parse_chunked()
@@ -252,15 +252,15 @@ public:
 					result.despair(make_error_code(parse_errno::SFE));
 					break;
 				}
-				header_insert (
+				auto error = header_insert (
 					strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
 					from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1)))
-				)
-				.or_else([&](const error_code &error)
+				);
+				if( error )
 				{
 					result.despair(error);
 					reset();
-				});
+				}
 			}
 		}
 		while( not m_src_buf.empty() );
@@ -290,6 +290,7 @@ public:
 		m_src_buf.clear();
 		m_headers.clear();
 		m_partial_body.clear();
+		m_content_length_counter = 0;
 	}
 
 public:
@@ -311,6 +312,7 @@ public:
 	headers_t m_headers;
 
 	std::string m_partial_body;
+	size_t m_content_length_counter = 0;
 	size_t m_content_length = 0;
 
 	parse_begin_handler m_parse_begin;
@@ -423,20 +425,15 @@ version_enum parser<model::base>::version() const noexcept
 	return m_impl->m_version;
 }
 
-bool parser<model::base>::can_read_from_device() const noexcept
+parser<model::base>::stage_t parser<model::base>::stage() const noexcept
 {
-	return m_impl->m_state > impl::state::reading_headers and
-		   m_impl->m_state < impl::state::finished;
-}
-
-bool parser<model::base>::is_finished() const noexcept
-{
-	return m_impl->m_state == impl::state::finished;
-}
-
-bool parser<model::base>::is_eof() const noexcept
-{
-	return m_impl->m_partial_body.empty() and not can_read_from_device();
+	if( m_impl->m_state <= impl::state::reading_headers )
+		return stage_t::header;
+	else if( m_impl->m_state > impl::state::reading_headers and m_impl->m_state < impl::state::finished )
+		return stage_t::body;
+	else if( m_impl->m_partial_body.empty() )
+		return stage_t::finished;
+	return stage_t::body;
 }
 
 parser<model::base> &parser<model::base>::unbind_parse_begin()

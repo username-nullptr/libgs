@@ -337,11 +337,6 @@ bool parser<model::server>::support_gzip() const noexcept
 	return m_impl->m_support_gzip;
 }
 
-bool parser<model::server>::can_read_from_device() const noexcept
-{
-	return m_impl->m_parser.can_read_from_device();
-}
-
 std::string parser<model::server>::take_partial_body(size_t size)
 {
 	return m_impl->m_parser.take_partial_body(size);
@@ -352,14 +347,9 @@ std::string parser<model::server>::take_body()
 	return m_impl->m_parser.take_body();
 }
 
-bool parser<model::server>::is_finished() const noexcept
+parser<model::server>::stage_t parser<model::server>::stage() const noexcept
 {
-	return m_impl->m_parser.is_finished();
-}
-
-bool parser<model::server>::is_eof() const noexcept
-{
-	return m_impl->m_parser.is_eof();
+	return m_impl->m_parser.stage();
 }
 
 parser<model::server> &parser<model::server>::reset()

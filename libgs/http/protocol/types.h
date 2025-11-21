@@ -39,7 +39,7 @@ namespace libgs::http::protocol
 {
 
 #define LIBGS_HTTP_STATUS_TABLE \
-X_MACRO( continue_request                , 100 , "Continue"                        ) \
+X_MACRO( continue_upload                 , 100 , "Continue"                        ) \
 X_MACRO( switching_protocols             , 101 , "Switching Protocols"             ) \
 X_MACRO( processing                      , 102 , "Processing"                      ) \
 X_MACRO( ok                              , 200 , "OK"                              ) \

@@ -29,9 +29,9 @@
 #ifndef LIBGS_CORE_CXX_OPTIONAL_H
 #define LIBGS_CORE_CXX_OPTIONAL_H
 
-#include <optional>
-#include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/exception.h>
 #include <libgs/core/cxx/concepts.h>
+#include <optional>
 
 namespace libgs
 {
@@ -93,6 +93,9 @@ protected:
 	value_t m_value {};
 	bool m_has_value = false;
 };
+
+#define LIBGS_OPTIONAL_ERROR_IF(opt, fmt, ...) if( not opt ) \
+	throw libgs::runtime_error(libgs::with_location(std::format(fmt,__VA_ARGS__)))
 
 template <concepts::optional_value Value>
 class LIBGS_CORE_TAPI optional final : public optional_base<Value>

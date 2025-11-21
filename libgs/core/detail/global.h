@@ -32,6 +32,13 @@
 namespace libgs
 {
 
+template <concepts::expected_value Value>
+void sys_expected_loc_throw(const sys_expected<Value> &expected, std::source_location loc)
+{
+	if( not expected )
+		system_error::loc_throw(expected.error(), std::move(loc));
+}
+
 template<typename Rep, typename Period>
 decltype(auto) get_associated_redirect_time
 (concepts::any_async_tf_opt_token auto &&token, const duration<Rep,Period> &def_time)
@@ -64,20 +71,6 @@ constexpr decltype(auto) unbound_redirect_time(concepts::any_async_tf_opt_token 
 
 namespace operators
 {
-
-template <concepts::any_async_tf_opt_token Token>
-auto operator|(Token &&token, std::error_code &error)
-	requires (not is_redirect_error_v<std::remove_cvref_t<Token>>)
-{
-	if constexpr( is_redirect_time_v<Token> )
-	{
-		auto _token = asio::redirect_error(token.token, error);
-		using token_t = std::remove_cvref_t<decltype(_token)>;
-		return redirect_time_t<token_t>(std::move(_token), token.time);
-	}
-	else
-		return asio::redirect_error(std::forward<Token>(token), error);
-}
 
 template <concepts::any_async_tf_opt_token Token>
 auto operator|(Token &&token, error_code &error)

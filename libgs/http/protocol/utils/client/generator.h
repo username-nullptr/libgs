@@ -29,8 +29,9 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 
-#include <libgs/http/protocol/utils/client/request_arg.h>
 #include <libgs/http/protocol/utils/core/generator.h>
+#include <libgs/http/protocol/utils/client/request_arg.h>
+#include <libgs/http/protocol/utils/client/url.h>
 
 namespace libgs::http::protocol
 {
@@ -42,10 +43,10 @@ class LIBGS_HTTP_API generator<model::client> final
 
 public:
 	using next_layer_t = std::shared_ptr<base_generator>;
-	using request_arg_t = request_arg;
-
 	using version_t = protocol::version;
-	using url_t = request_arg_t::url_t;
+
+	using request_arg_t = request_arg;
+	using url_t = protocol::url;
 
 	using value_t = request_arg_t::value_t;
 	using header_t = request_arg_t::header_t;
@@ -54,15 +55,21 @@ public:
 	using cookies_t = request_arg_t::cookies_t;
 
 public:
-	explicit generator(request_arg_t url);
-	generator(version_enum version, request_arg_t url);
+	generator(version_enum version, url_t url, request_arg_t arg);
+	generator(url_t url, request_arg_t arg);
 	~generator();
 
 	generator(generator &&other) noexcept;
 	generator &operator=(generator &&other) noexcept;
 
 public:
+	generator &set_url(url_t url);
 	generator &set_arg(request_arg_t arg);
+	generator &set(url_t url, request_arg_t arg);
+
+	[[nodiscard]] const url_t &url() const noexcept;
+	[[nodiscard]] url_t &url() noexcept;
+
 	[[nodiscard]] const request_arg_t &arg() const noexcept;
 	[[nodiscard]] request_arg_t &arg() noexcept;
 
@@ -76,6 +83,9 @@ public:
 
 public:
 	[[nodiscard]] version_enum version() const noexcept;
+	[[nodiscard]] generator_state pro_state() const noexcept;
+
+	[[nodiscard]] next_layer_t next_layer() noexcept;
 	generator &reset() noexcept;
 
 private:

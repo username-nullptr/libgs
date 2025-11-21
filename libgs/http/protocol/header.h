@@ -49,6 +49,7 @@ static constexpr const char
 	* content_type      = "Content-Type"     ,
 	* connection        = "Connection"       ,
 	* expires           = "Expires"          ,
+	* expect            = "Expect"           ,
 	* host              = "Host"             ,
 	* last_modified     = "Last-Modified"    ,
 	* location          = "Location"         ,

@@ -43,6 +43,11 @@ using sys_expected = expected<Value,error_code>;
 
 using sys_unexpected = unexpected<error_code>;
 
+template <concepts::expected_value Value = void>
+LIBGS_CORE_VAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
+    std::source_location loc = std::source_location::current()
+);
+
 using io_expected = sys_expected<size_t>;
 using io_unexpected = sys_unexpected;
 
@@ -69,10 +74,6 @@ template<typename Rep, typename Period>
 
 namespace operators
 {
-
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, std::error_code &error)
-    requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
 
 template <concepts::any_async_tf_opt_token Token>
 LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, error_code &error)

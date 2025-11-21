@@ -34,39 +34,81 @@
 namespace libgs
 {
 
+inline std::string with_location(std::string_view msg, std::source_location loc)
+{
+	return std::format("{} | source: [{}:{}] ({})",
+		msg, loc.file_name(), loc.line(), loc.function_name()
+	);
+}
+
 template <typename Arg0, typename...Args>
-runtime_error::runtime_error(std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	std::runtime_error(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+runtime_error::runtime_error(std::format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::runtime_error(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
+inline void runtime_error::loc_throw(std::string_view msg, std::source_location loc)
+{
+	throw runtime_error(with_location(msg, std::move(loc)));
+}
+
+template <typename Arg0, typename...Args>
+invalid_argument::invalid_argument(std::format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::invalid_argument(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
+inline void invalid_argument::loc_throw(std::string_view msg, std::source_location loc)
+{
+	throw invalid_argument(with_location(msg, std::move(loc)));
+}
+
+template <typename Arg0, typename...Args>
+logic_error::logic_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::logic_error(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
+inline void logic_error::loc_throw(std::string_view msg, std::source_location loc)
+{
+	throw logic_error(with_location(msg, std::move(loc)));
+}
+
+template <typename Arg0, typename...Args>
+system_error::system_error(std::error_code ec, std::format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::system_error(ec, std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 
 }
 
 template <typename Arg0, typename...Args>
-system_error::system_error(std::error_code ec, std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	std::system_error(ec, std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+system_error::system_error(int v, const std::error_category &ecat, std::format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::system_error(v, std::move(ecat), std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {
 
 }
 
-template <typename Arg0, typename...Args>
-system_error::system_error(int v, const std::error_category &ecat, std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	std::system_error(v, std::move(ecat), std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...)) 
+inline void system_error::loc_throw(const std::error_code &ec, std::source_location loc)
 {
-
+	if( ec )
+	{
+		throw system_error(ec, std::format("source: [{}:{}] ({}) |",
+			loc.file_name(), loc.line(), loc.function_name()
+		));
+	}
 }
 
-template <typename Arg0, typename...Args>
-invalid_argument::invalid_argument(std::format_string<Arg0, Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	std::invalid_argument(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+inline void system_error::loc_throw(const std::error_code &ec, std::string_view msg, std::source_location loc)
 {
-
-}
-
-template <typename Arg0, typename...Args>
-logic_error::logic_error(std::format_string<Arg0,Args...> fmt_value, Arg0 &&arg0, Args&&...args) :
-	std::logic_error(std::format(fmt_value, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
-{
-
+	if( ec )
+	{
+		throw system_error(ec, std::format("source: [{}:{}] ({}) | {}",
+			loc.file_name(), loc.line(), loc.function_name(), msg
+		));
+	}
 }
 
 } //namespace libgs
@@ -75,9 +117,8 @@ namespace std
 {
 
 template <>
-class formatter<std::exception, char>
+struct formatter<std::exception, char>
 {
-public:
 	auto format(const std::exception &ex, auto &context) const
 	{
 		return m_formatter.format(ex.what(), context);

@@ -29,7 +29,6 @@
 #ifndef LIBGS_CORE_CXX_DETIAL_OPTIONAL_H
 #define LIBGS_CORE_CXX_DETIAL_OPTIONAL_H
 
-#include <libgs/core/cxx/exception.h>
 #include <libgs/core/cxx/tools.h>
 
 namespace libgs { namespace detail

@@ -129,6 +129,7 @@ public:
 public:
 	base_parser m_parser;
 	status_enum m_status = status::ok;
+
 	std::string m_description = status::description<status::ok>();
 	cookies_t m_cookies {};
 
@@ -194,6 +195,11 @@ const cookies &parser<model::client>::cookies() const noexcept
 	return m_impl->m_cookies;
 }
 
+const std::vector<value> &parser<model::client>::chunk_attributes() const noexcept
+{
+	// TODO ... ...
+}
+
 bool parser<model::client>::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
@@ -202,11 +208,6 @@ bool parser<model::client>::keep_alive() const noexcept
 bool parser<model::client>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
-}
-
-bool parser<model::client>::can_read_from_device() const noexcept
-{
-	return m_impl->m_parser.can_read_from_device();
 }
 
 std::string parser<model::client>::take_partial_body(size_t size)
@@ -219,14 +220,9 @@ std::string parser<model::client>::take_body()
 	return m_impl->m_parser.take_body();
 }
 
-bool parser<model::client>::is_finished() const noexcept
+parser<model::client>::stage_t parser<model::client>::stage() const noexcept
 {
-	return m_impl->m_parser.is_finished();
-}
-
-bool parser<model::client>::is_eof() const noexcept
-{
-	return m_impl->m_parser.is_eof();
+	return m_impl->m_parser.stage();
 }
 
 parser<model::client> &parser<model::client>::reset()

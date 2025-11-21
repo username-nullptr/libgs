@@ -206,8 +206,7 @@ template <typename Token>
 struct is_error_code_token
 {
 	static constexpr bool value =
-		std::is_same_v<Token,error_code&> or
-		std::is_same_v<Token,std::error_code&>;
+		std::is_same_v<Token,error_code&>;
 };
 
 template <typename Token>

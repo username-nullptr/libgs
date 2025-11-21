@@ -483,19 +483,9 @@ public:
 		if( error )
 			co_return io_unexpected(error);
 
-		awaitable<size_t> task {};
-		if( cancel_slot.is_connected() )
-		{
-			task = asio::async_write(m_stdin,
-				buf, use_awaitable | cancel_slot | error
-			);
-		}
-		else
-		{
-			task = asio::async_write(m_stdin,
-				buf, use_awaitable | error
-			);
-		}
+		auto task = asio::async_write(m_stdin,
+			buf, use_awaitable | cancel_slot | error
+		);
 		size_t sum = 0;
 		if( timeout == 0ns )
 			sum = co_await std::move(task);
@@ -657,12 +647,9 @@ public:
 		if( error )
 			co_return io_unexpected(error);
 
-		awaitable<size_t> task {};
-		if( cancel_slot.is_connected() )
-			task = stream->async_read_some(buf, use_awaitable | cancel_slot | error);
-		else
-			task = stream->async_read_some(buf, use_awaitable | error);
-
+		auto task = stream->async_read_some(buf,
+			use_awaitable | cancel_slot | error
+		);
 		size_t sum = 0;
 		if( timeout == 0ns )
 			sum = co_await std::move(task);
@@ -873,6 +860,18 @@ awaitable<sys_expected<int>> process::co_join
 	return m_impl->m_vindicator->co_join(timeout, cancel_slot);
 }
 
+awaitable<sys_expected<int>> process::co_join(std::error_code &error,
+	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
+{
+	error.clear();
+	auto expected = co_await m_impl->m_vindicator
+		->co_join(timeout, cancel_slot);
+
+	if( not expected )
+		error = expected.error();
+	co_return expected;
+}
+
 io_expected process::write(const const_buffer &buf) const noexcept
 {
 	if( buf.size() > 0 )
@@ -897,6 +896,21 @@ awaitable<io_expected> process::co_write(const const_buffer &buf,
 	co_return 0;
 }
 
+awaitable<io_expected> process::co_write(std::error_code &error, const const_buffer &buf,
+	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
+{
+	error.clear();
+	if( buf.size() == 0 )
+		co_return 0;
+
+	auto expected = co_await m_impl->m_vindicator
+		->co_write(buf, cancel_slot, timeout);
+
+	if( not expected )
+		error = expected.error();
+	co_return expected;
+}
+
 io_expected process::read(read_channel channel, const mutable_buffer &buf) const noexcept
 {
 	if( buf.size() > 0 )
@@ -919,6 +933,21 @@ awaitable<io_expected> process::co_read(read_channel channel, const mutable_buff
 			->co_read(channel, buf, cancel_slot, timeout);
 	}
 	co_return 0;
+}
+
+awaitable<io_expected> process::co_read(
+	read_channel channel, std::error_code &error, const mutable_buffer &buf,
+	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
+{
+	if( buf.size() == 0 )
+		co_return 0;
+
+	auto expected = co_await m_impl->m_vindicator
+		->co_read(channel, buf, cancel_slot, timeout);
+
+	if( not expected )
+		error = expected.error();
+	co_return expected;
 }
 
 void process::set_work_path(path_t path) noexcept

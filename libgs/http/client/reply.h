@@ -29,14 +29,13 @@
 #ifndef LIBGS_HTTP_CLIENT_REPLY_H
 #define LIBGS_HTTP_CLIENT_REPLY_H
 
-#include <libgs/http/protocol/utils/client/request_arg.h>
 #include <libgs/http/protocol/utils/client/parser.h>
-#include <libgs/http/client/session_pool.h>
+#include <libgs/http/utils/socket_session.h>
 
 namespace libgs::http
 {
 
-template <concepts::socket_session Session = session_pool::session_t>
+template <concepts::socket_session Session = socket_session>
 class LIBGS_HTTP_TAPI basic_reply
 {
 	LIBGS_DISABLE_COPY(basic_reply)
@@ -44,23 +43,74 @@ class LIBGS_HTTP_TAPI basic_reply
 public:
 	using session_t = Session;
 	using executor_t = session_t::executor_t;
+	using parser_t = protocol::client_parser;
 
-	using request_arg_t = protocol::request_arg;
-	using url_t = request_arg_t::url_t;
+	using value_t = parser_t::value_t;
+	using headers_t = parser_t::headers_t;
+
+	using cookie_t = parser_t::cookie_t;
+	using cookies_t = parser_t::cookies_t;
 
 public:
-	basic_reply(session_t session, request_arg_t request_arg = {});
+	basic_reply(session_t &&session, parser_t &&parser);
 	~basic_reply();
 
 	basic_reply(basic_reply &&other) noexcept;
 	basic_reply &operator=(basic_reply &&other) noexcept;
 
 public:
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		core_concepts::tf_opt_token<Token,error_code,Value...> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
+	template <typename Token = use_sync_t>
+	static auto make(session_t &&session, Token &&token = {}) noexcept
+		requires task_token_v<Token,std::shared_ptr<basic_reply>>;
+
+public:
+	[[nodiscard]] protocol::version_enum version() const noexcept;
+	[[nodiscard]] protocol::status_enum status() const noexcept;
+
+	[[nodiscard]] optional<value_t> header(const core_concepts::text_p<char> auto &key) const noexcept;
+	[[nodiscard]] const headers_t &headers() const noexcept;
+
+	[[nodiscard]] optional<cookie_t> cookie(const core_concepts::text_p<char> auto &key) const noexcept;
+	[[nodiscard]] const protocol::cookies &cookies() const noexcept;
+
+public:
+	template <typename Token = use_sync_t>
+	auto read(const mutable_buffer &buf, Token &&token = {}) noexcept
+		requires task_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto read(Token &&token = {}) noexcept
+		requires task_token_v<Token,std::string>;
+
+	template <typename T>
+	static constexpr bool file_opt_token = concepts::file_opt_token_p <
+		T, char, file_optype::single, io_permission::write
+	>;
+	template <typename T, typename Token = use_sync_t>
+	auto save_file(T &&opt, Token &&token = {}) noexcept
+		requires file_opt_token<T> and task_token_v<Token,size_t>;
+
+public:
+	[[nodiscard]] bool is_chunked() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
+
+	[[nodiscard]] const session_t &session() const noexcept;
+	[[nodiscard]] session_t &session() noexcept;
+
+	[[nodiscard]] executor_t get_executor() noexcept;
+	basic_reply &cancel() noexcept;
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
+
+using reply = basic_reply<>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/reply.h>

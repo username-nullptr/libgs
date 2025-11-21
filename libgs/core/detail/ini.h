@@ -341,7 +341,7 @@ public:
 	}
 
 	// It may be executed within the thread, so the const modifier provides protection.
-	void sync(data_t data, error_code &error, const std::function<bool()> &cancelled) const
+	void sync(data_t data, std::error_code &error, const std::function<bool()> &cancelled) const
 	{
 		auto file_name = detail::ini_tmp_file(m_file_name);
 		auto path = strtls::file_path(file_name.wstring());
