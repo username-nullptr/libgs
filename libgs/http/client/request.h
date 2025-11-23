@@ -34,25 +34,25 @@
 #include <libgs/http/protocol/utils/client/url.h>
 
 #include <libgs/http/utils/request_template.h>
-#include <libgs/http/utils/socket_session.h>
+#include <libgs/http/utils/connection.h>
 
 namespace libgs::http
 {
 
 template <protocol::method_enum Method,
-		  concepts::socket_session Session,
+		  concepts::connection Session,
 		  protocol::version_enum Version>
 class client_request_targ;
 
 template <protocol::method_enum Method,
-		  concepts::socket_session Session,
+		  concepts::connection Session,
 		  protocol::version_enum Version>
 using basic_client_request = basic_request<protocol::model::client,
 	client_request_targ<Method,Session,Version>
 >;
 
 template <protocol::method_enum Method,
-		  concepts::socket_session Session,
+		  concepts::connection Session,
 		  protocol::version_enum Version>
 class LIBGS_HTTP_TAPI basic_request<protocol::model::client,
 	client_request_targ<Method,Session,Version>>
@@ -135,7 +135,7 @@ private:
 };
 
 template <protocol::method_enum Method, protocol::version_enum Version = protocol::version::v11>
-using client_request = basic_client_request<Method, socket_session, Version>;
+using client_request = basic_client_request<Method, connection, Version>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/request.h>

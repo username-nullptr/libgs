@@ -87,22 +87,22 @@ private:
 
 #if !defined(_MSC_VER) || !_HAS_CXX23
 
-template <libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<thread::id, CharT>
-{
-	auto format(const thread::id &tid, auto &context) const
-	{
-		auto handle = *reinterpret_cast<const thread::native_handle_type*>(&tid);
-		return m_formatter.format(libgs::detail::thread_id_helper(handle), context);
-	}
-
-	constexpr auto parse(auto &context) noexcept {
-		return m_formatter.parse(context);
-	}
-
-private:
-	formatter<uint64_t, CharT> m_formatter;
-};
+// template <libgs::concepts::character CharT>
+// struct LIBGS_CORE_TAPI formatter<thread::id, CharT>
+// {
+// 	auto format(const thread::id &tid, auto &context) const
+// 	{
+// 		auto handle = *reinterpret_cast<const thread::native_handle_type*>(&tid);
+// 		return m_formatter.format(libgs::detail::thread_id_helper(handle), context);
+// 	}
+//
+// 	constexpr auto parse(auto &context) noexcept {
+// 		return m_formatter.parse(context);
+// 	}
+//
+// private:
+// 	formatter<uint64_t, CharT> m_formatter;
+// };
 
 #endif //_MSC_VER && _HAS_CXX23
 

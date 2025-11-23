@@ -122,7 +122,7 @@ public:
 	) const noexcept;
 
 	enum class read_channel {
-		stdout, stderr
+		std_output, std_error
 	};
 	[[nodiscard]] io_expected read(read_channel channel, const mutable_buffer &buf) const noexcept;
 	void read_detach(read_channel channel, const mutable_buffer &buf) const noexcept;
@@ -759,7 +759,7 @@ template <concepts::character CharT, concepts::exec Exec>
 template <concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_process<CharT,Exec>::read(const mutable_buffer &buf, Token &&token) noexcept
 {
-	return m_impl->template read<impl::read_channel::stdout>
+	return m_impl->template read<impl::read_channel::std_output>
 		(buf, std::forward<Token>(token));
 }
 
@@ -767,7 +767,7 @@ template <concepts::character CharT, concepts::exec Exec>
 template <concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_process<CharT,Exec>::read_stderr(const mutable_buffer &buf, Token &&token) noexcept
 {
-	return m_impl->template read<impl::read_channel::stderr>
+	return m_impl->template read<impl::read_channel::std_error>
 		(buf, std::forward<Token>(token));
 }
 

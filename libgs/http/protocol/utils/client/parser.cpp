@@ -198,6 +198,8 @@ const cookies &parser<model::client>::cookies() const noexcept
 const std::vector<value> &parser<model::client>::chunk_attributes() const noexcept
 {
 	// TODO ... ...
+	static std::vector<value> tmp;
+	return tmp;
 }
 
 bool parser<model::client>::keep_alive() const noexcept

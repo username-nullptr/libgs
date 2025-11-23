@@ -149,7 +149,9 @@ bool check_error(Token &token, const error_code &error, const char *message)
 	{
 		if( not error )
 			return true;
-		throw message ? system_error(error, message) : system_error(error);
+		throw system_error(error,
+			with_location(message ? message : "")
+		);
 	}
 	else if constexpr( is_redirect_error_v<token_t> )
 	{

@@ -38,7 +38,7 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_VAPI std::string with_location (
-	std::string_view msg, std::source_location loc = std::source_location::current()
+	std::string_view msg = {}, std::source_location loc = std::source_location::current()
 );
 
 class LIBGS_CORE_VAPI runtime_error : public std::runtime_error

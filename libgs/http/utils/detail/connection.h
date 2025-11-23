@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,14 +26,14 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_UTILS_DETAIL_SOCKET_SESSION_H
-#define LIBGS_HTTP_UTILS_DETAIL_SOCKET_SESSION_H
+#ifndef LIBGS_HTTP_UTILS_DETAIL_CONNECTION_H
+#define LIBGS_HTTP_UTILS_DETAIL_CONNECTION_H
 
 namespace libgs::http
 {
 
 template <concepts::stream Stream>
-class basic_socket_session<Stream>::impl
+class basic_connection<Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -61,7 +61,7 @@ public:
 
 template <concepts::stream Stream>
 template <typename Func>
-basic_socket_session<Stream>::basic_socket_session(socket_t &&socket, Func &&destructor)
+basic_connection<Stream>::basic_connection(socket_t &&socket, Func &&destructor)
 	requires core_concepts::callable<Func,socket_t&&> :
 	m_impl(new impl(std::move(socket), std::forward<Func>(destructor)))
 {
@@ -69,34 +69,34 @@ basic_socket_session<Stream>::basic_socket_session(socket_t &&socket, Func &&des
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::basic_socket_session(socket_t &&socket) :
+basic_connection<Stream>::basic_connection(socket_t &&socket) :
 	m_impl(new impl(std::move(socket)))
 {
 
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::basic_socket_session() :
+basic_connection<Stream>::basic_connection() :
 	m_impl(new impl())
 {
 
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::~basic_socket_session()
+basic_connection<Stream>::~basic_connection()
 {
 	delete m_impl;
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::basic_socket_session(basic_socket_session &&other) noexcept :
+basic_connection<Stream>::basic_connection(basic_connection &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(basic_socket_session &&other) noexcept
+basic_connection<Stream> &basic_connection<Stream>::operator=(basic_connection &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -107,43 +107,43 @@ basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(basic_sock
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream> &basic_socket_session<Stream>::operator=(socket_t &&socket) noexcept
+basic_connection<Stream> &basic_connection<Stream>::operator=(socket_t &&socket) noexcept
 {
 	m_impl->m_socket = std::move(socket);
 	return *this;
 }
 
 template <concepts::stream Stream>
-const basic_socket_session<Stream>::socket_t&
-basic_socket_session<Stream>::socket() const noexcept
+const basic_connection<Stream>::socket_t&
+basic_connection<Stream>::socket() const noexcept
 {
 	return m_impl->m_socket;
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::socket_t&
-basic_socket_session<Stream>::socket() noexcept
+basic_connection<Stream>::socket_t&
+basic_connection<Stream>::socket() noexcept
 {
 	return m_impl->m_socket;
 }
 
 template <concepts::stream Stream>
-const basic_socket_session<Stream>::opt_helper_t&
-basic_socket_session<Stream>::opt_helper() const noexcept
+const basic_connection<Stream>::opt_helper_t&
+basic_connection<Stream>::opt_helper() const noexcept
 {
 	return m_impl->m_opt_helper;
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::opt_helper_t&
-basic_socket_session<Stream>::opt_helper() noexcept
+basic_connection<Stream>::opt_helper_t&
+basic_connection<Stream>::opt_helper() noexcept
 {
 	return m_impl->m_opt_helper;
 }
 
 template <concepts::stream Stream>
-basic_socket_session<Stream>::executor_t
-basic_socket_session<Stream>::get_executor() noexcept
+basic_connection<Stream>::executor_t
+basic_connection<Stream>::get_executor() noexcept
 {
 	return m_impl->m_socket.get_executor();
 }
@@ -151,4 +151,4 @@ basic_socket_session<Stream>::get_executor() noexcept
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_UTILS_DETAIL_SOCKET_SESSION_H
+#endif //LIBGS_HTTP_UTILS_DETAIL_CONNECTION_H

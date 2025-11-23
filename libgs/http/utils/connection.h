@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_UTILS_SOCKET_SESSION_H
-#define LIBGS_HTTP_UTILS_SOCKET_SESSION_H
+#ifndef LIBGS_HTTP_UTILS_CONNECTION_H
+#define LIBGS_HTTP_UTILS_CONNECTION_H
 
 #include <libgs/http/utils/socket_operation_helper.h>
 
@@ -35,9 +35,9 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream>
-class LIBGS_HTTP_TAPI basic_socket_session
+class LIBGS_HTTP_TAPI basic_connection
 {
-	LIBGS_DISABLE_COPY(basic_socket_session)
+	LIBGS_DISABLE_COPY(basic_connection)
 
 public:
 	using socket_t = Stream;
@@ -48,16 +48,16 @@ public:
 
 public:
   	template <typename Func>
-	basic_socket_session(socket_t &&socket, Func &&destructor)
+	basic_connection(socket_t &&socket, Func &&destructor)
 		requires core_concepts::callable<Func,socket_t&&>;
 
-	basic_socket_session(socket_t &&socket);
-	basic_socket_session();
-    ~basic_socket_session();
+	explicit basic_connection(socket_t &&socket);
+	basic_connection();
+    ~basic_connection();
 
-	basic_socket_session(basic_socket_session &&other) noexcept;
-	basic_socket_session &operator=(basic_socket_session &&other) noexcept;
-	basic_socket_session &operator=(socket_t &&socket) noexcept;
+	basic_connection(basic_connection &&other) noexcept;
+	basic_connection &operator=(basic_connection &&other) noexcept;
+	basic_connection &operator=(socket_t &&socket) noexcept;
 
 public:
  	[[nodiscard]] const socket_t &socket() const noexcept;
@@ -74,28 +74,28 @@ private:
 };
 
 template <core_concepts::exec Exec = asio::any_io_executor>
-using basic_tcp_socket_session = basic_socket_session<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+using basic_tcp_connection = basic_connection<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
-using tcp_socket_session = basic_tcp_socket_session<asio::any_io_executor>;
-using socket_session = tcp_socket_session;
+using tcp_connection = basic_tcp_connection<asio::any_io_executor>;
+using connection = tcp_connection;
 
 template <typename>
-struct is_socket_session : std::false_type {};
+struct is_connection : std::false_type {};
 
 template <concepts::stream Stream>
-struct is_socket_session<basic_socket_session<Stream>> : std::true_type {};
+struct is_connection<basic_connection<Stream>> : std::true_type {};
 
 template <typename T>
-constexpr bool is_socket_session_v = is_socket_session<T>::value;
+constexpr bool is_connection_v = is_connection<T>::value;
 
 namespace concepts
 {
 
 template <typename T>
-concept socket_session = is_socket_session_v<T>;
+concept connection = is_connection_v<T>;
 
 }} //namespace libgs::http::concepts
-#include <libgs/http/utils/detail/socket_session.h>
+#include <libgs/http/utils/detail/connection.h>
 
 
-#endif //LIBGS_HTTP_UTILS_SOCKET_SESSION_H
+#endif //LIBGS_HTTP_UTILS_CONNECTION_H

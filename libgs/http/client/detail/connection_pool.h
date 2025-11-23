@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
-#define LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
+#ifndef LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
+#define LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
 
 #include <libgs/coro/utils.h>
 #include <map>
@@ -37,10 +37,10 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-class LIBGS_HTTP_TAPI basic_session_pool<Stream,Exec>::impl
+class LIBGS_HTTP_TAPI basic_connection_pool<Stream,Exec>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
-	using opt_helper_t = session_t::opt_helper_t;
+	using opt_helper_t = connection_t::opt_helper_t;
 
 public:
 	explicit impl(const auto &exec) : m_exec(exec) {}
@@ -51,7 +51,7 @@ public:
 	}
 
 public:
-	[[nodiscard]] sys_expected<session_t> get(const endpoint_t &ep, auto &&exec) noexcept
+	[[nodiscard]] sys_expected<connection_t> get(const endpoint_t &ep, auto &&exec) noexcept
 	{
 		auto session = _get(ep, std::forward<decltype(exec)>(exec));
 		auto &sock_helper = session.opt_helper();
@@ -70,7 +70,7 @@ public:
 		return std::move(session);
 	}
 
-	[[nodiscard]] awaitable<sys_expected<session_t>> co_get(const endpoint_t &ep, auto &&exec,
+	[[nodiscard]] awaitable<sys_expected<connection_t>> co_get(const endpoint_t &ep, auto &&exec,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		auto session = _get(ep, std::forward<decltype(exec)>(exec));
@@ -111,7 +111,7 @@ public:
 		co_return sys_unexpected(std::get<1>(var));
 	}
 
-	[[nodiscard]] sys_expected<session_t> co_get(std::error_code &error, const endpoint_t &ep, auto &&exec,
+	[[nodiscard]] sys_expected<connection_t> co_get(std::error_code &error, const endpoint_t &ep, auto &&exec,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		auto expected = co_await co_get(std::forward<decltype(exec)>(exec),
@@ -129,7 +129,7 @@ public:
 	}
 
 private:
-	[[nodiscard]] session_t _get(const endpoint_t &ep, auto &&exec) noexcept
+	[[nodiscard]] connection_t _get(const endpoint_t &ep, auto &&exec) noexcept
 	{
 		socket_t socket(exec);
 		auto it = m_sock_map.find(ep);
@@ -141,7 +141,7 @@ private:
 			socket = std::move(it->second);
 			m_sock_map.erase(it);
 		}
-		return session_t(std::move(socket), [this, valid = m_valid](socket_t &&sock) mutable
+		return connection_t(std::move(socket), [this, valid = m_valid](socket_t &&sock) mutable
 		{
 			if( not sock.is_open() )
 				return ;
@@ -162,7 +162,7 @@ public:
 };
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool() requires
+basic_connection_pool<Stream,Exec>::basic_connection_pool() requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
 	m_impl(new impl())
 {
@@ -170,27 +170,28 @@ basic_session_pool<Stream,Exec>::basic_session_pool() requires
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool(core_concepts::match_sched<Exec> auto &&exec) :
+basic_connection_pool<Stream,Exec>::basic_connection_pool(core_concepts::match_sched<Exec> auto &&exec) :
 	m_impl(new impl(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::~basic_session_pool()
+basic_connection_pool<Stream,Exec>::~basic_connection_pool()
 {
 	delete m_impl;
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::basic_session_pool(basic_session_pool &&other) noexcept :
+basic_connection_pool<Stream,Exec>::basic_connection_pool(basic_connection_pool &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basic_session_pool &&other) noexcept
+basic_connection_pool<Stream,Exec>&
+basic_connection_pool<Stream,Exec>::operator=(basic_connection_pool &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -202,17 +203,17 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::operator=(basi
 
 template <concepts::stream Stream, core_concepts::exec Exec>
 template <typename Token>
-auto basic_session_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,error_code,session_t>
+auto basic_connection_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
+	requires core_concepts::tf_opt_token<Token,error_code,connection_t>
 {
 	return get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
 template <typename Token>
-auto basic_session_pool<Stream,Exec>::get
+auto basic_connection_pool<Stream,Exec>::get
 (core_concepts::match_sched<socket_executor_t> auto &&exec, const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,error_code,session_t>
+	requires core_concepts::tf_opt_token<Token,error_code,connection_t>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
@@ -335,20 +336,22 @@ auto basic_session_pool<Stream,Exec>::get
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::emplace(socket_t &&socket)
+basic_connection_pool<Stream,Exec>&
+basic_connection_pool<Stream,Exec>::emplace(socket_t &&socket)
 {
 	m_impl->emplace(std::move(socket));
 	return *this;
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-void basic_session_pool<Stream,Exec>::operator<<(socket_t &&socket)
+void basic_connection_pool<Stream,Exec>::operator<<(socket_t &&socket)
 {
 	emplace(std::move(socket));
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::cancel() noexcept
+basic_connection_pool<Stream,Exec>&
+basic_connection_pool<Stream,Exec>::cancel() noexcept
 {
 	for(auto &task : m_impl->m_curr_tasks)
 		task->cancel();
@@ -356,7 +359,8 @@ basic_session_pool<Stream,Exec> &basic_session_pool<Stream,Exec>::cancel() noexc
 }
 
 template <concepts::stream Stream, core_concepts::exec Exec>
-basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get_executor() noexcept
+basic_connection_pool<Stream,Exec>::executor_t
+basic_connection_pool<Stream,Exec>::get_executor() noexcept
 {
 	return m_impl->m_exec;
 }
@@ -364,4 +368,4 @@ basic_session_pool<Stream,Exec>::executor_t basic_session_pool<Stream,Exec>::get
 } //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_CLIENT_DETAIL_SESSION_POOL_H
+#endif //LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H

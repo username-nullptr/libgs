@@ -513,7 +513,7 @@ public:
 		size_t sum = 0;
 		descriptor_t *stream = nullptr;
 
-		if( channel == read_channel_t::stdout )
+		if( channel == read_channel_t::std_output )
 		{
 			if( not m_stdout.is_open() )
 			{
@@ -569,7 +569,7 @@ public:
 		std::error_code error;
 		descriptor_t *stream = nullptr;
 
-		if( channel == read_channel_t::stdout )
+		if( channel == read_channel_t::std_output )
 		{
 			if( not m_stdout.is_open() )
 			{
@@ -622,7 +622,7 @@ public:
 		}
 		descriptor_t *stream = nullptr;
 
-		if( channel == read_channel_t::stdout )
+		if( channel == read_channel_t::std_output )
 		{
 			if( not m_stdout.is_open() )
 			{

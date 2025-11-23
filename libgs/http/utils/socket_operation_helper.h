@@ -48,7 +48,7 @@ public:
 	using endpoint_t = socket_t::endpoint_type;
 
 public:
-	socket_operation_helper_base(socket_t &socket);
+	explicit socket_operation_helper_base(socket_t &socket);
 	~socket_operation_helper_base();
 
 public:

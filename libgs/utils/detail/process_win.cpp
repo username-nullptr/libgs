@@ -28,6 +28,8 @@
 
 #if defined(__WINNT__) || defined(_WINDOWS)
 
+#include <libgs/utils/process.h>
+
 namespace libgs::utils::detail
 {
 

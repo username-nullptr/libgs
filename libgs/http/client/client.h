@@ -29,33 +29,33 @@
 #ifndef LIBGS_HTTP_CLIENT_CLIENT_H
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
-#include <libgs/http/client/session_pool.h>
+#include <libgs/http/client/connection_pool.h>
 #include <libgs/http/client/request.h>
 #include <libgs/http/client/reply.h>
 
 namespace libgs::http
 {
 
-template <concepts::session_pool SessionPool,
+template <concepts::connection_pool SessionPool,
 		  protocol::version_enum Version = protocol::version::v11>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
 
 public:
-	using session_pool_t = SessionPool;
+	using connection_pool_t = SessionPool;
 	static constexpr auto version_v = Version;
 
-	using session_t = session_pool_t::session_t;
-	using executor_t = session_pool_t::executor_t;
+	using connection_t = connection_pool_t::connection_t;
+	using executor_t = connection_pool_t::executor_t;
 
 	template <protocol::method_enum Method>
-	using request_t = basic_client_request<Method, session_t, version_v>;
+	using request_t = basic_client_request<Method, connection_t, version_v>;
 
 	template <protocol::method_enum Method>
 	using request_ptr = std::shared_ptr<request_t<Method>>;
 
-	using reply_t = basic_reply<session_t>;
+	using reply_t = basic_reply<connection_t>;
 	using reply_ptr = std::shared_ptr<reply_t>;
 
 	using request_arg_t = protocol::request_arg;
@@ -68,7 +68,7 @@ public:
 	explicit basic_client (
 		core_concepts::match_sched<executor_t> auto &&exec
 	);
-	explicit basic_client(session_pool_t &&pool);
+	explicit basic_client(connection_pool_t &&pool);
 
 	basic_client(basic_client &&other) noexcept;
 	basic_client &operator=(basic_client &&other) noexcept;
@@ -176,14 +176,33 @@ private:
 };
 
 template <protocol::version_enum Version = protocol::version::v11>
-using client = basic_client<session_pool, Version>;
+using client = basic_client<connection_pool, Version>;
+
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/client.h>
 
+namespace libgs
+{
+
 #ifdef LIBGS_ENABLE_OPENSSL
+namespace https
+{
 // TODO ... ...
+} //namespace https
 #endif //LIBGS_ENABLE_OPENSSL
+
+namespace http
+{
+// TODO ... ...
+template <concepts::connection_pool SessionPool,
+		  protocol::version_enum Version = protocol::version::v11>
+class LIBGS_HTTP_TAPI basic_auto_client
+{
+
+};
+
+}} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_CLIENT_CLIENT_H

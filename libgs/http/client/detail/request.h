@@ -36,7 +36,7 @@
 namespace libgs::http
 {
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 class LIBGS_HTTP_TAPI basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::impl :
 	public std::enable_shared_from_this<impl>
 {
@@ -1082,7 +1082,7 @@ public:
 	generator_t m_generator;
 };
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 basic_request(session_t &&session, url_t url, request_arg_t arg) :
 	m_impl(std::make_shared<impl>(std::move(session), std::move(url), std::move(arg)))
@@ -1090,11 +1090,11 @@ basic_request(session_t &&session, url_t url, request_arg_t arg) :
 
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 ~basic_request() = default;
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 basic_request(basic_request &&other) noexcept :
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
@@ -1102,7 +1102,7 @@ basic_request(basic_request &&other) noexcept :
 
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 operator=(basic_request &&other) noexcept
@@ -1112,7 +1112,7 @@ operator=(basic_request &&other) noexcept
 	return *this;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 write(Token &&token) noexcept
@@ -1120,7 +1120,7 @@ write(Token &&token) noexcept
 	return m_impl->write({}, token);
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 write(const const_buffer &body, Token &&token) noexcept requires put_or_post
@@ -1128,7 +1128,7 @@ write(const const_buffer &body, Token &&token) noexcept requires put_or_post
 	return m_impl->write(body, token);
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 template <typename T, core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or_post
@@ -1254,7 +1254,7 @@ send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or
 	}
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
@@ -1380,7 +1380,7 @@ chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 	}
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
 auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 chunk_end(Token &&token) noexcept requires put_or_post
@@ -1388,7 +1388,7 @@ chunk_end(Token &&token) noexcept requires put_or_post
 	return chunk_end({}, token);
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 set_context(session_t &&session, url_t url)
@@ -1399,7 +1399,7 @@ set_context(session_t &&session, url_t url)
 	return *this;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 set_arg(request_arg_t arg)
@@ -1408,7 +1408,7 @@ set_arg(request_arg_t arg)
 	return *this;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 const basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::request_arg_t&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 arg() const noexcept
@@ -1416,7 +1416,7 @@ arg() const noexcept
 	return m_impl->m_generator.arg();
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::request_arg_t&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 arg() noexcept
@@ -1424,7 +1424,7 @@ arg() noexcept
 	return m_impl->m_generator.arg();
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 const basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::url_t&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 url() const noexcept
@@ -1432,14 +1432,14 @@ url() const noexcept
 	return m_impl->m_generator.url();
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 bool basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 is_finished() const noexcept
 {
 	return m_impl->m_generator.pro_state() == protocol::generator_state::finish;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 consteval protocol::method_enum
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 method() noexcept
@@ -1447,7 +1447,7 @@ method() noexcept
 	return method_v;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 consteval protocol::version_enum
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 version() noexcept
@@ -1455,7 +1455,7 @@ version() noexcept
 	return version_v;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 const basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::session_t&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 session() const noexcept
@@ -1463,7 +1463,7 @@ session() const noexcept
 	return m_impl->m_session;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::session_t&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 session() noexcept
@@ -1471,7 +1471,7 @@ session() noexcept
 	return m_impl->m_session;
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::executor_t
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 get_executor() noexcept
@@ -1479,7 +1479,7 @@ get_executor() noexcept
 	return session().get_executor();
 }
 
-template <protocol::method_enum Method, concepts::socket_session Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
 basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
 cancel() noexcept

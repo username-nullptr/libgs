@@ -30,12 +30,12 @@
 #define LIBGS_HTTP_CLIENT_REPLY_H
 
 #include <libgs/http/protocol/utils/client/parser.h>
-#include <libgs/http/utils/socket_session.h>
+#include <libgs/http/utils/connection.h>
 
 namespace libgs::http
 {
 
-template <concepts::socket_session Session = socket_session>
+template <concepts::connection Session = connection>
 class LIBGS_HTTP_TAPI basic_reply
 {
 	LIBGS_DISABLE_COPY(basic_reply)

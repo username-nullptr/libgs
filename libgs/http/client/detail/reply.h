@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 class LIBGS_HTTP_TAPI basic_reply<Session>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
@@ -384,24 +384,24 @@ public:
 	parser_t m_parser;
 };
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session>::basic_reply(session_t &&session, parser_t &&parser) :
 	m_impl(std::make_shared<impl>(std::move(session), std::move(parser)))
 {
 
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session>::~basic_reply() = default;
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session>::basic_reply(basic_reply &&other) noexcept :
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
 
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session> &basic_reply<Session>::operator=(basic_reply &&other) noexcept
 {
 	if( this != &other )
@@ -409,7 +409,7 @@ basic_reply<Session> &basic_reply<Session>::operator=(basic_reply &&other) noexc
 	return *this;
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 template <typename Token>
 auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 	requires task_token_v<Token,std::shared_ptr<basic_reply>>
@@ -532,45 +532,45 @@ auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 	}
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 protocol::version_enum basic_reply<Session>::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 protocol::status_enum basic_reply<Session>::status() const noexcept
 {
 	return m_impl->m_parser.status();
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 optional<typename basic_reply<Session>::value_t>
 basic_reply<Session>::header(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	return m_impl->m_parser.header(key);
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 const basic_reply<Session>::headers_t &basic_reply<Session>::headers() const noexcept
 {
 	return m_impl->m_parser.headers();
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 optional<typename basic_reply<Session>::cookie_t>
 basic_reply<Session>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	return m_impl->m_parser.cookie(key);
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 const protocol::cookies &basic_reply<Session>::cookies() const noexcept
 {
 	return m_impl->m_parser.cookies();
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 template <typename Token>
 auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexcept
 	requires task_token_v<Token,size_t>
@@ -691,7 +691,7 @@ auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexce
 	}
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 template <typename Token>
 auto basic_reply<Session>::read(Token &&token) noexcept
 	requires task_token_v<Token,std::string>
@@ -812,7 +812,7 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 	}
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 bool basic_reply<Session>::is_chunked() const noexcept
 {
 	if( version() < protocol::version::v11 )
@@ -821,31 +821,31 @@ bool basic_reply<Session>::is_chunked() const noexcept
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == "chunked";
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 bool basic_reply<Session>::is_eof() const noexcept
 {
 	return m_impl->m_parser.stage() == parser_t::stage_t::finished;
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 const basic_reply<Session>::session_t &basic_reply<Session>::session() const noexcept
 {
 	return m_impl->m_session;
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session>::session_t &basic_reply<Session>::session() noexcept
 {
 	return m_impl->m_session;
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session>::executor_t basic_reply<Session>::get_executor() noexcept
 {
 	return session().get_executor();
 }
 
-template <concepts::socket_session Session>
+template <concepts::connection Session>
 basic_reply<Session> &basic_reply<Session>::cancel() noexcept
 {
 	session().opt_helper().cancel();

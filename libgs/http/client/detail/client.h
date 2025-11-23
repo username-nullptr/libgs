@@ -32,7 +32,7 @@
 namespace libgs::http
 {
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 class LIBGS_HTTP_TAPI basic_client<SessionPool,Version>::impl :
 	public std::enable_shared_from_this<impl>
 {
@@ -45,7 +45,7 @@ public:
 	explicit impl(const core_concepts::match_exec<executor_t> auto &exec) :
 		m_pool(exec) {}
 
-	explicit impl(session_pool_t &&pool) :
+	explicit impl(connection_pool_t &&pool) :
 		m_pool(std::move(pool)) {}
 
 public:
@@ -58,7 +58,7 @@ public:
 				make_error_code(std::errc::protocol_error)
 			);
 		}
-		using protocol_t = session_t::opt_helper_t::protocol_t;
+		using protocol_t = connection_t::opt_helper_t::protocol_t;
 		using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
 
 		endpoint_t ep;
@@ -103,7 +103,7 @@ public:
 				make_error_code(std::errc::protocol_error)
 			);
 		}
-		using protocol_t = session_t::opt_helper_t::protocol_t;
+		using protocol_t = connection_t::opt_helper_t::protocol_t;
 		using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
 
 		using namespace libgs::operators;
@@ -199,7 +199,7 @@ public:
 		auto expected = co_await reply_t::make(std::move(request->session()),
 			use_awaitable | cancel_slot | timeout
 		);
-		if( not expected or request->version() < protocol::version::v11 )
+		if( not expected or request_t<Method>::version() < protocol::version::v11 )
 			co_return expected;
 
 		else if( auto &reply = *expected; reply->status() == protocol::status::continue_upload )
@@ -221,10 +221,10 @@ public:
 	}
 
 public:
-	session_pool_t m_pool;
+	connection_pool_t m_pool;
 };
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 basic_client<SessionPool,Version>::basic_client() requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
 	m_impl(std::make_shared<impl>())
@@ -232,28 +232,28 @@ basic_client<SessionPool,Version>::basic_client() requires
 
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 basic_client<SessionPool,Version>::basic_client(core_concepts::match_sched<executor_t> auto &&exec) :
 	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
-basic_client<SessionPool,Version>::basic_client(session_pool_t &&pool) :
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
+basic_client<SessionPool,Version>::basic_client(connection_pool_t &&pool) :
 	m_impl(std::make_shared<impl>(std::move(pool)))
 {
 
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 basic_client<SessionPool,Version>::basic_client(basic_client &&other) noexcept :
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
 
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 basic_client<SessionPool,Version>&
 basic_client<SessionPool,Version>::operator=(basic_client &&other) noexcept
 {
@@ -262,10 +262,10 @@ basic_client<SessionPool,Version>::operator=(basic_client &&other) noexcept
 	return *this;
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 basic_client<SessionPool,Version>::~basic_client() = default;
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <protocol::method_enum Method, typename Token>
 auto basic_client<SessionPool,Version>::request(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -393,7 +393,7 @@ auto basic_client<SessionPool,Version>::request(url_t url, request_arg_t arg, To
 	}
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <protocol::method_enum Method, typename Token>
 auto basic_client<SessionPool,Version>::request(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -401,7 +401,7 @@ auto basic_client<SessionPool,Version>::request(url_t url, Token &&token)
 	return request<Method>(std::move(url), {}, std::forward<Token>(token));
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <protocol::method_enum Method, typename Token>
 auto basic_client<SessionPool,Version>::reply(const request_ptr<Method> &request, Token &&token)
 {
@@ -523,7 +523,7 @@ auto basic_client<SessionPool,Version>::reply(const request_ptr<Method> &request
 	}
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_get(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -533,7 +533,7 @@ auto basic_client<SessionPool,Version>::req_get(url_t url, request_arg_t arg, To
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_put(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -543,7 +543,7 @@ auto basic_client<SessionPool,Version>::req_put(url_t url, request_arg_t arg, To
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_post(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -553,7 +553,7 @@ auto basic_client<SessionPool,Version>::req_post(url_t url, request_arg_t arg, T
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_head(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -563,7 +563,7 @@ auto basic_client<SessionPool,Version>::req_head(url_t url, request_arg_t arg, T
 		);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_patch(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -573,7 +573,7 @@ auto basic_client<SessionPool,Version>::req_patch(url_t url, request_arg_t arg, 
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_delete(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -583,7 +583,7 @@ auto basic_client<SessionPool,Version>::req_delete(url_t url, request_arg_t arg,
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_options(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -593,7 +593,7 @@ auto basic_client<SessionPool,Version>::req_options(url_t url, request_arg_t arg
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_trace(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -603,7 +603,7 @@ auto basic_client<SessionPool,Version>::req_trace(url_t url, request_arg_t arg, 
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_connect(url_t url, request_arg_t arg, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -613,7 +613,7 @@ auto basic_client<SessionPool,Version>::req_connect(url_t url, request_arg_t arg
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_get(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -623,7 +623,7 @@ auto basic_client<SessionPool,Version>::req_get(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_put(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -633,7 +633,7 @@ auto basic_client<SessionPool,Version>::req_put(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_post(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -643,7 +643,7 @@ auto basic_client<SessionPool,Version>::req_post(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_head(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -653,7 +653,7 @@ auto basic_client<SessionPool,Version>::req_head(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_patch(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -663,7 +663,7 @@ auto basic_client<SessionPool,Version>::req_patch(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_delete(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -673,7 +673,7 @@ auto basic_client<SessionPool,Version>::req_delete(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_options(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -683,7 +683,7 @@ auto basic_client<SessionPool,Version>::req_options(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_trace(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -693,7 +693,7 @@ auto basic_client<SessionPool,Version>::req_trace(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 template <typename Token>
 auto basic_client<SessionPool,Version>::req_connect(url_t url, Token &&token)
 	noexcept requires request_token_v<Token>
@@ -703,13 +703,13 @@ auto basic_client<SessionPool,Version>::req_connect(url_t url, Token &&token)
 	);
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 consteval protocol::version_enum basic_client<SessionPool,Version>::version() noexcept
 {
 	return version_v;
 }
 
-template <concepts::session_pool SessionPool, protocol::version_enum Version>
+template <concepts::connection_pool SessionPool, protocol::version_enum Version>
 basic_client<SessionPool,Version>::executor_t
 basic_client<SessionPool,Version>::get_executor() noexcept
 {

@@ -26,54 +26,54 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_SESSION_POOL_H
-#define LIBGS_HTTP_CLIENT_SESSION_POOL_H
+#ifndef LIBGS_HTTP_CLIENT_CONNECTION_POOL_H
+#define LIBGS_HTTP_CLIENT_CONNECTION_POOL_H
 
-#include <libgs/http/utils/socket_session.h>
+#include <libgs/http/utils/connection.h>
 
 namespace libgs::http
 {
 
 template <concepts::stream Stream = asio::ip::tcp::socket,
 		  core_concepts::exec Exec = asio::any_io_executor>
-class LIBGS_HTTP_TAPI basic_session_pool
+class LIBGS_HTTP_TAPI basic_connection_pool
 {
-	LIBGS_DISABLE_COPY(basic_session_pool)
+	LIBGS_DISABLE_COPY(basic_connection_pool)
 
 public:
 	using socket_t = Stream;
-	using session_t = basic_socket_session<socket_t>;
+	using connection_t = basic_connection<socket_t>;
 	using socket_executor_t = socket_t::executor_type;
 
 	using executor_t = Exec;
-	using endpoint_t = session_t::endpoint_t;
+	using endpoint_t = connection_t::endpoint_t;
 
 public:
-	basic_session_pool() requires
+	basic_connection_pool() requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	explicit basic_session_pool(core_concepts::match_sched<Exec> auto &&exec);
-	~basic_session_pool();
+	explicit basic_connection_pool(core_concepts::match_sched<Exec> auto &&exec);
+	~basic_connection_pool();
 
-	basic_session_pool(basic_session_pool &&other) noexcept;
-	basic_session_pool &operator=(basic_session_pool &&other) noexcept;
+	basic_connection_pool(basic_connection_pool &&other) noexcept;
+	basic_connection_pool &operator=(basic_connection_pool &&other) noexcept;
 
 public:
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get(const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,error_code,session_t>;
+		requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get (
 		core_concepts::match_sched<socket_executor_t> auto &&exec,
 		const endpoint_t &ep, Token &&token = {}
-	) requires core_concepts::tf_opt_token<Token,error_code,session_t>;
+	) requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
 
 public:
-	basic_session_pool &emplace(socket_t &&socket);
+	basic_connection_pool &emplace(socket_t &&socket);
 	void operator<<(socket_t &&socket);
 
-	basic_session_pool &cancel() noexcept;
+	basic_connection_pool &cancel() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
@@ -82,30 +82,30 @@ private:
 };
 
 template <core_concepts::exec MainExec, core_concepts::exec SockExec>
-using basic_tcp_session_pool = basic_session_pool<asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec>;
+using basic_tcp_connection_pool = basic_connection_pool<asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec>;
 
 template <core_concepts::exec Exec>
-using tcp_session_pool = basic_tcp_session_pool<asio::any_io_executor, Exec>;
+using tcp_connection_pool = basic_tcp_connection_pool<asio::any_io_executor, Exec>;
 
-using session_pool = tcp_session_pool<asio::any_io_executor>;
+using connection_pool = tcp_connection_pool<asio::any_io_executor>;
 
 template <typename>
-struct is_session_pool : std::false_type {};
+struct is_connection_pool : std::false_type {};
 
 template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-struct is_session_pool<basic_session_pool<Stream,Exec>> : std::true_type {};
+struct is_connection_pool<basic_connection_pool<Stream,Exec>> : std::true_type {};
 
 template <typename T>
-constexpr bool is_session_pool_v = is_session_pool<T>::value;
+constexpr bool is_connection_pool_v = is_connection_pool<T>::value;
 
 namespace concepts
 {
 
 template <typename T>
-concept session_pool = is_session_pool_v<T>;
+concept connection_pool = is_connection_pool_v<T>;
 
 }} //namespace libgs::http::concepts
-#include <libgs/http/client/detail/session_pool.h>
+#include <libgs/http/client/detail/connection_pool.h>
 
 
 #endif //LIBGS_HTTP_CLIENT_SESSION_POOL_H

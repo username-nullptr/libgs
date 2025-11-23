@@ -28,8 +28,6 @@
 
 #ifndef LIBGS_CORE_DETAIL_EXECUTION_H
 #define LIBGS_CORE_DETAIL_EXECUTION_H
-#include "libgs/utils/logger.h"
-#include "spdlog/spdlog.h"
 
 namespace libgs { namespace detail
 {
