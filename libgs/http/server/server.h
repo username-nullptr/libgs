@@ -148,7 +148,7 @@ using server = tcp_server;
 } //namespace libgs::http
 #include <libgs/http/server/detail/server.h>
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 namespace libgs { namespace http
 {
 
@@ -175,5 +175,5 @@ using server = tcp_server;
 
 }} //namespace libgs::https
 
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_SERVER_SERVER_H

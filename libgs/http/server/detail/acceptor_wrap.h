@@ -104,7 +104,7 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept(core_
 	co_return co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 }
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
 basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
@@ -159,17 +159,19 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	auto tcp_socket = co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 	socket_t ssl_socket(std::move(tcp_socket), *m_ssl);
 
+	using namespace libgs::operators;
 	error_code error;
-	co_await ssl_socket.async_handshake(asio::ssl::stream_base::server, use_awaitable|error);
+
+	co_await ssl_socket.async_handshake(asio::ssl::stream_base::server, use_awaitable | error);
 	if( error )
 	{
-		spdlog::warn("libgs::http::server(SSL): SSL handshake failed: {}.", error);
+		// spdlog::warn("libgs::http::server(SSL): SSL handshake failed: {}.", error);
 		socket_operation_helper<socket_t>::close(ssl_socket);
 	}
 	co_return ssl_socket;
 }
 
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 
 } //namespace libgs::http
 

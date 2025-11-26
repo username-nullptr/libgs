@@ -18,29 +18,28 @@
 #include <chrono>
 #include <memory>
 
-using namespace std::chrono_literals;
-using namespace libgs::operators;
-
 int main()
 {
 #if 0
-	libgs::http::client<> client;
-	client.req_get("http://www.baidu.com")
+	libgs::http::client client;
+	client.request_get("http://www.baidu.com")
 
-	.and_then([](const auto &request)
+	.and_then([&](const auto &context)
 	{
-		// request->arg().set_header(libgs::http::protocol::header::expect, "100-continue");
-		return request->write().transform([&](size_t) {
-			return request;
-		});
+		using context_t = std::remove_cvref_t<decltype(context)>;
+		libgs::sys_expected<context_t> result;
+
+		auto expected = context->wait_reply();
+		if( expected )
+			result = context;
+		else
+			result.despair(expected.error());
+		return result;
 	})
-	.and_then([&](const auto &request) {
-		return client.reply(request);
-	})
-	.and_then([&](const auto &reply)
+	.and_then([&](const auto &context)
 	{
-		auto asd = reply->header(libgs::http::protocol::header::content_length);
-		return reply->read();
+		auto asd = context->reply().header(libgs::http::protocol::header::content_length);
+		return context->reply().read();
 	})
 	.transform([](std::string_view body)
 	{
@@ -52,35 +51,39 @@ int main()
 	{
 		spdlog::error("--------------- {}", error);
 	});
+
+	auto asd = client.upload_file("http://www.baidu.com", "./hello.txt");
+
 	return 0;
 #else
 	libgs::dispatch([&]() -> libgs::awaitable<void>
 	{
-		libgs::http::client<> client;
+		libgs::http::client client;
 		try {
-			auto request = *(co_await client.req_get (
+			auto context = *(co_await client.request_get (
 				"http://www.baidu.com", libgs::use_awaitable
 			)).or_else([](const auto &error) {
 				libgs::system_error::loc_throw(error);
 			});
 
-			(co_await request->write(libgs::use_awaitable))
-			.or_else([](const auto &error) {
-				libgs::system_error::loc_throw(error);
-			});
+			(co_await context->wait_reply(libgs::use_awaitable))
+				.or_else([](const auto &error) {
+					libgs::system_error::loc_throw(error);
+				});
 
-			auto reply = *(co_await client.reply(request, libgs::use_awaitable))
-			.or_else([](const auto &error) {
-				libgs::system_error::loc_throw(error);
-			});
-
-			auto body = *(co_await reply->read(libgs::use_awaitable))
-			.or_else([](const auto &error) {
-				libgs::system_error::loc_throw(error);
-			});
+			auto body = *(co_await context->reply().read(libgs::use_awaitable))
+				.or_else([](const auto &error) {
+					libgs::system_error::loc_throw(error);
+				});
 
 			int i = 0;
 			i = 11;
+
+			auto pppp = [](size_t bytes, size_t total)
+			{
+
+			};
+			auto asd = co_await client.upload_file("http://www.baidu.com", "./hello.txt", pppp, libgs::use_awaitable);
 		}
 		catch(const std::exception &ex) {
 			spdlog::error("=------=-========= {}", ex);

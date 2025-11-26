@@ -33,35 +33,35 @@
 #include <libgs/http/protocol/utils/client/request_arg.h>
 #include <libgs/http/protocol/utils/client/url.h>
 
-#include <libgs/http/utils/request_template.h>
+#include <libgs/http/utils/multiple_template.h>
 #include <libgs/http/utils/connection.h>
 
 namespace libgs::http
 {
 
 template <protocol::method_enum Method,
-		  concepts::connection Session,
+		  concepts::connection Connection,
 		  protocol::version_enum Version>
 class client_request_targ;
 
 template <protocol::method_enum Method,
-		  concepts::connection Session,
+		  concepts::connection Connection,
 		  protocol::version_enum Version>
 using basic_client_request = basic_request<protocol::model::client,
-	client_request_targ<Method,Session,Version>
+	client_request_targ<Method,Connection,Version>
 >;
 
 template <protocol::method_enum Method,
-		  concepts::connection Session,
+		  concepts::connection Connection,
 		  protocol::version_enum Version>
 class LIBGS_HTTP_TAPI basic_request<protocol::model::client,
-	client_request_targ<Method,Session,Version>>
+	client_request_targ<Method,Connection,Version>>
 {
 	LIBGS_DISABLE_COPY(basic_request)
 
 public:
-	using session_t = Session;
-	using executor_t = session_t::executor_t;
+	using connection_t = Connection;
+	using executor_t = connection_t::executor_t;
 
 	using url_t = protocol::url;
 	using request_arg_t = protocol::request_arg;
@@ -77,13 +77,18 @@ public:
 		method_v == method_t::post or method_v == method_t::put;
 
 public:
-	basic_request(session_t &&session, url_t url, request_arg_t arg = {});
+	basic_request(connection_t &&connection, url_t url, request_arg_t arg = {});
 	~basic_request();
 
 	basic_request(basic_request &&other) noexcept;
 	basic_request &operator=(basic_request &&other) noexcept;
 
 public:
+	template <typename Token>
+	static constexpr bool task_token_v =
+		core_concepts::tf_opt_token<Token,error_code,size_t> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(Token &&token = {}) noexcept;
 
@@ -93,12 +98,37 @@ public:
 
 public:
 	template <typename T>
-	static constexpr bool file_opt_token = concepts::file_opt_token_p <
+	static constexpr bool file_opt_token_v = concepts::file_opt_token_p <
 		T, char, file_optype::combine, io_permission::read
 	>;
 	template <typename T, core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto send_file(T &&opt, Token &&token = {}) noexcept
-		requires file_opt_token<T> and put_or_post;
+	auto upload_file(T &&opt, Token &&token = {}) noexcept
+		requires file_opt_token_v<T> and put_or_post;
+
+	template <core_concepts::callable<size_t,size_t> Func,
+			  core_concepts::tf_opt_token<error_code,size_t> Token>
+	static constexpr bool progress_callback_v = []() consteval -> bool
+	{
+		using token_t = decltype(unbound_token(std::declval<Token>()));
+		using return_t = decltype(std::declval<Func>()(0, 0));
+
+		if constexpr( (is_use_awaitable_v<token_t> or is_deferred_v<token_t>) and
+			is_awaitable_v<return_t> )
+		{
+			using co_return_t = return_t::value_t;
+			return std::is_same_v<co_return_t, bool> or
+				   std::is_same_v<co_return_t, void>;
+		}
+		else
+		{
+			return std::is_same_v<return_t, bool> or
+				   std::is_same_v<return_t, void>;
+		}
+		return false;
+	}();
+	template <typename T, typename Progress, core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
+	auto upload_file(T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires file_opt_token_v<T> and progress_callback_v<Progress,Token> and put_or_post;
 
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
@@ -110,7 +140,7 @@ public:
 		noexcept requires put_or_post;
 
 public:
-	basic_request &set_context(session_t &&session, url_t url);
+	basic_request &set_connection(connection_t &&connection, url_t url);
 	basic_request &set_arg(request_arg_t arg);
 
 	[[nodiscard]] const request_arg_t &arg() const noexcept;
@@ -123,8 +153,8 @@ public:
 	[[nodiscard]] static consteval protocol::method_enum method() noexcept;
 	[[nodiscard]] static consteval protocol::version_enum version() noexcept;
 
-	[[nodiscard]] const session_t &session() const noexcept;
-	[[nodiscard]] session_t &session() noexcept;
+	[[nodiscard]] const connection_t &connection() const noexcept;
+	[[nodiscard]] connection_t &connection() noexcept;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_request &cancel() noexcept;
@@ -140,5 +170,22 @@ using client_request = basic_client_request<Method, connection, Version>;
 } //namespace libgs::http
 #include <libgs/http/client/detail/request.h>
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http
+{
 
+template <protocol::method_enum Method, protocol::version_enum Version = protocol::version::v11>
+using ssl_client_request = basic_client_request<Method, ssl_connection, Version>;
+
+} //namespace http
+
+namespace https
+{
+
+template <http::protocol::method_enum Method, http::protocol::version_enum Version = http::protocol::version::v11>
+using client_request = http::ssl_client_request<Method, Version>;
+
+}} //namespace libgs::https
+
+#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_CLIENT_REQUEST_H

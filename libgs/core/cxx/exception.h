@@ -51,7 +51,7 @@ public:
 	runtime_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 public:
-	static void loc_throw(std::string_view msg,
+	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);
 };
@@ -66,7 +66,7 @@ public:
 	invalid_argument(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 public:
-	static void loc_throw(std::string_view msg,
+	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);
 };
@@ -81,7 +81,7 @@ public:
 	logic_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 public:
-	static void loc_throw(std::string_view msg,
+	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);
 };

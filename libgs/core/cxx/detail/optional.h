@@ -39,10 +39,10 @@ void check_optional_has_value(const optional_base<Value> &opt)
 {
 	if( not opt.has_value() )
 	{
-		throw runtime_error (
+		runtime_error::loc_throw(std::format (
 			"libgs::optional_base<{}> has no value",
 			type_name<Value>()
-		);
+		));
 	}
 }
 
@@ -50,37 +50,47 @@ void check_optional_has_value(const optional_base<Value> &opt)
 
 template <concepts::optional_value Value>
 optional_base<Value>::optional_base(value_t value) :
-	m_value(std::move(value)),
 	m_has_value(true)
 {
+	_emplace(std::move(value));
+}
 
+template <concepts::optional_value Value>
+optional_base<Value>::~optional_base()
+{
+	if( has_value() )
+		_reset();
 }
 
 template <concepts::optional_value Value>
 optional_base<Value>::optional_base(const optional_base &other) requires
 	concepts::copy_constructible<value_t> :
-	m_value(other.m_value),
 	m_has_value(other.m_has_value)
 {
-
+	if( other.m_has_value )
+		_emplace(*other._data());
 }
 
 template <concepts::optional_value Value>
 optional_base<Value> &optional_base<Value>::operator=(const optional_base &other) requires
 	concepts::copy_constructible<value_t>
 {
-	m_value = other.m_value;
 	m_has_value = other.m_has_value;
+	if( other.m_has_value )
+		_emplace(*other._data());
 	return *this;
 }
 
 template <concepts::optional_value Value>
 optional_base<Value>::optional_base(optional_base &&other) requires
 	concepts::move_constructible<value_t> :
-	m_value(std::move(other.m_value)),
 	m_has_value(other.m_has_value)
 {
-	other.m_has_value = false;
+	if( other.m_has_value )
+	{
+		_emplace(std::move(*other._data()));
+		other._reset();
+	}
 }
 
 template <concepts::optional_value Value>
@@ -89,9 +99,13 @@ optional_base<Value> &optional_base<Value>::operator=(optional_base &&other) req
 {
 	if( this == &other )
 		return *this;
-	m_value = std::move(other.m_value);
+
 	m_has_value = other.m_has_value;
-	other.m_has_value = false;
+	if( other.m_has_value )
+	{
+		_emplace(std::move(*other._data()));
+		other._reset();
+	}
 	return *this;
 }
 
@@ -105,40 +119,54 @@ template <concepts::optional_value Value>
 const Value &optional_base<Value>::value() const &
 {
 	detail::check_optional_has_value(*this);
-	return m_value;
+	return *_data();
 }
 
 template <concepts::optional_value Value>
 Value &&optional_base<Value>::value() const &&
 {
 	detail::check_optional_has_value(*this);
-	return std::move(m_value);
+	return std::move(*_data());
 }
 
 template <concepts::optional_value Value>
 Value &optional_base<Value>::value() &
 {
 	detail::check_optional_has_value(*this);
-	return m_value;
+	return *_data();
 }
 
 template <concepts::optional_value Value>
 Value &&optional_base<Value>::value() &&
 {
 	detail::check_optional_has_value(*this);
-	return std::move(m_value);
+	return std::move(*_data());
 }
 
 template <concepts::optional_value Value>
 Value optional_base<Value>::value_or(value_t default_value) const & noexcept
 {
-	return has_value() ? m_value : std::move(default_value);
+	return has_value() ? *_data() : std::move(default_value);
 }
 
 template <concepts::optional_value Value>
 Value optional_base<Value>::value_or(value_t default_value) const && noexcept
 {
-	return has_value() ? std::move(m_value) : std::move(default_value);
+	return has_value() ? std::move(*_data()) : std::move(default_value);
+}
+
+template <concepts::optional_value Value>
+Value optional_base<Value>::value_or() const & noexcept
+	requires concepts::constructible<value_t>
+{
+	return has_value() ? *_data() : value_t();
+}
+
+template <concepts::optional_value Value>
+Value optional_base<Value>::value_or() const && noexcept
+	requires concepts::constructible<value_t>
+{
+	return has_value() ? std::move(*_data()) : value_t();
 }
 
 template <concepts::optional_value Value>
@@ -192,27 +220,60 @@ bool optional_base<Value>::operator==(const optional_base &other) const
 
 template <concepts::optional_value Value>
 template <typename...Args>
+void optional_base<Value>::_emplace(Args&&...args) requires
+	concepts::constructible<value_t,Args...>
+{
+	new (&m_storage) value_t(std::forward<Args>(args)...);
+	this->m_has_value = true;
+}
+
+template <concepts::optional_value Value>
+const Value *optional_base<Value>::_data() const noexcept
+{
+	return std::launder(reinterpret_cast<const value_t*>(&m_storage));
+}
+
+template <concepts::optional_value Value>
+Value *optional_base<Value>::_data() noexcept
+{
+	return std::launder(reinterpret_cast<value_t*>(&m_storage));
+}
+
+template <concepts::optional_value Value>
+void optional_base<Value>::_reset() noexcept
+{
+	std::destroy_at(_data());
+	m_has_value = false;
+}
+
+template <concepts::optional_value Value>
+optional<Value>::optional(value_t value) :
+	optional_base<Value>(std::move(value))
+{
+
+}
+
+template <concepts::optional_value Value>
+template <typename...Args>
 optional<Value> &optional<Value>::emplace(Args&&...args) requires
 	concepts::constructible<value_t,Args...>
 {
-	this->m_value = value_t(std::forward<Args>(args)...);
-	this->m_has_value = true;
+	this->_emplace(std::forward<Args>(args)...);
 	return *this;
 }
 
 template <concepts::optional_value Value>
 optional<Value> &optional<Value>::operator=(value_t value) noexcept
 {
-	this->m_value = std::move(value);
-	this->m_has_value = true;
+	this->_emplace(std::move(value));
 	return *this;
 }
 
 template <concepts::optional_value Value>
 optional<Value> &optional<Value>::reset() noexcept
 {
-	this->m_value = value_t();
-	this->m_has_value = false;
+	if( this->has_value() )
+		this->_reset();
 	return *this;
 }
 

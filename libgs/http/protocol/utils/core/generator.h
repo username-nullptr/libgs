@@ -29,16 +29,10 @@
 #ifndef LIBGS_HTTP_TOOLS_CORE_GENERATOR_H
 #define LIBGS_HTTP_TOOLS_CORE_GENERATOR_H
 
-#include <libgs/http/protocol/types.h>
+#include <libgs/http/protocol/utils/core/types.h>
 
 namespace libgs::http::protocol
 {
-
-template <model> class generator {};
-
-enum class generator_state {
-	header, content_length, chunk, finish
-};
 
 template <>
 class LIBGS_HTTP_API generator<model::base>

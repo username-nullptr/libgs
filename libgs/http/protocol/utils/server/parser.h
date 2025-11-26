@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H
 
-#include <libgs/http/protocol/utils/core/parser.h>
+#include <libgs/http/protocol/utils/core/types.h>
 
 namespace libgs::http::protocol
 {

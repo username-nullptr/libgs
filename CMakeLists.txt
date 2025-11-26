@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
 set(MAJOR_VERSION 0)
-set(MINOR_VERSION 8)
-set(PATCH_VERSION 8)
+set(MINOR_VERSION 9)
+set(PATCH_VERSION 1)
 
 set(PRO_VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION})
 set(PRO_NAME LibGS)
@@ -17,7 +17,7 @@ add_definitions (
 )
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-include(utility)
+include(platform)
 check_compiler_version(CMAKE_CXX_STANDARD)
 
 message(STATUS "")
@@ -26,6 +26,7 @@ message(STATUS "${PRO_NAME}: Build type: " ${CMAKE_BUILD_TYPE})
 message(STATUS "${PRO_NAME}: Install prefix: " ${CMAKE_INSTALL_PREFIX})
 
 set(output_dir ${CMAKE_BINARY_DIR}/output)
+include(options)
 
 add_subdirectory(3rd_party)
 include(3rd_party)

@@ -1,26 +1,3 @@
-if (WIN32)
-	set(OS_CPP win)
-	set(IS_CPP winnt)
-elseif (UNIX)
-	if (APPLE)
-		set(OS_CPP apple)
-	elseif (ANDROID)
-		set(OS_CPP android)
-	else ()
-		set(OS_CPP unix)
-	endif ()
-	set(IS_CPP posix)
-endif()
-
-option(LIBGS_BUILD_STATIC
-	"-- ${PRO_NAME}: Build static libraries." OFF
-)
-if (NOT LIBGS_BUILD_STATIC)
-	option(LIBGS_ADD_LIBRARY_VERSION
-		"-- ${PRO_NAME}: Add version information to library names." ON
-	)
-endif ()
-
 function(add_project target_name)
 
 	file(GLOB_RECURSE ${target_name}_sources "*.cpp" "*.c" "*.ixx")

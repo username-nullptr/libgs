@@ -40,7 +40,7 @@ concept expected_value = optional_value<Value> or std::is_void_v<Value>;
 } //namespace libgs::concepts
 
 template <concepts::optional_value Error>
-class LIBGS_CORE_TAPI unexpected
+class LIBGS_CORE_TAPI unexpected final
 {
 public:
     using error_t = Error;
@@ -56,7 +56,7 @@ public:
 	[[nodiscard]] error_t &error() & noexcept;
 	[[nodiscard]] error_t &&error() && noexcept;
 
-protected:
+private:
 	error_t m_error;
 };
 
@@ -68,14 +68,56 @@ class expected
 	);
 };
 
+template <concepts::optional_value Error, typename Derived>
+class LIBGS_CORE_TAPI expected_base
+{
+public:
+    using error_t = Error;
+	using derived_t = Derived;
+
+	using error_storage_t = std::aligned_storage_t <
+		sizeof(error_t), alignof(error_t)
+	>;
+
+public:
+	[[nodiscard]] const error_t &error() const & noexcept;
+	[[nodiscard]] error_t &&error() const && noexcept;
+
+	[[nodiscard]] error_t &error() & noexcept;
+	[[nodiscard]] error_t &&error() && noexcept;
+
+protected:
+	expected_base(error_t error);
+	expected_base();
+
+	template <typename...Args>
+	void _despair(Args&&...args) requires
+		concepts::constructible<error_t,Args...>;
+
+	const error_t *_error() const noexcept;
+	error_t *_error() noexcept;
+
+	void _reset_error() noexcept;
+	error_storage_t m_error_storage;
+};
+
 template <concepts::optional_value Value, concepts::optional_value Error>
-class LIBGS_CORE_TAPI expected<Value,Error> final : public optional_base<Value>, public unexpected<Error>
+class LIBGS_CORE_TAPI expected<Value,Error> final :
+	public optional_base<Value>, public expected_base<Error,expected<Value,Error>>
 {
 public:
 	using value_t = Value;
     using error_t = Error;
 
-	expected(value_t value = {});
+	using error_storage_t = std::aligned_storage_t <
+		sizeof(error_t), alignof(error_t)
+	>;
+
+public:
+	expected() requires
+		concepts::constructible<value_t>;
+
+	expected(value_t value);
 	expected(unexpected<error_t> une);
 
 	expected(const expected &other) requires
@@ -153,17 +195,14 @@ public:
 	template <typename Func>
 	expected or_else(Func &&func) const requires or_else_v<Func>;
 	[[nodiscard]] expected or_else(value_t value = {}) const;
-
-public:
-	static constexpr bool exception_v = requires(error_t error) {
-		error.exception(std::string());
-	};
-	const expected &exception(const std::string &what = "") const requires exception_v;
-	expected &exception(const std::string &what = "") requires exception_v;
 };
 
+template <concepts::optional_value Error, concepts::optional_value_p Value>
+[[nodiscard]] LIBGS_CORE_TAPI auto make_expected(Value &&value);
+
 template <concepts::optional_value Error>
-class LIBGS_CORE_TAPI expected<void,Error> final : public unexpected<Error>
+class LIBGS_CORE_TAPI expected<void,Error> final :
+	public expected_base<Error,expected<void,Error>>
 {
 public:
     using error_t = Error;
@@ -237,16 +276,12 @@ public:
 	[[nodiscard]] explicit operator bool() const noexcept;
 	expected &operator=(unexpected<error_t> une) noexcept;
 
-public:
-	static constexpr bool exception_v = requires(error_t error) {
-		error.exception(std::string());
-	};
-	const expected &exception(const std::string &what = "") const requires exception_v;
-	expected &exception(const std::string &what = "") requires exception_v;
-
 private:
 	bool m_has_value = true;
 };
+
+template <concepts::optional_value Error>
+[[nodiscard]] LIBGS_CORE_TAPI expected<void,Error> make_expected();
 
 } //namespace libgs
 #include <libgs/core/cxx/detail/expected.h>

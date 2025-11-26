@@ -49,6 +49,7 @@ public:
 	template <typename Arg0, typename...Args>
 	url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 	url(std::string_view url);
+	url(std::string url);
 	url(const char *url);
 
 	url();
@@ -83,7 +84,7 @@ public:
 
 public:
 	[[nodiscard]] std::string to_string() const noexcept;
-	[[nodiscard]] operator std::string() const noexcept;
+	[[nodiscard]] explicit operator std::string() const noexcept;
 
 private:
 	class impl;

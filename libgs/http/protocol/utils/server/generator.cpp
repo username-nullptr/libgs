@@ -27,6 +27,7 @@
 *************************************************************************************/
 
 #include "generator.h"
+#include <libgs/http/protocol/utils/core/generator.h>
 
 namespace libgs::http::protocol
 {
@@ -34,6 +35,7 @@ namespace libgs::http::protocol
 class LIBGS_DECL_HIDDEN generator<model::server>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using generator_ptr = std::shared_ptr<base_generator>;
 
 public:
 	impl(version_enum version, const headers_t &req_headers) :
@@ -59,7 +61,7 @@ public:
 
 public:
 	const headers_t *m_req_headers = nullptr;
-	next_layer_t m_generator {};
+	generator_ptr m_generator {};
 
 	status_enum m_status = status::ok;
 	cookies_t m_cookies {};
@@ -200,11 +202,6 @@ version_enum generator<model::server>::version() const noexcept
 generator_state generator<model::server>::pro_state() const noexcept
 {
 	return m_impl->m_generator->state();
-}
-
-generator<model::server>::next_layer_t generator<model::server>::next_layer() noexcept
-{
-	return m_impl->m_generator;
 }
 
 generator<model::server> &generator<model::server>::reset() noexcept

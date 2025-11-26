@@ -29,9 +29,9 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 
-#include <libgs/http/protocol/utils/core/generator.h>
 #include <libgs/http/protocol/utils/client/request_arg.h>
 #include <libgs/http/protocol/utils/client/url.h>
+#include <libgs/http/protocol/utils/core/types.h>
 
 namespace libgs::http::protocol
 {
@@ -42,11 +42,9 @@ class LIBGS_HTTP_API generator<model::client> final
 	LIBGS_DISABLE_COPY(generator)
 
 public:
-	using next_layer_t = std::shared_ptr<base_generator>;
 	using version_t = protocol::version;
-
-	using request_arg_t = request_arg;
 	using url_t = protocol::url;
+	using request_arg_t = request_arg;
 
 	using value_t = request_arg_t::value_t;
 	using header_t = request_arg_t::header_t;
@@ -84,8 +82,6 @@ public:
 public:
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] generator_state pro_state() const noexcept;
-
-	[[nodiscard]] next_layer_t next_layer() noexcept;
 	generator &reset() noexcept;
 
 private:

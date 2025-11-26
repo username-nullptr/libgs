@@ -36,26 +36,26 @@
 namespace libgs::http
 {
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-class LIBGS_HTTP_TAPI basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::impl :
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+class LIBGS_HTTP_TAPI basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::impl :
 	public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY(impl)
 
 public:
-	using sock_helper_t = socket_operation_helper<typename session_t::socket_t>;
+	using sock_helper_t = socket_operation_helper<typename connection_t::socket_t>;
 
 public:
-	impl(session_t &&session, url_t url, request_arg_t arg) :
-		m_session(std::move(session)), m_generator(std::move(url), std::move(arg)) {}
+	impl(connection_t &&connection, url_t url, request_arg_t arg) :
+		m_connection(std::move(connection)), m_generator(std::move(url), std::move(arg)) {}
 
 	impl(impl &&other) noexcept :
-		m_session(std::move(other.m_session)),
+		m_connection(std::move(other.m_connection)),
 		m_generator(std::move(other.m_generator)) {}
 
 	impl& operator=(impl &&other) noexcept
 	{
-		m_session = std::move(other.m_session);
+		m_connection = std::move(other.m_connection);
 		m_generator = std::move(other.m_generator);
 		return *this;
 	}
@@ -108,7 +108,7 @@ public:
 				auto promise = std::make_shared<std::promise<io_expected>>();
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
-					libgs::dispatch(m_session.get_executor(), [self = this->shared_from_this(),
+					libgs::dispatch(m_connection.get_executor(), [self = this->shared_from_this(),
 						ntoken, buf = std::move(buf_ptr), promise = std::move(promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
@@ -122,7 +122,7 @@ public:
 				}
 				else
 				{
-					libgs::dispatch(m_session.get_executor(), [self = this->shared_from_this(),
+					libgs::dispatch(m_connection.get_executor(), [self = this->shared_from_this(),
 						buf = std::move(buf_ptr), promise = std::move(promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
@@ -145,7 +145,7 @@ public:
 				);
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
-					libgs::dispatch(m_session.get_executor(), [self = this->shared_from_this(), ntoken, nntoken,
+					libgs::dispatch(m_connection.get_executor(), [self = this->shared_from_this(), ntoken, nntoken,
 						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 					]() mutable -> awaitable<void>
@@ -164,7 +164,7 @@ public:
 				}
 				else
 				{
-					libgs::dispatch(m_session.get_executor(), [self = this->shared_from_this(), nntoken,
+					libgs::dispatch(m_connection.get_executor(), [self = this->shared_from_this(), nntoken,
 						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 					]() mutable -> awaitable<void>
@@ -205,92 +205,30 @@ private:
 	};
 
 public:
-	template <typename Opt>
-	[[nodiscard]] io_expected send_file(Opt &&opt) noexcept
+	template <typename Opt, typename Progress>
+	[[nodiscard]] io_expected upload_file(Opt &&opt, Progress &&progress) noexcept
 	{
-		if( m_generator.pro_state() != protocol::generator_state::header )
-			return 0;
-
-		fot_data data = 0;
-		error_code error;
-		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
-		if( error )
-			return io_unexpected(error);
-
-		if( not token.ranges.empty() )
-		{
-			auto ranges = from_file_range(token.ranges, data.fsize, error);
-			if( error )
-				return io_unexpected(error);
-			return range_transfer(token, ranges, data);
-		}
-		auto it = m_generator.arg().headers().find(protocol::header::range);
-		if( it == m_generator.arg().headers().end() )
-			return default_transfer(token, data);
-
-		std::vector<range_value> ranges;
-		return range_text_parsing(it->second.to_string(), data.fsize, ranges) ?
-			range_transfer(token, ranges, data) : default_transfer(token, data);
+		// TODO ... ...
+		return io_unexpected (
+			make_error_code(std::errc::operation_not_supported)
+		);
 	}
 
-	template <typename Opt>
-	[[nodiscard]] awaitable<io_expected> co_send_file(Opt &&opt,
+	template <typename Opt, typename Progress>
+	[[nodiscard]] awaitable<io_expected> co_upload_file(Opt &&opt, Progress &&progress,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
-		if( m_generator.pro_state() != protocol::generator_state::header )
-			co_return 0;
-
-		fot_data data = 0;
-		error_code error;
-		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
-		if( error )
-			co_return io_unexpected(error);
-
-		auto task = libgs::dispatch(m_session.get_executor(), [&]() mutable -> awaitable<io_expected>
-		{
-			if( not token.ranges.empty() )
-			{
-				auto ranges = from_file_range(token.ranges, data.fsize, error);
-				if( error )
-					co_return io_unexpected(error);
-				co_return co_await co_range_transfer(token, ranges, data, cancel_slot);
-			}
-			auto it = m_generator.arg().headers().find(protocol::header::range);
-			if( it == m_generator.arg().headers().end() )
-				co_return co_await co_default_transfer(token, data, cancel_slot);
-
-			std::vector<range_value> ranges;
-			co_return range_text_parsing(it->second.to_string(), data.fsize, ranges) ?
-				co_await co_range_transfer(token, ranges, data, std::move(cancel_slot)) :
-				co_await co_default_transfer(token, data, std::move(cancel_slot));
-		},
-		use_awaitable);
-
-		using namespace std::chrono_literals;
-		io_expected expected;
-
-		if( timeout == 0ns )
-			expected = co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_session.get_executor(), timeout)
-			);
-			if( var.index() == 0 )
-				expected = std::get<0>(var);
-			else if( not std::get<1>(var) )
-				expected.despair(make_error_code(errc::timed_out));
-			else
-				expected.despair(std::get<1>(var));
-		}
-		co_return expected;
+		// TODO ... ...
+		co_return io_unexpected (
+			make_error_code(std::errc::operation_not_supported)
+		);
 	}
 
 	template <typename Opt>
-	[[nodiscard]] awaitable<io_expected> co_send_file(std::error_code &error,
+	[[nodiscard]] awaitable<io_expected> co_upload_file(std::error_code &error,
 		Opt &&opt, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
-		auto expected = co_await co_send_file(std::forward<Opt>(opt),
+		auto expected = co_await co_upload_file(std::forward<Opt>(opt),
 			std::move(cancel_slot), std::move(timeout)
 		);
 		if( not expected )
@@ -299,10 +237,11 @@ public:
 	}
 
 	template <typename Opt>
-	void send_file_detach(Opt &&opt) noexcept
+	void upload_file_detach(Opt &&opt) noexcept
 	{
-		libgs::dispatch(m_session.get_executor(),
-			co_send_file(std::forward<Opt>(opt)), detached
+		libgs::dispatch(m_connection.get_executor(),
+			co_upload_file(std::forward<Opt>(opt), [](size_t,size_t){}),
+			detached
 		);
 	}
 
@@ -310,7 +249,11 @@ public:
 	[[nodiscard]] io_expected chunk_end(const headers_t &headers) noexcept
 	{
 		if( m_generator.pro_state() != protocol::generator_state::chunk )
-			return 0;
+		{
+			return io_unexpected (
+				make_error_code(std::errc::protocol_error)
+			);
+		}
 		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			return 0;
@@ -321,7 +264,11 @@ public:
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		if( m_generator.pro_state() != protocol::generator_state::chunk )
-			co_return 0;
+		{
+			co_return io_unexpected (
+				make_error_code(std::errc::protocol_error)
+			);
+		}
 		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			co_return 0;
@@ -335,7 +282,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_session.get_executor(), timeout)
+				coro::sleep_for(m_connection.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -359,45 +306,51 @@ public:
 	}
 
 	void chunk_end_detach(const headers_t &headers) noexcept {
-		libgs::dispatch(m_session.get_executor(), co_chunk_end(headers), detached);
+		libgs::dispatch(m_connection.get_executor(), co_chunk_end(headers), detached);
 	}
 
 private:
-	[[nodiscard]] io_expected _write(const const_buffer &body) noexcept
+	[[nodiscard]] io_expected _write(const_buffer body) noexcept
 	{
-		if( m_generator.pro_state() == protocol::generator_state::finish )
-			return 0;
-
-		size_t sum = 0;
-		if( m_generator.pro_state() == protocol::generator_state::header )
+		auto pro_state = m_generator.pro_state();
+		if( pro_state == protocol::generator_state::finish )
 		{
-			auto expected = write_header(body.size()).transform([&](size_t size) {
-				sum += size;
-			});
+			return io_unexpected (
+				make_error_code(std::errc::protocol_error)
+			);
+		}
+		size_t sum = 0;
+		if( pro_state == protocol::generator_state::header )
+		{
+			auto expected = write_header(body.size());
 			if( not expected )
 				return expected;
+			sum += *expected;
 		}
 		if( body.size() > 0 )
 		{
-			auto expected = write_body(body).transform([&](size_t size) {
-				sum += size;
-			});
+			auto expected = write_body(body);
 			if( not expected )
 				return expected;
+			sum += *expected;
 		}
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<io_expected> _co_write(const const_buffer &body,
+	[[nodiscard]] awaitable<io_expected> _co_write(const_buffer body,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
-		if( m_generator.pro_state() == protocol::generator_state::finish )
-			co_return 0;
-
-		auto task = libgs::dispatch(m_session.get_executor(), [&]() mutable -> awaitable<io_expected>
+		auto pro_state = m_generator.pro_state();
+		if( pro_state == protocol::generator_state::finish )
+		{
+			co_return io_unexpected (
+				make_error_code(std::errc::protocol_error)
+			);
+		}
+		auto task = libgs::dispatch(m_connection.get_executor(), [&]() mutable -> awaitable<io_expected>
 		{
 			size_t sum = 0;
-			if( m_generator.pro_state() == protocol::generator_state::header )
+			if( pro_state == protocol::generator_state::header )
 			{
 				auto expected = co_await co_write_header(body.size(), cancel_slot);
 				if( expected )
@@ -425,7 +378,7 @@ private:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_session.get_executor(), timeout)
+				coro::sleep_for(m_connection.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -437,7 +390,7 @@ private:
 		co_return expected;
 	}
 
-	[[nodiscard]] awaitable<io_expected> _co_write(std::error_code &error, const const_buffer &body,
+	[[nodiscard]] awaitable<io_expected> _co_write(std::error_code &error, const_buffer body,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		auto expected = co_await _co_write(body,
@@ -449,527 +402,88 @@ private:
 	}
 
 	void _write_detach(const const_buffer &body) noexcept {
-		libgs::dispatch(m_session.get_executor(), _co_write(body), detached);
+		libgs::dispatch(m_connection.get_executor(), _co_write(body), detached);
 	}
 
 private:
-	template <typename Opt>
-	[[nodiscard]] io_expected default_transfer(Opt &&opt, const fot_data &data) noexcept
+	struct sss_tmp
 	{
-		size_t sum = 0;
-		if( data.fsize == 0 )
-			return sum;
+		size_t content_length = 0;
+		file_ranges ranges {};
+	};
+	[[nodiscard]] optional<sss_tmp> range_headers_parsing()
+	{
+		auto &headers = m_generator.arg().headers();
 
-		m_generator.arg().set_header(protocol::header::content_type, data.mtype);
-		auto expected = write_header(data.fsize).transform([&](size_t size) {
-			sum += size;
-		});
-		if( not expected )
-			return expected;
+		auto it = headers.find(protocol::header::accept_ranges);
+		if( it == headers.end() or *it->second != "bytes" )
+			return {};
 
-		constexpr size_t buf_size = 0xFFFF;
-		char fr_buf[buf_size] {0};
+		it = headers.find(protocol::header::content_length);
+		if( it == headers.end() )
+			return {};
 
-		opt.stream->seekg(0);
-		while( not opt.stream->eof() )
-		{
-			opt.stream->read(fr_buf, buf_size);
-			auto size = opt.stream->gcount();
-			if( size == 0 )
-				break;
+		auto total_opt = it->second.get<size_t>();
+		if( not total_opt )
+			return {};
 
-			expected = write_body(buffer(fr_buf, size)).transform([&](size_t s) {
-				sum += s;
-			});
-			if( not expected )
-				return expected;
-//			sleep_for(512us);
-		}
-		return sum;
+		it = headers.find(protocol::header::content_range);
+		if( it == headers.end() )
+			return {};
+
+		it->second;
+
+		"{}-{}/{}", range.begin, range.end, range.total;
+
+		sss_tmp result;
 	}
 
-	template <typename Opt>
-	[[nodiscard]] awaitable<io_expected> co_default_transfer
-	(Opt &&opt, const fot_data &data, asio::cancellation_slot cancel_slot) noexcept
+private:
+	void invoke_progress(auto &progress, size_t sum, size_t total, io_expected &expected) noexcept
 	{
-		size_t sum = 0;
-		if( data.fsize == 0 )
-			co_return sum;
+		if( not progress )
+			return ;
 
-		m_generator.arg().set_header(protocol::header::content_type, data.mtype);
-		auto expected = co_await co_write_header(data.fsize, cancel_slot);
-		if( expected )
-			sum += *expected;
+		using pro_ret_t = decltype(progress(0, 0));
+		if constexpr( std::is_same_v<pro_ret_t, bool> )
+		{
+			if( progress(sum, total) )
+				return ;
+
+			expected.despair (
+				make_error_code(errc::operation_aborted)
+			);
+		}
 		else
-			co_return expected;
+			progress(sum, total);
+	}
 
-		constexpr size_t buf_size = 0xFFFF;
-		char fr_buf[buf_size] {0};
-
-		opt.stream->seekg(0);
-		while( not opt.stream->eof() )
+	[[nodiscard]] awaitable<void> co_invoke_progress
+	(auto &progress, size_t sum, size_t total, io_expected &expected) noexcept
+	{
+		using pro_ret_t = decltype(progress(0,0));
+		if constexpr( is_awaitable_v<pro_ret_t> )
 		{
-			opt.stream->read(fr_buf, buf_size);
-			auto size = static_cast<size_t>(opt.stream->gcount());
-			if( size == 0 )
-				break;
+			if( not progress )
+				co_return ;
 
-			expected = co_await co_write_body(buffer(fr_buf, size), cancel_slot);
-			if( expected )
-				sum += *expected;
+			using co_pro_ret_t = pro_ret_t::value_t;
+			if constexpr( std::is_same_v<co_pro_ret_t,bool> )
+			{
+				if( co_await progress(sum, total) )
+					co_return ;
+
+				expected.despair (
+					make_error_code(errc::operation_aborted)
+				);
+			}
 			else
-				co_return expected;
-//			co_await sleep_for(get_executor(), 512us);
+				co_await progress(sum, total);
 		}
-		co_return sum;
-	}
-
-public:
-	[[nodiscard]] io_expected range_transfer
-	(auto &&opt, const std::vector<range_value> &ranges, const fot_data &data) noexcept
-	{
-		if( ranges.size() == 1 )
-		{
-			auto &range = ranges.back();
-			m_generator.arg()
-			.set_header(protocol::header::accept_ranges , "bytes"    )
-			.set_header(protocol::header::content_type  , data.mtype )
-			.set_header(protocol::header::content_length, range.total)
-
-			.set_header(protocol::header::content_range , value {
-				"{}-{}/{}", range.begin, range.end, range.total
-			});
-			return send_range(opt.stream, "", "", ranges);
-		} // if( rangeList.size() == 1 )
-
-		using namespace std::chrono;
-		auto boundary = std::format("{}_{}",
-			uuid::generate().to_string(),
-			duration_cast<milliseconds>(
-				system_clock::now().time_since_epoch()
-			).count()
-		);
-		m_generator.arg().set_header(protocol::header::content_type,
-			"multipart/byteranges; boundary=" + boundary
-		);
-		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
-		std::size_t content_length = 0;
-
-		for(auto &range : ranges)
-		{
-			/*
-				--boundary<CR><LF>
-				Content-Type: xxx<CR><LF>
-				Content-Range: bytes 3-11/96<CR><LF>
-				<CR><LF>
-				012345678<CR><LF>
-				--boundary<CR><LF>
-				Content-Type: xxx<CR><LF>
-				Content-Range: bytes 0-7/96<CR><LF>
-				<CR><LF>
-				01235467<CR><LF>
-				--boundary--<CR><LF>
-			*/
-			content_length += 2 + boundary.size() + 2 +  // --boundary<CR><LF>
-							  ct_line.size() + 2 +       // Content-Type: xxx<CR><LF>
-							  range.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
-							  2 +                        // <CR><LF>
-							  range.total + 2;           // 012345678<CR><LF>
-		}
-		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
-
-		m_generator.arg()
-		.set_header(protocol::header::content_length, content_length)
-		.set_header(protocol::header::accept_ranges , "bytes");
-
-		return send_range (
-			opt.stream, boundary, ct_line, ranges
-		);
-	}
-
-	[[nodiscard]] awaitable<io_expected> co_range_transfer(auto &&opt,
-		const std::vector<range_value> &ranges, const fot_data &data, asio::cancellation_slot cancel_slot) noexcept
-	{
-		if( ranges.size() == 1 )
-		{
-			auto &range = ranges.back();
-			m_generator.arg()
-			.set_header(protocol::header::accept_ranges , "bytes"    )
-			.set_header(protocol::header::content_type  , data.mtype )
-			.set_header(protocol::header::content_length, range.total)
-
-			.set_header(protocol::header::content_range, value {
-				"{}-{}/{}", range.begin, range.end, range.total
-			});
-			co_return co_await co_send_range (
-				opt.stream, "", "", ranges, std::move(cancel_slot)
-			);
-		} // if( rangeList.size() == 1 )
-
-		using namespace std::chrono;
-		auto boundary = std::format("{}_{}",
-			uuid::generate().to_string(),
-			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
-		);
-		m_generator.arg().set_header(protocol::header::content_type,
-			"multipart/byteranges; boundary=" + boundary
-		);
-		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
-		std::size_t content_length = 0;
-
-		for(auto &range: ranges)
-		{
-			/*
-				--boundary<CR><LF>
-				Content-Type: xxx<CR><LF>
-				Content-Range: bytes 3-11/96<CR><LF>
-				<CR><LF>
-				012345678<CR><LF>
-				--boundary<CR><LF>
-				Content-Type: xxx<CR><LF>
-				Content-Range: bytes 0-7/96<CR><LF>
-				<CR><LF>
-				01235467<CR><LF>
-				--boundary--<CR><LF>
-			*/
-			content_length += 2 + boundary.size() + 2 +  // --boundary<CR><LF>
-							  ct_line.size() + 2 +       // Content-Type: xxx<CR><LF>
-							  range.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
-							  2 +                        // <CR><LF>
-							  range.total + 2;           // 012345678<CR><LF>
-		}
-		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
-
-		m_generator.arg()
-		.set_header(protocol::header::content_length, content_length)
-		.set_header(protocol::header::accept_ranges , "bytes");
-
-		co_return co_await co_send_range (
-			opt.stream, boundary, ct_line, ranges, std::move(cancel_slot)
-		);
-	}
-
-private:
-	template <typename FS>
-	[[nodiscard]] io_expected send_range(
-		FS &stream, std::string_view boundary, std::string_view ct_line,
-		std::vector<range_value> ranges, asio::cancellation_slot cancel_slot
-	) noexcept
-	{
-		assert(not ranges.empty());
-		auto expected = write_header(0);
-		if( not expected )
-			return expected;
-
-		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] {0};
-		size_t sum = 0;
-
-		if( ranges.size() == 1 )
-		{
-			auto &value = ranges.back();
-			stream->seekg(value.begin, std::ios_base::beg);
-
-			while( not stream->eof() )
-			{
-				if( value.total <= buf_size )
-				{
-					stream->read(buf, value.total);
-					auto size = stream->gcount();
-
-					expected = write_body(buffer(buf,size)).transform([&](size_t s) {
-						sum += s;
-					});
-					if( not expected )
-						return expected;
-
-//					sleep_for(512us);
-					break;
-				}
-				stream->read(buf, buf_size);
-				auto size = stream->gcount();
-
-				expected = write_body(buffer(buf,size)).transform([&](size_t s) {
-					sum += s;
-				});
-				if( not expected )
-					break;
-
-				value.size -= buf_size;
-//				sleep_for(512us);
-			}
-			return sum;
-		}
-		for(auto &value: ranges)
-		{
-			std::string body;
-			body.reserve(2 + boundary.size() + 2 +
-						 ct_line.size() + 2 +
-						 value.cr_line.size() + 2 +
-						 2);
-
-			body.append("--").append(boundary).append("\r\n")
-				.append(ct_line).append("\r\n")
-				.append(value.cr_line).append("\r\n"
-											  "\r\n");
-
-			expected = write_body(buffer(body, body.size())).transform([&](size_t s) {
-				sum += s;
-			});
-			if( not expected )
-				return sum;
-
-			stream->seekg(value.begin, std::ios_base::beg);
-			while( not stream->eof() )
-			{
-				if( value.size <= buf_size )
-				{
-					stream->read(buf, value.size);
-					auto size = stream->gcount();
-					if( size == 0 )
-						break;
-
-					buf[size + 0] = '\r';
-					buf[size + 1] = '\n';
-
-					expected = write_body(buffer(buf, size + 2)).transform([&](size_t s) {
-						sum += s;
-					});
-					if( not expected )
-						return sum;
-
-//					sleep_for(512us);
-					break;
-				}
-				stream->read(buf, buf_size);
-				auto size = stream->gcount();
-
-				expected = write_body(buffer(buf,size)).transform([&](size_t s) {
-					sum += s;
-				});
-				if( not expected )
-					return sum;
-
-				value.size -= buf_size;
-//				sleep_for(512us);
-			}
-		}
-		auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
-		expected = write_body(buffer(abuf, abuf.size())).transform([&](size_t s) {
-			sum += s;
-		});
-		if( expected )
-			return sum;
-		return expected;
-	}
-
-	template <typename FS>
-	[[nodiscard]] awaitable<io_expected> co_send_range(
-		FS &stream, std::string_view boundary, std::string_view ct_line,
-		std::vector<range_value> ranges, asio::cancellation_slot cancel_slot
-	) noexcept
-	{
-		assert(not ranges.empty());
-		size_t sum = 0;
-		auto expected = co_await co_write_header(0, cancel_slot);
-		if( not expected )
-			sum += *expected;
 		else
-			co_return sum;
-
-		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] {0};
-
-		if( ranges.size() == 1 )
-		{
-			auto &value = ranges.back();
-			stream->seekg(value.begin, std::ios_base::beg);
-
-			while( not stream->eof() )
-			{
-				if( value.total <= buf_size )
-				{
-					stream->read(buf, value.total);
-					auto size = static_cast<size_t>(stream->gcount());
-
-					expected = co_await co_write_body(buffer(buf,size), cancel_slot);
-					if( expected )
-						sum += *expected;
-					else
-						co_return expected;
-
-//					co_await sleep_for(get_executor(), 512us);
-					break;
-				}
-				stream->read(buf, buf_size);
-				auto size = static_cast<size_t>(stream->gcount());
-
-				expected = co_await co_write_body(buffer(buf,size), cancel_slot);
-				if( expected )
-					sum += *expected;
-				else
-					co_return expected;
-
-				value.total -= buf_size;
-//				co_await sleep_for(get_executor(), 512us);
-			}
-			co_return sum;
-		}
-		for(auto &value : ranges)
-		{
-			std::string body;
-			body.reserve(2 + boundary.size() + 2 +
-						 ct_line.size() + 2 +
-						 value.cr_line.size() + 2 +
-						 2);
-
-			body.append("--").append(boundary).append("\r\n")
-				.append(ct_line).append("\r\n")
-				.append(value.cr_line).append("\r\n"
-											  "\r\n");
-
-			expected = co_await co_write_body(buffer(body, body.size()), cancel_slot);
-			if( expected )
-				sum += *expected;
-			else
-				co_return expected;
-
-			stream->seekg(value.begin, std::ios_base::beg);
-			while( not stream->eof() )
-			{
-				if( value.total <= buf_size )
-				{
-					stream->read(buf, value.total);
-					auto size = static_cast<size_t>(stream->gcount());
-					if( size == 0 )
-						break;
-
-					buf[size + 0] = '\r';
-					buf[size + 1] = '\n';
-
-					expected = co_await co_write_body(buffer(buf, size + 2), cancel_slot);
-					if( expected )
-						sum += *expected;
-					else
-						co_return sum;
-
-//					co_await sleep_for(get_executor(), 512us);
-					break;
-				}
-				stream->read(buf, buf_size);
-				auto size = static_cast<size_t>(stream->gcount());
-
-				expected = co_await co_write_body(buffer(buf,size), cancel_slot);
-				if( expected )
-					sum += *expected;
-				else
-					co_return sum;
-
-				value.total -= buf_size;
-//				co_await sleep_for(get_executor(), 512us);
-			}
-		}
-		auto abuf = "--" + std::string(boundary.data(), boundary.size()) + "--\r\n";
-		expected = co_await co_write_body(buffer(abuf, abuf.size()), cancel_slot);
-		if( expected )
-			co_return sum + *expected;
-		co_return expected;
+			invoke_progress(progress, sum, total, expected);
+		co_return ;
 	}
-
-private:
-	[[nodiscard]] bool range_text_parsing
-	(std::string_view range_str_view, size_t file_size, std::vector<range_value> &ranges) noexcept
-	{
-		std::string range_str(range_str_view.data(), range_str_view.size());
-		for(auto i=range_str.size(); i>0; i--)
-		{
-			if( range_str[i] == 0x20/*SPACE*/ )
-				range_str.erase(i,1);
-		}
-		// bytes=x-y, m-n, i-j ...
-		if( range_str.empty() or range_str.substr(0,6) != "bytes=" )
-			return false;
-
-		// x-y, m-n, i-j ...
-		auto cl_range_str = range_str.substr(6);
-		if( cl_range_str.empty() )
-			return false;
-
-		// (x-y) ( m-n) ( i-j) ...
-		for(auto &sub_range_str : string_vector::from_string(cl_range_str, ','))
-		{
-			range_value range;
-			range.total = 0;
-
-			if( auto str_vector = string_vector::from_string(sub_range_str, '-', false);
-				str_vector.size() != 2 )
-				return false;
-
-			else if( str_vector[0].empty() )
-			{
-				if( str_vector[1].empty() )
-					return false;
-
-				range.total = *strtls::to_arith<size_t>(str_vector[1]).or_else();
-				if( range.total == 0 or range.total > file_size )
-					return false;
-
-				range.begin = file_size - range.total;
-				range.end   = file_size - 1;
-			}
-			else if( str_vector[1].empty() )
-			{
-				if( str_vector[0].empty() )
-					return false;
-				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
-				range.end   = file_size - 1;
-
-				if( range.begin > range.end )
-					return false;
-				range.total = file_size - range.begin;
-			}
-			else
-			{
-				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
-				range.end   = *strtls::to_arith<size_t>(str_vector[1]).or_else();
-
-				if( range.begin > range.end or range.end >= file_size )
-					return false;
-				range.total = range.end - range.begin + 1;
-			}
-			range.cr_line = std::format("{}: bytes {}-{}/{}",
-				protocol::header::content_range, range.begin, range.end, file_size
-			);
-			ranges.emplace_back(std::move(range));
-		}
-		return true;
-	}
-
-	[[nodiscard]] std::vector<range_value> from_file_range
-	(const file_ranges &ranges, size_t file_size, error_code &error) noexcept
-	{
-		std::vector<range_value> vector;
-		for(auto &[begin, total] : ranges)
-		{
-			auto end = begin + total - 1;
-			if( total == 0 or end >= file_size )
-			{
-				error = std::make_error_code(std::errc::invalid_seek);
-				break;
-			}
-			range_value value;
-			value.begin = begin;
-			value.total = total;
-			value.end   = end;
-
-			value.cr_line = std::format("{}: bytes {}-{}/{}",
-				protocol::header::content_range, value.begin, value.end, file_size
-			);
-			vector.emplace_back(std::move(value));
-		}
-		return vector;
-	}
-
 
 private:
 	[[nodiscard]] io_expected write_header(size_t size) noexcept {
@@ -999,7 +513,7 @@ private:
 private:
 	[[nodiscard]] io_expected base_write(std::string &&data) noexcept
 	{
-		auto &sock_helper = m_session.opt_helper();
+		auto &sock_helper = m_connection.opt_helper();
 		error_code error;
 
 		sock_helper.non_blocking(false, error);
@@ -1015,7 +529,7 @@ private:
 	[[nodiscard]] awaitable<io_expected>
 	co_base_write(std::string &&data, asio::cancellation_slot cancel_slot) noexcept
 	{
-		auto &sock_helper = m_session.opt_helper();
+		auto &sock_helper = m_connection.opt_helper();
 		error_code error;
 
 		sock_helper.non_blocking(true, error);
@@ -1037,7 +551,7 @@ private:
 	template <typename Opt>
 	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error) noexcept
 	{
-		if constexpr( is_any_string_v<Opt> or is_fstream_v<Opt,char> or is_ofstream_v<Opt,char> )
+		if constexpr( core_concepts::any_string_p<Opt> or is_fstream_v<Opt,char> or is_ofstream_v<Opt,char> )
 		{
 			using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
 			using type = token_t::type;
@@ -1066,45 +580,52 @@ private:
 			return std::forward<Opt>(opt);
 
 		file_size(opt, io_permission::write)
-		.transform([&](auto value)
+		.transform([&](size_t value)
 		{
 			data.mtype = mime_type(opt);
 			data.fsize = value;
+			return value;
 		})
 		.or_else([&]{
 			error = make_error_code(std::errc::permission_denied);
 		});
+		if( error )
+			return std::forward<Opt>(opt);
+
+		auto it = m_generator.arg().headers().find(protocol::header::content_type);
+		if( it == m_generator.arg().headers().end() or it->second->empty() )
+			it->second = data.mtype;
 		return std::forward<Opt>(opt);
 	}
 
 public:
-	session_t m_session;
+	connection_t m_connection;
 	generator_t m_generator;
 };
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
-basic_request(session_t &&session, url_t url, request_arg_t arg) :
-	m_impl(std::make_shared<impl>(std::move(session), std::move(url), std::move(arg)))
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+basic_request(connection_t &&connection, url_t url, request_arg_t arg) :
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(url), std::move(arg)))
 {
 
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 ~basic_request() = default;
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 basic_request(basic_request &&other) noexcept :
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
 
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 operator=(basic_request &&other) noexcept
 {
 	if( this != &other )
@@ -1112,37 +633,46 @@ operator=(basic_request &&other) noexcept
 	return *this;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 write(Token &&token) noexcept
 {
 	return m_impl->write({}, token);
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 write(const const_buffer &body, Token &&token) noexcept requires put_or_post
 {
 	return m_impl->write(body, token);
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 template <typename T, core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
-send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or_post
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+upload_file(T &&opt, Token &&token) noexcept requires file_opt_token_v<T> and put_or_post
+{
+	return upload_file(std::forward<T>(opt), [](size_t,size_t){}, token);
+}
+
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+template <typename T, typename Progress, core_concepts::tf_opt_token<error_code,size_t> Token>
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+upload_file(T &&opt, Progress &&progress, Token &&token) noexcept
+	requires file_opt_token_v<T> and progress_callback_v<Progress,Token> and put_or_post
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->send_file(std::forward<T>(opt))
+		return m_impl->upload_file(std::forward<T>(opt), std::forward<Progress>(progress))
 			.or_else([&token](const error_code &error) {
 				token = error;
 			});
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->send_file(std::forward<T>(opt));
+		return m_impl->upload_file(std::forward<T>(opt), std::forward<Progress>(progress));
 
 	else if constexpr( is_redirect_time_v<token_t> )
 	{
@@ -1156,14 +686,16 @@ send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or
 		{
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				return m_impl->co_send_file(ntoken.ec_, std::forward<T>(opt),
+				return m_impl->co_upload_file(ntoken.ec_, std::forward<T>(opt),
+					std::forward<Progress>(progress),
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
 			}
 			else
 			{
-				return m_impl->co_send_file(std::forward<T>(opt),
+				return m_impl->co_upload_file(std::forward<T>(opt),
+					std::forward<Progress>(progress),
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
@@ -1174,28 +706,28 @@ send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(),
-					ntoken, opt = std::forward<T>(opt), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+					ntoken, opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					promise = std::move(promise), cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl->co_send_file (
-						ntoken.ec_, std::move(opt), cancel_slot, timeout
+					promise->set_value(co_await impl->co_upload_file (
+						ntoken.ec_, std::move(opt), std::move(progress), cancel_slot, timeout
 					));
 					co_return ;
 				});
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(),
-					opt = std::forward<T>(opt), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					promise = std::move(promise), cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl->co_send_file (
-						std::move(opt), cancel_slot, timeout
+					promise->set_value(co_await impl->co_upload_file (
+						std::move(opt), std::move(progress), cancel_slot, timeout
 					));
 					co_return ;
 				});
@@ -1203,18 +735,18 @@ send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or
 			return promise->get_future();
 		}
 		else if constexpr( is_detached_v<nntoken_t> )
-			m_impl->send_file_detach(std::forward<T>(opt));
+			m_impl->upload_file_detach(std::forward<T>(opt));
 
 		else if constexpr( is_redirect_error_v<ntoken_t> )
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [
-				impl = m_impl->shared_from_this(), ntoken, nntoken,
-				opt = std::forward<T>(opt), timeout = get_associated_redirect_time(token),
+			libgs::dispatch(get_executor(), [
+				impl = m_impl->shared_from_this(), ntoken, nntoken, opt = std::forward<T>(opt),
+				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl->co_send_file (
-					ntoken.ec_, std::move(opt), cancel_slot, timeout
+				auto expected = co_await impl->co_upload_file (
+					ntoken.ec_, std::move(opt), std::move(progress), cancel_slot, timeout
 				);
 				expected
 				.transform([&callback = nntoken](int code) {
@@ -1227,14 +759,14 @@ send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or
 		}
 		else
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [
-				impl = m_impl->shared_from_this(), nntoken,
-				opt = std::forward<T>(opt), timeout = get_associated_redirect_time(token),
+			libgs::dispatch(get_executor(), [
+				impl = m_impl->shared_from_this(), nntoken, opt = std::forward<T>(opt),
+				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl->co_send_file (
-					std::move(opt), cancel_slot, timeout
+				auto expected = co_await impl->co_upload_file (
+					std::move(opt), std::move(progress), cancel_slot, timeout
 				);
 				expected
 				.transform([&callback = nntoken](int code) {
@@ -1248,15 +780,17 @@ send_file(T &&opt, Token &&token) noexcept requires file_opt_token<T> and put_or
 	}
 	else
 	{
-		using namespace operators;
+		using namespace libgs::operators;
 		using namespace std::chrono_literals;
-		return send_file(std::forward<T>(opt), token | 0ns);
+		return upload_file(std::forward<T>(opt),
+			std::forward<Progress>(progress), token | 0ns
+		);
 	}
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -1300,7 +834,7 @@ chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [
+				libgs::dispatch(get_executor(), [
 					impl = m_impl->shared_from_this(), ntoken, headers, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
@@ -1314,7 +848,7 @@ chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [
+				libgs::dispatch(get_executor(), [
 					impl = m_impl->shared_from_this(), headers, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
@@ -1333,7 +867,7 @@ chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 
 		else if constexpr( is_redirect_error_v<ntoken_t> )
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [
+			libgs::dispatch(get_executor(), [
 				impl = m_impl->shared_from_this(), ntoken, nntoken,
 				headers, timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
@@ -1353,7 +887,7 @@ chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 		}
 		else
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [
+			libgs::dispatch(get_executor(), [
 				impl = m_impl->shared_from_this(), nntoken,
 				headers, timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
@@ -1380,111 +914,111 @@ chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
 	}
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 chunk_end(Token &&token) noexcept requires put_or_post
 {
 	return chunk_end({}, token);
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
-set_context(session_t &&session, url_t url)
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+set_connection(connection_t &&connection, url_t url)
 {
-	m_impl->m_session = std::move(session);
+	m_impl->m_connection = std::move(connection);
 	m_impl->m_generator.reset();
 	m_impl->m_generator.set_url(std::move(url));
 	return *this;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 set_arg(request_arg_t arg)
 {
 	m_impl->m_generator.set_arg(std::move(arg));
 	return *this;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-const basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::request_arg_t&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+const basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::request_arg_t&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 arg() const noexcept
 {
 	return m_impl->m_generator.arg();
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::request_arg_t&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::request_arg_t&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 arg() noexcept
 {
 	return m_impl->m_generator.arg();
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-const basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::url_t&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+const basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::url_t&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 url() const noexcept
 {
 	return m_impl->m_generator.url();
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-bool basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+bool basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 is_finished() const noexcept
 {
 	return m_impl->m_generator.pro_state() == protocol::generator_state::finish;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 consteval protocol::method_enum
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 method() noexcept
 {
 	return method_v;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 consteval protocol::version_enum
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 version() noexcept
 {
 	return version_v;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-const basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::session_t&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
-session() const noexcept
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+const basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::connection_t&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+connection() const noexcept
 {
-	return m_impl->m_session;
+	return m_impl->m_connection;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::session_t&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
-session() noexcept
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::connection_t&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+connection() noexcept
 {
-	return m_impl->m_session;
+	return m_impl->m_connection;
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::executor_t
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::executor_t
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 get_executor() noexcept
 {
-	return session().get_executor();
+	return connection().get_executor();
 }
 
-template <protocol::method_enum Method, concepts::connection Session, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>&
-basic_request<protocol::model::client,client_request_targ<Method,Session,Version>>::
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>&
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 cancel() noexcept
 {
-	session().opt_helper().cancel();
+	connection().opt_helper().cancel();
 	return *this;
 }
 

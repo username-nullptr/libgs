@@ -35,7 +35,7 @@ namespace libgs::http
 template <concepts::stream Stream>
 class basic_connection<Stream>::impl
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(impl)
 
 public:
   	template <core_concepts::callable<socket_t&&> Func>
@@ -46,7 +46,17 @@ public:
 	explicit impl(socket_t &&socket) :
 		m_socket(std::move(socket)) {}
 
-	impl() = default;
+	impl(impl &&other) noexcept :
+		m_destructor(std::move(other.m_destructor)),
+		m_socket(std::move(other.m_socket)) {}
+
+	impl &operator=(impl &&other) noexcept
+	{
+		m_destructor = std::move(other.m_destructor);
+		m_socket = std::move(other.m_socket);
+  		return *this;
+	}
+
 	~impl()
 	{
   		if( m_destructor )
@@ -55,7 +65,7 @@ public:
 
 public:
 	std::function<void(socket_t&&)> m_destructor {};
-	socket_t m_socket {libgs::get_executor()};
+	socket_t m_socket;
 	opt_helper_t m_opt_helper {m_socket};
 };
 
@@ -76,13 +86,6 @@ basic_connection<Stream>::basic_connection(socket_t &&socket) :
 }
 
 template <concepts::stream Stream>
-basic_connection<Stream>::basic_connection() :
-	m_impl(new impl())
-{
-
-}
-
-template <concepts::stream Stream>
 basic_connection<Stream>::~basic_connection()
 {
 	delete m_impl;
@@ -90,9 +93,9 @@ basic_connection<Stream>::~basic_connection()
 
 template <concepts::stream Stream>
 basic_connection<Stream>::basic_connection(basic_connection &&other) noexcept :
-	m_impl(other.m_impl)
+	m_impl(new impl(std::move(*other.m_impl)))
 {
-	other.m_impl = new impl();
+
 }
 
 template <concepts::stream Stream>
@@ -100,9 +103,7 @@ basic_connection<Stream> &basic_connection<Stream>::operator=(basic_connection &
 {
 	if( this == &other )
 		return *this;
-	delete m_impl;
-	m_impl = other.m_impl;
-	other.m_impl = new impl();
+	*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
@@ -139,6 +140,12 @@ basic_connection<Stream>::opt_helper_t&
 basic_connection<Stream>::opt_helper() noexcept
 {
 	return m_impl->m_opt_helper;
+}
+
+template <concepts::stream Stream>
+bool basic_connection<Stream>::is_valid() const noexcept
+{
+	return opt_helper().is_open();
 }
 
 template <concepts::stream Stream>

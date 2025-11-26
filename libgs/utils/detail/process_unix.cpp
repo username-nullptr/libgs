@@ -37,6 +37,7 @@
 #include <sys/wait.h>
 #include <wordexp.h>
 #include <pwd.h>
+#include <map>
 
 namespace libgs::utils::detail
 {

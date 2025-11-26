@@ -34,16 +34,45 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream = asio::ip::tcp::socket,
-		  core_concepts::exec Exec = asio::any_io_executor>
+template <concepts::stream Stream>
+struct LIBGS_HTTP_TAPI default_stream_constructor
+{
+	using socket_t = Stream;
+	[[nodiscard]] static socket_t make(auto &&exec);
+};
+
+namespace concepts
+{
+
+template <typename Stream, typename Exec, template <typename> class Constructor>
+concept connection_pool_template = concepts::stream<Stream> and core_concepts::exec<Exec> and
+	core_concepts::match_sched<Exec, typename socket_operation_helper<Stream>::executor_t> and requires
+{
+	{
+		Constructor<Stream>::make (
+			std::declval<typename socket_operation_helper<Stream>::executor_t>()
+		)
+	}
+	-> std::same_as<Stream>;
+};
+
+} //namespace concepts
+
+template <typename Stream = asio::ip::tcp::socket,
+		  typename Exec = asio::any_io_executor,
+		  template<typename> class Constructor = default_stream_constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
 class LIBGS_HTTP_TAPI basic_connection_pool
 {
 	LIBGS_DISABLE_COPY(basic_connection_pool)
 
 public:
 	using socket_t = Stream;
+	using constructor_t = Constructor<socket_t>;
 	using connection_t = basic_connection<socket_t>;
-	using socket_executor_t = socket_t::executor_type;
+
+	using opt_helper_t = connection_t::opt_helper_t;
+	using socket_executor_t = connection_t::executor_t;
 
 	using executor_t = Exec;
 	using endpoint_t = connection_t::endpoint_t;
@@ -81,10 +110,12 @@ private:
 	impl *m_impl;
 };
 
-template <core_concepts::exec MainExec, core_concepts::exec SockExec>
-using basic_tcp_connection_pool = basic_connection_pool<asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec>;
+template <typename MainExec, typename SockExec>
+using basic_tcp_connection_pool = basic_connection_pool <
+	asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec
+>;
 
-template <core_concepts::exec Exec>
+template <typename Exec>
 using tcp_connection_pool = basic_tcp_connection_pool<asio::any_io_executor, Exec>;
 
 using connection_pool = tcp_connection_pool<asio::any_io_executor>;
@@ -92,8 +123,9 @@ using connection_pool = tcp_connection_pool<asio::any_io_executor>;
 template <typename>
 struct is_connection_pool : std::false_type {};
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-struct is_connection_pool<basic_connection_pool<Stream,Exec>> : std::true_type {};
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+struct is_connection_pool<basic_connection_pool<Stream,Exec,Constructor>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_connection_pool_v = is_connection_pool<T>::value;
@@ -104,8 +136,49 @@ namespace concepts
 template <typename T>
 concept connection_pool = is_connection_pool_v<T>;
 
+template <typename T>
+concept connection_pool_p = connection_pool<std::remove_cvref_t<T>>;
+
 }} //namespace libgs::http::concepts
+
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http
+{
+
+template <core_concepts::exec Exec>
+struct LIBGS_HTTP_TAPI default_stream_constructor
+	<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
+{
+	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+	[[nodiscard]] static socket_t make(auto &&exec);
+};
+
+template <typename MainExec, typename SockExec>
+using basic_ssl_tcp_connection_pool = basic_connection_pool <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,SockExec>>, MainExec
+>;
+
+template <typename Exec>
+using ssl_tcp_connection_pool = basic_ssl_tcp_connection_pool<asio::any_io_executor,Exec>;
+
+using ssl_connection_pool = ssl_tcp_connection_pool<asio::any_io_executor>;
+
+} //namespace http
+
+namespace https
+{
+
+template <typename MainExec, typename SockExec>
+using basic_tcp_connection_pool = http::basic_ssl_tcp_connection_pool<MainExec, SockExec>;
+
+template <typename Exec>
+using tcp_connection_pool = http::ssl_tcp_connection_pool<Exec>;
+
+using connection_pool = http::ssl_connection_pool;
+
+}} //namespace libgs::https
+
+#endif //LIBGS_OPENSSL_SUPPORT
 #include <libgs/http/client/detail/connection_pool.h>
 
-
-#endif //LIBGS_HTTP_CLIENT_SESSION_POOL_H
+#endif //LIBGS_HTTP_CLIENT_CONNECTION_POOL_H

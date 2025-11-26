@@ -102,7 +102,7 @@ public:
 	[[nodiscard]] awaitable<socket_t> accept(core_concepts::exec auto &service_exec);
 };
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
 class LIBGS_HTTP_TAPI basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
@@ -139,7 +139,7 @@ protected:
 	asio::ssl::context *m_ssl;
 };
 
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 
 using acceptor_wrap = basic_acceptor_wrap<asio::any_io_executor>;
 

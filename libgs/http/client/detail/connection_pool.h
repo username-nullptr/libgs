@@ -36,8 +36,18 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-class LIBGS_HTTP_TAPI basic_connection_pool<Stream,Exec>::impl
+template <concepts::stream Stream>
+default_stream_constructor<Stream>::socket_t
+default_stream_constructor<Stream>::make(auto &&exec)
+{
+	return socket_t(get_executor_helper (
+		std::forward<decltype(exec)>(exec))
+	);
+}
+
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+class LIBGS_HTTP_TAPI basic_connection_pool<Stream,Exec,Constructor>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 	using opt_helper_t = connection_t::opt_helper_t;
@@ -124,26 +134,47 @@ public:
 
 	void emplace(socket_t &&socket)
 	{
-		if( socket.is_open() )
-			m_sock_map.emplace(std::make_pair(socket.remote_endpoint(), std::move(socket)));
+		opt_helper_t opt(socket);
+		if( opt.is_open() )
+		{
+			m_sock_map.emplace(std::make_pair (
+				opt.remote_endpoint(), std::move(socket)
+			));
+		}
 	}
 
 private:
 	[[nodiscard]] connection_t _get(const endpoint_t &ep, auto &&exec) noexcept
 	{
-		socket_t socket(exec);
 		auto it = m_sock_map.find(ep);
-
 		if( it == m_sock_map.end() )
-			socket = socket_t(exec);
-		else
 		{
-			socket = std::move(it->second);
-			m_sock_map.erase(it);
+			auto socket = constructor_t::make (
+				std::forward<decltype(exec)>(exec)
+			);
+			return make(std::move(socket));
 		}
+		socket_t socket(std::move(it->second));
+		m_sock_map.erase(it);
+
+		std::error_code error;
+		asio::socket_base::receive_buffer_size op;
+
+		opt_helper_t(socket).get_option(op, error);
+		if( error )
+		{
+			socket = constructor_t::make (
+				std::forward<decltype(exec)>(exec)
+			);
+		}
+		return make(std::move(socket));
+	}
+
+	[[nodiscard]] connection_t make(socket_t &&socket) noexcept
+	{
 		return connection_t(std::move(socket), [this, valid = m_valid](socket_t &&sock) mutable
 		{
-			if( not sock.is_open() )
+			if( not opt_helper_t(sock).is_open() )
 				return ;
 			dispatch(m_exec, [this, valid = std::move(valid), sock = std::move(sock)]() mutable
 			{
@@ -161,37 +192,42 @@ public:
 	executor_t m_exec;
 };
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>::basic_connection_pool() requires
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>::basic_connection_pool() requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
 	m_impl(new impl())
 {
 
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>::basic_connection_pool(core_concepts::match_sched<Exec> auto &&exec) :
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>::basic_connection_pool(core_concepts::match_sched<Exec> auto &&exec) :
 	m_impl(new impl(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>::~basic_connection_pool()
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>::~basic_connection_pool()
 {
 	delete m_impl;
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>::basic_connection_pool(basic_connection_pool &&other) noexcept :
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>::basic_connection_pool(basic_connection_pool &&other) noexcept :
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>&
-basic_connection_pool<Stream,Exec>::operator=(basic_connection_pool &&other) noexcept
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>&
+basic_connection_pool<Stream,Exec,Constructor>::operator=(basic_connection_pool &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -201,17 +237,19 @@ basic_connection_pool<Stream,Exec>::operator=(basic_connection_pool &&other) noe
 	return *this;
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
 template <typename Token>
-auto basic_connection_pool<Stream,Exec>::get(const endpoint_t &ep, Token &&token)
+auto basic_connection_pool<Stream,Exec,Constructor>::get(const endpoint_t &ep, Token &&token)
 	requires core_concepts::tf_opt_token<Token,error_code,connection_t>
 {
 	return get(m_impl->m_exec, ep, std::forward<Token>(token));
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
 template <typename Token>
-auto basic_connection_pool<Stream,Exec>::get
+auto basic_connection_pool<Stream,Exec,Constructor>::get
 (core_concepts::match_sched<socket_executor_t> auto &&exec, const endpoint_t &ep, Token &&token)
 	requires core_concepts::tf_opt_token<Token,error_code,connection_t>
 {
@@ -335,37 +373,67 @@ auto basic_connection_pool<Stream,Exec>::get
 	}
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>&
-basic_connection_pool<Stream,Exec>::emplace(socket_t &&socket)
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>&
+basic_connection_pool<Stream,Exec,Constructor>::emplace(socket_t &&socket)
 {
 	m_impl->emplace(std::move(socket));
 	return *this;
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-void basic_connection_pool<Stream,Exec>::operator<<(socket_t &&socket)
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+void basic_connection_pool<Stream,Exec,Constructor>::operator<<(socket_t &&socket)
 {
 	emplace(std::move(socket));
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>&
-basic_connection_pool<Stream,Exec>::cancel() noexcept
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>&
+basic_connection_pool<Stream,Exec,Constructor>::cancel() noexcept
 {
 	for(auto &task : m_impl->m_curr_tasks)
 		task->cancel();
 	return *this;
 }
 
-template <concepts::stream Stream, core_concepts::exec Exec>
-basic_connection_pool<Stream,Exec>::executor_t
-basic_connection_pool<Stream,Exec>::get_executor() noexcept
+template <typename Stream, typename Exec, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+basic_connection_pool<Stream,Exec,Constructor>::executor_t
+basic_connection_pool<Stream,Exec,Constructor>::get_executor() noexcept
 {
 	return m_impl->m_exec;
 }
 
 } //namespace libgs::http
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs::http { namespace detail
+{
 
+[[nodiscard]] LIBGS_HTTP_API
+asio::ssl::context &default_ssl_context() noexcept;
+
+} //namespace detail
+
+template <core_concepts::exec Exec>
+default_stream_constructor<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::socket_t
+default_stream_constructor<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::make(auto &&exec)
+{
+	using next_layer_t = socket_t::next_layer_type;
+	using next_layer_constructor_t = default_stream_constructor<next_layer_t>;
+
+	auto next_layer = next_layer_constructor_t::make (
+		std::forward<decltype(exec)>(exec)
+	);
+	return socket_t(std::move(next_layer),
+		detail::default_ssl_context()
+	);
+}
+
+} //namespace libgs::http
+
+#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H

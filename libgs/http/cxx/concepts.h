@@ -31,9 +31,9 @@
 
 #include <libgs/core/global.h>
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 #include <asio/ssl.hpp>
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 
 namespace libgs::http
 {
@@ -44,10 +44,10 @@ struct is_stream : std::false_type {};
 template <concepts::exec Exec>
 struct is_stream<asio::basic_stream_socket<asio::ip::tcp,Exec>> : std::true_type {};
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 template <concepts::exec Exec>
 struct is_stream<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> : std::true_type {};
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 
 template <typename Stream>
 constexpr bool is_stream_v = is_stream<Stream>::value;

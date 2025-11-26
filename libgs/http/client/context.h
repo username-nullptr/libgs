@@ -26,71 +26,81 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_H
-#define LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_H
+#ifndef LIBGS_HTTP_CLIENT_CONTEXT_H
+#define LIBGS_HTTP_CLIENT_CONTEXT_H
 
-#include <libgs/http/protocol/utils/core/types.h>
+#include <libgs/http/client/request.h>
+#include <libgs/http/client/reply.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
-
-
-template <>
-class LIBGS_HTTP_API parser<model::base> final
+template <protocol::method_enum Method,
+		  concepts::connection Connection,
+		  protocol::version_enum Version = protocol::version::v11>
+class LIBGS_HTTP_TAPI basic_request_context
 {
-	LIBGS_DISABLE_COPY(parser)
+	LIBGS_DISABLE_COPY(basic_request_context)
 
 public:
-	using stage_t = protocol::stage;
-	using headers_t = protocol::headers;
+	using connection_t = Connection;
+	using executor_t = connection_t::executor_t;
 
-	using parse_begin_handler = std::function <
-		sys_expected<version_enum>(std::string_view line_buf)
-	>;
-	using parse_cookie_handler = std::function <
-		error_code(std::string_view line_buf)
-	>;
+	static constexpr auto method_v = Method;
+	static constexpr auto version_v = Version;
 
-public:
-	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
-
-	parser(parser &&other) noexcept;
-	parser &operator=(parser &&other) noexcept;
+	using request_t = basic_client_request<method_v,connection_t,version_v>;
+	using reply_t = basic_reply<connection_t>;
 
 public:
-	parser &on_parse_begin(parse_begin_handler func);
-	parser &on_parse_cookie(parse_cookie_handler func);
-	[[nodiscard]] static error_code make_error_code(parse_errno errc);
+	explicit basic_request_context(request_t &&request);
+	~basic_request_context();
 
-	sys_expected<bool> append(const const_buffer &buf);
-	parser &operator<<(const const_buffer &buf);
-	parser &reset();
+	basic_request_context(basic_request_context &&other) noexcept;
+	basic_request_context &operator=(basic_request_context &&other) noexcept;
 
 public:
-	[[nodiscard]] optional<value> header(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] const headers_t &headers() const noexcept;
+	[[nodiscard]] const request_t &request() const noexcept;
+	[[nodiscard]] request_t &request() noexcept;
 
-	[[nodiscard]] std::string take_partial_body(size_t size);
-	[[nodiscard]] std::string take_body();
-
-	[[nodiscard]] version_enum version() const noexcept;
-	[[nodiscard]] stage_t stage() const noexcept;
+	[[nodiscard]] const reply_t &reply() const noexcept;
+	[[nodiscard]] reply_t &reply() noexcept;
 
 public:
-	parser &unbind_parse_begin();
-	parser &unbind_parse_cookie();
+	template <core_concepts::tf_opt_token<error_code,protocol::status_enum> Token = use_sync_t>
+	auto wait_reply(Token &&token = {}) noexcept;
+
+	[[nodiscard]] bool responded() const noexcept;
+	[[nodiscard]] executor_t get_executor() const noexcept;
+	basic_request_context &cancel() noexcept;
 
 private:
 	class impl;
-	impl *m_impl;
+	impl *m_impl = nullptr;
 };
 
-using base_parser = parser<model::base>;
+template <protocol::method_enum Method, protocol::version_enum Version = protocol::version::v11>
+using request_context = basic_request_context<Method, connection, Version>;
 
-} //namespace libgs::http::protocol
-#include <libgs/http/protocol/utils/core/detail/parser.h>
+} //namespace libgs::http
+#include <libgs/http/client/detail/context.h>
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http
+{
 
-#endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_H
+template <protocol::method_enum Method, protocol::version_enum Version = protocol::version::v11>
+using ssl_request_context = basic_request_context<Method, ssl_connection, Version>;
+
+} //namespace http
+
+namespace https
+{
+
+template <http::protocol::method_enum Method, http::protocol::version_enum Version = http::protocol::version::v11>
+using request_context = http::ssl_request_context<Method, Version>;
+
+}} //namespace libgs::https
+
+#endif //LIBGS_ENABLE_OPENSS
+#endif //LIBGS_HTTP_CLIENT_CONTEXT_H

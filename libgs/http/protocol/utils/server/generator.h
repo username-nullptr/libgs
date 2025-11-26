@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_GENERATOR_H
 
-#include <libgs/http/protocol/utils/core/generator.h>
+#include <libgs/http/protocol/utils/core/types.h>
 
 namespace libgs::http::protocol
 {
@@ -40,7 +40,6 @@ class LIBGS_HTTP_API generator<model::server> final
 	LIBGS_DISABLE_COPY(generator)
 
 public:
-	using next_layer_t = std::shared_ptr<base_generator>;
 	using version_t = protocol::version;
 
 	using headers_t = protocol::headers;
@@ -94,7 +93,7 @@ public:
 
 	generator &set_redirect (
 		core_concepts::text_p<char> auto &&url,
-		redirect type = redirect::moved_permanently
+		redirect_enum type = redirect::moved_permanently
 	);
 
 public:
@@ -104,8 +103,6 @@ public:
 
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] generator_state pro_state() const noexcept;
-
-	[[nodiscard]] next_layer_t next_layer() noexcept;
 	generator &reset() noexcept;
 
 private:

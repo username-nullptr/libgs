@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,58 +26,35 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_GLOBAL_H
-#define LIBGS_CORE_GLOBAL_H
+#ifndef LIBGS_CORE_CXX_SYS_EXPECTED_H
+#define LIBGS_CORE_CXX_SYS_EXPECTED_H
 
-#include <libgs/core/cxx/memory_concepts.h>
-#include <libgs/core/cxx/sys_expected.h>
-#include <libgs/core/cxx/cplusplus.h>
-#include <libgs/core/cxx/operators.h>
-#include <libgs/core/cxx/configs.h>
-#include <libgs/core/utils.h>
+#include <libgs/core/cxx/expected.h>
 
 namespace libgs
 {
 
-[[nodiscard]] LIBGS_CORE_API const char *version_string();
+template <concepts::expected_value Value = void>
+using sys_expected = expected<Value,error_code>;
 
-[[nodiscard]] LIBGS_CORE_API const char *text_code();
+using sys_unexpected = unexpected<error_code>;
 
-LIBGS_CORE_API std::thread::id this_thread_id();
+template <concepts::optional_value_p Value>
+[[nodiscard]] LIBGS_CORE_TAPI auto make_sys_expected(Value &&value);
+[[nodiscard]] LIBGS_CORE_VAPI sys_expected<> make_sys_expected();
 
-[[noreturn]] LIBGS_CORE_API void forced_termination();
-
-template<typename Rep, typename Period>
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token, const duration<Rep,Period> &def_time
+template <concepts::expected_value Value = void>
+LIBGS_CORE_VAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
+    std::source_location loc = std::source_location::current()
 );
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_associated_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token
-);
+using io_expected = sys_expected<size_t>;
+using io_unexpected = sys_unexpected;
 
-[[nodiscard]] constexpr decltype(auto) unbound_redirect_time (
-    concepts::any_async_tf_opt_token auto &&token
-);
+[[nodiscard]] LIBGS_CORE_TAPI io_expected make_io_expected(size_t sum);
 
-namespace operators
-{
-
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, error_code &error)
-    requires (not is_redirect_error_v<std::remove_cvref_t<Token>>);
-
-template <concepts::any_async_tf_opt_token Token>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator|(Token &&token, const asio::cancellation_slot &slot)
-    requires (not is_cancellation_slot_binder_v<std::remove_cvref_t<Token>>);
-
-template <typename Rep, typename Period>
-LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
-    concepts::any_async_opt_token auto &&token, const duration<Rep,Period> &d
-);
-
-}} //namespace libgs
-#include <libgs/core/detail/global.h>
+} //namespace libgs
+#include <libgs/core/cxx/detail/sys_expected.h>
 
 
-#endif //LIBGS_CORE_GLOBAL_H
+#endif //LIBGS_CORE_CXX_SYS_EXPECTED_H

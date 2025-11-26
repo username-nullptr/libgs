@@ -266,10 +266,13 @@ connect(endpoint_t ep, Token &&token)
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
-		auto res = connect(ep, error);
+		connect(ep, error);
 		if( error )
-			throw system_error(error, "libgs::http::socket_operation_helper::connect");
-		return res;
+		{
+			system_error::loc_throw(error,
+				"libgs::http::socket_operation_helper::connect"
+			);
+		}
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<token_t> )
@@ -382,11 +385,11 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_
 	return this->socket().is_open();
 }
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
 template <core_concepts::opt_token<error_code> Token>
-void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+auto socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 connect(endpoint_t ep, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -399,10 +402,13 @@ connect(endpoint_t ep, Token &&token)
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
 		error_code error;
-		auto res = connect(ep, error);
+		connect(ep, error);
 		if( error )
-			throw system_error(error, "libgs::http::socket_operation_helper::connect");
-		return res;
+		{
+			system_error::loc_throw(error,
+				"libgs::http::socket_operation_helper::connect"
+			);
+		}
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<token_t> )
@@ -411,7 +417,7 @@ connect(endpoint_t ep, Token &&token)
 		this->socket().next_layer().async_connect(ep, token[error]);
 		if( coro::check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 		{
-			this->socket().async_handshake(std::move(ep), token[error]);
+			this->socket().async_handshake(asio::ssl::stream_base::client, token[error]);
 			coro::check_error(remove_const(token),
 				error, "libgs::http::socket_operation_helper::connect"
 			);
@@ -429,7 +435,7 @@ connect(endpoint_t ep, Token &&token)
 			co_await socket.next_layer().async_connect(ep, use_awaitable | error);
 			if( not coro::check_error(token, error, "libgs::http::socket_operation_helper::connect") )
 			{
-				co_await socket.async_handshake(std::move(ep), use_awaitable | error);
+				co_await socket.async_handshake(asio::ssl::stream_base::client, use_awaitable | error);
 				coro::check_error(remove_const(token),
 					error, "libgs::http::socket_operation_helper::connect"
 				);
@@ -445,7 +451,7 @@ connect(endpoint_t ep, Token &&token)
 		](const error_code &error)
 		{
 			if( not error )
-				socket.async_handshake(std::move(ep), std::move(token));
+				socket.async_handshake(asio::ssl::stream_base::client, std::move(token));
 		});
 	}
 }
@@ -511,7 +517,7 @@ void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 }
 
 template <core_concepts::exec Exec>
-typename socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
+socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::remote_endpoint() noexcept
 {
 	error_code error; ignore_unused(error);
@@ -519,18 +525,11 @@ socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tc
 }
 
 template <core_concepts::exec Exec>
-typename socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
+socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::local_endpoint() noexcept
 {
 	error_code error; ignore_unused(error);
 	return this->socket().next_layer().local_endpoint(error);
-}
-
-template <core_concepts::exec Exec>
-const typename socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::executor_t&
-socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::get_executor() noexcept
-{
-	return this->socket().next_layer().get_executor();
 }
 
 template <core_concepts::exec Exec>
@@ -539,7 +538,7 @@ bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 	return this->socket().next_layer().is_open();
 }
 
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 
 } //namespace libgs::http
 

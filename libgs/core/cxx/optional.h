@@ -41,9 +41,12 @@ class LIBGS_CORE_TAPI optional_base
 {
 public:
 	using value_t = Value;
-	optional_base() = default;
-	optional_base(value_t value);
+	using storage_t = std::aligned_storage_t <
+		sizeof(value_t), alignof(value_t)
+	>;
 
+public:
+	~optional_base();
 	optional_base(const optional_base &other) requires
 		concepts::copy_constructible<value_t>;
 
@@ -65,8 +68,14 @@ public:
 	[[nodiscard]] value_t &value() &;
 	[[nodiscard]] value_t &&value() &&;
 
-	[[nodiscard]] value_t value_or(value_t default_value = {}) const & noexcept;
-	[[nodiscard]] value_t value_or(value_t default_value = {}) const && noexcept;
+	[[nodiscard]] value_t value_or(value_t default_value) const & noexcept;
+	[[nodiscard]] value_t value_or(value_t default_value) const && noexcept;
+
+	[[nodiscard]] value_t value_or() const & noexcept
+		requires concepts::constructible<value_t>;
+
+	[[nodiscard]] value_t value_or() const && noexcept
+		requires concepts::constructible<value_t>;
 
 public:
 	[[nodiscard]] explicit operator bool() const noexcept;
@@ -90,7 +99,19 @@ public:
 	void operator%(const optional_base&) = delete;
 
 protected:
-	value_t m_value {};
+	optional_base(value_t value);
+	optional_base() = default;
+
+	template <typename...Args>
+	void _emplace(Args&&...args) requires
+		concepts::constructible<value_t,Args...>;
+
+	const value_t *_data() const noexcept;
+	value_t *_data() noexcept;
+	void _reset() noexcept;
+
+protected:
+	storage_t m_storage;
 	bool m_has_value = false;
 };
 
@@ -102,7 +123,9 @@ class LIBGS_CORE_TAPI optional final : public optional_base<Value>
 {
 public:
 	using value_t = Value;
-	using optional_base<Value>::optional_base;
+
+	optional(value_t value);
+	optional() = default;
 
 	template <typename...Args>
 	optional &emplace(Args&&...args) requires

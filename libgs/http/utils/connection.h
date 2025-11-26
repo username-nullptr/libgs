@@ -52,7 +52,6 @@ public:
 		requires core_concepts::callable<Func,socket_t&&>;
 
 	explicit basic_connection(socket_t &&socket);
-	basic_connection();
     ~basic_connection();
 
 	basic_connection(basic_connection &&other) noexcept;
@@ -66,6 +65,7 @@ public:
  	[[nodiscard]] const opt_helper_t &opt_helper() const noexcept;
  	[[nodiscard]] opt_helper_t &opt_helper() noexcept;
 
+	[[nodiscard]] bool is_valid() const noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
@@ -94,8 +94,36 @@ namespace concepts
 template <typename T>
 concept connection = is_connection_v<T>;
 
+template <typename T>
+concept connection_p = connection<std::remove_cvref_t<T>>;
+
 }} //namespace libgs::http::concepts
 #include <libgs/http/utils/detail/connection.h>
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http
+{
 
+template <core_concepts::exec Exec = asio::any_io_executor>
+using basic_ssl_tcp_connection = basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>;
+
+using ssl_tcp_connection = basic_ssl_tcp_connection<asio::any_io_executor>;
+using ssl_connection = ssl_tcp_connection;
+
+} //namespace http
+
+namespace https
+{
+
+template <concepts::exec Exec = asio::any_io_executor>
+using basic_tcp_connection = http::basic_ssl_tcp_connection<Exec>;
+
+using tcp_connection = basic_tcp_connection<asio::any_io_executor>;
+using connection = tcp_connection;
+
+}} //namespace libgs::https
+
+#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_UTILS_CONNECTION_H

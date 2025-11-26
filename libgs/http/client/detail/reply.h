@@ -32,34 +32,38 @@
 namespace libgs::http
 {
 
-template <concepts::connection Session>
-class LIBGS_HTTP_TAPI basic_reply<Session>::impl
+template <concepts::connection Connection>
+class LIBGS_HTTP_TAPI basic_reply<Connection>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 	using reply_ptr = std::shared_ptr<basic_reply>;
 
 public:
-	impl(session_t &&session, parser_t &&parser) :
-		m_session(std::move(session)), m_parser(std::move(parser)) {}
+	explicit impl(connection_t &&connection) :
+		m_connection(std::move(connection)) {}
+
+	impl(connection_t &&connection, parser_t &&parser) :
+		m_connection(std::move(connection)), m_parser(std::move(parser)) {}
 
 	impl(impl &&other) noexcept :
-		m_session(std::move(other.m_session)) {}
+		m_connection(std::move(other.m_connection)) {}
 
 	impl& operator=(impl &&other) noexcept
 	{
-		m_session = std::move(other.m_session);
+		m_connection = std::move(other.m_connection);
 		return *this;
 	}
 
 public:
-	[[nodiscard]] static sys_expected<reply_ptr> make(session_t &&session) noexcept
+	[[nodiscard]] sys_expected<protocol::status_enum> parse() noexcept
 	{
+		if( m_parser.stage() == parser_t::stage_t::finished )
+			m_parser.reset();
+
 		using namespace libgs::operators;
-		auto &sock = session.opt_helper();
+		auto &sock = m_connection.opt_helper();
 
-		parser_t parser;
 		std::error_code error;
-
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size];
 		for(;;)
@@ -68,66 +72,64 @@ public:
 			if( error )
 				return sys_unexpected(error);
 
-			auto expected = parser.append({buf, sum});
+			auto expected = m_parser.append({buf, sum});
 			if( not expected )
 				return sys_unexpected(expected.error());
 
 			else if( *expected )
 				break;
 		}
-		return std::make_shared<basic_reply> (
-			std::move(session), std::move(parser)
-		);
+		return m_parser.status();
 	}
 
-	[[nodiscard]] static awaitable<sys_expected<reply_ptr>> co_make(session_t &&session,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<sys_expected<protocol::status_enum>> co_parse
+	(asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
+		if( m_parser.stage() == parser_t::stage_t::finished )
+			m_parser.reset();
+
 		using namespace libgs::operators;
 		std::error_code error;
 
-		auto &sock = session.opt_helper();
+		auto &sock = m_connection.opt_helper();
 		sock.non_blocking(true, error);
 		if( error )
 			co_return io_unexpected(error);
 
-		parser_t parser;
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size];
 
-		auto task = libgs::dispatch(session.get_executor(),
-		[&]() mutable -> awaitable<sys_expected<reply_ptr>>
+		auto task = libgs::dispatch(m_connection.get_executor(),
+		[&]() mutable -> awaitable<sys_expected<protocol::status_enum>>
 		{
 			for(;;)
 			{
 				auto sum = co_await sock.read (
-					buffer(buf, buf_size), use_awaitable | error
+					buffer(buf, buf_size), use_awaitable | cancel_slot | error
 				);
 				if( error )
 					co_return sys_unexpected(error);
 
-				auto expected = parser.append({buf, sum});
+				auto expected = m_parser.append({buf, sum});
 				if( not expected )
 					co_return sys_unexpected(expected.error());
 
 				else if( *expected )
 					break;
 			}
-			co_return std::make_shared<basic_reply> (
-				std::move(session), std::move(parser)
-			);
+			co_return m_parser.status();
 		},
 		use_awaitable);
 
 		using namespace std::chrono_literals;
-		sys_expected<reply_ptr> expected;
+		sys_expected<protocol::status_enum> expected;
 
 		if( timeout == 0ns )
 			expected = co_await std::move(task);
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(session.get_executor(), timeout)
+				coro::sleep_for(m_connection.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -139,10 +141,10 @@ public:
 		co_return expected;
 	}
 
-	[[nodiscard]] static awaitable<sys_expected<reply_ptr>> co_read(std::error_code &error, session_t &&session,
+	[[nodiscard]] static awaitable<sys_expected<protocol::status_enum>> co_parse(std::error_code &error,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
-		auto expected = co_await co_make(std::move(session),
+		auto expected = co_await co_parse (
 			std::move(cancel_slot), std::move(timeout)
 		);
 		if( not expected )
@@ -157,14 +159,14 @@ public:
 		if( buf.size() == 0 )
 			return sum;
 
-		auto &sock = m_session.opt_helper();
+		auto &sock = m_connection.opt_helper();
 		asio::socket_base::receive_buffer_size op;
 
 		std::error_code error;
 		sock.get_option(op, error);
 
 		if( error )
-			return sys_unexpected(error);
+			return io_unexpected(error);
 
 		auto dst_buf = reinterpret_cast<char*>(buf.data());
 		for(;;)
@@ -187,7 +189,7 @@ public:
 
 				auto expected = m_parser.append({body.data(), tmp_sum});
 				if( not expected )
-					return expected;
+					return io_unexpected(expected.error());
 				else if( *expected )
 					break;
 			}
@@ -198,12 +200,12 @@ public:
 			if( it == m_parser.headers().end() )
 			{
 				if( m_parser.version() < protocol::version::v11 )
-					m_session.opt_helper().close();
+					m_connection.opt_helper().close();
 			}
 			else if( it->second == "close" )
-				m_session.opt_helper().close();
+				m_connection.opt_helper().close();
 
-			return sys_unexpected (
+			return io_unexpected (
 				make_error_code(errc::eof)
 			);
 		}
@@ -217,18 +219,18 @@ public:
 		if( buf.size() == 0 )
 			co_return sum;
 
-		auto &sock = m_session.opt_helper();
+		auto &sock = m_connection.opt_helper();
 		asio::socket_base::receive_buffer_size op;
 
 		std::error_code error;
 		sock.get_option(op, error);
 
 		if( error )
-			co_return sys_unexpected(error);
+			co_return io_unexpected(error);
 
 		using namespace libgs::operators;
 		auto dst_buf = reinterpret_cast<char*>(buf.data());
-		auto task = libgs::dispatch(m_session.get_executor(), [&]() mutable -> awaitable<io_expected>
+		auto task = libgs::dispatch(m_connection.get_executor(), [&]() mutable -> awaitable<io_expected>
 		{
 			for(;;)
 			{
@@ -246,18 +248,18 @@ public:
 						use_awaitable | cancel_slot | error
 					);
 					if( error )
-						co_return sys_unexpected(error);
+						co_return io_unexpected(error);
 
 					auto expected = m_parser.append({body.data(), tmp_sum});
 					if( not expected )
-						co_return expected;
+						co_return io_unexpected(expected.error());
 					else if( *expected )
 						break;
 				}
 			}
 			if( sum == 0 )
 			{
-				co_return sys_unexpected (
+				co_return io_unexpected (
 					make_error_code(errc::eof)
 				);
 			}
@@ -273,7 +275,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_session.get_executor(), timeout)
+				coro::sleep_for(m_connection.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -305,15 +307,16 @@ public:
 			constexpr size_t buf_size = 0xFFFF;
 			char buf[buf_size] {0};
 
-			auto expected = read(buffer(buf,buf_size)).transform([&](size_t s) {
-				sum += std::string(buf, s);
-			});
-			if( expected )
-				continue;
+			auto expected = read(buffer(buf,buf_size));
 
+			if( expected )
+			{
+				sum += std::string(buf, *expected);
+				continue;
+			}
 			else if( expected.error() == errc::eof )
 				break;
-			return expected;
+			return sys_unexpected(expected.error());
 		}
 		return sum;
 	}
@@ -322,7 +325,7 @@ public:
 	(asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		using namespace std::chrono_literals;
-		auto task = libgs::dispatch(m_session.get_executor(),
+		auto task = libgs::dispatch(m_connection.get_executor(),
 		[&]() mutable -> awaitable<sys_expected<std::string>>
 		{
 			std::string sum;
@@ -334,15 +337,14 @@ public:
 				auto expected = co_await co_read (
 					buffer(buf,buf_size), cancel_slot, 0ns
 				);
-				expected.transform([&](size_t s) {
-					sum += std::string(buf, s);
-				});
 				if( expected )
+				{
+					sum += std::string(buf, *expected);
 					continue;
-
+				}
 				else if( expected.error() == errc::eof )
 					break;
-				co_return expected;
+				co_return sys_unexpected(expected.error());
 			}
 			co_return sum;
 		},
@@ -354,7 +356,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_session.get_executor(), timeout)
+				coro::sleep_for(m_connection.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -380,50 +382,104 @@ public:
 private:
 
 public:
-	session_t m_session;
+	connection_t m_connection;
 	parser_t m_parser;
 };
 
-template <concepts::connection Session>
-basic_reply<Session>::basic_reply(session_t &&session, parser_t &&parser) :
-	m_impl(std::make_shared<impl>(std::move(session), std::move(parser)))
+template <concepts::connection Connection>
+basic_reply<Connection>::basic_reply(connection_t &&connection) :
+	m_impl(std::make_shared<impl>(std::move(connection)))
 {
 
 }
 
-template <concepts::connection Session>
-basic_reply<Session>::~basic_reply() = default;
+template <concepts::connection Connection>
+basic_reply<Connection>::basic_reply(connection_t &&connection, parser_t &&parser) :
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(parser)))
+{
 
-template <concepts::connection Session>
-basic_reply<Session>::basic_reply(basic_reply &&other) noexcept :
+}
+
+template <concepts::connection Connection>
+basic_reply<Connection>::~basic_reply() = default;
+
+template <concepts::connection Connection>
+basic_reply<Connection>::basic_reply(basic_reply &&other) noexcept :
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
 
 }
 
-template <concepts::connection Session>
-basic_reply<Session> &basic_reply<Session>::operator=(basic_reply &&other) noexcept
+template <concepts::connection Connection>
+basic_reply<Connection> &basic_reply<Connection>::operator=(basic_reply &&other) noexcept
 {
 	if( this != &other )
 		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
-template <concepts::connection Session>
+template <concepts::connection Connection>
+protocol::version_enum basic_reply<Connection>::version() const noexcept
+{
+	return m_impl->m_parser.version();
+}
+
+template <concepts::connection Connection>
+protocol::status_enum basic_reply<Connection>::status() const noexcept
+{
+	return m_impl->m_parser.status();
+}
+
+template <concepts::connection Connection>
+optional<typename basic_reply<Connection>::value_t>
+basic_reply<Connection>::header(const core_concepts::text_p<char> auto &key) const noexcept
+{
+	return m_impl->m_parser.header(key);
+}
+
+template <concepts::connection Connection>
+const basic_reply<Connection>::headers_t &basic_reply<Connection>::headers() const noexcept
+{
+	return m_impl->m_parser.headers();
+}
+
+template <concepts::connection Connection>
+optional<typename basic_reply<Connection>::cookie_t>
+basic_reply<Connection>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
+{
+	return m_impl->m_parser.cookie(key);
+}
+
+template <concepts::connection Connection>
+const protocol::cookies &basic_reply<Connection>::cookies() const noexcept
+{
+	return m_impl->m_parser.cookies();
+}
+
+template <concepts::connection Connection>
 template <typename Token>
-auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
-	requires task_token_v<Token,std::shared_ptr<basic_reply>>
+auto basic_reply<Connection>::parse(connection_t &&connection, Token &&token) noexcept
+	requires task_token_v<Token,protocol::status_enum>
+{
+	m_impl->m_connection = std::move(connection);
+	return parse(std::forward<Token>(token));
+}
+
+template <concepts::connection Connection>
+template <typename Token>
+auto basic_reply<Connection>::parse(Token &&token) noexcept
+	requires task_token_v<Token,protocol::status_enum>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return impl::make(std::move(session))
+		return m_impl->parse()
 			.or_else([&token](const error_code &error) {
 				token = error;
 			});
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return impl::make(std::move(session));
+		return m_impl->parse();
 
 	else if constexpr( is_redirect_time_v<token_t> )
 	{
@@ -437,14 +493,14 @@ auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 		{
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				return impl::co_make(ntoken.ec_, std::move(session),
+				return m_impl->co_parse(ntoken.ec_,
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
 			}
 			else
 			{
-				return impl::co_make(std::move(session),
+				return m_impl->co_parse (
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
@@ -455,28 +511,28 @@ auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				libgs::dispatch(session.get_executor(), [promise = std::move(promise),
-					ntoken, session = std::make_shared<session_t>(std::move(session)),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+				libgs::dispatch(get_executor(), [
+					impl = m_impl->shared_from_this(), promise = std::move(promise),
+					ntoken, cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl::co_make (
-						ntoken.ec_, std::move(*session), cancel_slot, timeout
+					promise->set_value(co_await impl->co_parse (
+						ntoken.ec_, cancel_slot, timeout
 					));
 					co_return ;
 				});
 			}
 			else
 			{
-				libgs::dispatch(session.get_executor(), [promise = std::move(promise),
-					session = std::make_shared<session_t>(std::move(session)),
+				libgs::dispatch(get_executor(), [
+					impl = m_impl->shared_from_this(), promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl::co_make (
-						std::move(*session), cancel_slot, timeout
+					promise->set_value(co_await impl->co_parse (
+						cancel_slot, timeout
 					));
 					co_return ;
 				});
@@ -485,14 +541,13 @@ auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 		}
 		else if constexpr( is_redirect_error_v<ntoken_t> )
 		{
-			libgs::dispatch(session.get_executor(), [
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 				ntoken, nntoken, timeout = get_associated_redirect_time(token),
-				session = std::make_shared<session_t>(std::move(session)),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl::co_make (
-					ntoken.ec_, std::move(*session), cancel_slot, timeout
+				auto expected = co_await impl->co_parse (
+					ntoken.ec_, cancel_slot, timeout
 				);
 				expected
 				.transform([&callback = nntoken](int code) {
@@ -505,14 +560,13 @@ auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 		}
 		else
 		{
-			libgs::dispatch(session.get_executor(), [
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 				nntoken, timeout = get_associated_redirect_time(token),
-				session = std::make_shared<session_t>(std::move(session)),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl::co_make (
-					std::move(*session), cancel_slot, timeout
+				auto expected = co_await impl->co_parse (
+					cancel_slot, timeout
 				);
 				expected
 				.transform([&callback = nntoken](int code) {
@@ -528,51 +582,13 @@ auto basic_reply<Session>::make(session_t &&session, Token &&token) noexcept
 	{
 		using namespace libgs::operators;
 		using namespace std::chrono_literals;
-		return make(std::move(session), token | 0ns);
+		return parse(token | 0ns);
 	}
 }
 
-template <concepts::connection Session>
-protocol::version_enum basic_reply<Session>::version() const noexcept
-{
-	return m_impl->m_parser.version();
-}
-
-template <concepts::connection Session>
-protocol::status_enum basic_reply<Session>::status() const noexcept
-{
-	return m_impl->m_parser.status();
-}
-
-template <concepts::connection Session>
-optional<typename basic_reply<Session>::value_t>
-basic_reply<Session>::header(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	return m_impl->m_parser.header(key);
-}
-
-template <concepts::connection Session>
-const basic_reply<Session>::headers_t &basic_reply<Session>::headers() const noexcept
-{
-	return m_impl->m_parser.headers();
-}
-
-template <concepts::connection Session>
-optional<typename basic_reply<Session>::cookie_t>
-basic_reply<Session>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	return m_impl->m_parser.cookie(key);
-}
-
-template <concepts::connection Session>
-const protocol::cookies &basic_reply<Session>::cookies() const noexcept
-{
-	return m_impl->m_parser.cookies();
-}
-
-template <concepts::connection Session>
+template <concepts::connection Connection>
 template <typename Token>
-auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexcept
+auto basic_reply<Connection>::read(const mutable_buffer &buf, Token &&token) noexcept
 	requires task_token_v<Token,size_t>
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -616,7 +632,7 @@ auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexce
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [
+				libgs::dispatch(get_executor(), [
 					impl = m_impl->shared_from_this(), ntoken, buf, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
@@ -630,7 +646,7 @@ auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexce
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [
+				libgs::dispatch(get_executor(), [
 					impl = m_impl->shared_from_this(), buf, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
@@ -646,7 +662,7 @@ auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexce
 		}
 		else if constexpr( is_redirect_error_v<ntoken_t> )
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(),
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 				ntoken, nntoken, buf, timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
@@ -665,7 +681,7 @@ auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexce
 		}
 		else
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(),
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 				nntoken, buf, timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
@@ -691,9 +707,9 @@ auto basic_reply<Session>::read(const mutable_buffer &buf, Token &&token) noexce
 	}
 }
 
-template <concepts::connection Session>
+template <concepts::connection Connection>
 template <typename Token>
-auto basic_reply<Session>::read(Token &&token) noexcept
+auto basic_reply<Connection>::read(Token &&token) noexcept
 	requires task_token_v<Token,std::string>
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -726,7 +742,7 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 			}
 			else
 			{
-				return m_impl->co_read(
+				return m_impl->co_read (
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
@@ -737,7 +753,7 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [
+				libgs::dispatch(get_executor(), [
 					impl = m_impl->shared_from_this(), ntoken, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
@@ -751,7 +767,7 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_session.get_executor(), [
+				libgs::dispatch(get_executor(), [
 					impl = m_impl->shared_from_this(), promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
@@ -767,7 +783,7 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 		}
 		else if constexpr( is_redirect_error_v<ntoken_t> )
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(),
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 				ntoken, nntoken, timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
@@ -786,7 +802,7 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 		}
 		else
 		{
-			libgs::dispatch(m_impl->m_session.get_executor(), [impl = m_impl->shared_from_this(),
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 				nntoken, timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
@@ -812,8 +828,23 @@ auto basic_reply<Session>::read(Token &&token) noexcept
 	}
 }
 
-template <concepts::connection Session>
-bool basic_reply<Session>::is_chunked() const noexcept
+template <concepts::connection Connection>
+template <typename T, typename Token>
+auto basic_reply<Connection>::download_file(T &&opt, Token &&token) noexcept
+	requires file_opt_token<T> and task_token_v<Token,size_t>
+{
+	// TODO ... ...
+	return 0;
+}
+
+template <concepts::connection Connection>
+bool basic_reply<Connection>::valid() const noexcept
+{
+	return m_impl->m_parser.stage() != protocol::stage::header;
+}
+
+template <concepts::connection Connection>
+bool basic_reply<Connection>::is_chunked() const noexcept
 {
 	if( version() < protocol::version::v11 )
 		return false;
@@ -821,34 +852,34 @@ bool basic_reply<Session>::is_chunked() const noexcept
 	return it != m_impl->m_headers.end() and str_to_lower(it->second) == "chunked";
 }
 
-template <concepts::connection Session>
-bool basic_reply<Session>::is_eof() const noexcept
+template <concepts::connection Connection>
+bool basic_reply<Connection>::is_eof() const noexcept
 {
 	return m_impl->m_parser.stage() == parser_t::stage_t::finished;
 }
 
-template <concepts::connection Session>
-const basic_reply<Session>::session_t &basic_reply<Session>::session() const noexcept
+template <concepts::connection Connection>
+const basic_reply<Connection>::connection_t &basic_reply<Connection>::connection() const noexcept
 {
-	return m_impl->m_session;
+	return m_impl->m_connection;
 }
 
-template <concepts::connection Session>
-basic_reply<Session>::session_t &basic_reply<Session>::session() noexcept
+template <concepts::connection Connection>
+basic_reply<Connection>::connection_t &basic_reply<Connection>::connection() noexcept
 {
-	return m_impl->m_session;
+	return m_impl->m_connection;
 }
 
-template <concepts::connection Session>
-basic_reply<Session>::executor_t basic_reply<Session>::get_executor() noexcept
+template <concepts::connection Connection>
+basic_reply<Connection>::executor_t basic_reply<Connection>::get_executor() noexcept
 {
-	return session().get_executor();
+	return connection().get_executor();
 }
 
-template <concepts::connection Session>
-basic_reply<Session> &basic_reply<Session>::cancel() noexcept
+template <concepts::connection Connection>
+basic_reply<Connection> &basic_reply<Connection>::cancel() noexcept
 {
-	session().opt_helper().cancel();
+	connection().opt_helper().cancel();
 	return *this;
 }
 

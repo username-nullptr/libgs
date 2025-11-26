@@ -35,14 +35,14 @@
 namespace libgs::http
 {
 
-template <concepts::connection Session = connection>
+template <concepts::connection Connection = connection>
 class LIBGS_HTTP_TAPI basic_reply
 {
 	LIBGS_DISABLE_COPY(basic_reply)
 
 public:
-	using session_t = Session;
-	using executor_t = session_t::executor_t;
+	using connection_t = Connection;
+	using executor_t = connection_t::executor_t;
 	using parser_t = protocol::client_parser;
 
 	using value_t = parser_t::value_t;
@@ -52,21 +52,12 @@ public:
 	using cookies_t = parser_t::cookies_t;
 
 public:
-	basic_reply(session_t &&session, parser_t &&parser);
+	explicit basic_reply(connection_t &&connection);
+	basic_reply(connection_t &&connection, parser_t &&parser);
 	~basic_reply();
 
 	basic_reply(basic_reply &&other) noexcept;
 	basic_reply &operator=(basic_reply &&other) noexcept;
-
-public:
-	template <typename Token, typename...Value>
-	static constexpr bool task_token_v =
-		core_concepts::tf_opt_token<Token,error_code,Value...> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
-
-	template <typename Token = use_sync_t>
-	static auto make(session_t &&session, Token &&token = {}) noexcept
-		requires task_token_v<Token,std::shared_ptr<basic_reply>>;
 
 public:
 	[[nodiscard]] protocol::version_enum version() const noexcept;
@@ -77,6 +68,20 @@ public:
 
 	[[nodiscard]] optional<cookie_t> cookie(const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] const protocol::cookies &cookies() const noexcept;
+
+public:
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		core_concepts::tf_opt_token<Token,error_code,Value...> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
+	template <typename Token = use_sync_t>
+	auto parse(connection_t &&connection, Token &&token = {}) noexcept
+		requires task_token_v<Token,protocol::status_enum>;
+
+	template <typename Token = use_sync_t>
+	auto parse(Token &&token = {}) noexcept
+		requires task_token_v<Token,protocol::status_enum>;
 
 public:
 	template <typename Token = use_sync_t>
@@ -92,15 +97,16 @@ public:
 		T, char, file_optype::single, io_permission::write
 	>;
 	template <typename T, typename Token = use_sync_t>
-	auto save_file(T &&opt, Token &&token = {}) noexcept
+	auto download_file(T &&opt, Token &&token = {}) noexcept
 		requires file_opt_token<T> and task_token_v<Token,size_t>;
 
 public:
+	[[nodiscard]] bool valid() const noexcept;
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
 
-	[[nodiscard]] const session_t &session() const noexcept;
-	[[nodiscard]] session_t &session() noexcept;
+	[[nodiscard]] const connection_t &connection() const noexcept;
+	[[nodiscard]] connection_t &connection() noexcept;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_reply &cancel() noexcept;
@@ -115,5 +121,14 @@ using reply = basic_reply<>;
 } //namespace libgs::http
 #include <libgs/http/client/detail/reply.h>
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http {
+using ssl_reply = basic_reply<ssl_connection>;
+} //namespace http
 
+namespace https {
+using reply = http::ssl_reply;
+}} //namespace libgs::https
+
+#endif //LIBGS_ENABLE_OPENSS
 #endif //LIBGS_HTTP_CLIENT_REPLY_H

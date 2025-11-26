@@ -182,7 +182,7 @@ template <typename T>
 concept copy_or_move_constructible = copy_constructible<T> or move_constructible<T>;
 
 template <typename T>
-concept optional_value = copy_or_move_constructible<T> and concepts::constructible<T>;
+concept optional_value = copy_or_move_constructible<T>;
 
 template <typename T>
 concept optional_value_p = optional_value<std::remove_cvref_t<T>>;

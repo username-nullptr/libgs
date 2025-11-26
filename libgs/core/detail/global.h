@@ -32,13 +32,6 @@
 namespace libgs
 {
 
-template <concepts::expected_value Value>
-void sys_expected_loc_throw(const sys_expected<Value> &expected, std::source_location loc)
-{
-	if( not expected )
-		system_error::loc_throw(expected.error(), std::move(loc));
-}
-
 template<typename Rep, typename Period>
 decltype(auto) get_associated_redirect_time
 (concepts::any_async_tf_opt_token auto &&token, const duration<Rep,Period> &def_time)

@@ -45,7 +45,6 @@ class LIBGS_HTTP_TAPI socket_operation_helper_base
 public:
 	using socket_t = Stream;
 	using executor_t = socket_t::executor_type;
-	using endpoint_t = socket_t::endpoint_type;
 
 public:
 	explicit socket_operation_helper_base(socket_t &socket);
@@ -84,11 +83,11 @@ public:
 	using protocol_t = socket_t::protocol_type;
 
 	using executor_t = base_t::executor_t;
-	using endpoint_t = base_t::endpoint_t;
+	using endpoint_t = socket_t::endpoint_type;
 
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
-	[[nodiscard]] auto connect(endpoint_t ep, Token &&token = {});
+	auto connect(endpoint_t ep, Token &&token = {});
 
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
@@ -106,7 +105,7 @@ public:
 	[[nodiscard]] bool is_open() noexcept;
 };
 
-#ifdef LIBGS_ENABLE_OPENSSL
+#if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
 class LIBGS_HTTP_TAPI socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
@@ -124,11 +123,11 @@ public:
 	using protocol_t = socket_t::next_layer_type::protocol_type;
 
 	using executor_t = base_t::executor_t;
-	using endpoint_t = base_t::endpoint_t;
+	using endpoint_t = socket_t::next_layer_type::endpoint_type;
 
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
-	void connect(endpoint_t endpoint, Token &&token = {});
+	auto connect(endpoint_t endpoint, Token &&token = {});
 
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
@@ -141,12 +140,12 @@ public:
 	void close() noexcept;
 
 public:
-	[[nodiscard]] endpoint_t remote_endpoint();
-	[[nodiscard]] endpoint_t local_endpoint();
+	[[nodiscard]] endpoint_t remote_endpoint() noexcept;
+	[[nodiscard]] endpoint_t local_endpoint() noexcept;
 	[[nodiscard]] bool is_open() noexcept;
 };
 
-#endif //LIBGS_ENABLE_OPENSSL
+#endif //LIBGS_OPENSSL_SUPPORT
 
 } //namespace libgs::http
 #include <libgs/http/utils/detail/socket_operation_helper.h>

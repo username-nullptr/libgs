@@ -8,3 +8,10 @@ elseif (WIN32)
 		target_link_libraries(${target_name} PUBLIC ws2_32 wsock32)
 	endif ()
 endif()
+
+if (LIBGS_OPENSSL_SUPPORT)
+	find_package(OpenSSL REQUIRED)
+	target_link_libraries(${target_name} PUBLIC
+		OpenSSL::SSL OpenSSL::Crypto
+	)
+endif ()

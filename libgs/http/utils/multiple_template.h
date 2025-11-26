@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,58 +26,18 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
-#define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
+#ifndef LIBGS_HTTP_UTILS_MULTIPLE_TEMPLATE_H
+#define LIBGS_HTTP_UTILS_MULTIPLE_TEMPLATE_H
 
-namespace libgs::http::protocol
+#include <libgs/http/protocol/model.h>
+
+namespace libgs::http
 {
 
-generator<model::server> &generator<model::server>::set_header
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	headers()[strtls::to_string(std::forward<decltype(key)>(key))]
-		= std::forward<value_t>(value);
-	return *this;
-}
+template <protocol::model, typename T>
+class basic_request;
 
-generator<model::server> &generator<model::server>::unset_header
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	headers().erase(strtls::to_string(key));
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::set_cookie
-(core_concepts::text_p<char> auto &&key, cookie_t cookie) noexcept
-{
-	cookies()[strtls::to_string(std::forward<decltype(key)>(key))] = std::move(cookie);
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::unset_cookie
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	cookies().erase(key);
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::set_redirect
-(core_concepts::text_p<char> auto &&url, redirect_enum type)
-{
-	switch(type)
-	{
-#define X_MACRO(e,v,d) case redirect::e : set_status(v); break;
-		LIBGS_HTTP_REDIRECT_TYPE_TABLE
-#undef X_MACRO
-	default: runtime_error::loc_throw(std::format (
-			"libgs::http::generator<model::server>::redirect: Invalid redirect type: '{}'.", type
-		));
-	}
-	set_header(header::location, std::forward<decltype(url)>(url));
-	return *this;
-}
-
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
-#endif //LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
+#endif //LIBGS_HTTP_UTILS_MULTIPLE_TEMPLATE_H

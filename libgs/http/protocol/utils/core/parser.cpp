@@ -169,7 +169,9 @@ public:
 			else
 			{
 				m_state = state::chunked_wait_size;
-				error = parse_chunked().error();
+				parse_chunked().or_else([&](const error_code &e) {
+					error = e;
+				});
 			}
 		}
 		else

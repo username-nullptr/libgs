@@ -27,6 +27,7 @@
 *************************************************************************************/
 
 #include "parser.h"
+#include <libgs/http/protocol/utils/core/parser.h>
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
 #include <ranges>
