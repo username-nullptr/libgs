@@ -26,71 +26,35 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "request_arg.h"
+#ifndef LIBGS_HTTP_TOOLS_CORE_BODY_NORMS_H
+#define LIBGS_HTTP_TOOLS_CORE_BODY_NORMS_H
+
+#include <libgs/http/utils/file_opt_token.h>
+#include <libgs/core/string_vector.h>
 
 namespace libgs::http::protocol
 {
 
-class LIBGS_DECL_HIDDEN request_arg::impl
+struct basic_body_norms {};
+
+using range_body_norms = file_range;
+
+struct multipart_body_norms
 {
-public:
-	headers_t m_headers {
-		{ header_t::accept      , "*/*"                       },
-		{ header_t::content_type, "text/plain; charset=utf-8" }
+	std::string boundary;
+	struct package
+	{
+		string_vector headers;
+		file_range range;
 	};
-	cookies_t m_cookies {};
-	values_t m_chunk_attributes {};
+	std::vector<package> packages;
 };
 
-request_arg::request_arg() :
-	mutable_headers(nullptr),
-	mutable_cookies(nullptr),
-	mutable_chunk_attributes(nullptr),
-	m_impl(new impl())
-{
-	m_headers = &m_impl->m_headers;
-	m_cookies = &m_impl->m_cookies;
-	m_chunk_attributes = &m_impl->m_chunk_attributes;
-}
-
-request_arg::~request_arg()
-{
-	delete m_impl;
-}
-
-request_arg::request_arg(const request_arg &other) noexcept :
-	mutable_headers(nullptr),
-	mutable_cookies(nullptr),
-	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(*other.m_impl))
-{
-	m_headers = &m_impl->m_headers;
-	m_cookies = &m_impl->m_cookies;
-	m_chunk_attributes = &m_impl->m_chunk_attributes;
-}
-
-request_arg &request_arg::operator=(const request_arg &other) noexcept
-{
-	*m_impl = *other.m_impl;
-	return *this;
-}
-
-request_arg::request_arg(request_arg &&other) noexcept :
-	mutable_headers(nullptr),
-	mutable_cookies(nullptr),
-	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(std::move(*other.m_impl)))
-{
-	m_headers = &m_impl->m_headers;
-	m_cookies = &m_impl->m_cookies;
-	m_chunk_attributes = &m_impl->m_chunk_attributes;
-}
-
-request_arg &request_arg::operator=(request_arg &&other) noexcept
-{
-	if( this != &other )
-		*m_impl = std::move(*other.m_impl);
-	return *this;
-}
+using body_norms_t = std::variant <
+	basic_body_norms, range_body_norms, multipart_body_norms
+>;
 
 } //namespace libgs::http::protocol
+
+
+#endif //LIBGS_HTTP_TOOLS_CORE_BODY_NORMS_H

@@ -53,7 +53,7 @@ public:
 		m_next_layer(std::move(other.m_next_layer)), m_parser(other.m_parser) {}
 
 	template <typename Stream0>
-	impl &operator=(typename basic_server_request<Stream0>::impl &&other) noexcept
+	impl &operator=(basic_server_request<Stream0>::impl &&other) noexcept
 	{
 		m_next_layer = std::move(other.m_next_layer);
 		m_parser = other.m_parser;

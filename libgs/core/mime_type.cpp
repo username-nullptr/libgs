@@ -34,7 +34,7 @@
 
 namespace fs = std::filesystem;
 
-namespace libgs::mime_type
+namespace libgs::mime_type { namespace mapping
 {
 
 #undef TEXT
@@ -51,7 +51,7 @@ namespace libgs::mime_type
 #define VIDEO        "video/"
 #define INTERFACE    "interface"
 
-static suffix_type_map g_suffix_hash
+static suffix_type_map g_suffix
 {
 	{ ".1"             , TEXT "troff"                                                                  },
 	{ ".3ds"           , IMAGE "x-3ds"                                                                 },
@@ -796,7 +796,7 @@ static suffix_type_map g_suffix_hash
 	{ ".zip"           , APPLICATION "zip"                                                             }
 };
 
-static mime_head_map g_signatures_map
+static mime_head_map g_signatures
 {
 	{ "\x00\x01\x00\x00\x00"                           , APPLICATION "x-font-ttf"             },
 	{ "\x04%!PS-Adobe-"                                , APPLICATION "postscript"             },
@@ -942,7 +942,7 @@ static mime_head_map g_signatures_map
 };
 
 
-static mime_head_map g_signatures_map_offset4
+static mime_head_map g_signatures_offset4
 {
 	{ "\x0AVersion:Vivo"             , VIDEO "vivo"                     },
 	{ "#VRML V"                      , MODEL "vrml"                     },
@@ -978,10 +978,27 @@ static mime_head_map g_signatures_map_offset4
 	{ "wide"                         , VIDEO "quicktime"                }
 };
 
+suffix_type_map &suffix()
+{
+	return g_suffix;
+}
+
+mime_head_map &signatures()
+{
+	return g_signatures;
+}
+
+mime_head_map &signatures_offset4()
+{
+	return g_signatures_offset4;
+}
+
+} //namespace mapping
+
 namespace detail
 {
 
-std::string search(const mime_head_map &mimes, const char *buf, size_t size)
+std::string search(const mapping::mime_head_map &mimes, const char *buf, size_t size)
 {
 	if( size == 0 )
 		return "text/plain";
@@ -1003,21 +1020,6 @@ std::string search(const mime_head_map &mimes, const char *buf, size_t size)
 }
 
 } //namespace detail
-
-suffix_type_map &suffix_map()
-{
-	return g_suffix_hash;
-}
-
-mime_head_map &signatures_map()
-{
-	return g_signatures_map;
-}
-
-mime_head_map &signatures_map_offset4()
-{
-	return g_signatures_map_offset4;
-}
 
 [[nodiscard]] static std::string mime_from_magic(const fs::path &file_name)
 {
@@ -1045,8 +1047,8 @@ std::string get(const fs::path &file_name, bool magic_first)
 		if( pos == std::string::npos )
 			return type;
 
-		auto it = g_suffix_hash.find(strtls::to_lower(name.substr(pos)));
-		if( it == g_suffix_hash.end() )
+		auto it = mapping::g_suffix.find(strtls::to_lower(name.substr(pos)));
+		if( it == mapping::g_suffix.end() )
 			return type;
 		return it->second;
 	}
@@ -1056,8 +1058,8 @@ std::string get(const fs::path &file_name, bool magic_first)
 	if( pos == std::string::npos )
 		return mime_from_magic(file_name);
 
-	auto it = g_suffix_hash.find(strtls::to_lower(name.substr(pos)));
-	if( it == g_suffix_hash.end() )
+	auto it = mapping::g_suffix.find(strtls::to_lower(name.substr(pos)));
+	if( it == mapping::g_suffix.end() )
 		return mime_from_magic(file_name);
 	return it->second;
 }

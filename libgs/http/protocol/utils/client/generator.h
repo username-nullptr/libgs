@@ -29,28 +29,27 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 
+#include <libgs/http/protocol/utils/core/generator.h>
 #include <libgs/http/protocol/utils/client/request_arg.h>
 #include <libgs/http/protocol/utils/client/url.h>
-#include <libgs/http/protocol/utils/core/types.h>
 
 namespace libgs::http::protocol
 {
 
 template <>
-class LIBGS_HTTP_API generator<model::client> final
+class LIBGS_HTTP_API generator<model::client> final :
+	public mutable_headers<generator<model::client>>,
+	public mutable_cookies<value,generator<model::client>>,
+	public mutable_chunk_attributes<generator<model::client>>
 {
 	LIBGS_DISABLE_COPY(generator)
 
 public:
-	using version_t = protocol::version;
 	using url_t = protocol::url;
 	using request_arg_t = request_arg;
 
-	using value_t = request_arg_t::value_t;
-	using header_t = request_arg_t::header_t;
-
-	using headers_t = request_arg_t::headers_t;
-	using cookies_t = request_arg_t::cookies_t;
+	using version_t = protocol::version;
+	using mutable_headers::set_header;
 
 public:
 	generator(version_enum version, url_t url, request_arg_t arg);
@@ -61,15 +60,19 @@ public:
 	generator &operator=(generator &&other) noexcept;
 
 public:
-	generator &set_url(url_t url);
-	generator &set_arg(request_arg_t arg);
-	generator &set(url_t url, request_arg_t arg);
+	generator &emplace(url_t url, request_arg_t arg);
+	generator &emplace(request_arg_t arg);
+	generator &emplace(url_t url);
 
 	[[nodiscard]] const url_t &url() const noexcept;
 	[[nodiscard]] url_t &url() noexcept;
 
-	[[nodiscard]] const request_arg_t &arg() const noexcept;
-	[[nodiscard]] request_arg_t &arg() noexcept;
+	[[nodiscard]] request_arg_t arg() const noexcept;
+	[[nodiscard]] operator request_arg_t() const noexcept;
+
+	template <typename Opt>
+	[[nodiscard]] sys_expected<body_norms_t> set_header(Opt &&opt) noexcept
+		requires base_generator::file_opt_token_v<Opt>;
 
 public:
 	template <method_enum Method>
@@ -85,6 +88,7 @@ public:
 	generator &reset() noexcept;
 
 private:
+	base_generator &base() noexcept;
 	class impl;
 	impl *m_impl;
 };

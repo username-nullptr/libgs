@@ -32,23 +32,6 @@
 namespace libgs::http::protocol
 {
 
-optional<value> parser<model::server>::parameter(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	auto it = parameters().find(strtls::to_view(key));
-	return it == parameters().end() ?
-		optional<value>() : libgs::make_optional(it->second);
-}
-
-optional<value> parser<model::server>::header(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	return value_map_get(headers(), key);
-}
-
-optional<value> parser<model::server>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	return value_map_get(cookies(), key);
-}
-
 optional<value> parser<model::server>::path_arg(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = path_args().find(strtls::to_view(key));

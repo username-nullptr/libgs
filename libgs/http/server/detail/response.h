@@ -118,12 +118,6 @@ private:
 		size_t end = 0;
 	};
 
-	struct fot_data
-	{
-		std::string mtype;
-		size_t fsize = 0;
-	};
-
 public:
 	template <typename Opt>
 	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error)
@@ -131,29 +125,30 @@ public:
 		if( pro_state() != protocol::generator_state::header )
 			return 0;
 
-		fot_data data = 0;
-		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
-		if( error )
-			return 0;
-
-		if( not token.ranges.empty() )
+		auto token = protocol::make_file_opt_token(std::forward<Opt>(opt));
+		if( not token )
 		{
-			auto ranges = from_file_range(token.ranges, data.fsize, error);
-			return error ? 0 : range_transfer(token, ranges, data, error);
+			error = token.error();
+			return 0;
+		}
+		else if( not token->ranges.empty() )
+		{
+			auto ranges = from_file_range(token->ranges, token->file_size, error);
+			return error ? 0 : range_transfer(*token, ranges, error);
 		}
 		auto it = m_next_layer.headers().find(protocol::header::range);
 		if( it == m_next_layer.headers().end() )
-			return default_transfer(token, data, error);
+			return default_transfer(*token, error);
 
 		std::vector<range_value> ranges;
-		auto status = range_text_parsing(it->second.to_string(), data.fsize, ranges);
+		auto status = range_text_parsing(it->second.to_string(), token->file_size, ranges);
 		if( status != protocol::status::ok )
 		{
 			set_status(protocol::status::range_not_satisfiable);
 			auto buf = std::format("{} ({})", status_description(status), status);
 			return write(buffer(buf, buf.size()), error);
 		}
-		return range_transfer(token, ranges, data, error);
+		return range_transfer(*token, ranges, error);
 	}
 
 	template <typename Opt>
@@ -162,29 +157,30 @@ public:
 		if( pro_state() != protocol::generator_state::header )
 			co_return 0;
 
-		fot_data data;
-		auto token = file_opt_token_helper(std::forward<Opt>(opt), data, error);
-		if( error )
-			co_return 0;
-
-		if( not token.ranges.empty() )
+		auto token = protocol::make_file_opt_token(std::forward<Opt>(opt));
+		if( not token )
 		{
-			auto ranges = from_file_range(token.ranges, data.fsize, error);
-			co_return error ? 0 : co_await co_range_transfer(token, ranges, data, error);
+			error = token.error();
+			co_return 0;
+		}
+		else if( not token->ranges.empty() )
+		{
+			auto ranges = from_file_range(token->ranges, token->file_size, error);
+			co_return error ? 0 : co_await co_range_transfer(*token, ranges, error);
 		}
 		auto it = m_next_layer.headers().find(protocol::header::range);
 		if( it == m_next_layer.headers().end() )
-			co_return co_await co_default_transfer(token, data, error);
+			co_return co_await co_default_transfer(*token, error);
 
 		std::vector<range_value> ranges;
-		auto status = range_text_parsing(it->second.to_string(), data.fsize, ranges);
+		auto status = range_text_parsing(it->second.to_string(), token->file_size, ranges);
 		if( status != protocol::status::ok )
 		{
 			set_status(protocol::status::range_not_satisfiable);
 			auto buf = std::format("{} ({})", protocol::status::description(status), status);
 			co_return co_await co_write(buffer(buf, buf.size()), error);
 		}
-		co_return co_await co_range_transfer(token, ranges, data, error);
+		co_return co_await co_range_transfer(*token, ranges, error);
 	}
 
 public:
@@ -219,26 +215,25 @@ public:
 
 private:
 	template <typename Opt>
-	[[nodiscard]] size_t default_transfer
-	(Opt &&opt, const fot_data &data, error_code &error) noexcept
+	[[nodiscard]] size_t default_transfer(Opt &token, error_code &error) noexcept
 	{
 		size_t sum = 0;
-		if( data.fsize == 0 )
+		if( token.file_size == 0 )
 			return sum;
 
-		m_generator.set_header(protocol::header::content_type, data.mtype);
-		sum += write_header(data.fsize, error);
+		m_generator.set_header(protocol::header::content_type, token.mime_type);
+		sum += write_header(token.file_size, error);
 		if( error )
 			return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
 		char fr_buf[buf_size] {0};
 
-		opt.stream->seekg(0);
-		while( not opt.stream->eof() )
+		token.stream->seekg(0);
+		while( not token.stream->eof() )
 		{
-			opt.stream->read(fr_buf, buf_size);
-			auto size = opt.stream->gcount();
+			token.stream->read(fr_buf, buf_size);
+			auto size = token.stream->gcount();
 			if( size == 0 )
 				break;
 
@@ -251,26 +246,25 @@ private:
 	}
 
 	template <typename Opt>
-	[[nodiscard]] awaitable<size_t> co_default_transfer
-	(Opt &&opt, const fot_data &data, error_code &error) noexcept
+	[[nodiscard]] awaitable<size_t> co_default_transfer(Opt &token, error_code &error) noexcept
 	{
 		size_t sum = 0;
-		if( data.fsize == 0 )
+		if( token.file_size == 0 )
 			co_return sum;
 
-		m_generator.set_header(protocol::header::content_type, data.mtype);
-		sum += co_await co_write_header(data.fsize, error);
+		m_generator.set_header(protocol::header::content_type, token.mime_type);
+		sum += co_await co_write_header(token.file_size, error);
 		if( error )
 			co_return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
 		char fr_buf[buf_size] {0};
 
-		opt.stream->seekg(0);
-		while( not opt.stream->eof() )
+		token.stream->seekg(0);
+		while( not token.stream->eof() )
 		{
-			opt.stream->read(fr_buf, buf_size);
-			auto size = static_cast<size_t>(opt.stream->gcount());
+			token.stream->read(fr_buf, buf_size);
+			auto size = static_cast<size_t>(token.stream->gcount());
 			if( size == 0 )
 				break;
 
@@ -284,21 +278,21 @@ private:
 
 public:
 	[[nodiscard]] size_t range_transfer
-	(auto &&opt, const std::vector<range_value> &ranges, const fot_data &data, error_code &error)
+	(auto &token, const std::vector<range_value> &ranges, error_code &error)
 	{
 		set_status(protocol::status::partial_content);
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
 			m_generator
-			.set_header(protocol::header::accept_ranges , "bytes"    )
-			.set_header(protocol::header::content_type  , data.mtype )
-			.set_header(protocol::header::content_length, range.total)
+			.set_header(protocol::header::accept_ranges , "bytes"        )
+			.set_header(protocol::header::content_type  , token.mime_type)
+			.set_header(protocol::header::content_length, range.total    )
 
 			.set_header(protocol::header::content_range , value_t {
 				"{}-{}/{}", range.begin, range.end, range.total
 			});
-			return send_range(opt.stream, "", "", ranges, error);
+			return send_range(token.stream, "", "", ranges, error);
 		} // if( rangeList.size() == 1 )
 
 		using namespace std::chrono;
@@ -311,7 +305,7 @@ public:
 		m_generator.set_header(protocol::header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
-		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
+		auto ct_line = std::format("{}: {}", protocol::header::content_type, token.mime_type);
 		std::size_t content_length = 0;
 
 		for(auto &range : ranges)
@@ -342,26 +336,26 @@ public:
 		.set_header(protocol::header::accept_ranges , "bytes");
 
 		return send_range (
-			opt.stream, boundary, ct_line, ranges, error
+			token.stream, boundary, ct_line, ranges, error
 		);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_range_transfer
-	(auto &&opt, const std::vector<range_value> &ranges, const fot_data &data, error_code &error)
+	(auto &token, const std::vector<range_value> &ranges, error_code &error)
 	{
 		set_status(protocol::status::partial_content);
 		if( ranges.size() == 1 )
 		{
 			auto &range = ranges.back();
 			m_generator
-			.set_header(protocol::header::accept_ranges , "bytes"    )
-			.set_header(protocol::header::content_type  , data.mtype )
-			.set_header(protocol::header::content_length, range.total)
+			.set_header(protocol::header::accept_ranges , "bytes"          )
+			.set_header(protocol::header::content_type  , token.mime_type  )
+			.set_header(protocol::header::content_length, range.total      )
 
 			.set_header(protocol::header::content_range, value_t {
 				"{}-{}/{}", range.begin, range.end, range.total
 			});
-			co_return co_await co_send_range(opt.stream, "", "", ranges, error);
+			co_return co_await co_send_range(token.stream, "", "", ranges, error);
 		} // if( rangeList.size() == 1 )
 
 		using namespace std::chrono;
@@ -372,7 +366,7 @@ public:
 		m_generator.set_header(protocol::header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
-		auto ct_line = std::format("{}: {}", protocol::header::content_type, data.mtype);
+		auto ct_line = std::format("{}: {}", protocol::header::content_type, token.mime_type);
 		std::size_t content_length = 0;
 
 		for(auto &range: ranges)
@@ -403,7 +397,7 @@ public:
 		.set_header(protocol::header::accept_ranges , "bytes");
 
 		co_return co_await co_send_range (
-			opt.stream, boundary, ct_line, ranges, error
+			token.stream, boundary, ct_line, ranges, error
 		);
 	}
 
@@ -737,50 +731,6 @@ private:
 		using namespace libgs::operators;
 		sent += co_await sock_helper.write(data, use_awaitable | error);
 		co_return sent;
-	}
-
-private:
-	template <typename Opt>
-	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error)
-	{
-		if constexpr( is_any_string_v<Opt> or is_fstream_v<Opt,char> or is_ofstream_v<Opt,char> )
-		{
-			using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
-			using type = token_t::type;
-			return _file_opt_token_helper (
-				http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
-				data, error
-			);
-		}
-		else if constexpr( Opt::optype == file_optype::single )
-		{
-			using type = std::remove_cvref_t<Opt>::type;
-			return _file_opt_token_helper (
-				http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
-				data, error
-			);
-		}
-		else
-			return _file_opt_token_helper(std::forward<Opt>(opt), data, error);
-	}
-
-	template <typename Opt>
-	[[nodiscard]] auto _file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error)
-	{
-		error = opt.init(std::ios::in | std::ios::binary);
-		if( error )
-			return std::forward<Opt>(opt);
-
-		file_size(opt, io_permission::write)
-		.transform([&](auto value)
-		{
-			data.mtype = mime_type(opt);
-			data.fsize = value;
-		})
-		.or_else([&]{
-			error = make_error_code(std::errc::permission_denied);
-		});
-		return std::forward<Opt>(opt);
 	}
 
 private:

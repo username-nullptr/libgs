@@ -29,8 +29,6 @@
 #ifndef LIBGS_CORE_DETAIL_MIME_TYPE_H
 #define LIBGS_CORE_DETAIL_MIME_TYPE_H
 
-#include <fstream>
-
 namespace libgs::mime_type { namespace detail
 {
 
@@ -44,11 +42,11 @@ template <typename FS>
 	auto buf_size = static_cast<size_t>(stream.gcount());
 	std::string data(buf, buf_size);
 
-	constexpr const char *FE = "\xFE\xFF";
-	constexpr const char *FF = "\xFF\xFE";
+	constexpr auto FF = "\xFF\xFE";
 
 	// UTF16 byte order marks
-	if( data.starts_with(FE) or data.starts_with(FF) )
+	if( constexpr auto FE = "\xFE\xFF";
+		data.starts_with(FE) or data.starts_with(FF) )
 		return true;
 
 	// Check the first 128 bytes (see shared-mime spec)
@@ -64,7 +62,7 @@ template <typename FS>
 }
 
 [[nodiscard]] LIBGS_CORE_API std::string search
-(const mime_head_map &mimes, const char *buf, size_t size);
+(const mapping::mime_head_map &mimes, const char *buf, size_t size);
 
 template <typename FS>
 [[nodiscard]] LIBGS_CORE_TAPI std::string from_magic(FS &stream)
@@ -85,9 +83,9 @@ template <typename FS>
 		if( is_text(stream) )
 			return "text/plain";
 	}
-	auto mime_type = search(signatures_map(), buf, size);
+	auto mime_type = search(mapping::signatures(), buf, size);
 	if( mime_type.empty() and size > 4 )
-		mime_type = search(signatures_map_offset4(), buf + 4, size - 4);
+		mime_type = search(mapping::signatures_offset4(), buf + 4, size - 4);
 	return mime_type;
 }
 

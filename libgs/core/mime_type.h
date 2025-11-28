@@ -37,12 +37,18 @@ namespace libgs::mime_type
 {
 
 using path_t = std::filesystem::path;
+
+namespace mapping
+{
+
 using suffix_type_map = std::unordered_map<std::string, std::string>;
 using mime_head_map = std::map<std::string, std::string>;
 
-[[nodiscard]] LIBGS_CORE_API suffix_type_map &suffix_map();
-[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map();
-[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_map_offset4();
+[[nodiscard]] LIBGS_CORE_API suffix_type_map &suffix();
+[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures();
+[[nodiscard]] LIBGS_CORE_API mime_head_map &signatures_offset4();
+
+} //namespace mapping
 
 [[nodiscard]] LIBGS_CORE_API
 std::string get(const path_t &file_name, bool magic_first = false);

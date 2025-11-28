@@ -36,7 +36,9 @@ namespace libgs::http
 {
 
 template <concepts::connection Connection = connection>
-class LIBGS_HTTP_TAPI basic_reply
+class LIBGS_HTTP_TAPI basic_reply final :
+	public protocol::const_headers<basic_reply<Connection>>,
+	public protocol::const_cookies<protocol::cookie,basic_reply<Connection>>
 {
 	LIBGS_DISABLE_COPY(basic_reply)
 
@@ -62,12 +64,6 @@ public:
 public:
 	[[nodiscard]] protocol::version_enum version() const noexcept;
 	[[nodiscard]] protocol::status_enum status() const noexcept;
-
-	[[nodiscard]] optional<value_t> header(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] const headers_t &headers() const noexcept;
-
-	[[nodiscard]] optional<cookie_t> cookie(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] const protocol::cookies &cookies() const noexcept;
 
 public:
 	template <typename Token, typename...Value>

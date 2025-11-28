@@ -29,17 +29,14 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_URL_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_URL_H
 
-#include <libgs/http/protocol/types.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
 
 namespace libgs::http::protocol
 {
 
-class LIBGS_HTTP_API url
+class LIBGS_HTTP_API url : public mutable_parameters<url>
 {
 public:
-	using value_t = libgs::value;
-	using parameters_t = protocol::parameters;
-
 	template <typename...Args>
 	using format_string = std::format_string <
 		std::type_identity_t<Args>...
@@ -63,24 +60,18 @@ public:
 
 public:
 	template <typename Arg0, typename...Args>
-	url &set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	url &set(std::string_view url);
+	url &emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+	url &emplace(std::string_view url);
 
 	url &set_address(std::string addr);
 	url &set_port(uint16_t port);
 	url &set_path(std::string_view path);
 
-	url &set_parameter(core_concepts::text_p<char> auto &&key, value_t value) noexcept;
-	url &unset_parameter(const core_concepts::text_p<char> auto &key) noexcept;
-
 public:
 	[[nodiscard]] std::string_view protocol() const noexcept;
 	[[nodiscard]] std::string_view address() const noexcept;
 	[[nodiscard]] uint16_t port() const noexcept;
-
 	[[nodiscard]] std::string_view path() const noexcept;
-	[[nodiscard]] const parameters_t &parameters() const noexcept;
-	[[nodiscard]] parameters_t &parameters() noexcept;
 
 public:
 	[[nodiscard]] std::string to_string() const noexcept;

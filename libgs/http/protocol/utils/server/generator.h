@@ -29,63 +29,29 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_GENERATOR_H
 
-#include <libgs/http/protocol/utils/core/types.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
+#include <libgs/http/protocol/utils/core/generator_types.h>
 
 namespace libgs::http::protocol
 {
 
 template <>
-class LIBGS_HTTP_API generator<model::server> final
+class LIBGS_HTTP_API generator<model::server> final :
+	public mutable_headers<generator<model::server>>,
+	public mutable_cookies<cookie,generator<model::server>>,
+	public mutable_chunk_attributes<generator<model::server>>
 {
 	LIBGS_DISABLE_COPY(generator)
 
 public:
 	using version_t = protocol::version;
 
-	using headers_t = protocol::headers;
-	using value_t = libgs::value;
-
-	using cookies_t = protocol::cookies;
-	using cookie_t = protocol::cookie;
-
-public:
 	explicit generator(version_enum version, const headers_t &req_headers = {});
 	explicit generator(const headers_t &req_headers = {}); // default V1.1
 	~generator();
 
 	generator(generator &&other) noexcept;
 	generator &operator=(generator &&other) noexcept;
-
-public:
-	generator &set_header (
-		core_concepts::text_p<char> auto &&key, value_t value
-	) noexcept;
-
-	generator &unset_header (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] headers_t &headers() noexcept;
-
-public:
-	generator &set_cookie (
-		core_concepts::text_p<char> auto &&key, cookie_t cookie
-	) noexcept;
-
-	generator &unset_cookie (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] cookies_t &cookies() noexcept;
-
-public:
-	generator &set_chunk_attribute(value_t attr) noexcept;
-	generator &unset_chunk_attribute(const value_t &attr) noexcept;
-
-	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
-	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
 
 public:
 	generator &set_status(status_enum status);

@@ -26,71 +26,45 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "request_arg.h"
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H
+
+#include <libgs/http/protocol/types.h>
+#include <libgs/http/utils/file_opt_token.h>
 
 namespace libgs::http::protocol
 {
 
-class LIBGS_DECL_HIDDEN request_arg::impl
+template <model>
+class parser {};
+
+#define LIBGS_HTTP_PARSER_ERRNO \
+X_MACRO( RLTL  , 10000 , "Request line too long."      ) \
+X_MACRO( HLTL  , 10001 , "Header line too long."       ) \
+X_MACRO( IREQL , 10002 , "Invalid request line."       ) \
+X_MACRO( IRPYL , 10003 , "Invalid reply line."         ) \
+X_MACRO( IHM   , 10004 , "Invalid http method."        ) \
+X_MACRO( IHP   , 10005 , "Invalid http path."          ) \
+X_MACRO( IHSC  , 10006 , "Invalid http status code."   ) \
+X_MACRO( IHL   , 10007 , "Invalid header line."        ) \
+X_MACRO( ICL   , 10008 , "Invalid cookie line."        ) \
+X_MACRO( IDE   , 10009 , "The inserted data is empty." ) \
+X_MACRO( SFE   , 10010 , "Size format error."          ) \
+X_MACRO( RE    , 10011 , "This request is ended."      )
+
+enum class parse_errno
 {
-public:
-	headers_t m_headers {
-		{ header_t::accept      , "*/*"                       },
-		{ header_t::content_type, "text/plain; charset=utf-8" }
-	};
-	cookies_t m_cookies {};
-	values_t m_chunk_attributes {};
+#define X_MACRO(e,v,d) e=(v),
+	LIBGS_HTTP_PARSER_ERRNO
+#undef X_MACRO
 };
 
-request_arg::request_arg() :
-	mutable_headers(nullptr),
-	mutable_cookies(nullptr),
-	mutable_chunk_attributes(nullptr),
-	m_impl(new impl())
-{
-	m_headers = &m_impl->m_headers;
-	m_cookies = &m_impl->m_cookies;
-	m_chunk_attributes = &m_impl->m_chunk_attributes;
-}
-
-request_arg::~request_arg()
-{
-	delete m_impl;
-}
-
-request_arg::request_arg(const request_arg &other) noexcept :
-	mutable_headers(nullptr),
-	mutable_cookies(nullptr),
-	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(*other.m_impl))
-{
-	m_headers = &m_impl->m_headers;
-	m_cookies = &m_impl->m_cookies;
-	m_chunk_attributes = &m_impl->m_chunk_attributes;
-}
-
-request_arg &request_arg::operator=(const request_arg &other) noexcept
-{
-	*m_impl = *other.m_impl;
-	return *this;
-}
-
-request_arg::request_arg(request_arg &&other) noexcept :
-	mutable_headers(nullptr),
-	mutable_cookies(nullptr),
-	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(std::move(*other.m_impl)))
-{
-	m_headers = &m_impl->m_headers;
-	m_cookies = &m_impl->m_cookies;
-	m_chunk_attributes = &m_impl->m_chunk_attributes;
-}
-
-request_arg &request_arg::operator=(request_arg &&other) noexcept
-{
-	if( this != &other )
-		*m_impl = std::move(*other.m_impl);
-	return *this;
-}
+enum class stage {
+	header, body, finished
+};
 
 } //namespace libgs::http::protocol
+#include <libgs/http/protocol/utils/core/detail/parser_types.h>
+
+
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H

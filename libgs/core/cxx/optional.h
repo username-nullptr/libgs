@@ -118,6 +118,8 @@ protected:
 #define LIBGS_OPTIONAL_ERROR_IF(opt, fmt, ...) if( not opt ) \
 	throw libgs::runtime_error(libgs::with_location(std::format(fmt,__VA_ARGS__)))
 
+constexpr struct nullopt_t {} nullopt;
+
 template <concepts::optional_value Value>
 class LIBGS_CORE_TAPI optional final : public optional_base<Value>
 {
@@ -125,6 +127,7 @@ public:
 	using value_t = Value;
 
 	optional(value_t value);
+	optional(nullopt_t);
 	optional() = default;
 
 	template <typename...Args>

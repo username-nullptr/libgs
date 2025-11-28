@@ -40,21 +40,9 @@ url::url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
 }
 
 template <typename Arg0, typename...Args>
-url &url::set(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args)
+url &url::emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args)
 {
 	set(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...));
-	return *this;
-}
-
-url &url::set_parameter(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	parameters()[strtls::to_string(std::forward<decltype(key)>(key))] = std::move(value);
-	return *this;
-}
-
-url &url::unset_parameter(const core_concepts::text_p<char> auto &key) noexcept
-{
-	parameters().erase(strtls::to_string(key));
 	return *this;
 }
 

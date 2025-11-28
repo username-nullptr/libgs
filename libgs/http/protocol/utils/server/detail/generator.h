@@ -32,35 +32,6 @@
 namespace libgs::http::protocol
 {
 
-generator<model::server> &generator<model::server>::set_header
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	headers()[strtls::to_string(std::forward<decltype(key)>(key))]
-		= std::forward<value_t>(value);
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::unset_header
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	headers().erase(strtls::to_string(key));
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::set_cookie
-(core_concepts::text_p<char> auto &&key, cookie_t cookie) noexcept
-{
-	cookies()[strtls::to_string(std::forward<decltype(key)>(key))] = std::move(cookie);
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::unset_cookie
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	cookies().erase(key);
-	return *this;
-}
-
 generator<model::server> &generator<model::server>::set_redirect
 (core_concepts::text_p<char> auto &&url, redirect_enum type)
 {
@@ -70,7 +41,7 @@ generator<model::server> &generator<model::server>::set_redirect
 		LIBGS_HTTP_REDIRECT_TYPE_TABLE
 #undef X_MACRO
 	default: runtime_error::loc_throw(std::format (
-			"libgs::http::generator<model::server>::redirect: Invalid redirect type: '{}'.", type
+			"Invalid redirect type: '{}'.", type
 		));
 	}
 	set_header(header::location, std::forward<decltype(url)>(url));

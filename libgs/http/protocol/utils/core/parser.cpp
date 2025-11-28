@@ -322,9 +322,10 @@ public:
 };
 
 parser<model::base>::parser(size_t init_buf_size) :
+	const_headers(nullptr),
 	m_impl(new impl(init_buf_size))
 {
-
+	m_headers = &m_impl->m_headers;
 }
 
 parser<model::base>::~parser()
@@ -333,18 +334,24 @@ parser<model::base>::~parser()
 }
 
 parser<model::base>::parser(parser &&other) noexcept :
+	const_headers(other.m_headers),
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
+	other.m_headers = &other.m_impl->m_headers;
 }
 
 parser<model::base> &parser<model::base>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
 		return *this;
+
 	delete m_impl;
 	m_impl = other.m_impl;
+	m_headers = other.m_headers;
+
 	other.m_impl = new impl(0xFFFF);
+	other.m_headers = &other.m_impl->m_headers;
 	return *this;
 }
 
@@ -398,11 +405,6 @@ parser<model::base> &parser<model::base>::reset()
 {
 	m_impl->reset();
 	return *this;
-}
-
-const headers &parser<model::base>::headers() const noexcept
-{
-	return m_impl->m_headers;
 }
 
 std::string parser<model::base>::take_partial_body(size_t size)

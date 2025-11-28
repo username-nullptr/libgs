@@ -29,55 +29,53 @@
 #ifndef LIBGS_HTTP_TOOLS_CORE_GENERATOR_H
 #define LIBGS_HTTP_TOOLS_CORE_GENERATOR_H
 
-#include <libgs/http/protocol/utils/core/types.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
+#include <libgs/http/protocol/utils/core/generator_types.h>
+#include <libgs/http/protocol/utils/core/body_norms.h>
 
 namespace libgs::http::protocol
 {
 
 template <>
-class LIBGS_HTTP_API generator<model::base>
+class LIBGS_HTTP_API generator<model::base> :
+	public mutable_headers<generator<model::base>>,
+	public mutable_chunk_attributes<generator<model::base>>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator)
 
 public:
 	using state_t = generator_state;
-	using headers_t = protocol::headers;
-	using value_t = libgs::value;
+	using mutable_headers::set_header;
 
+	template <typename T>
+	static constexpr bool file_opt_token_v = http::concepts::file_opt_token_p <
+		T, char, file_optype::combine, io_permission::read
+	>;
+
+public:
 	generator();
 	virtual ~generator() = 0;
 
-public:
-	generator &set_header (
-		core_concepts::text_p<char> auto &&key, value_t value
-	) noexcept;
+	template <typename Opt>
+	[[nodiscard]] sys_expected<body_norms_t> set_header(Opt &&opt)
+		noexcept requires file_opt_token_v<Opt>;
 
-	generator &unset_header (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
+	[[nodiscard]] virtual std::string header_data(size_t body_size) noexcept;
+	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;
+	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers) noexcept;
 
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] headers_t &headers() noexcept;
-
-public:
-	generator &set_chunk_attribute(value_t attr) noexcept;
-	generator &unset_chunk_attribute(const value_t &attr) noexcept;
-
-	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
-	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
-
-public:
-	[[nodiscard]] virtual std::string header_data(size_t body_size);
-	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers);
-
-	[[nodiscard]] std::string header_data();
-	[[nodiscard]] std::string chunk_end_data();
+	[[nodiscard]] std::string header_data() noexcept;
+	[[nodiscard]] std::string chunk_end_data() noexcept;
 
 public:
 	[[nodiscard]] virtual version_enum version() const noexcept = 0;
 	[[nodiscard]] state_t state() const noexcept;
 	generator &reset();
+
+public:
+	template <typename Opt>
+	[[nodiscard]] static auto make_file_opt_token(Opt &&opt)
+		noexcept requires file_opt_token_v<Opt>;
 
 protected:
 	class impl;
@@ -104,7 +102,7 @@ class LIBGS_HTTP_API generator_v11<model::base> final : public generator<model::
 
 public:
 	using generator::generator;
-	[[nodiscard]] std::string header_data(size_t body_size) override;
+	[[nodiscard]] std::string header_data(size_t body_size) noexcept override;
 	[[nodiscard]] version_enum version() const noexcept override;
 };
 

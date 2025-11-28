@@ -29,27 +29,30 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_H
 
-#include <libgs/http/protocol/utils/core/types.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
+#include <libgs/http/protocol/utils/core/parser_types.h>
 
 namespace libgs::http::protocol
 {
 
-
-
 template <>
-class LIBGS_HTTP_API parser<model::base> final
+class LIBGS_HTTP_API parser<model::base> final :
+	public const_headers<parser<model::base>>
 {
 	LIBGS_DISABLE_COPY(parser)
 
 public:
 	using stage_t = protocol::stage;
-	using headers_t = protocol::headers;
-
 	using parse_begin_handler = std::function <
 		sys_expected<version_enum>(std::string_view line_buf)
 	>;
 	using parse_cookie_handler = std::function <
 		error_code(std::string_view line_buf)
+	>;
+
+	template <typename T>
+	static constexpr bool file_opt_token_v = http::concepts::file_opt_token_p <
+		T, char, file_optype::single, io_permission::write
 	>;
 
 public:
@@ -69,9 +72,6 @@ public:
 	parser &reset();
 
 public:
-	[[nodiscard]] optional<value> header(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] const headers_t &headers() const noexcept;
-
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
 
@@ -81,6 +81,11 @@ public:
 public:
 	parser &unbind_parse_begin();
 	parser &unbind_parse_cookie();
+
+public:
+	template <typename Opt>
+	[[nodiscard]] static auto make_file_opt_token(Opt &&opt)
+		noexcept requires file_opt_token_v<Opt>;
 
 private:
 	class impl;

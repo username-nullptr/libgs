@@ -406,39 +406,6 @@ private:
 	}
 
 private:
-	struct sss_tmp
-	{
-		size_t content_length = 0;
-		file_ranges ranges {};
-	};
-	[[nodiscard]] optional<sss_tmp> range_headers_parsing()
-	{
-		auto &headers = m_generator.arg().headers();
-
-		auto it = headers.find(protocol::header::accept_ranges);
-		if( it == headers.end() or *it->second != "bytes" )
-			return {};
-
-		it = headers.find(protocol::header::content_length);
-		if( it == headers.end() )
-			return {};
-
-		auto total_opt = it->second.get<size_t>();
-		if( not total_opt )
-			return {};
-
-		it = headers.find(protocol::header::content_range);
-		if( it == headers.end() )
-			return {};
-
-		it->second;
-
-		"{}-{}/{}", range.begin, range.end, range.total;
-
-		sss_tmp result;
-	}
-
-private:
 	void invoke_progress(auto &progress, size_t sum, size_t total, io_expected &expected) noexcept
 	{
 		if( not progress )
@@ -518,11 +485,16 @@ private:
 
 		sock_helper.non_blocking(false, error);
 		if( error )
+		{
+			sock_helper.close();
 			return io_unexpected(error);
-
+		}
 		auto sum = sock_helper.write(data, error);
 		if( error )
+		{
+			sock_helper.close();
 			return io_unexpected(error);
+		}
 		return sum;
 	}
 
@@ -534,8 +506,10 @@ private:
 
 		sock_helper.non_blocking(true, error);
 		if( error )
+		{
+			sock_helper.close();
 			co_return io_unexpected(error);
-
+		}
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 
@@ -543,59 +517,11 @@ private:
 			use_awaitable | error | cancel_slot
 		);
 		if( error )
+		{
+			sock_helper.close();
 			co_return io_unexpected(error);
+		}
 		co_return sum;
-	}
-
-private:
-	template <typename Opt>
-	[[nodiscard]] auto file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error) noexcept
-	{
-		if constexpr( core_concepts::any_string_p<Opt> or is_fstream_v<Opt,char> or is_ofstream_v<Opt,char> )
-		{
-			using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
-			using type = token_t::type;
-			return _file_opt_token_helper (
-				http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
-				data, error
-			);
-		}
-		else if constexpr( Opt::optype == file_optype::single )
-		{
-			using type = std::remove_cvref_t<Opt>::type;
-			return _file_opt_token_helper (
-				http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt)),
-				data, error
-			);
-		}
-		else
-			return _file_opt_token_helper(std::forward<Opt>(opt), data, error);
-	}
-
-	template <typename Opt>
-	[[nodiscard]] auto _file_opt_token_helper(Opt &&opt, fot_data &data, error_code &error) noexcept
-	{
-		error = opt.init(std::ios::in | std::ios::binary);
-		if( error )
-			return std::forward<Opt>(opt);
-
-		file_size(opt, io_permission::write)
-		.transform([&](size_t value)
-		{
-			data.mtype = mime_type(opt);
-			data.fsize = value;
-			return value;
-		})
-		.or_else([&]{
-			error = make_error_code(std::errc::permission_denied);
-		});
-		if( error )
-			return std::forward<Opt>(opt);
-
-		auto it = m_generator.arg().headers().find(protocol::header::content_type);
-		if( it == m_generator.arg().headers().end() or it->second->empty() )
-			it->second = data.mtype;
-		return std::forward<Opt>(opt);
 	}
 
 public:
@@ -606,9 +532,14 @@ public:
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 basic_request(connection_t &&connection, url_t url, request_arg_t arg) :
+	protocol::mutable_headers<basic_request>(nullptr),
+	protocol::mutable_cookies<value, basic_request>(nullptr),
+	protocol::mutable_chunk_attributes<basic_request>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(connection), std::move(url), std::move(arg)))
 {
-
+	this->m_headers = &m_impl->m_generator.headers();
+	this->m_cookies = &m_impl->m_generator.cookies();
+	this->m_chunk_attributes = &m_impl->m_generator.chunk_attributes();
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
@@ -618,9 +549,14 @@ basic_request<protocol::model::client,client_request_targ<Method,Connection,Vers
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
 basic_request(basic_request &&other) noexcept :
+	protocol::mutable_headers<basic_request>(nullptr),
+	protocol::mutable_cookies<value, basic_request>(nullptr),
+	protocol::mutable_chunk_attributes<basic_request>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
-
+	this->m_headers = &m_impl->m_generator.headers();
+	this->m_cookies = &m_impl->m_generator.cookies();
+	this->m_chunk_attributes = &m_impl->m_generator.chunk_attributes();
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
@@ -925,7 +861,7 @@ chunk_end(Token &&token) noexcept requires put_or_post
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>&
 basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-set_connection(connection_t &&connection, url_t url)
+emplace(connection_t &&connection, url_t url)
 {
 	m_impl->m_connection = std::move(connection);
 	m_impl->m_generator.reset();
@@ -936,26 +872,10 @@ set_connection(connection_t &&connection, url_t url)
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
 basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>&
 basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-set_arg(request_arg_t arg)
+emplace(request_arg_t arg)
 {
 	m_impl->m_generator.set_arg(std::move(arg));
 	return *this;
-}
-
-template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
-const basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::request_arg_t&
-basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-arg() const noexcept
-{
-	return m_impl->m_generator.arg();
-}
-
-template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
-basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::request_arg_t&
-basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-arg() noexcept
-{
-	return m_impl->m_generator.arg();
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
@@ -967,10 +887,29 @@ url() const noexcept
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
-bool basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-is_finished() const noexcept
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::request_arg_t
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+arg() const noexcept
 {
-	return m_impl->m_generator.pro_state() == protocol::generator_state::finish;
+	return m_impl->m_generator.arg();
+}
+
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+operator request_arg_t() const noexcept
+{
+	return arg();
+}
+
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+template <typename Opt>
+sys_expected<protocol::body_norms_t>
+basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+set_header(Opt &&opt) noexcept requires protocol::base_generator::file_opt_token_v<Opt>
+{
+	return m_impl->m_generator.set_header (
+		std::forward<decltype(opt)>(opt)
+	);
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
@@ -987,6 +926,13 @@ basic_request<protocol::model::client,client_request_targ<Method,Connection,Vers
 version() noexcept
 {
 	return version_v;
+}
+
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+bool basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+is_finished() const noexcept
+{
+	return m_impl->m_generator.pro_state() == protocol::generator_state::finish;
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>

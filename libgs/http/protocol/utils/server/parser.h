@@ -29,13 +29,17 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_PARSER_H
 
-#include <libgs/http/protocol/utils/core/types.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
+#include <libgs/http/protocol/utils/core/parser_types.h>
 
 namespace libgs::http::protocol
 {
 
 template <>
-class LIBGS_HTTP_API parser<model::server> final
+class LIBGS_HTTP_API parser<model::server> final :
+	public const_parameters<parser<model::server>>,
+	public const_headers<parser<model::server>>,
+	public const_cookies<value,parser<model::server>>
 {
 	LIBGS_DISABLE_COPY(parser)
 
@@ -66,16 +70,6 @@ public:
 	[[nodiscard]] version_enum version() const noexcept;
 
 public:
-	[[nodiscard]] optional<value_t> parameter(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] optional<value_t> parameter(size_t index) const;
-	[[nodiscard]] const parameters_t &parameters() const noexcept;
-
-	[[nodiscard]] optional<value_t> header(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] const headers_t &headers() const noexcept;
-
-	[[nodiscard]] optional<value_t> cookie(const core_concepts::text_p<char> auto &key) const noexcept;
-	[[nodiscard]] const cookie_values &cookies() const noexcept;
-
 	[[nodiscard]] optional<value_t> path_arg (const core_concepts::text_p<char> auto &key) const noexcept;
 	[[nodiscard]] optional<value_t> path_arg(size_t index) const;
 	[[nodiscard]] const path_args_t &path_args() const noexcept;

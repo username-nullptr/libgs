@@ -26,29 +26,22 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_PARSER_H
-#define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_PARSER_H
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_GENERATOR_TYPES_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CORE_GENERATOR_TYPES_H
+
+#include <libgs/http/protocol/types.h>
 
 namespace libgs::http::protocol
 {
 
-optional<value> parser<model::client>::header
-(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	auto it = headers().find(key);
-	return it == headers().end() ?
-		optional<value_t>() : libgs::make_optional(it->second);
-}
+template <model>
+class generator {};
 
-optional<cookie> parser<model::client>::cookie
-(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	auto it = cookies().find(key);
-	return it == cookies().end() ?
-		optional<cookie_t>() : libgs::make_optional(it->second);
-}
+enum class generator_state {
+	header, content_length, chunk, finish
+};
 
 } //namespace libgs::http::protocol
 
 
-#endif //LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_PARSER_H
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_GENERATOR_TYPES_H

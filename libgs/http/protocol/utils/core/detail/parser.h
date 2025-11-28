@@ -26,19 +26,37 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_parser_H
-#define LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_parser_H
+#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_PARSER_H
+#define LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_PARSER_H
 
 namespace libgs::http::protocol
 {
 
-optional<value> parser<model::base>::header(const core_concepts::text_p<char> auto &key) const noexcept
+template <typename Opt>
+auto parser<model::base>::make_file_opt_token(Opt &&opt)
+	noexcept requires file_opt_token_v<Opt>
 {
-	auto it = headers().find(key);
-	return it == headers().end() ? optional<value>() : make_optional(it->second);
+	using opt_t = std::remove_cvref_t<Opt>;
+	if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
+	{
+		using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
+		using type = token_t::type;
+		return make_file_opt_token (
+			http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt))
+		);
+	}
+	else if constexpr( Opt::optype == file_optype::single )
+	{
+		using type = opt_t::type;
+		return make_file_opt_token (
+			http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt))
+		);
+	}
+	else
+		return opt.init(std::ios::out | std::ios::binary);
 }
 
 } //namespace libgs::http::protocol
 
 
-#endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_parser_H
+#endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_PARSER_H

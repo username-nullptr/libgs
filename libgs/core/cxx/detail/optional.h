@@ -254,6 +254,12 @@ optional<Value>::optional(value_t value) :
 }
 
 template <concepts::optional_value Value>
+optional<Value>::optional(nullopt_t)
+{
+
+}
+
+template <concepts::optional_value Value>
 template <typename...Args>
 optional<Value> &optional<Value>::emplace(Args&&...args) requires
 	concepts::constructible<value_t,Args...>

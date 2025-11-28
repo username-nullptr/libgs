@@ -54,8 +54,18 @@ using basic_client_request = basic_request<protocol::model::client,
 template <protocol::method_enum Method,
 		  concepts::connection Connection,
 		  protocol::version_enum Version>
-class LIBGS_HTTP_TAPI basic_request<protocol::model::client,
-	client_request_targ<Method,Connection,Version>>
+class LIBGS_HTTP_TAPI basic_request <
+	protocol::model::client, client_request_targ<Method,Connection,Version>
+> final :
+	public protocol::mutable_headers<basic_request <
+		protocol::model::client, client_request_targ<Method,Connection,Version>
+	>>,
+	public protocol::mutable_cookies<value, basic_request <
+		protocol::model::client, client_request_targ<Method,Connection,Version>
+	>>,
+	public protocol::mutable_chunk_attributes<basic_request <
+		protocol::model::client, client_request_targ<Method,Connection,Version>
+	>>
 {
 	LIBGS_DISABLE_COPY(basic_request)
 
@@ -65,6 +75,7 @@ public:
 
 	using url_t = protocol::url;
 	using request_arg_t = protocol::request_arg;
+	using value_t = request_arg_t::value_t;
 
 	using generator_t = protocol::client_generator;
 	using headers_t = request_arg_t::headers_t;
@@ -140,18 +151,22 @@ public:
 		noexcept requires put_or_post;
 
 public:
-	basic_request &set_connection(connection_t &&connection, url_t url);
-	basic_request &set_arg(request_arg_t arg);
-
-	[[nodiscard]] const request_arg_t &arg() const noexcept;
-	[[nodiscard]] request_arg_t &arg() noexcept;
+	basic_request &emplace(connection_t &&connection, url_t url);
+	basic_request &emplace(request_arg_t arg);
 
 	[[nodiscard]] const url_t &url() const noexcept;
-	[[nodiscard]] bool is_finished() const noexcept;
+	[[nodiscard]] request_arg_t arg() const noexcept;
+	[[nodiscard]] operator request_arg_t() const noexcept;
+
+	template <typename Opt>
+	[[nodiscard]] sys_expected<protocol::body_norms_t> set_header(Opt &&opt) noexcept
+		requires protocol::base_generator::file_opt_token_v<Opt>;
+	using protocol::mutable_headers<basic_request>::set_header;
 
 public:
 	[[nodiscard]] static consteval protocol::method_enum method() noexcept;
 	[[nodiscard]] static consteval protocol::version_enum version() noexcept;
+	[[nodiscard]] bool is_finished() const noexcept;
 
 	[[nodiscard]] const connection_t &connection() const noexcept;
 	[[nodiscard]] connection_t &connection() noexcept;

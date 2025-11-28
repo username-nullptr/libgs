@@ -28,6 +28,8 @@
 
 #include "generator.h"
 
+#include "nlohmann/detail/meta/call_std/end.hpp"
+
 namespace libgs::http::protocol
 {
 
@@ -37,55 +39,89 @@ class LIBGS_DECL_HIDDEN generator<model::base>::impl
 
 public:
 	impl() = default;
+
+	// TODO: It will be used in the parser ... ...
+	// [[nodiscard]] body_norms_t do_correct_body_norms() const noexcept
+	// {
+	// 	if( m_state == state_t::header or m_state == state_t::finish )
+	// 		return basic_body_norms();
+	//
+	// 	auto it = m_headers.find(header_t::content_type);
+	// 	if( it == m_headers.end() or not contains_header(header_t::accept_ranges, "bytes") )
+	// 		return basic_body_norms();
+	//
+	// 	constexpr std::string_view prefix =
+	// 		"multipart/byteranges; boundary=";
+	//
+	// 	if( it->second->starts_with(prefix) )
+	// 	{
+	// 		return multipart_body_norms {
+	// 			.boundary = it->second->substr(prefix.size())
+	// 		};
+	// 	}
+	// 	it = m_headers.find(header_t::content_range);
+	// 	if( it == m_headers.end() )
+	// 		return basic_body_norms();
+	//
+	// 	auto &value = it->second;
+	// 	if( value->size() < 5 )
+	// 		return basic_body_norms();
+	//
+	// 	auto dash_pos = value->find('-');
+	// 	if( dash_pos == std::string::npos )
+	// 		return basic_body_norms();
+	//
+	// 	auto begin = strtls::to_arith<size_t>(
+	// 		value->substr(0, dash_pos)
+	// 	);
+	// 	if( not begin )
+	// 		return basic_body_norms();
+	//
+	// 	auto slash_pos = value->find('/', dash_pos + 1);
+	// 	if( slash_pos == std::string::npos )
+	// 		return basic_body_norms();
+	//
+	// 	auto end = strtls::to_arith<size_t>(
+	// 		value->substr(dash_pos + 1, slash_pos - dash_pos - 1)
+	// 	);
+	// 	if( not end )
+	// 		return basic_body_norms();
+	//
+	// 	auto total = strtls::to_arith<size_t>(
+	// 		value->substr(slash_pos + 1)
+	// 	);
+	// 	if( not total )
+	// 		return basic_body_norms();
+	//
+	// 	return range_body_norms {
+	// 		*begin, *total
+	// 	};
+	// }
+
 	headers_t m_headers {{
 		header::content_type,
 		"text/plain; charset=utf-8"
 	}};
-	std::set<value_t> m_chunk_attributes {};
+
+	values_t m_chunk_attributes {};
 	size_t m_content_length = 0;
+
 	state_t m_state {};
+	body_norms_t m_body_norms {};
 };
 
 generator<model::base>::generator() :
+	mutable_headers(nullptr),
+	mutable_chunk_attributes(nullptr),
 	m_impl(new impl())
 {
-
+	m_headers = &m_impl->m_headers;
+	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
 generator<model::base>::~generator()
 {
 	delete m_impl;
-}
-
-const headers &generator<model::base>::headers() const noexcept
-{
-	return m_impl->m_headers;
-}
-
-headers &generator<model::base>::headers() noexcept
-{
-	return m_impl->m_headers;
-}
-
-generator<model::base>& generator<model::base>::set_chunk_attribute(value_t attr) noexcept
-{
-	if( auto [it, inserted] = m_impl->m_chunk_attributes.emplace(std::move(attr)); not inserted )
-	{
-		m_impl->m_chunk_attributes.erase(it);
-		m_impl->m_chunk_attributes.emplace(std::move(attr));
-	}
-	return *this;
-}
-
-generator<model::base>& generator<model::base>::unset_chunk_attribute(const value_t &attr) noexcept
-{
-	m_impl->m_chunk_attributes.erase(attr);
-	return *this;
-}
-
-const std::set<value> &generator<model::base>::chunk_attributes() const noexcept
-{
-	return m_impl->m_chunk_attributes;
 }
 
 generator<model::base> &generator<model::base>::reset()
@@ -96,7 +132,7 @@ generator<model::base> &generator<model::base>::reset()
 	return *this;
 }
 
-std::string generator<model::base>::header_data(size_t body_size)
+std::string generator<model::base>::header_data(size_t body_size) noexcept
 {
 	if( state() != state_t::header )
 		return {};
@@ -121,7 +157,7 @@ std::string generator<model::base>::header_data(size_t body_size)
 	return buf;
 }
 
-std::string generator<model::base>::body_data(const const_buffer &buffer)
+std::string generator<model::base>::body_data(const const_buffer &buffer) noexcept
 {
 	if( m_impl->m_state == state_t::header or m_impl->m_state == state_t::finish )
 		return {};
@@ -158,7 +194,7 @@ std::string generator<model::base>::body_data(const const_buffer &buffer)
 	return sum + std::string(static_cast<const char*>(buffer.data()), buffer.size()) + "\r\n";
 }
 
-std::string generator<model::base>::chunk_end_data(const headers_t &headers)
+std::string generator<model::base>::chunk_end_data(const headers_t &headers) noexcept
 {
 	if( m_impl->m_state != state_t::chunk )
 		return {};
@@ -171,22 +207,17 @@ std::string generator<model::base>::chunk_end_data(const headers_t &headers)
 	return buf + "\r\n";
 }
 
-std::string generator<model::base>::header_data()
+std::string generator<model::base>::header_data() noexcept
 {
 	return header_data(0);
 }
 
-std::string generator<model::base>::chunk_end_data()
+std::string generator<model::base>::chunk_end_data() noexcept
 {
 	return chunk_end_data({});
 }
 
-std::set<value> &generator<model::base>::chunk_attributes() noexcept
-{
-	return m_impl->m_chunk_attributes;
-}
-
-generator<model::base>::state_t  generator<model::base>::state() const noexcept
+generator<model::base>::state_t generator<model::base>::state() const noexcept
 {
 	return m_impl->m_state;
 }
@@ -196,7 +227,7 @@ version_enum generator_v10<model::base>::version() const noexcept
 	return version_enum::v10;
 }
 
-std::string generator_v11<model::base>::header_data(size_t body_size)
+std::string generator_v11<model::base>::header_data(size_t body_size) noexcept
 {
 	if( state() != state_t::header )
 		return {};

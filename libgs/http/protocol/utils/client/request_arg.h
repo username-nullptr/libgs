@@ -29,19 +29,16 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_REQUEST_ARG_H
 
-#include <libgs/http/protocol/types.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
 
 namespace libgs::http::protocol
 {
 
-class LIBGS_HTTP_API request_arg
+class LIBGS_HTTP_API request_arg final :
+	public mutable_headers<request_arg>,
+	public mutable_cookies<value,request_arg>,
+	public mutable_chunk_attributes<request_arg>
 {
-public:
-	using value_t = libgs::value;
-	using header_t = protocol::header;
-	using headers_t = protocol::headers;
-	using cookies_t = protocol::cookie_values;
-
 public:
 	request_arg();
 	~request_arg();
@@ -51,37 +48,6 @@ public:
 
 	request_arg(request_arg &&other) noexcept;
 	request_arg &operator=(request_arg &&other) noexcept;
-
-public:
-	request_arg &set_header (
-		core_concepts::text_p<char> auto &&key, value_t value
-	) noexcept;
-
-	request_arg &unset_header (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] headers_t &headers() noexcept;
-
-public:
-	request_arg &set_cookie (
-		core_concepts::text_p<char> auto &&key, value_t value
-	) noexcept;
-
-	request_arg &unset_cookie (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-
-	[[nodiscard]] const headers_t &cookies() const noexcept;
-	[[nodiscard]] headers_t &cookies() noexcept;
-
-public:
-	request_arg &set_chunk_attribute(value_t attr) noexcept;
-	request_arg &unset_chunk_attribute(const value_t &attr) noexcept;
-
-	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
-	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
 
 private:
 	class impl;

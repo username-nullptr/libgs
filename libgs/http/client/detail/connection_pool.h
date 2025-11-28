@@ -157,11 +157,7 @@ private:
 		socket_t socket(std::move(it->second));
 		m_sock_map.erase(it);
 
-		std::error_code error;
-		asio::socket_base::receive_buffer_size op;
-
-		opt_helper_t(socket).get_option(op, error);
-		if( error )
+		if( not opt_helper_t(socket).message_peek() )
 		{
 			socket = constructor_t::make (
 				std::forward<decltype(exec)>(exec)
@@ -174,8 +170,10 @@ private:
 	{
 		return connection_t(std::move(socket), [this, valid = m_valid](socket_t &&sock) mutable
 		{
-			if( not opt_helper_t(sock).is_open() )
+			opt_helper_t opt_helper(sock);
+			if( not opt_helper.is_open() or not opt_helper.message_peek() )
 				return ;
+
 			dispatch(m_exec, [this, valid = std::move(valid), sock = std::move(sock)]() mutable
 			{
 				if( *valid )

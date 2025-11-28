@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -97,6 +97,9 @@ struct LIBGS_HTTP_TAPI file_opt_token_base
 
 	static constexpr auto permissions = io_permissions_v<fstream_t>;
 	static constexpr auto optype = file_optype::single;
+
+	std::string mime_type = "unknown";
+	size_t file_size = 0;
 };
 
 template <typename, file_optype::type>
@@ -107,14 +110,14 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::single> : file_opt_token
 {
 	using type = void;
 	std::shared_ptr<fstream_t> stream {new fstream_t()};
-	path_t file_name;
-	optional<file_range> range;
+	path_t file_name {};
+	optional<file_range> range {};
 
 	file_opt_token(path_t file_name);
 	file_opt_token(path_t file_name, const file_range &range);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
+	[[nodiscard]] sys_expected<> init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -127,14 +130,14 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token
 {
 	using type = FS&&;
 	using fstream_t = file_opt_token_base<type>::fstream_t;
-	std::shared_ptr<fstream_t> stream;
-	optional<file_range> range;
+	std::shared_ptr<fstream_t> stream {};
+	optional<file_range> range {};
 
 	file_opt_token(fstream_t &&stream);
 	file_opt_token(fstream_t &&stream, const file_range &range);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
+	[[nodiscard]] sys_expected<> init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -148,11 +151,11 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::single> : file_opt_token_
 	using type = FS&;
 	using fstream_t = file_opt_token_base<type>::fstream_t;
 	fstream_t *stream = nullptr;
-	optional<file_range> range;
+	optional<file_range> range {};
 
 	file_opt_token(fstream_t &stream);
 	file_opt_token(fstream_t &stream, const file_range &range);
-	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
+	[[nodiscard]] sys_expected<> init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -164,9 +167,9 @@ template <>
 struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::multiple> : file_opt_token_base<std::fstream>
 {
 	using type = void;
-	std::shared_ptr<fstream_t> stream;
-	path_t file_name;
-	file_ranges ranges;
+	std::shared_ptr<fstream_t> stream {};
+	path_t file_name {};
+	file_ranges ranges {};
 
 	file_opt_token(path_t file_name);
 	file_opt_token(path_t file_name, const file_range &range);
@@ -178,7 +181,7 @@ struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::multiple> : file_opt_tok
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
+	[[nodiscard]] sys_expected<> init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -191,8 +194,8 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_tok
 {
 	using type = FS&&;
 	using fstream_t = file_opt_token_base<type>::fstream_t;
-	std::shared_ptr<fstream_t> stream;
-	file_ranges ranges;
+	std::shared_ptr<fstream_t> stream {};
+	file_ranges ranges {};
 
 	file_opt_token(fstream_t &&stream);
 	file_opt_token(fstream_t &&stream, const file_range &range);
@@ -204,7 +207,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_tok
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
 	~file_opt_token();
 
-	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
+	[[nodiscard]] sys_expected<> init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -218,7 +221,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 	using type = FS&;
 	using fstream_t = file_opt_token_base<type>::fstream_t;
 	fstream_t *stream = nullptr;
-	file_ranges ranges;
+	file_ranges ranges {};
 
 	file_opt_token(fstream_t &stream);
 	file_opt_token(fstream_t &stream, const file_range &range);
@@ -228,7 +231,7 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 	file_opt_token(fstream_t &stream, Args&&...ranges);
 
 	file_opt_token(file_opt_token<type,file_optype::single> opt);
-	[[nodiscard]] error_code init(std::ios_base::openmode mode) noexcept;
+	[[nodiscard]] sys_expected<> init(std::ios_base::openmode mode) noexcept;
 
 	file_opt_token(file_opt_token&&) = default;
 	file_opt_token(const file_opt_token&) = default;
@@ -325,15 +328,6 @@ concept any_file_opt_token_p =
 	file_opt_token_p<T,char8_t,Types,Perms>;
 
 } //namespace concepts
-
-[[nodiscard]] LIBGS_CORE_TAPI optional<size_t> file_size (
-	concepts::any_file_opt_token auto &opt,
-	io_permission::type mode = io_permission::read_write
-);
-
-[[nodiscard]] LIBGS_CORE_TAPI std::string mime_type (
-	concepts::any_file_opt_token auto &opt
-);
 
 namespace operators
 {

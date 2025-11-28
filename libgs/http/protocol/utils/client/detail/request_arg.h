@@ -32,36 +32,6 @@
 namespace libgs::http::protocol
 {
 
-request_arg &request_arg::set_header
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	headers()[strtls::to_string(std::forward<decltype(key)>(key))]
-		= std::forward<value_t>(value);
-	return *this;
-}
-
-request_arg &request_arg::unset_header
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	headers().erase(strtls::to_string(key));
-	return *this;
-}
-
-request_arg &request_arg::set_cookie
-(core_concepts::text_p<char> auto &&key, value_t value) noexcept
-{
-	cookies()[strtls::to_string(std::forward<decltype(key)>(key))]
-		= std::forward<value_t>(value);
-	return *this;
-}
-
-request_arg &request_arg::unset_cookie
-(const core_concepts::text_p<char> auto &key) noexcept
-{
-	cookies().erase(strtls::to_string(key));
-	return *this;
-}
-
 } //namespace libgs::http::protocol
 
 

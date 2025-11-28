@@ -88,7 +88,11 @@ auto socket_operation_helper_base<Stream>::read(mutable_buffer buffer, Token &&t
 		error_code error;
 		auto res = read(buffer, error);
 		if( error )
-			throw system_error(error, "libgs::http::socket_operation_helper::read");
+		{
+			system_error::loc_throw(error,
+				"libgs::http::socket_operation_helper::read"
+			);
+		}
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
@@ -176,7 +180,11 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 		error_code error;
 		auto res = write(buffer, error);
 		if( error )
-			throw system_error(error, "libgs::http::socket_operation_helper::write");
+		{
+			system_error::loc_throw(error,
+				"libgs::http::socket_operation_helper::write"
+			);
+		}
 		return res;
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
@@ -267,12 +275,9 @@ connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		connect(ep, error);
-		if( error )
-		{
-			system_error::loc_throw(error,
-				"libgs::http::socket_operation_helper::connect"
-			);
-		}
+		system_error::loc_throw(error,
+			"libgs::http::socket_operation_helper::connect"
+		);
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<token_t> )
@@ -306,6 +311,24 @@ connect(endpoint_t ep, Token &&token)
 
 template <core_concepts::exec Exec>
 void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+set_option(const auto &option, error_code &error) noexcept
+{
+	this->socket().set_option(option, error);
+}
+
+template <core_concepts::exec Exec>
+void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+set_option(const auto &option)
+{
+	error_code error;
+	this->socket().set_option(option, error);
+	system_error::loc_throw(error,
+		"libgs::http::socket_operation_helper::get_option"
+	);
+}
+
+template <core_concepts::exec Exec>
+void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 get_option(auto &option, error_code &error) noexcept
 {
 	this->socket().get_option(option, error);
@@ -317,8 +340,9 @@ get_option(auto &option)
 {
 	error_code error;
 	this->socket().get_option(option, error);
-	if( error )
-		throw system_error(error, "libgs::http::socket_operation_helper::get_option");
+	system_error::loc_throw(error,
+		"libgs::http::socket_operation_helper::get_option"
+	);
 }
 
 template <core_concepts::exec Exec>
@@ -339,6 +363,33 @@ template <core_concepts::exec Exec>
 bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::non_blocking() const
 {
 	return this->socket().non_blocking();
+}
+
+template <core_concepts::exec Exec>
+bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::message_peek() noexcept
+{
+	bool before_non_blocking = non_blocking();
+	error_code error;
+
+	non_blocking(true, error);
+	if( error )
+		return false;
+
+	else if( not before_non_blocking )
+	{
+		non_blocking(before_non_blocking, error);
+		if( error )
+			return false;
+	}
+	char buf = 0;
+	auto sum = this->socket().receive(asio::buffer(&buf,1),
+		asio::socket_base::message_peek, error
+	);
+	if( error )
+		return sum == 0;
+	else if( error == errc::would_block )
+		return true;
+	return false;
 }
 
 template <core_concepts::exec Exec>
@@ -403,12 +454,9 @@ connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		connect(ep, error);
-		if( error )
-		{
-			system_error::loc_throw(error,
-				"libgs::http::socket_operation_helper::connect"
-			);
-		}
+		system_error::loc_throw(error,
+			"libgs::http::socket_operation_helper::connect"
+		);
 	}
 #ifdef LIBGS_USING_BOOST_ASIO
 	else if constexpr( is_yield_context_v<token_t> )
@@ -458,6 +506,24 @@ connect(endpoint_t ep, Token &&token)
 
 template <core_concepts::exec Exec>
 void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+set_option(const auto &option, error_code &error) noexcept
+{
+	this->socket().next_layer().set_option(option, error);
+}
+
+template <core_concepts::exec Exec>
+void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+set_option(const auto &option)
+{
+	error_code error;
+	this->socket().next_layer().set_option(option, error);
+	system_error::loc_throw(error,
+		"libgs::http::socket_operation_helper::get_option"
+	);
+}
+
+template <core_concepts::exec Exec>
+void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
 get_option(auto &option, error_code &error) noexcept
 {
 	this->socket().next_layer().get_option(option, error);
@@ -469,8 +535,9 @@ get_option(auto &option)
 {
 	error_code error;
 	this->socket().next_layer().get_option(option, error);
-	if( error )
-		throw std::system_error(error, "libgs::http::socket_operation_helper::get_option");
+	system_error::loc_throw(error,
+		"libgs::http::socket_operation_helper::get_option"
+	);
 }
 
 template <core_concepts::exec Exec>
@@ -491,6 +558,33 @@ template <core_concepts::exec Exec>
 bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::non_blocking() const
 {
 	return this->socket().next_layer().non_blocking();
+}
+
+template <core_concepts::exec Exec>
+bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::message_peek() noexcept
+{
+	bool before_non_blocking = non_blocking();
+	error_code error;
+
+	non_blocking(true, error);
+	if( error )
+		return false;
+
+	else if( not before_non_blocking )
+	{
+		non_blocking(before_non_blocking, error);
+		if( error )
+			return false;
+	}
+	char buf = 0;
+	auto sum = this->socket().next_layer().receive (
+		asio::buffer(&buf,1), asio::socket_base::message_peek, error
+	);
+	if( error )
+		return sum == 0;
+	else if( error == errc::would_block )
+		return true;
+	return false;
 }
 
 template <core_concepts::exec Exec>

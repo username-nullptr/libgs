@@ -70,12 +70,16 @@ public:
 		{
 			auto sum = sock.read(buffer(buf, buf_size), error);
 			if( error )
+			{
+				sock.close();
 				return sys_unexpected(error);
-
+			}
 			auto expected = m_parser.append({buf, sum});
 			if( not expected )
+			{
+				sock.close();
 				return sys_unexpected(expected.error());
-
+			}
 			else if( *expected )
 				break;
 		}
@@ -108,8 +112,10 @@ public:
 					buffer(buf, buf_size), use_awaitable | cancel_slot | error
 				);
 				if( error )
+				{
+					sock.close();
 					co_return sys_unexpected(error);
-
+				}
 				auto expected = m_parser.append({buf, sum});
 				if( not expected )
 					co_return sys_unexpected(expected.error());
@@ -185,11 +191,16 @@ public:
 					{body.data(), body.size()}, error
 				);
 				if( error )
+				{
+					sock.close();
 					return sum;
-
+				}
 				auto expected = m_parser.append({body.data(), tmp_sum});
 				if( not expected )
+				{
+					sock.close();
 					return io_unexpected(expected.error());
+				}
 				else if( *expected )
 					break;
 			}
@@ -248,11 +259,16 @@ public:
 						use_awaitable | cancel_slot | error
 					);
 					if( error )
+					{
+						sock.close();
 						co_return io_unexpected(error);
-
+					}
 					auto expected = m_parser.append({body.data(), tmp_sum});
 					if( not expected )
+					{
+						sock.close();
 						co_return io_unexpected(expected.error());
+					}
 					else if( *expected )
 						break;
 				}
@@ -308,7 +324,6 @@ public:
 			char buf[buf_size] {0};
 
 			auto expected = read(buffer(buf,buf_size));
-
 			if( expected )
 			{
 				sum += std::string(buf, *expected);
@@ -388,16 +403,22 @@ public:
 
 template <concepts::connection Connection>
 basic_reply<Connection>::basic_reply(connection_t &&connection) :
+	protocol::const_headers<basic_reply>(nullptr),
+	protocol::const_cookies<protocol::cookie,basic_reply>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(connection)))
 {
-
+	this->m_headers = &m_impl->m_parser.headers();
+	this->m_cookies = &m_impl->m_parser.cookies();
 }
 
 template <concepts::connection Connection>
 basic_reply<Connection>::basic_reply(connection_t &&connection, parser_t &&parser) :
+	protocol::const_headers<basic_reply>(nullptr),
+	protocol::const_cookies<protocol::cookie,basic_reply>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(connection), std::move(parser)))
 {
-
+	this->m_headers = &m_impl->m_parser.headers();
+	this->m_cookies = &m_impl->m_parser.cookies();
 }
 
 template <concepts::connection Connection>
@@ -405,6 +426,8 @@ basic_reply<Connection>::~basic_reply() = default;
 
 template <concepts::connection Connection>
 basic_reply<Connection>::basic_reply(basic_reply &&other) noexcept :
+	protocol::const_headers<basic_reply>(nullptr),
+	protocol::const_cookies<protocol::cookie,basic_reply>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
 {
 
@@ -428,32 +451,6 @@ template <concepts::connection Connection>
 protocol::status_enum basic_reply<Connection>::status() const noexcept
 {
 	return m_impl->m_parser.status();
-}
-
-template <concepts::connection Connection>
-optional<typename basic_reply<Connection>::value_t>
-basic_reply<Connection>::header(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	return m_impl->m_parser.header(key);
-}
-
-template <concepts::connection Connection>
-const basic_reply<Connection>::headers_t &basic_reply<Connection>::headers() const noexcept
-{
-	return m_impl->m_parser.headers();
-}
-
-template <concepts::connection Connection>
-optional<typename basic_reply<Connection>::cookie_t>
-basic_reply<Connection>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	return m_impl->m_parser.cookie(key);
-}
-
-template <concepts::connection Connection>
-const protocol::cookies &basic_reply<Connection>::cookies() const noexcept
-{
-	return m_impl->m_parser.cookies();
 }
 
 template <concepts::connection Connection>

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,8 +32,82 @@
 #include <libgs/core/mime_type.h>
 #include <libgs/core/app_utls.h>
 
-namespace libgs::http
+namespace libgs::http { namespace detail
 {
+
+[[nodiscard]] LIBGS_HTTP_TAPI sys_expected<> init_file_size(concepts::any_file_opt_token auto &opt) noexcept
+{
+	using opt_t = std::remove_cvref_t<decltype(opt)>;
+	using fstream_t = opt_t::fstream_t;
+
+	constexpr auto permissions = opt_t::permissions;
+	optional<size_t> size;
+
+	if constexpr( is_any_fstream_v<fstream_t> )
+	{
+		if( permissions & io_permission::read )
+		{
+			auto cur = opt.stream->tellg();
+			if( opt.stream->good() )
+			{
+				opt.stream->seekg(0, std::ios::end);
+				size = static_cast<size_t>(opt.stream->tellg());
+				opt.stream->seekg(cur, std::ios::beg);
+			}
+		}
+		else if( permissions & io_permission::write )
+		{
+			auto cur = opt.stream->tellp();
+			if( opt.stream->good() )
+			{
+				opt.stream->seekp(0, std::ios::end);
+				size = static_cast<size_t>(opt.stream->tellp());
+				opt.stream->seekp(cur, std::ios::beg);
+			}
+		}
+	}
+	if constexpr( is_any_ifstream_v<fstream_t> )
+	{
+		if( permissions & io_permission::read )
+		{
+			auto cur = opt.stream->tellg();
+			opt.stream->seekg(0, std::ios::end);
+			size = static_cast<size_t>(opt.stream->tellg());
+			opt.stream->seekg(cur, std::ios::beg);
+		}
+	}
+	else
+	{
+		if( permissions & io_permission::write )
+		{
+			auto cur = opt.stream->tellp();
+			opt.stream->seekp(0, std::ios::end);
+			size = static_cast<size_t>(opt.stream->tellp());
+			opt.stream->seekp(cur, std::ios::beg);
+		}
+	}
+	if( size )
+		opt.file_size = *size;
+
+	return io_unexpected (
+		make_error_code(std::errc::permission_denied)
+	);
+}
+
+LIBGS_HTTP_TAPI void init_mime_type(concepts::any_file_opt_token auto &opt) noexcept
+{
+	using opt_t = std::remove_cvref_t<decltype(opt)>;
+	using type = opt_t::type;
+
+	if constexpr( std::is_same_v<type,void> )
+		opt.mime_type = mime_type::get(opt.file_name);
+	else if constexpr( opt_t::permissions & io_permission::read )
+		opt.mime_type = mime_type::get(opt.stream);
+	else
+		opt.mime_type = "Unknown";
+}
+
+} //namespace detail
 
 inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_name) :
 	file_name(std::move(file_name))
@@ -53,12 +127,15 @@ inline file_opt_token<void,file_optype::single>::~file_opt_token()
 		stream->close();
 }
 
-inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::openmode mode) noexcept
+inline sys_expected<> file_opt_token<void,file_optype::single>::init(std::ios_base::openmode mode) noexcept
 {
 	if( file_name.empty() )
-		return std::make_error_code(std::errc::invalid_argument);
-
-	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<int>
+	{
+		return sys_unexpected (
+			std::make_error_code(std::errc::invalid_argument)
+		);
+	}
+	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<>
 	{
 		file_name = std::move(abs_name);
 		namespace fs = std::filesystem;
@@ -76,9 +153,13 @@ inline error_code file_opt_token<void,file_optype::single>::init(std::ios_base::
 				std::make_error_code(static_cast<std::errc>(errno))
 			);
 		}
-		return 0;
-	})
-	.error();
+		auto expected = detail::init_file_size(*this);
+		if( not expected )
+			return expected;
+
+		detail::init_mime_type(*this);
+		return {};
+	});
 }
 
 template <core_concepts::any_fstream_p FS>
@@ -104,9 +185,20 @@ file_opt_token<FS&&,file_optype::single>::~file_opt_token()
 }
 
 template <core_concepts::any_fstream_p FS>
-error_code file_opt_token<FS&&,file_optype::single>::init(std::ios_base::openmode) noexcept
+sys_expected<> file_opt_token<FS&&,file_optype::single>::init(std::ios_base::openmode) noexcept
 {
-	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
+	if( not stream->is_open() )
+	{
+		return sys_unexpected (
+			std::make_error_code(std::errc::bad_file_descriptor)
+		);
+	}
+	auto expected = detail::init_file_size(*this);
+	if( not expected )
+		return expected;
+
+	detail::init_mime_type(*this);
+	return {};
 }
 
 template <core_concepts::any_fstream_p FS>
@@ -125,9 +217,20 @@ file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream, const
 }
 
 template <core_concepts::any_fstream_p FS>
-error_code file_opt_token<FS&,file_optype::single>::init(std::ios_base::openmode) noexcept
+sys_expected<> file_opt_token<FS&,file_optype::single>::init(std::ios_base::openmode) noexcept
 {
-	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
+	if( not stream->is_open() )
+	{
+		return sys_unexpected (
+			std::make_error_code(std::errc::bad_file_descriptor)
+		);
+	}
+	auto expected = detail::init_file_size(*this);
+	if( not expected )
+		return expected;
+
+	detail::init_mime_type(*this);
+	return {};
 }
 
 inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name) :
@@ -171,12 +274,15 @@ inline file_opt_token<void,file_optype::multiple>::~file_opt_token()
 		stream->close();
 }
 
-inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base::openmode mode) noexcept
+inline sys_expected<> file_opt_token<void,file_optype::multiple>::init(std::ios_base::openmode mode) noexcept
 {
 	if( file_name.empty() )
-		return std::make_error_code(std::errc::invalid_argument);
-
-	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<int>
+	{
+		return sys_unexpected (
+			std::make_error_code(std::errc::invalid_argument)
+		);
+	}
+	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<>
 	{
 		file_name = std::move(abs_name);
 		namespace fs = std::filesystem;
@@ -194,9 +300,13 @@ inline error_code file_opt_token<void,file_optype::multiple>::init(std::ios_base
 				std::make_error_code(static_cast<std::errc>(errno))
 			);
 		}
-		return 0;
-	})
-	.error();
+		auto expected = detail::init_file_size(*this);
+		if( not expected )
+			return expected;
+
+		detail::init_mime_type(*this);
+		return {};
+	});
 }
 
 template <core_concepts::any_fstream_p FS>
@@ -245,9 +355,20 @@ file_opt_token<FS&&,file_optype::multiple>::~file_opt_token()
 }
 
 template <core_concepts::any_fstream_p FS>
-error_code file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
+sys_expected<> file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
 {
-	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
+	if( not stream->is_open() )
+	{
+		return sys_unexpected (
+			std::make_error_code(std::errc::bad_file_descriptor)
+		);
+	}
+	auto expected = detail::init_file_size(*this);
+	if( not expected )
+		return expected;
+
+	detail::init_mime_type(*this);
+	return {};
 }
 
 template <core_concepts::any_fstream_p FS>
@@ -289,9 +410,20 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(file_opt_token<type,fi
 }
 
 template <core_concepts::any_fstream_p FS>
-error_code file_opt_token<FS&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
+sys_expected<> file_opt_token<FS&,file_optype::multiple>::init(std::ios_base::openmode) noexcept
 {
-	return stream->is_open() ? error_code() : std::make_error_code(std::errc::bad_file_descriptor);
+	if( not stream->is_open() )
+	{
+		return sys_unexpected (
+			std::make_error_code(std::errc::bad_file_descriptor)
+		);
+	}
+	auto expected = detail::init_file_size(*this);
+	if( not expected )
+		return expected;
+
+	detail::init_mime_type(*this);
+	return {};
 }
 
 namespace detail
@@ -334,71 +466,6 @@ auto make_file_opt_token(core_concepts::any_fstream_p auto &&stream, Args&&...ar
 {
 	using fstream_t = decltype(stream);
 	return detail::make_file_opt_token<fstream_t>(std::forward<fstream_t>(stream), std::forward<Args>(args)...);
-}
-
-optional<size_t> file_size(concepts::any_file_opt_token auto &opt, io_permission::type mode)
-{
-	using opt_t = std::remove_cvref_t<decltype(opt)>;
-	using fstream_t = opt_t::fstream_t;
-
-	optional<size_t> size;
-	if constexpr( is_any_fstream_v<fstream_t> )
-	{
-		if( mode & io_permission::read )
-		{
-			auto cur = opt.stream->tellg();
-			if( opt.stream->good() )
-			{
-				opt.stream->seekg(0, std::ios::end);
-				size = static_cast<size_t>(opt.stream->tellg());
-				opt.stream->seekg(cur, std::ios::beg);
-			}
-		}
-		else if( mode & io_permission::write )
-		{
-			auto cur = opt.stream->tellp();
-			if( opt.stream->good() )
-			{
-				opt.stream->seekp(0, std::ios::end);
-				size = static_cast<size_t>(opt.stream->tellp());
-				opt.stream->seekp(cur, std::ios::beg);
-			}
-		}
-	}
-	if constexpr( is_any_ifstream_v<fstream_t> )
-	{
-		if( mode & io_permission::read )
-		{
-			auto cur = opt.stream->tellg();
-			opt.stream->seekg(0, std::ios::end);
-			size = static_cast<size_t>(opt.stream->tellg());
-			opt.stream->seekg(cur, std::ios::beg);
-		}
-	}
-	else
-	{
-		if( mode & io_permission::write )
-		{
-			auto cur = opt.stream->tellp();
-			opt.stream->seekp(0, std::ios::end);
-			size = static_cast<size_t>(opt.stream->tellp());
-			opt.stream->seekp(cur, std::ios::beg);
-		}
-	}
-	return size;
-}
-
-std::string mime_type(concepts::any_file_opt_token auto &opt)
-{
-	using opt_t = std::remove_cvref_t<decltype(opt)>;
-	using type = typename opt_t::type;
-
-	if constexpr( std::is_same_v<type,void> )
-		return mime_type::get(opt.file_name);
-	else if constexpr( opt_t::permissions & io_permission::read )
-		return mime_type::get(opt.stream);
-	else
-		return "Unknown";
 }
 
 namespace operators

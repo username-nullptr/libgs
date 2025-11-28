@@ -27,7 +27,6 @@
 *************************************************************************************/
 
 #include "generator.h"
-#include <libgs/http/protocol/utils/core/generator.h>
 #include <libgs/core/algorithm/misc.h>
 
 namespace libgs::http::protocol
@@ -39,9 +38,12 @@ class LIBGS_DECL_HIDDEN generator<model::client>::impl
 	using generator_ptr = std::shared_ptr<base_generator>;
 
 public:
-	impl() = default;
+	impl(impl&&) noexcept = default;
+	impl &operator=(impl&&) noexcept = default;
+
+public:
 	explicit impl(version_enum version, url_t url, request_arg_t request) :
-		m_req_arg(std::move(request)), m_url(std::move(url))
+		m_url(std::move(url))
 	{
 		version_t::check(version);
 		if( version == version::v10 )
@@ -49,18 +51,39 @@ public:
 		else if( version == version::v11 )
 			m_generator = std::make_shared<base_generator_v11>();
 		// else ... ...
+
+		set_request_arg(std::move(request));
+	}
+
+	void set_request_arg(request_arg_t request) noexcept
+	{
+		for(auto &[key,value] : request.headers())
+			m_generator->set_header(std::move(key), std::move(value));
+
+		for(auto &[key,value] : request.cookies())
+			m_cookies[std::move(key)] = std::move(value);
+
+		for(auto &value : request.chunk_attributes())
+			m_chunk_attributes.emplace(std::move(value));
 	}
 
 public:
-	generator_ptr m_generator;
-	request_arg_t m_req_arg;
 	url_t m_url {};
+	generator_ptr m_generator;
+
+	cookies_t m_cookies {};
+	values_t m_chunk_attributes {};
 };
 
 generator<model::client>::generator(version_enum version, url_t url, request_arg_t request) :
+	mutable_headers(nullptr),
+	mutable_cookies(nullptr),
+	mutable_chunk_attributes(nullptr),
 	m_impl(new impl(version, std::move(url), std::move(request)))
 {
-
+	m_headers = &m_impl->m_generator->headers();
+	m_cookies = &m_impl->m_cookies;
+	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
 generator<model::client>::generator(url_t url, request_arg_t request) :
@@ -75,37 +98,39 @@ generator<model::client>::~generator()
 }
 
 generator<model::client>::generator(generator &&other) noexcept :
-	m_impl(other.m_impl)
+	mutable_headers(nullptr),
+	mutable_cookies(nullptr),
+	mutable_chunk_attributes(nullptr),
+	m_impl(new impl(std::move(*other.m_impl)))
 {
-	other.m_impl = new impl();
+	m_headers = &m_impl->m_generator->headers();
+	m_cookies = &m_impl->m_cookies;
+	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
 generator<model::client> &generator<model::client>::operator=(generator &&other) noexcept
 {
-	if( this == &other )
-		return *this;
-	delete m_impl;
-	m_impl = other.m_impl;
-	other.m_impl = new impl();
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
-generator<model::client> &generator<model::client>::set_url(url_t url)
+generator<model::client> &generator<model::client>::emplace(url_t url, request_arg_t arg)
 {
 	m_impl->m_url = std::move(url);
+	m_impl->set_request_arg(std::move(arg));
 	return *this;
 }
 
-generator<model::client> &generator<model::client>::set_arg(request_arg_t arg)
+generator<model::client> &generator<model::client>::emplace(request_arg arg)
 {
-	m_impl->m_req_arg = std::move(arg);
+	m_impl->set_request_arg(std::move(arg));
 	return *this;
 }
 
-generator<model::client> &generator<model::client>::set(url_t url, request_arg_t arg)
+generator<model::client> &generator<model::client>::emplace(url_t url)
 {
 	m_impl->m_url = std::move(url);
-	m_impl->m_req_arg = std::move(arg);
 	return *this;
 }
 
@@ -119,14 +144,25 @@ url &generator<model::client>::url() noexcept
 	return m_impl->m_url;
 }
 
-const request_arg &generator<model::client>::arg() const noexcept
+request_arg generator<model::client>::arg() const noexcept
 {
-	return m_impl->m_req_arg;
+	request_arg_t arg;
+	auto *self = remove_const(this);
+
+	for(auto &[key,value] : self->headers())
+		arg.set_header(std::move(key), std::move(value));
+
+	for(auto &[key,value] : self->cookies())
+		arg.set_cookie(std::move(key), std::move(value));
+
+	for(auto &value : self->chunk_attributes())
+		arg.set_chunk_attribute(std::move(value));
+	return arg;
 }
 
-request_arg &generator<model::client>::arg() noexcept
+generator<model::client>::operator request_arg_t() const noexcept
 {
-	return m_impl->m_req_arg;
+	return arg();
 }
 
 std::string generator<model::client>::header_data(method_enum method, size_t body_size)
@@ -134,9 +170,7 @@ std::string generator<model::client>::header_data(method_enum method, size_t bod
 	if( m_impl->m_generator->state() != generator_state::header )
 		return {};
 
-	auto &arg = this->arg();
 	auto &url = this->url();
-
 	auto buf = std::string(method::string(method)) + " ";
 	{
 		auto path = to_percent_encoding(url.path(), '/');
@@ -151,15 +185,13 @@ std::string generator<model::client>::header_data(method_enum method, size_t bod
 			+ version::string(m_impl->m_generator->version())
 			+ "\r\n";
 	}
-	m_impl->m_generator->set_header(header::host, url.address());
-	for(auto &[key,value] : arg.headers())
-		m_impl->m_generator->set_header(key, value);
-
+	mutable_headers::set_header(header::host, url.address());
 	buf += m_impl->m_generator->header_data(body_size);
-	if( not arg.cookies().empty() )
+
+	if( not cookies().empty() )
 	{
 		buf += "Cookie: ";
-		for(auto &[key,value] : arg.cookies())
+		for(auto &[key,value] : cookies())
 			buf += key + "=" + *value + ";";
 		buf += "\r\n";
 	}
@@ -190,6 +222,11 @@ generator<model::client> &generator<model::client>::reset() noexcept
 {
 	m_impl->m_generator.reset();
 	return *this;
+}
+
+base_generator &generator<model::client>::base() noexcept
+{
+	return *m_impl->m_generator;
 }
 
 } //namespace libgs::http::protocol

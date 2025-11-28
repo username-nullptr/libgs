@@ -89,6 +89,9 @@ public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
 	auto connect(endpoint_t ep, Token &&token = {});
 
+	void set_option(const auto &option, error_code &error) noexcept;
+	void set_option(const auto &option);
+
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
 
@@ -96,6 +99,8 @@ public:
 	void non_blocking(bool mode) noexcept;
 
 	[[nodiscard]] bool non_blocking() const;
+	[[nodiscard]] bool message_peek() noexcept;
+
 	void cancel() noexcept;
 	void close() noexcept;
 
@@ -129,6 +134,9 @@ public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
 	auto connect(endpoint_t endpoint, Token &&token = {});
 
+	void set_option(const auto &option, error_code &error) noexcept;
+	void set_option(const auto &option);
+
 	void get_option(auto &option, error_code &error) noexcept;
 	void get_option(auto &option);
 
@@ -136,6 +144,8 @@ public:
 	void non_blocking(bool mode) noexcept;
 
 	[[nodiscard]] bool non_blocking() const;
+	[[nodiscard]] bool message_peek() noexcept;
+
 	void cancel() noexcept;
 	void close() noexcept;
 

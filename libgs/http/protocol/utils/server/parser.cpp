@@ -165,6 +165,9 @@ public:
 };
 
 parser<model::server>::parser(size_t init_buf_size) :
+	const_parameters(nullptr),
+	const_headers(nullptr),
+	const_cookies(nullptr),
 	m_impl(new impl(init_buf_size))
 {
 
@@ -176,18 +179,32 @@ parser<model::server>::~parser()
 }
 
 parser<model::server>::parser(parser &&other) noexcept :
+	const_parameters(other.m_parameters),
+	const_headers(other.m_headers),
+	const_cookies(other.m_cookies),
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
+	other.m_parameters = &other.m_impl->m_parameters;
+	other.m_headers = &other.m_impl->m_parser.headers();
+	other.m_cookies = &other.m_impl->m_cookies;
 }
 
 parser<model::server> &parser<model::server>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
 		return *this;
+
 	delete m_impl;
 	m_impl = other.m_impl;
+	m_parameters = other.m_parameters;
+	m_headers = other.m_headers;
+	m_cookies = other.m_cookies;
+
 	other.m_impl = new impl(0xFFFF);
+	other.m_parameters = &other.m_impl->m_parameters;
+	other.m_headers = &other.m_impl->m_parser.headers();
+	other.m_cookies = &other.m_impl->m_cookies;
 	return *this;
 }
 
@@ -284,32 +301,6 @@ std::string_view parser<model::server>::path() const noexcept
 version_enum parser<model::server>::version() const noexcept
 {
 	return m_impl->m_parser.version();
-}
-
-optional<value> parser<model::server>::parameter(size_t index) const
-{
-	if( index >= parameters().size() )
-	{
-		throw runtime_error (
-			"libgs::http::parser<model::server>::parameter: index out of range."
-		);
-	}
-	return parameters()[index].second;
-}
-
-const parameters &parser<model::server>::parameters() const noexcept
-{
-	return m_impl->m_parameters;
-}
-
-const parser<model::server>::headers_t &parser<model::server>::headers() const noexcept
-{
-	return m_impl->m_parser.headers();
-}
-
-const cookie_values &parser<model::server>::cookies() const noexcept
-{
-	return m_impl->m_cookies;
 }
 
 optional<value> parser<model::server>::path_arg(size_t index) const

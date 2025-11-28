@@ -68,13 +68,18 @@ public:
 };
 
 generator<model::server>::generator(version_enum version, const headers_t &req_headers) :
+	mutable_headers(nullptr),
+	mutable_cookies(nullptr),
+	mutable_chunk_attributes(nullptr),
 	m_impl(new impl(version, req_headers))
 {
-
+	m_headers = &m_impl->m_generator->headers();
+	m_cookies = &m_impl->m_cookies;
+	m_chunk_attributes = &m_impl->m_generator->chunk_attributes();
 }
 
 generator<model::server>::generator(const headers_t &req_headers) :
-	m_impl(new impl(version::v11, req_headers))
+	generator(version::v11, req_headers)
 {
 
 }
@@ -85,61 +90,33 @@ generator<model::server>::~generator()
 }
 
 generator<model::server>::generator(generator &&other) noexcept :
+	mutable_headers(other.m_headers),
+	mutable_cookies(other.m_cookies),
+	mutable_chunk_attributes(other.m_chunk_attributes),
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(version(), *m_impl->m_req_headers);
+	other.m_headers = &other.m_impl->m_generator->headers();
+	other.m_cookies = &other.m_impl->m_cookies;
+	other.m_chunk_attributes = &other.m_impl->m_generator->chunk_attributes();
 }
 
 generator<model::server> &generator<model::server>::operator=(generator &&other) noexcept
 {
 	if( this == &other )
 		return *this;
+
 	delete m_impl;
 	m_impl = other.m_impl;
+	m_headers = other.m_headers;
+	m_cookies = other.m_cookies;
+	m_chunk_attributes = other.m_chunk_attributes;
+
 	other.m_impl = new impl(version(), *m_impl->m_req_headers);
+	other.m_headers = &other.m_impl->m_generator->headers();
+	other.m_cookies = &other.m_impl->m_cookies;
+	other.m_chunk_attributes = &other.m_impl->m_generator->chunk_attributes();
 	return *this;
-}
-
-const headers &generator<model::server>::headers() const noexcept
-{
-	return m_impl->m_generator->headers();
-}
-
-headers &generator<model::server>::headers() noexcept
-{
-	return m_impl->m_generator->headers();
-}
-
-const cookies &generator<model::server>::cookies() const noexcept
-{
-	return m_impl->m_cookies;
-}
-
-cookies &generator<model::server>::cookies() noexcept
-{
-	return m_impl->m_cookies;
-}
-
-generator<model::server> &generator<model::server>::set_chunk_attribute(value_t attr) noexcept
-{
-	m_impl->m_generator->set_chunk_attribute(std::move(attr));
-	return *this;
-}
-
-generator<model::server> &generator<model::server>::unset_chunk_attribute(const value_t &attr) noexcept
-{
-	m_impl->m_generator->unset_chunk_attribute(attr);
-	return *this;
-}
-
-const std::set<value> &generator<model::server>::chunk_attributes() const noexcept
-{
-	return m_impl->m_generator->chunk_attributes();
-}
-
-std::set<value> &generator<model::server>::chunk_attributes() noexcept
-{
-	return m_impl->m_generator->chunk_attributes();
 }
 
 generator<model::server> &generator<model::server>::set_status(status_enum status)

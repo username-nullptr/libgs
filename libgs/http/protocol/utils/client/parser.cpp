@@ -139,9 +139,37 @@ public:
 };
 
 parser<model::client>::parser(size_t init_buf_size) :
+	const_headers(nullptr),
+	const_cookies(nullptr),
+	const_chunk_attributes(nullptr),
 	m_impl(new impl(init_buf_size))
 {
+	m_headers = &m_impl->m_parser.headers();
+	m_cookies = &m_impl->m_cookies;
 
+	// TODO ... ...
+	static values_t tmp;
+	m_chunk_attributes = &tmp;
+}
+
+bool parser<model::client>::keep_alive() const noexcept
+{
+	return m_impl->m_keep_alive;
+}
+
+bool parser<model::client>::support_gzip() const noexcept
+{
+	return m_impl->m_support_gzip;
+}
+
+std::string parser<model::client>::take_partial_body(size_t size)
+{
+	return m_impl->m_parser.take_partial_body(size);
+}
+
+std::string parser<model::client>::take_body()
+{
+	return m_impl->m_parser.take_body();
 }
 
 parser<model::client>::~parser()
@@ -150,18 +178,38 @@ parser<model::client>::~parser()
 }
 
 parser<model::client>::parser(parser &&other) noexcept :
+	const_headers(other.m_headers),
+	const_cookies(other.m_cookies),
+	const_chunk_attributes(other.m_chunk_attributes),
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl(0xFFFF);
+	other.m_headers = &other.m_impl->m_parser.headers();
+	other.m_cookies = &other.m_impl->m_cookies;
+
+	// TODO ... ...
+	static values_t tmp;
+	other.m_chunk_attributes = &tmp;
 }
 
 parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
         return *this;
+
 	delete m_impl;
 	m_impl = other.m_impl;
+	m_headers = other.m_headers;
+	m_cookies = other.m_cookies;
+	m_chunk_attributes = other.m_chunk_attributes;
+
 	other.m_impl = new impl(0xFFFF);
+	other.m_headers = &other.m_impl->m_parser.headers();
+	other.m_cookies = &other.m_impl->m_cookies;
+
+	// TODO ... ...
+	static values_t tmp;
+	other.m_chunk_attributes = &tmp;
 	return *this;
 }
 
@@ -184,43 +232,6 @@ version_enum parser<model::client>::version() const noexcept
 status_enum parser<model::client>::status() const noexcept
 {
 	return m_impl->m_status;
-}
-
-const headers &parser<model::client>::headers() const noexcept
-{
-	return m_impl->m_parser.headers();
-}
-
-const cookies &parser<model::client>::cookies() const noexcept
-{
-	return m_impl->m_cookies;
-}
-
-const std::vector<value> &parser<model::client>::chunk_attributes() const noexcept
-{
-	// TODO ... ...
-	static std::vector<value> tmp;
-	return tmp;
-}
-
-bool parser<model::client>::keep_alive() const noexcept
-{
-	return m_impl->m_keep_alive;
-}
-
-bool parser<model::client>::support_gzip() const noexcept
-{
-	return m_impl->m_support_gzip;
-}
-
-std::string parser<model::client>::take_partial_body(size_t size)
-{
-	return m_impl->m_parser.take_partial_body(size);
-}
-
-std::string parser<model::client>::take_body()
-{
-	return m_impl->m_parser.take_body();
 }
 
 parser<model::client>::stage_t parser<model::client>::stage() const noexcept

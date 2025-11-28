@@ -145,19 +145,20 @@ public:
 };
 
 url::url(std::string_view url) :
+	mutable_parameters(nullptr),
 	m_impl(new impl(url))
+{
+	m_parameters = &m_impl->m_parameters;
+}
+
+url::url(std::string u) :
+	url(std::string_view(u))
 {
 
 }
 
-url::url(std::string url) :
-	m_impl(new impl(url))
-{
-
-}
-
-url::url(const char *url) :
-	m_impl(new impl(url))
+url::url(const char *u) :
+	url(std::string_view(u))
 {
 
 }
@@ -173,9 +174,10 @@ url::~url()
 }
 
 url::url(const url &other) :
+	mutable_parameters(nullptr),
 	m_impl(new impl(*other.m_impl))
 {
-
+	m_parameters = &m_impl->m_parameters;
 }
 
 url &url::operator=(const url &other)
@@ -185,22 +187,28 @@ url &url::operator=(const url &other)
 }
 
 url::url(url &&other) noexcept :
+	mutable_parameters(other.m_parameters),
 	m_impl(other.m_impl)
 {
 	other.m_impl = new impl();
+	other.m_parameters = &other.m_impl->m_parameters;
 }
 
 url &url::operator=(url &&other) noexcept
 {
 	if( this == &other )
 		return *this;
+
 	delete m_impl;
 	m_impl = other.m_impl;
+	m_parameters = other.m_parameters;
+
 	other.m_impl = new impl();
+	other.m_parameters = &other.m_impl->m_parameters;
 	return *this;
 }
 
-url &url::set(std::string_view url)
+url &url::emplace(std::string_view url)
 {
 	m_impl->set(url);
 	return *this;
@@ -242,16 +250,6 @@ uint16_t url::port() const noexcept
 std::string_view url::path() const noexcept
 {
 	return m_impl->m_path;
-}
-
-const parameters &url::parameters() const noexcept
-{
-	return m_impl->m_parameters;
-}
-
-parameters &url::parameters() noexcept
-{
-	return m_impl->m_parameters;
 }
 
 std::string url::to_string() const noexcept
