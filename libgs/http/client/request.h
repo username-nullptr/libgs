@@ -108,40 +108,6 @@ public:
 		noexcept requires put_or_post;
 
 public:
-	template <typename T>
-	static constexpr bool file_opt_token_v = concepts::file_opt_token_p <
-		T, char, file_optype::combine, io_permission::read
-	>;
-	template <typename T, core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto upload_file(T &&opt, Token &&token = {}) noexcept
-		requires file_opt_token_v<T> and put_or_post;
-
-	template <core_concepts::callable<size_t,size_t> Func,
-			  core_concepts::tf_opt_token<error_code,size_t> Token>
-	static constexpr bool progress_callback_v = []() consteval -> bool
-	{
-		using token_t = decltype(unbound_token(std::declval<Token>()));
-		using return_t = decltype(std::declval<Func>()(0, 0));
-
-		if constexpr( (is_use_awaitable_v<token_t> or is_deferred_v<token_t>) and
-			is_awaitable_v<return_t> )
-		{
-			using co_return_t = return_t::value_t;
-			return std::is_same_v<co_return_t, bool> or
-				   std::is_same_v<co_return_t, void>;
-		}
-		else
-		{
-			return std::is_same_v<return_t, bool> or
-				   std::is_same_v<return_t, void>;
-		}
-		return false;
-	}();
-	template <typename T, typename Progress, core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto upload_file(T &&opt, Progress &&progress, Token &&token = {}) noexcept
-		requires file_opt_token_v<T> and progress_callback_v<Progress,Token> and put_or_post;
-
-public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(const headers_t &headers, Token &&token = {})
 		noexcept requires put_or_post;
@@ -157,11 +123,6 @@ public:
 	[[nodiscard]] const url_t &url() const noexcept;
 	[[nodiscard]] request_arg_t arg() const noexcept;
 	[[nodiscard]] operator request_arg_t() const noexcept;
-
-	template <typename Opt>
-	[[nodiscard]] sys_expected<protocol::body_norms_t> set_header(Opt &&opt) noexcept
-		requires protocol::base_generator::file_opt_token_v<Opt>;
-	using protocol::mutable_headers<basic_request>::set_header;
 
 public:
 	[[nodiscard]] static consteval protocol::method_enum method() noexcept;

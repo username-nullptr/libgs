@@ -93,7 +93,7 @@ public:
 		T, char, file_optype::single, io_permission::write
 	>;
 	template <typename T, typename Token = use_sync_t>
-	auto download_file(T &&opt, Token &&token = {}) noexcept
+	auto save_file(T &&opt, Token &&token = {}) noexcept
 		requires file_opt_token<T> and task_token_v<Token,size_t>;
 
 public:

@@ -827,7 +827,7 @@ auto basic_reply<Connection>::read(Token &&token) noexcept
 
 template <concepts::connection Connection>
 template <typename T, typename Token>
-auto basic_reply<Connection>::download_file(T &&opt, Token &&token) noexcept
+auto basic_reply<Connection>::save_file(T &&opt, Token &&token) noexcept
 	requires file_opt_token<T> and task_token_v<Token,size_t>
 {
 	// TODO ... ...

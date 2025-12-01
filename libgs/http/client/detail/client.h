@@ -297,8 +297,12 @@ public:
 
 public:
 	[[nodiscard]] sys_expected<context_ptr<protocol::method::put>> upload_file
-	(req_info info, auto &&opt, auto &&progress) noexcept
+	(req_info info, auto &&opt, auto &&progress)
 	{
+		auto pair = info.arg.set_header(opt);
+		if( not pair )
+			return sys_unexpected(pair.error());
+
 		return request<protocol::method::put>(std::move(info))
 		.and_then([&](const auto &context) -> sys_expected<context_ptr<protocol::method::put>>
 		{
@@ -313,15 +317,92 @@ public:
 				if( context->responded() )
 					return context;
 			}
-			return context->request().upload_file (
-				std::forward<decltype(opt)>(opt), std::forward<decltype(progress)>(progress)
-			)
-			.and_then([&](auto){
-				return context->wait_reply();
-			})
-			.transform([&](auto){
-				return context;
-			});
+			auto before = set_transfer_file_option(context);
+			if( not before )
+				return sys_unexpected(before.error());
+
+			auto &var = pair->first;
+			auto &file_token = pair->second;
+
+			char buffer[128 * 1024] {0};
+			size_t sum = 0, total = 0;
+
+			auto do_transfer = [&](size_t begin, size_t loc_total)
+			{
+				file_token.stream->seekg(begin, std::ios::beg);
+				size_t loc_sum = 0;
+				do {
+					file_token.stream->read(buffer, sizeof(buffer));
+					size_t gcount = file_token.stream->gcount();
+					if( gcount == 0 )
+						break;
+
+					auto expected = context->request().write({buffer, gcount});
+					if( not expected )
+						return expected.error();
+
+					loc_sum += *expected;
+					sum += *expected;
+
+					if( auto error = invoke_progress(progress, sum, total) )
+						return error;
+				}
+				while(not file_token.stream->eof() and loc_sum < loc_total);
+				return error_code();
+			};
+			if( var.index() == 0 )
+			{
+				total = file_token.file_size;
+				if( auto error = do_transfer(0, file_token.file_size) )
+					return sys_unexpected(error);
+			}
+			else if( var.index() == 1 )
+			{
+				auto &norms = std::get<protocol::range_body_norms>(var);
+				total = norms.total;
+				if( auto error = do_transfer(norms.begin, norms.total) )
+					return sys_unexpected(error);
+			}
+			else if( var.index() == 2 )
+			{
+				auto &norms = std::get<protocol::multipart_body_norms>(var);
+				for(auto &package : norms.packages)
+					total += package.range.total;
+
+				for(auto &package : norms.packages)
+				{
+					auto prefix = std::format("--{}\r\n", norms.boundary);
+					for(auto &header : package.headers)
+						prefix += std::format("{}\r\n", header);
+					prefix += "\r\n";
+
+					auto expected = context->request().write(prefix);
+					if( not expected )
+						return sys_unexpected(expected.error());
+
+					if( auto error = do_transfer(package.range.begin, package.range.total) )
+						return sys_unexpected(error);
+				}
+				auto expected = context->request()
+					.write(std::format("--{}--\r\n", norms.boundary));
+
+				if( not expected )
+					return sys_unexpected(expected.error());
+			}
+			else
+			{
+				logic_error::loc_throw (
+					"There is a bug in the implementation of the library:"
+					" theoretically, this conditional branch should never be true."
+					" Please contact the author."
+				);
+			}
+			auto expected = unset_transfer_file_option(context, *before);
+			if( not expected )
+				return sys_unexpected(expected.error());
+
+			context->wait_reply();
+			return context;
 		});
 	}
 
@@ -331,6 +412,10 @@ public:
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
+
+		auto pair = info.arg.set_header(opt);
+		if( not pair )
+			co_return sys_unexpected(pair.error());
 
 		auto task = libgs::dispatch(m_pool.get_executor(),
 		[&]() mutable -> awaitable<sys_expected<context_ptr<protocol::method::put>>>
@@ -355,17 +440,98 @@ public:
 				if( context->responded() )
 					co_return context;
 			}
+			auto before = set_transfer_file_option(context);
+			if( not before )
+				co_return sys_unexpected(before.error());
+
+			auto &var = pair->first;
+			auto &file_token = pair->second;
+
+			char buffer[128 * 1024] {0};
+			size_t sum = 0, total = 0;
+
+			auto do_transfer = [&](size_t begin, size_t loc_total) -> awaitable<error_code>
 			{
-				auto expected = co_await context->request().upload_file (
-					std::forward<decltype(opt)>(opt), std::forward<decltype(progress)>(progress),
-					use_awaitable | cancel_slot
-				);
+				file_token.stream->seekg(begin, std::ios::beg);
+				size_t loc_sum = 0;
+				do {
+					file_token.stream->read(buffer, sizeof(buffer));
+					size_t gcount = file_token.stream->gcount();
+					if( gcount == 0 )
+						break;
+
+					auto expected = co_await context->request()
+						.write({buffer, gcount}, use_awaitable);
+
+					if( not expected )
+						co_return expected.error();
+
+					loc_sum += *expected;
+					sum += *expected;
+
+					if( auto error = co_await co_invoke_progress(progress, sum, total) )
+						co_return error;
+				}
+				while(not file_token.stream->eof() and loc_sum < loc_total);
+				co_return error_code();
+			};
+			if( var.index() == 0 )
+			{
+				total = file_token.file_size;
+				if( auto error = co_await do_transfer(0, file_token.file_size) )
+					co_return sys_unexpected(error);
+			}
+			else if( var.index() == 1 )
+			{
+				auto &norms = std::get<protocol::range_body_norms>(var);
+				total = norms.total;
+				if( auto error = co_await do_transfer(norms.begin, norms.total) )
+					co_return sys_unexpected(error);
+			}
+			else if( var.index() == 2 )
+			{
+				auto &norms = std::get<protocol::multipart_body_norms>(var);
+				for(auto &package : norms.packages)
+					total += package.range.total;
+
+				for(auto &package : norms.packages)
+				{
+					auto prefix = std::format("--{}\r\n", norms.boundary);
+					for(auto &header : package.headers)
+						prefix += std::format("{}\r\n", header);
+					prefix += "\r\n";
+
+					auto expected = co_await context->request()
+						.write(prefix, use_awaitable);
+
+					if( not expected )
+						co_return sys_unexpected(expected.error());
+
+					auto error = co_await do_transfer (
+						package.range.begin, package.range.total
+					);
+					if( error )
+						co_return sys_unexpected(error);
+				}
+				auto expected = co_await context->request()
+					.write(std::format("--{}--\r\n", norms.boundary), use_awaitable);
+
 				if( not expected )
 					co_return sys_unexpected(expected.error());
 			}
-			auto expected = context->wait_reply();
+			else
+			{
+				logic_error::loc_throw (
+					"There is a bug in the implementation of the library:"
+					" theoretically, this conditional branch should never be true."
+					" Please contact the author."
+				);
+			}
+			auto expected = unset_transfer_file_option(context, *before);
 			if( not expected )
 				co_return sys_unexpected(expected.error());
+
+			co_await context->wait_reply(use_awaitable);
 			co_return context;
 		},
 		use_awaitable);
@@ -399,6 +565,165 @@ public:
 		if( not expected )
 			error = expected.error();
 		co_return expected;
+	}
+
+private:
+	[[nodiscard]] auto set_transfer_file_option
+	(context_ptr<protocol::method::put> &context) noexcept
+	{
+		using protocol_t = connection_t::opt_helper_t::protocol_t;
+		constexpr size_t net_buf_size = 8 * 1024 * 1024;
+
+		auto &socket = context->request().connection().opt_helper();
+		error_code error;
+
+		if constexpr( std::is_same_v<protocol_t, asio::ip::tcp> )
+		{
+			using tuple_t = std::tuple <
+				asio::socket_base::send_buffer_size,
+				asio::ip::tcp::no_delay,
+				asio::socket_base::linger
+			>;
+			sys_expected<tuple_t> result;
+
+			asio::socket_base::send_buffer_size send_buffer_size;
+			socket.get_option(send_buffer_size, error);
+			if( error )
+				return result.despair(error);
+
+			asio::ip::tcp::no_delay no_delay; // Nagle
+			socket.get_option(no_delay, error);
+			if( error )
+				return result.despair(error);
+
+			asio::socket_base::linger linger;
+			socket.get_option(linger, error);
+			if( error )
+				return result.despair(error);
+
+			result.emplace(std::move(send_buffer_size),
+				std::move(no_delay), std::move(linger)
+			);
+			send_buffer_size = net_buf_size;
+			socket.get_option(send_buffer_size, error);
+			if( error )
+				return result.despair(error);
+
+			no_delay = true;
+			socket.get_option(no_delay, error);
+			if( error )
+				return result.despair(error);
+
+			linger.enabled(false);
+			linger.timeout(0);
+			socket.get_option(linger, error);
+			if( error )
+				return result.despair(error);
+			return result;
+		}
+		else
+		{
+			using tuple_t = std::tuple <
+				asio::socket_base::send_buffer_size,
+				asio::socket_base::linger
+			>;
+			sys_expected<tuple_t> result;
+
+			asio::socket_base::send_buffer_size send_buffer_size;
+			socket.get_option(send_buffer_size, error);
+			if( error )
+				return result.despair(error);
+
+			asio::socket_base::linger linger;
+			socket.get_option(linger, error);
+			if( error )
+				return result.despair(error);
+
+			result.emplace (
+				std::move(send_buffer_size), std::move(linger)
+			);
+			send_buffer_size = net_buf_size;
+			socket.get_option(send_buffer_size, error);
+			if( error )
+				return result.despair(error);
+
+			linger.enabled(false);
+			linger.timeout(0);
+			socket.get_option(linger, error);
+			if( error )
+				return result.despair(error);
+			return result;
+		}
+	}
+
+	[[nodiscard]] auto unset_transfer_file_option
+	(context_ptr<protocol::method::put> &context, const auto &before) noexcept
+	{
+		using protocol_t = connection_t::opt_helper_t::protocol_t;
+		auto &socket = context->request().connection().opt_helper();
+
+		sys_expected<> result;
+		error_code error;
+
+		if constexpr( std::is_same_v<protocol_t, asio::ip::tcp> )
+		{
+			socket.set_option(std::get<0>(before), error);
+			if( error )
+				return result.despair(error);
+
+			socket.set_option(std::get<1>(before), error);
+			if( error )
+				return result.despair(error);
+
+			socket.set_option(std::get<2>(before), error);
+			if( error )
+				return result.despair(error);
+		}
+		else
+		{
+			socket.set_option(std::get<0>(before), error);
+			if( error )
+				return result.despair(error);
+
+			socket.set_option(std::get<1>(before), error);
+			if( error )
+				return result.despair(error);
+		}
+		return result;
+	}
+
+private:
+	[[nodiscard]] error_code invoke_progress(auto &progress, size_t sum, size_t total) noexcept
+	{
+		using pro_ret_t = decltype(progress(0, 0));
+		if constexpr( std::is_same_v<pro_ret_t, bool> )
+		{
+			if( progress(sum, total) )
+				return {};
+			return make_error_code(errc::operation_aborted);
+		}
+		else
+			progress(sum, total);
+		return {};
+	}
+
+	[[nodiscard]] awaitable<error_code> co_invoke_progress(auto &progress, size_t sum, size_t total) noexcept
+	{
+		using pro_ret_t = decltype(progress(0,0));
+		if constexpr( is_awaitable_v<pro_ret_t> )
+		{
+			using co_pro_ret_t = pro_ret_t::value_t;
+			if constexpr( std::is_same_v<co_pro_ret_t,bool> )
+			{
+				if( co_await progress(sum, total) )
+					co_return ;
+				co_return make_error_code(errc::operation_aborted);
+			}
+			else
+				co_await progress(sum, total);
+		}
+		else
+			co_return invoke_progress(progress, sum, total);
 	}
 
 public:
@@ -580,7 +905,7 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, T
 template <concepts::connection_pool ConnectionPool, protocol::version_enum Version>
 template <typename T, typename Progress, typename Token>
 auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, Progress &&progress, Token &&token)
-	noexcept requires file_opt_token_v<T,Token> and progress_callback_v<Progress,Token>
+	noexcept requires file_opt_token_v<T,Token> and concepts::progress_callback<Progress,Token>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )

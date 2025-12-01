@@ -100,23 +100,18 @@ public:
 		request_t<protocol::method::put>::template file_opt_token_v<T> and
 		core_concepts::tf_opt_token<Token,error_code,context_ptr<protocol::method::put>>;
 
-	template <core_concepts::callable<size_t,size_t> Func,
-			  core_concepts::tf_opt_token<error_code,size_t> Token>
-	static constexpr bool progress_callback_v =
-		request_t<protocol::method::put>::template progress_callback_v<Func,Token>;
-
 public:
 	template <protocol::method_enum Method, typename Token = use_sync_t>
 	[[nodiscard]] auto request(req_info info, Token &&token = {})
 		noexcept requires request_token_v<Method,Token>;
 
 	template <typename T, typename Token = use_sync_t>
-	[[nodiscard]] auto upload_file(req_info info, T &&opt, Token &&token = {})
-		noexcept requires file_opt_token_v<T,Token>;
+	auto upload_file(req_info info, T &&opt, Token &&token = {}) noexcept
+		requires file_opt_token_v<T,Token>;
 
 	template <typename T, typename Progress, typename Token = use_sync_t>
-	[[nodiscard]] auto upload_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
-		requires file_opt_token_v<T,Token> and progress_callback_v<Progress,Token>;
+	auto upload_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires file_opt_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
 
 	// TODO ... ...
 	// download_file();

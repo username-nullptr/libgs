@@ -87,8 +87,10 @@ namespace libgs::http { namespace detail
 		}
 	}
 	if( size )
+	{
 		opt.file_size = *size;
-
+		return {};
+	}
 	return io_unexpected (
 		make_error_code(std::errc::permission_denied)
 	);

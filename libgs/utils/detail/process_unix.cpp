@@ -71,17 +71,19 @@ public:
 
 	~vindicator()
 	{
-		if( m_stdout.is_open() )
-			m_stdout.close();
-		if( m_stderr.is_open() )
-			m_stderr.close();
+		error_code error; LIBGS_UNUSED(error);
+		error = m_stdin .close(error);
+		error = m_stdout.close(error);
+		error = m_stderr.close(error);
 	}
 
 public:
 	[[nodiscard]] sys_expected<> start(bool is_pipe, std::string_view cmd,
 		const args_t &args, std::string_view work_path, const envs_t &envs) noexcept
 	{
+		error_code error; LIBGS_UNUSED(error);
 		sys_expected<> expected;
+
 		if( m_state == process_state::running )
 			return expected;
 
@@ -96,28 +98,24 @@ public:
 		int stdout_pipe[2] {-1,-1};
 		int stderr_pipe[2] {-1,-1};
 
+		error = m_stdin.close(error);
 		if( pipe2(stdin_pipe, O_NONBLOCK) < 0 )
 		{
 			expected.despair(sys_error());
 			goto stdin_error;
 		}
-
-		if( m_stdout.is_open() )
-			m_stdout.close();
+		error = m_stdout.close(error);
 		if( pipe2(stdout_pipe, O_NONBLOCK) < 0 )
 		{
 			expected.despair(sys_error());
 			goto stdout_error;
 		}
-
-		if( m_stderr.is_open() )
-			m_stderr.close();
+		error = m_stderr.close(error);
 		if( pipe2(stderr_pipe, O_NONBLOCK) < 0 )
 		{
 			expected.despair(sys_error());
 			goto stderr_error;
 		}
-
 		m_pid = vfork();
 		if( m_pid < 0 )
 		{
@@ -139,6 +137,10 @@ public:
 			dup2(stdout_pipe[1], STDOUT_FILENO);
 			dup2(stderr_pipe[1], STDERR_FILENO);
 
+			close(stdin_pipe [1]);
+			close(stdout_pipe[0]);
+			close(stderr_pipe[0]);
+
 			int res = chdir(work_path.data());
 			LIBGS_UNUSED(res);
 
@@ -148,21 +150,16 @@ public:
 			default_shell()
 			.transform([&](const std::string &shell)
 			{
-				if( is_pipe )
-					res = execlp(shell.c_str(), shell.c_str(), "-c", cmd.data(), nullptr);
-				else
+				std::string ccmd(cmd);
+				if( not is_pipe )
 				{
-					auto _args = new const char *[3 + args.size() + 1] {
-						shell.c_str(), "-c", cmd.data(), nullptr
-					};
-					for(size_t i=0; i<args.size(); i++)
-					{
-						if( not args[i].empty() )
-							_args[3 + i] = args[i].c_str();
-					}
-					res = execvp(shell.c_str(), const_cast<char**>(_args));
-					delete[] _args;
+					ccmd = cmd;
+					for(auto &arg : args)
+						ccmd += " " + arg;
 				}
+				res = execlp(shell.c_str(),
+					shell.c_str(), "-c", ccmd.c_str(), nullptr
+				);
 				return shell;
 			})
 			.or_else([&]
@@ -174,7 +171,7 @@ public:
 					));
 					_exit(-1);
 				}
-				auto _args = new const char *[1 + args.size() + 1] {
+				auto _args = new const char*[1 + args.size() + 1] {
 					cmd.data(), nullptr
 				};
 				for(size_t i=0; i<args.size(); i++)
@@ -388,35 +385,53 @@ public:
 
 		if( timeout == 0ns )
 		{
-			using duration_t = asio::steady_timer::duration;
-			timer->expires_after(duration_t (
-				std::numeric_limits<duration_t::rep>::max()
-			));
+			for(;;)
+			{
+				timer->expires_after(24h * 365);
+				m_co_join_list.emplace_back(timer);
+
+				std::error_code error;
+				co_await timer->async_wait (
+					use_awaitable | cancel_slot | error
+				);
+				state = m_state.load();
+				if( state == process_state::running )
+				{
+					if( error == errc::operation_aborted )
+						co_return sys_unexpected(error);
+					continue;
+				}
+				else if( state != process_state::exited )
+				{
+					co_return sys_unexpected (
+						make_error_code(std::errc::io_error)
+					);
+				}
+				break;
+			}
 		}
 		else
+		{
 			timer->expires_after(timeout);
+			m_co_join_list.emplace_back(timer);
 
-		m_co_join_list.emplace_back(timer);
-		std::error_code error;
-
-		if( cancel_slot.is_connected() )
-			co_await timer->async_wait(use_awaitable | cancel_slot | error);
-		else
-			co_await timer->async_wait(use_awaitable | error);
-
-		state = m_state.load();
-		if( state == process_state::running )
-		{
-			error = make_error_code (
-				error ? errc::operation_aborted : errc::timed_out
+			std::error_code error;
+			co_await timer->async_wait (
+				use_awaitable | cancel_slot | error
 			);
-			co_return sys_unexpected(error);
-		}
-		else if( state != process_state::exited )
-		{
-			co_return sys_unexpected (
-				make_error_code(std::errc::io_error)
-			);
+			state = m_state.load();
+			if( state == process_state::running )
+			{
+				co_return sys_unexpected (
+					error ? error : errc::timed_out
+				);
+			}
+			else if( state != process_state::exited )
+			{
+				co_return sys_unexpected (
+					make_error_code(std::errc::io_error)
+				);
+			}
 		}
 		co_return m_exit_code.load();
 	}
@@ -459,13 +474,13 @@ public:
 			return ;
 		}
 		asio::async_write(m_stdin, asio::buffer(*buf_ptr),
-		[buf_ptr](const std::error_code &error, size_t)
+		[buf_ptr](const std::error_code &err, size_t)
 		{
 			LIBGS_UNUSED(buf_ptr);
-			if( not error )
+			if( not err )
 				return ;
 			libgs_utils_clog_warning("LibGS.Utils",
-				"process::write<detach>: {}", error
+				"process::write<detach>: {}", err
 			);
 		});
 	}
@@ -602,12 +617,12 @@ public:
 			);
 			return ;
 		}
-		stream->async_read_some(buf, [](const std::error_code &error, size_t)
+		stream->async_read_some(buf, [](const std::error_code &err, size_t)
 		{
-			if( not error )
+			if( not err )
 				return ;
 			libgs_utils_clog_warning("LibGS.Utils",
-				"process::read<detach>: {}", error
+				"process::read<detach>: {}", err
 			);
 		});
 	}
@@ -692,8 +707,7 @@ private:
 
 	[[nodiscard]] static optional<std::string> default_shell() noexcept
 	{
-		auto shell = getenv("SHELL");
-		if( shell and strlen(shell) > 0 )
+		if( auto shell = getenv("SHELL"); shell and strlen(shell) > 0 )
 			return {shell};
 
 		auto pw = getpwuid(getuid());
@@ -989,14 +1003,14 @@ sys_expected<uint64_t> process::self_pid() noexcept
 
 sys_expected<> process::terminate(pid_t pid) noexcept
 {
-	if( ::kill(pid, SIGTERM) == 0 )
+	if( ::kill(static_cast<::pid_t>(pid), SIGTERM) == 0 )
 		return {};
 	return sys_unexpected(sys_error());
 }
 
 sys_expected<> process::kill(pid_t pid) noexcept
 {
-	if( ::kill(pid, SIGKILL) == 0 )
+	if( ::kill(static_cast<::pid_t>(pid), SIGKILL) == 0 )
 		return {};
 	return sys_unexpected(sys_error());
 }
@@ -1022,8 +1036,7 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 
 		if( not fs::exists(g_pid_path) )
 		{
-			std::error_code error;
-			if( not fs::create_directories(g_pid_path, error) )
+			if( std::error_code error; not fs::create_directories(g_pid_path, error) )
 				return result.despair(error);
 		}
 		g_pid_file = g_pid_path + std::format("/{}", key);

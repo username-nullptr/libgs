@@ -29,6 +29,7 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_CONTAINER_HELPER_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CORE_CONTAINER_HELPER_H
 
+#include <libgs/http/protocol/utils/core/body_norms.h>
 #include <libgs/http/protocol/types.h>
 
 namespace libgs::http::protocol
@@ -191,6 +192,20 @@ public:
 	[[nodiscard]] base_t::headers_t &headers() noexcept;
 	using base_t::headers;
 	using base_t::base_t;
+
+public:
+	template <typename T>
+	static constexpr bool file_opt_token_v = http::concepts::file_opt_token_p <
+		T, char, file_optype::combine, io_permission::read
+	>;
+	template <typename Opt>
+	[[nodiscard]] auto set_header(Opt &&opt)
+		noexcept requires file_opt_token_v<Opt>;
+		// -> sys_expected<std::pair<body_norms_t,file_opt_token>>
+
+	template <typename Opt>
+	[[nodiscard]] auto make_file_opt_token(Opt &&opt)
+		noexcept requires file_opt_token_v<Opt>;
 };
 
 template <typename Cookie, typename Derived>

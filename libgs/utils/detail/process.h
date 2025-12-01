@@ -929,11 +929,153 @@ auto basic_process<CharT,Exec>::exec(const string_t &cmd, Token &&token) noexcep
 	return exec(libgs::get_executor(), cmd, {}, std::forward<Token>(token));
 }
 
+namespace detail
+{
+
+template <concepts::character CharT, concepts::exec Exec>
+[[nodiscard]] LIBGS_UTILS_TAPI sys_expected<int> process_exec
+(const std::shared_ptr<basic_process<CharT,Exec>> &obj) noexcept {
+	return obj->run();
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+[[nodiscard]] LIBGS_UTILS_TAPI awaitable<sys_expected<int>> co_process_exec
+(std::shared_ptr<basic_process<CharT,Exec>> obj, asio::cancellation_slot cancel_slot) noexcept
+{
+	using namespace operators;
+	auto expected = co_await obj->run(use_awaitable | cancel_slot);
+	if( expected )
+		co_return expected;
+	else if( obj->state() == process_state::running )
+		obj->kill();
+	co_return expected;
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+[[nodiscard]] LIBGS_UTILS_TAPI awaitable<sys_expected<int>> co_process_exec
+(std::shared_ptr<basic_process<CharT,Exec>> obj, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+{
+	auto expected = co_await co_exec (
+		std::move(obj), std::move(cancel_slot)
+	);
+	if( not expected )
+		error = expected.error();
+	co_return expected;
+}
+
+template <concepts::character CharT, concepts::exec Exec>
+[[nodiscard]] LIBGS_UTILS_TAPI awaitable<sys_expected<int>> co_process_exec_detach
+(const std::shared_ptr<basic_process<CharT,Exec>> &obj) noexcept {
+	return obj->run(detached);
+}
+
+} //namespace detail
+
 template <concepts::character CharT, concepts::exec Exec>
 template <concepts::match_sched<Exec> Exec0, concepts::opt_token<error_code> Token>
 auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, const args_t &args, Token &&token) noexcept
 {
-	return process(exec, cmd, args).run(std::forward<Token>(token));
+	using token_t = std::remove_cvref_t<Token>;
+	auto obj = std::make_shared<process>(exec, cmd, args);
+
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		return detail::process_exec(obj)
+			.or_else([&token](const error_code &error) {
+				token = error;
+			});
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+		return detail::process_exec(obj);
+	else
+	{
+		decltype(auto) ntoken = unbound_token(token);
+		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+
+		if constexpr( is_use_awaitable_v<ntoken_t> or is_deferred_v<ntoken_t> )
+		{
+			if constexpr( is_redirect_error_v<token_t> )
+			{
+				return detail::co_process_exec(obj, token.ec_,
+					asio::get_associated_cancellation_slot(ntoken)
+				);
+			}
+			else
+			{
+				return detail::co_process_exec(obj,
+					asio::get_associated_cancellation_slot(ntoken)
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<ntoken_t> )
+		{
+			auto promise = std::make_shared<std::promise<io_expected>>();
+			if constexpr( is_redirect_error_v<token_t> )
+			{
+				libgs::dispatch(obj->get_executor(), [promise = std::move(promise),
+					obj, token, cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await detail::co_process_exec (
+						obj, token.ec_, cancel_slot
+					));
+					co_return ;
+				});
+			}
+			else
+			{
+				libgs::dispatch(obj->get_executor(), [promise = std::move(promise),
+					obj, cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await detail::co_process_exec (
+						obj, cancel_slot
+					));
+					co_return ;
+				});
+			}
+			return promise->get_future();
+		}
+		else if constexpr( is_detached_v<ntoken_t> )
+			return detail::co_process_exec_detach(obj);
+
+		else if constexpr( is_redirect_error_v<token_t> )
+		{
+			libgs::dispatch(obj->get_executor(), [obj, token,
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await detail::co_process_exec (
+					obj, token.ec_, cancel_slot
+				);
+				expected
+				.transform([&callback = token](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = token](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+		else
+		{
+			libgs::dispatch(obj->get_executor(), [obj, token,
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await detail::co_process_exec (
+					obj, cancel_slot
+				);
+				expected
+				.transform([&callback = token](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = token](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+	}
 }
 
 template <concepts::character CharT, concepts::exec Exec>

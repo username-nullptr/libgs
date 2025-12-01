@@ -77,13 +77,29 @@ concept any_exec_stream = is_any_exec_stream_v<Stream>;
 template <typename Stream>
 concept any_exec_stream_p = is_any_exec_stream_v<std::remove_cvref_t<Stream>>;
 
-template <typename Token, typename...Signatures>
-concept ioop_token =
-	asio::completion_token_for<Token,Signatures...> or
-	(
-		std::is_same_v<std::decay_t<Token>, error_code> and
-		std::is_lvalue_reference_v<Token>
-	);
+template <typename Func, typename Token>
+concept progress_callback =
+	libgs::concepts::callable<Func,size_t,size_t> and
+	libgs::concepts::tf_opt_token<Token,error_code,size_t> and
+	[]() consteval -> bool
+	{
+		using token_t = decltype(unbound_token(std::declval<Token>()));
+		using return_t = decltype(std::declval<Func>()(0,0));
+
+		if constexpr( (is_use_awaitable_v<token_t> or is_deferred_v<token_t>) and
+			is_awaitable_v<return_t> )
+		{
+			using co_return_t = return_t::value_t;
+			return std::is_same_v<co_return_t, bool> or
+				   std::is_same_v<co_return_t, void>;
+		}
+		else
+		{
+			return std::is_same_v<return_t, bool> or
+				   std::is_same_v<return_t, void>;
+		}
+		return false;
+	}();
 
 } //namespace concepts
 

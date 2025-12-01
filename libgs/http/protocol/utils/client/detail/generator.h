@@ -32,15 +32,6 @@
 namespace libgs::http::protocol
 {
 
-template <typename Opt>
-sys_expected<body_norms_t> generator<model::client>::set_header(Opt &&opt) noexcept
-	requires base_generator::file_opt_token_v<Opt>
-{
-	return base().set_header (
-		std::forward<decltype(opt)>(opt)
-	);
-}
-
 template <method_enum Method>
 std::string generator<model::client>::header_data(size_t body_size)
 {

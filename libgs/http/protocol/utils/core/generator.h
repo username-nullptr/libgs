@@ -45,20 +45,9 @@ class LIBGS_HTTP_API generator<model::base> :
 
 public:
 	using state_t = generator_state;
-	using mutable_headers::set_header;
 
-	template <typename T>
-	static constexpr bool file_opt_token_v = http::concepts::file_opt_token_p <
-		T, char, file_optype::combine, io_permission::read
-	>;
-
-public:
 	generator();
 	virtual ~generator() = 0;
-
-	template <typename Opt>
-	[[nodiscard]] sys_expected<body_norms_t> set_header(Opt &&opt)
-		noexcept requires file_opt_token_v<Opt>;
 
 	[[nodiscard]] virtual std::string header_data(size_t body_size) noexcept;
 	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;
@@ -71,11 +60,6 @@ public:
 	[[nodiscard]] virtual version_enum version() const noexcept = 0;
 	[[nodiscard]] state_t state() const noexcept;
 	generator &reset();
-
-public:
-	template <typename Opt>
-	[[nodiscard]] static auto make_file_opt_token(Opt &&opt)
-		noexcept requires file_opt_token_v<Opt>;
 
 protected:
 	class impl;

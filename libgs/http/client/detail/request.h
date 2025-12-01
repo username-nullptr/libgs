@@ -205,47 +205,6 @@ private:
 	};
 
 public:
-	template <typename Opt, typename Progress>
-	[[nodiscard]] io_expected upload_file(Opt &&opt, Progress &&progress) noexcept
-	{
-		// TODO ... ...
-		return io_unexpected (
-			make_error_code(std::errc::operation_not_supported)
-		);
-	}
-
-	template <typename Opt, typename Progress>
-	[[nodiscard]] awaitable<io_expected> co_upload_file(Opt &&opt, Progress &&progress,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		// TODO ... ...
-		co_return io_unexpected (
-			make_error_code(std::errc::operation_not_supported)
-		);
-	}
-
-	template <typename Opt>
-	[[nodiscard]] awaitable<io_expected> co_upload_file(std::error_code &error,
-		Opt &&opt, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_upload_file(std::forward<Opt>(opt),
-			std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-	template <typename Opt>
-	void upload_file_detach(Opt &&opt) noexcept
-	{
-		libgs::dispatch(m_connection.get_executor(),
-			co_upload_file(std::forward<Opt>(opt), [](size_t,size_t){}),
-			detached
-		);
-	}
-
-public:
 	[[nodiscard]] io_expected chunk_end(const headers_t &headers) noexcept
 	{
 		if( m_generator.pro_state() != protocol::generator_state::chunk )
@@ -316,7 +275,7 @@ private:
 		if( pro_state == protocol::generator_state::finish )
 		{
 			return io_unexpected (
-				make_error_code(std::errc::protocol_error)
+				make_error_code(errc::eof)
 			);
 		}
 		size_t sum = 0;
@@ -344,7 +303,7 @@ private:
 		if( pro_state == protocol::generator_state::finish )
 		{
 			co_return io_unexpected (
-				make_error_code(std::errc::protocol_error)
+				make_error_code(errc::eof)
 			);
 		}
 		auto task = libgs::dispatch(m_connection.get_executor(), [&]() mutable -> awaitable<io_expected>
@@ -403,53 +362,6 @@ private:
 
 	void _write_detach(const const_buffer &body) noexcept {
 		libgs::dispatch(m_connection.get_executor(), _co_write(body), detached);
-	}
-
-private:
-	void invoke_progress(auto &progress, size_t sum, size_t total, io_expected &expected) noexcept
-	{
-		if( not progress )
-			return ;
-
-		using pro_ret_t = decltype(progress(0, 0));
-		if constexpr( std::is_same_v<pro_ret_t, bool> )
-		{
-			if( progress(sum, total) )
-				return ;
-
-			expected.despair (
-				make_error_code(errc::operation_aborted)
-			);
-		}
-		else
-			progress(sum, total);
-	}
-
-	[[nodiscard]] awaitable<void> co_invoke_progress
-	(auto &progress, size_t sum, size_t total, io_expected &expected) noexcept
-	{
-		using pro_ret_t = decltype(progress(0,0));
-		if constexpr( is_awaitable_v<pro_ret_t> )
-		{
-			if( not progress )
-				co_return ;
-
-			using co_pro_ret_t = pro_ret_t::value_t;
-			if constexpr( std::is_same_v<co_pro_ret_t,bool> )
-			{
-				if( co_await progress(sum, total) )
-					co_return ;
-
-				expected.despair (
-					make_error_code(errc::operation_aborted)
-				);
-			}
-			else
-				co_await progress(sum, total);
-		}
-		else
-			invoke_progress(progress, sum, total, expected);
-		co_return ;
 	}
 
 private:
@@ -583,145 +495,6 @@ auto basic_request<protocol::model::client,client_request_targ<Method,Connection
 write(const const_buffer &body, Token &&token) noexcept requires put_or_post
 {
 	return m_impl->write(body, token);
-}
-
-template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
-template <typename T, core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-upload_file(T &&opt, Token &&token) noexcept requires file_opt_token_v<T> and put_or_post
-{
-	return upload_file(std::forward<T>(opt), [](size_t,size_t){}, token);
-}
-
-template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
-template <typename T, typename Progress, core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-upload_file(T &&opt, Progress &&progress, Token &&token) noexcept
-	requires file_opt_token_v<T> and progress_callback_v<Progress,Token> and put_or_post
-{
-	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( is_error_code_token_v<Token> )
-	{
-		return m_impl->upload_file(std::forward<T>(opt), std::forward<Progress>(progress))
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
-	}
-	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->upload_file(std::forward<T>(opt), std::forward<Progress>(progress));
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) ntoken = unbound_redirect_time(token);
-		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
-
-		decltype(auto) nntoken = unbound_token(ntoken);
-		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
-
-		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
-		{
-			if constexpr( is_redirect_error_v<ntoken_t> )
-			{
-				return m_impl->co_upload_file(ntoken.ec_, std::forward<T>(opt),
-					std::forward<Progress>(progress),
-					asio::get_associated_cancellation_slot(nntoken),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_upload_file(std::forward<T>(opt),
-					std::forward<Progress>(progress),
-					asio::get_associated_cancellation_slot(nntoken),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_use_future_v<nntoken_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<ntoken_t> )
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					ntoken, opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
-					promise = std::move(promise), cancel_slot = asio::get_associated_cancellation_slot(nntoken),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_upload_file (
-						ntoken.ec_, std::move(opt), std::move(progress), cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
-					promise = std::move(promise), cancel_slot = asio::get_associated_cancellation_slot(nntoken),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_upload_file (
-						std::move(opt), std::move(progress), cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_detached_v<nntoken_t> )
-			m_impl->upload_file_detach(std::forward<T>(opt));
-
-		else if constexpr( is_redirect_error_v<ntoken_t> )
-		{
-			libgs::dispatch(get_executor(), [
-				impl = m_impl->shared_from_this(), ntoken, nntoken, opt = std::forward<T>(opt),
-				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_upload_file (
-					ntoken.ec_, std::move(opt), std::move(progress), cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = nntoken](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = nntoken](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [
-				impl = m_impl->shared_from_this(), nntoken, opt = std::forward<T>(opt),
-				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_upload_file (
-					std::move(opt), std::move(progress), cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = nntoken](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = nntoken](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
-	}
-	else
-	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return upload_file(std::forward<T>(opt),
-			std::forward<Progress>(progress), token | 0ns
-		);
-	}
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
@@ -899,17 +672,6 @@ basic_request<protocol::model::client,client_request_targ<Method,Connection,Vers
 operator request_arg_t() const noexcept
 {
 	return arg();
-}
-
-template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
-template <typename Opt>
-sys_expected<protocol::body_norms_t>
-basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
-set_header(Opt &&opt) noexcept requires protocol::base_generator::file_opt_token_v<Opt>
-{
-	return m_impl->m_generator.set_header (
-		std::forward<decltype(opt)>(opt)
-	);
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
