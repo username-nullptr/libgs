@@ -86,7 +86,7 @@ private:
 public:
 	session *q_ptr = nullptr;
 	const std::string m_id = uuid::generate();
-	time_point_t m_create_time = std::chrono::system_clock::now();
+	time_point_t m_create_time = sys_clock_t::now();
 
 	attributes_t m_attributes {};
 	std::atomic<uint64_t> m_second;

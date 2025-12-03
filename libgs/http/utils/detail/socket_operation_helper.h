@@ -382,14 +382,12 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::mes
 			return false;
 	}
 	char buf = 0;
-	auto sum = this->socket().receive(asio::buffer(&buf,1),
+	this->socket().receive(asio::buffer(&buf,1),
 		asio::socket_base::message_peek, error
 	);
-	if( error )
-		return sum == 0;
-	else if( error == errc::would_block )
-		return true;
-	return false;
+	if( error and error != errc::would_block )
+		return false;
+	return true;
 }
 
 template <core_concepts::exec Exec>
@@ -416,7 +414,7 @@ void socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::clo
 
 template <core_concepts::exec Exec>
 socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
-socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_endpoint() noexcept
+socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_endpoint() const noexcept
 {
 	error_code error; ignore_unused(error);
 	return this->socket().remote_endpoint(error);
@@ -424,14 +422,14 @@ socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::remote_e
 
 template <core_concepts::exec Exec>
 socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::endpoint_t
-socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::local_endpoint() noexcept
+socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::local_endpoint() const noexcept
 {
 	error_code error; ignore_unused(error);
 	return this->socket().local_endpoint(error);
 }
 
 template <core_concepts::exec Exec>
-bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_open() noexcept
+bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_open() const noexcept
 {
 	return this->socket().is_open();
 }
@@ -577,14 +575,12 @@ bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 			return false;
 	}
 	char buf = 0;
-	auto sum = this->socket().next_layer().receive (
+	this->socket().next_layer().receive (
 		asio::buffer(&buf,1), asio::socket_base::message_peek, error
 	);
-	if( error )
-		return sum == 0;
-	else if( error == errc::would_block )
-		return true;
-	return false;
+	if( error and error != errc::would_block )
+		return false;
+	return true;
 }
 
 template <core_concepts::exec Exec>
@@ -612,7 +608,8 @@ void socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 
 template <core_concepts::exec Exec>
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
-socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::remote_endpoint() noexcept
+socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+remote_endpoint() const noexcept
 {
 	error_code error; ignore_unused(error);
 	return this->socket().next_layer().remote_endpoint(error);
@@ -620,14 +617,16 @@ socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tc
 
 template <core_concepts::exec Exec>
 socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::endpoint_t
-socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::local_endpoint() noexcept
+socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+local_endpoint() const noexcept
 {
 	error_code error; ignore_unused(error);
 	return this->socket().next_layer().local_endpoint(error);
 }
 
 template <core_concepts::exec Exec>
-bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::is_open() noexcept
+bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+is_open() const noexcept
 {
 	return this->socket().next_layer().is_open();
 }

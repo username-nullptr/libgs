@@ -94,11 +94,13 @@ protected:
 	void _despair(Args&&...args) requires
 		concepts::constructible<error_t,Args...>;
 
-	const error_t *_error() const noexcept;
-	error_t *_error() noexcept;
+	void _swap(expected_base &other)
+		noexcept(std::is_nothrow_swappable_v<error_t>);
 
 	void _reset_error() noexcept;
+
 	error_storage_t m_error_storage;
+	error_t *m_error_ptr = nullptr;
 };
 
 template <concepts::optional_value Value, concepts::optional_value Error>
@@ -128,11 +130,17 @@ public:
 		concepts::copy_constructible<value_t> and
 		concepts::copy_constructible<error_t>;
 
-	expected(expected &&other) noexcept requires
+	expected(expected &&other) noexcept (
+		std::is_nothrow_move_constructible_v<value_t> and
+		std::is_nothrow_move_constructible_v<error_t>
+	) requires
 		concepts::move_constructible<value_t> and
 		concepts::move_constructible<error_t>;
 
-	expected &operator=(expected &&other) noexcept requires
+	expected &operator=(expected &&other) noexcept (
+		std::is_nothrow_move_constructible_v<value_t> and
+		std::is_nothrow_move_constructible_v<error_t>
+	) requires
 		concepts::move_constructible<value_t> and
 		concepts::move_constructible<error_t>;
 
@@ -151,6 +159,11 @@ public:
 
 	expected &operator=(value_t value) noexcept;
 	expected &operator=(unexpected<error_t> une) noexcept;
+
+	expected &swap(expected &other) noexcept (
+		std::is_nothrow_swappable_v<value_t> and
+		std::is_nothrow_swappable_v<error_t>
+	);
 
 public:
 	template <concepts::callable<value_t> Func>
@@ -216,11 +229,13 @@ public:
 	expected &operator=(const expected &other) requires
 		concepts::copy_constructible<error_t>;
 
-	expected(expected &&other) noexcept requires
-		concepts::move_constructible<error_t>;
+	expected(expected &&other)
+		noexcept(std::is_nothrow_move_constructible_v<error_t>)
+		requires concepts::move_constructible<error_t>;
 
-	expected &operator=(expected &&other) noexcept requires
-		concepts::move_constructible<error_t>;
+	expected &operator=(expected &&other)
+		noexcept(std::is_nothrow_move_constructible_v<error_t>)
+		requires concepts::move_constructible<error_t>;
 
 public:
 	[[nodiscard]] bool has_value() const noexcept;
@@ -232,6 +247,10 @@ public:
 		concepts::constructible<error_t,Args...>;
 
 	expected &despair(unexpected<error_t> une);
+
+	expected &swap(expected &other) noexcept (
+		std::is_nothrow_swappable_v<error_t>
+	);
 
 public:
 	auto transform(concepts::callable auto &&func) const;

@@ -105,9 +105,9 @@ public:
 	void close() noexcept;
 
 public:
-	[[nodiscard]] endpoint_t remote_endpoint() noexcept;
-	[[nodiscard]] endpoint_t local_endpoint() noexcept;
-	[[nodiscard]] bool is_open() noexcept;
+	[[nodiscard]] endpoint_t remote_endpoint() const noexcept;
+	[[nodiscard]] endpoint_t local_endpoint() const noexcept;
+	[[nodiscard]] bool is_open() const noexcept;
 };
 
 #if LIBGS_OPENSSL_SUPPORT
@@ -150,9 +150,9 @@ public:
 	void close() noexcept;
 
 public:
-	[[nodiscard]] endpoint_t remote_endpoint() noexcept;
-	[[nodiscard]] endpoint_t local_endpoint() noexcept;
-	[[nodiscard]] bool is_open() noexcept;
+	[[nodiscard]] endpoint_t remote_endpoint() const noexcept;
+	[[nodiscard]] endpoint_t local_endpoint() const noexcept;
+	[[nodiscard]] bool is_open() const noexcept;
 };
 
 #endif //LIBGS_OPENSSL_SUPPORT

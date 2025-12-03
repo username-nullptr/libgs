@@ -65,8 +65,12 @@ public:
  	[[nodiscard]] const opt_helper_t &opt_helper() const noexcept;
  	[[nodiscard]] opt_helper_t &opt_helper() noexcept;
 
-	[[nodiscard]] bool is_valid() const noexcept;
+	[[nodiscard]] bool peek() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
+
+public:
+	[[nodiscard]] auto set_transfer_file_option() noexcept;
+	[[nodiscard]] auto unset_transfer_file_option(const auto &before) noexcept;
 
 private:
 	class impl;

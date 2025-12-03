@@ -44,9 +44,8 @@ struct LIBGS_HTTP_TAPI default_stream_constructor
 namespace concepts
 {
 
-template <typename Stream, typename Exec, template <typename> class Constructor>
-concept connection_pool_template = concepts::stream<Stream> and core_concepts::exec<Exec> and
-	core_concepts::match_sched<Exec, typename socket_operation_helper<Stream>::executor_t> and requires
+template <typename Stream, template <typename> class Constructor>
+concept connection_pool_template = concepts::stream<Stream> and requires
 {
 	{
 		Constructor<Stream>::make (
@@ -58,30 +57,41 @@ concept connection_pool_template = concepts::stream<Stream> and core_concepts::e
 
 } //namespace concepts
 
+struct connection_pool_config
+{
+	size_t max_count = std::numeric_limits<size_t>::max();
+	using seconds_t = std::chrono::seconds;
+	struct {
+		seconds_t idle {60}, health {5};
+	} timeout;
+};
+
 template <typename Stream = asio::ip::tcp::socket,
-		  typename Exec = asio::any_io_executor,
 		  template<typename> class Constructor = default_stream_constructor>
-	requires concepts::connection_pool_template<Stream,Exec,Constructor>
+	requires concepts::connection_pool_template<Stream,Constructor>
 class LIBGS_HTTP_TAPI basic_connection_pool
 {
 	LIBGS_DISABLE_COPY(basic_connection_pool)
 
 public:
 	using socket_t = Stream;
+	using config_t = connection_pool_config;
+
 	using constructor_t = Constructor<socket_t>;
 	using connection_t = basic_connection<socket_t>;
 
 	using opt_helper_t = connection_t::opt_helper_t;
-	using socket_executor_t = connection_t::executor_t;
-
-	using executor_t = Exec;
+	using executor_t = connection_t::executor_t;
 	using endpoint_t = connection_t::endpoint_t;
 
 public:
-	basic_connection_pool() requires
+	basic_connection_pool(config_t config = {}) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	explicit basic_connection_pool(core_concepts::match_sched<Exec> auto &&exec);
+	explicit basic_connection_pool (
+		core_concepts::match_sched<executor_t> auto &&exec,
+		config_t config = {}
+	);
 	~basic_connection_pool();
 
 	basic_connection_pool(basic_connection_pool &&other) noexcept;
@@ -93,39 +103,38 @@ public:
 		requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
 
 	template <typename Token = use_sync_t>
-	[[nodiscard]] auto get (
-		core_concepts::match_sched<socket_executor_t> auto &&exec,
-		const endpoint_t &ep, Token &&token = {}
-	) requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
+	[[nodiscard]] auto try_get(const endpoint_t &ep, Token &&token = {})
+		requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
 
-public:
-	basic_connection_pool &emplace(socket_t &&socket);
-	void operator<<(socket_t &&socket);
+	bool emplace(socket_t &socket);
+	void operator<<(socket_t &socket);
 
 	basic_connection_pool &cancel() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
+public:
+	[[nodiscard]] config_t config() const noexcept;
+	[[nodiscard]] size_t count() const noexcept;
+
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
-template <typename MainExec, typename SockExec>
+template <typename Exec>
 using basic_tcp_connection_pool = basic_connection_pool <
-	asio::basic_stream_socket<asio::ip::tcp,SockExec>, MainExec
+	asio::basic_stream_socket<asio::ip::tcp,Exec>
 >;
 
-template <typename Exec>
-using tcp_connection_pool = basic_tcp_connection_pool<asio::any_io_executor, Exec>;
-
-using connection_pool = tcp_connection_pool<asio::any_io_executor>;
+using tcp_connection_pool = basic_tcp_connection_pool<asio::any_io_executor>;
+using connection_pool = tcp_connection_pool;
 
 template <typename>
 struct is_connection_pool : std::false_type {};
 
-template <typename Stream, typename Exec, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Exec,Constructor>
-struct is_connection_pool<basic_connection_pool<Stream,Exec,Constructor>> : std::true_type {};
+template <typename Stream, template<typename> class Constructor>
+	requires concepts::connection_pool_template<Stream,Constructor>
+struct is_connection_pool<basic_connection_pool<Stream,Constructor>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_connection_pool_v = is_connection_pool<T>::value;
@@ -153,27 +162,23 @@ struct LIBGS_HTTP_TAPI default_stream_constructor
 	[[nodiscard]] static socket_t make(auto &&exec);
 };
 
-template <typename MainExec, typename SockExec>
+template <typename Exec>
 using basic_ssl_tcp_connection_pool = basic_connection_pool <
-	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,SockExec>>, MainExec
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 >;
 
-template <typename Exec>
-using ssl_tcp_connection_pool = basic_ssl_tcp_connection_pool<asio::any_io_executor,Exec>;
-
-using ssl_connection_pool = ssl_tcp_connection_pool<asio::any_io_executor>;
+using ssl_tcp_connection_pool = basic_ssl_tcp_connection_pool<asio::any_io_executor>;
+using ssl_connection_pool = ssl_tcp_connection_pool;
 
 } //namespace http
 
 namespace https
 {
 
-template <typename MainExec, typename SockExec>
-using basic_tcp_connection_pool = http::basic_ssl_tcp_connection_pool<MainExec, SockExec>;
-
 template <typename Exec>
-using tcp_connection_pool = http::ssl_tcp_connection_pool<Exec>;
+using basic_tcp_connection_pool = http::basic_ssl_tcp_connection_pool<Exec>;
 
+using tcp_connection_pool = http::ssl_tcp_connection_pool;
 using connection_pool = http::ssl_connection_pool;
 
 }} //namespace libgs::https

@@ -31,6 +31,8 @@
 namespace libgs::http::detail
 {
 
+#if LIBGS_OPENSSL_SUPPORT
+
 asio::ssl::context &default_ssl_context() noexcept
 {
 	static asio::ssl::context obj (
@@ -44,5 +46,7 @@ LIBGS_REGISTRATION
 		asio::ssl::verify_none
 	);
 }
+
+#endif //LIBGS_OPENSSL_SUPPORT
 
 } //namespace libgs::http::detail

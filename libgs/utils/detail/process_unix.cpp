@@ -362,7 +362,7 @@ public:
 	}
 
 	[[nodiscard]] awaitable<sys_expected<int>> co_join
-	(const std::chrono::nanoseconds &timeout, asio::cancellation_slot cancel_slot) noexcept
+	(std::chrono::nanoseconds timeout, asio::cancellation_slot cancel_slot) noexcept
 	{
 		auto state = m_state.load();
 		if( state == process_state::idle )
@@ -387,7 +387,7 @@ public:
 		{
 			for(;;)
 			{
-				timer->expires_after(24h * 365);
+				timer->expires_after(24h);
 				m_co_join_list.emplace_back(timer);
 
 				std::error_code error;

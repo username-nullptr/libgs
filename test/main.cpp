@@ -78,12 +78,6 @@ int main()
 
 			int i = 0;
 			i = 11;
-
-			auto pppp = [](size_t bytes, size_t total)
-			{
-
-			};
-			auto asd = co_await client.upload_file("http://www.baidu.com", "./hello.txt", pppp, libgs::use_awaitable);
 		}
 		catch(const std::exception &ex) {
 			spdlog::error("=------=-========= {}", ex);

@@ -191,18 +191,227 @@ public:
 		}
 	}
 
-private:
-	struct range_value : file_range
+public:
+	[[nodiscard]] io_expected upload_file
+	(const protocol::body_norms_t &norms, auto &&opt, auto &&progress) noexcept
 	{
-		std::string cr_line;
-		size_t end = 0;
-	};
+		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
+		if( not token )
+			return io_unexpected(token.error());
 
-	struct fot_data
+		auto before = m_connection.set_transfer_file_option();
+		if( not before )
+			return io_unexpected(before.error());
+
+		char buffer[128 * 1024] {0};
+		size_t sum = 0, total = 0;
+
+		auto do_transfer = [&](size_t begin, size_t loc_total)
+		{
+			token->stream->seekg(begin, std::ios::beg);
+			size_t loc_sum = 0;
+			do {
+				token->stream->read(buffer, sizeof(buffer));
+				size_t gcount = token->stream->gcount();
+				if( gcount == 0 )
+					break;
+
+				auto expected = _write({buffer, gcount});
+				if( not expected )
+					return expected.error();
+
+				loc_sum += *expected;
+				sum += *expected;
+
+				if( auto error = invoke_progress(progress, sum, total) )
+					return error;
+			}
+			while( not token->stream->eof() and loc_sum < loc_total );
+			return error_code();
+		};
+		if( norms.index() == 0 or norms.index() == std::variant_npos )
+		{
+			total = token->file_size;
+			if( auto error = do_transfer(0, token->file_size) )
+				return io_unexpected(error);
+		}
+		else if( norms.index() == 1 )
+		{
+			auto &range_norms = std::get<protocol::range_body_norms>(norms);
+			total = range_norms.total;
+			if( auto error = do_transfer(range_norms.begin, range_norms.total) )
+				return io_unexpected(error);
+		}
+		else if( norms.index() == 2 )
+		{
+			auto &multipart_norms = std::get<protocol::multipart_body_norms>(norms);
+			for(auto &package : multipart_norms.packages)
+				total += package.range.total;
+
+			for(auto &package : multipart_norms.packages)
+			{
+				auto prefix = std::format("--{}\r\n", multipart_norms.boundary);
+				for(auto &header : package.headers)
+					prefix += std::format("{}\r\n", header);
+				prefix += "\r\n";
+
+				if( auto expected = _write(prefix); not expected )
+					return io_unexpected(expected.error());
+
+				if( auto error = do_transfer(package.range.begin, package.range.total) )
+					return io_unexpected(error);
+			}
+			if( auto expected = _write(std::format("--{}--\r\n", multipart_norms.boundary)); not expected )
+				return io_unexpected(expected.error());
+		}
+		else
+		{
+			logic_error::loc_throw (
+				"There is a bug in the implementation of the library:"
+				" theoretically, this conditional branch should never be true."
+				" Please contact the author."
+			);
+		}
+		auto expected = m_connection.unset_transfer_file_option(*before);
+		if( not expected )
+			return io_unexpected(expected.error());
+		return sum;
+	}
+
+	[[nodiscard]] awaitable<io_expected> co_upload_file(protocol::body_norms_t norms,
+		auto &&opt, auto &&progress, asio::cancellation_slot cancel_slot,
+		std::chrono::nanoseconds timeout) noexcept
 	{
-		std::string mtype;
-		size_t fsize = 0;
-	};
+		using namespace std::chrono_literals;
+		using namespace libgs::operators;
+
+		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
+		if( not token )
+			co_return io_unexpected(token.error());
+
+		auto task = libgs::dispatch(m_connection.get_executor(),
+		[&]() mutable -> awaitable<io_expected>
+		{
+			auto before = m_connection.set_transfer_file_option();
+			if( not before )
+				co_return io_unexpected(before.error());
+
+			char buffer[128 * 1024] {0};
+			size_t sum = 0, total = 0;
+
+			auto do_transfer = [&](size_t begin, size_t loc_total) -> awaitable<error_code>
+			{
+				token->stream->seekg(begin, std::ios::beg);
+				size_t loc_sum = 0;
+				do {
+					token->stream->read(buffer, sizeof(buffer));
+					size_t gcount = token->stream->gcount();
+					if( gcount == 0 )
+						break;
+
+					auto expected = co_await _co_write (
+						{buffer, gcount}, cancel_slot, 0ns
+					);
+					if( not expected )
+						co_return expected.error();
+
+					loc_sum += *expected;
+					sum += *expected;
+
+					if( auto error = co_await co_invoke_progress(progress, sum, total) )
+						co_return error;
+				}
+				while( not token->stream->eof() and loc_sum < loc_total );
+				co_return error_code();
+			};
+			if( norms.index() == 0 )
+			{
+				total = token->file_size;
+				if( auto error = co_await do_transfer(0, token->file_size) )
+					co_return io_unexpected(error);
+			}
+			else if( norms.index() == 1 )
+			{
+				auto &range_norms = std::get<protocol::range_body_norms>(norms);
+				total = range_norms.total;
+				if( auto error = co_await do_transfer(range_norms.begin, range_norms.total) )
+					co_return io_unexpected(error);
+			}
+			else if( norms.index() == 2 )
+			{
+				auto &multipart_norms = std::get<protocol::multipart_body_norms>(norms);
+				for(auto &package : multipart_norms.packages)
+					total += package.range.total;
+
+				for(auto &package : multipart_norms.packages)
+				{
+					auto prefix = std::format("--{}\r\n", multipart_norms.boundary);
+					for(auto &header : package.headers)
+						prefix += std::format("{}\r\n", header);
+					prefix += "\r\n";
+
+					auto expected = co_await _co_write(prefix, cancel_slot, 0ns);
+					if( not expected )
+						co_return io_unexpected(expected.error());
+
+					auto error = co_await do_transfer (
+						package.range.begin, package.range.total
+					);
+					if( error )
+						co_return io_unexpected(error);
+				}
+				auto expected = co_await _co_write (
+					std::format("--{}--\r\n", multipart_norms.boundary),
+					cancel_slot, 0ns
+				);
+				if( not expected )
+					co_return io_unexpected(expected.error());
+			}
+			else
+			{
+				logic_error::loc_throw (
+					"There is a bug in the implementation of the library:"
+					" theoretically, this conditional branch should never be true."
+					" Please contact the author."
+				);
+			}
+			auto expected = m_connection.unset_transfer_file_option(*before);
+			if( not expected )
+				co_return io_unexpected(expected.error());
+			co_return sum;
+		},
+		use_awaitable);
+
+		io_expected expected;
+		if( timeout == 0ns )
+			expected = co_await std::move(task);
+		else
+		{
+			auto var = co_await(std::move(task) or
+				coro::sleep_for(m_connection.get_executor(), timeout)
+			);
+			if( var.index() == 0 )
+				expected = std::get<0>(var);
+			else if( not std::get<1>(var) )
+				expected.despair(make_error_code(errc::timed_out));
+			else
+				expected.despair(std::get<1>(var));
+		}
+		co_return expected;
+	}
+
+	[[nodiscard]] awaitable<io_expected> co_upload_file(
+		std::error_code &error, protocol::body_norms_t norms, auto &&opt, auto &&progress,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		auto expected = co_await co_upload_file(std::move(norms),
+			std::forward<decltype(opt)>(opt), std::forward<decltype(progress)>(progress),
+			std::move(cancel_slot), std::move(timeout)
+		);
+		if( not expected )
+			error = expected.error();
+		co_return expected;
+	}
 
 public:
 	[[nodiscard]] io_expected chunk_end(const headers_t &headers) noexcept
@@ -436,6 +645,66 @@ private:
 		co_return sum;
 	}
 
+private:
+	[[nodiscard]] error_code invoke_progress(auto &progress, size_t sum, size_t total) noexcept
+	{
+		using pro_ret_t = decltype(progress(0, 0));
+		if constexpr( std::is_same_v<pro_ret_t, bool> )
+		{
+			if( progress(sum, total) )
+				return {};
+			return make_error_code(errc::operation_aborted);
+		}
+		else
+			progress(sum, total);
+		return {};
+	}
+
+	[[nodiscard]] awaitable<error_code> co_invoke_progress(auto &progress, size_t sum, size_t total) noexcept
+	{
+		using pro_ret_t = decltype(progress(0,0));
+		if constexpr( is_awaitable_v<pro_ret_t> )
+		{
+			using co_pro_ret_t = pro_ret_t::value_t;
+			if constexpr( std::is_same_v<co_pro_ret_t,bool> )
+			{
+				if( co_await progress(sum, total) )
+					co_return ;
+				co_return make_error_code(errc::operation_aborted);
+			}
+			else
+				co_await progress(sum, total);
+		}
+		else
+			co_return invoke_progress(progress, sum, total);
+	}
+
+	template <typename Opt>
+	auto make_file_opt_token(Opt &&opt) noexcept
+	{
+		using opt_t = std::remove_cvref_t<Opt>;
+		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
+		{
+			using token_t = file_opt_token<void,file_optype::single> ;
+			token_t token(std::forward<Opt>(opt));
+
+			auto expected = token.init(std::ios::in | std::ios::binary);
+			if( expected )
+				return sys_expected<token_t>(std::move(token));
+			return sys_expected<token_t>(sys_unexpected(expected.error()));
+		}
+		else
+		{
+			if( opt.stream->is_open() )
+				return sys_expected<opt_t>(std::forward<Opt>(opt));
+
+			auto expected = opt.init(std::ios::in | std::ios::binary);
+			if( expected )
+				return sys_expected<opt_t>(std::forward<Opt>(opt));
+			return sys_expected<opt_t>(sys_unexpected(expected.error()));
+		}
+	}
+
 public:
 	connection_t m_connection;
 	generator_t m_generator;
@@ -495,6 +764,157 @@ auto basic_request<protocol::model::client,client_request_targ<Method,Connection
 write(const const_buffer &body, Token &&token) noexcept requires put_or_post
 {
 	return m_impl->write(body, token);
+}
+
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+template <typename T, typename Token>
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+upload_file(protocol::body_norms_t norms, T &&opt, Token &&token)
+	noexcept requires file_opt_token_v<T>
+{
+	return upload_file(std::move(norms),
+		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
+	);
+}
+
+template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>
+template <typename T, typename Progress, typename Token>
+auto basic_request<protocol::model::client,client_request_targ<Method,Connection,Version>>::
+upload_file(protocol::body_norms_t norms, T &&opt, Progress &&progress, Token &&token)
+	noexcept requires file_opt_token_v<T> and concepts::progress_callback<Progress,Token>
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		return m_impl->upload_file(std::move(norms),
+			std::forward<T>(opt), std::forward<Progress>(progress)
+		)
+		.or_else([&token](const error_code &error) {
+			token = error;
+		});
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		return m_impl->upload_file(std::move(norms),
+			std::forward<T>(opt), std::forward<Progress>(progress)
+		);
+	}
+	else if constexpr( is_redirect_time_v<token_t> )
+	{
+		decltype(auto) ntoken = unbound_redirect_time(token);
+		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+
+		decltype(auto) nntoken = unbound_token(ntoken);
+		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
+
+		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+		{
+			if constexpr( is_redirect_error_v<ntoken_t> )
+			{
+				return m_impl->co_upload_file(ntoken.ec_, std::move(norms),
+					std::forward<T>(opt), std::forward<Progress>(progress),
+					asio::get_associated_cancellation_slot(nntoken),
+					get_associated_redirect_time(token)
+				);
+			}
+			else
+			{
+				return m_impl->co_upload_file(std::move(norms),
+					std::forward<T>(opt), std::forward<Progress>(progress),
+					asio::get_associated_cancellation_slot(nntoken),
+					get_associated_redirect_time(token)
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<nntoken_t> )
+		{
+			auto promise = std::make_shared<std::promise<io_expected>>();
+			if constexpr( is_redirect_error_v<ntoken_t> )
+			{
+				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+					ntoken, promise = std::move(promise), norms = std::move(norms),
+					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					timeout = get_associated_redirect_time(token)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await impl->co_upload_file(ntoken.ec_,
+						std::move(norms), std::move(opt), std::move(progress),
+						cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			else
+			{
+				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+					promise = std::move(promise), norms = std::move(norms),
+					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					timeout = get_associated_redirect_time(token)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await impl->co_upload_file (
+						std::move(norms), std::move(opt), std::move(progress),
+						cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			return promise->get_future();
+		}
+		else if constexpr( is_redirect_error_v<ntoken_t> )
+		{
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+				ntoken, nntoken, norms = std::move(norms), opt = std::forward<T>(opt),
+				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await impl->co_upload_file(ntoken.ec_,
+					std::move(norms), std::move(opt), std::move(progress),
+					cancel_slot, timeout
+				);
+				expected
+				.transform([&callback = nntoken](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = nntoken](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+		else
+		{
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+				nntoken, norms = std::move(norms), opt = std::forward<T>(opt),
+				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await impl->co_upload_file (
+					std::move(norms), std::move(opt), std::move(progress),
+					cancel_slot, timeout
+				);
+				expected
+				.transform([&callback = nntoken](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = nntoken](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+	}
+	else
+	{
+		using namespace libgs::operators;
+		using namespace std::chrono_literals;
+		return upload_file(std::move(norms),
+			std::forward<T>(opt), std::forward<Progress>(progress),
+			token | 0ns
+		);
+	}
 }
 
 template <protocol::method_enum Method, concepts::connection Connection, protocol::version_enum Version>

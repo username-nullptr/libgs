@@ -41,15 +41,23 @@ option(LIBGS_OPENSSL_SUPPORT
 if (LIBGS_OPENSSL_SUPPORT)
 	message(STATUS "${PRO_NAME}: Enable OpenSSL support.")
 	add_definitions(-DLIBGS_OPENSSL_SUPPORT=1)
-
-	configure_file (
-		${PROJECT_SOURCE_DIR}/libgs/core/cxx/configs.h.in
-		${output_dir}/config_include/libgs/core/cxx/configs.h
-		@ONLY
-	)
-	include_directories(${output_dir}/config_include)
-	install(FILES
-		${output_dir}/config_include/libgs/core/cxx/configs.h
-		DESTINATION include
-	)
 endif ()
+
+set(LIBGS_CONFIG_INCLUDE
+	${output_dir}/config_include
+)
+set(LIBGS_CONFIG_INCLUDE
+	${LIBGS_CONFIG_INCLUDE} CACHE PATH
+	"Path to libgs config include directory."
+)
+configure_file (
+	${PROJECT_SOURCE_DIR}/libgs/core/cxx/configs.h.in
+	${LIBGS_CONFIG_INCLUDE}/libgs/core/cxx/configs.h
+	@ONLY
+)
+include_directories(${LIBGS_CONFIG_INCLUDE})
+
+install(FILES
+	${LIBGS_CONFIG_INCLUDE}/libgs/core/cxx/configs.h
+	DESTINATION include
+)

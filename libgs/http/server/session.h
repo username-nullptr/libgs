@@ -44,7 +44,9 @@ public:
 
 	template <typename Rep, typename Period = std::ratio<1>>
 	using duration_t = std::chrono::duration<Rep,Period>;
-	using time_point_t = decltype(std::chrono::system_clock::now());
+
+	using sys_clock_t = std::chrono::steady_clock;
+	using time_point_t = sys_clock_t::time_point;
 
 	using value_t = libgs::value;
 	using attributes_t = map<std::any>;

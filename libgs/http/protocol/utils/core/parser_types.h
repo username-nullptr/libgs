@@ -64,7 +64,6 @@ enum class stage {
 };
 
 } //namespace libgs::http::protocol
-#include <libgs/http/protocol/utils/core/detail/parser_types.h>
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H

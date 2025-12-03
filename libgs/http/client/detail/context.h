@@ -67,7 +67,8 @@ public:
 			if( not expected )
 				return expected;
 
-			else if( m_reply.status() == protocol::status::continue_upload )
+			auto status = m_reply.status();
+			if( status == protocol::status::continue_upload )
 				m_request.connection() = std::move(m_reply.connection());
 			return expected;
 		}

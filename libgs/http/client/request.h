@@ -107,6 +107,20 @@ public:
 	auto write(const const_buffer &body, Token &&token = {})
 		noexcept requires put_or_post;
 
+	template <typename T>
+	static constexpr bool file_opt_token_v =
+		method_v == method_t::put and concepts::file_opt_token_p <
+			T, char, file_optype::single, io_permission::read
+		>;
+
+	template <typename T, typename Token = use_sync_t>
+	auto upload_file(protocol::body_norms_t norms, T &&opt, Token &&token = {})
+		noexcept requires file_opt_token_v<T>;
+
+	template <typename T, typename Progress, typename Token = use_sync_t>
+	auto upload_file(protocol::body_norms_t norms, T &&opt, Progress &&progress, Token &&token = {})
+		noexcept requires file_opt_token_v<T> and concepts::progress_callback<Progress,Token>;
+
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(const headers_t &headers, Token &&token = {})

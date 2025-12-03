@@ -53,11 +53,13 @@ public:
 	optional_base &operator=(const optional_base &other) requires
 		concepts::copy_constructible<value_t>;
 
-	optional_base(optional_base &&other) requires
-		concepts::move_constructible<value_t>;
+	optional_base(optional_base &&other)
+		noexcept(std::is_nothrow_move_constructible_v<value_t>)
+		requires concepts::move_constructible<value_t>;
 
-	optional_base &operator=(optional_base &&other) requires
-		concepts::move_constructible<value_t>;
+	optional_base &operator=(optional_base &&other)
+		noexcept(std::is_nothrow_move_constructible_v<value_t>)
+		requires concepts::move_constructible<value_t>;
 
 public:
 	[[nodiscard]] bool has_value() const noexcept;
@@ -106,13 +108,14 @@ protected:
 	void _emplace(Args&&...args) requires
 		concepts::constructible<value_t,Args...>;
 
-	const value_t *_data() const noexcept;
-	value_t *_data() noexcept;
+	void _swap(optional_base &other)
+		noexcept(std::is_nothrow_swappable_v<value_t>);
+
 	void _reset() noexcept;
 
 protected:
 	storage_t m_storage;
-	bool m_has_value = false;
+	value_t *m_ptr = nullptr;
 };
 
 #define LIBGS_OPTIONAL_ERROR_IF(opt, fmt, ...) if( not opt ) \
@@ -136,6 +139,9 @@ public:
 
 	optional &operator=(value_t value) noexcept;
 	optional &reset() noexcept;
+
+	optional &swap(optional &other)
+		noexcept(std::is_nothrow_swappable_v<value_t>);
 
 public:
 	template <concepts::callable_novoid<value_t> Func>

@@ -381,8 +381,10 @@ auto mutable_headers<Derived>::make_file_opt_token(Opt &&opt)
 		using res_token_t = file_opt_token<type,file_optype::multiple> ;
 
 		res_token_t token(std::forward<Opt>(opt));
-		auto expected = token.init(std::ios::in | std::ios::binary);
+		if( token.stream->is_open() )
+			return sys_expected<opt_t>(std::forward<Opt>(opt));
 
+		auto expected = token.init(std::ios::in | std::ios::binary);
 		if( expected )
 			return sys_expected<res_token_t>(std::move(token));
 		return sys_expected<res_token_t>(sys_unexpected(expected.error()));

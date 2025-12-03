@@ -263,6 +263,7 @@ file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, Arg
 }
 
 inline file_opt_token<void,file_optype::multiple>::file_opt_token(file_opt_token<type,file_optype::single> opt) :
+	file_opt_token_base(std::move(opt)),
 	stream(std::move(opt.stream)),
 	file_name(std::move(opt.file_name))
 {
@@ -343,6 +344,7 @@ file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, A
 
 template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&&,file_optype::multiple>::file_opt_token(file_opt_token<type,file_optype::single> opt) :
+	file_opt_token_base<FS&&>(std::move(opt)),
 	stream(std::move(opt.stream))
 {
 	if( opt.range )
@@ -405,6 +407,7 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, Arg
 
 template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(file_opt_token<type,file_optype::single> opt) :
+	file_opt_token_base<FS&>(std::move(opt)),
 	stream(opt.stream)
 {
 	if( opt.range )

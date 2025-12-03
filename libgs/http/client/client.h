@@ -97,8 +97,12 @@ public:
 
 	template <typename T, typename Token>
 	static constexpr bool file_opt_token_v =
-		request_t<protocol::method::put>::template file_opt_token_v<T> and
-		core_concepts::tf_opt_token<Token,error_code,context_ptr<protocol::method::put>>;
+		concepts::file_opt_token_p <
+			T, char, file_optype::multiple, io_permission::read
+		> and
+		core_concepts::tf_opt_token <
+			Token, error_code, context_ptr<protocol::method::put>
+		>;
 
 public:
 	template <protocol::method_enum Method, typename Token = use_sync_t>
