@@ -59,5 +59,5 @@ include_directories(${LIBGS_CONFIG_INCLUDE})
 
 install(FILES
 	${LIBGS_CONFIG_INCLUDE}/libgs/core/cxx/configs.h
-	DESTINATION include
+	DESTINATION include/libgs/core/cxx
 )
