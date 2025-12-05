@@ -775,8 +775,11 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 		{
 			if( *cancel )
 				co_return false;
+
 			timer->expires_at(atime);
 			co_await timer->async_wait(use_awaitable | error);
+
+			atime += rtime;
 			co_return not error;
 		};
 		if( not immediately )
@@ -804,7 +807,6 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 			}
 			if( not co_await sleep() )
 				break;
-			atime += rtime;
 		}
 		co_return ;
 	});
