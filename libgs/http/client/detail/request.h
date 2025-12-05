@@ -29,8 +29,6 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REQUEST_H
 
-#include <libgs/core/algorithm/uuid.h>
-#include <libgs/core/string_vector.h>
 #include <libgs/coro/utils.h>
 
 namespace libgs::http

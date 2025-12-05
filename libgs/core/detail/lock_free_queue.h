@@ -32,6 +32,34 @@
 namespace libgs
 {
 
+template <concepts::copy_or_move_constructible T, typename Derived>
+void lock_free_queue_base<T,Derived>::force_enqueue(element_t &&data)
+{
+	emplace(std::move(data));
+}
+
+template <concepts::copy_or_move_constructible T, typename Derived>
+void lock_free_queue_base<T,Derived>::force_enqueue(const element_t &data)
+	requires concepts::copy_constructible<T>
+{
+	emplace(data);
+}
+
+template <concepts::copy_or_move_constructible T, typename Derived>
+template <typename...Args>
+void lock_free_queue_base<T,Derived>::force_emplace(Args&&...args) requires
+	concepts::constructible<T,Args...>
+{
+	auto self = static_cast<Derived*>(this);
+	for(;;)
+	{
+		if( self->full() )
+			self->dequeue();
+		if( self->emplace(std::forward<Args>(args)...) )
+			break;
+	}
+}
+
 template <concepts::copy_or_move_constructible T>
 class lock_free_queue<T>::impl
 {
@@ -109,22 +137,22 @@ lock_free_queue<T> &lock_free_queue<T>::operator=(lock_free_queue &&other) noexc
 }
 
 template <concepts::copy_or_move_constructible T>
-bool lock_free_queue<T>::enqueue(const element_t &data)
-	requires concepts::copy_constructible<T>
-{
-	return emplace(data);
-}
-
-template <concepts::copy_or_move_constructible T>
 bool lock_free_queue<T>::enqueue(element_t &&data)
 {
 	return emplace(std::move(data));
 }
 
 template <concepts::copy_or_move_constructible T>
+bool lock_free_queue<T>::enqueue(const element_t &data)
+	requires concepts::copy_constructible<element_t>
+{
+	return emplace(data);
+}
+
+template <concepts::copy_or_move_constructible T>
 template <typename...Args>
-bool lock_free_queue<T>::emplace(Args&&...args)
-	requires concepts::constructible<T,Args...>
+bool lock_free_queue<T>::emplace(Args&&...args) requires
+	concepts::constructible<element_t,Args...>
 {
 	for(;;)
 	{
@@ -290,22 +318,22 @@ lock_free_queue<T,N> &lock_free_queue<T,N>::operator=(lock_free_queue &&other) n
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
-bool lock_free_queue<T,N>::enqueue(const element_t &data)
-	requires concepts::copy_constructible<T>
-{
-	return emplace(data);
-}
-
-template <concepts::copy_or_move_constructible T, size_t N>
 bool lock_free_queue<T,N>::enqueue(element_t &&data)
 {
 	return emplace(std::move(data));
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
+bool lock_free_queue<T,N>::enqueue(const element_t &data)
+	requires concepts::copy_constructible<element_t>
+{
+	return emplace(data);
+}
+
+template <concepts::copy_or_move_constructible T, size_t N>
 template <typename...Args>
-bool lock_free_queue<T,N>::emplace(Args&&...args)
-	requires concepts::constructible<T,Args...>
+bool lock_free_queue<T,N>::emplace(Args&&...args) requires
+	concepts::constructible<element_t,Args...>
 {
 	for(;;)
 	{

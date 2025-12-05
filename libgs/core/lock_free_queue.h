@@ -39,12 +39,29 @@ enum class queue_type {
 	linked, circular
 };
 
+template <concepts::copy_or_move_constructible T, typename Derived>
+class LIBGS_CORE_TAPI lock_free_queue_base
+{
+	using element_t = T;
+	using derived_t = crtp_derived_t<Derived,lock_free_queue_base>;
+
+public:
+	void force_enqueue(element_t &&data);
+	void force_enqueue(const element_t &data) requires
+		concepts::copy_constructible<element_t>;
+
+	template <typename...Args>
+	void force_emplace(Args&&...args) requires
+		concepts::constructible<element_t,Args...>;
+};
+
 template <concepts::copy_or_move_constructible T, size_t N = 0>
 class LIBGS_CORE_TAPI lock_free_queue;
 
 // linked list queue
 template <concepts::copy_or_move_constructible T>
-class LIBGS_CORE_TAPI lock_free_queue<T,0>
+class LIBGS_CORE_TAPI lock_free_queue<T,0> :
+	public lock_free_queue_base<T,lock_free_queue<T>>
 {
 	LIBGS_DISABLE_COPY(lock_free_queue)
 
@@ -57,12 +74,13 @@ public:
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
 
 public: // safe
-	bool enqueue(const element_t &data) requires concepts::copy_constructible<T>;
 	bool enqueue(element_t &&data);
+	bool enqueue(const element_t &data) requires
+		concepts::copy_constructible<element_t>;
 
 	template <typename...Args>
 	bool emplace(Args&&...args) requires
-		concepts::constructible<T,Args...>;
+		concepts::constructible<element_t,Args...>;
 
 	optional<element_t> dequeue();
 	bool dequeue(element_t &data);
@@ -80,7 +98,8 @@ private:
 
 // circular queue
 template <concepts::copy_or_move_constructible T, size_t N>
-class LIBGS_CORE_TAPI lock_free_queue
+class LIBGS_CORE_TAPI lock_free_queue :
+	public lock_free_queue_base<T,lock_free_queue<T,N>>
 {
 	LIBGS_DISABLE_COPY(lock_free_queue)
 
@@ -96,12 +115,13 @@ public:
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
 
 public: // safe
-	bool enqueue(const element_t &data) requires concepts::copy_constructible<T>;
 	bool enqueue(element_t &&data);
+	bool enqueue(const element_t &data) requires
+		concepts::copy_constructible<element_t>;
 
 	template <typename...Args>
 	bool emplace(Args&&...args) requires
-		concepts::constructible<T,Args...>;
+		concepts::constructible<element_t,Args...>;
 
 	optional<element_t> dequeue();
 	bool dequeue(element_t &data);

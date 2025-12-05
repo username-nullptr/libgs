@@ -85,6 +85,13 @@ struct function_traits : function_traits<decltype(&T::operator())>
 	static constexpr bool is_member_func = false;
 };
 
+// template <typename T>
+// struct function_traits : function_traits<decltype(&T::operator() noexcept)>
+// {
+// 	using type = T;
+// 	static constexpr bool is_member_func = false;
+// };
+
 template <typename R, typename...Args>
 struct function_traits_base
 {
@@ -135,72 +142,121 @@ struct function_traits<R(C::*)(Args...)> : function_traits_base<R,Args...>
 	static constexpr bool is_member_func = true;
 };
 
-template <typename R, typename C, typename...Args>
-struct function_traits<R(C::*)(Args...) const> : function_traits_base<R,Args...>
+template <typename R, typename...Args>
+struct function_traits<R(Args...) noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(C::*)(Args...) const;
-	using class_t = C;
-	static constexpr bool is_member_func = true;
-};
-
-template <typename R, typename C, typename...Args>
-struct function_traits<R(C::*)(Args...) volatile> : function_traits_base<R,Args...>
-{
-	using type = R(C::*)(Args...) volatile;
-	using class_t = C;
-	static constexpr bool is_member_func = true;
-};
-
-template <typename R, typename C, typename...Args>
-struct function_traits<R(C::*)(Args...) const volatile> : function_traits_base<R,Args...>
-{
-	using type = R(C::*)(Args...) const volatile;
-	using class_t = C;
-	static constexpr bool is_member_func = true;
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
 };
 
 template <typename R, typename...Args>
 struct function_traits<R(*)(Args...) noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(*)(Args...) noexcept;
+	using type = R(*)(Args...);
 	static constexpr bool is_member_func = false;
 };
 
 template <typename R, typename...Args>
 struct function_traits<R(&)(Args...) noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(&)(Args...) noexcept;
+	using type = R(&)(Args...);
 	static constexpr bool is_member_func = false;
 };
 
 template <typename R, typename C, typename...Args>
 struct function_traits<R(C::*)(Args...) noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(C::*)(Args...) noexcept;
+	using type = R(C::*)(Args...);
 	using class_t = C;
 	static constexpr bool is_member_func = true;
+};
+
+template <typename R, typename...Args>
+struct function_traits<R(Args...) const> : function_traits_base<R,Args...>
+{
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
+};
+
+template <typename R, typename C, typename...Args>
+struct function_traits<R(C::*)(Args...) const> : function_traits_base<R,Args...>
+{
+	using type = R(C::*)(Args...);
+	using class_t = C;
+	static constexpr bool is_member_func = true;
+};
+
+template <typename R, typename...Args>
+struct function_traits<R(Args...) volatile> : function_traits_base<R,Args...>
+{
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
+};
+
+template <typename R, typename C, typename...Args>
+struct function_traits<R(C::*)(Args...) volatile> : function_traits_base<R,Args...>
+{
+	using type = R(C::*)(Args...);
+	using class_t = C;
+	static constexpr bool is_member_func = true;
+};
+
+template <typename R, typename...Args>
+struct function_traits<R(Args...) const noexcept> : function_traits_base<R,Args...>
+{
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
 };
 
 template <typename R, typename C, typename...Args>
 struct function_traits<R(C::*)(Args...) const noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(C::*)(Args...) const noexcept;
+	using type = R(C::*)(Args...);
 	using class_t = C;
 	static constexpr bool is_member_func = true;
+};
+
+template <typename R, typename...Args>
+struct function_traits<R(Args...) volatile noexcept> : function_traits_base<R,Args...>
+{
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
 };
 
 template <typename R, typename C, typename...Args>
 struct function_traits<R(C::*)(Args...) volatile noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(C::*)(Args...) volatile noexcept;
+	using type = R(C::*)(Args...);
 	using class_t = C;
 	static constexpr bool is_member_func = true;
+};
+
+template <typename R, typename...Args>
+struct function_traits<R(Args...) const volatile> : function_traits_base<R,Args...>
+{
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
+};
+
+template <typename R, typename C, typename...Args>
+struct function_traits<R(C::*)(Args...) const volatile> : function_traits_base<R,Args...>
+{
+	using type = R(C::*)(Args...);
+	using class_t = C;
+	static constexpr bool is_member_func = true;
+};
+
+template <typename R, typename...Args>
+struct function_traits<R(Args...) const volatile noexcept> : function_traits_base<R,Args...>
+{
+	using type = R(Args...);
+	static constexpr bool is_member_func = false;
 };
 
 template <typename R, typename C, typename...Args>
 struct function_traits<R(C::*)(Args...) const volatile noexcept> : function_traits_base<R,Args...>
 {
-	using type = R(C::*)(Args...) const volatile noexcept;
+	using type = R(C::*)(Args...);
 	using class_t = C;
 	static constexpr bool is_member_func = true;
 };
@@ -214,7 +270,7 @@ struct param_types {
 };
 
 template <typename F, std::size_t Index>
-using param_types_t = typename param_types<F, Index>::type;
+using param_types_t = param_types<F, Index>::type;
 
 template <typename F>
 struct is_function : std::disjunction <
