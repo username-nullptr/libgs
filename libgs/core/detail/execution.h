@@ -763,9 +763,10 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 		timer->cancel();
 	};
 	libgs::dispatch(std::forward<decltype(exec)>(exec), [
-		timer = std::move(timer), cancel = std::move(cancel),
-		canceller, rtime, func = std::forward<Work>(work), immediately
-	]() -> awaitable<void>
+		timer = std::move(timer), cancel = std::move(cancel), canceller,
+		rtime = std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
+		func = std::forward<Work>(work), immediately
+	]() mutable -> awaitable<void>
 	{
 		using namespace operators;
 		error_code error;

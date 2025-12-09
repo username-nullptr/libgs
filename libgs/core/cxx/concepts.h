@@ -48,15 +48,6 @@ using is_bool = std::is_same<T, bool>;
 template <typename T>
 constexpr bool is_bool_v = is_bool<T>::value;
 
-template <typename>
-struct is_tuple : std::false_type {};
-
-template <typename... Args>
-struct is_tuple<std::tuple<Args...>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_tuple_v = is_tuple<T>::value;
-
 template <typename T0, typename T1>
 using is_dsame = std::is_same<std::decay_t<T0>, T1>;
 

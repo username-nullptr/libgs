@@ -86,14 +86,17 @@ public:
 				[&exec, &slot, args = std::make_tuple(std::move(args)...)]
 				<size_t...Is>(std::index_sequence<Is...>)
 				{
+					if( not (can_auto_cast<typename func0_tr::template arg_type_t<Is>>(std::get<Is>(args)) && ...) )
+						return ;
+
 					using return_t = function_traits<Func0>::return_type;
 					if constexpr( is_awaitable_v<return_t> )
 					{
 						if constexpr( Mode == slot_mode::backpressure )
 						{
 							libgs::dispatch(exec,
-								slot(static_cast<func0_tr::template arg_type_t<Is>>
-									(std::move (std::get<Is>(args)))...
+								slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
+									(std::move(std::get<Is>(args)))...
 								),
 								use_future
 							).wait();
@@ -101,7 +104,7 @@ public:
 						else
 						{
 							libgs::dispatch(exec,
-								slot(static_cast<func0_tr::template arg_type_t<Is>>
+								slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(std::get<Is>(args)))...
 								)
 							);
@@ -111,13 +114,13 @@ public:
 					{
 #ifdef _MSC_VER
 						libgs::dispatch(exec, [slot, ...args0 = std::move(std::get<Is>(args))]{
-							slot(static_cast<func0_tr::template arg_type_t<Is>>
-								(std::move (args0))...
+							slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
+								(std::move(args0))...
 							);
 						});
 #else //_MSC_VER
 						libgs::dispatch(exec, [slot, args = std::move(args)]{
-							slot(static_cast<func0_tr::template arg_type_t<Is>>
+							slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(std::get<Is>(args)))...
 							);
 						});
@@ -125,8 +128,8 @@ public:
 					}
 					else
 					{
-						slot(static_cast<func0_tr::template arg_type_t<Is>>
-							(std::move (std::get<Is>(args)))...
+						slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
+							(std::move(std::get<Is>(args)))...
 						);
 					}
 				}
@@ -162,6 +165,9 @@ public:
 				[obj, &exec, &slot, &is_valid, args = std::make_tuple(std::move(args)...)]
 				<std::size_t...Is>(std::index_sequence<Is...>)
 				{
+					if( not (can_auto_cast<typename func0_tr::template arg_type_t<Is>>(std::get<Is>(args)) && ...) )
+						return ;
+
 					using return_t = function_traits<Func0>::return_type;
 					// There are too many nested structures, but it's better than template specialization.
 #ifdef _MSC_VER
@@ -178,7 +184,7 @@ public:
 									if( not is_valid() )
 										co_return ;
 									co_await (obj->*slot) (
-										static_cast<func0_tr::template arg_type_t<Is>>
+										auto_cast<typename func0_tr::template arg_type_t<Is>>
 										(std::move(args0))...
 									);
 									co_return ;
@@ -194,7 +200,7 @@ public:
 									if( not is_valid() )
 										co_return ;
 									co_await (obj->*slot) (
-										static_cast<func0_tr::template arg_type_t<Is>>
+										auto_cast<typename func0_tr::template arg_type_t<Is>>
 										(std::move(args0))...
 									);
 									co_return ;
@@ -209,7 +215,7 @@ public:
 								if( not is_valid() )
 									return ;
 								(obj->*slot) (
-									static_cast<func0_tr::template arg_type_t<Is>>
+									auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(args0))...
 								);
 							});
@@ -219,7 +225,7 @@ public:
 							if( not is_valid() )
 								return ;
 							(obj->*slot) (
-								static_cast<func0_tr::template arg_type_t<Is>>
+								auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(std::get<Is>(args)))...
 							);
 						}
@@ -235,7 +241,7 @@ public:
 								if( not is_valid() )
 									co_return ;
 								co_await slot (
-									static_cast<func0_tr::template arg_type_t<Is>>
+									auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(args0))...
 								);
 								co_return ;
@@ -251,7 +257,7 @@ public:
 								if( not is_valid() )
 									co_return ;
 								co_await slot (
-									static_cast<func0_tr::template arg_type_t<Is>>
+									auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(args0))...
 								);
 								co_return ;
@@ -265,7 +271,7 @@ public:
 						{
 							if( not is_valid() )
 								return ;
-							slot(static_cast<func0_tr::template arg_type_t<Is>>
+							slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(args0))...
 							);
 						});
@@ -274,7 +280,7 @@ public:
 					{
 						if( not is_valid() )
 							return ;
-						slot(static_cast<func0_tr::template arg_type_t<Is>>
+						slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 							(std::move(std::get<Is>(args)))...
 						);
 					}
@@ -291,7 +297,7 @@ public:
 									if( not is_valid() )
 										co_return ;
 									co_await (obj->*slot) (
-										static_cast<func0_tr::template arg_type_t<Is>>
+										auto_cast<typename func0_tr::template arg_type_t<Is>>
 										(std::move(std::get<Is>(args)))...
 									);
 									co_return ;
@@ -306,7 +312,7 @@ public:
 									if( not is_valid() )
 										co_return ;
 									co_await (obj->*slot) (
-										static_cast<func0_tr::template arg_type_t<Is>>
+										auto_cast<typename func0_tr::template arg_type_t<Is>>
 										(std::move(std::get<Is>(args)))...
 									);
 									co_return ;
@@ -320,7 +326,7 @@ public:
 								if( not is_valid() )
 									return ;
 								(obj->*slot) (
-									static_cast<func0_tr::template arg_type_t<Is>>
+									auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(std::get<Is>(args)))...
 								);
 							});
@@ -330,7 +336,7 @@ public:
 							if( not is_valid() )
 								return ;
 							(obj->*slot) (
-								static_cast<func0_tr::template arg_type_t<Is>>
+								auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(std::get<Is>(args)))...
 							);
 						}
@@ -345,7 +351,7 @@ public:
 								if( not is_valid() )
 									co_return ;
 								co_await slot (
-									static_cast<func0_tr::template arg_type_t<Is>>
+									auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(std::get<Is>(args)))...
 								);
 								co_return ;
@@ -360,7 +366,7 @@ public:
 								if( not is_valid() )
 									co_return ;
 								co_await slot (
-									static_cast<func0_tr::template arg_type_t<Is>>
+									auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(std::get<Is>(args)))...
 								);
 								co_return ;
@@ -373,7 +379,7 @@ public:
 						{
 							if( not is_valid() )
 								return ;
-							slot(static_cast<func0_tr::template arg_type_t<Is>>
+							slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(std::get<Is>(args)))...
 							);
 						});
@@ -382,7 +388,7 @@ public:
 					{
 						if( not is_valid() )
 							return ;
-						slot(static_cast<func0_tr::template arg_type_t<Is>>
+						slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 							(std::move(std::get<Is>(args)))...
 						);
 					}
@@ -390,6 +396,48 @@ public:
 				}
 				(indices{});
 			};
+		}
+
+
+	private:
+		template <typename Tag, typename T>
+		static constexpr decltype(auto) can_auto_cast(const T &arg) noexcept
+		{
+			using target_t = std::remove_cvref_t<Tag>;
+			using type = std::remove_cvref_t<T>;
+
+			if constexpr( is_variant_v<type> )
+				return std::holds_alternative<target_t>(arg);
+
+			else if constexpr( std::is_same_v<type, std::any> )
+			{
+				if constexpr( std::is_same_v<target_t, std::any> )
+					return true;
+				else
+					return arg.type() == typeid(target_t);
+			}
+			else
+				return true;
+		}
+
+		template <typename Tag, typename T>
+		static constexpr decltype(auto) auto_cast(T &&arg)
+		{
+			using target_t = std::remove_cvref_t<Tag>;
+			using type = std::remove_cvref_t<T>;
+
+			if constexpr( is_variant_v<type> )
+				return std::get<target_t>(std::forward<T>(arg));
+
+			else if constexpr( std::is_same_v<type, std::any> )
+			{
+				if constexpr( std::is_same_v<target_t, std::any> )
+					return std::forward<T>(arg);
+				else
+					return std::any_cast<target_t>(std::forward<T>(arg));
+			}
+			else
+				return static_cast<Tag>(std::forward<T>(arg));
 		}
 
 	public:
@@ -555,7 +603,7 @@ template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, concepts::sched Exec0, typename...Funcs>
 signal_base<Derived,Func>::derived_t&
 signal_base<Derived,Func>::connect(Exec0 &&exec, Funcs&&...funcs)
-	noexcept requires is_global_slots_v<Mode,Funcs...>
+	noexcept requires (Mode != slot_mode::sync) and is_global_slots_v<Mode,Funcs...>
 {
 	m_impl->m_mutex.lock();
 	(void) std::initializer_list<int> {(
@@ -571,7 +619,7 @@ template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, typename Obj, concepts::sched Exec0, typename...Funcs>
 signal_base<Derived,Func>::derived_t&
 signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
-	requires is_obj_slots_v<Mode,Obj,Funcs...>
+	requires (Mode != slot_mode::sync) and is_obj_slots_v<Mode,Obj,Funcs...>
 {
 	if( not observer )
 		throw std::invalid_argument("libgs::utils::signal::connect: observer is nullptr");
@@ -610,9 +658,9 @@ template <typename Derived, concepts::std_func_temp Func>
 template <concepts::sched Exec0, typename...Funcs>
 signal_base<Derived,Func>::derived_t&
 signal_base<Derived,Func>::connect(Exec0 &&exec, Funcs&&...funcs)
-	noexcept requires is_global_slots_v<slot_mode::sync,Funcs...>
+	noexcept requires is_global_slots_v<slot_mode::async,Funcs...>
 {
-	return connect<slot_mode::sync>(
+	return connect<slot_mode::async>(
 		std::forward<Exec0>(exec), std::forward<Funcs>(funcs)...
 	);
 }
@@ -621,9 +669,9 @@ template <typename Derived, concepts::std_func_temp Func>
 template <typename Obj, concepts::sched Exec0, typename...Funcs>
 signal_base<Derived,Func>::derived_t&
 signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
-	requires is_obj_slots_v<slot_mode::sync,Obj,Funcs...>
+	requires is_obj_slots_v<slot_mode::async,Obj,Funcs...>
 {
-	return connect<slot_mode::sync>(std::forward<Obj>(observer),
+	return connect<slot_mode::async>(std::forward<Obj>(observer),
 		std::forward<Exec0>(exec), std::forward<Funcs>(funcs)...
 	);
 }

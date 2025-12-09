@@ -65,14 +65,41 @@ public:
 		else
 		{
 			return func0_tr::arg_count <= func_tr::arg_count and
-				[]<size_t...Is>(std::index_sequence<Is...>)
+			[]<size_t...Is>(std::index_sequence<Is...>) consteval
+			{
+				constexpr auto single = []<size_t I>() consteval
 				{
-					return (std::is_convertible_v <
-						typename func_tr ::template arg_type_t<Is>,
-						typename func0_tr::template arg_type_t<Is>
-					> && ...);
-				}
-				(std::make_index_sequence<func0_tr::arg_count>{});
+					using func_at  = func_tr ::template arg_type_t<I>;
+					using func0_at = func0_tr::template arg_type_t<I>;
+
+					using r_func_at  = std::remove_cvref_t<func_at>;
+					using r_func0_at = std::remove_cvref_t<func0_at>;
+
+					if constexpr( is_variant_v<r_func_at> )
+						return is_contained_in_v<r_func_at, r_func0_at>;
+
+					else if constexpr( std::is_same_v<r_func_at, std::any> )
+					{
+						if constexpr( std::is_same_v<r_func0_at, std::any> )
+							return true;
+						else
+						{
+							return requires(func0_at arg) {
+								std::any_cast<r_func0_at>(arg);
+							};
+						}
+					}
+					else
+					{
+						return std::is_convertible_v<
+							typename func_tr::template arg_type_t<I>,
+							typename func0_tr::template arg_type_t<I>
+						>;
+					}
+				};
+				return (single.template operator()<Is>() && ...);
+			}
+			(std::make_index_sequence<func0_tr::arg_count>{});
 		}
 	}();
 
@@ -132,11 +159,11 @@ public:
 
 	template <slot_mode Mode, concepts::sched Exec0, typename...Funcs>
 	derived_t &connect(Exec0 &&exec, Funcs&&...funcs) noexcept
-		requires is_global_slots_v<Mode,Funcs...>;
+		requires (Mode != slot_mode::sync) and is_global_slots_v<Mode,Funcs...>;
 
 	template <slot_mode Mode, typename Obj, concepts::sched Exec0, typename...Funcs>
 	derived_t &connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
-		requires is_obj_slots_v<Mode,Obj,Funcs...>;
+		requires (Mode != slot_mode::sync) and is_obj_slots_v<Mode,Obj,Funcs...>;
 
 public:
 	template <typename...Funcs>
@@ -149,11 +176,11 @@ public:
 
 	template <concepts::sched Exec0, typename...Funcs>
 	derived_t &connect(Exec0 &&exec, Funcs&&...funcs) noexcept
-		requires is_global_slots_v<slot_mode::sync,Funcs...>;
+		requires is_global_slots_v<slot_mode::async,Funcs...>;
 
 	template <typename Obj, concepts::sched Exec0, typename...Funcs>
 	derived_t &connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
-		requires is_obj_slots_v<slot_mode::sync,Obj,Funcs...>;
+		requires is_obj_slots_v<slot_mode::async,Obj,Funcs...>;
 
 public:
 	template <typename...Funcs>

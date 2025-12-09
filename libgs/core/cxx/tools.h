@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_CXX_TOOLS_H
 #define LIBGS_CORE_CXX_TOOLS_H
 
-#include <libgs/core/cxx/remove_repeat.h>
+#include <libgs/core/cxx/aggregate_template.h>
 #include <libgs/core/cxx/type_traits.h>
 
 #ifdef __GNUC__

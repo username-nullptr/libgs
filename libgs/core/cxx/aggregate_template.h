@@ -26,8 +26,8 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_REMOVE_REPEAT_H
-#define LIBGS_CORE_CXX_REMOVE_REPEAT_H
+#ifndef LIBGS_CORE_CXX_AGGREGATE_TEMPLATE_H
+#define LIBGS_CORE_CXX_AGGREGATE_TEMPLATE_H
 
 #include <variant>
 #include <tuple>
@@ -39,10 +39,40 @@ template<typename T, typename... Args>
 struct has_tof_args : std::disjunction<std::is_same<T, Args>...> {};
 
 template<typename T, typename... Args>
-constexpr auto has_tof_args_v = has_tof_args<T, Args...>::value;
+constexpr bool has_tof_args_v = has_tof_args<T, Args...>::value;
+
+template <typename>
+struct is_tuple : std::false_type {};
+
+template <typename... Args>
+struct is_tuple<std::tuple<Args...>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_tuple_v = is_tuple<T>::value;
+
+template <typename...>
+struct is_variant : std::false_type {};
+
+template <typename...Args>
+struct is_variant<std::variant<Args...>> : std::true_type {};
+
+template <typename...Args>
+constexpr bool is_variant_v = is_variant<Args...>::value;
+
+template <typename Agg, typename T>
+struct is_contained_in : std::false_type {};
+
+template <typename T, typename...Args>
+struct is_contained_in<std::tuple<Args...>,T> : has_tof_args<T,Args...> {};
+
+template <typename T, typename...Args>
+struct is_contained_in<std::variant<Args...>,T> : has_tof_args<T,Args...> {};
+
+template <typename T, typename...Args>
+constexpr bool is_contained_in_v = is_contained_in<T,Args...>::value;
 
 template<typename T>
-struct remove_repeat; // The template type must be std::tuple<...> or std::variant<...>
+struct remove_repeat;
 
 template<>
 struct remove_repeat<std::tuple<>> {
@@ -86,7 +116,7 @@ struct remove_repeat<std::variant<Args...>>
 			has_tof_args_v<FArgs, SaveArgs...>,
 			std::variant<SaveArgs...>, std::variant<FArgs, SaveArgs...>
 		>;
-		using type = typename remove_repeat_helper<std::variant<RArgs...>, inn_type>::type;
+		using type = remove_repeat_helper<std::variant<RArgs...>, inn_type>::type;
 	};
 
 	template<typename...SaveArgs>
@@ -94,13 +124,13 @@ struct remove_repeat<std::variant<Args...>>
 		using type = std::variant<SaveArgs...>;
 	};
 
-	using type = typename remove_repeat_helper<std::variant<Args...>, std::variant<>>::type;
+	using type = remove_repeat_helper<std::variant<Args...>, std::variant<>>::type;
 };
 
 template<typename T>
-using remove_repeat_t = typename remove_repeat<T>::type;
+using remove_repeat_t = remove_repeat<T>::type;
 
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_CXX_REMOVE_REPEAT_H
+#endif //LIBGS_CORE_CXX_AGGREGATE_TEMPLATE_H
