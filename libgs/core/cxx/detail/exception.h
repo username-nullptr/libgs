@@ -50,7 +50,7 @@ runtime_error::runtime_error(std::format_string<Arg0, Args...> fmt, Arg0 &&arg0,
 
 inline void runtime_error::loc_throw(std::string_view msg, std::source_location loc)
 {
-	throw runtime_error(with_location(msg, std::move(loc)));
+	throw runtime_error(with_location(msg, loc));
 }
 
 template <typename Arg0, typename...Args>
@@ -62,7 +62,7 @@ invalid_argument::invalid_argument(std::format_string<Arg0, Args...> fmt, Arg0 &
 
 inline void invalid_argument::loc_throw(std::string_view msg, std::source_location loc)
 {
-	throw invalid_argument(with_location(msg, std::move(loc)));
+	throw invalid_argument(with_location(msg, loc));
 }
 
 template <typename Arg0, typename...Args>
@@ -74,7 +74,7 @@ logic_error::logic_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args
 
 inline void logic_error::loc_throw(std::string_view msg, std::source_location loc)
 {
-	throw logic_error(with_location(msg, std::move(loc)));
+	throw logic_error(with_location(msg, loc));
 }
 
 template <typename Arg0, typename...Args>
