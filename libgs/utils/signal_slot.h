@@ -210,6 +210,9 @@ public:
 	void operator()(Args&&...args) const noexcept
 		requires is_callable_v<Args...>;
 
+	void block(bool block = true) noexcept;
+	[[nodiscard]] bool is_blocked() const noexcept;
+
 private:
 	class impl;
 	impl *m_impl;

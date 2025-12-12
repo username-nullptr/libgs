@@ -350,6 +350,7 @@ public:
 		if( not fs::exists(path) and not fs::create_directories(path, error) )
 			return ;
 
+		error = {};
 		std::basic_ofstream<char_t> file;
 		auto prev = file.exceptions();
 

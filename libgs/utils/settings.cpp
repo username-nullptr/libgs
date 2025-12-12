@@ -124,8 +124,8 @@ sys_expected<> settings::load(const path_t &file_path)
 
 sys_expected<> settings::sync()
 {
-	libgs::ini ini;
 	m_impl->m_ini_lock.lock_shared();
+	libgs::ini ini(get_executor(), m_impl->m_ini.file_name());
 
 	for(auto &[group, map] : m_impl->m_ini)
 	{

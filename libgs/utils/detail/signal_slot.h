@@ -559,6 +559,7 @@ public:
 	}
 
 public:
+	std::atomic_bool m_block { false };
 	std::deque<slot_info_ptr> m_slots;
 	spin_shared_mutex m_mutex;
 };
@@ -751,6 +752,9 @@ template <typename...Args>
 void signal_base<Derived,Func>::emit(Args&&...args) const noexcept
 	requires is_callable_v<Args...>
 {
+	if( m_impl->m_block	)
+		return ;
+
 	std::vector<typename impl::adapter_ptr> nonblock_slots;
 	std::vector<typename impl::adapter_ptr> block_slots;
 	m_impl->m_mutex.lock_shared();
@@ -799,6 +803,18 @@ void signal_base<Derived,Func>::operator()(Args&&...args) const noexcept
 	requires is_callable_v<Args...>
 {
 	emit(std::forward<Args>(args)...);
+}
+
+template <typename Derived, concepts::std_func_temp Func>
+void signal_base<Derived,Func>::block(bool block) noexcept
+{
+	m_impl->m_block = block;
+}
+
+template <typename Derived, concepts::std_func_temp Func>
+bool signal_base<Derived,Func>::is_blocked() const noexcept
+{
+	return m_impl->m_block;
 }
 
 } //namespace libgs::utils
