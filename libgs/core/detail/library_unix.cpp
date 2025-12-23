@@ -111,7 +111,7 @@ error_code library::impl::load_native()
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
     auto _file_name = m_file_name.string();
-	m_handle = dlopen(_file_name.c_str(), RTLD_NOW);
+	m_handle = dlopen(_file_name.c_str(), RTLD_LAZY | RTLD_LOCAL);
 	if( not m_handle )
 		return { errno, g_library_category };
 	return {};

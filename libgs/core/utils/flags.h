@@ -94,11 +94,11 @@ private:
 #define LIBGS_DECLARE_FLAGS(v_flags, v_enum)  using v_flags = libgs::flags<v_enum>
 
 #define LIBGS_DECLARE_OPERATORS_FOR_FLAGS(_flags) \
-	constexpr inline flags<_flags::enum_t> operator| \
+	constexpr inline libgs::flags<_flags::enum_t> operator| \
 	(_flags::enum_t f1, _flags::enum_t f2) noexcept \
-	{ return flags<_flags::enum_t>(f1) | f2; } \
-	constexpr inline flags<_flags::enum_t> operator| \
-	(_flags::enum_t f1, flags<_flags::enum_t> f2) noexcept \
+	{ return libgs::flags<_flags::enum_t>(f1) | f2; } \
+	constexpr inline libgs::flags<_flags::enum_t> operator| \
+	(_flags::enum_t f1, libgs::flags<_flags::enum_t> f2) noexcept \
 	{ return f2 | f1; }
 
 

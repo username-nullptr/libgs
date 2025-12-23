@@ -1050,7 +1050,9 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 	if( fd >= 0 )
 	{
 		auto pid_str = std::to_string(curr_pid);
-		::write(fd, pid_str.c_str(), pid_str.size());
+		auto len = ::write(fd, pid_str.c_str(), pid_str.size());
+
+		LIBGS_UNUSED(len);
 		close(fd);
 
 		if( chmod(g_pid_file.c_str(), 0444) == 0 )
