@@ -566,7 +566,7 @@ optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base) noexc
 {
 	using text_t = std::remove_cvref_t<decltype(text)>;
 	if constexpr( concepts::character<text_t> )
-		return text != 0x30;
+		return text != 0 and text != 0x30;
 	else
 	{
 		using char_t = get_char_t<text_t>;

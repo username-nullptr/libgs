@@ -78,12 +78,17 @@ public:
 	constexpr bool operator!() const noexcept;
 
 public:
-	constexpr operator int() const noexcept;
-	constexpr bool testFlag(enum_t f) const noexcept;
-	constexpr flags &setFlag(enum_t f, bool on = true) const noexcept;
+	template <concepts::arithmetic T>
+	constexpr operator T() const noexcept;
+
+	template <concepts::arithmetic T = uint32_t>
+	constexpr T value() const noexcept;
+
+	constexpr bool test_flag(enum_t f) const noexcept;
+	constexpr flags &set_flag(enum_t f, bool on = true) const noexcept;
 
 private:
-	using iterator = typename std::initializer_list<enum_t>::const_iterator;
+	using iterator = std::initializer_list<enum_t>::const_iterator;
 	constexpr static int initializer_list_helper(iterator it, iterator end) noexcept;
 	uint32_t m_value = 0;
 };
