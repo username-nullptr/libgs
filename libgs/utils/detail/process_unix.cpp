@@ -75,6 +75,14 @@ public:
 		error = m_stdin .close(error);
 		error = m_stdout.close(error);
 		error = m_stderr.close(error);
+
+		if( m_thread.joinable() )
+		{
+			try {
+				m_thread.detach();
+			}
+			catch(...) {}
+		}
 	}
 
 public:
@@ -198,6 +206,13 @@ public:
 		close(stderr_pipe[1]);
 
 		m_state = process_state::running;
+		if( m_thread.joinable() )
+		{
+			try {
+				m_thread.detach();
+			}
+			catch(...) {}
+		}
 		m_thread = std::thread([self = shared_from_this()]
 		{
 			int status = 0;
@@ -245,8 +260,6 @@ public:
 				for(auto &timer : vector)
 					timer->cancel();
 			});
-			self->m_thread.detach();
-			self->m_thread = {};
 		});
 		return expected;
 
@@ -282,7 +295,8 @@ public:
 	void _throw() noexcept
 	{
 		::kill(m_pid, SIGKILL);
-		m_thread.join();
+		if( m_thread.joinable() )
+			m_thread.join();
 		std::__terminate();
 	}
 
