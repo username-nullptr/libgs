@@ -76,13 +76,27 @@ struct LIBGS_CORE_TAPI formatter<T,CharT>
 	auto format(T e, auto &context) const {
 		return m_formatter.format(static_cast<uint32_t>(e), context);
 	}
-
 	constexpr auto parse(auto &context) noexcept {
 		return m_formatter.parse(context);
 	}
 
 private:
 	formatter<uint32_t, CharT> m_formatter;
+};
+
+template <libgs::concepts::pointer T, libgs::concepts::character CharT>
+requires (not is_same_v<std::remove_const_t<T>,void*>)
+struct LIBGS_CORE_TAPI formatter<T,CharT>
+{
+	auto format(T p, auto &context) const {
+		return m_formatter.format(static_cast<void*>(p), context);
+	}
+	constexpr auto parse(auto &context) noexcept {
+		return m_formatter.parse(context);
+	}
+
+private:
+	formatter<void*, CharT> m_formatter;
 };
 
 #if !defined(_MSC_VER) || !_HAS_CXX23
@@ -148,7 +162,6 @@ struct LIBGS_CORE_TAPI formatter<libgs::unexpected<E>, CharT>
 	auto format(const libgs::unexpected<E> &ov, auto &context) {
 		return m_formatter.format(ov.error(), context);
 	}
-
 	constexpr auto parse(auto &context) noexcept {
 		return m_formatter.parse(context);
 	}
@@ -235,7 +248,6 @@ struct LIBGS_CORE_TAPI formatter<atomic<T>, CharT>
 	auto format(const atomic<T> &n, auto &context) const {
 		return m_formatter.format(n.load(), context);
 	}
-
 	constexpr auto parse(auto &context) noexcept {
 		return m_formatter.parse(context);
 	}

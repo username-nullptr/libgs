@@ -106,6 +106,12 @@ template <typename T>
 concept enumerate_p = enumerate<std::remove_cvref_t<T>>;
 
 template <typename T>
+concept pointer = std::is_pointer_v<T>;
+
+template <typename T>
+concept pointer_p = pointer<std::remove_cvref_t<T>>;
+
+template <typename T>
 concept rvalue_reference = std::is_rvalue_reference_v<T>;
 
 template <typename Func>

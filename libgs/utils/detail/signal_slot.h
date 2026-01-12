@@ -411,7 +411,7 @@ public:
 
 	private:
 		template <typename Tag, typename T>
-		static constexpr bool can_auto_cast(const T &arg) noexcept
+		[[nodiscard]] static constexpr bool can_auto_cast(const T &arg) noexcept
 		{
 			using target_t = std::remove_cvref_t<Tag>;
 			using type = std::remove_cvref_t<T>;
@@ -431,7 +431,7 @@ public:
 		}
 
 		template <typename Tag, typename T>
-		static constexpr decltype(auto) auto_cast(T &&arg)
+		[[nodiscard]] static constexpr decltype(auto) auto_cast(T &&arg)
 		{
 			using target_t = std::remove_cvref_t<Tag>;
 			using type = std::remove_cvref_t<T>;
