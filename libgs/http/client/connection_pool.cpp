@@ -36,15 +36,28 @@ namespace libgs::http::detail
 asio::ssl::context &default_ssl_context() noexcept
 {
 	static asio::ssl::context obj (
-		asio::ssl::context::tlsv13_client
+		asio::ssl::context::tls_client
 	);
 	return obj;
 }
 LIBGS_REGISTRATION
 {
-	default_ssl_context().set_verify_mode (
-		asio::ssl::verify_none
+	auto &ctx = default_ssl_context();
+	ctx.set_verify_mode(asio::ssl::verify_none);
+
+	ctx.set_options (
+		asio::ssl::context::default_workarounds |
+		asio::ssl::context::no_tlsv1   |
+		asio::ssl::context::no_tlsv1_1 |
+		asio::ssl::context::no_sslv2   |
+		asio::ssl::context::no_sslv3
 	);
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+	SSL_CTX_set_options(ctx.native_handle(),
+		SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1
+	);
+#endif
 }
 
 #endif //LIBGS_OPENSSL_SUPPORT
