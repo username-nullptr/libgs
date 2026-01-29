@@ -56,7 +56,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 		if constexpr( std::is_void_v<co_return_t> )
 		{
 			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
-			mutable -> awaitable<std::shared_ptr<size_t>>
+			mutable noexcept -> awaitable<std::shared_ptr<size_t>>
 			{
 				co_await func();
 				finished = true;
@@ -67,7 +67,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 		else
 		{
 			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
-			mutable -> awaitable<std::pair<co_return_t,std::shared_ptr<size_t>>>
+			mutable noexcept -> awaitable<std::pair<co_return_t,std::shared_ptr<size_t>>>
 			{
 				auto res = co_await func();
 				finished = true;
@@ -78,7 +78,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 	}
 	else
 	{
-		auto lambda = [counter, &finished, func = std::forward<Func>(func)]() mutable
+		auto lambda = [counter, &finished, func = std::forward<Func>(func)]() mutable noexcept
 		{
 			if constexpr( std::is_void_v<return_t> )
 			{
@@ -113,7 +113,7 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
 	{
-		return dispatch(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+		return dispatch(exec, [a = std::forward<Work>(work)]() mutable noexcept -> work_t {
 			co_return co_await std::move(a);
 		}, std::forward<Token>(token));
 	}
@@ -141,7 +141,7 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 				auto future = promise.get_future();
 
 				asio::dispatch(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable {
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept {
 					detail::promise_set_value(promise, std::forward<Work>(func));
 				});
 				return future;
@@ -149,7 +149,7 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 			else if constexpr( is_async_opt_token_v<ntoken_t> )
 			{
 				return asio::co_spawn(exec,
-				[func = std::forward<Work>(work)]() mutable -> awaitable<return_t> {
+				[func = std::forward<Work>(work)]() mutable noexcept -> awaitable<return_t> {
 					co_return func();
 				}, std::forward<Token>(token));
 			}
@@ -160,9 +160,9 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 				auto future = promise.get_future();
 
 				asio::dispatch(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept
 				{
-					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable {
+					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable noexcept {
 						return &func();
 					});
 				});
@@ -186,7 +186,7 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
 	{
-		return post(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+		return post(exec, [a = std::forward<Work>(work)]() mutable noexcept -> work_t {
 			co_return co_await std::move(a);
 		}, std::forward<Token>(token));
 	}
@@ -214,7 +214,7 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 				auto future = promise.get_future();
 
 				asio::post(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable {
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept {
 					detail::promise_set_value(promise, std::forward<Work>(func));
 				});
 				return future;
@@ -222,7 +222,7 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 			else if constexpr( is_async_opt_token_v<ntoken_t> )
 			{
 				return asio::co_spawn(exec,
-				[func = std::forward<Work>(work)]() mutable -> awaitable<return_t> {
+				[func = std::forward<Work>(work)]() mutable noexcept -> awaitable<return_t> {
 					co_return func();
 				}, std::forward<Token>(token));
 			}
@@ -233,9 +233,9 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 				auto future = promise.get_future();
 
 				asio::post(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable
+				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept
 				{
-					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable {
+					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable noexcept {
 						return &func();
 					});
 				});
@@ -311,7 +311,8 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
 	{
-		return local_dispatch(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+		return local_dispatch(exec,
+		[a = std::forward<Work>(work)]() mutable noexcept -> work_t {
 			co_return co_await std::move(a);
 		}, std::forward<Token>(token));
 	}
@@ -358,7 +359,8 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 
 			if constexpr( std::is_void_v<co_return_t> )
 			{
-				asio::co_spawn(exec, [&finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				asio::co_spawn(exec, [&finished, func = std::forward<Work>(work)]
+				() mutable noexcept -> awaitable<void>
 				{
 					co_await func();
 					*finished = true;
@@ -371,7 +373,8 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 			else
 			{
 				auto pair = std::make_pair(co_return_t(), counter);
-				asio::co_spawn(exec, [&pair, &finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				asio::co_spawn(exec, [&pair, &finished, func = std::forward<Work>(work)]
+				() mutable noexcept -> awaitable<void>
 				{
 					auto res = co_await func();
 					*finished = true;
@@ -400,7 +403,8 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work)
 	using work_t = std::remove_cvref_t<Work>;
 	if constexpr( is_awaitable_v<work_t> )
 	{
-		return local_dispatch(exec, [a = std::forward<Work>(work)]() mutable -> work_t {
+		return local_dispatch(exec,
+		[a = std::forward<Work>(work)]() mutable noexcept -> work_t {
 			co_return co_await std::move(a);
 		});
 	}
@@ -473,7 +477,8 @@ auto local_dispatch(Work &&work, Token &&token)
 
 			if constexpr( std::is_void_v<co_return_t> )
 			{
-				asio::co_spawn(ioc, [&finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				asio::co_spawn(ioc, [&finished, func = std::forward<Work>(work)]
+				() mutable noexcept -> awaitable<void>
 				{
 					co_await func();
 					*finished = true;
@@ -486,7 +491,8 @@ auto local_dispatch(Work &&work, Token &&token)
 			else
 			{
 				auto pair = std::make_pair(co_return_t(), counter);
-				asio::co_spawn(ioc, [&pair, &finished, func = std::forward<Work>(work)]() mutable -> awaitable<void>
+				asio::co_spawn(ioc, [&pair, &finished, func = std::forward<Work>(work)]
+				() mutable noexcept -> awaitable<void>
 				{
 					auto res = co_await func();
 					*finished = true;
@@ -766,7 +772,7 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 		timer = std::move(timer), cancel = std::move(cancel), canceller,
 		rtime = std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
 		func = std::forward<Work>(work), immediately
-	]() mutable -> awaitable<void>
+	]() mutable noexcept -> awaitable<void>
 	{
 		using namespace operators;
 		error_code error;
@@ -879,7 +885,8 @@ auto basic_async_work<Exec,Args...>::handle
 	{
 		auto work = asio::make_work_guard(handler);
 		asio::dispatch(exec,
-		[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+		[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]
+		() mutable noexcept {
 			detail::async_xx(exec, std::move(wake_up), std::move(handler));
 		});
 	},
@@ -899,7 +906,9 @@ auto basic_async_work<Exec,Args...>::handle(concepts::async_wake_up<handler_t&&>
 	{
 		auto work = asio::make_work_guard(handler);
 		auto exec = work.get_executor();
-		asio::dispatch(exec, [exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable {
+
+		asio::dispatch(exec,
+		[exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable noexcept {
 			detail::async_xx(exec, std::move(wake_up), std::move(handler));
 		});
 	},

@@ -78,13 +78,13 @@ public:
 				m_block = true;
 
 			m_func = [exec = get_executor_helper(std::forward<Exec0>(exec)),
-					  slot = std::forward<Func0>(slot)](Args...args) mutable
+					  slot = std::forward<Func0>(slot)](Args...args) mutable noexcept
 			{
 				using func0_tr = function_traits<Func0>;
 				using indices = std::make_index_sequence<func0_tr::arg_count>;
 
 				[&exec, &slot, args = std::make_tuple(std::move(args)...)]
-				<size_t...Is>(std::index_sequence<Is...>) mutable
+				<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
 					if( not (can_auto_cast<typename func0_tr::template arg_type_t<Is>>(std::get<Is>(args)) && ...) )
 						return ;
@@ -105,14 +105,16 @@ public:
 						{
 #ifdef _MSC_VER
 							libgs::dispatch(exec,
-							[slot, ...args0 = std::move(std::get<Is>(args))]() mutable -> awaitable<void>
+							[slot, ...args0 = std::move(std::get<Is>(args))]
+							() mutable noexcept -> awaitable<void>
 							{
 								co_await slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(args0))...
 								);
 							});
 #else //_MSC_VER
-							libgs::dispatch(exec, [slot, args = std::move(args)]() mutable -> awaitable<void> {
+							libgs::dispatch(exec, [slot, args = std::move(args)]
+							() mutable noexcept -> awaitable<void> {
 								co_await slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 									(std::move(std::get<Is>(args)))...
 								);
@@ -123,13 +125,14 @@ public:
 					else if constexpr( Mode == slot_mode::async )
 					{
 #ifdef _MSC_VER
-						libgs::dispatch(exec, [slot, ...args0 = std::move(std::get<Is>(args))]() mutable {
+						libgs::dispatch(exec,
+						[slot, ...args0 = std::move(std::get<Is>(args))]() mutable noexcept {
 							slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(args0))...
 							);
 						});
 #else //_MSC_VER
-						libgs::dispatch(exec, [slot, args = std::move(args)]() mutable {
+						libgs::dispatch(exec, [slot, args = std::move(args)]() mutable noexcept {
 							slot(auto_cast<typename func0_tr::template arg_type_t<Is>>
 								(std::move(std::get<Is>(args)))...
 							);
@@ -167,13 +170,13 @@ public:
 
 			m_func = [obj = obj.get(), is_valid = m_is_valid,
 					  exec = get_executor_helper(std::forward<Exec0>(exec)),
-					  slot = std::forward<Func0>(slot)](Args...args) mutable
+					  slot = std::forward<Func0>(slot)](Args...args) mutable noexcept
 			{
 				using func0_tr = function_traits<Func0>;
 				using indices = std::make_index_sequence<func0_tr::arg_count>;
 
 				[obj, &exec, &slot, &is_valid, args = std::make_tuple(std::move(args)...)]
-				<std::size_t...Is>(std::index_sequence<Is...>) mutable
+				<std::size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
 					if( not (can_auto_cast<typename func0_tr::template arg_type_t<Is>>(std::get<Is>(args)) && ...) )
 						return ;
@@ -189,7 +192,7 @@ public:
 							{
 								libgs::dispatch(exec,
 								[obj, is_valid, slot, ...args0 = std::move(std::get<Is>(args))]
-								() mutable -> awaitable<void>
+								() mutable noexcept -> awaitable<void>
 								{
 									if( not is_valid() )
 										co_return ;
@@ -205,7 +208,7 @@ public:
 							{
 								libgs::dispatch(exec,
 								[obj, is_valid, slot, ...args0 = std::move(std::get<Is>(args))]
-								() mutable -> awaitable<void>
+								() mutable noexcept -> awaitable<void>
 								{
 									if( not is_valid() )
 										co_return ;
@@ -220,7 +223,7 @@ public:
 						else if constexpr( Mode == slot_mode::async )
 						{
 							libgs::dispatch(exec,
-							[obj, is_valid, slot, ...args0 = std::move(std::get<Is>(args))]() mutable
+							[obj, is_valid, slot, ...args0 = std::move(std::get<Is>(args))]() mutable noexcept
 							{
 								if( not is_valid() )
 									return ;
@@ -246,7 +249,7 @@ public:
 						{
 							libgs::dispatch(exec,
 							[is_valid, slot, ...args0 = std::move(std::get<Is>(args))]
-							() mutable -> awaitable<void>
+							() mutable noexcept -> awaitable<void>
 							{
 								if( not is_valid() )
 									co_return ;
@@ -262,7 +265,7 @@ public:
 						{
 							libgs::dispatch(exec,
 							[is_valid, slot, ...args0 = std::move(std::get<Is>(args))]
-							() mutable -> awaitable<void>
+							() mutable noexcept -> awaitable<void>
 							{
 								if( not is_valid() )
 									co_return ;
@@ -277,7 +280,7 @@ public:
 					else if constexpr( Mode == slot_mode::async )
 					{
 						libgs::dispatch(exec,
-						[is_valid, slot, ...args0 = std::move(std::get<Is>(args))]() mutable
+						[is_valid, slot, ...args0 = std::move(std::get<Is>(args))]() mutable noexcept
 						{
 							if( not is_valid() )
 								return ;
@@ -302,7 +305,8 @@ public:
 							if constexpr( Mode == slot_mode::backpressure )
 							{
 								libgs::dispatch(exec,
-								[obj, is_valid, slot, args = std::move(args)]() mutable -> awaitable<void>
+								[obj, is_valid, slot, args = std::move(args)]
+								() mutable noexcept -> awaitable<void>
 								{
 									if( not is_valid() )
 										co_return ;
@@ -317,7 +321,7 @@ public:
 							else
 							{
 								libgs::dispatch(exec, [obj, is_valid, slot, args = std::move(args)]
-								() mutable -> awaitable<void>
+								() mutable noexcept -> awaitable<void>
 								{
 									if( not is_valid() )
 										co_return ;
@@ -331,7 +335,8 @@ public:
 						}
 						else if constexpr( Mode == slot_mode::async )
 						{
-							libgs::dispatch(exec, [obj, is_valid, slot, args = std::move(args)]() mutable
+							libgs::dispatch(exec,
+							[obj, is_valid, slot, args = std::move(args)]() mutable noexcept
 							{
 								if( not is_valid() )
 									return ;
@@ -356,7 +361,7 @@ public:
 						if constexpr( Mode == slot_mode::backpressure )
 						{
 							libgs::dispatch(exec, [is_valid, slot, args = std::move(args)]
-							() mutable -> awaitable<void>
+							() mutable noexcept -> awaitable<void>
 							{
 								if( not is_valid() )
 									co_return ;
@@ -371,7 +376,7 @@ public:
 						else
 						{
 							libgs::dispatch(exec,
-							[is_valid, slot, args = std::move(args)]() mutable -> awaitable<void>
+							[is_valid, slot, args = std::move(args)]() mutable noexcept -> awaitable<void>
 							{
 								if( not is_valid() )
 									co_return ;
@@ -385,7 +390,7 @@ public:
 					}
 					else if constexpr( Mode == slot_mode::async )
 					{
-						libgs::dispatch(exec, [is_valid, slot, args = std::move(args)]() mutable
+						libgs::dispatch(exec, [is_valid, slot, args = std::move(args)]() mutable noexcept
 						{
 							if( not is_valid() )
 								return ;
