@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -40,18 +40,23 @@ namespace libgs
 [[nodiscard]] LIBGS_CORE_VAPI bool is_big_endian();
 
 [[nodiscard]] LIBGS_CORE_TAPI auto hton(concepts::arithmetic_p auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto hton(concepts::enumerate_p auto e);
 LIBGS_CORE_TAPI auto *hton(auto *data, size_t len = 1);
 
 [[nodiscard]] LIBGS_CORE_TAPI auto ntoh(concepts::arithmetic_p auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto ntoh(concepts::enumerate_p auto e);
 LIBGS_CORE_TAPI auto *ntoh(auto *data, size_t len = 1);
 
 [[nodiscard]] LIBGS_CORE_TAPI auto reverse(concepts::arithmetic_p auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto reverse(concepts::enumerate_p auto e);
 LIBGS_CORE_TAPI auto *reverse(auto *data, size_t len = 1);
 
 [[nodiscard]] LIBGS_CORE_TAPI auto to_big_endian(concepts::arithmetic_p auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto to_big_endian(concepts::enumerate_p auto e);
 LIBGS_CORE_TAPI auto *to_big_endian(auto *data, size_t len = 1);
 
 [[nodiscard]] LIBGS_CORE_TAPI auto to_little_endian(concepts::arithmetic_p auto t);
+[[nodiscard]] LIBGS_CORE_TAPI auto to_little_endian(concepts::enumerate_p auto e);
 LIBGS_CORE_TAPI auto *to_little_endian(auto *data, size_t len = 1);
 
 } //namespace libgs
