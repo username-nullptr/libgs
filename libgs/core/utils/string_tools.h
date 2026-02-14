@@ -42,6 +42,9 @@ namespace libgs::strtls
 #define LIBGS_CHAR16(s)  LIBGS_CAT(u , s)
 #define LIBGS_CHAR32(s)  LIBGS_CAT(U , s)
 
+#ifdef string_literal
+# undef string_literal
+#endif
 #define string_literal(_type, _str) \
 	[] <libgs::concepts::character __CharT_> () consteval { \
 			 if constexpr( libgs::is_wchar_v <__CharT_> ) return  L##_str; \
@@ -51,6 +54,9 @@ namespace libgs::strtls
 		else                                              return     _str; \
 	} .template operator()<_type>()
 
+#ifdef l_str
+# undef l_str
+#endif
 #define l_str(_type, _str)  string_literal(_type, _str)
 
 template <typename>

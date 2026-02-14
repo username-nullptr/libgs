@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -185,6 +185,25 @@ const_chunk_attributes<Derived>::chunk_attributes() const noexcept
 	return *m_chunk_attributes;
 }
 
+#ifdef _MSC_VER
+template <typename Derived>
+template <typename T>
+mutable_parameters<Derived>::base_t::derived_t &mutable_parameters<Derived>::set_parameter
+(T &&key, typename base_t::value_t value) noexcept requires core_concepts::text_p<T,char>
+{
+	parameters()[strtls::to_string(std::forward<T>(key))] = std::move(value);
+	return static_cast<base_t::derived_t&>(*this);
+}
+
+template <typename Derived>
+template <typename T>
+mutable_parameters<Derived>::base_t::derived_t &mutable_parameters<Derived>::unset_parameter
+(const T &key) noexcept requires core_concepts::text_p<T,char>
+{
+	parameters().erase(strtls::to_string(key));
+	return static_cast<base_t::derived_t&>(*this);
+}
+#else //_MSC_VER
 template <typename Derived>
 mutable_parameters<Derived>::base_t::derived_t &mutable_parameters<Derived>::set_parameter
 (core_concepts::text_p<char> auto &&key, typename base_t::value_t value) noexcept
@@ -200,6 +219,7 @@ mutable_parameters<Derived>::base_t::derived_t &mutable_parameters<Derived>::uns
 	parameters().erase(strtls::to_string(key));
 	return static_cast<base_t::derived_t&>(*this);
 }
+#endif //_MSC_VER
 
 template <typename Derived>
 mutable_parameters<Derived>::base_t::parameters_t&
@@ -208,6 +228,25 @@ mutable_parameters<Derived>::parameters() noexcept
 	return remove_const(*this->m_parameters);
 }
 
+#ifdef _MSC_VER
+template <typename Derived>
+template <typename T>
+mutable_headers<Derived>::base_t::derived_t &mutable_headers<Derived>::set_header
+(T &&key, typename base_t::value_t value) noexcept requires core_concepts::text_p<T,char>
+{
+	headers()[strtls::to_string(std::forward<T>(key))] = std::move(value);
+	return static_cast<base_t::derived_t&>(*this);
+}
+
+template <typename Derived>
+template <typename T>
+mutable_headers<Derived>::base_t::derived_t &mutable_headers<Derived>::unset_header
+(const T &key) noexcept requires core_concepts::text_p<T,char>
+{
+	headers().erase(strtls::to_string(key));
+	return static_cast<base_t::derived_t&>(*this);
+}
+#else //_MSC_VER
 template <typename Derived>
 mutable_headers<Derived>::base_t::derived_t &mutable_headers<Derived>::set_header
 (core_concepts::text_p<char> auto &&key, typename base_t::value_t value) noexcept
@@ -223,6 +262,7 @@ mutable_headers<Derived>::base_t::derived_t &mutable_headers<Derived>::unset_hea
 	headers().erase(strtls::to_string(key));
 	return static_cast<base_t::derived_t&>(*this);
 }
+#endif //_MSC_VER
 
 template <typename Derived>
 mutable_headers<Derived>::base_t::headers_t &mutable_headers<Derived>::headers() noexcept
@@ -398,6 +438,25 @@ auto mutable_headers<Derived>::make_file_opt_token(Opt &&opt)
 	}
 }
 
+#ifdef _MSC_VER
+template <typename Cookie, typename Derived>
+template <typename T>
+mutable_cookies<Cookie,Derived>::base_t::derived_t &mutable_cookies<Cookie,Derived>::set_cookie
+(T &&key, typename base_t::cookie_t value) noexcept requires core_concepts::text_p<T,char>
+{
+	cookies()[strtls::to_string(std::forward<T>(key))] = std::move(value);
+	return static_cast<base_t::derived_t&>(*this);
+}
+
+template <typename Cookie, typename Derived>
+template <typename T>
+mutable_cookies<Cookie,Derived>::base_t::derived_t &mutable_cookies<Cookie,Derived>::unset_cookie
+(const T &key) noexcept requires core_concepts::text_p<T,char>
+{
+	cookies().erase(strtls::to_string(key));
+	return static_cast<base_t::derived_t&>(*this);
+}
+#else //_MSC_VER
 template <typename Cookie, typename Derived>
 mutable_cookies<Cookie,Derived>::base_t::derived_t &mutable_cookies<Cookie,Derived>::set_cookie
 (core_concepts::text_p<char> auto &&key, typename base_t::cookie_t value) noexcept
@@ -413,6 +472,7 @@ mutable_cookies<Cookie,Derived>::base_t::derived_t &mutable_cookies<Cookie,Deriv
 	cookies().erase(strtls::to_string(key));
 	return static_cast<base_t::derived_t&>(*this);
 }
+#endif //_MSC_VER
 
 template <typename Cookie, typename Derived>
 mutable_cookies<Cookie,Derived>::base_t::cookies_t&

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -28,6 +28,10 @@
 
 #ifndef LIBGS_CORE_DETAIL_SPIN_MUTEX_H
 #define LIBGS_CORE_DETAIL_SPIN_MUTEX_H
+
+#ifdef _MSC_VER
+# include <immintrin.h>
+#endif
 
 namespace libgs
 {
@@ -99,7 +103,7 @@ inline spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
 inline void spin_mutex::none_instruction() noexcept
 {
 #ifdef _MSC_VER
-	__asm pause;
+	_mm_pause();
 #elif defined(__GNUC__)
 # if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
 	asm volatile("pause" : : : "memory");

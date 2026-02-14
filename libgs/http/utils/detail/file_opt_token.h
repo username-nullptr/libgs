@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -45,7 +45,7 @@ namespace libgs::http { namespace detail
 
 	if constexpr( is_any_fstream_v<fstream_t> )
 	{
-		if( permissions & io_permission::read )
+		if constexpr( permissions & io_permission::read )
 		{
 			auto cur = opt.stream->tellg();
 			if( opt.stream->good() )
@@ -55,7 +55,7 @@ namespace libgs::http { namespace detail
 				opt.stream->seekg(cur, std::ios::beg);
 			}
 		}
-		else if( permissions & io_permission::write )
+		else if constexpr( permissions & io_permission::write )
 		{
 			auto cur = opt.stream->tellp();
 			if( opt.stream->good() )
@@ -68,7 +68,7 @@ namespace libgs::http { namespace detail
 	}
 	if constexpr( is_any_ifstream_v<fstream_t> )
 	{
-		if( permissions & io_permission::read )
+		if constexpr( permissions & io_permission::read )
 		{
 			auto cur = opt.stream->tellg();
 			opt.stream->seekg(0, std::ios::end);
@@ -78,7 +78,7 @@ namespace libgs::http { namespace detail
 	}
 	else
 	{
-		if( permissions & io_permission::write )
+		if constexpr( permissions & io_permission::write )
 		{
 			auto cur = opt.stream->tellp();
 			opt.stream->seekp(0, std::ios::end);

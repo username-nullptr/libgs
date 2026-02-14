@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,12 +29,12 @@
 #ifndef LIBGS_CORE_GLOBAL_H
 #define LIBGS_CORE_GLOBAL_H
 
+#include <libgs/core/utils.h>
 #include <libgs/core/cxx/memory_concepts.h>
 #include <libgs/core/cxx/sys_expected.h>
 #include <libgs/core/cxx/cplusplus.h>
 #include <libgs/core/cxx/operators.h>
 #include <libgs/core/cxx/configs.h>
-#include <libgs/core/utils.h>
 
 namespace libgs
 {

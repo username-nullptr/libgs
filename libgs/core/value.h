@@ -30,6 +30,7 @@
 #define LIBGS_CORE_VALUE_H
 
 #include <libgs/core/detail/value_format.h>
+#include <libgs/core/global.h>
 
 namespace libgs
 {

@@ -30,7 +30,12 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#include <knownfolders.h>
+#include <shlobj.h>
+
 #include "libgs/core/app_utls.h"
+
+#pragma comment(lib, "shell32.lib")
 
 namespace fs = std::filesystem;
 
@@ -205,6 +210,22 @@ sys_expected<> unsetenv(std::string_view key) noexcept
 	if( SetEnvironmentVariable(key.data(), nullptr) )
 		return result;
 	return result.despair(sys_error());
+}
+
+sys_expected<path_t> home_directory() noexcept
+{
+	sys_expected<path_t> result;
+	PWSTR path = nullptr;
+
+	auto hr = SHGetKnownFolderPath(FOLDERID_Profile, 0, nullptr, &path);
+	if( SUCCEEDED(hr) )
+	{
+		result.emplace(path);
+		CoTaskMemFree(path);
+	}
+	else
+		result.despair(sys_error());
+	return result;
 }
 
 } //namespace libgs::app

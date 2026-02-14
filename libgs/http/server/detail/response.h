@@ -125,7 +125,7 @@ public:
 		if( pro_state() != protocol::generator_state::header )
 			return 0;
 
-		auto token = protocol::make_file_opt_token(std::forward<Opt>(opt));
+		auto token = make_file_opt_token(std::forward<Opt>(opt));
 		if( not token )
 		{
 			error = token.error();

@@ -226,6 +226,7 @@ using client = http::ssl_client;
 namespace libgs::http
 {
 
+#if LIBGS_OPENSSL_SUPPORT
 template <concepts::connection_pool ConnectionPool,
 		  concepts::connection_pool SslConnectionPool,
 		  protocol::version_enum Version = protocol::version::v11>
@@ -237,6 +238,9 @@ class LIBGS_HTTP_TAPI basic_auto_client
 using auto_client = basic_auto_client <
 	connection_pool, ssl_connection_pool
 >;
+#else //LIBGS_OPENSSL_SUPPORT
+// TODO ... ...
+#endif //LIBGS_OPENSSL_SUPPORT
 
 } //namespace libgs::http
 

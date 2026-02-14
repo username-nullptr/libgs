@@ -27,13 +27,13 @@ int main()
 	int value1 = *settings.get("group0/key1").or_else()->get<int>().or_else();
 	int value2 = *settings.get("group0/key1").or_else()->get<int>().or_else();
 
-	auto value3 = settings.get<std::string>("group0/key2");
+	auto value3 = settings.get("group0/key2");
 	auto value4 = settings.get("group0/key2").or_else();
 
 	auto value5 = settings.get("group0/key0").or_else("none");
 
-	int value6 = settings.get("group0/key1").or_else(123);
-	int value7 = settings.get("group0/key1").or_else(libgs::value(123))->get<int>().or_else(123);
+	auto value6 = *settings.get("group0/key1").or_else(123);
+	int value7 = *settings.get("group0/key1").or_else(123)->get<int>().or_else(123);
 
 	auto value8 = settings.get("group0/key2").or_else("hello");
 

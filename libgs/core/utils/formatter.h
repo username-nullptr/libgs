@@ -31,6 +31,7 @@
 
 #include <libgs/core/utils/string_tools.h>
 #include <libgs/core/cxx/formatter.h>
+#include <libgs/core/cxx/expected.h>
 #include <libgs/core/cxx/tools.h>
 #include <asio.hpp>
 

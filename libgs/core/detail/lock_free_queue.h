@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -40,7 +40,7 @@ void lock_free_queue_base<T,Derived>::force_enqueue(element_t &&data)
 
 template <concepts::copy_or_move_constructible T, typename Derived>
 void lock_free_queue_base<T,Derived>::force_enqueue(const element_t &data)
-	requires concepts::copy_constructible<T>
+	requires concepts::copy_constructible<element_t>
 {
 	emplace(data);
 }
@@ -48,7 +48,7 @@ void lock_free_queue_base<T,Derived>::force_enqueue(const element_t &data)
 template <concepts::copy_or_move_constructible T, typename Derived>
 template <typename...Args>
 void lock_free_queue_base<T,Derived>::force_emplace(Args&&...args) requires
-	concepts::constructible<T,Args...>
+	concepts::constructible<element_t,Args...>
 {
 	auto self = static_cast<Derived*>(this);
 	for(;;)

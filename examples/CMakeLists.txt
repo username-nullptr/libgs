@@ -85,13 +85,13 @@ set(sources
 	http_server/http_session.cpp
 	http_server/https_server.cpp
 )
-set_target(gs.http ${sources})
+#set_target(gs.http ${sources})
 
 set(sources
 	http_client/session_pool.cpp
 	http_client/protocol.cpp
 )
-set_target(gs.http ${sources})
+#set_target(gs.http ${sources})
 
 set(sources
 	utils/logger.cpp

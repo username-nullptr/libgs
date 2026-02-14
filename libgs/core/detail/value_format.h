@@ -29,7 +29,7 @@
 #ifndef LIBGS_CORE_DETAIL_VALUE_SERIALIZER_H
 #define LIBGS_CORE_DETAIL_VALUE_SERIALIZER_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/utils/string_tools.h>
 
 namespace libgs
 {
