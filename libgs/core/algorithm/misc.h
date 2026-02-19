@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -35,7 +35,7 @@ namespace libgs
 {
 
 [[nodiscard]] LIBGS_CORE_TAPI auto from_percent_encoding (
-	concepts::any_string_p auto &&str
+	concepts::any_string_p auto &&str, char percent = '%'
 );
 
 template <concepts::any_text_p Str, concepts::text_p<strtls::get_char_t<Str>> StrArg =

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,55 +26,29 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_APP_UTILS_H
-#define LIBGS_CORE_APP_UTILS_H
+#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
+#define LIBGS_HTTP_NT_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
 
-#include <libgs/core/value.h>
-#include <map>
-
-namespace libgs::app
+namespace libgs::http_nt
 {
 
-using path_t = std::filesystem::path;
+generator<model::server> &generator<model::server>::set_redirect
+(core_concepts::text_p<char> auto &&url, redirect_enum type)
+{
+	switch(type)
+	{
+#define X_MACRO(e,v,d) case redirect::e : set_status(v); break;
+		LIBGS_HTTP_NT_REDIRECT_TYPE_TABLE
+#undef X_MACRO
+	default: runtime_error::loc_throw(std::format (
+			"Invalid redirect type: '{}'.", type
+		));
+	}
+	set_header(header::location, std::forward<decltype(url)>(url));
+	return *this;
+}
 
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<path_t> file_path() noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<path_t> dir_path() noexcept;
-
-/*[[nodiscard]]*/ LIBGS_CORE_API
-sys_expected<> set_current_directory(const path_t &path) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<path_t> current_directory() noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<path_t> absolute_path(const path_t &path) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-bool is_absolute_path(const path_t &path) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<std::string> getenv(std::string_view key) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<std::map<std::string,std::string>> getenvs() noexcept;
-
-/*[[nodiscard]]*/ LIBGS_CORE_API
-sys_expected<> setenv(std::string_view key, const libgs::value &value, bool overwrite = true) noexcept;
-
-/*[[nodiscard]]*/ LIBGS_CORE_API
-sys_expected<> unsetenv(std::string_view key) noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<std::string> current_user() noexcept;
-
-[[nodiscard]] LIBGS_CORE_API
-sys_expected<path_t> home_directory() noexcept;
-
-} //namespace libgs::app
-#include <libgs/core/detail/app_utls.h>
+} //namespace libgs::http_nt
 
 
-#endif //LIBGS_CORE_APP_UTILS_H
+#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H

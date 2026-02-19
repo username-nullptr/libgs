@@ -48,7 +48,7 @@ constexpr CharT to_hex_lower(unsigned int value) noexcept
 
 } //namespace detail
 
-auto from_percent_encoding(concepts::any_string_p auto &&str)
+auto from_percent_encoding(concepts::any_string_p auto &&str, char percent)
 {
 	using Str = decltype(str);
 	using char_t = strtls::get_char_t<Str>;
@@ -70,7 +70,7 @@ auto from_percent_encoding(concepts::any_string_p auto &&str)
 	while( i < len )
 	{
 		c = input_ptr[i];
-		if( c == 0x25/*%*/ and i + 2 < len )
+		if( c == static_cast<char_t>(percent) and i + 2 < len )
 		{
 			a = input_ptr[++i];
 			b = input_ptr[++i];
@@ -127,7 +127,7 @@ auto to_percent_encoding(const Str &str, StrArg &&exclude, StrArg &&include, cha
 
 	for(auto &c : str_view)
 	{
-		if( c != percent and
+		if( c != static_cast<char_t>(percent) and
 		    ((c >= static_cast<char_t>(0x61) and c <= static_cast<char_t>(0x7A)) // ALPHA
 		     or (c >= static_cast<char_t>(0x41) and c <= static_cast<char_t>(0x5A)) // ALPHA
 		     or (c >= static_cast<char_t>(0x30) and c <= static_cast<char_t>(0x39)) // DIGIT

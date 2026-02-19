@@ -34,11 +34,6 @@
 namespace libgs
 {
 
-// TODO ... ...
-enum class queue_type {
-	linked, circular
-};
-
 template <concepts::copy_or_move_constructible T, typename Derived>
 class LIBGS_CORE_TAPI lock_free_queue_base
 {
@@ -55,20 +50,34 @@ public:
 		concepts::constructible<element_t,Args...>;
 };
 
-template <concepts::copy_or_move_constructible T, size_t N = 0>
+enum class queue_type {
+	linked, circular
+};
+template <concepts::copy_or_move_constructible T,
+		  queue_type DS = queue_type::circular,
+		  size_t N = 0>
 class LIBGS_CORE_TAPI lock_free_queue;
 
 // linked list queue
-template <concepts::copy_or_move_constructible T>
-class LIBGS_CORE_TAPI lock_free_queue<T,0> :
-	public lock_free_queue_base<T,lock_free_queue<T>>
+template <concepts::copy_or_move_constructible T, size_t N>
+class LIBGS_CORE_TAPI lock_free_queue<T, queue_type::linked, N> :
+	public lock_free_queue_base<T,lock_free_queue<T, queue_type::linked, N>>
 {
 	LIBGS_DISABLE_COPY(lock_free_queue)
 
 public:
 	using element_t = T;
-	constexpr explicit lock_free_queue(size_t capacity = std::numeric_limits<size_t>::max());
-	~lock_free_queue();
+	static constexpr size_t capacity_v = N;
+
+	[[nodiscard]] static consteval size_t capacity()
+		noexcept requires (capacity_v > 0);
+
+public:
+	explicit lock_free_queue(size_t capacity)
+		requires (capacity_v == 0);
+
+	lock_free_queue();
+	~lock_free_queue(); // unsafe
 
 	lock_free_queue(lock_free_queue &&other) noexcept; // unsafe
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
@@ -86,10 +95,16 @@ public: // safe
 	bool dequeue(element_t &data);
 
 public:
-	[[nodiscard]] constexpr size_t capacity() const noexcept;
 	[[nodiscard]] bool empty() const noexcept;
 	[[nodiscard]] bool full() const noexcept;
 	[[nodiscard]] size_t size() const noexcept;
+
+public:
+	[[nodiscard]] size_t capacity() const noexcept
+		requires (capacity_v == 0);
+
+	void set_capacity(size_t size)
+		requires (capacity_v == 0);
 
 private:
 	class impl;
@@ -98,18 +113,24 @@ private:
 
 // circular queue
 template <concepts::copy_or_move_constructible T, size_t N>
-class LIBGS_CORE_TAPI lock_free_queue :
-	public lock_free_queue_base<T,lock_free_queue<T,N>>
+class LIBGS_CORE_TAPI lock_free_queue<T, queue_type::circular, N> :
+	public lock_free_queue_base<T,lock_free_queue<T, queue_type::circular, N>>
 {
 	LIBGS_DISABLE_COPY(lock_free_queue)
 
 public:
 	using element_t = T;
 	static constexpr size_t capacity_v = N;
-	[[nodiscard]] static consteval size_t capacity() noexcept;
+
+	[[nodiscard]] static consteval size_t capacity()
+		noexcept requires (capacity_v > 0);
+
+public:
+	explicit lock_free_queue(size_t capacity)
+		requires (capacity_v == 0);
 
 	lock_free_queue();
-	~lock_free_queue();
+	~lock_free_queue(); // unsafe
 
 	lock_free_queue(lock_free_queue &&other) noexcept; // unsafe
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
@@ -131,10 +152,23 @@ public:
 	[[nodiscard]] bool full() const noexcept;
 	[[nodiscard]] size_t size() const noexcept;
 
+public:
+	[[nodiscard]] size_t capacity() const noexcept
+		requires (capacity_v == 0);
+
+	void set_capacity(size_t size)
+		requires (capacity_v == 0);
+
 private:
 	class impl;
 	impl *m_impl;
 };
+
+template <concepts::copy_or_move_constructible T, size_t N = 0>
+using linked_lock_free_queue = lock_free_queue<T, queue_type::linked, N>;
+
+template <concepts::copy_or_move_constructible T, size_t N = 0>
+using circular_lock_free_queue = lock_free_queue<T, queue_type::circular, N>;
 
 } //namespace libgs
 #include <libgs/core/detail/lock_free_queue.h>

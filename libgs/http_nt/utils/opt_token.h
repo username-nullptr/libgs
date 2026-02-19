@@ -26,27 +26,42 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_DETAIL_APP_UTILS_H
-#define LIBGS_CORE_DETAIL_APP_UTILS_H
+#ifndef LIBGS_HTTP_NT_UTILS_OPT_TOKEN_H
+#define LIBGS_HTTP_NT_UTILS_OPT_TOKEN_H
 
-namespace libgs::app:: inline literals
+#include <libgs/http_nt/utils/file_opt_token.h>
+
+namespace libgs::http_nt
 {
 
-inline path_t operator""_abs(const char *path, size_t len)
+template <core_concepts::character CharT>
+struct LIBGS_HTTP_NT_TAPI basic_path_opt_token
 {
-	auto expected = absolute_path(std::string(path, len));
-	system_error::loc_throw(expected.error(), R"(libgs::app::operator""_abs<char>)");
-	return *expected;
-}
+	using char_t = CharT;
+	using string_view_t = std::basic_string_view<char_t>;
+	std::vector<string_view_t> paths;
 
-inline path_t operator""_abs(const wchar_t *path, size_t len)
-{
-	auto expected = absolute_path(std::wstring(path, len));
-	system_error::loc_throw(expected.error(), R"(libgs::app::operator""_abs<char>)");
-	return *expected;
-}
+	template <core_concepts::string_p<CharT> Str>
+	basic_path_opt_token(Str &&path);
 
-} //namespace libgs::app::literals
+	template <core_concepts::string<CharT> Str>
+	basic_path_opt_token(std::vector<Str> &&paths);
+
+	template <core_concepts::string<CharT> Str>
+	basic_path_opt_token(std::initializer_list<Str> paths);
+
+	template <core_concepts::string_p<CharT>...Str>
+	basic_path_opt_token(Str&&...paths);
+};
+
+using path_opt_token  = basic_path_opt_token<char>;
+using wpath_opt_token = basic_path_opt_token<wchar_t>;
+
+template <typename...Args>
+using callback_t = std::function<void(Args...)>;
+
+} //namespace libgs::http_nt::operators
+#include <libgs/http_nt/utils/detail/opt_token.h>
 
 
-#endif //LIBGS_CORE_DETAIL_APP_UTILS_H
+#endif //LIBGS_HTTP_NT_UTILS_OPT_TOKEN_H

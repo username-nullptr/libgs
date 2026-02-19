@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,24 +26,60 @@
 *                                                                                   *
 *************************************************************************************/
 
-#include "app_utls.h"
+#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_SERVER_GENERATOR_H
+#define LIBGS_HTTP_NT_PROTOCOL_UTILS_SERVER_GENERATOR_H
 
-namespace fs = std::filesystem;
+#include <libgs/http_nt/protocol/utils/core/container_helper.h>
+#include <libgs/http_nt/protocol/utils/core/generator_types.h>
 
-namespace libgs::app
+namespace libgs::http_nt
 {
 
-sys_expected<path_t> dir_path() noexcept
+template <>
+class LIBGS_HTTP_NT_API generator<model::server> final :
+	public mutable_headers<generator<model::server>>,
+	public mutable_cookies<cookie,generator<model::server>>,
+	public mutable_chunk_attributes<generator<model::server>>
 {
-	return file_path().transform([](const path_t &path) -> path_t
-	{
-		auto file_name = path.wstring();
-		auto index = file_name.find_last_of(L'/');
+	LIBGS_DISABLE_COPY(generator)
 
-		if( index == std::wstring::npos or index == file_name.size() - 1 )
-			return L"./";
-		return file_name.erase(index + 1);
-	});
-}
+public:
+	using version_t = http_nt::version;
 
-} //namespace libgs::app
+	explicit generator(version_enum version, const headers_t &req_headers = {});
+	explicit generator(const headers_t &req_headers = {}); // default V1.1
+	~generator();
+
+	generator(generator &&other) noexcept;
+	generator &operator=(generator &&other) noexcept;
+
+public:
+	generator &set_status(status_enum status);
+	[[nodiscard]] status_enum status() const noexcept;
+
+	generator &set_redirect (
+		core_concepts::text_p<char> auto &&url,
+		redirect_enum type = redirect::moved_permanently
+	);
+
+public:
+	[[nodiscard]] std::string header_data(size_t body_size = 0);
+	[[nodiscard]] std::string body_data(const const_buffer &buffer);
+	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+
+	[[nodiscard]] version_enum version() const noexcept;
+	[[nodiscard]] generator_state pro_state() const noexcept;
+	generator &reset() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+using server_generator = generator<model::server>;
+
+} //namespace libgs::http_nt
+#include <libgs/http_nt/protocol/utils/server/detail/generator.h>
+
+
+#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_SERVER_GENERATOR_H

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -52,7 +52,6 @@ public:
 
 public:
 	native_handle_t &native_handle() noexcept;
-	static void none_instruction() noexcept;
 
 private:
 #ifdef _MSC_VER

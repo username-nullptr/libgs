@@ -4,10 +4,18 @@
 
 using namespace std::chrono_literals;
 
-// 0: linked list  >0: circular buffer
-static constexpr size_t capacity = 0;
+static constexpr auto g_type =
+	libgs::queue_type::circular;
+	// libgs::queue_type::linked;
 
-static libgs::lock_free_queue<int,capacity> queue;
+static constexpr size_t g_capacity = 16;
+#define FIXED 1
+
+#if FIXED
+static libgs::lock_free_queue<int,g_type,g_capacity> queue;
+#else //FIXED
+static libgs::lock_free_queue<int,g_type> queue {g_capacity};
+#endif //FIXED
 
 void producer_0()
 {
@@ -15,7 +23,7 @@ void producer_0()
 	for(int i=0; i<200; i++)
 	{
 		queue.enqueue(i);
-		libgs::sleep_for(70us);
+		libgs::sleep_for(30us);
 	}
 }
 
@@ -25,7 +33,7 @@ void producer_1()
 	for(int i=200; i<400; i++)
 	{
 		queue.enqueue(i);
-		libgs::sleep_for(140us);
+		libgs::sleep_for(100us);
 	}
 }
 
@@ -35,7 +43,7 @@ void producer_2()
 	for(int i=400; i<600; i++)
 	{
 		queue.enqueue(i);
-		libgs::sleep_for(100us);
+		libgs::sleep_for(60us);
 	}
 }
 
@@ -47,8 +55,7 @@ void consumer_0()
 	for(;;)
 	{
 		auto size = queue.size();
-		auto op = queue.dequeue();
-		if( op )
+		if( auto op = queue.dequeue() )
 			spdlog::debug("c0 : {} | {} : {}", size, g_count++, *op);
 		else if( not g_run )
 			break;
@@ -60,8 +67,7 @@ void consumer_1()
 	for(;;)
 	{
 		auto size = queue.size();
-		auto op = queue.dequeue();
-		if( op )
+		if( auto op = queue.dequeue() )
 			spdlog::debug("c1 : {} | {} : {}", size, g_count++, *op);
 		else if( not g_run )
 			break;
@@ -72,12 +78,16 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
-	std::thread t3(consumer_0);
-	std::thread t4(consumer_1);
-
 	std::thread t0(producer_0);
 	std::thread t1(producer_1);
 	std::thread t2(producer_2);
+#if !FIXED
+	queue.set_capacity(g_capacity << 1);
+#endif //FIXED
+	libgs::sleep_for(100ms);
+
+	std::thread t3(consumer_0);
+	std::thread t4(consumer_1);
 
 	t0.join();
 	t1.join();
