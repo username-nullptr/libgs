@@ -161,24 +161,11 @@ class LIBGS_HTTP_NT_TAPI mutable_parameters : public const_parameters<Derived>
 	using base_t = const_parameters<Derived>;
 
 public:
-#ifdef _MSC_VER
-	template <typename T>
-	base_t::derived_t &set_parameter(T &&key, base_t::value_t value)
-		noexcept requires core_concepts::text_p<T,char>;
+	template <core_concepts::text_p<char> T>
+	base_t::derived_t &set_parameter(T &&key, base_t::value_t value) noexcept;
 
-	template <typename T>
-	base_t::derived_t &unset_parameter(const T &key) noexcept
-		requires core_concepts::text_p<T,char>;
-#else //_MSC_VER
-	base_t::derived_t &set_parameter (
-		core_concepts::text_p<char> auto &&key,
-		base_t::value_t value
-	) noexcept;
-
-	base_t::derived_t &unset_parameter (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-#endif //_MSC_VER
+	template <core_concepts::text_p<char> T>
+	base_t::derived_t &unset_parameter(const T &key) noexcept;
 
 	[[nodiscard]] base_t::parameters_t &parameters() noexcept;
 	using base_t::parameters;
@@ -191,23 +178,11 @@ class LIBGS_HTTP_NT_TAPI mutable_headers : public const_headers<Derived>
 	using base_t = const_headers<Derived>;
 
 public:
-#ifdef _MSC_VER
-	template <typename T>
-	base_t::derived_t &set_header(T &&key, base_t::value_t value)
-		noexcept requires core_concepts::text_p<T,char>;
+	template <core_concepts::text_p<char> T>
+	base_t::derived_t &set_header(T &&key, base_t::value_t value) noexcept;
 
-	template <typename T>
-	base_t::derived_t &unset_header(const T &key) noexcept
-		requires core_concepts::text_p<T,char>;
-#else //_MSC_VER
-	base_t::derived_t &set_header (
-		core_concepts::text_p<char> auto &&key, base_t::value_t value
-	) noexcept;
-
-	base_t::derived_t &unset_header (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-#endif //_MSC_VER
+	template < core_concepts::text_p<char> T>
+	base_t::derived_t &unset_header(const T &key) noexcept;
 
 	[[nodiscard]] base_t::headers_t &headers() noexcept;
 	using base_t::headers;
@@ -234,23 +209,11 @@ class LIBGS_HTTP_NT_TAPI mutable_cookies : public const_cookies<Cookie,Derived>
 	using base_t = const_cookies<Cookie,Derived>;
 
 public:
-#ifdef _MSC_VER
-	template <typename T>
-	base_t::derived_t &set_cookie(T &&key, base_t::cookie_t value)
-		noexcept requires core_concepts::text_p<T,char>;
+	template <core_concepts::text_p<char> T>
+	base_t::derived_t &set_cookie(T &&key, base_t::cookie_t value) noexcept;
 
-	template <typename T>
-	base_t::derived_t &unset_cookie(const T &key) noexcept
-		requires core_concepts::text_p<T,char>;
-#else //_MSC_VER
-	base_t::derived_t &set_cookie (
-		core_concepts::text_p<char> auto &&key, base_t::cookie_t value
-	) noexcept;
-
-	base_t::derived_t &unset_cookie (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-#endif //_MSC_VER
+	template <core_concepts::text_p<char> T>
+	base_t::derived_t &unset_cookie(const T &key) noexcept;
 
 	[[nodiscard]] base_t::cookies_t &cookies() noexcept;
 	using base_t::cookies;

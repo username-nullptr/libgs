@@ -51,29 +51,29 @@ inline void spin_shared_mutex::lock()
 	using namespace std::chrono;
 	constexpr auto max_spin_duration = 64us;
 
-	auto start = high_resolution_clock::now();
+	auto start = steady_clock::now();
 	bool expected = false;
 
 	while( not m_write_flag.compare_exchange_weak(expected, true,
 		std::memory_order_acquire, std::memory_order_relaxed) )
     {
         expected = false;
-		if( high_resolution_clock::now() - start < max_spin_duration )
-			spin_mutex::none_instruction();
+		if( steady_clock::now() - start < max_spin_duration )
+			none_instruction();
 		else
 		{
 			std::this_thread::yield();
-			start = high_resolution_clock::now();
+			start = steady_clock::now();
 		}
     }
 	while( m_read_count.load(std::memory_order_relaxed) > 0 )
 	{
-		if( high_resolution_clock::now() - start < max_spin_duration )
-			spin_mutex::none_instruction();
+		if( steady_clock::now() - start < max_spin_duration )
+			none_instruction();
 		else
 		{
 			std::this_thread::yield();
-			start = high_resolution_clock::now();
+			start = steady_clock::now();
 		}
 	}
 }
@@ -99,17 +99,17 @@ inline void spin_shared_mutex::lock_shared()
 {
 	using namespace std::chrono;
 	constexpr auto max_spin_duration = 64us;
-	auto start = high_resolution_clock::now();
+	auto start = steady_clock::now();
 	for(;;)
 	{
 		while( m_write_flag.load(std::memory_order_acquire) )
 		{
-			if( high_resolution_clock::now() - start < max_spin_duration )
-				spin_mutex::none_instruction();
+			if( steady_clock::now() - start < max_spin_duration )
+				none_instruction();
 			else
 			{
 				std::this_thread::yield();
-				start = high_resolution_clock::now();
+				start = steady_clock::now();
 			}
 		}
 		m_read_count.fetch_add(1, std::memory_order_relaxed);

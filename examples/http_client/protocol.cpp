@@ -1,5 +1,5 @@
-#include <libgs/http/protocol/utils/client/generator.h>
-#include <libgs/http/protocol/utils/client/parser.h>
+#include <libgs/http_nt/protocol/utils/client/generator.h>
+#include <libgs/http_nt/protocol/utils/client/parser.h>
 #include <libgs/core/execution.h>
 #include <spdlog/spdlog.h>
 
@@ -34,14 +34,14 @@ int main()
 			spdlog::info("Failed to connect to server: {}", error);
 			co_return ;
 		}
-		libgs::http::protocol::url url("http://www.baidu.com");
-		libgs::http::protocol::request_arg arg(url);
+		libgs::http_nt::url url("http://www.baidu.com");
+		libgs::http_nt::request_arg arg;
 
 		arg.set_header("Connection", "keep-alive")
 		   .set_header("Host", "www.baidu.com");
 
-		libgs::http::protocol::client_generator generator(arg);
-		auto text = generator.header_data<libgs::http::protocol::method::get>();
+		libgs::http_nt::client_generator generator(url, arg);
+		auto text = generator.header_data<libgs::http_nt::method::get>();
 
 		auto sum = co_await async_write(socket, asio::buffer(text), asio::use_awaitable | error);
 		if( error )
@@ -49,7 +49,7 @@ int main()
 			spdlog::info("Failed to write to server: {}", error);
 			co_return ;
 		}
-		libgs::http::protocol::client_parser parser;
+		libgs::http_nt::client_parser parser;
 		char buffer[0xFFFF];
 		for(;;)
 		{
@@ -69,9 +69,11 @@ int main()
 				break;
 		}
 		text = parser.take_body();
-		while( parser.can_read_from_device() )
+		while( parser.stage() == libgs::http_nt::stage::body )
 		{
-			sum = co_await socket.async_read_some(asio::buffer(buffer, 0xFFFF), asio::use_awaitable | error);
+			sum = co_await socket.async_read_some (
+				asio::buffer(buffer, 0xFFFF), asio::use_awaitable | error
+			);
 			if( error )
 			{
 				spdlog::info("Failed to read from server: {}", error);

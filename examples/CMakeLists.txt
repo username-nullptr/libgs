@@ -88,10 +88,10 @@ set(sources
 #set_target(gs.http ${sources})
 
 set(sources
-	http_client/session_pool.cpp
+	http_client/connection_pool.cpp
 	http_client/protocol.cpp
 )
-#set_target(gs.http ${sources})
+set_target(gs.http.nt ${sources})
 
 set(sources
 	utils/logger.cpp
