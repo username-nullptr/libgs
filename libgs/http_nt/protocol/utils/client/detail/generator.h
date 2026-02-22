@@ -33,7 +33,7 @@ namespace libgs::http_nt
 {
 
 template <method_enum Method>
-std::string generator<model::client>::header_data(size_t body_size)
+std::string generator<protocol_model::client>::header_data(size_t body_size)
 {
 	return header_data(Method, body_size);
 }

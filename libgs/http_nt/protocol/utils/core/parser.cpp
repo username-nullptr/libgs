@@ -61,7 +61,7 @@ g_error_category;
 	return { static_cast<int>(errc), g_error_category };
 }
 
-class LIBGS_DECL_HIDDEN parser<model::base>::impl
+class LIBGS_DECL_HIDDEN parser<protocol_model::base>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -321,19 +321,19 @@ public:
 	parse_cookie_handler m_parse_cookie;
 };
 
-parser<model::base>::parser(size_t init_buf_size) :
+parser<protocol_model::base>::parser(size_t init_buf_size) :
 	const_headers(nullptr),
 	m_impl(new impl(init_buf_size))
 {
 	m_headers = &m_impl->m_headers;
 }
 
-parser<model::base>::~parser()
+parser<protocol_model::base>::~parser()
 {
 	delete m_impl;
 }
 
-parser<model::base>::parser(parser &&other) noexcept :
+parser<protocol_model::base>::parser(parser &&other) noexcept :
 	const_headers(other.m_headers),
 	m_impl(other.m_impl)
 {
@@ -341,7 +341,7 @@ parser<model::base>::parser(parser &&other) noexcept :
 	other.m_headers = &other.m_impl->m_headers;
 }
 
-parser<model::base> &parser<model::base>::operator=(parser &&other) noexcept
+parser<protocol_model::base> &parser<protocol_model::base>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -355,24 +355,24 @@ parser<model::base> &parser<model::base>::operator=(parser &&other) noexcept
 	return *this;
 }
 
-parser<model::base> &parser<model::base>::on_parse_begin(parse_begin_handler func)
+parser<protocol_model::base> &parser<protocol_model::base>::on_parse_begin(parse_begin_handler func)
 {
 	m_impl->m_parse_begin = std::move(func);
 	return *this;
 }
 
-parser<model::base> &parser<model::base>::on_parse_cookie(parse_cookie_handler func)
+parser<protocol_model::base> &parser<protocol_model::base>::on_parse_cookie(parse_cookie_handler func)
 {
 	m_impl->m_parse_cookie = std::move(func);
 	return *this;
 }
 
-error_code parser<model::base>::make_error_code(parse_errno errc)
+error_code parser<protocol_model::base>::make_error_code(parse_errno errc)
 {
 	return http_nt::make_error_code(errc);
 }
 
-sys_expected<bool> parser<model::base>::append(const const_buffer &buf)
+sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 {
 	using state = impl::state;
 	std::string str_buf(reinterpret_cast<const char*>(buf.data()), buf.size());
@@ -395,19 +395,19 @@ sys_expected<bool> parser<model::base>::append(const const_buffer &buf)
 	return m_impl->parse_chunked();
 }
 
-parser<model::base> &parser<model::base>::operator<<(const const_buffer &buf)
+parser<protocol_model::base> &parser<protocol_model::base>::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-parser<model::base> &parser<model::base>::reset()
+parser<protocol_model::base> &parser<protocol_model::base>::reset()
 {
 	m_impl->reset();
 	return *this;
 }
 
-std::string parser<model::base>::take_partial_body(size_t size)
+std::string parser<protocol_model::base>::take_partial_body(size_t size)
 {
 	if( size == 0 )
 		return {};
@@ -419,17 +419,17 @@ std::string parser<model::base>::take_partial_body(size_t size)
 	return res;
 }
 
-std::string parser<model::base>::take_body()
+std::string parser<protocol_model::base>::take_body()
 {
 	return std::move(m_impl->m_partial_body);
 }
 
-version_enum parser<model::base>::version() const noexcept
+version_enum parser<protocol_model::base>::version() const noexcept
 {
 	return m_impl->m_version;
 }
 
-parser<model::base>::stage_t parser<model::base>::stage() const noexcept
+parser<protocol_model::base>::stage_t parser<protocol_model::base>::stage() const noexcept
 {
 	if( m_impl->m_state <= impl::state::reading_headers )
 		return stage_t::header;
@@ -440,13 +440,13 @@ parser<model::base>::stage_t parser<model::base>::stage() const noexcept
 	return stage_t::body;
 }
 
-parser<model::base> &parser<model::base>::unbind_parse_begin()
+parser<protocol_model::base> &parser<protocol_model::base>::unbind_parse_begin()
 {
 	m_impl->m_parse_begin = {};
 	return *this;
 }
 
-parser<model::base> &parser<model::base>::unbind_parse_cookie()
+parser<protocol_model::base> &parser<protocol_model::base>::unbind_parse_cookie()
 {
 	m_impl->m_parse_cookie = {};
 	return *this;

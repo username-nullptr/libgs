@@ -34,7 +34,7 @@
 namespace libgs::http_nt
 {
 
-template <model>
+template <protocol_model>
 class generator {};
 
 enum class generator_state {

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,76 +26,78 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_PARSER_H
-#define LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_PARSER_H
+#ifndef LIBGS_HTTP_NT_CLIENT_REPLY_H
+#define LIBGS_HTTP_NT_CLIENT_REPLY_H
 
-#include <libgs/http_nt/protocol/utils/core/container_helper.h>
-#include <libgs/http_nt/protocol/utils/core/parser_types.h>
+#include <libgs/http_nt/protocol/utils/client/parser.h>
+#include <libgs/http_nt/utils/connection.h>
 
 namespace libgs::http_nt
 {
 
-template <>
-class LIBGS_HTTP_NT_API parser<protocol_model::base> final :
-	public const_headers<parser<protocol_model::base>>
+template <concepts::connection Connection = connection>
+class LIBGS_HTTP_NT_TAPI basic_reply final :
+	public const_headers<basic_reply<Connection>>,
+	public const_cookies<cookie,basic_reply<Connection>>
 {
-	LIBGS_DISABLE_COPY(parser)
+	LIBGS_DISABLE_COPY(basic_reply)
 
 public:
-	using stage_t = http_nt::stage;
-	using parse_begin_handler = std::function <
-		sys_expected<version_enum>(std::string_view line_buf)
-	>;
-	using parse_cookie_handler = std::function <
-		error_code(std::string_view line_buf)
-	>;
+	using connection_t = Connection;
+	using executor_t = connection_t::executor_t;
+	using parser_t = client_parser;
+
+public:
+	explicit basic_reply(connection_t &connection);
+	~basic_reply();
+
+	basic_reply(basic_reply &&other) noexcept;
+	basic_reply &operator=(basic_reply &&other) noexcept;
+
+public:
+	[[nodiscard]] version_enum version() const noexcept;
+	[[nodiscard]] status_enum status() const noexcept;
+
+public:
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		core_concepts::tf_opt_token<Token,error_code,Value...> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
+	template <typename Token = use_sync_t>
+	auto read(const mutable_buffer &buf, Token &&token = {}) noexcept
+		requires task_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto read(Token &&token = {}) noexcept
+		requires task_token_v<Token,std::string>;
 
 	template <typename T>
-	static constexpr bool file_opt_token_v = concepts::file_opt_token_p <
+	static constexpr bool file_opt_token = concepts::file_opt_token_p <
 		T, char, file_optype::single, io_permission::write
 	>;
+	template <typename T, typename Token = use_sync_t>
+	auto save_file(T &&opt, Token &&token = {}) noexcept
+		requires file_opt_token<T> and task_token_v<Token,size_t>;
 
 public:
-	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
+	[[nodiscard]] bool valid() const noexcept;
+	[[nodiscard]] bool is_chunked() const noexcept;
+	[[nodiscard]] bool is_eof() const noexcept;
 
-	parser(parser &&other) noexcept;
-	parser &operator=(parser &&other) noexcept;
+	[[nodiscard]] const connection_t &connection() const noexcept;
+	[[nodiscard]] connection_t &connection() noexcept;
 
-public:
-	parser &on_parse_begin(parse_begin_handler func);
-	parser &on_parse_cookie(parse_cookie_handler func);
-	[[nodiscard]] static error_code make_error_code(parse_errno errc);
-
-	sys_expected<bool> append(const const_buffer &buf);
-	parser &operator<<(const const_buffer &buf);
-	parser &reset();
-
-public:
-	[[nodiscard]] std::string take_partial_body(size_t size);
-	[[nodiscard]] std::string take_body();
-
-	[[nodiscard]] version_enum version() const noexcept;
-	[[nodiscard]] stage_t stage() const noexcept;
-
-public:
-	parser &unbind_parse_begin();
-	parser &unbind_parse_cookie();
-
-public:
-	template <typename Opt>
-	[[nodiscard]] static auto make_file_opt_token(Opt &&opt)
-		noexcept requires file_opt_token_v<Opt>;
+	[[nodiscard]] executor_t get_executor() noexcept;
+	basic_reply &cancel() noexcept;
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
-using base_parser = parser<protocol_model::base>;
-
 } //namespace libgs::http_nt
-#include <libgs/http_nt/protocol/utils/core/detail/parser.h>
+#include <libgs/http_nt/client/detail/reply.h>
 
 
-#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_PARSER_H
+#endif //LIBGS_HTTP_NT_CLIENT_REPLY_H

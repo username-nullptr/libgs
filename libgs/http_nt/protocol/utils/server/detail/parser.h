@@ -32,7 +32,7 @@
 namespace libgs::http_nt
 {
 
-optional<value> parser<model::server>::path_arg
+optional<value> parser<protocol_model::server>::path_arg
 (const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = path_args().find(strtls::to_view(key));

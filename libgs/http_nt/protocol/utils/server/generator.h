@@ -36,10 +36,10 @@ namespace libgs::http_nt
 {
 
 template <>
-class LIBGS_HTTP_NT_API generator<model::server> final :
-	public mutable_headers<generator<model::server>>,
-	public mutable_cookies<cookie,generator<model::server>>,
-	public mutable_chunk_attributes<generator<model::server>>
+class LIBGS_HTTP_NT_API generator<protocol_model::server> final :
+	public mutable_headers<generator<protocol_model::server>>,
+	public mutable_cookies<cookie,generator<protocol_model::server>>,
+	public mutable_chunk_attributes<generator<protocol_model::server>>
 {
 	LIBGS_DISABLE_COPY(generator)
 
@@ -76,7 +76,7 @@ private:
 	impl *m_impl;
 };
 
-using server_generator = generator<model::server>;
+using server_generator = generator<protocol_model::server>;
 
 } //namespace libgs::http_nt
 #include <libgs/http_nt/protocol/utils/server/detail/generator.h>

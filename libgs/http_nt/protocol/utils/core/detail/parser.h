@@ -33,7 +33,7 @@ namespace libgs::http_nt
 {
 
 template <typename Opt>
-auto parser<model::base>::make_file_opt_token(Opt &&opt)
+auto parser<protocol_model::base>::make_file_opt_token(Opt &&opt)
 	noexcept requires file_opt_token_v<Opt>
 {
 	using opt_t = std::remove_cvref_t<Opt>;

@@ -37,9 +37,9 @@ namespace libgs::http_nt
 {
 
 template <>
-class LIBGS_HTTP_NT_API generator<model::base> :
-	public mutable_headers<generator<model::base>>,
-	public mutable_chunk_attributes<generator<model::base>>
+class LIBGS_HTTP_NT_API generator<protocol_model::base> :
+	public mutable_headers<generator<protocol_model::base>>,
+	public mutable_chunk_attributes<generator<protocol_model::base>>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator)
 
@@ -66,11 +66,12 @@ protected:
 	impl *m_impl;
 };
 
-template <model> class generator_v10 {};
-template <model> class generator_v11 {};
+template <protocol_model> class generator_v10 {};
+template <protocol_model> class generator_v11 {};
 
 template <>
-class LIBGS_HTTP_NT_API generator_v10<model::base> final : public generator<model::base>
+class LIBGS_HTTP_NT_API generator_v10<protocol_model::base> final :
+	public generator<protocol_model::base>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator_v10)
 
@@ -80,7 +81,8 @@ public:
 };
 
 template <>
-class LIBGS_HTTP_NT_API generator_v11<model::base> final : public generator<model::base>
+class LIBGS_HTTP_NT_API generator_v11<protocol_model::base> final :
+	public generator<protocol_model::base>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator_v11)
 
@@ -94,9 +96,9 @@ public:
 // class LIBGS_HTTP_NT_API generator_v12 final : public generator
 // class LIBGS_HTTP_NT_API generator_v20 final : public generator
 
-using base_generator = generator<model::base>;
-using base_generator_v10 = generator_v10<model::base>;
-using base_generator_v11 = generator_v11<model::base>;
+using base_generator = generator<protocol_model::base>;
+using base_generator_v10 = generator_v10<protocol_model::base>;
+using base_generator_v11 = generator_v11<protocol_model::base>;
 
 } //namespace libgs::http_nt
 #include <libgs/http_nt/protocol/utils/core/detail/generator.h>

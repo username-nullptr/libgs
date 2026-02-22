@@ -32,7 +32,7 @@
 namespace libgs::http_nt
 {
 
-generator<model::server> &generator<model::server>::set_redirect
+generator<protocol_model::server> &generator<protocol_model::server>::set_redirect
 (core_concepts::text_p<char> auto &&url, redirect_enum type)
 {
 	switch(type)

@@ -36,10 +36,10 @@ namespace libgs::http_nt
 {
 
 template <>
-class LIBGS_HTTP_NT_API parser<model::client> :
-	public const_headers<parser<model::client>>,
-	public const_cookies<cookie,parser<model::client>>,
-	public const_chunk_attributes<parser<model::client>>
+class LIBGS_HTTP_NT_API parser<protocol_model::client> :
+	public const_headers<parser<protocol_model::client>>,
+	public const_cookies<cookie,parser<protocol_model::client>>,
+	public const_chunk_attributes<parser<protocol_model::client>>
 {
 	LIBGS_DISABLE_COPY(parser)
 
@@ -74,7 +74,7 @@ private:
 	impl *m_impl;
 };
 
-using client_parser = parser<model::client>;
+using client_parser = parser<protocol_model::client>;
 
 } //namespace libgs::http_nt
 

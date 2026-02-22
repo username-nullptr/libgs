@@ -32,7 +32,7 @@
 namespace libgs::http_nt
 {
 
-class LIBGS_DECL_HIDDEN generator<model::client>::impl
+class LIBGS_DECL_HIDDEN generator<protocol_model::client>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 	using generator_ptr = std::shared_ptr<base_generator>;
@@ -75,7 +75,7 @@ public:
 	values_t m_chunk_attributes {};
 };
 
-generator<model::client>::generator(version_enum version, url_t url, request_arg_t request) :
+generator<protocol_model::client>::generator(version_enum version, url_t url, request_arg_t request) :
 	mutable_headers(nullptr),
 	mutable_cookies(nullptr),
 	mutable_chunk_attributes(nullptr),
@@ -86,18 +86,18 @@ generator<model::client>::generator(version_enum version, url_t url, request_arg
 	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
-generator<model::client>::generator(url_t url, request_arg_t request) :
+generator<protocol_model::client>::generator(url_t url, request_arg_t request) :
 	generator(version_enum::v11, std::move(url), std::move(request))
 {
 
 }
 
-generator<model::client>::~generator()
+generator<protocol_model::client>::~generator()
 {
 	delete m_impl;
 }
 
-generator<model::client>::generator(generator &&other) noexcept :
+generator<protocol_model::client>::generator(generator &&other) noexcept :
 	mutable_headers(nullptr),
 	mutable_cookies(nullptr),
 	mutable_chunk_attributes(nullptr),
@@ -108,43 +108,43 @@ generator<model::client>::generator(generator &&other) noexcept :
 	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
-generator<model::client> &generator<model::client>::operator=(generator &&other) noexcept
+generator<protocol_model::client> &generator<protocol_model::client>::operator=(generator &&other) noexcept
 {
 	if( this != &other )
 		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
-generator<model::client> &generator<model::client>::emplace(url_t url, request_arg_t arg)
+generator<protocol_model::client> &generator<protocol_model::client>::emplace(url_t url, request_arg_t arg)
 {
 	m_impl->m_url = std::move(url);
 	m_impl->set_request_arg(std::move(arg));
 	return *this;
 }
 
-generator<model::client> &generator<model::client>::emplace(request_arg arg)
+generator<protocol_model::client> &generator<protocol_model::client>::emplace(request_arg arg)
 {
 	m_impl->set_request_arg(std::move(arg));
 	return *this;
 }
 
-generator<model::client> &generator<model::client>::emplace(url_t url)
+generator<protocol_model::client> &generator<protocol_model::client>::emplace(url_t url)
 {
 	m_impl->m_url = std::move(url);
 	return *this;
 }
 
-const url &generator<model::client>::url() const noexcept
+const url &generator<protocol_model::client>::url() const noexcept
 {
 	return m_impl->m_url;
 }
 
-url &generator<model::client>::url() noexcept
+url &generator<protocol_model::client>::url() noexcept
 {
 	return m_impl->m_url;
 }
 
-request_arg generator<model::client>::arg() const noexcept
+request_arg generator<protocol_model::client>::arg() const noexcept
 {
 	request_arg_t arg;
 	auto *self = remove_const(this);
@@ -160,12 +160,12 @@ request_arg generator<model::client>::arg() const noexcept
 	return arg;
 }
 
-generator<model::client>::operator request_arg_t() const noexcept
+generator<protocol_model::client>::operator request_arg_t() const noexcept
 {
 	return arg();
 }
 
-std::string generator<model::client>::header_data(method_enum method, size_t body_size)
+std::string generator<protocol_model::client>::header_data(method_enum method, size_t body_size)
 {
 	if( m_impl->m_generator->state() != generator_state::header )
 		return {};
@@ -198,33 +198,33 @@ std::string generator<model::client>::header_data(method_enum method, size_t bod
 	return buf + "\r\n";
 }
 
-std::string generator<model::client>::body_data(const const_buffer &buffer)
+std::string generator<protocol_model::client>::body_data(const const_buffer &buffer)
 {
 	return m_impl->m_generator->body_data(buffer);
 }
 
-std::string generator<model::client>::chunk_end_data(const headers_t &headers)
+std::string generator<protocol_model::client>::chunk_end_data(const headers_t &headers)
 {
 	return m_impl->m_generator->chunk_end_data(headers);
 }
 
-version_enum generator<model::client>::version() const noexcept
+version_enum generator<protocol_model::client>::version() const noexcept
 {
 	return m_impl->m_generator->version();
 }
 
-generator_state generator<model::client>::pro_state() const noexcept
+generator_state generator<protocol_model::client>::pro_state() const noexcept
 {
 	return m_impl->m_generator->state();
 }
 
-generator<model::client> &generator<model::client>::reset() noexcept
+generator<protocol_model::client> &generator<protocol_model::client>::reset() noexcept
 {
 	m_impl->m_generator.reset();
 	return *this;
 }
 
-base_generator &generator<model::client>::base() noexcept
+base_generator &generator<protocol_model::client>::base() noexcept
 {
 	return *m_impl->m_generator;
 }

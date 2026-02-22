@@ -90,6 +90,7 @@ set(sources
 set(sources
 	http_client/connection_pool.cpp
 	http_client/protocol.cpp
+	http_client/client.cpp
 )
 set_target(gs.http.nt ${sources})
 

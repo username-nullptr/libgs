@@ -35,7 +35,7 @@
 namespace libgs::http_nt
 {
 
-class LIBGS_DECL_HIDDEN parser<model::server>::impl
+class LIBGS_DECL_HIDDEN parser<protocol_model::server>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -164,7 +164,7 @@ public:
 	bool m_support_gzip = false;
 };
 
-parser<model::server>::parser(size_t init_buf_size) :
+parser<protocol_model::server>::parser(size_t init_buf_size) :
 	const_parameters(nullptr),
 	const_headers(nullptr),
 	const_cookies(nullptr),
@@ -173,12 +173,12 @@ parser<model::server>::parser(size_t init_buf_size) :
 
 }
 
-parser<model::server>::~parser()
+parser<protocol_model::server>::~parser()
 {
 	delete m_impl;
 }
 
-parser<model::server>::parser(parser &&other) noexcept :
+parser<protocol_model::server>::parser(parser &&other) noexcept :
 	const_parameters(other.m_parameters),
 	const_headers(other.m_headers),
 	const_cookies(other.m_cookies),
@@ -190,7 +190,7 @@ parser<model::server>::parser(parser &&other) noexcept :
 	other.m_cookies = &other.m_impl->m_cookies;
 }
 
-parser<model::server> &parser<model::server>::operator=(parser &&other) noexcept
+parser<protocol_model::server> &parser<protocol_model::server>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -208,7 +208,7 @@ parser<model::server> &parser<model::server>::operator=(parser &&other) noexcept
 	return *this;
 }
 
-sys_expected<bool> parser<model::server>::append(const const_buffer &buf)
+sys_expected<bool> parser<protocol_model::server>::append(const const_buffer &buf)
 {
 	return m_impl->m_parser.append(buf).transform([this](bool finished)
 	{
@@ -217,13 +217,13 @@ sys_expected<bool> parser<model::server>::append(const const_buffer &buf)
 	});
 }
 
-parser<model::server> &parser<model::server>::operator<<(const const_buffer &buf)
+parser<protocol_model::server> &parser<protocol_model::server>::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-int32_t parser<model::server>::path_match(std::string_view rule)
+int32_t parser<protocol_model::server>::path_match(std::string_view rule)
 {
 	auto rule_list = rule == "/" ?
 		string_vector{{rule.data(), rule.size()}} :
@@ -288,63 +288,63 @@ int32_t parser<model::server>::path_match(std::string_view rule)
 	return weight;
 }
 
-method_enum parser<model::server>::method() const noexcept
+method_enum parser<protocol_model::server>::method() const noexcept
 {
 	return m_impl->m_method;
 }
 
-std::string_view parser<model::server>::path() const noexcept
+std::string_view parser<protocol_model::server>::path() const noexcept
 {
 	return m_impl->m_path;
 }
 
-version_enum parser<model::server>::version() const noexcept
+version_enum parser<protocol_model::server>::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }
 
-optional<value> parser<model::server>::path_arg(size_t index) const
+optional<value> parser<protocol_model::server>::path_arg(size_t index) const
 {
 	if( index >= path_args().size() )
 	{
 		throw runtime_error (
-			"libgs::http::parser<model::server>::path_arg: index out of range."
+			"libgs::http::parser<protocol_model::server>::path_arg: index out of range."
 		);
 	}
 	return path_args()[index].second;
 }
 
-const parser<model::server>::path_args_t &parser<model::server>::path_args() const noexcept
+const parser<protocol_model::server>::path_args_t &parser<protocol_model::server>::path_args() const noexcept
 {
 	return m_impl->m_path_args;
 }
 
-bool parser<model::server>::keep_alive() const noexcept
+bool parser<protocol_model::server>::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
 }
 
-bool parser<model::server>::support_gzip() const noexcept
+bool parser<protocol_model::server>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
 }
 
-std::string parser<model::server>::take_partial_body(size_t size)
+std::string parser<protocol_model::server>::take_partial_body(size_t size)
 {
 	return m_impl->m_parser.take_partial_body(size);
 }
 
-std::string parser<model::server>::take_body()
+std::string parser<protocol_model::server>::take_body()
 {
 	return m_impl->m_parser.take_body();
 }
 
-parser<model::server>::stage_t parser<model::server>::stage() const noexcept
+parser<protocol_model::server>::stage_t parser<protocol_model::server>::stage() const noexcept
 {
 	return m_impl->m_parser.stage();
 }
 
-parser<model::server> &parser<model::server>::reset()
+parser<protocol_model::server> &parser<protocol_model::server>::reset()
 {
 	m_impl->m_parser.reset();
 	m_impl->m_path.clear();

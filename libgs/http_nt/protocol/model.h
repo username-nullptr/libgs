@@ -32,7 +32,7 @@
 namespace libgs::http_nt
 {
 
-enum class model {
+enum class protocol_model {
 	base, client, server
 };
 

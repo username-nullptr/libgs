@@ -32,7 +32,7 @@
 namespace libgs::http_nt
 {
 
-class LIBGS_DECL_HIDDEN generator<model::server>::impl
+class LIBGS_DECL_HIDDEN generator<protocol_model::server>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 	using generator_ptr = std::shared_ptr<base_generator>;
@@ -67,7 +67,7 @@ public:
 	cookies_t m_cookies {};
 };
 
-generator<model::server>::generator(version_enum version, const headers_t &req_headers) :
+generator<protocol_model::server>::generator(version_enum version, const headers_t &req_headers) :
 	mutable_headers(nullptr),
 	mutable_cookies(nullptr),
 	mutable_chunk_attributes(nullptr),
@@ -78,18 +78,18 @@ generator<model::server>::generator(version_enum version, const headers_t &req_h
 	m_chunk_attributes = &m_impl->m_generator->chunk_attributes();
 }
 
-generator<model::server>::generator(const headers_t &req_headers) :
+generator<protocol_model::server>::generator(const headers_t &req_headers) :
 	generator(version::v11, req_headers)
 {
 
 }
 
-generator<model::server>::~generator()
+generator<protocol_model::server>::~generator()
 {
 	delete m_impl;
 }
 
-generator<model::server>::generator(generator &&other) noexcept :
+generator<protocol_model::server>::generator(generator &&other) noexcept :
 	mutable_headers(other.m_headers),
 	mutable_cookies(other.m_cookies),
 	mutable_chunk_attributes(other.m_chunk_attributes),
@@ -101,7 +101,7 @@ generator<model::server>::generator(generator &&other) noexcept :
 	other.m_chunk_attributes = &other.m_impl->m_generator->chunk_attributes();
 }
 
-generator<model::server> &generator<model::server>::operator=(generator &&other) noexcept
+generator<protocol_model::server> &generator<protocol_model::server>::operator=(generator &&other) noexcept
 {
 	if( this == &other )
 		return *this;
@@ -119,19 +119,19 @@ generator<model::server> &generator<model::server>::operator=(generator &&other)
 	return *this;
 }
 
-generator<model::server> &generator<model::server>::set_status(status_enum status)
+generator<protocol_model::server> &generator<protocol_model::server>::set_status(status_enum status)
 {
 	status::check(status);
 	m_impl->m_status = status;
 	return *this;
 }
 
-status_enum generator<model::server>::status() const noexcept
+status_enum generator<protocol_model::server>::status() const noexcept
 {
 	return m_impl->m_status;
 }
 
-std::string generator<model::server>::header_data(size_t body_size)
+std::string generator<protocol_model::server>::header_data(size_t body_size)
 {
 	if( m_impl->m_generator->state() != generator_state::header )
 		return {};
@@ -161,27 +161,27 @@ std::string generator<model::server>::header_data(size_t body_size)
 	return buf + "\r\n";
 }
 
-std::string generator<model::server>::body_data(const const_buffer &buffer)
+std::string generator<protocol_model::server>::body_data(const const_buffer &buffer)
 {
 	return m_impl->m_generator->body_data(buffer);
 }
 
-std::string generator<model::server>::chunk_end_data(const headers_t &headers)
+std::string generator<protocol_model::server>::chunk_end_data(const headers_t &headers)
 {
 	return m_impl->m_generator->chunk_end_data(headers);
 }
 
-version_enum generator<model::server>::version() const noexcept
+version_enum generator<protocol_model::server>::version() const noexcept
 {
 	return m_impl->m_generator->version();
 }
 
-generator_state generator<model::server>::pro_state() const noexcept
+generator_state generator<protocol_model::server>::pro_state() const noexcept
 {
 	return m_impl->m_generator->state();
 }
 
-generator<model::server> &generator<model::server>::reset() noexcept
+generator<protocol_model::server> &generator<protocol_model::server>::reset() noexcept
 {
 	m_impl->m_status = status::ok;
 	m_impl->m_cookies.clear();

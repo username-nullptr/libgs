@@ -31,7 +31,7 @@
 namespace libgs::http_nt
 {
 
-class LIBGS_DECL_HIDDEN generator<model::base>::impl
+class LIBGS_DECL_HIDDEN generator<protocol_model::base>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
@@ -108,7 +108,7 @@ public:
 	body_norms_t m_body_norms {};
 };
 
-generator<model::base>::generator() :
+generator<protocol_model::base>::generator() :
 	mutable_headers(nullptr),
 	mutable_chunk_attributes(nullptr),
 	m_impl(new impl())
@@ -117,12 +117,12 @@ generator<model::base>::generator() :
 	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
-generator<model::base>::~generator()
+generator<protocol_model::base>::~generator()
 {
 	delete m_impl;
 }
 
-generator<model::base> &generator<model::base>::reset()
+generator<protocol_model::base> &generator<protocol_model::base>::reset()
 {
 	headers().clear();
 	chunk_attributes().clear();
@@ -130,7 +130,7 @@ generator<model::base> &generator<model::base>::reset()
 	return *this;
 }
 
-std::string generator<model::base>::header_data(size_t body_size) noexcept
+std::string generator<protocol_model::base>::header_data(size_t body_size) noexcept
 {
 	if( state() != state_t::header )
 		return {};
@@ -155,7 +155,7 @@ std::string generator<model::base>::header_data(size_t body_size) noexcept
 	return buf;
 }
 
-std::string generator<model::base>::body_data(const const_buffer &buffer) noexcept
+std::string generator<protocol_model::base>::body_data(const const_buffer &buffer) noexcept
 {
 	if( m_impl->m_state == state_t::header or m_impl->m_state == state_t::finish )
 		return {};
@@ -192,7 +192,7 @@ std::string generator<model::base>::body_data(const const_buffer &buffer) noexce
 	return sum + std::string(static_cast<const char*>(buffer.data()), buffer.size()) + "\r\n";
 }
 
-std::string generator<model::base>::chunk_end_data(const headers_t &headers) noexcept
+std::string generator<protocol_model::base>::chunk_end_data(const headers_t &headers) noexcept
 {
 	if( m_impl->m_state != state_t::chunk )
 		return {};
@@ -205,27 +205,27 @@ std::string generator<model::base>::chunk_end_data(const headers_t &headers) noe
 	return buf + "\r\n";
 }
 
-std::string generator<model::base>::header_data() noexcept
+std::string generator<protocol_model::base>::header_data() noexcept
 {
 	return header_data(0);
 }
 
-std::string generator<model::base>::chunk_end_data() noexcept
+std::string generator<protocol_model::base>::chunk_end_data() noexcept
 {
 	return chunk_end_data({});
 }
 
-generator<model::base>::state_t generator<model::base>::state() const noexcept
+generator<protocol_model::base>::state_t generator<protocol_model::base>::state() const noexcept
 {
 	return m_impl->m_state;
 }
 
-version_enum generator_v10<model::base>::version() const noexcept
+version_enum generator_v10<protocol_model::base>::version() const noexcept
 {
 	return version_enum::v10;
 }
 
-std::string generator_v11<model::base>::header_data(size_t body_size) noexcept
+std::string generator_v11<protocol_model::base>::header_data(size_t body_size) noexcept
 {
 	if( state() != state_t::header )
 		return {};
@@ -254,7 +254,7 @@ std::string generator_v11<model::base>::header_data(size_t body_size) noexcept
 	return buf;
 }
 
-version_enum generator_v11<model::base>::version() const noexcept
+version_enum generator_v11<protocol_model::base>::version() const noexcept
 {
 	return version_enum::v11;
 }

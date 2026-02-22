@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,76 +26,70 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_PARSER_H
-#define LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_PARSER_H
-
-#include <libgs/http_nt/protocol/utils/core/container_helper.h>
-#include <libgs/http_nt/protocol/utils/core/parser_types.h>
+#ifndef LIBGS_HTTP_NT_CLIENT_DETAIL_REPLY_H
+#define LIBGS_HTTP_NT_CLIENT_DETAIL_REPLY_H
 
 namespace libgs::http_nt
 {
 
-template <>
-class LIBGS_HTTP_NT_API parser<protocol_model::base> final :
-	public const_headers<parser<protocol_model::base>>
+template <concepts::connection Connection>
+class LIBGS_HTTP_NT_TAPI basic_reply<Connection>::impl
 {
-	LIBGS_DISABLE_COPY(parser)
+	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	using stage_t = http_nt::stage;
-	using parse_begin_handler = std::function <
-		sys_expected<version_enum>(std::string_view line_buf)
-	>;
-	using parse_cookie_handler = std::function <
-		error_code(std::string_view line_buf)
-	>;
-
-	template <typename T>
-	static constexpr bool file_opt_token_v = concepts::file_opt_token_p <
-		T, char, file_optype::single, io_permission::write
-	>;
+	explicit impl(connection_t *connection) :
+		m_connection(&connection) {}
 
 public:
-	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
-
-	parser(parser &&other) noexcept;
-	parser &operator=(parser &&other) noexcept;
 
 public:
-	parser &on_parse_begin(parse_begin_handler func);
-	parser &on_parse_cookie(parse_cookie_handler func);
-	[[nodiscard]] static error_code make_error_code(parse_errno errc);
-
-	sys_expected<bool> append(const const_buffer &buf);
-	parser &operator<<(const const_buffer &buf);
-	parser &reset();
-
-public:
-	[[nodiscard]] std::string take_partial_body(size_t size);
-	[[nodiscard]] std::string take_body();
-
-	[[nodiscard]] version_enum version() const noexcept;
-	[[nodiscard]] stage_t stage() const noexcept;
-
-public:
-	parser &unbind_parse_begin();
-	parser &unbind_parse_cookie();
-
-public:
-	template <typename Opt>
-	[[nodiscard]] static auto make_file_opt_token(Opt &&opt)
-		noexcept requires file_opt_token_v<Opt>;
-
-private:
-	class impl;
-	impl *m_impl;
+	connection_t *m_connection = nullptr;
+	parser_t m_parser {};
 };
 
-using base_parser = parser<protocol_model::base>;
+template <concepts::connection Connection>
+basic_reply<Connection>::basic_reply(connection_t &connection) :
+	const_headers<basic_reply>(nullptr),
+	const_cookies<cookie,basic_reply>(nullptr),
+	m_impl(new impl(&connection))
+{
+	this->m_headers = &m_impl->m_parser.headers();
+	this->m_cookies = &m_impl->m_parser.cookies();
+}
+
+template <concepts::connection Connection>
+basic_reply<Connection>::~basic_reply() = default;
+
+template <concepts::connection Connection>
+basic_reply<Connection>::basic_reply(basic_reply &&other) noexcept :
+	const_headers<basic_reply>(nullptr),
+	const_cookies<cookie,basic_reply>(nullptr),
+	m_impl(std::move(other.m_impl))
+{
+	this->m_headers = &m_impl->m_parser.headers();
+	this->m_cookies = &m_impl->m_parser.cookies();
+
+	other.m_impl = std::make_shared<impl>(nullptr);
+	other.m_headers = &other.m_impl->m_parser.headers();
+	other.m_cookies = &other.m_impl->m_parser.cookies();
+}
+
+template <concepts::connection Connection>
+basic_reply<Connection> &basic_reply<Connection>::operator=(basic_reply &&other) noexcept
+{
+	if( other.m_impl != this )
+		return *this;
+
+	m_impl = std::move(other.m_impl);
+	other.m_impl = std::make_shared<impl>(nullptr);
+
+	other.m_headers = &other.m_impl->m_parser.headers();
+	other.m_cookies = &other.m_impl->m_parser.cookies();
+	return *this;
+}
 
 } //namespace libgs::http_nt
-#include <libgs/http_nt/protocol/utils/core/detail/parser.h>
 
 
-#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_PARSER_H
+#endif //LIBGS_HTTP_NT_CLIENT_DETAIL_REPLY_H

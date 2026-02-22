@@ -39,6 +39,7 @@ namespace libgs::http_nt
 {
 
 #define LIBGS_HTTP_NT_STATUS_TABLE \
+X_MACRO( none                            ,   0 , "None"                            ) \
 X_MACRO( continue_upload                 , 100 , "Continue"                        ) \
 X_MACRO( switching_protocols             , 101 , "Switching Protocols"             ) \
 X_MACRO( processing                      , 102 , "Processing"                      ) \

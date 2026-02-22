@@ -33,7 +33,7 @@
 namespace libgs::http_nt
 {
 
-class LIBGS_DECL_HIDDEN parser<model::client>::impl
+class LIBGS_DECL_HIDDEN parser<protocol_model::client>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -138,7 +138,7 @@ public:
 	bool m_support_gzip = false;
 };
 
-parser<model::client>::parser(size_t init_buf_size) :
+parser<protocol_model::client>::parser(size_t init_buf_size) :
 	const_headers(nullptr),
 	const_cookies(nullptr),
 	const_chunk_attributes(nullptr),
@@ -152,32 +152,32 @@ parser<model::client>::parser(size_t init_buf_size) :
 	m_chunk_attributes = &tmp;
 }
 
-bool parser<model::client>::keep_alive() const noexcept
+bool parser<protocol_model::client>::keep_alive() const noexcept
 {
 	return m_impl->m_keep_alive;
 }
 
-bool parser<model::client>::support_gzip() const noexcept
+bool parser<protocol_model::client>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
 }
 
-std::string parser<model::client>::take_partial_body(size_t size)
+std::string parser<protocol_model::client>::take_partial_body(size_t size)
 {
 	return m_impl->m_parser.take_partial_body(size);
 }
 
-std::string parser<model::client>::take_body()
+std::string parser<protocol_model::client>::take_body()
 {
 	return m_impl->m_parser.take_body();
 }
 
-parser<model::client>::~parser()
+parser<protocol_model::client>::~parser()
 {
 	delete m_impl;
 }
 
-parser<model::client>::parser(parser &&other) noexcept :
+parser<protocol_model::client>::parser(parser &&other) noexcept :
 	const_headers(other.m_headers),
 	const_cookies(other.m_cookies),
 	const_chunk_attributes(other.m_chunk_attributes),
@@ -192,7 +192,7 @@ parser<model::client>::parser(parser &&other) noexcept :
 	other.m_chunk_attributes = &tmp;
 }
 
-parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
+parser<protocol_model::client> &parser<protocol_model::client>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
         return *this;
@@ -213,33 +213,33 @@ parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
 	return *this;
 }
 
-sys_expected<bool> parser<model::client>::append(const const_buffer &buf)
+sys_expected<bool> parser<protocol_model::client>::append(const const_buffer &buf)
 {
 	return m_impl->m_parser.append(buf);
 }
 
-parser<model::client> &parser<model::client>::operator<<(const const_buffer &buf)
+parser<protocol_model::client> &parser<protocol_model::client>::operator<<(const const_buffer &buf)
 {
 	append(buf);
 	return *this;
 }
 
-version_enum parser<model::client>::version() const noexcept
+version_enum parser<protocol_model::client>::version() const noexcept
 {
 	return m_impl->m_parser.version();
 }
 
-status_enum parser<model::client>::status() const noexcept
+status_enum parser<protocol_model::client>::status() const noexcept
 {
 	return m_impl->m_status;
 }
 
-parser<model::client>::stage_t parser<model::client>::stage() const noexcept
+parser<protocol_model::client>::stage_t parser<protocol_model::client>::stage() const noexcept
 {
 	return m_impl->m_parser.stage();
 }
 
-parser<model::client> &parser<model::client>::reset()
+parser<protocol_model::client> &parser<protocol_model::client>::reset()
 {
 	m_impl->m_parser.reset();
 	m_impl->m_status = status::ok;

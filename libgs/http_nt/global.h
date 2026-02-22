@@ -35,9 +35,6 @@
 namespace libgs::http_nt
 {
 
-template <model, typename T>
-class basic_request;
-
 #define LIBGS_HTTP_NT_DEFINE_ENUM(_type, _struct, _list, _str_func, ...) \
 	struct _struct { \
 		enum enumeration : _type { _list } value = {}; \

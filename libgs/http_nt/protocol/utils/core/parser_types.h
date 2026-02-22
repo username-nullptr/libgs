@@ -35,7 +35,7 @@
 namespace libgs::http_nt
 {
 
-template <model>
+template <protocol_model>
 class parser {};
 
 #define LIBGS_HTTP_PARSER_ERRNO \

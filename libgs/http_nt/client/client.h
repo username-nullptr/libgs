@@ -1,0 +1,153 @@
+
+/************************************************************************************
+*                                                                                   *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*                                                                                   *
+*   This file is part of LIBGS                                                      *
+*   License: MIT License                                                            *
+*                                                                                   *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
+*                                                                                   *
+*   The above copyright notice and this permission notice shall be included in      *
+*   all copies or substantial portions of the Software.                             *
+*                                                                                   *
+*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
+*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
+*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
+*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
+*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
+*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
+*   SOFTWARE.                                                                       *
+*                                                                                   *
+*************************************************************************************/
+
+#ifndef LIBGS_HTTP_NT_CLIENT_CLIENT_H
+#define LIBGS_HTTP_NT_CLIENT_CLIENT_H
+
+#include <libgs/http_nt/client/connection_pool.h>
+#include <libgs/http_nt/client/request_context.h>
+
+namespace libgs::http_nt
+{
+
+template <concepts::connection_pool ConnectionPool,
+		  version_enum Version = version::v11>
+class LIBGS_HTTP_NT_TAPI basic_client
+{
+	LIBGS_DISABLE_COPY(basic_client)
+
+public:
+	using connection_pool_t = ConnectionPool;
+	static constexpr auto version_v = Version;
+
+	using connection_t = connection_pool_t::connection_t;
+	using executor_t = connection_pool_t::executor_t;
+
+	template <method_enum Method>
+	using context_t = basic_request_context<Method, connection_t, version_v>;
+
+	template <method_enum Method>
+	using ctx_expected_t = sys_expected<context_t<Method>>;
+
+	using reply_t = basic_reply<connection_t>;
+	using request_arg_t = request_arg;
+	using url_t = url;
+
+public:
+	struct req_info
+	{
+		url_t url;
+		request_arg_t arg;
+
+		req_info(url_t url, request_arg_t arg) :
+			url(std::move(url)), arg(std::move(arg)) {}
+
+		req_info(url_t url) :
+			url(std::move(url)) {}
+
+		req_info(core_concepts::string_p<char> auto &&url) :
+			url(std::forward<decltype(url)>(url)) {}
+	};
+
+	template <method_enum Method, typename Token>
+	static constexpr bool request_token_v =
+		core_concepts::tf_opt_token<Token,ctx_expected_t<Method>> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
+	template <typename T, typename Token>
+	static constexpr bool file_opt_token_v =
+		concepts::file_opt_token_p <
+			T, char, file_optype::multiple, io_permission::read
+		> and
+		core_concepts::tf_opt_token <
+			Token, error_code, ctx_expected_t<method::put>
+		>;
+
+public:
+	basic_client() requires
+		core_concepts::match_sched<io_executor_t,executor_t>;
+
+	explicit basic_client (
+		core_concepts::match_sched<executor_t> auto &&exec
+	);
+	explicit basic_client(connection_pool_t &&pool);
+
+	basic_client(basic_client &&other) noexcept;
+	basic_client &operator=(basic_client &&other) noexcept;
+	~basic_client();
+
+public:
+	template <method_enum Method, typename Token = use_sync_t>
+	[[nodiscard]] auto request(req_info info, Token &&token = {})
+		noexcept requires request_token_v<Method,Token>;
+
+
+private:
+	class impl;
+	std::shared_ptr<impl> m_impl;
+};
+
+using client = basic_client<connection_pool>;
+
+} //namespace libgs::http_nt
+#include <libgs/http_nt/client/detail/client.h>
+
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http_nt {
+using ssl_client = basic_client<ssl_connection_pool>;
+} //namespace http
+
+namespace https_nt {
+using client = http::ssl_client;
+}} //namespace libgs::https_nt
+#endif //LIBGS_OPENSSL_SUPPORT
+
+// TODO ... ...
+namespace libgs::http_nt
+{
+
+#if LIBGS_OPENSSL_SUPPORT
+template <concepts::connection_pool ConnectionPool,
+		  concepts::connection_pool SslConnectionPool,
+		  version_enum Version = version::v11>
+class LIBGS_HTTP_NT_TAPI basic_auto_client
+{
+	// TODO ... ...
+};
+
+using auto_client = basic_auto_client <
+	connection_pool, ssl_connection_pool
+>;
+#else //LIBGS_OPENSSL_SUPPORT
+// TODO ... ...
+#endif //LIBGS_OPENSSL_SUPPORT
+
+} //namespace libgs::http_nt
+
+
+#endif //LIBGS_HTTP_NT_CLIENT_CLIENT_H
