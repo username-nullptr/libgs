@@ -68,6 +68,91 @@ public:
 
 public:
 	template <method_enum Method>
+	[[nodiscard]] ctx_expected_t<Method> request(req_info info) noexcept
+	{
+		bool continue_100 = false;
+		if constexpr( version_v > version::v10 )
+		{
+			auto it = info.arg.headers().find(header::expect);
+			continue_100 = it != info.arg.headers().end() and
+				strtls::to_lower(*it->second) == "100-continue";
+		}
+		ctx_expected_t ctx_expected {
+			sys_unexpected(make_error_code(std::errc::connection_aborted))
+		};
+		for(size_t i=0; i<10; i++)
+		{
+			ctx_expected = make_context<Method>(std::move(info));
+			if( not ctx_expected )
+				return ctx_expected;
+
+			if( ctx_expected->valid() )
+				break;
+		}
+		if( ctx_expected->valid() )
+			return sys_unexpected(ctx_expected->header_error());
+		{
+			auto expected = ctx_expected->write();
+			if( not expected )
+				return sys_unexpected(expected.error());
+
+			else if( not continue_100 )
+				return ctx_expected;
+		}
+		auto expected = ctx_expected->wait_reply();
+		if( not expected )
+			return sys_unexpected(expected.error());
+		return ctx_expected;
+	}
+
+	template <method_enum Method>
+	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_request(req_info info,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		using namespace std::chrono_literals;
+		using namespace libgs::operators;
+
+		auto task = libgs::dispatch(m_pool.get_executor(),
+		[&]() mutable -> awaitable<ctx_expected_t<Method>>
+		{
+			bool continue_100 = false;
+
+
+		},
+		use_awaitable);
+
+		ctx_expected_t<Method> expected;
+		if( timeout == 0ns )
+			expected = co_await std::move(task);
+		else
+		{
+			auto var = co_await(std::move(task) or
+				coro::sleep_for(m_pool.get_executor(), timeout)
+			);
+			if( var.index() == 0 )
+				expected = std::get<0>(var);
+			else if( not std::get<1>(var) )
+				expected.despair(make_error_code(errc::timed_out));
+			else
+				expected.despair(std::get<1>(var));
+		}
+		co_return expected;
+	}
+
+	template <method_enum Method>
+	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_request(std::error_code &error,
+		req_info info, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		auto expected = co_await co_request<Method>(std::move(info),
+			std::move(cancel_slot), std::move(timeout)
+		);
+		if( not expected )
+			error = expected.error();
+		co_return expected;
+	}
+
+public:
+	template <method_enum Method>
 	[[nodiscard]] ctx_expected_t<Method> make_context(req_info info) noexcept
 	{
 		if( strtls::to_lower(info.url.protocol()) != detail::protocol_name_v<socket_t> )

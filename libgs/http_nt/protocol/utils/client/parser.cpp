@@ -129,7 +129,7 @@ public:
 
 public:
 	base_parser m_parser;
-	status_enum m_status = status::ok;
+	status_enum m_status = status::none;
 
 	std::string m_description = status::description<status::ok>();
 	cookies_t m_cookies {};

@@ -55,15 +55,19 @@ public:
 	basic_reply &operator=(basic_reply &&other) noexcept;
 
 public:
-	[[nodiscard]] version_enum version() const noexcept;
-	[[nodiscard]] status_enum status() const noexcept;
-
-public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
 		core_concepts::tf_opt_token<Token,error_code,Value...> and
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
+	template <typename Token = use_sync_t>
+	auto wait(Token &&token = {}) noexcept
+		requires task_token_v<Token,status_enum>;
+
+	[[nodiscard]] version_enum version() const noexcept;
+	[[nodiscard]] status_enum status() const noexcept;
+
+public:
 	template <typename Token = use_sync_t>
 	auto read(const mutable_buffer &buf, Token &&token = {}) noexcept
 		requires task_token_v<Token,size_t>;
@@ -85,8 +89,8 @@ public:
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
 
-	[[nodiscard]] const connection_t &connection() const noexcept;
-	[[nodiscard]] connection_t &connection() noexcept;
+	[[nodiscard]] const connection_t *connection() const noexcept;
+	[[nodiscard]] connection_t *connection() noexcept;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_reply &cancel() noexcept;

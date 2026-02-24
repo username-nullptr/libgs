@@ -139,6 +139,9 @@ std::string generator<protocol_model::server>::header_data(size_t body_size)
 	std::string buf;
 	buf.reserve(4096);
 
+	if( m_impl->m_status == status::none )
+		m_impl->m_status = status::ok;
+
 	buf = std::format("HTTP/{} {} {}\r\n",
 		version::string(version()), m_impl->m_status,
 		status::description(m_impl->m_status)
