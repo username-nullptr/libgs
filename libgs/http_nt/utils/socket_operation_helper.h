@@ -57,6 +57,10 @@ public:
 	template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
 	[[nodiscard]] auto write(const const_buffer &buffer, Token &&token = {});
 
+	[[nodiscard]] io_expected try_read (
+		mutable_buffer buffer
+	) noexcept;
+
 public:
 	[[nodiscard]] executor_t get_executor() noexcept;
 	[[nodiscard]] const socket_t &socket() const noexcept;
@@ -98,7 +102,7 @@ public:
 	void non_blocking(bool mode, error_code &error) noexcept;
 	void non_blocking(bool mode) noexcept;
 
-	[[nodiscard]] bool non_blocking() const;
+	[[nodiscard]] bool non_blocking() const noexcept;
 	[[nodiscard]] bool message_peek() noexcept;
 
 	void cancel() noexcept;
@@ -143,7 +147,7 @@ public:
 	void non_blocking(bool mode, error_code &error) noexcept;
 	void non_blocking(bool mode) noexcept;
 
-	[[nodiscard]] bool non_blocking() const;
+	[[nodiscard]] bool non_blocking() const noexcept;
 	[[nodiscard]] bool message_peek() noexcept;
 
 	void cancel() noexcept;

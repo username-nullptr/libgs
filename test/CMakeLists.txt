@@ -1,4 +1,4 @@
-set(target_name test)
+set(target_name libgs.test)
 
 add_executable(${target_name} main.cpp)
 set(OpenSSL_DIR /opt/openssl/1.1.1j/install)
@@ -12,7 +12,7 @@ endif ()
 target_include_directories(${target_name} PRIVATE ${OpenSSL_DIR}/include)
 target_link_directories(${target_name} PRIVATE ${OpenSSL_DIR}/lib)
 #target_link_libraries(${target_name} PRIVATE gs.core)
-target_link_libraries(${target_name} PRIVATE gs.http)
+target_link_libraries(${target_name} PRIVATE gs.http.nt)
 #target_link_libraries(${target_name} PRIVATE gs.utils)
 
 #target_link_libraries(${target_name} PRIVATE crypto ssl)

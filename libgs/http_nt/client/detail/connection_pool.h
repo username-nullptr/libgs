@@ -66,7 +66,9 @@ public:
 public:
 	[[nodiscard]] sys_expected<connection_t> get(const endpoint_t &ep) noexcept
 	{
-		auto connection = _get(ep);
+		using namespace std::chrono_literals;
+		auto connection = _get(ep, 0ns);
+
 		if( not connection or connection->peek() )
 			return connection;
 

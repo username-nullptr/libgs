@@ -242,6 +242,30 @@ auto socket_operation_helper_base<Stream>::write(const const_buffer &buffer, Tok
 }
 
 template <concepts::stream Stream>
+io_expected socket_operation_helper_base<Stream>::try_read(mutable_buffer buffer) noexcept
+{
+	size_t sum = 0;
+	for(;;)
+	{
+		error_code error;
+		static_cast<socket_operation_helper<Stream>*>(this)
+			->non_blocking(true, error);
+		if( error )
+			break;
+
+		auto asio_buf = libgs::buffer (
+			static_cast<char*>(buffer.data()) + sum,
+			buffer.size() - sum
+		);
+		sum += socket().read_some(asio_buf, error);
+		if( error == errc::interrupted )
+			continue;
+		break;
+	}
+	return sum;
+}
+
+template <concepts::stream Stream>
 socket_operation_helper_base<Stream>::executor_t
 socket_operation_helper_base<Stream>::get_executor() noexcept
 {
@@ -360,7 +384,7 @@ non_blocking(bool mode) noexcept
 }
 
 template <core_concepts::exec Exec>
-bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::non_blocking() const
+bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::non_blocking() const noexcept
 {
 	return this->socket().non_blocking();
 }
@@ -553,13 +577,15 @@ non_blocking(bool mode) noexcept
 }
 
 template <core_concepts::exec Exec>
-bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::non_blocking() const
+bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+non_blocking() const noexcept
 {
 	return this->socket().next_layer().non_blocking();
 }
 
 template <core_concepts::exec Exec>
-bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::message_peek() noexcept
+bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+message_peek() noexcept
 {
 	bool before_non_blocking = non_blocking();
 	error_code error;

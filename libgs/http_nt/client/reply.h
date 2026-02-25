@@ -47,12 +47,8 @@ public:
 	using executor_t = connection_t::executor_t;
 	using parser_t = client_parser;
 
-public:
-	explicit basic_reply(connection_t &connection);
+	explicit basic_reply(connection_t &&connection);
 	~basic_reply();
-
-	basic_reply(basic_reply &&other) noexcept;
-	basic_reply &operator=(basic_reply &&other) noexcept;
 
 public:
 	template <typename Token, typename...Value>
@@ -86,11 +82,13 @@ public:
 
 public:
 	[[nodiscard]] bool valid() const noexcept;
+	[[nodiscard]] error_code first_error() const noexcept;
+
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
 
-	[[nodiscard]] const connection_t *connection() const noexcept;
-	[[nodiscard]] connection_t *connection() noexcept;
+	[[nodiscard]] const connection_t &connection() const noexcept;
+	[[nodiscard]] connection_t &connection() noexcept;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_reply &cancel() noexcept;

@@ -52,7 +52,7 @@ public:
 	using context_t = basic_request_context<Method, connection_t, version_v>;
 
 	template <method_enum Method>
-	using ctx_expected_t = sys_expected<context_t<Method>>;
+	using context_ptr = std::unique_ptr<context_t<Method>>;
 
 	using reply_t = basic_reply<connection_t>;
 	using request_arg_t = request_arg;
@@ -76,7 +76,7 @@ public:
 
 	template <method_enum Method, typename Token>
 	static constexpr bool request_token_v =
-		core_concepts::tf_opt_token<Token,ctx_expected_t<Method>> and
+		core_concepts::tf_opt_token<Token,error_code,context_ptr<Method>> and
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename T, typename Token>
@@ -85,7 +85,7 @@ public:
 			T, char, file_optype::multiple, io_permission::read
 		> and
 		core_concepts::tf_opt_token <
-			Token, error_code, ctx_expected_t<method::put>
+			Token, error_code, context_ptr<method::put>
 		>;
 
 public:
@@ -106,6 +106,98 @@ public:
 	[[nodiscard]] auto request(req_info info, Token &&token = {})
 		noexcept requires request_token_v<Method,Token>;
 
+	template <typename T, typename Token = use_sync_t>
+	auto upload_file(req_info info, T &&opt, Token &&token = {}) noexcept
+		requires file_opt_token_v<T,Token>;
+
+	template <typename T, typename Progress, typename Token = use_sync_t>
+	auto upload_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires file_opt_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
+
+	// TODO ... ...
+	// download_file();
+
+public:
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_get(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::get,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_put(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::put,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_post(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::post,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_head(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::head,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_patch(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::patch,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_delete(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::delet,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_options(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::options,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_trace(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::trace,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto request_connect(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::connect,Token>;
+
+public:
+	template <method_enum Method, typename Token = use_sync_t>
+	[[nodiscard]] auto make_context(req_info info, Token &&token = {})
+		noexcept requires request_token_v<Method,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_get(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::get,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_put(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::put,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_post(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::post,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_head(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::head,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_patch(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::patch,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_delete(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::delet,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_options(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::options,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_trace(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::trace,Token>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto make_connect(req_info info, Token &&token = {})
+		noexcept requires request_token_v<method::connect,Token>;
+
+public:
+	[[nodiscard]] static consteval version_enum version() noexcept;
+	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
 	class impl;

@@ -48,12 +48,15 @@ public:
 
 	impl(impl &&other) noexcept :
 		m_destructor(std::move(other.m_destructor)),
-		m_socket(std::move(other.m_socket)) {}
+		m_socket(std::move(other.m_socket)) {
+  		other.m_opt_helper.close();
+  	}
 
 	impl &operator=(impl &&other) noexcept
 	{
 		m_destructor = std::move(other.m_destructor);
 		m_socket = std::move(other.m_socket);
+  		other.m_opt_helper.close();
   		return *this;
 	}
 

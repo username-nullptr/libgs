@@ -110,10 +110,10 @@ public:
 	template <core_concepts::tf_opt_token<error_code> Token = use_sync_t>
 	auto wait_reply(Token &&token = {}) noexcept;
 
+	[[nodiscard]] const reply_t &reply() const noexcept;
 	[[nodiscard]] reply_t &reply() noexcept;
-	[[nodiscard]] bool valid() noexcept;
 
-	[[nodiscard]] bool is_finished() const noexcept;
+	[[nodiscard]] bool responded() const noexcept;
 	basic_request_context &cancel() noexcept;
 
 public:
