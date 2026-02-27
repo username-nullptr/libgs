@@ -44,11 +44,13 @@ class LIBGS_HTTP_NT_TAPI basic_reply final :
 
 public:
 	using connection_t = Connection;
+	using connection_ptr = std::shared_ptr<connection_t>;
+
 	using executor_t = connection_t::executor_t;
 	using parser_t = client_parser;
 
-	explicit basic_reply(connection_t &&connection);
-	~basic_reply();
+	explicit basic_reply(connection_ptr connection);
+	~basic_reply() override;
 
 public:
 	template <typename Token, typename...Value>

@@ -36,15 +36,26 @@ template <method_enum Method, concepts::connection Connection, version_enum Vers
 class LIBGS_HTTP_NT_TAPI basic_request_context<Method,Connection,Version>::impl :
 	public std::enable_shared_from_this<impl>
 {
-	LIBGS_DISABLE_COPY_MOVE(impl)
+	LIBGS_DISABLE_COPY(impl)
+	using connection_ptr = std::shared_ptr<connection_t>;
 
 public:
 	impl(connection_t &&connection, url_t url, request_arg_t arg) :
+		m_connection(new connection_t(std::move(connection))),
 		m_generator(std::move(url), std::move(arg)),
-		m_reply(std::move(connection)) {}
+		m_reply(new reply_t(m_connection)) {}
 
-	~impl() {
-		connection().opt_helper().cancel();
+	impl(impl &&other) noexcept :
+		m_generator(std::move(other.m_generator)),
+		m_connection(new connection_t(std::move(*other.m_connection))),
+		m_reply(new reply_t(m_connection)) {}
+
+	impl &operator=(impl &&other) noexcept
+	{
+		m_generator = std::move(other.m_generator);
+		m_connection = std::make_shared<connection_t>(std::move(*other.m_connection));
+		m_reply = std::make_shared<reply_t>(m_connection);
+		return *this;
 	}
 
 public:
@@ -95,7 +106,7 @@ public:
 				auto promise = std::make_shared<std::promise<io_expected>>();
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
-					libgs::dispatch(get_executor(), [self = this->shared_from_this(),
+					libgs::dispatch(m_connection->get_executor(), [self = this->shared_from_this(),
 						ntoken, buf = std::move(buf_ptr), promise = std::move(promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
@@ -109,7 +120,7 @@ public:
 				}
 				else
 				{
-					libgs::dispatch(get_executor(), [self = this->shared_from_this(),
+					libgs::dispatch(m_connection->get_executor(), [self = this->shared_from_this(),
 						buf = std::move(buf_ptr), promise = std::move(promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
@@ -132,7 +143,7 @@ public:
 				);
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
-					libgs::dispatch(get_executor(), [
+					libgs::dispatch(m_connection->get_executor(), [
 						self = this->shared_from_this(), ntoken, nntoken,
 						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
@@ -152,7 +163,7 @@ public:
 				}
 				else
 				{
-					libgs::dispatch(get_executor(), [self = this->shared_from_this(), nntoken,
+					libgs::dispatch(m_connection->get_executor(), [self = this->shared_from_this(), nntoken,
 						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 					]() mutable noexcept -> awaitable<void>
@@ -187,7 +198,7 @@ public:
 		if( not token )
 			return io_unexpected(token.error());
 
-		auto before = connection().set_transfer_file_option();
+		auto before = m_connection->set_transfer_file_option();
 		if( not before )
 			return io_unexpected(before.error());
 
@@ -260,7 +271,7 @@ public:
 				" Please contact the author."
 			);
 		}
-		auto expected = connection().unset_transfer_file_option(*before);
+		auto expected = m_connection->unset_transfer_file_option(*before);
 		if( not expected )
 			return io_unexpected(expected.error());
 		return sum;
@@ -277,10 +288,10 @@ public:
 		if( not token )
 			co_return io_unexpected(token.error());
 
-		auto task = libgs::dispatch(get_executor(),
+		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<io_expected>
 		{
-			auto before = connection().set_transfer_file_option();
+			auto before = m_connection->set_transfer_file_option();
 			if( not before )
 				co_return io_unexpected(before.error());
 
@@ -363,7 +374,7 @@ public:
 					" Please contact the author."
 				);
 			}
-			auto expected = connection().unset_transfer_file_option(*before);
+			auto expected = m_connection->unset_transfer_file_option(*before);
 			if( not expected )
 				co_return io_unexpected(expected.error());
 			co_return sum;
@@ -376,7 +387,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(get_executor(), timeout)
+				coro::sleep_for(m_connection->get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -438,7 +449,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(get_executor(), timeout)
+				coro::sleep_for(m_connection->get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -462,18 +473,7 @@ public:
 	}
 
 	void chunk_end_detach(const headers_t &headers) noexcept {
-		libgs::dispatch(get_executor(), co_chunk_end(headers), detached);
-	}
-
-public:
-	[[nodiscard]] const connection_t &connection() const noexcept {
-		return m_reply.connection();
-	}
-	[[nodiscard]] connection_t &connection() noexcept {
-		return m_reply.connection();
-	}
-	[[nodiscard]] executor_t get_executor() noexcept {
-		return connection().get_executor();
+		libgs::dispatch(m_connection->get_executor(), co_chunk_end(headers), detached);
 	}
 
 private:
@@ -514,7 +514,7 @@ private:
 				make_error_code(errc::eof)
 			);
 		}
-		auto task = libgs::dispatch(get_executor(),
+		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<io_expected>
 		{
 			size_t sum = 0;
@@ -546,7 +546,7 @@ private:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(get_executor(), timeout)
+				coro::sleep_for(m_connection->get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -570,7 +570,7 @@ private:
 	}
 
 	void _write_detach(const const_buffer &body) noexcept {
-		libgs::dispatch(get_executor(), _co_write(body), detached);
+		libgs::dispatch(m_connection->get_executor(), _co_write(body), detached);
 	}
 
 private:
@@ -601,7 +601,7 @@ private:
 private:
 	[[nodiscard]] io_expected base_write(std::string &&data) noexcept
 	{
-		auto &sock_helper = connection().opt_helper();
+		auto &sock_helper = m_connection->opt_helper();
 		error_code error;
 
 		sock_helper.non_blocking(false, error);
@@ -622,7 +622,7 @@ private:
 	[[nodiscard]] awaitable<io_expected>
 	co_base_write(std::string &&data, asio::cancellation_slot cancel_slot) noexcept
 	{
-		auto &sock_helper = connection().opt_helper();
+		auto &sock_helper = m_connection->opt_helper();
 		error_code error;
 
 		sock_helper.non_blocking(true, error);
@@ -706,8 +706,9 @@ private:
 	}
 
 public:
+	connection_ptr m_connection {};
 	generator_t m_generator;
-	reply_t m_reply;
+	reply_ptr m_reply {};
 };
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
@@ -748,12 +749,9 @@ basic_request_context<Method,Connection,Version>::operator=(basic_request_contex
 	return *this;
 }
 
-
-
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request_context<Method,Connection,Version>::write
-(Token &&token) noexcept requires put_or_post
+auto basic_request_context<Method,Connection,Version>::write(Token &&token) noexcept
 {
 	return m_impl->write({}, token);
 }
@@ -1052,8 +1050,9 @@ chunk_end(Token &&token) noexcept requires put_or_post
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
-template <core_concepts::tf_opt_token<error_code> Token>
-auto basic_request_context<Method,Connection,Version>::wait_reply(Token &&token) noexcept
+template <typename Token>
+auto basic_request_context<Method,Connection,Version>::wait_reply(Token &&token)
+	noexcept requires task_token_v<Token,status_enum>
 {
 	return reply().wait(std::forward<Token>(token));
 }
@@ -1062,14 +1061,14 @@ template <method_enum Method, concepts::connection Connection, version_enum Vers
 const basic_request_context<Method,Connection,Version>::reply_t&
 basic_request_context<Method,Connection,Version>::reply() const noexcept
 {
-	return m_impl->m_reply;
+	return *m_impl->m_reply;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 basic_request_context<Method,Connection,Version>::reply_t&
 basic_request_context<Method,Connection,Version>::reply() noexcept
 {
-	return m_impl->m_reply;
+	return *m_impl->m_reply;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
@@ -1090,14 +1089,14 @@ template <method_enum Method, concepts::connection Connection, version_enum Vers
 const basic_request_context<Method,Connection,Version>::url_t&
 basic_request_context<Method,Connection,Version>::url() const noexcept
 {
-	return generator().url();
+	return m_impl->m_generator.url();
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 basic_request_context<Method,Connection,Version>::request_arg_t
 basic_request_context<Method,Connection,Version>::arg() const noexcept
 {
-	return generator().arg();
+	return m_impl->m_generator.arg();
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
@@ -1122,21 +1121,14 @@ template <method_enum Method, concepts::connection Connection, version_enum Vers
 const basic_request_context<Method,Connection,Version>::connection_t&
 basic_request_context<Method,Connection,Version>::connection() const noexcept
 {
-	return m_impl->connection();
+	return *m_impl->m_connection;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 basic_request_context<Method,Connection,Version>::connection_t&
 basic_request_context<Method,Connection,Version>::connection() noexcept
 {
-	return m_impl->connection();
-}
-
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::generator_t&
-basic_request_context<Method,Connection,Version>::generator() noexcept
-{
-	return m_impl->m_generator;
+	return *m_impl->m_connection;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>

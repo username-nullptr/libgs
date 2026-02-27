@@ -65,7 +65,10 @@ public:
   		if( not m_destructor )
   			return ;
 		dispatch(m_opt_helper.get_executor(),
-		[destructor = std::move(m_destructor), socket = std::move(m_socket)]() mutable {
+		[destructor = std::move(m_destructor), socket = std::move(m_socket)]() mutable
+		{
+			auto asd = opt_helper_t(socket).is_open();
+			opt_helper_t(socket).cancel();
 			destructor(std::move(socket));
 		});
 	}
@@ -108,9 +111,8 @@ basic_connection<Stream>::basic_connection(basic_connection &&other) noexcept :
 template <concepts::stream Stream>
 basic_connection<Stream> &basic_connection<Stream>::operator=(basic_connection &&other) noexcept
 {
-	if( this == &other )
-		return *this;
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 

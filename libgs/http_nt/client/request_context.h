@@ -53,7 +53,9 @@ public:
 
 	using url_t = http_nt::url;
 	using request_arg_t = request_arg;
+
 	using reply_t = basic_reply<connection_t>;
+	using reply_ptr = std::shared_ptr<reply_t>;
 
 	using value_t = request_arg_t::value_t;
 	using method_t = http_nt::method;
@@ -69,15 +71,14 @@ public:
 
 public:
 	basic_request_context(connection_t &&connection, url_t url, request_arg_t arg = {});
-	~basic_request_context();
+	~basic_request_context() override;
 
 	basic_request_context(basic_request_context &&other) noexcept;
 	basic_request_context &operator=(basic_request_context &&other) noexcept;
 
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto write(Token &&token = {})
-		noexcept requires put_or_post;
+	auto write(Token &&token = {}) noexcept;
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
@@ -107,8 +108,14 @@ public:
 		noexcept requires put_or_post;
 
 public:
-	template <core_concepts::tf_opt_token<error_code> Token = use_sync_t>
-	auto wait_reply(Token &&token = {}) noexcept;
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		core_concepts::tf_opt_token<Token,error_code,Value...> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
+	template <typename Token = use_sync_t>
+	auto wait_reply(Token &&token = {}) noexcept
+		requires task_token_v<Token,status_enum>;
 
 	[[nodiscard]] const reply_t &reply() const noexcept;
 	[[nodiscard]] reply_t &reply() noexcept;
@@ -127,8 +134,6 @@ public:
 public:
 	[[nodiscard]] const connection_t &connection() const noexcept;
 	[[nodiscard]] connection_t &connection() noexcept;
-
-	[[nodiscard]] generator_t &generator() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:

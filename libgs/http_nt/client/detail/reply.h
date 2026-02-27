@@ -39,27 +39,34 @@ class LIBGS_HTTP_NT_TAPI basic_reply<Connection>::impl :
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	explicit impl(connection_t &&connection) :
+	explicit impl(connection_ptr connection) :
 		m_connection(std::move(connection))
 	{
-		auto &sock = m_connection.opt_helper();
-		char buffer[0xFFFF] {0};
-		size_t sum = 0;
-		for(;;)
+		if ( not m_connection->peek() )
 		{
-			auto expected = sock.try_read({buffer, sizeof(buffer)});
-			if( expected or (expected.error() == errc::try_again or
-				expected.error() == errc::would_block) )
-				break;
-			/* else if( m_first_error == errc::eof ) */
-			m_first_error = expected.error();
-			sock.close();
+			m_first_error = errc::not_connected;
 			return ;
 		}
-		auto expected = m_parser.append({buffer, sum});
-		if( not expected )
+		auto &sock = m_connection->opt_helper();
+		char buffer[0xFFFF] {0};
+
+		auto sum_expected = sock.try_read({buffer, sizeof(buffer)});
+		if( sum_expected )
 		{
-			m_first_error = expected.error();
+			if( *sum_expected == 0 )
+				return ;
+
+			auto expected = m_parser.append({buffer, *sum_expected});
+			if( not expected )
+			{
+				m_first_error = expected.error();
+				sock.close();
+			}
+		}
+		else if( sum_expected.error() != errc::try_again and
+				 sum_expected.error() != errc::would_block )
+		{
+			m_first_error = sum_expected.error();
 			sock.close();
 		}
 	}
@@ -70,16 +77,16 @@ public:
 		if( m_first_error )
 			return sys_unexpected(m_first_error);
 
-		auto &sock = m_connection.opt_helper();
+		else if( m_parser.stage() != parser_t::stage_t::header )
+			return m_parser.status();
+
+		auto &sock = m_connection->opt_helper();
 		if( not sock.is_open() )
 		{
 			return sys_unexpected (
 				make_error_code(std::errc::not_connected)
 			);
 		}
-		else if( m_parser.stage() != parser_t::stage_t::header )
-			return m_parser.status();
-
 		using namespace libgs::operators;
 		std::error_code error;
 
@@ -111,16 +118,16 @@ public:
 		if( m_first_error )
 			co_return sys_unexpected(m_first_error);
 
-		auto &sock = m_connection.opt_helper();
+		else if( m_parser.stage() != parser_t::stage_t::header )
+			co_return m_parser.status();
+
+		auto &sock = m_connection->opt_helper();
 		if( not sock.is_open() )
 		{
 			co_return sys_unexpected (
 				make_error_code(std::errc::not_connected)
 			);
 		}
-		else if( m_parser.stage() != parser_t::stage_t::header )
-			co_return m_parser.status();
-
 		using namespace libgs::operators;
 		std::error_code error;
 
@@ -131,7 +138,7 @@ public:
 		constexpr size_t buf_size = 0xFFFF;
 		char buf[buf_size];
 
-		auto task = libgs::dispatch(m_connection.get_executor(),
+		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<sys_expected<status_enum>>
 		{
 			for(;;)
@@ -163,7 +170,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_connection.get_executor(), timeout)
+				coro::sleep_for(m_connection->get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -192,7 +199,7 @@ public:
 		if( m_first_error )
 			return sys_unexpected(m_first_error);
 
-		auto &sock = m_connection.opt_helper();
+		auto &sock = m_connection->opt_helper();
 		if( not sock.is_open() )
 		{
 			return sys_unexpected (
@@ -277,7 +284,7 @@ public:
 		if( m_first_error )
 			co_return sys_unexpected(m_first_error);
 
-		auto &sock = m_connection.opt_helper();
+		auto &sock = m_connection->opt_helper();
 		if( not sock.is_open() )
 		{
 			co_return sys_unexpected (
@@ -303,7 +310,7 @@ public:
 
 		using namespace libgs::operators;
 		auto dst_buf = reinterpret_cast<char*>(buf.data());
-		auto task = libgs::dispatch(m_connection.get_executor(),
+		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<io_expected>
 		{
 			if( m_parser.stage() == parser_t::stage_t::header )
@@ -361,7 +368,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_connection.get_executor(), timeout)
+				coro::sleep_for(m_connection->get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -410,7 +417,7 @@ public:
 	(asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		using namespace std::chrono_literals;
-		auto task = libgs::dispatch(m_connection.get_executor(),
+		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<sys_expected<std::string>>
 		{
 			std::string sum;
@@ -441,7 +448,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_connection.get_executor(), timeout)
+				coro::sleep_for(m_connection->get_executor(), timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -465,13 +472,13 @@ public:
 	}
 
 public:
-	connection_t m_connection;
+	connection_ptr m_connection;
 	error_code m_first_error {};
 	parser_t m_parser {};
 };
 
 template <concepts::connection Connection>
-basic_reply<Connection>::basic_reply(connection_t &&connection) :
+basic_reply<Connection>::basic_reply(connection_ptr connection) :
 	const_headers<basic_reply>(nullptr),
 	const_cookies<cookie,basic_reply>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(connection)))
@@ -894,13 +901,13 @@ bool basic_reply<Connection>::is_eof() const noexcept
 template <concepts::connection Connection>
 const basic_reply<Connection>::connection_t &basic_reply<Connection>::connection() const noexcept
 {
-	return m_impl->m_connection;
+	return *m_impl->m_connection;
 }
 
 template <concepts::connection Connection>
 basic_reply<Connection>::connection_t &basic_reply<Connection>::connection() noexcept
 {
-	return m_impl->m_connection;
+	return *m_impl->m_connection;
 }
 
 template <concepts::connection Connection>

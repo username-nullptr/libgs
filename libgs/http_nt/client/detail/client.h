@@ -57,7 +57,7 @@ class LIBGS_HTTP_NT_TAPI basic_client<ConnectionPool,Version>::impl
 	using socket_t = connection_t::socket_t;
 
 	template <method_enum Method>
-	using ctx_expected_t = sys_expected<context_ptr<Method>>;
+	using ctx_expected_t = sys_expected<context_t<Method>>;
 
 public:
 	impl() requires core_concepts::match_sched<io_executor_t,executor_t> :
@@ -80,34 +80,31 @@ public:
 			continue_100 = it != info.arg.headers().end() and
 				strtls::to_lower(*it->second) == "100-continue";
 		}
-		ctx_expected_t ctx_expected {
+		ctx_expected_t<Method> ctx_expected {
 			sys_unexpected(make_error_code(std::errc::connection_aborted))
 		};
-		context_t<Method> *context = nullptr;
-
 		for(size_t i=0; i<10; i++)
 		{
 			ctx_expected = make_context<Method>(std::move(info));
 			if( not ctx_expected )
 				return ctx_expected;
 
-			context = ctx_expected->get();
-			if( context->connection().valid() )
+			if( ctx_expected->connection().peek() )
 				break;
 		}
-		if( not context->connection().valid() )
-			return sys_unexpected(context->reply().first_error());
+		if( not ctx_expected->connection().peek() )
+			return sys_unexpected(ctx_expected->reply().first_error());
 		{
-			auto expected = context->write();
+			auto expected = ctx_expected->write();
 			if( not expected )
 				return sys_unexpected(expected.error());
 
 			else if( not continue_100 )
 				return ctx_expected;
 		}
-		auto expected = context->wait_reply();
+		auto expected = ctx_expected->wait_reply();
 		if( not expected )
-			return ctx_expected.despair(expected.error());
+			ctx_expected.despair(expected.error());
 		return ctx_expected;
 	}
 
@@ -128,11 +125,9 @@ public:
 				continue_100 = it != info.arg.headers().end() and
 					strtls::to_lower(*it->second) == "100-continue";
 			}
-			ctx_expected_t ctx_expected {
+			ctx_expected_t<Method> ctx_expected {
 				sys_unexpected(make_error_code(std::errc::connection_aborted))
 			};
-			context_t<Method> *context = nullptr;
-
 			for(size_t i=0; i<10; i++)
 			{
 				ctx_expected = co_await co_make_context<Method>(
@@ -141,23 +136,22 @@ public:
 				if( not ctx_expected )
 					co_return ctx_expected;
 
-				context = ctx_expected->get();
-				if( context->connection().valid() )
+				else if( ctx_expected->connection().peek() )
 					break;
 			}
-			if( not context->connection().valid() )
-				co_return sys_unexpected(context->reply().first_error());
+			if( not ctx_expected->connection().peek() )
+				co_return sys_unexpected(ctx_expected->reply().first_error());
 			{
-				auto expected = context->write();
+				auto expected = ctx_expected->write();
 				if( not expected )
 					co_return sys_unexpected(expected.error());
 
 				else if( not continue_100 )
 					co_return ctx_expected;
 			}
-			auto expected = context->wait_reply();
+			auto expected = ctx_expected->wait_reply();
 			if( not expected )
-				co_return ctx_expected.despair(expected.error());
+				ctx_expected.despair(expected.error());
 			co_return ctx_expected;
 		},
 		use_awaitable);
@@ -347,7 +341,7 @@ public:
 		if( not expected )
 			return sys_unexpected(expected.error());
 
-		return std::make_unique<context_t<Method>>(
+		return context_t<Method>(
 			std::move(*expected), std::move(info.url), std::move(info.arg)
 		);
 	}
@@ -398,7 +392,7 @@ public:
 			if( not expected )
 				co_return sys_unexpected(expected.error());
 
-			co_return std::make_unique<context_t<Method>>(
+			co_return context_t<Method>(
 				std::move(*expected), std::move(info.url), std::move(info.arg)
 			);
 		},

@@ -24,7 +24,12 @@ int main()
 	libgs::http_nt::client client;
 	libgs::http_nt::request_arg arg;
 
-	auto context = client.make_get({"http://baidu.com", arg});
+	auto context = client.request_get({"http://www.baidu.com", arg});
+	auto status = context->wait_reply();
+	auto body = context->reply().read();
+
+	int i = 0;
+	i = 11;
 
 	return 0;
 }

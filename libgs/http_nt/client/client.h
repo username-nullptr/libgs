@@ -51,9 +51,6 @@ public:
 	template <method_enum Method>
 	using context_t = basic_request_context<Method, connection_t, version_v>;
 
-	template <method_enum Method>
-	using context_ptr = std::unique_ptr<context_t<Method>>;
-
 	using reply_t = basic_reply<connection_t>;
 	using request_arg_t = request_arg;
 	using url_t = url;
@@ -76,7 +73,7 @@ public:
 
 	template <method_enum Method, typename Token>
 	static constexpr bool request_token_v =
-		core_concepts::tf_opt_token<Token,error_code,context_ptr<Method>> and
+		core_concepts::tf_opt_token<Token,error_code,context_t<Method>> and
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename T, typename Token>
@@ -85,7 +82,7 @@ public:
 			T, char, file_optype::multiple, io_permission::read
 		> and
 		core_concepts::tf_opt_token <
-			Token, error_code, context_ptr<method::put>
+			Token, error_code, context_t<method::put>
 		>;
 
 public:

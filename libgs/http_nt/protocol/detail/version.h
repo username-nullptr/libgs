@@ -29,6 +29,8 @@
 #ifndef LIBGS_HTTP_NT_PROTOCOL_DETAIL_VERSION_H
 #define LIBGS_HTTP_NT_PROTOCOL_DETAIL_VERSION_H
 
+#include <cmath>
+
 namespace libgs::http_nt
 {
 
