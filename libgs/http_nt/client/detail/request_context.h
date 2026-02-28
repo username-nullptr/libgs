@@ -198,7 +198,7 @@ public:
 		if( not token )
 			return io_unexpected(token.error());
 
-		auto before = m_connection->set_transfer_file_option();
+		auto before = m_connection->set_send_file_option();
 		if( not before )
 			return io_unexpected(before.error());
 
@@ -231,14 +231,19 @@ public:
 		if( norms.index() == 0 or norms.index() == std::variant_npos )
 		{
 			total = token->file_size;
-			if( auto error = do_transfer(0, token->file_size) )
+			auto error = do_transfer(0, token->file_size);
+			token->stream->close();
+			if( error )
 				return io_unexpected(error);
 		}
 		else if( norms.index() == 1 )
 		{
 			auto &range_norms = std::get<range_body_norms>(norms);
 			total = range_norms.total;
-			if( auto error = do_transfer(range_norms.begin, range_norms.total) )
+
+			auto error = do_transfer(range_norms.begin, range_norms.total);
+			token->stream->close();
+			if( error )
 				return io_unexpected(error);
 		}
 		else if( norms.index() == 2 )
@@ -255,16 +260,23 @@ public:
 				prefix += "\r\n";
 
 				if( auto expected = _write(prefix); not expected )
+				{
+					token->stream->close();
 					return io_unexpected(expected.error());
-
-				if( auto error = do_transfer(package.range.begin, package.range.total) )
+				}
+				else if( auto error = do_transfer(package.range.begin, package.range.total) )
+				{
+					token->stream->close();
 					return io_unexpected(error);
+				}
 			}
+			token->stream->close();
 			if( auto expected = _write(std::format("--{}--\r\n", multipart_norms.boundary)); not expected )
 				return io_unexpected(expected.error());
 		}
 		else
 		{
+			token->stream->close();
 			logic_error::loc_throw (
 				"There is a bug in the implementation of the library:"
 				" theoretically, this conditional branch should never be true."
@@ -291,7 +303,7 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<io_expected>
 		{
-			auto before = m_connection->set_transfer_file_option();
+			auto before = m_connection->set_send_file_option();
 			if( not before )
 				co_return io_unexpected(before.error());
 
@@ -326,14 +338,19 @@ public:
 			if( norms.index() == 0 )
 			{
 				total = token->file_size;
-				if( auto error = co_await do_transfer(0, token->file_size) )
+				auto error = co_await do_transfer(0, token->file_size);
+				token->stream->close();
+				if( error )
 					co_return io_unexpected(error);
 			}
 			else if( norms.index() == 1 )
 			{
 				auto &range_norms = std::get<range_body_norms>(norms);
 				total = range_norms.total;
-				if( auto error = co_await do_transfer(range_norms.begin, range_norms.total) )
+
+				auto error = co_await do_transfer(range_norms.begin, range_norms.total);
+				token->stream->close();
+				if( error )
 					co_return io_unexpected(error);
 			}
 			else if( norms.index() == 2 )
@@ -351,14 +368,20 @@ public:
 
 					auto expected = co_await _co_write(prefix, cancel_slot, 0ns);
 					if( not expected )
+					{
+						token->stream->close();
 						co_return io_unexpected(expected.error());
-
+					}
 					auto error = co_await do_transfer (
 						package.range.begin, package.range.total
 					);
 					if( error )
+					{
+						token->stream->close();
 						co_return io_unexpected(error);
+					}
 				}
+				token->stream->close();
 				auto expected = co_await _co_write (
 					std::format("--{}--\r\n", multipart_norms.boundary),
 					cancel_slot, 0ns
@@ -368,6 +391,7 @@ public:
 			}
 			else
 			{
+				token->stream->close();
 				logic_error::loc_throw (
 					"There is a bug in the implementation of the library:"
 					" theoretically, this conditional branch should never be true."
@@ -768,7 +792,7 @@ template <method_enum Method, concepts::connection Connection, version_enum Vers
 template <typename T, typename Token>
 auto basic_request_context<Method,Connection,Version>::
 upload_file(body_norms_t norms, T &&opt, Token &&token)
-	noexcept requires file_opt_token_v<T>
+	noexcept requires file_task_token_v<T,Token>
 {
 	return upload_file(std::move(norms),
 		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
@@ -779,7 +803,7 @@ template <method_enum Method, concepts::connection Connection, version_enum Vers
 template <typename T, typename Progress, typename Token>
 auto basic_request_context<Method,Connection,Version>::
 upload_file(body_norms_t norms, T &&opt, Progress &&progress, Token &&token)
-	noexcept requires file_opt_token_v<T> and concepts::progress_callback<Progress,Token>
+	noexcept requires file_task_token_v<T,Token> and concepts::progress_callback<Progress,Token>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
@@ -1054,27 +1078,27 @@ template <typename Token>
 auto basic_request_context<Method,Connection,Version>::wait_reply(Token &&token)
 	noexcept requires task_token_v<Token,status_enum>
 {
-	return reply().wait(std::forward<Token>(token));
+	return reply()->wait(std::forward<Token>(token));
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
-const basic_request_context<Method,Connection,Version>::reply_t&
+const basic_request_context<Method,Connection,Version>::reply_ptr
 basic_request_context<Method,Connection,Version>::reply() const noexcept
 {
-	return *m_impl->m_reply;
+	return m_impl->m_reply;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::reply_t&
+basic_request_context<Method,Connection,Version>::reply_ptr
 basic_request_context<Method,Connection,Version>::reply() noexcept
 {
-	return *m_impl->m_reply;
+	return m_impl->m_reply;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 bool basic_request_context<Method,Connection,Version>::responded() const noexcept
 {
-	return reply().valid();
+	return reply()->valid();
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>

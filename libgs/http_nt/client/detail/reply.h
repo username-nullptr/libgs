@@ -229,7 +229,7 @@ public:
 		if( error )
 			return io_unexpected(error);
 
-		auto dst_buf = reinterpret_cast<char*>(buf.data());
+		auto dst_buf = static_cast<char*>(buf.data());
 		for(;;)
 		{
 			auto body = m_parser.take_partial_body(buf.size() - sum);
@@ -469,6 +469,185 @@ public:
 		if( not expected )
 			error = expected.error();
 		co_return expected;
+	}
+
+public:
+	[[nodiscard]] io_expected save_file(auto &&opt, auto &&progress) noexcept
+	{
+		io_expected expected {};
+		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
+		if( not token )
+			return expected.despair(token.error());
+
+		auto before = m_connection->set_receive_file_option();
+		if( not before )
+			return expected.despair(before.error());
+
+		constexpr size_t buf_size = 128 * 1024;
+		char buffer[buf_size] {0};
+		size_t sum = 0, total = 0;
+
+		if( auto length = m_parser.header(header::content_length) )
+			total = *length->get<size_t>().or_else(0);
+		for(;;)
+		{
+			expected = read({buffer, buf_size});
+			if( not expected )
+				break;
+
+			token->stream->write(buffer, *expected);
+			sum += *expected;
+
+			if( auto error = invoke_progress(progress, sum, total) )
+			{
+				expected.despair(error);
+				break;
+			}
+		}
+		token->stream->close();
+		if( not expected and expected.error() != errc::eof )
+			return expected;
+
+		else if( auto expected2 = m_connection->unset_transfer_file_option(*before); not expected2 )
+			return expected.despair(expected2.error());
+		return sum;
+	}
+
+	[[nodiscard]] awaitable<io_expected> co_save_file(auto &&opt, auto &&progress,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		using namespace std::chrono_literals;
+		using namespace libgs::operators;
+
+		io_expected expected {};
+		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
+
+		if( not token )
+			co_return expected.despair(token.error());
+
+		auto task = libgs::dispatch(m_connection->get_executor(),
+		[&]() mutable noexcept -> awaitable<io_expected>
+		{
+			auto before = m_connection->set_receive_file_option();
+			if( not before )
+				co_return expected.despair(before.error());
+
+			constexpr size_t buf_size = 128 * 1024;
+			char buffer[buf_size] {0};
+			size_t sum = 0, total = 0;
+
+			if( auto length = m_parser.header(header::content_length) )
+				total = *length->get<size_t>().or_else(0);
+			for(;;)
+			{
+				expected = read({buffer, buf_size});
+				if( not expected )
+					break;
+
+				token->stream->write(buffer, *expected);
+				sum += *expected;
+
+				if( auto error = invoke_progress(progress, sum, total) )
+					expected.despair(error);
+			}
+			token->stream->close();
+			if( not expected and expected.error() != errc::eof )
+				co_return expected;
+
+			else if( auto expected2 = m_connection->unset_transfer_file_option(*before); not expected2 )
+				co_return expected.despair(expected2.error());
+			co_return sum;
+		},
+		use_awaitable);
+
+		if( timeout == 0ns )
+			expected = co_await std::move(task);
+		else
+		{
+			auto var = co_await(std::move(task) or
+				coro::sleep_for(m_connection->get_executor(), timeout)
+			);
+			if( var.index() == 0 )
+				expected = std::get<0>(var);
+			else if( not std::get<1>(var) )
+				expected.despair(make_error_code(errc::timed_out));
+			else
+				expected.despair(std::get<1>(var));
+		}
+		co_return expected;
+	}
+
+	[[nodiscard]] awaitable<io_expected> co_save_file(std::error_code &error,
+		auto &&opt, auto &&progress, asio::cancellation_slot cancel_slot,
+		std::chrono::nanoseconds timeout) noexcept
+	{
+		auto expected = co_await co_save_file (
+			std::forward<decltype(opt)>(opt), std::move(cancel_slot), std::move(timeout)
+		);
+		if( not expected )
+			error = expected.error();
+		co_return expected;
+	}
+
+
+private:
+	[[nodiscard]] error_code invoke_progress(auto &progress, size_t sum, size_t total) noexcept
+	{
+		using pro_ret_t = decltype(progress(0, 0));
+		if constexpr( std::is_same_v<pro_ret_t, bool> )
+		{
+			if( progress(sum, total) )
+				return {};
+			return make_error_code(errc::operation_aborted);
+		}
+		else
+			progress(sum, total);
+		return {};
+	}
+
+	[[nodiscard]] awaitable<error_code> co_invoke_progress(auto &progress, size_t sum, size_t total) noexcept
+	{
+		using pro_ret_t = decltype(progress(0,0));
+		if constexpr( is_awaitable_v<pro_ret_t> )
+		{
+			using co_pro_ret_t = pro_ret_t::value_t;
+			if constexpr( std::is_same_v<co_pro_ret_t,bool> )
+			{
+				if( co_await progress(sum, total) )
+					co_return ;
+				co_return make_error_code(errc::operation_aborted);
+			}
+			else
+				co_await progress(sum, total);
+		}
+		else
+			co_return invoke_progress(progress, sum, total);
+	}
+
+	template <typename Opt>
+	auto make_file_opt_token(Opt &&opt) noexcept
+	{
+		using opt_t = std::remove_cvref_t<Opt>;
+		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
+		{
+			using token_t = file_opt_token<void,file_optype::single> ;
+			token_t token(std::forward<Opt>(opt));
+
+			auto expected = token.init(std::ios::out | std::ios::binary | std::ios::trunc);
+			if( expected )
+				return sys_expected<token_t>(std::move(token));
+			return sys_expected<token_t>(sys_unexpected(expected.error()));
+		}
+		else
+		{
+			if( opt.stream->is_open() )
+				return sys_expected<opt_t>(std::forward<Opt>(opt));
+
+			auto expected = opt.init(std::ios::out | std::ios::binary | std::ios::trunc);
+			if( expected )
+				return sys_expected<opt_t>(std::forward<Opt>(opt));
+			return sys_expected<opt_t>(sys_unexpected(expected.error()));
+		}
 	}
 
 public:
@@ -868,10 +1047,145 @@ auto basic_reply<Connection>::read(Token &&token) noexcept
 template <concepts::connection Connection>
 template <typename T, typename Token>
 auto basic_reply<Connection>::save_file(T &&opt, Token &&token) noexcept
-	requires file_opt_token<T> and task_token_v<Token,size_t>
+	requires file_task_token<T,Token>
 {
-	// TODO ... ...
-	return 0;
+	return save_file(std::forward<T>(opt),
+		[](size_t,size_t){}, std::forward<Token>(token)
+	);
+}
+
+template <concepts::connection Connection>
+template <typename T, typename Progress, typename Token>
+auto basic_reply<Connection>::save_file(T &&opt, Progress &&progress, Token &&token) noexcept
+	requires file_task_token<T,Token> and concepts::progress_callback<Progress,Token>
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		return m_impl->save_file(std::forward<T>(opt), std::forward<Progress>(progress))
+			.or_else([&token](const error_code &error) {
+				token = error;
+			});
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+		return m_impl->save_file(std::forward<T>(opt), std::forward<Progress>(progress));
+
+	else if constexpr( is_redirect_time_v<token_t> )
+	{
+		decltype(auto) ntoken = unbound_redirect_time(token);
+		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+
+		decltype(auto) nntoken = unbound_token(ntoken);
+		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
+
+		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+		{
+			if constexpr( is_redirect_error_v<ntoken_t> )
+			{
+				return m_impl->co_save_file(ntoken.ec_,
+					std::forward<T>(opt), std::forward<Progress>(progress),
+					asio::get_associated_cancellation_slot(nntoken),
+					get_associated_redirect_time(token)
+				);
+			}
+			else
+			{
+				return m_impl->co_save_file (
+					std::forward<T>(opt), std::forward<Progress>(progress),
+					asio::get_associated_cancellation_slot(nntoken),
+					get_associated_redirect_time(token)
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<nntoken_t> )
+		{
+			auto promise = std::make_shared<std::promise<io_expected>>();
+			if constexpr( is_redirect_error_v<ntoken_t> )
+			{
+				libgs::dispatch(get_executor(), [
+					impl = m_impl->shared_from_this(), ntoken, promise = std::move(promise),
+					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					timeout = get_associated_redirect_time(token)
+				]() mutable noexcept -> awaitable<void>
+				{
+					promise->set_value(co_await impl->co_save_file (
+						std::forward<T>(opt), std::forward<Progress>(progress),
+						ntoken.ec_, cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			else
+			{
+				libgs::dispatch(get_executor(), [
+					impl = m_impl->shared_from_this(), promise = std::move(promise),
+					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					timeout = get_associated_redirect_time(token)
+				]() mutable noexcept -> awaitable<void>
+				{
+					promise->set_value(co_await impl->co_save_file (
+						std::forward<T>(opt), std::forward<Progress>(progress),
+						cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			return promise->get_future();
+		}
+		else if constexpr( is_redirect_error_v<ntoken_t> )
+		{
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+				opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+				ntoken, nntoken, timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable noexcept -> awaitable<void>
+			{
+				auto expected = co_await impl->co_save_file (
+					std::forward<T>(opt), std::forward<Progress>(progress),
+					ntoken.ec_, cancel_slot, timeout
+				);
+				expected
+				.transform([&callback = nntoken](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = nntoken](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+		else
+		{
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+				opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+				nntoken, timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+			]() mutable noexcept -> awaitable<void>
+			{
+				auto expected = co_await impl->co_save_file (
+					std::forward<T>(opt), std::forward<Progress>(progress),
+					cancel_slot, timeout
+				);
+				expected
+				.transform([&callback = nntoken](int code) {
+					callback(error_code(), code);
+				})
+				.or_else([&callback = nntoken](const error_code &error) {
+					callback(error, 255);
+				});
+			});
+		}
+	}
+	else
+	{
+		using namespace libgs::operators;
+		using namespace std::chrono_literals;
+		return save_file (
+			std::forward<T>(opt), std::forward<Progress>(progress),
+			token | 0ns
+		);
+	}
 }
 
 template <concepts::connection Connection>

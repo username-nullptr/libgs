@@ -74,13 +74,20 @@ public:
 	auto read(Token &&token = {}) noexcept
 		requires task_token_v<Token,std::string>;
 
-	template <typename T>
-	static constexpr bool file_opt_token = concepts::file_opt_token_p <
-		T, char, file_optype::single, io_permission::write
-	>;
+	template <typename T, typename Token>
+	static constexpr bool file_task_token =
+		core_concepts::tf_opt_token<Token,error_code,size_t> and
+		concepts::file_opt_token_p <
+			T, char, file_optype::single, io_permission::write
+		>;
+
 	template <typename T, typename Token = use_sync_t>
 	auto save_file(T &&opt, Token &&token = {}) noexcept
-		requires file_opt_token<T> and task_token_v<Token,size_t>;
+		requires file_task_token<T,Token>;
+
+	template <typename T, typename Progress, typename Token = use_sync_t>
+	auto save_file(T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires file_task_token<T,Token> and concepts::progress_callback<Progress,Token>;
 
 public:
 	[[nodiscard]] bool valid() const noexcept;

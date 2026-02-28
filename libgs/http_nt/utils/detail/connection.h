@@ -67,7 +67,6 @@ public:
 		dispatch(m_opt_helper.get_executor(),
 		[destructor = std::move(m_destructor), socket = std::move(m_socket)]() mutable
 		{
-			auto asd = opt_helper_t(socket).is_open();
 			opt_helper_t(socket).cancel();
 			destructor(std::move(socket));
 		});
@@ -165,7 +164,7 @@ basic_connection<Stream>::get_executor() noexcept
 }
 
 template <concepts::stream Stream>
-auto basic_connection<Stream>::set_transfer_file_option() noexcept
+auto basic_connection<Stream>::set_send_file_option() noexcept
 {
 	using protocol_t = opt_helper_t::protocol_t;
 	constexpr size_t net_buf_size = 8 * 1024 * 1024;
@@ -180,7 +179,7 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 			asio::ip::tcp::no_delay,
 			asio::socket_base::linger
 		>;
-		sys_expected<tuple_t> result;
+		sys_expected<tuple_t> result {};
 
 		asio::socket_base::send_buffer_size send_buffer_size;
 		socket.get_option(send_buffer_size, error);
@@ -201,18 +200,18 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 			std::move(no_delay), std::move(linger)
 		);
 		send_buffer_size = net_buf_size;
-		socket.get_option(send_buffer_size, error);
+		socket.set_option(send_buffer_size, error);
 		if( error )
 			return result.despair(error);
 
 		no_delay = true;
-		socket.get_option(no_delay, error);
+		socket.set_option(no_delay, error);
 		if( error )
 			return result.despair(error);
 
 		linger.enabled(false);
 		linger.timeout(0);
-		socket.get_option(linger, error);
+		socket.set_option(linger, error);
 		if( error )
 			return result.despair(error);
 		return result;
@@ -223,7 +222,7 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 			asio::socket_base::send_buffer_size,
 			asio::socket_base::linger
 		>;
-		sys_expected<tuple_t> result;
+		sys_expected<tuple_t> result {};
 
 		asio::socket_base::send_buffer_size send_buffer_size;
 		socket.get_option(send_buffer_size, error);
@@ -239,13 +238,13 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 			std::move(send_buffer_size), std::move(linger)
 		);
 		send_buffer_size = net_buf_size;
-		socket.get_option(send_buffer_size, error);
+		socket.set_option(send_buffer_size, error);
 		if( error )
 			return result.despair(error);
 
 		linger.enabled(false);
 		linger.timeout(0);
-		socket.get_option(linger, error);
+		socket.set_option(linger, error);
 		if( error )
 			return result.despair(error);
 		return result;
@@ -253,38 +252,63 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 }
 
 template <concepts::stream Stream>
+auto basic_connection<Stream>::set_receive_file_option() noexcept
+{
+	constexpr size_t net_buf_size = 8 * 1024 * 1024;
+	auto &socket = opt_helper();
+	error_code error;
+
+	using tuple_t = std::tuple <
+		asio::socket_base::receive_buffer_size,
+		asio::socket_base::linger
+	>;
+	sys_expected<tuple_t> result {};
+
+	asio::socket_base::receive_buffer_size recv_buffer_size;
+	socket.get_option(recv_buffer_size, error);
+	if( error )
+		return result.despair(error);
+
+	asio::socket_base::linger linger;
+	socket.get_option(linger, error);
+	if( error )
+		return result.despair(error);
+
+	recv_buffer_size = net_buf_size;
+	socket.set_option(recv_buffer_size, error);
+	if( error )
+		return result.despair(error);
+
+	linger.enabled(false);
+	linger.timeout(0);
+	socket.set_option(linger, error);
+	if( error )
+		return result.despair(error);
+	return result;
+}
+
+template <concepts::stream Stream>
 auto basic_connection<Stream>::unset_transfer_file_option(const auto &before) noexcept
 {
-	using protocol_t = opt_helper_t::protocol_t;
 	auto &socket = opt_helper();
-
 	sys_expected<> result;
 	error_code error;
 
-	if constexpr( std::is_same_v<protocol_t, asio::ip::tcp> )
+	std::apply([&]<typename...Args>(Args&&...args)
 	{
-		socket.set_option(std::get<0>(before), error);
-		if( error )
-			return result.despair(error);
-
-		socket.set_option(std::get<1>(before), error);
-		if( error )
-			return result.despair(error);
-
-		socket.set_option(std::get<2>(before), error);
-		if( error )
-			return result.despair(error);
-	}
-	else
-	{
-		socket.set_option(std::get<0>(before), error);
-		if( error )
-			return result.despair(error);
-
-		socket.set_option(std::get<1>(before), error);
-		if( error )
-			return result.despair(error);
-	}
+		([&]<typename Arg>(Arg &&arg)
+		{
+			socket.set_option(std::forward<Arg>(arg), error);
+			if( error )
+			{
+				result.despair(error);
+				return false;
+			}
+			return true;
+		}
+		(std::forward<Args>(args)) && ...);
+	},
+	before);
 	return result;
 }
 

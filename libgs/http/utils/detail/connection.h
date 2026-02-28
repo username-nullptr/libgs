@@ -196,18 +196,18 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 			std::move(no_delay), std::move(linger)
 		);
 		send_buffer_size = net_buf_size;
-		socket.get_option(send_buffer_size, error);
+		socket.set_option(send_buffer_size, error);
 		if( error )
 			return result.despair(error);
 
 		no_delay = true;
-		socket.get_option(no_delay, error);
+		socket.set_option(no_delay, error);
 		if( error )
 			return result.despair(error);
 
 		linger.enabled(false);
 		linger.timeout(0);
-		socket.get_option(linger, error);
+		socket.set_option(linger, error);
 		if( error )
 			return result.despair(error);
 		return result;
@@ -234,13 +234,13 @@ auto basic_connection<Stream>::set_transfer_file_option() noexcept
 			std::move(send_buffer_size), std::move(linger)
 		);
 		send_buffer_size = net_buf_size;
-		socket.get_option(send_buffer_size, error);
+		socket.set_option(send_buffer_size, error);
 		if( error )
 			return result.despair(error);
 
 		linger.enabled(false);
 		linger.timeout(0);
-		socket.get_option(linger, error);
+		socket.set_option(linger, error);
 		if( error )
 			return result.despair(error);
 		return result;

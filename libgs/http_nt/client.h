@@ -26,9 +26,9 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CLIENT_H
-#define LIBGS_HTTP_CLIENT_H
+#ifndef LIBGS_HTTP_NT_CLIENT_H
+#define LIBGS_HTTP_NT_CLIENT_H
 
 #include <libgs/http_nt/client/client.h>
 
-#endif //LIBGS_HTTP_CLIENT_H
+#endif //LIBGS_HTTP_NT_CLIENT_H

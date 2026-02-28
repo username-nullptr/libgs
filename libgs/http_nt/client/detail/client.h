@@ -57,7 +57,7 @@ class LIBGS_HTTP_NT_TAPI basic_client<ConnectionPool,Version>::impl
 	using socket_t = connection_t::socket_t;
 
 	template <method_enum Method>
-	using ctx_expected_t = sys_expected<context_t<Method>>;
+	using ctx_expected_t = sys_expected<context_ptr<Method>>;
 
 public:
 	impl() requires core_concepts::match_sched<io_executor_t,executor_t> :
@@ -89,20 +89,20 @@ public:
 			if( not ctx_expected )
 				return ctx_expected;
 
-			if( ctx_expected->connection().peek() )
+			if( (*ctx_expected)->connection().peek() )
 				break;
 		}
-		if( not ctx_expected->connection().peek() )
-			return sys_unexpected(ctx_expected->reply().first_error());
+		if( not (*ctx_expected)->connection().peek() )
+			return sys_unexpected((*ctx_expected)->reply()->first_error());
 		{
-			auto expected = ctx_expected->write();
+			auto expected = (*ctx_expected)->write();
 			if( not expected )
 				return sys_unexpected(expected.error());
 
 			else if( not continue_100 )
 				return ctx_expected;
 		}
-		auto expected = ctx_expected->wait_reply();
+		auto expected = (*ctx_expected)->wait_reply();
 		if( not expected )
 			ctx_expected.despair(expected.error());
 		return ctx_expected;
@@ -136,27 +136,29 @@ public:
 				if( not ctx_expected )
 					co_return ctx_expected;
 
-				else if( ctx_expected->connection().peek() )
+				else if( (*ctx_expected)->connection().peek() )
 					break;
 			}
-			if( not ctx_expected->connection().peek() )
-				co_return sys_unexpected(ctx_expected->reply().first_error());
+			if( not (*ctx_expected)->connection().peek() )
+				co_return sys_unexpected((*ctx_expected)->reply()->first_error());
 			{
-				auto expected = ctx_expected->write();
+				auto expected = (*ctx_expected)->write();
 				if( not expected )
 					co_return sys_unexpected(expected.error());
 
 				else if( not continue_100 )
 					co_return ctx_expected;
 			}
-			auto expected = ctx_expected->wait_reply();
+			auto expected = (*ctx_expected)->wait_reply();
 			if( not expected )
 				ctx_expected.despair(expected.error());
 			co_return ctx_expected;
 		},
 		use_awaitable);
 
-		ctx_expected_t<Method> expected;
+		ctx_expected_t<Method> expected {
+			sys_unexpected(make_error_code(std::errc::connection_aborted))
+		};
 		if( timeout == 0ns )
 			expected = co_await std::move(task);
 		else
@@ -165,7 +167,7 @@ public:
 				coro::sleep_for(m_pool.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
-				expected = std::get<0>(var);
+				expected = std::move(std::get<0>(var));
 			else if( not std::get<1>(var) )
 				expected.despair(make_error_code(errc::timed_out));
 			else
@@ -200,7 +202,7 @@ public:
 			if constexpr( version_v > version::v10 )
 			{
 				if( context->responded() and
-					context->reply().status() != status::continue_upload )
+					context->reply()->status() != status::continue_upload )
 					return context;
 			}
 			else
@@ -246,7 +248,7 @@ public:
 			if constexpr( version_v > version::v10 )
 			{
 				if( context->responded() and
-					context->reply().status() != status::continue_upload )
+					context->reply()->status() != status::continue_upload )
 					co_return context;
 			}
 			else
@@ -341,7 +343,7 @@ public:
 		if( not expected )
 			return sys_unexpected(expected.error());
 
-		return context_t<Method>(
+		return std::make_shared<context_t<Method>>(
 			std::move(*expected), std::move(info.url), std::move(info.arg)
 		);
 	}
@@ -392,15 +394,16 @@ public:
 			if( not expected )
 				co_return sys_unexpected(expected.error());
 
-			co_return context_t<Method>(
+			co_return std::make_shared<context_t<Method>>(
 				std::move(*expected), std::move(info.url), std::move(info.arg)
 			);
 		},
 		use_awaitable);
 
 		using namespace std::chrono_literals;
-		ctx_expected_t<Method> expected;
-
+		ctx_expected_t<Method> expected {
+			sys_unexpected(make_error_code(std::errc::connection_aborted))
+		};
 		if( timeout == 0ns )
 			expected = co_await std::move(task);
 		else
@@ -409,7 +412,7 @@ public:
 				coro::sleep_for(m_pool.get_executor(), timeout)
 			);
 			if( var.index() == 0 )
-				expected = std::get<0>(var);
+				expected = std::move(std::get<0>(var));
 			else if( not std::get<1>(var) )
 				expected.despair(make_error_code(errc::timed_out));
 			else

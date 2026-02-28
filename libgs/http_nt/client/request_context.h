@@ -58,8 +58,6 @@ public:
 	using reply_ptr = std::shared_ptr<reply_t>;
 
 	using value_t = request_arg_t::value_t;
-	using method_t = http_nt::method;
-
 	using generator_t = client_generator;
 	using headers_t = request_arg_t::headers_t;
 
@@ -67,7 +65,7 @@ public:
 	static constexpr auto version_v = Version;
 
 	static constexpr auto put_or_post =
-		method_v == method_t::post or method_v == method_t::put;
+		method_v == method::post or method_v == method::put;
 
 public:
 	basic_request_context(connection_t &&connection, url_t url, request_arg_t arg = {});
@@ -84,19 +82,21 @@ public:
 	auto write(const const_buffer &body, Token &&token = {})
 		noexcept requires put_or_post;
 
-	template <typename T>
-	static constexpr bool file_opt_token_v =
-		method_v == method_t::put and concepts::file_opt_token_p <
+	template <typename T, typename Token>
+	static constexpr bool file_task_token_v =
+		method_v == method::put and
+		core_concepts::tf_opt_token<Token,error_code,size_t> and
+		concepts::file_opt_token_p <
 			T, char, file_optype::single, io_permission::read
 		>;
 
 	template <typename T, typename Token = use_sync_t>
 	auto upload_file(body_norms_t norms, T &&opt, Token &&token = {})
-		noexcept requires file_opt_token_v<T>;
+		noexcept requires file_task_token_v<T,Token>;
 
 	template <typename T, typename Progress, typename Token = use_sync_t>
 	auto upload_file(body_norms_t norms, T &&opt, Progress &&progress, Token &&token = {})
-		noexcept requires file_opt_token_v<T> and concepts::progress_callback<Progress,Token>;
+		noexcept requires file_task_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
 
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
@@ -117,8 +117,8 @@ public:
 	auto wait_reply(Token &&token = {}) noexcept
 		requires task_token_v<Token,status_enum>;
 
-	[[nodiscard]] const reply_t &reply() const noexcept;
-	[[nodiscard]] reply_t &reply() noexcept;
+	[[nodiscard]] const reply_ptr reply() const noexcept;
+	[[nodiscard]] reply_ptr reply() noexcept;
 
 	[[nodiscard]] bool responded() const noexcept;
 	basic_request_context &cancel() noexcept;

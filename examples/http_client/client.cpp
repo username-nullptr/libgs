@@ -8,7 +8,30 @@ int main()
 	libgs::http_nt::client client;
 	libgs::http_nt::request_arg arg;
 
-	auto context = client.make_get({"http://baidu.com", arg});
+#if 0
+	auto expected = client.request_get({"http://www.baidu.com", arg});
+	auto context = *expected;
+
+	auto status = context->wait_reply();
+	// auto body = context->reply()->read();
+	auto sum = context->reply()->save_file("./baidu.html");
 
 	return 0;
+#else
+	libgs::dispatch([&]() mutable -> libgs::awaitable<void>
+	{
+		auto expected = co_await client.request_get (
+			{"http://www.baidu.com", arg}, libgs::use_awaitable
+		);
+		auto context = *expected;
+
+		auto status = co_await context->wait_reply(libgs::use_awaitable);
+		// auto body = co_await context->reply()->read(libgs::use_awaitable);
+		auto sum = co_await context->reply()->save_file("./baidu.html", libgs::use_awaitable);
+
+		libgs::exit();
+		co_return ;
+	});
+	return libgs::exec();
+#endif
 }
