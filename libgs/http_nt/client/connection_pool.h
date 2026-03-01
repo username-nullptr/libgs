@@ -177,10 +177,10 @@ namespace https_nt
 {
 
 template <typename Exec>
-using basic_tcp_connection_pool = http::basic_ssl_tcp_connection_pool<Exec>;
+using basic_tcp_connection_pool = http_nt::basic_ssl_tcp_connection_pool<Exec>;
 
-using tcp_connection_pool = http::ssl_tcp_connection_pool;
-using connection_pool = http::ssl_connection_pool;
+using tcp_connection_pool = http_nt::ssl_tcp_connection_pool;
+using connection_pool = http_nt::ssl_connection_pool;
 
 }} //namespace libgs::https_nt
 

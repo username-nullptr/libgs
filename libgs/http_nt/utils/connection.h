@@ -106,7 +106,7 @@ concept connection_p = connection<std::remove_cvref_t<T>>;
 #include <libgs/http_nt/utils/detail/connection.h>
 
 #if LIBGS_OPENSSL_SUPPORT
-namespace libgs { namespace http
+namespace libgs { namespace http_nt
 {
 
 template <core_concepts::exec Exec = asio::any_io_executor>
@@ -117,18 +117,18 @@ using basic_ssl_tcp_connection = basic_connection <
 using ssl_tcp_connection = basic_ssl_tcp_connection<asio::any_io_executor>;
 using ssl_connection = ssl_tcp_connection;
 
-} //namespace http
+} //namespace http_nt
 
-namespace https
+namespace https_nt
 {
 
 template <concepts::exec Exec = asio::any_io_executor>
-using basic_tcp_connection = http::basic_ssl_tcp_connection<Exec>;
+using basic_tcp_connection = http_nt::basic_ssl_tcp_connection<Exec>;
 
 using tcp_connection = basic_tcp_connection<asio::any_io_executor>;
 using connection = tcp_connection;
 
-}} //namespace libgs::http_nts
+}} //namespace libgs::https_nt
 
 #endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_NT_UTILS_CONNECTION_H

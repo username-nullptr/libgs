@@ -431,10 +431,9 @@ public:
 	};
 
 public:
-	explicit lock_free_queue_impl
-	(size_t capacity = std::numeric_limits<size_t>::max())
+	explicit lock_free_queue_impl(size_t capacity = 64)
 	{
-		m_capacity = capacity > 0 ? capacity : std::numeric_limits<size_t>::max();
+		m_capacity = capacity > 0 ? capacity : 64;
 		m_blocks[0].store(new block(m_capacity));
 	}
 

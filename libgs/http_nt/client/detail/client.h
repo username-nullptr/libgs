@@ -365,12 +365,34 @@ public:
 		auto task = libgs::dispatch(m_pool.get_executor(),
 		[&]() mutable -> awaitable<ctx_expected_t<Method>>
 		{
-			endpoint_t ep;
 			std::error_code error;
+			auto make_task = [&](const endpoint_t &ep)
+			{
+				return libgs::dispatch(m_pool.get_executor(),
+				[&, ep]() -> awaitable<std::shared_ptr<connection_t>>
+				{
+					auto expected = co_await m_pool.get(ep, use_awaitable | cancel_slot);
+					if( expected )
+						co_return std::make_shared<connection_t>(std::move(*expected));
+
+					else if( expected.error() == errc::operation_aborted )
+						error = expected.error();
+
+					system_error::loc_throw(error);
+					co_return nullptr;
+				},
+				deferred);
+			};
+			using task_t = decltype(make_task({}));
+			std::vector<task_t> tasks {};
 
 			auto addr = asio::ip::make_address(info.url.address().data(), error);
 			if( not error )
-				ep = {addr, info.url.port()};
+			{
+				tasks.emplace_back (
+					make_task({addr, info.url.port()})
+				);
+			}
 			else
 			{
 				using resolver_t = asio::ip::basic_resolver<protocol_t>;
@@ -388,21 +410,33 @@ public:
 						make_error_code(std::errc::host_unreachable)
 					);
 				}
-				ep = {results.begin()->endpoint().address(), info.url.port()};
+				for(auto &res : results)
+				{
+					tasks.emplace_back (
+						make_task({res.endpoint().address(), info.url.port()})
+					);
+				}
 			}
-			auto expected = co_await m_pool.get(ep, use_awaitable | cancel_slot);
-			if( not expected )
-				co_return sys_unexpected(expected.error());
+			error = make_error_code(errc::connection_refused);
+			auto [order, exs, values] = co_await asio::experimental::make_parallel_group(std::move(tasks))
+				.async_wait(asio::experimental::wait_for_one_success(), deferred);
 
-			co_return std::make_shared<context_t<Method>>(
-				std::move(*expected), std::move(info.url), std::move(info.arg)
-			);
+			for(size_t i=0; i<exs.size(); i++)
+			{
+				if( exs[i] )
+					continue;
+
+				co_return std::make_shared<context_t<Method>>(
+					std::move(*values[i]), std::move(info.url), std::move(info.arg)
+				);
+			}
+			co_return sys_unexpected(error);
 		},
 		use_awaitable);
 
 		using namespace std::chrono_literals;
 		ctx_expected_t<Method> expected {
-			sys_unexpected(make_error_code(std::errc::connection_aborted))
+			sys_unexpected(make_error_code(std::errc::connection_refused))
 		};
 		if( timeout == 0ns )
 			expected = co_await std::move(task);
@@ -496,42 +530,63 @@ auto basic_client<ConnectionPool,Version>::request(req_info info, Token &&token)
 
 	else if constexpr( is_redirect_time_v<token_t> )
 	{
-		decltype(auto) ntoken = unbound_redirect_time(token);
-		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+		decltype(auto) no_time_token = unbound_redirect_time(token);
+		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
 
-		decltype(auto) nntoken = unbound_token(ntoken);
-		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
+		decltype(auto) original_token = unbound_token(no_time_token);
+		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
 
-		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+		if constexpr( is_use_awaitable_v<original_token_t> )
 		{
-			if constexpr( is_redirect_error_v<ntoken_t> )
+			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				return m_impl->template co_request<Method>(ntoken.ec_, std::move(info),
-					asio::get_associated_cancellation_slot(nntoken),
+				return m_impl->template co_request<Method>(no_time_token.ec_, std::move(info),
+					asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
 			}
 			else
 			{
 				return m_impl->template co_request<Method>(std::move(info),
-					asio::get_associated_cancellation_slot(nntoken),
+					asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
 			}
 		}
-		else if constexpr( is_use_future_v<nntoken_t> )
+		else if constexpr( is_deferred_v<original_token_t> )
+		{
+			if constexpr( is_redirect_error_v<no_time_token_t> )
+			{
+				return libgs::dispatch(get_executor(),
+					m_impl->template co_request<Method>(no_time_token.ec_, std::move(info),
+						asio::get_associated_cancellation_slot(no_time_token),
+						get_associated_redirect_time(token)
+					), deferred
+				);
+			}
+			else
+			{
+				return libgs::dispatch(get_executor(),
+					m_impl->template co_request<Method>(std::move(info),
+						asio::get_associated_cancellation_slot(no_time_token),
+						get_associated_redirect_time(token)
+					), deferred
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<original_token_t> )
 		{
 			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<ntoken_t> )
+			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					ntoken, info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					no_time_token, info = std::move(info), promise = std::move(promise),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
 					promise->set_value(co_await impl->template co_request<Method> (
-						ntoken.ec_, std::move(info), cancel_slot, timeout
+						no_time_token.ec_, std::move(info), cancel_slot, timeout
 					));
 					co_return ;
 				});
@@ -540,7 +595,7 @@ auto basic_client<ConnectionPool,Version>::request(req_info info, Token &&token)
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 					info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
@@ -552,40 +607,40 @@ auto basic_client<ConnectionPool,Version>::request(req_info info, Token &&token)
 			}
 			return promise->get_future();
 		}
-		else if constexpr( is_redirect_error_v<ntoken_t> )
+		else if constexpr( is_redirect_error_v<no_time_token_t> )
 		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), ntoken, nntoken,
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), no_time_token, original_token,
 				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
 				auto expected = co_await impl->template co_request<Method> (
-					ntoken.ec_, std::move(info), cancel_slot, timeout
+					no_time_token.ec_, std::move(info), cancel_slot, timeout
 				);
 				expected
-				.transform([&callback = nntoken](int code) {
+				.transform([&callback = original_token](int code) {
 					callback(error_code(), code);
 				})
-				.or_else([&callback = nntoken](const error_code &error) {
+				.or_else([&callback = original_token](const error_code &error) {
 					callback(error, 255);
 				});
 			});
 		}
 		else
 		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), nntoken,
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), original_token,
 				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
 				auto expected = co_await impl->template co_request<Method> (
 					std::move(info), cancel_slot, timeout
 				);
 				expected
-				.transform([&callback = nntoken](int code) {
+				.transform([&callback = original_token](int code) {
 					callback(error_code(), code);
 				})
-				.or_else([&callback = nntoken](const error_code &error) {
+				.or_else([&callback = original_token](const error_code &error) {
 					callback(error, 255);
 				});
 			});
@@ -632,19 +687,19 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 	}
 	else if constexpr( is_redirect_time_v<token_t> )
 	{
-		decltype(auto) ntoken = unbound_redirect_time(token);
-		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+		decltype(auto) no_time_token = unbound_redirect_time(token);
+		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
 
-		decltype(auto) nntoken = unbound_token(ntoken);
-		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
+		decltype(auto) original_token = unbound_token(no_time_token);
+		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
 
-		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+		if constexpr( is_use_awaitable_v<original_token_t> )
 		{
-			if constexpr( is_redirect_error_v<ntoken_t> )
+			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				return m_impl->co_upload_file(ntoken.ec_, std::move(info),
+				return m_impl->co_upload_file(no_time_token.ec_, std::move(info),
 					std::forward<T>(opt), std::forward<Progress>(progress),
-					asio::get_associated_cancellation_slot(nntoken),
+					asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
 			}
@@ -652,24 +707,47 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			{
 				return m_impl->co_upload_file(std::move(info),
 					std::forward<T>(opt), std::forward<Progress>(progress),
-					asio::get_associated_cancellation_slot(nntoken),
+					asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
 			}
 		}
-		else if constexpr( is_use_future_v<nntoken_t> )
+		else if constexpr( is_deferred_v<original_token_t> )
+		{
+			if constexpr( is_redirect_error_v<no_time_token_t> )
+			{
+				return libgs::dispatch(get_executor(),
+					m_impl->co_upload_file(no_time_token.ec_, std::move(info),
+						std::forward<T>(opt), std::forward<Progress>(progress),
+						asio::get_associated_cancellation_slot(no_time_token),
+						get_associated_redirect_time(token)
+					), deferred
+				);
+			}
+			else
+			{
+				return libgs::dispatch(get_executor(),
+					m_impl->co_upload_file(std::move(info),
+						std::forward<T>(opt), std::forward<Progress>(progress),
+						asio::get_associated_cancellation_slot(no_time_token),
+						get_associated_redirect_time(token)
+					), deferred
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<original_token_t> )
 		{
 			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<ntoken_t> )
+			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					ntoken, promise = std::move(promise), info = std::move(info),
+					no_time_token, promise = std::move(promise), info = std::move(info),
 					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl->co_upload_file(ntoken.ec_,
+					promise->set_value(co_await impl->co_upload_file(no_time_token.ec_,
 						std::move(info), std::move(opt), std::move(progress),
 						cancel_slot, timeout
 					));
@@ -681,7 +759,7 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 					promise = std::move(promise), info = std::move(info),
 					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
@@ -694,23 +772,23 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			}
 			return promise->get_future();
 		}
-		else if constexpr( is_redirect_error_v<ntoken_t> )
+		else if constexpr( is_redirect_error_v<no_time_token_t> )
 		{
 			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-				ntoken, nntoken, info = std::move(info), opt = std::forward<T>(opt),
+				no_time_token, original_token, info = std::move(info), opt = std::forward<T>(opt),
 				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl->co_upload_file(ntoken.ec_,
+				auto expected = co_await impl->co_upload_file(no_time_token.ec_,
 					std::move(info), std::move(opt), std::move(progress),
 					cancel_slot, timeout
 				);
 				expected
-				.transform([&callback = nntoken](int code) {
+				.transform([&callback = original_token](int code) {
 					callback(error_code(), code);
 				})
-				.or_else([&callback = nntoken](const error_code &error) {
+				.or_else([&callback = original_token](const error_code &error) {
 					callback(error, 255);
 				});
 			});
@@ -718,9 +796,9 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 		else
 		{
 			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-				nntoken, info = std::move(info), opt = std::forward<T>(opt),
+				original_token, info = std::move(info), opt = std::forward<T>(opt),
 				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
 				auto expected = co_await impl->co_upload_file (
@@ -728,10 +806,10 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 					cancel_slot, timeout
 				);
 				expected
-				.transform([&callback = nntoken](int code) {
+				.transform([&callback = original_token](int code) {
 					callback(error_code(), code);
 				})
-				.or_else([&callback = nntoken](const error_code &error) {
+				.or_else([&callback = original_token](const error_code &error) {
 					callback(error, 255);
 				});
 			});
@@ -859,44 +937,59 @@ auto basic_client<ConnectionPool,Version>::make_context(req_info info, Token &&t
 	}
 	else if constexpr( is_redirect_time_v<token_t> )
 	{
-		decltype(auto) ntoken = unbound_redirect_time(token);
-		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+		decltype(auto) no_time_token = unbound_redirect_time(token);
+		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
 
-		decltype(auto) nntoken = unbound_token(ntoken);
-		using nntoken_t = std::remove_cvref_t<decltype(nntoken)>;
+		decltype(auto) original_token = unbound_token(no_time_token);
+		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
 
-		if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+		if constexpr( is_use_awaitable_v<original_token_t> )
 		{
-			if constexpr( is_redirect_error_v<ntoken_t> )
+			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
 				return m_impl->template co_make_context<Method>(
-					ntoken.ec_, std::move(info),
-					asio::get_associated_cancellation_slot(nntoken),
+					no_time_token.ec_, std::move(info), asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
 			}
 			else
 			{
 				return m_impl->template co_make_context<Method>(
-					std::move(info),
-					asio::get_associated_cancellation_slot(nntoken),
+					std::move(info), asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
 			}
 		}
-		else if constexpr( is_use_future_v<nntoken_t> )
+		else if constexpr( is_deferred_v<original_token_t> )
+		{
+			if constexpr( is_redirect_error_v<no_time_token_t> )
+			{
+				return libgs::dispatch(get_executor(), m_impl->template co_make_context<Method>(
+					no_time_token.ec_, std::move(info), asio::get_associated_cancellation_slot(no_time_token),
+					get_associated_redirect_time(token)
+				), deferred);
+			}
+			else
+			{
+				return libgs::dispatch(get_executor(), m_impl->template co_make_context<Method>(
+					std::move(info), asio::get_associated_cancellation_slot(no_time_token),
+					get_associated_redirect_time(token)
+				), deferred);
+			}
+		}
+		else if constexpr( is_use_future_v<original_token_t> )
 		{
 			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<ntoken_t> )
+			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					ntoken, info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					no_time_token, info = std::move(info), promise = std::move(promise),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
 					promise->set_value(co_await impl->template co_make_context<Method> (
-						ntoken.ec_, std::move(info), cancel_slot, timeout
+						no_time_token.ec_, std::move(info), cancel_slot, timeout
 					));
 					co_return ;
 				});
@@ -905,7 +998,7 @@ auto basic_client<ConnectionPool,Version>::make_context(req_info info, Token &&t
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
 					info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
@@ -917,40 +1010,40 @@ auto basic_client<ConnectionPool,Version>::make_context(req_info info, Token &&t
 			}
 			return promise->get_future();
 		}
-		else if constexpr( is_redirect_error_v<ntoken_t> )
+		else if constexpr( is_redirect_error_v<no_time_token_t> )
 		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), ntoken, nntoken,
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), no_time_token, original_token,
 				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
 				auto expected = co_await impl->template co_make_context<Method> (
-					ntoken.ec_, std::move(info), cancel_slot, timeout
+					no_time_token.ec_, std::move(info), cancel_slot, timeout
 				);
 				expected
-				.transform([&callback = nntoken](int code) {
+				.transform([&callback = original_token](int code) {
 					callback(error_code(), code);
 				})
-				.or_else([&callback = nntoken](const error_code &error) {
+				.or_else([&callback = original_token](const error_code &error) {
 					callback(error, 255);
 				});
 			});
 		}
 		else
 		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), nntoken,
+			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), original_token,
 				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
 				auto expected = co_await impl->template co_make_context<Method> (
 					std::move(info), cancel_slot, timeout
 				);
 				expected
-				.transform([&callback = nntoken](int code) {
+				.transform([&callback = original_token](int code) {
 					callback(error_code(), code);
 				})
-				.or_else([&callback = nntoken](const error_code &error) {
+				.or_else([&callback = original_token](const error_code &error) {
 					callback(error, 255);
 				});
 			});

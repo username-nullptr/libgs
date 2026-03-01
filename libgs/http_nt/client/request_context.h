@@ -52,6 +52,7 @@ public:
 	using executor_t = connection_t::executor_t;
 
 	using url_t = http_nt::url;
+	using method_t = http_nt::method;
 	using request_arg_t = request_arg;
 
 	using reply_t = basic_reply<connection_t>;
@@ -65,7 +66,7 @@ public:
 	static constexpr auto version_v = Version;
 
 	static constexpr auto put_or_post =
-		method_v == method::post or method_v == method::put;
+		method_v == method_t::post or method_v == method_t::put;
 
 public:
 	basic_request_context(connection_t &&connection, url_t url, request_arg_t arg = {});
@@ -84,7 +85,7 @@ public:
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token_v =
-		method_v == method::put and
+		method_v == method_t::put and
 		core_concepts::tf_opt_token<Token,error_code,size_t> and
 		concepts::file_opt_token_p <
 			T, char, file_optype::single, io_permission::read

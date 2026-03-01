@@ -50,7 +50,7 @@ public:
 	url(const char *url);
 
 	url();
-	~url();
+	~url() override;
 
 	url(const url &other);
 	url &operator=(const url &other);

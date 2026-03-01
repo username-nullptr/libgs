@@ -375,19 +375,13 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::mes
 	if( error )
 		return false;
 
-	else if( not before_non_blocking )
-	{
-		non_blocking(before_non_blocking, error);
-		if( error )
-			return false;
-	}
 	char buf = 0;
 	this->socket().receive(asio::buffer(&buf,1),
 		asio::socket_base::message_peek, error
 	);
-	if( error and error != errc::would_block )
-		return false;
-	return true;
+	bool res = not error or error == errc::would_block;
+	non_blocking(before_non_blocking, error);
+	return res;
 }
 
 template <core_concepts::exec Exec>
@@ -568,19 +562,13 @@ bool socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::i
 	if( error )
 		return false;
 
-	else if( not before_non_blocking )
-	{
-		non_blocking(before_non_blocking, error);
-		if( error )
-			return false;
-	}
 	char buf = 0;
-	this->socket().next_layer().receive (
-		asio::buffer(&buf,1), asio::socket_base::message_peek, error
+	this->socket().receive(asio::buffer(&buf,1),
+		asio::socket_base::message_peek, error
 	);
-	if( error and error != errc::would_block )
-		return false;
-	return true;
+	bool res = not error or error == errc::would_block;
+	non_blocking(before_non_blocking, error);
+	return res;
 }
 
 template <core_concepts::exec Exec>

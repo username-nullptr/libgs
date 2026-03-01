@@ -182,7 +182,8 @@ url::url(const url &other) :
 
 url &url::operator=(const url &other)
 {
-	m_impl = new impl(*other.m_impl);
+	if( this != &other )
+		*m_impl = *other.m_impl;
 	return *this;
 }
 

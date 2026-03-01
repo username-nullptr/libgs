@@ -215,7 +215,7 @@ using ssl_client = basic_client<ssl_connection_pool>;
 } //namespace http
 
 namespace https_nt {
-using client = http::ssl_client;
+using client = http_nt::ssl_client;
 }} //namespace libgs::https_nt
 #endif //LIBGS_OPENSSL_SUPPORT
 

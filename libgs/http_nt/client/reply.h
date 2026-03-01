@@ -110,5 +110,14 @@ private:
 } //namespace libgs::http_nt
 #include <libgs/http_nt/client/detail/reply.h>
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http_nt {
+using ssl_reply = basic_reply<ssl_connection>;
+} //namespace http_nt
 
+namespace https_nt {
+using reply = http_nt::ssl_reply;
+}} //namespace libgs::https_nt
+
+#endif //LIBGS_ENABLE_OPENSS
 #endif //LIBGS_HTTP_NT_CLIENT_REPLY_H

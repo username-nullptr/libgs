@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -90,7 +90,7 @@ public:
 
 public:
 	native_handle_t m_native_handle {false};
-	lock_free_queue<detail::lock_wake_up_ptr> m_wait_queue;
+	linked_lock_free_queue<detail::lock_wake_up_ptr> m_wait_queue;
 };
 
 inline mutex::mutex() :

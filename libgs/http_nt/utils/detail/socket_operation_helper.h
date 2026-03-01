@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -592,19 +592,13 @@ message_peek() noexcept
 	if( error )
 		return false;
 
-	else if( not before_non_blocking )
-	{
-		non_blocking(before_non_blocking, error);
-		if( error )
-			return false;
-	}
 	char buf = 0;
-	this->socket().next_layer().receive (
-		asio::buffer(&buf,1), asio::socket_base::message_peek, error
+	this->socket().next_layer().receive(asio::buffer(&buf,1),
+		asio::socket_base::message_peek, error
 	);
-	if( error and error != errc::would_block )
-		return false;
-	return true;
+	bool res = not error or error == errc::would_block;
+	non_blocking(before_non_blocking, error);
+	return res;
 }
 
 template <core_concepts::exec Exec>
