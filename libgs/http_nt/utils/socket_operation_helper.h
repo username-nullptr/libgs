@@ -89,10 +89,23 @@ public:
 	using executor_t = base_t::executor_t;
 	using endpoint_t = socket_t::endpoint_type;
 
+	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
+	using dns_entry = dns_results::value_type;
+
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
-	auto connect(endpoint_t ep, Token &&token = {});
+	auto connect(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {});
 
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const endpoint_t &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_entry &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_results &eps, Token &&token = {});
+
+public:
 	void set_option(const auto &option, error_code &error) noexcept;
 	void set_option(const auto &option);
 
@@ -134,10 +147,23 @@ public:
 	using executor_t = base_t::executor_t;
 	using endpoint_t = socket_t::next_layer_type::endpoint_type;
 
+	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
+	using dns_entry = dns_results::value_type;
+
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
-	auto connect(endpoint_t endpoint, Token &&token = {});
+	auto connect(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {});
 
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const endpoint_t &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_entry &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_results &eps, Token &&token = {});
+
+public:
 	void set_option(const auto &option, error_code &error) noexcept;
 	void set_option(const auto &option);
 

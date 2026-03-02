@@ -42,6 +42,7 @@ class LIBGS_HTTP_NT_TAPI basic_connection
 public:
 	using socket_t = Stream;
     using opt_helper_t = socket_operation_helper<socket_t>;
+	using protocol_t = opt_helper_t::protocol_t;
 
 	using executor_t = opt_helper_t::executor_t;
 	using endpoint_t = opt_helper_t::endpoint_t;

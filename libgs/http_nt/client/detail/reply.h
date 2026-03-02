@@ -40,35 +40,13 @@ class LIBGS_HTTP_NT_TAPI basic_reply<Connection>::impl :
 
 public:
 	explicit impl(connection_ptr connection) :
-		m_connection(std::move(connection))
-	{
-		if ( not m_connection->peek() )
-		{
-			m_first_error = errc::not_connected;
-			return ;
-		}
-		auto &sock = m_connection->opt_helper();
-		char buffer[0xFFFF] {0};
-
-		auto sum_expected = sock.try_read({buffer, sizeof(buffer)});
-		if( sum_expected )
-		{
-			if( *sum_expected == 0 )
-				return ;
-
-			auto expected = m_parser.append({buffer, *sum_expected});
-			if( not expected )
-			{
-				m_first_error = expected.error();
-				sock.close();
-			}
-		}
-		else if( sum_expected.error() != errc::try_again and
-				 sum_expected.error() != errc::would_block )
-		{
-			m_first_error = sum_expected.error();
-			sock.close();
-		}
+		m_connection(std::move(connection)) {
+		check_active();
+	}
+	impl(connection_ptr connection, parser_t &&parser) :
+		m_connection(std::move(connection)),
+		m_parser(std::move(parser)) {
+		check_active();
 	}
 
 public:
@@ -658,6 +636,37 @@ private:
 		}
 	}
 
+	void check_active() noexcept
+	{
+		if ( not m_connection->peek() )
+		{
+			m_first_error = errc::not_connected;
+			return ;
+		}
+		auto &sock = m_connection->opt_helper();
+		char buffer[0xFFFF] {0};
+
+		auto sum_expected = sock.try_read({buffer, sizeof(buffer)});
+		if( sum_expected )
+		{
+			if( *sum_expected == 0 )
+				return ;
+
+			auto expected = m_parser.append({buffer, *sum_expected});
+			if( not expected )
+			{
+				m_first_error = expected.error();
+				sock.close();
+			}
+		}
+		else if( sum_expected.error() != errc::try_again and
+				 sum_expected.error() != errc::would_block )
+		{
+			m_first_error = sum_expected.error();
+			sock.close();
+		}
+	}
+
 public:
 	connection_ptr m_connection;
 	error_code m_first_error {};
@@ -669,6 +678,16 @@ basic_reply<Connection>::basic_reply(connection_ptr connection) :
 	const_headers<basic_reply>(nullptr),
 	const_cookies<cookie,basic_reply>(nullptr),
 	m_impl(std::make_shared<impl>(std::move(connection)))
+{
+	this->m_headers = &m_impl->m_parser.headers();
+	this->m_cookies = &m_impl->m_parser.cookies();
+}
+
+template <concepts::connection Connection>
+basic_reply<Connection>::basic_reply(connection_ptr connection, parser_t &&parser) :
+	const_headers<basic_reply>(nullptr),
+	const_cookies<cookie,basic_reply>(nullptr),
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(parser)))
 {
 	this->m_headers = &m_impl->m_parser.headers();
 	this->m_cookies = &m_impl->m_parser.cookies();
@@ -1300,6 +1319,18 @@ template <concepts::connection Connection>
 basic_reply<Connection>::connection_t &basic_reply<Connection>::connection() noexcept
 {
 	return *m_impl->m_connection;
+}
+
+template <concepts::connection Connection>
+const basic_reply<Connection>::parser_t &basic_reply<Connection>::parser() const noexcept
+{
+	return m_impl->m_parser;
+}
+
+template <concepts::connection Connection>
+basic_reply<Connection>::parser_t &basic_reply<Connection>::parser() noexcept
+{
+	return m_impl->m_parser;
 }
 
 template <concepts::connection Connection>

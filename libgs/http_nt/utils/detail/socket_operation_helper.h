@@ -293,11 +293,107 @@ socket_operation_helper_base<Stream>::socket() noexcept
 template <core_concepts::exec Exec>
 template <core_concepts::opt_token<error_code> Token>
 auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
-connect(endpoint_t ep, Token &&token)
+connect(const core_concepts::text_p<char> auto &host, const value &service, Token &&token)
+{
+	using resolver_t = asio::ip::basic_resolver<protocol_t>;
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		resolver_t resolver(get_executor());
+		auto results = resolver.resolve (
+			strtls::to_view(host), *service, token
+		);
+		if( token )
+			return ;
+
+		else if( results.empty() )
+		{
+			token = make_error_code(errc::not_found);
+			return ;
+		}
+		connect(results, token);
+	}
+	else if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		error_code error;
+		connect(host, service, error);
+		system_error::loc_throw(error,
+			"libgs::http_nt::socket_operation_helper::connect"
+		);
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<token_t> )
+	{
+		resolver_t resolver(get_executor());
+		error_code error;
+
+		auto results = resolver.async_resolve (
+			strtls::to_view(host), *service, token[error]
+		);
+		if( not error and results.empty() )
+			error = make_error_code(errc::not_found);
+
+		coro::check_error(remove_const(token),
+			error, "libgs::http_nt::socket_operation_helper::connect"
+		);
+		connect(results, token);
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
+	{
+		using namespace libgs::operators;
+		return asio::co_spawn(this->get_executor(), [
+			&socket = this->socket(), &host, &service, &token
+		]() mutable -> awaitable<void>
+		{
+			resolver_t resolver(get_executor());
+			error_code error;
+
+			auto results = resolver.async_resolve (
+				strtls::to_view(host), *service, use_awaitable | error
+			);
+			if( not error and results.empty() )
+				error = make_error_code(errc::not_found);
+
+			coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect"
+			);
+			co_await asio::async_connect (
+				socket, results, use_awaitable | error
+			);
+			coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect"
+			);
+			co_return ;
+		},
+		token);
+	}
+	else
+	{
+		auto resolver = std::make_shared<resolver_t>(get_executor());
+		resolver->async_resolve(strtls::to_view(host), *service,
+		[&socket = this->socket(), func = std::forward<Token>(token)]
+		(const error_code &error, const dns_results &results) mutable
+		{
+			if( error )
+			{
+				func(error);
+				return ;
+			}
+			asio::async_connect(socket, results, func);
+		});
+	}
+}
+
+template <core_concepts::exec Exec>
+template <core_concepts::opt_token<error_code> Token>
+auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+connect(const endpoint_t &ep, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
-		this->socket().connect(std::move(ep), token);
+		this->socket().connect(ep, token);
 
 	else if constexpr( is_sync_opt_token_v<token_t> )
 	{
@@ -321,7 +417,7 @@ connect(endpoint_t ep, Token &&token)
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(this->get_executor(), [
-			&socket = this->socket(), ep = std::move(ep), token
+			&socket = this->socket(), &ep, &token
 		]() mutable -> awaitable<void>
 		{
 			error_code error;
@@ -334,7 +430,66 @@ connect(endpoint_t ep, Token &&token)
 		token);
 	}
 	else
-		this->socket().async_connect(std::move(ep), std::forward<Token>(token));
+		this->socket().async_connect(ep, std::forward<Token>(token));
+}
+
+template <core_concepts::exec Exec>
+template <core_concepts::opt_token<error_code> Token>
+auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+connect(const dns_entry &ep, Token &&token)
+{
+	return connect(ep.endpoint(), std::forward<Token>(token));
+}
+
+template <core_concepts::exec Exec>
+template <core_concepts::opt_token<error_code> Token>
+auto socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+connect(const dns_results &eps, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_error_code_token_v<Token> )
+		asio::connect(this->socket(), eps, token);
+
+	else if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		error_code error;
+		connect(eps, error);
+		system_error::loc_throw(error,
+			"libgs::http_nt::socket_operation_helper::connect"
+		);
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<token_t> )
+	{
+		error_code error;
+		asio::async_connect(this->socket(), eps, token[error]);
+		coro::check_error(remove_const(token),
+			error, "libgs::http_nt::socket_operation_helper::connect"
+		);
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
+	{
+		using namespace libgs::operators;
+		return asio::co_spawn(this->get_executor(), [
+			&socket = this->socket(), &eps, &token
+		]() mutable -> awaitable<void>
+		{
+			error_code error;
+			co_await asio::async_connect(socket, eps, use_awaitable | error);
+			coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect"
+			);
+			co_return ;
+		},
+		token);
+	}
+	else
+	{
+		asio::async_connect(this->socket(),
+			eps, std::forward<Token>(token)
+		);
+	}
 }
 
 template <core_concepts::exec Exec>
@@ -461,7 +616,79 @@ bool socket_operation_helper<asio::basic_stream_socket<asio::ip::tcp,Exec>>::is_
 template <core_concepts::exec Exec>
 template <core_concepts::opt_token<error_code> Token>
 auto socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
-connect(endpoint_t ep, Token &&token)
+connect(const core_concepts::text_p<char> auto &host, const value &service, Token &&token)
+{
+	using next_layer_t = socket_t::next_layer_type;
+	using token_t = std::remove_cvref_t<Token>;
+
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		socket_operation_helper<next_layer_t>(this->socket().next_layer())
+			.connect(host, service, token);
+		if( not token )
+			this->socket().handshake(asio::ssl::stream_base::client, token);
+	}
+	else if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		error_code error;
+		connect(host, service, error);
+		system_error::loc_throw(error,
+			"libgs::http_nt::socket_operation_helper::connect"
+		);
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<token_t> )
+	{
+		error_code error;
+		socket_operation_helper<next_layer_t>(this->socket().next_layer())
+			.connect(host, service, token[error]);
+
+		if( error )
+			return ;
+		this->socket().async_handshake(asio::ssl::stream_base::client, token[error]);
+		coro::check_error(remove_const(token),
+			error, "libgs::http_nt::socket_operation_helper::connect"
+		);
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
+	{
+		using namespace libgs::operators;
+		return asio::co_spawn(this->get_executor(), [
+			&socket = this->socket(), &host, &service, &token
+		]() mutable -> awaitable<void>
+		{
+			error_code error;
+			co_await socket_operation_helper<next_layer_t>(socket.next_layer())
+				.connect(host, service, use_awaitable | error);
+
+			if( not coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect") )
+			{
+				co_await socket.async_handshake(asio::ssl::stream_base::client, use_awaitable | error);
+				coro::check_error(remove_const(token),
+					error, "libgs::http_nt::socket_operation_helper::connect"
+				);
+			}
+			co_return ;
+		},
+		token);
+	}
+	else
+	{
+		socket_operation_helper<next_layer_t>(this->socket().next_layer()).connect(host, service,
+		[&socket = this->socket(), token = std::forward<Token>(token)](const error_code &error)
+		{
+			if( not error )
+				socket.async_handshake(asio::ssl::stream_base::client, std::move(token));
+		});
+	}
+}
+
+template <core_concepts::exec Exec>
+template <core_concepts::opt_token<error_code> Token>
+auto socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+connect(const endpoint_t &ep, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
@@ -483,7 +710,7 @@ connect(endpoint_t ep, Token &&token)
 	{
 		error_code error;
 		this->socket().next_layer().async_connect(ep, token[error]);
-		if( coro::check_error(token, error, "libgs::http_nt::socket_operation_helper::connect") )
+		if( coro::check_error(remove_const(token), error, "libgs::http_nt::socket_operation_helper::connect") )
 		{
 			this->socket().async_handshake(asio::ssl::stream_base::client, token[error]);
 			coro::check_error(remove_const(token),
@@ -496,12 +723,13 @@ connect(endpoint_t ep, Token &&token)
 	{
 		using namespace libgs::operators;
 		return asio::co_spawn(this->get_executor(), [
-			&socket = this->socket(), ep = std::move(ep), token
+			&socket = this->socket(), &ep, &token
 		]() mutable -> awaitable<void>
 		{
 			error_code error;
 			co_await socket.next_layer().async_connect(ep, use_awaitable | error);
-			if( not coro::check_error(token, error, "libgs::http_nt::socket_operation_helper::connect") )
+			if( not coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect") )
 			{
 				co_await socket.async_handshake(asio::ssl::stream_base::client, use_awaitable | error);
 				coro::check_error(remove_const(token),
@@ -515,7 +743,82 @@ connect(endpoint_t ep, Token &&token)
 	else
 	{
 		this->socket().next_layer().async_connect(std::move(ep), [
-			&socket = this->socket(), ep = std::move(ep), token = std::forward<Token>(token)
+			&socket = this->socket(), token = std::forward<Token>(token)
+		](const error_code &error)
+		{
+			if( not error )
+				socket.async_handshake(asio::ssl::stream_base::client, std::move(token));
+		});
+	}
+}
+
+template <core_concepts::exec Exec>
+template <core_concepts::opt_token<error_code> Token>
+auto socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+connect(const dns_entry &ep, Token &&token)
+{
+	return connect(ep.endpoint(), std::forward<Token>(token));
+}
+
+template <core_concepts::exec Exec>
+template <core_concepts::opt_token<error_code> Token>
+auto socket_operation_helper<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+connect(const dns_results &eps, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		asio::connect(this->socket().next_layer(), eps, token);
+		if( not token )
+			this->socket().handshake(asio::ssl::stream_base::client, token);
+	}
+	else if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		error_code error;
+		connect(eps, error);
+		system_error::loc_throw(error,
+			"libgs::http_nt::socket_operation_helper::connect"
+		);
+	}
+#ifdef LIBGS_USING_BOOST_ASIO
+	else if constexpr( is_yield_context_v<token_t> )
+	{
+		error_code error;
+		asio::async_connect(this->socket().next_layer(), eps, token[error]);
+		if( coro::check_error(token, error, "libgs::http_nt::socket_operation_helper::connect") )
+		{
+			this->socket().async_handshake(asio::ssl::stream_base::client, token[error]);
+			coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect"
+			);
+		}
+	}
+#endif //LIBGS_USING_BOOST_ASIO
+	else if constexpr( core_concepts::dis_func_opt_token<token_t> )
+	{
+		using namespace libgs::operators;
+		return asio::co_spawn(this->get_executor(), [
+			&socket = this->socket(), &eps, &token
+		]() mutable -> awaitable<void>
+		{
+			error_code error;
+			co_await asio::async_connect(socket.next_layer(), eps, use_awaitable | error);
+			if( not coro::check_error(remove_const(token),
+				error, "libgs::http_nt::socket_operation_helper::connect") )
+			{
+				co_await socket.async_handshake(asio::ssl::stream_base::client, use_awaitable | error);
+				coro::check_error(remove_const(token),
+					error, "libgs::http_nt::socket_operation_helper::connect"
+				);
+			}
+			co_return ;
+		},
+		token);
+	}
+	else
+	{
+		asio::async_connect(this->socket().next_layer(), eps, [
+			&socket = this->socket(), token = std::forward<Token>(token)
 		](const error_code &error)
 		{
 			if( not error )

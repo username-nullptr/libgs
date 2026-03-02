@@ -135,6 +135,10 @@ public:
 public:
 	[[nodiscard]] const connection_t &connection() const noexcept;
 	[[nodiscard]] connection_t &connection() noexcept;
+
+	[[nodiscard]] const generator_t &generator() const noexcept;
+	[[nodiscard]] generator_t &generator() noexcept;
+
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:

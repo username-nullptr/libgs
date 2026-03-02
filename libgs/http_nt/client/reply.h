@@ -50,6 +50,7 @@ public:
 	using parser_t = client_parser;
 
 	explicit basic_reply(connection_ptr connection);
+	basic_reply(connection_ptr connection, parser_t &&parser);
 	~basic_reply() override;
 
 public:
@@ -98,6 +99,9 @@ public:
 
 	[[nodiscard]] const connection_t &connection() const noexcept;
 	[[nodiscard]] connection_t &connection() noexcept;
+
+	[[nodiscard]] const parser_t &parser() const noexcept;
+	[[nodiscard]] parser_t &parser() noexcept;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_reply &cancel() noexcept;

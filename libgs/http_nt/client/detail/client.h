@@ -56,9 +56,6 @@ class LIBGS_HTTP_NT_TAPI basic_client<ConnectionPool,Version>::impl
 	LIBGS_DISABLE_COPY(impl)
 	using socket_t = connection_t::socket_t;
 
-	template <method_enum Method>
-	using ctx_expected_t = sys_expected<context_ptr<Method>>;
-
 public:
 	impl() requires core_concepts::match_sched<io_executor_t,executor_t> :
 		m_pool(io_context()) {}
@@ -89,22 +86,25 @@ public:
 			if( not ctx_expected )
 				return ctx_expected;
 
-			if( (*ctx_expected)->connection().peek() )
+			if( ctx_expected->connection().peek() )
 				break;
 		}
-		if( not (*ctx_expected)->connection().peek() )
-			return sys_unexpected((*ctx_expected)->reply()->first_error());
-		{
-			auto expected = (*ctx_expected)->write();
-			if( not expected )
-				return sys_unexpected(expected.error());
+		if( not ctx_expected->connection().peek() )
+			return sys_unexpected(ctx_expected->reply()->first_error());
 
-			else if( not continue_100 )
-				return ctx_expected;
+		auto io_expected = ctx_expected->write();
+		if( not io_expected )
+			return sys_unexpected(io_expected.error());
+
+		else if( not continue_100 )
+			return ctx_expected;
+
+		else if( ctx_expected->reply()->status() != status::continue_upload )
+		{
+			auto status_expected = ctx_expected->wait_reply();
+			if( not status_expected )
+				ctx_expected.despair(status_expected.error());
 		}
-		auto expected = (*ctx_expected)->wait_reply();
-		if( not expected )
-			ctx_expected.despair(expected.error());
 		return ctx_expected;
 	}
 
@@ -115,8 +115,10 @@ public:
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 
-		auto task = libgs::dispatch(m_pool.get_executor(),
-		[&]() mutable -> awaitable<ctx_expected_t<Method>>
+		ctx_expected_t<Method> ctx_expected {
+			sys_unexpected(make_error_code(std::errc::connection_aborted))
+		};
+		auto task = libgs::dispatch(m_pool.get_executor(), [&]() mutable -> awaitable<void>
 		{
 			bool continue_100 = false;
 			if constexpr( version_v > version::v10 )
@@ -125,55 +127,59 @@ public:
 				continue_100 = it != info.arg.headers().end() and
 					strtls::to_lower(*it->second) == "100-continue";
 			}
-			ctx_expected_t<Method> ctx_expected {
-				sys_unexpected(make_error_code(std::errc::connection_aborted))
-			};
 			for(size_t i=0; i<10; i++)
 			{
 				ctx_expected = co_await co_make_context<Method>(
 					std::move(info), cancel_slot, 0ns
 				);
 				if( not ctx_expected )
-					co_return ctx_expected;
+					co_return ;
 
-				else if( (*ctx_expected)->connection().peek() )
+				else if( ctx_expected->connection().peek() )
 					break;
 			}
-			if( not (*ctx_expected)->connection().peek() )
-				co_return sys_unexpected((*ctx_expected)->reply()->first_error());
+			if( not ctx_expected->connection().peek() )
 			{
-				auto expected = (*ctx_expected)->write();
-				if( not expected )
-					co_return sys_unexpected(expected.error());
-
-				else if( not continue_100 )
-					co_return ctx_expected;
+				ctx_expected.despair (
+					ctx_expected->reply()->first_error()
+				);
+				co_return ;
 			}
-			auto expected = (*ctx_expected)->wait_reply();
-			if( not expected )
-				ctx_expected.despair(expected.error());
-			co_return ctx_expected;
+			auto io_expected = ctx_expected->write();
+			if( not io_expected )
+			{
+				ctx_expected.despair(io_expected.error());
+				co_return ;
+			}
+			else if( not continue_100 )
+				co_return ;
+
+			else if( ctx_expected->reply()->status() != status::continue_upload )
+			{
+				auto status_expected = co_await ctx_expected->wait_reply(use_awaitable | cancel_slot);
+				if( not status_expected )
+					ctx_expected.despair(status_expected.error());
+			}
+			co_return ;
 		},
 		use_awaitable);
 
-		ctx_expected_t<Method> expected {
-			sys_unexpected(make_error_code(std::errc::connection_aborted))
-		};
 		if( timeout == 0ns )
-			expected = co_await std::move(task);
+			co_await std::move(task);
 		else
 		{
 			auto var = co_await(std::move(task) or
 				coro::sleep_for(m_pool.get_executor(), timeout)
 			);
-			if( var.index() == 0 )
-				expected = std::move(std::get<0>(var));
-			else if( not std::get<1>(var) )
-				expected.despair(make_error_code(errc::timed_out));
-			else
-				expected.despair(std::get<1>(var));
+			if( var.index() == 1 )
+			{
+				if( not std::get<1>(var) )
+					ctx_expected.despair(make_error_code(errc::timed_out));
+				else
+					ctx_expected.despair(std::get<1>(var));
+			}
 		}
-		co_return expected;
+		co_return ctx_expected;
 	}
 
 	template <method_enum Method>
@@ -189,7 +195,7 @@ public:
 	}
 
 public:
-	[[nodiscard]] sys_expected<context_t<method::put>> upload_file
+	[[nodiscard]] ctx_expected_t<method::put> upload_file
 	(req_info info, auto &&opt, auto &&progress) noexcept
 	{
 		auto pair = info.arg.set_header(opt);
@@ -197,7 +203,7 @@ public:
 			return sys_unexpected(pair.error());
 
 		return request<method::put>(std::move(info))
-		.and_then([&](const auto &context) -> sys_expected<context_t<method::put>>
+		.and_then([&](const auto &context) -> ctx_expected_t<method::put>
 		{
 			if constexpr( version_v > version::v10 )
 			{
@@ -222,75 +228,75 @@ public:
 		});
 	}
 
-	[[nodiscard]] awaitable<sys_expected<context_t<method::put>>> co_upload_file(
+	[[nodiscard]] awaitable<ctx_expected_t<method::put>> co_upload_file(
 		req_info info, auto &&opt, auto &&progress, asio::cancellation_slot cancel_slot,
 		std::chrono::nanoseconds timeout) noexcept
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 
+		ctx_expected_t<method::put> ctx_expected {
+			sys_unexpected(make_error_code(std::errc::connection_aborted))
+		};
 		auto pair = info.arg.set_header(opt);
 		if( not pair )
 			co_return sys_unexpected(pair.error());
 
-		auto task = libgs::dispatch(m_pool.get_executor(),
-		[&]() mutable -> awaitable<sys_expected<context_t<method::put>>>
+		auto task = libgs::dispatch(m_pool.get_executor(), [&]() mutable -> awaitable<void>
 		{
-			context_t<method::put> context;
-			{
-				auto expected = co_await co_request<method::put>(
-					std::move(info), cancel_slot, 0ns
-				);
-				if( not expected )
-					co_return expected;
-				context = std::move(*expected);
-			}
+			ctx_expected = co_await co_request<method::put>(
+				std::move(info), cancel_slot, 0ns
+			);
+			if( not ctx_expected )
+				co_return ;
+
 			if constexpr( version_v > version::v10 )
 			{
-				if( context->responded() and
-					context->reply()->status() != status::continue_upload )
-					co_return context;
+				if( ctx_expected->responded() and
+					ctx_expected->reply()->status() != status::continue_upload )
+					co_return ;
 			}
 			else
 			{
-				if( context->responded() )
-					co_return context;
+				if( ctx_expected->responded() )
+					co_return ;
 			}
+			auto io_expected = co_await ctx_expected->request().upload_file (
+				std::move(pair->first), std::move(pair->second),
+				std::forward<decltype(progress)>(progress),
+				use_awaitable | cancel_slot
+			);
+			if( not io_expected )
 			{
-				auto expected = co_await context->request().upload_file (
-					std::move(pair->first), std::move(pair->second),
-					std::forward<decltype(progress)>(progress),
-					use_awaitable | cancel_slot
-				);
-				if( not expected )
-					co_return sys_unexpected(expected.error());
+				ctx_expected.despair(io_expected.error());
+				co_return ;
 			}
-			auto expected = co_await context->wait_reply(use_awaitable | cancel_slot);
-			if( not expected )
-				co_return sys_unexpected(expected.error());
-			co_return context;
+			auto status_expected = co_await ctx_expected->wait_reply(use_awaitable | cancel_slot);
+			if( not status_expected )
+				ctx_expected.despair(status_expected.error());
+			co_return ;
 		},
 		use_awaitable);
 
-		sys_expected<context_t<method::put>> expected;
 		if( timeout == 0ns )
-			expected = co_await std::move(task);
+			co_await std::move(task);
 		else
 		{
 			auto var = co_await(std::move(task) or
 				coro::sleep_for(m_pool.get_executor(), timeout)
 			);
-			if( var.index() == 0 )
-				expected = std::get<0>(var);
-			else if( not std::get<1>(var) )
-				expected.despair(make_error_code(errc::timed_out));
-			else
-				expected.despair(std::get<1>(var));
+			if( var.index() == 1 )
+			{
+				if( not std::get<1>(var) )
+					ctx_expected.despair(make_error_code(errc::timed_out));
+				else
+					ctx_expected.despair(std::get<1>(var));
+			}
 		}
-		co_return expected;
+		co_return ctx_expected;
 	}
 
-	[[nodiscard]] awaitable<sys_expected<context_t<method::put>>> co_upload_file(
+	[[nodiscard]] awaitable<ctx_expected_t<method::put>> co_upload_file(
 		std::error_code &error, req_info info, auto &&opt, auto &&progress,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
@@ -313,37 +319,12 @@ public:
 				make_error_code(std::errc::protocol_error)
 			);
 		}
-		using protocol_t = connection_t::opt_helper_t::protocol_t;
-		using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
-
-		endpoint_t ep;
-		std::error_code error;
-
-		auto addr = asio::ip::make_address(info.url.address().data(), error);
-		if( not error )
-			ep = {addr, info.url.port()};
-		else
-		{
-			using resolver_t = asio::ip::basic_resolver<protocol_t>;
-			resolver_t resolver(m_pool.get_executor());
-
-			auto results = resolver.resolve(info.url.address(), "", error);
-			if( error )
-				return sys_unexpected(error);
-
-			else if( results.empty() )
-			{
-				return sys_unexpected (
-					make_error_code(std::errc::host_unreachable)
-				);
-			}
-			ep = {results.begin()->endpoint().address(), info.url.port()};
-		}
-		auto expected = m_pool.get(ep);
+		auto expected = m_pool.get(info.url.address(), info.url.protocol());
 		if( not expected )
 			return sys_unexpected(expected.error());
 
-		return std::make_shared<context_t<Method>>(
+		// return std::make_shared<context_t<Method>>(
+		return context_t<Method>(
 			std::move(*expected), std::move(info.url), std::move(info.arg)
 		);
 	}
@@ -358,101 +339,17 @@ public:
 				make_error_code(std::errc::protocol_error)
 			);
 		}
-		using protocol_t = connection_t::opt_helper_t::protocol_t;
-		using endpoint_t = asio::ip::basic_endpoint<protocol_t>;
-
 		using namespace libgs::operators;
-		auto task = libgs::dispatch(m_pool.get_executor(),
-		[&]() mutable -> awaitable<ctx_expected_t<Method>>
-		{
-			std::error_code error;
-			auto make_task = [&](const endpoint_t &ep)
-			{
-				return libgs::dispatch(m_pool.get_executor(),
-				[&, ep]() -> awaitable<std::shared_ptr<connection_t>>
-				{
-					auto expected = co_await m_pool.get(ep, use_awaitable | cancel_slot);
-					if( expected )
-						co_return std::make_shared<connection_t>(std::move(*expected));
+		auto expected = co_await m_pool.get (
+			info.url.address(), info.url.protocol(), use_awaitable | cancel_slot | timeout
+		);
+		if( not expected )
+			co_return sys_unexpected(expected.error());
 
-					else if( expected.error() == errc::operation_aborted )
-						error = expected.error();
-
-					system_error::loc_throw(error);
-					co_return nullptr;
-				},
-				deferred);
-			};
-			using task_t = decltype(make_task({}));
-			std::vector<task_t> tasks {};
-
-			auto addr = asio::ip::make_address(info.url.address().data(), error);
-			if( not error )
-			{
-				tasks.emplace_back (
-					make_task({addr, info.url.port()})
-				);
-			}
-			else
-			{
-				using resolver_t = asio::ip::basic_resolver<protocol_t>;
-				resolver_t resolver(m_pool.get_executor());
-
-				auto results = co_await resolver.async_resolve (
-					info.url.address(), "", use_awaitable | cancel_slot | error
-				);
-				if( error )
-					co_return sys_unexpected(error);
-
-				else if( results.empty() )
-				{
-					co_return sys_unexpected (
-						make_error_code(std::errc::host_unreachable)
-					);
-				}
-				for(auto &res : results)
-				{
-					tasks.emplace_back (
-						make_task({res.endpoint().address(), info.url.port()})
-					);
-				}
-			}
-			error = make_error_code(errc::connection_refused);
-			auto [order, exs, values] = co_await asio::experimental::make_parallel_group(std::move(tasks))
-				.async_wait(asio::experimental::wait_for_one_success(), deferred);
-
-			for(size_t i=0; i<exs.size(); i++)
-			{
-				if( exs[i] )
-					continue;
-
-				co_return std::make_shared<context_t<Method>>(
-					std::move(*values[i]), std::move(info.url), std::move(info.arg)
-				);
-			}
-			co_return sys_unexpected(error);
-		},
-		use_awaitable);
-
-		using namespace std::chrono_literals;
-		ctx_expected_t<Method> expected {
-			sys_unexpected(make_error_code(std::errc::connection_refused))
-		};
-		if( timeout == 0ns )
-			expected = co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_pool.get_executor(), timeout)
-			);
-			if( var.index() == 0 )
-				expected = std::move(std::get<0>(var));
-			else if( not std::get<1>(var) )
-				expected.despair(make_error_code(errc::timed_out));
-			else
-				expected.despair(std::get<1>(var));
-		}
-		co_return expected;
+		// co_return std::make_shared<context_t<Method>>(
+		co_return context_t<Method>(
+			std::move(*expected), std::move(info.url), std::move(info.arg)
+		);
 	}
 
 	template <method_enum Method>

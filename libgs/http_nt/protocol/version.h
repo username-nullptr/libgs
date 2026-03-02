@@ -35,10 +35,11 @@ namespace libgs::http_nt
 {
 
 #define LIBGS_HTTP_NT_VERSION_TABLE \
-X_MACRO( v10 , 0x0100 , "1.0" ) \
-X_MACRO( v11 , 0x0101 , "1.1" )
-// X_MACRO( v12 , 0x0102 , "1.2" )
-// X_MACRO( v20 , 0x0200 , "2.0" )
+X_MACRO( none , 0x0000 , "0.0" ) \
+X_MACRO( v10  , 0x0100 , "1.0" ) \
+X_MACRO( v11  , 0x0101 , "1.1" )
+// X_MACRO( v12  , 0x0102 , "1.2" )
+// X_MACRO( v20  , 0x0200 , "2.0" )
 
 #define X_MACRO(e,v,d) e = (v),
 LIBGS_HTTP_NT_DEFINE_ENUM(uint16_t, version, LIBGS_HTTP_NT_VERSION_TABLE, string,

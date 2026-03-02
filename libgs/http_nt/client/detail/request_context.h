@@ -46,15 +46,15 @@ public:
 		m_reply(new reply_t(m_connection)) {}
 
 	impl(impl &&other) noexcept :
-		m_generator(std::move(other.m_generator)),
 		m_connection(new connection_t(std::move(*other.m_connection))),
-		m_reply(new reply_t(m_connection)) {}
+		m_generator(std::move(other.m_generator)),
+		m_reply(new reply_t(m_connection, std::move(other.m_reply->parser()))) {}
 
 	impl &operator=(impl &&other) noexcept
 	{
 		m_generator = std::move(other.m_generator);
 		m_connection = std::make_shared<connection_t>(std::move(*other.m_connection));
-		m_reply = std::make_shared<reply_t>(m_connection);
+		m_reply = std::make_shared<reply_t>(m_connection, std::move(other.m_reply->parser()));
 		return *this;
 	}
 
@@ -1211,6 +1211,20 @@ basic_request_context<Method,Connection,Version>::connection_t&
 basic_request_context<Method,Connection,Version>::connection() noexcept
 {
 	return *m_impl->m_connection;
+}
+
+template <method_enum Method, concepts::connection Connection, version_enum Version>
+const basic_request_context<Method,Connection,Version>::generator_t&
+basic_request_context<Method,Connection,Version>::generator() const noexcept
+{
+	return *m_impl->m_generator;
+}
+
+template <method_enum Method, concepts::connection Connection, version_enum Version>
+basic_request_context<Method,Connection,Version>::generator_t&
+basic_request_context<Method,Connection,Version>::generator() noexcept
+{
+	return *m_impl->m_generator;
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>

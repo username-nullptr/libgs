@@ -288,11 +288,12 @@ public:
 	void reset()
 	{
 		m_state = state::waiting_request;
-		m_version = static_cast<version_enum>(0);
+		m_version = version::none;
 		m_src_buf.clear();
 		m_headers.clear();
 		m_partial_body.clear();
 		m_content_length_counter = 0;
+		m_content_length = 0;
 	}
 
 public:

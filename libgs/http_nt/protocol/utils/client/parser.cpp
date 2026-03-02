@@ -131,7 +131,7 @@ public:
 	base_parser m_parser;
 	status_enum m_status = status::none;
 
-	std::string m_description = status::description<status::ok>();
+	std::string m_description = status::description<status::none>();
 	cookies_t m_cookies {};
 
 	bool m_keep_alive = false;
@@ -242,8 +242,8 @@ parser<protocol_model::client>::stage_t parser<protocol_model::client>::stage() 
 parser<protocol_model::client> &parser<protocol_model::client>::reset()
 {
 	m_impl->m_parser.reset();
-	m_impl->m_status = status::ok;
-	m_impl->m_description = status::description<status::ok>();
+	m_impl->m_status = status::none;
+	m_impl->m_description = status::description<status::none>();
 	m_impl->m_cookies.clear();
 	m_impl->m_keep_alive = false;
 	m_impl->m_support_gzip = false;
