@@ -294,9 +294,22 @@ work_canceller_t post(const duration<Rep,Period> &rtime, Work &&work)
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
 work_canceller_t post(concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work)
 {
-	return post(std::forward<decltype(exec)>(exec),
-		atime - std::chrono::system_clock::now(), std::forward<Work>(work)
+	auto timer = std::make_shared<asio::steady_timer>(
+		std::forward<decltype(exec)>(exec), atime
 	);
+	work_canceller_t cancel = [timer]() mutable {
+		timer->cancel();
+	};
+	timer->async_wait([timer,
+		exec = get_executor_helper(exec),
+		work = std::forward<Work>(work)
+	](const error_code &error) mutable
+	{
+		LIBGS_UNUSED(timer);
+		if( error != errc::operation_aborted )
+			dispatch(std::move(exec), std::move(work));
+	});
+	return cancel;
 }
 
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
