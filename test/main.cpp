@@ -21,6 +21,8 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
+	libgs_utils_log_warning(">>>>>>>>>>>>>>>> {}", 123);
+
 	libgs::http_nt::client client;
 	libgs::http_nt::request_arg arg;
 

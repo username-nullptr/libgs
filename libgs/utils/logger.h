@@ -35,28 +35,13 @@
 namespace libgs::utils
 {
 
-#ifdef _WIN32
-# define LIBSEPP_LOG_FILE(_file) ( \
-	strrchr(_file, '\\') ? \
-		strrchr(_file, '\\') + 1 : \
-		strrchr(_file, '/') ? \
-			strrchr(_file, '/') + 1 : \
-			_file \
-)
-#else
-# define LIBSEPP_LOG_FILE(_file) ( \
-	strrchr(_file, '/') ? \
-		strrchr(_file, '/') + 1 : _file \
-)
-#endif
-
-#define libgs_utils_clog(Level, name, ...)    libgs::utils::logger::instance(name).write<Level>(libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
-#define libgs_utils_clog_trace(name, ...)     libgs::utils::logger::instance(name).trace       (libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
-#define libgs_utils_clog_debug(name, ...)     libgs::utils::logger::instance(name).debug       (libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
-#define libgs_utils_clog_info(name, ...)      libgs::utils::logger::instance(name).info        (libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
-#define libgs_utils_clog_warning(name, ...)   libgs::utils::logger::instance(name).warning     (libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
-#define libgs_utils_clog_error(name, ...)     libgs::utils::logger::instance(name).error       (libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
-#define libgs_utils_clog_critical(name, ...)  libgs::utils::logger::instance(name).critical    (libgs::utils::logger::source_loc(LIBSEPP_LOG_FILE(std::source_location::current().file_name()), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog(Level, name, ...)    libgs::utils::logger::instance(name).write<Level>(libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog_trace(name, ...)     libgs::utils::logger::instance(name).trace       (libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog_debug(name, ...)     libgs::utils::logger::instance(name).debug       (libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog_info(name, ...)      libgs::utils::logger::instance(name).info        (libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog_warning(name, ...)   libgs::utils::logger::instance(name).warning     (libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog_error(name, ...)     libgs::utils::logger::instance(name).error       (libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
+#define libgs_utils_clog_critical(name, ...)  libgs::utils::logger::instance(name).critical    (libgs::utils::logger::source_loc(std::source_location::current().file_name(), std::source_location::current().function_name(), std::source_location::current().line()), __VA_ARGS__)
 
 #define libgs_utils_log(Level, ...)    libgs_utils_clog         (Level, "default", __VA_ARGS__)
 #define libgs_utils_log_trace(...)     libgs_utils_clog_trace   (       "default", __VA_ARGS__)
@@ -80,9 +65,13 @@ public:
 	enum class level_t {
 		off, critical, error, warning, info, debug, trace
 	};
- 	struct config_t
+	enum class time_mode_t {
+		utc, local, utc_tz, local_tz
+	};
+	struct config_t
 	{
 		std::filesystem::path path {};
+		time_mode_t time_mode = time_mode_t::local;
  		bool line_break = false;
 
  		struct {

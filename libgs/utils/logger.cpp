@@ -44,9 +44,20 @@
 #include <libgs/core/shared_mutex.h>
 #include <libgs/core/system/app_utls.h>
 #include <iostream>
+#include <time.h>
 
 namespace libgs::utils
 {
+
+using self_level_t = logger::level_t;
+using time_mode_t = logger::time_mode_t;
+using spd_level_t = spdlog::level::level_enum;
+
+static constexpr auto
+	g_daily_log    = ".daily_log"   ,
+	g_warning_log  = ".warning_log" ,
+	g_error_log    = ".error_log"   ,
+	g_critical_log = ".critical_log";
 
 class LIBGS_DECL_HIDDEN logger::impl
 {
@@ -54,8 +65,140 @@ class LIBGS_DECL_HIDDEN logger::impl
 
 public:
 	explicit impl(std::string name) :
-		m_name(std::move(name)) {}
+		m_name(std::move(name)) {
+		set_config(config_t());
+	}
 
+	void set_config(config_t conf) noexcept
+	{
+		set_logger(spdlog::default_logger(),
+			spd_level_t::info, spd_level_t::warn, conf.time_mode,
+			"Default logger is null"
+		);
+		if( conf.path.empty() )
+			return ;
+		auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
+
+		auto file_name = path + PCHAR("daily/daily.log");
+		auto logger = spdlog::daily_logger_mt<spdlog::async_factory>(m_name + g_daily_log, file_name);
+		set_logger(logger,
+			conf_level(conf.level.daily), spd_level_t::warn, conf.time_mode,
+			"Daily logger create failed"
+		);
+		file_name = path + PCHAR("warning.log");
+		logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
+			m_name + g_warning_log, file_name, conf.max_file_size.warning, conf.max_file_count.warning
+		);
+		set_logger(logger,
+			spd_level_t::warn, spd_level_t::warn, conf.time_mode,
+			"Warning logger create failed"
+		);
+		file_name = path + PCHAR("error.log");
+		logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
+			m_name + g_error_log, file_name, conf.max_file_size.error, conf.max_file_count.error
+		);
+		set_logger(logger,
+			spd_level_t::err, spd_level_t::err, conf.time_mode,
+			"Error logger create failed"
+		);
+		file_name = path + PCHAR("critical.log");
+		logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
+			m_name + g_critical_log, file_name, conf.max_file_size.critical, conf.max_file_count.critical
+		);
+		set_logger(logger,
+			spd_level_t::critical, spd_level_t::critical, conf.time_mode,
+			"Critical logger create failed"
+		);
+		m_config = std::move(conf);
+	}
+
+	[[nodiscard]] static spd_level_t conf_level(self_level_t lv) noexcept
+	{
+		switch(lv)
+		{
+			case self_level_t::off     : return spd_level_t::off     ;
+			case self_level_t::critical: return spd_level_t::critical;
+			case self_level_t::error   : return spd_level_t::err     ;
+			case self_level_t::warning : return spd_level_t::warn    ;
+			case self_level_t::info    : return spd_level_t::info    ;
+			case self_level_t::debug   : return spd_level_t::debug   ;
+			case self_level_t::trace   : return spd_level_t::trace   ;
+			default: break;
+		}
+		return spd_level_t::off;
+	}
+
+private:
+	class LIBGS_DECL_HIDDEN dynamic_timezone_flag : public spdlog::custom_flag_formatter
+	{
+	public:
+		void format(const spdlog::details::log_msg&, const std::tm&, spdlog::memory_buf_t &dest) override
+		{
+			auto local_time = time(nullptr);
+			tm tm_gmt {};
+#ifdef _WIN32
+			gmtime_s(&tm_gmt, &local_time);
+#else
+			gmtime_r(&local_time, &tm_gmt);
+#endif
+			auto gmt_time = mktime(&tm_gmt);
+			auto offset_seconds = local_time - gmt_time;
+			auto minutes = std::abs(offset_seconds) / 60;
+
+			auto text = std::format("{}{:02d}:{:02d}",
+				offset_seconds >= 0 ? "+" : "-",
+				minutes / 60, minutes - minutes / 60 * 60
+			);
+			dest.append(text.begin(), text.end());
+		}
+
+		[[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
+			return spdlog::details::make_unique<dynamic_timezone_flag>();
+		}
+	};
+
+	static void set_logger(const std::shared_ptr<spdlog::logger> &logger,
+		spd_level_t level, spd_level_t flush_level, time_mode_t time_mode, const char *errmsg) noexcept
+	{
+		if( not logger )
+			std::cerr << "libsepp: Log: " << errmsg << "." << std::endl;
+
+		logger->set_level(level);
+		logger->flush_on(flush_level);
+
+		std::unique_ptr<spdlog::pattern_formatter> formatter {};
+		if( time_mode == time_mode_t::utc )
+		{
+			formatter = std::make_unique<spdlog::pattern_formatter>(
+				"[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e]-[%s:%#] %v", spdlog::pattern_time_type::utc
+			);
+		}
+		else if( time_mode == time_mode_t::local )
+		{
+			formatter = std::make_unique<spdlog::pattern_formatter>(
+				"[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e]-[%s:%#] %v", spdlog::pattern_time_type::local
+			);
+		}
+		else if( time_mode == time_mode_t::utc_tz )
+		{
+			formatter = std::make_unique<spdlog::pattern_formatter>(
+				spdlog::pattern_time_type::utc
+			);
+			formatter->add_flag<dynamic_timezone_flag>('*');
+			formatter->set_pattern("[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e (%*)]-[%s:%#] %v");
+		}
+		else /* if( time_mode == time_mode_t::local_tz ) */
+		{
+			formatter = std::make_unique<spdlog::pattern_formatter>(
+				spdlog::pattern_time_type::local
+			);
+			formatter->add_flag<dynamic_timezone_flag>('*');
+			formatter->set_pattern("[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e (UTC%*)]-[%s:%#] %v");
+		}
+		logger->set_formatter(std::move(formatter));
+	}
+
+public:
 	std::string m_name;
 	config_t m_config;
 };
@@ -97,17 +240,19 @@ std::vector<std::string> logger::names() noexcept
 logger &logger::instance(std::string_view name, bool create)
 {
 	std::string _name(name.data(), name.size());
-	spin_shared_unique_lock locker(g_instances_lock);
-
-	if( auto [it, inserted] = g_instances.emplace(_name, nullptr); not inserted )
-		return *it->second;
-
-	else if( create )
+	if( create )
 	{
-		auto obj = new logger(std::move(_name));
-		it->second = logger_ptr(obj, no_deleter());
+		auto obj = logger_ptr(new logger(std::move(_name)), no_deleter());
+		spin_shared_unique_lock locker(g_instances_lock);
+
+		auto [it, inserted] = g_instances.emplace(_name, std::move(obj));
 		return *it->second;
 	}
+	spin_shared_unique_lock locker(g_instances_lock);
+	auto it = g_instances.find(_name);
+
+	if( it != g_instances.end() )
+		return *it->second;
 	locker.unlock();
 
 	throw runtime_error (
@@ -121,79 +266,9 @@ logger &logger::instance()
 	return instance("default");
 }
 
-using self_level = logger::level_t;
-using spd_level = spdlog::level::level_enum;
-
-spd_level conflevel(self_level lv)
-{
-	switch(lv)
-	{
-	case self_level::off     : return spd_level::off     ;
-	case self_level::critical: return spd_level::critical;
-	case self_level::error   : return spd_level::err     ;
-	case self_level::warning : return spd_level::warn    ;
-	case self_level::info    : return spd_level::info    ;
-	case self_level::debug   : return spd_level::debug   ;
-	case self_level::trace   : return spd_level::trace   ;
-	default: break;
-	}
-	return spd_level::off;
-}
-
-static void set_logger
-(const std::shared_ptr<spdlog::logger> &logger, spd_level level, spd_level flush_level, const char *errmsg)
-{
-	if( not logger )
-        std::cerr << "libsepp: Log: " << errmsg << "." << std::endl;
-
-	logger->set_level(level);
-	logger->flush_on(flush_level);
-}
-
-static constexpr auto
-	g_daily_log    = ".daily_log"   ,
-	g_warning_log  = ".warning_log" ,
-	g_error_log    = ".error_log"   ,
-	g_critical_log = ".critical_log";
-
 logger &logger::set_config(config_t conf)
 {
-    set_logger(spdlog::default_logger(),
-    	spd_level::info, spd_level::warn, "Default logger is null"
-    );
-	if( conf.path.empty() )
-		return *this;
-
-	auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
-	std::string suffix(name());
-
-    auto file_name = path + PCHAR("daily/daily.log");
-    auto logger = spdlog::daily_logger_mt<spdlog::async_factory>(suffix + g_daily_log, file_name);
-    set_logger(logger,
-    	conflevel(conf.level.daily), spd_level::warn, "Daily logger create failed"
-    );
-    file_name = path + PCHAR("warning.log");
-    logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
-    	suffix + g_warning_log, file_name, conf.max_file_size.warning, conf.max_file_count.warning
-    );
-    set_logger(logger,
-    	spd_level::warn, spd_level::warn, "Warning logger create failed"
-    );
-    file_name = path + PCHAR("error.log");
-    logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
-    	suffix + g_error_log, file_name, conf.max_file_size.error, conf.max_file_count.error
-    );
-    set_logger(logger,
-    	spd_level::err, spd_level::err, "Error logger create failed"
-    );
-    file_name = path + PCHAR("critical.log");
-    logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
-    	suffix + g_critical_log, file_name, conf.max_file_size.critical, conf.max_file_count.critical
-    );
-    set_logger(logger,
-    	spd_level::critical, spd_level::critical, "Critical logger create failed"
-    );
-	m_impl->m_config = std::move(conf);
+	m_impl->set_config(std::move(conf));
 	return *this;
 }
 
@@ -227,9 +302,9 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 		if( not logger )
 			continue;
 
-		logger->log(src_loc, conflevel(lv), m_impl->m_config.line_break ?
-			std::format("[{}]: \n{}\n", name(), strtls::trimmed(msg)) :
-			std::format("[{}]: {}", name(), strtls::trimmed(msg))
+		logger->log(src_loc, impl::conf_level(lv), m_impl->m_config.line_break ?
+			std::format("<{}>: \n{}\n", name(), strtls::trimmed(msg)) :
+			std::format("<{}>: {}", name(), strtls::trimmed(msg))
 		);
 		logger->flush();
 	}
