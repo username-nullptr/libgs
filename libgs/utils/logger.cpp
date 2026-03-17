@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -62,53 +62,78 @@ static constexpr auto
 class LIBGS_DECL_HIDDEN logger::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+	using logger_ptr = std::shared_ptr<spdlog::logger>;
+	using sink_ptr = spdlog::sink_ptr;
 
 public:
 	explicit impl(std::string name) :
-		m_name(std::move(name)) {
-		set_config(config_t());
+		m_name(std::move(name))
+	{
+		m_loggers[0] = spdlog::default_logger()->clone(m_name);
+		set_config({});
 	}
 
+public:
 	void set_config(config_t conf) noexcept
 	{
-		set_logger(spdlog::default_logger(),
-			spd_level_t::info, spd_level_t::warn, conf.time_mode,
-			"Default logger is null"
+		set_logger(m_loggers[0],
+			spd_level_t::info, spd_level_t::warn, conf.time_mode
 		);
-		if( conf.path.empty() )
-			return ;
-		auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
+		if( m_config.path != conf.path )
+		{
+			for(size_t i=1; i<5; i++)
+			{
+				if( not m_loggers[i] )
+					continue;
 
-		auto file_name = path + PCHAR("daily/daily.log");
-		auto logger = spdlog::daily_logger_mt<spdlog::async_factory>(m_name + g_daily_log, file_name);
-		set_logger(logger,
-			conf_level(conf.level.daily), spd_level_t::warn, conf.time_mode,
-			"Daily logger create failed"
-		);
-		file_name = path + PCHAR("warning.log");
-		logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
-			m_name + g_warning_log, file_name, conf.max_file_size.warning, conf.max_file_count.warning
-		);
-		set_logger(logger,
-			spd_level_t::warn, spd_level_t::warn, conf.time_mode,
-			"Warning logger create failed"
-		);
-		file_name = path + PCHAR("error.log");
-		logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
-			m_name + g_error_log, file_name, conf.max_file_size.error, conf.max_file_count.error
-		);
-		set_logger(logger,
-			spd_level_t::err, spd_level_t::err, conf.time_mode,
-			"Error logger create failed"
-		);
-		file_name = path + PCHAR("critical.log");
-		logger = spdlog::rotating_logger_mt<spdlog::async_factory>(
-			m_name + g_critical_log, file_name, conf.max_file_size.critical, conf.max_file_count.critical
-		);
-		set_logger(logger,
-			spd_level_t::critical, spd_level_t::critical, conf.time_mode,
-			"Critical logger create failed"
-		);
+				spdlog::drop(m_loggers[i]->name());
+				m_loggers[i] = {};
+			}
+			if( not conf.path.empty() )
+			{
+				auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
+
+				m_loggers[1] = spdlog::daily_logger_mt<spdlog::async_factory>(
+					m_name + g_daily_log, path + PCHAR("daily/daily.log")
+				);
+				m_loggers[2] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+					m_name + g_warning_log, path + PCHAR("warning.log"),
+					conf.max_file_size.warning, conf.max_file_count.warning
+				);
+				m_loggers[3] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+					m_name + g_error_log, path + PCHAR("error.log"),
+					conf.max_file_size.error, conf.max_file_count.error
+				);
+				m_loggers[4] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+					m_name + g_critical_log, path + PCHAR("critical.log"),
+					conf.max_file_size.critical, conf.max_file_count.critical
+				);
+			}
+		}
+		if( m_loggers[1] )
+		{
+			set_logger(m_loggers[1],
+				conf_level(conf.level.daily), spd_level_t::warn, conf.time_mode
+			);
+		}
+		if( m_loggers[2] )
+		{
+			set_logger(m_loggers[2],
+				spd_level_t::warn, spd_level_t::warn, conf.time_mode
+			);
+		}
+		if( m_loggers[3] )
+		{
+			set_logger(m_loggers[3],
+				spd_level_t::err, spd_level_t::err, conf.time_mode
+			);
+		}
+		if( m_loggers[4] )
+		{
+			set_logger(m_loggers[4],
+				spd_level_t::critical, spd_level_t::critical, conf.time_mode
+			);
+		}
 		m_config = std::move(conf);
 	}
 
@@ -129,7 +154,7 @@ public:
 	}
 
 private:
-	class LIBGS_DECL_HIDDEN dynamic_timezone_flag : public spdlog::custom_flag_formatter
+	class LIBGS_DECL_HIDDEN dy_tz_flag_formatter : public spdlog::custom_flag_formatter
 	{
 	public:
 		void format(const spdlog::details::log_msg&, const std::tm&, spdlog::memory_buf_t &dest) override
@@ -153,54 +178,69 @@ private:
 		}
 
 		[[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
-			return spdlog::details::make_unique<dynamic_timezone_flag>();
+			return spdlog::details::make_unique<dy_tz_flag_formatter>();
 		}
 	};
 
-	static void set_logger(const std::shared_ptr<spdlog::logger> &logger,
-		spd_level_t level, spd_level_t flush_level, time_mode_t time_mode, const char *errmsg) noexcept
+	class LIBGS_DECL_HIDDEN logger_name_flag_formatter : public spdlog::custom_flag_formatter
 	{
-		if( not logger )
-			std::cerr << "libsepp: Log: " << errmsg << "." << std::endl;
+	public:
+		explicit logger_name_flag_formatter(std::string name) :
+			m_name(std::move(name)) {}
 
+		void format(const spdlog::details::log_msg&, const std::tm&, spdlog::memory_buf_t &dest) override {
+			dest.append(m_name.begin(), m_name.end());
+		}
+		[[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
+			return spdlog::details::make_unique<logger_name_flag_formatter>(m_name);
+		}
+
+	private:
+		std::string m_name {};
+	};
+
+	void set_logger(const std::shared_ptr<spdlog::logger> &logger,
+		spd_level_t level, spd_level_t flush_level, time_mode_t time_mode) noexcept
+	{
 		logger->set_level(level);
 		logger->flush_on(flush_level);
 
 		std::unique_ptr<spdlog::pattern_formatter> formatter {};
 		if( time_mode == time_mode_t::utc )
 		{
-			formatter = std::make_unique<spdlog::pattern_formatter>(
-				"[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e]-[%s:%#] %v", spdlog::pattern_time_type::utc
-			);
+			formatter = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::utc);
+			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->set_pattern("[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e]-[%+][%s:%#] %v");
 		}
 		else if( time_mode == time_mode_t::local )
 		{
-			formatter = std::make_unique<spdlog::pattern_formatter>(
-				"[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e]-[%s:%#] %v", spdlog::pattern_time_type::local
-			);
+			formatter = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::local);
+			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->set_pattern("[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e]-[%+][%s:%#] %v");
 		}
 		else if( time_mode == time_mode_t::utc_tz )
 		{
 			formatter = std::make_unique<spdlog::pattern_formatter>(
 				spdlog::pattern_time_type::utc
 			);
-			formatter->add_flag<dynamic_timezone_flag>('*');
-			formatter->set_pattern("[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e (%*)]-[%s:%#] %v");
+			formatter->add_flag<dy_tz_flag_formatter>('*');
+			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->set_pattern("[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e %*]-[%+][%s:%#] %v");
 		}
 		else /* if( time_mode == time_mode_t::local_tz ) */
 		{
-			formatter = std::make_unique<spdlog::pattern_formatter>(
-				spdlog::pattern_time_type::local
-			);
-			formatter->add_flag<dynamic_timezone_flag>('*');
-			formatter->set_pattern("[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e (UTC%*)]-[%s:%#] %v");
+			formatter = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::local);
+			formatter->add_flag<dy_tz_flag_formatter>('*');
+			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->set_pattern("[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e UTC%*]-[%+][%s:%#] %v");
 		}
 		logger->set_formatter(std::move(formatter));
 	}
 
 public:
-	std::string m_name;
-	config_t m_config;
+	logger_ptr m_loggers[5] {};
+	std::string m_name {};
+	config_t m_config {};
 };
 
 logger::source_loc::source_loc(const char *file, const char *func, int line) :
@@ -242,10 +282,16 @@ logger &logger::instance(std::string_view name, bool create)
 	std::string _name(name.data(), name.size());
 	if( create )
 	{
-		auto obj = logger_ptr(new logger(std::move(_name)), no_deleter());
 		spin_shared_unique_lock locker(g_instances_lock);
+		auto [it, inserted] = g_instances.emplace(_name, nullptr);
+		if( inserted )
+		{
+			locker.unlock();
+			auto obj = logger_ptr(new logger(std::move(_name)), no_deleter());
 
-		auto [it, inserted] = g_instances.emplace(_name, std::move(obj));
+			locker.lock();
+			it->second = std::move(obj);
+		}
 		return *it->second;
 	}
 	spin_shared_unique_lock locker(g_instances_lock);
@@ -284,27 +330,15 @@ std::string_view logger::name() const noexcept
 
 void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 {
-	std::string suffix(name());
-	std::vector loggers {
-		spdlog::default_logger(),
-		spdlog::get(suffix + g_daily_log)
-	};
-	if( lv == level_t::warning )
-		loggers.emplace_back(spdlog::get(suffix + g_warning_log));
-	else if( lv == level_t::error )
-		loggers.emplace_back(spdlog::get(suffix + g_error_log));
-	else if( lv == level_t::critical )
-		loggers.emplace_back(spdlog::get(suffix + g_critical_log));
-
 	spdlog::source_loc src_loc {loc.file, loc.line, loc.func};
-	for(auto &logger : loggers)
+	for(auto &logger : m_impl->m_loggers)
 	{
 		if( not logger )
 			continue;
 
 		logger->log(src_loc, impl::conf_level(lv), m_impl->m_config.line_break ?
-			std::format("<{}>: \n{}\n", name(), strtls::trimmed(msg)) :
-			std::format("<{}>: {}", name(), strtls::trimmed(msg))
+			std::format(": \n{}\n", strtls::trimmed(msg)) :
+			std::format(": {}", strtls::trimmed(msg))
 		);
 		logger->flush();
 	}
