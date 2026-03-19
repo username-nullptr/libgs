@@ -109,11 +109,11 @@ awaitable<void> mutex::lock(concepts::sched auto &&exec)
 	if( try_lock() )
 		co_return ;
 
-	co_await async_work<bool>::handle(exec,
-	[this, exec = get_executor_helper(exec)](async_work<bool>::handler_t wake_up) mutable
+	auto _exec = get_executor_helper(std::forward<decltype(exec)>(exec));
+	co_await async_work<bool>::handle(_exec, [this, _exec](async_work<bool>::handler_t wake_up) mutable
 	{
 		m_impl->m_wait_queue.emplace (
-			std::make_shared<impl::wake_up_t>(exec, std::move(wake_up))
+			std::make_shared<impl::wake_up_t>(_exec, std::move(wake_up))
 		);
 	});
 	co_return ;

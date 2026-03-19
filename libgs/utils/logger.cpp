@@ -73,9 +73,20 @@ public:
 		set_config({});
 	}
 
+	~impl()
+	{
+		for(auto &logger : m_loggers)
+		{
+			if( logger )
+				spdlog::drop(logger->name());
+		}
+	}
+
 public:
 	void set_config(config_t conf) noexcept
 	{
+		// std::cerr << ">>>>>>>>>>++++++++++++------------------------- " << m_name << " : " << m_loggers[0]->name() << std::endl;
+
 		set_logger(m_loggers[0],
 			spd_level_t::info, spd_level_t::warn, conf.time_mode
 		);
@@ -185,21 +196,15 @@ private:
 	class LIBGS_DECL_HIDDEN logger_name_flag_formatter : public spdlog::custom_flag_formatter
 	{
 	public:
-		explicit logger_name_flag_formatter(std::string name) :
-			m_name(std::move(name)) {}
-
-		void format(const spdlog::details::log_msg&, const std::tm&, spdlog::memory_buf_t &dest) override {
-			dest.append(m_name.begin(), m_name.end());
+		void format(const spdlog::details::log_msg &ctx, const std::tm&, spdlog::memory_buf_t &dest) override {
+			dest.append(ctx.logger_name.begin(), ctx.logger_name.end());
 		}
 		[[nodiscard]] std::unique_ptr<custom_flag_formatter> clone() const override {
-			return spdlog::details::make_unique<logger_name_flag_formatter>(m_name);
+			return spdlog::details::make_unique<logger_name_flag_formatter>();
 		}
-
-	private:
-		std::string m_name {};
 	};
 
-	void set_logger(const std::shared_ptr<spdlog::logger> &logger,
+	static void set_logger(const std::shared_ptr<spdlog::logger> &logger,
 		spd_level_t level, spd_level_t flush_level, time_mode_t time_mode) noexcept
 	{
 		logger->set_level(level);
@@ -209,13 +214,13 @@ private:
 		if( time_mode == time_mode_t::utc )
 		{
 			formatter = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::utc);
-			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->add_flag<logger_name_flag_formatter>('+');
 			formatter->set_pattern("[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e]-[%+][%s:%#] %v");
 		}
 		else if( time_mode == time_mode_t::local )
 		{
 			formatter = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::local);
-			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->add_flag<logger_name_flag_formatter>('+');
 			formatter->set_pattern("[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e]-[%+][%s:%#] %v");
 		}
 		else if( time_mode == time_mode_t::utc_tz )
@@ -224,14 +229,14 @@ private:
 				spdlog::pattern_time_type::utc
 			);
 			formatter->add_flag<dy_tz_flag_formatter>('*');
-			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->add_flag<logger_name_flag_formatter>('+');
 			formatter->set_pattern("[%^%l%$]-[UTC %Y-%m-%d %H:%M:%S.%e %*]-[%+][%s:%#] %v");
 		}
 		else /* if( time_mode == time_mode_t::local_tz ) */
 		{
 			formatter = std::make_unique<spdlog::pattern_formatter>(spdlog::pattern_time_type::local);
 			formatter->add_flag<dy_tz_flag_formatter>('*');
-			formatter->add_flag<logger_name_flag_formatter>('+', m_name);
+			formatter->add_flag<logger_name_flag_formatter>('+');
 			formatter->set_pattern("[%^%l%$]-[Local %Y-%m-%d %H:%M:%S.%e UTC%*]-[%+][%s:%#] %v");
 		}
 		logger->set_formatter(std::move(formatter));
