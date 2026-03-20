@@ -23,6 +23,68 @@ int main()
 
 	libgs_utils_log_warning(">>>>>>>>>>>>>>>> {}", 123);
 
+
+	libgs::utils::signal<void(int,std::string)> ssss;
+
+	// // ssss.connect([](int,std::string_view)
+	// // ssss.connect<libgs::utils::slot_mode::async>([](int,std::string_view)
+	// ssss.connect<libgs::utils::slot_mode::backpressure>([](int,std::string_view)
+	// {
+	//
+	// 	// co_return ;
+	// });
+
+	ssss.connect([](int,std::string_view) -> libgs::awaitable<void>
+	// ssss.connect<libgs::utils::slot_mode::async>([](int,std::string_view) -> libgs::awaitable<void>
+	// ssss.connect<libgs::utils::slot_mode::backpressure>([](int,std::string_view) -> libgs::awaitable<void>
+	{
+
+		co_return ;
+	});
+
+	ssss.connect (
+		[](int,std::string_view) -> libgs::awaitable<void> {
+			co_return ;
+		},
+		[](int) -> libgs::awaitable<void> {
+			co_return ;
+		},
+		[](double) {}
+	);
+
+	libgs::utils::signal<libgs::awaitable<void>(int,std::string)> ssss1;
+
+	ssss1.connect([](int,std::string_view) -> libgs::awaitable<void>
+	// ssss.connect<libgs::utils::slot_mode::async>([](int,std::string_view) -> libgs::awaitable<void>
+	// ssss.connect<libgs::utils::slot_mode::backpressure>([](int,std::string_view) -> libgs::awaitable<void>
+	{
+
+		co_return ;
+	});
+
+	ssss1.connect (
+		[](int,std::string_view) -> libgs::awaitable<void> {
+			co_return ;
+		},
+		[](int) -> libgs::awaitable<void> {
+			co_return ;
+		},
+		[](double) {}
+	);
+
+	libgs::dispatch([&]() -> libgs::awaitable<void>
+	{
+		ssss.emit(11, "123");
+		co_await ssss1.emit(11, "123");
+		co_return ;
+	});
+
+	auto ttt = asio::awaitable<void>() and asio::awaitable<void>();
+
+	using co_spawn_t = decltype (
+		asio::co_spawn(libgs::get_executor(), asio::awaitable<void>(), asio::deferred)
+	);
+
 	libgs::http_nt::client client;
 	libgs::http_nt::request_arg arg;
 

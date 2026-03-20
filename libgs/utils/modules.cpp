@@ -310,8 +310,6 @@ private:
 						unexpected.children.emplace_back(name);
 					}
 					node->init = detail::modules::state::finished;
-					if( try_notify() )
-						return ;
 				}
 				else if( std::get<state_t>(std::move(node->init)) == state_t::not_register )
 				{
@@ -321,6 +319,9 @@ private:
 					unexpected.unregistered.emplace_back(name);
 					success = false;
 				}
+				if( try_notify() )
+					return ;
+
 				do_init(node->children, success, args, unexpected);
 			})
 			.detach();

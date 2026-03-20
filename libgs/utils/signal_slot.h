@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -49,98 +49,116 @@ class LIBGS_UTILS_TAPI signal_base
 public:
 	using derived_t = crtp_derived_t<Derived,signal_base>;
 	using function_t = Func;
+	using func_traits_t = function_traits<function_t>;
 
 	signal_base();
 	~signal_base();
 
 public:
-	template <slot_mode Mode, concepts::function Func0>
+	template <slot_mode Mode, concepts::function Slot>
 	static constexpr bool is_slot_v = []() consteval
 	{
-		using func0_tr = function_traits<Func0     >;
-		using func_tr  = function_traits<function_t>;
+		using slot_tr = function_traits<Slot>;
+		using sig_tr  = func_traits_t;
 
-		if constexpr( Mode == slot_mode::sync and is_awaitable_v<typename func0_tr::return_type> )
+		using slot_ret = slot_tr::return_type;
+		using sig_ret  = sig_tr::return_type;
+
+		if constexpr( Mode == slot_mode::sync and
+			not is_awaitable_v<sig_ret> and is_awaitable_v<slot_ret> )
 			return false;
 		else
 		{
-			return func0_tr::arg_count <= func_tr::arg_count and
+			return slot_tr::arg_count <= sig_tr::arg_count and
 			[]<size_t...Is>(std::index_sequence<Is...>) consteval
 			{
-				constexpr auto single = []<size_t I>() consteval
+				return ([]<size_t I>() consteval
 				{
-					using func_at  = func_tr ::template arg_type_t<I>;
-					using func0_at = func0_tr::template arg_type_t<I>;
+					using sig_at  = sig_tr ::template arg_type_t<I>;
+					using slot_at = slot_tr::template arg_type_t<I>;
 
-					using r_func_at  = std::remove_cvref_t<func_at>;
-					using r_func0_at = std::remove_cvref_t<func0_at>;
+					using r_sig_at  = std::remove_cvref_t<sig_at>;
+					using r_slot_at = std::remove_cvref_t<slot_at>;
 
-					if constexpr( is_variant_v<r_func_at> )
-						return is_contained_in_v<r_func_at, r_func0_at>;
+					if constexpr( is_variant_v<r_sig_at> )
+						return is_contained_in_v<r_sig_at, r_slot_at>;
 
-					else if constexpr( std::is_same_v<r_func_at, std::any> )
+					else if constexpr( std::is_same_v<r_sig_at, std::any> )
 					{
-						if constexpr( std::is_same_v<r_func0_at, std::any> )
+						if constexpr( std::is_same_v<r_slot_at, std::any> )
 							return true;
 						else
 						{
-							return requires(func0_at arg) {
-								std::any_cast<r_func0_at>(arg);
+							return requires(slot_at arg) {
+								std::any_cast<r_slot_at>(arg);
 							};
 						}
 					}
 					else
 					{
 						return std::is_convertible_v<
-							typename func_tr::template arg_type_t<I>,
-							typename func0_tr::template arg_type_t<I>
+							typename sig_tr ::template arg_type_t<I>,
+							typename slot_tr::template arg_type_t<I>
 						>;
 					}
-				};
-				return (single.template operator()<Is>() && ...);
+				}
+				.template operator()<Is>() && ...);
 			}
-			(std::make_index_sequence<func0_tr::arg_count>{});
+			(std::make_index_sequence<slot_tr::arg_count>{});
 		}
 	}();
 
-	template <slot_mode Mode, concepts::function Func0>
+	template <slot_mode Mode, concepts::function Slot>
 	static constexpr bool is_global_slot_v =
-		not function_traits<Func0>::is_member_func and
-		is_slot_v<Mode, Func0>;
+		not function_traits<Slot>::is_member_func and
+		is_slot_v<Mode, Slot>;
 
 	template <typename Obj>
 	static constexpr bool is_observer_v =
 		is_shared_ptr_v<std::remove_cvref_t<Obj>>;
 
-	template <slot_mode Mode, typename Obj, concepts::function Func0>
+	template <slot_mode Mode, typename Obj, concepts::function Slot>
 	requires is_observer_v<Obj>
 	static constexpr bool is_obj_slot_v = []() consteval
 	{
 		if constexpr( is_observer_v<Obj> )
 		{
-			using func0_tr = function_traits<Func0>;
-			if constexpr( func0_tr::is_member_func )
+			using slot_tr = function_traits<Slot>;
+			if constexpr( slot_tr::is_member_func )
 			{
 				using obj_t = std::remove_cvref_t<Obj>::element_type;
-				if constexpr( std::is_same_v<typename func0_tr::class_t, obj_t> )
-					return is_slot_v<Mode,Func0>;
+				if constexpr( std::is_same_v<typename slot_tr::class_t, obj_t> )
+					return is_slot_v<Mode,Slot>;
 				else
 					return false;
 			}
 			else
-				return is_global_slot_v<Mode,Func0>;
+				return is_global_slot_v<Mode,Slot>;
 		}
 		else
 			return false;
 	}();
 
-	template <slot_mode Mode, concepts::function...Funcs>
-	requires (sizeof...(Funcs) > 0)
-	static constexpr bool is_global_slots_v = (is_global_slot_v<Mode,Funcs> && ...);
+public:
+	template <slot_mode Mode, concepts::function...Slots>
+	requires (sizeof...(Slots) > 0)
+	static constexpr bool is_global_slots_v = (is_global_slot_v<Mode,Slots> && ...);
 
-	template <slot_mode Mode, typename Obj, concepts::function...Funcs>
-	requires (is_observer_v<Obj> and sizeof...(Funcs) > 0)
-	static constexpr bool is_obj_slots_v = (is_obj_slot_v<Mode,Obj,Funcs> && ...);
+	template <concepts::function...Slots>
+	requires (sizeof...(Slots) > 0)
+	static constexpr bool is_global_slots_def_v =
+		is_global_slots_v<slot_mode::sync, Slots...> or
+		is_global_slots_v<slot_mode::async, Slots...>;
+
+	template <slot_mode Mode, typename Obj, concepts::function...Slots>
+	requires (is_observer_v<Obj> and sizeof...(Slots) > 0)
+	static constexpr bool is_obj_slots_v = (is_obj_slot_v<Mode,Obj,Slots> && ...);
+
+	template <typename Obj, concepts::function...Slots>
+	requires (is_observer_v<Obj> and sizeof...(Slots) > 0)
+	static constexpr bool is_obj_slots_def_v =
+		is_obj_slots_v<slot_mode::sync, Obj, Slots...> or
+		is_obj_slots_v<slot_mode::async, Obj, Slots...>;
 
 	template <typename...Args>
 	static constexpr bool is_callable_v =
@@ -149,47 +167,47 @@ public:
 		};
 
 public:
-	template <slot_mode Mode, typename...Funcs>
-	derived_t &connect(Funcs&&...funcs) noexcept
-		requires is_global_slots_v<Mode,Funcs...>;
+	template <slot_mode Mode, typename...Slots>
+	derived_t &connect(Slots&&...funcs) noexcept
+		requires is_global_slots_v<Mode,Slots...>;
 
-	template <slot_mode Mode, typename Obj, typename...Funcs>
-	derived_t &connect(Obj &&observer, Funcs&&...funcs)
-		requires is_obj_slots_v<Mode,Obj,Funcs...>;
+	template <slot_mode Mode, typename Obj, typename...Slots>
+	derived_t &connect(Obj &&observer, Slots&&...funcs)
+		requires is_obj_slots_v<Mode,Obj,Slots...>;
 
-	template <slot_mode Mode, concepts::sched Exec0, typename...Funcs>
-	derived_t &connect(Exec0 &&exec, Funcs&&...funcs) noexcept
-		requires (Mode != slot_mode::sync) and is_global_slots_v<Mode,Funcs...>;
+	template <slot_mode Mode, concepts::sched Exec0, typename...Slots>
+	derived_t &connect(Exec0 &&exec, Slots&&...funcs) noexcept
+		requires (Mode != slot_mode::sync) and is_global_slots_v<Mode,Slots...>;
 
-	template <slot_mode Mode, typename Obj, concepts::sched Exec0, typename...Funcs>
-	derived_t &connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
-		requires (Mode != slot_mode::sync) and is_obj_slots_v<Mode,Obj,Funcs...>;
-
-public:
-	template <typename...Funcs>
-	derived_t &connect(Funcs&&...funcs) noexcept
-		requires is_global_slots_v<slot_mode::sync,Funcs...>;
-
-	template <typename Obj, typename...Funcs>
-	derived_t &connect(Obj &&observer, Funcs&&...funcs)
-		requires is_obj_slots_v<slot_mode::sync,Obj,Funcs...>;
-
-	template <concepts::sched Exec0, typename...Funcs>
-	derived_t &connect(Exec0 &&exec, Funcs&&...funcs) noexcept
-		requires is_global_slots_v<slot_mode::async,Funcs...>;
-
-	template <typename Obj, concepts::sched Exec0, typename...Funcs>
-	derived_t &connect(Obj &&observer, Exec0 &&exec, Funcs&&...funcs)
-		requires is_obj_slots_v<slot_mode::async,Obj,Funcs...>;
+	template <slot_mode Mode, typename Obj, concepts::sched Exec0, typename...Slots>
+	derived_t &connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs)
+		requires (Mode != slot_mode::sync) and is_obj_slots_v<Mode,Obj,Slots...>;
 
 public:
-	template <typename...Funcs>
-	derived_t &disconnect(Funcs&&...funcs) noexcept
-		requires is_global_slots_v<slot_mode::async,Funcs...>;
+	template <typename...Slots>
+	derived_t &connect(Slots&&...funcs) noexcept
+		requires is_global_slots_def_v<Slots...>;
 
-	template <typename Obj, typename...Funcs>
-	derived_t &disconnect(const Obj &observer, Funcs&&...funcs)
-		requires is_obj_slots_v<slot_mode::async,Obj,Funcs...>;
+	template <typename Obj, typename...Slots>
+	derived_t &connect(Obj &&observer, Slots&&...funcs)
+		requires is_obj_slots_def_v<Obj,Slots...>;
+
+	template <concepts::sched Exec0, typename...Slots>
+	derived_t &connect(Exec0 &&exec, Slots&&...funcs) noexcept
+		requires is_global_slots_v<slot_mode::async,Slots...>;
+
+	template <typename Obj, concepts::sched Exec0, typename...Slots>
+	derived_t &connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs)
+		requires is_obj_slots_v<slot_mode::async,Obj,Slots...>;
+
+public:
+	template <typename...Slots>
+	derived_t &disconnect(Slots&&...funcs) noexcept
+		requires is_global_slots_def_v<Slots...>;
+
+	template <typename Obj, typename...Slots>
+	derived_t &disconnect(const Obj &observer, Slots&&...funcs)
+		requires is_obj_slots_def_v<Obj,Slots...>;
 
 	derived_t &disconnect() noexcept;
 
@@ -199,15 +217,11 @@ public:
 
 public:
 	template <typename...Args>
-	void emit(Args&&...args) const noexcept
+	[[nodiscard]] auto emit(Args&&...args) const noexcept
 		requires is_callable_v<Args...>;
 
 	template <typename...Args>
-	[[nodiscard]] awaitable<void> co_emit(Args&&...args) const noexcept
-		requires is_callable_v<Args...>;
-
-	template <typename...Args>
-	void operator()(Args&&...args) const noexcept
+	[[nodiscard]] auto operator()(Args&&...args) const noexcept
 		requires is_callable_v<Args...>;
 
 	void block(bool block = true) noexcept;
