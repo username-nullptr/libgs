@@ -39,35 +39,6 @@ concept expected_value = optional_value<Value> or std::is_void_v<Value>;
 
 } //namespace libgs::concepts
 
-template <concepts::optional_value Error>
-class LIBGS_CORE_TAPI unexpected final
-{
-public:
-    using error_t = Error;
-
-	template <typename...Args>
-	unexpected(Args&&...args) requires
-		concepts::constructible<error_t,Args...>;
-
-public:
-	[[nodiscard]] const error_t &error() const & noexcept;
-	[[nodiscard]] error_t &&error() const && noexcept;
-
-	[[nodiscard]] error_t &error() & noexcept;
-	[[nodiscard]] error_t &&error() && noexcept;
-
-private:
-	error_t m_error;
-};
-
-template <typename Value, concepts::optional_value Error>
-class expected
-{
-	static_assert(concepts::optional_value<Value>,
-		"libgs::expected<Value,Error>: Value must be optional_value."
-	);
-};
-
 template <concepts::optional_value Error, typename Derived>
 class LIBGS_CORE_TAPI expected_base
 {
@@ -101,6 +72,36 @@ protected:
 
 	error_storage_t m_error_storage;
 	error_t *m_error_ptr = nullptr;
+};
+
+template <concepts::optional_value Error>
+class LIBGS_CORE_TAPI unexpected final
+{
+public:
+	using error_t = Error;
+
+	template <typename...Args>
+	unexpected(Args&&...args) requires
+		concepts::constructible<error_t,Args...>;
+
+public:
+	[[nodiscard]] const error_t &error() const & noexcept;
+	[[nodiscard]] error_t &&error() const && noexcept;
+
+	[[nodiscard]] error_t &error() & noexcept;
+	[[nodiscard]] error_t &&error() && noexcept;
+
+private:
+	error_t m_error;
+};
+
+// template <typename Value, concepts::optional_value Error>
+template <typename Value, typename Error>
+class expected
+{
+	static_assert(concepts::optional_value<Value>,
+		"libgs::expected<Value,Error>: Value must be optional_value."
+	);
 };
 
 template <concepts::optional_value Value, concepts::optional_value Error>

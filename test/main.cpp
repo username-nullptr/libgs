@@ -34,6 +34,12 @@ int main()
 	// 	// co_return ;
 	// });
 
+
+	ssss.connect([]
+	{
+
+	});
+
 	ssss.connect([](int,std::string_view) -> libgs::awaitable<void>
 	// ssss.connect<libgs::utils::slot_mode::async>([](int,std::string_view) -> libgs::awaitable<void>
 	// ssss.connect<libgs::utils::slot_mode::backpressure>([](int,std::string_view) -> libgs::awaitable<void>

@@ -64,8 +64,12 @@ template <concepts::function Slot, typename...Args>
 	return [args = std::make_tuple(std::forward<Args>(args)...)]
 	<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 	{
-		return (slot_arg_can_auto_cast<typename slot_tr::template arg_type_t<Is>>
-			(std::get<Is>(args)) && ...);
+		return ([&]() mutable noexcept
+		{
+			using arg_t = slot_tr::template arg_type_t<Is>;
+			return slot_arg_can_auto_cast<arg_t>(std::get<Is>(args));
+		}
+		() and ...);
 	}
 	(indices());
 }
@@ -101,7 +105,7 @@ class LIBGS_UTILS_TAPI slot_adapter<Ret(Args...)> :
 
 public:
 	using ptr_t = std::shared_ptr<slot_adapter>;
-	using signal_t = Ret(Args...);
+	using func_t = std::future<void>(Args...);
 	slot_adapter() = default;
 
 	template <slot_mode Mode, typename...Args0>
@@ -113,8 +117,8 @@ public:
 	}
 
 	template <typename...Args0>
-	void operator()(Args0&&...args) noexcept {
-		m_func(std::forward<Args0>(args)...);
+	[[nodiscard]] std::future<void> operator()(Args0&&...args) noexcept {
+		return m_func(std::forward<Args0>(args)...);
 	}
 
 private:
@@ -126,45 +130,61 @@ private:
 	template <slot_mode Mode, concepts::sched Exec, concepts::function Slot>
 	void emplace(Exec &&exec, Slot &&slot) noexcept
 	{
-		if constexpr( Mode != slot_mode::async )
+		if constexpr( Mode == slot_mode::sync )
 			m_block = true;
 
 		m_func = [exec = get_executor_helper(std::forward<Exec>(exec)),
 			slot = std::forward<Slot>(slot)](Args...args) mutable noexcept
 		{
 			if( not slot_args_can_auto_cast<Slot>(args...) )
-				return ;
-
+			{
+				std::promise<void> promise;
+				auto future = promise.get_future();
+				promise.set_value();
+				return std::move(future);
+			}
 			if constexpr( Mode == slot_mode::sync )
-				glob_sync_call(slot, std::move(args)...);
+				return glob_sync_call(slot, std::move(args)...);
 
 			else if constexpr( Mode == slot_mode::async )
-				glob_async_call(exec, slot, std::move(args)...);
+				return glob_async_call(exec, slot, std::move(args)...);
 
 			else /* if constexpr( Mode == slot_mode::backpressure ) */
-				glob_backpressure_call(exec, slot, std::move(args)...);
+				return glob_backpressure_call(exec, slot, std::move(args)...);
 		};
 	}
 
 	template <typename Slot, typename...Args0>
-	static void glob_sync_call(Slot &slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> glob_sync_call(Slot &slot, Args0&&...args) noexcept
 	{
+		std::promise<void> promise;
+		auto future = promise.get_future();
+
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
 
 		[&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 		<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 		{
-			slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>
-				(std::move(std::get<Is>(args)))...
-			);
+			auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+			{
+				using arg_t = slot_tr::template arg_type_t<I>;
+				return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+			};
+			slot(get_arg.template operator()<Is>()...);
 		}
 		(indices());
+
+		promise.set_value();
+		return std::move(future);
 	}
 
 	template <typename Slot, typename...Args0>
-	static void glob_async_call(auto &exec, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> glob_async_call(auto &exec, Slot slot, Args0&&...args) noexcept
 	{
+		std::promise<void> promise;
+		auto future = promise.get_future();
+
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
 		using return_t = function_traits<Slot>::return_type;
@@ -177,9 +197,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await slot(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -192,17 +215,22 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					slot(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			});
 		}
+		promise.set_value();
+		return std::move(future);
 	}
 
 	template <typename Slot, typename...Args0>
-	static void glob_backpressure_call(auto &exec, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> glob_backpressure_call(auto &exec, Slot slot, Args0&&...args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -210,35 +238,41 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			libgs::dispatch(exec, [slot = std::move(slot), args = std::make_tuple(std::move(args)...)]
+			return libgs::dispatch(exec, [slot = std::move(slot), args = std::make_tuple(std::move(args)...)]
 			() mutable noexcept -> awaitable<void>
 			{
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await slot(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
 			},
-			use_future).wait();
+			use_future);
 		}
 		else
 		{
-			libgs::dispatch(exec,
+			return libgs::dispatch(exec,
 			[slot = std::move(slot), args = std::make_tuple(std::move(args)...)]() mutable noexcept
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					slot(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			},
-			use_future).wait();
+			use_future);
 		}
 	}
 
@@ -264,51 +298,67 @@ private:
 			slot = std::forward<Slot>(slot)](Args...args) mutable noexcept
 		{
 			if( not slot_args_can_auto_cast<Slot>(args...) )
-				return ;
-
+			{
+				std::promise<void> promise;
+				auto future = promise.get_future();
+				promise.set_value();
+				return std::move(future);
+			}
 			using slot_tr = function_traits<Slot>;
 			if constexpr( slot_tr::is_member_func )
 			{
 				if constexpr( Mode == slot_mode::sync )
-					obj_sync_call(obj, slot, std::move(args)...);
+					return obj_sync_call(obj, slot, std::move(args)...);
 
 				else if constexpr( Mode == slot_mode::async )
-					obj_async_call(exec, obj, is_valid, slot, std::move(args)...);
+					return obj_async_call(exec, obj, is_valid, slot, std::move(args)...);
 
 				else /* if constexpr( Mode == slot_mode::backpressure ) */
-					obj_backpressure_call(exec, obj, is_valid, slot, std::move(args)...);
+					return obj_backpressure_call(exec, obj, is_valid, slot, std::move(args)...);
 			}
 			else if constexpr( Mode == slot_mode::sync )
-				glob_sync_call(slot, std::move(args)...);
+				return glob_sync_call(slot, std::move(args)...);
 
 			else if constexpr( Mode == slot_mode::async )
-				glob_async_call(exec, slot, std::move(args)...);
+				return glob_async_call(exec, slot, std::move(args)...);
 
 			else /* if constexpr( Mode == slot_mode::backpressure ) */
-				glob_backpressure_call(exec, slot, std::move(args)...);
-
+			return 	glob_backpressure_call(exec, slot, std::move(args)...);
 		};
 	}
 
 	template <typename Slot, typename...Args0>
-	static void obj_sync_call(auto &obj, Slot &slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> obj_sync_call(auto &obj, Slot &slot, Args0&&...args) noexcept
 	{
+		std::promise<void> promise;
+		auto future = promise.get_future();
+
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
 
 		[&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 		<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 		{
-			(obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>
-				(std::move(std::get<Is>(args)))...
-			);
+			auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+			{
+				using arg_t = slot_tr::template arg_type_t<I>;
+				return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+			};
+			(obj->*slot)(get_arg.template operator()<Is>()...);
 		}
 		(indices());
+
+		promise.set_value();
+		return std::move(future);
 	}
 
 	template <typename Slot, typename...Args0>
-	static void obj_async_call(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> obj_async_call
+	(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
 	{
+		std::promise<void> promise;
+		auto future = promise.get_future();
+
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
 		using return_t = function_traits<Slot>::return_type;
@@ -325,10 +375,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await
-					(obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -345,17 +397,23 @@ private:
 
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					(obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					(obj->*slot)(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			});
 		}
+		promise.set_value();
+		return std::move(future);
 	}
 
 	template <typename Slot, typename...Args0>
-	static void obj_backpressure_call(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> obj_backpressure_call
+	(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -363,7 +421,7 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
+			return libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
 				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
 			]() mutable noexcept -> awaitable<void>
 			{
@@ -373,11 +431,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await (obj->*slot) (
-						slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-							std::move(std::get<Is>(args))
-						)...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -386,7 +445,7 @@ private:
 		}
 		else
 		{
-			libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
+			return libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
 				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
 			]() mutable noexcept
 			{
@@ -395,11 +454,12 @@ private:
 
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					(obj->*slot) (
-						slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-							std::move(std::get<Is>(args))
-						)...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					(obj->*slot)(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			},
@@ -412,7 +472,7 @@ public:
 	std::function<bool()> m_is_valid = []{ return true; };
 
 	bool m_block = false;
-	std::function<signal_t> m_func {};
+	std::function<func_t> m_func {};
 };
 
 template <typename Ret, typename...Args>
@@ -423,7 +483,7 @@ class LIBGS_UTILS_TAPI slot_adapter<awaitable<Ret>(Args...)> :
 
 public:
 	using ptr_t = std::shared_ptr<slot_adapter>;
-	using signal_t = awaitable<Ret>(Args...);
+	using func_t = awaitable<void>(Args...);
 	slot_adapter() = default;
 
 	template <slot_mode Mode, typename...Args0>
@@ -435,10 +495,8 @@ public:
 	}
 
 	template <typename...Args0>
-	[[nodiscard]] awaitable<void> operator()(Args0&&...args) noexcept
-	{
-		co_await m_func(std::forward<Args0>(args)...);
-		co_return ;
+	[[nodiscard]] awaitable<void> operator()(Args0&&...args) noexcept {
+		co_return co_await m_func(std::forward<Args0>(args)...);
 	}
 
 private:
@@ -480,9 +538,12 @@ private:
 			co_await [&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 			{
-				co_await slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>
-					(std::move(std::get<Is>(args)))...
-				);
+				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				{
+					using arg_t = slot_tr::template arg_type_t<I>;
+					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				};
+				co_await slot(get_arg.template operator()<Is>()...);
 				co_return ;
 			}
 			(indices());
@@ -492,9 +553,12 @@ private:
 			[&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 			{
-				slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>
-					(std::move(std::get<Is>(args)))...
-				);
+				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				{
+					using arg_t = slot_tr::template arg_type_t<I>;
+					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				};
+				slot(get_arg.template operator()<Is>()...);
 			}
 			(indices());
 		}
@@ -516,9 +580,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await slot(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -531,9 +598,12 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					slot(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			});
@@ -555,9 +625,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await slot(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -571,9 +644,12 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					slot(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					slot(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			},
@@ -640,9 +716,12 @@ private:
 			co_await [&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 			{
-				co_await (obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>
-					(std::move(std::get<Is>(args)))...
-				);
+				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				{
+					using arg_t = slot_tr::template arg_type_t<I>;
+					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				};
+				co_await (obj->*slot)(get_arg.template operator()<Is>()...);
 				co_return ;
 			}
 			(indices());
@@ -652,9 +731,12 @@ private:
 			[&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 			{
-				(obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>
-					(std::move(std::get<Is>(args)))...
-				);
+				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				{
+					using arg_t = slot_tr::template arg_type_t<I>;
+					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				};
+				(obj->*slot)(get_arg.template operator()<Is>()...);
 			}
 			(indices());
 		}
@@ -680,9 +762,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await (obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -699,9 +784,12 @@ private:
 
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					(obj->*slot)(slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-						std::move(std::get<Is>(args)))...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					(obj->*slot)(get_arg.template operator()<Is>()...);
 				}
 				(indices());
 			});
@@ -728,11 +816,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await (obj->*slot) (
-						slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-							std::move(std::get<Is>(args))
-						)...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -751,11 +840,12 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					co_await (obj->*slot) (
-						slot_arg_auto_cast<typename slot_tr::template arg_type_t<Is>>(
-							std::move(std::get<Is>(args))
-						)...
-					);
+					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					{
+						using arg_t = slot_tr::template arg_type_t<I>;
+						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					};
+					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
 					co_return ;
 				}
 				(indices());
@@ -768,7 +858,7 @@ private:
 public:
 	const void *m_obj = nullptr;
 	std::function<bool()> m_is_valid = []{ return true; };
-	std::function<signal_t> m_func {};
+	std::function<func_t> m_func {};
 };
 
 } //namespace detail
@@ -930,8 +1020,8 @@ public:
 		if( m_block	)
 			return ;
 
-		std::vector<adapter_ptr> nonblock_slots;
-		std::vector<adapter_ptr> block_slots;
+		std::vector<adapter_ptr> nonblock_slots {};
+		std::vector<adapter_ptr> block_slots {};
 
 		m_mutex.lock_shared();
 		for(auto it=m_slots.begin(); it!=m_slots.end();)
@@ -948,12 +1038,16 @@ public:
 				it = m_slots.erase(it);
 		}
 		m_mutex.unlock_shared();
+		std::vector<std::future<void>> futures {};
 
 		for(auto &slot : nonblock_slots)
-			(*slot)(args...);
+			futures.emplace_back((*slot)(args...));
 
 		for(auto &slot : block_slots)
-			(*slot)(args...);
+			futures.emplace_back((*slot)(args...));
+
+		for(auto &future : futures)
+			future.wait();
 	}
 
 public:
@@ -1047,23 +1141,25 @@ signal_base<Derived,Func>::connect(Slots&&...funcs)
 	[this, funcs = std::make_tuple(std::forward<Slots>(funcs)...)]
 	<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 	{
-		([this]<typename Slot>(Slot &&func) mutable noexcept
+		([&]() mutable noexcept
 		{
-			using slot_ret = function_traits<Slot>::return_type;
+			using slot_t = std::tuple_element_t<Is,decltype(funcs)>;
+			using slot_ret = function_traits<slot_t>::return_type;
 			using sig_ret = func_traits_t::return_type;
 
+			auto &func = std::get<Is>(funcs);
 			if constexpr( is_awaitable_v<slot_ret> )
 			{
 				if constexpr( is_awaitable_v<sig_ret> )
-					connect<slot_mode::sync>(std::forward<Slot>(func));
+					connect<slot_mode::sync>(std::move(func));
 				else
-					connect<slot_mode::async>(std::forward<Slot>(func));
+					connect<slot_mode::async>(std::move(func));
 			}
 			else
-				connect<slot_mode::sync>(std::forward<Slot>(func));
+				connect<slot_mode::sync>(std::move(func));
 			return true;
 		}
-		(std::move(std::get<Is>(funcs))) && ...);
+		() and ...);
 	}
 	(indices());
 	return static_cast<derived_t&>(*this);
@@ -1083,23 +1179,25 @@ signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs)
 		funcs = std::make_tuple(std::forward<Slots>(funcs)...)
 	]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 	{
-		([this, observer]<typename Slot>(Slot &&func) mutable noexcept
+		([&]() mutable noexcept
 		{
-			using slot_ret = function_traits<Slot>::return_type;
+			using slot_t = std::tuple_element_t<Is,decltype(funcs)>;
+			using slot_ret = function_traits<slot_t>::return_type;
 			using sig_ret = func_traits_t::return_type;
 
+			auto &func = std::get<Is>(funcs);
 			if constexpr( is_awaitable_v<slot_ret> )
 			{
 				if constexpr( is_awaitable_v<sig_ret> )
-					connect<slot_mode::sync>(observer, std::forward<Slots>(func));
+					connect<slot_mode::sync>(observer, std::move(func));
 				else
-					connect<slot_mode::async>(observer, std::forward<Slots>(func));
+					connect<slot_mode::async>(observer, std::move(func));
 			}
 			else
-				connect<slot_mode::sync>(observer, std::forward<Slots>(func));
+				connect<slot_mode::sync>(observer, std::move(func));
 			return true;
 		}
-		(std::move(std::get<Is>(funcs))) && ...);
+		() and ...);
 	}
 	(indices());
 	return static_cast<derived_t&>(*this);
@@ -1217,5 +1315,5 @@ bool signal_base<Derived,Func>::is_blocked() const noexcept
 
 } //namespace libgs::utils
 
-
+// Fuck MicroSoft ...
 #endif //LIBGS_UTILS_DETAIL_SIGNAL_SLOT_H

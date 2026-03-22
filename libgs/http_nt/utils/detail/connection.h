@@ -306,7 +306,7 @@ auto basic_connection<Stream>::unset_transfer_file_option(const auto &before) no
 			}
 			return true;
 		}
-		(std::forward<Args>(args)) && ...);
+		(std::forward<Args>(args)) and ...);
 	},
 	before);
 	return result;

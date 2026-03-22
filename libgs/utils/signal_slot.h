@@ -102,7 +102,7 @@ public:
 						>;
 					}
 				}
-				.template operator()<Is>() && ...);
+				.template operator()<Is>() and ...);
 			}
 			(std::make_index_sequence<slot_tr::arg_count>{});
 		}
@@ -142,7 +142,7 @@ public:
 public:
 	template <slot_mode Mode, concepts::function...Slots>
 	requires (sizeof...(Slots) > 0)
-	static constexpr bool is_global_slots_v = (is_global_slot_v<Mode,Slots> && ...);
+	static constexpr bool is_global_slots_v = (is_global_slot_v<Mode,Slots> and ...);
 
 	template <concepts::function...Slots>
 	requires (sizeof...(Slots) > 0)
@@ -152,7 +152,7 @@ public:
 
 	template <slot_mode Mode, typename Obj, concepts::function...Slots>
 	requires (is_observer_v<Obj> and sizeof...(Slots) > 0)
-	static constexpr bool is_obj_slots_v = (is_obj_slot_v<Mode,Obj,Slots> && ...);
+	static constexpr bool is_obj_slots_v = (is_obj_slot_v<Mode,Obj,Slots> and ...);
 
 	template <typename Obj, concepts::function...Slots>
 	requires (is_observer_v<Obj> and sizeof...(Slots) > 0)
