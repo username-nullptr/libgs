@@ -141,7 +141,7 @@ private:
 				std::promise<void> promise;
 				auto future = promise.get_future();
 				promise.set_value();
-				return std::move(future);
+				return future;
 			}
 			if constexpr( Mode == slot_mode::sync )
 				return glob_sync_call(slot, std::move(args)...);
@@ -176,7 +176,7 @@ private:
 		(indices());
 
 		promise.set_value();
-		return std::move(future);
+		return future;
 	}
 
 	template <typename Slot, typename...Args0>
@@ -226,7 +226,7 @@ private:
 			});
 		}
 		promise.set_value();
-		return std::move(future);
+		return future;
 	}
 
 	template <typename Slot, typename...Args0>
@@ -302,7 +302,7 @@ private:
 				std::promise<void> promise;
 				auto future = promise.get_future();
 				promise.set_value();
-				return std::move(future);
+				return future;
 			}
 			using slot_tr = function_traits<Slot>;
 			if constexpr( slot_tr::is_member_func )
@@ -349,7 +349,7 @@ private:
 		(indices());
 
 		promise.set_value();
-		return std::move(future);
+		return future;
 	}
 
 	template <typename Slot, typename...Args0>
@@ -408,7 +408,7 @@ private:
 			});
 		}
 		promise.set_value();
-		return std::move(future);
+		return future;
 	}
 
 	template <typename Slot, typename...Args0>
