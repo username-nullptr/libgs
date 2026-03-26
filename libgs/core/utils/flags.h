@@ -67,29 +67,36 @@ public:
 
 public:
 	template <concepts::flag_number Int>
-	constexpr flags operator&(Int mask) const noexcept;
+	[[nodiscard]] constexpr flags operator&(Int mask) const noexcept;
 
-	constexpr flags operator&(enum_t f) const noexcept;
-	constexpr flags operator|(flags f) const noexcept;
-	constexpr flags operator|(enum_t f) const noexcept;
-	constexpr flags operator^(flags f) const noexcept;
-	constexpr flags operator^(enum_t f) const noexcept;
-	constexpr flags operator~() const noexcept;
-	constexpr bool operator!() const noexcept;
+	[[nodiscard]] constexpr flags operator&(enum_t f) const noexcept;
+	[[nodiscard]] constexpr flags operator|(flags f) const noexcept;
+	[[nodiscard]] constexpr flags operator|(enum_t f) const noexcept;
+	[[nodiscard]] constexpr flags operator^(flags f) const noexcept;
+	[[nodiscard]] constexpr flags operator^(enum_t f) const noexcept;
+	[[nodiscard]] constexpr flags operator~() const noexcept;
+	[[nodiscard]] constexpr bool operator!() const noexcept;
+
+public:
+	[[nodiscard]] constexpr auto operator<=>(const flags&) const noexcept = default;
+	[[nodiscard]] constexpr bool operator==(const flags&) const noexcept = default;
+
+	[[nodiscard]] constexpr auto operator<=>(enum_t f) const noexcept;
+	[[nodiscard]] constexpr bool operator==(enum_t f) const noexcept;
 
 public:
 	template <concepts::arithmetic T>
-	constexpr operator T() const noexcept;
+	[[nodiscard]] constexpr operator T() const noexcept;
 
 	template <concepts::arithmetic T = uint32_t>
-	constexpr T value() const noexcept;
+	[[nodiscard]] constexpr T value() const noexcept;
 
-	constexpr bool test_flag(enum_t f) const noexcept;
+	[[nodiscard]] constexpr bool test_flag(enum_t f) const noexcept;
 	constexpr flags &set_flag(enum_t f, bool on = true) const noexcept;
 
 private:
 	using iterator = std::initializer_list<enum_t>::const_iterator;
-	constexpr static int initializer_list_helper(iterator it, iterator end) noexcept;
+	[[nodiscard]] constexpr static int initializer_list_helper(iterator it, iterator end) noexcept;
 	uint32_t m_value = 0;
 };
 

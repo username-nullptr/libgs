@@ -112,7 +112,7 @@ sys_expected<> settings::load(const path_t &file_path)
 
 	if( error )
 	{
-		libgs_utils_clog_info("LibGS.Utils",
+		libgs_utils_clog_error("LibGS.Utils",
 			"settings: load file '{}' failed: '{}'.",
 			_file_name, error
 		);
@@ -143,7 +143,7 @@ sys_expected<> settings::sync()
 
 	if( error )
 	{
-		libgs_utils_clog_info("LibGS.Utils",
+		libgs_utils_clog_error("LibGS.Utils",
 			"settings: sync file '{}' failed: '{}'.",
 			file_name(), error
 		);
