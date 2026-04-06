@@ -45,10 +45,7 @@ class LIBGS_CORE_TAPI expected_base
 public:
     using error_t = Error;
 	using derived_t = Derived;
-
-	using error_storage_t = std::aligned_storage_t <
-		sizeof(error_t), alignof(error_t)
-	>;
+	using error_storage_t = std::byte[sizeof(error_t)];
 
 public:
 	[[nodiscard]] const error_t &error() const & noexcept;
@@ -70,7 +67,7 @@ protected:
 
 	void _reset_error() noexcept;
 
-	error_storage_t m_error_storage;
+	alignas(error_t) error_storage_t m_error_storage;
 	error_t *m_error_ptr = nullptr;
 };
 

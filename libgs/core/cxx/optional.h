@@ -41,9 +41,7 @@ class LIBGS_CORE_TAPI optional_base
 {
 public:
 	using value_t = Value;
-	using storage_t = std::aligned_storage_t <
-		sizeof(value_t), alignof(value_t)
-	>;
+	using storage_t = std::byte[sizeof(value_t)];
 
 public:
 	~optional_base();
@@ -114,7 +112,7 @@ protected:
 	void _reset() noexcept;
 
 protected:
-	storage_t m_storage;
+	alignas(value_t) storage_t m_storage;
 	value_t *m_ptr = nullptr;
 };
 

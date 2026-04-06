@@ -41,7 +41,7 @@ class LIBGS_HTTP_NT_TAPI basic_request :
 	public const_cookies<value,basic_request<Connection>>,
 	public const_parameters<basic_request<Connection>>
 {
-	LIBGS_DISABLE_COPY(basic_request)
+	LIBGS_DISABLE_COPY_MOVE(basic_request)
 
 public:
 	using connection_t = Connection;
@@ -59,10 +59,7 @@ public:
 
 public:
 	basic_request(connection_t &&connection, parser_t &&parser);
-	~basic_request();
-
-	basic_request(basic_request &&other) noexcept;
-	basic_request &operator=(basic_request &&other) noexcept;
+	~basic_request() override;
 
 public:
 	template <typename Token, typename...Value>

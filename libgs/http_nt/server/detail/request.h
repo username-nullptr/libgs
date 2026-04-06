@@ -32,6 +32,43 @@
 namespace libgs::http_nt
 {
 
+template <concepts::connection Connection>
+class LIBGS_HTTP_NT_TAPI basic_request<Connection>::impl
+{
+	LIBGS_DISABLE_COPY(impl)
+
+public:
+	impl(connection_t &&connection, parser_t &&parser) :
+		m_connection(std::move(connection)),
+		m_parser(std::move(parser))
+	{
+
+	}
+
+public:
+
+
+public:
+	connection_t m_connection;
+	parser_t m_parser {};
+};
+
+template <concepts::connection Connection>
+basic_request<Connection>::basic_request(connection_t &&connection, parser_t &&parser) :
+	const_headers<basic_request>(nullptr),
+	const_cookies<value_t,basic_request>(nullptr),
+	const_parameters<basic_request>(nullptr),
+	m_impl(new impl(std::move(connection), std::move(parser)))
+{
+
+}
+
+template <concepts::connection Connection>
+basic_request<Connection>::~basic_request()
+{
+	delete m_impl;
+}
+
 } //namespace libgs::http_nt
 
 

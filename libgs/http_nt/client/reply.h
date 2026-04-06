@@ -40,7 +40,7 @@ class LIBGS_HTTP_NT_TAPI basic_reply final :
 	public const_headers<basic_reply<Connection>>,
 	public const_cookies<cookie,basic_reply<Connection>>
 {
-	LIBGS_DISABLE_COPY(basic_reply)
+	LIBGS_DISABLE_COPY_MOVE(basic_reply)
 
 public:
 	using connection_t = Connection;
