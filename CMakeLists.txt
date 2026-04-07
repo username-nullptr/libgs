@@ -25,7 +25,7 @@ message(STATUS "${PRO_NAME}: Using C++: " ${CMAKE_CXX_STANDARD})
 message(STATUS "${PRO_NAME}: Build type: " ${CMAKE_BUILD_TYPE})
 message(STATUS "${PRO_NAME}: Install prefix: " ${CMAKE_INSTALL_PREFIX})
 
-set(output_dir ${CMAKE_BINARY_DIR}/output)
+set(LIBGS_OUTPUT_DIR ${CMAKE_BINARY_DIR}/output)
 include(options)
 
 add_subdirectory(3rd_party)

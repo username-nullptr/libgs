@@ -50,7 +50,7 @@ function(set_target)
 			$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${GNU_BIG_OBJ_FLAG_ENABLE}>>:-Wa,-mbig-obj>
 		)
 		set_target_properties(${target_name} PROPERTIES
-			RUNTIME_OUTPUT_DIRECTORY ${output_dir}/examples/${path}/
+			RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/examples/${path}/
 		)
 		install(TARGETS ${target_name} DESTINATION examples/${path})
 		math(EXPR INDEX "${INDEX} + 1")

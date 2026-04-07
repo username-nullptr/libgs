@@ -13,6 +13,6 @@ add_executable(${target_name} ${all_files})
 target_link_libraries(${target_name} PUBLIC gs.utils)
 
 set_target_properties(${target_name} PROPERTIES
-	RUNTIME_OUTPUT_DIRECTORY ${output_dir}/examples/utils/
+	RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/examples/utils/
 )
 install(TARGETS ${target_name} DESTINATION examples/utils)

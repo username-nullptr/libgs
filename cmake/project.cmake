@@ -29,9 +29,9 @@ function(add_project target_name)
 	endif ()
 
 	set_target_properties(${target_name} PROPERTIES
-		LIBRARY_OUTPUT_DIRECTORY ${output_dir}/bin
-		RUNTIME_OUTPUT_DIRECTORY ${output_dir}/bin
-		ARCHIVE_OUTPUT_DIRECTORY ${output_dir}/lib
+		LIBRARY_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
+		RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
+		ARCHIVE_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/lib
 	)
 	if (NOT LIBGS_BUILD_STATIC)
 		install(TARGETS ${target_name} DESTINATION ${install_dir}

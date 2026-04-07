@@ -41,6 +41,22 @@ enum class slot_mode
 	backpressure  // Thread-safe blocking call. (depends on the executor; otherwise, it will cause a deadlock)
 };
 
+template <typename T, typename Tag>
+struct arg_converter
+{
+	static constexpr bool valid = std::is_convertible_v<T,Tag>;
+	using t_t = std::remove_reference_t<T>;
+
+	[[nodiscard]] static Tag &convert(t_t &value) requires (valid and
+		std::is_lvalue_reference_v<T> and not std::is_const_v<t_t>
+	);
+	[[nodiscard]] static const Tag &convert(const t_t &value) requires valid;
+	[[nodiscard]] static Tag &&convert(t_t &&value) requires valid;
+};
+
+template <typename T0, typename T1>
+constexpr bool arg_convertible_v = arg_converter<T0,T1>::valid;
+
 template <typename Derived, concepts::std_func_temp Func>
 class LIBGS_UTILS_TAPI signal_base
 {
@@ -96,7 +112,7 @@ public:
 					}
 					else
 					{
-						return std::is_convertible_v<
+						return arg_convertible_v <
 							typename sig_tr ::template arg_type_t<I>,
 							typename slot_tr::template arg_type_t<I>
 						>;

@@ -44,7 +44,7 @@ if (LIBGS_OPENSSL_SUPPORT)
 endif ()
 
 set(LIBGS_CONFIG_INCLUDE
-	${output_dir}/config_include
+	${LIBGS_OUTPUT_DIR}/config_include
 )
 set(LIBGS_CONFIG_INCLUDE
 	${LIBGS_CONFIG_INCLUDE} CACHE PATH
