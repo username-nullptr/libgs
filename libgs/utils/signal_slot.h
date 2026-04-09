@@ -47,11 +47,9 @@ struct arg_converter
 	static constexpr bool valid = std::is_convertible_v<T,Tag>;
 	using t_t = std::remove_reference_t<T>;
 
-	[[nodiscard]] static Tag &convert(t_t &value) requires (valid and
-		std::is_lvalue_reference_v<T> and not std::is_const_v<t_t>
-	);
 	[[nodiscard]] static const Tag &convert(const t_t &value) requires valid;
 	[[nodiscard]] static Tag &&convert(t_t &&value) requires valid;
+	[[nodiscard]] static Tag &convert(t_t &value) requires valid;
 };
 
 template <typename T0, typename T1>

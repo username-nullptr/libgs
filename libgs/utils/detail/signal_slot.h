@@ -864,13 +864,6 @@ public:
 } //namespace detail
 
 template <typename T, typename Tag>
-Tag &arg_converter<T,Tag>::convert(t_t &value) requires
-(valid and std::is_lvalue_reference_v<T> and not std::is_const_v<t_t>)
-{
-	return static_cast<Tag&>(value);
-}
-
-template <typename T, typename Tag>
 const Tag &arg_converter<T,Tag>::convert(const t_t &value) requires valid
 {
 	return static_cast<const Tag&>(value);
@@ -880,6 +873,12 @@ template <typename T, typename Tag>
 Tag &&arg_converter<T,Tag>::convert(t_t &&value) requires valid
 {
 	return static_cast<Tag&&>(value);
+}
+
+template <typename T, typename Tag>
+Tag &arg_converter<T,Tag>::convert(t_t &value) requires valid
+{
+	return static_cast<Tag&>(value);
 }
 
 template <typename Derived, concepts::std_func_temp Func>
