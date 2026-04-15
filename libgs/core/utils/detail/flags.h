@@ -154,6 +154,12 @@ template <concepts::flag_template Enum>
 template <concepts::arithmetic T>
 constexpr flags<Enum>::operator T() const noexcept
 {
+	return value<T>();
+}
+
+template <concepts::flag_template Enum>
+constexpr uint32_t flags<Enum>::operator*() const noexcept
+{
 	return value();
 }
 
