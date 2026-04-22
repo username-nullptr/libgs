@@ -44,7 +44,7 @@
 #include <libgs/core/shared_mutex.h>
 #include <libgs/core/system/app_utls.h>
 #include <iostream>
-#include <time.h>
+#include <ctime>
 
 namespace libgs::utils
 {
@@ -62,20 +62,22 @@ static constexpr auto
 class LIBGS_DECL_HIDDEN logger::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
 	using logger_ptr = std::shared_ptr<spdlog::logger>;
 	using sink_ptr = spdlog::sink_ptr;
 
-public:
 	explicit impl(std::string name) :
 		m_name(std::move(name))
 	{
-		m_loggers[0] = spdlog::default_logger()->clone(m_name);
+		m_terminal_logger = spdlog::default_logger()->clone(m_name);
 		set_config({});
 	}
 
 	~impl()
 	{
-		for(auto &logger : m_loggers)
+		spdlog::drop(m_terminal_logger->name());
+		for(auto &logger : m_file_loggers)
 		{
 			if( logger )
 				spdlog::drop(logger->name());
@@ -85,63 +87,61 @@ public:
 public:
 	void set_config(config_t conf) noexcept
 	{
-		// std::cerr << ">>>>>>>>>>++++++++++++------------------------- " << m_name << " : " << m_loggers[0]->name() << std::endl;
-
-		set_logger(m_loggers[0],
+		set_logger(m_terminal_logger,
 			spd_level_t::info, spd_level_t::warn, conf.time_mode
 		);
 		if( m_config.path != conf.path )
 		{
-			for(size_t i=1; i<5; i++)
+			for(auto &logger : m_file_loggers)
 			{
-				if( not m_loggers[i] )
+				if( not logger )
 					continue;
 
-				spdlog::drop(m_loggers[i]->name());
-				m_loggers[i] = {};
+				spdlog::drop(logger->name());
+				logger = {};
 			}
 			if( not conf.path.empty() )
 			{
 				auto path = app::absolute_path(conf.path).or_else()->ptostr() + PCHAR("/");
 
-				m_loggers[1] = spdlog::daily_logger_mt<spdlog::async_factory>(
+				m_file_loggers[0] = spdlog::daily_logger_mt<spdlog::async_factory>(
 					m_name + g_daily_log, path + PCHAR("daily/daily.log")
 				);
-				m_loggers[2] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+				m_file_loggers[1] = spdlog::rotating_logger_mt<spdlog::async_factory>(
 					m_name + g_warning_log, path + PCHAR("warning.log"),
 					conf.max_file_size.warning, conf.max_file_count.warning
 				);
-				m_loggers[3] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+				m_file_loggers[2] = spdlog::rotating_logger_mt<spdlog::async_factory>(
 					m_name + g_error_log, path + PCHAR("error.log"),
 					conf.max_file_size.error, conf.max_file_count.error
 				);
-				m_loggers[4] = spdlog::rotating_logger_mt<spdlog::async_factory>(
+				m_file_loggers[3] = spdlog::rotating_logger_mt<spdlog::async_factory>(
 					m_name + g_critical_log, path + PCHAR("critical.log"),
 					conf.max_file_size.critical, conf.max_file_count.critical
 				);
 			}
 		}
-		if( m_loggers[1] )
+		if( m_file_loggers[0] )
 		{
-			set_logger(m_loggers[1],
+			set_logger(m_file_loggers[0],
 				conf_level(conf.level.daily), spd_level_t::warn, conf.time_mode
 			);
 		}
-		if( m_loggers[2] )
+		if( m_file_loggers[1] )
 		{
-			set_logger(m_loggers[2],
+			set_logger(m_file_loggers[1],
 				spd_level_t::warn, spd_level_t::warn, conf.time_mode
 			);
 		}
-		if( m_loggers[3] )
+		if( m_file_loggers[2] )
 		{
-			set_logger(m_loggers[3],
+			set_logger(m_file_loggers[2],
 				spd_level_t::err, spd_level_t::err, conf.time_mode
 			);
 		}
-		if( m_loggers[4] )
+		if( m_file_loggers[3] )
 		{
-			set_logger(m_loggers[4],
+			set_logger(m_file_loggers[3],
 				spd_level_t::critical, spd_level_t::critical, conf.time_mode
 			);
 		}
@@ -243,7 +243,8 @@ private:
 	}
 
 public:
-	logger_ptr m_loggers[5] {};
+	logger_ptr m_terminal_logger {};
+	logger_ptr m_file_loggers[4] {};
 	std::string m_name {};
 	config_t m_config {};
 };
@@ -336,17 +337,27 @@ std::string_view logger::name() const noexcept
 void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 {
 	spdlog::source_loc src_loc {loc.file, loc.line, loc.func};
-	for(auto &logger : m_impl->m_loggers)
+	auto conf_lv = impl::conf_level(lv);
+
+	m_impl->m_terminal_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
+		std::format(": \n{}\n", strtls::trimmed(msg)) :
+		std::format(": {}", strtls::trimmed(msg))
+	);
+	std::vector<impl::logger_ptr> loggers {};
+	for(auto &logger : m_impl->m_file_loggers)
 	{
-		if( not logger )
+		if( not logger or logger->level() != conf_lv )
 			continue;
 
-		logger->log(src_loc, impl::conf_level(lv), m_impl->m_config.line_break ?
+		logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
 			std::format(": \n{}\n", strtls::trimmed(msg)) :
 			std::format(": {}", strtls::trimmed(msg))
 		);
-		logger->flush();
+		loggers.emplace_back(logger);
 	}
+	m_impl->m_terminal_logger->flush();
+	for(auto &logger : loggers)
+		logger->flush();
 }
 
 } //namespace libgs::utils
