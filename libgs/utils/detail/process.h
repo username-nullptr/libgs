@@ -201,6 +201,73 @@ public:
 	}
 
 public:
+	template <typename Token>
+	[[nodiscard]] auto run_no_detach(const auto &exp0, Token &&token)
+	{
+		using token_t = std::remove_cvref_t<Token>;
+		if( exp0 )
+			return join(std::forward<Token>(token));
+
+		if constexpr( is_error_code_token_v<Token> )
+		{
+			token = exp0.error();
+			return sys_expected<int>(sys_unexpected(token));
+		}
+		else if constexpr( is_sync_opt_token_v<Token> or is_time_v<token_t> )
+			return sys_expected<int>(sys_unexpected(exp0.error()));
+
+		else if constexpr( is_redirect_time_v<token_t> )
+		{
+			decltype(auto) ntoken = unbound_redirect_time(token);
+			using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
+			using nntoken_t = std::remove_cvref_t<decltype(unbound_token(ntoken))>;
+
+			if constexpr( is_redirect_error_v<ntoken_t> )
+				ntoken.ec_ = exp0.error();
+
+			if constexpr( is_detached_v<nntoken_t> )
+				return sys_expected<int>(0);
+
+			else if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
+			{
+				return async_work<sys_expected<int>>::handle(
+					[error = exp0.error()](auto wake_up) mutable {
+						std::move(wake_up)(sys_unexpected(error));
+					});
+			}
+			else if constexpr( is_use_future_v<nntoken_t> )
+			{
+				std::promise<sys_expected<int>> promise;
+				promise.set_value(sys_unexpected(exp0.error()));
+				return promise.get_future();
+			}
+		}
+		else
+		{
+			if constexpr( is_redirect_error_v<token_t> )
+				token.ec_ = exp0.error();
+
+			using ntoken_t = std::remove_cvref_t<decltype(unbound_token(token))>;
+			if constexpr( is_detached_v<ntoken_t> )
+				return sys_expected<int>(0);
+
+			else if constexpr( is_use_awaitable_v<ntoken_t> or is_deferred_v<ntoken_t> )
+			{
+				return async_work<sys_expected<int>>::handle(
+					[error = exp0.error()](auto wake_up) mutable {
+						std::move(wake_up)(sys_unexpected(error));
+					});
+			}
+			else if constexpr( is_use_future_v<ntoken_t> )
+			{
+				std::promise<sys_expected<int>> promise;
+				promise.set_value(sys_unexpected(exp0.error()));
+				return promise.get_future();
+			}
+		}
+	}
+
+public:
 	template <typename...Args>
 	[[nodiscard]] sys_expected<> start(const string_t &cmd, Args&&...args) noexcept
 	{
@@ -788,72 +855,17 @@ auto basic_process<CharT,Exec>::run(const string_t &cmd, const args_t &args, Tok
 	{
 		using ntoken_t = std::remove_cvref_t<decltype(unbound_redirect_time(token))>;
 		using nntoken_t = std::remove_cvref_t<decltype(unbound_token(token))>;
+
 		if constexpr( is_detached_v<ntoken_t> or is_detached_v<nntoken_t> )
 		{
 			detach();
 			return sys_expected<int>(0);
 		}
-	}
-	if( exp0 )
-		return join(std::forward<Token>(token));
-
-	if constexpr( is_error_code_token_v<Token> )
-	{
-		token = exp0.error();
-		return sys_expected<int>(sys_unexpected(token));
-	}
-	else if constexpr( is_sync_opt_token_v<Token> or is_time_v<token_t> )
-		return sys_expected<int>(sys_unexpected(exp0.error()));
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) ntoken = unbound_redirect_time(token);
-		using ntoken_t = std::remove_cvref_t<decltype(ntoken)>;
-		using nntoken_t = std::remove_cvref_t<decltype(unbound_token(ntoken))>;
-
-		if constexpr( is_redirect_error_v<ntoken_t> )
-			ntoken.ec_ = exp0.error();
-
-		if constexpr( is_detached_v<nntoken_t> )
-			return sys_expected<int>(0);
-
-		else if constexpr( is_use_awaitable_v<nntoken_t> or is_deferred_v<nntoken_t> )
-		{
-			return async_work<sys_expected<int>>::handle(
-				[error = exp0.error()](auto wake_up) mutable {
-					std::move(wake_up)(sys_unexpected(error));
-				});
-		}
-		else if constexpr( is_use_future_v<nntoken_t> )
-		{
-			std::promise<sys_expected<int>> promise;
-			promise.set_value(sys_unexpected(exp0.error()));
-			return promise.get_future();
-		}
+		else
+			return m_impl->run_no_detach(exp0, std::forward<Token>(token));
 	}
 	else
-	{
-		if constexpr( is_redirect_error_v<token_t> )
-			token.ec_ = exp0.error();
-
-		using ntoken_t = std::remove_cvref_t<decltype(unbound_token(token))>;
-		if constexpr( is_detached_v<ntoken_t> )
-			return sys_expected<int>(0);
-
-		else if constexpr( is_use_awaitable_v<ntoken_t> or is_deferred_v<ntoken_t> )
-		{
-			return async_work<sys_expected<int>>::handle(
-				[error = exp0.error()](auto wake_up) mutable {
-					std::move(wake_up)(sys_unexpected(error));
-				});
-		}
-		else if constexpr( is_use_future_v<ntoken_t> )
-		{
-			std::promise<sys_expected<int>> promise;
-			promise.set_value(sys_unexpected(exp0.error()));
-			return promise.get_future();
-		}
-	}
+		return m_impl->run_no_detach(exp0, std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec>
@@ -964,7 +976,7 @@ template <concepts::character CharT, concepts::exec Exec>
 }
 
 template <concepts::character CharT, concepts::exec Exec>
-[[nodiscard]] LIBGS_UTILS_TAPI awaitable<sys_expected<int>> co_process_exec_detach
+LIBGS_UTILS_TAPI sys_expected<int> process_exec_detach
 (const std::shared_ptr<basic_process<CharT,Exec>> &obj) noexcept {
 	return obj->run(detached);
 }
@@ -1037,7 +1049,7 @@ auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, const ar
 			return promise->get_future();
 		}
 		else if constexpr( is_detached_v<ntoken_t> )
-			return detail::co_process_exec_detach(obj);
+			return detail::process_exec_detach(obj);
 
 		else if constexpr( is_redirect_error_v<token_t> )
 		{
