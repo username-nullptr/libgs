@@ -35,19 +35,19 @@
 namespace libgs
 {
 
-[[nodiscard]] LIBGS_CORE_TAPI bool equality (
+[[nodiscard]] constexpr bool equality (
 	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
-[[nodiscard]] LIBGS_CORE_TAPI bool nequality (
+[[nodiscard]] constexpr bool nequality (
 	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
-[[nodiscard]] LIBGS_CORE_TAPI bool equal_greater (
+[[nodiscard]] constexpr bool equal_greater (
 	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
-[[nodiscard]] LIBGS_CORE_TAPI bool equal_less (
+[[nodiscard]] constexpr bool equal_less (
 	concepts::arithmetic_p auto a, concepts::arithmetic_p auto b
 );
 
