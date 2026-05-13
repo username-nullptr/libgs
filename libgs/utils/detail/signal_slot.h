@@ -32,6 +32,9 @@
 #include <libgs/core/shared_mutex.h>
 #include <libgs/core/execution.h>
 
+#include <iostream>
+
+
 namespace libgs::utils { namespace detail
 {
 
@@ -1294,7 +1297,7 @@ signal_base<Derived,Func>::disconnect(const Obj &observer)
 		throw std::invalid_argument("libgs::utils::signal::disconnect: observer is nullptr");
 
 	m_impl->m_mutex.lock();
-	for(auto it=m_impl->m_slots.begin(); it!=m_impl->m_slots.end(); ++it)
+	for(auto it=m_impl->m_slots.begin(); it!=m_impl->m_slots.end();)
 	{
 		if( (*it)->slot->m_obj == observer.get() )
 			it = m_impl->m_slots.erase(it);
