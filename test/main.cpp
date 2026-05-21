@@ -87,9 +87,9 @@ int main()
 
 	auto ttt = asio::awaitable<void>() and asio::awaitable<void>();
 
-	using co_spawn_t = decltype (
-		asio::co_spawn(libgs::get_executor(), asio::awaitable<void>(), asio::deferred)
-	);
+	// using co_spawn_t = decltype (
+	// 	asio::co_spawn(libgs::get_executor(), asio::awaitable<void>(), asio::deferred)
+	// );
 
 	libgs::http_nt::client client;
 	libgs::http_nt::request_arg arg;

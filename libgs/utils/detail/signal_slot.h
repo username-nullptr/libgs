@@ -169,12 +169,13 @@ private:
 		[&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 		<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 		{
-			auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-			{
-				using arg_t = slot_tr::template arg_type_t<I>;
-				return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-			};
-			slot(get_arg.template operator()<Is>()...);
+			// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+			// {
+			// 	using arg_t = slot_tr::template arg_type_t<I>;
+			// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+			// };
+			// slot(get_arg.template operator()<Is>()...);
+			slot(get_slot_arg<slot_tr, Is>(args)...);
 		}
 		(indices());
 
@@ -200,12 +201,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await slot(get_arg.template operator()<Is>()...);
+					co_await slot(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -218,12 +220,13 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// slot(get_arg.template operator()<Is>()...);
+					slot(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			});
@@ -247,12 +250,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await slot(get_arg.template operator()<Is>()...);
+					co_await slot(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -266,12 +270,13 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// slot(get_arg.template operator()<Is>()...);
+					slot(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			},
@@ -342,12 +347,13 @@ private:
 		[&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 		<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 		{
-			auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-			{
-				using arg_t = slot_tr::template arg_type_t<I>;
-				return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-			};
-			(obj->*slot)(get_arg.template operator()<Is>()...);
+			// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+			// {
+			// 	using arg_t = slot_tr::template arg_type_t<I>;
+			// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+			// };
+			// (obj->*slot)(get_arg.template operator()<Is>()...);
+			(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 		}
 		(indices());
 
@@ -378,12 +384,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					co_await (obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -400,12 +407,13 @@ private:
 
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					(obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// (obj->*slot)(get_arg.template operator()<Is>()...);
+					(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			});
@@ -434,12 +442,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					co_await (obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -457,17 +466,26 @@ private:
 
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					(obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// (obj->*slot)(get_arg.template operator()<Is>()...);
+					(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			},
 			use_future).wait();
 		}
+	}
+
+private:
+	template <typename SlotTr, size_t I>
+	[[nodiscard]] static decltype(auto) get_slot_arg(auto &args) noexcept
+	{
+		using arg_t = SlotTr::template arg_type_t<I>;
+		return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
 	}
 
 public:
@@ -541,12 +559,13 @@ private:
 			co_await [&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 			{
-				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-				{
-					using arg_t = slot_tr::template arg_type_t<I>;
-					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-				};
-				co_await slot(get_arg.template operator()<Is>()...);
+				// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				// {
+				// 	using arg_t = slot_tr::template arg_type_t<I>;
+				// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				// };
+				// co_await slot(get_arg.template operator()<Is>()...);
+				co_await slot(get_slot_arg<slot_tr, Is>(args)...);
 				co_return ;
 			}
 			(indices());
@@ -556,12 +575,13 @@ private:
 			[&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 			{
-				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-				{
-					using arg_t = slot_tr::template arg_type_t<I>;
-					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-				};
-				slot(get_arg.template operator()<Is>()...);
+				// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				// {
+				// 	using arg_t = slot_tr::template arg_type_t<I>;
+				// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				// };
+				// slot(get_arg.template operator()<Is>()...);
+				slot(get_slot_arg<slot_tr, Is>(args)...);
 			}
 			(indices());
 		}
@@ -583,12 +603,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await slot(get_arg.template operator()<Is>()...);
+					co_await slot(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -601,12 +622,13 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// slot(get_arg.template operator()<Is>()...);
+					slot(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			});
@@ -628,12 +650,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await slot(get_arg.template operator()<Is>()...);
+					co_await slot(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -647,12 +670,13 @@ private:
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					slot(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// slot(get_arg.template operator()<Is>()...);
+					slot(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			},
@@ -719,12 +743,13 @@ private:
 			co_await [&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 			{
-				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-				{
-					using arg_t = slot_tr::template arg_type_t<I>;
-					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-				};
-				co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+				// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				// {
+				// 	using arg_t = slot_tr::template arg_type_t<I>;
+				// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				// };
+				// co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+				co_await (obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 				co_return ;
 			}
 			(indices());
@@ -734,12 +759,13 @@ private:
 			[&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 			{
-				auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-				{
-					using arg_t = slot_tr::template arg_type_t<I>;
-					return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-				};
-				(obj->*slot)(get_arg.template operator()<Is>()...);
+				// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+				// {
+				// 	using arg_t = slot_tr::template arg_type_t<I>;
+				// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+				// };
+				// (obj->*slot)(get_arg.template operator()<Is>()...);
+				(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 			}
 			(indices());
 		}
@@ -765,12 +791,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					co_await (obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -787,12 +814,13 @@ private:
 
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					(obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// (obj->*slot)(get_arg.template operator()<Is>()...);
+					(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			});
@@ -819,12 +847,13 @@ private:
 				co_return co_await [&]<size_t...Is>
 				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// co_await (obj->*slot)(get_arg.template operator()<Is>()...);
+					co_await (obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 					co_return ;
 				}
 				(indices());
@@ -840,22 +869,30 @@ private:
 				if( not is_valid() )
 					co_return ;
 
-				co_return co_await [&]<size_t...Is>
-				(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
+				[&]<size_t...Is>
+				(std::index_sequence<Is...>) mutable noexcept
 				{
-					auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
-					{
-						using arg_t = slot_tr::template arg_type_t<I>;
-						return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
-					};
-					co_await (obj->*slot)(get_arg.template operator()<Is>()...);
-					co_return ;
+					// auto get_arg = [&]<size_t I>() mutable noexcept -> decltype(auto)
+					// {
+					// 	using arg_t = slot_tr::template arg_type_t<I>;
+					// 	return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
+					// };
+					// (obj->*slot)(get_arg.template operator()<Is>()...);
+					(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
 				}
 				(indices());
 			},
 			use_awaitable);
 		}
 		co_return ;
+	}
+
+private:
+	template <typename SlotTr, size_t I>
+	[[nodiscard]] static decltype(auto) get_slot_arg(auto &args) noexcept
+	{
+		using arg_t = SlotTr::template arg_type_t<I>;
+		return slot_arg_auto_cast<arg_t>(std::move(std::get<I>(args)));
 	}
 
 public:
@@ -867,21 +904,30 @@ public:
 } //namespace detail
 
 template <typename T, typename Tag>
-const Tag &arg_converter<T,Tag>::convert(const t_t &value) requires valid
+decltype(auto) arg_converter<T,Tag>::convert(const t_t &value) requires valid
 {
-	return static_cast<const Tag&>(value);
+	if constexpr( std::is_same_v<std::remove_cvref_t<T>, std::remove_cvref_t<Tag>> )
+		return static_cast<const tag_t&>(value);
+	else
+		return static_cast<tag_t>(value);
 }
 
 template <typename T, typename Tag>
-Tag &&arg_converter<T,Tag>::convert(t_t &&value) requires valid
+decltype(auto) arg_converter<T,Tag>::convert(t_t &&value) requires valid
 {
-	return static_cast<Tag&&>(value);
+	if constexpr( std::is_same_v<std::remove_cvref_t<T>, std::remove_cvref_t<Tag>> )
+		return static_cast<tag_t&&>(value);
+	else
+		return static_cast<tag_t>(std::move(value));
 }
 
 template <typename T, typename Tag>
-Tag &arg_converter<T,Tag>::convert(t_t &value) requires valid
+decltype(auto) arg_converter<T,Tag>::convert(t_t &value) requires valid
 {
-	return static_cast<Tag&>(value);
+	if constexpr( std::is_same_v<std::remove_cvref_t<T>, std::remove_cvref_t<Tag>> )
+		return static_cast<tag_t&>(value);
+	else
+		return static_cast<tag_t>(value);
 }
 
 template <typename Derived, concepts::std_func_temp Func>
