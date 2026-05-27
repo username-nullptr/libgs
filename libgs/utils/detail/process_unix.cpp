@@ -39,6 +39,8 @@
 #include <pwd.h>
 #include <map>
 
+#include <iostream>
+
 namespace libgs::utils::detail
 {
 
@@ -155,30 +157,26 @@ public:
 			for(auto &[key, value] : envs)
 				setenv(key.c_str(), value->c_str(), true);
 
-			default_shell()
-			.transform([&](const std::string &shell)
+			if( is_pipe )
 			{
-				std::string ccmd(cmd);
-				if( not is_pipe )
+				default_shell()
+				.transform([&](const std::string &shell)
 				{
-					ccmd = cmd;
-					for(auto &arg : args)
-						ccmd += " " + arg;
-				}
-				res = execlp(shell.c_str(),
-					shell.c_str(), "-c", ccmd.c_str(), nullptr
-				);
-				return shell;
-			})
-			.or_else([&]
-			{
-				if( is_pipe )
+					res = execlp(shell.c_str(),
+						shell.c_str(), "-c", cmd.data(), nullptr
+					);
+					return shell;
+				})
+				.or_else([&]
 				{
-					expected.despair(std::make_error_code (
+					expected.despair(std::make_error_code(
 						std::errc::no_such_file_or_directory
 					));
 					_exit(-1);
-				}
+				});
+			}
+			else
+			{
 				auto _args = new const char*[1 + args.size() + 1] {
 					cmd.data(), nullptr
 				};
@@ -189,7 +187,7 @@ public:
 				}
 				res = execvp(cmd.data(), const_cast<char**>(_args));
 				delete[] _args;
-			});
+			}
 			perror("||| *** *** *** Error: execvp *** >>> ");
 			_exit(res);
 		}
