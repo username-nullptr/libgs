@@ -39,8 +39,6 @@
 #include <pwd.h>
 #include <map>
 
-#include <iostream>
-
 namespace libgs::utils::detail
 {
 

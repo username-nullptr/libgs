@@ -38,8 +38,8 @@
 #include <asio/readable_pipe.hpp>
 #include <asio/writable_pipe.hpp>
 
-#include <map>
 #include <utility>
+#include <map>
 
 #pragma comment(lib, "shell32.lib")
 

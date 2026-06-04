@@ -1191,6 +1191,8 @@ signal_base<Derived,Func>::disconnect(const Obj &observer)
 	{
 		if( (*it)->slot->m_obj == observer.get() )
 			it = m_impl->m_slots.erase(it);
+		else
+			++it;
 	}
 	m_impl->m_mutex.unlock();
 	return static_cast<derived_t&>(*this);
