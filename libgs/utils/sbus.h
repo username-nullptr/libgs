@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,12 +26,10 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_H
-#define LIBGS_UTILS_H
+#ifndef LIBGS_UTILS_SBUS_H
+#define LIBGS_UTILS_SBUS_H
 
-#include <libgs/utils/logger.h>
-#include <libgs/utils/modules.h>
-#include <libgs/utils/settings.h>
-#include <libgs/utils/sbus.h>
+#include <libgs/utils/sbus/subscribe.h>
+#include <libgs/utils/sbus/publish.h>
 
-#endif //LIBGS_UTILS_H
+#endif //LIBGS_UTILS_SBUS_H

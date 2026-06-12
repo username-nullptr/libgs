@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,12 +26,19 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_H
-#define LIBGS_UTILS_H
+#include "publish.h"
 
-#include <libgs/utils/logger.h>
-#include <libgs/utils/modules.h>
-#include <libgs/utils/settings.h>
-#include <libgs/utils/sbus.h>
+namespace libgs::utils::sbus
+{
 
-#endif //LIBGS_UTILS_H
+void publish(const local_interface::topic_t &topic, const void *buffer, size_t size)
+{
+	publish<local_interface>(topic, buffer, size);
+}
+
+void publish(const local_interface::topic_t &topic, const char *str)
+{
+	publish<local_interface>(topic, str, strlen(str));
+}
+
+} //namespace libgs::utils::sbus

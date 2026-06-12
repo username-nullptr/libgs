@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,12 +26,52 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_H
-#define LIBGS_UTILS_H
+#ifndef LIBGS_UTILS_UTILS_SBUS_PUBLISH_H
+#define LIBGS_UTILS_UTILS_SBUS_PUBLISH_H
 
-#include <libgs/utils/logger.h>
-#include <libgs/utils/modules.h>
-#include <libgs/utils/settings.h>
-#include <libgs/utils/sbus.h>
+#include <libgs/utils/sbus/interface.h>
 
-#endif //LIBGS_UTILS_H
+namespace libgs::utils::sbus
+{
+
+template <concepts::interface Interface>
+LIBGS_UTILS_TAPI void publish (
+	const typename Interface::topic_t &topic, const void *buffer, size_t size
+);
+
+template <concepts::interface Interface>
+LIBGS_UTILS_TAPI void publish (
+	const typename Interface::topic_t &topic, const char *str
+);
+
+template <concepts::interface Interface, typename T>
+LIBGS_UTILS_TAPI void publish(const typename Interface::topic_t &topic, T &&value)
+	requires (not std::is_pointer_v<std::remove_cvref_t<T>>);
+
+template <concepts::interface Interface>
+LIBGS_UTILS_TAPI void publish (
+	concepts::topic_type<Interface> auto &&value
+);
+
+LIBGS_UTILS_API void publish (
+	const local_interface::topic_t &topic, const void *buffer, size_t size
+);
+
+LIBGS_UTILS_API void publish (
+	const local_interface::topic_t &topic, const char *str
+);
+
+template <typename T>
+LIBGS_UTILS_TAPI void publish(const local_interface::topic_t &topic, T &&value) requires (
+	not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T,local_interface>
+);
+
+LIBGS_UTILS_TAPI void publish (
+	concepts::topic_type<local_interface> auto &&value
+);
+
+} //namespace libgs::utils::sbus
+#include <libgs/utils/sbus/detail/publish.h>
+
+
+#endif //LIBGS_UTILS_UTILS_SBUS_PUBLISH_H

@@ -840,7 +840,7 @@ void process::add_arg(const path_t &arg) const noexcept
 		m_impl->m_is_pipe = true;
 		return ;
 	}
-	for(size_t i=1; i<word.we_wordc; i++)
+	for(size_t i=0; i<word.we_wordc; i++)
 		m_impl->m_args.emplace_back(word.we_wordv[i]);
 }
 

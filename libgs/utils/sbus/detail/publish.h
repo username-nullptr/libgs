@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,12 +26,67 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_H
-#define LIBGS_UTILS_H
+#ifndef LIBGS_UTILS_UTILS_SBUS_DETAIL_PUBLISH_H
+#define LIBGS_UTILS_UTILS_SBUS_DETAIL_PUBLISH_H
 
-#include <libgs/utils/logger.h>
-#include <libgs/utils/modules.h>
-#include <libgs/utils/settings.h>
-#include <libgs/utils/sbus.h>
+namespace libgs::utils::sbus
+{
 
-#endif //LIBGS_UTILS_H
+template <concepts::interface Interface>
+void publish(const typename Interface::topic_t &topic, const void *buffer, size_t size)
+{
+	Interface::publish(topic, buffer, size);
+}
+
+template <concepts::interface Interface>
+void publish(const typename Interface::topic_t &topic, const char *str)
+{
+	Interface::publish(topic, str, strlen(str));
+}
+
+template <concepts::interface Interface, typename T>
+void publish(const typename Interface::topic_t &topic, T &&value)
+	requires (not std::is_pointer_v<std::remove_cvref_t<T>>)
+{
+	using value_t = std::remove_cvref_t<T>;
+	if constexpr( concepts::topic_type<T,Interface> )
+	{
+		if( topic != value_t::libgs_sbus_topic_v )
+			invalid_argument::loc_throw("Topic does not match.");
+	}
+	if constexpr( libgs::concepts::streamer_type<value_t> )
+	{
+		auto buffer = streamer<value_t>::encode(value);
+		Interface::publish(topic, buffer.data(), buffer.size());
+	}
+	else if constexpr( std::is_same_v<value_t, const_buffer> or
+		std::is_same_v<value_t, asio::const_buffer> )
+		Interface::publish(topic, value.data(), value.size());
+	else
+		Interface::publish(topic, &value, sizeof(value_t));
+}
+
+template <concepts::interface Interface>
+void publish(concepts::topic_type<Interface> auto &&value)
+{
+	using Value = decltype(value);
+	using value_t = std::remove_cvref_t<Value>;
+	publish<Interface>(value_t::libgs_sbus_topic_v, std::forward<Value>(value));
+}
+
+template <typename T>
+void publish(const local_interface::topic_t &topic, T &&value) requires
+(not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T,local_interface>)
+{
+	publish<local_interface>(topic, std::forward<T>(value));
+}
+
+void publish(concepts::topic_type<local_interface> auto &&value)
+{
+	publish<local_interface>(std::forward<decltype(value)>(value));
+}
+
+} //namespace libgs::utils::sbus
+
+
+#endif //LIBGS_UTILS_UTILS_SBUS_DETAIL_PUBLISH_H

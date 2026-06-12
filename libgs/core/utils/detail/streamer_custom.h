@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,12 +26,68 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_H
-#define LIBGS_UTILS_H
+#ifndef LIBGS_CORE_CXX_DETAIL_STREAMER_CUSTOM_H
+#define LIBGS_CORE_CXX_DETAIL_STREAMER_CUSTOM_H
 
-#include <libgs/utils/logger.h>
-#include <libgs/utils/modules.h>
-#include <libgs/utils/settings.h>
-#include <libgs/utils/sbus.h>
+namespace libgs { namespace concepts
+{
 
-#endif //LIBGS_UTILS_H
+template <class T>
+concept streamer_custom_type = requires(T &v) {
+	v.meta_fields();
+};
+
+template <class T>
+concept streamer_type = requires(T &v)
+{
+	streamer<T>::encode(v);
+	v = *streamer<T>::decode(std::declval<std::vector<std::byte>>());
+};
+
+} //namespace concepts
+
+template <concepts::streamer_custom_type T>
+struct streamer<T>
+{
+	[[nodiscard]] static auto encode(const T &v) noexcept
+	{
+		std::vector<std::byte> buf;
+		std::apply([&]<typename...F>(const F&...xs) {
+			(helper(buf, streamer<std::remove_cvref_t<F>>::encode(xs)), ...);
+		}, v.meta_fields());
+		return buf;
+	}
+
+	[[nodiscard]] static decoder_data<T> decode(const std::vector<std::byte> &buf, size_t offset = 0)
+	{
+		size_t sum = 0;
+		T v;
+		std::apply([&](auto&...xs) {
+			(helper(offset, xs, sum, buf), ...);
+		}, v.meta_fields());
+		return { v, sum };
+	}
+
+private:
+	static void helper(std::vector<std::byte> &total, std::vector<std::byte> &&sub)
+	{
+		total.insert(total.end(),
+			std::make_move_iterator(sub.begin()),
+			std::make_move_iterator(sub.end())
+		);
+	}
+
+	template <typename F>
+	static void helper(size_t &offset, F &fields, size_t &sum, const std::vector<std::byte> &buf)
+	{
+		auto data = streamer<F>::decode(buf, offset);
+		fields = std::move(*data);
+		offset += data.size;
+		sum += data.size;
+	}
+};
+
+} //namespace libgs
+
+
+#endif //LIBGS_CORE_CXX_DETAIL_STREAMER_CUSTOM_H

@@ -30,6 +30,8 @@
 #define LIBGS_CORE_UTILS_UTILITIES_H
 
 #include <libgs/core/utils/asio_concepts.h>
+#include <libgs/core/utils/streamer.h>
+
 #include <libgs/core/cxx/string_concepts.h>
 #include <libgs/core/cxx/attributes.h>
 
