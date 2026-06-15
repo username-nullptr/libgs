@@ -26,75 +26,66 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_UTILS_UTILS_SBUS_INTERFACE_H
-#define LIBGS_UTILS_UTILS_SBUS_INTERFACE_H
+#ifndef LIBGS_UTILS_UTILS_SBUS_CACHE_H
+#define LIBGS_UTILS_UTILS_SBUS_CACHE_H
 
-#include <libgs/utils/global.h>
+#include <libgs/utils/sbus/subscribe.h>
+#include <libgs/utils/signal_slot.h>
 
-namespace libgs::utils::sbus { namespace concepts
+namespace libgs::utils::sbus
 {
 
-template <typename Interface>
-concept interface = []() consteval -> bool
+template <concepts::subscriber Subscriber>
+class LIBGS_UTILS_TAPI cache
 {
-	using topic_t = Interface::topic_t;
-	return libgs::concepts::constructible<Interface> and
-	requires(Interface &interface, const topic_t &topic, uint64_t sid, const char *buffer, size_t size)
-	{
-		Interface::publish(topic, buffer, size);
-		sid = interface.subscribe (
-			[](const topic_t&, const void*, size_t) {}
-		);
-		interface.cancel_topic(topic);
-		interface.cancel_sid(sid);
-		interface.cancel();
-	};
-}();
-
-template <typename T, typename Interface>
-concept topic_type = interface<Interface> and []() consteval -> bool
-{
-	using topic_t = Interface::topic_t;
-	return requires(const topic_t &topic) {
-		topic_t(std::remove_cvref_t<T>::libgs_sbus_topic_v);
-		topic == std::remove_cvref_t<T>::libgs_sbus_topic_v;
-	};
-}();
-
-#define LIBGS_SBUS_TYPE(Interface, value) \
-static constexpr Interface::topic_t libgs_sbus_topic_v = value;
-
-#define LIBGS_LOC_SBUS_TYPE(value) \
-static constexpr const char *libgs_sbus_topic_v = "libgs.loc_sbus.topic." #value;
-
-} //namespace concepts
-
-class LIBGS_UTILS_API local_interface final :
-	public std::enable_shared_from_this<local_interface>
-{
-	LIBGS_DISABLE_COPY_MOVE(local_interface)
+	LIBGS_DISABLE_COPY_MOVE(cache)
 
 public:
-	using topic_t = std::string_view;
+	using subscriber_t = Subscriber;
+	using executor_t = subscriber_t::executor_t;
 
-	local_interface();
-	~local_interface();
+	using interface_t = subscriber_t::interface_t;
+	using payload_t = std::vector<std::byte>;
 
-	static void publish(topic_t topic, const void *buffer, size_t size);
+	template <typename...Args>
+	using signal_t = signal<awaitable<void>(Args...)>;
 
-	uint64_t subscribe(topic_t topic, std::function<void(const void*, size_t)> func);
-	uint64_t subscribe(std::function<void(topic_t topic, const void*, size_t)> func);
+public:
+	template <typename Exec0 = io_context_t&>
+	explicit cache(Exec0 &&exec = io_context()) requires
+		libgs::concepts::match_sched<Exec0,executor_t>;
 
-	void cancel_topic(topic_t topic);
-	void cancel_sid(uint64_t sid);
-	void cancel();
+	~cache();
+	[[nodiscard]] payload_t get(std::string_view topic) const;
+
+	template <typename T>
+	[[nodiscard]] T get(std::string_view topic) const;
+
+	template <typename T>
+	[[nodiscard]] T get() const requires
+		concepts::topic_type<T,interface_t>;
+
+public:
+	[[nodiscard]] signal_t<payload_t,payload_t> &changed(std::string_view topic) noexcept;
+	[[nodiscard]] signal_t<std::string_view,payload_t,payload_t> &changed() noexcept;
+
+	template <typename T>
+	[[nodiscard]] signal_t<payload_t,payload_t> &changed() noexcept
+		requires concepts::topic_type<T,interface_t>;
+
+public:
+	[[nodiscard]] subscriber_t subscriber() noexcept;
+	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
 	class impl;
 	std::unique_ptr<impl> m_impl {};
 };
 
+using local_cache = cache<local_subscriber>;
+
 } //namespace libgs::utils::sbus
+#include <libgs/utils/sbus/detail/cache.h>
 
 
-#endif //LIBGS_UTILS_UTILS_SBUS_INTERFACE_H
+#endif //LIBGS_UTILS_UTILS_SBUS_CACHE_H

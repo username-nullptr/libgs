@@ -33,7 +33,7 @@ namespace libgs::utils::sbus
 {
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-template <libgs::concepts::sched Exec0>
+template <libgs::concepts::match_sched<Exec> Exec0>
 basic_subscriber<Interface,Exec>::basic_subscriber(Exec0 &&exec) :
 	m_interface(std::make_shared<interface_t>()),
 	m_exec(libgs::get_executor_helper(std::forward<Exec0>(exec)))
@@ -299,7 +299,8 @@ basic_subscriber<Interface,Exec>::executor_t basic_subscriber<Interface,Exec>::g
 	return m_exec;
 }
 
-template <concepts::subscriber Subscriber, libgs::concepts::sched Exec0, typename...Args>
+template <concepts::subscriber Subscriber,
+	libgs::concepts::match_sched<typename Subscriber::executor_t> Exec0, typename...Args>
 std::pair<Subscriber,uint64_t> subscribe(Exec0 &&exec, Args&&...args) requires requires
 	{ Subscriber(std::forward<Exec0>(exec)).subscribe(std::forward<Args>(args)...); }
 {
@@ -317,7 +318,7 @@ std::pair<Subscriber,uint64_t> subscribe(Args&&...args) requires requires
 	return { std::move(obj), sid };
 }
 
-template <libgs::concepts::sched Exec0, typename...Args>
+template <libgs::concepts::match_sched<local_subscriber::executor_t> Exec0, typename...Args>
 std::pair<local_subscriber,uint64_t> subscribe(Exec0 &&exec, Args&&...args) requires requires
 	{ local_subscriber(std::forward<Exec0>(exec)).subscribe(std::forward<Args>(args)...); }
 {

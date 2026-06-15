@@ -44,6 +44,9 @@ concept streamer_type = requires(T &v)
 	v = *streamer<T>::decode(std::declval<std::vector<std::byte>>());
 };
 
+template <class T>
+concept streamer_type_p = streamer_type<std::remove_cvref_t<T>>;
+
 } //namespace concepts
 
 template <concepts::streamer_custom_type T>

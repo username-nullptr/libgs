@@ -35,9 +35,14 @@
 #include <utility>
 
 #include <sys/wait.h>
+#include <signal.h>
 #include <wordexp.h>
 #include <pwd.h>
 #include <map>
+
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 
 namespace libgs::utils::detail
 {
@@ -57,6 +62,18 @@ using envs_t = std::map<std::string, value>;
 [[nodiscard]] static error_code sys_error()
 {
 	return { errno, std::system_category() };
+}
+
+[[nodiscard]] static bool exit_on_parent_exit(::pid_t parent_pid) noexcept
+{
+#ifdef __linux__
+	if( prctl(PR_SET_PDEATHSIG, SIGKILL) != 0 )
+		return false;
+	return getppid() == parent_pid;
+#else
+	LIBGS_UNUSED(parent_pid);
+	return true;
+#endif
 }
 
 class LIBGS_DECL_HIDDEN vindicator final :
@@ -105,6 +122,7 @@ public:
 		int stdin_pipe [2] {-1,-1};
 		int stdout_pipe[2] {-1,-1};
 		int stderr_pipe[2] {-1,-1};
+		::pid_t parent_pid = -1;
 
 		error = m_stdin.close(error);
 		if( pipe2(stdin_pipe, O_NONBLOCK) < 0 )
@@ -124,14 +142,18 @@ public:
 			expected.despair(sys_error());
 			goto stderr_error;
 		}
-		m_pid = vfork();
+		parent_pid = getpid();
+		m_pid = fork();
 		if( m_pid < 0 )
 		{
 			expected.despair(sys_error());
-			goto vfork_error;
+			goto fork_error;
 		}
 		else if( m_pid == 0 ) //child
 		{
+			if( not exit_on_parent_exit(parent_pid) )
+				_exit(255);
+
 			fcntl(stdin_pipe[0], F_SETFL,
 				fcntl(stdin_pipe[0], F_GETFL) | O_NONBLOCK
 			);
@@ -269,7 +291,7 @@ public:
 		for(auto &timer : vector)
 			timer->cancel();
 	}
-	vfork_error:
+	fork_error:
 		close(stderr_pipe[0]);
 		close(stderr_pipe[1]);
 		stderr_pipe[0] = stderr_pipe[1] = -1;

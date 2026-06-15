@@ -95,7 +95,7 @@ public:
 	using executor_t = Exec;
 
 public:
-	template <libgs::concepts::sched Exec0 = io_context_t&>
+	template <libgs::concepts::match_sched<Exec> Exec0 = io_context_t&>
 	explicit basic_subscriber(Exec0 &&exec = io_context());
 	~basic_subscriber();
 
@@ -151,7 +151,8 @@ concept subscriber = is_subscriber_v<T>;
 
 } //namespace concepts
 
-template <concepts::subscriber Subscriber, libgs::concepts::sched Exec0, typename...Args>
+template <concepts::subscriber Subscriber,
+	libgs::concepts::match_sched<typename Subscriber::executor_t> Exec0, typename...Args>
 LIBGS_UTILS_TAPI std::pair<Subscriber,uint64_t> subscribe(Exec0 &&exec, Args&&...args) requires requires {
 	Subscriber(std::forward<Exec0>(exec)).subscribe(std::forward<Args>(args)...);
 };
@@ -161,7 +162,7 @@ LIBGS_UTILS_TAPI std::pair<Subscriber,uint64_t> subscribe(Args&&...args) require
 	Subscriber().subscribe(std::forward<Args>(args)...);
 };
 
-template <libgs::concepts::sched Exec0, typename...Args>
+template <libgs::concepts::match_sched<local_subscriber::executor_t> Exec0, typename...Args>
 LIBGS_UTILS_TAPI std::pair<local_subscriber,uint64_t> subscribe(Exec0 &&exec, Args&&...args) requires requires {
 	local_subscriber(std::forward<Exec0>(exec)).subscribe(std::forward<Args>(args)...);
 };

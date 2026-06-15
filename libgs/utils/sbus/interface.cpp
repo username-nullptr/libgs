@@ -47,13 +47,12 @@ constexpr size_t g_queue_max_size = 128;
 }
 
 template <typename Derived>
-class /* LIBGS_DECL_HIDDEN */ subscriber_thread :
-	public std::enable_shared_from_this<Derived>
+class /* LIBGS_DECL_HIDDEN */ subscriber_thread : public std::enable_shared_from_this<Derived>
 {
 	LIBGS_DISABLE_COPY_MOVE(subscriber_thread)
 
 protected:
-	subscriber_thread
+	explicit subscriber_thread
 	(std::function<awaitable<bool>()> task) :
 		m_thread([this]() mutable noexcept { libgs::exec(m_exec); })
 	{
@@ -116,17 +115,16 @@ private:
 	std::thread m_thread {};
 };
 
-class /* LIBGS_DECL_HIDDEN */ basic_global_subscriber :
-	public subscriber_thread<basic_global_subscriber>
+class /* LIBGS_DECL_HIDDEN */ global_subscriber : public subscriber_thread<global_subscriber>
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_global_subscriber)
+	LIBGS_DISABLE_COPY_MOVE(global_subscriber)
 
 	circular_lock_free_queue <
 		std::pair<std::string,payload_t>, g_queue_max_size
 	> m_queue {};
 
 public:
-	basic_global_subscriber() :
+	global_subscriber() :
 	subscriber_thread([this]() -> awaitable<bool>
 	{
 		using opt_t = decltype(libgs::dispatch (
@@ -186,17 +184,15 @@ public:
 	)> received;
 };
 
-using global_subscriber = basic_global_subscriber;
 using global_subscriber_ptr = std::shared_ptr<global_subscriber>;
 
-class /* LIBGS_DECL_HIDDEN */ basic_subscriber :
-	public subscriber_thread<basic_subscriber>
+class /* LIBGS_DECL_HIDDEN */ subscriber : public subscriber_thread<subscriber>
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_subscriber)
+	LIBGS_DISABLE_COPY_MOVE(subscriber)
 	circular_lock_free_queue<payload_t,g_queue_max_size> m_queue {};
 
 public:
-	basic_subscriber() :
+	subscriber() :
 	subscriber_thread([this]() -> awaitable<bool>
 	{
 		using opt_t = decltype(libgs::dispatch (
@@ -249,7 +245,6 @@ public:
 	signal<awaitable<void>(payload_t)> received;
 };
 
-using subscriber = basic_subscriber;
 using subscriber_ptr = std::shared_ptr<subscriber>;
 
 } //namespace detail
@@ -266,7 +261,7 @@ public:
 	{
 		auto id = m_id_seq++;
 		auto obj = std::make_shared<detail::subscriber>();
-		spin_shared_unique_lock lock(m_subscribers_lock);
+		std::unique_lock lock(m_subscribers_lock);
 
 		auto it = m_subscribers.emplace (
 			std::string(topic), std::unordered_map<uint64_t,detail::subscriber_ptr>()
@@ -279,7 +274,7 @@ public:
 	{
 		auto id = m_id_seq++;
 		auto obj = std::make_shared<detail::global_subscriber>();
-		spin_shared_unique_lock lock(m_global_subscribers_lock);
+		std::unique_lock lock(m_global_subscribers_lock);
 		m_global_subscribers.emplace(id, obj);
 		return { id, obj };
 	}
@@ -345,7 +340,7 @@ void local_interface::publish(topic_t topic, const void *buffer, size_t size)
 	for(auto &obj : objs | std::views::values)
 	{
 		obj->m_impl->m_global_subscribers_lock.lock_shared();
-		auto vector = obj->m_impl->m_global_subscribers;
+		auto glob_map = obj->m_impl->m_global_subscribers;
 		obj->m_impl->m_global_subscribers_lock.unlock_shared();
 
 		obj->m_impl->m_subscribers_lock.lock_shared();
@@ -353,9 +348,9 @@ void local_interface::publish(topic_t topic, const void *buffer, size_t size)
 		obj->m_impl->m_subscribers_lock.unlock_shared();
 
 		if( map.empty() )
-			return obj->m_impl->global_broadcast(vector, topic, buffer, size);
+			return obj->m_impl->global_broadcast(glob_map, topic, buffer, size);
 
-		obj->m_impl->global_broadcast(vector, topic, buffer, size);
+		obj->m_impl->global_broadcast(glob_map, topic, buffer, size);
 		obj->m_impl->broadcast(map, topic, buffer, size);
 	}
 }
@@ -364,7 +359,7 @@ uint64_t local_interface::subscribe(topic_t topic, std::function<void(const void
 {
 	auto [id, subr] = m_impl->make_subscriber(topic);
 	subr->received.connect (
-	[func = std::forward<decltype(func)>(func)](const detail::payload_t &payload) {
+	[func = std::move(func)](const detail::payload_t &payload) {
 		func(payload.data(), payload.size());
 	});
 	m_objs_lock.lock();
@@ -377,7 +372,7 @@ uint64_t local_interface::subscribe(std::function<void(topic_t topic, const void
 {
 	auto [id, subr] = m_impl->make_subscriber();
 	subr->received.connect (
-	[func = std::forward<decltype(func)>(func)](topic_t topic, const detail::payload_t &payload) {
+	[func = std::move(func)](topic_t topic, const detail::payload_t &payload) {
 		func(topic, payload.data(), payload.size());
 	});
 	m_objs_lock.lock();
@@ -445,13 +440,13 @@ void local_interface::cancel_sid(uint64_t sid)
 
 void local_interface::cancel()
 {
-	m_impl->m_global_subscribers_lock.lock_shared();
+	m_impl->m_global_subscribers_lock.lock();
 	m_impl->m_global_subscribers.clear();
-	m_impl->m_global_subscribers_lock.unlock_shared();
+	m_impl->m_global_subscribers_lock.unlock();
 
-	m_impl->m_subscribers_lock.lock_shared();
+	m_impl->m_subscribers_lock.lock();
 	m_impl->m_subscribers.clear();
-	m_impl->m_subscribers_lock.unlock_shared();
+	m_impl->m_subscribers_lock.unlock();
 
 	m_objs_lock.lock();
 	g_obj_map.erase(this);
