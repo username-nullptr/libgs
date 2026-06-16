@@ -53,6 +53,10 @@ struct decoder_data
 	operator T&() noexcept { return data; }
 };
 
+#define LIBGS_SERIALIZE_FIELDS(...) \
+	auto meta_fields() { return std::tie(__VA_ARGS__); } \
+	auto meta_fields() const { return std::tie(__VA_ARGS__); }
+
 #define LIBGS_META_FIELDS(...) \
 	LIBGS_FIELD_MAP(LIBGS_FIELD_DECL, __VA_ARGS__) \
 	LIBGS_SERIALIZE_FIELDS(LIBGS_FIELD_MAP_COMMA(LIBGS_FIELD_NAME,__VA_ARGS__))

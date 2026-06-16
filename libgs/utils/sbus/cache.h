@@ -54,24 +54,59 @@ public:
 	template <typename Exec0 = io_context_t&>
 	explicit cache(Exec0 &&exec = io_context()) requires
 		libgs::concepts::match_sched<Exec0,executor_t>;
-
 	~cache();
+
+public:
+	template <typename T>
+	cache &set(std::string_view topic, const T &data)
+		requires (not std::is_pointer_v<std::remove_cvref_t<T>>);
+
+	cache &set(concepts::topic_type auto &&data);
+	cache &set(std::string_view topic, const void *data, size_t size);
+	cache &set(std::string_view topic, const char *data);
+
+public:
+	template <concepts::topic_type T>
+	[[nodiscard]] optional<T> get() const;
+
+	template <typename T>
+	[[nodiscard]] optional<T> get(std::string_view topic) const;
 	[[nodiscard]] payload_t get(std::string_view topic) const;
 
-	template <typename T>
-	[[nodiscard]] T get(std::string_view topic) const;
-
-	template <typename T>
-	[[nodiscard]] T get() const requires
-		concepts::topic_type<T,interface_t>;
+	[[nodiscard]] std::map<std::string,payload_t> get() const noexcept;
 
 public:
 	[[nodiscard]] signal_t<payload_t,payload_t> &changed(std::string_view topic) noexcept;
 	[[nodiscard]] signal_t<std::string_view,payload_t,payload_t> &changed() noexcept;
 
-	template <typename T>
-	[[nodiscard]] signal_t<payload_t,payload_t> &changed() noexcept
-		requires concepts::topic_type<T,interface_t>;
+	template <concepts::topic_type T>
+	[[nodiscard]] signal_t<payload_t,payload_t> &changed() noexcept;
+
+public:
+	template <typename T = payload_t>
+	struct changed_result
+	{
+		using type = T;
+		T current {};
+		T previous {};
+	};
+
+	template <typename Token, typename T = payload_t>
+	static constexpr bool is_token_v =
+		libgs::concepts::tf_opt_token<Token,sys_expected<changed_result<T>>> and
+		not is_detached_v<Token>;
+
+	template <concepts::topic_type T, typename Token = use_sync_t>
+	auto wait_changed(Token &&token = use_sync) noexcept
+		requires is_token_v<Token,T>;
+
+	template <typename Token = use_sync_t>
+	auto wait_changed(std::string_view topic, Token &&token = use_sync) noexcept
+		requires is_token_v<Token>;
+
+	template <typename T, typename Token = use_sync_t>
+	auto wait_changed(std::string_view topic, Token &&token = use_sync) noexcept
+		requires is_token_v<Token,T>;
 
 public:
 	[[nodiscard]] subscriber_t subscriber() noexcept;
@@ -79,7 +114,7 @@ public:
 
 private:
 	class impl;
-	std::unique_ptr<impl> m_impl {};
+	std::shared_ptr<impl> m_impl {};
 };
 
 using local_cache = cache<local_subscriber>;

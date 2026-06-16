@@ -36,38 +36,38 @@ namespace libgs::utils::sbus
 
 template <concepts::interface Interface>
 LIBGS_UTILS_TAPI void publish (
-	const typename Interface::topic_t &topic, const void *buffer, size_t size
+	std::string_view topic, const void *buffer, size_t size
 );
 
 template <concepts::interface Interface>
 LIBGS_UTILS_TAPI void publish (
-	const typename Interface::topic_t &topic, const char *str
+	std::string_view topic, const char *str
 );
 
 template <concepts::interface Interface, typename T>
-LIBGS_UTILS_TAPI void publish(const typename Interface::topic_t &topic, T &&value)
+LIBGS_UTILS_TAPI void publish(std::string_view topic, T &&value)
 	requires (not std::is_pointer_v<std::remove_cvref_t<T>>);
 
 template <concepts::interface Interface>
 LIBGS_UTILS_TAPI void publish (
-	concepts::topic_type<Interface> auto &&value
+	concepts::topic_type auto &&value
 );
 
 LIBGS_UTILS_API void publish (
-	const local_interface::topic_t &topic, const void *buffer, size_t size
+	std::string_view topic, const void *buffer, size_t size
 );
 
 LIBGS_UTILS_API void publish (
-	const local_interface::topic_t &topic, const char *str
+	std::string_view topic, const char *str
 );
 
 template <typename T>
-LIBGS_UTILS_TAPI void publish(const local_interface::topic_t &topic, T &&value) requires (
-	not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T,local_interface>
+LIBGS_UTILS_TAPI void publish(std::string_view topic, T &&value) requires (
+	not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T>
 );
 
 LIBGS_UTILS_TAPI void publish (
-	concepts::topic_type<local_interface> auto &&value
+	concepts::topic_type auto &&value
 );
 
 } //namespace libgs::utils::sbus

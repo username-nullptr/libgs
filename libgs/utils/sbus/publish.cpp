@@ -31,12 +31,12 @@
 namespace libgs::utils::sbus
 {
 
-void publish(const local_interface::topic_t &topic, const void *buffer, size_t size)
+void publish(std::string_view topic, const void *buffer, size_t size)
 {
 	publish<local_interface>(topic, buffer, size);
 }
 
-void publish(const local_interface::topic_t &topic, const char *str)
+void publish(std::string_view topic, const char *str)
 {
 	publish<local_interface>(topic, str, strlen(str));
 }

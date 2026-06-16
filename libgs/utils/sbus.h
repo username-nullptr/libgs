@@ -29,7 +29,6 @@
 #ifndef LIBGS_UTILS_SBUS_H
 #define LIBGS_UTILS_SBUS_H
 
-#include <libgs/utils/sbus/publish.h>
 #include <libgs/utils/sbus/cache.h>
 
 #endif //LIBGS_UTILS_SBUS_H

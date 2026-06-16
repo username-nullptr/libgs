@@ -35,7 +35,7 @@
 namespace libgs::utils::sbus { namespace concepts
 {
 
-template <typename Func, typename Interface, size_t Count>
+template <typename Func, size_t Count>
 concept subscribe_func = []() consteval -> bool
 {
 	using func_t = std::remove_cvref_t<Func>;
@@ -52,8 +52,8 @@ concept subscribe_func = []() consteval -> bool
 			using arg0_t = std::remove_cvref_t<typename func_tr_t::template arg_type_t<0>>;
 			using arg1_t = std::remove_cvref_t<typename func_tr_t::template arg_type_t<1>>;
 
-			return std::is_same_v<arg0_t, typename Interface::topic_t> and
-				not topic_type<arg1_t,Interface> and not std::is_pointer_v<arg1_t>;
+			return libgs::concepts::constructible<arg0_t,std::string_view> and
+				not topic_type<arg1_t> and not std::is_pointer_v<arg1_t>;
 		}
 		else
 			return false;
@@ -62,7 +62,7 @@ concept subscribe_func = []() consteval -> bool
 		return false;
 }();
 
-template <typename Func, typename Interface>
+template <typename Func>
 concept subscribe_type_func = []() consteval -> bool
 {
 	using func_t = std::remove_cvref_t<Func>;
@@ -72,7 +72,7 @@ concept subscribe_type_func = []() consteval -> bool
 		if constexpr( func_tr_t::arg_count == 1 )
 		{
 			using arg_t = std::remove_cvref_t<typename func_tr_t::template arg_type_t<0>>;
-			return topic_type<arg_t,Interface>;
+			return topic_type<arg_t>;
 		}
 		else
 			return false;
@@ -90,8 +90,6 @@ class LIBGS_UTILS_TAPI basic_subscriber
 public:
 	using interface_t = Interface;
 	using interface_ptr = std::shared_ptr<Interface>;
-
-	using topic_t = interface_t::topic_t;
 	using executor_t = Exec;
 
 public:
@@ -100,15 +98,15 @@ public:
 	~basic_subscriber();
 
 public:
-	uint64_t subscribe(topic_t topic, concepts::subscribe_func<interface_t,1> auto &&func);
-	uint64_t subscribe(concepts::subscribe_func<interface_t,2> auto &&func);
+	uint64_t subscribe(std::string_view topic, concepts::subscribe_func<1> auto &&func);
+	uint64_t subscribe(concepts::subscribe_func<2> auto &&func);
 
-	uint64_t subscribe(topic_t topic, libgs::concepts::callable<const void*,size_t> auto &&func);
-	uint64_t subscribe(libgs::concepts::callable<topic_t,const void*,size_t> auto &&func);
+	uint64_t subscribe(std::string_view topic, libgs::concepts::callable<const void*,size_t> auto &&func);
+	uint64_t subscribe(libgs::concepts::callable<std::string_view,const void*,size_t> auto &&func);
 
-	uint64_t subscribe(concepts::subscribe_type_func<interface_t> auto &&func);
+	uint64_t subscribe(concepts::subscribe_type_func auto &&func);
 
-	basic_subscriber &cancel_topic(const topic_t &topic);
+	basic_subscriber &cancel_topic(const std::string_view &topic);
 	basic_subscriber &cancel_sid(uint64_t sid);
 	basic_subscriber &cancel();
 

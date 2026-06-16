@@ -82,6 +82,41 @@ struct streamer<std::optional<T>>
 	}
 };
 
+template <typename T>
+struct streamer<optional<T>>
+{
+	using optional_t = optional<T>;
+
+	[[nodiscard]] static auto encode(const optional_t &v)
+	{
+		std::vector<std::byte> buf;
+		buf.emplace_back(static_cast<std::byte>(v.has_value()));
+		if( v )
+		{
+			auto sub = streamer<T>::encode(*v);
+			buf.insert(buf.end(),
+				std::make_move_iterator(sub.begin()),
+				std::make_move_iterator(sub.end())
+			);
+		}
+		return buf;
+	}
+
+	[[nodiscard]] static decoder_data<optional_t>
+	decode(const std::vector<std::byte> &buf, size_t offset = 0)
+	{
+		if( buf.size() <= offset )
+			runtime_error::loc_throw("bad packet");
+
+		auto has_value = std::to_integer<bool>(buf[offset++]);
+		if( not has_value )
+			return { nullopt, 1 };
+
+		auto data = streamer<T>::decode(buf, offset);
+		return { optional_t { std::move(*data) }, 1 + data.size };
+	}
+};
+
 template <typename...Ts>
 struct streamer<std::variant<Ts...>>
 {

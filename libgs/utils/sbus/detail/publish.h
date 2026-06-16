@@ -33,23 +33,23 @@ namespace libgs::utils::sbus
 {
 
 template <concepts::interface Interface>
-void publish(const typename Interface::topic_t &topic, const void *buffer, size_t size)
+void publish(std::string_view topic, const void *buffer, size_t size)
 {
 	Interface::publish(topic, buffer, size);
 }
 
 template <concepts::interface Interface>
-void publish(const typename Interface::topic_t &topic, const char *str)
+void publish(std::string_view topic, const char *str)
 {
 	Interface::publish(topic, str, strlen(str));
 }
 
 template <concepts::interface Interface, typename T>
-void publish(const typename Interface::topic_t &topic, T &&value)
+void publish(std::string_view topic, T &&value)
 	requires (not std::is_pointer_v<std::remove_cvref_t<T>>)
 {
 	using value_t = std::remove_cvref_t<T>;
-	if constexpr( concepts::topic_type<T,Interface> )
+	if constexpr( concepts::topic_type<T> )
 	{
 		if( topic != value_t::libgs_sbus_topic_v )
 			invalid_argument::loc_throw("Topic does not match.");
@@ -67,7 +67,7 @@ void publish(const typename Interface::topic_t &topic, T &&value)
 }
 
 template <concepts::interface Interface>
-void publish(concepts::topic_type<Interface> auto &&value)
+void publish(concepts::topic_type auto &&value)
 {
 	using Value = decltype(value);
 	using value_t = std::remove_cvref_t<Value>;
@@ -75,13 +75,13 @@ void publish(concepts::topic_type<Interface> auto &&value)
 }
 
 template <typename T>
-void publish(const local_interface::topic_t &topic, T &&value) requires
-(not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T,local_interface>)
+void publish(std::string_view topic, T &&value) requires
+(not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T>)
 {
 	publish<local_interface>(topic, std::forward<T>(value));
 }
 
-void publish(concepts::topic_type<local_interface> auto &&value)
+void publish(concepts::topic_type auto &&value)
 {
 	publish<local_interface>(std::forward<decltype(value)>(value));
 }

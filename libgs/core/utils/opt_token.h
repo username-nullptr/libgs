@@ -86,6 +86,23 @@ public:
 	milliseconds time {0};
 };
 
+// TODO ... ...
+// template <typename Token>
+// class LIBGS_CORE_TAPI redirect_time_point_t
+// {
+// public:
+// 	using token_t = Token;
+//
+// 	template <typename Rep, typename Period>
+// 	redirect_time_point_t(auto &&token, const duration<Rep,Period> &rtime);
+//
+// 	template <typename Clock, typename Duration>
+// 	redirect_time_point_t(auto &&token, const time_point<Clock,Duration> &atime);
+//
+// 	token_t token;
+// 	std::chrono::steady_clock::time_point tp {};
+// };
+
 template <typename Token, typename Rep, typename Period>
 [[nodiscard]] LIBGS_CORE_TAPI auto redirect_time (
 	Token &&token, const duration<Rep,Period> &timeout

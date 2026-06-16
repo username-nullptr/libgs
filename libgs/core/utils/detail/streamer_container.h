@@ -30,6 +30,8 @@
 #define LIBGS_CORE_CXX_DETAIL_STREAMER_CONTAINER_H
 
 #include <libgs/core/utils/string_tools.h>
+#include <bits/fs_path.h>
+
 #include <vector>
 #include <bitset>
 #include <array>
@@ -573,6 +575,40 @@ struct streamer<std::unordered_set<T,Hash,Pred,Alloc>>
 			sum += data.size;
 		}
 		return { std::move(set), sum };
+	}
+};
+
+template <>
+struct streamer<std::filesystem::path>
+{
+	using path_t = std::filesystem::path;
+
+	static auto encode(const path_t &v)
+	{
+		std::vector<std::byte> buf;
+		auto str = v.string();
+		buf.resize(8 + str.size());
+
+		*reinterpret_cast<uint64_t*>(buf.data()) = str.size();
+		std::memcpy(buf.data() + 8, str.data(), str.size());
+		return buf;
+	}
+
+	[[nodiscard]] static auto decode(const std::vector<std::byte> &buf, size_t offset = 0)
+	{
+		if( buf.size() < offset + 8 )
+			runtime_error::loc_throw("bad packet");
+
+		auto c_buf = buf.data() + offset;
+		auto size = *reinterpret_cast<const uint64_t*>(c_buf);
+		auto byte_size = size;
+
+		if( buf.size() - offset < 8 + byte_size )
+			runtime_error::loc_throw("bad packet");
+
+		std::string str(size, '\0');
+		std::memcpy(str.data(), c_buf + 8, byte_size);
+		return decoder_data { std::move(str), 8 + byte_size };
 	}
 };
 

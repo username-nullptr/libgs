@@ -49,7 +49,8 @@ template <concepts::interface Interface, libgs::concepts::exec Exec>
 basic_subscriber<Interface,Exec>::~basic_subscriber() = default;
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(topic_t topic, concepts::subscribe_func<interface_t,1> auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe
+(std::string_view topic, concepts::subscribe_func<1> auto &&func)
 {
 	using Func = decltype(func);
 	using func_t = std::remove_cvref_t<Func>;
@@ -58,7 +59,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(topic_t topic, concepts::su
 	using return_t = func_tr_t::return_type;
 
 	using arg_t = std::remove_cvref_t<typename func_tr_t::template arg_type_t<0>>;
-	if constexpr( concepts::topic_type<arg_t,interface_t> )
+	if constexpr( concepts::topic_type<arg_t> )
 	{
 		if( topic != arg_t::libgs_sbus_topic_v )
 			invalid_argument::loc_throw("Topic does not match.");
@@ -105,7 +106,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(topic_t topic, concepts::su
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<interface_t,2> auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<2> auto &&func)
 {
 	using Func = decltype(func);
 	using func_t = std::remove_cvref_t<Func>;
@@ -117,7 +118,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<in
 	if constexpr( is_awaitable_v<return_t> )
 	{
 		return subscribe([func = std::forward<Func>(func)]
-		(const topic_t &topic, const void *data, size_t size) -> awaitable<void>
+		(const std::string_view &topic, const void *data, size_t size) -> awaitable<void>
 		{
 			if constexpr( libgs::concepts::streamer_type<arg1_t> )
 			{
@@ -137,7 +138,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<in
 	else
 	{
 		return subscribe([func = std::forward<Func>(func)]
-		(const topic_t &topic, const void *data, size_t size)
+		(const std::string_view &topic, const void *data, size_t size)
 		{
 			if constexpr( libgs::concepts::streamer_type<arg1_t> )
 			{
@@ -156,7 +157,8 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<in
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(topic_t topic, libgs::concepts::callable<const void*,size_t> auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe
+(std::string_view topic, libgs::concepts::callable<const void*,size_t> auto &&func)
 {
 	using Func = decltype(func);
 	using func_t = std::remove_cvref_t<Func>;
@@ -192,7 +194,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(topic_t topic, libgs::conce
 	{
 		return m_interface->subscribe(
 		[exec = m_exec, topic, func = std::forward<Func>(func)]
-		(const topic_t &t, const void *data, size_t size) noexcept
+		(const std::string_view &t, const void *data, size_t size) noexcept
 		{
 			if( t != topic )
 				return ;
@@ -216,14 +218,15 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(topic_t topic, libgs::conce
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(libgs::concepts::callable<topic_t,const void*,size_t> auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe
+(libgs::concepts::callable<std::string_view,const void*,size_t> auto &&func)
 {
 	using Func = decltype(func);
 	using func_t = std::remove_cvref_t<Func>;
 
 	return m_interface->subscribe(
 	[exec = m_exec, func = std::forward<Func>(func)]
-	(const topic_t &topic, const void *data, size_t size) noexcept
+	(std::string_view topic, const void *data, size_t size) noexcept
 	{
 		using func_tr_t = function_traits<func_t>;
 		using return_t = func_tr_t::return_type;
@@ -247,7 +250,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(libgs::concepts::callable<t
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_type_func<interface_t> auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_type_func auto &&func)
 {
 	using Func = decltype(func);
 	using func_t = std::remove_cvref_t<Func>;
@@ -259,7 +262,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_type_fu
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-basic_subscriber<Interface,Exec> &basic_subscriber<Interface,Exec>::cancel_topic(const topic_t &topic)
+basic_subscriber<Interface,Exec> &basic_subscriber<Interface,Exec>::cancel_topic(const std::string_view &topic)
 {
 	m_interface->cancel_topic(topic);
 	return *this;

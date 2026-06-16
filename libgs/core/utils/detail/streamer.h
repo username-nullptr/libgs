@@ -311,10 +311,6 @@ struct streamer<T[N]>
 #define LIBGS_FIELD_NAME_IMPL(type, name, ...)  name
 #define LIBGS_FIELD_NAME(x)  LIBGS_FIELD_NAME_IMPL x
 
-#define LIBGS_SERIALIZE_FIELDS(...) \
-	auto meta_fields() { return std::tie(__VA_ARGS__); } \
-	auto meta_fields() const { return std::tie(__VA_ARGS__); }
-
 } //namespace libgs
 
 

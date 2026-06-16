@@ -173,7 +173,25 @@ template <concepts::optional_value Value, typename...Args>
 [[nodiscard]] LIBGS_CORE_TAPI optional<Value> make_optional(Args&&...args)
 	requires concepts::constructible<Value,Args...>;
 
-} //namespace libgs
+template <typename>
+struct is_optional : std::false_type {};
+
+template <concepts::optional_value Value>
+struct is_optional<optional<Value>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_optional_v = is_optional<T>::value;
+
+namespace concepts
+{
+
+template <typename T>
+concept optional = is_optional_v<T>;
+
+template <typename T>
+concept optional_p = optional<std::remove_cvref_t<T>>;
+
+}} //namespace libgs
 #include <libgs/core/cxx/detail/optional.h>
 
 

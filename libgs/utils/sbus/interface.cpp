@@ -331,7 +331,7 @@ local_interface::~local_interface()
 
 }
 
-void local_interface::publish(topic_t topic, const void *buffer, size_t size)
+void local_interface::publish(std::string_view topic, const void *buffer, size_t size)
 {
 	m_objs_lock.lock_shared();
 	auto objs = g_obj_map;
@@ -355,7 +355,7 @@ void local_interface::publish(topic_t topic, const void *buffer, size_t size)
 	}
 }
 
-uint64_t local_interface::subscribe(topic_t topic, std::function<void(const void*, size_t)> func)
+uint64_t local_interface::subscribe(std::string_view topic, std::function<void(const void*, size_t)> func)
 {
 	auto [id, subr] = m_impl->make_subscriber(topic);
 	subr->received.connect (
@@ -368,11 +368,11 @@ uint64_t local_interface::subscribe(topic_t topic, std::function<void(const void
 	return id;
 }
 
-uint64_t local_interface::subscribe(std::function<void(topic_t topic, const void*, size_t)> func)
+uint64_t local_interface::subscribe(std::function<void(std::string_view topic, const void*, size_t)> func)
 {
 	auto [id, subr] = m_impl->make_subscriber();
 	subr->received.connect (
-	[func = std::move(func)](topic_t topic, const detail::payload_t &payload) {
+	[func = std::move(func)](std::string_view topic, const detail::payload_t &payload) {
 		func(topic, payload.data(), payload.size());
 	});
 	m_objs_lock.lock();
@@ -381,7 +381,7 @@ uint64_t local_interface::subscribe(std::function<void(topic_t topic, const void
 	return id;
 }
 
-void local_interface::cancel_topic(topic_t topic)
+void local_interface::cancel_topic(std::string_view topic)
 {
 	m_impl->m_subscribers_lock.lock();
 	m_impl->m_subscribers.erase(std::string(topic));
