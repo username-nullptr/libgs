@@ -36,9 +36,4 @@ void publish(std::string_view topic, const void *buffer, size_t size)
 	publish<local_interface>(topic, buffer, size);
 }
 
-void publish(std::string_view topic, const char *str)
-{
-	publish<local_interface>(topic, str, strlen(str));
-}
-
 } //namespace libgs::utils::sbus

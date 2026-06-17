@@ -29,9 +29,9 @@
 #ifndef LIBGS_UTILS_UTILS_SBUS_DETAIL_CACHE_H
 #define LIBGS_UTILS_UTILS_SBUS_DETAIL_CACHE_H
 
-#include <libgs/utils/sbus/publish.h>
 #include <libgs/utils/process.h>
 #include <libgs/coro/utils.h>
+#include <atomic>
 
 namespace libgs::utils
 {
@@ -41,28 +41,35 @@ struct arg_converter<std::vector<std::byte>,Tag>
 {
 	static constexpr bool valid = true;
 	using payload_t = std::vector<std::byte>;
-	using target_t = std::remove_cvref_t<Tag>;
 
-	[[nodiscard]] static target_t convert(const payload_t &value) requires valid {
-		return *streamer<target_t>::decode(value);
-	}
-};
-
-template <concepts::optional_p Tag>
-requires concepts::streamer_type<typename std::remove_cvref_t<Tag>::value_t>
-struct arg_converter<std::vector<std::byte>,Tag>
-{
-	static constexpr bool valid = true;
-	using payload_t = std::vector<std::byte>;
-
-	using value_t = std::remove_cvref_t<Tag>::value_t;
-	using target_t = optional<value_t>;
-
-	[[nodiscard]] static target_t convert(const payload_t &value) requires valid
+	[[nodiscard]] static auto convert(const payload_t &value) requires valid
 	{
-		if( value.empty() )
-			return {};
-		return *streamer<target_t>::decode(value);
+		if constexpr( concepts::optional_p<Tag> )
+		{
+			using value_t = std::remove_cvref_t<Tag>::value_t;
+			using target_t = optional<value_t>;
+
+			target_t opt;
+			if( not value.empty() )
+			{
+				if constexpr( std::is_same_v<value_t,std::vector<std::byte>> )
+					opt = value;
+				else
+					opt = *streamer<value_t>::decode(value);
+			}
+			return opt;
+		}
+		else
+		{
+			using target_t = std::remove_cvref_t<Tag>;
+			if( value.empty() )
+				return target_t();
+
+			if constexpr( std::is_same_v<target_t,std::vector<std::byte>> )
+				return value;
+			else
+				return *streamer<target_t>::decode(value);
+		}
 	}
 };
 
@@ -116,9 +123,7 @@ public:
 			if( _topic == cache_event::libgs_sbus_topic_v )
 			{
 				auto cache = *streamer<cache_event>::decode(payload);
-				auto pid = process::self_pid();
-
-				if( not pid or cache.pid == *pid )
+				if( auto pid = process::self_pid(); not pid or cache.pid == *pid )
 					co_return ;
 
 				_topic = std::move(cache.topic);
@@ -160,6 +165,136 @@ public:
 		m_subscriber.cancel();
 	}
 
+public:
+	template <typename T>
+	static void decode_payload(T &target, payload_t payload) noexcept
+	{
+		using type = std::remove_cvref_t<T>;
+		if constexpr( std::is_same_v<type,payload_t> )
+			target = std::move(payload);
+
+		else if constexpr( libgs::concepts::optional<type> )
+		{
+			using value_t = type::value_t;
+			if( payload.empty() )
+				return ;
+
+			if constexpr( std::is_same_v<value_t,payload_t> )
+				target = std::move(payload);
+
+			else if constexpr( libgs::concepts::streamer_type<value_t> )
+				target = *streamer<value_t>::decode(payload);
+
+			else if( payload.size() >= sizeof(value_t) )
+				target = *reinterpret_cast<const value_t*>(payload.data());
+		}
+		else if constexpr( libgs::concepts::streamer_type<type> )
+		{
+			if( not payload.empty() )
+				target = *streamer<type>::decode(payload);
+		}
+		else
+		{
+			if( payload.size() >= sizeof(type) )
+				target = *reinterpret_cast<const type*>(payload.data());
+		}
+	}
+
+	template <typename T>
+	[[nodiscard]] static changed_result<T> decode_changed(payload_t curr, payload_t prev) noexcept
+	{
+		changed_result<T> result {};
+		decode_payload(result.current, std::move(curr));
+		decode_payload(result.previous, std::move(prev));
+		return result;
+	}
+
+public:
+	void set(std::string_view topic, const void *data, size_t size)
+	{
+		std::unique_lock locker(m_caches_mutex);
+		auto &curr = m_caches[std::string(topic)];
+
+		if( curr.data.size() == size )
+		{
+			if( memcmp(curr.data.data(), data, size) == 0 )
+				return ;
+		}
+		auto _prev = std::move(curr.data);
+		std::span view {
+			static_cast<const std::byte*>(data), size
+		};
+		auto _curr = curr.data = { view.begin(), view.end() };
+		locker.unlock();
+
+		dispatch(m_subscriber.get_executor(), [this, topic = std::string(topic),
+			prev = std::move(_prev), curr = _curr]() -> awaitable<void>
+		{
+			signal_ptr<payload_t,payload_t> signal {};
+			m_signals_mutex.lock();
+			{
+				auto &obj = m_signals[topic];
+				if( not obj )
+					obj = std::make_shared<signal_t<payload_t,payload_t>>();
+				signal = obj;
+			}
+			m_signals_mutex.unlock();
+
+			co_await signal->emit(curr, prev);
+			co_await m_signal.emit(topic, curr, prev);
+			co_return ;
+		});
+		auto pid = process::self_pid();
+		if( not pid )
+			return ;
+
+		cache_event event {
+			.topic = std::string(topic),
+			.pid   = *pid              ,
+			.data  = std::move(_curr)
+		};
+		event.time = std::chrono::system_clock::now().time_since_epoch().count();
+		publish<interface_t>(std::move(event));
+	}
+
+	template <libgs::concepts::any_string_p Str>
+	void set(std::string_view topic, Str &&str)
+	{
+		auto view = strtls::to_view(std::forward<Str>(str));
+		set(topic, view.data(), view.size());
+	}
+
+	template <concepts::unregistered_type_p T>
+	void set(std::string_view topic, const T &data)
+	{
+		using type = std::remove_cvref_t<T>;
+		if constexpr( libgs::concepts::streamer_type<type> )
+		{
+			auto payload = streamer<type>::encode(data);
+			set(topic, payload.data(), payload.size());
+		}
+		else if constexpr( std::is_same_v<type, const_buffer> or
+			std::is_same_v<type, asio::const_buffer> )
+			set(topic, data.data(), data.size());
+		else
+			set(topic, &data, sizeof(data));
+	}
+
+	void set(concepts::topic_type auto &&data)
+	{
+		using T = decltype(data);
+		using type = std::remove_cvref_t<T>;
+
+		if constexpr( libgs::concepts::streamer_type<type> )
+		{
+			auto payload = streamer<type>::encode(data);
+			set(type::libgs_sbus_topic_v, payload.data(), payload.size());
+		}
+		else
+			set(type::libgs_sbus_topic_v, &data, sizeof(data));
+	}
+
+public:
 	signal_t<payload_t,payload_t> &changed(std::string_view topic) noexcept
 	{
 		std::unique_lock locker(m_signals_mutex); LIBGS_UNUSED(locker);
@@ -186,21 +321,7 @@ public:
 			if( observer.use_count() == 1 )
 				return ;
 
-			if constexpr( std::is_same_v<T, payload_t> )
-			{
-				result.current = std::move(curr);
-				result.previous = std::move(prev);
-			}
-			else if constexpr( libgs::concepts::streamer_type<T> )
-			{
-				result.current = *streamer<T>::decode(curr);
-				result.previous = *streamer<T>::decode(prev);
-			}
-			else
-			{
-				result.current = *reinterpret_cast<const T*>(curr.data());
-				result.previous = *reinterpret_cast<const T*>(prev.data());
-			}
+			result = decode_changed<T>(std::move(curr), std::move(prev));
 			cond_var.notify_one();
 		});
 		std::mutex mutex;
@@ -216,42 +337,54 @@ public:
 	[[nodiscard]] awaitable<sys_expected<changed_result<T>>> co_wait_changed(std::string_view topic,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
-		using worker_t = async_work<std::error_code,changed_result<>>;
+		using worker_t = async_work<std::error_code,changed_result<T>>;
 		using work_handler_t = worker_t::handler_t;
-		auto exec = m_subscriber.get_executor();
 
-		auto task = worker_t::handle(exec,
-		[this, topic = std::string(topic), exec, cancel_slot](work_handler_t &&notifier) mutable noexcept
+		auto exec = m_subscriber.get_executor();
+		auto cancel_state = co_await asio::this_coro::cancellation_state;
+
+		auto task = worker_t::handle(exec, [this,
+			topic = std::string(topic), exec, cancel_state, cancel_slot
+		](work_handler_t &&notifier) mutable noexcept
 		{
 			auto observer = std::make_shared<int>();
 			auto notifier_ptr = std::make_shared<work_handler_t>(std::move(notifier));
+			auto completed = std::make_shared<std::atomic_bool>(false);
 
-			cancel_slot.assign([this, topic, exec, observer, notifier_ptr]
+			auto canceller = [this, topic, exec, observer, completed, notifier_ptr]
 			(asio::cancellation_type type) mutable noexcept
 			{
-				if( type == asio::cancellation_type::none )
+				if( type == asio::cancellation_type::none or completed->exchange(true) )
 					return ;
-
 				changed(topic).disconnect(observer);
-				libgs::dispatch(exec,
-				[topic = std::move(topic), observer, notifier_ptr = std::move(notifier_ptr)]
-				() mutable noexcept
+
+				libgs::dispatch(exec, [
+					topic = std::move(topic), observer, notifier_ptr = std::move(notifier_ptr)
+				]() mutable noexcept
 				{
 					std::move(*notifier_ptr) (
 						asio::error::make_error_code(asio::error::operation_aborted),
-						changed_result()
+						changed_result<T>()
 					);
 				});
-			});
+			};
+			if( cancel_slot.is_connected() )
+				cancel_slot.assign(canceller);
+
+			if( cancel_state.slot().is_connected() )
+				cancel_state.slot().assign(std::move(canceller));
 
 			changed(topic).connect(observer, std::move(exec),
-			[this, topic, observer, notifier_ptr = std::move(notifier_ptr)]
+			[this, topic, observer, completed, notifier_ptr = std::move(notifier_ptr)]
 			(payload_t curr, payload_t prev) mutable noexcept
 			{
+				if( completed->exchange(true) )
+					return ;
 				changed(topic).disconnect(observer);
-				std::move(*notifier_ptr)(std::error_code(), changed_result {
-					std::move(curr), std::move(prev)
-				});
+
+				std::move(*notifier_ptr)(std::error_code(),
+					decode_changed<T>(std::move(curr), std::move(prev))
+				);
 			});
 		},
 		use_awaitable);
@@ -310,89 +443,43 @@ template <concepts::subscriber Subscriber>
 cache<Subscriber>::~cache() = default;
 
 template <concepts::subscriber Subscriber>
-template <typename T>
-cache<Subscriber> &cache<Subscriber>::set(std::string_view topic, const T &data)
-	requires (not std::is_pointer_v<std::remove_cvref_t<T>>)
-{
-	using type = std::remove_cvref_t<T>;
-	if constexpr( concepts::topic_type<type> )
-	{
-		if( topic != type::libgs_sbus_topic_v )
-			invalid_argument::loc_throw("Topic does not match.");
-	}
-	if constexpr( libgs::concepts::streamer_type<type> )
-	{
-		auto payload = streamer<type>::encode(data);
-		return set(topic, payload.data(), payload.size());
-	}
-	else if constexpr( std::is_same_v<type, const_buffer> or
-		std::is_same_v<type, asio::const_buffer> )
-		return set(topic, data.data(), data.size());
-	else
-		return set(topic, &data, sizeof(data));
-}
-
-template <concepts::subscriber Subscriber>
-cache<Subscriber> &cache<Subscriber>::set(concepts::topic_type auto &&data)
-{
-	using T = decltype(data);
-	using type = std::remove_cvref_t<T>;
-	return set(type::libgs_sbus_topic_v, std::forward<T>(data));
-}
-
-template <concepts::subscriber Subscriber>
 cache<Subscriber> &cache<Subscriber>::set(std::string_view topic, const void *data, size_t size)
 {
-	std::unique_lock locker(m_impl->m_caches_mutex);
-	auto &curr = m_impl->m_caches[std::string(topic)];
-
-	if( curr.data.size() == size )
-	{
-		if( memcmp(curr.data.data(), data, size) == 0 )
-			return *this;
-	}
-	auto _prev = std::move(curr.data);
-	std::span view {
-		static_cast<const std::byte*>(data), size
-	};
-	auto _curr = curr.data = { view.begin(), view.end() };
-	locker.unlock();
-
-	dispatch(get_executor(), [this, topic = std::string(topic),
-		prev = std::move(_prev), curr = _curr]() -> awaitable<void>
-	{
-		typename impl::template signal_ptr<payload_t,payload_t> signal {};
-		m_impl->m_signals_mutex.lock();
-		{
-			auto &obj = m_impl->m_signals[topic];
-			if( not obj )
-				obj = std::make_shared<signal_t<payload_t,payload_t>>();
-			signal = obj;
-		}
-		m_impl->m_signals_mutex.unlock();
-
-		co_await signal->emit(curr, prev);
-		co_await m_impl->m_signal.emit(topic, curr, prev);
-		co_return ;
-	});
-	auto pid = process::self_pid();
-	if( not pid )
-		return *this;
-
-	typename impl::cache_event event {
-		.topic = std::string(topic),
-		.pid   = *pid              ,
-		.data  = std::move(_curr)
-	};
-	event.time = std::chrono::system_clock::now().time_since_epoch().count();
-	publish<interface_t>(std::move(event));
+	m_impl->set(topic, data, size);
 	return *this;
 }
 
 template <concepts::subscriber Subscriber>
-cache<Subscriber> &cache<Subscriber>::set(std::string_view topic, const char *data)
+template <libgs::concepts::any_string_p...Args>
+cache<Subscriber> &cache<Subscriber>::set(std::string_view topic, Args&&...args)
+	requires (sizeof...(Args) > 0)
 {
-	return set(topic, data, strlen(data));
+	(void) std::initializer_list<int> {
+		(m_impl->set(topic, std::forward<Args>(args)), 0) ...
+	};
+	return *this;
+}
+
+template <concepts::subscriber Subscriber>
+template <concepts::unregistered_type_p...Args>
+cache<Subscriber> &cache<Subscriber>::set(std::string_view topic, Args&&...args)
+	requires (sizeof...(Args) > 0)
+{
+	(void) std::initializer_list<int> {
+		(m_impl->set(topic, std::forward<Args>(args)), 0) ...
+	};
+	return *this;
+}
+
+template <concepts::subscriber Subscriber>
+template <concepts::topic_type...Args>
+cache<Subscriber> &cache<Subscriber>::set(Args&&...args)
+	requires (sizeof...(Args) > 0)
+{
+	(void) std::initializer_list<int> {
+		(m_impl->set(std::forward<Args>(args)), 0) ...
+	};
+	return *this;
 }
 
 template <concepts::subscriber Subscriber>
@@ -423,12 +510,12 @@ optional<T> cache<Subscriber>::get(std::string_view topic) const
 	spin_shared_shared_lock locker(m_impl->m_caches_mutex);
 	auto payload = m_impl->m_caches[std::string(topic)];
 
-	if( payload.empty() )
+	if( payload.data.empty() )
 		return {};
 
 	locker.unlock();
 	if constexpr( libgs::concepts::streamer_type<type> )
-		return *streamer<type>::decode(payload);
+		return *streamer<type>::decode(payload.data);
 	else
 		return *reinterpret_cast<const type*>(payload.data());
 }
@@ -485,7 +572,7 @@ cache<Subscriber>::changed() noexcept
 template <concepts::subscriber Subscriber>
 template <concepts::topic_type T, typename Token>
 auto cache<Subscriber>::wait_changed(Token &&token) noexcept
-	requires is_token_v<Token,T>
+	requires is_token_v<Token,optional<T>>
 {
 	using type = std::remove_cvref_t<T>;
 	return wait_changed<T>(type::libgs_sbus_topic_v, std::forward<Token>(token));
@@ -533,14 +620,14 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 		{
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
-				return m_impl->co_wait_changed(ntoken.ec_, topic,
+				return m_impl->template co_wait_changed<T>(ntoken.ec_, topic,
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
 			}
 			else
 			{
-				return m_impl->co_wait_changed(topic,
+				return m_impl->template co_wait_changed<T>(topic,
 					asio::get_associated_cancellation_slot(nntoken),
 					get_associated_redirect_time(token)
 				);
@@ -557,7 +644,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl->co_wait_changed (
+					promise->set_value(co_await impl->template co_wait_changed<T> (
 						ntoken.ec_, topic, cancel_slot, timeout
 					));
 					co_return ;
@@ -571,7 +658,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
-					promise->set_value(co_await impl->co_wait_changed (
+					promise->set_value(co_await impl->template co_wait_changed<T> (
 						topic, cancel_slot, timeout
 					));
 					co_return ;
@@ -587,7 +674,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl->co_wait_changed (
+				auto expected = co_await impl->template co_wait_changed<T> (
 					ntoken.ec_, topic, cancel_slot, timeout
 				);
 				expected
@@ -607,7 +694,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 				cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 			]() mutable -> awaitable<void>
 			{
-				auto expected = co_await impl->co_wait_changed (
+				auto expected = co_await impl->template co_wait_changed<T> (
 					topic, cancel_slot, timeout
 				);
 				expected
@@ -624,7 +711,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 	{
 		using namespace operators;
 		using namespace std::chrono_literals;
-		return wait_changed(topic, token | 0ns);
+		return wait_changed<T>(topic, token | 0ns);
 	}
 }
 

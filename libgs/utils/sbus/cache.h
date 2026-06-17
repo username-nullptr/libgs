@@ -30,6 +30,7 @@
 #define LIBGS_UTILS_UTILS_SBUS_CACHE_H
 
 #include <libgs/utils/sbus/subscribe.h>
+#include <libgs/utils/sbus/publish.h>
 #include <libgs/utils/signal_slot.h>
 
 namespace libgs::utils::sbus
@@ -57,13 +58,19 @@ public:
 	~cache();
 
 public:
-	template <typename T>
-	cache &set(std::string_view topic, const T &data)
-		requires (not std::is_pointer_v<std::remove_cvref_t<T>>);
-
-	cache &set(concepts::topic_type auto &&data);
 	cache &set(std::string_view topic, const void *data, size_t size);
-	cache &set(std::string_view topic, const char *data);
+
+	template <libgs::concepts::any_string_p...Args>
+	cache &set(std::string_view topic, Args&&...args)
+		requires (sizeof...(Args) > 0);
+
+	template <concepts::unregistered_type_p...Args>
+	cache &set(std::string_view topic, Args&&...args)
+		requires (sizeof...(Args) > 0);
+
+	template <concepts::topic_type...Args>
+	cache &set(Args&&...args)
+		requires (sizeof...(Args) > 0);
 
 public:
 	template <concepts::topic_type T>
@@ -98,7 +105,7 @@ public:
 
 	template <concepts::topic_type T, typename Token = use_sync_t>
 	auto wait_changed(Token &&token = use_sync) noexcept
-		requires is_token_v<Token,T>;
+		requires is_token_v<Token,optional<T>>;
 
 	template <typename Token = use_sync_t>
 	auto wait_changed(std::string_view topic, Token &&token = use_sync) noexcept

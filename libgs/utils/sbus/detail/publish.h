@@ -29,31 +29,20 @@
 #ifndef LIBGS_UTILS_UTILS_SBUS_DETAIL_PUBLISH_H
 #define LIBGS_UTILS_UTILS_SBUS_DETAIL_PUBLISH_H
 
-namespace libgs::utils::sbus
+namespace libgs::utils::sbus { namespace detail
 {
 
-template <concepts::interface Interface>
-void publish(std::string_view topic, const void *buffer, size_t size)
+template <concepts::interface Interface, libgs::concepts::any_string_p Str>
+void publish(std::string_view topic, Str &&str)
 {
-	Interface::publish(topic, buffer, size);
+	auto view = strtls::to_view(std::forward<Str>(str));
+	Interface::publish(topic, view.data(), view.size());
 }
 
-template <concepts::interface Interface>
-void publish(std::string_view topic, const char *str)
-{
-	Interface::publish(topic, str, strlen(str));
-}
-
-template <concepts::interface Interface, typename T>
-void publish(std::string_view topic, T &&value)
-	requires (not std::is_pointer_v<std::remove_cvref_t<T>>)
+template <concepts::interface Interface, concepts::unregistered_type_p T>
+void publish(std::string_view topic, const T &value)
 {
 	using value_t = std::remove_cvref_t<T>;
-	if constexpr( concepts::topic_type<T> )
-	{
-		if( topic != value_t::libgs_sbus_topic_v )
-			invalid_argument::loc_throw("Topic does not match.");
-	}
 	if constexpr( libgs::concepts::streamer_type<value_t> )
 	{
 		auto buffer = streamer<value_t>::encode(value);
@@ -71,7 +60,46 @@ void publish(concepts::topic_type auto &&value)
 {
 	using Value = decltype(value);
 	using value_t = std::remove_cvref_t<Value>;
-	publish<Interface>(value_t::libgs_sbus_topic_v, std::forward<Value>(value));
+
+	if constexpr( libgs::concepts::streamer_type<value_t> )
+	{
+		auto buffer = streamer<value_t>::encode(value);
+		Interface::publish(value_t::libgs_sbus_topic_v, buffer.data(), buffer.size());
+	}
+	else
+		Interface::publish(value_t::libgs_sbus_topic_v, &value, sizeof(value_t));
+}
+
+} //namespace detail
+
+template <concepts::interface Interface>
+void publish(std::string_view topic, const void *buffer, size_t size)
+{
+	Interface::publish(topic, buffer, size);
+}
+
+template <concepts::interface Interface, libgs::concepts::any_string_p...Args>
+void publish(std::string_view topic, Args&&...args) requires (sizeof...(Args) > 0)
+{
+	(void) std::initializer_list<int> {
+		(detail::publish<Interface>(topic, std::forward<Args>(args)), 0) ...
+	};
+}
+
+template <concepts::interface Interface, concepts::unregistered_type_p...Args>
+void publish(std::string_view topic, Args&&...args) requires (sizeof...(Args) > 0)
+{
+	(void) std::initializer_list<int> {
+		(detail::publish<Interface>(topic, std::forward<Args>(args)), 0) ...
+	};
+}
+
+template <concepts::interface Interface, concepts::topic_type...Args>
+void publish(Args&&...args) requires (sizeof...(Args) > 0)
+{
+	(void) std::initializer_list<int> {
+		(detail::publish<Interface>(std::forward<Args>(args)), 0) ...
+	};
 }
 
 template <typename T>
@@ -81,9 +109,22 @@ void publish(std::string_view topic, T &&value) requires
 	publish<local_interface>(topic, std::forward<T>(value));
 }
 
-void publish(concepts::topic_type auto &&value)
+template <libgs::concepts::any_string_p...Args>
+void publish(std::string_view topic, Args&&...args) requires (sizeof...(Args) > 0)
 {
-	publish<local_interface>(std::forward<decltype(value)>(value));
+	publish<local_interface>(topic, std::forward<Args>(args)...);
+}
+
+template <concepts::unregistered_type_p...Args>
+void publish(std::string_view topic, Args&&...args) requires (sizeof...(Args) > 0)
+{
+	publish<local_interface>(topic, std::forward<Args>(args)...);
+}
+
+template <concepts::topic_type...Args>
+void publish(Args&&...args) requires (sizeof...(Args) > 0)
+{
+	publish<local_interface>(std::forward<Args>(args)...);
 }
 
 } //namespace libgs::utils::sbus

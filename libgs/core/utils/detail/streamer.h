@@ -29,6 +29,7 @@
 #ifndef LIBGS_CORE_CXX_DETAIL_STREAMER_H
 #define LIBGS_CORE_CXX_DETAIL_STREAMER_H
 
+#include <libgs/core/utils/flags.h>
 #include <libgs/core/utils/string_tools.h>
 #include <libgs/core/cxx/cplusplus.h>
 
@@ -110,6 +111,22 @@ struct streamer<T>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0) {
 		auto data = streamer<num_t>::decode(buf, offset);
 		return { static_cast<T>(*data), data.size };
+	}
+};
+
+template <concepts::flag_template T>
+struct streamer<flags<T>>
+{
+	using enum_t = T;
+	using flags_t = flags<enum_t>;
+
+	[[nodiscard]] static auto encode(flags_t v) noexcept {
+		return streamer<enum_t>::encode(static_cast<enum_t>(v));
+	}
+	[[nodiscard]] static decoder_data<flags_t>
+	decode(const std::vector<std::byte> &buf, size_t offset = 0) {
+		auto data = streamer<enum_t>::decode(buf, offset);
+		return { flags<T>(*data), data.size };
 	}
 };
 

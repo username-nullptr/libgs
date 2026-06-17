@@ -158,6 +158,12 @@ constexpr flags<Enum>::operator T() const noexcept
 }
 
 template <concepts::flag_template Enum>
+constexpr flags<Enum>::operator enum_t() const noexcept
+{
+	return static_cast<enum_t>(m_value);
+}
+
+template <concepts::flag_template Enum>
 constexpr uint32_t flags<Enum>::operator*() const noexcept
 {
 	return value();

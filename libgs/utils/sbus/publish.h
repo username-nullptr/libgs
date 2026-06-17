@@ -34,41 +34,52 @@
 namespace libgs::utils::sbus
 {
 
-template <concepts::interface Interface>
-LIBGS_UTILS_TAPI void publish (
-	std::string_view topic, const void *buffer, size_t size
-);
-
-template <concepts::interface Interface>
-LIBGS_UTILS_TAPI void publish (
-	std::string_view topic, const char *str
-);
-
-template <concepts::interface Interface, typename T>
-LIBGS_UTILS_TAPI void publish(std::string_view topic, T &&value)
-	requires (not std::is_pointer_v<std::remove_cvref_t<T>>);
-
-template <concepts::interface Interface>
-LIBGS_UTILS_TAPI void publish (
-	concepts::topic_type auto &&value
-);
-
-LIBGS_UTILS_API void publish (
-	std::string_view topic, const void *buffer, size_t size
-);
-
-LIBGS_UTILS_API void publish (
-	std::string_view topic, const char *str
-);
+namespace concepts
+{
 
 template <typename T>
-LIBGS_UTILS_TAPI void publish(std::string_view topic, T &&value) requires (
-	not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T>
+concept unregistered_type =
+	not std::is_pointer_v<std::remove_cvref_t<T>> and
+	not libgs::concepts::any_string<T> and
+	not topic_type<T>;
+
+template <typename T>
+concept unregistered_type_p = unregistered_type<std::remove_cvref_t<T>>;
+
+} //namespace concepts
+
+template <concepts::interface Interface>
+LIBGS_UTILS_TAPI void publish (
+	std::string_view topic, const void *buffer, size_t size
 );
 
-LIBGS_UTILS_TAPI void publish (
-	concepts::topic_type auto &&value
+template <concepts::interface Interface, libgs::concepts::any_string_p...Args>
+LIBGS_UTILS_TAPI void publish(std::string_view topic, Args&&...args)
+	requires (sizeof...(Args) > 0);
+
+template <concepts::interface Interface, concepts::unregistered_type_p...Args>
+LIBGS_UTILS_TAPI void publish(std::string_view topic, Args&&...args)
+	requires (sizeof...(Args) > 0);
+
+template <concepts::interface Interface, concepts::topic_type...Args>
+LIBGS_UTILS_TAPI void publish(Args&&...args)
+	requires (sizeof...(Args) > 0);
+
+LIBGS_UTILS_API void publish (
+	std::string_view topic, const void *buffer, size_t size
 );
+
+template <libgs::concepts::any_string_p...Args>
+LIBGS_UTILS_TAPI void publish(std::string_view topic, Args&&...args)
+	requires (sizeof...(Args) > 0);
+
+template <concepts::unregistered_type_p...Args>
+LIBGS_UTILS_TAPI void publish(std::string_view topic, Args&&...args)
+	requires (sizeof...(Args) > 0);
+
+template <concepts::topic_type...Args>
+LIBGS_UTILS_TAPI void publish(Args&&...args)
+	requires (sizeof...(Args) > 0);
 
 } //namespace libgs::utils::sbus
 #include <libgs/utils/sbus/detail/publish.h>

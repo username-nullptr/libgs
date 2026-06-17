@@ -888,7 +888,7 @@ public:
 			asio::co_spawn(exec, (*m_slots[0]->slot)(args...), deferred)
 		);
 		std::vector<co_spawn_t> slots {};
-		m_mutex.lock_shared();
+		m_mutex.lock();
 
 		for(auto it=m_slots.begin(); it!=m_slots.end();)
 		{
@@ -902,7 +902,7 @@ public:
 			else
 				it = m_slots.erase(it);
 		}
-		m_mutex.unlock_shared();
+		m_mutex.unlock();
 
 		if( slots.empty() )
 			co_return ;
@@ -934,7 +934,7 @@ public:
 		std::vector<adapter_ptr> nonblock_slots {};
 		std::vector<adapter_ptr> block_slots {};
 
-		m_mutex.lock_shared();
+		m_mutex.lock();
 		for(auto it=m_slots.begin(); it!=m_slots.end();)
 		{
 			if( (*it)->slot->m_is_valid() )
@@ -948,7 +948,7 @@ public:
 			else
 				it = m_slots.erase(it);
 		}
-		m_mutex.unlock_shared();
+		m_mutex.unlock();
 		std::vector<std::future<void>> futures {};
 
 		for(auto &slot : nonblock_slots)

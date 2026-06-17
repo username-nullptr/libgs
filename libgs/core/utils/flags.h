@@ -87,6 +87,7 @@ public:
 public:
 	template <concepts::arithmetic T>
 	[[nodiscard]] constexpr operator T() const noexcept;
+	[[nodiscard]] constexpr operator enum_t() const noexcept;
 	[[nodiscard]] constexpr uint32_t operator*() const noexcept;
 
 	template <concepts::arithmetic T = uint32_t>

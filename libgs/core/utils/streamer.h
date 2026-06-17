@@ -67,6 +67,7 @@ struct decoder_data
 #include <libgs/core/utils/detail/streamer_stateful.h>
 #include <libgs/core/utils/detail/streamer_chrono.h>
 #include <libgs/core/utils/detail/streamer_custom.h>
+#include <libgs/core/utils/detail/streamer_asio.h>
 
 
 #endif //LIBGS_CORE_CXX_STREAMER_H
