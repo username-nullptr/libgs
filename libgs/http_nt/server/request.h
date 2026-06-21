@@ -45,6 +45,7 @@ class LIBGS_HTTP_NT_TAPI basic_request :
 
 public:
 	using connection_t = Connection;
+	using connection_ptr = std::shared_ptr<connection_t>;
 	using executor_t = connection_t::executor_t;
 
 	using socket_t = connection_t::socket_t;
@@ -58,7 +59,8 @@ public:
 	using headers_t = http_nt::headers;
 
 public:
-	basic_request(connection_t &&connection, parser_t &&parser);
+	explicit basic_request(connection_ptr connection);
+	basic_request(connection_ptr connection, parser_t &&parser);
 	~basic_request() override;
 
 public:
@@ -67,7 +69,10 @@ public:
 		core_concepts::dis_func_tf_opt_token<Token,Value...> and
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
-	// TODO: wait() ... ...
+	template <typename Token = use_sync_t>
+	auto wait(Token &&token = {}) noexcept
+		requires task_token_v<Token,status_enum>;
+
 	int32_t path_match(std::string_view rule);
 
 public:

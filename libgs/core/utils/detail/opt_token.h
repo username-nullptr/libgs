@@ -58,6 +58,12 @@ auto redirect_time(Token &&token, const duration<Rep,Period> &timeout)
 	return redirect_time_t<std::decay_t<Token>>(std::forward<Token>(token), timeout);
 }
 
+template <typename Token, typename Clock, typename Duration>
+auto redirect_time(Token &&token, const time_point<Clock,Duration> &timeout)
+{
+	return redirect_time_t<std::decay_t<Token>>(std::forward<Token>(token), timeout);
+}
+
 } //namespace libgs
 
 

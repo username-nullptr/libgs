@@ -76,6 +76,11 @@ LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
     concepts::any_async_opt_token auto &&token, const duration<Rep,Period> &d
 );
 
+template <typename Clock, typename Duration>
+LIBGS_CORE_TAPI [[nodiscard]] auto operator| (
+    concepts::any_async_opt_token auto &&token, const time_point<Clock,Duration> &tp
+);
+
 }} //namespace libgs
 #include <libgs/core/detail/global.h>
 

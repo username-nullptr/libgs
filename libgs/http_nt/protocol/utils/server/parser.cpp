@@ -264,7 +264,7 @@ int32_t parser<protocol_model::server>::path_match(std::string_view rule)
 			--index;
 		}
 	}
-	std::reverse(vector.begin(), vector.end());
+	std::ranges::reverse(vector);
 
 	auto rule_before = rule_list.join(0, index, "/");
 	std::string path_before;

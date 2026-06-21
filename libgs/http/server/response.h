@@ -51,7 +51,6 @@ public:
 	using cookie_t = protocol::cookie;
 	using cookies_t = protocol::cookies;
 
-
 public:
 	explicit basic_response(next_layer_t &&next_layer);
 	~basic_response();

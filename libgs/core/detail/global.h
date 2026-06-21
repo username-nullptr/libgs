@@ -100,6 +100,13 @@ auto operator|(concepts::any_async_opt_token auto &&token, const duration<Rep,Pe
 	return redirect_time(std::forward<token_t>(token), d);
 }
 
+template <typename Clock, typename Duration>
+auto operator|(concepts::any_async_opt_token auto &&token, const time_point<Clock,Duration> &tp)
+{
+	using token_t = decltype(token);
+	return redirect_time(std::forward<token_t>(token), tp);
+}
+
 }} //namespace libgs::operators
 
 
