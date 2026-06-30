@@ -88,7 +88,7 @@ public:
 	void set_config(config_t conf) noexcept
 	{
 		set_logger(m_terminal_logger,
-			spd_level_t::info, spd_level_t::warn, conf.time_mode
+			conf_level(conf.level.console), spd_level_t::warn, conf.time_mode
 		);
 		if( m_config.path != conf.path )
 		{
@@ -344,8 +344,19 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 		std::format(": {}", strtls::trimmed(msg))
 	);
 	std::vector<impl::logger_ptr> loggers {};
-	for(auto &logger : m_impl->m_file_loggers)
+	auto &daily_logger = m_impl->m_file_loggers[0];
+
+	if( daily_logger )
 	{
+		daily_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
+			std::format(": \n{}\n", strtls::trimmed(msg)) :
+			std::format(": {}", strtls::trimmed(msg))
+		);
+		loggers.emplace_back(daily_logger);
+	}
+	for(size_t i=1; i<4; i++)
+	{
+		auto &logger = m_impl->m_file_loggers[i];
 		if( not logger or logger->level() != conf_lv )
 			continue;
 
@@ -358,6 +369,21 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 	m_impl->m_terminal_logger->flush();
 	for(auto &logger : loggers)
 		logger->flush();
+}
+
+void logger::check_level(level_t lv)
+{
+	if( lv != level_t::trace and
+		lv != level_t::debug and
+		lv != level_t::info and
+		lv != level_t::warning and
+		lv != level_t::error and
+		lv != level_t::critical )
+	{
+		runtime_error::loc_throw(std::format (
+			"logger: Code bug: Invalid level: {}.", lv
+		));
+	}
 }
 
 } //namespace libgs::utils

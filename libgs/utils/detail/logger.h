@@ -49,6 +49,22 @@ logger &logger::write(const source_loc &loc, T &&msg)
 }
 
 template <typename Arg0, typename...Args>
+logger &logger::write(level_t lv, const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
+{
+	check_level(lv);
+	_log(lv, loc, std::format(std::move(msg), std::forward<Arg0>(arg0), std::forward<Args>(args)...));
+	return *this;
+}
+
+template <typename T>
+logger &logger::write(level_t lv, const source_loc &loc, T &&msg)
+{
+	check_level(lv);
+	_log(lv, loc, std::format("{}", std::forward<T>(msg)));
+	return *this;
+}
+
+template <typename Arg0, typename...Args>
 logger &logger::trace(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
 {
 	return write<level_t::trace>(std::move(loc), msg, std::forward<Arg0>(arg0), std::forward<Args>(args)...);

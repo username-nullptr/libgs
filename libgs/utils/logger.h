@@ -115,6 +115,12 @@ public:
 	template <level_t Lv, typename T>
 	logger &write(const source_loc &loc, T &&msg);
 
+	template <typename Arg0, typename...Args>
+	logger &write(level_t lv, const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args);
+
+	template <typename T>
+	logger &write(level_t lv, const source_loc &loc, T &&msg);
+
 public:
 	template <typename Arg0, typename...Args>
 	logger &trace(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args);
@@ -162,6 +168,7 @@ private:
 
 	template <level_t Lv>
 	static consteval void check_level();
+	static void check_level(level_t lv);
 
 private:
 	class impl;
