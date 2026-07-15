@@ -800,6 +800,9 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 			timer->expires_at(atime);
 
 			co_await timer->async_wait(use_awaitable | error);
+			if( *cancel )
+				co_return false;
+
 			co_return not error;
 		};
 		if( not immediately )
