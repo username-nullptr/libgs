@@ -29,8 +29,55 @@
 #ifndef LIBGS_HTTP_NT_SERVER_SERVER_H
 #define LIBGS_HTTP_NT_SERVER_SERVER_H
 
+#include <libgs/http_nt/server/acceptor_wrap.h>
+#include <libgs/http_nt/server/aop.h>
+
 namespace libgs::http_nt
 {
+
+template <concepts::any_exec_stream Stream = asio::ip::tcp::socket>
+class LIBGS_HTTP_NT_TAPI basic_server
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_server)
+
+public:
+	using socket_t = Stream;
+	using executor_t = socket_t::executor_type;
+
+	using connection_t = basic_connection<socket_t>;
+	using acceptor_wrap_t = basic_acceptor_wrap<socket_t>;
+	using acceptor_t = acceptor_wrap_t::acceptor_t;
+
+	using request_t = basic_request<connection_t>;
+	using response_t = basic_response<connection_t>;
+
+public:
+	template <typename  Exec0 = io_context_t&>
+	explicit basic_server(acceptor_wrap_t &&acceptor, Exec0 &&exec = io_context())
+		requires core_concepts::match_sched<Exec0,executor_t>;
+	~basic_server();
+
+	template <concepts::any_exec_stream Stream0>
+	basic_server(basic_server<Stream0> &&other) noexcept requires
+		core_concepts::constructible<acceptor_wrap_t,basic_acceptor_wrap<Stream0>>;
+
+	template <concepts::any_exec_stream Stream0>
+	basic_server &operator=(basic_server<Stream0> &&other) noexcept requires
+		requires(acceptor_wrap_t &obj) { obj = std::move(other); };
+
+public:
+
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+template <core_concepts::exec Exec = asio::any_io_executor>
+using basic_tcp_server = basic_server<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+
+using tcp_server = basic_tcp_server<asio::any_io_executor>;
+using server = tcp_server;
 
 } //namespace libgs::http_nt
 #include <libgs/http_nt/server/detail/server.h>

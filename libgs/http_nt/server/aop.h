@@ -29,8 +29,28 @@
 #ifndef LIBGS_HTTP_NT_SERVER_AOP_H
 #define LIBGS_HTTP_NT_SERVER_AOP_H
 
+#include <libgs/http_nt/server/service_context.h>
+
 namespace libgs::http_nt
 {
+
+template <concepts::connection Connection>
+class basic_aop
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_aop)
+
+public:
+	using connection_t = Connection;
+	using context_t = basic_service_context<connection_t>;
+
+	basic_aop() = default;
+	virtual ~basic_aop() = 0;
+
+public:
+	[[nodiscard]] virtual awaitable<bool> before(context_t &context);
+	[[nodiscard]] virtual awaitable<bool> after(context_t &context);
+	[[nodiscard]] virtual bool exception(context_t &context, const std::exception &ex);
+};
 
 } //namespace libgs::http_nt
 #include <libgs/http_nt/server/detail/aop.h>

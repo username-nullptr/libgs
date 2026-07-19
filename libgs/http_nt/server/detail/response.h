@@ -29,8 +29,46 @@
 #ifndef LIBGS_HTTP_NT_SERVER_DETAIL_RESPONSE_H
 #define LIBGS_HTTP_NT_SERVER_DETAIL_RESPONSE_H
 
+#include <libgs/http_nt/protocol/utils/server/generator.h>
+
 namespace libgs::http_nt
 {
+
+template <concepts::connection Connection>
+class LIBGS_HTTP_NT_TAPI basic_response<Connection>::impl
+{
+	LIBGS_DISABLE_COPY(impl)
+	using generator_t = server_generator;
+
+public:
+	explicit impl(connection_ptr connection) :
+		m_connection(std::move(connection)) {}
+
+public:
+
+public:
+	connection_ptr m_connection;
+	generator_t m_generator {};
+};
+
+template <concepts::connection Connection>
+basic_response<Connection>::basic_response(connection_ptr connection) :
+	m_impl(new impl(std::move(connection)))
+{
+
+}
+
+template <concepts::connection Connection>
+basic_response<Connection>::~basic_response()
+{
+	delete m_impl;
+}
+
+template <concepts::connection Connection>
+void basic_response<Connection>::auto_set(request_t &request)
+{
+
+}
 
 } //namespace libgs::http_nt
 

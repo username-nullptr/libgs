@@ -29,8 +29,50 @@
 #ifndef LIBGS_HTTP_NT_SERVER_RESPONSE_H
 #define LIBGS_HTTP_NT_SERVER_RESPONSE_H
 
+#include <libgs/http_nt/protocol/utils/core/container_helper.h>
+#include <libgs/http_nt/utils/connection.h>
+
 namespace libgs::http_nt
 {
+
+template <concepts::connection Connection>
+class basic_request;
+
+template <concepts::connection Connection>
+class LIBGS_HTTP_NT_TAPI basic_response :
+	public mutable_headers<basic_response<Connection>>,
+	public mutable_cookies<cookie,basic_response<Connection>>,
+	public mutable_chunk_attributes<basic_response<Connection>>
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_response)
+
+public:
+	using connection_t = Connection;
+	using connection_ptr = std::shared_ptr<connection_t>;
+	using executor_t = connection_t::executor_t;
+
+	using request_t = basic_request<connection_t>;
+	using socket_t = connection_t::socket_t;
+	using endpoint_t = socket_t::endpoint_t;
+
+	using value_t = libgs::value;
+	using headers_t = http_nt::headers;
+
+public:
+	explicit basic_response(connection_ptr connection);
+	~basic_response() override;
+
+public:
+
+public:
+	void auto_set(request_t &request);
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+using response = basic_response<connection>;
 
 } //namespace libgs::http_nt
 #include <libgs/http_nt/server/detail/response.h>

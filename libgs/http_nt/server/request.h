@@ -82,17 +82,17 @@ public:
 
 public:
 	[[nodiscard]] optional<value_t> path_arg (
-		const core_concepts::text_p<char> auto &text
+		const core_concepts::text_p<char> auto &key
 	) const noexcept;
 
 	[[nodiscard]] bool contains_path_arg (
-		const core_concepts::text_p<char> auto &text
+		const core_concepts::text_p<char> auto &key
 	) const noexcept;
 
 	[[nodiscard]] optional<value_t> path_arg(size_t index) const;
 	[[nodiscard]] bool contains_path_arg(size_t index) const noexcept;
 
-	[[nodiscard]] const parameters_t &path_arg() const noexcept;
+	[[nodiscard]] const parameters_t &path_args() const noexcept;
 
 public:
 	template <typename Token = use_sync_t>

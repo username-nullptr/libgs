@@ -321,6 +321,40 @@ std::string_view basic_request<Connection>::path() const noexcept
 	return m_impl->m_parser.path();
 }
 
+template <concepts::connection Connection>
+optional<typename basic_request<Connection>::value_t>
+basic_request<Connection>::path_arg(const core_concepts::text_p<char> auto &key) const noexcept
+{
+	return m_impl->m_parser.path_arg(key);
+}
+
+template <concepts::connection Connection>
+bool basic_request<Connection>::contains_path_arg(const core_concepts::text_p<char> auto &key) const noexcept
+{
+	auto &args = m_impl->m_parser.path_args();
+	return args.find(key) != args.end();
+}
+
+template <concepts::connection Connection>
+optional<typename basic_request<Connection>::value_t>
+basic_request<Connection>::path_arg(size_t index) const
+{
+	return m_impl->m_parser.path_arg(index);
+}
+
+template <concepts::connection Connection>
+bool basic_request<Connection>::contains_path_arg(size_t index) const noexcept
+{
+	return index < m_impl->m_parser.path_args().size();
+}
+
+template <concepts::connection Connection>
+const basic_request<Connection>::parameters_t&
+basic_request<Connection>::path_args() const noexcept
+{
+	return m_impl->m_parser.path_args();
+}
+
 } //namespace libgs::http_nt
 
 

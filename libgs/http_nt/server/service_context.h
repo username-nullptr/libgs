@@ -29,8 +29,48 @@
 #ifndef LIBGS_HTTP_NT_SERVER_SERVICE_CONTEXT_H
 #define LIBGS_HTTP_NT_SERVER_SERVICE_CONTEXT_H
 
+#include <libgs/http_nt/server/session_manager.h>
+#include <libgs/http_nt/server/response.h>
+#include <libgs/http_nt/server/request.h>
+
 namespace libgs::http_nt
 {
+
+template <concepts::connection Connection>
+class LIBGS_HTTP_NT_TAPI basic_service_context
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_service_context)
+
+public:
+	using connection_t = Connection;
+	using connection_ptr = std::shared_ptr<connection_t>;
+	using executor_t = connection_t::executor_type;
+
+	using request_t = basic_request<connection_t>;
+	using response_t = basic_response<connection_t>;
+	using session_t = http_nt::session;
+
+public:
+	basic_service_context(connection_ptr connection, session_manager &ss_mgr);
+	~basic_service_context();
+
+public:
+	[[nodiscard]] const request_t &request() const noexcept;
+	[[nodiscard]] request_t &request() noexcept;
+
+	[[nodiscard]] const response_t &response() const noexcept;
+	[[nodiscard]] response_t &response() noexcept;
+
+	[[nodiscard]] executor_t get_executor() noexcept;
+
+public:
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+using service_context = basic_service_context<connection>;
 
 } //namespace libgs::http_nt
 #include <libgs/http_nt/server/detail/service_context.h>

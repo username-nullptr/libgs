@@ -32,6 +32,73 @@
 namespace libgs::http_nt
 {
 
+template <concepts::connection Connection>
+class LIBGS_HTTP_NT_TAPI basic_service_context<Connection>::impl;
+{
+	LIBGS_DISABLE_COPY_MOVE(impl)
+
+public:
+	impl(connection_ptr connection, session_manager &ss_mgr) :
+		m_ss_mgr(ss_mgr), m_response(connection), m_request(connection)
+	{
+		m_response.auto_set(m_request);
+	}
+
+public:
+	session_manager &m_ss_mgr;
+	response_t m_response;
+	request_t m_request;
+};
+
+template <concepts::connection Connection>
+basic_service_context<Connection>::basic_service_context
+(connection_ptr connection, session_manager &ss_mgr) :
+	m_impl(new impl(std::move(connection), ss_mgr))
+{
+
+}
+
+template <concepts::connection Connection>
+basic_service_context<Connection>::~basic_service_context()
+{
+
+}
+
+template <concepts::connection Connection>
+const basic_service_context<Connection>::request_t&
+basic_service_context<Connection>::request() const noexcept
+{
+	return m_impl->m_request;
+}
+
+template <concepts::connection Connection>
+basic_service_context<Connection>::request_t&
+basic_service_context<Connection>::request() noexcept
+{
+	return m_impl->m_request;
+}
+
+template <concepts::connection Connection>
+const basic_service_context<Connection>::response_t&
+basic_service_context<Connection>::response() const noexcept
+{
+	return m_impl->m_response;
+}
+
+template <concepts::connection Connection>
+basic_service_context<Connection>::response_t&
+basic_service_context<Connection>::response() noexcept
+{
+	return m_impl->m_response;
+}
+
+template <concepts::connection Connection>
+basic_service_context<Connection>::executor_t
+basic_service_context<Connection>::get_executor() noexcept
+{
+	return request().get_executor();
+}
+
 } //namespace libgs::http_nt
 
 
