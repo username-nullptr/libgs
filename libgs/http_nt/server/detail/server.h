@@ -32,8 +32,8 @@
 namespace libgs::http_nt
 {
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-class LIBGS_HTTP_NT_TAPI basic_server<Stream,Exec>::impl
+template <concepts::any_exec_stream Stream>
+class LIBGS_HTTP_NT_TAPI basic_server<Stream>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 

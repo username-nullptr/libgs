@@ -50,7 +50,8 @@ session_ptr session_manager::impl::find(std::string_view id, bool _throw)
 	return it->second;
 }
 
-auto session_manager::impl::emplace(session_ptr session)
+std::pair<std::map<std::string_view,session_ptr>::iterator,bool>
+session_manager::impl::emplace(session_ptr session)
 {
 	m_map_mutex.lock();
 	auto pair = m_session_map.emplace(session->id(), std::move(session));

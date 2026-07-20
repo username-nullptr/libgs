@@ -33,7 +33,7 @@ namespace libgs::http_nt
 {
 
 template <concepts::connection Connection>
-class LIBGS_HTTP_NT_TAPI basic_service_context<Connection>::impl;
+class LIBGS_HTTP_NT_TAPI basic_service_context<Connection>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
