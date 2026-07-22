@@ -142,7 +142,7 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 
 				asio::dispatch(exec,
 				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept {
-					detail::promise_set_value(promise, std::forward<Work>(func));
+					detail::promise_set_value(promise, func);
 				});
 				return future;
 			}
@@ -215,7 +215,7 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 
 				asio::post(exec,
 				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept {
-					detail::promise_set_value(promise, std::forward<Work>(func));
+					detail::promise_set_value(promise, func);
 				});
 				return future;
 			}

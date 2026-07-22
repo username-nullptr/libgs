@@ -310,12 +310,15 @@ public:
 		return expected;
 	}
 
-	void _throw() noexcept
+	void _throw()
 	{
 		::kill(m_pid, SIGKILL);
 		if( m_thread.joinable() )
 			m_thread.join();
-		std::__terminate();
+
+		runtime_error::loc_throw (
+			"The process is being destructed while it is still running."
+		);
 	}
 
 public:
@@ -325,10 +328,13 @@ public:
 			::kill(m_pid, SIGTERM);
 	}
 
-	void kill() const noexcept
+	void kill() noexcept
 	{
 		if( m_state == process_state::running )
+		{
 			::kill(m_pid, SIGKILL);
+			m_state = process_state::crashed;
+		}
 	}
 
 	void cancel() noexcept
@@ -423,9 +429,11 @@ public:
 				m_co_join_list.emplace_back(timer);
 
 				std::error_code error;
-				co_await timer->async_wait (
-					use_awaitable | cancel_slot | error
-				);
+				if( cancel_slot.is_connected() )
+					co_await timer->async_wait(use_awaitable | cancel_slot | error);
+				else
+					co_await timer->async_wait(use_awaitable | error);
+
 				state = m_state.load();
 				if( state == process_state::running )
 				{
@@ -448,9 +456,11 @@ public:
 			m_co_join_list.emplace_back(timer);
 
 			std::error_code error;
-			co_await timer->async_wait (
-				use_awaitable | cancel_slot | error
-			);
+			if( cancel_slot.is_connected() )
+				co_await timer->async_wait(use_awaitable | cancel_slot | error);
+			else
+				co_await timer->async_wait(use_awaitable | error);
+
 			state = m_state.load();
 			if( state == process_state::running )
 			{
@@ -531,9 +541,12 @@ public:
 		if( error )
 			co_return io_unexpected(error);
 
-		auto task = asio::async_write(m_stdin,
-			buf, use_awaitable | cancel_slot | error
-		);
+		awaitable<size_t> task;
+		if( cancel_slot.is_connected() )
+			task = asio::async_write(m_stdin, buf, use_awaitable | cancel_slot | error);
+		else
+			task = asio::async_write(m_stdin, buf, use_awaitable | error);
+
 		size_t sum = 0;
 		if( timeout == 0ns )
 			sum = co_await std::move(task);
@@ -695,9 +708,12 @@ public:
 		if( error )
 			co_return io_unexpected(error);
 
-		auto task = stream->async_read_some(buf,
-			use_awaitable | cancel_slot | error
-		);
+		awaitable<size_t> task;
+		if( cancel_slot.is_connected() )
+			task = stream->async_read_some(buf, use_awaitable | cancel_slot | error);
+		else
+			task = stream->async_read_some(buf, use_awaitable | error);
+
 		size_t sum = 0;
 		if( timeout == 0ns )
 			sum = co_await std::move(task);
