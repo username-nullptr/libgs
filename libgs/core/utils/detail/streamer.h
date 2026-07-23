@@ -50,7 +50,11 @@ struct streamer<bool>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
 		if( buf.size() <= offset )
-			runtime_error::loc_throw("bad packet");
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset
+			));
+		}
 		return { std::to_integer<bool>(buf[offset]), sizeof(bool) };
 	}
 };
@@ -69,8 +73,18 @@ struct streamer<T>
 	[[nodiscard]] static decoder_data<T>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
-		if( buf.size() <= offset or buf.size() - offset < sizeof(T) )
-			runtime_error::loc_throw("bad packet");
+		if( buf.size() <= offset )
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset
+			));
+		}
+		else if( buf.size() - offset < sizeof(T) )
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size() - offset, sizeof(T)
+			));
+		}
 		T value = 0;
 		std::memcpy(&value, buf.data() + offset, sizeof(T));
 		return { value, sizeof(T) };
@@ -91,8 +105,18 @@ struct streamer<T>
 	[[nodiscard]] static decoder_data<T>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
-		if( buf.size() <= offset or buf.size() - offset < sizeof(T) )
-			runtime_error::loc_throw("bad packet");
+		if( buf.size() <= offset )
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset
+			));
+		}
+		else if( buf.size() - offset < sizeof(T) )
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size() - offset, sizeof(T)
+			));
+		}
 		T value = 0.0;
 		std::memcpy(&value, buf.data() + offset, sizeof(T));
 		return { value, sizeof(T) };
@@ -152,13 +176,19 @@ struct streamer<T[N]>
 	[[nodiscard]] static auto decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
 		if( buf.size() < offset + 8 )
-			runtime_error::loc_throw("bad packet");
-
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset + 8
+			));
+		}
 		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
 		if( size != N )
-			runtime_error::loc_throw("bad packet");
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), N
+			));
+		}
 		offset += 8;
-
 		std::array<T,N> arr;
 		size_t sum = 8;
 

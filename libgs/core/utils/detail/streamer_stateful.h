@@ -71,8 +71,11 @@ struct streamer<std::optional<T>>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
 		if( buf.size() <= offset )
-			runtime_error::loc_throw("bad packet");
-
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset
+			));
+		}
 		auto has_value = std::to_integer<bool>(buf[offset++]);
 		if( not has_value )
 			return { std::nullopt, 1 };
@@ -106,8 +109,11 @@ struct streamer<optional<T>>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
 		if( buf.size() <= offset )
-			runtime_error::loc_throw("bad packet");
-
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset
+			));
+		}
 		auto has_value = std::to_integer<bool>(buf[offset++]);
 		if( not has_value )
 			return { nullopt, 1 };
@@ -145,12 +151,18 @@ struct streamer<std::variant<Ts...>>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
 		if( buf.size() < offset + 8 )
-			runtime_error::loc_throw("bad packet");
-
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} / {} bytes", buf.size(), offset + 8
+			));
+		}
 		auto index = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
 		if( index >= sizeof...(Ts) )
-			runtime_error::loc_throw("bad packet");
-
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} [{}]", sizeof...(Ts), index
+			));
+		}
 		offset += 8;
 		size_t sum = 8;
 		return { decode_impl(index, buf, offset, sum), sum };
@@ -162,7 +174,11 @@ private:
 		size_t index, const std::vector<std::byte> &buf, size_t &offset, size_t &sum)
 	{
 		if constexpr( I >= sizeof...(Ts) )
-			runtime_error::loc_throw("bad packet");
+		{
+			runtime_error::loc_throw(std::format (
+				"bad packet: {} [{}]", sizeof...(Ts), I
+			));
+		}
 		else
 		{
 			if( index == I )
