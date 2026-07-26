@@ -29,13 +29,14 @@
 #if defined(__WINNT__) || defined(_WINDOWS)
 
 #define WIN32_LEAN_AND_MEAN
+#include <libgs/core/system/app_utls.h>
 #include <Windows.h>
 #include <knownfolders.h>
 #include <shlobj.h>
 
-#include "libgs/core/system/app_utls.h"
-
-#pragma comment(lib, "shell32.lib")
+#ifdef _MSC_VER
+# pragma comment(lib, "shell32.lib")
+#endif
 
 namespace fs = std::filesystem;
 

@@ -48,25 +48,92 @@ public:
 	using acceptor_wrap_t = basic_acceptor_wrap<socket_t>;
 	using acceptor_t = acceptor_wrap_t::acceptor_t;
 
+	using endpoint_t = acceptor_t::endpoint_type;
+	using endpoint_wrapper_t = basic_endpoint_wrapper<typename endpoint_t::protocol_type>;
+
 	using request_t = basic_request<connection_t>;
 	using response_t = basic_response<connection_t>;
 
+	using path_opt_token_t = basic_path_opt_token<char>;
+	using context_t = basic_service_context<socket_t>;
+
+	using aop_t = basic_aop<socket_t>;
+	using ctrlr_aop_t = basic_ctrlr_aop<socket_t>;
+
+	using aop_ptr_t = basic_aop_ptr<socket_t>;
+	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t>;
+
+	using server_error_handler_t = std::function<bool(error_code)>;
+	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
+
 public:
-	template <typename  Exec0 = io_context_t&>
-	explicit basic_server(acceptor_wrap_t &&acceptor, Exec0 &&exec = io_context())
-		requires core_concepts::match_sched<Exec0,executor_t>;
+	basic_server(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec);
+	basic_server(acceptor_wrap_t &&wrap);
 	~basic_server();
 
-	template <concepts::any_exec_stream Stream0>
-	basic_server(basic_server<Stream0> &&other) noexcept requires
-		core_concepts::constructible<acceptor_wrap_t,basic_acceptor_wrap<Stream0>>;
-
-	template <concepts::any_exec_stream Stream0>
-	basic_server &operator=(basic_server<Stream0> &&other) noexcept requires
-		requires(acceptor_wrap_t &obj) { obj = std::move(other); };
+	basic_server &bind(endpoint_wrapper_t ep);
+	basic_server &bind(endpoint_wrapper_t ep, error_code &error) noexcept;
 
 public:
+	basic_server &start(size_t max = asio::socket_base::max_listen_connections);
+	basic_server &start(size_t max, error_code &error) noexcept;
+	basic_server &start(error_code &error) noexcept;
 
+	basic_server &start (
+		core_concepts::sched auto &&service_exec,
+		size_t max = asio::socket_base::max_listen_connections
+	);
+	basic_server &start (
+		core_concepts::sched auto &&service_exec,
+		size_t max, error_code &error
+	) noexcept;
+
+	basic_server &start (
+		core_concepts::sched auto service_exec,
+		error_code &error
+	) noexcept;
+
+public:
+	template <method_enum...Method, typename Func, typename...AopPtrs>
+	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
+		concepts::request_handler<Func,socket_t> and
+		concepts::aop_ptr_list<socket_t,AopPtrs...>;
+
+	template <method_enum...Method>
+	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
+
+	template <method_enum...Method>
+	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr);
+
+	template <typename Func>
+	basic_server &on_default(Func &&func) requires
+		concepts::request_handler<Func,socket_t>;
+
+	basic_server &on_server_error(server_error_handler_t func);
+	basic_server &on_service_error(service_error_handler_t func);
+
+	template <core_concepts::text_p<char> Text>
+	basic_server &unbound_request(const Text &path_rule = "");
+
+	basic_server &unbound_server_error();
+	basic_server &unbound_service_error();
+
+public:
+	template <typename Rep, typename Period>
+	basic_server &set_first_reading_time(const duration<Rep,Period> &d);
+
+	template <typename Rep, typename Period>
+	basic_server &set_keepalive_time(const duration<Rep,Period> &d = {});
+
+public:
+	[[nodiscard]] const executor_t &get_executor() noexcept;
+	[[nodiscard]] awaitable<void> co_stop() noexcept;
+	basic_server &stop() noexcept;
+	basic_server &cancel() noexcept;
+
+public:
+	[[nodiscard]] const acceptor_wrap_t &acceptor_wrap() const;
+	[[nodiscard]] acceptor_wrap_t &acceptor_wrap();
 
 private:
 	class impl;

@@ -98,19 +98,25 @@ struct streamer<std::tm>
 };
 
 template <>
-struct streamer<std::timespec>
+struct streamer<timespec>
 {
 	using fields_t = std::tuple<std::time_t, long>;
 
-	[[nodiscard]] static auto encode(const std::timespec &v) {
+	[[nodiscard]] static auto encode(const timespec &v) {
 		return streamer<fields_t>::encode(fields_t { v.tv_sec, v.tv_nsec });
 	}
 
-	[[nodiscard]] static decoder_data<std::timespec>
+	[[nodiscard]] static decoder_data<timespec>
 	decode(const std::vector<std::byte> &buf, size_t offset = 0)
 	{
 		auto data = streamer<fields_t>::decode(buf, offset);
-		return { { std::get<0>(*data), std::get<1>(*data) }, data.size };
+		return {
+			.data = {
+				.tv_sec = std::get<0>(*data),
+				.tv_nsec = std::get<1>(*data)
+			},
+			.size = data.size
+		};
 	}
 };
 

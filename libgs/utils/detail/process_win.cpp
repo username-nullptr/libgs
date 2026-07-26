@@ -41,7 +41,9 @@
 #include <utility>
 #include <map>
 
-#pragma comment(lib, "shell32.lib")
+#ifdef _MSC_VER
+# pragma comment(lib, "shell32.lib")
+#endif //_MSC_VER
 
 namespace libgs::utils::detail
 {

@@ -39,8 +39,7 @@ class LIBGS_HTTP_NT_TAPI basic_service_context<Connection>::impl
 
 public:
 	impl(connection_ptr connection, session_manager &ss_mgr) :
-		m_ss_mgr(ss_mgr), m_response(connection), m_request(connection)
-	{
+		m_ss_mgr(ss_mgr), m_response(connection), m_request(connection) {
 		m_response.auto_set(m_request);
 	}
 
@@ -97,6 +96,74 @@ basic_service_context<Connection>::executor_t
 basic_service_context<Connection>::get_executor() noexcept
 {
 	return request().get_executor();
+}
+
+template <concepts::connection Connection>
+template <typename Session, typename...Args>
+std::shared_ptr<Session> basic_service_context<Connection>::session(Args&&...args) requires
+	core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session, Args...>
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
+	auto session = m_impl->m_sss->template get_or_make<Session>(session_id, std::forward<Args>(args)...);
+	response().set_cookie(session_cookie, cookie(session->id()));
+	return session;
+}
+
+template <concepts::connection Connection>
+template <typename...Args>
+session_ptr basic_service_context<Connection>::session(Args&&...args) noexcept
+	requires core_concepts::constructible<session_t, Args...>
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
+	auto session = m_impl->m_sss->get_or_make(session_id, std::forward<Args>(args)...);
+	response().set_cookie(session_cookie, cookie(session->id()));
+	return session;
+}
+
+template <concepts::connection Connection>
+template <typename Session>
+std::shared_ptr<Session> basic_service_context<Connection>::session() const
+	requires core_concepts::base_of<Session,session_t>
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
+	auto session = m_impl->m_sss->template get<Session>(session_id);
+	response().set_cookie(session_cookie, cookie(session->id()));
+	return session;
+}
+
+template <concepts::connection Connection>
+template <typename Session>
+std::shared_ptr<Session> basic_service_context<Connection>::session_or()
+	requires core_concepts::base_of<Session,session_t>
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
+	auto session = m_impl->m_sss->template get_or<Session>(session_id);
+	response().set_cookie(session_cookie, cookie(session->id()));
+	return session;
+}
+
+template <concepts::connection Connection>
+session_ptr basic_service_context<Connection>::session() const
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
+	auto session = m_impl->m_sss->get(session_id);
+	response().set_cookie(session_cookie, cookie(session->id()));
+	return session;
+}
+
+template <concepts::connection Connection>
+session_ptr basic_service_context<Connection>::session_or() noexcept
+{
+	auto session_cookie = m_impl->m_sss->cookie_key();
+	auto session_id = request().cookie(session_cookie).or_else()->to_string();
+	auto session = m_impl->m_sss->get_or(session_id);
+	response().set_cookie(session_cookie, cookie(session->id()));
+	return session;
 }
 
 } //namespace libgs::http_nt

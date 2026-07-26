@@ -32,6 +32,31 @@
 namespace libgs::http_nt
 {
 
+template <concepts::connection Connection>
+basic_aop<Connection>::~basic_aop() = default;
+
+template <concepts::connection Connection>
+awaitable<bool> basic_aop<Connection>::before(context_t &context)
+{
+	ignore_unused(context);
+	co_return false;
+}
+
+template <concepts::connection Connection>
+awaitable<bool> basic_aop<Connection>::after(context_t &context)
+{
+	ignore_unused(context);
+	co_return false;
+}
+
+template <concepts::connection Connection>
+bool basic_aop<Connection>::exception(context_t &context, const std::exception &ex)
+{
+	ignore_unused(context, ex);
+	return false;
+}
+
+
 } //namespace libgs::http_nt
 
 

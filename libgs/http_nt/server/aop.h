@@ -52,7 +52,59 @@ public:
 	[[nodiscard]] virtual bool exception(context_t &context, const std::exception &ex);
 };
 
-} //namespace libgs::http_nt
+template <core_concepts::exec Exec>
+using basic_tcp_aop = basic_aop<basic_tcp_connection<Exec>>;
+
+using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
+
+template <concepts::connection Connection>
+using basic_aop_ptr = std::shared_ptr<basic_aop<Connection>>;
+
+template <core_concepts::exec Exec>
+using basic_tcp_aop_ptr = basic_aop_ptr<basic_tcp_connection<Exec>>;
+
+using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
+
+template <concepts::connection Connection>
+class basic_ctrlr_aop : public basic_aop<Connection>
+{
+public:
+	using context_t = basic_service_context<Connection>;
+	[[nodiscard]] virtual awaitable<void> service(context_t &context) = 0;
+};
+
+template <core_concepts::exec Exec>
+using basic_tcp_ctrlr_aop = basic_ctrlr_aop<basic_tcp_connection<Exec>>;
+
+using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
+
+template <concepts::connection Connection>
+using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Connection>>;
+
+template <core_concepts::exec Exec>
+using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<basic_tcp_connection<Exec>>;
+
+using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;
+
+namespace concepts
+{
+
+template <typename Stream, typename...Args>
+concept aop_ptr_list = requires(Args&&...args) {
+	std::vector<basic_aop_ptr<Stream>> { basic_aop_ptr<Stream>(std::forward<Args>(args))... };
+};
+
+template <typename Stream, typename...Args>
+concept ctrlr_aop_ptr_list = requires(Args&&...args) {
+	std::vector<basic_ctrlr_aop_ptr<Stream>> { basic_ctrlr_aop_ptr<Stream>(std::forward<Args>(args))... };
+};
+
+template <typename Func, typename Stream>
+concept request_handler = requires(Func &&func, basic_service_context<Stream> &context) {
+	std::is_same_v<awaitable_ret_t<decltype(func(context))>,void>;
+};
+
+}} //namespace libgs::http_nt
 #include <libgs/http_nt/server/detail/aop.h>
 
 

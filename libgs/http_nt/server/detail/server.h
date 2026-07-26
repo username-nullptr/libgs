@@ -38,11 +38,61 @@ class LIBGS_HTTP_NT_TAPI basic_server<Stream>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl()
+	impl(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
+		m_wrap(std::move(wrap)),
+		m_service_exec(get_executor_helper (
+			std::forward<decltype(service_exec)>(service_exec)
+		)) {}
+
+	explicit impl(acceptor_wrap_t &&wrap) :
+		m_wrap(std::move(wrap)) {
+		m_service_exec = m_wrap.accept().get_executor();
+	}
+
+	~impl()
 	{
 
 	}
+
+private:
+	acceptor_wrap_t m_wrap {};
+	asio::any_io_executor m_service_exec {};
 };
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
+	m_impl(new impl(std::move(wrap), std::forward<decltype(service_exec)>(service_exec)))
+{
+
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap) :
+	m_impl(new impl(std::move(wrap)))
+{
+
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::~basic_server()
+{
+	delete m_impl;
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep)
+{
+
+	return *this;
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep, error_code &error) noexcept
+{
+
+	return *this;
+}
+
 
 } //namespace libgs::http_nt
 
