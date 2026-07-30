@@ -72,16 +72,16 @@ sys_expected<> library::unload() noexcept
 optional<void*> library::interface(std::string_view ifname) const
 {
 	if( not is_loaded() )
-		throw runtime_error("libgs::library::interface: dll not load.");
+		runtime_error::loc_throw("libgs::library::interface: dll not load.");
 
 	auto ptr = m_impl->interface(ifname);
-	return ptr ? optional<void*>(ptr) : optional<void*>();
+	return ptr ? optional(ptr) : optional<void*>();
 }
 
 bool library::exists(std::string_view ifname) const
 {
 	if( not is_loaded() )
-		throw runtime_error("libgs::library::exists: dll not load.");
+		runtime_error::loc_throw("libgs::library::exists: dll not load.");
 	return m_impl->exists(ifname);
 }
 
