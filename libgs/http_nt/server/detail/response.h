@@ -53,9 +53,14 @@ public:
 
 template <concepts::connection Connection>
 basic_response<Connection>::basic_response(connection_ptr connection) :
+	mutable_headers<basic_response>(nullptr),
+	mutable_cookies<value_t,basic_response>(nullptr),
+	mutable_chunk_attributes<basic_response>(nullptr),
 	m_impl(new impl(std::move(connection)))
 {
-
+	this->m_headers = &m_impl->m_generator.headers();
+	this->m_cookies = &m_impl->m_generator.cookies();
+	this->m_chunk_attributes = &m_impl->m_generator.chunk_attributes();
 }
 
 template <concepts::connection Connection>
@@ -65,10 +70,51 @@ basic_response<Connection>::~basic_response()
 }
 
 template <concepts::connection Connection>
-void basic_response<Connection>::auto_set(request_t &request)
+std::string_view basic_response<Connection>::version() const noexcept
+{
+	return m_impl->m_generator.version();
+}
+
+template <concepts::connection Connection>
+basic_response<Connection> &basic_response<Connection>::set_status(status_enum status)
+{
+	return *this;
+}
+
+template <concepts::connection Connection>
+basic_response<Connection> &basic_response<Connection>::auto_set(request_t &request)
+{
+	if( version() >= http_nt::version::v11 )
+	{
+		auto value = request.header(http_nt::header::transfer_encoding);
+		if( value and strtls::to_lower(**value) == "chunked" )
+			this->set_header(http_nt::header::transfer_encoding, "chunked");
+	}
+	return *this;
+}
+
+template <concepts::connection Connection>
+template <core_concepts::dis_func_tf_opt_token Token>
+auto basic_response<Connection>::write(const const_buffer &body, Token &&token) noexcept
 {
 
 }
+
+template <concepts::connection Connection>
+template <core_concepts::dis_func_tf_opt_token Token>
+auto basic_response<Connection>::write(Token &&token) noexcept
+{
+
+}
+
+template <concepts::connection Connection>
+template <typename T, core_concepts::dis_func_tf_opt_token Token>
+auto basic_response<Connection>::send_file(T &&opt, Token &&token)
+	requires file_opt_token<T>
+{
+
+}
+
 
 } //namespace libgs::http_nt
 

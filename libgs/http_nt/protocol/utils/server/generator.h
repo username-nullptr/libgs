@@ -46,8 +46,7 @@ class LIBGS_HTTP_NT_API generator<protocol_model::server> final :
 public:
 	using version_t = http_nt::version;
 
-	explicit generator(version_enum version, const headers_t &req_headers = {});
-	explicit generator(const headers_t &req_headers = {}); // default V1.1
+	explicit generator(version_enum version = version_t::v11);
 	~generator();
 
 	generator(generator &&other) noexcept;
