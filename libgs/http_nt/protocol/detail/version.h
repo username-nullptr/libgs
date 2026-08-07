@@ -135,8 +135,6 @@ inline double version::number(bool _throw) const
 	return number(value, _throw);
 }
 
-
-
 template <version_enum Version>
 consteval double version::number() requires is_valid_v<Version>
 {

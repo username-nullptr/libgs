@@ -115,7 +115,6 @@ auto basic_response<Connection>::send_file(T &&opt, Token &&token)
 
 }
 
-
 } //namespace libgs::http_nt
 
 

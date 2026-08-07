@@ -941,7 +941,6 @@ static mime_head_map g_signatures
 	{ "\xFF\xD8\xFF\xEE"                               , IMAGE "jpeg"                         }
 };
 
-
 static mime_head_map g_signatures_offset4
 {
 	{ "\x0AVersion:Vivo"             , VIDEO "vivo"                     },

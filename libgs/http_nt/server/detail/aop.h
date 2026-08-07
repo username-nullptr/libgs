@@ -56,7 +56,6 @@ bool basic_aop<Connection>::exception(context_t &context, const std::exception &
 	return false;
 }
 
-
 } //namespace libgs::http_nt
 
 

@@ -575,7 +575,6 @@ public:
 		co_return expected;
 	}
 
-
 private:
 	[[nodiscard]] error_code invoke_progress(auto &progress, size_t sum, size_t total) noexcept
 	{

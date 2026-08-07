@@ -49,7 +49,6 @@ struct is_iterator
 template <typename T, typename Iter>
 constexpr bool is_iterator_v = is_iterator<T,Iter>::value;
 
-
 template <typename Iter>
 struct is_any_iterator
 {

@@ -93,7 +93,6 @@ basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep, error_co
 	return *this;
 }
 
-
 } //namespace libgs::http_nt
 
 

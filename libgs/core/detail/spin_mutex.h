@@ -98,7 +98,6 @@ inline spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept
 	return m_native_handle;
 }
 
-
 } //namespace libgs
 
 

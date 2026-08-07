@@ -44,7 +44,6 @@ public:
 	impl(impl &&other) noexcept = default;
 	impl &operator=(impl &&other) noexcept = default;
 
-
 public:
 	value_t m_value;
 	attributes_t m_attributes {
