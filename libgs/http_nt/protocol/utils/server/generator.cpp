@@ -38,8 +38,7 @@ class LIBGS_DECL_HIDDEN generator<protocol_model::server>::impl
 	using generator_ptr = std::shared_ptr<base_generator>;
 
 public:
-	impl(version_enum version, const headers_t &req_headers) :
-		m_req_headers(&req_headers)
+	explicit impl(version_enum version)
 	{
 		version_t::check(version);
 		if( version == version::v10 )
@@ -49,39 +48,21 @@ public:
 		// else ... ...
 	}
 
-	[[nodiscard]] bool request_chunked() const
-	{
-		if( m_generator->version() < version::v11 )
-			return false;
-
-		auto it = m_req_headers->find(header::transfer_encoding);
-		return it != m_req_headers->end() and
-			strtls::to_lower(*it->second) == "chunked";
-	}
-
 public:
-	const headers_t *m_req_headers = nullptr;
 	generator_ptr m_generator {};
-
 	status_enum m_status = status::ok;
 	cookies_t m_cookies {};
 };
 
-generator<protocol_model::server>::generator(version_enum version, const headers_t &req_headers) :
+generator<protocol_model::server>::generator(version_enum version) :
 	mutable_headers(nullptr),
 	mutable_cookies(nullptr),
 	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(version, req_headers))
+	m_impl(new impl(version))
 {
 	m_headers = &m_impl->m_generator->headers();
 	m_cookies = &m_impl->m_cookies;
 	m_chunk_attributes = &m_impl->m_generator->chunk_attributes();
-}
-
-generator<protocol_model::server>::generator(const headers_t &req_headers) :
-	generator(version::v11, req_headers)
-{
-
 }
 
 generator<protocol_model::server>::~generator()
@@ -95,7 +76,7 @@ generator<protocol_model::server>::generator(generator &&other) noexcept :
 	mutable_chunk_attributes(other.m_chunk_attributes),
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl(version(), *m_impl->m_req_headers);
+	other.m_impl = new impl(version());
 	other.m_headers = &other.m_impl->m_generator->headers();
 	other.m_cookies = &other.m_impl->m_cookies;
 	other.m_chunk_attributes = &other.m_impl->m_generator->chunk_attributes();
@@ -112,7 +93,7 @@ generator<protocol_model::server> &generator<protocol_model::server>::operator=(
 	m_cookies = other.m_cookies;
 	m_chunk_attributes = other.m_chunk_attributes;
 
-	other.m_impl = new impl(version(), *m_impl->m_req_headers);
+	other.m_impl = new impl(version());
 	other.m_headers = &other.m_impl->m_generator->headers();
 	other.m_cookies = &other.m_impl->m_cookies;
 	other.m_chunk_attributes = &other.m_impl->m_generator->chunk_attributes();
@@ -147,9 +128,6 @@ std::string generator<protocol_model::server>::header_data(size_t body_size)
 		status::description(m_impl->m_status)
 	);
 	m_impl->m_generator->unset_header("set-cookie");
-
-	if( m_impl->request_chunked() )
-		m_impl->m_generator->set_header(header::transfer_encoding, "chunked");
 	buf += m_impl->m_generator->header_data(body_size);
 
 	for(auto &[ckey,cookie] : m_impl->m_cookies)

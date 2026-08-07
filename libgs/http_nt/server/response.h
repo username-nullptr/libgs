@@ -63,9 +63,50 @@ public:
 	~basic_response() override;
 
 public:
+	[[nodiscard]] std::string_view version() const noexcept;
+	basic_response &set_status(status_enum status);
+	basic_response &auto_set(request_t &request);
 
 public:
-	void auto_set(request_t &request);
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto write(const const_buffer &body, Token &&token = {}) noexcept;
+
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto write(Token &&token = {}) noexcept;
+
+	template <typename T>
+	static constexpr bool file_opt_token = concepts::file_opt_token_p <
+		T, char, file_optype::combine, io_permission::read
+	>;
+	template <typename T, core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto send_file(T &&opt, Token &&token = {}) requires file_opt_token<T>;
+
+public:
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto redirect(core_concepts::text_p<char> auto &&url,
+		redirect_enum redi, Token &&token = {}
+	);
+
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto redirect(core_concepts::text_p<char> auto &&url,
+		Token &&token = {}
+	);
+
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto continues(Token &&token = {});
+
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto chunk_end(const headers_t &headers, Token &&token = {});
+
+	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
+	auto chunk_end(Token &&token = {});
+
+public:
+	[[nodiscard]] status_enum status() const noexcept;
+	[[nodiscard]] bool is_finished() const noexcept;
+
+	[[nodiscard]] executor_t get_executor() noexcept;
+	basic_response &cancel() noexcept;
 
 private:
 	class impl;
