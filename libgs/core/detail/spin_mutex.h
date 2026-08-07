@@ -56,8 +56,8 @@ inline void spin_mutex::lock()
 
 	while( not m_native_handle.compare_exchange_weak(expected, true,
 		std::memory_order_acquire, std::memory_order_relaxed) )
-    {
-        expected = false;
+	{
+		expected = false;
 		if( high_resolution_clock::now() - start < max_spin_duration )
 			none_instruction();
 		else
@@ -65,7 +65,7 @@ inline void spin_mutex::lock()
 			std::this_thread::yield();
 			start = high_resolution_clock::now();
 		}
-    }
+	}
 }
 
 inline bool spin_mutex::try_lock()

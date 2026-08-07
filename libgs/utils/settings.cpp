@@ -38,8 +38,8 @@ namespace libgs::utils
 settings::settings(std::string name) :
 	m_impl(new impl(std::move(name)))
 {
-    m_impl->m_ini.set_sync_on_delete(true);
-    m_impl->m_ini.set_sync_period(5s);
+	m_impl->m_ini.set_sync_on_delete(true);
+	m_impl->m_ini.set_sync_period(5s);
 }
 
 settings::~settings()

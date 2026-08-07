@@ -72,24 +72,24 @@ public:
 	{
 		std::filesystem::path path {};
 		time_mode_t time_mode = time_mode_t::local;
- 		bool line_break = false;
+		 bool line_break = false;
 
- 		struct {
+		 struct {
 			level_t console = level_t::info;
 			level_t daily = level_t::info;
- 		} level;
+		 } level;
 
- 		struct {
+		 struct {
 			size_t warning  = 32 * 1024 * 1024;
 			size_t error    = 16 * 1024 * 1024;
 			size_t critical =  8 * 1024 * 1024;
- 		} max_file_size;
+		 } max_file_size;
 
- 		struct {
+		 struct {
 			size_t warning  = 16;
 			size_t error    =  8;
 			size_t critical =  4;
- 		} max_file_count;
+		 } max_file_count;
 	};
 	logger &set_config(config_t conf);
 	[[nodiscard]] config_t config() const noexcept;
@@ -99,14 +99,14 @@ public:
 public:
 	struct LIBGS_UTILS_API source_loc
 	{
-        source_loc(const char *file, const char *func, int line);
+		source_loc(const char *file, const char *func, int line);
 		const char *file = nullptr;
-        const char *func = nullptr;
-        int line = 0;
+		const char *func = nullptr;
+		int line = 0;
 	};
 
 	template <typename...Args>
-    using fmt_str_t = std::format_string<Args...>;
+	using fmt_str_t = std::format_string<Args...>;
 
 public:
 	template <level_t Lv, typename Arg0, typename...Args>

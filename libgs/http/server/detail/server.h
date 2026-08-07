@@ -93,7 +93,7 @@ public:
 
 		m_keepalive_timeout = other.m_keepalive_timeout;
 		m_is_start = other.m_is_start;
-	
+
 		other.m_keepalive_timeout = milliseconds(5000);
 		other.m_is_start = false;
 		return *this;

@@ -71,7 +71,7 @@ bool library::impl::exists(std::string_view ifname) const
 void library::impl::set_file_name(fs::path file_name)
 {
 	m_file_name = std::move(file_name);
-    auto _file_name = m_file_name.string();
+	auto _file_name = m_file_name.string();
 #ifdef __APPLE__
 	std::vector candidates
 	{
@@ -110,7 +110,7 @@ error_code library::impl::load_native()
 	if( not fs::exists(m_file_name) )
 		return std::make_error_code(std::errc::no_such_file_or_directory);
 
-    auto _file_name = m_file_name.string();
+	auto _file_name = m_file_name.string();
 	m_handle = dlopen(_file_name.c_str(), RTLD_LAZY | RTLD_LOCAL);
 	if( not m_handle )
 		return { errno, g_library_category };

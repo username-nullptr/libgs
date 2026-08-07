@@ -219,7 +219,7 @@ public:
 		{
 			if( m_counter.compare_exchange_weak
 				(expected, expected + 1, std::memory_order_relaxed) )
-    		    return true;
+				return true;
 		}
 		return false;
 	}

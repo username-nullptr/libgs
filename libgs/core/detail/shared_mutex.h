@@ -56,8 +56,8 @@ inline void spin_shared_mutex::lock()
 
 	while( not m_write_flag.compare_exchange_weak(expected, true,
 		std::memory_order_acquire, std::memory_order_relaxed) )
-    {
-        expected = false;
+	{
+		expected = false;
 		if( steady_clock::now() - start < max_spin_duration )
 			none_instruction();
 		else
@@ -65,7 +65,7 @@ inline void spin_shared_mutex::lock()
 			std::this_thread::yield();
 			start = steady_clock::now();
 		}
-    }
+	}
 	while( m_read_count.load(std::memory_order_relaxed) > 0 )
 	{
 		if( steady_clock::now() - start < max_spin_duration )

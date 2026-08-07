@@ -43,7 +43,7 @@ template <concepts::optional_value Error, typename Derived>
 class LIBGS_CORE_TAPI expected_base
 {
 public:
-    using error_t = Error;
+	using error_t = Error;
 	using derived_t = Derived;
 	using error_storage_t = std::byte[sizeof(error_t)];
 
@@ -107,7 +107,7 @@ class LIBGS_CORE_TAPI expected<Value,Error> final :
 {
 public:
 	using value_t = Value;
-    using error_t = Error;
+	using error_t = Error;
 
 	using error_storage_t = std::aligned_storage_t <
 		sizeof(error_t), alignof(error_t)
@@ -216,7 +216,7 @@ class LIBGS_CORE_TAPI expected<void,Error> final :
 	public expected_base<Error,expected<void,Error>>
 {
 public:
-    using error_t = Error;
+	using error_t = Error;
 
 	expected() = default;
 	expected(unexpected<error_t> une);

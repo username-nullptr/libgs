@@ -145,4 +145,3 @@ auto *to_little_endian(auto *data, size_t len)
 
 
 #endif //LIBGS_CORE_UTILS_DETAIL_BYTE_ORDER_H
-

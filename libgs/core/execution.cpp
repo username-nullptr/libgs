@@ -79,7 +79,7 @@ void exec(io_context_t &ioc)
 
 void exec_detach(io_context_t &ioc)
 {
-    std::thread([&ioc]{exec(ioc);}).detach();
+	std::thread([&ioc]{exec(ioc);}).detach();
 }
 
 void exit(int code)

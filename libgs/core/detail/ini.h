@@ -396,8 +396,8 @@ public:
 						else
 						{
 							file << l_str(char_t,"\"")
-							     << (value.is_ascii() ? str : to_percent_encoding(str))
-							     << l_str(char_t,"\"");
+								 << (value.is_ascii() ? str : to_percent_encoding(str))
+								 << l_str(char_t,"\"");
 						}
 					}
 					file << l_str(char_t,"\n");
@@ -555,8 +555,8 @@ private:
 		if( value.size() == 1 )
 		{
 			if( value[0] == static_cast<char_t>('=') or
-			    value[0] == static_cast<char_t>('\'') or
-			    value[0] == static_cast<char_t>('"') )
+				value[0] == static_cast<char_t>('\'') or
+				value[0] == static_cast<char_t>('"') )
 			{
 				throw system_error (
 					std::error_code(static_cast<int>(line), detail::ini_invalid_value()),

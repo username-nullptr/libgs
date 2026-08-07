@@ -110,12 +110,12 @@ awaitable<asio::any_io_executor> goto_exec(Exec &&exec)
 	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
 	([curr_exec = std::move(curr_exec), exec = get_executor_helper(exec)](auto handler)
 	{
-	    auto work = asio::make_work_guard(handler);
-	    asio::post(exec, [
+		auto work = asio::make_work_guard(handler);
+		asio::post(exec, [
 			handler = std::move(handler), work = std::move(work), prev_exec = std::move(curr_exec)
-	    ]() mutable
-	    {
-	    	LIBGS_UNUSED(work);
+		]() mutable
+		{
+			LIBGS_UNUSED(work);
 			std::move(handler)(std::move(prev_exec));
 		});
 	},
@@ -128,12 +128,12 @@ inline awaitable<asio::any_io_executor> goto_thread()
 	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
 	([curr_exec = std::move(curr_exec)](auto handler)
 	{
-	    auto work = asio::make_work_guard(handler);
+		auto work = asio::make_work_guard(handler);
 		std::thread([
 			handler = std::move(handler), work = std::move(work), prev_exec = std::move(curr_exec)
 		]() mutable
 		{
-	    	LIBGS_UNUSED(work);
+			LIBGS_UNUSED(work);
 			std::move(handler)(std::move(prev_exec));
 		}).detach();
 	},

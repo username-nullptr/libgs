@@ -61,7 +61,7 @@ sys_expected<path_t> file_path() noexcept
 sys_expected<> set_current_directory(const path_t &path) noexcept
 {
 	sys_expected<> result;
-    auto str = path.string();
+	auto str = path.string();
 
 	if( chdir(str.data()) < 0 )
 		result.despair(sys_error());

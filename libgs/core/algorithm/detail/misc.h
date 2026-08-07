@@ -128,15 +128,15 @@ auto to_percent_encoding(const Str &str, StrArg &&exclude, StrArg &&include, cha
 	for(auto &c : str_view)
 	{
 		if( c != static_cast<char_t>(percent) and
-		    ((c >= static_cast<char_t>(0x61) and c <= static_cast<char_t>(0x7A)) // ALPHA
-		     or (c >= static_cast<char_t>(0x41) and c <= static_cast<char_t>(0x5A)) // ALPHA
-		     or (c >= static_cast<char_t>(0x30) and c <= static_cast<char_t>(0x39)) // DIGIT
-		     or c == static_cast<char_t>(0x2D) // -
-		     or c == static_cast<char_t>(0x2E) // .
-		     or c == static_cast<char_t>(0x5F) // _
-		     or c == static_cast<char_t>(0x7E) // ~
-		     or contains(exclude_view, c)) and
-		    not contains(include_view, c) )
+			((c >= static_cast<char_t>(0x61) and c <= static_cast<char_t>(0x7A)) // ALPHA
+			 or (c >= static_cast<char_t>(0x41) and c <= static_cast<char_t>(0x5A)) // ALPHA
+			 or (c >= static_cast<char_t>(0x30) and c <= static_cast<char_t>(0x39)) // DIGIT
+			 or c == static_cast<char_t>(0x2D) // -
+			 or c == static_cast<char_t>(0x2E) // .
+			 or c == static_cast<char_t>(0x5F) // _
+			 or c == static_cast<char_t>(0x7E) // ~
+			 or contains(exclude_view, c)) and
+			not contains(include_view, c) )
 		{
 			result[length++] = c;
 		}

@@ -45,7 +45,7 @@ template <concepts::optional_value_p Value>
 
 template <concepts::expected_value Value = void>
 LIBGS_CORE_VAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
-    std::source_location loc = std::source_location::current()
+	std::source_location loc = std::source_location::current()
 );
 
 using io_expected = sys_expected<size_t>;

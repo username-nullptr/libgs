@@ -45,7 +45,7 @@ class LIBGS_CORE_VAPI runtime_error : public std::runtime_error
 {
 public:
 	using std::runtime_error::runtime_error;
-    ~runtime_error() noexcept override = default;
+	~runtime_error() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
 	runtime_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
@@ -75,7 +75,7 @@ class LIBGS_CORE_VAPI logic_error : public std::logic_error
 {
 public:
 	using std::logic_error::logic_error;
-    ~logic_error() noexcept override = default;
+	~logic_error() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
 	logic_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
@@ -90,13 +90,13 @@ class LIBGS_CORE_VAPI system_error : public std::system_error
 {
 public:
 	using std::system_error::system_error;
-    ~system_error() noexcept override = default;
+	~system_error() noexcept override = default;
 
 	template <typename Arg0, typename...Args>
-    system_error(std::error_code ec, std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+	system_error(std::error_code ec, std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 	template <typename Arg0, typename...Args>
-    system_error(int v, const std::error_category &ecat, std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+	system_error(int v, const std::error_category &ecat, std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
 public:
 	static void loc_throw(const std::error_code &ec,

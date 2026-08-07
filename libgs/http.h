@@ -33,4 +33,3 @@
 #include <libgs/http/client.h>
 
 #endif //LIBGS_HTTP_H
-

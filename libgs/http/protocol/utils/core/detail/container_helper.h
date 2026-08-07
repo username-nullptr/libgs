@@ -305,7 +305,7 @@ auto mutable_headers<Derived>::set_header(Opt &&opt)
 			));
 		}
 		set_header(header_t::content_length, range.total     );
-     	set_header(header_t::content_type  , token->mime_type);
+		 set_header(header_t::content_type  , token->mime_type);
 		set_header(header_t::accept_ranges , "bytes"         );
 
 		set_header(header_t::content_range, value {

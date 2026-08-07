@@ -195,7 +195,7 @@ parser<model::client>::parser(parser &&other) noexcept :
 parser<model::client> &parser<model::client>::operator=(parser &&other) noexcept
 {
 	if( this == &other )
-        return *this;
+		return *this;
 
 	delete m_impl;
 	m_impl = other.m_impl;

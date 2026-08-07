@@ -41,29 +41,29 @@ class LIBGS_HTTP_TAPI basic_connection
 
 public:
 	using socket_t = Stream;
-    using opt_helper_t = socket_operation_helper<socket_t>;
+	using opt_helper_t = socket_operation_helper<socket_t>;
 
 	using executor_t = opt_helper_t::executor_t;
 	using endpoint_t = opt_helper_t::endpoint_t;
 
 public:
-  	template <typename Func>
+	  template <typename Func>
 	basic_connection(socket_t &&socket, Func &&destructor)
 		requires core_concepts::callable<Func,socket_t&&>;
 
 	explicit basic_connection(socket_t &&socket);
-    ~basic_connection();
+	~basic_connection();
 
 	basic_connection(basic_connection &&other) noexcept;
 	basic_connection &operator=(basic_connection &&other) noexcept;
 	basic_connection &operator=(socket_t &&socket) noexcept;
 
 public:
- 	[[nodiscard]] const socket_t &socket() const noexcept;
- 	[[nodiscard]] socket_t &socket() noexcept;
+	 [[nodiscard]] const socket_t &socket() const noexcept;
+	 [[nodiscard]] socket_t &socket() noexcept;
 
- 	[[nodiscard]] const opt_helper_t &opt_helper() const noexcept;
- 	[[nodiscard]] opt_helper_t &opt_helper() noexcept;
+	 [[nodiscard]] const opt_helper_t &opt_helper() const noexcept;
+	 [[nodiscard]] opt_helper_t &opt_helper() noexcept;
 
 	[[nodiscard]] bool peek() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;

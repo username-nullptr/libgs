@@ -299,7 +299,7 @@ public:
 	enum class state
 	{
 		waiting_request,      // GET /path HTTP/1.1\r\n
-		                      // HTTP/1.1 200 OK\r\n
+							  // HTTP/1.1 200 OK\r\n
 		reading_headers,      // Key: Value\r\n
 		reading_length,       // Fixed length (Content-Length: 9\r\n).
 		chunked_wait_size,    // 9\r\n

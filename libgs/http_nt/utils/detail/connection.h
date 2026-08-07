@@ -38,7 +38,7 @@ class LIBGS_HTTP_NT_TAPI basic_connection<Stream>::impl
 	LIBGS_DISABLE_COPY(impl)
 
 public:
-  	template <core_concepts::callable<socket_t&&> Func>
+	  template <core_concepts::callable<socket_t&&> Func>
 	impl(socket_t &&socket, Func &&destructor) :
 		m_destructor(std::forward<Func>(destructor)),
 		m_socket(std::move(socket)) {}
@@ -49,21 +49,21 @@ public:
 	impl(impl &&other) noexcept :
 		m_destructor(std::move(other.m_destructor)),
 		m_socket(std::move(other.m_socket)) {
-  		other.m_opt_helper.close();
-  	}
+		  other.m_opt_helper.close();
+	  }
 
 	impl &operator=(impl &&other) noexcept
 	{
 		m_destructor = std::move(other.m_destructor);
 		m_socket = std::move(other.m_socket);
-  		other.m_opt_helper.close();
-  		return *this;
+		  other.m_opt_helper.close();
+		  return *this;
 	}
 
 	~impl()
 	{
-  		if( not m_destructor )
-  			return ;
+		  if( not m_destructor )
+			  return ;
 		dispatch(m_opt_helper.get_executor(),
 		[destructor = std::move(m_destructor), socket = std::move(m_socket)]() mutable
 		{
