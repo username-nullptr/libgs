@@ -54,17 +54,22 @@ void lock_free_queue_base<T,Derived>::force_enqueue(const element_t &data)
 
 template <concepts::copy_or_move_constructible T, typename Derived>
 template <typename...Args>
-void lock_free_queue_base<T,Derived>::force_emplace(Args&&...args) requires
+size_t lock_free_queue_base<T,Derived>::force_emplace(Args&&...args) requires
 	concepts::constructible<element_t,Args...>
 {
+	size_t sum = 0;
 	auto self = static_cast<Derived*>(this);
 	for(;;)
 	{
 		if( self->full() )
+		{
 			self->dequeue();
+			sum++;
+		}
 		if( self->emplace(std::forward<Args>(args)...) )
 			break;
 	}
+	return sum;
 }
 
 namespace detail

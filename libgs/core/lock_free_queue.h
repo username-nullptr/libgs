@@ -45,8 +45,9 @@ public:
 	void force_enqueue(const element_t &data) requires
 		concepts::copy_constructible<element_t>;
 
+	// Return number of nodes that were forced to be removed from the queue.
 	template <typename...Args>
-	void force_emplace(Args&&...args) requires
+	size_t force_emplace(Args&&...args) requires
 		concepts::constructible<element_t,Args...>;
 };
 
