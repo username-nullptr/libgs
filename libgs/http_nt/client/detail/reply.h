@@ -544,7 +544,7 @@ public:
 				co_return expected.despair(expected2.error());
 			co_return sum;
 		},
-		use_awaitable);
+		use_awaitable | cancel_slot);
 
 		if( timeout == 0ns )
 			expected = co_await std::move(task);
@@ -568,7 +568,8 @@ public:
 		std::chrono::nanoseconds timeout) noexcept
 	{
 		auto expected = co_await co_save_file (
-			std::forward<decltype(opt)>(opt), std::move(cancel_slot), std::move(timeout)
+			std::forward<decltype(opt)>(opt), std::forward<decltype(progress)>(progress),
+			std::move(cancel_slot), std::move(timeout)
 		);
 		if( not expected )
 			error = expected.error();
