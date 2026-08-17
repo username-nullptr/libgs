@@ -112,7 +112,7 @@ protected:
 	void _reset() noexcept;
 
 protected:
-	alignas(value_t) storage_t m_storage;
+	alignas(value_t) storage_t m_storage {};
 	value_t *m_ptr = nullptr;
 };
 

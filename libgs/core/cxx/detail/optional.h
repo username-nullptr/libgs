@@ -73,11 +73,13 @@ template <concepts::optional_value Value>
 optional_base<Value> &optional_base<Value>::operator=(const optional_base &other) requires
 	concepts::copy_constructible<value_t>
 {
-	if( this != &other )
-	{
-		optional temp(other);
-		_swap(temp);
-	}
+	if( this == &other )
+		return *this;
+
+	if( this->has_value() )
+		this->_reset();
+	if( other )
+		_emplace(*other);
 	return *this;
 }
 
@@ -298,7 +300,7 @@ template <concepts::optional_value Value>
 optional<Value> &optional<Value>::swap(optional &other)
 	noexcept(std::is_nothrow_swappable_v<value_t>)
 {
-	this->_swap();
+	this->_swap(other);
 	return *this;
 }
 
