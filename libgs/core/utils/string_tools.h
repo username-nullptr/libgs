@@ -78,7 +78,7 @@ template <concepts::text_p<char32_t> Text>
 struct get_char<Text> { using type = char32_t; };
 
 template <concepts::any_text_p Text>
-using get_char_t = typename get_char<Text>::type;
+using get_char_t = get_char<Text>::type;
 
 template <concepts::character CharT = char>
 [[nodiscard]] LIBGS_CORE_TAPI std::basic_string<CharT> to_string (

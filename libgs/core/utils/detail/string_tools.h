@@ -208,11 +208,12 @@ std::basic_string<CharT> to_string(concepts::floating_p auto &&value) noexcept
 decltype(auto) to_string(concepts::any_text_p auto &&text) noexcept
 {
 	using Text = decltype(text);
+	using text_t = std::remove_cvref_t<Text>;
 	using char_t = get_char_t<Text>;
 
-	if constexpr( is_any_std_string_v<Text> )
+	if constexpr( is_any_std_string_v<text_t> )
 		return std::forward<Text>(text);
-	else if constexpr( is_any_char_v<std::remove_cvref_t<Text>> )
+	else if constexpr( is_any_char_v<text_t> )
 		return std::basic_string<char_t>(&text,1);
 	else
 		return std::basic_string<char_t>(std::forward<Text>(text));
@@ -221,15 +222,15 @@ decltype(auto) to_string(concepts::any_text_p auto &&text) noexcept
 decltype(auto) to_view(concepts::any_text_p auto &&text) noexcept
 {
 	using Text = decltype(text);
+	using text_t = std::remove_cvref_t<Text>;
 	using char_t = get_char_t<Text>;
 
-	if constexpr( is_any_char_v<std::remove_cvref_t<Text>> )
+	if constexpr( is_any_char_v<text_t> )
 		return std::basic_string_view<char_t>(&text,1);
-
-	else if constexpr( is_any_std_string_view_v<Text> )
+	else if constexpr( is_any_std_string_view_v<text_t> )
 		return std::forward<Text>(text);
 	else
-		return std::basic_string_view<char_t>(std::forward<Text>(text));
+		return std::basic_string_view<char_t>(text);
 }
 
 bool is_alpha(const concepts::any_string_p auto &str) noexcept
