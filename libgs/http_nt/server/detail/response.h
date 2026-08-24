@@ -35,11 +35,16 @@ namespace libgs::http_nt
 {
 
 template <concepts::connection Connection>
-class LIBGS_HTTP_NT_TAPI basic_response<Connection>::impl :
-	public std::enable_shared_from_this<impl>
+class LIBGS_HTTP_NT_TAPI basic_response<Connection>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 	using generator_t = server_generator;
+
+	struct range_value : file_range
+	{
+		std::string cr_line {};
+		size_t end = 0;
+	};
 
 public:
 	explicit impl(connection_ptr connection) :
@@ -147,206 +152,115 @@ public:
 	}
 
 public:
-	[[nodiscard]] size_t send_file
-	(const body_norms_t &norms, auto &&opt, error_code &error) noexcept
+	template <typename Opt>
+	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error) noexcept
 	{
-		error.clear();
-		size_t sum = 0;
+		if( m_generator.pro_state() != generator_state::header )
+			return 0;
 
-		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
-		if( not token )
+		auto f_token = make_file_opt_token(std::forward<Opt>(opt));
+		if( not f_token )
 		{
-			error = token.error();
-			return sum;
+			error = f_token.error();
+			return 0;
 		}
-		auto before = m_connection->set_send_file_option();
-		if( not before )
-		{
-			error = before.error();
-			return sum;
-		}
-		char buffer[128 * 1024] {0};
-		auto do_transfer = [&](size_t begin, size_t loc_total)
-		{
-			token->stream->seekg(begin, std::ios::beg);
-			size_t loc_sum = 0;
-			do {
-				token->stream->read(buffer, sizeof(buffer));
-				size_t gcount = token->stream->gcount();
-				if( gcount == 0 )
-					break;
+		file_ranges f_ranges {};
+		using f_token_t = std::remove_cvref_t<decltype(*f_token)>;
 
-				auto bytes = write({buffer, gcount}, error);
-				if( error )
-					return ;
-
-				loc_sum += bytes;
-				sum += bytes;
-			}
-			while( not token->stream->eof() and loc_sum < loc_total );
-		};
-		if( norms.index() == 0 or norms.index() == std::variant_npos )
+		if constexpr( f_token_t::optype == file_optype::single )
 		{
-			do_transfer(0, token->file_size);
-			token->stream->close();
-			if( error )
-				return sum;
-		}
-		else if( norms.index() == 1 )
-		{
-			auto &range_norms = std::get<range_body_norms>(norms);
-			do_transfer(range_norms.begin, range_norms.total);
-			token->stream->close();
-			if( error )
-				return sum;
-		}
-		else if( norms.index() == 2 )
-		{
-			auto &multipart_norms = std::get<multipart_body_norms>(norms);
-			for(auto &package : multipart_norms.packages)
-			{
-				auto prefix = std::format("--{}\r\n", multipart_norms.boundary);
-				for(auto &header : package.headers)
-					prefix += std::format("{}\r\n", header);
-				prefix += "\r\n";
-
-				sum += write(prefix, error);
-				if( error )
-				{
-					token->stream->close();
-					return sum;
-				}
-				do_transfer(package.range.begin, package.range.total);
-				if( error )
-				{
-					token->stream->close();
-					return sum;
-				}
-			}
-			token->stream->close();
-			sum += write(std::format("--{}--\r\n", multipart_norms.boundary), error);
-			if( error )
-				return sum;
+			if( f_token->range )
+				f_ranges.emplace_back(*f_token->range);
 		}
 		else
+			f_ranges = f_token->ranges;
+
+		if( not f_ranges.empty() )
 		{
-			token->stream->close();
-			logic_error::loc_throw (
-				"There is a bug in the implementation of the library:"
-				" theoretically, this conditional branch should never be true."
-				" Please contact the author."
-			);
+			auto ranges = from_file_range(f_ranges, f_token->file_size, error);
+			return error ? 0 : range_transfer(*f_token, ranges, error);
 		}
-		auto expected = m_connection->unset_transfer_file_option(*before);
-		if( not expected )
-			error = expected.error();
-		return sum;
+		if( m_req_range.empty() )
+			return default_transfer(*f_token, error);
+
+		std::vector<range_value> ranges;
+		auto status = range_text_parsing(m_req_range, f_token->file_size, ranges);
+		if( status != status::ok )
+		{
+			m_generator.set_status(status::range_not_satisfiable);
+			auto buf = std::format("{} ({})", status_description(status), status);
+			return write(buffer(buf, buf.size()), error);
+		}
+		return range_transfer(*f_token, ranges, error);
 	}
 
-	[[nodiscard]] awaitable<size_t> co_send_file(body_norms_t norms, auto &&opt,
-		error_code &error, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	template <typename Opt>
+	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
+		if( m_generator.pro_state() != generator_state::header )
+			co_return 0;
+
+		auto f_token = make_file_opt_token(std::forward<Opt>(opt));
+		if( not f_token )
+		{
+			error = f_token.error();
+			co_return 0;
+		}
+		file_ranges f_ranges {};
+		using f_token_t = std::remove_cvref_t<decltype(*f_token)>;
+
+		if constexpr( f_token_t::optype == file_optype::single )
+		{
+			if( f_token->range )
+				f_ranges.emplace_back(*f_token->range);
+		}
+		else
+			f_ranges = f_token->ranges;
+
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
-		error.clear();
 		size_t sum = 0;
 
-		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
-		if( not token )
-		{
-			error = token.error();
-			co_return sum;
-		}
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<void>
 		{
-			auto before = m_connection->set_send_file_option();
-			if( not before )
+			if( not f_ranges.empty() )
 			{
-				error = before.error();
+				auto ranges = from_file_range (
+					f_ranges, f_token->file_size, error
+				);
+				sum = co_await co_range_transfer (
+					*f_token, ranges, error, cancel_slot
+				);
 				co_return ;
 			}
-			char buffer[128 * 1024] {0};
-			auto do_transfer = [&](size_t begin, size_t loc_total) -> awaitable<void>
+			if( m_req_range.empty() )
 			{
-				token->stream->seekg(begin, std::ios::beg);
-				size_t loc_sum = 0;
-				do {
-					token->stream->read(buffer, sizeof(buffer));
-					size_t gcount = token->stream->gcount();
-					if( gcount == 0 )
-						break;
-
-					auto bytes = co_await co_write (
-						{buffer, gcount}, error, cancel_slot, 0ns
-					);
-					if( error )
-						co_return ;
-
-					loc_sum += bytes;
-					sum += bytes;
-				}
-				while( not token->stream->eof() and loc_sum < loc_total );
-			};
-			if( norms.index() == 0 )
-			{
-				co_await do_transfer(0, token->file_size);
-				token->stream->close();
-				if( error )
-					co_return io_unexpected(error);
-			}
-			else if( norms.index() == 1 )
-			{
-				auto &range_norms = std::get<range_body_norms>(norms);
-				co_await do_transfer(range_norms.begin, range_norms.total);
-				token->stream->close();
-				if( error )
-					co_return io_unexpected(error);
-			}
-			else if( norms.index() == 2 )
-			{
-				auto &multipart_norms = std::get<multipart_body_norms>(norms);
-				for(auto &package : multipart_norms.packages)
-				{
-					auto prefix = std::format("--{}\r\n", multipart_norms.boundary);
-					for(auto &header : package.headers)
-						prefix += std::format("{}\r\n", header);
-					prefix += "\r\n";
-
-					sum += co_await co_write(prefix, error, cancel_slot, 0ns);
-					if( error )
-					{
-						token->stream->close();
-						co_return sum;
-					}
-					co_await do_transfer(package.range.begin, package.range.total);
-					if( error )
-					{
-						token->stream->close();
-						co_return sum;
-					}
-				}
-				token->stream->close();
-				sum += co_await co_write (
-					std::format("--{}--\r\n", multipart_norms.boundary),
-					error, cancel_slot, 0ns
+				sum = co_await co_default_transfer (
+					*f_token, error, cancel_slot
 				);
-				if( error )
-					co_return sum;
+				co_return ;
+			}
+			std::vector<range_value> ranges;
+			auto status = range_text_parsing(m_req_range, f_token->file_size, ranges);
+			if( status != status::ok )
+			{
+				m_generator.set_status(status::range_not_satisfiable);
+				auto buf = std::format("{} ({})",
+					status::description(status), status
+				);
+				sum = co_await co_write (
+					buffer(buf, buf.size()), error, cancel_slot, 0ns
+				);
 			}
 			else
 			{
-				token->stream->close();
-				logic_error::loc_throw (
-					"There is a bug in the implementation of the library:"
-					" theoretically, this conditional branch should never be true."
-					" Please contact the author."
+				sum = co_await co_range_transfer (
+					*f_token, ranges, error, cancel_slot
 				);
 			}
-			auto expected = m_connection->unset_transfer_file_option(*before);
-			if( not expected )
-				error = expected.error();
-			co_return sum;
+			co_return ;
 		},
 		use_awaitable);
 
@@ -368,12 +282,12 @@ public:
 		co_return sum;
 	}
 
+	template <typename Opt>
 	[[nodiscard]] awaitable<size_t> co_send_file
-	(body_norms_t norms, auto &&opt, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout)
+	(Opt &&opt, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout)
 	{
 		error_code error;
-		auto sum = co_await co_send_file (
-			std::move(norms), std::forward<decltype(opt)>(opt),
+		auto sum = co_await co_send_file(std::forward<Opt>(opt),
 			error, std::move(cancel_slot), std::move(timeout)
 		);
 		if( error )
@@ -417,6 +331,484 @@ public:
 			);
 		}
 		co_return sum;
+	}
+
+private:
+	template <typename Opt>
+	[[nodiscard]] size_t default_transfer(Opt &token, error_code &error) noexcept
+	{
+		size_t sum = 0;
+		if( token.file_size == 0 )
+			return sum;
+
+		m_generator.set_header(header::content_type, token.mime_type);
+		sum += write_header(token.file_size, error);
+		if( error )
+			return sum;
+
+		constexpr size_t buf_size = 0xFFFF;
+		token.stream->seekg(0);
+
+		while( not token.stream->eof() )
+		{
+			char fr_buf[buf_size] {0};
+			token.stream->read(fr_buf, buf_size);
+
+			auto size = token.stream->gcount();
+			if( size == 0 )
+				break;
+
+			sum += write_body(buffer(fr_buf, size), error);
+			if( error )
+				break;
+		}
+		return sum;
+	}
+
+	template <typename Opt>
+	[[nodiscard]] awaitable<size_t> co_default_transfer
+	(Opt &token, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	{
+		size_t sum = 0;
+		if( token.file_size == 0 )
+			co_return sum;
+
+		m_generator.set_header(header::content_type, token.mime_type);
+		sum += co_await co_write_header(token.file_size, error, cancel_slot);
+		if( error )
+			co_return sum;
+
+		constexpr size_t buf_size = 0xFFFF;
+		char fr_buf[buf_size] {0};
+
+		token.stream->seekg(0);
+		while( not token.stream->eof() )
+		{
+			token.stream->read(fr_buf, buf_size);
+			auto size = static_cast<size_t>(token.stream->gcount());
+			if( size == 0 )
+				break;
+
+			sum += co_await co_write_body (
+				buffer(fr_buf, size), error, cancel_slot
+			);
+			if( error )
+				break;
+		}
+		co_return sum;
+	}
+
+private:
+	[[nodiscard]] size_t range_transfer
+	(auto &token, const std::vector<range_value> &ranges, error_code &error)
+	{
+		m_generator.set_status(status::partial_content);
+		if( ranges.size() == 1 )
+		{
+			auto &range = ranges.back();
+			m_generator
+			.set_header(header::accept_ranges , "bytes"        )
+			.set_header(header::content_type  , token.mime_type)
+			.set_header(header::content_length, range.total    )
+
+			.set_header(header::content_range , value_t {
+				"{}-{}/{}", range.begin, range.end, range.total
+			});
+			return send_range(token.stream, "", "", ranges, error);
+		} // if( rangeList.size() == 1 )
+
+		using namespace std::chrono;
+		auto boundary = std::format("{}_{}",
+			uuid::generate().to_string(),
+			duration_cast<milliseconds>(
+				system_clock::now().time_since_epoch()
+			).count()
+		);
+		m_generator.set_header(header::content_type,
+			"multipart/byteranges; boundary=" + boundary
+		);
+		auto ct_line = std::format("{}: {}",
+			header::content_type, token.mime_type
+		);
+		std::size_t content_length = 0;
+
+		for(auto &range : ranges)
+		{
+			/*
+				--boundary<CR><LF>
+				Content-Type: xxx<CR><LF>
+				Content-Range: bytes 3-11/96<CR><LF>
+				<CR><LF>
+				012345678<CR><LF>
+				--boundary<CR><LF>
+				Content-Type: xxx<CR><LF>
+				Content-Range: bytes 0-7/96<CR><LF>
+				<CR><LF>
+				01235467<CR><LF>
+				--boundary--<CR><LF>
+			*/
+			content_length += 2 + boundary.size() + 2 +  // --boundary<CR><LF>
+							  ct_line.size() + 2 +       // Content-Type: xxx<CR><LF>
+							  range.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+							  2 +                        // <CR><LF>
+							  range.total + 2;           // 012345678<CR><LF>
+		}
+		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
+
+		m_generator
+		.set_header(header::content_length, content_length)
+		.set_header(header::accept_ranges , "bytes");
+
+		return send_range (
+			token.stream, boundary, ct_line, ranges, error
+		);
+	}
+
+	[[nodiscard]] awaitable<size_t> co_range_transfer(
+		auto &token, const std::vector<range_value> &ranges,
+		error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	{
+		m_generator.set_status(status::partial_content);
+		if( ranges.size() == 1 )
+		{
+			auto &range = ranges.back();
+			m_generator
+			.set_header(header::accept_ranges , "bytes"          )
+			.set_header(header::content_type  , token.mime_type  )
+			.set_header(header::content_length, range.total      )
+
+			.set_header(header::content_range, value_t {
+				"{}-{}/{}", range.begin, range.end, range.total
+			});
+			co_return co_await co_send_range (
+				token.stream, "", "", ranges, error, cancel_slot
+			);
+		}
+		using namespace std::chrono;
+
+		auto boundary = std::format("{}_{}",
+			uuid::generate().to_string(),
+			duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()
+		);
+		m_generator.set_header(header::content_type,
+			"multipart/byteranges; boundary=" + boundary
+		);
+		auto ct_line = std::format("{}: {}", header::content_type, token.mime_type);
+		std::size_t content_length = 0;
+
+		for(auto &range: ranges)
+		{
+			/*
+				--boundary<CR><LF>
+				Content-Type: xxx<CR><LF>
+				Content-Range: bytes 3-11/96<CR><LF>
+				<CR><LF>
+				012345678<CR><LF>
+				--boundary<CR><LF>
+				Content-Type: xxx<CR><LF>
+				Content-Range: bytes 0-7/96<CR><LF>
+				<CR><LF>
+				01235467<CR><LF>
+				--boundary--<CR><LF>
+			*/
+			content_length += 2 + boundary.size() + 2 +  // --boundary<CR><LF>
+							  ct_line.size() + 2 +       // Content-Type: xxx<CR><LF>
+							  range.cr_line.size() + 2 + // Content-Range: bytes 3-11/96<CR><LF>
+							  2 +                        // <CR><LF>
+							  range.total + 2;           // 012345678<CR><LF>
+		}
+		content_length += 2 + boundary.size() + 2 + 2;   // --boundary--<CR><LF>
+
+		m_generator
+		.set_header(header::content_length, content_length)
+		.set_header(header::accept_ranges , "bytes");
+
+		co_return co_await co_send_range (
+			token.stream, boundary, ct_line, ranges, error, cancel_slot
+		);
+	}
+
+private:
+	template <typename FS>
+	[[nodiscard]] size_t send_range (
+		FS &stream, std::string_view boundary, std::string_view ct_line,
+		std::vector<range_value> ranges, error_code &error
+	) noexcept
+	{
+		assert(not ranges.empty());
+		auto sum = write_header(0, error);
+		if( error )
+			return sum;
+
+		constexpr size_t buf_size = 0xFFFF;
+		char buf[buf_size] {0};
+
+		if( ranges.size() == 1 )
+		{
+			auto &value = ranges.back();
+			stream->seekg(value.begin, std::ios_base::beg);
+
+			while( not stream->eof() )
+			{
+				if( value.total <= buf_size )
+				{
+					stream->read(buf, value.total);
+					auto size = stream->gcount();
+
+					sum += write_body(buffer(buf,size), error);
+					break;
+				}
+				stream->read(buf, buf_size);
+				auto size = stream->gcount();
+
+				sum += write_body(buffer(buf,size), error);
+				if( error )
+					break;
+				value.size -= buf_size;
+			}
+			return sum;
+		}
+		for(auto &value: ranges)
+		{
+			auto body = std::format (
+				"--{}\r\n"
+				"{}\r\n"
+				"{}\r\n"
+				"\r\n",
+				boundary,
+				ct_line,
+				value.cr_line
+			);
+			sum += write_body(buffer(body, body.size()), error);
+			if( error )
+				return sum;
+
+			stream->seekg(value.begin, std::ios_base::beg);
+			while( not stream->eof() )
+			{
+				if( value.size <= buf_size )
+				{
+					stream->read(buf, value.size);
+					auto size = stream->gcount();
+					if( size == 0 )
+						break;
+
+					buf[size + 0] = '\r';
+					buf[size + 1] = '\n';
+
+					sum += write_body(buffer(buf, size + 2), error);
+					if( error )
+						return sum;
+					break;
+				}
+				stream->read(buf, buf_size);
+				auto size = stream->gcount();
+
+				sum += write_body(buffer(buf,size), error);
+				if( error )
+					return sum;
+				value.size -= buf_size;
+			}
+		}
+		auto abuf = std::format("--{}--\r\n", boundary);
+		sum += write_body(buffer(abuf, abuf.size()), error);
+		return sum;
+	}
+
+	template <typename FS>
+	[[nodiscard]] awaitable<size_t> co_send_range(
+		FS &stream, std::string_view boundary, std::string_view ct_line,
+		std::vector<range_value> ranges, error_code &error, asio::cancellation_slot cancel_slot
+	) noexcept
+	{
+		assert(not ranges.empty());
+		auto sum = co_await co_write_header(0, error, cancel_slot);
+		if( error )
+			co_return sum;
+
+		constexpr size_t buf_size = 0xFFFF;
+		char buf[buf_size] {0};
+
+		if( ranges.size() == 1 )
+		{
+			auto &value = ranges.back();
+			stream->seekg(value.begin, std::ios_base::beg);
+
+			while( not stream->eof() )
+			{
+				if( value.total <= buf_size )
+				{
+					stream->read(buf, value.total);
+					auto size = static_cast<size_t>(stream->gcount());
+
+					sum += co_await co_write_body (
+						buffer(buf,size), error, cancel_slot
+					);
+					break;
+				}
+				stream->read(buf, buf_size);
+				auto size = static_cast<size_t>(stream->gcount());
+
+				sum += co_await co_write_body (
+					buffer(buf,size), error, cancel_slot
+				);
+				if( error )
+					break;
+				value.total -= buf_size;
+			}
+			co_return sum;
+		}
+		for(auto &value : ranges)
+		{
+			auto body = std::format (
+				"--{}\r\n"
+				"{}\r\n"
+				"{}\r\n"
+				"\r\n",
+				boundary,
+				ct_line,
+				value.cr_line
+			);
+			sum += co_await co_write_body (
+				buffer(body, body.size()), error, cancel_slot
+			);
+			if( error )
+				co_return sum;
+
+			stream->seekg(value.begin, std::ios_base::beg);
+			while( not stream->eof() )
+			{
+				if( value.total <= buf_size )
+				{
+					stream->read(buf, value.total);
+					auto size = static_cast<size_t>(stream->gcount());
+					if( size == 0 )
+						break;
+
+					buf[size + 0] = '\r';
+					buf[size + 1] = '\n';
+
+					sum += co_await co_write_body (
+						buffer(buf, size + 2), error, cancel_slot
+					);
+					if( error )
+						co_return sum;
+					break;
+				}
+				stream->read(buf, buf_size);
+				auto size = static_cast<size_t>(stream->gcount());
+
+				sum += co_await co_write_body (
+					buffer(buf,size), error, cancel_slot
+				);
+				if( error )
+					co_return sum;
+				value.total -= buf_size;
+			}
+		}
+		auto abuf = std::format("--{}--\r\n", boundary);
+		sum += co_await co_write_body (
+			buffer(abuf, abuf.size()), error, cancel_slot
+		);
+		co_return sum;
+	}
+
+private:
+	[[nodiscard]] status_enum range_text_parsing
+	(std::string_view range_str_view, size_t file_size, std::vector<range_value> &ranges)
+	{
+		std::string range_str(range_str_view.data(), range_str_view.size());
+		for(auto i=range_str.size(); i>0; i--)
+		{
+			if( range_str[i] == 0x20/*SPACE*/ )
+				range_str.erase(i,1);
+		}
+		if( range_str.empty() )
+			return status::bad_request;
+
+		// bytes=x-y, m-n, i-j ...
+		else if( range_str.substr(0,6) != "bytes=" )
+			return status::range_not_satisfiable;
+
+		// x-y, m-n, i-j ...
+		auto cl_range_str = range_str.substr(6);
+		if( cl_range_str.empty() )
+			return status::range_not_satisfiable;
+
+		// (x-y) ( m-n) ( i-j) ...
+		for(auto &sub_range_str : string_vector::from_string(cl_range_str, ','))
+		{
+			range_value range;
+			range.total = 0;
+
+			if( auto str_vector = string_vector::from_string(sub_range_str, '-', false);
+				str_vector.size() != 2 )
+				return status::range_not_satisfiable;
+
+			else if( str_vector[0].empty() )
+			{
+				if( str_vector[1].empty() )
+					return status::range_not_satisfiable;
+
+				range.total = *strtls::to_arith<size_t>(str_vector[1]).or_else();
+				if( range.total == 0 or range.total > file_size )
+					return status::range_not_satisfiable;
+
+				range.begin = file_size - range.total;
+				range.end   = file_size - 1;
+			}
+			else if( str_vector[1].empty() )
+			{
+				if( str_vector[0].empty() )
+					return status::range_not_satisfiable;
+
+				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
+				range.end   = file_size - 1;
+
+				if( range.begin > range.end )
+					return status::range_not_satisfiable;
+				range.total = file_size - range.begin;
+			}
+			else
+			{
+				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
+				range.end   = *strtls::to_arith<size_t>(str_vector[1]).or_else();
+
+				if( range.begin > range.end or range.end >= file_size )
+					return status::range_not_satisfiable;
+				range.total = range.end - range.begin + 1;
+			}
+			range.cr_line = std::format("{}: bytes {}-{}/{}",
+				header::content_range, range.begin, range.end, file_size
+			);
+			ranges.emplace_back(std::move(range));
+		}
+		return status::ok;
+	}
+
+	[[nodiscard]] std::vector<range_value> from_file_range
+	(const file_ranges &ranges, size_t file_size, error_code &error)
+	{
+		std::vector<range_value> vector;
+		for(auto &range : ranges)
+		{
+			auto end = range.begin + range.total - 1;
+			if( range.total == 0 or end >= file_size )
+			{
+				error = std::make_error_code(std::errc::invalid_seek);
+				break;
+			}
+			range_value value;
+			value.begin = range.begin;
+			value.total = range.total;
+			value.end   = end;
+
+			value.cr_line = std::format("{}: bytes {}-{}/{}",
+				header::content_range, value.begin, value.end, file_size
+			);
+			vector.emplace_back(std::move(value));
+		}
+		return vector;
 	}
 
 private:
@@ -487,15 +879,43 @@ private:
 		co_return sum;
 	}
 
+private:
+	template <typename Opt>
+	auto make_file_opt_token(Opt &&opt) noexcept
+	{
+		using opt_t = std::remove_cvref_t<Opt>;
+		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
+		{
+			using token_t = file_opt_token<void,file_optype::single> ;
+			token_t token(std::forward<Opt>(opt));
+
+			auto expected = token.init(std::ios::in | std::ios::binary);
+			if( expected )
+				return sys_expected<token_t>(std::move(token));
+			return sys_expected<token_t>(sys_unexpected(expected.error()));
+		}
+		else
+		{
+			if( opt.stream->is_open() )
+				return sys_expected<opt_t>(std::forward<Opt>(opt));
+
+			auto expected = opt.init(std::ios::in | std::ios::binary);
+			if( expected )
+				return sys_expected<opt_t>(std::forward<Opt>(opt));
+			return sys_expected<opt_t>(sys_unexpected(expected.error()));
+		}
+	}
+
 public:
 	connection_ptr m_connection;
 	generator_t m_generator {};
+	std::string m_req_range {};
 };
 
 template <concepts::connection Connection>
 basic_response<Connection>::basic_response(connection_ptr connection) :
 	mutable_headers<basic_response>(nullptr),
-	mutable_cookies<value_t,basic_response>(nullptr),
+	mutable_cookies<cookie,basic_response>(nullptr),
 	mutable_chunk_attributes<basic_response>(nullptr),
 	m_impl(new impl(std::move(connection)))
 {
@@ -511,7 +931,7 @@ basic_response<Connection>::~basic_response()
 }
 
 template <concepts::connection Connection>
-std::string_view basic_response<Connection>::version() const noexcept
+version_enum basic_response<Connection>::version() const noexcept
 {
 	return m_impl->m_generator.version();
 }
@@ -519,18 +939,23 @@ std::string_view basic_response<Connection>::version() const noexcept
 template <concepts::connection Connection>
 basic_response<Connection> &basic_response<Connection>::set_status(status_enum status)
 {
+	m_impl->m_generator.set_status(status);
 	return *this;
 }
 
 template <concepts::connection Connection>
 basic_response<Connection> &basic_response<Connection>::auto_set(request_t &request)
 {
-	if( version() >= http_nt::version::v11 )
-	{
-		auto value = request.header(http_nt::header::transfer_encoding);
-		if( value and strtls::to_lower(**value) == "chunked" )
-			this->set_header(http_nt::header::transfer_encoding, "chunked");
-	}
+	if( version() < http_nt::version::v11 )
+		return *this;
+
+	auto value = request.header(http_nt::header::transfer_encoding);
+	if( value and strtls::to_lower(**value) == "chunked" )
+		this->set_header(http_nt::header::transfer_encoding, "chunked");
+
+	auto it = request.headers().find(header::range);
+	if( it != request.headers().end() )
+		m_impl->m_req_range = it->second.to_string();
 	return *this;
 }
 
@@ -611,13 +1036,13 @@ auto basic_response<Connection>::write(const const_buffer &body, Token &&token)
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					no_time_token, buf = std::move(buf_ptr), promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					promise->set_value(co_await self->m_impl->co_write (
+					promise->set_value(co_await m_impl->co_write (
 						{buf->data(), buf->size()}, no_time_token.ec_, cancel_slot, timeout
 					));
 					co_return ;
@@ -625,13 +1050,13 @@ auto basic_response<Connection>::write(const const_buffer &body, Token &&token)
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					buf = std::move(buf_ptr), promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					promise->set_value(co_await self->m_impl->co_write (
+					promise->set_value(co_await m_impl->co_write (
 						{buf->data(), buf->size()}, cancel_slot, timeout
 					));
 					co_return ;
@@ -646,13 +1071,13 @@ auto basic_response<Connection>::write(const const_buffer &body, Token &&token)
 			);
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [
-					self = this->shared_from_this(), no_time_token, original_token,
-					buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
+					no_time_token, original_token, buf = std::move(buf_ptr),
+					timeout = get_associated_redirect_time(token),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					auto expected = co_await self->m_impl->co_write (
+					auto expected = co_await m_impl->co_write (
 						buf, no_time_token.ec_, cancel_slot, timeout
 					);
 					expected
@@ -666,12 +1091,12 @@ auto basic_response<Connection>::write(const const_buffer &body, Token &&token)
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
-					original_token, buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this, original_token,
+					buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					auto expected = co_await self->m_impl->co_write (
+					auto expected = co_await m_impl->co_write (
 						buf, cancel_slot, timeout
 					);
 					expected
@@ -704,7 +1129,7 @@ auto basic_response<Connection>::write(Token &&token)
 template <concepts::connection Connection>
 template <typename T, typename Token>
 auto basic_response<Connection>::send_file(T &&opt, Token &&token)
-	requires file_opt_token<T,Token>
+	requires file_task_token_v<T,Token>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
@@ -775,13 +1200,13 @@ auto basic_response<Connection>::send_file(T &&opt, Token &&token)
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					no_time_token, opt = std::forward<T>(opt), promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					promise->set_value(co_await self->co_send_file (
+					promise->set_value(co_await m_impl->co_send_file (
 						std::move(opt), no_time_token.ec_, cancel_slot, timeout
 					));
 					co_return ;
@@ -789,13 +1214,13 @@ auto basic_response<Connection>::send_file(T &&opt, Token &&token)
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					opt = std::forward<T>(opt), promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					promise->set_value(co_await self->co_send_file (
+					promise->set_value(co_await m_impl->co_send_file (
 						std::move(opt), cancel_slot, timeout
 					));
 					co_return ;
@@ -807,13 +1232,12 @@ auto basic_response<Connection>::send_file(T &&opt, Token &&token)
 		{
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [
-					self = this->shared_from_this(), no_time_token, original_token,
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this, no_time_token, original_token,
 					opt = std::forward<T>(opt), timeout = get_associated_redirect_time(token),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					auto expected = co_await self->co_send_file (
+					auto expected = co_await m_impl->co_send_file (
 						std::move(opt), no_time_token.ec_, cancel_slot, timeout
 					);
 					expected
@@ -827,12 +1251,12 @@ auto basic_response<Connection>::send_file(T &&opt, Token &&token)
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
-					original_token, opt = std::forward<T>(opt), timeout = get_associated_redirect_time(token),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this, original_token,
+					opt = std::forward<T>(opt), timeout = get_associated_redirect_time(token),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					auto expected = co_await self->co_send_file (
+					auto expected = co_await m_impl->co_send_file (
 						std::move(opt), cancel_slot, timeout
 					);
 					expected
@@ -960,13 +1384,13 @@ auto basic_response<Connection>::chunk_end(const headers_t &headers, Token &&tok
 			auto promise = std::make_shared<std::promise<io_expected>>();
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					no_time_token, headers, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					promise->set_value(co_await self->m_impl->co_chunk_end (
+					promise->set_value(co_await m_impl->co_chunk_end (
 						headers, no_time_token.ec_, cancel_slot, timeout
 					));
 					co_return ;
@@ -974,13 +1398,13 @@ auto basic_response<Connection>::chunk_end(const headers_t &headers, Token &&tok
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					headers, promise = std::move(promise),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					promise->set_value(co_await self->m_impl->co_chunk_end (
+					promise->set_value(co_await m_impl->co_chunk_end (
 						headers, cancel_slot, timeout
 					));
 					co_return ;
@@ -992,13 +1416,12 @@ auto basic_response<Connection>::chunk_end(const headers_t &headers, Token &&tok
 		{
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [
-					self = this->shared_from_this(), no_time_token, original_token,
-					headers, timeout = get_associated_redirect_time(token),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this, no_time_token,
+					original_token, headers, timeout = get_associated_redirect_time(token),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					auto expected = co_await self->m_impl->co_chunk_end (
+					auto expected = co_await m_impl->co_chunk_end (
 						headers, no_time_token.ec_, cancel_slot, timeout
 					);
 					expected
@@ -1012,12 +1435,12 @@ auto basic_response<Connection>::chunk_end(const headers_t &headers, Token &&tok
 			}
 			else
 			{
-				libgs::dispatch(m_impl->m_connection->get_executor(), [self = this->shared_from_this(),
+				libgs::dispatch(m_impl->m_connection->get_executor(), [this,
 					original_token, headers, timeout = get_associated_redirect_time(token),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 				]() mutable noexcept -> awaitable<void>
 				{
-					auto expected = co_await self->m_impl->co_chunk_end (
+					auto expected = co_await m_impl->co_chunk_end (
 						headers, cancel_slot, timeout
 					);
 					expected

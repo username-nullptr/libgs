@@ -44,14 +44,16 @@ class LIBGS_HTTP_NT_TAPI basic_service_context
 public:
 	using connection_t = Connection;
 	using connection_ptr = std::shared_ptr<connection_t>;
-	using executor_t = connection_t::executor_type;
+	using executor_t = connection_t::executor_t;
 
 	using request_t = basic_request<connection_t>;
 	using response_t = basic_response<connection_t>;
 	using session_t = http_nt::session;
 
 public:
-	basic_service_context(connection_ptr connection, session_manager &ss_mgr);
+	basic_service_context (
+		connection_ptr connection, session_manager &session_manager
+	);
 	~basic_service_context();
 
 public:

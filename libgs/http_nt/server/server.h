@@ -45,7 +45,7 @@ public:
 	using executor_t = socket_t::executor_type;
 
 	using connection_t = basic_connection<socket_t>;
-	using acceptor_wrap_t = basic_acceptor_wrap<socket_t>;
+	using acceptor_wrap_t = basic_acceptor_wrap<connection_t>;
 	using acceptor_t = acceptor_wrap_t::acceptor_t;
 
 	using endpoint_t = acceptor_t::endpoint_type;
@@ -55,13 +55,13 @@ public:
 	using response_t = basic_response<connection_t>;
 
 	using path_opt_token_t = basic_path_opt_token<char>;
-	using context_t = basic_service_context<socket_t>;
+	using context_t = basic_service_context<connection_t>;
 
-	using aop_t = basic_aop<socket_t>;
-	using ctrlr_aop_t = basic_ctrlr_aop<socket_t>;
+	using aop_t = basic_aop<connection_t>;
+	using ctrlr_aop_t = basic_ctrlr_aop<connection_t>;
 
-	using aop_ptr_t = basic_aop_ptr<socket_t>;
-	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t>;
+	using aop_ptr_t = basic_aop_ptr<connection_t>;
+	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<connection_t>;
 
 	using server_error_handler_t = std::function<bool(error_code)>;
 	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
@@ -96,8 +96,8 @@ public:
 public:
 	template <method_enum...Method, typename Func, typename...AopPtrs>
 	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-		concepts::request_handler<Func,socket_t> and
-		concepts::aop_ptr_list<socket_t,AopPtrs...>;
+		concepts::request_handler<Func,connection_t> and
+		concepts::aop_ptr_list<connection_t,AopPtrs...>;
 
 	template <method_enum...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
@@ -107,7 +107,7 @@ public:
 
 	template <typename Func>
 	basic_server &on_default(Func &&func) requires
-		concepts::request_handler<Func,socket_t>;
+		concepts::request_handler<Func,connection_t>;
 
 	basic_server &on_server_error(server_error_handler_t func);
 	basic_server &on_service_error(service_error_handler_t func);
@@ -136,7 +136,7 @@ public:
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
 template <core_concepts::exec Exec = asio::any_io_executor>

@@ -170,7 +170,9 @@ parser<protocol_model::server>::parser(size_t init_buf_size) :
 	const_cookies(nullptr),
 	m_impl(new impl(init_buf_size))
 {
-
+	m_parameters = &m_impl->m_parameters;
+	m_headers = &m_impl->m_parser.headers();
+	m_cookies = &m_impl->m_cookies;
 }
 
 parser<protocol_model::server>::~parser()

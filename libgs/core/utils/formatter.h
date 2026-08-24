@@ -40,6 +40,7 @@
 #include <thread>
 #include <atomic>
 #include <memory>
+#include <vector>
 
 namespace libgs { namespace detail
 {
@@ -321,6 +322,29 @@ struct LIBGS_CORE_TAPI formatter<filesystem::path, CharT>
 
 private:
 	formatter<basic_string<CharT>, CharT> m_formatter;
+};
+
+template <libgs::concepts::character CharT>
+struct LIBGS_CORE_TAPI formatter<std::vector<std::byte>, CharT> : libgs::no_parse_formatter<CharT>
+{
+	auto format(const std::vector<std::byte> &buffer, auto &context) const
+	{
+		std::basic_string<CharT> text {};
+		if( buffer.empty() )
+		{
+			return format_to(context.out(),
+				l_str(CharT,"empty[std::vector<std::byte>]")
+			);
+		}
+		for(auto &byte : buffer)
+			text += std::format(l_str(CharT,"0x{:X}, "), byte);
+		text.pop_back();
+		text.pop_back();
+
+		return format_to(context.out(),
+			l_str(CharT,"{}"), text
+		);
+	}
 };
 
 } //namespace std

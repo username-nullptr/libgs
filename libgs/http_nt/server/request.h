@@ -49,7 +49,7 @@ public:
 	using executor_t = connection_t::executor_t;
 
 	using socket_t = connection_t::socket_t;
-	using endpoint_t = socket_t::endpoint_t;
+	using endpoint_t = socket_t::endpoint_type;
 
 	using parser_t = server_parser;
 	using value_t = parser_t::value_t;
@@ -104,15 +104,15 @@ public:
 		requires task_token_v<Token,std::string>;
 
 	template <typename T, typename Token>
-	static constexpr bool file_opt_token =
+	static constexpr bool file_task_token_v =
 		core_concepts::dis_func_tf_opt_token<Token,size_t> and
 		not is_detached_v<std::remove_cvref_t<Token>> and
 		concepts::file_opt_token_p <
-		T, char, file_optype::single, io_permission::write
-	>;
+			T, char, file_optype::single, io_permission::write
+		>;
 	template <typename T, typename Token = use_sync_t>
 	auto save_file(T &&opt, Token &&token = {})
-		requires file_opt_token<T,Token>;
+		requires file_task_token_v<T,Token>;
 
 public:
 	[[nodiscard]] bool keep_alive() const noexcept;

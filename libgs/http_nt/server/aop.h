@@ -89,18 +89,22 @@ using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;
 namespace concepts
 {
 
-template <typename Stream, typename...Args>
+template <typename Connection, typename...Args>
 concept aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_aop_ptr<Stream>> { basic_aop_ptr<Stream>(std::forward<Args>(args))... };
+	std::vector<basic_aop_ptr<Connection>> {
+		basic_aop_ptr<Connection>(std::forward<Args>(args))...
+	};
 };
 
-template <typename Stream, typename...Args>
+template <typename Connection, typename...Args>
 concept ctrlr_aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_ctrlr_aop_ptr<Stream>> { basic_ctrlr_aop_ptr<Stream>(std::forward<Args>(args))... };
+	std::vector<basic_ctrlr_aop_ptr<Connection>> {
+		basic_ctrlr_aop_ptr<Connection>(std::forward<Args>(args))...
+	};
 };
 
-template <typename Func, typename Stream>
-concept request_handler = requires(Func &&func, basic_service_context<Stream> &context) {
+template <typename Func, typename Connection>
+concept request_handler = requires(Func &&func, basic_service_context<Connection> &context) {
 	std::is_same_v<awaitable_ret_t<decltype(func(context))>,void>;
 };
 

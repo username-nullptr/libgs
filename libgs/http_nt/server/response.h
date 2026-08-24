@@ -53,7 +53,7 @@ public:
 
 	using request_t = basic_request<connection_t>;
 	using socket_t = connection_t::socket_t;
-	using endpoint_t = socket_t::endpoint_t;
+	using endpoint_t = socket_t::endpoint_type;
 
 	using value_t = libgs::value;
 	using headers_t = http_nt::headers;
@@ -63,7 +63,7 @@ public:
 	~basic_response() override;
 
 public:
-	[[nodiscard]] std::string_view version() const noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
 	basic_response &set_status(status_enum status);
 	basic_response &auto_set(request_t &request);
 
@@ -82,15 +82,15 @@ public:
 		requires task_token_v<Token,size_t>;
 
 	template <typename T, typename Token>
-	static constexpr bool file_opt_token =
+	static constexpr bool file_task_token_v =
 		core_concepts::dis_func_tf_opt_token<Token,size_t> and
 		not is_detached_v<std::remove_cvref_t<Token>> and
 		concepts::file_opt_token_p <
-		T, char, file_optype::combine, io_permission::read
-	>;
+			T, char, file_optype::combine, io_permission::read
+		>;
 	template <typename T, typename Token = use_sync_t>
 	auto send_file(T &&opt, Token &&token = {})
-		requires file_opt_token<T,Token>;
+		requires file_task_token_v<T,Token>;
 
 public:
 	template <typename Token = use_sync_t>

@@ -49,12 +49,12 @@ public:
 
 	explicit impl(acceptor_wrap_t &&wrap) :
 		m_wrap(std::move(wrap)) {
-		m_service_exec = m_wrap.accept().get_executor();
+		m_service_exec = m_wrap.acceptor().get_executor();
 	}
 
 public:
 	void async_start(size_t max, error_code &error) noexcept {
-		async_start(max, error, m_service_exec);
+		async_start(m_service_exec, max, error);
 	}
 
 	void async_start(const executor_t &service_exec, size_t max, error_code &error) noexcept
@@ -120,7 +120,7 @@ private:
 				catch(...) {
 					abd = true;
 				}
-				socket_operation_helper<socket_t>(connection).close();
+				connection->opt_helper().close();
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -145,9 +145,9 @@ private:
 		const auto *time = &m_first_reading_time;
 		for(;;)
 		{
-			request_t request {connection};
+			context_t context(connection, m_session_manager);
 			try {
-				request.wait(use_awaitable | *time);
+				co_await context.request().wait(use_awaitable | *time);
 			}
 			catch(std::system_error &ex)
 			{
@@ -156,9 +156,7 @@ private:
 					break;
 				call_on_server_error(ex.code());
 			}
-			context_t context(connection, m_session_manager);
 			co_await call_on_request(context);
-
 			if( not context.response().is_finished() )
 				co_await call_on_default(context);
 
@@ -202,7 +200,7 @@ private:
 			co_return ;
 		}
 		auto method = context.request().method();
-		if( (handler->method & method) == 0 )
+		if( !!( handler->method & method ) )
 		{
 			if( method == method::head )
 			{
@@ -397,7 +395,7 @@ public:
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
 
-private:
+public:
 	acceptor_wrap_t m_wrap {};
 	asio::any_io_executor m_service_exec {};
 
@@ -415,23 +413,20 @@ private:
 
 template <concepts::any_exec_stream Stream>
 basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
-	m_impl(new impl(std::move(wrap), std::forward<decltype(service_exec)>(service_exec)))
+	m_impl(std::make_shared<impl>(std::move(wrap), std::forward<decltype(service_exec)>(service_exec)))
 {
 
 }
 
 template <concepts::any_exec_stream Stream>
 basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap) :
-	m_impl(new impl(std::move(wrap)))
+	m_impl(std::make_shared<impl>(std::move(wrap)))
 {
 
 }
 
 template <concepts::any_exec_stream Stream>
-basic_server<Stream>::~basic_server()
-{
-	delete m_impl;
-}
+basic_server<Stream>::~basic_server() = default;
 
 template <concepts::any_exec_stream Stream>
 basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep)
@@ -453,7 +448,7 @@ basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep, error_co
 	auto &acceptor = m_impl->m_wrap.acceptor();
 	if( not acceptor.is_open() )
 	{
-		if( ep->address().is_v4())
+		if( ep->address().is_v4() )
 			acceptor.open(asio::ip::tcp::v4(), error);
 		else
 			acceptor.open(asio::ip::tcp::v6(), error);
@@ -529,8 +524,8 @@ template <concepts::any_exec_stream Stream>
 template <method_enum...Method, typename Func, typename...AopPtrs>
 basic_server<Stream> &basic_server<Stream>::on_request
 (const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-	concepts::request_handler<Func,socket_t> and
-	concepts::aop_ptr_list<socket_t,AopPtrs...>
+	concepts::request_handler<Func,connection_t> and
+	concepts::aop_ptr_list<connection_t,AopPtrs...>
 {
 	for(auto &path_rule : path_rules.paths)
 	{
@@ -618,7 +613,7 @@ basic_server<Stream> &basic_server<Stream>::on_request
 template <concepts::any_exec_stream Stream>
 template <typename Func>
 basic_server<Stream> &basic_server<Stream>::on_default(Func &&func) requires
-	concepts::request_handler<Func,socket_t>
+	concepts::request_handler<Func,connection_t>
 {
 	m_impl->m_default_handler = std::forward<Func>(func);
 	return *this;
