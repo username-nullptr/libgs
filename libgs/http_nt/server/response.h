@@ -68,38 +68,50 @@ public:
 	basic_response &auto_set(request_t &request);
 
 public:
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto write(const const_buffer &body, Token &&token = {}) noexcept;
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		core_concepts::dis_func_tf_opt_token<Token,Value...> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
 
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto write(Token &&token = {}) noexcept;
+	template <typename Token = use_sync_t>
+	auto write(const const_buffer &body, Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-	template <typename T>
-	static constexpr bool file_opt_token = concepts::file_opt_token_p <
+	template <typename Token = use_sync_t>
+	auto write(Token &&token = {})
+		requires task_token_v<Token,size_t>;
+
+	template <typename T, typename Token>
+	static constexpr bool file_opt_token =
+		core_concepts::dis_func_tf_opt_token<Token,size_t> and
+		not is_detached_v<std::remove_cvref_t<Token>> and
+		concepts::file_opt_token_p <
 		T, char, file_optype::combine, io_permission::read
 	>;
-	template <typename T, core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto send_file(T &&opt, Token &&token = {}) requires file_opt_token<T>;
+	template <typename T, typename Token = use_sync_t>
+	auto send_file(T &&opt, Token &&token = {})
+		requires file_opt_token<T,Token>;
 
 public:
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(core_concepts::text_p<char> auto &&url,
-		redirect_enum redi, Token &&token = {}
-	);
+	template <typename Token = use_sync_t>
+	auto redirect(core_concepts::text_p<char> auto &&url, redirect_enum redi, Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(core_concepts::text_p<char> auto &&url,
-		Token &&token = {}
-	);
+	template <typename Token = use_sync_t>
+	auto redirect(core_concepts::text_p<char> auto &&url, Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto continues(Token &&token = {});
+	template <typename Token = use_sync_t>
+	auto continues(Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto chunk_end(const headers_t &headers, Token &&token = {});
+	template <typename Token = use_sync_t>
+	auto chunk_end(const headers_t &headers, Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto chunk_end(Token &&token = {});
+	template <typename Token = use_sync_t>
+	auto chunk_end(Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
 public:
 	[[nodiscard]] status_enum status() const noexcept;

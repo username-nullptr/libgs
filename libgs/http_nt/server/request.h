@@ -70,8 +70,8 @@ public:
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename Token = use_sync_t>
-	auto wait(Token &&token = {}) noexcept
-		requires task_token_v<Token,status_enum>;
+	auto wait(Token &&token = {}) requires
+		task_token_v<Token,status_enum>;
 
 	int32_t path_match(std::string_view rule);
 
@@ -96,16 +96,17 @@ public:
 
 public:
 	template <typename Token = use_sync_t>
-	auto read(const mutable_buffer &buf, Token &&token = {}) noexcept
+	auto read(const mutable_buffer &buf, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
-	auto read(Token &&token = {}) noexcept
+	auto read(Token &&token = {})
 		requires task_token_v<Token,std::string>;
 
 	template <typename T, typename Token>
 	static constexpr bool file_opt_token =
 		core_concepts::dis_func_tf_opt_token<Token,size_t> and
+		not is_detached_v<std::remove_cvref_t<Token>> and
 		concepts::file_opt_token_p <
 		T, char, file_optype::single, io_permission::write
 	>;
