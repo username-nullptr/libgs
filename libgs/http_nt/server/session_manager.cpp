@@ -95,7 +95,7 @@ session_manager &session_manager::operator=(session_manager &&other) noexcept
 
 std::chrono::seconds session_manager::lifecycle() const noexcept
 {
-	return std::chrono::seconds(m_impl->m_lifecycle);
+	return { m_impl->m_lifecycle };
 }
 
 std::string_view session_manager::cookie_key() const noexcept

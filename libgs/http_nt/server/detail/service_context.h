@@ -58,10 +58,7 @@ basic_service_context<Connection>::basic_service_context
 }
 
 template <concepts::connection Connection>
-basic_service_context<Connection>::~basic_service_context()
-{
-
-}
+basic_service_context<Connection>::~basic_service_context() = default;
 
 template <concepts::connection Connection>
 const basic_service_context<Connection>::request_t&

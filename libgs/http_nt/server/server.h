@@ -127,9 +127,8 @@ public:
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;
-	[[nodiscard]] awaitable<void> co_stop() noexcept;
-	basic_server &stop() noexcept;
 	basic_server &cancel() noexcept;
+	basic_server &stop() noexcept;
 
 public:
 	[[nodiscard]] const acceptor_wrap_t &acceptor_wrap() const;
