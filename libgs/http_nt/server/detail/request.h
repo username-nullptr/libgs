@@ -189,9 +189,9 @@ public:
 		size_t sum = 0;
 		do {
 			auto body = m_parser.take_partial_body(buf_size);
-			sum += body.size();
+			std::memcpy(dst_buf + sum, body.c_str(), body.size());
 
-			memcpy(dst_buf + sum, body.c_str(), body.size());
+			sum += body.size();
 			if( sum == buf_size or m_parser.stage() == stage::finished )
 				break;
 
@@ -244,9 +244,9 @@ public:
 			auto dst_buf = static_cast<char*>(buf.data());
 			do {
 				auto body = m_parser.take_partial_body(buf_size);
-				sum += body.size();
+				std::memcpy(dst_buf + sum, body.c_str(), body.size());
 
-				memcpy(dst_buf + sum, body.c_str(), body.size());
+				sum += body.size();
 				if( sum == buf_size or m_parser.stage() == stage::finished )
 					break;
 

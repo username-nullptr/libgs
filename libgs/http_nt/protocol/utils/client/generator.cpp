@@ -220,7 +220,7 @@ generator_state generator<protocol_model::client>::pro_state() const noexcept
 
 generator<protocol_model::client> &generator<protocol_model::client>::reset() noexcept
 {
-	m_impl->m_generator.reset();
+	m_impl->m_generator->reset();
 	return *this;
 }
 

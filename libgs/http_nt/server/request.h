@@ -49,7 +49,7 @@ public:
 	using executor_t = connection_t::executor_t;
 
 	using socket_t = connection_t::socket_t;
-	using endpoint_t = socket_t::endpoint_type;
+	using endpoint_t = connection_t::endpoint_t;
 
 	using parser_t = server_parser;
 	using value_t = parser_t::value_t;

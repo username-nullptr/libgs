@@ -35,14 +35,24 @@ namespace libgs::app:: inline literals
 inline path_t operator""_abs(const char *path, size_t len)
 {
 	auto expected = absolute_path(std::string(path, len));
-	system_error::loc_throw(expected.error(), R"(libgs::app::operator""_abs<char>)");
+	if( not expected )
+	{
+		system_error::loc_throw (
+			expected.error(), R"(libgs::app::operator""_abs<char>)"
+		);
+	}
 	return *expected;
 }
 
 inline path_t operator""_abs(const wchar_t *path, size_t len)
 {
 	auto expected = absolute_path(std::wstring(path, len));
-	system_error::loc_throw(expected.error(), R"(libgs::app::operator""_abs<char>)");
+	if( not expected )
+	{
+		system_error::loc_throw (
+			expected.error(), R"(libgs::app::operator""_abs<char>)"
+		);
+	}
 	return *expected;
 }
 

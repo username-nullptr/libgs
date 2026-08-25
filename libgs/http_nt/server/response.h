@@ -53,7 +53,7 @@ public:
 
 	using request_t = basic_request<connection_t>;
 	using socket_t = connection_t::socket_t;
-	using endpoint_t = socket_t::endpoint_type;
+	using endpoint_t = connection_t::endpoint_t;
 
 	using value_t = libgs::value;
 	using headers_t = http_nt::headers;

@@ -174,7 +174,7 @@ optional<bool> cookie::http_only() const noexcept
 
 optional<bool> cookie::secure() const noexcept
 {
-	auto it = attributes().find(cookie_attribute::http_only);
+	auto it = attributes().find(cookie_attribute::secure);
 	return it == attributes().end() ?
 		optional<bool>() : it->second.to_bool();
 }

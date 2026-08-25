@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,13 +29,12 @@
 #ifndef LIBGS_HTTP_NT_SERVER_DETAIL_SESSION_MANAGER_H
 #define LIBGS_HTTP_NT_SERVER_DETAIL_SESSION_MANAGER_H
 
-#include <libgs/http/server/session.h>
 #include <libgs/core/shared_mutex.h>
 
 namespace libgs::http_nt
 {
 
-class LIBGS_HTTP_VAPI session_manager::impl
+class LIBGS_HTTP_NT_VAPI session_manager::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
@@ -68,7 +67,13 @@ std::shared_ptr<Session> session_manager::make(Args&&...args) noexcept requires
 	auto session = std::make_shared<Session>(
 		std::forward<Args>(args)...
 	);
-	m_impl->emplace(session);
+	auto [it, inserted] = m_impl->emplace(session);
+	if( not inserted )
+	{
+		runtime_error::loc_throw (
+			"Session-id duplicated."
+		);
+	}
 	auto id = session->id();
 
 	session->on_timeout([this, id]{

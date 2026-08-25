@@ -166,7 +166,7 @@ generator<protocol_model::server> &generator<protocol_model::server>::reset() no
 {
 	m_impl->m_status = status::ok;
 	m_impl->m_cookies.clear();
-	m_impl->m_generator.reset();
+	m_impl->m_generator->reset();
 	return *this;
 }
 

@@ -200,7 +200,7 @@ private:
 			co_return ;
 		}
 		auto method = context.request().method();
-		if( !!( handler->method & method ) )
+		if( not ( handler->method & method ) )
 		{
 			if( method == method::head )
 			{
@@ -215,7 +215,11 @@ private:
 					.write(options_response_body(handler->method), use_awaitable);
 			}
 			else
-				context.response().set_status(status::method_not_allowed);
+			{
+				context.response().set_status (
+					status::method_not_allowed
+				);
+			}
 			co_return ;
 		}
 		try
@@ -303,7 +307,7 @@ private:
 		std::string sum {};
 		for(uint16_t i=method::get; i<=method::connect; i<<=1)
 		{
-			if( !!( method & i ) )
+			if( not ( method & i ) )
 				continue;
 
 			sum += std::format("{};", method::string (
@@ -379,7 +383,7 @@ public:
 			if constexpr( sizeof...(Method) == 0 )
 			{
 #define X_MACRO(e,v,d) method |= method_enum::e;
-				LIBGS_HTTP_METHOD_TABLE
+				LIBGS_HTTP_NT_METHOD_TABLE
 #undef X_MACRO
 			}
 			else

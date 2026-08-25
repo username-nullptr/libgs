@@ -148,7 +148,7 @@ basic_acceptor_wrap<basic_connection <
 (basic_acceptor_wrap &&other) noexcept
 {
 	base_t::operator=(std::move(other.m_acceptor));
-	m_ssl = other.other.m_ssl;
+	m_ssl = other.m_ssl;
 	return *this;
 }
 
@@ -196,7 +196,7 @@ basic_acceptor_wrap<basic_connection <
 	if( error )
 	{
 		// spdlog::warn("libgs::http::server(SSL): SSL handshake failed: {}.", error);
-		socket_operation_helper<socket_t>::close(ssl_socket);
+		socket_operation_helper<socket_t>(ssl_socket).close();
 	}
 	co_return ssl_socket;
 }

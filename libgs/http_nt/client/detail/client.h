@@ -319,7 +319,7 @@ public:
 				make_error_code(std::errc::protocol_error)
 			);
 		}
-		auto expected = m_pool.get(info.url.address(), info.url.protocol());
+		auto expected = m_pool.get(info.url.address(), info.url.port());
 		if( not expected )
 			return sys_unexpected(expected.error());
 
@@ -341,7 +341,7 @@ public:
 		}
 		using namespace libgs::operators;
 		auto expected = co_await m_pool.get (
-			info.url.address(), info.url.protocol(), use_awaitable | cancel_slot | timeout
+			info.url.address(), info.url.port(), use_awaitable | cancel_slot | timeout
 		);
 		if( not expected )
 			co_return sys_unexpected(expected.error());

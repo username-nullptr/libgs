@@ -53,7 +53,7 @@ public:
 		auto addpth = parse_parameters(
 			set_header(strtls::trimmed(url))
 		);
-		auto pos = addpth.find("/");
+		auto pos = addpth.find('/');
 		if( pos == std::string::npos )
 		{
 			m_address = std::move(addpth);
@@ -72,7 +72,7 @@ public:
 			m_address = "127.0.0.1";
 			return ;
 		}
-		pos = m_address.rfind(":");
+		pos = m_address.rfind(':');
 		if( pos == std::string::npos )
 			m_port = m_protocol == "https" ? 443 : 80;
 		else
@@ -255,14 +255,13 @@ std::string_view url::path() const noexcept
 
 std::string url::to_string() const noexcept
 {
-	auto buf =
-		m_impl->m_protocol + "://" + m_impl->m_path +
-		std::format("{}", m_impl->m_port);
-
+	auto buf = std::format("{}://{}:{}",
+		m_impl->m_protocol, m_impl->m_address, m_impl->m_port
+	);
 	if( m_impl->m_parameters.empty() )
 		return buf;
 
-	buf += "?";
+	buf += '?';
 	for(auto &[key,value] : m_impl->m_parameters)
 		buf += key + "=" + value.to_string() + "&";
 	buf.pop_back();

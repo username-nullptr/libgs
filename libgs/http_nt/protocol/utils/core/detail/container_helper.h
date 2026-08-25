@@ -81,7 +81,7 @@ const_parameters<Derived>::parameter(size_t index) const
 template <typename Derived>
 bool const_parameters<Derived>::contains_parameter(size_t index) const noexcept
 {
-	return index >= parameters().size();
+	return index < parameters().size();
 }
 
 template <typename Derived>
@@ -154,8 +154,7 @@ template <typename Cookie, typename Derived>
 bool const_cookies<Cookie,Derived>::contains_cookie
 (const core_concepts::text_p<char> auto &key) const noexcept
 {
-	auto it = cookies().contains(strtls::to_string(key));
-	return it != cookies().end();
+	return cookies().contains(strtls::to_string(key));
 }
 
 template <typename Cookie, typename Derived>

@@ -148,5 +148,30 @@ using server = tcp_server;
 } //namespace libgs::http_nt
 #include <libgs/http_nt/server/detail/server.h>
 
+#if LIBGS_OPENSSL_SUPPORT
+namespace libgs { namespace http_nt
+{
 
+template <typename Protocol = asio::ip::tcp>
+using basic_ssl_server = basic_server <
+	asio::ssl::stream<asio::basic_stream_socket<Protocol>>
+>;
+using ssl_tcp_server = basic_ssl_server<>;
+using ssl_server = ssl_tcp_server;
+
+} //namespace libgs::http_nt
+
+namespace https_nt
+{
+
+template <typename Protocol = asio::ip::tcp>
+using basic_server = http_nt::basic_server <
+	asio::ssl::stream<asio::basic_stream_socket<Protocol>>
+>;
+using tcp_server = basic_server<>;
+using server = tcp_server;
+
+}} //namespace libgs::https_nt
+
+#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_NT_SERVER_SERVER_H
