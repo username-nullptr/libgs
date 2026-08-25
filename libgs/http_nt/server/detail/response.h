@@ -116,6 +116,7 @@ public:
 		size_t sum = 0;
 
 		auto pro_state = m_generator.pro_state();
+		std::string compressed {};
 		const_buffer wire_body = body;
 
 		if( pro_state == generator_state::finish )
@@ -145,7 +146,7 @@ public:
 				}
 				if( encoded->size() < body.size() or m_req_method == method::head )
 				{
-					auto compressed = std::move(*encoded);
+					compressed = std::move(*encoded);
 					wire_body = buffer(compressed);
 					prepare_gzip_headers(false);
 				}
