@@ -188,7 +188,7 @@ public:
 		auto dst_buf = static_cast<char*>(buf.data());
 		size_t sum = 0;
 		do {
-			auto body = m_parser.take_partial_body(buf_size);
+			auto body = m_parser.take_partial_body(buf_size - sum);
 			std::memcpy(dst_buf + sum, body.c_str(), body.size());
 
 			sum += body.size();
@@ -243,7 +243,7 @@ public:
 		{
 			auto dst_buf = static_cast<char*>(buf.data());
 			do {
-				auto body = m_parser.take_partial_body(buf_size);
+				auto body = m_parser.take_partial_body(buf_size - sum);
 				std::memcpy(dst_buf + sum, body.c_str(), body.size());
 
 				sum += body.size();

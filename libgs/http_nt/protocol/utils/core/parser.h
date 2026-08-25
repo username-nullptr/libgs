@@ -43,6 +43,7 @@ class LIBGS_HTTP_NT_API parser<protocol_model::base> final :
 
 public:
 	using stage_t = http_nt::stage;
+	using chunk_attributes_t = type_helper::values_t;
 	using parse_begin_handler = std::function <
 		sys_expected<version_enum>(std::string_view line_buf)
 	>;
@@ -57,7 +58,7 @@ public:
 
 public:
 	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
+	~parser() override;
 
 	parser(parser &&other) noexcept;
 	parser &operator=(parser &&other) noexcept;
@@ -77,6 +78,7 @@ public:
 
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] stage_t stage() const noexcept;
+	[[nodiscard]] const chunk_attributes_t &chunk_attributes() const noexcept;
 
 public:
 	parser &unbind_parse_begin();

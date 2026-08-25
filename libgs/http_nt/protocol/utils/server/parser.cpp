@@ -49,7 +49,8 @@ public:
 			sys_expected<version_enum> result = static_cast<version_enum>(0);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
 
-			if( request_line_parts.size() != 3 or not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
+			if( request_line_parts.size() != 3 or
+				not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
 				return result.despair (
 					base_parser::make_error_code(parse_errno::IREQL)
@@ -66,19 +67,24 @@ public:
 				);
 			}
 			m_method = method;
-			result = version::from_string(request_line_parts[2].substr(5,3));
 
+			try {
+				result = version::from_string(request_line_parts[2].substr(5,3));
+			}
+			catch(const std::exception&)
+			{
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IREQL)
+				);
+			}
 			auto url_line = from_percent_encoding(request_line_parts[1]);
-			auto pos = url_line.find('?');
-
-			if( pos == std::string::npos )
+			if( auto pos = url_line.find('?'); pos == std::string::npos )
 				m_path = url_line;
 			else
 			{
 				m_path = url_line.substr(0, pos);
-				auto parameters_string = url_line.substr(pos + 1);
-
-				for(auto &para_str : string_vector::from_string(parameters_string, '&'))
+				for(auto parameters_string = url_line.substr(pos + 1);
+					auto &para_str : string_vector::from_string(parameters_string, '&'))
 				{
 					pos = para_str.find('=');
 					if( pos == std::string::npos )
@@ -87,19 +93,20 @@ public:
 						m_parameters.emplace_back(para_str.substr(0, pos), para_str.substr(pos+1));
 				}
 			}
-			if( not m_path.starts_with("/") )
+			if( not m_path.starts_with('/') )
 			{
 				return result.despair (
 					base_parser::make_error_code(parse_errno::IHP)
 				);
 			}
-			auto n_it = std::unique(m_path.begin(), m_path.end(), [](char c0, char c1){
+			auto n_it = std::ranges::unique(m_path, [](char c0, char c1) {
 				return c0 == c1 and c0 == '/';
-			});
+			}).begin();
+
 			if( n_it != m_path.end() )
 				m_path.erase(n_it, m_path.end());
 
-			if( m_path.size() > 1 and m_path.ends_with("/") )
+			if( m_path.size() > 1 and m_path.ends_with('/') )
 				m_path.pop_back();
 			return result;
 		})
@@ -309,14 +316,15 @@ optional<value> parser<protocol_model::server>::path_arg(size_t index) const
 {
 	if( index >= path_args().size() )
 	{
-		throw runtime_error (
+		runtime_error::loc_throw (
 			"libgs::http::parser<protocol_model::server>::path_arg: index out of range."
 		);
 	}
 	return path_args()[index].second;
 }
 
-const parser<protocol_model::server>::path_args_t &parser<protocol_model::server>::path_args() const noexcept
+const parser<protocol_model::server>::path_args_t&
+parser<protocol_model::server>::path_args() const noexcept
 {
 	return m_impl->m_path_args;
 }

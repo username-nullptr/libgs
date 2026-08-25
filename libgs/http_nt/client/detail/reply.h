@@ -222,7 +222,7 @@ public:
 			std::memcpy(dst_buf + sum, body.c_str(), body.size());
 
 			sum += body.size();
-			if( m_parser.stage() == parser_t::stage_t::finished )
+			if( sum == buf.size() or m_parser.stage() == parser_t::stage_t::finished )
 				break;
 
 			body = std::string(op.value(),'\0');
@@ -312,7 +312,7 @@ public:
 				std::memcpy(dst_buf + sum, body.c_str(), body.size());
 
 				sum += body.size();
-				if( m_parser.stage() == parser_t::stage_t::finished )
+				if( sum == buf.size() or m_parser.stage() == parser_t::stage_t::finished )
 					break;
 
 				body = std::string(op.value(),'\0');

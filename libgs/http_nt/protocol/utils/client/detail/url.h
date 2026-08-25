@@ -42,8 +42,9 @@ url::url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
 template <typename Arg0, typename...Args>
 url &url::emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args)
 {
-	set(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...));
-	return *this;
+	return emplace(std::format(
+		fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...
+	));
 }
 
 } //namespace libgs::http_nt

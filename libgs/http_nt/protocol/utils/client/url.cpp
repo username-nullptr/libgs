@@ -47,6 +47,7 @@ public:
 public:
 	void set(std::string_view url)
 	{
+		reset();
 		if( url.empty() )
 			return ;
 
@@ -62,10 +63,7 @@ public:
 		else
 		{
 			m_address = addpth.substr(0,pos);
-			m_path = strtls::replace (
-				from_percent_encoding(addpth.substr(pos)),
-				"//", '/', false
-			);
+			set_path(addpth.substr(pos));
 		}
 		if( m_address.empty() )
 		{
@@ -82,7 +80,30 @@ public:
 		}
 	}
 
+	void set_path(std::string_view path)
+	{
+		auto value = from_percent_encoding(strtls::trimmed(path));
+		if( value.empty() )
+			value = "/";
+
+		else if( not value.starts_with('/') )
+			value.insert(value.begin(), '/');
+
+		m_path = strtls::replace (
+			std::move(value), "//", '/', false
+		);
+	}
+
 private:
+	void reset()
+	{
+		m_protocol = "http";
+		m_path = "/";
+		m_address = "127.0.0.1";
+		m_port = 80;
+		m_parameters.clear();
+	}
+
 	[[nodiscard]] std::string set_header(std::string resource_line)
 	{
 		if( resource_line.size() < 8 or strtls::to_lower(resource_line.substr(0,4)) != "http" )
@@ -109,16 +130,16 @@ private:
 
 	[[nodiscard]] std::string parse_parameters(std::string resource_line)
 	{
-		auto pos = resource_line.find("?");
+		auto pos = resource_line.find('?');
 		if( pos == std::string::npos )
-			return std::move(resource_line);
+			return resource_line;
 
 		auto addpth = resource_line.substr(0,pos);
-		auto parameters_string = resource_line.substr(pos + 1);
 
-		for(auto &para_str : string_vector::from_string(parameters_string, "&"))
+		for(auto parameters_string = resource_line.substr(pos + 1);
+			auto &para_str : string_vector::from_string(parameters_string, "&"))
 		{
-			pos = para_str.find("=");
+			pos = para_str.find('=');
 			if( pos == std::string::npos )
 			{
 				para_str = from_percent_encoding(para_str);
@@ -151,7 +172,7 @@ url::url(std::string_view url) :
 	m_parameters = &m_impl->m_parameters;
 }
 
-url::url(std::string u) :
+url::url(const std::string &u) :
 	url(std::string_view(u))
 {
 
@@ -229,7 +250,7 @@ url &url::set_port(uint16_t port)
 
 url &url::set_path(std::string_view path)
 {
-	m_impl->set(path);
+	m_impl->set_path(path);
 	return *this;
 }
 
@@ -255,15 +276,19 @@ std::string_view url::path() const noexcept
 
 std::string url::to_string() const noexcept
 {
-	auto buf = std::format("{}://{}:{}",
-		m_impl->m_protocol, m_impl->m_address, m_impl->m_port
+	auto buf = std::format("{}://{}:{}{}",
+		m_impl->m_protocol, m_impl->m_address, m_impl->m_port,
+		to_percent_encoding(m_impl->m_path, '/')
 	);
 	if( m_impl->m_parameters.empty() )
 		return buf;
 
 	buf += '?';
 	for(auto &[key,value] : m_impl->m_parameters)
-		buf += key + "=" + value.to_string() + "&";
+	{
+		buf += to_percent_encoding(key) + "=" +
+			to_percent_encoding(value.to_string()) + "&";
+	}
 	buf.pop_back();
 	return buf;
 }

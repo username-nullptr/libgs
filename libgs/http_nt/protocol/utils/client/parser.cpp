@@ -47,14 +47,30 @@ public:
 			sys_expected<version_enum> result = static_cast<version_enum>(0);
 			auto request_line_parts = string_vector::from_string(line_buf, ' ');
 
-			if( request_line_parts.size() < 2 or not strtls::to_upper(request_line_parts[0]).starts_with("HTTP/") )
+			if( request_line_parts.size() < 2 or
+				not strtls::to_upper(request_line_parts[0]).starts_with("HTTP/") )
 			{
 				return result.despair (
 					base_parser::make_error_code(parse_errno::IRPYL)
 				);
 			}
-			result = version::from_string(request_line_parts[0].substr(5,3));
-			m_status = *strtls::to_arith<status_enum>(request_line_parts[1]).or_else();
+			try {
+				result = version::from_string(request_line_parts[0].substr(5,3));
+			}
+			catch(const std::exception&)
+			{
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IRPYL)
+				);
+			}
+			auto status_value = strtls::to_arith<status_enum>(request_line_parts[1]);
+			if( not status_value )
+			{
+				return result.despair (
+					base_parser::make_error_code(parse_errno::IHSC)
+				);
+			}
+			m_status = *status_value;
 
 			if( m_status == static_cast<status_enum>(0) )
 			{
@@ -88,11 +104,16 @@ public:
 			{
 				auto &statement = vector[i];
 				statement = strtls::trimmed(statement);
+
+				if( statement.empty() )
+					continue;
+
 				pos = statement.find('=');
-
 				if( pos == std::string::npos )
-					return base_parser::make_error_code(parse_errno::ICL);
-
+				{
+					cookie.set_attribute(std::move(statement), true);
+					continue;
+				}
 				key = strtls::trimmed(statement.substr(0,pos));
 				value = strtls::trimmed(statement.substr(pos+1));
 				cookie.set_attribute(std::move(key), std::move(value));
@@ -106,12 +127,20 @@ public:
 	{
 		auto headers = m_parser.headers();
 		auto it = headers.find(header::connection);
-		if( it == headers.end() )
-			m_keep_alive = m_parser.version() != version::v10;
-		else
-			m_keep_alive = strtls::to_lower(it->second.to_string()) != "close";
+		m_keep_alive = m_parser.version() != version::v10;
+		if( it != headers.end() )
+		{
+			for(auto &str : string_vector::from_string(it->second.to_string(), ','))
+			{
+				auto value = strtls::to_lower(strtls::trimmed(str));
+				if( value == "close" )
+					m_keep_alive = false;
+				else if( value == "keep-alive" )
+					m_keep_alive = true;
+			}
+		}
 
-		it = headers.find(header::accept_encoding);
+		it = headers.find(header::content_encoding);
 		if( it == headers.end() )
 		{
 			m_support_gzip = false;
@@ -146,10 +175,7 @@ parser<protocol_model::client>::parser(size_t init_buf_size) :
 {
 	m_headers = &m_impl->m_parser.headers();
 	m_cookies = &m_impl->m_cookies;
-
-	// TODO ... ...
-	static values_t tmp;
-	m_chunk_attributes = &tmp;
+	m_chunk_attributes = &m_impl->m_parser.chunk_attributes();
 }
 
 bool parser<protocol_model::client>::keep_alive() const noexcept
@@ -178,18 +204,19 @@ parser<protocol_model::client>::~parser()
 }
 
 parser<protocol_model::client>::parser(parser &&other) noexcept :
-	const_headers(other.m_headers),
-	const_cookies(other.m_cookies),
-	const_chunk_attributes(other.m_chunk_attributes),
+	const_headers(nullptr),
+	const_cookies(nullptr),
+	const_chunk_attributes(nullptr),
 	m_impl(other.m_impl)
 {
+	m_headers = &m_impl->m_parser.headers();
+	m_cookies = &m_impl->m_cookies;
+	m_chunk_attributes = &m_impl->m_parser.chunk_attributes();
+
 	other.m_impl = new impl(0xFFFF);
 	other.m_headers = &other.m_impl->m_parser.headers();
 	other.m_cookies = &other.m_impl->m_cookies;
-
-	// TODO ... ...
-	static values_t tmp;
-	other.m_chunk_attributes = &tmp;
+	other.m_chunk_attributes = &other.m_impl->m_parser.chunk_attributes();
 }
 
 parser<protocol_model::client> &parser<protocol_model::client>::operator=(parser &&other) noexcept
@@ -199,23 +226,23 @@ parser<protocol_model::client> &parser<protocol_model::client>::operator=(parser
 
 	delete m_impl;
 	m_impl = other.m_impl;
-	m_headers = other.m_headers;
-	m_cookies = other.m_cookies;
-	m_chunk_attributes = other.m_chunk_attributes;
+	m_headers = &m_impl->m_parser.headers();
+	m_cookies = &m_impl->m_cookies;
+	m_chunk_attributes = &m_impl->m_parser.chunk_attributes();
 
 	other.m_impl = new impl(0xFFFF);
 	other.m_headers = &other.m_impl->m_parser.headers();
 	other.m_cookies = &other.m_impl->m_cookies;
-
-	// TODO ... ...
-	static values_t tmp;
-	other.m_chunk_attributes = &tmp;
+	other.m_chunk_attributes = &other.m_impl->m_parser.chunk_attributes();
 	return *this;
 }
 
 sys_expected<bool> parser<protocol_model::client>::append(const const_buffer &buf)
 {
-	return m_impl->m_parser.append(buf);
+	auto expected = m_impl->m_parser.append(buf);
+	if( expected and m_impl->m_parser.stage() != stage::header )
+		m_impl->set_attribute();
+	return expected;
 }
 
 parser<protocol_model::client> &parser<protocol_model::client>::operator<<(const const_buffer &buf)

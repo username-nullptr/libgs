@@ -61,7 +61,7 @@ public:
 };
 
 template <typename Session, typename...Args>
-std::shared_ptr<Session> session_manager::make(Args&&...args) noexcept requires
+std::shared_ptr<Session> session_manager::make(Args&&...args) requires
 	core_concepts::base_of<Session,session> and core_concepts::constructible<Session,Args...>
 {
 	auto session = std::make_shared<Session>(
@@ -90,7 +90,7 @@ std::shared_ptr<Session> session_manager::make(Args&&...args) noexcept requires
 }
 
 template <typename...Args>
-session_ptr session_manager::make(Args&&...args) noexcept
+session_ptr session_manager::make(Args&&...args)
 	requires core_concepts::constructible<session,Args...>
 {
 	return make<session>(std::forward<Args>(args)...);
@@ -119,7 +119,7 @@ std::shared_ptr<Session> session_manager::get_or_make
 
 template <typename...Args>
 session_ptr session_manager::get_or_make
-(const core_concepts::text_p<char> auto &id, Args&&...args) noexcept
+(const core_concepts::text_p<char> auto &id, Args&&...args)
 	requires core_concepts::constructible<session,Args...>
 {
 	auto ptr = m_impl->find(strtls::to_view(id), false);
@@ -150,9 +150,11 @@ std::shared_ptr<Session> session_manager::get_or(const core_concepts::text_p<cha
 	requires core_concepts::base_of<Session,session>
 {
 	auto id_view = strtls::to_view(id);
-	auto ptr = std::dynamic_pointer_cast<Session>(
-		m_impl->find(id_view, false)
-	);
+	auto session = m_impl->find(id_view, false);
+	if( not session )
+		return {};
+
+	auto ptr = std::dynamic_pointer_cast<Session>(session);
 	if( not ptr )
 	{
 		throw runtime_error(

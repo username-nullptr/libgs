@@ -58,7 +58,10 @@ basic_service_context<Connection>::basic_service_context
 }
 
 template <concepts::connection Connection>
-basic_service_context<Connection>::~basic_service_context() = default;
+basic_service_context<Connection>::~basic_service_context()
+{
+	delete m_impl;
+}
 
 template <concepts::connection Connection>
 const basic_service_context<Connection>::request_t&
@@ -109,7 +112,7 @@ std::shared_ptr<Session> basic_service_context<Connection>::session(Args&&...arg
 
 template <concepts::connection Connection>
 template <typename...Args>
-session_ptr basic_service_context<Connection>::session(Args&&...args) noexcept
+session_ptr basic_service_context<Connection>::session(Args&&...args)
 	requires core_concepts::constructible<session_t, Args...>
 {
 	auto session_cookie = m_impl->m_session_manager.cookie_key();
@@ -121,14 +124,12 @@ session_ptr basic_service_context<Connection>::session(Args&&...args) noexcept
 
 template <concepts::connection Connection>
 template <typename Session>
-std::shared_ptr<Session> basic_service_context<Connection>::session()
+std::shared_ptr<Session> basic_service_context<Connection>::session() const
 	requires core_concepts::base_of<Session,session_t>
 {
 	auto session_cookie = m_impl->m_session_manager.cookie_key();
 	auto session_id = request().cookie(session_cookie).or_else()->to_string();
-	auto session = m_impl->m_session_manager.template get<Session>(session_id);
-	response().set_cookie(session_cookie, cookie(session->id()));
-	return session;
+	return m_impl->m_session_manager.template get<Session>(session_id);
 }
 
 template <concepts::connection Connection>
@@ -139,18 +140,17 @@ std::shared_ptr<Session> basic_service_context<Connection>::session_or()
 	auto session_cookie = m_impl->m_session_manager.cookie_key();
 	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_session_manager.template get_or<Session>(session_id);
-	response().set_cookie(session_cookie, cookie(session->id()));
+	if( session )
+		response().set_cookie(session_cookie, cookie(session->id()));
 	return session;
 }
 
 template <concepts::connection Connection>
-session_ptr basic_service_context<Connection>::session()
+session_ptr basic_service_context<Connection>::session() const
 {
 	auto session_cookie = m_impl->m_session_manager.cookie_key();
 	auto session_id = request().cookie(session_cookie).or_else()->to_string();
-	auto session = m_impl->m_session_manager.get(session_id);
-	response().set_cookie(session_cookie, cookie(session->id()));
-	return session;
+	return m_impl->m_session_manager.get(session_id);
 }
 
 template <concepts::connection Connection>
@@ -159,7 +159,8 @@ session_ptr basic_service_context<Connection>::session_or() noexcept
 	auto session_cookie = m_impl->m_session_manager.cookie_key();
 	auto session_id = request().cookie(session_cookie).or_else()->to_string();
 	auto session = m_impl->m_session_manager.get_or(session_id);
-	response().set_cookie(session_cookie, cookie(session->id()));
+	if( session )
+		response().set_cookie(session_cookie, cookie(session->id()));
 	return session;
 }
 

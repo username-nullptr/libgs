@@ -39,6 +39,8 @@ template <core_concepts::exec Exec>
 class LIBGS_HTTP_NT_VAPI acceptor_wrap
 {
 	LIBGS_DISABLE_COPY(acceptor_wrap)
+	template <core_concepts::exec>
+	friend class acceptor_wrap;
 
 public:
 	using executor_t = Exec;
@@ -77,6 +79,9 @@ class LIBGS_HTTP_NT_TAPI basic_acceptor_wrap <
 public detail::acceptor_wrap<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_acceptor_wrap)
+
+	template <typename>
+	friend class basic_acceptor_wrap;
 
 public:
 	using base_t = detail::acceptor_wrap<Exec>;
@@ -123,6 +128,9 @@ class LIBGS_HTTP_NT_TAPI basic_acceptor_wrap <
 public detail::acceptor_wrap<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_acceptor_wrap)
+
+	template <typename>
+	friend class basic_acceptor_wrap;
 
 public:
 	using base_t = detail::acceptor_wrap<Exec>;

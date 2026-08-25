@@ -100,7 +100,6 @@ public:
 		header::content_type,
 		"text/plain; charset=utf-8"
 	}};
-
 	values_t m_chunk_attributes {};
 	size_t m_content_length = 0;
 
@@ -125,8 +124,11 @@ generator<protocol_model::base>::~generator()
 generator<protocol_model::base> &generator<protocol_model::base>::reset()
 {
 	headers().clear();
+	headers()[header::content_type] = "text/plain; charset=utf-8";
 	chunk_attributes().clear();
+	m_impl->m_content_length = 0;
 	m_impl->m_state = state_t::header;
+	m_impl->m_body_norms = {};
 	return *this;
 }
 

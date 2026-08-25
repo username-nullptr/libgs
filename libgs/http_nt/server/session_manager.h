@@ -48,11 +48,11 @@ public:
 
 public: // Fucking msvc !!!
 	template <typename Session, typename...Args>
-	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) noexcept requires
+	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) requires
 		core_concepts::base_of<Session,session> and core_concepts::constructible<Session,Args...>;
 
 	template <typename...Args>
-	[[nodiscard]] std::shared_ptr<session> make(Args&&...args) noexcept requires
+	[[nodiscard]] std::shared_ptr<session> make(Args&&...args) requires
 		core_concepts::constructible<session,Args...>;
 
 	template <typename Session, typename...Args>
@@ -65,7 +65,7 @@ public: // Fucking msvc !!!
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session> get_or_make (
 		const core_concepts::text_p<char> auto &id, Args&&...args
-	) noexcept requires
+	) requires
 		core_concepts::constructible<session,Args...>;
 
 public: // Fucking msvc !!!

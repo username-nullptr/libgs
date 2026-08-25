@@ -58,13 +58,13 @@ public:
 	void set_request_arg(request_arg_t request) noexcept
 	{
 		for(auto &[key,value] : request.headers())
-			m_generator->set_header(std::move(key), std::move(value));
+			m_generator->set_header(key, std::move(value));
 
 		for(auto &[key,value] : request.cookies())
-			m_cookies[std::move(key)] = std::move(value);
+			m_cookies[key] = std::move(value);
 
 		for(auto &value : request.chunk_attributes())
-			m_chunk_attributes.emplace(std::move(value));
+			m_chunk_attributes.emplace(value);
 	}
 
 public:
@@ -75,19 +75,19 @@ public:
 	values_t m_chunk_attributes {};
 };
 
-generator<protocol_model::client>::generator(version_enum version, url_t url, request_arg_t request) :
+generator<protocol_model::client>::generator(version_enum version, url_t url, request_arg_t arg) :
 	mutable_headers(nullptr),
 	mutable_cookies(nullptr),
 	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(version, std::move(url), std::move(request)))
+	m_impl(new impl(version, std::move(url), std::move(arg)))
 {
 	m_headers = &m_impl->m_generator->headers();
 	m_cookies = &m_impl->m_cookies;
 	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
-generator<protocol_model::client>::generator(url_t url, request_arg_t request) :
-	generator(version_enum::v11, std::move(url), std::move(request))
+generator<protocol_model::client>::generator(url_t url, request_arg_t arg) :
+	generator(version_enum::v11, std::move(url), std::move(arg))
 {
 
 }
@@ -150,13 +150,13 @@ request_arg generator<protocol_model::client>::arg() const noexcept
 	auto *self = remove_const(this);
 
 	for(auto &[key,value] : self->headers())
-		arg.set_header(std::move(key), std::move(value));
+		arg.set_header(key, std::move(value));
 
 	for(auto &[key,value] : self->cookies())
-		arg.set_cookie(std::move(key), std::move(value));
+		arg.set_cookie(key, std::move(value));
 
 	for(auto &value : self->chunk_attributes())
-		arg.set_chunk_attribute(std::move(value));
+		arg.set_chunk_attribute(value);
 	return arg;
 }
 
@@ -176,7 +176,7 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 		auto path = to_percent_encoding(url.path(), '/');
 		if( not url.parameters().empty() )
 		{
-			path += "?";
+			path += '?';
 			for(auto &[key,value] : url.parameters())
 				path += to_percent_encoding(key) + "=" + to_percent_encoding(*value) + "&";
 			path.pop_back();
@@ -220,6 +220,8 @@ generator_state generator<protocol_model::client>::pro_state() const noexcept
 
 generator<protocol_model::client> &generator<protocol_model::client>::reset() noexcept
 {
+	m_impl->m_cookies.clear();
+	m_impl->m_chunk_attributes.clear();
 	m_impl->m_generator->reset();
 	return *this;
 }

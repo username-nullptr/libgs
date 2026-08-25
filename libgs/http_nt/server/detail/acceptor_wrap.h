@@ -101,7 +101,7 @@ basic_acceptor_wrap<basic_connection <
 >>::operator=
 (basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other) noexcept
 {
-	base_t::operator=(std::move(other.m_acceptor));
+	this->m_acceptor = std::move(other.m_acceptor);
 	return *this;
 }
 
@@ -147,7 +147,7 @@ basic_acceptor_wrap<basic_connection <
 >>::operator=
 (basic_acceptor_wrap &&other) noexcept
 {
-	base_t::operator=(std::move(other.m_acceptor));
+	this->m_acceptor = std::move(other.m_acceptor);
 	m_ssl = other.m_ssl;
 	return *this;
 }
@@ -173,8 +173,8 @@ basic_acceptor_wrap<basic_connection <
 >>::operator=
 	(basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other) noexcept
 {
-	base_t::operator=(std::move(other.m_acceptor));
-	m_ssl = other.other.m_ssl;
+	this->m_acceptor = std::move(other.m_acceptor);
+	m_ssl = other.m_ssl;
 	return *this;
 }
 

@@ -71,18 +71,18 @@ public: // Fucking msvc !!!
 		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session, Args...>;
 
 	template <typename...Args>
-	[[nodiscard]] session_ptr session(Args&&...args) noexcept
+	[[nodiscard]] session_ptr session(Args&&...args)
 		requires core_concepts::constructible<session_t, Args...>;
 
 	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> session() requires
+	[[nodiscard]] std::shared_ptr<Session> session() const requires
 		core_concepts::base_of<Session,session_t>;
 
 	template <typename Session>
 	[[nodiscard]] std::shared_ptr<Session> session_or() requires
 		core_concepts::base_of<Session,session_t>;
 
-	[[nodiscard]] session_ptr session();
+	[[nodiscard]] session_ptr session() const;
 	[[nodiscard]] session_ptr session_or() noexcept;
 
 private:

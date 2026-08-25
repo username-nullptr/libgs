@@ -47,7 +47,7 @@ public:
 	using state_t = generator_state;
 
 	generator();
-	virtual ~generator() = 0;
+	~generator() override = 0;
 
 	[[nodiscard]] virtual std::string header_data(size_t body_size) noexcept;
 	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;

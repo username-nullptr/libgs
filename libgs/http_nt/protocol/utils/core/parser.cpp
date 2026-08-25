@@ -111,7 +111,13 @@ public:
 			}
 			else if( m_state == state::reading_headers )
 			{
-				result = *state_handler_reading_headers(line_buf);
+				auto expected = state_handler_reading_headers(line_buf);
+				if( not expected )
+				{
+					result.despair(expected.error());
+					break;
+				}
+				result = *expected;
 				if( result and *result )
 					break;
 			}
@@ -158,7 +164,11 @@ public:
 		auto it = m_headers.find(header::content_length);
 		if( it != m_headers.end() )
 		{
-			m_content_length = *it->second.get<size_t>().or_else();
+			auto expected = it->second.get<size_t>();
+			if( not expected )
+				return make_error_code(parse_errno::SFE);
+
+			m_content_length = *expected;
 			parse_length();
 		}
 		else if( m_version == version::v11 )
@@ -193,66 +203,203 @@ public:
 			state::finished : state::reading_length;
 	}
 
+	[[nodiscard]] static bool is_token_char(uint8_t ch) noexcept
+	{
+		constexpr std::string_view c_table = "!#$%&'*+-.^_`|~";
+		return (ch >= '0' and ch <= '9') or
+			   (ch >= 'A' and ch <= 'Z') or
+			   (ch >= 'a' and ch <= 'z') or
+			   c_table.find(static_cast<char>(ch)) != std::string_view::npos;
+	}
+
+	[[nodiscard]] static bool is_quoted_char(uint8_t ch) noexcept
+	{
+		return ch == '\t' or ch == ' ' or ch == 0x21 or
+			(ch >= 0x23 and ch <= 0x5B) or
+			(ch >= 0x5D and ch <= 0x7E) or ch >= 0x80;
+	}
+
+	[[nodiscard]] error_code parse_chunk_attributes(std::string_view line_buf)
+	{
+		chunk_attributes_t attributes {};
+		size_t pos = 0;
+		auto skip_bws = [&]() noexcept
+		{
+			while( pos < line_buf.size() and (line_buf[pos] == ' ' or line_buf[pos] == '\t') )
+				++pos;
+		};
+		skip_bws();
+		while( pos < line_buf.size() )
+		{
+			if( line_buf[pos] != ';' )
+				return make_error_code(parse_errno::SFE);
+			++pos;
+			skip_bws();
+
+			auto begin = pos;
+			while( pos < line_buf.size() and is_token_char(static_cast<uint8_t>(line_buf[pos])) )
+				++pos;
+
+			if( begin == pos )
+				return make_error_code(parse_errno::SFE);
+
+			std::string attribute(line_buf.substr(begin, pos - begin));
+			skip_bws();
+			if( pos < line_buf.size() and line_buf[pos] == '=' )
+			{
+				attribute += '=';
+				++pos;
+				skip_bws();
+				if( pos == line_buf.size() )
+					return make_error_code(parse_errno::SFE);
+
+				begin = pos;
+				if( line_buf[pos] == '"' )
+				{
+					++pos;
+					bool closed = false;
+					while( pos < line_buf.size() )
+					{
+						auto ch = static_cast<uint8_t>(line_buf[pos++]);
+						if( ch == '"' )
+						{
+							closed = true;
+							break;
+						}
+						if( ch == '\\' )
+						{
+							if( pos == line_buf.size() )
+								return make_error_code(parse_errno::SFE);
+
+							ch = static_cast<uint8_t>(line_buf[pos++]);
+							if( ch != '\t' and (ch < 0x20 or ch == 0x7F) )
+								return make_error_code(parse_errno::SFE);
+						}
+						else if( not is_quoted_char(ch) )
+							return make_error_code(parse_errno::SFE);
+					}
+					if( not closed )
+						return make_error_code(parse_errno::SFE);
+				}
+				else
+				{
+					while( pos < line_buf.size() and is_token_char(static_cast<uint8_t>(line_buf[pos])) )
+						++pos;
+
+					if( begin == pos )
+						return make_error_code(parse_errno::SFE);
+				}
+				attribute += line_buf.substr(begin, pos - begin);
+				skip_bws();
+			}
+			if( pos < line_buf.size() and line_buf[pos] != ';' )
+				return make_error_code(parse_errno::SFE);
+			attributes.emplace(std::move(attribute));
+		}
+		for(auto &attribute : attributes)
+			m_chunk_attributes.emplace(attribute);
+		return {};
+	}
+
 	sys_expected<bool> parse_chunked()
 	{
 		sys_expected<bool> result = false;
-		std::size_t _size = 0;
-		do {
-			auto pos = m_src_buf.find("\r\n");
-			if( pos == std::string::npos )
-			{
-				if( m_src_buf.size() > 8192 )
-					result.despair(make_error_code(parse_errno::HLTL));
-				break;
-			}
-			auto line_buf = m_src_buf.substr(0, pos + 2);
-			m_src_buf.erase(0, pos + 2);
-
+		for(;;)
+		{
 			if( m_state == state::chunked_wait_size )
 			{
-				line_buf.erase(pos);
-				pos = line_buf.find(';');
+				auto pos = m_src_buf.find("\r\n");
+				if( pos == std::string::npos )
+				{
+					if( m_src_buf.size() > 8192 )
+						result.despair(make_error_code(parse_errno::HLTL));
+					return result;
+				}
 
-				if( pos != std::string::npos )
-					line_buf.erase(pos);
+				auto line_buf = m_src_buf.substr(0, pos);
+				m_src_buf.erase(0, pos + 2);
+				auto attributes_pos = line_buf.find(';');
+				auto size_buf = line_buf.substr(0, attributes_pos);
 
-				if( line_buf.size() > 16 )
+				size_buf = strtls::trimmed(size_buf);
+				if( size_buf.empty() or size_buf.size() > sizeof(size_t) * 2 )
 				{
 					result.despair(make_error_code(parse_errno::SFE));
-					break;
+					return result;
 				}
-				try {
-					_size = *strtls::to_arith<size_t>(line_buf, 16).or_else();
-				}
-				catch(...) {
+				auto expected = strtls::to_arith<size_t>(size_buf, 16);
+				if( not expected )
+				{
 					result.despair(make_error_code(parse_errno::SFE));
-					break;
+					return result;
 				}
-				m_state = _size == 0 ? state::chunked_wait_headers : state::chunked_wait_content;
+				if( attributes_pos != std::string::npos )
+				{
+					auto error = parse_chunk_attributes (
+						std::string_view(line_buf).substr(attributes_pos)
+					);
+					if( error )
+					{
+						result.despair(error);
+						return result;
+					}
+				}
+				m_chunk_size = *expected;
+				m_state = m_chunk_size == 0 ?
+					state::chunked_wait_headers : state::chunked_wait_content;
+				continue;
 			}
-			else if( m_state == state::chunked_wait_content )
+			if( m_state == state::chunked_wait_content )
 			{
-				line_buf.erase(pos);
-				if( _size < line_buf.size() )
-					_size = line_buf.size();
-				else
-					m_state = state::chunked_wait_size;
-				m_partial_body += line_buf;
+				if( m_src_buf.empty() )
+					return result;
+
+				auto size = std::min(m_chunk_size, m_src_buf.size());
+				m_partial_body.append(m_src_buf, 0, size);
+				m_src_buf.erase(0, size);
+				m_chunk_size -= size;
+
+				if( m_chunk_size == 0 )
+					m_state = state::chunked_wait_content_end;
+				continue;
 			}
-			else if( m_state == state::chunked_wait_headers )
+			if( m_state == state::chunked_wait_content_end )
 			{
-				if( line_buf == "\r\n" )
+				if( m_src_buf.size() < 2 )
+					return result;
+				if( not m_src_buf.starts_with("\r\n") )
+				{
+					result.despair(make_error_code(parse_errno::SFE));
+					return result;
+				}
+				m_src_buf.erase(0, 2);
+				m_state = state::chunked_wait_size;
+				continue;
+			}
+			if( m_state == state::chunked_wait_headers )
+			{
+				auto pos = m_src_buf.find("\r\n");
+				if( pos == std::string::npos )
+				{
+					if( m_src_buf.size() > 8192 )
+						result.despair(make_error_code(parse_errno::HLTL));
+					return result;
+				}
+				auto line_buf = m_src_buf.substr(0, pos);
+				m_src_buf.erase(0, pos + 2);
+
+				if( line_buf.empty() )
 				{
 					m_state = state::finished;
 					m_src_buf.clear();
 					result = true;
-					break;
+					return result;
 				}
 				auto colon_index = line_buf.find(':');
 				if( colon_index == std::string::npos )
 				{
 					result.despair(make_error_code(parse_errno::SFE));
-					break;
+					return result;
 				}
 				auto error = header_insert (
 					strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
@@ -262,11 +409,10 @@ public:
 				{
 					result.despair(error);
 					reset();
+					return result;
 				}
 			}
 		}
-		while( not m_src_buf.empty() );
-		return result;
 	}
 
 	[[nodiscard]] error_code header_insert(std::string key, std::string value)
@@ -291,35 +437,40 @@ public:
 		m_version = version::none;
 		m_src_buf.clear();
 		m_headers.clear();
+		m_chunk_attributes.clear();
 		m_partial_body.clear();
 		m_content_length_counter = 0;
 		m_content_length = 0;
+		m_chunk_size = 0;
 	}
 
 public:
 	enum class state
 	{
-		waiting_request,      // GET /path HTTP/1.1\r\n
-							  // HTTP/1.1 200 OK\r\n
-		reading_headers,      // Key: Value\r\n
-		reading_length,       // Fixed length (Content-Length: 9\r\n).
-		chunked_wait_size,    // 9\r\n
-		chunked_wait_content, // body\r\n
-		chunked_wait_headers, // Key: Value\r\n
+		waiting_request,          // GET /path HTTP/1.1\r\n
+							      // HTTP/1.1 200 OK\r\n
+		reading_headers,          // Key: Value\r\n
+		reading_length,           // Fixed length (Content-Length: 9\r\n).
+		chunked_wait_size,        // 9\r\n
+		chunked_wait_content,     // body
+		chunked_wait_content_end, // \r\n
+		chunked_wait_headers,     // Key: Value\r\n
 		finished
 	}
 	m_state = state::waiting_request;
-	std::string m_src_buf;
+	std::string m_src_buf {};
 
 	version_enum m_version = static_cast<version_enum>(0);
-	headers_t m_headers;
+	headers_t m_headers {};
+	chunk_attributes_t m_chunk_attributes {};
 
-	std::string m_partial_body;
+	std::string m_partial_body {};
 	size_t m_content_length_counter = 0;
 	size_t m_content_length = 0;
+	size_t m_chunk_size = 0;
 
-	parse_begin_handler m_parse_begin;
-	parse_cookie_handler m_parse_cookie;
+	parse_begin_handler m_parse_begin {};
+	parse_cookie_handler m_parse_cookie {};
 };
 
 parser<protocol_model::base>::parser(size_t init_buf_size) :
@@ -439,6 +590,12 @@ parser<protocol_model::base>::stage_t parser<protocol_model::base>::stage() cons
 	else if( m_impl->m_partial_body.empty() )
 		return stage_t::finished;
 	return stage_t::body;
+}
+
+const parser<protocol_model::base>::chunk_attributes_t&
+parser<protocol_model::base>::chunk_attributes() const noexcept
+{
+	return m_impl->m_chunk_attributes;
 }
 
 parser<protocol_model::base> &parser<protocol_model::base>::unbind_parse_begin()

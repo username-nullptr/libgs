@@ -64,7 +64,7 @@ public:
 
 	[[nodiscard]] bool contains_parameter (
 		const core_concepts::text_p<char> auto &key,
-		const value_t &value = {}
+		const value_t &value
 	) const noexcept;
 
 	[[nodiscard]] bool contains_parameter (

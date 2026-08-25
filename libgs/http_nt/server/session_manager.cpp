@@ -40,9 +40,9 @@ session_ptr session_manager::impl::find(std::string_view id, bool _throw)
 	{
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http_nt::session_manager: <map>: id '{}' not exists.", id
-			);
+			));
 		}
 		return {};
 	}
@@ -53,17 +53,14 @@ session_ptr session_manager::impl::find(std::string_view id, bool _throw)
 std::pair<std::map<std::string_view,session_ptr>::iterator,bool>
 session_manager::impl::emplace(session_ptr session)
 {
-	m_map_mutex.lock();
-	auto pair = m_session_map.emplace(session->id(), std::move(session));
-	m_map_mutex.unlock();
-	return pair;
+	spin_shared_unique_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
+	return m_session_map.emplace(session->id(), std::move(session));
 }
 
 void session_manager::impl::erase(std::string_view id)
 {
-	m_map_mutex.lock();
+	spin_shared_unique_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
 	m_session_map.erase(std::string(id.data(), id.size()));
-	m_map_mutex.unlock();
 }
 
 session_manager::session_manager() :
