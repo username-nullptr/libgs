@@ -54,8 +54,11 @@ io_executor_t get_executor() noexcept
 int exec()
 {
 	if( g_run_flag )
-		throw runtime_error("libgs::execution::exec: not reentrant.");
-
+	{
+		runtime_error::loc_throw (
+			"libgs::execution::exec: not reentrant."
+		);
+	}
 	g_run_flag = true;
 	auto &ioc = io_context();
 	ioc.restart();

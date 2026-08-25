@@ -42,8 +42,9 @@ public:
 	impl &operator=(impl&&) noexcept = default;
 
 public:
-	explicit impl(version_enum version, url_t url, request_arg_t request) :
-		m_url(std::move(url))
+	explicit impl(version_enum version, url_t url, request_arg_t request,
+		request_target_form target_form) :
+		m_url(std::move(url)), m_target_form(target_form)
 	{
 		version_t::check(version);
 		if( version == version::v10 )
@@ -73,21 +74,26 @@ public:
 
 	cookies_t m_cookies {};
 	values_t m_chunk_attributes {};
+
+	request_target_form m_target_form =
+		request_target_form::origin;
 };
 
-generator<protocol_model::client>::generator(version_enum version, url_t url, request_arg_t arg) :
+generator<protocol_model::client>::generator(version_enum version, url_t url,
+	request_arg_t arg, request_target_form target_form) :
 	mutable_headers(nullptr),
 	mutable_cookies(nullptr),
 	mutable_chunk_attributes(nullptr),
-	m_impl(new impl(version, std::move(url), std::move(arg)))
+	m_impl(new impl(version, std::move(url), std::move(arg), target_form))
 {
 	m_headers = &m_impl->m_generator->headers();
 	m_cookies = &m_impl->m_cookies;
 	m_chunk_attributes = &m_impl->m_chunk_attributes;
 }
 
-generator<protocol_model::client>::generator(url_t url, request_arg_t arg) :
-	generator(version_enum::v11, std::move(url), std::move(arg))
+generator<protocol_model::client>::generator(url_t url, request_arg_t arg,
+	request_target_form target_form) :
+	generator(version_enum::v11, std::move(url), std::move(arg), target_form)
 {
 
 }
@@ -165,6 +171,18 @@ generator<protocol_model::client>::operator request_arg_t() const noexcept
 	return arg();
 }
 
+generator<protocol_model::client>&
+generator<protocol_model::client>::set_target_form(request_target_form form) noexcept
+{
+	m_impl->m_target_form = form;
+	return *this;
+}
+
+request_target_form generator<protocol_model::client>::target_form() const noexcept
+{
+	return m_impl->m_target_form;
+}
+
 std::string generator<protocol_model::client>::header_data(method_enum method, size_t body_size)
 {
 	if( m_impl->m_generator->state() != generator_state::header )
@@ -181,25 +199,68 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 				path += to_percent_encoding(key) + "=" + to_percent_encoding(*value) + "&";
 			path.pop_back();
 		}
-		buf += path + " HTTP/"
+		std::string target {};
+		if( method == method::connect or m_impl->m_target_form == request_target_form::authority )
+		{
+			target = std::string(url.address());
+			if( target.find(':') != std::string::npos and not target.starts_with('[') )
+				target = '[' + target + ']';
+			target += ':' + std::to_string(url.port());
+		}
+		else if( m_impl->m_target_form == request_target_form::absolute )
+			target = url.to_string();
+		else if( m_impl->m_target_form == request_target_form::asterisk )
+			target = "*";
+		else
+			target = std::move(path);
+
+		buf += target + " HTTP/"
 			+ version::string(m_impl->m_generator->version())
 			+ "\r\n";
 	}
-	mutable_headers::set_header(header::host, url.address());
+	auto host = std::string(url.address());
+	if( host.find(':') != std::string::npos and not host.starts_with('[') )
+		host = '[' + host + ']';
+
+	if( (url.protocol() == "http" and url.port() != 80) or
+		(url.protocol() == "https" and url.port() != 443) )
+		host += ':' + std::to_string(url.port());
+
+	mutable_headers::set_header(header::host, std::move(host));
 	buf += m_impl->m_generator->header_data(body_size);
 
 	if( not cookies().empty() )
 	{
 		buf += "Cookie: ";
+		bool first = true;
+
 		for(auto &[key,value] : cookies())
-			buf += key + "=" + *value + ";";
-		buf += "\r\n";
+		{
+			auto cookie_value = value.to_string();
+			if( key.empty() or key.find_first_of("()<>@,;:\\\"/[]?={} \t\r\n") !=
+				std::string::npos or cookie_value.find_first_of(";\r\n") != std::string::npos or
+				cookie_value.find('\0') != std::string::npos )
+				continue;
+
+			if( not first )
+				buf += "; ";
+
+			first = false;
+			buf += std::format("{}={}", key, cookie_value);
+		}
+		if( first )
+			buf.erase(buf.size() - std::string("Cookie: ").size());
+		else
+			buf += "\r\n";
 	}
 	return buf + "\r\n";
 }
 
 std::string generator<protocol_model::client>::body_data(const const_buffer &buffer)
 {
+	for(auto &attribute : m_impl->m_chunk_attributes)
+		m_impl->m_generator->set_chunk_attribute(attribute);
+	m_impl->m_chunk_attributes.clear();
 	return m_impl->m_generator->body_data(buffer);
 }
 

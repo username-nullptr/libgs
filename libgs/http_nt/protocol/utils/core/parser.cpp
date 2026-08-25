@@ -28,6 +28,7 @@
 
 #include "parser.h"
 #include <libgs/core/algorithm/misc.h>
+#include <libgs/core/string_vector.h>
 
 namespace libgs::http_nt { namespace
 {
@@ -95,7 +96,7 @@ public:
 			{
 				if( not m_parse_begin )
 				{
-					throw runtime_error (
+					runtime_error::loc_throw (
 						"libgs::http::parser: state_handler_waiting_begin == NULL."
 					);
 				}
@@ -149,7 +150,7 @@ public:
 		}
 		auto error = header_insert (
 			strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
-			from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1)))
+			strtls::trimmed(line_buf.substr(colon_index + 1))
 		);
 		if( error )
 		{
@@ -162,27 +163,47 @@ public:
 	[[nodiscard]] error_code set_read_body_state()
 	{
 		error_code error;
-		if( auto it = m_headers.find(header::content_length);
-			it != m_headers.end() )
+		if( m_skip_body )
 		{
-			auto expected = it->second.get<size_t>();
+			m_state = state::finished;
+			return error;
+		}
+		auto content_length = m_headers.find(header::content_length);
+		auto transfer_encoding = m_headers.find(header::transfer_encoding);
+
+		if( content_length != m_headers.end() and transfer_encoding != m_headers.end() )
+			return make_error_code(parse_errno::SFE);
+
+		if( content_length != m_headers.end() )
+		{
+			auto expected = content_length->second.get<size_t>();
 			if( not expected )
 				return make_error_code(parse_errno::SFE);
 
 			m_content_length = *expected;
 			parse_length();
 		}
-		else if( m_version == version::v11 )
+		else if( transfer_encoding != m_headers.end() )
 		{
-			it = m_headers.find(header::transfer_encoding);
-			if( it == m_headers.end() or it->second.to_string() != "chunked" )
-				m_state = state::finished;
-			else
+			if( m_version != version::v11 )
+				return make_error_code(parse_errno::SFE);
+
+			auto codings = string_vector::from_string(transfer_encoding->second.to_string(), ',');
+			if( codings.size() != 1 or strtls::to_lower(strtls::trimmed(codings.back())) != "chunked" )
+				return make_error_code(parse_errno::SFE);
+
+			m_state = state::chunked_wait_size;
+			parse_chunked().or_else([&](const error_code &e) {
+				error = e;
+			});
+		}
+		else if( m_read_until_eof )
+		{
+			m_state = state::reading_eof;
+			if( not m_src_buf.empty() )
 			{
-				m_state = state::chunked_wait_size;
-				parse_chunked().or_else([&](const error_code &e) {
-					error = e;
-				});
+				m_partial_body += m_src_buf;
+				m_src_buf.clear();
 			}
 		}
 		else
@@ -198,7 +219,7 @@ public:
 
 		m_content_length_counter += rsize;
 		m_partial_body += m_src_buf.substr(0, rsize);
-		m_src_buf.clear();
+		m_src_buf.erase(0, rsize);
 
 		m_state = m_content_length_counter == m_content_length ?
 			state::finished : state::reading_length;
@@ -392,7 +413,6 @@ public:
 				if( line_buf.empty() )
 				{
 					m_state = state::finished;
-					m_src_buf.clear();
 					result = true;
 					return result;
 				}
@@ -404,7 +424,7 @@ public:
 				}
 				auto error = header_insert (
 					strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
-					from_percent_encoding(strtls::trimmed(line_buf.substr(colon_index + 1)))
+					strtls::trimmed(line_buf.substr(colon_index + 1))
 				);
 				if( error )
 				{
@@ -422,27 +442,39 @@ public:
 		{
 			if( not m_parse_cookie )
 			{
-				throw runtime_error (
+				runtime_error::loc_throw (
 					"libgs::http::parser: state_handler_waiting_begin == NULL."
 				);
 			}
 			return m_parse_cookie(value);
 		}
-		m_headers[std::move(key)] = std::move(value);
+		if( auto it = m_headers.find(key); it != m_headers.end() )
+		{
+			if( key == "content-length" )
+				return make_error_code(parse_errno::SFE);
+			it->second = it->second.to_string() + ", " + value;
+		}
+		else
+			m_headers[std::move(key)] = std::move(value);
 		return {};
 	}
 
-	void reset()
+	void reset(bool preserve_input = false)
 	{
 		m_state = state::waiting_request;
 		m_version = version::none;
-		m_src_buf.clear();
+
+		if( not preserve_input )
+			m_src_buf.clear();
+
 		m_headers.clear();
 		m_chunk_attributes.clear();
 		m_partial_body.clear();
+
 		m_content_length_counter = 0;
 		m_content_length = 0;
 		m_chunk_size = 0;
+		m_skip_body = false;
 	}
 
 public:
@@ -452,6 +484,7 @@ public:
 							      // HTTP/1.1 200 OK\r\n
 		reading_headers,          // Key: Value\r\n
 		reading_length,           // Fixed length (Content-Length: 9\r\n).
+		reading_eof,              // Response body delimited by connection close.
 		chunked_wait_size,        // 9\r\n
 		chunked_wait_content,     // body
 		chunked_wait_content_end, // \r\n
@@ -463,12 +496,16 @@ public:
 
 	version_enum m_version = static_cast<version_enum>(0);
 	headers_t m_headers {};
-	chunk_attributes_t m_chunk_attributes {};
 
+	chunk_attributes_t m_chunk_attributes {};
 	std::string m_partial_body {};
+
 	size_t m_content_length_counter = 0;
 	size_t m_content_length = 0;
 	size_t m_chunk_size = 0;
+
+	bool m_skip_body = false;
+	bool m_read_until_eof = false;
 
 	parse_begin_handler m_parse_begin {};
 	parse_cookie_handler m_parse_cookie {};
@@ -547,6 +584,12 @@ sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 		m_impl->parse_length();
 		return true;
 	}
+	else if( m_impl->m_state == state_t::reading_eof )
+	{
+		m_impl->m_partial_body += m_impl->m_src_buf;
+		m_impl->m_src_buf.clear();
+		return false;
+	}
 	return m_impl->parse_chunked();
 }
 
@@ -560,6 +603,34 @@ parser<protocol_model::base> &parser<protocol_model::base>::reset()
 {
 	m_impl->reset();
 	return *this;
+}
+
+parser<protocol_model::base> &parser<protocol_model::base>::skip_body(bool value) noexcept
+{
+	m_impl->m_skip_body = value;
+	return *this;
+}
+
+parser<protocol_model::base> &parser<protocol_model::base>::read_until_eof(bool value) noexcept
+{
+	m_impl->m_read_until_eof = value;
+	return *this;
+}
+
+sys_expected<bool> parser<protocol_model::base>::next_message()
+{
+	m_impl->reset(true);
+	if( m_impl->m_src_buf.empty() )
+		return false;
+	return m_impl->parse_header();
+}
+
+bool parser<protocol_model::base>::finish_eof() noexcept
+{
+	if( m_impl->m_state != impl::state::reading_eof )
+		return false;
+	m_impl->m_state = impl::state::finished;
+	return true;
 }
 
 std::string parser<protocol_model::base>::take_partial_body(size_t size)
@@ -577,6 +648,11 @@ std::string parser<protocol_model::base>::take_partial_body(size_t size)
 std::string parser<protocol_model::base>::take_body()
 {
 	return std::exchange(m_impl->m_partial_body, {});
+}
+
+std::string parser<protocol_model::base>::take_pending_data()
+{
+	return std::exchange(m_impl->m_src_buf, {});
 }
 
 version_enum parser<protocol_model::base>::version() const noexcept

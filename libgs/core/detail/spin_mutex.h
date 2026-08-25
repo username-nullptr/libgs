@@ -39,7 +39,7 @@ inline spin_mutex::~spin_mutex()
 #if 0
 	if( m_native_handle )
 	{
-		throw runtime_error (
+		runtime_error::loc_throw (
 			"libgs::spin_mutex: Destruct a spin mutex that has not yet been unlocked."
 		);
 	}

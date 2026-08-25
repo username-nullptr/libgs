@@ -61,8 +61,11 @@ public:
 public:
 	struct req_info
 	{
-		url_t url;
-		request_arg_t arg;
+		url_t url {};
+		request_arg_t arg {};
+
+		std::optional<url_t> proxy {};
+		size_t max_redirects = 0;
 
 		req_info(url_t url, request_arg_t arg) :
 			url(std::move(url)), arg(std::move(arg)) {}
@@ -72,6 +75,15 @@ public:
 
 		req_info(core_concepts::string_p<char> auto &&url) :
 			url(std::forward<decltype(url)>(url)) {}
+
+		req_info &set_proxy(url_t value) {
+			proxy = std::move(value);
+			return *this;
+		}
+		req_info &follow_redirects(size_t limit = 10) noexcept {
+			max_redirects = limit;
+			return *this;
+		}
 	};
 
 	template <method_enum Method, typename Token>
@@ -196,6 +208,7 @@ public:
 		noexcept requires request_token_v<method::connect,Token>;
 
 public:
+	[[nodiscard]] std::shared_ptr<cookie_jar> cookie_store() noexcept;
 	[[nodiscard]] static consteval version_enum version() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 

@@ -29,7 +29,6 @@
 #include "parser.h"
 #include <libgs/http_nt/protocol/utils/core/parser.h>
 #include <libgs/core/string_vector.h>
-#include <deque>
 
 namespace libgs::http_nt
 {
@@ -43,6 +42,7 @@ public:
 		m_parser(init_buf_size)
 	{
 		m_parser
+		.read_until_eof()
 		.on_parse_begin([this](std::string_view line_buf)
 		{
 			sys_expected<version_enum> result = static_cast<version_enum>(0);
@@ -79,6 +79,14 @@ public:
 					base_parser::make_error_code(parse_errno::IHSC)
 				);
 			}
+			auto code = static_cast<uint16_t>(m_status);
+			m_parser.skip_body (
+				m_request_method == method::head or
+				(code >= 100 and code < 200) or
+				m_status == status::no_content or
+				m_status == status::not_modified or
+				(m_request_method == method::connect and code >= 200 and code < 300)
+			);
 			if( request_line_parts.size() > 2 )
 				m_description = request_line_parts.join(2, ' ');
 			else
@@ -98,8 +106,15 @@ public:
 				return base_parser::make_error_code(parse_errno::ICL);
 
 			auto key = strtls::trimmed(vector[0].substr(0, pos));
+			auto cookie_name = key;
+
 			auto value = strtls::trimmed(vector[0].substr(pos + 1));
 			auto &cookie = m_cookies[std::move(key)] = std::move(value);
+
+			// A received cookie without Path uses the request-path default.  The
+			// cookie value type defaults Path to "/" for server-side generation,
+			// so remove that construction default before parsing Set-Cookie.
+			cookie.unset_path();
 
 			for(size_t i=1; i<vector.size(); i++)
 			{
@@ -119,6 +134,7 @@ public:
 				value = strtls::trimmed(statement.substr(pos+1));
 				cookie.set_attribute(std::move(key), std::move(value));
 			}
+			m_set_cookies.emplace_back(std::move(cookie_name), cookie);
 			return error_code();
 		});
 	}
@@ -357,6 +373,8 @@ public:
 
 	std::string m_description = status::description<status::none>();
 	cookies_t m_cookies {};
+
+	set_cookie_values_t m_set_cookies {};
 	body_norms_t m_body_norms {};
 
 	optional<http_nt::content_range> m_content_range {};
@@ -369,6 +387,8 @@ public:
 	bool m_keep_alive = false;
 	bool m_support_gzip = false;
 	bool m_attributes_set = false;
+
+	method_enum m_request_method = method::get;
 };
 
 parser<protocol_model::client>::parser(size_t init_buf_size) :
@@ -417,6 +437,43 @@ bool parser<protocol_model::client>::is_multipart_byte_ranges() const noexcept
 	return static_cast<bool>(m_impl->m_multipart_parser);
 }
 
+bool parser<protocol_model::client>::is_informational() const noexcept
+{
+	auto code = static_cast<uint16_t>(m_impl->m_status);
+	return code >= 100 and code < 200 and
+		m_impl->m_status != status::switching_protocols;
+}
+
+bool parser<protocol_model::client>::is_upgrade() const noexcept
+{
+	if( m_impl->m_status != status::switching_protocols or
+		headers().find(header::upgrade) == headers().end() )
+		return false;
+
+	auto it = headers().find(header::connection);
+	if( it == headers().end() )
+		return false;
+
+	return std::ranges::any_of (
+		string_vector::from_string(it->second.to_string(), ','),
+		[](const auto &token) {
+			return strtls::to_lower(strtls::trimmed(token)) == "upgrade";
+		}
+	);
+}
+
+parser<protocol_model::client> &parser<protocol_model::client>::set_request_method
+(method_enum request_method) noexcept
+{
+	m_impl->m_request_method = request_method;
+	return *this;
+}
+
+method_enum parser<protocol_model::client>::request_method() const noexcept
+{
+	return m_impl->m_request_method;
+}
+
 const optional<http_nt::content_range>&
 parser<protocol_model::client>::content_range() const noexcept
 {
@@ -444,6 +501,12 @@ const body_norms_t &parser<protocol_model::client>::body_norms() const noexcept
 	return m_impl->m_body_norms;
 }
 
+const parser<protocol_model::client>::set_cookie_values_t&
+parser<protocol_model::client>::set_cookies() const noexcept
+{
+	return m_impl->m_set_cookies;
+}
+
 std::string parser<protocol_model::client>::take_partial_body(size_t size)
 {
 	return m_impl->take_partial_body(size);
@@ -455,6 +518,11 @@ std::string parser<protocol_model::client>::take_body()
 	m_impl->m_partial_body.clear();
 	m_impl->m_segments.clear();
 	return result;
+}
+
+std::string parser<protocol_model::client>::take_pending_data()
+{
+	return m_impl->m_parser.take_pending_data();
 }
 
 optional<byte_range_chunk> parser<protocol_model::client>::take_range_body(size_t size)
@@ -523,6 +591,40 @@ parser<protocol_model::client> &parser<protocol_model::client>::operator<<(const
 	return *this;
 }
 
+sys_expected<bool> parser<protocol_model::client>::next_message()
+{
+	m_impl->m_status = status::none;
+	m_impl->m_description = status::description<status::none>();
+
+	m_impl->m_cookies.clear();
+	m_impl->m_set_cookies.clear();
+
+	m_impl->m_keep_alive = false;
+	m_impl->m_support_gzip = false;
+
+	m_impl->reset_range_state();
+	auto expected = m_impl->m_parser.next_message();
+
+	if( not expected )
+		return expected;
+
+	if( m_impl->m_parser.stage() != stage::header )
+	{
+		if( auto error = m_impl->set_attribute() )
+			return sys_unexpected(error);
+		if( auto error = m_impl->consume_body() )
+			return sys_unexpected(error);
+	}
+	return expected;
+}
+
+bool parser<protocol_model::client>::finish_eof()
+{
+	if( not m_impl->m_parser.finish_eof() )
+		return false;
+	return not m_impl->consume_body();
+}
+
 version_enum parser<protocol_model::client>::version() const noexcept
 {
 	return m_impl->m_parser.version();
@@ -545,9 +647,13 @@ parser<protocol_model::client> &parser<protocol_model::client>::reset()
 	m_impl->m_parser.reset();
 	m_impl->m_status = status::none;
 	m_impl->m_description = status::description<status::none>();
+
 	m_impl->m_cookies.clear();
+	m_impl->m_set_cookies.clear();
+
 	m_impl->m_keep_alive = false;
 	m_impl->m_support_gzip = false;
+
 	m_impl->reset_range_state();
 	return *this;
 }

@@ -45,10 +45,10 @@ inline bool version::check(enumeration version, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::version::check: Invalid http version: '{}'.",
 				version
-			);
+			));
 		}
 		break;
 	}
@@ -74,10 +74,10 @@ inline const char *version::string(enumeration version, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::version::string: Invalid http version: '{}'.",
 				version
-			);
+			));
 		}
 		break;
 	}
@@ -98,9 +98,9 @@ constexpr version_enum version::from_string(std::string_view str)
 #define X_MACRO(e,v,d) if( str == d ) return version_enum::e;
 	LIBGS_HTTP_NT_VERSION_TABLE
 #undef X_MACRO
-	throw runtime_error (
+	runtime_error::loc_throw(std::format (
 		"libgs::http::version::from_string: Invalid http version string: '{}'.", str
-	);
+	));
 }
 
 constexpr version::version(std::string_view str) :
@@ -120,10 +120,10 @@ inline double version::number(enumeration version, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::version::number: Invalid http version: '{}'.",
 				version
-			);
+			));
 		}
 		break;
 	}

@@ -47,7 +47,7 @@ public:
 	using version_t = http_nt::version;
 
 	explicit generator(version_enum version = version_t::v11);
-	~generator();
+	~generator() override;
 
 	generator(generator &&other) noexcept;
 	generator &operator=(generator &&other) noexcept;
@@ -63,6 +63,8 @@ public:
 
 public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
+	[[nodiscard]] std::string header_data(size_t body_size, method_enum request_method);
+
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 

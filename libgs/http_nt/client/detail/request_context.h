@@ -40,21 +40,33 @@ class LIBGS_HTTP_NT_TAPI basic_request_context<Method,Connection,Version>::impl 
 	using connection_ptr = std::shared_ptr<connection_t>;
 
 public:
-	impl(connection_t &&connection, url_t url, request_arg_t arg) :
+	impl(connection_t &&connection, url_t url, request_arg_t arg,
+		std::shared_ptr<cookie_jar> cookie_store, request_target_form target_form) :
 		m_connection(new connection_t(std::move(connection))),
-		m_generator(std::move(url), std::move(arg)),
-		m_reply(new reply_t(m_connection)) {}
+		m_generator(std::move(url), std::move(arg), target_form),
+		m_reply(new reply_t(m_connection)),
+		m_cookie_store(std::move(cookie_store))
+	{
+		m_reply->parser().set_request_method(Method);
+		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
+	}
 
 	impl(impl &&other) noexcept :
 		m_connection(new connection_t(std::move(*other.m_connection))),
 		m_generator(std::move(other.m_generator)),
-		m_reply(new reply_t(m_connection, std::move(other.m_reply->parser()))) {}
+		m_reply(new reply_t(m_connection, std::move(other.m_reply->parser()))),
+		m_cookie_store(std::move(other.m_cookie_store))
+	{
+		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
+	}
 
 	impl &operator=(impl &&other) noexcept
 	{
 		m_generator = std::move(other.m_generator);
 		m_connection = std::make_shared<connection_t>(std::move(*other.m_connection));
 		m_reply = std::make_shared<reply_t>(m_connection, std::move(other.m_reply->parser()));
+		m_cookie_store = std::move(other.m_cookie_store);
+		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
 		return *this;
 	}
 
@@ -266,14 +278,14 @@ public:
 		}
 		else if( norms.index() == 2 )
 		{
-			auto &multipart_norms = std::get<multipart_body_norms>(norms);
-			for(auto &package : multipart_norms.packages)
+			const auto &[boundary, packages] = std::get<multipart_body_norms>(norms);
+			for(auto &package : packages)
 				total += package.range.total;
 
-			for(auto &package : multipart_norms.packages)
+			for(const auto &[headers, range] : packages)
 			{
-				auto prefix = std::format("--{}\r\n", multipart_norms.boundary);
-				for(auto &header : package.headers)
+				auto prefix = std::format("--{}\r\n", boundary);
+				for(auto &header : headers)
 					prefix += std::format("{}\r\n", header);
 				prefix += "\r\n";
 
@@ -282,14 +294,14 @@ public:
 					token->stream->close();
 					return io_unexpected(expected.error());
 				}
-				else if( auto error = do_transfer(package.range.begin, package.range.total) )
+				else if( auto error = do_transfer(range.begin, range.total) )
 				{
 					token->stream->close();
 					return io_unexpected(error);
 				}
 			}
 			token->stream->close();
-			if( auto expected = _write(std::format("--{}--\r\n", multipart_norms.boundary)); not expected )
+			if( auto expected = _write(std::format("--{}--\r\n", boundary)); not expected )
 				return io_unexpected(expected.error());
 		}
 		else
@@ -373,14 +385,14 @@ public:
 			}
 			else if( norms.index() == 2 )
 			{
-				auto &multipart_norms = std::get<multipart_body_norms>(norms);
-				for(auto &package : multipart_norms.packages)
+				auto &[boundary, packages] = std::get<multipart_body_norms>(norms);
+				for(auto &package : packages)
 					total += package.range.total;
 
-				for(auto &package : multipart_norms.packages)
+				for(auto &[headers, range] : packages)
 				{
-					auto prefix = std::format("--{}\r\n", multipart_norms.boundary);
-					for(auto &header : package.headers)
+					auto prefix = std::format("--{}\r\n", boundary);
+					for(auto &header : headers)
 						prefix += std::format("{}\r\n", header);
 					prefix += "\r\n";
 
@@ -391,7 +403,7 @@ public:
 						co_return io_unexpected(expected.error());
 					}
 					auto error = co_await do_transfer (
-						package.range.begin, package.range.total
+						range.begin, range.total
 					);
 					if( error )
 					{
@@ -401,7 +413,7 @@ public:
 				}
 				token->stream->close();
 				auto expected = co_await _co_write (
-					std::format("--{}--\r\n", multipart_norms.boundary),
+					std::format("--{}--\r\n", boundary),
 					cancel_slot, 0ns
 				);
 				if( not expected )
@@ -751,15 +763,18 @@ public:
 	connection_ptr m_connection {};
 	generator_t m_generator;
 	reply_ptr m_reply {};
+	std::shared_ptr<cookie_jar> m_cookie_store {};
 };
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 basic_request_context<Method,Connection,Version>::basic_request_context
-(connection_t &&connection, url_t url, request_arg_t arg) :
+(connection_t &&connection, url_t url, request_arg_t arg,
+	std::shared_ptr<cookie_jar> cookie_store, request_target_form target_form) :
 	mutable_headers<basic_request_context>(nullptr),
 	mutable_cookies<value,basic_request_context>(nullptr),
 	mutable_chunk_attributes<basic_request_context>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(connection), std::move(url), std::move(arg)))
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(url),
+		std::move(arg), std::move(cookie_store), target_form))
 {
 	this->m_headers = &m_impl->m_generator.headers();
 	this->m_cookies = &m_impl->m_generator.cookies();
@@ -1140,7 +1155,7 @@ auto basic_request_context<Method,Connection,Version>::wait_reply(Token &&token)
 }
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
-const basic_request_context<Method,Connection,Version>::reply_ptr
+basic_request_context<Method,Connection,Version>::const_reply_ptr
 basic_request_context<Method,Connection,Version>::reply() const noexcept
 {
 	return m_impl->m_reply;

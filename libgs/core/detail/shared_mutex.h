@@ -40,7 +40,7 @@ inline spin_shared_mutex::~spin_shared_mutex()
 #if 0
 	if( m_read_count == 0 )
 		return ;
-	throw runtime_error (
+	runtime_error::loc_throw (
 		"libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared."
 	);
 #endif

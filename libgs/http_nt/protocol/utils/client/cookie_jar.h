@@ -1,7 +1,6 @@
-
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,17 +25,59 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_H
-#define LIBGS_HTTP_NT_PROTOCOL_UTILS_H
+#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_CLIENT_COOKIE_JAR_H
+#define LIBGS_HTTP_NT_PROTOCOL_UTILS_CLIENT_COOKIE_JAR_H
 
-#include <libgs/http_nt/protocol/utils/generator.h>
-#include <libgs/http_nt/protocol/utils/parser.h>
+#include <libgs/http_nt/protocol/utils/client/url.h>
+#include <libgs/http_nt/protocol/cookie.h>
 
-#include <libgs/http_nt/protocol/utils/core/conditional.h>
-#include <libgs/http_nt/protocol/utils/core/upgrade.h>
+namespace libgs::http_nt
+{
 
-#include <libgs/http_nt/protocol/utils/client/cookie_jar.h>
-#include <libgs/http_nt/protocol/utils/client/form_data.h>
+class LIBGS_HTTP_NT_API cookie_jar
+{
+	LIBGS_DISABLE_COPY_MOVE(cookie_jar)
 
+public:
+	struct entry
+	{
+		std::string name {};
+		std::string value {};
+		std::string domain {};
+		std::string path {};
 
-#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_H
+		optional <
+			std::chrono::system_clock::time_point
+		> expires {};
+
+		bool secure = false;
+		bool http_only = false;
+		bool host_only = true;
+
+		uint64_t creation_index = 0;
+	};
+
+public:
+	cookie_jar();
+	~cookie_jar();
+
+	bool store(const url &origin,
+		std::string name, const cookie &value
+	);
+	void store(const url &origin,
+		const std::vector<std::pair<std::string,cookie>> &values
+	);
+	[[nodiscard]] cookie_values cookies_for(const url &target);
+	[[nodiscard]] std::vector<entry> entries();
+
+	[[nodiscard]] size_t size();
+	void clear() noexcept;
+
+private:
+	class impl;
+	impl *m_impl;
+};
+
+} //namespace libgs::http_nt
+
+#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_CLIENT_COOKIE_JAR_H

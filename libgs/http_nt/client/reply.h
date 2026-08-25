@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_NT_CLIENT_REPLY_H
 
 #include <libgs/http_nt/protocol/utils/client/parser.h>
+#include <libgs/http_nt/protocol/utils/client/cookie_jar.h>
 #include <libgs/http_nt/utils/connection.h>
 
 namespace libgs::http_nt
@@ -96,6 +97,8 @@ public:
 
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
+	[[nodiscard]] bool is_upgrade() const noexcept;
+	[[nodiscard]] std::string take_pending_data();
 
 	[[nodiscard]] const connection_t &connection() const noexcept;
 	[[nodiscard]] connection_t &connection() noexcept;
@@ -104,6 +107,7 @@ public:
 	[[nodiscard]] parser_t &parser() noexcept;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
+	basic_reply &bind_cookie_jar(std::shared_ptr<cookie_jar> jar, url origin);
 	basic_reply &cancel() noexcept;
 
 private:

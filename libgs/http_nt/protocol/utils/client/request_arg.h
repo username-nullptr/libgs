@@ -41,13 +41,24 @@ class LIBGS_HTTP_NT_API request_arg final :
 {
 public:
 	request_arg();
-	~request_arg();
+	~request_arg() override;
 
 	request_arg(const request_arg &other) noexcept;
 	request_arg &operator=(const request_arg &other) noexcept;
 
 	request_arg(request_arg &&other) noexcept;
 	request_arg &operator=(request_arg &&other) noexcept;
+
+public:
+	request_arg &set_basic_auth (
+		std::string_view username, std::string_view password
+	);
+	request_arg &set_bearer_auth (
+		std::string_view token
+	);
+	request_arg &set_proxy_basic_auth (
+		std::string_view username, std::string_view password
+	);
 
 private:
 	class impl;

@@ -50,6 +50,8 @@ public:
 	~generator() override = 0;
 
 	[[nodiscard]] virtual std::string header_data(size_t body_size) noexcept;
+	[[nodiscard]] std::string header_data_no_body(bool preserve_content_length = false) noexcept;
+
 	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;
 	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers) noexcept;
 

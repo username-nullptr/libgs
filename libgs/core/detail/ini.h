@@ -321,7 +321,7 @@ public:
 					auto [key, value] = parsing_key_value(buf, line);
 					if( not curr_group )
 					{
-						throw system_error (
+						system_error::loc_throw (
 							std::error_code(static_cast<int>(line), detail::ini_no_group_specified()),
 							"libgs::basic_ini"
 						);
@@ -423,9 +423,10 @@ public:
 
 		if( str_list.size() != 2 )
 		{
-			throw runtime_error("libgs::basic_ini: {}: The path '{}' is invalid.",
+			runtime_error::loc_throw(std::format (
+				"libgs::basic_ini: {}: The path '{}' is invalid.",
 				func, strtls::detail::ascii_transition<char>(path)
-			);
+			));
 		}
 		return std::make_pair(str_list[0], str_list[1]);
 	}
@@ -491,7 +492,7 @@ private:
 	{
 		if( str.size() < 3 or not str.ends_with(static_cast<char_t>(']')) )
 		{
-			throw system_error (
+			system_error::loc_throw (
 				std::error_code(static_cast<int>(line), detail::ini_invalid_group()),
 				"libgs::basic_ini"
 			);
@@ -501,7 +502,7 @@ private:
 		);
 		if( group.empty() )
 		{
-			throw system_error (
+			system_error::loc_throw (
 				std::error_code(static_cast<int>(line), detail::ini_invalid_group()),
 				"libgs::basic_ini"
 			);
@@ -513,7 +514,7 @@ private:
 	{
 		if( str.size() < 2 )
 		{
-			throw system_error (
+			system_error::loc_throw (
 				std::error_code(static_cast<int>(line), detail::ini_invalid_key_value_line()),
 				"libgs::basic_ini"
 			);
@@ -521,14 +522,14 @@ private:
 		auto pos = str.find(static_cast<char_t>('='));
 		if( pos == 0 )
 		{
-			throw system_error (
+			system_error::loc_throw (
 				std::error_code(static_cast<int>(line), detail::ini_key_is_empty()),
 				"libgs::basic_ini"
 			);
 		}
 		else if( pos == string_t::npos )
 		{
-			throw system_error (
+			system_error::loc_throw (
 				std::error_code(static_cast<int>(line), detail::ini_invalid_key_value_line()),
 				"libgs::basic_ini"
 			);
@@ -536,7 +537,7 @@ private:
 		auto key = from_percent_encoding(strtls::trimmed(str.substr(0,pos)));
 		if( key.empty() )
 		{
-			throw system_error (
+			system_error::loc_throw (
 				std::error_code(static_cast<int>(line), detail::ini_key_is_empty()),
 				"libgs::basic_ini"
 			);
@@ -558,7 +559,7 @@ private:
 				value[0] == static_cast<char_t>('\'') or
 				value[0] == static_cast<char_t>('"') )
 			{
-				throw system_error (
+				system_error::loc_throw (
 					std::error_code(static_cast<int>(line), detail::ini_invalid_value()),
 					"libgs::basic_ini"
 				);
@@ -568,7 +569,7 @@ private:
 		{
 			if( value.back() != value[0] )
 			{
-				throw system_error (
+				system_error::loc_throw (
 					std::error_code(static_cast<int>(line), detail::ini_invalid_value()),
 					"libgs::basic_ini"
 				);
@@ -769,9 +770,10 @@ basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto 
 	auto it = m_impl->m_groups.find(impl::replace(group));
 	if( it != m_impl->m_groups.end() )
 	{
-		throw runtime_error("basic_ini: group: The group '{}' is not exists.",
+		runtime_error::loc_throw(std::format (
+			"basic_ini: group: The group '{}' is not exists.",
 			strtls::detail::ascii_transition<char>(std::forward<decltype(group)>(group))
-		);
+		));
 	}
 	return it->second;
 }
@@ -784,9 +786,10 @@ basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto 
 	auto it = m_impl->m_groups.find(impl::replace(group));
 	if( it != m_impl->m_groups.end() )
 	{
-		throw runtime_error("basic_ini: group: The group '{}' is not exists.",
+		runtime_error::loc_throw(std::format (
+			"basic_ini: group: The group '{}' is not exists.",
 			strtls::detail::ascii_transition<char>(std::forward<decltype(group)>(group))
-		);
+		));
 	}
 	return it->second;
 }
@@ -975,7 +978,11 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 		error_code error;
 		load(error);
 		if( error )
-			throw system_error(error, "libgs::basic_ini::load");
+		{
+			system_error::loc_throw (
+				error, "libgs::basic_ini::load"
+			);
+		}
 	}
 	else
 	{
@@ -1054,7 +1061,11 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(Token &&token)
 		error_code error;
 		sync(error);
 		if( error )
-			throw system_error(error, "libgs::basic_ini::sync");
+		{
+			system_error::loc_throw (
+				error, "libgs::basic_ini::sync"
+			);
+		}
 	}
 	else
 	{

@@ -136,6 +136,9 @@ X_MACRO( not_modified       , status::not_modified       , "Not Modified"       
 LIBGS_HTTP_NT_DEFINE_ENUM(uint32_t, redirect, LIBGS_HTTP_NT_REDIRECT_TYPE_TABLE, description);
 #undef X_MACRO
 
+enum class request_target_form {
+	origin, absolute, authority, asterisk
+};
 using parameters = parameter_map;
 
 } //namespace libgs::http_nt

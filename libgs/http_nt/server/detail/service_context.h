@@ -40,13 +40,16 @@ class LIBGS_HTTP_NT_TAPI basic_service_context<Connection>::impl
 public:
 	impl(connection_ptr connection, session_manager &session_manager) :
 		m_session_manager(session_manager),
+		m_connection(connection),
 		m_response(connection),
 		m_request(connection) {}
 
 public:
 	session_manager &m_session_manager;
+	connection_ptr m_connection;
 	response_t m_response;
 	request_t m_request;
+	bool m_connection_handed_over = false;
 };
 
 template <concepts::connection Connection>
@@ -96,6 +99,20 @@ basic_service_context<Connection>::executor_t
 basic_service_context<Connection>::get_executor() noexcept
 {
 	return request().get_executor();
+}
+
+template <concepts::connection Connection>
+basic_service_context<Connection>::connection_ptr
+basic_service_context<Connection>::hand_over_connection() noexcept
+{
+	m_impl->m_connection_handed_over = true;
+	return m_impl->m_connection;
+}
+
+template <concepts::connection Connection>
+bool basic_service_context<Connection>::connection_handed_over() const noexcept
+{
+	return m_impl->m_connection_handed_over;
 }
 
 template <concepts::connection Connection>

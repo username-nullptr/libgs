@@ -54,7 +54,7 @@ public:
 
 public:
 	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
+	~parser() override;
 
 	parser(parser &&other) noexcept;
 	parser &operator=(parser &&other) noexcept;
@@ -66,6 +66,8 @@ public:
 
 public:
 	[[nodiscard]] method_enum method() const noexcept;
+	[[nodiscard]] request_target_form target_form() const noexcept;
+	[[nodiscard]] std::string_view target() const noexcept;
 	[[nodiscard]] std::string_view path() const noexcept;
 	[[nodiscard]] version_enum version() const noexcept;
 
@@ -80,6 +82,7 @@ public:
 
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+	[[nodiscard]] std::string take_pending_data();
 
 	[[nodiscard]] stage_t stage() const noexcept;
 	parser &reset();

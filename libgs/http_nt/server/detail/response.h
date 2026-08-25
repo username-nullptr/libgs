@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_NT_SERVER_DETAIL_RESPONSE_H
 
 #include <libgs/http_nt/protocol/utils/server/generator.h>
+#include <libgs/http_nt/protocol/utils/core/conditional.h>
 #include <libgs/http_nt/protocol/utils/core/range.h>
 
 namespace libgs::http_nt
@@ -68,7 +69,7 @@ public:
 				return sum;
 			sum += bytes;
 		}
-		if( body.size() > 0 )
+		if( body.size() > 0 and m_generator.pro_state() != generator_state::finish )
 		{
 			auto bytes = write_body(body, error);
 			if( error )
@@ -102,7 +103,7 @@ public:
 					co_return ;
 				sum += bytes;
 			}
-			if( body.size() > 0 )
+			if( body.size() > 0 and m_generator.pro_state() != generator_state::finish )
 			{
 				auto bytes = co_await co_write_body (
 					body, error, std::move(cancel_slot)
@@ -163,6 +164,13 @@ public:
 			error = f_token.error();
 			return 0;
 		}
+		set_file_validators(*f_token);
+		if( auto result = precondition_status(); result != status::none )
+		{
+			auto length = result == status::not_modified ? f_token->file_size : 0;
+			m_generator.set_status(result).set_header(header::content_length, length);
+			return write_header(length, error);
+		}
 		if( m_req_method != method::get or m_req_range.empty() or
 			not if_range_matches() or f_token->file_size == 0 )
 		{
@@ -205,6 +213,7 @@ public:
 			error = f_token.error();
 			co_return 0;
 		}
+		set_file_validators(*f_token);
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 		size_t sum = 0;
@@ -212,6 +221,13 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<void>
 		{
+			if( auto result = precondition_status(); result != status::none )
+			{
+				auto length = result == status::not_modified ? f_token->file_size : 0;
+				m_generator.set_status(result).set_header(header::content_length, length);
+				sum = co_await co_write_header(length, error, cancel_slot);
+				co_return ;
+			}
 			if( m_req_method != method::get or m_req_range.empty() or
 				not if_range_matches() or f_token->file_size == 0 )
 			{
@@ -338,7 +354,8 @@ private:
 		.set_header(header::content_type, token.mime_type);
 
 		auto sum = write_header(token.file_size, error);
-		if( error or token.file_size == 0 )
+		if( error or token.file_size == 0 or
+			m_generator.pro_state() == generator_state::finish )
 			return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
@@ -371,7 +388,8 @@ private:
 		.set_header(header::content_type, token.mime_type);
 
 		auto sum = co_await co_write_header(token.file_size, error, cancel_slot);
-		if( error or token.file_size == 0 )
+		if( error or token.file_size == 0 or
+			m_generator.pro_state() == generator_state::finish )
 			co_return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
@@ -715,14 +733,14 @@ private:
 
 private:
 	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept {
-		return base_write(m_generator.header_data(size), error);
+		return base_write(m_generator.header_data(size, m_req_method), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_header
 	(size_t size, error_code &error, asio::cancellation_slot cancel_slot) noexcept
 	{
 		co_return co_await co_base_write (
-			m_generator.header_data(size), error, std::move(cancel_slot)
+			m_generator.header_data(size, m_req_method), error, std::move(cancel_slot)
 		);
 	}
 
@@ -782,6 +800,48 @@ private:
 	}
 
 private:
+	template <typename Opt>
+	void set_file_validators(const Opt &token) noexcept
+	{
+		if constexpr( requires { token.file_name; } )
+		{
+			if( token.file_name.empty() )
+				return ;
+			std::error_code error;
+			auto file_time = std::filesystem::last_write_time(token.file_name, error);
+			if( error )
+				return ;
+			auto modified = std::chrono::time_point_cast<std::chrono::system_clock::duration> (
+				file_time - decltype(file_time)::clock::now() +
+				std::chrono::system_clock::now()
+			);
+			auto seconds = std::chrono::duration_cast<std::chrono::seconds> (
+				modified.time_since_epoch()
+			).count();
+			if( not m_generator.contains_header(header::last_modified) )
+				m_generator.set_header(header::last_modified, format_http_date(modified));
+			if( not m_generator.contains_header(header::etag) )
+				m_generator.set_header(header::etag,
+					std::format("W/\"{:x}-{:x}\"", token.file_size, seconds)
+				);
+		}
+	}
+
+	[[nodiscard]] status_enum precondition_status() const noexcept
+	{
+		switch(evaluate_preconditions(
+			m_req_method, m_req_headers, m_generator.headers(), true
+		))
+		{
+		case precondition_result::not_modified:
+			return status::not_modified;
+		case precondition_result::precondition_failed:
+			return status::precondition_failed;
+		default:
+			return status::none;
+		}
+	}
+
 	[[nodiscard]] bool if_range_matches() const noexcept
 	{
 		if( m_req_if_range.empty() )
@@ -794,10 +854,17 @@ private:
 		if( m_req_if_range.starts_with('"') )
 		{
 			auto it = headers.find(header::etag);
-			return it != headers.end() and it->second.to_string() == m_req_if_range;
+			return it != headers.end() and
+				strong_entity_tag_equal(it->second.to_string(), m_req_if_range);
 		}
 		auto it = headers.find(header::last_modified);
-		return it != headers.end() and it->second.to_string() == m_req_if_range;
+		if( it == headers.end() )
+			return false;
+		auto validator = parse_http_date(m_req_if_range);
+		auto modified = parse_http_date(it->second.to_string());
+		return validator and modified and
+			std::chrono::floor<std::chrono::seconds>(*modified) <=
+			std::chrono::floor<std::chrono::seconds>(*validator);
 	}
 
 	[[nodiscard]] static bool excessive_range_set
@@ -864,6 +931,7 @@ public:
 	generator_t m_generator {};
 
 	method_enum m_req_method = method::get;
+	headers_t m_req_headers {};
 	std::string m_req_range {};
 	std::string m_req_if_range {};
 };
@@ -903,6 +971,7 @@ template <concepts::connection Connection>
 basic_response<Connection> &basic_response<Connection>::auto_set(request_t &request)
 {
 	m_impl->m_req_method = request.method();
+	m_impl->m_req_headers = request.headers();
 	if( version() < http_nt::version::v11 )
 		return *this;
 
@@ -1268,7 +1337,7 @@ auto basic_response<Connection>::continues(Token &&token)
 	requires task_token_v<Token,size_t>
 {
 	this->set_status(http_nt::status::continue_upload);
-	return write({nullptr,0});
+	return write({nullptr,0}, std::forward<Token>(token));
 }
 
 template <concepts::connection Connection>

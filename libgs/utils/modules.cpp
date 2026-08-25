@@ -73,16 +73,16 @@ public:
 	{
 		if( name.empty() )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw (
 				"libgs::modules::reg_init: Empty module name."
 			);
 		}
 		if( m_names.contains(name) )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::modules::reg_init: Module name '{}' already registered.",
 				name
-			);
+			));
 		}
 		auto res = [&func]() -> bool
 		{
@@ -97,7 +97,7 @@ public:
 		}();
 		if( not res )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw (
 				"libgs::modules::reg_init: Invalid function object."
 			);
 		}
@@ -112,7 +112,7 @@ public:
 
 		else if( m_counter == 0 )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw (
 				"libgs::modules::reg_init: Initialization has been completed. Do not call again."
 			);
 		}
@@ -124,10 +124,10 @@ public:
 				text += cycle[i] + " -> ";
 			text += cycle.back();
 
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::modules::reg_init: Circular dependency detected: {}",
 				text
-			);
+			));
 		}
 		init(std::move(args), std::move(callback));
 	}

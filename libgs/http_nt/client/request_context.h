@@ -57,6 +57,7 @@ public:
 
 	using reply_t = basic_reply<connection_t>;
 	using reply_ptr = std::shared_ptr<reply_t>;
+	using const_reply_ptr = std::shared_ptr<const reply_t>;
 
 	using value_t = request_arg_t::value_t;
 	using generator_t = client_generator;
@@ -69,7 +70,10 @@ public:
 		method_v == method_t::post or method_v == method_t::put;
 
 public:
-	basic_request_context(connection_t &&connection, url_t url, request_arg_t arg = {});
+	basic_request_context(connection_t &&connection, url_t url, request_arg_t arg = {},
+		std::shared_ptr<cookie_jar> cookie_store = {},
+		request_target_form target_form = request_target_form::origin
+	);
 	~basic_request_context() override;
 
 	basic_request_context(basic_request_context &&other) noexcept;
@@ -118,7 +122,7 @@ public:
 	auto wait_reply(Token &&token = {}) noexcept
 		requires task_token_v<Token,status_enum>;
 
-	[[nodiscard]] const reply_ptr reply() const noexcept;
+	[[nodiscard]] const_reply_ptr reply() const noexcept;
 	[[nodiscard]] reply_ptr reply() noexcept;
 
 	[[nodiscard]] bool responded() const noexcept;

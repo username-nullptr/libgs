@@ -110,9 +110,10 @@ std::shared_ptr<Session> session_manager::get_or_make
 	auto rptr = std::dynamic_pointer_cast<Session>(ptr);
 	if( not rptr )
 	{
-		throw runtime_error (
-			"libgs::http::session_manager::get_or_make: type error [id = {}].", id_view
-		);
+		runtime_error::loc_throw(std::format (
+			"libgs::http::session_manager::get_or_make: type error [id = {}].",
+			id_view
+		));
 	}
 	return rptr;
 }
@@ -138,9 +139,10 @@ std::shared_ptr<Session> session_manager::get(const core_concepts::text_p<char> 
 	);
 	if( not ptr )
 	{
-		throw runtime_error(
-			"libgs::http::session_manager::get: type error [id = {}].", id_view
-		);
+		runtime_error::loc_throw(std::format (
+			"libgs::http::session_manager::get: type error [id = {}].",
+			id_view
+		));
 	}
 	return ptr;
 }
@@ -157,9 +159,10 @@ std::shared_ptr<Session> session_manager::get_or(const core_concepts::text_p<cha
 	auto ptr = std::dynamic_pointer_cast<Session>(session);
 	if( not ptr )
 	{
-		throw runtime_error(
-			"libgs::http::session_manager::get_or: type error [id = {}].", id_view
-		);
+		runtime_error::loc_throw(std::format (
+			"libgs::http::session_manager::get_or: type error [id = {}].",
+			id_view
+		));
 	}
 	return ptr;
 }
@@ -191,7 +194,7 @@ session_manager &session_manager::set_cookie_key(core_concepts::text_p<char> aut
 	auto key_str = strtls::to_string(std::forward<decltype(key)>(key));
 	if( key_str.empty() )
 	{
-		throw runtime_error (
+		runtime_error::loc_throw (
 			"libgs::http::session::set_cookie_key: key is empty."
 		);
 	}

@@ -70,11 +70,18 @@ public:
 
 	sys_expected<bool> append(const const_buffer &buf);
 	parser &operator<<(const const_buffer &buf);
+
 	parser &reset();
+	parser &skip_body(bool value = true) noexcept;
+	parser &read_until_eof(bool value = true) noexcept;
+
+	[[nodiscard]] sys_expected<bool> next_message();
+	[[nodiscard]] bool finish_eof() noexcept;
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+	[[nodiscard]] std::string take_pending_data();
 
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] stage_t stage() const noexcept;

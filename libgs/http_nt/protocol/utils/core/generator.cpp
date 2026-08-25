@@ -30,6 +30,108 @@
 
 namespace libgs::http_nt
 {
+namespace
+{
+
+[[nodiscard]] bool valid_field_name(std::string_view value) noexcept
+{
+	constexpr std::string_view punctuation = "!#$%&'*+-.^_`|~";
+	return not value.empty() and std::ranges::all_of(value, [&](unsigned char ch) {
+		return std::isalnum(ch) or punctuation.find(static_cast<char>(ch)) != std::string_view::npos;
+	});
+}
+
+[[nodiscard]] bool valid_field_value(std::string_view value) noexcept
+{
+	return value.find('\r') == std::string_view::npos and
+		   value.find('\n') == std::string_view::npos and
+		   value.find('\0') == std::string_view::npos;
+}
+
+[[nodiscard]] bool token_char(unsigned char ch) noexcept
+{
+	constexpr std::string_view punctuation = "!#$%&'*+-.^_`|~";
+	return std::isalnum(ch) or punctuation.find(static_cast<char>(ch)) != std::string_view::npos;
+}
+
+[[nodiscard]] std::string_view trim_ows(std::string_view value) noexcept
+{
+	while( not value.empty() and (value.front() == ' ' or value.front() == '\t') )
+		value.remove_prefix(1);
+	while( not value.empty() and (value.back() == ' ' or value.back() == '\t') )
+		value.remove_suffix(1);
+	return value;
+}
+
+[[nodiscard]] bool valid_chunk_extension(std::string_view value) noexcept
+{
+	value = trim_ows(value);
+	size_t pos = 0;
+
+	while( pos < value.size() and token_char(static_cast<unsigned char>(value[pos])) )
+		++pos;
+
+	if( pos == 0 )
+		return false;
+
+	while( pos < value.size() and (value[pos] == ' ' or value[pos] == '\t') )
+		++pos;
+
+	if( pos == value.size() )
+		return true;
+
+	if( value[pos++] != '=' )
+		return false;
+
+	while( pos < value.size() and (value[pos] == ' ' or value[pos] == '\t') )
+		++pos;
+
+	if( pos == value.size() )
+		return false;
+
+	if( value[pos] != '"' )
+	{
+		auto begin = pos;
+		while( pos < value.size() and token_char(static_cast<unsigned char>(value[pos])) )
+			++pos;
+		return pos > begin and trim_ows(value.substr(pos)).empty();
+	}
+	++pos;
+	bool closed = false;
+
+	while( pos < value.size() )
+	{
+		auto ch = static_cast<unsigned char>(value[pos++]);
+		if( ch == '"' )
+		{
+			closed = true;
+			break;
+		}
+		if( ch == '\\' )
+		{
+			if( pos == value.size() )
+				return false;
+			ch = static_cast<unsigned char>(value[pos++]);
+		}
+		if( ch != '\t' and (ch < 0x20 or ch == 0x7F) )
+			return false;
+	}
+	return closed and trim_ows(value.substr(pos)).empty();
+}
+
+[[nodiscard]] std::string serialize_headers(const headers &values)
+{
+	std::string result;
+	for(auto &[key,value] : values)
+	{
+		auto text = value.to_string();
+		if( valid_field_name(key) and valid_field_value(text) )
+			result += std::format("{}: {}\r\n", key, text);
+	}
+	return result;
+}
+
+} //namespace
 
 class LIBGS_DECL_HIDDEN generator<protocol_model::base>::impl
 {
@@ -91,10 +193,24 @@ std::string generator<protocol_model::base>::header_data(size_t body_size) noexc
 		m_impl->m_content_length = *it->second.get<size_t>().or_else();
 		m_impl->m_state = state_t::content_length;
 	}
-	std::string buf;
-	for(auto &[key,value] : headers)
-		buf += key + ": " + *value + "\r\n";
-	return buf;
+	return serialize_headers(headers);
+}
+
+std::string generator<protocol_model::base>::header_data_no_body
+(bool preserve_content_length) noexcept
+{
+	if( state() != state_t::header )
+		return {};
+
+	auto &values = headers();
+	values.erase(header::transfer_encoding);
+
+	if( not preserve_content_length )
+		values.erase(header::content_length);
+
+	m_impl->m_content_length = 0;
+	m_impl->m_state = state_t::finish;
+	return serialize_headers(values);
 }
 
 std::string generator<protocol_model::base>::body_data(const const_buffer &buffer) noexcept
@@ -119,19 +235,20 @@ std::string generator<protocol_model::base>::body_data(const const_buffer &buffe
 		return {static_cast<const char*>(buffer.data()), size};
 	}
 	std::string sum;
-	if( m_impl->m_chunk_attributes.empty() )
-		sum += std::format("{:X}\r\n", buffer.size());
-	else
-	{
-		std::string attributes;
-		for(auto &attr : m_impl->m_chunk_attributes)
-			attributes += *attr + ";";
+	sum += std::format("{:X}", buffer.size());
 
-		m_impl->m_chunk_attributes.clear();
-		attributes.pop_back();
-		sum += std::format("{:X}; {}\r\n", buffer.size(), attributes);
+	for(auto &attr : m_impl->m_chunk_attributes)
+	{
+		auto value = trim_ows(attr.to_string());
+		if( valid_chunk_extension(value) )
+			sum += "; " + std::string(value);
 	}
-	return sum + std::string(static_cast<const char*>(buffer.data()), buffer.size()) + "\r\n";
+	m_impl->m_chunk_attributes.clear();
+	sum += "\r\n";
+
+	return sum + std::string (
+		static_cast<const char*>(buffer.data()), buffer.size()
+	) + "\r\n";
 }
 
 std::string generator<protocol_model::base>::chunk_end_data(const headers_t &headers) noexcept
@@ -142,9 +259,7 @@ std::string generator<protocol_model::base>::chunk_end_data(const headers_t &hea
 	m_impl->m_state = state_t::finish;
 	std::string buf = "0\r\n";
 
-	for(auto &[key,value] : headers)
-		buf += key + ": " + *value + "\r\n";
-	return buf + "\r\n";
+	return buf + serialize_headers(headers) + "\r\n";
 }
 
 std::string generator<protocol_model::base>::header_data() noexcept
@@ -190,10 +305,7 @@ std::string generator_v11<protocol_model::base>::header_data(size_t body_size) n
 		m_impl->m_content_length = *it->second.get<size_t>().or_else();
 		m_impl->m_state = state_t::content_length;
 	}
-	std::string buf;
-	for(auto &[key,value] : headers)
-		buf += key + ": " + *value + "\r\n";
-	return buf;
+	return serialize_headers(headers);
 }
 
 version_enum generator_v11<protocol_model::base>::version() const noexcept

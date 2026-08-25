@@ -37,7 +37,7 @@ inline shared_mutex::~shared_mutex()
 #if
 	if( m_read_count == 0 )
 		return ;
-	throw runtime_error (
+	runtime_error::loc_throw (
 		"libgs::shared_mutex: Destruct a mutex that has not yet been unlock_shared."
 	);
 #else

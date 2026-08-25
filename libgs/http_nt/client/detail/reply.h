@@ -50,6 +50,18 @@ public:
 	}
 
 public:
+	void capture_cookies()
+	{
+		if( m_cookies_captured or not m_cookie_jar or
+			m_parser.status() == status::none or
+			m_parser.stage() == parser_t::stage_t::header or
+			m_parser.is_informational() )
+			return ;
+
+		m_cookie_jar->store(m_origin, m_parser.set_cookies());
+		m_cookies_captured = true;
+	}
+
 	[[nodiscard]] sys_expected<status_enum> wait() noexcept
 	{
 		if( m_first_error )
@@ -57,10 +69,22 @@ public:
 
 		else if( m_parser.stage() != parser_t::stage_t::header )
 		{
-			if( m_parser.status() == status::continue_upload )
-				m_parser.reset();
+			if( m_parser.is_informational() )
+			{
+				auto expected = m_parser.next_message();
+				if( not expected )
+					return sys_unexpected(expected.error());
+				if( *expected )
+				{
+					capture_cookies();
+					return m_parser.status();
+				}
+			}
 			else
+			{
+				capture_cookies();
 				return m_parser.status();
+			}
 		}
 		auto &sock = m_connection->opt_helper();
 		if( not sock.is_open() )
@@ -91,6 +115,7 @@ public:
 			else if( *expected )
 				break;
 		}
+		capture_cookies();
 		return m_parser.status();
 	}
 
@@ -102,10 +127,23 @@ public:
 
 		else if( m_parser.stage() != parser_t::stage_t::header )
 		{
-			if( m_parser.status() == status::continue_upload )
-				m_parser.reset();
+			if( m_parser.is_informational() )
+			{
+				auto expected = m_parser.next_message();
+				if( not expected )
+					co_return sys_unexpected(expected.error());
+
+				if( *expected )
+				{
+					capture_cookies();
+					co_return m_parser.status();
+				}
+			}
 			else
+			{
+				capture_cookies();
 				co_return m_parser.status();
+			}
 		}
 		auto &sock = m_connection->opt_helper();
 		if( not sock.is_open() )
@@ -165,6 +203,8 @@ public:
 			else
 				expected.despair(std::get<1>(var));
 		}
+		if( expected )
+			capture_cookies();
 		co_return expected;
 	}
 
@@ -186,16 +226,16 @@ public:
 			return sys_unexpected(m_first_error);
 
 		auto &sock = m_connection->opt_helper();
-		if( not sock.is_open() )
-		{
-			return sys_unexpected (
-				make_error_code(std::errc::not_connected)
-			);
-		}
-		else if( m_parser.stage() == parser_t::stage_t::finished )
+		if( m_parser.stage() == parser_t::stage_t::finished )
 		{
 			return sys_unexpected (
 				make_error_code(errc::eof)
+			);
+		}
+		else if( not sock.is_open() )
+		{
+			return sys_unexpected (
+				make_error_code(std::errc::not_connected)
 			);
 		}
 		else if( m_parser.stage() == parser_t::stage_t::header )
@@ -234,7 +274,12 @@ public:
 				if( error )
 				{
 					sock.close();
-					return sum;
+					if( error == errc::eof and m_parser.finish_eof() )
+					{
+						error.clear();
+						break;
+					}
+					return sum > 0 ? io_expected(sum) : io_unexpected(error);
 				}
 				auto expected = m_parser.append({body.data(), tmp_sum});
 				if( not expected )
@@ -271,16 +316,16 @@ public:
 			co_return sys_unexpected(m_first_error);
 
 		auto &sock = m_connection->opt_helper();
-		if( not sock.is_open() )
-		{
-			co_return sys_unexpected (
-				make_error_code(std::errc::not_connected)
-			);
-		}
-		else if( m_parser.stage() == parser_t::stage_t::finished )
+		if( m_parser.stage() == parser_t::stage_t::finished )
 		{
 			co_return sys_unexpected (
 				make_error_code(errc::eof)
+			);
+		}
+		else if( not sock.is_open() )
+		{
+			co_return sys_unexpected (
+				make_error_code(std::errc::not_connected)
 			);
 		}
 		size_t sum = 0;
@@ -324,6 +369,11 @@ public:
 					if( error )
 					{
 						sock.close();
+						if( error == errc::eof and m_parser.finish_eof() )
+						{
+							error.clear();
+							break;
+						}
 						co_return io_unexpected(error);
 					}
 					auto expected = m_parser.append({body.data(), tmp_sum});
@@ -828,6 +878,11 @@ public:
 	connection_ptr m_connection {};
 	error_code m_first_error {};
 	parser_t m_parser {};
+
+	std::shared_ptr<cookie_jar> m_cookie_jar {};
+	url m_origin {};
+
+	bool m_cookies_captured = false;
 };
 
 template <concepts::connection Connection>
@@ -1467,6 +1522,18 @@ bool basic_reply<Connection>::is_eof() const noexcept
 }
 
 template <concepts::connection Connection>
+bool basic_reply<Connection>::is_upgrade() const noexcept
+{
+	return m_impl->m_parser.is_upgrade();
+}
+
+template <concepts::connection Connection>
+std::string basic_reply<Connection>::take_pending_data()
+{
+	return m_impl->m_parser.take_pending_data();
+}
+
+template <concepts::connection Connection>
 const basic_reply<Connection>::connection_t &basic_reply<Connection>::connection() const noexcept
 {
 	return *m_impl->m_connection;
@@ -1494,6 +1561,16 @@ template <concepts::connection Connection>
 basic_reply<Connection>::executor_t basic_reply<Connection>::get_executor() noexcept
 {
 	return connection().get_executor();
+}
+
+template <concepts::connection Connection>
+basic_reply<Connection> &basic_reply<Connection>::bind_cookie_jar
+(std::shared_ptr<cookie_jar> jar, url origin)
+{
+	m_impl->m_cookie_jar = std::move(jar);
+	m_impl->m_origin = std::move(origin);
+	m_impl->capture_cookies();
+	return *this;
 }
 
 template <concepts::connection Connection>

@@ -149,7 +149,7 @@ bool check_error(Token &token, const error_code &error, const char *message)
 	{
 		if( not error )
 			return true;
-		throw system_error(error,
+		system_error::loc_throw(error,
 			with_location(message ? message : "")
 		);
 	}

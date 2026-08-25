@@ -106,12 +106,12 @@ cookie &cookie::operator=(value_t v) noexcept
 	return *this;
 }
 
-cookie::value_t cookie::value() noexcept
+cookie::value_t cookie::value() const noexcept
 {
 	return m_impl->m_value;
 }
 
-cookie::operator value_t() noexcept
+cookie::operator value_t() const noexcept
 {
 	return m_impl->m_value;
 }

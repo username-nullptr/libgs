@@ -52,9 +52,13 @@ public:
 	using mutable_headers::set_header;
 
 public:
-	generator(version_enum version, url_t url, request_arg_t arg);
-	generator(url_t url, request_arg_t arg);
-	~generator();
+	generator(version_enum version, url_t url, request_arg_t arg,
+		request_target_form target_form = request_target_form::origin
+	);
+	generator(url_t url, request_arg_t arg,
+		request_target_form target_form = request_target_form::origin
+	);
+	~generator() override;
 
 	generator(generator &&other) noexcept;
 	generator &operator=(generator &&other) noexcept;
@@ -69,6 +73,9 @@ public:
 
 	[[nodiscard]] request_arg_t arg() const noexcept;
 	[[nodiscard]] operator request_arg_t() const noexcept;
+
+	generator &set_target_form(request_target_form form) noexcept;
+	[[nodiscard]] request_target_form target_form() const noexcept;
 
 public:
 	template <method_enum Method>

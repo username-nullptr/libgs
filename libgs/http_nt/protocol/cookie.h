@@ -74,8 +74,8 @@ public:
 	[[nodiscard]] decltype(auto) value() requires
 		core_concepts::value_get<T,char>;
 
-	[[nodiscard]] value_t value() noexcept;
-	operator value_t() noexcept;
+	[[nodiscard]] value_t value() const noexcept;
+	operator value_t() const noexcept;
 
 public:
 	[[nodiscard]] optional<std::string> domain() const noexcept;

@@ -307,9 +307,9 @@ logger &logger::instance(std::string_view name, bool create)
 		return *it->second;
 	locker.unlock();
 
-	throw runtime_error (
+	runtime_error::loc_throw(std::format (
 		"libgs::utils::logger::instance: Instance '{}' is not exist.", name
-	);
+	));
 	// return {};
 }
 

@@ -1,7 +1,6 @@
-
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,17 +25,29 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_H
-#define LIBGS_HTTP_NT_PROTOCOL_UTILS_H
+#ifndef LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_UPGRADE_H
+#define LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_UPGRADE_H
 
-#include <libgs/http_nt/protocol/utils/generator.h>
-#include <libgs/http_nt/protocol/utils/parser.h>
+#include <libgs/http_nt/protocol/header.h>
+#include <libgs/http_nt/protocol/types.h>
 
-#include <libgs/http_nt/protocol/utils/core/conditional.h>
-#include <libgs/http_nt/protocol/utils/core/upgrade.h>
+namespace libgs::http_nt
+{
 
-#include <libgs/http_nt/protocol/utils/client/cookie_jar.h>
-#include <libgs/http_nt/protocol/utils/client/form_data.h>
+[[nodiscard]] LIBGS_HTTP_NT_API bool header_has_token (
+	const headers &values, std::string_view field, std::string_view token
+) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_NT_API bool
+is_upgrade_request(const headers &values) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_NT_API bool
+is_upgrade_response(status_enum status, const headers &values) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_NT_API std::optional<std::string>
+upgrade_protocol(const headers &values) noexcept;
+
+} //namespace libgs::http_nt
 
 
-#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_H
+#endif //LIBGS_HTTP_NT_PROTOCOL_UTILS_CORE_UPGRADE_H

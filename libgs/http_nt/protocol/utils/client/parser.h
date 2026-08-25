@@ -46,7 +46,9 @@ class LIBGS_HTTP_NT_API parser<protocol_model::client> :
 
 public:
 	using stage_t = http_nt::stage;
-
+	using set_cookie_values_t = std::vector <
+		std::pair<std::string,http_nt::cookie>
+	>;
 	explicit parser(size_t init_buf_size = 0xFFFF);
 	~parser() override;
 
@@ -56,23 +58,35 @@ public:
 	sys_expected<bool> append(const const_buffer &buf);
 	parser &operator<<(const const_buffer &buf);
 
+	[[nodiscard]] sys_expected<bool> next_message();
+	[[nodiscard]] bool finish_eof();
+
 public:
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] status_enum status() const noexcept;
 
 	[[nodiscard]] bool keep_alive() const noexcept;
 	[[nodiscard]] bool support_gzip() const noexcept;
+
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_range_response() const noexcept;
 	[[nodiscard]] bool is_multipart_byte_ranges() const noexcept;
+	[[nodiscard]] bool is_informational() const noexcept;
+	[[nodiscard]] bool is_upgrade() const noexcept;
+
+	parser &set_request_method(method_enum request_method) noexcept;
+	[[nodiscard]] method_enum request_method() const noexcept;
 
 	[[nodiscard]] const optional<http_nt::content_range> &content_range() const noexcept;
 	[[nodiscard]] optional<size_t> complete_length() const noexcept;
+
 	[[nodiscard]] const body_norms_t &body_norms() const noexcept;
+	[[nodiscard]] const set_cookie_values_t &set_cookies() const noexcept;
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+	[[nodiscard]] std::string take_pending_data();
 	[[nodiscard]] optional<byte_range_chunk> take_range_body(size_t size);
 
 	[[nodiscard]] stage_t stage() const noexcept;

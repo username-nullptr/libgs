@@ -72,9 +72,9 @@ settings &settings::instance(std::string_view name, bool create)
 	}
 	locker.unlock();
 
-	throw runtime_error (
+	runtime_error::loc_throw(std::format (
 		"libsepp::settings::instance: Instance '{}' is not exist.", name
-	);
+	));
 	// return {};
 }
 
@@ -95,10 +95,10 @@ sys_expected<> settings::load(const path_t &file_path)
 
 		if( not inserted and it->second != this )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"settings::set_file_name: File '{}' is already used by another instance.",
 				file_path.string()
-			);
+			));
 		}
 		g_file_paths.erase(it);
 		g_file_paths.emplace(file_path, this);

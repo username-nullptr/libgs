@@ -164,6 +164,28 @@ public:
 	}
 
 public:
+	[[nodiscard]] bool expects_continue() const noexcept
+	{
+		if( m_continue_sent or m_parser.version() < version::v11 )
+			return false;
+
+		auto it = m_parser.headers().find(header::expect);
+		return it != m_parser.headers().end() and
+			strtls::to_lower(strtls::trimmed(it->second.to_string())) == "100-continue";
+	}
+
+	void send_continue(error_code &error) noexcept
+	{
+		if( not expects_continue() )
+			return ;
+
+		auto &helper = m_connection->opt_helper();
+		helper.write("HTTP/1.1 100 Continue\r\n\r\n", error);
+
+		if( not error )
+			m_continue_sent = true;
+	}
+
 	[[nodiscard]] size_t read(const mutable_buffer &buf, error_code &error) noexcept
 	{
 		error.clear();
@@ -178,7 +200,11 @@ public:
 			);
 			return 0;
 		}
-		auto &sock_helper = m_connection.opt_helper();
+		send_continue(error);
+		if( error )
+			return 0;
+
+		auto &sock_helper = m_connection->opt_helper();
 		asio::socket_base::receive_buffer_size op;
 
 		sock_helper.get_option(op, error);
@@ -241,6 +267,17 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<void>
 		{
+			using namespace libgs::operators;
+			if( expects_continue() )
+			{
+				co_await sock_helper.write (
+					"HTTP/1.1 100 Continue\r\n\r\n",
+					use_awaitable | cancel_slot | error
+				);
+				if( error )
+					co_return ;
+				m_continue_sent = true;
+			}
 			auto dst_buf = static_cast<char*>(buf.data());
 			do {
 				auto body = m_parser.take_partial_body(buf_size - sum);
@@ -250,7 +287,6 @@ public:
 				if( sum == buf_size or m_parser.stage() == stage::finished )
 					break;
 
-				using namespace libgs::operators;
 				body = std::string(op.value(),'\0');
 				for(;;)
 				{
@@ -316,7 +352,7 @@ public:
 			return sum;
 
 		asio::socket_base::receive_buffer_size op {};
-		m_connection.opt_helper().get_option(op, error);
+		m_connection->opt_helper().get_option(op, error);
 		if( error )
 			return sum;
 
@@ -465,9 +501,9 @@ public:
 				co_return ;
 			}
 			constexpr size_t buf_size = 128 * 1024;
-			char buffer[buf_size] {0};
 			for(;;)
 			{
+				char buffer[buf_size] {0};
 				auto bytes = co_await co_read (
 					{buffer, buf_size}, error, cancel_slot
 				);
@@ -523,8 +559,9 @@ public:
 	}
 
 public:
-	connection_ptr m_connection;
+	connection_ptr m_connection {};
 	parser_t m_parser {};
+	bool m_continue_sent = false;
 };
 
 template <concepts::connection Connection>
@@ -671,6 +708,18 @@ template <concepts::connection Connection>
 method_enum basic_request<Connection>::method() const noexcept
 {
 	return m_impl->m_parser.method();
+}
+
+template <concepts::connection Connection>
+request_target_form basic_request<Connection>::target_form() const noexcept
+{
+	return m_impl->m_parser.target_form();
+}
+
+template <concepts::connection Connection>
+std::string_view basic_request<Connection>::target() const noexcept
+{
+	return m_impl->m_parser.target();
 }
 
 template <concepts::connection Connection>
@@ -1067,6 +1116,18 @@ template <concepts::connection Connection>
 bool basic_request<Connection>::is_eof() const noexcept
 {
 	return m_impl->m_parser.stage() == stage::finished;
+}
+
+template <concepts::connection Connection>
+bool basic_request<Connection>::is_upgrade() const noexcept
+{
+	return is_upgrade_request(this->headers());
+}
+
+template <concepts::connection Connection>
+std::string basic_request<Connection>::take_pending_data()
+{
+	return m_impl->m_parser.take_pending_data();
 }
 
 template <concepts::connection Connection>

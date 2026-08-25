@@ -58,13 +58,158 @@ class LIBGS_HTTP_NT_TAPI basic_client<ConnectionPool,Version>::impl
 
 public:
 	impl() requires core_concepts::match_sched<io_executor_t,executor_t> :
-		m_pool(io_context()) {}
+		m_pool(io_context()), m_cookie_store(std::make_shared<cookie_jar>()) {}
 
 	explicit impl(const core_concepts::match_exec<executor_t> auto &exec) :
-		m_pool(exec) {}
+		m_pool(exec), m_cookie_store(std::make_shared<cookie_jar>()) {}
 
 	explicit impl(connection_pool_t &&pool) :
-		m_pool(std::move(pool)) {}
+		m_pool(std::move(pool)), m_cookie_store(std::make_shared<cookie_jar>()) {}
+
+public:
+	[[nodiscard]] static bool redirect_status(status_enum value) noexcept
+	{
+		return value == status::moved_permanently or value == status::found or
+			   value == status::see_other or value == status::temporary_redirect or
+			   value == status::permanent_redirect;
+	}
+
+	[[nodiscard]] static bool same_origin(const url &lhs, const url &rhs) noexcept
+	{
+		return strtls::to_lower(lhs.protocol()) == strtls::to_lower(rhs.protocol()) and
+			strtls::to_lower(lhs.address()) == strtls::to_lower(rhs.address()) and
+			lhs.port() == rhs.port();
+	}
+
+	template <method_enum Method>
+	[[nodiscard]] ctx_expected_t<Method> follow_redirects
+	(ctx_expected_t<Method> current, req_info info) noexcept
+	{
+		static_assert(Method == method::get or Method == method::head);
+		using namespace libgs::operators;
+		for(size_t followed=0;;)
+		{
+			auto status_expected = current->wait_reply();
+			if( not status_expected )
+				return sys_unexpected(status_expected.error());
+
+			while( current->reply()->parser().is_informational() )
+			{
+				status_expected = current->wait_reply();
+				if( not status_expected )
+					return sys_unexpected(status_expected.error());
+			}
+			if( not redirect_status(*status_expected) or followed == info.max_redirects )
+				return current;
+
+			auto location = current->reply()->header(header::location);
+			if( not location )
+				return current;
+
+			if constexpr( Method == method::get )
+			{
+				std::array<char,8192> data {};
+				for(;;)
+				{
+					auto read = current->reply()->read(buffer(data));
+					if( read )
+						continue;
+					if( read.error() != errc::eof )
+						return sys_unexpected(read.error());
+					break;
+				}
+			}
+			try {
+				auto next = resolve_url(info.url, **location);
+				if( not same_origin(info.url, next) )
+				{
+					info.arg.unset_header(header::authorization);
+					info.arg.cookies().clear();
+				}
+				info.url = std::move(next);
+			}
+			catch(...) {
+				return sys_unexpected(make_error_code(std::errc::protocol_error));
+			}
+			current = make_context<Method>(info);
+			if( not current )
+				return current;
+
+			auto written = current->write();
+			if( not written )
+				return sys_unexpected(written.error());
+			++followed;
+		}
+	}
+
+	template <method_enum Method>
+	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_follow_redirects
+	(ctx_expected_t<Method> current, req_info info, asio::cancellation_slot cancel_slot) noexcept
+	{
+		static_assert(Method == method::get or Method == method::head);
+		using namespace libgs::operators;
+
+		for(size_t followed=0; ; )
+		{
+			auto status_expected = co_await current->wait_reply(use_awaitable | cancel_slot);
+			if( not status_expected )
+				co_return sys_unexpected(status_expected.error());
+
+			while( current->reply()->parser().is_informational() )
+			{
+				status_expected = co_await current->wait_reply(use_awaitable | cancel_slot);
+				if( not status_expected )
+					co_return sys_unexpected(status_expected.error());
+			}
+			if( not redirect_status(*status_expected) or followed == info.max_redirects )
+				co_return current;
+
+			auto location = current->reply()->header(header::location);
+			if( not location )
+				co_return current;
+
+			if constexpr( Method == method::get )
+			{
+				std::array<char,8192> data {};
+				for(;;)
+				{
+					auto read = co_await current->reply()->read (
+						buffer(data), use_awaitable |
+						std::chrono::nanoseconds(0) | cancel_slot
+					);
+					if( read )
+						continue;
+					if( read.error() != errc::eof )
+						co_return sys_unexpected(read.error());
+					break;
+				}
+			}
+			try {
+				auto next = resolve_url(info.url, **location);
+				if( not same_origin(info.url, next) )
+				{
+					info.arg.unset_header(header::authorization);
+					info.arg.cookies().clear();
+				}
+				info.url = std::move(next);
+			}
+			catch(...) {
+				co_return sys_unexpected(make_error_code(std::errc::protocol_error));
+			}
+			current = co_await co_make_context<Method>(
+				info, cancel_slot, std::chrono::nanoseconds(0)
+			);
+			if( not current )
+				co_return current;
+
+			auto written = co_await current->write (
+				use_awaitable | std::chrono::nanoseconds(0) | cancel_slot
+			);
+			if( not written )
+				co_return sys_unexpected(written.error());
+			++followed;
+		}
+	}
 
 public:
 	template <method_enum Method>
@@ -82,7 +227,7 @@ public:
 		};
 		for(size_t i=0; i<10; i++)
 		{
-			ctx_expected = make_context<Method>(std::move(info));
+			ctx_expected = make_context<Method>(info);
 			if( not ctx_expected )
 				return ctx_expected;
 
@@ -96,14 +241,31 @@ public:
 		if( not io_expected )
 			return sys_unexpected(io_expected.error());
 
-		else if( not continue_100 )
+		else if( continue_100 )
+		{
+			for(;;)
+			{
+				auto reply_status = ctx_expected->reply()->status();
+				if( reply_status == status::continue_upload or
+					(reply_status != status::none and
+					 not ctx_expected->reply()->parser().is_informational()) )
+					break;
+
+				auto status_expected = ctx_expected->wait_reply();
+				if( not status_expected )
+				{
+					ctx_expected.despair(status_expected.error());
+					break;
+				}
+			}
+		}
+		if( not ctx_expected )
 			return ctx_expected;
 
-		else if( ctx_expected->reply()->status() != status::continue_upload )
+		if constexpr( Method == method::get or Method == method::head )
 		{
-			auto status_expected = ctx_expected->wait_reply();
-			if( not status_expected )
-				ctx_expected.despair(status_expected.error());
+			if( info.max_redirects > 0 )
+				return follow_redirects<Method>(std::move(ctx_expected), std::move(info));
 		}
 		return ctx_expected;
 	}
@@ -130,7 +292,7 @@ public:
 			for(size_t i=0; i<10; i++)
 			{
 				ctx_expected = co_await co_make_context<Method>(
-					std::move(info), cancel_slot, 0ns
+					info, cancel_slot, 0ns
 				);
 				if( not ctx_expected )
 					co_return ;
@@ -151,14 +313,34 @@ public:
 				ctx_expected.despair(io_expected.error());
 				co_return ;
 			}
-			else if( not continue_100 )
-				co_return ;
-
-			else if( ctx_expected->reply()->status() != status::continue_upload )
+			else if( continue_100 )
 			{
-				auto status_expected = co_await ctx_expected->wait_reply(use_awaitable | cancel_slot);
-				if( not status_expected )
-					ctx_expected.despair(status_expected.error());
+				for(;;)
+				{
+					auto reply_status = ctx_expected->reply()->status();
+					if( reply_status == status::continue_upload or
+						(reply_status != status::none and
+						 not ctx_expected->reply()->parser().is_informational()) )
+						break;
+
+					auto status_expected = co_await ctx_expected->wait_reply (
+						use_awaitable | cancel_slot
+					);
+					if( not status_expected )
+					{
+						ctx_expected.despair(status_expected.error());
+						break;
+					}
+				}
+			}
+			if( not ctx_expected )
+				co_return ;
+			if constexpr( Method == method::get or Method == method::head )
+			{
+				if( info.max_redirects > 0 )
+					ctx_expected = co_await co_follow_redirects<Method> (
+						std::move(ctx_expected), std::move(info), cancel_slot
+					);
 			}
 			co_return ;
 		},
@@ -319,13 +501,23 @@ public:
 				make_error_code(std::errc::protocol_error)
 			);
 		}
-		auto expected = m_pool.get(info.url.address(), info.url.port());
+		for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
+		{
+			if( not info.arg.contains_cookie(name) )
+				info.arg.set_cookie(name, std::move(item));
+		}
+		if( info.proxy and strtls::to_lower(info.proxy->protocol()) != detail::protocol_name_v<socket_t> )
+			return sys_unexpected(make_error_code(std::errc::protocol_error));
+
+		const auto &connect_url = info.proxy ? *info.proxy : info.url;
+		auto expected = m_pool.get(connect_url.address(), connect_url.port());
+
 		if( not expected )
 			return sys_unexpected(expected.error());
 
-		// return std::make_shared<context_t<Method>>(
 		return context_t<Method>(
-			std::move(*expected), std::move(info.url), std::move(info.arg)
+			std::move(*expected), std::move(info.url), std::move(info.arg), m_cookie_store,
+			info.proxy ? request_target_form::absolute : request_target_form::origin
 		);
 	}
 
@@ -340,15 +532,24 @@ public:
 			);
 		}
 		using namespace libgs::operators;
+		for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
+		{
+			if( not info.arg.contains_cookie(name) )
+				info.arg.set_cookie(name, std::move(item));
+		}
+		if( info.proxy and strtls::to_lower(info.proxy->protocol()) != detail::protocol_name_v<socket_t> )
+			co_return sys_unexpected(make_error_code(std::errc::protocol_error));
+
+		const auto &connect_url = info.proxy ? *info.proxy : info.url;
 		auto expected = co_await m_pool.get (
-			info.url.address(), info.url.port(), use_awaitable | cancel_slot | timeout
+			connect_url.address(), connect_url.port(), use_awaitable | cancel_slot | timeout
 		);
 		if( not expected )
 			co_return sys_unexpected(expected.error());
 
-		// co_return std::make_shared<context_t<Method>>(
 		co_return context_t<Method>(
-			std::move(*expected), std::move(info.url), std::move(info.arg)
+			std::move(*expected), std::move(info.url), std::move(info.arg), m_cookie_store,
+			info.proxy ? request_target_form::absolute : request_target_form::origin
 		);
 	}
 
@@ -366,6 +567,7 @@ public:
 
 public:
 	connection_pool_t m_pool;
+	std::shared_ptr<cookie_jar> m_cookie_store;
 };
 
 template <concepts::connection_pool ConnectionPool, version_enum Version>
@@ -1042,6 +1244,13 @@ auto basic_client<ConnectionPool,Version>::make_connect(req_info info, Token &&t
 	return make_context<method::connect>(
 		std::move(info), std::forward<Token>(token)
 	);
+}
+
+template <concepts::connection_pool ConnectionPool, version_enum Version>
+std::shared_ptr<cookie_jar>
+basic_client<ConnectionPool,Version>::cookie_store() noexcept
+{
+	return m_impl->m_cookie_store;
 }
 
 template <concepts::connection_pool ConnectionPool, version_enum Version>

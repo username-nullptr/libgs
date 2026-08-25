@@ -62,7 +62,7 @@ public:
 		auto wake_up = m_wait_queue.dequeue();
 		if( not wake_up )
 			return ;
-		throw runtime_error (
+		runtime_error::loc_throw (
 			"libgs::basic_semaphore: Destruct a basic_semaphore with unreleased resources."
 		);
 #else

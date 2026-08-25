@@ -766,12 +766,20 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 	if constexpr( std::is_signed_v<decltype(rtime.count())> )
 	{
 		if( rtime.count() <= 0 )
-			throw runtime_error("libgs::start_timer: Invalid time duration");
+		{
+			runtime_error::loc_throw (
+				"libgs::start_timer: Invalid time duration"
+			);
+		}
 	}
 	else
 	{
 		if( rtime.count() == 0 )
-			throw runtime_error("libgs::start_timer: Invalid time duration");
+		{
+			runtime_error::loc_throw (
+				"libgs::start_timer: Invalid time duration"
+			);
+		}
 	}
 	auto timer = std::make_shared<asio::steady_timer>(exec);
 	auto cancel = std::make_shared<bool>(false);

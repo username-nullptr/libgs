@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_NT_SERVER_REQUEST_H
 
 #include <libgs/http_nt/protocol/utils/server/parser.h>
+#include <libgs/http_nt/protocol/utils/core/upgrade.h>
 #include <libgs/http_nt/utils/connection.h>
 
 namespace libgs::http_nt
@@ -77,6 +78,8 @@ public:
 
 public:
 	[[nodiscard]] method_enum method() const noexcept;
+	[[nodiscard]] request_target_form target_form() const noexcept;
+	[[nodiscard]] std::string_view target() const noexcept;
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] std::string_view path() const noexcept;
 
@@ -120,6 +123,8 @@ public:
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool can_read_body() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
+	[[nodiscard]] bool is_upgrade() const noexcept;
+	[[nodiscard]] std::string take_pending_data();
 
 public:
 	[[nodiscard]] endpoint_t remote_endpoint() const;

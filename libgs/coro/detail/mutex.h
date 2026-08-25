@@ -48,7 +48,7 @@ public:
 #if 0
 		if( not m_native_handle )
 			return ;
-		throw runtime_error (
+		runtime_error::loc_throw (
 			"libgs::mutex: Destruct a mutex that has not yet been unlocked."
 		);
 #endif

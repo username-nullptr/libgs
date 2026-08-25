@@ -30,7 +30,6 @@
 #include <libgs/http_nt/protocol/utils/core/parser.h>
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
-#include <ranges>
 
 namespace libgs::http_nt
 {
@@ -77,20 +76,69 @@ public:
 					base_parser::make_error_code(parse_errno::IREQL)
 				);
 			}
-			auto url_line = from_percent_encoding(request_line_parts[1]);
-			if( auto pos = url_line.find('?'); pos == std::string::npos )
-				m_path = url_line;
-			else
+			m_target = request_line_parts[1];
+			if( m_target.find('#') != std::string::npos )
+				return result.despair(base_parser::make_error_code(parse_errno::IHP));
+
+			std::string url_line = m_target;
+			if( method == method::connect )
 			{
-				m_path = url_line.substr(0, pos);
+				m_target_form = request_target_form::authority;
+				if( url_line.find('/') != std::string::npos or
+					url_line.find(':') == std::string::npos )
+					return result.despair(base_parser::make_error_code(parse_errno::IHP));
+
+				m_path = "/";
+				return result;
+			}
+			if( url_line == "*" )
+			{
+				if( method != method::options )
+					return result.despair(base_parser::make_error_code(parse_errno::IHP));
+
+				m_target_form = request_target_form::asterisk;
+				m_path = "*";
+				return result;
+			}
+			auto lower_target = strtls::to_lower(url_line);
+			if( lower_target.starts_with("http://") or lower_target.starts_with("https://") )
+			{
+				m_target_form = request_target_form::absolute;
+
+				auto authority_begin = url_line.find("://") + 3;
+				auto path_begin = url_line.find_first_of("/?", authority_begin);
+
+				if( path_begin == std::string::npos )
+					url_line = "/";
+				else if( url_line[path_begin] == '?' )
+					url_line = "/" + url_line.substr(path_begin);
+				else
+					url_line.erase(0, path_begin);
+			}
+			else
+				m_target_form = request_target_form::origin;
+
+			auto pos = url_line.find('?');
+			m_path = from_percent_encoding(url_line.substr(0, pos));
+
+			if( pos != std::string::npos )
+			{
 				for(auto parameters_string = url_line.substr(pos + 1);
 					auto &para_str : string_vector::from_string(parameters_string, '&'))
 				{
 					pos = para_str.find('=');
 					if( pos == std::string::npos )
-						m_parameters.emplace_back(para_str, para_str);
+					{
+						auto value = from_percent_encoding(para_str);
+						m_parameters.emplace_back(value, std::move(value));
+					}
 					else
-						m_parameters.emplace_back(para_str.substr(0, pos), para_str.substr(pos+1));
+					{
+						m_parameters.emplace_back (
+							from_percent_encoding(para_str.substr(0, pos)),
+							from_percent_encoding(para_str.substr(pos + 1))
+						);
+					}
 				}
 			}
 			if( not m_path.starts_with('/') )
@@ -140,8 +188,18 @@ public:
 		if( it == headers.end() )
 			m_keep_alive = m_parser.version() != version::v10;
 		else
-			m_keep_alive = strtls::to_lower(it->second.to_string()) != "close";
+		{
+			m_keep_alive = m_parser.version() != version::v10;
+			for(auto &token : string_vector::from_string(it->second.to_string(), ','))
+			{
+				if( auto value = strtls::to_lower(strtls::trimmed(token));
+					value == "close" )
+					m_keep_alive = false;
 
+				else if( value == "keep-alive" )
+					m_keep_alive = true;
+			}
+		}
 		it = headers.find(header::accept_encoding);
 		if( it == headers.end() )
 		{
@@ -161,6 +219,8 @@ public:
 public:
 	base_parser m_parser;
 	method_enum m_method = method_enum::get;
+	request_target_form m_target_form = request_target_form::origin;
+	std::string m_target {};
 
 	std::string m_path {};
 	parameters_t m_parameters {};
@@ -219,11 +279,20 @@ parser<protocol_model::server> &parser<protocol_model::server>::operator=(parser
 
 sys_expected<bool> parser<protocol_model::server>::append(const const_buffer &buf)
 {
-	return m_impl->m_parser.append(buf).transform([this](bool finished)
+	auto expected = m_impl->m_parser.append(buf);
+	if( not expected )
+		return expected;
+
+	if( *expected )
 	{
+		auto host = m_impl->m_parser.headers().find(header::host);
+		if( m_impl->m_parser.version() == version::v11 and
+			(host == m_impl->m_parser.headers().end() or
+			 host->second.to_string().find(',') != std::string::npos) )
+			return sys_unexpected(base_parser::make_error_code(parse_errno::IHL));
 		m_impl->set_attribute();
-		return finished;
-	});
+	}
+	return expected;
 }
 
 parser<protocol_model::server> &parser<protocol_model::server>::operator<<(const const_buffer &buf)
@@ -302,6 +371,16 @@ method_enum parser<protocol_model::server>::method() const noexcept
 	return m_impl->m_method;
 }
 
+request_target_form parser<protocol_model::server>::target_form() const noexcept
+{
+	return m_impl->m_target_form;
+}
+
+std::string_view parser<protocol_model::server>::target() const noexcept
+{
+	return m_impl->m_target;
+}
+
 std::string_view parser<protocol_model::server>::path() const noexcept
 {
 	return m_impl->m_path;
@@ -349,6 +428,11 @@ std::string parser<protocol_model::server>::take_body()
 	return m_impl->m_parser.take_body();
 }
 
+std::string parser<protocol_model::server>::take_pending_data()
+{
+	return m_impl->m_parser.take_pending_data();
+}
+
 parser<protocol_model::server>::stage_t parser<protocol_model::server>::stage() const noexcept
 {
 	return m_impl->m_parser.stage();
@@ -357,9 +441,15 @@ parser<protocol_model::server>::stage_t parser<protocol_model::server>::stage() 
 parser<protocol_model::server> &parser<protocol_model::server>::reset()
 {
 	m_impl->m_parser.reset();
+	m_impl->m_method = method::get;
+	m_impl->m_target_form = request_target_form::origin;
+
+	m_impl->m_target.clear();
 	m_impl->m_path.clear();
+
 	m_impl->m_parameters.clear();
 	m_impl->m_cookies.clear();
+
 	m_impl->m_keep_alive = false;
 	m_impl->m_support_gzip = false;
 	return *this;

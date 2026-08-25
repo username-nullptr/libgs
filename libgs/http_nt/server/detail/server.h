@@ -114,13 +114,15 @@ private:
 			]() mutable -> awaitable<void>
 			{
 				bool abd = false;
+				bool released = false;
 				try {
-					co_await self->do_tcp_service(connection, kp_time);
+					released = co_await self->do_tcp_service(connection, kp_time);
 				}
 				catch(...) {
 					abd = true;
 				}
-				connection->opt_helper().close();
+				if( not released )
+					connection->opt_helper().close();
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -136,7 +138,7 @@ private:
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> do_tcp_service
+	[[nodiscard]] awaitable<bool> do_tcp_service
 	(const connection_ptr &connection, const milliseconds &keepalive_time)
 	{
 		using namespace std::chrono_literals;
@@ -157,10 +159,26 @@ private:
 				call_on_server_error(ex.code());
 			}
 			context.response().auto_set(context.request());
+			if( auto expectation = context.request().header(header::expect); expectation )
+			{
+				auto value = strtls::to_lower(strtls::trimmed(**expectation));
+				if( context.request().version() < version::v11 or value != "100-continue" )
+				{
+					context.response()
+						.set_status(status::expectation_failed)
+						.set_header(header::connection, "close");
+
+					co_await context.response().write({nullptr,0}, use_awaitable);
+					break;
+				}
+			}
 			co_await call_on_request(context);
 
 			if( not context.response().is_finished() )
 				co_await call_on_default(context);
+
+			if( context.connection_handed_over() )
+				co_return true;
 
 			if( not context.request().keep_alive() )
 				break;
@@ -169,7 +187,7 @@ private:
 			if( *time == 0ms )
 				break;
 		}
-		co_return ;
+		co_return false;
 	}
 
 private:

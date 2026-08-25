@@ -77,6 +77,10 @@ public:
 	[[nodiscard]] std::string to_string() const noexcept;
 	[[nodiscard]] explicit operator std::string() const noexcept;
 
+	[[nodiscard]] static url resolve (
+		const url &base, std::string_view reference
+	);
+
 private:
 	class impl;
 	impl *m_impl;

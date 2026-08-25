@@ -65,6 +65,11 @@ public:
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 
+	// Generic HTTP Upgrade ownership boundary. A future WebSocket module can use
+	// this without coupling frame handling to the HTTP parser.
+	[[nodiscard]] connection_ptr hand_over_connection() noexcept;
+	[[nodiscard]] bool connection_handed_over() const noexcept;
+
 public: // Fucking msvc !!!
 	template <typename Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> session(Args&&...args) requires
