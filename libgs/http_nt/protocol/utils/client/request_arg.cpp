@@ -27,6 +27,7 @@
 *************************************************************************************/
 
 #include "request_arg.h"
+#include <libgs/http_nt/protocol/utils/core/compression.h>
 
 namespace libgs::http_nt { namespace
 {
@@ -72,6 +73,13 @@ namespace libgs::http_nt { namespace
 
 class LIBGS_DECL_HIDDEN request_arg::impl
 {
+public:
+	impl()
+	{
+		if constexpr( gzip_available_v )
+			m_headers[header_t::accept_encoding] = "gzip";
+	}
+
 public:
 	headers_t m_headers {
 		{ header_t::accept      , "*/*"                       },

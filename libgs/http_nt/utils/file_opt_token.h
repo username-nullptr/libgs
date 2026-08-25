@@ -323,6 +323,7 @@ template <typename T, typename CharT,
 >
 concept file_opt_token_p =
 	core_concepts::any_text_p<T> or
+	std::same_as<std::remove_cvref_t<T>,std::filesystem::path> or
 	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
 	file_opt_token<T,CharT,Types,Perms>;
 

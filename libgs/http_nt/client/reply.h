@@ -95,8 +95,10 @@ public:
 	[[nodiscard]] bool valid() const noexcept;
 	[[nodiscard]] error_code first_error() const noexcept;
 
+	[[nodiscard]] bool content_decoded() const noexcept;
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
+
 	[[nodiscard]] bool is_upgrade() const noexcept;
 	[[nodiscard]] std::string take_pending_data();
 

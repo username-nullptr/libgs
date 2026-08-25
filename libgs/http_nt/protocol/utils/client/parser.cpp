@@ -28,6 +28,7 @@
 
 #include "parser.h"
 #include <libgs/http_nt/protocol/utils/core/parser.h>
+#include <libgs/http_nt/protocol/utils/core/compression.h>
 #include <libgs/core/string_vector.h>
 
 namespace libgs::http_nt
@@ -165,13 +166,23 @@ public:
 		it = headers.find(header::content_encoding);
 		if( it == headers.end() )
 			m_support_gzip = false;
-
-		else for(auto &str : string_vector::from_string(it->second.to_string(), ","))
+		else
 		{
-			if( strtls::to_lower(strtls::trimmed(str)) == "gzip" )
+			auto codings = string_vector::from_string(it->second.to_string(), ',');
+			for(auto &str : codings)
 			{
-				m_support_gzip = true;
-				break;
+				if( strtls::to_lower(strtls::trimmed(str)) == "gzip" )
+				{
+					m_support_gzip = true;
+					break;
+				}
+			}
+			if constexpr( gzip_available_v )
+			{
+				if( m_automatic_decompression and codings.size() == 1 and
+					m_support_gzip and m_status != status::partial_content and
+					m_parser.stage() == stage::body )
+					m_gzip_decoder = std::make_unique<gzip_decoder>();
 			}
 		}
 		if( m_status == status::range_not_satisfiable )
@@ -229,6 +240,17 @@ public:
 	[[nodiscard]] error_code consume_body()
 	{
 		auto body = m_parser.take_body();
+		if( m_gzip_decoder )
+		{
+			auto decoded = m_gzip_decoder->append (
+				body, m_parser.stage() == stage::finished
+			);
+			if( not decoded )
+				return base_parser::make_error_code(parse_errno::SFE);
+
+			body = std::move(*decoded);
+			m_content_decoded = true;
+		}
 		if( m_multipart_parser )
 		{
 			if( not body.empty() )
@@ -355,10 +377,14 @@ public:
 		m_attributes_set = false;
 		m_content_range.reset();
 		m_multipart_parser.reset();
+
 		m_body_norms = basic_body_norms {};
 		m_partial_body.clear();
 		m_segments.clear();
+
 		m_plain_body_size = 0;
+		m_gzip_decoder.reset();
+		m_content_decoded = false;
 	}
 
 public:
@@ -387,8 +413,11 @@ public:
 	bool m_keep_alive = false;
 	bool m_support_gzip = false;
 	bool m_attributes_set = false;
+	bool m_automatic_decompression = true;
+	bool m_content_decoded = false;
 
 	method_enum m_request_method = method::get;
+	std::unique_ptr<gzip_decoder> m_gzip_decoder {};
 };
 
 parser<protocol_model::client>::parser(size_t init_buf_size) :
@@ -410,6 +439,16 @@ bool parser<protocol_model::client>::keep_alive() const noexcept
 bool parser<protocol_model::client>::support_gzip() const noexcept
 {
 	return m_impl->m_support_gzip;
+}
+
+bool parser<protocol_model::client>::content_decoded() const noexcept
+{
+	return m_impl->m_content_decoded;
+}
+
+bool parser<protocol_model::client>::automatic_decompression() const noexcept
+{
+	return m_impl->m_automatic_decompression;
 }
 
 bool parser<protocol_model::client>::is_chunked() const noexcept
@@ -462,10 +501,17 @@ bool parser<protocol_model::client>::is_upgrade() const noexcept
 	);
 }
 
-parser<protocol_model::client> &parser<protocol_model::client>::set_request_method
-(method_enum request_method) noexcept
+parser<protocol_model::client>&
+parser<protocol_model::client>::set_request_method(method_enum request_method) noexcept
 {
 	m_impl->m_request_method = request_method;
+	return *this;
+}
+
+parser<protocol_model::client>&
+parser<protocol_model::client>::set_automatic_decompression(bool enabled) noexcept
+{
+	m_impl->m_automatic_decompression = enabled;
 	return *this;
 }
 
@@ -474,8 +520,7 @@ method_enum parser<protocol_model::client>::request_method() const noexcept
 	return m_impl->m_request_method;
 }
 
-const optional<http_nt::content_range>&
-parser<protocol_model::client>::content_range() const noexcept
+const optional<content_range> &parser<protocol_model::client>::content_range() const noexcept
 {
 	return m_impl->m_content_range;
 }

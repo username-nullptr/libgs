@@ -37,23 +37,24 @@ auto parser<protocol_model::base>::make_file_opt_token(Opt &&opt)
 	noexcept requires file_opt_token_v<Opt>
 {
 	using opt_t = std::remove_cvref_t<Opt>;
-	if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
+	if constexpr( is_any_string_v<opt_t> or std::same_as<opt_t,std::filesystem::path> or
+		is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
 	{
-		using token_t = decltype(http_nt::make_file_opt_token(std::forward<Opt>(opt)));
-		using type = token_t::type;
-		return make_file_opt_token (
-			http_nt::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt))
-		);
-	}
-	else if constexpr( Opt::optype == file_optype::single )
-	{
-		using type = opt_t::type;
-		return make_file_opt_token (
-			http_nt::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt))
-		);
+		auto token = http_nt::make_file_opt_token(std::forward<Opt>(opt));
+		using token_t = decltype(token);
+
+		auto expected = token.init(std::ios::out | std::ios::binary);
+		if( expected )
+			return sys_expected<token_t>(std::move(token));
+		return sys_expected<token_t>(sys_unexpected(expected.error()));
 	}
 	else
-		return opt.init(std::ios::out | std::ios::binary);
+	{
+		auto expected = opt.init(std::ios::out | std::ios::binary);
+		if( expected )
+			return sys_expected<opt_t>(std::forward<Opt>(opt));
+		return sys_expected<opt_t>(sys_unexpected(expected.error()));
+	}
 }
 
 } //namespace libgs::http_nt

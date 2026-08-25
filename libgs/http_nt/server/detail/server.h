@@ -259,6 +259,24 @@ private:
 		co_return ;
 	}
 
+	static constexpr auto def_html_v =
+		"<!DOCTYPE html>"
+		"<html>"
+		"<head>"
+		"	<meta charset=\"utf-8\">"
+		"	<title>{0}</title>"
+		"</head>"
+		"<body>"
+		"	<h1>{0}</h1>{1}"
+		"	<p>[ This is the server's default reply ]</p>"
+		"	<p>-----------------------------------------------</p>"
+		"	<p>This is an open source C++ (ASIO) server.</p>"
+		"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
+		"		Source code repository (Gitee)"
+		"	</a>"
+		"</body>"
+		"</html>";
+
 	[[nodiscard]] awaitable<void> call_on_default(context_t &context)
 	{
 		try {
@@ -268,26 +286,9 @@ private:
 				if( context.response().is_finished() )
 					co_return ;
 			}
-			constexpr auto def_html =
-				"<!DOCTYPE html>"
-				"<html>"
-				"<head>"
-				"	<meta charset=\"utf-8\">"
-				"	<title>{0}</title>"
-				"</head>"
-				"<body>"
-				"	<h1>{0}</h1>{1}"
-				"	<p>[ This is the server's default reply ]</p>"
-				"	<p>-----------------------------------------------</p>"
-				"	<p>This is an open source C++ (ASIO) server.</p>"
-				"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
-				"		Source code repository (Gitee)"
-				"	</a>"
-				"</body>"
-				"</html>";
-			std::string data;
+			std::string data {};
 			if( context.response().status() == status::ok )
-				data = std::format(def_html, "Welcome to LIBGS", "");
+				data = std::format(def_html_v, "Welcome to LIBGS", "");
 			else
 			{
 				auto status = std::format (
@@ -295,7 +296,7 @@ private:
 					status::description(context.response().status()),
 					context.response().status()
 				);
-				data = std::format(def_html, "LIBGS", status);
+				data = std::format(def_html_v, "LIBGS", status);
 			}
 			co_await context.response()
 				.set_header(header::content_type, "text/html")

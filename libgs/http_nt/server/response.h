@@ -67,6 +67,9 @@ public:
 	basic_response &set_status(status_enum status);
 	basic_response &auto_set(request_t &request);
 
+	basic_response &set_auto_compression(bool enabled = true) noexcept;
+	[[nodiscard]] bool auto_compression() const noexcept;
+
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
@@ -86,7 +89,7 @@ public:
 		core_concepts::dis_func_tf_opt_token<Token,size_t> and
 		not is_detached_v<std::remove_cvref_t<Token>> and
 		concepts::file_opt_token_p <
-			T, char, file_optype::combine, io_permission::read
+			T, char, file_optype::single, io_permission::read
 		>;
 	template <typename T, typename Token = use_sync_t>
 	auto send_file(T &&opt, Token &&token = {})

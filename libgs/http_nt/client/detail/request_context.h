@@ -40,14 +40,14 @@ class LIBGS_HTTP_NT_TAPI basic_request_context<Method,Connection,Version>::impl 
 	using connection_ptr = std::shared_ptr<connection_t>;
 
 public:
-	impl(connection_t &&connection, url_t url, request_arg_t arg,
-		std::shared_ptr<cookie_jar> cookie_store, request_target_form target_form) :
+	impl(connection_t &&connection, url_t url, options opt) :
 		m_connection(new connection_t(std::move(connection))),
-		m_generator(std::move(url), std::move(arg), target_form),
+		m_generator(std::move(url), std::move(opt.arg), opt.target_form),
 		m_reply(new reply_t(m_connection)),
-		m_cookie_store(std::move(cookie_store))
+		m_cookie_store(std::move(opt.cookie_store))
 	{
 		m_reply->parser().set_request_method(Method);
+		m_reply->parser().set_automatic_decompression(opt.auto_decompression);
 		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
 	}
 
@@ -478,7 +478,7 @@ public:
 		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			return 0;
-		return write_body(buffer(buf));
+		return base_write(std::move(buf));
 	}
 
 	[[nodiscard]] awaitable<io_expected> co_chunk_end(const headers_t &headers,
@@ -495,7 +495,7 @@ public:
 			co_return 0;
 
 		using namespace std::chrono_literals;
-		auto task = co_write_body(buffer(buf), std::move(cancel_slot));
+		auto task = co_base_write(std::move(buf), std::move(cancel_slot));
 		io_expected expected;
 
 		if( timeout == 0ns )
@@ -737,10 +737,11 @@ private:
 	auto make_file_opt_token(Opt &&opt) noexcept
 	{
 		using opt_t = std::remove_cvref_t<Opt>;
-		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
+		if constexpr( is_any_string_v<opt_t> or std::same_as<opt_t,std::filesystem::path> or
+			is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
 		{
-			using token_t = file_opt_token<void,file_optype::single> ;
-			token_t token(std::forward<Opt>(opt));
+			auto token = http_nt::make_file_opt_token(std::forward<Opt>(opt));
+			using token_t = decltype(token);
 
 			auto expected = token.init(std::ios::in | std::ios::binary);
 			if( expected )
@@ -768,13 +769,11 @@ public:
 
 template <method_enum Method, concepts::connection Connection, version_enum Version>
 basic_request_context<Method,Connection,Version>::basic_request_context
-(connection_t &&connection, url_t url, request_arg_t arg,
-	std::shared_ptr<cookie_jar> cookie_store, request_target_form target_form) :
+(connection_t &&connection, url_t url, options opt) :
 	mutable_headers<basic_request_context>(nullptr),
 	mutable_cookies<value,basic_request_context>(nullptr),
 	mutable_chunk_attributes<basic_request_context>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(connection), std::move(url),
-		std::move(arg), std::move(cookie_store), target_form))
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(url), std::move(opt)))
 {
 	this->m_headers = &m_impl->m_generator.headers();
 	this->m_cookies = &m_impl->m_generator.cookies();

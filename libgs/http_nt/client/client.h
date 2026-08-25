@@ -66,6 +66,7 @@ public:
 
 		std::optional<url_t> proxy {};
 		size_t max_redirects = 0;
+		bool auto_decompression = true;
 
 		req_info(url_t url, request_arg_t arg) :
 			url(std::move(url)), arg(std::move(arg)) {}
@@ -76,12 +77,19 @@ public:
 		req_info(core_concepts::string_p<char> auto &&url) :
 			url(std::forward<decltype(url)>(url)) {}
 
-		req_info &set_proxy(url_t value) {
+		req_info &set_proxy(url_t value)
+		{
 			proxy = std::move(value);
 			return *this;
 		}
-		req_info &follow_redirects(size_t limit = 10) noexcept {
+		req_info &follow_redirects(size_t limit = 10) noexcept
+		{
 			max_redirects = limit;
+			return *this;
+		}
+		req_info &auto_decompress(bool enabled = true) noexcept
+		{
+			auto_decompression = enabled;
 			return *this;
 		}
 	};
@@ -92,12 +100,21 @@ public:
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename T, typename Token>
-	static constexpr bool file_opt_token_v =
+	static constexpr bool upload_file_opt_token_v =
 		concepts::file_opt_token_p <
-			T, char, file_optype::multiple, io_permission::read
+			T, char, file_optype::combine, io_permission::read
 		> and
 		core_concepts::tf_opt_token <
 			Token, ctx_expected_t<method::put>
+		>;
+
+	template <typename T, typename Token>
+	static constexpr bool download_file_opt_token_v =
+		concepts::file_opt_token_p <
+			T, char, file_optype::single, io_permission::write
+		> and
+		core_concepts::tf_opt_token <
+			Token, ctx_expected_t<method::get>
 		>;
 
 public:
@@ -120,14 +137,19 @@ public:
 
 	template <typename T, typename Token = use_sync_t>
 	auto upload_file(req_info info, T &&opt, Token &&token = {}) noexcept
-		requires file_opt_token_v<T,Token>;
+		requires upload_file_opt_token_v<T,Token>;
 
 	template <typename T, typename Progress, typename Token = use_sync_t>
 	auto upload_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
-		requires file_opt_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
+		requires upload_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>;
 
-	// TODO ... ...
-	// download_file();
+	template <typename T, typename Token = use_sync_t>
+	auto download_file(req_info info, T &&opt, Token &&token = {}) noexcept
+		requires download_file_opt_token_v<T,Token>;
+
+	template <typename T, typename Progress, typename Token = use_sync_t>
+	auto download_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires download_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>;
 
 public:
 	template <typename Token = use_sync_t>

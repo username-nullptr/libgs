@@ -67,6 +67,8 @@ public:
 
 	[[nodiscard]] bool keep_alive() const noexcept;
 	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool content_decoded() const noexcept;
+	[[nodiscard]] bool automatic_decompression() const noexcept;
 
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_range_response() const noexcept;
@@ -75,8 +77,9 @@ public:
 	[[nodiscard]] bool is_upgrade() const noexcept;
 
 	parser &set_request_method(method_enum request_method) noexcept;
-	[[nodiscard]] method_enum request_method() const noexcept;
+	parser &set_automatic_decompression(bool enabled = true) noexcept;
 
+	[[nodiscard]] method_enum request_method() const noexcept;
 	[[nodiscard]] const optional<http_nt::content_range> &content_range() const noexcept;
 	[[nodiscard]] optional<size_t> complete_length() const noexcept;
 

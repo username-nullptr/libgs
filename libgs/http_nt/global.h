@@ -29,6 +29,7 @@
 #ifndef LIBGS_HTTP_NT_GLOBAL_H
 #define LIBGS_HTTP_NT_GLOBAL_H
 
+#include <libgs/http_nt/cxx/configs.h>
 #include <libgs/http_nt/cxx/container.h>
 #include <libgs/http_nt/protocol/model.h>
 

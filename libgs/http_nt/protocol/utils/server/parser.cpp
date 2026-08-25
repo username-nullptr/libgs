@@ -28,6 +28,7 @@
 
 #include "parser.h"
 #include <libgs/http_nt/protocol/utils/core/parser.h>
+#include <libgs/http_nt/protocol/utils/core/compression.h>
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
 
@@ -206,14 +207,9 @@ public:
 			m_support_gzip = false;
 			return ;
 		}
-		for(auto &str : string_vector::from_string(it->second.to_string(), ","))
-		{
-			if( strtls::to_lower(strtls::trimmed(str)) == "gzip" )
-			{
-				m_support_gzip = true;
-				break;
-			}
-		}
+		m_support_gzip = content_coding_quality (
+			it->second.to_string(), "gzip"
+		) > 0;
 	}
 
 public:

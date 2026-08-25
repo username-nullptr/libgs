@@ -70,10 +70,14 @@ public:
 		method_v == method_t::post or method_v == method_t::put;
 
 public:
-	basic_request_context(connection_t &&connection, url_t url, request_arg_t arg = {},
-		std::shared_ptr<cookie_jar> cookie_store = {},
-		request_target_form target_form = request_target_form::origin
-	);
+	struct options
+	{
+		request_arg_t arg {};
+		std::shared_ptr<cookie_jar> cookie_store {};
+		request_target_form target_form = request_target_form::origin;
+		bool auto_decompression = true;
+	};
+	basic_request_context(connection_t &&connection, url_t url, options opt = {});
 	~basic_request_context() override;
 
 	basic_request_context(basic_request_context &&other) noexcept;
@@ -92,7 +96,7 @@ public:
 		method_v == method_t::put and
 		core_concepts::tf_opt_token<Token,error_code,size_t> and
 		concepts::file_opt_token_p <
-			T, char, file_optype::single, io_permission::read
+			T, char, file_optype::combine, io_permission::read
 		>;
 
 	template <typename T, typename Token = use_sync_t>

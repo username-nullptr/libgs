@@ -30,7 +30,9 @@
 #define LIBGS_HTTP_NT_SERVER_DETAIL_RESPONSE_H
 
 #include <libgs/http_nt/protocol/utils/server/generator.h>
+#include <libgs/http_nt/protocol/utils/core/compression.h>
 #include <libgs/http_nt/protocol/utils/core/conditional.h>
+#include <libgs/http_nt/protocol/utils/core/upgrade.h>
 #include <libgs/http_nt/protocol/utils/core/range.h>
 
 namespace libgs::http_nt
@@ -57,6 +59,9 @@ public:
 		size_t sum = 0;
 
 		auto pro_state = m_generator.pro_state();
+		std::string compressed {};
+		const_buffer wire_body = body;
+
 		if( pro_state == generator_state::finish )
 		{
 			error = make_error_code(errc::eof);
@@ -64,14 +69,39 @@ public:
 		}
 		else if( pro_state == generator_state::header )
 		{
-			auto bytes = write_header(body.size(), error);
+			auto content_type = m_generator.header(header::content_type)
+				.transform([](const value &item) { return item.to_string(); })
+				.value_or("application/octet-stream");
+
+			if( m_auto_compression and
+				gzip_candidate(content_type, body.size(), false) )
+				add_vary_accept_encoding();
+
+			if( should_gzip(content_type, body.size(), false) )
+			{
+				auto encoded = gzip_compress({
+					static_cast<const char*>(body.data()), body.size()
+				});
+				if( not encoded )
+				{
+					error = encoded.error();
+					return sum;
+				}
+				if( encoded->size() < body.size() or m_req_method == method::head )
+				{
+					compressed = std::move(*encoded);
+					wire_body = buffer(compressed);
+					prepare_gzip_headers(false);
+				}
+			}
+			auto bytes = write_header(wire_body.size(), error);
 			if( error )
 				return sum;
 			sum += bytes;
 		}
-		if( body.size() > 0 and m_generator.pro_state() != generator_state::finish )
+		if( wire_body.size() > 0 and m_generator.pro_state() != generator_state::finish )
 		{
-			auto bytes = write_body(body, error);
+			auto bytes = write_body(wire_body, error);
 			if( error )
 				return sum;
 			sum += bytes;
@@ -86,10 +116,40 @@ public:
 		size_t sum = 0;
 
 		auto pro_state = m_generator.pro_state();
+		const_buffer wire_body = body;
+
 		if( pro_state == generator_state::finish )
 		{
 			error = make_error_code(errc::eof);
 			co_return sum;
+		}
+		if( pro_state == generator_state::header )
+		{
+			auto content_type = m_generator.header(header::content_type)
+				.transform([](const value &item) { return item.to_string(); })
+				.value_or("application/octet-stream");
+
+			if( m_auto_compression and
+				gzip_candidate(content_type, body.size(), false) )
+				add_vary_accept_encoding();
+
+			if( should_gzip(content_type, body.size(), false) )
+			{
+				auto encoded = gzip_compress({
+					static_cast<const char*>(body.data()), body.size()
+				});
+				if( not encoded )
+				{
+					error = encoded.error();
+					co_return sum;
+				}
+				if( encoded->size() < body.size() or m_req_method == method::head )
+				{
+					auto compressed = std::move(*encoded);
+					wire_body = buffer(compressed);
+					prepare_gzip_headers(false);
+				}
+			}
 		}
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<void>
@@ -97,16 +157,16 @@ public:
 			if( pro_state == generator_state::header )
 			{
 				auto bytes = co_await co_write_header (
-					body.size(), error, cancel_slot
+					wire_body.size(), error, cancel_slot
 				);
 				if( error )
 					co_return ;
 				sum += bytes;
 			}
-			if( body.size() > 0 and m_generator.pro_state() != generator_state::finish )
+			if( wire_body.size() > 0 and m_generator.pro_state() != generator_state::finish )
 			{
 				auto bytes = co_await co_write_body (
-					body, error, std::move(cancel_slot)
+					wire_body, error, std::move(cancel_slot)
 				);
 				if( error )
 					co_return ;
@@ -151,6 +211,135 @@ public:
 		co_return sum;
 	}
 
+private:
+	[[nodiscard]] bool status_allows_representation() const noexcept
+	{
+		auto response_status = m_generator.status();
+		auto code = static_cast<uint16_t>(response_status);
+
+		if( response_status == status::none )
+			code = static_cast<uint16_t>(status::ok);
+
+		return not (code >= 100 and code < 200) and
+			   response_status != status::no_content and
+			   response_status != status::reset_content and
+			   response_status != status::not_modified and
+			   response_status != status::partial_content and
+			   not (m_req_method == method::connect and code >= 200 and code < 300);
+	}
+
+	[[nodiscard]] bool gzip_candidate
+	(std::string_view mime, size_t size, bool file) const noexcept
+	{
+		if( size < 256 or
+			not status_allows_representation() or
+			not is_compressible_mime_type(mime) or
+			m_generator.contains_header(header::content_encoding) or
+			header_has_token(m_generator.headers(), header::cache_control, "no-transform") )
+			return false;
+		if( file )
+			return m_req_version >= version::v11;
+		return not m_generator.contains_header(header::transfer_encoding);
+	}
+
+	[[nodiscard]] bool should_gzip
+	(std::string_view mime, size_t size, bool file) const noexcept
+	{
+		return m_auto_compression and m_client_accepts_gzip and
+			gzip_candidate(mime, size, file) and (not file or m_req_range.empty());
+	}
+
+	void set_gzip_variant_etag() noexcept
+	{
+		auto it = m_generator.headers().find(header::etag);
+		if( it == m_generator.headers().end() )
+			return ;
+
+		if( auto tag = parse_entity_tag(it->second.to_string()) )
+		{
+			m_generator.set_header (
+				header::etag, "W/\"" + tag->opaque + "-gzip\""
+			);
+		}
+		else
+			m_generator.unset_header(header::etag);
+	}
+
+	void add_vary_accept_encoding() noexcept
+	{
+		auto it = m_generator.headers().find(header::vary);
+		if( it == m_generator.headers().end() )
+		{
+			m_generator.set_header(header::vary, header::accept_encoding);
+			return ;
+		}
+		if( not header_has_token(m_generator.headers(), header::vary, "*") and
+			not header_has_token(m_generator.headers(), header::vary, header::accept_encoding) )
+		{
+			m_generator.set_header(header::vary,
+				it->second.to_string() + ", " + header::accept_encoding
+			);
+		}
+	}
+
+	void prepare_gzip_headers(bool streaming) noexcept
+	{
+		m_generator
+		.set_header(header::content_encoding, "gzip")
+		.unset_header(header::content_length);
+
+		if( streaming )
+			m_generator.set_header(header::transfer_encoding, "chunked");
+		else
+			m_generator.unset_header(header::transfer_encoding);
+
+		add_vary_accept_encoding();
+		set_gzip_variant_etag();
+	}
+
+	template <typename Opt>
+	[[nodiscard]] static bool precompressed_file(const Opt &token) noexcept
+	{
+		if( is_precompressed_mime_type(token.mime_type) )
+			return true;
+
+		if constexpr( requires { token.file_name; } )
+		{
+			auto extension = strtls::to_lower(token.file_name.extension().string());
+			return extension == ".svgz";
+		}
+		return false;
+	}
+
+	template <typename Opt>
+	void prepare_file_encoding(const Opt &token) noexcept
+	{
+		m_generator.set_header(header::content_type, token.mime_type);
+		auto candidate = not precompressed_file(token) and
+			gzip_candidate(token.mime_type, token.file_size, true);
+
+		if( m_auto_compression and candidate )
+			add_vary_accept_encoding();
+
+		m_file_gzip = candidate and should_gzip(
+			token.mime_type, token.file_size, true
+		);
+		if( m_file_gzip )
+			prepare_gzip_headers(true);
+	}
+
+	void cancel_file_content_encoding() noexcept
+	{
+		if( not m_file_gzip )
+			return ;
+
+		m_file_gzip = false;
+		m_generator
+		.unset_header(header::content_encoding)
+		.unset_header(header::transfer_encoding)
+		.unset_header(header::content_length);
+	}
+
 public:
 	template <typename Opt>
 	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error) noexcept
@@ -165,17 +354,28 @@ public:
 			return 0;
 		}
 		set_file_validators(*f_token);
+		prepare_file_encoding(*f_token);
+
 		if( auto result = precondition_status(); result != status::none )
 		{
-			auto length = result == status::not_modified ? f_token->file_size : 0;
-			m_generator.set_status(result).set_header(header::content_length, length);
+			if( result == status::precondition_failed )
+				cancel_file_content_encoding();
+
+			auto length = result == status::not_modified and not m_file_gzip ?
+				f_token->file_size : 0;
+
+			m_generator.set_status(result);
+			if( result == status::not_modified and m_file_gzip )
+				m_generator.unset_header(header::content_length);
+			else
+				m_generator.set_header(header::content_length, length);
+
 			return write_header(length, error);
 		}
 		if( m_req_method != method::get or m_req_range.empty() or
 			not if_range_matches() or f_token->file_size == 0 )
-		{
 			return default_transfer(*f_token, error);
-		}
+
 		auto specifier = parse_range_header(m_req_range);
 		if( not specifier or specifier->unit != "bytes" or specifier->ranges.size() > 16 )
 			return default_transfer(*f_token, error);
@@ -214,6 +414,8 @@ public:
 			co_return 0;
 		}
 		set_file_validators(*f_token);
+		prepare_file_encoding(*f_token);
+
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 		size_t sum = 0;
@@ -223,8 +425,18 @@ public:
 		{
 			if( auto result = precondition_status(); result != status::none )
 			{
-				auto length = result == status::not_modified ? f_token->file_size : 0;
-				m_generator.set_status(result).set_header(header::content_length, length);
+				if( result == status::precondition_failed )
+					cancel_file_content_encoding();
+
+				auto length = result == status::not_modified and not m_file_gzip ?
+					f_token->file_size : 0;
+
+				m_generator.set_status(result);
+				if( result == status::not_modified and m_file_gzip )
+					m_generator.unset_header(header::content_length);
+				else
+					m_generator.set_header(header::content_length, length);
+
 				sum = co_await co_write_header(length, error, cancel_slot);
 				co_return ;
 			}
@@ -237,8 +449,7 @@ public:
 				co_return ;
 			}
 			auto specifier = parse_range_header(m_req_range);
-			if( not specifier or specifier->unit != "bytes" or
-				specifier->ranges.size() > 16 )
+			if( not specifier or specifier->unit != "bytes" or specifier->ranges.size() > 16 )
 			{
 				sum = co_await co_default_transfer (
 					*f_token, error, cancel_slot
@@ -317,7 +528,7 @@ public:
 		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			return 0;
-		return write_body(buffer(buf), error);
+		return base_write(std::move(buf), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error) noexcept
@@ -327,7 +538,7 @@ public:
 		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			co_return 0;
-		co_return co_await co_write_body(buffer(buf), error);
+		co_return co_await co_base_write(std::move(buf), error, {});
 	}
 
 	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers)
@@ -345,8 +556,218 @@ public:
 
 private:
 	template <typename Opt>
+	[[nodiscard]] sys_expected<size_t> gzip_file_size(Opt &token) noexcept
+	{
+		gzip_encoder encoder;
+		constexpr size_t buf_size = 64 * 1024;
+
+		char data[buf_size] {};
+		size_t result = 0;
+
+		token.stream->clear();
+		token.stream->seekg(0);
+
+		if( not *token.stream )
+			return sys_unexpected(make_error_code(std::errc::io_error));
+		for(;;)
+		{
+			token.stream->read(data, buf_size);
+			auto count = token.stream->gcount();
+
+			if( count == 0 )
+			{
+				if( token.stream->eof() )
+					break;
+				return sys_unexpected(make_error_code(std::errc::io_error));
+			}
+			auto encoded = encoder.append({
+				data, static_cast<size_t>(count)
+			});
+			if( not encoded )
+				return sys_unexpected(encoded.error());
+
+			if( encoded->size() > std::numeric_limits<size_t>::max() - result )
+				return sys_unexpected(make_error_code(std::errc::value_too_large));
+
+			result += encoded->size();
+			if( token.stream->eof() )
+				break;
+
+			if( not *token.stream )
+				return sys_unexpected(make_error_code(std::errc::io_error));
+		}
+		auto encoded = encoder.append({}, true);
+		if( not encoded )
+			return sys_unexpected(encoded.error());
+
+		if( encoded->size() > std::numeric_limits<size_t>::max() - result )
+			return sys_unexpected(make_error_code(std::errc::value_too_large));
+		result += encoded->size();
+
+		token.stream->clear();
+		token.stream->seekg(0);
+
+		if( not *token.stream )
+			return sys_unexpected(make_error_code(std::errc::io_error));
+		return result;
+	}
+
+	template <typename Opt>
+	[[nodiscard]] size_t gzip_transfer(Opt &token, error_code &error) noexcept
+	{
+		m_generator
+		.set_status(status::ok)
+		.unset_header(header::content_range)
+		.set_header(header::accept_ranges, "none")
+		.set_header(header::content_type, token.mime_type);
+
+		size_t body_size = 0;
+		if( m_req_method == method::head )
+		{
+			auto expected = gzip_file_size(token);
+			if( not expected )
+			{
+				error = expected.error();
+				return 0;
+			}
+			body_size = *expected;
+		}
+		auto sum = write_header(body_size, error);
+		if( error or m_generator.pro_state() == generator_state::finish )
+			return sum;
+
+		gzip_encoder encoder;
+		constexpr size_t buf_size = 64 * 1024;
+		char data[buf_size] {};
+
+		token.stream->clear();
+		token.stream->seekg(0);
+
+		while( not token.stream->eof() )
+		{
+			token.stream->read(data, buf_size);
+			auto size = static_cast<size_t>(token.stream->gcount());
+
+			if( size == 0 )
+			{
+				if( not token.stream->eof() )
+					error = make_error_code(std::errc::io_error);
+				break;
+			}
+			auto encoded = encoder.append({data, size});
+			if( not encoded )
+			{
+				error = encoded.error();
+				return sum;
+			}
+			if( not encoded->empty() )
+				sum += write_body(buffer(*encoded), error);
+			if( error )
+				return sum;
+		}
+		if( error )
+			return sum;
+
+		auto encoded = encoder.append({}, true);
+		if( not encoded )
+		{
+			error = encoded.error();
+			return sum;
+		}
+		if( not encoded->empty() )
+			sum += write_body(buffer(*encoded), error);
+
+		if( error )
+			return sum;
+
+		auto end = m_generator.chunk_end_data({});
+		if( not end.empty() )
+			sum += base_write(std::move(end), error);
+		return sum;
+	}
+
+	template <typename Opt>
+	[[nodiscard]] awaitable<size_t> co_gzip_transfer
+	(Opt &token, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	{
+		m_generator
+		.set_status(status::ok)
+		.unset_header(header::content_range)
+		.set_header(header::accept_ranges, "none")
+		.set_header(header::content_type, token.mime_type);
+
+		size_t body_size = 0;
+		if( m_req_method == method::head )
+		{
+			auto expected = gzip_file_size(token);
+			if( not expected )
+			{
+				error = expected.error();
+				co_return 0;
+			}
+			body_size = *expected;
+		}
+		auto sum = co_await co_write_header(body_size, error, cancel_slot);
+		if( error or m_generator.pro_state() == generator_state::finish )
+			co_return sum;
+
+		gzip_encoder encoder;
+		constexpr size_t buf_size = 64 * 1024;
+		char data[buf_size] {};
+
+		token.stream->clear();
+		token.stream->seekg(0);
+
+		while( not token.stream->eof() )
+		{
+			token.stream->read(data, buf_size);
+			auto size = static_cast<size_t>(token.stream->gcount());
+
+			if( size == 0 )
+			{
+				if( not token.stream->eof() )
+					error = make_error_code(std::errc::io_error);
+				break;
+			}
+			auto encoded = encoder.append({data, size});
+			if( not encoded )
+			{
+				error = encoded.error();
+				co_return sum;
+			}
+			if( not encoded->empty() )
+				sum += co_await co_write_body(buffer(*encoded), error, cancel_slot);
+
+			if( error )
+				co_return sum;
+		}
+		if( error )
+			co_return sum;
+
+		auto encoded = encoder.append({}, true);
+		if( not encoded )
+		{
+			error = encoded.error();
+			co_return sum;
+		}
+		if( not encoded->empty() )
+			sum += co_await co_write_body(buffer(*encoded), error, cancel_slot);
+
+		if( error )
+			co_return sum;
+
+		auto end = m_generator.chunk_end_data({});
+		if( not end.empty() )
+			sum += co_await co_base_write(std::move(end), error, cancel_slot);
+		co_return sum;
+	}
+
+	template <typename Opt>
 	[[nodiscard]] size_t default_transfer(Opt &token, error_code &error) noexcept
 	{
+		if( m_file_gzip )
+			return gzip_transfer(token, error);
+
 		m_generator
 		.set_status(status::ok)
 		.unset_header(header::content_range)
@@ -358,15 +779,16 @@ private:
 			m_generator.pro_state() == generator_state::finish )
 			return sum;
 
-		constexpr size_t buf_size = 0xFFFF;
 		token.stream->seekg(0);
 
 		while( not token.stream->eof() )
 		{
+			constexpr size_t buf_size = 0xFFFF;
 			char fr_buf[buf_size] {0};
-			token.stream->read(fr_buf, buf_size);
 
+			token.stream->read(fr_buf, buf_size);
 			auto size = token.stream->gcount();
+
 			if( size == 0 )
 				break;
 
@@ -381,6 +803,9 @@ private:
 	[[nodiscard]] awaitable<size_t> co_default_transfer
 	(Opt &token, error_code &error, asio::cancellation_slot cancel_slot) noexcept
 	{
+		if( m_file_gzip )
+			co_return co_await co_gzip_transfer(token, error, cancel_slot);
+
 		m_generator
 		.set_status(status::ok)
 		.unset_header(header::content_range)
@@ -400,6 +825,7 @@ private:
 		{
 			token.stream->read(fr_buf, buf_size);
 			auto size = static_cast<size_t>(token.stream->gcount());
+
 			if( size == 0 )
 				break;
 
@@ -904,10 +1330,11 @@ private:
 	auto make_file_opt_token(Opt &&opt) noexcept
 	{
 		using opt_t = std::remove_cvref_t<Opt>;
-		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
+		if constexpr( is_any_string_v<opt_t> or std::same_as<opt_t,std::filesystem::path> or
+			is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
 		{
-			using token_t = file_opt_token<void,file_optype::single> ;
-			token_t token(std::forward<Opt>(opt));
+			auto token = http_nt::make_file_opt_token(std::forward<Opt>(opt));
+			using token_t = decltype(token);
 
 			auto expected = token.init(std::ios::in | std::ios::binary);
 			if( expected )
@@ -931,9 +1358,15 @@ public:
 	generator_t m_generator {};
 
 	method_enum m_req_method = method::get;
+	version_enum m_req_version = version::v11;
+
 	headers_t m_req_headers {};
 	std::string m_req_range {};
 	std::string m_req_if_range {};
+
+	bool m_auto_compression = false;
+	bool m_client_accepts_gzip = false;
+	bool m_file_gzip = false;
 };
 
 template <concepts::connection Connection>
@@ -971,13 +1404,18 @@ template <concepts::connection Connection>
 basic_response<Connection> &basic_response<Connection>::auto_set(request_t &request)
 {
 	m_impl->m_req_method = request.method();
+	m_impl->m_req_version = request.version();
 	m_impl->m_req_headers = request.headers();
+
+	m_impl->m_client_accepts_gzip = request.support_gzip();
+	m_impl->m_auto_compression = gzip_available_v;
+
+	m_impl->m_req_range.clear();
+	m_impl->m_req_if_range.clear();
+	m_impl->m_file_gzip = false;
+
 	if( version() < http_nt::version::v11 )
 		return *this;
-
-	auto value = request.header(http_nt::header::transfer_encoding);
-	if( value and strtls::to_lower(**value) == "chunked" )
-		this->set_header(http_nt::header::transfer_encoding, "chunked");
 
 	auto it = request.headers().find(header::range);
 	if( it != request.headers().end() )
@@ -987,6 +1425,20 @@ basic_response<Connection> &basic_response<Connection>::auto_set(request_t &requ
 	if( it != request.headers().end() )
 		m_impl->m_req_if_range = it->second.to_string();
 	return *this;
+}
+
+template <concepts::connection Connection>
+basic_response<Connection>&
+basic_response<Connection>::set_auto_compression(bool enabled) noexcept
+{
+	m_impl->m_auto_compression = gzip_available_v and enabled;
+	return *this;
+}
+
+template <concepts::connection Connection>
+bool basic_response<Connection>::auto_compression() const noexcept
+{
+	return m_impl->m_auto_compression;
 }
 
 template <concepts::connection Connection>

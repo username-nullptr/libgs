@@ -811,15 +811,18 @@ private:
 	auto make_file_opt_token(Opt &&opt, bool preserve) noexcept
 	{
 		using opt_t = std::remove_cvref_t<Opt>;
-		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
+		if constexpr( is_any_string_v<opt_t> or std::same_as<opt_t,std::filesystem::path> or
+			is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
 		{
-			using token_t = file_opt_token<void,file_optype::single> ;
-			token_t token(std::forward<Opt>(opt));
+			auto token = http_nt::make_file_opt_token(std::forward<Opt>(opt));
+			using token_t = decltype(token);
 
 			auto mode = std::ios::out | std::ios::binary | std::ios::trunc;
-			if( preserve and std::filesystem::exists(token.file_name) )
-				mode = std::ios::in | std::ios::out | std::ios::binary;
-
+			if constexpr( requires { token.file_name; } )
+			{
+				if( preserve and std::filesystem::exists(token.file_name) )
+					mode = std::ios::in | std::ios::out | std::ios::binary;
+			}
 			auto expected = token.init(mode);
 			if( expected )
 				return sys_expected<token_t>(std::move(token));
@@ -1507,6 +1510,12 @@ template <concepts::connection Connection>
 error_code basic_reply<Connection>::first_error() const noexcept
 {
 	return m_impl->m_first_error;
+}
+
+template <concepts::connection Connection>
+bool basic_reply<Connection>::content_decoded() const noexcept
+{
+	return m_impl->m_parser.content_decoded();
 }
 
 template <concepts::connection Connection>

@@ -69,7 +69,8 @@ static constexpr const char
 	* trailer             = "Trailer"            ,
 	* transfer_encoding   = "Transfer-Encoding"  ,
 	* user_agent          = "User-Agent"         ,
-	* upgrade             = "Upgrade"            ;
+	* upgrade             = "Upgrade"            ,
+	* vary                = "Vary"               ;
 };
 
 using headers = map<value>;

@@ -48,6 +48,30 @@ struct protocol_name
 template <concepts::stream Stream>
 constexpr auto protocol_name_v = protocol_name<Stream>::name;
 
+template <typename>
+struct is_async_reference : std::false_type {};
+
+template <typename T>
+struct is_async_reference<std::reference_wrapper<T>> : std::true_type {};
+
+template <typename T>
+[[nodiscard]] auto make_async_capture(T &&value)
+{
+	if constexpr( std::is_lvalue_reference_v<T> )
+		return std::ref(value);
+	else
+		return std::remove_cvref_t<T>(std::forward<T>(value));
+}
+
+template <typename T>
+[[nodiscard]] decltype(auto) unwrap_async_capture(T &value) noexcept
+{
+	if constexpr( is_async_reference<std::remove_cvref_t<T>>::value )
+		return value.get();
+	else
+		return (value);
+}
+
 } //namespace detail
 
 template <concepts::connection_pool ConnectionPool, version_enum Version>
@@ -120,7 +144,7 @@ public:
 				}
 			}
 			try {
-				auto next = resolve_url(info.url, **location);
+				auto next = url::resolve(info.url, **location);
 				if( not same_origin(info.url, next) )
 				{
 					info.arg.unset_header(header::authorization);
@@ -185,7 +209,7 @@ public:
 				}
 			}
 			try {
-				auto next = resolve_url(info.url, **location);
+				auto next = url::resolve(info.url, **location);
 				if( not same_origin(info.url, next) )
 				{
 					info.arg.unset_header(header::authorization);
@@ -380,38 +404,38 @@ public:
 	[[nodiscard]] ctx_expected_t<method::put> upload_file
 	(req_info info, auto &&opt, auto &&progress) noexcept
 	{
-		auto pair = info.arg.set_header(opt);
+		auto pair = info.arg.set_header(std::forward<decltype(opt)>(opt));
 		if( not pair )
 			return sys_unexpected(pair.error());
 
-		return request<method::put>(std::move(info))
-		.and_then([&](const auto &context) -> ctx_expected_t<method::put>
+		auto ctx_expected = request<method::put>(std::move(info));
+		if( not ctx_expected )
+			return ctx_expected;
+
+		if constexpr( version_v > version::v10 )
 		{
-			if constexpr( version_v > version::v10 )
-			{
-				if( context->responded() and
-					context->reply()->status() != status::continue_upload )
-					return context;
-			}
-			else
-			{
-				if( context->responded() )
-					return context;
-			}
-			return context->request().upload_file (
-				std::move(pair->first), std::move(pair->second),
-				std::forward<decltype(progress)>(progress)
-			)
-			.and_then([&]
-			{
-				context->wait_reply();
-				return context;
-			});
-		});
+			if( ctx_expected->responded() and
+				ctx_expected->reply()->status() != status::continue_upload )
+				return ctx_expected;
+		}
+		else if( ctx_expected->responded() )
+			return ctx_expected;
+
+		auto io_expected = ctx_expected->upload_file (
+			std::move(pair->first), std::move(pair->second),
+			std::forward<decltype(progress)>(progress)
+		);
+		if( not io_expected )
+			return sys_unexpected(io_expected.error());
+
+		auto status_expected = ctx_expected->wait_reply();
+		if( not status_expected )
+			return sys_unexpected(status_expected.error());
+		return ctx_expected;
 	}
 
 	[[nodiscard]] awaitable<ctx_expected_t<method::put>> co_upload_file(
-		req_info info, auto &&opt, auto &&progress, asio::cancellation_slot cancel_slot,
+		req_info info, auto opt, auto progress, asio::cancellation_slot cancel_slot,
 		std::chrono::nanoseconds timeout) noexcept
 	{
 		using namespace std::chrono_literals;
@@ -420,7 +444,7 @@ public:
 		ctx_expected_t<method::put> ctx_expected {
 			sys_unexpected(make_error_code(std::errc::connection_aborted))
 		};
-		auto pair = info.arg.set_header(opt);
+		auto pair = info.arg.set_header(detail::unwrap_async_capture(opt));
 		if( not pair )
 			co_return sys_unexpected(pair.error());
 
@@ -443,9 +467,9 @@ public:
 				if( ctx_expected->responded() )
 					co_return ;
 			}
-			auto io_expected = co_await ctx_expected->request().upload_file (
+			auto io_expected = co_await ctx_expected->upload_file (
 				std::move(pair->first), std::move(pair->second),
-				std::forward<decltype(progress)>(progress),
+				detail::unwrap_async_capture(progress),
 				use_awaitable | cancel_slot
 			);
 			if( not io_expected )
@@ -479,11 +503,88 @@ public:
 	}
 
 	[[nodiscard]] awaitable<ctx_expected_t<method::put>> co_upload_file(
-		std::error_code &error, req_info info, auto &&opt, auto &&progress,
+		std::error_code &error, req_info info, auto opt, auto progress,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		auto expected = co_await co_upload_file(std::move(info),
-			std::forward<decltype(opt)>(opt), std::forward<decltype(progress)>(progress),
+			std::move(opt), std::move(progress),
+			std::move(cancel_slot), std::move(timeout)
+		);
+		if( not expected )
+			error = expected.error();
+		co_return expected;
+	}
+
+public:
+	[[nodiscard]] ctx_expected_t<method::get> download_file
+	(req_info info, auto &&opt, auto &&progress) noexcept
+	{
+		auto expected = request<method::get>(std::move(info));
+		if( not expected )
+			return expected;
+
+		auto io_expected = expected->reply()->save_file (
+			std::forward<decltype(opt)>(opt),
+			std::forward<decltype(progress)>(progress)
+		);
+		if( not io_expected )
+			return sys_unexpected(io_expected.error());
+		return expected;
+	}
+
+	[[nodiscard]] awaitable<ctx_expected_t<method::get>> co_download_file(
+		req_info info, auto opt, auto progress, asio::cancellation_slot cancel_slot,
+		std::chrono::nanoseconds timeout) noexcept
+	{
+		using namespace std::chrono_literals;
+		using namespace libgs::operators;
+
+		ctx_expected_t<method::get> ctx_expected {
+			sys_unexpected(make_error_code(std::errc::connection_aborted))
+		};
+		auto task = libgs::dispatch(m_pool.get_executor(), [&]() mutable -> awaitable<void>
+		{
+			ctx_expected = co_await co_request<method::get> (
+				std::move(info), cancel_slot, 0ns
+			);
+			if( not ctx_expected )
+				co_return ;
+
+			auto io_expected = co_await ctx_expected->reply()->save_file (
+				detail::unwrap_async_capture(opt),
+				detail::unwrap_async_capture(progress),
+				use_awaitable | cancel_slot
+			);
+			if( not io_expected )
+				ctx_expected.despair(io_expected.error());
+			co_return ;
+		},
+		use_awaitable);
+
+		if( timeout == 0ns )
+			co_await std::move(task);
+		else
+		{
+			auto var = co_await(std::move(task) or
+				coro::sleep_for(m_pool.get_executor(), timeout)
+			);
+			if( var.index() == 1 )
+			{
+				if( not std::get<1>(var) )
+					ctx_expected.despair(make_error_code(errc::timed_out));
+				else
+					ctx_expected.despair(std::get<1>(var));
+			}
+		}
+		co_return ctx_expected;
+	}
+
+	[[nodiscard]] awaitable<ctx_expected_t<method::get>> co_download_file(
+		std::error_code &error, req_info info, auto opt, auto progress,
+		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	{
+		auto expected = co_await co_download_file(std::move(info),
+			std::move(opt), std::move(progress),
 			std::move(cancel_slot), std::move(timeout)
 		);
 		if( not expected )
@@ -516,8 +617,11 @@ public:
 			return sys_unexpected(expected.error());
 
 		return context_t<Method>(
-			std::move(*expected), std::move(info.url), std::move(info.arg), m_cookie_store,
-			info.proxy ? request_target_form::absolute : request_target_form::origin
+			std::move(*expected), std::move(info.url), {
+				std::move(info.arg), m_cookie_store,
+				info.proxy ? request_target_form::absolute : request_target_form::origin,
+				info.auto_decompression
+			}
 		);
 	}
 
@@ -548,8 +652,11 @@ public:
 			co_return sys_unexpected(expected.error());
 
 		co_return context_t<Method>(
-			std::move(*expected), std::move(info.url), std::move(info.arg), m_cookie_store,
-			info.proxy ? request_target_form::absolute : request_target_form::origin
+			std::move(*expected), std::move(info.url), {
+				std::move(info.arg), m_cookie_store,
+				info.proxy ? request_target_form::absolute : request_target_form::origin,
+				info.auto_decompression
+			}
 		);
 	}
 
@@ -756,7 +863,7 @@ auto basic_client<ConnectionPool,Version>::request(req_info info, Token &&token)
 template <concepts::connection_pool ConnectionPool, version_enum Version>
 template <typename T, typename Token>
 auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, Token &&token)
-	noexcept requires file_opt_token_v<T,Token>
+	noexcept requires upload_file_opt_token_v<T,Token>
 {
 	return upload_file(std::move(info),
 		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
@@ -766,7 +873,7 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, T
 template <concepts::connection_pool ConnectionPool, version_enum Version>
 template <typename T, typename Progress, typename Token>
 auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, Progress &&progress, Token &&token)
-	noexcept requires file_opt_token_v<T,Token> and concepts::progress_callback<Progress,Token>
+	noexcept requires upload_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
@@ -797,7 +904,8 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
 				return m_impl->co_upload_file(no_time_token.ec_, std::move(info),
-					std::forward<T>(opt), std::forward<Progress>(progress),
+					detail::make_async_capture(std::forward<T>(opt)),
+					detail::make_async_capture(std::forward<Progress>(progress)),
 					asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
@@ -805,7 +913,8 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			else
 			{
 				return m_impl->co_upload_file(std::move(info),
-					std::forward<T>(opt), std::forward<Progress>(progress),
+					detail::make_async_capture(std::forward<T>(opt)),
+					detail::make_async_capture(std::forward<Progress>(progress)),
 					asio::get_associated_cancellation_slot(no_time_token),
 					get_associated_redirect_time(token)
 				);
@@ -817,7 +926,8 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			{
 				return libgs::dispatch(get_executor(),
 					m_impl->co_upload_file(no_time_token.ec_, std::move(info),
-						std::forward<T>(opt), std::forward<Progress>(progress),
+						detail::make_async_capture(std::forward<T>(opt)),
+						detail::make_async_capture(std::forward<Progress>(progress)),
 						asio::get_associated_cancellation_slot(no_time_token),
 						get_associated_redirect_time(token)
 					), deferred
@@ -827,7 +937,8 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			{
 				return libgs::dispatch(get_executor(),
 					m_impl->co_upload_file(std::move(info),
-						std::forward<T>(opt), std::forward<Progress>(progress),
+						detail::make_async_capture(std::forward<T>(opt)),
+						detail::make_async_capture(std::forward<Progress>(progress)),
 						asio::get_associated_cancellation_slot(no_time_token),
 						get_associated_redirect_time(token)
 					), deferred
@@ -836,12 +947,14 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 		}
 		else if constexpr( is_use_future_v<original_token_t> )
 		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
+			auto promise = std::make_shared<std::promise<ctx_expected_t<method::put>>>();
+			auto future = promise->get_future();
 			if constexpr( is_redirect_error_v<no_time_token_t> )
 			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+				libgs::dispatch(get_executor(), [impl = m_impl,
 					no_time_token, promise = std::move(promise), info = std::move(info),
-					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					opt = detail::make_async_capture(std::forward<T>(opt)),
+					progress = detail::make_async_capture(std::forward<Progress>(progress)),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
@@ -855,9 +968,10 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 			}
 			else
 			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
+				libgs::dispatch(get_executor(), [impl = m_impl,
 					promise = std::move(promise), info = std::move(info),
-					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
+					opt = detail::make_async_capture(std::forward<T>(opt)),
+					progress = detail::make_async_capture(std::forward<Progress>(progress)),
 					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
@@ -869,13 +983,15 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 					co_return ;
 				});
 			}
-			return promise->get_future();
+			return future;
 		}
 		else if constexpr( is_redirect_error_v<no_time_token_t> )
 		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-				no_time_token, original_token, info = std::move(info), opt = std::forward<T>(opt),
-				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
+			libgs::dispatch(get_executor(), [impl = m_impl,
+				no_time_token, original_token, info = std::move(info),
+				opt = detail::make_async_capture(std::forward<T>(opt)),
+				progress = detail::make_async_capture(std::forward<Progress>(progress)),
+				timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
@@ -883,20 +999,17 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 					std::move(info), std::move(opt), std::move(progress),
 					cancel_slot, timeout
 				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
+				original_token(std::move(expected));
+				co_return ;
 			});
 		}
 		else
 		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-				original_token, info = std::move(info), opt = std::forward<T>(opt),
-				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
+			libgs::dispatch(get_executor(), [impl = m_impl,
+				original_token, info = std::move(info),
+				opt = detail::make_async_capture(std::forward<T>(opt)),
+				progress = detail::make_async_capture(std::forward<Progress>(progress)),
+				timeout = get_associated_redirect_time(token),
 				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
 			]() mutable -> awaitable<void>
 			{
@@ -904,13 +1017,8 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 					std::move(info), std::move(opt), std::move(progress),
 					cancel_slot, timeout
 				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
+				original_token(std::move(expected));
+				co_return ;
 			});
 		}
 	}
@@ -919,6 +1027,179 @@ auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, P
 		using namespace libgs::operators;
 		using namespace std::chrono_literals;
 		return upload_file(std::move(info),
+			std::forward<T>(opt), std::forward<Progress>(progress),
+			token | 0ns
+		);
+	}
+}
+
+template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <typename T, typename Token>
+auto basic_client<ConnectionPool,Version>::download_file(req_info info, T &&opt, Token &&token)
+	noexcept requires download_file_opt_token_v<T,Token>
+{
+	return download_file(std::move(info),
+		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
+	);
+}
+
+template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <typename T, typename Progress, typename Token>
+auto basic_client<ConnectionPool,Version>::download_file(req_info info, T &&opt, Progress &&progress, Token &&token)
+	noexcept requires download_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		auto expected = m_impl->download_file(std::move(info),
+			std::forward<T>(opt), std::forward<Progress>(progress)
+		);
+		if( not expected )
+			token = expected.error();
+		return expected;
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		return m_impl->download_file(std::move(info),
+			std::forward<T>(opt), std::forward<Progress>(progress)
+		);
+	}
+	else if constexpr( is_redirect_time_v<token_t> )
+	{
+		decltype(auto) no_time_token = unbound_redirect_time(token);
+		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
+
+		decltype(auto) original_token = unbound_token(no_time_token);
+		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
+
+		if constexpr( is_use_awaitable_v<original_token_t> )
+		{
+			if constexpr( is_redirect_error_v<no_time_token_t> )
+			{
+				return m_impl->co_download_file(no_time_token.ec_, std::move(info),
+					detail::make_async_capture(std::forward<T>(opt)),
+					detail::make_async_capture(std::forward<Progress>(progress)),
+					asio::get_associated_cancellation_slot(no_time_token),
+					get_associated_redirect_time(token)
+				);
+			}
+			else
+			{
+				return m_impl->co_download_file(std::move(info),
+					detail::make_async_capture(std::forward<T>(opt)),
+					detail::make_async_capture(std::forward<Progress>(progress)),
+					asio::get_associated_cancellation_slot(no_time_token),
+					get_associated_redirect_time(token)
+				);
+			}
+		}
+		else if constexpr( is_deferred_v<original_token_t> )
+		{
+			if constexpr( is_redirect_error_v<no_time_token_t> )
+			{
+				return libgs::dispatch(get_executor(),
+					m_impl->co_download_file(no_time_token.ec_, std::move(info),
+						detail::make_async_capture(std::forward<T>(opt)),
+						detail::make_async_capture(std::forward<Progress>(progress)),
+						asio::get_associated_cancellation_slot(no_time_token),
+						get_associated_redirect_time(token)
+					), deferred
+				);
+			}
+			else
+			{
+				return libgs::dispatch(get_executor(),
+					m_impl->co_download_file(std::move(info),
+						detail::make_async_capture(std::forward<T>(opt)),
+						detail::make_async_capture(std::forward<Progress>(progress)),
+						asio::get_associated_cancellation_slot(no_time_token),
+						get_associated_redirect_time(token)
+					), deferred
+				);
+			}
+		}
+		else if constexpr( is_use_future_v<original_token_t> )
+		{
+			auto promise = std::make_shared<std::promise<ctx_expected_t<method::get>>>();
+			auto future = promise->get_future();
+			if constexpr( is_redirect_error_v<no_time_token_t> )
+			{
+				libgs::dispatch(get_executor(), [impl = m_impl,
+					no_time_token, promise = std::move(promise), info = std::move(info),
+					opt = detail::make_async_capture(std::forward<T>(opt)),
+					progress = detail::make_async_capture(std::forward<Progress>(progress)),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
+					timeout = get_associated_redirect_time(token)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await impl->co_download_file(no_time_token.ec_,
+						std::move(info), std::move(opt), std::move(progress),
+						cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			else
+			{
+				libgs::dispatch(get_executor(), [impl = m_impl,
+					promise = std::move(promise), info = std::move(info),
+					opt = detail::make_async_capture(std::forward<T>(opt)),
+					progress = detail::make_async_capture(std::forward<Progress>(progress)),
+					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
+					timeout = get_associated_redirect_time(token)
+				]() mutable -> awaitable<void>
+				{
+					promise->set_value(co_await impl->co_download_file (
+						std::move(info), std::move(opt), std::move(progress),
+						cancel_slot, timeout
+					));
+					co_return ;
+				});
+			}
+			return future;
+		}
+		else if constexpr( is_redirect_error_v<no_time_token_t> )
+		{
+			libgs::dispatch(get_executor(), [impl = m_impl,
+				no_time_token, original_token, info = std::move(info),
+				opt = detail::make_async_capture(std::forward<T>(opt)),
+				progress = detail::make_async_capture(std::forward<Progress>(progress)),
+				timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await impl->co_download_file(no_time_token.ec_,
+					std::move(info), std::move(opt), std::move(progress),
+					cancel_slot, timeout
+				);
+				original_token(std::move(expected));
+				co_return ;
+			});
+		}
+		else
+		{
+			libgs::dispatch(get_executor(), [impl = m_impl,
+				original_token, info = std::move(info),
+				opt = detail::make_async_capture(std::forward<T>(opt)),
+				progress = detail::make_async_capture(std::forward<Progress>(progress)),
+				timeout = get_associated_redirect_time(token),
+				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
+			]() mutable -> awaitable<void>
+			{
+				auto expected = co_await impl->co_download_file (
+					std::move(info), std::move(opt), std::move(progress),
+					cancel_slot, timeout
+				);
+				original_token(std::move(expected));
+				co_return ;
+			});
+		}
+	}
+	else
+	{
+		using namespace libgs::operators;
+		using namespace std::chrono_literals;
+		return download_file(std::move(info),
 			std::forward<T>(opt), std::forward<Progress>(progress),
 			token | 0ns
 		);

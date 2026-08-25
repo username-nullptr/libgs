@@ -32,6 +32,7 @@
 #include <libgs/http_nt/protocol/utils/generator.h>
 #include <libgs/http_nt/protocol/utils/parser.h>
 
+#include <libgs/http_nt/protocol/utils/core/compression.h>
 #include <libgs/http_nt/protocol/utils/core/conditional.h>
 #include <libgs/http_nt/protocol/utils/core/upgrade.h>
 

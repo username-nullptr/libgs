@@ -365,7 +365,8 @@ auto mutable_headers<Derived>::make_file_opt_token(Opt &&opt)
 	noexcept requires file_opt_token_v<Opt>
 {
 	using opt_t = std::remove_cvref_t<Opt>;
-	if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
+	if constexpr( is_any_string_v<opt_t> or std::same_as<opt_t,std::filesystem::path> or
+		is_fstream_v<opt_t,char> or is_ifstream_v<opt_t,char> )
 	{
 		using token_t = decltype(http_nt::make_file_opt_token(std::forward<Opt>(opt)));
 		using type = token_t::type;
@@ -385,7 +386,7 @@ auto mutable_headers<Derived>::make_file_opt_token(Opt &&opt)
 
 		res_token_t token(std::forward<Opt>(opt));
 		if( token.stream->is_open() )
-			return sys_expected<opt_t>(std::forward<Opt>(opt));
+			return sys_expected<res_token_t>(std::move(token));
 
 		auto expected = token.init(std::ios::in | std::ios::binary);
 		if( expected )

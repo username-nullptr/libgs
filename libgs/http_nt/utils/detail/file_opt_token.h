@@ -105,7 +105,7 @@ LIBGS_HTTP_NT_TAPI void init_mime_type(concepts::any_file_opt_token auto &opt) n
 	if constexpr( std::is_same_v<type,void> )
 		opt.mime_type = mime_type::get(opt.file_name);
 	else if constexpr( opt_t::permissions & io_permission::read )
-		opt.mime_type = mime_type::get(opt.stream);
+		opt.mime_type = mime_type::get(*opt.stream);
 	else
 		opt.mime_type = "Unknown";
 }
@@ -376,7 +376,7 @@ sys_expected<> file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::o
 
 template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream) :
-	stream(new fstream_t(std::move(stream)))
+	stream(&stream)
 {
 
 }
