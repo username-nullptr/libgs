@@ -377,10 +377,97 @@ public:
 		co_return expected;
 	}
 
+	[[nodiscard]] sys_expected<byte_range_chunk> read_range_body() noexcept
+	{
+		if( m_first_error )
+			return sys_unexpected(m_first_error);
+
+		if( m_parser.stage() == stage::header )
+		{
+			auto expected = wait();
+			if( not expected )
+				return sys_unexpected(expected.error());
+		}
+		auto &sock = m_connection->opt_helper();
+		for(;;)
+		{
+			if( auto chunk = m_parser.take_range_body(128 * 1024) )
+				return std::move(*chunk);
+
+			if( m_parser.stage() == stage::finished )
+				return sys_unexpected(make_error_code(errc::eof));
+
+			if( not sock.is_open() )
+				return sys_unexpected(make_error_code(std::errc::not_connected));
+
+			char buf[128 * 1024] {};
+			error_code error {};
+			auto size = sock.read(buffer(buf), error);
+
+			if( error )
+			{
+				sock.close();
+				return sys_unexpected(error);
+			}
+			auto expected = m_parser.append({buf, size});
+			if( not expected )
+			{
+				sock.close();
+				return sys_unexpected(expected.error());
+			}
+		}
+	}
+
+	[[nodiscard]] awaitable<sys_expected<byte_range_chunk>>
+	co_read_range_body(asio::cancellation_slot cancel_slot) noexcept
+	{
+		using namespace libgs::operators;
+		if( m_first_error )
+			co_return sys_unexpected(m_first_error);
+
+		if( m_parser.stage() == stage::header )
+		{
+			using namespace std::chrono_literals;
+			auto expected = co_await co_wait(cancel_slot, 0ns);
+			if( not expected )
+				co_return sys_unexpected(expected.error());
+		}
+		auto &sock = m_connection->opt_helper();
+		for(;;)
+		{
+			if( auto chunk = m_parser.take_range_body(128 * 1024) )
+				co_return std::move(*chunk);
+
+			if( m_parser.stage() == stage::finished )
+				co_return sys_unexpected(make_error_code(errc::eof));
+
+			if( not sock.is_open() )
+				co_return sys_unexpected(make_error_code(std::errc::not_connected));
+
+			char buf[128 * 1024] {};
+			error_code error {};
+
+			auto size = co_await sock.read (
+				buffer(buf), use_awaitable | cancel_slot | error
+			);
+			if( error )
+			{
+				sock.close();
+				co_return sys_unexpected(error);
+			}
+			auto expected = m_parser.append({buf, size});
+			if( not expected )
+			{
+				sock.close();
+				co_return sys_unexpected(expected.error());
+			}
+		}
+	}
+
 public:
 	[[nodiscard]] sys_expected<std::string> read() noexcept
 	{
-		std::string sum;
+		std::string sum {};
 		for(;;)
 		{
 			constexpr size_t buf_size = 0xFFFF;
@@ -406,7 +493,7 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<sys_expected<std::string>>
 		{
-			std::string sum;
+			std::string sum {};
 			for(;;)
 			{
 				constexpr size_t buf_size = 0xFFFF;
@@ -461,7 +548,21 @@ public:
 	[[nodiscard]] io_expected save_file(auto &&opt, auto &&progress) noexcept
 	{
 		io_expected expected {};
-		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
+		if( m_parser.stage() == stage::header )
+		{
+			auto status = wait();
+			if( not status )
+				return expected.despair(status.error());
+		}
+		if( m_parser.status() == status::range_not_satisfiable )
+		{
+			return expected.despair (
+				std::make_error_code(std::errc::result_out_of_range)
+			);
+		}
+		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt),
+			m_parser.status() == status::partial_content
+		);
 		if( not token )
 			return expected.despair(token.error());
 
@@ -469,20 +570,33 @@ public:
 		if( not before )
 			return expected.despair(before.error());
 
-		constexpr size_t buf_size = 128 * 1024;
-		char buffer[buf_size] {0};
 		size_t sum = 0, total = 0;
+		if( auto complete = m_parser.complete_length() )
+			total = *complete;
 
-		if( auto length = m_parser.header(header::content_length) )
+		else if( auto length = m_parser.header(header::content_length);
+			not m_parser.is_range_response() and length )
 			total = *length->get<size_t>().or_else(0);
+
 		for(;;)
 		{
-			expected = read({buffer, buf_size});
-			if( not expected )
+			auto chunk = read_range_body();
+			if( not chunk )
+			{
+				expected.despair(chunk.error());
 				break;
+			}
+			token->stream->seekp(chunk->offset, std::ios::beg);
+			token->stream->write(chunk->data.data(), chunk->data.size());
 
-			token->stream->write(buffer, *expected);
-			sum += *expected;
+			if( not *token->stream )
+			{
+				expected.despair(std::make_error_code(std::errc::io_error));
+				break;
+			}
+			sum += chunk->data.size();
+			if( auto complete = m_parser.complete_length() )
+				total = *complete;
 
 			if( auto error = invoke_progress(progress, sum, total) )
 			{
@@ -491,11 +605,13 @@ public:
 			}
 		}
 		token->stream->close();
+		auto restored = m_connection->unset_transfer_file_option(*before);
+
 		if( not expected and expected.error() != errc::eof )
 			return expected;
 
-		else if( auto expected2 = m_connection->unset_transfer_file_option(*before); not expected2 )
-			return expected.despair(expected2.error());
+		if( not restored )
+			return expected.despair(restored.error());
 		return sum;
 	}
 
@@ -506,8 +622,21 @@ public:
 		using namespace libgs::operators;
 
 		io_expected expected {};
-		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
-
+		if( m_parser.stage() == stage::header )
+		{
+			auto status = co_await co_wait(cancel_slot, 0ns);
+			if( not status )
+				co_return expected.despair(status.error());
+		}
+		if( m_parser.status() == status::range_not_satisfiable )
+		{
+			co_return expected.despair (
+				std::make_error_code(std::errc::result_out_of_range)
+			);
+		}
+		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt),
+			m_parser.status() == status::partial_content
+		);
 		if( not token )
 			co_return expected.despair(token.error());
 
@@ -518,30 +647,48 @@ public:
 			if( not before )
 				co_return expected.despair(before.error());
 
-			constexpr size_t buf_size = 128 * 1024;
-			char buffer[buf_size] {0};
 			size_t sum = 0, total = 0;
+			if( auto complete = m_parser.complete_length() )
+				total = *complete;
 
-			if( auto length = m_parser.header(header::content_length) )
+			else if( auto length = m_parser.header(header::content_length);
+				not m_parser.is_range_response() and length )
 				total = *length->get<size_t>().or_else(0);
+
 			for(;;)
 			{
-				expected = read({buffer, buf_size});
-				if( not expected )
+				auto chunk = co_await co_read_range_body(cancel_slot);
+				if( not chunk )
+				{
+					expected.despair(chunk.error());
 					break;
+				}
+				token->stream->seekp(chunk->offset, std::ios::beg);
+				token->stream->write(chunk->data.data(), chunk->data.size());
 
-				token->stream->write(buffer, *expected);
-				sum += *expected;
+				if( not *token->stream )
+				{
+					expected.despair(std::make_error_code(std::errc::io_error));
+					break;
+				}
+				sum += chunk->data.size();
+				if( auto complete = m_parser.complete_length() )
+					total = *complete;
 
-				if( auto error = invoke_progress(progress, sum, total) )
+				if( auto error = co_await co_invoke_progress(progress, sum, total) )
+				{
 					expected.despair(error);
+					break;
+				}
 			}
 			token->stream->close();
+			auto restored = m_connection->unset_transfer_file_option(*before);
+
 			if( not expected and expected.error() != errc::eof )
 				co_return expected;
 
-			else if( auto expected2 = m_connection->unset_transfer_file_option(*before); not expected2 )
-				co_return expected.despair(expected2.error());
+			if( not restored )
+				co_return expected.despair(restored.error());
 			co_return sum;
 		},
 		use_awaitable | cancel_slot);
@@ -611,7 +758,7 @@ private:
 	}
 
 	template <typename Opt>
-	auto make_file_opt_token(Opt &&opt) noexcept
+	auto make_file_opt_token(Opt &&opt, bool preserve) noexcept
 	{
 		using opt_t = std::remove_cvref_t<Opt>;
 		if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
@@ -619,9 +766,14 @@ private:
 			using token_t = file_opt_token<void,file_optype::single> ;
 			token_t token(std::forward<Opt>(opt));
 
-			auto expected = token.init(std::ios::out | std::ios::binary | std::ios::trunc);
+			auto mode = std::ios::out | std::ios::binary | std::ios::trunc;
+			if( preserve and std::filesystem::exists(token.file_name) )
+				mode = std::ios::in | std::ios::out | std::ios::binary;
+
+			auto expected = token.init(mode);
 			if( expected )
 				return sys_expected<token_t>(std::move(token));
+
 			return sys_expected<token_t>(sys_unexpected(expected.error()));
 		}
 		else
@@ -629,9 +781,14 @@ private:
 			if( opt.stream->is_open() )
 				return sys_expected<opt_t>(std::forward<Opt>(opt));
 
-			auto expected = opt.init(std::ios::out | std::ios::binary | std::ios::trunc);
+			auto mode = preserve ?
+				std::ios::in | std::ios::out | std::ios::binary :
+				std::ios::out | std::ios::binary | std::ios::trunc;
+
+			auto expected = opt.init(mode);
 			if( expected )
 				return sys_expected<opt_t>(std::forward<Opt>(opt));
+
 			return sys_expected<opt_t>(sys_unexpected(expected.error()));
 		}
 	}
@@ -668,7 +825,7 @@ private:
 	}
 
 public:
-	connection_ptr m_connection;
+	connection_ptr m_connection {};
 	error_code m_first_error {};
 	parser_t m_parser {};
 };

@@ -39,9 +39,9 @@ class LIBGS_HTTP_NT_TAPI basic_service_context<Connection>::impl
 
 public:
 	impl(connection_ptr connection, session_manager &session_manager) :
-		m_session_manager(session_manager), m_response(connection), m_request(connection) {
-		m_response.auto_set(m_request);
-	}
+		m_session_manager(session_manager),
+		m_response(connection),
+		m_request(connection) {}
 
 public:
 	session_manager &m_session_manager;

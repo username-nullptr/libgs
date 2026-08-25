@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_NT_SERVER_DETAIL_RESPONSE_H
 
 #include <libgs/http_nt/protocol/utils/server/generator.h>
+#include <libgs/http_nt/protocol/utils/core/range.h>
 
 namespace libgs::http_nt
 {
@@ -40,10 +41,8 @@ class LIBGS_HTTP_NT_TAPI basic_response<Connection>::impl
 	LIBGS_DISABLE_COPY(impl)
 	using generator_t = server_generator;
 
-	struct range_value : file_range
-	{
+	struct range_value : file_range {
 		std::string cr_line {};
-		size_t end = 0;
 	};
 
 public:
@@ -164,34 +163,33 @@ public:
 			error = f_token.error();
 			return 0;
 		}
-		file_ranges f_ranges {};
-		using f_token_t = std::remove_cvref_t<decltype(*f_token)>;
-
-		if constexpr( f_token_t::optype == file_optype::single )
+		if( m_req_method != method::get or m_req_range.empty() or
+			not if_range_matches() or f_token->file_size == 0 )
 		{
-			if( f_token->range )
-				f_ranges.emplace_back(*f_token->range);
+			return default_transfer(*f_token, error);
 		}
-		else
-			f_ranges = f_token->ranges;
-
-		if( not f_ranges.empty() )
-		{
-			auto ranges = from_file_range(f_ranges, f_token->file_size, error);
-			return error ? 0 : range_transfer(*f_token, ranges, error);
-		}
-		if( m_req_range.empty() )
+		auto specifier = parse_range_header(m_req_range);
+		if( not specifier or specifier->unit != "bytes" or specifier->ranges.size() > 16 )
 			return default_transfer(*f_token, error);
 
-		std::vector<range_value> ranges;
-		auto status = range_text_parsing(m_req_range, f_token->file_size, ranges);
-		if( status != status::ok )
+		auto resolved = resolve_byte_ranges(*specifier, f_token->file_size);
+		if( resolved.empty() )
 		{
-			m_generator.set_status(status::range_not_satisfiable);
-			auto buf = std::format("{} ({})", status_description(status), status);
-			return write(buffer(buf, buf.size()), error);
+			m_generator
+			.set_status(status::range_not_satisfiable)
+			.set_header(header::accept_ranges, "bytes")
+			.set_header(header::content_length, 0)
+			.set_header(header::content_range,
+				format_unsatisfied_content_range(f_token->file_size)
+			);
+			return write_header(0, error);
 		}
-		return range_transfer(*f_token, ranges, error);
+		if( excessive_range_set(resolved, f_token->file_size) )
+			return default_transfer(*f_token, error);
+
+		return range_transfer(*f_token,
+			make_range_values(resolved, f_token->file_size), error
+		);
 	}
 
 	template <typename Opt>
@@ -207,17 +205,6 @@ public:
 			error = f_token.error();
 			co_return 0;
 		}
-		file_ranges f_ranges {};
-		using f_token_t = std::remove_cvref_t<decltype(*f_token)>;
-
-		if constexpr( f_token_t::optype == file_optype::single )
-		{
-			if( f_token->range )
-				f_ranges.emplace_back(*f_token->range);
-		}
-		else
-			f_ranges = f_token->ranges;
-
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 		size_t sum = 0;
@@ -225,39 +212,46 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<void>
 		{
-			if( not f_ranges.empty() )
-			{
-				auto ranges = from_file_range (
-					f_ranges, f_token->file_size, error
-				);
-				sum = co_await co_range_transfer (
-					*f_token, ranges, error, cancel_slot
-				);
-				co_return ;
-			}
-			if( m_req_range.empty() )
+			if( m_req_method != method::get or m_req_range.empty() or
+				not if_range_matches() or f_token->file_size == 0 )
 			{
 				sum = co_await co_default_transfer (
 					*f_token, error, cancel_slot
 				);
 				co_return ;
 			}
-			std::vector<range_value> ranges;
-			auto status = range_text_parsing(m_req_range, f_token->file_size, ranges);
-			if( status != status::ok )
+			auto specifier = parse_range_header(m_req_range);
+			if( not specifier or specifier->unit != "bytes" or
+				specifier->ranges.size() > 16 )
 			{
-				m_generator.set_status(status::range_not_satisfiable);
-				auto buf = std::format("{} ({})",
-					status::description(status), status
+				sum = co_await co_default_transfer (
+					*f_token, error, cancel_slot
 				);
-				sum = co_await co_write (
-					buffer(buf, buf.size()), error, cancel_slot, 0ns
+				co_return ;
+			}
+			auto resolved = resolve_byte_ranges(*specifier, f_token->file_size);
+			if( resolved.empty() )
+			{
+				m_generator
+				.set_status(status::range_not_satisfiable)
+				.set_header(header::accept_ranges, "bytes")
+				.set_header(header::content_length, 0)
+				.set_header(header::content_range,
+					format_unsatisfied_content_range(f_token->file_size)
+				);
+				sum = co_await co_write_header(0, error, cancel_slot);
+			}
+			else if( excessive_range_set(resolved, f_token->file_size) )
+			{
+				sum = co_await co_default_transfer (
+					*f_token, error, cancel_slot
 				);
 			}
 			else
 			{
 				sum = co_await co_range_transfer (
-					*f_token, ranges, error, cancel_slot
+					*f_token, make_range_values(resolved, f_token->file_size),
+					error, cancel_slot
 				);
 			}
 			co_return ;
@@ -337,13 +331,14 @@ private:
 	template <typename Opt>
 	[[nodiscard]] size_t default_transfer(Opt &token, error_code &error) noexcept
 	{
-		size_t sum = 0;
-		if( token.file_size == 0 )
-			return sum;
+		m_generator
+		.set_status(status::ok)
+		.unset_header(header::content_range)
+		.set_header(header::accept_ranges, "bytes")
+		.set_header(header::content_type, token.mime_type);
 
-		m_generator.set_header(header::content_type, token.mime_type);
-		sum += write_header(token.file_size, error);
-		if( error )
+		auto sum = write_header(token.file_size, error);
+		if( error or token.file_size == 0 )
 			return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
@@ -369,13 +364,14 @@ private:
 	[[nodiscard]] awaitable<size_t> co_default_transfer
 	(Opt &token, error_code &error, asio::cancellation_slot cancel_slot) noexcept
 	{
-		size_t sum = 0;
-		if( token.file_size == 0 )
-			co_return sum;
+		m_generator
+		.set_status(status::ok)
+		.unset_header(header::content_range)
+		.set_header(header::accept_ranges, "bytes")
+		.set_header(header::content_type, token.mime_type);
 
-		m_generator.set_header(header::content_type, token.mime_type);
-		sum += co_await co_write_header(token.file_size, error, cancel_slot);
-		if( error )
+		auto sum = co_await co_write_header(token.file_size, error, cancel_slot);
+		if( error or token.file_size == 0 )
 			co_return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
@@ -410,14 +406,13 @@ private:
 			.set_header(header::accept_ranges , "bytes"        )
 			.set_header(header::content_type  , token.mime_type)
 			.set_header(header::content_length, range.total    )
-
-			.set_header(header::content_range , value_t {
-				"{}-{}/{}", range.begin, range.end, range.total
-			});
+			.set_header(header::content_range,
+				format_content_range(range, token.file_size)
+			);
 			return send_range(token.stream, "", "", ranges, error);
-		} // if( rangeList.size() == 1 )
-
+		}
 		using namespace std::chrono;
+
 		auto boundary = std::format("{}_{}",
 			uuid::generate().to_string(),
 			duration_cast<milliseconds>(
@@ -427,6 +422,8 @@ private:
 		m_generator.set_header(header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
+		m_generator.unset_header(header::content_range);
+
 		auto ct_line = std::format("{}: {}",
 			header::content_type, token.mime_type
 		);
@@ -476,10 +473,9 @@ private:
 			.set_header(header::accept_ranges , "bytes"          )
 			.set_header(header::content_type  , token.mime_type  )
 			.set_header(header::content_length, range.total      )
-
-			.set_header(header::content_range, value_t {
-				"{}-{}/{}", range.begin, range.end, range.total
-			});
+			.set_header(header::content_range,
+				format_content_range(range, token.file_size)
+			);
 			co_return co_await co_send_range (
 				token.stream, "", "", ranges, error, cancel_slot
 			);
@@ -493,7 +489,11 @@ private:
 		m_generator.set_header(header::content_type,
 			"multipart/byteranges; boundary=" + boundary
 		);
-		auto ct_line = std::format("{}: {}", header::content_type, token.mime_type);
+		m_generator.unset_header(header::content_range);
+
+		auto ct_line = std::format (
+			"{}: {}", header::content_type, token.mime_type
+		);
 		std::size_t content_length = 0;
 
 		for(auto &range: ranges)
@@ -541,7 +541,7 @@ private:
 			return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] {0};
+		char buf[buf_size + 2] {0};
 
 		if( ranges.size() == 1 )
 		{
@@ -564,7 +564,7 @@ private:
 				sum += write_body(buffer(buf,size), error);
 				if( error )
 					break;
-				value.size -= buf_size;
+				value.total -= static_cast<size_t>(size);
 			}
 			return sum;
 		}
@@ -586,9 +586,9 @@ private:
 			stream->seekg(value.begin, std::ios_base::beg);
 			while( not stream->eof() )
 			{
-				if( value.size <= buf_size )
+				if( value.total <= buf_size )
 				{
-					stream->read(buf, value.size);
+					stream->read(buf, value.total);
 					auto size = stream->gcount();
 					if( size == 0 )
 						break;
@@ -607,7 +607,7 @@ private:
 				sum += write_body(buffer(buf,size), error);
 				if( error )
 					return sum;
-				value.size -= buf_size;
+				value.total -= static_cast<size_t>(size);
 			}
 		}
 		auto abuf = std::format("--{}--\r\n", boundary);
@@ -627,7 +627,7 @@ private:
 			co_return sum;
 
 		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] {0};
+		char buf[buf_size + 2] {0};
 
 		if( ranges.size() == 1 )
 		{
@@ -654,7 +654,7 @@ private:
 				);
 				if( error )
 					break;
-				value.total -= buf_size;
+				value.total -= size;
 			}
 			co_return sum;
 		}
@@ -703,7 +703,7 @@ private:
 				);
 				if( error )
 					co_return sum;
-				value.total -= buf_size;
+				value.total -= size;
 			}
 		}
 		auto abuf = std::format("--{}--\r\n", boundary);
@@ -711,104 +711,6 @@ private:
 			buffer(abuf, abuf.size()), error, cancel_slot
 		);
 		co_return sum;
-	}
-
-private:
-	[[nodiscard]] status_enum range_text_parsing
-	(std::string_view range_str_view, size_t file_size, std::vector<range_value> &ranges)
-	{
-		std::string range_str(range_str_view.data(), range_str_view.size());
-		for(auto i=range_str.size(); i>0; i--)
-		{
-			if( range_str[i] == 0x20/*SPACE*/ )
-				range_str.erase(i,1);
-		}
-		if( range_str.empty() )
-			return status::bad_request;
-
-		// bytes=x-y, m-n, i-j ...
-		else if( range_str.substr(0,6) != "bytes=" )
-			return status::range_not_satisfiable;
-
-		// x-y, m-n, i-j ...
-		auto cl_range_str = range_str.substr(6);
-		if( cl_range_str.empty() )
-			return status::range_not_satisfiable;
-
-		// (x-y) ( m-n) ( i-j) ...
-		for(auto &sub_range_str : string_vector::from_string(cl_range_str, ','))
-		{
-			range_value range;
-			range.total = 0;
-
-			if( auto str_vector = string_vector::from_string(sub_range_str, '-', false);
-				str_vector.size() != 2 )
-				return status::range_not_satisfiable;
-
-			else if( str_vector[0].empty() )
-			{
-				if( str_vector[1].empty() )
-					return status::range_not_satisfiable;
-
-				range.total = *strtls::to_arith<size_t>(str_vector[1]).or_else();
-				if( range.total == 0 or range.total > file_size )
-					return status::range_not_satisfiable;
-
-				range.begin = file_size - range.total;
-				range.end   = file_size - 1;
-			}
-			else if( str_vector[1].empty() )
-			{
-				if( str_vector[0].empty() )
-					return status::range_not_satisfiable;
-
-				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
-				range.end   = file_size - 1;
-
-				if( range.begin > range.end )
-					return status::range_not_satisfiable;
-				range.total = file_size - range.begin;
-			}
-			else
-			{
-				range.begin = *strtls::to_arith<size_t>(str_vector[0]).or_else();
-				range.end   = *strtls::to_arith<size_t>(str_vector[1]).or_else();
-
-				if( range.begin > range.end or range.end >= file_size )
-					return status::range_not_satisfiable;
-				range.total = range.end - range.begin + 1;
-			}
-			range.cr_line = std::format("{}: bytes {}-{}/{}",
-				header::content_range, range.begin, range.end, file_size
-			);
-			ranges.emplace_back(std::move(range));
-		}
-		return status::ok;
-	}
-
-	[[nodiscard]] std::vector<range_value> from_file_range
-	(const file_ranges &ranges, size_t file_size, error_code &error)
-	{
-		std::vector<range_value> vector;
-		for(auto &range : ranges)
-		{
-			auto end = range.begin + range.total - 1;
-			if( range.total == 0 or end >= file_size )
-			{
-				error = std::make_error_code(std::errc::invalid_seek);
-				break;
-			}
-			range_value value;
-			value.begin = range.begin;
-			value.total = range.total;
-			value.end   = end;
-
-			value.cr_line = std::format("{}: bytes {}-{}/{}",
-				header::content_range, value.begin, value.end, file_size
-			);
-			vector.emplace_back(std::move(value));
-		}
-		return vector;
 	}
 
 private:
@@ -880,6 +782,57 @@ private:
 	}
 
 private:
+	[[nodiscard]] bool if_range_matches() const noexcept
+	{
+		if( m_req_if_range.empty() )
+			return true;
+
+		const auto &headers = m_generator.headers();
+		if( m_req_if_range.starts_with("W/") )
+			return false;
+
+		if( m_req_if_range.starts_with('"') )
+		{
+			auto it = headers.find(header::etag);
+			return it != headers.end() and it->second.to_string() == m_req_if_range;
+		}
+		auto it = headers.find(header::last_modified);
+		return it != headers.end() and it->second.to_string() == m_req_if_range;
+	}
+
+	[[nodiscard]] static bool excessive_range_set
+	(const file_ranges &ranges, size_t complete_length) noexcept
+	{
+		size_t total = 0;
+		for(auto &range : ranges)
+		{
+			if( range.total > complete_length - total )
+				return true;
+			total += range.total;
+		}
+		return false;
+	}
+
+	[[nodiscard]] std::vector<range_value> make_range_values
+	(const file_ranges &ranges, size_t complete_length) const
+	{
+		std::vector<range_value> result;
+		result.reserve(ranges.size());
+
+		for(auto &range : ranges)
+		{
+			range_value value {};
+			value.begin = range.begin;
+			value.total = range.total;
+
+			value.cr_line = std::format("{}: {}", header::content_range,
+				format_content_range(range, complete_length)
+			);
+			result.emplace_back(std::move(value));
+		}
+		return result;
+	}
+
 	template <typename Opt>
 	auto make_file_opt_token(Opt &&opt) noexcept
 	{
@@ -907,9 +860,12 @@ private:
 	}
 
 public:
-	connection_ptr m_connection;
+	connection_ptr m_connection {};
 	generator_t m_generator {};
+
+	method_enum m_req_method = method::get;
 	std::string m_req_range {};
+	std::string m_req_if_range {};
 };
 
 template <concepts::connection Connection>
@@ -946,6 +902,7 @@ basic_response<Connection> &basic_response<Connection>::set_status(status_enum s
 template <concepts::connection Connection>
 basic_response<Connection> &basic_response<Connection>::auto_set(request_t &request)
 {
+	m_impl->m_req_method = request.method();
 	if( version() < http_nt::version::v11 )
 		return *this;
 
@@ -956,6 +913,10 @@ basic_response<Connection> &basic_response<Connection>::auto_set(request_t &requ
 	auto it = request.headers().find(header::range);
 	if( it != request.headers().end() )
 		m_impl->m_req_range = it->second.to_string();
+
+	it = request.headers().find(header::if_range);
+	if( it != request.headers().end() )
+		m_impl->m_req_if_range = it->second.to_string();
 	return *this;
 }
 

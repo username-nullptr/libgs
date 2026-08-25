@@ -29,10 +29,10 @@
 #include "parser.h"
 #include <libgs/core/algorithm/misc.h>
 
-namespace libgs::http_nt
+namespace libgs::http_nt { namespace
 {
 
-static class LIBGS_DECL_HIDDEN error_category : public std::error_category
+class LIBGS_DECL_HIDDEN error_category : public std::error_category
 {
 	LIBGS_DISABLE_COPY_MOVE(error_category)
 
@@ -48,14 +48,16 @@ public:
 		switch(static_cast<parse_errno>(code))
 		{
 #define X_MACRO(e,v,d) case parse_errno::e: return d;
-			LIBGS_HTTP_PARSER_ERRNO
+		LIBGS_HTTP_PARSER_ERRNO
 #undef X_MACRO
-			default: break;
+		default: break;
 		}
 		return "Unknown error.";
 	}
 }
 g_error_category;
+
+} //namespace
 
 [[nodiscard]] static error_code make_error_code(parse_errno errc) {
 	return { static_cast<int>(errc), g_error_category };
@@ -131,8 +133,7 @@ public:
 		sys_expected<bool> result = false;
 		if( line_buf.empty() )
 		{
-			auto error = set_read_body_state();
-			if( error )
+			if( auto error = set_read_body_state() )
 				result.despair(error);
 			else
 				result = true;
@@ -161,8 +162,8 @@ public:
 	[[nodiscard]] error_code set_read_body_state()
 	{
 		error_code error;
-		auto it = m_headers.find(header::content_length);
-		if( it != m_headers.end() )
+		if( auto it = m_headers.find(header::content_length);
+			it != m_headers.end() )
 		{
 			auto expected = it->second.get<size_t>();
 			if( not expected )
@@ -526,20 +527,22 @@ error_code parser<protocol_model::base>::make_error_code(parse_errno errc)
 
 sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 {
-	using state = impl::state;
-	std::string str_buf(reinterpret_cast<const char*>(buf.data()), buf.size());
-
+	using state_t = impl::state;
+	std::string str_buf (
+		static_cast<const char*>(buf.data()),
+		buf.size()
+	);
 	if( str_buf.empty() )
 		return { make_error_code(parse_errno::IDE) };
 
-	else if( m_impl->m_state == state::finished )
+	else if( m_impl->m_state == state_t::finished )
 		return { make_error_code(parse_errno::RE) };
 
 	m_impl->m_src_buf += str_buf;
-	if( m_impl->m_state <= state::reading_headers )
+	if( m_impl->m_state <= state_t::reading_headers )
 		return m_impl->parse_header();
 
-	else if( m_impl->m_state == state::reading_length )
+	else if( m_impl->m_state == state_t::reading_length )
 	{
 		m_impl->parse_length();
 		return true;
@@ -573,7 +576,7 @@ std::string parser<protocol_model::base>::take_partial_body(size_t size)
 
 std::string parser<protocol_model::base>::take_body()
 {
-	return std::move(m_impl->m_partial_body);
+	return std::exchange(m_impl->m_partial_body, {});
 }
 
 version_enum parser<protocol_model::base>::version() const noexcept

@@ -29,6 +29,7 @@
 #include "parser.h"
 #include <libgs/http_nt/protocol/utils/core/parser.h>
 #include <libgs/core/string_vector.h>
+#include <deque>
 
 namespace libgs::http_nt
 {
@@ -123,30 +124,33 @@ public:
 	}
 
 public:
-	void set_attribute()
+	[[nodiscard]] error_code set_attribute()
 	{
-		auto headers = m_parser.headers();
+		if( m_attributes_set )
+			return {};
+		m_attributes_set = true;
+
+		const auto &headers = m_parser.headers();
 		auto it = headers.find(header::connection);
 		m_keep_alive = m_parser.version() != version::v10;
+
 		if( it != headers.end() )
 		{
 			for(auto &str : string_vector::from_string(it->second.to_string(), ','))
 			{
-				auto value = strtls::to_lower(strtls::trimmed(str));
-				if( value == "close" )
+				if( auto value = strtls::to_lower(strtls::trimmed(str));
+					value == "close" )
 					m_keep_alive = false;
+
 				else if( value == "keep-alive" )
 					m_keep_alive = true;
 			}
 		}
-
 		it = headers.find(header::content_encoding);
 		if( it == headers.end() )
-		{
 			m_support_gzip = false;
-			return ;
-		}
-		for(auto &str : string_vector::from_string(it->second.to_string(), ","))
+
+		else for(auto &str : string_vector::from_string(it->second.to_string(), ","))
 		{
 			if( strtls::to_lower(strtls::trimmed(str)) == "gzip" )
 			{
@@ -154,17 +158,217 @@ public:
 				break;
 			}
 		}
+		if( m_status == status::range_not_satisfiable )
+		{
+			it = headers.find(header::content_range);
+			if( it == headers.end() )
+				return {};
+
+			auto range = parse_content_range(it->second.to_string());
+			if( not range or range->unit != "bytes" or range->satisfied )
+				return base_parser::make_error_code(parse_errno::SFE);
+
+			m_content_range = *range;
+			return {};
+		}
+		if( m_status != status::partial_content )
+			return {};
+
+		it = headers.find(header::content_type);
+		if( it != headers.end() )
+		{
+			auto content_type = it->second.to_string();
+			auto pos = content_type.find(';');
+
+			auto media_type = strtls::to_lower (
+				strtls::trimmed(content_type.substr(0, pos))
+			);
+			if( media_type == "multipart/byteranges" )
+			{
+				auto boundary = parse_multipart_byte_ranges_boundary(content_type);
+				if( not boundary )
+					return base_parser::make_error_code(parse_errno::SFE);
+
+				m_multipart_parser = std::make_unique<multipart_byte_ranges_parser>(*boundary);
+				m_body_norms = multipart_body_norms {.boundary = *boundary};
+				return {};
+			}
+		}
+		it = headers.find(header::content_range);
+		if( it == headers.end() )
+			return base_parser::make_error_code(parse_errno::SFE);
+
+		auto range = parse_content_range(it->second.to_string());
+		if( not range or range->unit != "bytes" or not range->satisfied )
+			return base_parser::make_error_code(parse_errno::SFE);
+
+		m_content_range = *range;
+		m_body_norms = range_body_norms {
+			.begin = range->first,
+			.total = range->length()
+		};
+		return {};
+	}
+
+	[[nodiscard]] error_code consume_body()
+	{
+		auto body = m_parser.take_body();
+		if( m_multipart_parser )
+		{
+			if( not body.empty() )
+			{
+				auto chunks = m_multipart_parser->append(body);
+				if( not chunks )
+					return base_parser::make_error_code(parse_errno::SFE);
+
+				for(auto &[part_index, offset, data] : *chunks)
+					append_body(part_index, offset, data);
+				sync_multipart_norms();
+			}
+			if( m_parser.stage() == stage::finished )
+			{
+				if( auto error = m_multipart_parser->finish(); error )
+					return base_parser::make_error_code(parse_errno::SFE);
+				sync_multipart_norms();
+			}
+			return {};
+		}
+		if( not body.empty() )
+		{
+			auto offset = m_plain_body_size;
+			if( m_content_range and m_content_range->satisfied )
+			{
+				if( body.size() > m_content_range->length() -
+					std::min(m_plain_body_size, m_content_range->length()) )
+					return base_parser::make_error_code(parse_errno::SFE);
+				offset += m_content_range->first;
+			}
+			m_plain_body_size += body.size();
+			append_body(0, offset, body);
+		}
+		if( m_parser.stage() == stage::finished and m_content_range and
+			m_content_range->satisfied and m_plain_body_size != m_content_range->length() )
+			return base_parser::make_error_code(parse_errno::SFE);
+		return {};
+	}
+
+	void append_body(size_t part_index, size_t offset, const std::string &data)
+	{
+		if( data.empty() )
+			return ;
+
+		if( not m_segments.empty() and m_segments.back().part_index == part_index and
+			m_segments.back().offset + m_segments.back().length == offset )
+			m_segments.back().length += data.size();
+		else
+		{
+			m_segments.emplace_back(segment {
+				.part_index = part_index,
+				.offset = offset,
+				.length = data.size()
+			});
+		}
+		m_partial_body += data;
+	}
+
+	void sync_multipart_norms()
+	{
+		auto &[boundary, packages] = std::get<multipart_body_norms>(m_body_norms);
+		const auto &parts = m_multipart_parser->parts();
+
+		while( packages.size() < parts.size() )
+		{
+			const auto &part = parts[packages.size()];
+			auto &[headers, range] = packages.emplace_back();
+
+			for(auto &[key,value] : part.fields)
+				headers.emplace_back(key + ": " + value.to_string());
+
+			range = {
+				.begin = part.range.first,
+				.total = part.range.length()
+			};
+		}
+	}
+
+	void consume_segments(size_t size) noexcept
+	{
+		while( size > 0 and not m_segments.empty() )
+		{
+			auto &segment = m_segments.front();
+			auto consumed = std::min(size, segment.length);
+
+			segment.offset += consumed;
+			segment.length -= consumed;
+			size -= consumed;
+
+			if( segment.length == 0 )
+				m_segments.pop_front();
+		}
+	}
+
+	[[nodiscard]] std::string take_partial_body(size_t size)
+	{
+		size = std::min(size, m_partial_body.size());
+		auto result = m_partial_body.substr(0, size);
+		m_partial_body.erase(0, size);
+		consume_segments(size);
+		return result;
+	}
+
+	[[nodiscard]] optional<byte_range_chunk> take_range_body(size_t size)
+	{
+		if( size == 0 or m_segments.empty() )
+			return {};
+
+		auto segment = m_segments.front();
+		size = std::min(size, segment.length);
+
+		byte_range_chunk result {
+			.part_index = segment.part_index,
+			.offset = segment.offset,
+			.data = m_partial_body.substr(0, size)
+		};
+		m_partial_body.erase(0, size);
+		consume_segments(size);
+		return result;
+	}
+
+	void reset_range_state()
+	{
+		m_attributes_set = false;
+		m_content_range.reset();
+		m_multipart_parser.reset();
+		m_body_norms = basic_body_norms {};
+		m_partial_body.clear();
+		m_segments.clear();
+		m_plain_body_size = 0;
 	}
 
 public:
+	struct segment
+	{
+		size_t part_index;
+		size_t offset;
+		size_t length;
+	};
 	base_parser m_parser;
 	status_enum m_status = status::none;
 
 	std::string m_description = status::description<status::none>();
 	cookies_t m_cookies {};
+	body_norms_t m_body_norms {};
+
+	optional<http_nt::content_range> m_content_range {};
+	std::unique_ptr<multipart_byte_ranges_parser> m_multipart_parser {};
+
+	std::string m_partial_body {};
+	std::deque<segment> m_segments {};
+	size_t m_plain_body_size = 0;
 
 	bool m_keep_alive = false;
 	bool m_support_gzip = false;
+	bool m_attributes_set = false;
 };
 
 parser<protocol_model::client>::parser(size_t init_buf_size) :
@@ -188,14 +392,74 @@ bool parser<protocol_model::client>::support_gzip() const noexcept
 	return m_impl->m_support_gzip;
 }
 
+bool parser<protocol_model::client>::is_chunked() const noexcept
+{
+	auto it = headers().find(header::transfer_encoding);
+	if( it == headers().end() )
+		return false;
+
+	return std::ranges::any_of (
+		string_vector::from_string(it->second.to_string(), ','),
+		[](const auto &coding) {
+			return strtls::to_lower(strtls::trimmed(coding)) == "chunked";
+		}
+	);
+}
+
+bool parser<protocol_model::client>::is_range_response() const noexcept
+{
+	return m_impl->m_status == status::partial_content or
+		m_impl->m_status == status::range_not_satisfiable;
+}
+
+bool parser<protocol_model::client>::is_multipart_byte_ranges() const noexcept
+{
+	return static_cast<bool>(m_impl->m_multipart_parser);
+}
+
+const optional<http_nt::content_range>&
+parser<protocol_model::client>::content_range() const noexcept
+{
+	return m_impl->m_content_range;
+}
+
+optional<size_t> parser<protocol_model::client>::complete_length() const noexcept
+{
+	if( m_impl->m_content_range and m_impl->m_content_range->complete_length )
+		return m_impl->m_content_range->complete_length;
+
+	if( m_impl->m_multipart_parser )
+	{
+		for(auto &[fields, range] : m_impl->m_multipart_parser->parts())
+		{
+			if( range.complete_length )
+				return range.complete_length;
+		}
+	}
+	return {};
+}
+
+const body_norms_t &parser<protocol_model::client>::body_norms() const noexcept
+{
+	return m_impl->m_body_norms;
+}
+
 std::string parser<protocol_model::client>::take_partial_body(size_t size)
 {
-	return m_impl->m_parser.take_partial_body(size);
+	return m_impl->take_partial_body(size);
 }
 
 std::string parser<protocol_model::client>::take_body()
 {
-	return m_impl->m_parser.take_body();
+	auto result = std::move(m_impl->m_partial_body);
+	m_impl->m_partial_body.clear();
+	m_impl->m_segments.clear();
+	return result;
+}
+
+optional<byte_range_chunk> parser<protocol_model::client>::take_range_body(size_t size)
+{
+	return m_impl->take_range_body(size);
 }
 
 parser<protocol_model::client>::~parser()
@@ -240,8 +504,16 @@ parser<protocol_model::client> &parser<protocol_model::client>::operator=(parser
 sys_expected<bool> parser<protocol_model::client>::append(const const_buffer &buf)
 {
 	auto expected = m_impl->m_parser.append(buf);
-	if( expected and m_impl->m_parser.stage() != stage::header )
-		m_impl->set_attribute();
+	if( not expected )
+		return expected;
+
+	if( m_impl->m_parser.stage() != stage::header )
+	{
+		if( auto error = m_impl->set_attribute() )
+			return sys_unexpected(error);
+		if( auto error = m_impl->consume_body() )
+			return sys_unexpected(error);
+	}
 	return expected;
 }
 
@@ -263,6 +535,8 @@ status_enum parser<protocol_model::client>::status() const noexcept
 
 parser<protocol_model::client>::stage_t parser<protocol_model::client>::stage() const noexcept
 {
+	if( not m_impl->m_partial_body.empty() )
+		return stage_t::body;
 	return m_impl->m_parser.stage();
 }
 
@@ -274,6 +548,7 @@ parser<protocol_model::client> &parser<protocol_model::client>::reset()
 	m_impl->m_cookies.clear();
 	m_impl->m_keep_alive = false;
 	m_impl->m_support_gzip = false;
+	m_impl->reset_range_state();
 	return *this;
 }
 

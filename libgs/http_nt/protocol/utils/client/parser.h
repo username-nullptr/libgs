@@ -31,6 +31,7 @@
 
 #include <libgs/http_nt/protocol/utils/core/container_helper.h>
 #include <libgs/http_nt/protocol/utils/core/parser_types.h>
+#include <libgs/http_nt/protocol/utils/core/range.h>
 
 namespace libgs::http_nt
 {
@@ -47,7 +48,7 @@ public:
 	using stage_t = http_nt::stage;
 
 	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
+	~parser() override;
 
 	parser(parser &&other) noexcept;
 	parser &operator=(parser &&other) noexcept;
@@ -61,10 +62,18 @@ public:
 
 	[[nodiscard]] bool keep_alive() const noexcept;
 	[[nodiscard]] bool support_gzip() const noexcept;
+	[[nodiscard]] bool is_chunked() const noexcept;
+	[[nodiscard]] bool is_range_response() const noexcept;
+	[[nodiscard]] bool is_multipart_byte_ranges() const noexcept;
+
+	[[nodiscard]] const optional<http_nt::content_range> &content_range() const noexcept;
+	[[nodiscard]] optional<size_t> complete_length() const noexcept;
+	[[nodiscard]] const body_norms_t &body_norms() const noexcept;
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+	[[nodiscard]] optional<byte_range_chunk> take_range_body(size_t size);
 
 	[[nodiscard]] stage_t stage() const noexcept;
 	parser &reset();

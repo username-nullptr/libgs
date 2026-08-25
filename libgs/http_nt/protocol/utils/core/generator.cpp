@@ -38,64 +38,6 @@ class LIBGS_DECL_HIDDEN generator<protocol_model::base>::impl
 public:
 	impl() = default;
 
-	// TODO: It will be used in the parser ... ...
-	// [[nodiscard]] body_norms_t do_correct_body_norms() const noexcept
-	// {
-	// 	if( m_state == state_t::header or m_state == state_t::finish )
-	// 		return basic_body_norms();
-	//
-	// 	auto it = m_headers.find(header_t::content_type);
-	// 	if( it == m_headers.end() or not contains_header(header_t::accept_ranges, "bytes") )
-	// 		return basic_body_norms();
-	//
-	// 	constexpr std::string_view prefix =
-	// 		"multipart/byteranges; boundary=";
-	//
-	// 	if( it->second->starts_with(prefix) )
-	// 	{
-	// 		return multipart_body_norms {
-	// 			.boundary = it->second->substr(prefix.size())
-	// 		};
-	// 	}
-	// 	it = m_headers.find(header_t::content_range);
-	// 	if( it == m_headers.end() )
-	// 		return basic_body_norms();
-	//
-	// 	auto &value = it->second;
-	// 	if( value->size() < 5 )
-	// 		return basic_body_norms();
-	//
-	// 	auto dash_pos = value->find('-');
-	// 	if( dash_pos == std::string::npos )
-	// 		return basic_body_norms();
-	//
-	// 	auto begin = strtls::to_arith<size_t>(
-	// 		value->substr(0, dash_pos)
-	// 	);
-	// 	if( not begin )
-	// 		return basic_body_norms();
-	//
-	// 	auto slash_pos = value->find('/', dash_pos + 1);
-	// 	if( slash_pos == std::string::npos )
-	// 		return basic_body_norms();
-	//
-	// 	auto end = strtls::to_arith<size_t>(
-	// 		value->substr(dash_pos + 1, slash_pos - dash_pos - 1)
-	// 	);
-	// 	if( not end )
-	// 		return basic_body_norms();
-	//
-	// 	auto total = strtls::to_arith<size_t>(
-	// 		value->substr(slash_pos + 1)
-	// 	);
-	// 	if( not total )
-	// 		return basic_body_norms();
-	//
-	// 	return range_body_norms {
-	// 		*begin, *total
-	// 	};
-	// }
-
 	headers_t m_headers {{
 		header::content_type,
 		"text/plain; charset=utf-8"
@@ -104,7 +46,6 @@ public:
 	size_t m_content_length = 0;
 
 	state_t m_state {};
-	body_norms_t m_body_norms {};
 };
 
 generator<protocol_model::base>::generator() :
@@ -128,7 +69,6 @@ generator<protocol_model::base> &generator<protocol_model::base>::reset()
 	chunk_attributes().clear();
 	m_impl->m_content_length = 0;
 	m_impl->m_state = state_t::header;
-	m_impl->m_body_norms = {};
 	return *this;
 }
 

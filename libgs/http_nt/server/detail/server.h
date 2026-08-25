@@ -156,7 +156,9 @@ private:
 					break;
 				call_on_server_error(ex.code());
 			}
+			context.response().auto_set(context.request());
 			co_await call_on_request(context);
+
 			if( not context.response().is_finished() )
 				co_await call_on_default(context);
 
