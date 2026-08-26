@@ -53,7 +53,7 @@ public:
 
 public:
 	template <concepts::function Func>
-	[[nodiscard]] auto interface(std::string_view ifname) const;
+	[[nodiscard]] auto interface(std::string_view if_name) const;
 
 	template <concepts::function Func, typename Arg0, typename...Args>
 	[[nodiscard]] auto interface (
@@ -61,11 +61,11 @@ public:
 	) const;
 
 	[[nodiscard]] optional<void*> interface (
-		std::string_view ifname
+		std::string_view if_name
 	) const;
 
 public:
-	[[nodiscard]] bool exists(std::string_view ifname) const;
+	[[nodiscard]] bool exists(std::string_view if_name) const;
 	[[nodiscard]] bool is_loaded() const noexcept;
 	[[nodiscard]] path_t file_name() const noexcept;
 

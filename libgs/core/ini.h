@@ -159,10 +159,11 @@ public:
 		concepts::match_exec_context<executor_t> auto &exec,
 		const path_t &file_name = {}
 	);
-	explicit basic_ini (
-		const concepts::match_exec<executor_t> auto &exec,
-		const path_t &file_name = {}
-	);
+	template <typename Exec0>
+	explicit basic_ini(const Exec0 &exec, const path_t &file_name = {}) requires
+	(not std::same_as<std::remove_cvref_t<Exec0>,basic_ini> and concepts::match_exec<Exec0,executor_t>) {
+		m_impl = std::make_shared<impl>(exec, file_name);
+	}
 	explicit basic_ini(const path_t &file_name = {}) requires
 		concepts::match_def_exec<executor_t>;
 

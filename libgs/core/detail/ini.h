@@ -631,14 +631,6 @@ basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini
-(const concepts::match_exec<executor_t> auto &exec, const path_t &file_name)
-{
-	m_impl = std::make_shared<impl>(exec, file_name);
-}
-
-template <concepts::character CharT, concepts::exec Exec,
-		  template<typename,typename,typename...> class Map, typename...MapArgs>
 basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini(const path_t &file_name)
 	requires concepts::match_def_exec<executor_t> :
 	basic_ini(io_context(), file_name)

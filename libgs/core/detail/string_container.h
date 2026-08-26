@@ -34,7 +34,7 @@ namespace libgs
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
-typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::string_t
 basic_string_container<CharT,Container,Args...>::join(const Text &splits)
 {
 	string_t result;
@@ -49,7 +49,7 @@ basic_string_container<CharT,Container,Args...>::join(const Text &splits)
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
-typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::string_t
 basic_string_container<CharT,Container,Args...>::join(size_t index, size_t length, const Text &splits)
 {
 	string_t result;
@@ -70,26 +70,10 @@ basic_string_container<CharT,Container,Args...>::join(size_t index, size_t lengt
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
-typename basic_string_container<CharT,Container,Args...>::string_t
+basic_string_container<CharT,Container,Args...>::string_t
 basic_string_container<CharT,Container,Args...>::join(size_t index, const Text &splits)
 {
 	return join(index, this->size(), splits);
-}
-
-template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-template <concepts::str_container_iter<CharT,Container,Args...> Iter,
-		  concepts::text_p<CharT> Text>
-typename basic_string_container<CharT,Container,Args...>::string_t
-basic_string_container<CharT,Container,Args...>::join(Iter begin, Iter end, const Text &splits)
-{
-	string_t result;
-	auto view = strtls::to_view(splits);
-
-	for(auto it=begin; it!=end; ++it)
-		result += *it + string_t(view.data(), view.size());
-
-	result.erase(result.size() - view.size(), view.size());
-	return result;
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
@@ -123,11 +107,8 @@ basic_string_container<CharT,Container,Args...>::from_string
 
 } //namespace libgs
 
-namespace std
-{
-
 template <libgs::concepts::character CharT, template<typename,typename...> class Container, typename...Args>
-struct LIBGS_CORE_TAPI formatter<libgs::basic_string_container<CharT,Container,Args...>, CharT>
+struct LIBGS_CORE_TAPI std::formatter<libgs::basic_string_container<CharT,Container,Args...>, CharT>
 {
 	auto format(const libgs::basic_string_container<CharT,Container,Args...> &container, auto &context) const
 	{
@@ -150,8 +131,6 @@ struct LIBGS_CORE_TAPI formatter<libgs::basic_string_container<CharT,Container,A
 private:
 	formatter<std::basic_string<CharT>, CharT> m_formatter;
 };
-
-} //namespace std
 
 
 #endif //LIBGS_CORE_DETAIL_STRING_CONTAINER_H

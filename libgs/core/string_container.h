@@ -37,9 +37,9 @@ namespace libgs { namespace concepts
 
 template <typename T, typename CharT, template<typename,typename...> class Container, typename...Args>
 concept str_container_iter =
-	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::iterator> and
-	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::const_iterator> and
-	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::reverse_iterator> and
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::iterator> or
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::const_iterator> or
+	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::reverse_iterator> or
 	std::is_same_v<T, typename Container<std::basic_string<CharT>,Args...>::const_reverse_iterator>;
 
 } //namespace concepts
@@ -69,9 +69,17 @@ public:
 
 	template <concepts::str_container_iter<CharT,Container,Args...> Iter,
 			  concepts::text_p<CharT> Text = char_t>
-	[[nodiscard]] static string_t join (
-		Iter begin, Iter end, const Text &splits = space
-	);
+	[[nodiscard]] static string_t join(Iter begin, Iter end, const Text &splits = space)
+	{
+		string_t result;
+		auto view = strtls::to_view(splits);
+
+		for(auto it=begin; it!=end; ++it)
+			result += *it + string_t(view.data(), view.size());
+
+		result.erase(result.size() - view.size(), view.size());
+		return result;
+	}
 
 	template <concepts::text_p<CharT> Str = char_t>
 	[[nodiscard]] static basic_string_container from_string (

@@ -255,6 +255,51 @@ concept async_wake_up = std::is_rvalue_reference_v<Handler> and (
 
 } //namespace concepts
 
+namespace concepts::detail
+{
+
+template <typename WakeUp, typename...Args>
+concept async_wake_up = requires(WakeUp wake_up, Args&&...args) {
+	wake_up(std::move(args)...);
+};
+
+} //namespace concepts::detail
+
+namespace detail
+{
+
+template <typename...Args>
+struct initiate_token {
+	using type = void(Args...);
+};
+
+template <>
+struct initiate_token<void> {
+	using type = void();
+};
+
+template <>
+struct initiate_token<> : initiate_token<void> {};
+
+template <typename...Args>
+using initiate_token_t = initiate_token<Args...>::type;
+
+template <typename Exec, typename WakeUp, typename Handler>
+LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
+{
+	using handler_t = std::remove_cvref_t<decltype(handler)>;
+	using exec_t = std::remove_cvref_t<decltype(exec)>;
+
+	if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t, exec_t> )
+		wake_up(std::forward<Handler>(handler), exec);
+	else if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t> )
+		wake_up(std::forward<Handler>(handler));
+	else
+		static_assert(false, "Invalid function signature for async");
+}
+
+} //namespace detail
+
 template <concepts::exec Exec, typename...Args>
 class LIBGS_CORE_TAPI basic_async_work
 {
@@ -265,16 +310,47 @@ public:
 	using handler_t = asio::detail::awaitable_handler<Exec,Args...>;
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
-	[[nodiscard]] static auto handle (
-		concepts::sched auto &&exec, concepts::async_wake_up<handler_t&&> auto &&wake_up,
-		Token &&token = use_awaitable
-	);
+	[[nodiscard]] static auto handle(concepts::sched auto &&exec,
+		concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable)
+	{
+		using token_t = std::remove_cvref_t<Token>;
+		using func_t = decltype(wake_up);
+		auto ntoken = unbound_redirect_time(token);
+
+		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
+		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		{
+			auto work = asio::make_work_guard(handler);
+			asio::dispatch(exec,
+			[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]
+			() mutable noexcept {
+				detail::async_xx(exec, std::move(wake_up), std::move(handler));
+			});
+		},
+		ntoken);
+	}
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
-	[[nodiscard]] static auto handle (
-		concepts::async_wake_up<handler_t&&> auto &&wake_up,
-		Token &&token = use_awaitable
-	);
+	[[nodiscard]] static auto handle
+	(concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable)
+	{
+		using token_t = std::remove_cvref_t<Token>;
+		using func_t = decltype(wake_up);
+		auto ntoken = unbound_redirect_time(token);
+
+		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
+		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		{
+			auto work = asio::make_work_guard(handler);
+			auto exec = work.get_executor();
+
+			asio::dispatch(exec,
+			[exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable noexcept {
+				detail::async_xx(exec, std::move(wake_up), std::move(handler));
+			});
+		},
+		ntoken);
+	}
 };
 
 template <typename...Args>

@@ -33,12 +33,12 @@ namespace libgs
 {
 
 template <concepts::function Func>
-auto library::interface(std::string_view ifname) const
+auto library::interface(std::string_view if_name) const
 {
 	using function_t = std::function<typename function_traits<Func>::call_type>;
 	using pointer_t = typename function_traits<Func>::pointer_type;
 
-	return interface(ifname).transform([](void *ptr) {
+	return interface(if_name).transform([](void *ptr) {
 		return function_t(reinterpret_cast<pointer_t>(ptr));
 	});
 }
