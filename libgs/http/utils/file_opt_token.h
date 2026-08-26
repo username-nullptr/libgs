@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -96,8 +96,6 @@ struct LIBGS_HTTP_TAPI file_opt_token_base
 	using pos_t = fstream_t::pos_type;
 
 	static constexpr auto permissions = io_permissions_v<fstream_t>;
-	static constexpr auto optype = file_optype::single;
-
 	std::string mime_type = "unknown";
 	size_t file_size = 0;
 };
@@ -109,6 +107,8 @@ template <>
 struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::single> : file_opt_token_base<std::fstream>
 {
 	using type = void;
+	static constexpr auto optype = file_optype::single;
+
 	std::shared_ptr<fstream_t> stream {new fstream_t()};
 	path_t file_name {};
 	optional<file_range> range {};
@@ -129,6 +129,8 @@ template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::single> : file_opt_token_base<FS&&>
 {
 	using type = FS&&;
+	static constexpr auto optype = file_optype::single;
+
 	using fstream_t = file_opt_token_base<type>::fstream_t;
 	std::shared_ptr<fstream_t> stream {};
 	optional<file_range> range {};
@@ -149,6 +151,8 @@ template <core_concepts::any_fstream_p FS>
 struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::single> : file_opt_token_base<FS&>
 {
 	using type = FS&;
+	static constexpr auto optype = file_optype::single;
+
 	using fstream_t = file_opt_token_base<type>::fstream_t;
 	fstream_t *stream = nullptr;
 	optional<file_range> range {};
@@ -167,6 +171,8 @@ template <>
 struct LIBGS_HTTP_VAPI file_opt_token<void,file_optype::multiple> : file_opt_token_base<std::fstream>
 {
 	using type = void;
+	static constexpr auto optype = file_optype::multiple;
+
 	std::shared_ptr<fstream_t> stream {};
 	path_t file_name {};
 	file_ranges ranges {};
@@ -194,6 +200,8 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&&,file_optype::multiple> : file_opt_tok
 {
 	using type = FS&&;
 	using fstream_t = file_opt_token_base<type>::fstream_t;
+	static constexpr auto optype = file_optype::multiple;
+
 	std::shared_ptr<fstream_t> stream {};
 	file_ranges ranges {};
 
@@ -220,6 +228,8 @@ struct LIBGS_HTTP_TAPI file_opt_token<FS&,file_optype::multiple> : file_opt_toke
 {
 	using type = FS&;
 	using fstream_t = file_opt_token_base<type>::fstream_t;
+	static constexpr auto optype = file_optype::multiple;
+
 	fstream_t *stream = nullptr;
 	file_ranges ranges {};
 
@@ -313,6 +323,7 @@ template <typename T, typename CharT,
 >
 concept file_opt_token_p =
 	core_concepts::any_text_p<T> or
+	std::same_as<std::remove_cvref_t<T>,std::filesystem::path> or
 	!!(io_permissions_v<std::remove_cvref_t<T>> & Perms) or
 	file_opt_token<T,CharT,Types,Perms>;
 

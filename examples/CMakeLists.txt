@@ -92,7 +92,7 @@ set(sources
 	http_client/protocol.cpp
 	http_client/client.cpp
 )
-set_target(gs.http.nt ${sources})
+set_target(gs.http ${sources})
 
 set(sources
 	utils/logger.cpp

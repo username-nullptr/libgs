@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,17 +32,18 @@
 #include <libgs/http/protocol/utils/core/container_helper.h>
 #include <libgs/http/protocol/utils/core/parser_types.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <>
-class LIBGS_HTTP_API parser<model::base> final :
-	public const_headers<parser<model::base>>
+class LIBGS_HTTP_API parser<protocol_model::base> final :
+	public const_headers<parser<protocol_model::base>>
 {
 	LIBGS_DISABLE_COPY(parser)
 
 public:
-	using stage_t = protocol::stage;
+	using stage_t = http::stage;
+	using chunk_attributes_t = type_helper::values_t;
 	using parse_begin_handler = std::function <
 		sys_expected<version_enum>(std::string_view line_buf)
 	>;
@@ -51,13 +52,13 @@ public:
 	>;
 
 	template <typename T>
-	static constexpr bool file_opt_token_v = http::concepts::file_opt_token_p <
+	static constexpr bool file_opt_token_v = concepts::file_opt_token_p <
 		T, char, file_optype::single, io_permission::write
 	>;
 
 public:
 	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
+	~parser() override;
 
 	parser(parser &&other) noexcept;
 	parser &operator=(parser &&other) noexcept;
@@ -69,14 +70,22 @@ public:
 
 	sys_expected<bool> append(const const_buffer &buf);
 	parser &operator<<(const const_buffer &buf);
+
 	parser &reset();
+	parser &skip_body(bool value = true) noexcept;
+	parser &read_until_eof(bool value = true) noexcept;
+
+	[[nodiscard]] sys_expected<bool> next_message();
+	[[nodiscard]] bool finish_eof() noexcept;
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+	[[nodiscard]] std::string take_pending_data();
 
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] stage_t stage() const noexcept;
+	[[nodiscard]] const chunk_attributes_t &chunk_attributes() const noexcept;
 
 public:
 	parser &unbind_parse_begin();
@@ -92,9 +101,9 @@ private:
 	impl *m_impl;
 };
 
-using base_parser = parser<model::base>;
+using base_parser = parser<protocol_model::base>;
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/utils/core/detail/parser.h>
 
 

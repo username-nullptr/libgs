@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,10 +32,10 @@
 #include <libgs/http/protocol/types.h>
 #include <libgs/http/utils/file_opt_token.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
-template <model>
+template <protocol_model>
 class parser {};
 
 #define LIBGS_HTTP_PARSER_ERRNO \
@@ -63,7 +63,7 @@ enum class stage {
 	header, body, finished
 };
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H

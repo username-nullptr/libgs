@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -35,76 +35,79 @@
 namespace libgs::http
 {
 
-template <concepts::any_exec_stream Stream = asio::ip::tcp::socket,
-		  core_concepts::exec Exec = asio::any_io_executor>
+template <concepts::any_exec_stream Stream = asio::ip::tcp::socket>
 class LIBGS_HTTP_TAPI basic_server
 {
-	LIBGS_DISABLE_COPY(basic_server)
+	LIBGS_DISABLE_COPY_MOVE(basic_server)
 
 public:
 	using socket_t = Stream;
-	using executor_t = Exec;
-	using service_exec_t = socket_t::executor_type;
+	using executor_t = socket_t::executor_type;
 
-	using next_layer_t = basic_acceptor_wrap<socket_t>;
-	using endpoint_t = next_layer_t::acceptor_t::endpoint_type;
+	using connection_t = basic_connection<socket_t>;
+	using acceptor_wrap_t = basic_acceptor_wrap<connection_t>;
+	using acceptor_t = acceptor_wrap_t::acceptor_t;
+
+	using endpoint_t = acceptor_t::endpoint_type;
 	using endpoint_wrapper_t = basic_endpoint_wrapper<typename endpoint_t::protocol_type>;
 
+	using request_t = basic_request<connection_t>;
+	using response_t = basic_response<connection_t>;
+
 	using path_opt_token_t = basic_path_opt_token<char>;
-	using context_t = basic_service_context<socket_t>;
+	using context_t = basic_service_context<connection_t>;
+
+	using aop_t = basic_aop<connection_t>;
+	using ctrlr_aop_t = basic_ctrlr_aop<connection_t>;
+
+	using aop_ptr_t = basic_aop_ptr<connection_t>;
+	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<connection_t>;
 
 	using server_error_handler_t = std::function<bool(error_code)>;
 	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
 
-	using request_t = basic_server_request<socket_t>;
-	using response_t = basic_response<socket_t>;
-
-	using aop_t = basic_aop<socket_t>;
-	using ctrlr_aop_t = basic_ctrlr_aop<socket_t>;
-	using aop_ptr_t = basic_aop_ptr<socket_t>;
-	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<socket_t>;
-
 public:
-	template <core_concepts::sched Exec0 = io_executor_t>
-	explicit basic_server (
-		basic_acceptor_wrap<socket_t> &&next_layer,
-		Exec0 &&service_exec = libgs::get_executor()
-	);
+	basic_server(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec);
+	basic_server(acceptor_wrap_t &&wrap);
 	~basic_server();
 
-	template <typename Stream0, typename Exec0>
-	basic_server(basic_server<Stream0,Exec0> &&other) noexcept
-		requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
-				 core_concepts::constructible<service_exec_t,typename Stream::executor_type>;
-
-	template <typename Stream0, typename Exec0>
-	basic_server &operator=(basic_server<Stream0,Exec0> &&other) noexcept
-		requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
-				 core_concepts::assignable<service_exec_t,typename Stream::executor_type>;
-
-public:
 	basic_server &bind(endpoint_wrapper_t ep);
 	basic_server &bind(endpoint_wrapper_t ep, error_code &error) noexcept;
 
+public:
 	basic_server &start(size_t max = asio::socket_base::max_listen_connections);
 	basic_server &start(size_t max, error_code &error) noexcept;
 	basic_server &start(error_code &error) noexcept;
 
-public:
-	template <protocol::method_enum...Method, typename Func, typename...AopPtrs>
-	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-		detail::concepts::request_handler<Func,socket_t> and
-		detail::concepts::aop_ptr_list<socket_t,AopPtrs...>;
+	basic_server &start (
+		core_concepts::sched auto &&service_exec,
+		size_t max = asio::socket_base::max_listen_connections
+	);
+	basic_server &start (
+		core_concepts::sched auto &&service_exec,
+		size_t max, error_code &error
+	) noexcept;
 
-	template <protocol::method_enum...Method>
+	basic_server &start (
+		core_concepts::sched auto service_exec,
+		error_code &error
+	) noexcept;
+
+public:
+	template <method_enum...Method, typename Func, typename...AopPtrs>
+	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
+		concepts::request_handler<Func,connection_t> and
+		concepts::aop_ptr_list<connection_t,AopPtrs...>;
+
+	template <method_enum...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
 
-	template <protocol::method_enum...Method>
+	template <method_enum...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr);
 
 	template <typename Func>
 	basic_server &on_default(Func &&func) requires
-		detail::concepts::request_handler<Func,socket_t>;
+		concepts::request_handler<Func,connection_t>;
 
 	basic_server &on_server_error(server_error_handler_t func);
 	basic_server &on_service_error(service_error_handler_t func);
@@ -124,23 +127,20 @@ public:
 
 public:
 	[[nodiscard]] const executor_t &get_executor() noexcept;
-	[[nodiscard]] awaitable<void> co_stop() noexcept;
-	basic_server &stop() noexcept;
 	basic_server &cancel() noexcept;
+	basic_server &stop() noexcept;
 
 public:
-	[[nodiscard]] const next_layer_t &next_layer() const;
-	[[nodiscard]] next_layer_t &next_layer();
+	[[nodiscard]] const acceptor_wrap_t &acceptor_wrap() const;
+	[[nodiscard]] acceptor_wrap_t &acceptor_wrap();
 
 private:
 	class impl;
 	std::shared_ptr<impl> m_impl;
 };
 
-template <core_concepts::exec Exec,
-		  core_concepts::exec ServiceExec = asio::any_io_executor>
-using basic_tcp_server =
-	basic_server<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>, Exec>;
+template <core_concepts::exec Exec = asio::any_io_executor>
+using basic_tcp_server = basic_server<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
 using tcp_server = basic_tcp_server<asio::any_io_executor>;
 using server = tcp_server;
@@ -152,12 +152,11 @@ using server = tcp_server;
 namespace libgs { namespace http
 {
 
-template <core_concepts::exec Exec,
-		  core_concepts::exec ServiceExec = asio::any_io_executor>
-using basic_ssl_tcp_server =
-	basic_server<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,ServiceExec>>, Exec>;
-
-using ssl_tcp_server = basic_ssl_tcp_server<asio::any_io_executor>;
+template <typename Protocol = asio::ip::tcp>
+using basic_ssl_server = basic_server <
+	asio::ssl::stream<asio::basic_stream_socket<Protocol>>
+>;
+using ssl_tcp_server = basic_ssl_server<>;
 using ssl_server = ssl_tcp_server;
 
 } //namespace libgs::http
@@ -165,12 +164,11 @@ using ssl_server = ssl_tcp_server;
 namespace https
 {
 
-template <concepts::exec Exec,
-		  concepts::exec ServiceExec = asio::any_io_executor>
-using basic_tcp_server =
-	http::basic_ssl_tcp_server<Exec,ServiceExec>;
-
-using tcp_server = basic_tcp_server<asio::any_io_executor>;
+template <typename Protocol = asio::ip::tcp>
+using basic_server = http::basic_server <
+	asio::ssl::stream<asio::basic_stream_socket<Protocol>>
+>;
+using tcp_server = basic_server<>;
 using server = tcp_server;
 
 }} //namespace libgs::https

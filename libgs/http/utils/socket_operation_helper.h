@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -57,6 +57,10 @@ public:
 	template <core_concepts::opt_token<error_code,size_t> Token = use_sync_t>
 	[[nodiscard]] auto write(const const_buffer &buffer, Token &&token = {});
 
+	[[nodiscard]] io_expected try_read (
+		mutable_buffer buffer
+	) noexcept;
+
 public:
 	[[nodiscard]] executor_t get_executor() noexcept;
 	[[nodiscard]] const socket_t &socket() const noexcept;
@@ -85,10 +89,23 @@ public:
 	using executor_t = base_t::executor_t;
 	using endpoint_t = socket_t::endpoint_type;
 
+	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
+	using dns_entry = dns_results::value_type;
+
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
-	auto connect(endpoint_t ep, Token &&token = {});
+	auto connect(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {});
 
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const endpoint_t &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_entry &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_results &eps, Token &&token = {});
+
+public:
 	void set_option(const auto &option, error_code &error) noexcept;
 	void set_option(const auto &option);
 
@@ -98,7 +115,7 @@ public:
 	void non_blocking(bool mode, error_code &error) noexcept;
 	void non_blocking(bool mode) noexcept;
 
-	[[nodiscard]] bool non_blocking() const;
+	[[nodiscard]] bool non_blocking() const noexcept;
 	[[nodiscard]] bool message_peek() noexcept;
 
 	void cancel() noexcept;
@@ -130,10 +147,23 @@ public:
 	using executor_t = base_t::executor_t;
 	using endpoint_t = socket_t::next_layer_type::endpoint_type;
 
+	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
+	using dns_entry = dns_results::value_type;
+
 public:
 	template <core_concepts::opt_token<error_code> Token = use_sync_t>
-	auto connect(endpoint_t endpoint, Token &&token = {});
+	auto connect(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {});
 
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const endpoint_t &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_entry &ep, Token &&token = {});
+
+	template <core_concepts::opt_token<error_code> Token = use_sync_t>
+	auto connect(const dns_results &eps, Token &&token = {});
+
+public:
 	void set_option(const auto &option, error_code &error) noexcept;
 	void set_option(const auto &option);
 
@@ -143,7 +173,7 @@ public:
 	void non_blocking(bool mode, error_code &error) noexcept;
 	void non_blocking(bool mode) noexcept;
 
-	[[nodiscard]] bool non_blocking() const;
+	[[nodiscard]] bool non_blocking() const noexcept;
 	[[nodiscard]] bool message_peek() noexcept;
 
 	void cancel() noexcept;

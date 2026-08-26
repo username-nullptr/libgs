@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,34 +29,35 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_PARSER_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_PARSER_H
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <typename Opt>
-auto parser<model::base>::make_file_opt_token(Opt &&opt)
+auto parser<protocol_model::base>::make_file_opt_token(Opt &&opt)
 	noexcept requires file_opt_token_v<Opt>
 {
 	using opt_t = std::remove_cvref_t<Opt>;
-	if constexpr( is_any_string_v<opt_t> or is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
+	if constexpr( is_any_string_v<opt_t> or std::same_as<opt_t,std::filesystem::path> or
+		is_fstream_v<opt_t,char> or is_ofstream_v<opt_t,char> )
 	{
-		using token_t = decltype(http::make_file_opt_token(std::forward<Opt>(opt)));
-		using type = token_t::type;
-		return make_file_opt_token (
-			http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt))
-		);
-	}
-	else if constexpr( Opt::optype == file_optype::single )
-	{
-		using type = opt_t::type;
-		return make_file_opt_token (
-			http::file_opt_token<type,file_optype::multiple>(std::forward<Opt>(opt))
-		);
+		auto token = http::make_file_opt_token(std::forward<Opt>(opt));
+		using token_t = decltype(token);
+
+		auto expected = token.init(std::ios::out | std::ios::binary);
+		if( expected )
+			return sys_expected<token_t>(std::move(token));
+		return sys_expected<token_t>(sys_unexpected(expected.error()));
 	}
 	else
-		return opt.init(std::ios::out | std::ios::binary);
+	{
+		auto expected = opt.init(std::ios::out | std::ios::binary);
+		if( expected )
+			return sys_expected<opt_t>(std::forward<Opt>(opt));
+		return sys_expected<opt_t>(sys_unexpected(expected.error()));
+	}
 }
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_DETAIL_PARSER_H

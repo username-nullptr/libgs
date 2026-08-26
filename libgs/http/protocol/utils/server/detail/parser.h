@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,17 +29,18 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_PARSER_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_PARSER_H
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
-optional<value> parser<model::server>::path_arg(const core_concepts::text_p<char> auto &key) const noexcept
+optional<value> parser<protocol_model::server>::path_arg
+(const core_concepts::text_p<char> auto &key) const noexcept
 {
 	auto it = path_args().find(strtls::to_view(key));
 	return it == path_args().end() ?
 		optional<value>() : libgs::make_optional(it->second);
 }
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_PARSER_H

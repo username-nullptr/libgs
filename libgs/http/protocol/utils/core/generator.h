@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -33,13 +33,13 @@
 #include <libgs/http/protocol/utils/core/generator_types.h>
 #include <libgs/http/protocol/utils/core/body_norms.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <>
-class LIBGS_HTTP_API generator<model::base> :
-	public mutable_headers<generator<model::base>>,
-	public mutable_chunk_attributes<generator<model::base>>
+class LIBGS_HTTP_API generator<protocol_model::base> :
+	public mutable_headers<generator<protocol_model::base>>,
+	public mutable_chunk_attributes<generator<protocol_model::base>>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator)
 
@@ -47,9 +47,11 @@ public:
 	using state_t = generator_state;
 
 	generator();
-	virtual ~generator() = 0;
+	~generator() override = 0;
 
 	[[nodiscard]] virtual std::string header_data(size_t body_size) noexcept;
+	[[nodiscard]] std::string header_data_no_body(bool preserve_content_length = false) noexcept;
+
 	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;
 	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers) noexcept;
 
@@ -66,11 +68,12 @@ protected:
 	impl *m_impl;
 };
 
-template <model> class generator_v10 {};
-template <model> class generator_v11 {};
+template <protocol_model> class generator_v10 {};
+template <protocol_model> class generator_v11 {};
 
 template <>
-class LIBGS_HTTP_API generator_v10<model::base> final : public generator<model::base>
+class LIBGS_HTTP_API generator_v10<protocol_model::base> final :
+	public generator<protocol_model::base>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator_v10)
 
@@ -80,7 +83,8 @@ public:
 };
 
 template <>
-class LIBGS_HTTP_API generator_v11<model::base> final : public generator<model::base>
+class LIBGS_HTTP_API generator_v11<protocol_model::base> final :
+	public generator<protocol_model::base>
 {
 	LIBGS_DISABLE_COPY_MOVE(generator_v11)
 
@@ -94,11 +98,11 @@ public:
 // class LIBGS_HTTP_API generator_v12 final : public generator
 // class LIBGS_HTTP_API generator_v20 final : public generator
 
-using base_generator = generator<model::base>;
-using base_generator_v10 = generator_v10<model::base>;
-using base_generator_v11 = generator_v11<model::base>;
+using base_generator = generator<protocol_model::base>;
+using base_generator_v10 = generator_v10<protocol_model::base>;
+using base_generator_v11 = generator_v11<protocol_model::base>;
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/utils/core/detail/generator.h>
 
 

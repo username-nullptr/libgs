@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -78,9 +78,8 @@ template <typename Stream>
 concept any_exec_stream_p = is_any_exec_stream_v<std::remove_cvref_t<Stream>>;
 
 template <typename Func, typename Token>
-concept progress_callback =
+concept progress_handler =
 	libgs::concepts::callable<Func,size_t,size_t> and
-	libgs::concepts::tf_opt_token<Token,error_code,size_t> and
 	[]() consteval -> bool
 	{
 		using token_t = decltype(unbound_token(std::declval<Token>()));
@@ -100,6 +99,11 @@ concept progress_callback =
 		}
 		return false;
 	}();
+
+template <typename Func, typename Token>
+concept progress_callback =
+	progress_handler<Func,Token> and
+	libgs::concepts::tf_opt_token<Token,error_code,size_t>;
 
 } //namespace concepts
 

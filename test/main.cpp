@@ -1,4 +1,4 @@
-#include <libgs/http_nt/server.h>
+#include <libgs/http/server.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
@@ -9,16 +9,16 @@ int main()
 	asio::ip::tcp::acceptor acceptor(libgs::get_executor());
 	constexpr unsigned short port = 12345;
 
-	libgs::http_nt::server server(std::move(acceptor));
+	libgs::http::server server(std::move(acceptor));
 	server.bind({libgs::ip_type::v4, port})
 
-	.on_request<libgs::http_nt::method::get>("/*",
-	[](libgs::http_nt::server::context_t &context) -> libgs::awaitable<void>
+	.on_request<libgs::http::method::get>("/*",
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
 		spdlog::debug("Version:{} - Method:{} - Path:{}",
 			request.version(),
-			libgs::http_nt::method::string(request.method()),
+			libgs::http::method::string(request.method()),
 			request.path()
 		);
 		for(auto &[key,value] : request.parameters())
@@ -37,8 +37,8 @@ int main()
 		// co_await context.response().write("hello world", asio::use_awaitable);
 		co_return ;
 	})
-	.on_request<libgs::http_nt::method::get>("/aa*bb?cc/{arg0}/{arg1}",
-	[](libgs::http_nt::server::context_t &context) -> libgs::awaitable<void>
+	.on_request<libgs::http::method::get>("/aa*bb?cc/{arg0}/{arg1}",
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 		auto &request = context.request();
 		for(auto &[key,value] : request.path_args())
@@ -54,8 +54,8 @@ int main()
 		// co_await context.response().write("hello world", asio::use_awaitable);
 		co_return ;
 	})
-	.on_request<libgs::http_nt::method::get>("/hello",
-	[](libgs::http_nt::server::context_t &context) -> libgs::awaitable<void>
+	.on_request<libgs::http::method::get>("/hello",
+	[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 	{
 //		co_await context.response().write("hello world !!!", asio::use_awaitable);
 		co_await context.response()
@@ -64,7 +64,7 @@ int main()
 			// .send_file(L"C:/opt/data/秦岭.jpg", asio::use_awaitable);
 		co_return ;
 	})
-	.on_service_error([](libgs::http_nt::server::context_t&, const std::exception &ex)
+	.on_service_error([](libgs::http::server::context_t&, const std::exception &ex)
 	{
 		spdlog::error("on_service_error: {}", ex);
 //		return false; // Returning false will result in abort !!!

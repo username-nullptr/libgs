@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -72,7 +72,9 @@ acceptor_wrap<Exec> &acceptor_wrap<Exec>::operator=(acceptor_wrap<Exec0> &&other
 } //namespace detail
 
 template <core_concepts::exec Exec>
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_acceptor_wrap(acceptor_t &&acceptor) :
+basic_acceptor_wrap<basic_connection <
+	asio::basic_stream_socket<asio::ip::tcp, Exec>
+>>::basic_acceptor_wrap(acceptor_t &&acceptor) :
 	base_t(std::move(acceptor))
 {
 
@@ -80,8 +82,10 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_accept
 
 template <core_concepts::exec Exec>
 template <core_concepts::exec Exec0>
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_acceptor_wrap
-(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept :
+basic_acceptor_wrap<basic_connection <
+	asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>::basic_acceptor_wrap
+(basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other) noexcept :
 	base_t(std::move(other.m_acceptor))
 {
 
@@ -89,17 +93,25 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::basic_accept
 
 template <core_concepts::exec Exec>
 template <core_concepts::exec Exec0>
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>&
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::operator=
-(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept
+basic_acceptor_wrap<basic_connection <
+	asio::basic_stream_socket<asio::ip::tcp,Exec>
+>>&
+basic_acceptor_wrap<basic_connection <
+	asio::basic_stream_socket<asio::ip::tcp,Exec>
+>>::operator=
+(basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other) noexcept
 {
-	base_t::operator=(std::move(other.m_acceptor));
+	this->m_acceptor = std::move(other.m_acceptor);
 	return *this;
 }
 
 template <core_concepts::exec Exec>
-awaitable<typename basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::socket_t>
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept(core_concepts::exec auto &service_exec)
+awaitable<typename basic_acceptor_wrap<basic_connection <
+	asio::basic_stream_socket<asio::ip::tcp, Exec>
+>>::connection_t>
+basic_acceptor_wrap<basic_connection <
+	asio::basic_stream_socket<asio::ip::tcp, Exec>
+>>::accept(core_concepts::exec auto &service_exec)
 {
 	co_return co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 }
@@ -107,7 +119,9 @@ basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept(core_
 #if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::
 basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl) :
 	base_t(std::move(acceptor))
 {
@@ -115,7 +129,9 @@ basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl) :
 }
 
 template <core_concepts::exec Exec>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::basic_acceptor_wrap
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::basic_acceptor_wrap
 (basic_acceptor_wrap &&other) noexcept :
 	base_t(std::move(other.m_acceptor))
 {
@@ -123,19 +139,25 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 }
 
 template <core_concepts::exec Exec>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>&
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::operator=
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>&
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::operator=
 (basic_acceptor_wrap &&other) noexcept
 {
-	base_t::operator=(std::move(other.m_acceptor));
-	m_ssl = other.other.m_ssl;
+	this->m_acceptor = std::move(other.m_acceptor);
+	m_ssl = other.m_ssl;
 	return *this;
 }
 
 template <core_concepts::exec Exec>
 template <core_concepts::exec Exec0>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::basic_acceptor_wrap
-(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept :
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::basic_acceptor_wrap
+(basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other) noexcept :
 	base_t(std::move(other.m_acceptor))
 {
 	m_ssl = other.m_ssl;
@@ -143,18 +165,26 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 
 template <core_concepts::exec Exec>
 template <core_concepts::exec Exec0>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>&
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::operator=
-	(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>&
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::operator=
+	(basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other) noexcept
 {
-	base_t::operator=(std::move(other.m_acceptor));
-	m_ssl = other.other.m_ssl;
+	this->m_acceptor = std::move(other.m_acceptor);
+	m_ssl = other.m_ssl;
 	return *this;
 }
 
 template <core_concepts::exec Exec>
-awaitable<typename basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::socket_t>
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::accept(core_concepts::exec auto &service_exec)
+awaitable<typename basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::connection_t>
+basic_acceptor_wrap<basic_connection <
+	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+>>::accept(core_concepts::exec auto &service_exec)
 {
 	auto tcp_socket = co_await this->m_acceptor.async_accept(service_exec, use_awaitable);
 	socket_t ssl_socket(std::move(tcp_socket), *m_ssl);
@@ -166,7 +196,7 @@ basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Ex
 	if( error )
 	{
 		// spdlog::warn("libgs::http::server(SSL): SSL handshake failed: {}.", error);
-		socket_operation_helper<socket_t>::close(ssl_socket);
+		socket_operation_helper<socket_t>(ssl_socket).close();
 	}
 	co_return ssl_socket;
 }

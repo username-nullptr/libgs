@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,10 +29,10 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
-generator<model::server> &generator<model::server>::set_redirect
+generator<protocol_model::server> &generator<protocol_model::server>::set_redirect
 (core_concepts::text_p<char> auto &&url, redirect_enum type)
 {
 	switch(type)
@@ -48,7 +48,7 @@ generator<model::server> &generator<model::server>::set_redirect
 	return *this;
 }
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_SERVER_DETAIL_GENERATOR_H

@@ -1,12 +1,12 @@
-#include <libgs/http_nt/client.h>
+#include <libgs/http/client.h>
 #include <spdlog/spdlog.h>
 
 int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
-	libgs::http_nt::client client;
-	libgs::http_nt::request_arg arg;
+	libgs::http::client client;
+	libgs::http::request_arg arg;
 
 #if 1
 	auto context = client.request_get({"http://www.baidu.com", arg});

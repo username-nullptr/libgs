@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,23 +32,22 @@
 #include <libgs/http/protocol/utils/core/container_helper.h>
 #include <libgs/http/protocol/utils/core/generator_types.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <>
-class LIBGS_HTTP_API generator<model::server> final :
-	public mutable_headers<generator<model::server>>,
-	public mutable_cookies<cookie,generator<model::server>>,
-	public mutable_chunk_attributes<generator<model::server>>
+class LIBGS_HTTP_API generator<protocol_model::server> final :
+	public mutable_headers<generator<protocol_model::server>>,
+	public mutable_cookies<cookie,generator<protocol_model::server>>,
+	public mutable_chunk_attributes<generator<protocol_model::server>>
 {
 	LIBGS_DISABLE_COPY(generator)
 
 public:
-	using version_t = protocol::version;
+	using version_t = http::version;
 
-	explicit generator(version_enum version, const headers_t &req_headers = {});
-	explicit generator(const headers_t &req_headers = {}); // default V1.1
-	~generator();
+	explicit generator(version_enum version = version_t::v11);
+	~generator() override;
 
 	generator(generator &&other) noexcept;
 	generator &operator=(generator &&other) noexcept;
@@ -64,6 +63,8 @@ public:
 
 public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
+	[[nodiscard]] std::string header_data(size_t body_size, method_enum request_method);
+
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 
@@ -76,9 +77,9 @@ private:
 	impl *m_impl;
 };
 
-using server_generator = generator<model::server>;
+using server_generator = generator<protocol_model::server>;
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/utils/server/detail/generator.h>
 
 

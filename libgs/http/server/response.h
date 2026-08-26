@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,135 +29,106 @@
 #ifndef LIBGS_HTTP_SERVER_RESPONSE_H
 #define LIBGS_HTTP_SERVER_RESPONSE_H
 
-#include <libgs/http/protocol/utils/server/generator.h>
-#include <libgs/http/server/request.h>
+#include <libgs/http/protocol/utils/core/container_helper.h>
+#include <libgs/http/utils/connection.h>
 
 namespace libgs::http
 {
 
-template <concepts::stream Stream>
-class LIBGS_HTTP_VAPI basic_response
+template <concepts::connection Connection>
+class basic_request;
+
+template <concepts::connection Connection>
+class LIBGS_HTTP_TAPI basic_response :
+	public mutable_headers<basic_response<Connection>>,
+	public mutable_cookies<cookie,basic_response<Connection>>,
+	public mutable_chunk_attributes<basic_response<Connection>>
 {
-	LIBGS_DISABLE_COPY(basic_response)
+	LIBGS_DISABLE_COPY_MOVE(basic_response)
 
 public:
-	using next_layer_t = basic_server_request<Stream>;
-	using executor_t = next_layer_t::executor_t;
+	using connection_t = Connection;
+	using connection_ptr = std::shared_ptr<connection_t>;
+	using executor_t = connection_t::executor_t;
 
-	using generator_t = protocol::server_generator;
-	using value_t = next_layer_t::value_t;
-	using headers_t = next_layer_t::headers_t;
+	using request_t = basic_request<connection_t>;
+	using socket_t = connection_t::socket_t;
+	using endpoint_t = connection_t::endpoint_t;
 
-	using cookie_t = protocol::cookie;
-	using cookies_t = protocol::cookies;
-
-public:
-	explicit basic_response(next_layer_t &&next_layer);
-	~basic_response();
-
-	basic_response(basic_response &&other) noexcept;
-	basic_response &operator=(basic_response &&other) noexcept;
-
-	template <typename Stream0>
-	basic_response(basic_response<Stream0> &&other) noexcept
-		requires core_concepts::constructible<next_layer_t,basic_server_request<Stream0>&&>;
-
-	template <typename Stream0>
-	basic_response &operator=(basic_response<Stream0> &&other) noexcept
-		requires core_concepts::assignable<Stream,Stream0&&>;
+	using value_t = libgs::value;
+	using headers_t = http::headers;
 
 public:
-	[[nodiscard]] std::string_view version() const noexcept;
-	basic_response &set_status(protocol::status_enum status);
-	[[nodiscard]] protocol::status_enum status() const noexcept;
+	explicit basic_response(connection_ptr connection);
+	~basic_response() override;
 
 public:
-	basic_response &set_header (
-		core_concepts::text_p<char> auto &&key, value_t value
-	) noexcept;
+	[[nodiscard]] version_enum version() const noexcept;
+	basic_response &set_status(status_enum status);
+	basic_response &auto_set(request_t &request);
 
-	basic_response &unset_header (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
-
-	[[nodiscard]] const headers_t &headers() const noexcept;
-	[[nodiscard]] headers_t &headers() noexcept;
+	basic_response &set_auto_compression(bool enabled = true) noexcept;
+	[[nodiscard]] bool auto_compression() const noexcept;
 
 public:
-	basic_response &set_cookie (
-		core_concepts::text_p<char> auto &&key, cookie_t cookie
-	) noexcept;
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		core_concepts::dis_func_tf_opt_token<Token,Value...> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
 
-	 basic_response &unset_cookie (
-		const core_concepts::text_p<char> auto &key
-	) noexcept;
+	template <typename Token = use_sync_t>
+	auto write(const const_buffer &body, Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-	[[nodiscard]] const cookies_t &cookies() const noexcept;
-	[[nodiscard]] cookies_t &cookies() noexcept;
+	template <typename Token = use_sync_t>
+	auto write(Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
-public:
-	basic_response &set_chunk_attribute(value_t attr) noexcept;
-	basic_response &unset_chunk_attribute(const value_t &attr) noexcept;
-
-	[[nodiscard]] const std::set<value_t> &chunk_attributes() const noexcept;
-	[[nodiscard]] std::set<value_t> &chunk_attributes() noexcept;
-
-public:
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto write(const const_buffer &body, Token &&token = {});
-
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto write(Token &&token = {});
-
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(core_concepts::text_p<char> auto &&url,
-		protocol::redirect_enum redi, Token &&token = {}
-	);
-
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto redirect(core_concepts::text_p<char> auto &&url,
-		Token &&token = {}
-	);
-
-	// TODO: Expect: 100-continue ... ...
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto continues(Token &&token = {});
+	template <typename T, typename Token>
+	static constexpr bool file_task_token_v =
+		core_concepts::dis_func_tf_opt_token<Token,size_t> and
+		not is_detached_v<std::remove_cvref_t<Token>> and
+		concepts::file_opt_token_p <
+			T, char, file_optype::single, io_permission::read
+		>;
+	template <typename T, typename Token = use_sync_t>
+	auto send_file(T &&opt, Token &&token = {})
+		requires file_task_token_v<T,Token>;
 
 public:
-	template <typename T>
-	static constexpr bool file_opt_token = concepts::file_opt_token_p <
-		T, char, file_optype::combine, io_permission::read
-	>;
-	template <typename T, core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto send_file(T &&opt, Token &&token = {}) requires file_opt_token<T>;
+	template <typename Token = use_sync_t>
+	auto redirect(core_concepts::text_p<char> auto &&url, redirect_enum redi, Token &&token = {})
+		requires task_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto redirect(core_concepts::text_p<char> auto &&url, Token &&token = {})
+		requires task_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto continues(Token &&token = {})
+		requires task_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto chunk_end(const headers_t &headers, Token &&token = {})
+		requires task_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto chunk_end(Token &&token = {})
+		requires task_token_v<Token,size_t>;
 
 public:
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto chunk_end(const headers_t &headers, Token &&token = {});
-
-	template <core_concepts::dis_func_tf_opt_token Token = use_sync_t>
-	auto chunk_end(Token &&token = {});
-
-public:
+	[[nodiscard]] status_enum status() const noexcept;
 	[[nodiscard]] bool is_finished() const noexcept;
+
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_response &cancel() noexcept;
-
-public:
-	[[nodiscard]] const next_layer_t &next_layer() const noexcept;
-	[[nodiscard]] next_layer_t &next_layer() noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-template <core_concepts::exec Exec>
-using basic_tcp_server_response =
-	basic_response<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-
-using tcp_server_response = basic_tcp_server_response<asio::any_io_executor>;
-using server_response = tcp_server_response;
+using response = basic_response<connection>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/response.h>

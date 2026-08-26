@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -33,12 +33,12 @@ namespace libgs::http
 {
 
 template <concepts::stream Stream>
-class basic_connection<Stream>::impl
+class LIBGS_HTTP_TAPI basic_connection<Stream>::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 
 public:
-	  template <core_concepts::callable<socket_t&&> Func>
+	template <core_concepts::callable<socket_t&&> Func>
 	impl(socket_t &&socket, Func &&destructor) :
 		m_destructor(std::forward<Func>(destructor)),
 		m_socket(std::move(socket)) {}
@@ -48,23 +48,26 @@ public:
 
 	impl(impl &&other) noexcept :
 		m_destructor(std::move(other.m_destructor)),
-		m_socket(std::move(other.m_socket)) {}
+		m_socket(std::move(other.m_socket))
+	{
+		other.m_opt_helper.close();
+	}
 
 	impl &operator=(impl &&other) noexcept
 	{
 		m_destructor = std::move(other.m_destructor);
 		m_socket = std::move(other.m_socket);
-		  return *this;
+		other.m_opt_helper.close();
+		return *this;
 	}
 
 	~impl()
 	{
-		  if( not m_destructor )
-			  return ;
-		dispatch(m_opt_helper.get_executor(),
-		[destructor = std::move(m_destructor), socket = std::move(m_socket)]() mutable {
-			destructor(std::move(socket));
-		});
+		if( m_destructor )
+		{
+			opt_helper_t(m_socket).cancel();
+			m_destructor(std::move(m_socket));
+		}
 	}
 
 public:
@@ -105,9 +108,8 @@ basic_connection<Stream>::basic_connection(basic_connection &&other) noexcept :
 template <concepts::stream Stream>
 basic_connection<Stream> &basic_connection<Stream>::operator=(basic_connection &&other) noexcept
 {
-	if( this == &other )
-		return *this;
-	*m_impl = std::move(*other.m_impl);
+	if( this != &other )
+		*m_impl = std::move(*other.m_impl);
 	return *this;
 }
 
@@ -157,130 +159,6 @@ basic_connection<Stream>::executor_t
 basic_connection<Stream>::get_executor() noexcept
 {
 	return m_impl->m_socket.get_executor();
-}
-
-template <concepts::stream Stream>
-auto basic_connection<Stream>::set_transfer_file_option() noexcept
-{
-	using protocol_t = opt_helper_t::protocol_t;
-	constexpr size_t net_buf_size = 8 * 1024 * 1024;
-
-	auto &socket = opt_helper();
-	error_code error;
-
-	if constexpr( std::is_same_v<protocol_t, asio::ip::tcp> )
-	{
-		using tuple_t = std::tuple <
-			asio::socket_base::send_buffer_size,
-			asio::ip::tcp::no_delay,
-			asio::socket_base::linger
-		>;
-		sys_expected<tuple_t> result;
-
-		asio::socket_base::send_buffer_size send_buffer_size;
-		socket.get_option(send_buffer_size, error);
-		if( error )
-			return result.despair(error);
-
-		asio::ip::tcp::no_delay no_delay; // Nagle
-		socket.get_option(no_delay, error);
-		if( error )
-			return result.despair(error);
-
-		asio::socket_base::linger linger;
-		socket.get_option(linger, error);
-		if( error )
-			return result.despair(error);
-
-		result.emplace(std::move(send_buffer_size),
-			std::move(no_delay), std::move(linger)
-		);
-		send_buffer_size = net_buf_size;
-		socket.set_option(send_buffer_size, error);
-		if( error )
-			return result.despair(error);
-
-		no_delay = true;
-		socket.set_option(no_delay, error);
-		if( error )
-			return result.despair(error);
-
-		linger.enabled(false);
-		linger.timeout(0);
-		socket.set_option(linger, error);
-		if( error )
-			return result.despair(error);
-		return result;
-	}
-	else
-	{
-		using tuple_t = std::tuple <
-			asio::socket_base::send_buffer_size,
-			asio::socket_base::linger
-		>;
-		sys_expected<tuple_t> result;
-
-		asio::socket_base::send_buffer_size send_buffer_size;
-		socket.get_option(send_buffer_size, error);
-		if( error )
-			return result.despair(error);
-
-		asio::socket_base::linger linger;
-		socket.get_option(linger, error);
-		if( error )
-			return result.despair(error);
-
-		result.emplace (
-			std::move(send_buffer_size), std::move(linger)
-		);
-		send_buffer_size = net_buf_size;
-		socket.set_option(send_buffer_size, error);
-		if( error )
-			return result.despair(error);
-
-		linger.enabled(false);
-		linger.timeout(0);
-		socket.set_option(linger, error);
-		if( error )
-			return result.despair(error);
-		return result;
-	}
-}
-
-template <concepts::stream Stream>
-auto basic_connection<Stream>::unset_transfer_file_option(const auto &before) noexcept
-{
-	using protocol_t = opt_helper_t::protocol_t;
-	auto &socket = opt_helper();
-
-	sys_expected<> result;
-	error_code error;
-
-	if constexpr( std::is_same_v<protocol_t, asio::ip::tcp> )
-	{
-		socket.set_option(std::get<0>(before), error);
-		if( error )
-			return result.despair(error);
-
-		socket.set_option(std::get<1>(before), error);
-		if( error )
-			return result.despair(error);
-
-		socket.set_option(std::get<2>(before), error);
-		if( error )
-			return result.despair(error);
-	}
-	else
-	{
-		socket.set_option(std::get<0>(before), error);
-		if( error )
-			return result.despair(error);
-
-		socket.set_option(std::get<1>(before), error);
-		if( error )
-			return result.despair(error);
-	}
-	return result;
 }
 
 } //namespace libgs::http

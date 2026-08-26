@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -33,28 +33,32 @@
 #include <libgs/http/protocol/utils/client/request_arg.h>
 #include <libgs/http/protocol/utils/client/url.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <>
-class LIBGS_HTTP_API generator<model::client> final :
-	public mutable_headers<generator<model::client>>,
-	public mutable_cookies<value,generator<model::client>>,
-	public mutable_chunk_attributes<generator<model::client>>
+class LIBGS_HTTP_API generator<protocol_model::client> final :
+	public mutable_headers<generator<protocol_model::client>>,
+	public mutable_cookies<value,generator<protocol_model::client>>,
+	public mutable_chunk_attributes<generator<protocol_model::client>>
 {
 	LIBGS_DISABLE_COPY(generator)
 
 public:
-	using url_t = protocol::url;
+	using url_t = http::url;
 	using request_arg_t = request_arg;
 
-	using version_t = protocol::version;
+	using version_t = http::version;
 	using mutable_headers::set_header;
 
 public:
-	generator(version_enum version, url_t url, request_arg_t arg);
-	generator(url_t url, request_arg_t arg);
-	~generator();
+	generator(version_enum version, url_t url, request_arg_t arg,
+		request_target_form target_form = request_target_form::origin
+	);
+	generator(url_t url, request_arg_t arg,
+		request_target_form target_form = request_target_form::origin
+	);
+	~generator() override;
 
 	generator(generator &&other) noexcept;
 	generator &operator=(generator &&other) noexcept;
@@ -69,6 +73,9 @@ public:
 
 	[[nodiscard]] request_arg_t arg() const noexcept;
 	[[nodiscard]] operator request_arg_t() const noexcept;
+
+	generator &set_target_form(request_target_form form) noexcept;
+	[[nodiscard]] request_target_form target_form() const noexcept;
 
 public:
 	template <method_enum Method>
@@ -89,9 +96,9 @@ private:
 	impl *m_impl;
 };
 
-using client_generator = generator<model::client>;
+using client_generator = generator<protocol_model::client>;
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/utils/client/detail/generator.h>
 
 

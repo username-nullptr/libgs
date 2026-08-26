@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -30,13 +30,13 @@
 #define LIBGS_HTTP_CLIENT_CLIENT_H
 
 #include <libgs/http/client/connection_pool.h>
-#include <libgs/http/client/context.h>
+#include <libgs/http/client/request_context.h>
 
 namespace libgs::http
 {
 
 template <concepts::connection_pool ConnectionPool,
-		  protocol::version_enum Version = protocol::version::v11>
+		  version_enum Version = version::v11>
 class LIBGS_HTTP_TAPI basic_client
 {
 	LIBGS_DISABLE_COPY(basic_client)
@@ -48,18 +48,74 @@ public:
 	using connection_t = connection_pool_t::connection_t;
 	using executor_t = connection_pool_t::executor_t;
 
-	template <protocol::method_enum Method>
-	using context_t = basic_request_context<Method,connection_t,version_v>;
+	template <method_enum Method>
+	using context_t = basic_request_context<Method, connection_t, version_v>;
 
-	template <protocol::method_enum Method>
-	using context_ptr = std::shared_ptr<context_t<Method>>;
+	template <method_enum Method>
+	using ctx_expected_t = sys_expected<context_t<Method>>;
 
-	template <protocol::method_enum Method>
-	using request_t = basic_client_request<Method, connection_t, version_v>;
 	using reply_t = basic_reply<connection_t>;
+	using request_arg_t = request_arg;
+	using url_t = url;
 
-	using request_arg_t = protocol::request_arg;
-	using url_t = protocol::url;
+public:
+	struct req_info
+	{
+		url_t url {};
+		request_arg_t arg {};
+
+		std::optional<url_t> proxy {};
+		size_t max_redirects = 0;
+		bool auto_decompression = true;
+
+		req_info(url_t url, request_arg_t arg) :
+			url(std::move(url)), arg(std::move(arg)) {}
+
+		req_info(url_t url) :
+			url(std::move(url)) {}
+
+		req_info(core_concepts::string_p<char> auto &&url) :
+			url(std::forward<decltype(url)>(url)) {}
+
+		req_info &set_proxy(url_t value)
+		{
+			proxy = std::move(value);
+			return *this;
+		}
+		req_info &follow_redirects(size_t limit = 10) noexcept
+		{
+			max_redirects = limit;
+			return *this;
+		}
+		req_info &auto_decompress(bool enabled = true) noexcept
+		{
+			auto_decompression = enabled;
+			return *this;
+		}
+	};
+
+	template <method_enum Method, typename Token>
+	static constexpr bool request_token_v =
+		core_concepts::tf_opt_token<Token,ctx_expected_t<Method>> and
+		not is_detached_v<std::remove_cvref_t<Token>>;
+
+	template <typename T, typename Token>
+	static constexpr bool upload_file_opt_token_v =
+		concepts::file_opt_token_p <
+			T, char, file_optype::combine, io_permission::read
+		> and
+		core_concepts::tf_opt_token <
+			Token, ctx_expected_t<method::put>
+		>;
+
+	template <typename T, typename Token>
+	static constexpr bool download_file_opt_token_v =
+		concepts::file_opt_token_p <
+			T, char, file_optype::single, io_permission::write
+		> and
+		core_concepts::tf_opt_token <
+			Token, ctx_expected_t<method::get>
+		>;
 
 public:
 	basic_client() requires
@@ -75,131 +131,107 @@ public:
 	~basic_client();
 
 public:
-	struct req_info
-	{
-		url_t url;
-		request_arg_t arg;
-
-		req_info(url_t url, request_arg_t arg) :
-			url(std::move(url)), arg(std::move(arg)) {}
-
-		req_info(url_t url) :
-			url(std::move(url)) {}
-
-		req_info(core_concepts::string_p<char> auto &&url) :
-			url(std::forward<decltype(url)>(url)) {}
-	};
-
-	template <protocol::method_enum Method, typename Token>
-	static constexpr bool request_token_v =
-		core_concepts::tf_opt_token<Token,error_code,context_ptr<Method>> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
-
-	template <typename T, typename Token>
-	static constexpr bool file_opt_token_v =
-		concepts::file_opt_token_p <
-			T, char, file_optype::multiple, io_permission::read
-		> and
-		core_concepts::tf_opt_token <
-			Token, error_code, context_ptr<protocol::method::put>
-		>;
-
-public:
-	template <protocol::method_enum Method, typename Token = use_sync_t>
+	template <method_enum Method, typename Token = use_sync_t>
 	[[nodiscard]] auto request(req_info info, Token &&token = {})
 		noexcept requires request_token_v<Method,Token>;
 
 	template <typename T, typename Token = use_sync_t>
 	auto upload_file(req_info info, T &&opt, Token &&token = {}) noexcept
-		requires file_opt_token_v<T,Token>;
+		requires upload_file_opt_token_v<T,Token>;
 
 	template <typename T, typename Progress, typename Token = use_sync_t>
 	auto upload_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
-		requires file_opt_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
+		requires upload_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>;
 
-	// TODO ... ...
-	// download_file();
+	template <typename T, typename Token = use_sync_t>
+	auto download_file(req_info info, T &&opt, Token &&token = {}) noexcept
+		requires download_file_opt_token_v<T,Token>;
+
+	template <typename T, typename Progress, typename Token = use_sync_t>
+	auto download_file(req_info info, T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires download_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>;
 
 public:
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_get(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::get,Token>;
+		noexcept requires request_token_v<method::get,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_put(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::put,Token>;
+		noexcept requires request_token_v<method::put,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_post(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::post,Token>;
+		noexcept requires request_token_v<method::post,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_head(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::head,Token>;
+		noexcept requires request_token_v<method::head,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_patch(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::patch,Token>;
+		noexcept requires request_token_v<method::patch,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_delete(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::delet,Token>;
+		noexcept requires request_token_v<method::delet,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_options(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::options,Token>;
+		noexcept requires request_token_v<method::options,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_trace(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::trace,Token>;
+		noexcept requires request_token_v<method::trace,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto request_connect(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::connect,Token>;
+		noexcept requires request_token_v<method::connect,Token>;
 
 public:
-	template <protocol::method_enum Method, typename Token = use_sync_t>
+	template <method_enum Method, typename Token = use_sync_t>
 	[[nodiscard]] auto make_context(req_info info, Token &&token = {})
 		noexcept requires request_token_v<Method,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_get(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::get,Token>;
+		noexcept requires request_token_v<method::get,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_put(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::put,Token>;
+		noexcept requires request_token_v<method::put,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_post(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::post,Token>;
+		noexcept requires request_token_v<method::post,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_head(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::head,Token>;
+		noexcept requires request_token_v<method::head,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_patch(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::patch,Token>;
+		noexcept requires request_token_v<method::patch,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_delete(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::delet,Token>;
+		noexcept requires request_token_v<method::delet,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_options(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::options,Token>;
+		noexcept requires request_token_v<method::options,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_trace(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::trace,Token>;
+		noexcept requires request_token_v<method::trace,Token>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto make_connect(req_info info, Token &&token = {})
-		noexcept requires request_token_v<protocol::method::connect,Token>;
+		noexcept requires request_token_v<method::connect,Token>;
 
 public:
-	[[nodiscard]] static consteval protocol::version_enum version() noexcept;
+	[[nodiscard]] std::shared_ptr<cookie_jar> cookie_store() noexcept;
+	[[nodiscard]] static consteval version_enum version() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
@@ -229,7 +261,7 @@ namespace libgs::http
 #if LIBGS_OPENSSL_SUPPORT
 template <concepts::connection_pool ConnectionPool,
 		  concepts::connection_pool SslConnectionPool,
-		  protocol::version_enum Version = protocol::version::v11>
+		  version_enum Version = version::v11>
 class LIBGS_HTTP_TAPI basic_auto_client
 {
 	// TODO ... ...

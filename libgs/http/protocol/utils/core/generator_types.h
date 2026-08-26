@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -31,17 +31,17 @@
 
 #include <libgs/http/protocol/types.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
-template <model>
+template <protocol_model>
 class generator {};
 
 enum class generator_state {
 	header, content_length, chunk, finish
 };
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_GENERATOR_TYPES_H

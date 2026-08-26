@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,29 +32,29 @@
 #include <libgs/http/protocol/utils/core/container_helper.h>
 #include <libgs/http/protocol/utils/core/parser_types.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <>
-class LIBGS_HTTP_API parser<model::server> final :
-	public const_parameters<parser<model::server>>,
-	public const_headers<parser<model::server>>,
-	public const_cookies<value,parser<model::server>>
+class LIBGS_HTTP_API parser<protocol_model::server> final :
+	public const_parameters<parser<protocol_model::server>>,
+	public const_headers<parser<protocol_model::server>>,
+	public const_cookies<value,parser<protocol_model::server>>
 {
 	LIBGS_DISABLE_COPY(parser)
 
 public:
-	using stage_t = protocol::stage;
+	using stage_t = http::stage;
 
 	using value_t = libgs::value;
 	using path_args_t = parameter_map;
 
-	using parameters_t = protocol::parameters;
-	using headers_t = protocol::headers;
+	using parameters_t = http::parameters;
+	using headers_t = http::headers;
 
 public:
 	explicit parser(size_t init_buf_size = 0xFFFF);
-	~parser();
+	~parser() override;
 
 	parser(parser &&other) noexcept;
 	parser &operator=(parser &&other) noexcept;
@@ -66,6 +66,8 @@ public:
 
 public:
 	[[nodiscard]] method_enum method() const noexcept;
+	[[nodiscard]] request_target_form target_form() const noexcept;
+	[[nodiscard]] std::string_view target() const noexcept;
 	[[nodiscard]] std::string_view path() const noexcept;
 	[[nodiscard]] version_enum version() const noexcept;
 
@@ -80,6 +82,7 @@ public:
 
 	[[nodiscard]] std::string take_partial_body(size_t size);
 	[[nodiscard]] std::string take_body();
+	[[nodiscard]] std::string take_pending_data();
 
 	[[nodiscard]] stage_t stage() const noexcept;
 	parser &reset();
@@ -89,9 +92,9 @@ private:
 	impl *m_impl;
 };
 
-using server_parser = parser<model::server>;
+using server_parser = parser<protocol_model::server>;
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/utils/server/detail/parser.h>
 
 

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_SERVER_ACCEPTOR_WRAP_H
 #define LIBGS_HTTP_SERVER_ACCEPTOR_WRAP_H
 
-#include <libgs/http/global.h>
+#include <libgs/http/utils/connection.h>
 #include <libgs/coro.h>
 
 namespace libgs::http { namespace detail
@@ -39,6 +39,8 @@ template <core_concepts::exec Exec>
 class LIBGS_HTTP_VAPI acceptor_wrap
 {
 	LIBGS_DISABLE_COPY(acceptor_wrap)
+	template <core_concepts::exec>
+	friend class acceptor_wrap;
 
 public:
 	using executor_t = Exec;
@@ -67,14 +69,19 @@ protected:
 
 } //namespace detail
 
-template <typename Stream>
+template <typename Connection>
 class basic_acceptor_wrap;
 
 template <core_concepts::exec Exec>
-class LIBGS_HTTP_TAPI basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>> :
-	public detail::acceptor_wrap<Exec>
+class LIBGS_HTTP_TAPI basic_acceptor_wrap <
+	basic_connection< asio::basic_stream_socket<asio::ip::tcp, Exec> >
+> :
+public detail::acceptor_wrap<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_acceptor_wrap)
+
+	template <typename>
+	friend class basic_acceptor_wrap;
 
 public:
 	using base_t = detail::acceptor_wrap<Exec>;
@@ -83,7 +90,9 @@ public:
 
 	template <typename Exec0>
 	using basic_socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec0>;
+
 	using socket_t = basic_socket_t<executor_t>;
+	using connection_t = basic_connection<socket_t>;
 
 public:
 	basic_acceptor_wrap(acceptor_t &&acceptor);
@@ -93,22 +102,35 @@ public:
 	basic_acceptor_wrap &operator=(basic_acceptor_wrap &&other) noexcept = default;
 
 	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept;
+	basic_acceptor_wrap (
+		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
+	) noexcept;
 
 	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap &operator=(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept;
+	basic_acceptor_wrap &operator= (
+		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
+	) noexcept;
 
 public:
-	[[nodiscard]] awaitable<socket_t> accept(core_concepts::exec auto &service_exec);
+	[[nodiscard]] awaitable<connection_t> accept (
+		core_concepts::exec auto &service_exec
+	);
 };
 
 #if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
-class LIBGS_HTTP_TAPI basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
-	public detail::acceptor_wrap<Exec>
+class LIBGS_HTTP_TAPI basic_acceptor_wrap <
+	basic_connection<asio::ssl::stream <
+		asio::basic_stream_socket<asio::ip::tcp, Exec>
+	>>
+> :
+public detail::acceptor_wrap<Exec>
 {
 	LIBGS_DISABLE_COPY(basic_acceptor_wrap)
+
+	template <typename>
+	friend class basic_acceptor_wrap;
 
 public:
 	using base_t = detail::acceptor_wrap<Exec>;
@@ -116,8 +138,11 @@ public:
 	using acceptor_t = base_t::acceptor_t;
 
 	template <typename Exec0>
-	using basic_socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec0>>;
+	using basic_socket_t = asio::ssl::stream <
+		asio::basic_stream_socket<asio::ip::tcp,Exec0>
+	>;
 	using socket_t = basic_socket_t<executor_t>;
+	using connection_t = basic_connection<socket_t>;
 
 public:
 	basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl);
@@ -127,13 +152,19 @@ public:
 	basic_acceptor_wrap &operator=(basic_acceptor_wrap &&other) noexcept;
 
 	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept;
+	basic_acceptor_wrap (
+		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
+	) noexcept;
 
 	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap &operator=(basic_acceptor_wrap<basic_socket_t<Exec0>> &&other) noexcept;
+	basic_acceptor_wrap &operator= (
+		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
+	) noexcept;
 
 public:
-	[[nodiscard]] awaitable<socket_t> accept(core_concepts::exec auto &service_exec);
+	[[nodiscard]] awaitable<connection_t> accept (
+		core_concepts::exec auto &service_exec
+	);
 
 protected:
 	asio::ssl::context *m_ssl;

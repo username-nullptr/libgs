@@ -9,7 +9,7 @@ if (CMAKE_COMPILER_IS_GNUCXX)
 endif ()
 
 #target_link_libraries(${target_name} PRIVATE gs.core)
-target_link_libraries(${target_name} PRIVATE gs.http.nt)
+target_link_libraries(${target_name} PRIVATE gs.http)
 target_link_libraries(${target_name} PRIVATE gs.utils)
 
 target_compile_options(${target_name} PRIVATE

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -30,6 +30,7 @@
 #define LIBGS_HTTP_CLIENT_REPLY_H
 
 #include <libgs/http/protocol/utils/client/parser.h>
+#include <libgs/http/protocol/utils/client/cookie_jar.h>
 #include <libgs/http/utils/connection.h>
 
 namespace libgs::http
@@ -37,33 +38,21 @@ namespace libgs::http
 
 template <concepts::connection Connection = connection>
 class LIBGS_HTTP_TAPI basic_reply final :
-	public protocol::const_headers<basic_reply<Connection>>,
-	public protocol::const_cookies<protocol::cookie,basic_reply<Connection>>
+	public const_headers<basic_reply<Connection>>,
+	public const_cookies<cookie,basic_reply<Connection>>
 {
-	LIBGS_DISABLE_COPY(basic_reply)
+	LIBGS_DISABLE_COPY_MOVE(basic_reply)
 
 public:
 	using connection_t = Connection;
+	using connection_ptr = std::shared_ptr<connection_t>;
+
 	using executor_t = connection_t::executor_t;
-	using parser_t = protocol::client_parser;
+	using parser_t = client_parser;
 
-	using value_t = parser_t::value_t;
-	using headers_t = parser_t::headers_t;
-
-	using cookie_t = parser_t::cookie_t;
-	using cookies_t = parser_t::cookies_t;
-
-public:
-	explicit basic_reply(connection_t &&connection);
-	basic_reply(connection_t &&connection, parser_t &&parser);
-	~basic_reply();
-
-	basic_reply(basic_reply &&other) noexcept;
-	basic_reply &operator=(basic_reply &&other) noexcept;
-
-public:
-	[[nodiscard]] protocol::version_enum version() const noexcept;
-	[[nodiscard]] protocol::status_enum status() const noexcept;
+	explicit basic_reply(connection_ptr connection);
+	basic_reply(connection_ptr connection, parser_t &&parser);
+	~basic_reply() override;
 
 public:
 	template <typename Token, typename...Value>
@@ -72,12 +61,11 @@ public:
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename Token = use_sync_t>
-	auto parse(connection_t &&connection, Token &&token = {}) noexcept
-		requires task_token_v<Token,protocol::status_enum>;
+	auto wait(Token &&token = {}) noexcept
+		requires task_token_v<Token,status_enum>;
 
-	template <typename Token = use_sync_t>
-	auto parse(Token &&token = {}) noexcept
-		requires task_token_v<Token,protocol::status_enum>;
+	[[nodiscard]] version_enum version() const noexcept;
+	[[nodiscard]] status_enum status() const noexcept;
 
 public:
 	template <typename Token = use_sync_t>
@@ -88,31 +76,46 @@ public:
 	auto read(Token &&token = {}) noexcept
 		requires task_token_v<Token,std::string>;
 
-	template <typename T>
-	static constexpr bool file_opt_token = concepts::file_opt_token_p <
-		T, char, file_optype::single, io_permission::write
-	>;
+	template <typename T, typename Token>
+	static constexpr bool file_task_token =
+		core_concepts::tf_opt_token<Token,error_code,size_t> and
+		concepts::file_opt_token_p <
+			T, char, file_optype::single, io_permission::write
+		>;
+
 	template <typename T, typename Token = use_sync_t>
 	auto save_file(T &&opt, Token &&token = {}) noexcept
-		requires file_opt_token<T> and task_token_v<Token,size_t>;
+		requires file_task_token<T,Token>;
+
+	template <typename T, typename Progress, typename Token = use_sync_t>
+	auto save_file(T &&opt, Progress &&progress, Token &&token = {}) noexcept
+		requires file_task_token<T,Token> and concepts::progress_callback<Progress,Token>;
 
 public:
 	[[nodiscard]] bool valid() const noexcept;
+	[[nodiscard]] error_code first_error() const noexcept;
+
+	[[nodiscard]] bool content_decoded() const noexcept;
 	[[nodiscard]] bool is_chunked() const noexcept;
 	[[nodiscard]] bool is_eof() const noexcept;
+
+	[[nodiscard]] bool is_upgrade() const noexcept;
+	[[nodiscard]] std::string take_pending_data();
 
 	[[nodiscard]] const connection_t &connection() const noexcept;
 	[[nodiscard]] connection_t &connection() noexcept;
 
+	[[nodiscard]] const parser_t &parser() const noexcept;
+	[[nodiscard]] parser_t &parser() noexcept;
+
 	[[nodiscard]] executor_t get_executor() noexcept;
+	basic_reply &bind_cookie_jar(std::shared_ptr<cookie_jar> jar, url origin);
 	basic_reply &cancel() noexcept;
 
 private:
 	class impl;
 	std::shared_ptr<impl> m_impl;
 };
-
-using reply = basic_reply<>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/reply.h>

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -42,6 +42,7 @@ class LIBGS_HTTP_TAPI basic_connection
 public:
 	using socket_t = Stream;
 	using opt_helper_t = socket_operation_helper<socket_t>;
+	using protocol_t = opt_helper_t::protocol_t;
 
 	using executor_t = opt_helper_t::executor_t;
 	using endpoint_t = opt_helper_t::endpoint_t;
@@ -67,10 +68,6 @@ public:
 
 	[[nodiscard]] bool peek() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
-
-public:
-	[[nodiscard]] auto set_transfer_file_option() noexcept;
-	[[nodiscard]] auto unset_transfer_file_option(const auto &before) noexcept;
 
 private:
 	class impl;

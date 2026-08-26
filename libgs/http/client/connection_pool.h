@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -80,12 +80,17 @@ public:
 	using constructor_t = Constructor<socket_t>;
 	using connection_t = basic_connection<socket_t>;
 
+	using protocol_t = connection_t::protocol_t;
+	using con_expected_t = sys_expected<connection_t>;
+
 	using opt_helper_t = connection_t::opt_helper_t;
 	using executor_t = connection_t::executor_t;
+
 	using endpoint_t = connection_t::endpoint_t;
+	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
 
 public:
-	basic_connection_pool(config_t config = {}) requires
+	explicit basic_connection_pool(const config_t &config = {}) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
 	explicit basic_connection_pool (
@@ -99,13 +104,31 @@ public:
 
 public:
 	template <typename Token = use_sync_t>
+	[[nodiscard]] auto get(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {})
+		requires core_concepts::tf_opt_token<Token,con_expected_t>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto get(const dns_results &eps, Token &&token = {})
+		requires core_concepts::tf_opt_token<Token,con_expected_t>;
+
+	template <typename Token = use_sync_t>
 	[[nodiscard]] auto get(const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
+		requires core_concepts::tf_opt_token<Token,con_expected_t>;
+
+public:
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto try_get(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {})
+		requires core_concepts::tf_opt_token<Token,con_expected_t>;
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto try_get(const dns_results &eps, Token &&token = {})
+		requires core_concepts::tf_opt_token<Token,con_expected_t>;
 
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto try_get(const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,error_code,connection_t>;
+		requires core_concepts::tf_opt_token<Token,con_expected_t>;
 
+public:
 	bool emplace(socket_t &socket);
 	void operator<<(socket_t &socket);
 

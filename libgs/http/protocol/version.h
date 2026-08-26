@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -31,14 +31,15 @@
 
 #include <libgs/http/global.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 #define LIBGS_HTTP_VERSION_TABLE \
-X_MACRO( v10 , 0x0100 , "1.0" ) \
-X_MACRO( v11 , 0x0101 , "1.1" )
-// X_MACRO( v12 , 0x0102 , "1.2" )
-// X_MACRO( v20 , 0x0200 , "2.0" )
+X_MACRO( none , 0x0000 , "0.0" ) \
+X_MACRO( v10  , 0x0100 , "1.0" ) \
+X_MACRO( v11  , 0x0101 , "1.1" )
+// X_MACRO( v12  , 0x0102 , "1.2" )
+// X_MACRO( v20  , 0x0200 , "2.0" )
 
 #define X_MACRO(e,v,d) e = (v),
 LIBGS_HTTP_DEFINE_ENUM(uint16_t, version, LIBGS_HTTP_VERSION_TABLE, string,
@@ -51,7 +52,7 @@ LIBGS_HTTP_DEFINE_ENUM(uint16_t, version, LIBGS_HTTP_VERSION_TABLE, string,
 );
 #undef X_MACRO
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/detail/version.h>
 
 

@@ -35,7 +35,8 @@
 namespace libgs::http { namespace detail
 {
 
-[[nodiscard]] LIBGS_HTTP_TAPI sys_expected<> init_file_size(concepts::any_file_opt_token auto &opt) noexcept
+[[nodiscard]] LIBGS_HTTP_TAPI sys_expected<>
+init_file_size(concepts::any_file_opt_token auto &opt) noexcept
 {
 	using opt_t = std::remove_cvref_t<decltype(opt)>;
 	using fstream_t = opt_t::fstream_t;
@@ -104,7 +105,7 @@ LIBGS_HTTP_TAPI void init_mime_type(concepts::any_file_opt_token auto &opt) noex
 	if constexpr( std::is_same_v<type,void> )
 		opt.mime_type = mime_type::get(opt.file_name);
 	else if constexpr( opt_t::permissions & io_permission::read )
-		opt.mime_type = mime_type::get(opt.stream);
+		opt.mime_type = mime_type::get(*opt.stream);
 	else
 		opt.mime_type = "Unknown";
 }
@@ -155,8 +156,7 @@ inline sys_expected<> file_opt_token<void,file_optype::single>::init(std::ios_ba
 				std::make_error_code(static_cast<std::errc>(errno))
 			);
 		}
-		auto expected = detail::init_file_size(*this);
-		if( not expected )
+		if( auto expected = detail::init_file_size(*this); not expected )
 			return expected;
 
 		detail::init_mime_type(*this);
@@ -303,8 +303,7 @@ inline sys_expected<> file_opt_token<void,file_optype::multiple>::init(std::ios_
 				std::make_error_code(static_cast<std::errc>(errno))
 			);
 		}
-		auto expected = detail::init_file_size(*this);
-		if( not expected )
+		if( auto expected = detail::init_file_size(*this); not expected )
 			return expected;
 
 		detail::init_mime_type(*this);
@@ -377,7 +376,7 @@ sys_expected<> file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::o
 
 template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream) :
-	stream(new fstream_t(std::move(stream)))
+	stream(&stream)
 {
 
 }
@@ -478,12 +477,12 @@ namespace operators
 
 inline auto operator| (std::filesystem::path file_name, const file_range &range)
 {
-	return make_file_opt_token(file_name, range);
+	return make_file_opt_token(std::move(file_name), range);
 }
 
 inline auto operator| (std::filesystem::path file_name, file_ranges ranges)
 {
-	return make_file_opt_token(file_name, std::move(ranges));
+	return make_file_opt_token(std::move(file_name), std::move(ranges));
 }
 
 auto operator| (core_concepts::any_fstream_p auto &&stream, const file_range &range)

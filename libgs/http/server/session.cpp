@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -30,6 +30,43 @@
 
 namespace libgs::http
 {
+
+void session::impl::start()
+{
+	if( m_restart )
+		m_timer.cancel();
+	else if( not m_valid )
+		dispatch(work());
+}
+
+awaitable<void> session::impl::work()
+{
+	auto self = q_ptr->shared_from_this();
+	error_code error;
+	for(;;)
+	{
+		self->m_impl->m_restart = false;
+		self->m_impl->m_timer.expires_after(std::chrono::seconds(self->m_impl->m_second));
+
+		using namespace libgs::operators;
+		co_await self->m_impl->m_timer.async_wait(use_awaitable|error);
+		if( self.use_count() == 1 )
+			break;
+
+		if( error and error != errc::operation_aborted )
+		{
+			if( self->m_impl->m_error_handle )
+				self->m_impl->m_error_handle(error);
+		}
+		if( self->m_impl->m_restart )
+			continue;
+
+		self->m_impl->m_valid = false;
+		self->m_impl->m_timeout_handle();
+		break;
+	}
+	co_return ;
+}
 
 session::session(const executor_t &exec) :
 	session(std::chrono::seconds(60), exec)

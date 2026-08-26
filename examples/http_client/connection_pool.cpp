@@ -1,4 +1,4 @@
-#include <libgs/http_nt/client/connection_pool.h>
+#include <libgs/http/client/connection_pool.h>
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
@@ -7,7 +7,7 @@ int main()
 {
 	spdlog::set_level(spdlog::level::trace);
 
-	libgs::http_nt::connection_pool cpool(libgs::get_executor());
+	libgs::http::connection_pool cpool(libgs::get_executor());
 	asio::thread_pool pool(16);
 #if 0
 	libgs::dispatch([&]() -> asio::awaitable<void>
@@ -41,7 +41,7 @@ int main()
 	});
 #else
 	cpool.get(/*pool,*/{asio::ip::make_address("127.0.0.1"),8080},
-	[&pool](libgs::http_nt::connection_pool::con_expected_t connection)
+	[&pool](libgs::http::connection_pool::con_expected_t connection)
 	{
 		if( not connection )
 		{

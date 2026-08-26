@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_PROTOCOL_DETAIL_TYPES_H
 #define LIBGS_HTTP_PROTOCOL_DETAIL_TYPES_H
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 inline bool status::check(enumeration status, bool _throw)
@@ -43,10 +43,10 @@ inline bool status::check(enumeration status, bool _throw)
 		default:
 			if( _throw )
 			{
-				throw runtime_error (
+				runtime_error::loc_throw(std::format (
 					"libgs::http::status::check: Invalid http status: '{}'.",
 					status
-				);
+				));
 			}
 			break;
 	}
@@ -72,10 +72,10 @@ inline const char *status::description(enumeration status, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::status::description: Invalid http status: '{}'.",
 				status
-			);
+			));
 		}
 		break;
 	}
@@ -102,10 +102,10 @@ inline bool method::check(enumeration method, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::method::check: Invalid http method: '{}'.",
 				method
-			);
+			));
 		}
 		break;
 	}
@@ -131,10 +131,10 @@ inline const char *method::string(enumeration method, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::method::string: Invalid http method: '{}'.",
 				method
-			);
+			));
 		}
 		break;
 	}
@@ -155,9 +155,9 @@ constexpr method_enum method::from_string(std::string_view str)
 #define X_MACRO(e,v,d) if( str == d ) return method::e;
 	LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
-	throw runtime_error (
+	runtime_error::loc_throw(std::format (
 		"libgs::http::method::from_string: Invalid http method: '{}'.", str
-	);
+	));
 }
 
 constexpr method::method(std::string_view str) :
@@ -177,10 +177,10 @@ inline bool redirect::check(enumeration redirect, bool _throw)
 	default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::redirect::check: Invalid http redirect type: '{}'.",
 				redirect
-			);
+			));
 		}
 		break;
 	}
@@ -206,10 +206,10 @@ inline const char *redirect::description(enumeration redirect, bool _throw)
 		default:
 		if( _throw )
 		{
-			throw runtime_error (
+			runtime_error::loc_throw(std::format (
 				"libgs::http::redirect::string: Invalid http redirect type: '{}'.",
 				redirect
-			);
+			));
 		}
 		break;
 	}
@@ -225,7 +225,7 @@ consteval const char *redirect::description() requires is_valid_v<Redirect>
 	else return "";
 }
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_DETAIL_TYPES_H

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,7 +32,7 @@
 #include <libgs/http/global.h>
 #include <libgs/core/value.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 struct cookie_attribute
@@ -74,8 +74,8 @@ public:
 	[[nodiscard]] decltype(auto) value() requires
 		core_concepts::value_get<T,char>;
 
-	[[nodiscard]] value_t value() noexcept;
-	operator value_t() noexcept;
+	[[nodiscard]] value_t value() const noexcept;
+	operator value_t() const noexcept;
 
 public:
 	[[nodiscard]] optional<std::string> domain() const noexcept;
@@ -136,7 +136,7 @@ using cookie_attributes = cookie::attributes_t;
 using cookie_values = value_map;
 using cookies = map<cookie>;
 
-} //namespace libgs::http::protocol::concepts
+} //namespace libgs::http::concepts
 #include <libgs/http/protocol/detail/cookie.h>
 
 

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -35,10 +35,11 @@
 #include <libgs/http/protocol/cookie.h>
 #include <libgs/http/protocol/model.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 #define LIBGS_HTTP_STATUS_TABLE \
+X_MACRO( none                            ,   0 , "None"                            ) \
 X_MACRO( continue_upload                 , 100 , "Continue"                        ) \
 X_MACRO( switching_protocols             , 101 , "Switching Protocols"             ) \
 X_MACRO( processing                      , 102 , "Processing"                      ) \
@@ -135,9 +136,12 @@ X_MACRO( not_modified       , status::not_modified       , "Not Modified"       
 LIBGS_HTTP_DEFINE_ENUM(uint32_t, redirect, LIBGS_HTTP_REDIRECT_TYPE_TABLE, description);
 #undef X_MACRO
 
+enum class request_target_form {
+	origin, absolute, authority, asterisk
+};
 using parameters = parameter_map;
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/detail/types.h>
 
 

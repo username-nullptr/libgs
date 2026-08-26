@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,49 +32,31 @@
 namespace libgs::http
 {
 
-template <concepts::stream Stream>
-basic_aop<Stream>::~basic_aop() = default;
+template <concepts::connection Connection>
+basic_aop<Connection>::~basic_aop() = default;
 
-template <concepts::stream Stream>
-awaitable<bool> basic_aop<Stream>::before(context_t &context)
+template <concepts::connection Connection>
+awaitable<bool> basic_aop<Connection>::before(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concepts::stream Stream>
-awaitable<bool> basic_aop<Stream>::after(context_t &context)
+template <concepts::connection Connection>
+awaitable<bool> basic_aop<Connection>::after(context_t &context)
 {
 	ignore_unused(context);
 	co_return false;
 }
 
-template <concepts::stream Stream>
-bool basic_aop<Stream>::exception(context_t &context, const std::exception &ex)
+template <concepts::connection Connection>
+bool basic_aop<Connection>::exception(context_t &context, const std::exception &ex)
 {
 	ignore_unused(context, ex);
 	return false;
 }
 
-namespace detail::concepts
-{
-
-template <typename Stream, typename...Args>
-concept aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_aop_ptr<Stream>> { basic_aop_ptr<Stream>(std::forward<Args>(args))... };
-};
-
-template <typename Stream, typename...Args>
-concept ctrlr_aop_ptr_list = requires(Args&&...args) {
-	std::vector<basic_ctrlr_aop_ptr<Stream>> { basic_ctrlr_aop_ptr<Stream>(std::forward<Args>(args))... };
-};
-
-template <typename Func, typename Stream>
-concept request_handler = requires(Func &&func, basic_service_context<Stream> &context) {
-	std::is_same_v<awaitable_ret_t<decltype(func(context))>,void>;
-};
-
-}} //namespace libgs::http::detail::concepts
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_SERVER_DETAIL_AOP_H

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_PROTOCOL_DETAIL_COOKIE_H
 #define LIBGS_HTTP_PROTOCOL_DETAIL_COOKIE_H
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 template <typename T>
@@ -55,7 +55,7 @@ optional<value> cookie::attribute(const core_concepts::text_p<char> auto &key) n
 	return value_map_get(attributes(), key);
 }
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_PROTOCOL_DETAIL_COOKIE_H

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,18 +29,20 @@
 #ifndef LIBGS_HTTP_SERVER_AOP_H
 #define LIBGS_HTTP_SERVER_AOP_H
 
-#include <libgs/http/server/context.h>
+#include <libgs/http/server/service_context.h>
 
 namespace libgs::http
 {
 
-template <concepts::stream Stream>
+template <concepts::connection Connection>
 class basic_aop
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_aop)
 
 public:
-	using context_t = basic_service_context<Stream>;
+	using connection_t = Connection;
+	using context_t = basic_service_context<connection_t>;
+
 	basic_aop() = default;
 	virtual ~basic_aop() = 0;
 
@@ -51,40 +53,62 @@ public:
 };
 
 template <core_concepts::exec Exec>
-using basic_tcp_aop = basic_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+using basic_tcp_aop = basic_aop<basic_tcp_connection<Exec>>;
 
 using tcp_aop = basic_tcp_aop<asio::any_io_executor>;
 
-template <concepts::stream Stream>
-using basic_aop_ptr = std::shared_ptr<basic_aop<Stream>>;
+template <concepts::connection Connection>
+using basic_aop_ptr = std::shared_ptr<basic_aop<Connection>>;
 
 template <core_concepts::exec Exec>
-using basic_tcp_aop_ptr = basic_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+using basic_tcp_aop_ptr = basic_aop_ptr<basic_tcp_connection<Exec>>;
 
 using tcp_aop_ptr = basic_tcp_aop_ptr<asio::any_io_executor>;
 
-template <concepts::stream Stream>
-class basic_ctrlr_aop : public basic_aop<Stream>
+template <concepts::connection Connection>
+class basic_ctrlr_aop : public basic_aop<Connection>
 {
 public:
-	using context_t = basic_service_context<Stream>;
+	using context_t = basic_service_context<Connection>;
 	[[nodiscard]] virtual awaitable<void> service(context_t &context) = 0;
 };
 
 template <core_concepts::exec Exec>
-using basic_tcp_ctrlr_aop = basic_ctrlr_aop<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+using basic_tcp_ctrlr_aop = basic_ctrlr_aop<basic_tcp_connection<Exec>>;
 
 using tcp_ctrlr_aop = basic_tcp_ctrlr_aop<asio::any_io_executor>;
 
-template <concepts::stream Stream>
-using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Stream>>;
+template <concepts::connection Connection>
+using basic_ctrlr_aop_ptr = std::shared_ptr<basic_ctrlr_aop<Connection>>;
 
 template <core_concepts::exec Exec>
-using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
+using basic_tcp_ctrlr_aop_ptr = basic_ctrlr_aop_ptr<basic_tcp_connection<Exec>>;
 
 using tcp_ctrlr_aop_ptr = basic_tcp_ctrlr_aop_ptr<asio::any_io_executor>;
 
-} //namespace libgs::http
+namespace concepts
+{
+
+template <typename Connection, typename...Args>
+concept aop_ptr_list = requires(Args&&...args) {
+	std::vector<basic_aop_ptr<Connection>> {
+		basic_aop_ptr<Connection>(std::forward<Args>(args))...
+	};
+};
+
+template <typename Connection, typename...Args>
+concept ctrlr_aop_ptr_list = requires(Args&&...args) {
+	std::vector<basic_ctrlr_aop_ptr<Connection>> {
+		basic_ctrlr_aop_ptr<Connection>(std::forward<Args>(args))...
+	};
+};
+
+template <typename Func, typename Connection>
+concept request_handler = requires(Func &&func, basic_service_context<Connection> &context) {
+	std::is_same_v<awaitable_ret_t<decltype(func(context))>,void>;
+};
+
+}} //namespace libgs::http
 #include <libgs/http/server/detail/aop.h>
 
 

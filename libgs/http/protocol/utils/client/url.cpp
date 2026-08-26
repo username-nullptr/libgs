@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -30,7 +30,7 @@
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 class LIBGS_DECL_HIDDEN url::impl
@@ -38,7 +38,7 @@ class LIBGS_DECL_HIDDEN url::impl
 	LIBGS_DISABLE_MOVE(impl)
 
 public:
-	explicit impl(std::string_view url = "/") {
+	explicit impl(std::string_view url = {}) {
 		set(url);
 	}
 	impl(const impl &other) = default;
@@ -47,78 +47,121 @@ public:
 public:
 	void set(std::string_view url)
 	{
+		reset();
 		if( url.empty() )
 			return ;
 
-		auto addpth = parse_parameters(
-			set_header(strtls::trimmed(url))
-		);
-		auto pos = addpth.find("/");
-		if( pos == std::string::npos )
+		auto resource = set_header(strtls::trimmed(url));
+		auto fragment = resource.find('#');
+
+		if( fragment != std::string::npos )
+			resource.erase(fragment);
+
+		auto authority_end = resource.find_first_of("/?");
+		auto authority = resource.substr(0, authority_end);
+
+		auto path_query = authority_end == std::string::npos ?
+			std::string("/") : resource.substr(authority_end);
+
+		if( path_query.starts_with('?') )
+			path_query.insert(path_query.begin(), '/');
+
+		auto path = parse_parameters(std::move(path_query));
+		set_path(path);
+
+		if( authority.empty() or authority.find('@') != std::string::npos )
+			invalid_argument::loc_throw("Invalid HTTP URL authority.");
+
+		m_port = m_protocol == "https" ? 443 : 80;
+		if( authority.starts_with('[') )
 		{
-			m_address = std::move(addpth);
-			m_path = "/";
+			auto close = authority.find(']');
+			if( close == std::string::npos )
+				invalid_argument::loc_throw("Invalid IPv6 URL authority.");
+
+			m_address = authority.substr(1, close - 1);
+			if( close + 1 < authority.size() )
+			{
+				if( authority[close + 1] != ':' )
+					invalid_argument::loc_throw("Invalid HTTP URL authority.");
+				set_port_text(authority.substr(close + 2));
+			}
 		}
 		else
 		{
-			m_address = addpth.substr(0,pos);
-			m_path = strtls::replace (
-				from_percent_encoding(addpth.substr(pos)),
-				"//", '/', false
-			);
+			auto colon = authority.rfind(':');
+			if( colon != std::string::npos and authority.find(':') == colon )
+			{
+				m_address = authority.substr(0, colon);
+				set_port_text(authority.substr(colon + 1));
+			}
+			else
+				m_address = std::move(authority);
 		}
 		if( m_address.empty() )
-		{
-			m_address = "127.0.0.1";
-			return ;
-		}
-		pos = m_address.rfind(":");
-		if( pos == std::string::npos )
-			m_port = m_protocol == "https" ? 443 : 80;
-		else
-		{
-			m_port = *strtls::to_uint16(m_address.substr(pos+1)).or_else();
-			m_address = m_address.substr(0,pos);
-		}
+			invalid_argument::loc_throw("HTTP URL host is empty.");
+	}
+
+	void set_path(std::string_view path)
+	{
+		auto value = from_percent_encoding(strtls::trimmed(path));
+		if( value.empty() )
+			value = "/";
+
+		else if( not value.starts_with('/') )
+			value.insert(value.begin(), '/');
+
+		m_path = strtls::replace (
+			std::move(value), "//", '/', false
+		);
 	}
 
 private:
-	[[nodiscard]] std::string set_header(std::string resource_line)
+	void set_port_text(std::string_view text)
 	{
-		if( resource_line.size() < 8 or strtls::to_lower(resource_line.substr(0,4)) != "http" )
-			return "";
+		auto port = strtls::to_uint16(text);
+		if( not port or *port == 0 )
+			invalid_argument::loc_throw("Invalid HTTP URL port.");
+		m_port = *port;
+	}
 
-		if( resource_line[4] == 's' and resource_line.size() > 8 )
+	void reset()
+	{
+		m_protocol = "http";
+		m_path = "/";
+		m_address = "127.0.0.1";
+		m_port = 80;
+		m_parameters.clear();
+	}
+
+	[[nodiscard]] std::string set_header(const std::string &resource_line)
+	{
+		auto lower = strtls::to_lower(resource_line);
+		if( lower.starts_with("https://") )
 		{
-			if( resource_line[5] == ':' and resource_line[6] == '/' and resource_line[7] == '/' )
-			{
-				m_protocol = "https";
-				resource_line = resource_line.substr(8);
-			}
+			m_protocol = "https";
+			return resource_line.substr(8);
 		}
-		else if( resource_line[4] == ':' )
+		if( lower.starts_with("http://") )
 		{
-			if( resource_line[5] == '/' and resource_line[6] == '/' )
-			{
-				m_protocol = "http";
-				resource_line = resource_line.substr(7);
-			}
+			m_protocol = "http";
+			return resource_line.substr(7);
 		}
-		return resource_line;
+		invalid_argument::loc_throw("HTTP URL must use the http or https scheme.");
 	}
 
 	[[nodiscard]] std::string parse_parameters(std::string resource_line)
 	{
-		auto pos = resource_line.find("?");
+		auto pos = resource_line.find('?');
 		if( pos == std::string::npos )
-			return std::move(resource_line);
+			return resource_line;
 
 		auto addpth = resource_line.substr(0,pos);
-		auto parameters_string = resource_line.substr(pos + 1);
 
-		for(auto &para_str : string_vector::from_string(parameters_string, "&"))
+		for(auto parameters_string = resource_line.substr(pos + 1);
+			auto &para_str : string_vector::from_string(parameters_string, "&"))
 		{
-			pos = para_str.find("=");
+			pos = para_str.find('=');
 			if( pos == std::string::npos )
 			{
 				para_str = from_percent_encoding(para_str);
@@ -151,7 +194,7 @@ url::url(std::string_view url) :
 	m_parameters = &m_impl->m_parameters;
 }
 
-url::url(std::string u) :
+url::url(const std::string &u) :
 	url(std::string_view(u))
 {
 
@@ -182,7 +225,8 @@ url::url(const url &other) :
 
 url &url::operator=(const url &other)
 {
-	m_impl = new impl(*other.m_impl);
+	if( this != &other )
+		*m_impl = *other.m_impl;
 	return *this;
 }
 
@@ -228,7 +272,7 @@ url &url::set_port(uint16_t port)
 
 url &url::set_path(std::string_view path)
 {
-	m_impl->set(path);
+	m_impl->set_path(path);
 	return *this;
 }
 
@@ -254,16 +298,23 @@ std::string_view url::path() const noexcept
 
 std::string url::to_string() const noexcept
 {
-	auto buf =
-		m_impl->m_protocol + "://" + m_impl->m_path +
-		std::format("{}", m_impl->m_port);
+	auto authority = m_impl->m_address;
+	if( authority.find(':') != std::string::npos and not authority.starts_with('[') )
+		authority = '[' + authority + ']';
 
+	auto buf = std::format("{}://{}:{}{}",
+		m_impl->m_protocol, authority, m_impl->m_port,
+		to_percent_encoding(m_impl->m_path, '/')
+	);
 	if( m_impl->m_parameters.empty() )
 		return buf;
+	buf += '?';
 
-	buf += "?";
 	for(auto &[key,value] : m_impl->m_parameters)
-		buf += key + "=" + value.to_string() + "&";
+	{
+		buf += to_percent_encoding(key) + "=" +
+			to_percent_encoding(value.to_string()) + "&";
+	}
 	buf.pop_back();
 	return buf;
 }
@@ -273,4 +324,57 @@ url::operator std::string() const noexcept
 	return to_string();
 }
 
-} //namespace libgs::http::protocol
+url url::resolve(const url &base, std::string_view reference)
+{
+	auto value = strtls::trimmed(reference);
+	if( auto fragment = value.find('#'); fragment != std::string::npos )
+		value.erase(fragment);
+
+	auto lower = strtls::to_lower(value);
+	if( lower.starts_with("http://") or lower.starts_with("https://") )
+		return { value };
+
+	auto host = std::string(base.address());
+	if( host.find(':') != std::string::npos and not host.starts_with('[') )
+		host = '[' + host + ']';
+
+	auto origin = std::format("{}://{}:{}", base.protocol(), host, base.port());
+	if( value.starts_with("//") )
+		return { std::string(base.protocol()) + ":" + value };
+
+	if( value.empty() )
+		return base;
+
+	if( value.front() == '/' )
+		return { origin + value };
+
+	if( value.front() == '?' )
+		return { origin + std::string(base.path()) + value };
+
+	auto path = std::string(base.path());
+	path.erase(path.rfind('/') + 1);
+	path += value;
+
+	std::vector<std::string> segments {};
+	for(auto &segment : string_vector::from_string(path, '/'))
+	{
+		if( segment.empty() or segment == "." )
+			continue;
+		if( segment == ".." )
+		{
+			if( not segments.empty() )
+				segments.pop_back();
+		}
+		else
+			segments.emplace_back(std::move(segment));
+	}
+	path = "/";
+	for(auto &segment : segments)
+		path += segment + '/';
+
+	if( not value.ends_with('/') and path.size() > 1 )
+		path.pop_back();
+	return { origin + path };
+}
+
+} //namespace libgs::http

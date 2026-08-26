@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -31,7 +31,7 @@
 
 #include <libgs/http/protocol/utils/core/container_helper.h>
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 class LIBGS_HTTP_API url : public mutable_parameters<url>
@@ -46,11 +46,11 @@ public:
 	template <typename Arg0, typename...Args>
 	url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 	url(std::string_view url);
-	url(std::string url);
+	url(const std::string &url);
 	url(const char *url);
 
 	url();
-	~url();
+	~url() override;
 
 	url(const url &other);
 	url &operator=(const url &other);
@@ -77,12 +77,16 @@ public:
 	[[nodiscard]] std::string to_string() const noexcept;
 	[[nodiscard]] explicit operator std::string() const noexcept;
 
+	[[nodiscard]] static url resolve (
+		const url &base, std::string_view reference
+	);
+
 private:
 	class impl;
 	impl *m_impl;
 };
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
 #include <libgs/http/protocol/utils/client/detail/url.h>
 
 

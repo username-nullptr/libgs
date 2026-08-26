@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,7 +29,12 @@
 #ifndef LIBGS_HTTP_GLOBAL_H
 #define LIBGS_HTTP_GLOBAL_H
 
+#include <libgs/http/cxx/configs.h>
 #include <libgs/http/cxx/container.h>
+#include <libgs/http/protocol/model.h>
+
+namespace libgs::http
+{
 
 #define LIBGS_HTTP_DEFINE_ENUM(_type, _struct, _list, _str_func, ...) \
 	struct _struct { \
@@ -47,6 +52,8 @@
 		__VA_ARGS__ \
 	}; \
 	using _struct##_enum = _struct::enumeration
+
+} //namespace libgs::http
 
 
 #endif //LIBGS_HTTP_GLOBAL_H

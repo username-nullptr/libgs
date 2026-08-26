@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -32,118 +32,54 @@
 namespace libgs::http
 {
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-class basic_server<Stream,Exec>::impl : public std::enable_shared_from_this<impl>
+template <concepts::any_exec_stream Stream>
+class LIBGS_HTTP_TAPI basic_server<Stream>::impl :
+	public std::enable_shared_from_this<impl>
 {
-	LIBGS_DISABLE_COPY(impl)
+	LIBGS_DISABLE_COPY_MOVE(impl)
 	using request_handler_t = std::function<awaitable<void>(context_t&)>;
+	using connection_ptr = std::shared_ptr<connection_t>;
 
 public:
-	explicit impl(basic_acceptor_wrap<socket_t> &&next_layer, const service_exec_t &service_exec) :
-		m_next_layer(std::move(next_layer)), m_service_exec(service_exec)
-	{
-		m_sss.on_error([this](const session_ptr&, const error_code &error) {
-			call_on_server_error(error);
-		});
-	}
+	impl(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
+		m_wrap(std::move(wrap)),
+		m_service_exec(get_executor_helper (
+			std::forward<decltype(service_exec)>(service_exec)
+		)) {}
 
-	template <typename Stream0, typename Exec0>
-	impl(basic_server<Stream0,Exec0>::impl &&other) noexcept :
-		m_next_layer(std::move(other.m_next_layer)),
-		m_service_exec(other.m_service_exec),
-		m_request_handler_map(std::move(other.m_request_handler_map)),
-		m_sss(std::move(other.m_sss)),
-		m_default_handler(std::move(other.m_default_handler)),
-		m_server_error_handler(std::move(other.m_server_error_handler)),
-		m_service_error_handler(std::move(other.m_service_error_handler)),
-		m_keepalive_timeout(other.m_keepalive_timeout),
-		m_is_start(other.m_is_start)
-	{
-		other.m_keepalive_timeout = milliseconds(5000);
-		other.m_is_start = false;
-	}
-
-	impl(impl &&other) noexcept :
-		m_next_layer(std::move(other.m_next_layer)),
-		m_service_exec(other.m_service_exec),
-		m_request_handler_map(std::move(other.m_request_handler_map)),
-		m_sss(std::move(other.m_sss)),
-		m_default_handler(std::move(other.m_default_handler)),
-		m_server_error_handler(std::move(other.m_server_error_handler)),
-		m_service_error_handler(std::move(other.m_service_error_handler)),
-		m_keepalive_timeout(other.m_keepalive_timeout),
-		m_is_start(other.m_is_start.load())
-	{
-		other.m_keepalive_timeout = milliseconds(5000);
-		other.m_is_start = false;
-	}
-
-	template <typename Stream0, typename Exec0>
-	impl &operator=(basic_server<Stream0,Exec0>::impl &&other) noexcept
-	{
-		m_next_layer = std::move(other.m_next_layer);
-		m_service_exec = other.m_service_exec;
-
-		m_request_handler_map = std::move(other.m_request_handler_map);
-		m_sss = std::move(other.m_sss);
-
-		m_default_handler = std::move(other.m_default_handler);
-		m_server_error_handler = std::move(other.m_server_error_handler);
-		m_service_error_handler = std::move(other.m_service_error_handler);
-
-		m_keepalive_timeout = other.m_keepalive_timeout;
-		m_is_start = other.m_is_start;
-
-		other.m_keepalive_timeout = milliseconds(5000);
-		other.m_is_start = false;
-		return *this;
-	}
-
-	impl &operator=(impl &&other) noexcept
-	{
-		m_next_layer = std::move(other.m_next_layer);
-		m_service_exec = other.m_service_exec;
-
-		m_request_handler_map = std::move(other.m_request_handler_map);
-		m_sss = std::move(other.m_sss);
-
-		m_default_handler = std::move(other.m_default_handler);
-		m_server_error_handler = std::move(other.m_server_error_handler);
-		m_service_error_handler = std::move(other.m_service_error_handler);
-
-		m_keepalive_timeout = other.m_keepalive_timeout;
-		m_is_start = other.m_is_start;
-
-		other.m_keepalive_timeout = milliseconds(5000);
-		other.m_is_start = false;
-		return *this;
+	explicit impl(acceptor_wrap_t &&wrap) :
+		m_wrap(std::move(wrap)) {
+		m_service_exec = m_wrap.acceptor().get_executor();
 	}
 
 public:
-	void async_start(size_t max, error_code &error) noexcept
+	void async_start(size_t max, error_code &error) noexcept {
+		async_start(m_service_exec, max, error);
+	}
+
+	void async_start(const executor_t &service_exec, size_t max, error_code &error) noexcept
 	{
 		if( m_is_start )
 			return ;
-		m_next_layer.acceptor().listen(static_cast<int>(max), error);
+		m_wrap.acceptor().listen(static_cast<int>(max), error);
 		if( error )
 			return ;
-		else
-			m_is_start = true;
+		m_is_start = true;
 
-		libgs::dispatch(m_next_layer.acceptor().get_executor(),
-		[self = this->shared_from_this()]() mutable -> awaitable<void>
+		libgs::dispatch(m_wrap.acceptor().get_executor(),
+		[self = this->shared_from_this(), service_exec]() mutable -> awaitable<void>
 		{
 			bool abd = false;
 			try {
-				co_await self->do_tcp_accept();
+				co_await self->do_tcp_accept(service_exec);
 			}
 			catch(...) {
 				abd = true;
 			}
-			self->m_next_layer.acceptor().cancel();
+			self->m_wrap.acceptor().cancel();
 			error_code _error; LIBGS_UNUSED(_error);
 
-			self->m_next_layer.acceptor().close(_error);
+			self->m_wrap.acceptor().close(_error);
 			self->m_is_start = false;
 
 			if( abd )
@@ -160,31 +96,46 @@ public:
 		if( n_it != str.end() )
 			str.erase(n_it, str.end());
 
-		if( not str.starts_with("/") )
+		if( not str.starts_with('/') )
 			str = "/" + str;
 	}
 
 private:
-	[[nodiscard]] awaitable<void> do_tcp_accept()
+	[[nodiscard]] awaitable<void> do_tcp_accept(const executor_t &service_exec)
 	{
-		do try
-		{
-			auto socket = co_await m_next_layer.accept(m_service_exec);
-			if( not socket_operation_helper<socket_t>(socket).is_open() )
+		do try {
+			auto connection = co_await m_wrap.accept(service_exec);
+			if( not connection.opt_helper().is_open() )
 				continue;
 
-			libgs::dispatch(m_service_exec,
-			[self = this->shared_from_this(), socket = std::move(socket), ktime = m_keepalive_timeout]
-			() mutable -> awaitable<void>
+			if constexpr( std::is_same_v<typename connection_t::protocol_t, asio::ip::tcp> )
+			{
+				error_code error {};
+				connection.opt_helper().set_option (
+					asio::ip::tcp::no_delay(true), error
+				);
+				if( error )
+				{
+					connection.opt_helper().close();
+					call_on_server_error(error);
+					continue;
+				}
+			}
+			libgs::dispatch(service_exec, [self = this->shared_from_this(),
+				connection = std::make_shared<connection_t>(std::move(connection)),
+				kp_time = m_keepalive_timeout
+			]() mutable -> awaitable<void>
 			{
 				bool abd = false;
+				bool released = false;
 				try {
-					co_await self->do_tcp_service(socket, ktime);
+					released = co_await self->do_tcp_service(connection, kp_time);
 				}
 				catch(...) {
 					abd = true;
 				}
-				socket_operation_helper<socket_t>(socket).close();
+				if( not released )
+					connection->opt_helper().close();
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -200,27 +151,18 @@ private:
 		co_return ;
 	}
 
-	[[nodiscard]] awaitable<void> do_tcp_service(socket_t &socket, const milliseconds &keepalive_time)
+	[[nodiscard]] awaitable<bool> do_tcp_service
+	(const connection_ptr &connection, const milliseconds &keepalive_time)
 	{
 		using namespace std::chrono_literals;
-		const auto *time = &m_first_reading_time;
+		using namespace libgs::operators;
 
-		protocol::server_parser parser;
-		constexpr size_t buf_size = 0xFFFF;
-		char buf[buf_size] = {0};
+		const auto *time = &m_first_reading_time;
 		for(;;)
 		{
+			context_t context(connection, m_session_manager);
 			try {
-				auto var = co_await (
-					socket.async_read_some(buffer(buf, buf_size), use_awaitable) or
-					sleep_for(m_service_exec, *time)
-				);
-				if( var.index() == 1 )
-					break;
-
-				auto size = std::get<0>(var);
-				if( size == 0 or not parser.append({buf, size}) )
-					break;
+				co_await context.request().wait(use_awaitable | *time);
 			}
 			catch(std::system_error &ex)
 			{
@@ -229,22 +171,36 @@ private:
 					break;
 				call_on_server_error(ex.code());
 			}
-			context_t context(std::move(socket), parser, m_sss);
+			context.response().auto_set(context.request());
+			if( auto expectation = context.request().header(header::expect); expectation )
+			{
+				auto value = strtls::to_lower(strtls::trimmed(**expectation));
+				if( context.request().version() < version::v11 or value != "100-continue" )
+				{
+					context.response()
+						.set_status(status::expectation_failed)
+						.set_header(header::connection, "close");
+
+					co_await context.response().write({nullptr,0}, use_awaitable);
+					break;
+				}
+			}
 			co_await call_on_request(context);
 
 			if( not context.response().is_finished() )
 				co_await call_on_default(context);
 
+			if( context.connection_handed_over() )
+				co_return true;
+
 			if( not context.request().keep_alive() )
 				break;
+
 			time = &keepalive_time;
 			if( *time == 0ms )
 				break;
-
-			parser.reset();
-			socket = std::move(context.request().next_layer());
 		}
-		co_return ;
+		co_return false;
 	}
 
 private:
@@ -273,26 +229,30 @@ private:
 		}
 		if( not handler )
 		{
-			context.response().set_status(protocol::status::not_found);
+			context.response().set_status(status::not_found);
 			co_return ;
 		}
 		auto method = context.request().method();
-		if( (handler->method & method) == 0 )
+		if( not ( handler->method & method ) )
 		{
-			if( method == protocol::method::head )
+			if( method == method::head )
 			{
 				co_await context.response()
-					.set_header(protocol::header::content_type,"text/plain")
+					.set_header(header::content_type,"text/plain")
 					.write(use_awaitable);
 			}
-			if( method == protocol::method::options )
+			if( method == method::options )
 			{
 				co_await context.response()
-					.set_header(protocol::header::content_type,"text/plain")
+					.set_header(header::content_type,"text/plain")
 					.write(options_response_body(handler->method), use_awaitable);
 			}
 			else
-				context.response().set_status(protocol::status::method_not_allowed);
+			{
+				context.response().set_status (
+					status::method_not_allowed
+				);
+			}
 			co_return ;
 		}
 		try
@@ -312,6 +272,24 @@ private:
 		co_return ;
 	}
 
+	static constexpr auto def_html_v =
+		"<!DOCTYPE html>"
+		"<html>"
+		"<head>"
+		"	<meta charset=\"utf-8\">"
+		"	<title>{0}</title>"
+		"</head>"
+		"<body>"
+		"	<h1>{0}</h1>{1}"
+		"	<p>[ This is the server's default reply ]</p>"
+		"	<p>-----------------------------------------------</p>"
+		"	<p>This is an open source C++ (ASIO) server.</p>"
+		"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
+		"		Source code repository (Gitee)"
+		"	</a>"
+		"</body>"
+		"</html>";
+
 	[[nodiscard]] awaitable<void> call_on_default(context_t &context)
 	{
 		try {
@@ -321,37 +299,20 @@ private:
 				if( context.response().is_finished() )
 					co_return ;
 			}
-			constexpr const char *def_html =
-				"<!DOCTYPE html>"
-				"<html>"
-				"<head>"
-				"	<meta charset=\"utf-8\">"
-				"	<title>{0}</title>"
-				"</head>"
-				"<body>"
-				"	<h1>{0}</h1>{1}"
-				"	<p>[ This is the server's default reply ]</p>"
-				"	<p>-----------------------------------------------</p>"
-				"	<p>This is an open source C++ (ASIO) server.</p>"
-				"	<a href=\"https://gitee.com/jin-xiaoqiang/libgs.git\" target=\"_blank\">"
-				"		Source code repository (Gitee)"
-				"	</a>"
-				"</body>"
-				"</html>";
-			std::string data;
-			if( context.response().status() == protocol::status::ok )
-				data = std::format(def_html, "Welcome to LIBGS", "");
+			std::string data {};
+			if( context.response().status() == status::ok )
+				data = std::format(def_html_v, "Welcome to LIBGS", "");
 			else
 			{
 				auto status = std::format (
 					"<h2>{} ({})</h2>",
-					protocol::status::description(context.response().status()),
+					status::description(context.response().status()),
 					context.response().status()
 				);
-				data = std::format(def_html, "LIBGS", status);
+				data = std::format(def_html_v, "LIBGS", status);
 			}
 			co_await context.response()
-				.set_header(protocol::header::content_type, "text/html")
+				.set_header(header::content_type, "text/html")
 				.write(data, use_awaitable);
 		}
 		catch(const std::exception &ex) {
@@ -363,32 +324,29 @@ private:
 private:
 	void call_on_server_error(const error_code &error)
 	{
-		if( m_server_error_handler and m_server_error_handler(error) )
-			return ;
-		throw std::system_error(error, "libgs::http::server");
+		if( not m_server_error_handler or not m_server_error_handler(error) )
+			system_error::loc_throw(error, "libgs::http::server");
 	}
 
 	void call_on_service_error(context_t &context, const std::exception &ex)
 	{
-		context.response().set_status(protocol::status::internal_server_error);
+		context.response().set_status(status::internal_server_error);
 		if( m_service_error_handler and m_service_error_handler(context, ex) )
 			return ;
 		throw ex;
 	}
 
-	[[nodiscard]] std::string options_response_body(protocol::methods method)
+	[[nodiscard]] static std::string options_response_body(methods method)
 	{
-		std::string sum;
-		for(uint16_t i=protocol::method::get; i<=protocol::method::connect; i<<=1)
+		std::string sum {};
+		for(uint16_t i=method::get; i<=method::connect; i<<=1)
 		{
-			if( method & i == 0 )
+			if( not ( method & i ) )
 				continue;
 
-			sum += std::format("{};",
-				protocol::method::string (
-					static_cast<protocol::method_enum>(i)
-				)
-			);
+			sum += std::format("{};", method::string (
+				static_cast<method_enum>(i)
+			));
 		}
 		if( not sum.empty() )
 			sum.pop_back();
@@ -450,14 +408,15 @@ public:
 
 	struct tk_handler
 	{
-		explicit tk_handler(ctrlr_aop_ptr_t aop) : aop(std::move(aop)) {}
+		explicit tk_handler(ctrlr_aop_ptr_t aop) :
+			aop(std::move(aop)) {}
 
-		template <protocol::method_enum...Method>
+		template <method_enum...Method>
 		tk_handler &bind_method()
 		{
 			if constexpr( sizeof...(Method) == 0 )
 			{
-#define X_MACRO(e,v,d) method |= protocol::method_enum::e;
+#define X_MACRO(e,v,d) method |= method_enum::e;
 				LIBGS_HTTP_METHOD_TABLE
 #undef X_MACRO
 			}
@@ -469,82 +428,65 @@ public:
 			}
 			return *this;
 		}
-		protocol::methods method {};
+		methods method {};
 		ctrlr_aop_ptr_t aop {};
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
 
 public:
-	next_layer_t m_next_layer;
-	service_exec_t m_service_exec;
+	acceptor_wrap_t m_wrap {};
+	asio::any_io_executor m_service_exec {};
 
-	std::map<std::string, tk_handler_ptr> m_request_handler_map;
-	session_set m_sss;
-
-	request_handler_t m_default_handler {};
 	server_error_handler_t m_server_error_handler {};
 	service_error_handler_t m_service_error_handler {};
+	request_handler_t m_default_handler {};
+
+	std::map<std::string, tk_handler_ptr> m_request_handler_map {};
+	session_manager m_session_manager {};
 
 	milliseconds m_first_reading_time {1500};
 	milliseconds m_keepalive_timeout {5000};
 	std::atomic_bool m_is_start {false};
 };
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <core_concepts::sched Exec0>
-basic_server<Stream,Exec>::basic_server
-(basic_acceptor_wrap<socket_t> &&next_layer, Exec0 &&service_exec) :
-	m_impl(new impl(std::move(next_layer), get_executor_helper(std::forward<Exec0>(service_exec))))
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
+	m_impl(std::make_shared<impl>(std::move(wrap), std::forward<decltype(service_exec)>(service_exec)))
 {
 
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec>::~basic_server()
-{
-	stop();
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <typename Stream0, typename Exec0>
-basic_server<Stream,Exec>::basic_server(basic_server<Stream0,Exec0> &&other) noexcept
-	requires core_concepts::constructible<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
-			 core_concepts::constructible<service_exec_t,typename Stream::executor_type> :
-	m_impl(new impl(std::move(*other.m_impl)))
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap) :
+	m_impl(std::make_shared<impl>(std::move(wrap)))
 {
 
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <typename Stream0, typename Exec0>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::operator=
-(basic_server<Stream0,Exec0> &&other) noexcept
-	requires core_concepts::assignable<next_layer_t,asio::basic_socket_acceptor<asio::ip::tcp,Exec0>&&> and
-			 core_concepts::assignable<service_exec_t,typename Stream::executor_type>
-{
-	if( this != &other )
-		*m_impl = std::move(*other.m_impl);
-	return *this;
-}
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::~basic_server() = default;
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::bind(endpoint_wrapper_t ep)
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep)
 {
 	error_code error;
 	bind(std::move(ep), error);
 	if( error )
-		throw std::system_error(error, "libgs::http::basic_server::bind");
+	{
+		system_error::loc_throw(error,
+			"libgs::http::basic_server::bind"
+		);
+	}
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::bind
-(endpoint_wrapper_t ep, error_code &error) noexcept
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::bind(endpoint_wrapper_t ep, error_code &error) noexcept
 {
-	auto &acceptor = m_impl->m_next_layer.acceptor();
+	auto &acceptor = m_impl->m_wrap.acceptor();
 	if( not acceptor.is_open() )
 	{
-		if( ep->address().is_v4())
+		if( ep->address().is_v4() )
 			acceptor.open(asio::ip::tcp::v4(), error);
 		else
 			acceptor.open(asio::ip::tcp::v6(), error);
@@ -559,157 +501,207 @@ basic_server<Stream,Exec> &basic_server<Stream,Exec>::bind
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::start(size_t max)
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::start(size_t max)
 {
 	error_code error;
 	start(max, error);
 	if( error )
-		throw std::system_error(error, "libgs::http::basic_server::start");
+	{
+		system_error::loc_throw(error,
+			"libgs::http::basic_server::start"
+		);
+	}
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::start
-(size_t max, error_code &error) noexcept
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::start(size_t max, error_code &error) noexcept
 {
 	m_impl->async_start(max, error);
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::start
-(error_code &error) noexcept
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::start(error_code &error) noexcept
 {
 	return start(asio::socket_base::max_listen_connections, error);
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <protocol::method_enum...Method, typename Func, typename...AopPtrs>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::start
+(core_concepts::sched auto &&service_exec, size_t max)
+{
+	error_code error;
+	start(service_exec, max, error);
+	if( error )
+	{
+		system_error::loc_throw(error,
+			"libgs::http::basic_server::start"
+		);
+	}
+	return *this;
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::start
+(core_concepts::sched auto &&service_exec, size_t max, error_code &error) noexcept
+{
+	m_impl->async_start(service_exec, max, error);
+	return *this;
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::start
+(core_concepts::sched auto service_exec, error_code &error) noexcept
+{
+	return start(service_exec, asio::socket_base::max_listen_connections, error);
+}
+
+template <concepts::any_exec_stream Stream>
+template <method_enum...Method, typename Func, typename...AopPtrs>
+basic_server<Stream> &basic_server<Stream>::on_request
 (const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-	detail::concepts::request_handler<Func,socket_t> and
-	detail::concepts::aop_ptr_list<socket_t,AopPtrs...>
+	concepts::request_handler<Func,connection_t> and
+	concepts::aop_ptr_list<connection_t,AopPtrs...>
 {
 	for(auto &path_rule : path_rules.paths)
 	{
 		if( path_rule.empty() )
-			throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
-
+		{
+			runtime_error::loc_throw (
+				"libgs::http::server::on_request: path_rule is empty."
+			);
+		}
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
 		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
 		if( not res )
-			throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
-
-		auto aop = new typename impl::multi_ctrlr_aop(func, aops...);
+		{
+			runtime_error::loc_throw (
+				"libgs::http::server::on_request: path_rule duplication."
+			);
+		}
+		auto aop = new impl::multi_ctrlr_aop(func, aops...);
 		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(aop));
 		it->second->template bind_method<Method...>();
 	}
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <protocol::method_enum...Method>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
+template <concepts::any_exec_stream Stream>
+template <method_enum...Method>
+basic_server<Stream> &basic_server<Stream>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr)
 {
 	for(auto &path_rule : path_rules.paths)
 	{
 		if( path_rule.empty() )
-			throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
-
+		{
+			runtime_error::loc_throw (
+				"libgs::http::server::on_request: path_rule is empty."
+			);
+		}
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
 		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
 		if( not res )
-			throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
-
+		{
+			runtime_error::loc_throw (
+				"libgs::http::server::on_request: path_rule duplication."
+			);
+		}
 		it->second = std::make_shared<typename impl::tk_handler>(std::move(ctrlr));
 		it->second->template bind_method<Method...>();
 	}
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-template <protocol::method_enum...Method>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_request
+template <concepts::any_exec_stream Stream>
+template <method_enum...Method>
+basic_server<Stream> &basic_server<Stream>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr)
 {
 	for(auto &path_rule : path_rules.paths)
 	{
 		if( path_rule.empty() )
-			throw runtime_error("libgs::http::server::on_request: path_rule is empty.");
-
+		{
+			runtime_error::loc_throw (
+				"libgs::http::server::on_request: path_rule is empty."
+			);
+		}
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
 		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
 		if( not res )
-			throw runtime_error("libgs::http::server::on_request: path_rule duplication.");
-
+		{
+			runtime_error::loc_throw (
+				"libgs::http::server::on_request: path_rule duplication."
+			);
+		}
 		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(ctrlr));
 		it->second->template bind_method<Method...>();
 	}
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
+template <concepts::any_exec_stream Stream>
 template <typename Func>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::on_default(Func &&func)
-	requires detail::concepts::request_handler<Func,socket_t>
+basic_server<Stream> &basic_server<Stream>::on_default(Func &&func) requires
+	concepts::request_handler<Func,connection_t>
 {
 	m_impl->m_default_handler = std::forward<Func>(func);
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec>&
-basic_server<Stream,Exec>::on_server_error(server_error_handler_t func)
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::on_server_error(server_error_handler_t func)
 {
 	m_impl->m_server_error_handler = std::move(func);
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec>&
-basic_server<Stream,Exec>::on_service_error(service_error_handler_t func)
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::on_service_error(service_error_handler_t func)
 {
 	m_impl->m_service_error_handler = std::move(func);
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
+template <concepts::any_exec_stream Stream>
 template <core_concepts::text_p<char> Text>
-basic_server<Stream,Exec>&
-basic_server<Stream,Exec>::unbound_request(const Text &path_rule)
+basic_server<Stream> &basic_server<Stream>::unbound_request(const Text &path_rule)
 {
 	if( path_rule.empty() )
-		throw runtime_error("libgs::http::server::unbound_request: path_rule is empty.");
+	{
+		runtime_error::loc_throw (
+			"libgs::http::server::unbound_request: path_rule is empty."
+		);
+	}
 	m_impl->m_request_handler_map.erase(strtls::to_string(path_rule));
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::unbound_server_error()
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::unbound_server_error()
 {
 	m_impl->m_server_error_handler = {};
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::unbound_service_error()
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::unbound_service_error()
 {
 	m_impl->m_service_error_handler = {};
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
+template <concepts::any_exec_stream Stream>
 template <typename Rep, typename Period>
-basic_server<Stream,Exec>&
-basic_server<Stream,Exec>::set_first_reading_time(const duration<Rep,Period> &d)
+basic_server<Stream> &basic_server<Stream>::set_first_reading_time(const duration<Rep,Period> &d)
 {
 	using namespace std::chrono;
 	m_impl->m_first_reading_time = duration_cast<milliseconds>(d);
@@ -718,56 +710,45 @@ basic_server<Stream,Exec>::set_first_reading_time(const duration<Rep,Period> &d)
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
+template <concepts::any_exec_stream Stream>
 template <typename Rep, typename Period>
-basic_server<Stream,Exec>&
-basic_server<Stream,Exec>::set_keepalive_time(const duration<Rep,Period> &d)
+basic_server<Stream> &basic_server<Stream>::set_keepalive_time(const duration<Rep,Period> &d)
 {
 	using namespace std::chrono;
 	m_impl->m_keepalive_timeout = duration_cast<milliseconds>(d);
 	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-awaitable<void> basic_server<Stream,Exec>::co_stop() noexcept
+template <concepts::any_exec_stream Stream>
+const basic_server<Stream>::executor_t &basic_server<Stream>::get_executor() noexcept
 {
-	m_impl->m_is_start = false;
-	co_return co_await m_impl->m_next_layer.acceptor().co_stop();
+	return m_impl->m_wrap.acceptor().get_executor();
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-const typename basic_server<Stream,Exec>::executor_t&
-basic_server<Stream,Exec>::get_executor() noexcept
-{
-	return m_impl->m_next_layer.acceptor().get_executor();
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::stop() noexcept
-{
-	m_impl->m_is_start = false;
-	m_impl->m_next_layer.acceptor().cancel();
-	return *this;
-}
-
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-basic_server<Stream,Exec> &basic_server<Stream,Exec>::cancel() noexcept
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::cancel() noexcept
 {
 	return stop();
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-const typename basic_server<Stream,Exec>::next_layer_t&
-basic_server<Stream,Exec>::next_layer() const
+template <concepts::any_exec_stream Stream>
+basic_server<Stream> &basic_server<Stream>::stop() noexcept
 {
-	return m_impl->m_next_layer;
+	m_impl->m_is_start = false;
+	m_impl->m_wrap.acceptor().cancel();
+	return *this;
 }
 
-template <concepts::any_exec_stream Stream, core_concepts::exec Exec>
-typename basic_server<Stream,Exec>::next_layer_t&
-basic_server<Stream,Exec>::next_layer()
+template <concepts::any_exec_stream Stream>
+const basic_server<Stream>::acceptor_wrap_t &basic_server<Stream>::acceptor_wrap() const
 {
-	return m_impl->m_next_layer;
+	return m_impl->m_wrap;
+}
+
+template <concepts::any_exec_stream Stream>
+basic_server<Stream>::acceptor_wrap_t &basic_server<Stream>::acceptor_wrap()
+{
+	return m_impl->m_wrap;
 }
 
 } //namespace libgs::http

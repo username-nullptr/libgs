@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -28,7 +28,7 @@
 
 #include "cookie.h"
 
-namespace libgs::http::protocol
+namespace libgs::http
 {
 
 class LIBGS_DECL_HIDDEN cookie::impl
@@ -106,12 +106,12 @@ cookie &cookie::operator=(value_t v) noexcept
 	return *this;
 }
 
-cookie::value_t cookie::value() noexcept
+cookie::value_t cookie::value() const noexcept
 {
 	return m_impl->m_value;
 }
 
-cookie::operator value_t() noexcept
+cookie::operator value_t() const noexcept
 {
 	return m_impl->m_value;
 }
@@ -174,7 +174,7 @@ optional<bool> cookie::http_only() const noexcept
 
 optional<bool> cookie::secure() const noexcept
 {
-	auto it = attributes().find(cookie_attribute::http_only);
+	auto it = attributes().find(cookie_attribute::secure);
 	return it == attributes().end() ?
 		optional<bool>() : it->second.to_bool();
 }
@@ -297,4 +297,4 @@ cookie::attributes_t &cookie::attributes() noexcept
 	return m_impl->m_attributes;
 }
 
-} //namespace libgs::http::protocol
+} //namespace libgs::http
