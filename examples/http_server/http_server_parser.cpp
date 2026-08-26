@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
+using namespace libgs::coro::literals;
 using namespace libgs::operators;
 
 asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socket::endpoint_type ep)
@@ -16,8 +17,8 @@ asio::awaitable<void> service(asio::ip::tcp::socket socket, asio::ip::tcp::socke
 			auto var = co_await (
 				socket.async_read_some (
 					asio::buffer(rbuf,4096), asio::use_awaitable | error
-				) or
-				libgs::coro::sleep_for(5s)
+				)
+				or 5_s
 			);
 			if( error )
 				throw std::system_error(error);

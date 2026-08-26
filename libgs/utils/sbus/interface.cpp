@@ -46,16 +46,20 @@ constexpr size_t g_queue_max_size = 128;
 	forced_termination();
 }
 
+namespace
+{
+
 template <typename Derived>
 class /* LIBGS_DECL_HIDDEN */ subscriber_thread : public std::enable_shared_from_this<Derived>
 {
 	LIBGS_DISABLE_COPY_MOVE(subscriber_thread)
 
 protected:
-	explicit subscriber_thread
-	(std::function<awaitable<bool>()> task) :
-		m_thread([this]() mutable noexcept { libgs::exec(m_exec); })
+	subscriber_thread() = default;
+
+	void start(std::function<awaitable<bool>()> task)
 	{
+		m_run = true;
 		libgs::dispatch(m_exec,
 		[this, task = std::move(task)]() mutable noexcept -> awaitable<void>
 		{
@@ -66,6 +70,9 @@ protected:
 				uncaught_exception(ex);
 			}
 			co_return ;
+		});
+		m_thread = std::thread([this]() mutable noexcept {
+			m_exec.run();
 		});
 	}
 
@@ -79,13 +86,17 @@ protected:
 		return m_exec;
 	}
 
-public:
-	virtual ~subscriber_thread()
+	void stop() noexcept
 	{
 		m_run = false;
 		notify();
 		if( m_thread.joinable() )
 			m_thread.join();
+	}
+
+public:
+	virtual ~subscriber_thread() {
+		stop();
 	}
 
 private:
@@ -96,17 +107,17 @@ private:
 			while( not m_flag.load(std::memory_order_relaxed) )
 				std::atomic_wait(&m_flag, false);
 
-			if( not co_await task() )
-				m_flag.store(false, std::memory_order_relaxed);
-
 			if( not m_run )
 				break;
+
+			if( not co_await task() )
+				m_flag.store(false, std::memory_order_relaxed);
 		}
 		co_return ;
 	}
 
 	alignas(64) std::atomic_bool m_flag {false};
-	alignas(64) std::atomic_bool m_run {true};
+	alignas(64) std::atomic_bool m_run {false};
 	/*
 	 * The support for std::jthread by clang requires at least version 20.
 	 * So, it is still advisable to use the traditional std::thread.
@@ -124,47 +135,53 @@ class /* LIBGS_DECL_HIDDEN */ global_subscriber : public subscriber_thread<globa
 	> m_queue {};
 
 public:
-	global_subscriber() :
-	subscriber_thread([this]() -> awaitable<bool>
+	global_subscriber()
 	{
-		using opt_t = decltype(libgs::dispatch (
-			exec(), std::declval<std::function<awaitable<void>()>>(),
-			deferred
-		));
-		std::vector<opt_t> tasks {};
-		for(;;)
+		start([this]() -> awaitable<bool>
 		{
-			while( auto event = m_queue.dequeue() )
+			using opt_t = decltype(libgs::dispatch (
+				exec(), std::declval<std::function<awaitable<void>()>>(),
+				deferred
+			));
+			std::vector<opt_t> tasks {};
+			for(;;)
 			{
-				std::function emit =
-						[this, key = std::move(event->first), value = std::move(event->second)]
-				() mutable -> awaitable<void> {
-					co_return co_await received(std::move(key), std::move(value));
-				};
-				tasks.emplace_back (
-					libgs::dispatch(exec(), std::move(emit), deferred)
-				);
-			}
-			if( tasks.empty() )
-				co_return false;
+				while( auto event = m_queue.dequeue() )
+				{
+					std::function emit =
+					[this, key = std::move(event->first), value = std::move(event->second)]
+					() mutable -> awaitable<void> {
+						co_return co_await received(std::move(key), std::move(value));
+					};
+					tasks.emplace_back (
+						libgs::dispatch(exec(), std::move(emit), deferred)
+					);
+				}
+				if( tasks.empty() )
+					co_return false;
 
-			auto [unused, exs] = co_await asio::experimental::make_parallel_group(std::move(tasks))
-				.async_wait(asio::experimental::wait_for_all(), use_awaitable);
+				auto [unused, exs] = co_await asio::experimental::make_parallel_group(std::move(tasks))
+					.async_wait(asio::experimental::wait_for_all(), use_awaitable);
 
-			std::exception_ptr first_ex {};
-			for(auto &ex : exs)
-			{
-				if( not ex )
-					continue;
-				else if( first_ex )
-					throw asio::multiple_exceptions(first_ex);
-				first_ex = ex;
+				std::exception_ptr first_ex {};
+				for(auto &ex : exs)
+				{
+					if( not ex )
+						continue;
+					else if( first_ex )
+						throw asio::multiple_exceptions(first_ex);
+					first_ex = ex;
+				}
+				if( first_ex )
+					std::rethrow_exception(first_ex);
 			}
-			if( first_ex )
-				std::rethrow_exception(first_ex);
-		}
-		co_return true;
-	}) {}
+			co_return true;
+		});
+	}
+
+	~global_subscriber() override {
+		stop();
+	}
 
 	void tigger(std::string_view topic, const void *data, size_t size) noexcept
 	{
@@ -192,46 +209,52 @@ class /* LIBGS_DECL_HIDDEN */ subscriber : public subscriber_thread<subscriber>
 	circular_lock_free_queue<payload_t,g_queue_max_size> m_queue {};
 
 public:
-	subscriber() :
-	subscriber_thread([this]() -> awaitable<bool>
+	subscriber()
 	{
-		using opt_t = decltype(libgs::dispatch (
-			exec(), std::declval<std::function<awaitable<void>()>>(),
-			deferred
-		));
-		std::vector<opt_t> tasks {};
-		for(;;)
+		start([this]() -> awaitable<bool>
 		{
-			while( auto event = m_queue.dequeue() )
+			using opt_t = decltype(libgs::dispatch (
+				exec(), std::declval<std::function<awaitable<void>()>>(),
+				deferred
+			));
+			std::vector<opt_t> tasks {};
+			for(;;)
 			{
-				std::function emit =
-						[this, value = std::move(*event)]() mutable -> awaitable<void> {
-					co_return co_await received(std::move(value));
-				};
-				tasks.emplace_back (
-					libgs::dispatch(exec(), std::move(emit), deferred)
-				);
-			}
-			if( tasks.empty() )
-				co_return false;
+				while( auto event = m_queue.dequeue() )
+				{
+					std::function emit =
+							[this, value = std::move(*event)]() mutable -> awaitable<void> {
+						co_return co_await received(std::move(value));
+					};
+					tasks.emplace_back (
+						libgs::dispatch(exec(), std::move(emit), deferred)
+					);
+				}
+				if( tasks.empty() )
+					co_return false;
 
-			auto [unused, exs] = co_await asio::experimental::make_parallel_group(std::move(tasks))
-				.async_wait(asio::experimental::wait_for_all(), use_awaitable);
+				auto [unused, exs] = co_await asio::experimental::make_parallel_group(std::move(tasks))
+						.async_wait(asio::experimental::wait_for_all(), use_awaitable);
 
-			std::exception_ptr first_ex {};
-			for(auto &ex : exs)
-			{
-				if( not ex )
-					continue;
-				else if( first_ex )
-					throw asio::multiple_exceptions(first_ex);
-				first_ex = ex;
+				std::exception_ptr first_ex {};
+				for(auto &ex : exs)
+				{
+					if( not ex )
+						continue;
+					else if( first_ex )
+						throw asio::multiple_exceptions(first_ex);
+					first_ex = ex;
+				}
+				if( first_ex )
+					std::rethrow_exception(first_ex);
 			}
-			if( first_ex )
-				std::rethrow_exception(first_ex);
-		}
-		co_return true;
-	}) {}
+			co_return true;
+		});
+	}
+
+	~subscriber() override {
+		stop();
+	}
 
 	void tigger(const void *data, size_t size) noexcept
 	{
@@ -247,7 +270,7 @@ public:
 
 using subscriber_ptr = std::shared_ptr<subscriber>;
 
-} //namespace detail
+}} //namespace detail
 
 class LIBGS_DECL_HIDDEN local_interface::impl
 {
@@ -326,10 +349,7 @@ local_interface::local_interface() :
 
 }
 
-local_interface::~local_interface()
-{
-
-}
+local_interface::~local_interface() = default;
 
 void local_interface::publish(std::string_view topic, const void *buffer, size_t size)
 {
@@ -347,11 +367,8 @@ void local_interface::publish(std::string_view topic, const void *buffer, size_t
 		auto map = obj->m_impl->m_subscribers;
 		obj->m_impl->m_subscribers_lock.unlock_shared();
 
-		if( map.empty() )
-			return obj->m_impl->global_broadcast(glob_map, topic, buffer, size);
-
-		obj->m_impl->global_broadcast(glob_map, topic, buffer, size);
-		obj->m_impl->broadcast(map, topic, buffer, size);
+		impl::global_broadcast(glob_map, topic, buffer, size);
+		impl::broadcast(map, topic, buffer, size);
 	}
 }
 

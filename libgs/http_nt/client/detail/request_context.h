@@ -228,10 +228,6 @@ public:
 		if( not token )
 			return io_unexpected(token.error());
 
-		auto before = m_connection->set_send_file_option();
-		if( not before )
-			return io_unexpected(before.error());
-
 		char buffer[128 * 1024] {0};
 		size_t sum = 0, total = 0;
 
@@ -313,9 +309,6 @@ public:
 				" Please contact the author."
 			);
 		}
-		auto expected = m_connection->unset_transfer_file_option(*before);
-		if( not expected )
-			return io_unexpected(expected.error());
 		return sum;
 	}
 
@@ -333,10 +326,6 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<io_expected>
 		{
-			auto before = m_connection->set_send_file_option();
-			if( not before )
-				co_return io_unexpected(before.error());
-
 			char buffer[128 * 1024] {0};
 			size_t sum = 0, total = 0;
 
@@ -428,9 +417,6 @@ public:
 					" Please contact the author."
 				);
 			}
-			auto expected = m_connection->unset_transfer_file_option(*before);
-			if( not expected )
-				co_return io_unexpected(expected.error());
 			co_return sum;
 		},
 		use_awaitable);

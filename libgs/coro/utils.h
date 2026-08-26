@@ -45,22 +45,22 @@ namespace libgs::coro
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORO_TAPI auto sleep_for (
-	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token = use_awaitable
+	concepts::sched auto &&exec, duration<Rep,Period> rtime, Token &&token = use_awaitable
 );
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORO_TAPI auto sleep_for (
-	const duration<Rep,Period> &rtime, Token &&token = use_awaitable
+	duration<Rep,Period> rtime, Token &&token = use_awaitable
 );
 
 template <typename Clock, typename Duration, concepts::sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORO_TAPI auto sleep_until (
-	concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Token &&token = use_awaitable
+	concepts::sched auto &&exec, time_point<Clock,Duration> atime, Token &&token = use_awaitable
 );
 
 template <typename Clock, typename Duration, concepts::sleep_opt_token Token = const use_awaitable_t&>
 [[nodiscard]] LIBGS_CORO_TAPI auto sleep_until (
-	const time_point<Clock,Duration> &atime, Token &&token = use_awaitable
+	time_point<Clock,Duration> atime, Token &&token = use_awaitable
 );
 
 template <typename T>
@@ -126,7 +126,15 @@ LIBGS_CORO_VAPI bool check_error (
 
 #endif //LIBGS_USING_BOOST_ASIO
 
-} //namespace libgs::coro
+namespace literals
+{
+
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_s (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ms(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_us(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ns(unsigned long long value);
+
+}} //namespace libgs::coro::literals
 #include <libgs/coro/detail/utils.h>
 
 

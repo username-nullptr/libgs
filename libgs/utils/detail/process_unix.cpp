@@ -35,8 +35,8 @@
 #include <utility>
 
 #include <sys/wait.h>
-#include <signal.h>
 #include <wordexp.h>
+#include <csignal>
 #include <pwd.h>
 #include <map>
 
@@ -592,7 +592,7 @@ public:
 					make_error_code(std::errc::no_such_process)
 				);
 			}
-			stream = &m_stdout;
+			stream = &m_stderr;
 		}
 		std::error_code error;
 		error = stream->non_blocking(true, error);
@@ -600,7 +600,7 @@ public:
 			return {error};
 
 		char c = 0;
-		auto res = ::read(m_stdout.native_handle(), &c, 1);
+		auto res = ::read(stream->native_handle(), &c, 1);
 		if( res == 0 )
 			return io_unexpected(make_error_code(errc::eof));
 		else if( res == 1 )
@@ -1076,7 +1076,7 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 	sys_expected<uint64_t> result;
 	{
 		auto g_pid_path = path.empty() ? "/tmp" : path.string();
-		while( g_pid_path.ends_with("/") )
+		while( g_pid_path.ends_with('/') )
 			g_pid_path.pop_back();
 
 		g_pid_path += "/.libgs.utils.process";

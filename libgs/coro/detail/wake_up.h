@@ -63,11 +63,21 @@ public:
 
 	void start_timer(const auto &timeout)
 	{
-		m_timer.expires_after(timeout);
-		m_timer.async_wait([this](const error_code &error) mutable
+		if constexpr( requires { timeout.time_since_epoch(); } )
+		{
+			using clock_t = typename std::remove_cvref_t<decltype(timeout)>::clock;
+			auto now = clock_t::now();
+			m_timer.expires_after(timeout <= now ? asio::steady_timer::duration::zero() :
+				std::chrono::duration_cast<asio::steady_timer::duration>(timeout - now));
+		}
+		else
+		{
+			m_timer.expires_after(std::chrono::duration_cast<asio::steady_timer::duration>(timeout));
+		}
+		m_timer.async_wait([self = shared_from_this()](const error_code &error) mutable
 		{
 			if( not error )
-				(*this)(false);
+				(*self)(false);
 		});
 	}
 
@@ -75,7 +85,7 @@ private:
 	handler_t m_handler;
 	asio::any_io_executor m_exec;
 	asio::steady_timer m_timer{m_exec};
-	std::atomic_flag m_finished;
+	std::atomic_flag m_finished {};
 };
 
 using lock_wake_up_ptr = lock_wake_up::ptr_t;

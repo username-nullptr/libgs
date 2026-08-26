@@ -100,6 +100,7 @@ public:
 private:
 	std::atomic_uint m_read_count {0};
 	native_handle_t m_native_handle;
+	mutex m_read_gate {};
 };
 
 class LIBGS_CORO_VAPI shared_lock
@@ -108,6 +109,7 @@ class LIBGS_CORO_VAPI shared_lock
 
 public:
 	using mutex_t = shared_mutex;
+
 	explicit shared_lock(mutex_t &mutex);
 	~shared_lock() noexcept(noexcept(m_mutex->unlock_shared()));
 
@@ -145,6 +147,7 @@ public:
 
 private:
 	mutex_t *m_mutex;
+	bool m_owns = false;
 };
 
 using shared_unique_lock = unique_lock<shared_mutex>;

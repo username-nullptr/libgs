@@ -36,25 +36,25 @@ namespace libgs::coro
 {
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
-auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Token &&token)
+auto sleep_for(concepts::sched auto &&exec, duration<Rep,Period> rtime, Token &&token)
 {
 	return libgs::sleep_for(std::forward<decltype(exec)>(exec), rtime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
-auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
+auto sleep_for(duration<Rep,Period> rtime, Token &&token)
 {
 	return libgs::sleep_for(rtime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
-auto sleep_until(concepts::sched auto &&exec, const time_point<Rep,Period> &atime, Token &&token)
+auto sleep_until(concepts::sched auto &&exec, time_point<Rep,Period> atime, Token &&token)
 {
 	return libgs::sleep_until(std::forward<decltype(exec)>(exec), atime, std::forward<Token>(token));
 }
 
 template <typename Rep, typename Period, concepts::sleep_opt_token Token>
-auto sleep_until(const time_point<Rep,Period> &atime, Token &&token)
+auto sleep_until(time_point<Rep,Period> atime, Token &&token)
 {
 	return libgs::sleep_until(atime, std::forward<Token>(token));
 }
@@ -130,7 +130,7 @@ inline awaitable<asio::any_io_executor> goto_thread()
 	{
 		auto work = asio::make_work_guard(handler);
 		std::thread([
-			handler = std::move(handler), work = std::move(work), prev_exec = std::move(curr_exec)
+			handler = std::move(handler), work = std::move(work), prev_exec = curr_exec
 		]() mutable
 		{
 			LIBGS_UNUSED(work);
@@ -147,11 +147,13 @@ bool check_error(Token &token, const error_code &error, const char *message)
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_use_awaitable_v<token_t> )
 	{
-		if( not error )
-			return true;
-		system_error::loc_throw(error,
-			with_location(message ? message : "")
-		);
+		if( error )
+		{
+			system_error::loc_throw(error,
+				with_location(message ? message : "")
+			);
+		}
+		return true;
 	}
 	else if constexpr( is_redirect_error_v<token_t> )
 	{
@@ -393,7 +395,34 @@ bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const c
 
 #endif //LIBGS_USING_BOOST_ASIO
 
-} //namespace libgs::coro
+namespace literals
+{
+
+inline auto operator""_s(unsigned long long value)
+{
+	using rep_t = std::chrono::seconds::rep;
+	return sleep_for(std::chrono::seconds(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_ms(unsigned long long value)
+{
+	using rep_t = std::chrono::milliseconds::rep;
+	return sleep_for(std::chrono::milliseconds(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_us(unsigned long long value)
+{
+	using rep_t = std::chrono::microseconds::rep;
+	return sleep_for(std::chrono::microseconds(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_ns(unsigned long long value)
+{
+	using rep_t = std::chrono::nanoseconds::rep;
+	return sleep_for(std::chrono::nanoseconds(static_cast<rep_t>(value)));
+}
+
+}} //namespace libgs::coro
 
 
 #endif //LIBGS_CORO_DETAIL_UTILS_H

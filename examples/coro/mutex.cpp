@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
+using namespace libgs::coro::literals;
 
 int main()
 {
@@ -19,7 +20,7 @@ int main()
 			co_await locker.lock();
 
 			spdlog::info("======== {} : {}", id, j++);
-			co_await libgs::coro::sleep_for(1s);
+			co_await 1_s;
 
 			// mutex.unlock();
 

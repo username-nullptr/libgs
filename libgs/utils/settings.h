@@ -56,7 +56,7 @@ public:
 	[[nodiscard]] path_t file_name() const noexcept;
 
 public:
-	[[nodiscard]] optional<value> get(group_key_t gk);
+	[[nodiscard]] optional<value> get(const group_key_t &gk);
 	[[nodiscard]] optional<value> get(concepts::string_p<char> auto &&path);
 
 public:

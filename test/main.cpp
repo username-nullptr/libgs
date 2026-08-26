@@ -59,7 +59,8 @@ int main()
 	{
 //		co_await context.response().write("hello world !!!", asio::use_awaitable);
 		co_await context.response()
-			.send_file("~/hello_world.txt", asio::use_awaitable);
+			.send_file("~/picture/ssdj.jpg", asio::use_awaitable);
+			// .send_file("~/hello_world.txt", asio::use_awaitable);
 			// .send_file(L"C:/opt/data/秦岭.jpg", asio::use_awaitable);
 		co_return ;
 	})

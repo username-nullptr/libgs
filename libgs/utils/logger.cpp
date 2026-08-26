@@ -50,7 +50,6 @@ namespace libgs::utils
 {
 
 using self_level_t = logger::level_t;
-using time_mode_t = logger::time_mode_t;
 using spd_level_t = spdlog::level::level_enum;
 
 static constexpr auto
@@ -65,7 +64,6 @@ class LIBGS_DECL_HIDDEN logger::impl
 
 public:
 	using logger_ptr = std::shared_ptr<spdlog::logger>;
-	using sink_ptr = spdlog::sink_ptr;
 
 	explicit impl(std::string name) :
 		m_name(std::move(name))
@@ -266,9 +264,12 @@ logger::~logger()
 	delete m_impl;
 }
 
+namespace {
 struct LIBGS_DECL_HIDDEN no_deleter {
 	void operator()(logger*) const {}
 };
+} //namespace
+
 using logger_ptr = std::unique_ptr<logger, no_deleter>;
 
 static std::map<std::string, logger_ptr> g_instances;
@@ -276,8 +277,10 @@ static spin_shared_mutex g_instances_lock;
 
 std::vector<std::string> logger::names() noexcept
 {
-	std::vector<std::string> names;
+	std::vector<std::string> names {};
 	spin_shared_unique_lock locker(g_instances_lock);
+
+	names.reserve(g_instances.size());
 	for(auto &pair : g_instances)
 		names.emplace_back(pair.first);
 	return names;
@@ -286,25 +289,17 @@ std::vector<std::string> logger::names() noexcept
 logger &logger::instance(std::string_view name, bool create)
 {
 	std::string _name(name.data(), name.size());
-	if( create )
-	{
-		spin_shared_unique_lock locker(g_instances_lock);
-		auto [it, inserted] = g_instances.emplace(_name, nullptr);
-		if( inserted )
-		{
-			locker.unlock();
-			auto obj = logger_ptr(new logger(std::move(_name)), no_deleter());
+	spin_shared_unique_lock locker(g_instances_lock);
 
-			locker.lock();
-			it->second = std::move(obj);
-		}
+	if( auto it = g_instances.find(_name); it != g_instances.end() )
+		return *it->second;
+
+	else if( create )
+	{
+		logger_ptr object(new logger(_name), no_deleter());
+		it = g_instances.emplace(std::move(_name), std::move(object)).first;
 		return *it->second;
 	}
-	spin_shared_unique_lock locker(g_instances_lock);
-	auto it = g_instances.find(_name);
-
-	if( it != g_instances.end() )
-		return *it->second;
 	locker.unlock();
 
 	runtime_error::loc_throw(std::format (
@@ -344,9 +339,8 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 		std::format(": {}", strtls::trimmed(msg))
 	);
 	std::vector<impl::logger_ptr> loggers {};
-	auto &daily_logger = m_impl->m_file_loggers[0];
 
-	if( daily_logger )
+	if( auto &daily_logger = m_impl->m_file_loggers[0] )
 	{
 		daily_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
 			std::format(": \n{}\n", strtls::trimmed(msg)) :

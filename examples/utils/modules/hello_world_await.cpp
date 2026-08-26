@@ -3,6 +3,7 @@
 #include <libgs/coro.h>
 
 using namespace std::chrono_literals;
+using namespace libgs::coro::literals;
 
 LIBGS_UTILS_MODULE_INIT("hello.world.await", []
 {
@@ -10,13 +11,13 @@ LIBGS_UTILS_MODULE_INIT("hello.world.await", []
 	{
 		spdlog::info("hello world awaitable 0 start initialization ...");
 
-		co_await libgs::coro::sleep_for(1s);
+		co_await 1_s;
 		spdlog::info("hello world awaitable 0 : sleep 1s.");
 
-		co_await libgs::coro::sleep_for(1s);
+		co_await 1_s;
 		spdlog::info("hello world awaitable 0 : sleep 2s.");
 
-		co_await libgs::coro::sleep_for(1s);
+		co_await 1_s;
 		spdlog::info("hello world awaitable 0 initialized (3s).");
 
 		co_return ;

@@ -33,8 +33,21 @@
 #include <libgs/core/utils/string_tools.h>
 #include <libgs/core/cxx/cplusplus.h>
 
-namespace libgs
+namespace libgs { namespace detail
 {
+
+inline void streamer_write_u64(std::byte *buffer, uint64_t value) noexcept {
+	std::memcpy(buffer, &value, sizeof(value));
+}
+
+[[nodiscard]] inline uint64_t streamer_read_u64(const std::byte *buffer) noexcept
+{
+	uint64_t value = 0;
+	std::memcpy(&value, buffer, sizeof(value));
+	return value;
+}
+
+} //namespace detail
 
 template <>
 struct streamer<bool>
@@ -55,7 +68,10 @@ struct streamer<bool>
 				"bad packet: {} / {} bytes", buf.size(), offset
 			));
 		}
-		return { std::to_integer<bool>(buf[offset]), sizeof(bool) };
+		return {
+			.data = std::to_integer<bool>(buf[offset]),
+			.size = sizeof(bool)
+		};
 	}
 };
 
@@ -161,7 +177,8 @@ struct streamer<T[N]>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = N;
+
+		detail::streamer_write_u64(buf.data(), N);
 		for(size_t i=0; i<N; i++)
 		{
 			auto sub = streamer<T>::encode(v[i]);
@@ -181,7 +198,7 @@ struct streamer<T[N]>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		if( size != N )
 		{
 			runtime_error::loc_throw(std::format (

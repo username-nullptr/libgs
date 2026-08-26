@@ -60,7 +60,7 @@ struct streamer<T>
 		auto size = view.size() * sizeof(char_t);
 		buf.resize(8 + size);
 
-		*reinterpret_cast<uint64_t*>(buf.data()) = size;
+		detail::streamer_write_u64(buf.data(), size);
 		std::memcpy(buf.data() + 8, view.data(), size);
 		return buf;
 	}
@@ -74,7 +74,7 @@ struct streamer<T>
 			));
 		}
 		auto c_buf = buf.data() + offset;
-		auto exp_size = *reinterpret_cast<const uint64_t*>(c_buf);
+		auto exp_size = detail::streamer_read_u64(c_buf);
 		auto rem_size = buf.size() - offset - 8;
 
 		if( rem_size < exp_size )
@@ -104,7 +104,8 @@ struct streamer<std::array<T, N>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = N;
+
+		detail::streamer_write_u64(buf.data(), N);
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -125,7 +126,7 @@ struct streamer<std::array<T, N>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		if( size != N )
 		{
 			runtime_error::loc_throw(std::format (
@@ -158,7 +159,8 @@ struct streamer<std::vector<T,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -179,7 +181,7 @@ struct streamer<std::vector<T,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 		vector_t vector;
 
@@ -207,7 +209,8 @@ struct streamer<std::deque<T,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -228,7 +231,7 @@ struct streamer<std::deque<T,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 		deque_t deque;
 
@@ -256,7 +259,8 @@ struct streamer<std::list<T,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -277,7 +281,7 @@ struct streamer<std::list<T,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 		list_t list;
 
@@ -309,7 +313,7 @@ struct streamer<std::forward_list<T,Alloc>>
 			size++;
 
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = size;
+		detail::streamer_write_u64(buf.data(), size);
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -330,7 +334,7 @@ struct streamer<std::forward_list<T,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 
 		size_t sum = 8;
@@ -440,7 +444,8 @@ struct streamer<std::map<K,V,Compare,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<std::pair<K,V>>::encode(n);
@@ -461,7 +466,7 @@ struct streamer<std::map<K,V,Compare,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 
 		size_t sum = 8;
@@ -488,7 +493,8 @@ struct streamer<std::unordered_map<K,V,Hash,Pred,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<std::pair<K,V>>::encode(n);
@@ -509,7 +515,7 @@ struct streamer<std::unordered_map<K,V,Hash,Pred,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 
 		size_t sum = 8;
@@ -536,7 +542,8 @@ struct streamer<std::set<T,Compare,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -557,7 +564,7 @@ struct streamer<std::set<T,Compare,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 
 		size_t sum = 8;
@@ -584,7 +591,8 @@ struct streamer<std::unordered_set<T,Hash,Pred,Alloc>>
 	{
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.size();
+
+		detail::streamer_write_u64(buf.data(), v.size());
 		for(auto &n : v)
 		{
 			auto sub = streamer<T>::encode(n);
@@ -605,7 +613,7 @@ struct streamer<std::unordered_set<T,Hash,Pred,Alloc>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto size = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto size = detail::streamer_read_u64(buf.data() + offset);
 		offset += 8;
 
 		size_t sum = 8;
@@ -634,7 +642,7 @@ struct streamer<std::filesystem::path>
 		auto str = v.string();
 		buf.resize(8 + str.size());
 
-		*reinterpret_cast<uint64_t*>(buf.data()) = str.size();
+		detail::streamer_write_u64(buf.data(), str.size());
 		std::memcpy(buf.data() + 8, str.data(), str.size());
 		return buf;
 	}
@@ -648,7 +656,7 @@ struct streamer<std::filesystem::path>
 			));
 		}
 		auto c_buf = buf.data() + offset;
-		auto size = *reinterpret_cast<const uint64_t*>(c_buf);
+		auto size = detail::streamer_read_u64(c_buf);
 		auto byte_size = size;
 
 		if( buf.size() - offset < 8 + byte_size )

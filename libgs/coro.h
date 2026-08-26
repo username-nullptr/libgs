@@ -30,6 +30,7 @@
 #define LIBGS_CORE_CORO_H
 
 #include <libgs/coro/condition_variable.h>
+#include <libgs/coro/shared_mutex.h>
 #include <libgs/coro/semaphore.h>
 #include <libgs/coro/mutex.h>
 #include <libgs/coro/utils.h>

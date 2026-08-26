@@ -40,8 +40,6 @@ class LIBGS_CORO_VAPI mutex
 
 public:
 	using native_handle_t = std::atomic_bool;
-
-public:
 	mutex();
 	~mutex();
 
@@ -83,10 +81,9 @@ class LIBGS_CORO_TAPI unique_lock
 {
 	LIBGS_DISABLE_COPY(unique_lock)
 
-public: using mutex_t = Mutex;
-private: mutex_t *m_mutex;
-
 public:
+	using mutex_t = Mutex;
+
 	explicit unique_lock(mutex_t &mutex);
 	~unique_lock() noexcept(noexcept(m_mutex->unlock()));
 
@@ -120,6 +117,10 @@ public:
 public:
 	[[nodiscard]] bool is_locked() const noexcept;
 	[[nodiscard]] mutex_t *mutex() noexcept;
+
+private:
+	mutex_t *m_mutex;
+	bool m_owns = false;
 };
 
 } //namespace libgs::coro

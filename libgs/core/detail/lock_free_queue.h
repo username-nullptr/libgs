@@ -29,8 +29,6 @@
 #ifndef LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H
 #define LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H
 
-// #include <libgs/core/system/cpu.h>
-
 #ifdef _MSC_VER
 # pragma warning(push)
 # pragma warning(disable: 4324)
@@ -42,14 +40,14 @@ namespace libgs
 template <concepts::copy_or_move_constructible T, typename Derived>
 void lock_free_queue_base<T,Derived>::force_enqueue(element_t &&data)
 {
-	emplace(std::move(data));
+	force_emplace(std::move(data));
 }
 
 template <concepts::copy_or_move_constructible T, typename Derived>
 void lock_free_queue_base<T,Derived>::force_enqueue(const element_t &data)
 	requires concepts::copy_constructible<element_t>
 {
-	emplace(data);
+	force_emplace(data);
 }
 
 template <concepts::copy_or_move_constructible T, typename Derived>
@@ -109,9 +107,56 @@ class LIBGS_CORE_TAPI lock_free_queue<T,queue_type::linked,N>::impl :
 public:
 	struct node
 	{
-		std::atomic_bool constructing {true};
 		std::unique_ptr<element_t> data {};
 		std::atomic<node*> next {nullptr};
+		node *retired_next = nullptr;
+	};
+
+	struct hazard_record
+	{
+		std::atomic_bool active {false};
+		std::atomic<node*> pointers[2] {};
+		hazard_record *next = nullptr;
+		node *retired = nullptr;
+	};
+
+	class hazard_guard
+	{
+		LIBGS_DISABLE_COPY_MOVE(hazard_guard)
+
+	public:
+		explicit hazard_guard(impl *owner) :
+			m_owner(owner), m_record(owner->acquire_hazard_record()) {}
+
+		~hazard_guard()
+		{
+			clear(0);
+			clear(1);
+			m_record->active.store(false, std::memory_order_release);
+		}
+
+		[[nodiscard]] node *protect(size_t index, const std::atomic<node*> &source)
+		{
+			node *value = nullptr;
+			do {
+				value = source.load(std::memory_order_acquire);
+				m_record->pointers[index].store(value, std::memory_order_release);
+			}
+			while( value != source.load(std::memory_order_acquire) );
+			return value;
+		}
+
+		void clear(size_t index) noexcept {
+			m_record->pointers[index].store(nullptr, std::memory_order_release);
+		}
+
+		void retire(node *value) {
+			m_owner->retire(m_record, value);
+		}
+
+	private:
+		impl *m_owner;
+		hazard_record *m_record;
 	};
 
 public:
@@ -140,12 +185,83 @@ public:
 			delete current;
 			current = next;
 		}
+		auto record = m_hazard_records.load(std::memory_order_relaxed);
+		while( record )
+		{
+			current = record->retired;
+			while( current )
+			{
+				auto next = current->retired_next;
+				delete current;
+				current = next;
+			}
+			auto next = record->next;
+			delete record;
+			record = next;
+		}
+	}
+
+private:
+	[[nodiscard]] hazard_record *acquire_hazard_record()
+	{
+		for(auto record=m_hazard_records.load(std::memory_order_acquire);
+			record; record=record->next)
+		{
+			if( bool expected = false;
+				record->active.compare_exchange_strong(expected, true,
+					std::memory_order_acq_rel, std::memory_order_relaxed) )
+				return record;
+		}
+		auto new_record = std::make_unique<hazard_record>();
+		new_record->active.store(true, std::memory_order_relaxed);
+
+		auto head = m_hazard_records.load(std::memory_order_relaxed);
+		do {
+			new_record->next = head;
+		}
+		while( not m_hazard_records.compare_exchange_weak(head, new_record.get(),
+			std::memory_order_release, std::memory_order_relaxed) );
+		return new_record.release();
+	}
+
+	[[nodiscard]] bool is_hazard(const node *value) const noexcept
+	{
+		for(auto record=m_hazard_records.load(std::memory_order_acquire);
+			record; record=record->next)
+		{
+			for(auto &pointer : record->pointers)
+			{
+				if( pointer.load(std::memory_order_acquire) == value )
+					return true;
+			}
+		}
+		return false;
+	}
+
+	void retire(hazard_record *record, node *value)
+	{
+		value->retired_next = record->retired;
+		record->retired = value;
+
+		auto link = &record->retired;
+		while( *link )
+		{
+			auto current = *link;
+			if( is_hazard(current) )
+				link = &current->retired_next;
+			else
+			{
+				*link = current->retired_next;
+				delete current;
+			}
+		}
 	}
 
 public:
 	std::atomic<node*> m_head {nullptr};
 	std::atomic<node*> m_tail {nullptr};
 	std::atomic<size_t> m_size {0};
+	std::atomic<hazard_record*> m_hazard_records {nullptr};
 };
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -213,60 +329,83 @@ template <typename...Args>
 bool lock_free_queue<T,queue_type::linked,N>::emplace(Args&&...args) requires
 	concepts::constructible<element_t,Args...>
 {
+	auto new_node = std::make_unique<typename impl::node>();
+	new_node->data = std::make_unique<element_t>(std::forward<Args>(args)...);
+	typename impl::hazard_guard hazard(m_impl);
+
+	// Reserve capacity before publishing the node. This keeps concurrent
+	// producers from exceeding a bounded queue's configured capacity.
+	auto size = m_impl->m_size.load(std::memory_order_relaxed);
 	for(;;)
 	{
-		if( m_impl->m_size.load(std::memory_order_acquire) >= capacity() )
+		if( size >= capacity() )
 			return false; // full
 
-		auto node = new impl::node();
-		auto old_tail = m_impl->m_tail.load(std::memory_order_relaxed);
+		if( m_impl->m_size.compare_exchange_weak(size, size + 1,
+			std::memory_order_acq_rel, std::memory_order_relaxed) )
+			break;
+	}
+	for(;;)
+	{
+		auto old_tail = hazard.protect(0, m_impl->m_tail);
+		auto next = old_tail->next.load(std::memory_order_acquire);
 
-		if( not m_impl->m_tail.compare_exchange_weak(old_tail,
-			node, std::memory_order_release, std::memory_order_relaxed) )
+		if( old_tail != m_impl->m_tail.load(std::memory_order_acquire) )
+			continue;
+
+		if( next )
 		{
-			// There are other threads that have executed ahead of this one.
-			delete node;
+			m_impl->m_tail.compare_exchange_weak(old_tail, next,
+				std::memory_order_release, std::memory_order_relaxed);
 			continue;
 		}
-		old_tail->next.store(node, std::memory_order_release);
-		node->data = std::make_unique<element_t>(std::forward<Args>(args)...);
 
-		// Construct time slice protection.
-		node->constructing.store(false, std::memory_order_release);
-		break;
+		if( auto expected = static_cast<impl::node*>(nullptr);
+			old_tail->next.compare_exchange_weak(expected, new_node.get(),
+				std::memory_order_release, std::memory_order_relaxed) )
+		{
+			auto node = new_node.release();
+			m_impl->m_tail.compare_exchange_strong(old_tail, node,
+				std::memory_order_release, std::memory_order_relaxed);
+			return true;
+		}
 	}
-	m_impl->m_size.fetch_add(1, std::memory_order_release);
-	return false;
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
 optional<T> lock_free_queue<T,queue_type::linked,N>::dequeue()
 {
-	std::unique_ptr<element_t> elem;
+	typename impl::hazard_guard hazard(m_impl);
 	for(;;)
 	{
-		if( m_impl->m_size.load(std::memory_order_acquire) == 0 )
-			return {}; // empty
+		auto old_head = hazard.protect(0, m_impl->m_head);
+		auto next = hazard.protect(1, old_head->next);
 
-		auto old_head = m_impl->m_head.load(std::memory_order_relaxed);
-		auto next = old_head->next.load(std::memory_order_acquire);
+		if( old_head != m_impl->m_head.load(std::memory_order_acquire) )
+			continue;
 
 		if( not next )
-			return {}; // empty
+			return nullopt;
 
-		// Wait for the node to be constructed.
-		while( next->constructing.load(std::memory_order_relaxed) ) {}
+		auto old_tail = m_impl->m_tail.load(std::memory_order_acquire);
+		if( old_head == old_tail )
+		{
+			m_impl->m_tail.compare_exchange_weak(old_tail, next,
+				std::memory_order_release, std::memory_order_relaxed);
+			continue;
+		}
+		if( not m_impl->m_head.compare_exchange_weak(old_head, next,
+			std::memory_order_acq_rel, std::memory_order_relaxed) )
+			continue;
 
-		if( not m_impl->m_head.compare_exchange_strong(old_head,
-			next, std::memory_order_release, std::memory_order_relaxed) )
-			continue;  // There are other threads that have executed ahead of this one.
+		auto elem = std::move(next->data);
+		m_impl->m_size.fetch_sub(1, std::memory_order_release);
 
-		elem = std::move(next->data);
-		delete old_head;
-		break;
+		hazard.clear(0);
+		hazard.retire(old_head);
+
+		return std::move(*elem);
 	}
-	m_impl->m_size.fetch_sub(1, std::memory_order_release);
-	return std::move(*elem);
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -290,7 +429,7 @@ bool lock_free_queue<T,queue_type::linked,N>::empty() const noexcept
 template <concepts::copy_or_move_constructible T, size_t N>
 bool lock_free_queue<T,queue_type::linked,N>::full() const noexcept
 {
-	return size() == capacity();
+	return size() >= capacity();
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -319,8 +458,123 @@ void lock_free_queue<T,queue_type::linked,N>::set_capacity(size_t size)
 namespace detail
 {
 
-enum class circular_lock_free_queue_node_state {
-	writable, writing, readable, reading
+template <concepts::copy_or_move_constructible T>
+class LIBGS_CORE_TAPI circular_lock_free_queue_block
+{
+	LIBGS_DISABLE_COPY_MOVE(circular_lock_free_queue_block)
+
+	struct cell
+	{
+		std::atomic_size_t sequence {0};
+		alignas(T) char storage[sizeof(T)] {};
+
+		[[nodiscard]] T *value() noexcept {
+			return std::launder(reinterpret_cast<T*>(storage));
+		}
+	};
+
+public:
+	explicit circular_lock_free_queue_block(size_t capacity) :
+		m_capacity(capacity), m_cells(new cell[capacity])
+	{
+		for(size_t i=0; i<m_capacity; i++)
+			m_cells[i].sequence.store(i * 2, std::memory_order_relaxed);
+	}
+
+	~circular_lock_free_queue_block()
+	{
+		// Queue destruction is documented as unsafe. With no concurrent users,
+		// destroy every value that is still published in the ring.
+		auto begin = m_dequeue_pos.load(std::memory_order_relaxed);
+		auto end = m_enqueue_pos.load(std::memory_order_relaxed);
+
+		for(auto pos=begin; pos<end; pos++)
+		{
+			if( auto &entry = m_cells[pos % m_capacity];
+				entry.sequence.load(std::memory_order_relaxed) == pos * 2 + 1 )
+				entry.value()->~T();
+		}
+	}
+
+public:
+	template <typename...Args>
+	[[nodiscard]] bool emplace(Args&&...args) requires
+		concepts::constructible<T,Args...>
+	{
+		size_t pos = m_enqueue_pos.load(std::memory_order_relaxed);
+		cell *entry = nullptr;
+		for(;;)
+		{
+			entry = &m_cells[pos % m_capacity];
+			auto sequence = entry->sequence.load(std::memory_order_acquire);
+
+			auto diff = static_cast<std::intptr_t>(sequence) -
+				static_cast<std::intptr_t>(pos * 2);
+
+			if( diff == 0 )
+			{
+				if( m_enqueue_pos.compare_exchange_weak(pos, pos + 1,
+					std::memory_order_relaxed, std::memory_order_relaxed) )
+					break;
+			}
+			else if( diff < 0 )
+				return false;
+			else
+				pos = m_enqueue_pos.load(std::memory_order_relaxed);
+		}
+		new (entry->storage) T(std::forward<Args>(args)...);
+		m_size.fetch_add(1, std::memory_order_release);
+
+		entry->sequence.store(pos * 2 + 1, std::memory_order_release);
+		return true;
+	}
+
+	[[nodiscard]] optional<T> dequeue()
+	{
+		size_t pos = m_dequeue_pos.load(std::memory_order_relaxed);
+		cell *entry = nullptr;
+		for(;;)
+		{
+			entry = &m_cells[pos % m_capacity];
+			auto sequence = entry->sequence.load(std::memory_order_acquire);
+
+			auto diff = static_cast<std::intptr_t>(sequence) -
+				static_cast<std::intptr_t>(pos * 2 + 1);
+
+			if( diff == 0 )
+			{
+				if( m_dequeue_pos.compare_exchange_weak(pos, pos + 1,
+					std::memory_order_relaxed, std::memory_order_relaxed) )
+					break;
+			}
+			else if( diff < 0 )
+				return nullopt;
+			else
+				pos = m_dequeue_pos.load(std::memory_order_relaxed);
+		}
+		T result = std::move(*entry->value());
+		entry->value()->~T();
+
+		m_size.fetch_sub(1, std::memory_order_release);
+		entry->sequence.store((pos + m_capacity) * 2, std::memory_order_release);
+		return result;
+	}
+
+	[[nodiscard]] size_t size() const noexcept {
+		return m_size.load(std::memory_order_acquire);
+	}
+
+public:
+	const size_t m_capacity;
+	std::atomic_bool m_closed {false};
+	std::atomic_size_t m_active_enqueues {0};
+	std::atomic<circular_lock_free_queue_block*> m_next {nullptr};
+
+private:
+	std::unique_ptr<cell[]> m_cells;
+	alignas(64) std::atomic_size_t m_enqueue_pos {0};
+	alignas(64) std::atomic_size_t m_dequeue_pos {0};
+	alignas(64) std::atomic_size_t m_size {0};
 };
 
 template <concepts::copy_or_move_constructible T, size_t N> requires (N > 0)
@@ -329,12 +583,8 @@ class LIBGS_CORE_TAPI lock_free_queue_impl<T, queue_type::circular, N>
 	LIBGS_DISABLE_COPY_MOVE(lock_free_queue_impl)
 
 public:
-	using node_state = circular_lock_free_queue_node_state;
-	lock_free_queue_impl() = default;
+	lock_free_queue_impl() : m_block(N) {}
 
-	static_assert(std::atomic<node_state>::is_always_lock_free,
-		"Atomic state must be lock-free"
-	);
 	static_assert(std::atomic_size_t::is_always_lock_free,
 		"Atomic size must be lock-free"
 	);
@@ -344,62 +594,20 @@ public:
 	[[nodiscard]] bool emplace(Args&&...args) requires
 		concepts::constructible<T,Args...>
 	{
-		size_t curr_tail = 0;
-		for(;;)
-		{
-			curr_tail = m_tail.load(std::memory_order_relaxed);
-			size_t curr_head = m_head.load(std::memory_order_acquire);
-
-			if( curr_tail - curr_head >= N )
-				return false;
-
-			else if( m_tail.compare_exchange_weak(curr_tail, curr_tail + 1,
-				std::memory_order_acq_rel, std::memory_order_relaxed) )
-				break;
-		}
-		size_t idx = curr_tail % N;
-		new (&m_buffer[idx]) T(std::forward<Args>(args)...);
-
-		m_size.fetch_add(1, std::memory_order_release);
-		m_occupied[idx].store(true, std::memory_order_release);
-		return true;
+		return m_block.emplace(std::forward<Args>(args)...);
 	}
 
 	[[nodiscard]] optional<T> dequeue()
 	{
-		size_t curr_head = 0;
-		for(;;)
-		{
-			curr_head = m_head.load(std::memory_order_relaxed);
-			size_t curr_tail = m_tail.load(std::memory_order_acquire);
-
-			if( curr_head >= curr_tail )
-				return nullopt;
-
-			else if( m_head.compare_exchange_weak(curr_head, curr_head + 1,
-				std::memory_order_acq_rel, std::memory_order_relaxed) )
-				break;
-		}
-		size_t idx = curr_head % N;
-		while( not m_occupied[idx].load(std::memory_order_acquire) ) {
-			// none_instruction();
-		}
-		auto ptr = reinterpret_cast<T*>(&m_buffer[idx]);
-		T result = std::move(*ptr);
-		ptr->~T();
-
-		m_size.fetch_sub(1, std::memory_order_acq_rel);
-		m_occupied[idx].store(false, std::memory_order_release);
-		return std::move(result);
+		return m_block.dequeue();
 	}
 
-public:
-	alignas(64) std::atomic_size_t m_head {0};
-	alignas(64) std::atomic_size_t m_tail {0};
-	alignas(64) std::atomic_size_t m_size {0};
+	[[nodiscard]] size_t size() const noexcept {
+		return m_block.size();
+	}
 
-	std::atomic_bool m_occupied[N] {};
-	alignas(T) char m_buffer[N][sizeof(T)];
+private:
+	circular_lock_free_queue_block<T> m_block;
 };
 
 template <concepts::copy_or_move_constructible T>
@@ -408,47 +616,29 @@ class LIBGS_CORE_TAPI lock_free_queue_impl<T, queue_type::circular, 0>
 	LIBGS_DISABLE_COPY_MOVE(lock_free_queue_impl)
 
 public:
-	using node_state = circular_lock_free_queue_node_state;
-
-	static_assert(std::atomic<node_state>::is_always_lock_free,
-		"Atomic state must be lock-free"
-	);
 	static_assert(std::atomic_size_t::is_always_lock_free,
 		"Atomic size must be lock-free"
 	);
 
-	class LIBGS_CORE_TAPI block
-	{
-		LIBGS_DISABLE_COPY_MOVE(block)
-
-	public:
-		explicit block(size_t capacity) :
-			m_capacity(capacity),
-			m_occupied(new std::atomic_bool[capacity]()),
-			m_buffer(new char[capacity * sizeof(T)]()) {}
-
-		alignas(64) std::atomic<size_t> m_head {0};
-		alignas(64) std::atomic<size_t> m_tail {0};
-		const size_t m_capacity = 0;
-
-		std::unique_ptr<std::atomic_bool[]> m_occupied {};
-		std::unique_ptr<char[]> m_buffer {};
-	};
+	using block = circular_lock_free_queue_block<T>;
 
 public:
 	explicit lock_free_queue_impl(size_t capacity = 64)
 	{
 		m_capacity = capacity > 0 ? capacity : 64;
-		m_blocks[0].store(new block(m_capacity));
+		m_first = new block(m_capacity);
+		m_enqueue_block.store(m_first, std::memory_order_relaxed);
+		m_dequeue_block.store(m_first, std::memory_order_relaxed);
 	}
 
 	~lock_free_queue_impl()
 	{
-		for(auto &block : m_blocks)
+		auto current = m_first;
+		while( current )
 		{
-			auto ptr = block.load(std::memory_order_relaxed);
-			if( ptr )
-				delete ptr;
+			auto next = current->m_next.load(std::memory_order_relaxed);
+			delete current;
+			current = next;
 		}
 	}
 
@@ -457,106 +647,88 @@ public:
 	[[nodiscard]] bool emplace(Args&&...args) requires
 		concepts::constructible<T,Args...>
 	{
-		auto enq_idx = m_enq_idx.load(std::memory_order_acquire);
-		auto block = m_blocks[enq_idx].load(std::memory_order_acquire);
-		size_t curr_tail = 0;
 		for(;;)
 		{
-			curr_tail = block->m_tail.load(std::memory_order_relaxed);
-			size_t curr_head = block->m_head.load(std::memory_order_acquire);
+			auto current = m_enqueue_block.load(std::memory_order_acquire);
+			current->m_active_enqueues.fetch_add(1, std::memory_order_acq_rel);
 
-			if( curr_tail - curr_head >= block->m_capacity )
-				return false;
-
-			else if( block->m_tail.compare_exchange_weak(curr_tail, curr_tail + 1,
-				std::memory_order_acq_rel, std::memory_order_relaxed) )
-				break;
+			if( current->m_closed.load(std::memory_order_acquire) )
+			{
+				current->m_active_enqueues.fetch_sub(1, std::memory_order_release);
+				continue;
+			}
+			auto result = current->emplace(std::forward<Args>(args)...);
+			current->m_active_enqueues.fetch_sub(1, std::memory_order_release);
+			return result;
 		}
-		size_t idx = curr_tail % block->m_capacity;
-		new (element_ptr(block->m_buffer.get(), idx))
-			T(std::forward<Args>(args)...);
-
-		m_size.fetch_add(1, std::memory_order_release);
-		block->m_occupied[idx].store(true, std::memory_order_release);
-		return true;
 	}
 
 	[[nodiscard]] optional<T> dequeue()
 	{
-		auto deq_idx = m_deq_idx.load(std::memory_order_acquire);
-		auto block = m_blocks[deq_idx].load(std::memory_order_acquire);
-		size_t curr_head = 0;
 		for(;;)
 		{
-			curr_head = block->m_head.load(std::memory_order_relaxed);
-			size_t curr_tail = block->m_tail.load(std::memory_order_acquire);
+			auto current = m_dequeue_block.load(std::memory_order_acquire);
+			if( auto result = current->dequeue() )
+				return result;
 
-			if( curr_head >= curr_tail )
-			{
-				m_deq_idx.store (
-					m_enq_idx.load(std::memory_order_relaxed),
-					std::memory_order_release
-				);
-				block = m_blocks[deq_idx].load(std::memory_order_acquire);
-				curr_head = block->m_head.load(std::memory_order_relaxed);
-				curr_tail = block->m_tail.load(std::memory_order_acquire);
+			if( current == m_enqueue_block.load(std::memory_order_acquire) or
+				not current->m_closed.load(std::memory_order_acquire) or
+				current->m_active_enqueues.load(std::memory_order_acquire) != 0 )
+				return nullopt;
 
-				if( curr_head >= curr_tail )
-					return nullopt;
-			}
-			else if( block->m_head.compare_exchange_weak(curr_head, curr_head + 1,
-				std::memory_order_acq_rel, std::memory_order_relaxed) )
-				break;
+			auto next = current->m_next.load(std::memory_order_acquire);
+			if( not next )
+				return nullopt;
+
+			m_dequeue_block.compare_exchange_weak(current, next,
+				std::memory_order_release, std::memory_order_relaxed);
 		}
-		size_t idx = curr_head % block->m_capacity;
-		while( not block->m_occupied[idx].load(std::memory_order_acquire) ) {
-			// none_instruction();
-		}
-		auto ptr = element_ptr(block->m_buffer.get(), idx);
-		T result = std::move(*ptr);
-		ptr->~T();
-
-		m_size.fetch_sub(1, std::memory_order_acq_rel);
-		block->m_occupied[idx].store(false, std::memory_order_release);
-		return std::move(result);
 	}
 
 	void set_capacity(size_t capacity)
 	{
-		if( capacity == 0 )
-			capacity = std::numeric_limits<size_t>::max();
-		auto new_block = new block(capacity);
-
-		if( auto expected = m_capacity.load(std::memory_order_relaxed);
-			not m_capacity.compare_exchange_strong(expected, capacity,
-			std::memory_order_release, std::memory_order_relaxed) )
+		capacity = capacity > 0 ? capacity : 64;
+		auto new_block = std::make_unique<block>(capacity);
+		for(;;)
 		{
-			delete new_block;
-			return ;
+			auto current = m_enqueue_block.load(std::memory_order_acquire);
+			if( bool expected = false;
+				not current->m_closed.compare_exchange_weak(expected, true,
+					std::memory_order_acq_rel, std::memory_order_relaxed) )
+				continue;
+
+			current->m_next.store(new_block.get(), std::memory_order_release);
+			m_capacity.store(capacity, std::memory_order_release);
+			m_enqueue_block.store(new_block.release(), std::memory_order_release);
+			return;
 		}
-		auto deq_idx = m_deq_idx.load(std::memory_order_acquire);
-		auto enq_idx = (deq_idx + 1) % m_blocks.size();
+	}
 
-		auto old_block = m_blocks[enq_idx].exchange(new_block);
-		m_enq_idx.store(enq_idx, std::memory_order_release);
+	[[nodiscard]] size_t size() const noexcept
+	{
+		size_t result = 0;
+		auto current = m_dequeue_block.load(std::memory_order_acquire);
+		auto end = m_enqueue_block.load(std::memory_order_acquire);
 
-		if( old_block )
-			delete old_block;
+		while( current )
+		{
+			result += current->size();
+			if( current == end )
+				break;
+			current = current->m_next.load(std::memory_order_acquire);
+		}
+		return result;
+	}
+
+	[[nodiscard]] size_t capacity() const noexcept {
+		return m_capacity.load(std::memory_order_acquire);
 	}
 
 private:
-	[[nodiscard]] static constexpr T *element_ptr(char *buffer, size_t idx) noexcept {
-		return reinterpret_cast<T*>(buffer + idx * sizeof(T));
-	}
-
-public:
+	block *m_first = nullptr;
 	alignas(64) std::atomic_size_t m_capacity {};
-	alignas(64) std::atomic<size_t> m_size {0};
-
-	alignas(64) std::atomic_size_t m_enq_idx {0};
-	alignas(64) std::atomic_size_t m_deq_idx {0};
-
-	std::array<std::atomic<block*>,2> m_blocks {};
+	alignas(64) std::atomic<block*> m_enqueue_block {nullptr};
+	alignas(64) std::atomic<block*> m_dequeue_block {nullptr};
 };
 
 } //namespace detail
@@ -667,20 +839,20 @@ bool lock_free_queue<T,queue_type::circular,N>::empty() const noexcept
 template <concepts::copy_or_move_constructible T, size_t N>
 bool lock_free_queue<T,queue_type::circular,N>::full() const noexcept
 {
-	return size() == capacity_v;
+	return size() >= capacity();
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
 size_t lock_free_queue<T,queue_type::circular,N>::size() const noexcept
 {
-	return m_impl->m_size.load(std::memory_order_acquire);
+	return m_impl->size();
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
 size_t lock_free_queue<T,queue_type::circular,N>::capacity()
 	const noexcept requires (capacity_v == 0)
 {
-	return m_impl->m_capacity.load(std::memory_order_acquire);
+	return m_impl->capacity();
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>

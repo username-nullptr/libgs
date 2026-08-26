@@ -451,12 +451,6 @@ public:
 			error = token.error();
 			return sum;
 		}
-		auto before = m_connection->set_receive_file_option();
-		if( not before )
-		{
-			error = before.error();
-			return sum;
-		}
 		constexpr size_t buf_size = 128 * 1024;
 		char buffer[buf_size] {0};
 		for(;;)
@@ -471,9 +465,6 @@ public:
 		token->stream->close();
 		if( error and error != errc::eof )
 			return sum;
-
-		if( auto expected = m_connection->unset_transfer_file_option(*before); not expected )
-			error = expected.error();
 		return sum;
 	}
 
@@ -494,12 +485,6 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<void>
 		{
-			auto before = m_connection->set_receive_file_option();
-			if( not before )
-			{
-				error = before.error();
-				co_return ;
-			}
 			constexpr size_t buf_size = 128 * 1024;
 			for(;;)
 			{
@@ -516,9 +501,6 @@ public:
 			token->stream->close();
 			if( error and error != errc::eof )
 				co_return ;
-
-			if( auto expected = m_connection->unset_transfer_file_option(*before); not expected )
-				error = expected.error();
 			co_return ;
 		},
 		use_awaitable);

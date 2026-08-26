@@ -616,10 +616,6 @@ public:
 		if( not token )
 			return expected.despair(token.error());
 
-		auto before = m_connection->set_receive_file_option();
-		if( not before )
-			return expected.despair(before.error());
-
 		size_t sum = 0, total = 0;
 		if( auto complete = m_parser.complete_length() )
 			total = *complete;
@@ -655,13 +651,8 @@ public:
 			}
 		}
 		token->stream->close();
-		auto restored = m_connection->unset_transfer_file_option(*before);
-
 		if( not expected and expected.error() != errc::eof )
 			return expected;
-
-		if( not restored )
-			return expected.despair(restored.error());
 		return sum;
 	}
 
@@ -693,10 +684,6 @@ public:
 		auto task = libgs::dispatch(m_connection->get_executor(),
 		[&]() mutable noexcept -> awaitable<io_expected>
 		{
-			auto before = m_connection->set_receive_file_option();
-			if( not before )
-				co_return expected.despair(before.error());
-
 			size_t sum = 0, total = 0;
 			if( auto complete = m_parser.complete_length() )
 				total = *complete;
@@ -732,13 +719,9 @@ public:
 				}
 			}
 			token->stream->close();
-			auto restored = m_connection->unset_transfer_file_option(*before);
 
 			if( not expected and expected.error() != errc::eof )
 				co_return expected;
-
-			if( not restored )
-				co_return expected.despair(restored.error());
 			co_return sum;
 		},
 		use_awaitable | cancel_slot);

@@ -294,7 +294,7 @@ work_canceller_t post(const duration<Rep,Period> &rtime, Work &&work)
 template <concepts::dispatch_work Work, typename Clock, typename Duration>
 work_canceller_t post(concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work)
 {
-	auto timer = std::make_shared<asio::steady_timer>(
+	auto timer = std::make_shared<asio::basic_waitable_timer<Clock>>(
 		std::forward<decltype(exec)>(exec), atime
 	);
 	work_canceller_t cancel = [timer]() mutable {
@@ -555,13 +555,13 @@ auto local_dispatch(Work &&work)
 namespace detail
 {
 
-template <typename Exec, typename Token>
-[[nodiscard]] awaitable<error_code> co_sleep_x(Exec &&exec, const auto &rtime, Token &&token)
+template <typename Exec, typename Time, typename Token>
+[[nodiscard]] awaitable<error_code> co_sleep_for(Exec exec, Time rtime, Token token)
 {
-	asio::steady_timer timer(std::forward<Exec>(exec),
+	asio::steady_timer timer(std::move(exec),
 		std::chrono::duration_cast<asio::steady_timer::duration>(rtime)
 	);
-	co_await timer.async_wait(std::forward<Token>(token));
+	co_await timer.async_wait(std::move(token));
 
 	using namespace operators;
 	using token_t = std::remove_cvref_t<Token>;
@@ -572,7 +572,7 @@ template <typename Exec, typename Token>
 		using target_t = std::remove_cvref_t<decltype(target)>;
 
 		if constexpr( is_redirect_error_v<target_t> )
-			co_return target.token_;
+			co_return target.ec_;
 		else
 			co_return error_code();
 	}
@@ -582,11 +582,41 @@ template <typename Exec, typename Token>
 		co_return error_code();
 }
 
-template <typename Token>
-[[nodiscard]] awaitable<error_code> co_sleep_x(const auto &rtime, Token &&token)
+template <typename Time, typename Token>
+[[nodiscard]] awaitable<error_code> co_sleep_for(Time rtime, Token token)
 {
-	co_return co_await co_sleep_x(co_await asio::this_coro::executor,
-		rtime, std::forward<Token>(token)
+	co_return co_await co_sleep_for(co_await asio::this_coro::executor,
+		std::move(rtime), std::move(token)
+	);
+}
+
+template <typename Exec, typename Clock, typename Duration, typename Token>
+[[nodiscard]] awaitable<error_code> co_sleep_until(Exec exec, time_point<Clock,Duration> atime, Token token)
+{
+	asio::basic_waitable_timer<Clock> timer(std::move(exec), atime);
+	co_await timer.async_wait(std::move(token));
+
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_cancellation_slot_binder_v<token_t> )
+	{
+		auto &target = token.get();
+		using target_t = std::remove_cvref_t<decltype(target)>;
+		if constexpr( is_redirect_error_v<target_t> )
+			co_return target.ec_;
+		else
+			co_return error_code();
+	}
+	else if constexpr( is_redirect_error_v<token_t> )
+		co_return token.ec_;
+	else
+		co_return error_code();
+}
+
+template <typename Clock, typename Duration, typename Token>
+[[nodiscard]] awaitable<error_code> co_sleep_until(time_point<Clock,Duration> atime, Token token)
+{
+	co_return co_await co_sleep_until(co_await asio::this_coro::executor,
+		std::move(atime), std::move(token)
 	);
 }
 
@@ -615,7 +645,7 @@ auto sleep_for(concepts::sched auto &&exec, const duration<Rep,Period> &rtime, T
 	}
 	else
 	{
-		return detail::co_sleep_x(std::forward<Exec>(exec),
+		return detail::co_sleep_for(get_executor_helper(std::forward<Exec>(exec)),
 			rtime, std::forward<Token>(token)
 		);
 	}
@@ -629,7 +659,7 @@ auto sleep_for(const duration<Rep,Period> &rtime, Token &&token)
 		sleep_for(get_executor(), rtime, std::forward<Token>(token));
 
 	else if constexpr( is_async_opt_token_v<token_t> )
-		return detail::co_sleep_x(rtime, std::forward<Token>(token));
+		return detail::co_sleep_for(rtime, std::forward<Token>(token));
 	else
 		std::this_thread::sleep_for(rtime);
 }
@@ -640,95 +670,24 @@ auto sleep_until(concepts::sched auto &&exec, const time_point<Clock,Duration> &
 	using Exec = decltype(exec);
 	using token_t = std::remove_cvref_t<Token>;
 
-	if constexpr( Clock::is_steady )
+	if constexpr( is_void_func_v<token_t> )
 	{
-		auto now = Clock::now();
-		if constexpr( is_void_func_v<token_t> )
+		auto timer = std::make_shared<asio::basic_waitable_timer<Clock>>(
+			get_executor_helper(std::forward<Exec>(exec)), atime
+		);
+		timer->async_wait(
+		[timer, callback = std::forward<Token>(token)](const error_code &error) mutable
 		{
-			if( now < atime )
-			{
-				auto timer = std::make_shared<asio::steady_timer>(
-					std::forward<Exec>(exec), atime - now
-				);
-				timer->async_wait(
-				[timer, callback = std::forward<Token>(token)](const error_code &error)
-				{
-					LIBGS_UNUSED(timer);
-					callback(error);
-				});
-			}
-			else
-			{
-				libgs::post(std::forward<Exec>(exec), [callback = std::forward<Token>(token)]{
-					callback(error_code());
-				});
-			}
-		}
-		else
-		{
-			if( now < atime )
-			{
-				return detail::co_sleep_x(std::forward<Exec>(exec),
-					atime - now, std::forward<Token>(token)
-				);
-			}
-			return +[]() -> awaitable<error_code> {
-				co_return error_code();
-			}();
-		}
+			LIBGS_UNUSED(timer);
+			callback(error);
+		});
 	}
 	else
 	{
-		if constexpr( is_void_func_v<token_t> )
-		{
-			auto now = Clock::now();
-			if( now < atime )
-			{
-				libgs::dispatch([exec = get_executor_helper(std::forward<Exec>(exec)),
-					atime, now, callback = std::forward<Token>(token)]() mutable -> awaitable<void>
-				{
-					using namespace operators;
-					error_code error;
-
-					while( now < atime )
-					{
-						co_await detail::co_sleep_x(std::forward<Exec>(exec),
-							atime - now, use_awaitable | error
-						);
-						if( error )
-							break;
-						now = Clock::now();
-					}
-					callback(error);
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::post(std::forward<Exec>(exec), [callback = std::forward<Token>(token)]{
-					callback(error_code());
-				});
-			}
-		}
-		else
-		{
-			return libgs::dispatch([exec = get_executor_helper(std::forward<Exec>(exec)),
-				atime, token = std::forward<Token>(token)]() -> awaitable<error_code>
-			{
-				auto now = Clock::now();
-				while( now < atime )
-				{
-					auto error = co_await detail::co_sleep_x (
-						exec, atime - now, token
-					);
-					if( error )
-						co_return error;
-					now = Clock::now();
-				}
-				co_return error_code();
-			},
-			token);
-		}
+		return detail::co_sleep_until(
+			get_executor_helper(std::forward<Exec>(exec)),
+			atime, std::forward<Token>(token)
+		);
 	}
 }
 
@@ -740,21 +699,7 @@ auto sleep_until(const time_point<Clock,Duration> &atime, Token &&token)
 		sleep_until(get_executor(), atime, std::forward<Token>(token));
 
 	else if constexpr( is_async_opt_token_v<token_t> )
-	{
-		return libgs::dispatch(
-		[atime, token = std::forward<Token>(token)]() -> awaitable<error_code>
-		{
-			auto now = Clock::now();
-			while( now < atime )
-			{
-				if( auto error = co_await detail::co_sleep_x(atime - now, token) )
-					co_return error;
-				now = Clock::now();
-			}
-			co_return error_code();
-		},
-		token);
-	}
+		return detail::co_sleep_until(atime, std::forward<Token>(token));
 	else
 		std::this_thread::sleep_until(atime);
 }

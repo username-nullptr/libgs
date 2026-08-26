@@ -32,8 +32,6 @@
 #include <libgs/core/lock_free_queue.h>
 #include <libgs/coro/detail/wake_up.h>
 
-#include <semaphore>
-
 namespace libgs::coro
 {
 
@@ -56,20 +54,7 @@ public:
 		}
 	}
 
-	~impl()
-	{
-#if 0
-		auto wake_up = m_wait_queue.dequeue();
-		if( not wake_up )
-			return ;
-		runtime_error::loc_throw (
-			"libgs::basic_semaphore: Destruct a basic_semaphore with unreleased resources."
-		);
-#else
-		while( m_counter < max_v )
-			release_one();
-#endif
-	}
+	~impl() = default;
 
 public:
 	[[nodiscard]] bool try_acquire()
@@ -93,15 +78,18 @@ public:
 	}
 
 	[[nodiscard]] awaitable<bool> try_acquire_x
-	(concepts::sched auto &&exec, const auto &timeout)
+	(concepts::sched auto &&exec, auto timeout)
 	{
 		if( try_acquire() )
 			co_return true;
 
 		co_return co_await async_work<bool>::handle(exec,
-		[this, timeout, exec = get_executor_helper(exec)](auto &&wake_up) mutable
+		[this, timeout, exec = get_executor_helper(exec)]
+		(async_work<bool>::handler_t wake_up) mutable
 		{
-			auto wake_up_ptr = std::make_shared<wake_up_t>(exec, std::move(wake_up));
+			auto wake_up_ptr = std::make_shared<wake_up_t>(
+				exec, std::forward<decltype(wake_up)>(wake_up)
+			);
 			m_wait_queue.emplace(wake_up_ptr);
 			wake_up_ptr->start_timer(timeout);
 		});
@@ -203,7 +191,7 @@ template<typename Rep, typename Period>
 awaitable<bool> basic_semaphore<Max>::try_acquire_for
 (concepts::sched auto &&exec, const duration<Rep,Period> &timeout)
 {
-	return m_impl->try_acquire_x(exec,
+	return m_impl->try_acquire_x(std::forward<decltype(exec)>(exec),
 		std::chrono::duration_cast<asio::steady_timer::duration>(timeout)
 	);
 }
@@ -213,9 +201,7 @@ template<typename Clock, typename Duration>
 awaitable<bool> basic_semaphore<Max>::try_acquire_until
 (concepts::sched auto &&exec, const time_point<Clock,Duration> &timeout)
 {
-	return m_impl->try_acquire_x(exec,
-		std::chrono::time_point_cast<asio::steady_timer::time_point>(timeout)
-	);
+	return m_impl->try_acquire_x(std::forward<decltype(exec)>(exec), timeout);
 }
 
 template<size_t Max>

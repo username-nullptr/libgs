@@ -69,11 +69,6 @@ public:
 	[[nodiscard]] bool peek() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
-public:
-	[[nodiscard]] auto set_send_file_option() noexcept;
-	[[nodiscard]] auto set_receive_file_option() noexcept;
-	[[nodiscard]] auto unset_transfer_file_option(const auto &before) noexcept;
-
 private:
 	class impl;
 	impl *m_impl;

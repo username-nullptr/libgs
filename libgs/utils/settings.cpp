@@ -47,9 +47,12 @@ settings::~settings()
 	delete m_impl;
 }
 
+namespace {
 struct LIBGS_DECL_HIDDEN no_deleter {
 	void operator()(settings*) const {}
 };
+} //namespace
+
 using settings_ptr = std::unique_ptr<settings, no_deleter>;
 
 static std::map<std::string, settings_ptr> g_instances;
@@ -60,20 +63,19 @@ settings &settings::instance(std::string_view name, bool create)
 	std::string _name(name.data(), name.size());
 	spin_shared_unique_lock locker(g_instances_lock);
 
-	auto [it, inserted] = g_instances.emplace(_name, nullptr);
-	if( not inserted )
+	if( auto it = g_instances.find(_name); it != g_instances.end() )
 		return *it->second;
 
 	else if( create )
 	{
-		auto obj = new settings(std::move(_name));
-		it->second = settings_ptr(obj, no_deleter());
+		settings_ptr object(new settings(_name), no_deleter());
+		it = g_instances.emplace(std::move(_name), std::move(object)).first;
 		return *it->second;
 	}
 	locker.unlock();
 
 	runtime_error::loc_throw(std::format (
-		"libsepp::settings::instance: Instance '{}' is not exist.", name
+		"libgs::utils::settings::instance: Instance '{}' does not exist.", name
 	));
 	// return {};
 }
@@ -156,8 +158,10 @@ std::vector<std::string> settings::names() noexcept
 {
 	std::vector<std::string> names;
 	spin_shared_shared_lock locker(g_instances_lock);
-	for( auto &pair : g_instances )
-		names.push_back(pair.first);
+
+	names.reserve(g_instances.size());
+	for(auto &key : g_instances | std::views::keys)
+		names.push_back(key);
 	return names;
 }
 
@@ -167,10 +171,10 @@ std::filesystem::path settings::file_name() const noexcept
 	return m_impl->m_ini.file_name();
 }
 
-optional<value> settings::get(group_key_t gk)
+optional<value> settings::get(const group_key_t &gk)
 {
 	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
-	return m_impl->m_ini.read(std::move(gk));
+	return m_impl->m_ini.read(gk);
 }
 
 std::string_view settings::name() const noexcept

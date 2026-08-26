@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
+using namespace libgs::coro::literals;
 
 int main()
 {
@@ -17,7 +18,7 @@ int main()
 			co_await semaphore.acquire();
 
 			spdlog::info("======== {} : {}", id, j++);
-			co_await libgs::coro::sleep_for(1s);
+			co_await 1_s;
 
 			semaphore.release();
 

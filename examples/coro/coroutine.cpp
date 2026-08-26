@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 
 using namespace std::chrono_literals;
+using namespace libgs::coro::literals;
 
 int main()
 {
@@ -11,10 +12,10 @@ int main()
 	libgs::dispatch([&]() -> libgs::awaitable<void>
 	{
 		spdlog::debug("Start <0>...");
-		co_await libgs::coro::sleep_for(1s);
+		co_await 1_s;
 
 		spdlog::debug("1 second passed...");
-		co_await libgs::coro::sleep_for(2s);
+		co_await 2_s;
 
 		spdlog::debug("Another 2 seconds passed...");
 		spdlog::debug("End <0>...");
@@ -53,7 +54,7 @@ int main()
 		spdlog::debug("run in thread: {}", libgs::this_thread_id());
 
 		spdlog::debug("example finished...");
-		co_await libgs::coro::sleep_for(5s);
+		co_await 5_s;
 
 		libgs::exit();
 		co_return ;

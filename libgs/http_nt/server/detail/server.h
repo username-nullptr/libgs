@@ -108,6 +108,19 @@ private:
 			if( not connection.opt_helper().is_open() )
 				continue;
 
+			if constexpr( std::is_same_v<typename connection_t::protocol_t, asio::ip::tcp> )
+			{
+				error_code error {};
+				connection.opt_helper().set_option (
+					asio::ip::tcp::no_delay(true), error
+				);
+				if( error )
+				{
+					connection.opt_helper().close();
+					call_on_server_error(error);
+					continue;
+				}
+			}
 			libgs::dispatch(service_exec, [self = this->shared_from_this(),
 				connection = std::make_shared<connection_t>(std::move(connection)),
 				kp_time = m_keepalive_timeout

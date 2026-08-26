@@ -90,7 +90,7 @@ public:
 	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
 
 public:
-	basic_connection_pool(config_t config = {}) requires
+	explicit basic_connection_pool(const config_t &config = {}) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
 	explicit basic_connection_pool (

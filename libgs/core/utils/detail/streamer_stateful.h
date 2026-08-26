@@ -43,7 +43,7 @@ struct streamer<std::monostate>
 	}
 	[[nodiscard]] static decoder_data<std::monostate>
 	decode(const std::vector<std::byte>&, size_t = 0) noexcept {
-		return { {}, 0 };
+		return { .data = {}, .size = 0 };
 	}
 };
 
@@ -135,7 +135,7 @@ struct streamer<std::variant<Ts...>>
 
 		std::vector<std::byte> buf;
 		buf.resize(8);
-		*reinterpret_cast<uint64_t*>(buf.data()) = v.index();
+		detail::streamer_write_u64(buf.data(), v.index());
 
 		std::visit([&]<typename T>(const T &value) {
 			auto sub = streamer<std::remove_cvref_t<T>>::encode(value);
@@ -156,7 +156,7 @@ struct streamer<std::variant<Ts...>>
 				"bad packet: {} / {} bytes", buf.size(), offset + 8
 			));
 		}
-		auto index = *reinterpret_cast<const uint64_t*>(buf.data() + offset);
+		auto index = detail::streamer_read_u64(buf.data() + offset);
 		if( index >= sizeof...(Ts) )
 		{
 			runtime_error::loc_throw(std::format (

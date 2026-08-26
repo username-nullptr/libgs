@@ -159,7 +159,7 @@ template <concepts::character CharT>
 } //namespace detail
 
 template <concepts::character CharT>
-std::basic_string<CharT> to_string(concepts::arithmetic_p auto &&value, size_t base, bool uppercase)
+std::basic_string<CharT> to_string(concepts::integral_p auto &&value, size_t base, bool uppercase)
 {
 	if( base < 2 or base > 36 )
 	{

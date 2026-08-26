@@ -30,12 +30,10 @@
 #define LIBGS_CORO_CONDITION_VARIABLE_H
 
 #include <libgs/coro/mutex.h>
-#include <condition_variable>
 
 namespace libgs::coro
 {
 
-// TODO ... ...
 class LIBGS_CORO_VAPI condition_variable
 {
 	LIBGS_DISABLE_COPY_MOVE(condition_variable)
@@ -107,9 +105,6 @@ public:
 private:
 	class impl;
 	impl *m_impl;
-
-	std::condition_variable aaa;
-	std::condition_variable_any bbb;
 };
 
 } //namespace libgs::coro
