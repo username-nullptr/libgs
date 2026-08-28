@@ -31,7 +31,12 @@ int main()
 			spdlog::debug("Cookie: {}: {}", key, value);
 
 		if( request.can_read_body() )
-			spdlog::debug("partial_body: {}\n", co_await request.read(asio::use_awaitable));
+		{
+			spdlog::debug(
+				"partial_body: {}\n",
+				co_await request.read<std::string>(asio::use_awaitable)
+			);
+		}
 
 		// If you don't write anything, the server will write the default body for you
 		// co_await context.response().write("hello world", asio::use_awaitable);

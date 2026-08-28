@@ -36,21 +36,18 @@
 namespace libgs::http
 {
 
-template <concepts::connection Connection>
+template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_request :
-	public const_headers<basic_request<Connection>>,
-	public const_cookies<value,basic_request<Connection>>,
-	public const_parameters<basic_request<Connection>>
+	public const_headers<basic_request<Exec>>,
+	public const_cookies<value,basic_request<Exec>>,
+	public const_parameters<basic_request<Exec>>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_request)
 
 public:
-	using connection_t = Connection;
-	using connection_ptr = std::shared_ptr<connection_t>;
-	using executor_t = connection_t::executor_t;
-
-	using socket_t = connection_t::socket_t;
-	using endpoint_t = connection_t::endpoint_t;
+	using executor_t = Exec;
+	using connection_t = basic_connection<executor_t>;
+	using connection_ptr = connection_t::ptr_t;
 
 	using parser_t = server_parser;
 	using value_t = parser_t::value_t;
@@ -67,12 +64,11 @@ public:
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		core_concepts::dis_func_tf_opt_token<Token,Value...> and
+		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...> and
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename Token = use_sync_t>
-	auto wait(Token &&token = {}) requires
-		task_token_v<Token,status_enum>;
+	auto wait(Token &&token = {}) requires task_token_v<Token>;
 
 	int32_t path_match(std::string_view rule);
 
@@ -102,15 +98,17 @@ public:
 	auto read(const mutable_buffer &buf, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
+	template <concepts::buffer Buffer, typename Token = use_sync_t>
+	auto read(Token &&token = {})
+		requires task_token_v<Token,Buffer>;
+
 	template <typename Token = use_sync_t>
 	auto read(Token &&token = {})
-		requires task_token_v<Token,std::string>;
+		requires task_token_v<Token,std::vector<std::byte>>;
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token_v =
-		core_concepts::dis_func_tf_opt_token<Token,size_t> and
-		not is_detached_v<std::remove_cvref_t<Token>> and
-		concepts::file_opt_token_p <
+		task_token_v<Token,size_t> and concepts::file_opt_token_p <
 			T, char, file_optype::single, io_permission::write
 		>;
 	template <typename T, typename Token = use_sync_t>
@@ -127,8 +125,8 @@ public:
 	[[nodiscard]] std::string take_pending_data();
 
 public:
-	[[nodiscard]] endpoint_t remote_endpoint() const;
-	[[nodiscard]] endpoint_t local_endpoint() const;
+	[[nodiscard]] endpoint remote_endpoint() const;
+	[[nodiscard]] endpoint local_endpoint() const;
 
 	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_request &cancel() noexcept;
@@ -142,20 +140,10 @@ private:
 	impl *m_impl;
 };
 
-using request = basic_request<connection>;
+using request = basic_request<>;
 
 } //namespace libgs::http
-
 #include <libgs/http/server/detail/request.h>
-#if LIBGS_OPENSSL_SUPPORT
 
-namespace libgs { namespace http {
-using ssl_request = basic_request<ssl_connection>;
-} //namespace http
 
-namespace https {
-using request = http::ssl_request;
-}} //namespace libgs::https
-
-#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_SERVER_REQUEST_H

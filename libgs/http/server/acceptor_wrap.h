@@ -29,150 +29,97 @@
 #ifndef LIBGS_HTTP_SERVER_ACCEPTOR_WRAP_H
 #define LIBGS_HTTP_SERVER_ACCEPTOR_WRAP_H
 
-#include <libgs/http/utils/connection.h>
+#include <libgs/http/utils/tcp_connection.h>
+#include <libgs/http/utils/tls_connection.h>
 #include <libgs/coro.h>
 
-namespace libgs::http { namespace detail
+namespace libgs::http
 {
 
-template <core_concepts::exec Exec>
-class LIBGS_HTTP_VAPI acceptor_wrap
-{
-	LIBGS_DISABLE_COPY(acceptor_wrap)
-	template <core_concepts::exec>
-	friend class acceptor_wrap;
-
-public:
-	using executor_t = Exec;
-	using acceptor_t = asio::basic_socket_acceptor<asio::ip::tcp,executor_t>;
-
-public:
-	acceptor_wrap(acceptor_t &&acceptor);
-	~acceptor_wrap() = default;
-
-	acceptor_wrap(acceptor_wrap &&other) noexcept = default;
-	acceptor_wrap &operator=(acceptor_wrap &&other) noexcept = default;
-
-	template <core_concepts::exec Exec0>
-	acceptor_wrap(acceptor_wrap<Exec0> &&other) noexcept;
-
-	template <core_concepts::exec Exec0>
-	acceptor_wrap &operator=(acceptor_wrap<Exec0> &&other) noexcept;
-
-public:
-	const acceptor_t &acceptor() const;
-	acceptor_t &acceptor();
-
-protected:
-	acceptor_t m_acceptor;
-};
-
-} //namespace detail
-
-template <typename Connection>
+template <concepts::any_exec_stream Stream = asio::ip::tcp::socket>
 class basic_acceptor_wrap;
 
 template <core_concepts::exec Exec>
-class LIBGS_HTTP_TAPI basic_acceptor_wrap <
-	basic_connection< asio::basic_stream_socket<asio::ip::tcp, Exec> >
-> :
-public detail::acceptor_wrap<Exec>
+class LIBGS_HTTP_TAPI basic_acceptor_wrap
+	<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 {
 	LIBGS_DISABLE_COPY(basic_acceptor_wrap)
 
-	template <typename>
+	template <concepts::any_exec_stream>
 	friend class basic_acceptor_wrap;
 
 public:
-	using base_t = detail::acceptor_wrap<Exec>;
-	using executor_t = base_t::executor_t;
-	using acceptor_t = base_t::acceptor_t;
+	using executor_t = Exec;
+	using connection_t = basic_connection<executor_t>;
+	using connection_ptr = connection_t::ptr_t;
 
-	template <typename Exec0>
-	using basic_socket_t = asio::basic_stream_socket<asio::ip::tcp,Exec0>;
-
-	using socket_t = basic_socket_t<executor_t>;
-	using connection_t = basic_connection<socket_t>;
+	using protocol_t = asio::ip::tcp;
+	using socket_t = asio::basic_stream_socket<protocol_t,executor_t>;
+	using acceptor_t = asio::basic_socket_acceptor<protocol_t,executor_t>;
 
 public:
 	basic_acceptor_wrap(acceptor_t &&acceptor);
 	~basic_acceptor_wrap() = default;
 
-	basic_acceptor_wrap(basic_acceptor_wrap &&other) noexcept = default;
-	basic_acceptor_wrap &operator=(basic_acceptor_wrap &&other) noexcept = default;
+	basic_acceptor_wrap(basic_acceptor_wrap&&) noexcept = default;
+	basic_acceptor_wrap &operator=(basic_acceptor_wrap&&) noexcept = default;
 
-	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap (
-		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
-	) noexcept;
-
-	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap &operator= (
-		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
-	) noexcept;
-
-public:
-	[[nodiscard]] awaitable<connection_t> accept (
-		core_concepts::exec auto &service_exec
+	void accept (
+		core_concepts::match_sched<executor_t> auto &&service_exec,
+		std::function<void(connection_ptr)> callback
 	);
+	[[nodiscard]] const acceptor_t &acceptor() const noexcept;
+	[[nodiscard]] acceptor_t &acceptor() noexcept;
+
+protected:
+	acceptor_t m_acceptor;
 };
 
 #if LIBGS_OPENSSL_SUPPORT
 
 template <core_concepts::exec Exec>
-class LIBGS_HTTP_TAPI basic_acceptor_wrap <
-	basic_connection<asio::ssl::stream <
-		asio::basic_stream_socket<asio::ip::tcp, Exec>
-	>>
-> :
-public detail::acceptor_wrap<Exec>
+class LIBGS_HTTP_TAPI basic_acceptor_wrap
+	<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
 {
 	LIBGS_DISABLE_COPY(basic_acceptor_wrap)
 
-	template <typename>
+	template <concepts::any_exec_stream>
 	friend class basic_acceptor_wrap;
 
 public:
-	using base_t = detail::acceptor_wrap<Exec>;
-	using executor_t = base_t::executor_t;
-	using acceptor_t = base_t::acceptor_t;
 
-	template <typename Exec0>
-	using basic_socket_t = asio::ssl::stream <
-		asio::basic_stream_socket<asio::ip::tcp,Exec0>
-	>;
-	using socket_t = basic_socket_t<executor_t>;
-	using connection_t = basic_connection<socket_t>;
+	using executor_t = Exec;
+	using connection_t = basic_connection<executor_t>;
+	using connection_ptr = connection_t::ptr_t;
+
+	using protocol_t = asio::ip::tcp;
+	using socket_t = asio::ssl::stream<asio::basic_stream_socket<protocol_t,executor_t>>;
+	using acceptor_t = asio::basic_socket_acceptor<protocol_t,executor_t>;
+	using context_t = asio::ssl::context;
 
 public:
-	basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ssl);
+	basic_acceptor_wrap(acceptor_t &&acceptor, context_t &ctx);
 	~basic_acceptor_wrap() = default;
 
-	basic_acceptor_wrap(basic_acceptor_wrap &&other) noexcept;
-	basic_acceptor_wrap &operator=(basic_acceptor_wrap &&other) noexcept;
+	basic_acceptor_wrap(basic_acceptor_wrap&&) noexcept = default;
+	basic_acceptor_wrap &operator=(basic_acceptor_wrap&&) noexcept = default;
 
-	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap (
-		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
-	) noexcept;
-
-	template <core_concepts::exec Exec0>
-	basic_acceptor_wrap &operator= (
-		basic_acceptor_wrap<basic_connection<basic_socket_t<Exec0>>> &&other
-	) noexcept;
-
-public:
-	[[nodiscard]] awaitable<connection_t> accept (
-		core_concepts::exec auto &service_exec
+	void accept (
+		core_concepts::match_sched<executor_t> auto &&service_exec,
+		std::function<void(connection_ptr)> callback,
+		std::chrono::milliseconds handshake_timeout = std::chrono::milliseconds(5000)
 	);
+	[[nodiscard]] const acceptor_t &acceptor() const noexcept;
+	[[nodiscard]] acceptor_t &acceptor() noexcept;
 
 protected:
-	asio::ssl::context *m_ssl;
+	acceptor_t m_acceptor;
+	context_t *m_ctx;
 };
 
 #endif //LIBGS_OPENSSL_SUPPORT
 
-using acceptor_wrap = basic_acceptor_wrap<asio::any_io_executor>;
+using acceptor_wrap = basic_acceptor_wrap<>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/acceptor_wrap.h>

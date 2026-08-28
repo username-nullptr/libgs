@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -31,59 +31,74 @@
 
 #include <libgs/core/global.h>
 
-namespace libgs
+namespace libgs { namespace uuid_version
 {
 
+enum enumeration : uint8_t {
+	none = 0, v4 = 4, v5, v6, v7
+};
+
+} //namespace uuid_version
+
+using uuid_version_enum = uuid_version::enumeration;
+using uuid_data_t = std::array<std::byte,16>;
+
 template <concepts::character CharT>
-union LIBGS_CORE_TAPI basic_uuid final // version 4
+class LIBGS_CORE_TAPI basic_uuid
 {
 public:
 	using char_t = CharT;
 	using string_t = std::basic_string<char_t>;
 	using string_view_t = std::basic_string_view<char_t>;
+	using data_t = uuid_data_t;
 
 public:
-	basic_uuid(string_view_t basic_uuid);
+	basic_uuid() = default;
+	basic_uuid(const data_t &data);
+	basic_uuid(string_view_t text);
+
 	basic_uuid(const basic_uuid &other) = default;
-
-public:
-	[[nodiscard]] static basic_uuid generate();
-
-public:
 	basic_uuid &operator=(const basic_uuid &other) = default;
-	basic_uuid &operator=(string_view_t basic_uuid);
+
+	template <concepts::character CharT0>
+	basic_uuid(const basic_uuid<CharT0> &other);
+
+	template <concepts::character CharT0>
+	basic_uuid &operator=(const basic_uuid<CharT0> &other);
+
+	basic_uuid &operator=(const data_t &data);
+	basic_uuid &operator=(string_view_t text);
+
+	[[nodiscard]] bool operator==(const basic_uuid &other) const noexcept;
+	[[nodiscard]] std::strong_ordering operator<=>(const basic_uuid &other) const noexcept;
 
 public:
-	bool operator==(const basic_uuid &other) const;
-	bool operator!=(const basic_uuid &other) const;
-	bool operator<(const basic_uuid &other) const;
-	bool operator>(const basic_uuid &other) const;
+	template <uint8_t Version = uuid_version::v4>
+	[[nodiscard]] static basic_uuid generate() requires (
+		Version == 4 or Version == 6 or Version == 7
+	);
+	template <concepts::character CharT0>
+	[[nodiscard]] static basic_uuid generate_v5 (
+		const basic_uuid<CharT0> &ns_uuid, string_view_t name
+	);
+	[[nodiscard]] static basic_uuid generate_v5 (
+		const data_t &ns_uuid, string_view_t name
+	);
+	[[nodiscard]] static basic_uuid generate(uint8_t version);
 
 public:
-	// aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
 	[[nodiscard]] string_t to_string(bool parcel = false) const;
-	operator string_t() const { return to_string(); }
+	[[nodiscard]] operator string_t() const { return to_string(); }
 
-public:
-	uint64_t wide_integers[2];
+	[[nodiscard]] optional<data_t> data() const noexcept;
+	[[nodiscard]] optional<data_t> operator*() const noexcept;
 
-	struct internal_data
-	{
-		uint32_t d0;
-		uint16_t d1;
-		uint16_t d2;
-		uint8_t  d3[8];
-	}
-	internals;
+	[[nodiscard]] uuid_version_enum version() const noexcept;
+	[[nodiscard]] bool is_valid() const noexcept;
+	[[nodiscard]] bool is_nil() const noexcept;
 
-	struct byte_representation
-	{
-		uint8_t d0[4];
-		uint8_t d1[2];
-		uint8_t d2[2];
-		uint8_t d3[8];
-	}
-	bytes;
+private:
+	optional<data_t> m_data {};
 };
 
 using uuid = basic_uuid<char>;

@@ -129,10 +129,17 @@ LIBGS_CORO_VAPI bool check_error (
 namespace literals
 {
 
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_s (unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ms(unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_us(unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ns(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_y  (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_mon(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_d  (unsigned long long value);
+
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_h  (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_min(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_s  (unsigned long long value);
+
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ms (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_us (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ns (unsigned long long value);
 
 }} //namespace libgs::coro::literals
 #include <libgs/coro/detail/utils.h>

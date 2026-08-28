@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,40 +26,65 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_SYS_EXPECTED_H
-#define LIBGS_CORE_CXX_SYS_EXPECTED_H
+#ifndef LIBGS_HTTP_UTILS_TCP_CONNECTION_H
+#define LIBGS_HTTP_UTILS_TCP_CONNECTION_H
 
-#include <libgs/core/cxx/expected.h>
+#include <libgs/http/utils/connection.h>
+#include <libgs/core/execution.h>
 
-namespace libgs
+namespace libgs::http
 {
 
-template <concepts::expected_value Value = void>
-using sys_expected = expected<Value,error_code>;
+template <core_concepts::exec Exec = asio::any_io_executor>
+class LIBGS_HTTP_TAPI basic_tcp_connection : public basic_connection<Exec>
+{
+	LIBGS_DISABLE_COPY_MOVE(basic_tcp_connection)
 
-using sys_unexpected = unexpected<error_code>;
+public:
+	using executor_t = Exec;
+	using probe_state_t = connection_probe_state;
 
-template <concepts::optional_value_p Value>
-[[nodiscard]] LIBGS_CORE_TAPI auto make_sys_expected(Value &&value);
-[[nodiscard]] LIBGS_CORE_VAPI sys_expected<> make_sys_expected();
+	using socket_t = asio::basic_stream_socket<asio::ip::tcp,executor_t>;
+	using ptr_t = std::shared_ptr<basic_tcp_connection>;
 
-template <concepts::expected_value Value = void>
-LIBGS_CORE_TAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
-	std::source_location loc = std::source_location::current()
-);
+	explicit basic_tcp_connection(socket_t &&socket);
+	~basic_tcp_connection() override;
 
-template <concepts::expected_value Value = void>
-LIBGS_CORE_TAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
-	concepts::text_p<char> auto &&msg, std::source_location loc = std::source_location::current()
-);
+public:
+	sys_expected<> cancel() noexcept override;
+	sys_expected<> close() noexcept override;
 
-using io_expected = sys_expected<size_t>;
-using io_unexpected = sys_unexpected;
+	sys_expected<> set_options(const tcp_socket_options &options) noexcept override;
+	[[nodiscard]] sys_expected<tcp_socket_state> options() const noexcept override;
 
-[[nodiscard]] LIBGS_CORE_TAPI io_expected make_io_expected(size_t sum);
+	[[nodiscard]] bool is_open() const noexcept override;
+	[[nodiscard]] sys_expected<probe_state_t> probe() noexcept override;
 
-} //namespace libgs
-#include <libgs/core/cxx/detail/sys_expected.h>
+	[[nodiscard]] endpoint remote_endpoint() const noexcept override;
+	[[nodiscard]] endpoint local_endpoint() const noexcept override;
+
+	[[nodiscard]] executor_t get_executor() noexcept override;
+
+protected:
+	[[nodiscard]] io_expected read_some(mutable_buffer buffer) noexcept override;
+	[[nodiscard]] io_expected write_all(const const_buffer &buffer) noexcept override;
+	[[nodiscard]] io_expected
+	write_all(std::span<const const_buffer> buffers) noexcept override;
+
+	[[nodiscard]] awaitable<io_expected> co_read_some(mutable_buffer buffer) noexcept override;
+	[[nodiscard]] awaitable<io_expected> co_write_all(const const_buffer &buffer) noexcept override;
+	[[nodiscard]] awaitable<io_expected>
+	co_write_all(std::span<const const_buffer> buffers) noexcept override;
+
+private:
+	socket_t m_socket;
+};
+
+using tcp_connection = basic_tcp_connection<>;
+using tcp_connection_ptr = basic_tcp_connection<>::ptr_t;
+
+} //namespace libgs::http
+#include <libgs/http/utils/detail/tcp_connection.h>
 
 
-#endif //LIBGS_CORE_CXX_SYS_EXPECTED_H
+#endif //LIBGS_HTTP_UTILS_TCP_CONNECTION_H

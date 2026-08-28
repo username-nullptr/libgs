@@ -38,24 +38,28 @@ namespace libgs::http
 {
 
 template <method_enum Method,
-		  concepts::connection Connection = connection,
+		  core_concepts::exec Exec = asio::any_io_executor,
 		  version_enum Version = version::v11>
 class LIBGS_HTTP_TAPI basic_request_context final :
-	public mutable_headers<basic_request_context<Method,Connection,Version>>,
-	public mutable_cookies<value,basic_request_context<Method,Connection,Version>>,
-	public mutable_chunk_attributes<basic_request_context<Method,Connection,Version>>
+	public mutable_headers<basic_request_context<Method,Exec,Version>>,
+	public mutable_cookies<value,basic_request_context<Method,Exec,Version>>,
+	public mutable_chunk_attributes<basic_request_context<Method,Exec,Version>>
 {
-	LIBGS_DISABLE_COPY(basic_request_context)
+	LIBGS_DISABLE_COPY_MOVE(basic_request_context)
 
 public:
-	using connection_t = Connection;
-	using executor_t = connection_t::executor_t;
+	using executor_t = Exec;
+	using connection_t = basic_connection<executor_t>;
+	using connection_ptr = connection_t::ptr_t;
+
+	using lease_t = basic_connection_lease<executor_t>;
+	using lease_ptr = lease_t::ptr_t;
 
 	using url_t = http::url;
 	using method_t = http::method;
 	using request_arg_t = request_arg;
 
-	using reply_t = basic_reply<connection_t>;
+	using reply_t = basic_reply<executor_t>;
 	using reply_ptr = std::shared_ptr<reply_t>;
 	using const_reply_ptr = std::shared_ptr<const reply_t>;
 
@@ -77,19 +81,21 @@ public:
 		request_target_form target_form = request_target_form::origin;
 		bool auto_decompression = true;
 	};
-	basic_request_context(connection_t &&connection, url_t url, options opt = {});
+	basic_request_context(lease_ptr &&lease, url_t url, options opt = {});
 	~basic_request_context() override;
 
-	basic_request_context(basic_request_context &&other) noexcept;
-	basic_request_context &operator=(basic_request_context &&other) noexcept;
-
 public:
+	// Synchronous I/O returns the value directly. The default token throws
+	// std::system_error on failure; error_code& returns a default value and
+	// stores the error. Async completion uses (error_code, value). As with
+	// Asio's basic I/O operations, asynchronous writes borrow body until
+	// completion. detached owns a copy until completion.
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto write(Token &&token = {}) noexcept;
+	auto write(Token &&token = {});
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
-		noexcept requires put_or_post;
+		requires put_or_post;
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token_v =
@@ -101,20 +107,20 @@ public:
 
 	template <typename T, typename Token = use_sync_t>
 	auto upload_file(body_norms_t norms, T &&opt, Token &&token = {})
-		noexcept requires file_task_token_v<T,Token>;
+		requires file_task_token_v<T,Token>;
 
 	template <typename T, typename Progress, typename Token = use_sync_t>
 	auto upload_file(body_norms_t norms, T &&opt, Progress &&progress, Token &&token = {})
-		noexcept requires file_task_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
+		requires file_task_token_v<T,Token> and concepts::progress_callback<Progress,Token>;
 
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(const headers_t &headers, Token &&token = {})
-		noexcept requires put_or_post;
+		requires put_or_post;
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto chunk_end(Token &&token = {})
-		noexcept requires put_or_post;
+		requires put_or_post;
 
 public:
 	template <typename Token, typename...Value>
@@ -123,7 +129,7 @@ public:
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
 	template <typename Token = use_sync_t>
-	auto wait_reply(Token &&token = {}) noexcept
+	auto wait_reply(Token &&token = {})
 		requires task_token_v<Token,status_enum>;
 
 	[[nodiscard]] const_reply_ptr reply() const noexcept;
@@ -141,8 +147,8 @@ public:
 	[[nodiscard]] static consteval version_enum version() noexcept;
 
 public:
-	[[nodiscard]] const connection_t &connection() const noexcept;
-	[[nodiscard]] connection_t &connection() noexcept;
+	[[nodiscard]] const lease_t &lease() const noexcept;
+	[[nodiscard]] lease_t &lease() noexcept;
 
 	[[nodiscard]] const generator_t &generator() const noexcept;
 	[[nodiscard]] generator_t &generator() noexcept;
@@ -155,27 +161,10 @@ private:
 };
 
 template <method_enum Method, version_enum Version = version::v11>
-using request_context = basic_request_context<Method, connection, Version>;
+using request_context = basic_request_context<Method, asio::any_io_executor, Version>;
 
 } //namespace libgs::http
 #include <libgs/http/client/detail/request_context.h>
 
-#if LIBGS_OPENSSL_SUPPORT
-namespace libgs { namespace http
-{
 
-template <method_enum Method, version_enum Version = version::v11>
-using ssl_request_context = basic_request_context<Method, ssl_connection, Version>;
-
-} //namespace http
-
-namespace https
-{
-
-template <http::method_enum Method, http::version_enum Version = http::version::v11>
-using request_context = http::ssl_request_context<Method, Version>;
-
-}} //namespace libgs::https
-
-#endif //LIBGS_OPENSSL_SUPPORT
 #endif //LIBGS_HTTP_CLIENT_REQUEST_CONTEXT_H

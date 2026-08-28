@@ -282,7 +282,7 @@ public:
 				offset += m_content_range->first;
 			}
 			m_plain_body_size += body.size();
-			append_body(0, offset, body);
+			append_body(0, offset, std::move(body));
 		}
 		if( m_parser.stage() == stage::finished and m_content_range and
 			m_content_range->satisfied and m_plain_body_size != m_content_range->length() )
@@ -290,23 +290,77 @@ public:
 		return {};
 	}
 
-	void append_body(size_t part_index, size_t offset, const std::string &data)
+	[[nodiscard]] std::string_view partial_body() const noexcept {
+		return std::string_view(m_partial_body).substr(m_partial_body_pos);
+	}
+
+	[[nodiscard]] bool partial_body_empty() const noexcept {
+		return m_partial_body_pos == m_partial_body.size();
+	}
+
+	void clear_partial_body() noexcept
 	{
-		if( data.empty() )
+		m_partial_body.clear();
+		m_partial_body_pos = 0;
+	}
+
+	void compact_partial_body()
+	{
+		if( partial_body_empty() )
+			clear_partial_body();
+
+		else if( m_partial_body_pos >= 0xFFFF and
+				 m_partial_body_pos >= m_partial_body.size() - m_partial_body_pos )
+		{
+			m_partial_body.erase(0, m_partial_body_pos);
+			m_partial_body_pos = 0;
+		}
+	}
+
+	void append_segment(size_t part_index, size_t offset, size_t size)
+	{
+		if( size == 0 )
 			return ;
 
 		if( not m_segments.empty() and m_segments.back().part_index == part_index and
 			m_segments.back().offset + m_segments.back().length == offset )
-			m_segments.back().length += data.size();
+			m_segments.back().length += size;
 		else
 		{
 			m_segments.emplace_back(segment {
 				.part_index = part_index,
 				.offset = offset,
-				.length = data.size()
+				.length = size
 			});
 		}
+	}
+
+	void append_body(size_t part_index, size_t offset, const std::string &data)
+	{
+		if( data.empty() )
+			return ;
+
+		append_segment(part_index, offset, data.size());
+		compact_partial_body();
 		m_partial_body += data;
+	}
+
+	void append_body(size_t part_index, size_t offset, std::string &&data)
+	{
+		if( data.empty() )
+			return ;
+
+		append_segment(part_index, offset, data.size());
+		if( partial_body_empty() )
+		{
+			m_partial_body = std::move(data);
+			m_partial_body_pos = 0;
+		}
+		else
+		{
+			compact_partial_body();
+			m_partial_body += data;
+		}
 	}
 
 	void sync_multipart_norms()
@@ -347,11 +401,62 @@ public:
 
 	[[nodiscard]] std::string take_partial_body(size_t size)
 	{
-		size = std::min(size, m_partial_body.size());
-		auto result = m_partial_body.substr(0, size);
-		m_partial_body.erase(0, size);
+		size = std::min(size, partial_body().size());
+		auto result = std::string(partial_body().substr(0, size));
+
+		m_partial_body_pos += size;
 		consume_segments(size);
+
+		compact_partial_body();
 		return result;
+	}
+
+	[[nodiscard]] size_t read_partial_body(const mutable_buffer &buffer) noexcept
+	{
+		auto size = std::min(buffer.size(), partial_body().size());
+		if( size == 0 )
+			return 0;
+
+		m_partial_body.copy (
+			static_cast<char*>(buffer.data()), size,
+			m_partial_body_pos
+		);
+		m_partial_body_pos += size;
+		consume_segments(size);
+
+		compact_partial_body();
+		return size;
+	}
+
+	[[nodiscard]] std::string take_all_partial_body()
+	{
+		std::string result;
+		if( m_partial_body_pos == 0 )
+			result = std::move(m_partial_body);
+		else
+			result = partial_body();
+
+		clear_partial_body();
+		m_segments.clear();
+		return result;
+	}
+
+	[[nodiscard]] size_t prepare_direct_body_read(size_t size) const noexcept
+	{
+		if( m_gzip_decoder or m_multipart_parser or m_content_range or
+			not partial_body_empty() )
+			return 0;
+		return m_parser.prepare_direct_body_read(size);
+	}
+
+	[[nodiscard]] bool commit_direct_body_read(size_t size) noexcept
+	{
+		if( m_gzip_decoder or m_multipart_parser or m_content_range or
+			not partial_body_empty() or not m_parser.commit_direct_body_read(size) )
+			return false;
+
+		m_plain_body_size += size;
+		return true;
 	}
 
 	[[nodiscard]] optional<byte_range_chunk> take_range_body(size_t size)
@@ -365,10 +470,12 @@ public:
 		byte_range_chunk result {
 			.part_index = segment.part_index,
 			.offset = segment.offset,
-			.data = m_partial_body.substr(0, size)
+			.data = std::string(partial_body().substr(0, size))
 		};
-		m_partial_body.erase(0, size);
+		m_partial_body_pos += size;
 		consume_segments(size);
+
+		compact_partial_body();
 		return result;
 	}
 
@@ -379,7 +486,7 @@ public:
 		m_multipart_parser.reset();
 
 		m_body_norms = basic_body_norms {};
-		m_partial_body.clear();
+		clear_partial_body();
 		m_segments.clear();
 
 		m_plain_body_size = 0;
@@ -407,6 +514,8 @@ public:
 	std::unique_ptr<multipart_byte_ranges_parser> m_multipart_parser {};
 
 	std::string m_partial_body {};
+	size_t m_partial_body_pos = 0;
+
 	std::deque<segment> m_segments {};
 	size_t m_plain_body_size = 0;
 
@@ -557,12 +666,19 @@ std::string parser<protocol_model::client>::take_partial_body(size_t size)
 	return m_impl->take_partial_body(size);
 }
 
+size_t parser<protocol_model::client>::read_partial_body(const mutable_buffer &buffer) noexcept
+{
+	return m_impl->read_partial_body(buffer);
+}
+
+size_t parser<protocol_model::client>::partial_body_size() const noexcept
+{
+	return m_impl->partial_body().size();
+}
+
 std::string parser<protocol_model::client>::take_body()
 {
-	auto result = std::move(m_impl->m_partial_body);
-	m_impl->m_partial_body.clear();
-	m_impl->m_segments.clear();
-	return result;
+	return m_impl->take_all_partial_body();
 }
 
 std::string parser<protocol_model::client>::take_pending_data()
@@ -573,6 +689,16 @@ std::string parser<protocol_model::client>::take_pending_data()
 optional<byte_range_chunk> parser<protocol_model::client>::take_range_body(size_t size)
 {
 	return m_impl->take_range_body(size);
+}
+
+size_t parser<protocol_model::client>::prepare_direct_body_read(size_t size) const noexcept
+{
+	return m_impl->prepare_direct_body_read(size);
+}
+
+bool parser<protocol_model::client>::commit_direct_body_read(size_t size) noexcept
+{
+	return m_impl->commit_direct_body_read(size);
 }
 
 parser<protocol_model::client>::~parser()

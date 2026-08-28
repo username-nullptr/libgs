@@ -45,47 +45,85 @@ public:
 		m_wrap(std::move(wrap)),
 		m_service_exec(get_executor_helper (
 			std::forward<decltype(service_exec)>(service_exec)
-		)) {}
+		))
+	{
+		bind_session_error_handler();
+	}
 
 	explicit impl(acceptor_wrap_t &&wrap) :
-		m_wrap(std::move(wrap)) {
+		m_wrap(std::move(wrap))
+	{
 		m_service_exec = m_wrap.acceptor().get_executor();
+		bind_session_error_handler();
 	}
 
 public:
-	void async_start(size_t max, error_code &error) noexcept {
+	void async_start(size_t max, error_code &error) noexcept
+	{
 		async_start(m_service_exec, max, error);
 	}
 
 	void async_start(const executor_t &service_exec, size_t max, error_code &error) noexcept
 	{
+		error.clear();
 		if( m_is_start )
 			return ;
+
 		m_wrap.acceptor().listen(static_cast<int>(max), error);
 		if( error )
 			return ;
 		m_is_start = true;
 
 		libgs::dispatch(m_wrap.acceptor().get_executor(),
-		[self = this->shared_from_this(), service_exec]() mutable -> awaitable<void>
+		[self = this->shared_from_this(), service_exec]() mutable
 		{
 			bool abd = false;
 			try {
-				co_await self->do_tcp_accept(service_exec);
+				self->do_tcp_accept(service_exec);
 			}
 			catch(...) {
 				abd = true;
 			}
-			self->m_wrap.acceptor().cancel();
-			error_code _error; LIBGS_UNUSED(_error);
-
-			self->m_wrap.acceptor().close(_error);
-			self->m_is_start = false;
-
 			if( abd )
+			{
+				error_code ignored {};
+				self->m_wrap.acceptor().cancel(ignored);
+				self->m_wrap.acceptor().close(ignored);
+				self->m_is_start = false;
 				forced_termination();
-			co_return ;
+			}
 		});
+	}
+
+	void bind_session_error_handler()
+	{
+		m_session_manager.on_error (
+		[this](const session_ptr&, const error_code &error)
+		{
+			call_on_server_error(error);
+		});
+	}
+
+	void set_config(config_t config) noexcept
+	{
+		using namespace std::chrono_literals;
+		if( config.first_reading_time <= 0ms )
+			config.first_reading_time = 1ms;
+
+		if( config.keepalive_time < 0ms )
+			config.keepalive_time = 0ms;
+
+		if constexpr( requires { config.tls_handshake_timeout; } )
+		{
+			if( config.tls_handshake_timeout <= 0ms )
+				config.tls_handshake_timeout = 1ms;
+		}
+		m_config = std::move(config);
+	}
+
+	[[nodiscard]] config_t config() const noexcept
+	{
+		return m_config;
 	}
 
 	void rule_path_check(std::string &str)
@@ -98,78 +136,111 @@ public:
 
 		if( not str.starts_with('/') )
 			str = "/" + str;
+
+		if( str.size() > 1 and str.ends_with('/') )
+			str.pop_back();
 	}
 
 private:
-	[[nodiscard]] awaitable<void> do_tcp_accept(const executor_t &service_exec)
+	void do_tcp_accept(const executor_t &service_exec)
 	{
-		do try {
-			auto connection = co_await m_wrap.accept(service_exec);
-			if( not connection.opt_helper().is_open() )
-				continue;
-
-			if constexpr( std::is_same_v<typename connection_t::protocol_t, asio::ip::tcp> )
+		auto callback =
+		[self = this->shared_from_this(), service_exec](connection_ptr connection) mutable
+		{
+			if( not connection )
 			{
-				error_code error {};
-				connection.opt_helper().set_option (
-					asio::ip::tcp::no_delay(true), error
-				);
-				if( error )
+				if( not self->m_is_start )
 				{
-					connection.opt_helper().close();
-					call_on_server_error(error);
-					continue;
+					error_code ignored {};
+					self->m_wrap.acceptor().cancel(ignored);
+					self->m_wrap.acceptor().close(ignored);
 				}
+				return ;
 			}
-			libgs::dispatch(service_exec, [self = this->shared_from_this(),
-				connection = std::make_shared<connection_t>(std::move(connection)),
-				kp_time = m_keepalive_timeout
-			]() mutable -> awaitable<void>
+			if( not self->m_is_start or not connection->is_open() )
+			{
+				ignore_unused(connection->close());
+				return ;
+			}
+			tcp_socket_options options {};
+			options.no_delay = true;
+
+			auto set_result = connection->set_options(options);
+			if( not set_result )
+			{
+				ignore_unused(connection->close());
+				self->call_on_server_error(set_result.error());
+				return ;
+			}
+			auto config = self->m_config;
+			libgs::dispatch(service_exec,
+			[self = std::move(self), connection = std::move(connection), config]
+			() mutable -> awaitable<void>
 			{
 				bool abd = false;
 				bool released = false;
 				try {
-					released = co_await self->do_tcp_service(connection, kp_time);
+					released = co_await self->do_tcp_service (
+						connection, config.first_reading_time,
+						config.keepalive_time
+					);
 				}
 				catch(...) {
 					abd = true;
 				}
 				if( not released )
-					connection->opt_helper().close();
+					ignore_unused(connection->close());
 				if( abd )
 					forced_termination();
 				co_return ;
 			});
-		}
-		catch(std::system_error &ex)
+		};
+
+		if constexpr( requires { m_config.tls_handshake_timeout; } )
 		{
-			if( not m_is_start )
-				break;
-			call_on_server_error(ex.code());
+			m_wrap.accept(service_exec, std::move(callback),
+				m_config.tls_handshake_timeout
+			);
 		}
-		while(true);
-		co_return ;
+		else
+			m_wrap.accept(service_exec, std::move(callback));
 	}
 
 	[[nodiscard]] awaitable<bool> do_tcp_service
-	(const connection_ptr &connection, const milliseconds &keepalive_time)
+	(const connection_ptr &connection, milliseconds first_reading_time,
+	 milliseconds keepalive_time)
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
 
-		const auto *time = &m_first_reading_time;
+		const auto *time = &first_reading_time;
+		std::string pending_data {};
 		for(;;)
 		{
-			context_t context(connection, m_session_manager);
+			server_parser parser {};
+			if( not pending_data.empty() )
+			{
+				auto expected = parser.append(buffer(pending_data));
+				if( not expected )
+				{
+					call_on_server_error(expected.error());
+					break;
+				}
+			}
+			context_t context (
+				connection, std::move(parser), m_session_manager
+			);
 			try {
 				co_await context.request().wait(use_awaitable | *time);
 			}
 			catch(std::system_error &ex)
 			{
 				auto eno = ex.code().value();
-				if( eno == errc::bad_descriptor or eno == errc::eof or eno == errc::timed_out )
+				if( eno == errc::bad_descriptor or eno == errc::eof or
+					eno == errc::timed_out )
 					break;
 				call_on_server_error(ex.code());
+				break;
 			}
 			context.response().auto_set(context.request());
 			if( auto expectation = context.request().header(header::expect); expectation )
@@ -196,6 +267,24 @@ private:
 			if( not context.request().keep_alive() )
 				break;
 
+			if( context.request().can_read_body() )
+			{
+				if( context.request().header(header::expect) )
+					break;
+				try
+				{
+					ignore_unused(
+						co_await context.request().read(use_awaitable)
+					);
+				}
+				catch(const std::system_error &ex)
+				{
+					call_on_server_error(ex.code());
+					break;
+				}
+			}
+			pending_data = context.request().take_pending_data();
+
 			time = &keepalive_time;
 			if( *time == 0ms )
 				break;
@@ -207,24 +296,29 @@ private:
 	[[nodiscard]] awaitable<void> call_on_request(context_t &context)
 	{
 		tk_handler_ptr handler {};
+		const std::string *selected_rule = nullptr;
+
 		int32_t weight = std::numeric_limits<int32_t>::max();
 		size_t path_length = std::numeric_limits<size_t>::min();
 
 		for(auto &[rule, _handler] : m_request_handler_map)
 		{
-			auto _path_length = context.request().path().length();
+			auto _path_length = rule.length();
 			auto _weight = context.request().path_match(rule);
 
 			if( _weight == 0 )
 			{
 				handler = _handler;
+				selected_rule = &rule;
 				weight = _weight;
 				break;
 			}
 			else if( _weight > 0 and (_weight < weight or (_weight == weight and _path_length > path_length)) )
 			{
 				handler = _handler;
+				selected_rule = &rule;
 				weight = _weight;
+				path_length = _path_length;
 			}
 		}
 		if( not handler )
@@ -232,7 +326,9 @@ private:
 			context.response().set_status(status::not_found);
 			co_return ;
 		}
+		ignore_unused(context.request().path_match(*selected_rule));
 		auto method = context.request().method();
+
 		if( not ( handler->method & method ) )
 		{
 			if( method == method::head )
@@ -241,11 +337,12 @@ private:
 					.set_header(header::content_type,"text/plain")
 					.write(use_awaitable);
 			}
-			if( method == method::options )
+			else if( method == method::options )
 			{
+				auto body = options_response_body(handler->method);
 				co_await context.response()
 					.set_header(header::content_type,"text/plain")
-					.write(options_response_body(handler->method), use_awaitable);
+					.write(body, use_awaitable);
 			}
 			else
 			{
@@ -333,7 +430,7 @@ private:
 		context.response().set_status(status::internal_server_error);
 		if( m_service_error_handler and m_service_error_handler(context, ex) )
 			return ;
-		throw ex;
+		throw ;
 	}
 
 	[[nodiscard]] static std::string options_response_body(methods method)
@@ -444,8 +541,7 @@ public:
 	std::map<std::string, tk_handler_ptr> m_request_handler_map {};
 	session_manager m_session_manager {};
 
-	milliseconds m_first_reading_time {1500};
-	milliseconds m_keepalive_timeout {5000};
+	config_t m_config {};
 	std::atomic_bool m_is_start {false};
 };
 
@@ -547,7 +643,10 @@ template <concepts::any_exec_stream Stream>
 basic_server<Stream> &basic_server<Stream>::start
 (core_concepts::sched auto &&service_exec, size_t max, error_code &error) noexcept
 {
-	m_impl->async_start(service_exec, max, error);
+	m_impl->async_start (
+		get_executor_helper(std::forward<decltype(service_exec)>(service_exec)),
+		max, error
+	);
 	return *this;
 }
 
@@ -562,8 +661,8 @@ template <concepts::any_exec_stream Stream>
 template <method_enum...Method, typename Func, typename...AopPtrs>
 basic_server<Stream> &basic_server<Stream>::on_request
 (const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-	concepts::request_handler<Func,connection_t> and
-	concepts::aop_ptr_list<connection_t,AopPtrs...>
+	concepts::request_handler<Func,executor_t> and
+	concepts::aop_ptr_list<executor_t,AopPtrs...>
 {
 	for(auto &path_rule : path_rules.paths)
 	{
@@ -575,8 +674,8 @@ basic_server<Stream> &basic_server<Stream>::on_request
 		}
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
-		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
+		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 		if( not res )
 		{
 			runtime_error::loc_throw (
@@ -605,8 +704,8 @@ basic_server<Stream> &basic_server<Stream>::on_request
 		}
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
-		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
+		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 		if( not res )
 		{
 			runtime_error::loc_throw (
@@ -634,8 +733,8 @@ basic_server<Stream> &basic_server<Stream>::on_request
 		}
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
-		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 
+		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
 		if( not res )
 		{
 			runtime_error::loc_throw (
@@ -651,7 +750,7 @@ basic_server<Stream> &basic_server<Stream>::on_request
 template <concepts::any_exec_stream Stream>
 template <typename Func>
 basic_server<Stream> &basic_server<Stream>::on_default(Func &&func) requires
-	concepts::request_handler<Func,connection_t>
+	concepts::request_handler<Func,executor_t>
 {
 	m_impl->m_default_handler = std::forward<Func>(func);
 	return *this;
@@ -675,13 +774,15 @@ template <concepts::any_exec_stream Stream>
 template <core_concepts::text_p<char> Text>
 basic_server<Stream> &basic_server<Stream>::unbound_request(const Text &path_rule)
 {
-	if( path_rule.empty() )
+	auto rule = strtls::to_string(path_rule);
+	if( rule.empty() )
 	{
 		runtime_error::loc_throw (
 			"libgs::http::server::unbound_request: path_rule is empty."
 		);
 	}
-	m_impl->m_request_handler_map.erase(strtls::to_string(path_rule));
+	m_impl->rule_path_check(rule);
+	m_impl->m_request_handler_map.erase(rule);
 	return *this;
 }
 
@@ -700,27 +801,20 @@ basic_server<Stream> &basic_server<Stream>::unbound_service_error()
 }
 
 template <concepts::any_exec_stream Stream>
-template <typename Rep, typename Period>
-basic_server<Stream> &basic_server<Stream>::set_first_reading_time(const duration<Rep,Period> &d)
+basic_server<Stream> &basic_server<Stream>::set_config(const config_t &config)
 {
-	using namespace std::chrono;
-	m_impl->m_first_reading_time = duration_cast<milliseconds>(d);
-	if( m_impl->m_first_reading_time == 0ms )
-		m_impl->m_first_reading_time = 1ms;
+	m_impl->set_config(config);
 	return *this;
 }
 
 template <concepts::any_exec_stream Stream>
-template <typename Rep, typename Period>
-basic_server<Stream> &basic_server<Stream>::set_keepalive_time(const duration<Rep,Period> &d)
+basic_server<Stream>::config_t basic_server<Stream>::config() const noexcept
 {
-	using namespace std::chrono;
-	m_impl->m_keepalive_timeout = duration_cast<milliseconds>(d);
-	return *this;
+	return m_impl->config();
 }
 
 template <concepts::any_exec_stream Stream>
-const basic_server<Stream>::executor_t &basic_server<Stream>::get_executor() noexcept
+basic_server<Stream>::executor_t basic_server<Stream>::get_executor() noexcept
 {
 	return m_impl->m_wrap.acceptor().get_executor();
 }
@@ -735,7 +829,8 @@ template <concepts::any_exec_stream Stream>
 basic_server<Stream> &basic_server<Stream>::stop() noexcept
 {
 	m_impl->m_is_start = false;
-	m_impl->m_wrap.acceptor().cancel();
+	error_code ignored {};
+	m_impl->m_wrap.acceptor().cancel(ignored);
 	return *this;
 }
 

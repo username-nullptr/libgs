@@ -32,18 +32,18 @@
 namespace libgs::http
 {
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-class LIBGS_HTTP_TAPI basic_request_context<Method,Connection,Version>::impl :
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+class LIBGS_HTTP_TAPI basic_request_context<Method,Exec,Version>::impl :
 	public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY(impl)
-	using connection_ptr = std::shared_ptr<connection_t>;
 
 public:
-	impl(connection_t &&connection, url_t url, options opt) :
-		m_connection(new connection_t(std::move(connection))),
+	impl(lease_ptr &&lease, url_t url, options opt) :
+		m_lease(std::move(lease)),
+		m_exec(lease_executor(m_lease)),
 		m_generator(std::move(url), std::move(opt.arg), opt.target_form),
-		m_reply(new reply_t(m_connection)),
+		m_reply(new reply_t(m_lease)),
 		m_cookie_store(std::move(opt.cookie_store))
 	{
 		m_reply->parser().set_request_method(Method);
@@ -51,172 +51,54 @@ public:
 		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
 	}
 
-	impl(impl &&other) noexcept :
-		m_connection(new connection_t(std::move(*other.m_connection))),
-		m_generator(std::move(other.m_generator)),
-		m_reply(new reply_t(m_connection, std::move(other.m_reply->parser()))),
-		m_cookie_store(std::move(other.m_cookie_store))
+private:
+	[[nodiscard]] static executor_t lease_executor(const lease_ptr &lease)
 	{
-		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
-	}
-
-	impl &operator=(impl &&other) noexcept
-	{
-		m_generator = std::move(other.m_generator);
-		m_connection = std::make_shared<connection_t>(std::move(*other.m_connection));
-		m_reply = std::make_shared<reply_t>(m_connection, std::move(other.m_reply->parser()));
-		m_cookie_store = std::move(other.m_cookie_store);
-		m_reply->bind_cookie_jar(m_cookie_store, m_generator.url());
-		return *this;
+		if( not lease or not lease->is_valid() )
+			invalid_argument::loc_throw("request context connection lease is invalid");
+		return lease->get().get_executor();
 	}
 
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token>
 	[[nodiscard]] auto write(const const_buffer &body, Token &&token)
 	{
-		using token_t = std::remove_cvref_t<Token>;
 		if constexpr( is_error_code_token_v<Token> )
-		{
-			return _write(body)
-				.or_else([&token](const error_code &error) {
-					token = error;
-				});
-		}
+			return detail::expected_value_or_error(_write(body), token);
+
 		else if constexpr( is_sync_opt_token_v<Token> )
-			return _write(body);
+			return detail::expected_value_or_throw(_write(body));
 
-		else if constexpr( is_redirect_time_v<token_t> )
+		else if constexpr( is_detached_v<token_unbound_t<Token>> )
 		{
-			decltype(auto) no_time_token = unbound_redirect_time(token);
-			using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
+			using namespace std::chrono_literals;
+			auto data = std::make_shared<std::string>();
 
-			decltype(auto) original_token = unbound_token(no_time_token);
-			using original_token_t = std::remove_cvref_t<decltype(original_token)>;
+			if( body.size() > 0 )
+				data->assign(static_cast<const char*>(body.data()), body.size());
 
-			if constexpr( is_use_awaitable_v<original_token_t> )
+			return detail::initiate_expected<size_t>(m_exec,
+			[self = this->shared_from_this(), data = std::move(data)]() mutable -> awaitable<io_expected>
 			{
-				if constexpr( is_redirect_error_v<no_time_token_t> )
-				{
-					return _co_write(no_time_token.ec_, body,
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					);
-				}
-				else
-				{
-					return _co_write(body,
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					);
-				}
-			}
-			else if constexpr( is_deferred_v<original_token_t> )
-			{
-				if constexpr( is_redirect_error_v<no_time_token_t> )
-				{
-					return libgs::dispatch(m_connection->get_executor(), _co_write(no_time_token.ec_, body,
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred);
-				}
-				else
-				{
-					return libgs::dispatch(m_connection->get_executor(), _co_write(body,
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred);
-				}
-			}
-			//
-			else if constexpr( is_use_future_v<original_token_t> )
-			{
-				auto buf_ptr = std::make_shared<std::string>(
-					static_cast<const char*>(body.data()), body.size()
+				auto state = co_await asio::this_coro::cancellation_state;
+				co_return co_await self->_co_write (
+					{data->data(), data->size()}, state.slot(), 0ns
 				);
-				auto promise = std::make_shared<std::promise<io_expected>>();
-				if constexpr( is_redirect_error_v<no_time_token_t> )
-				{
-					libgs::dispatch(m_connection->get_executor(), [self = this->shared_from_this(),
-						no_time_token, buf = std::move(buf_ptr), promise = std::move(promise),
-						cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-						timeout = get_associated_redirect_time(token)
-					]() mutable noexcept -> awaitable<void>
-					{
-						promise->set_value(co_await self->_co_write (
-							no_time_token.ec_, {buf->data(), buf->size()}, cancel_slot, timeout
-						));
-						co_return ;
-					});
-				}
-				else
-				{
-					libgs::dispatch(m_connection->get_executor(), [self = this->shared_from_this(),
-						buf = std::move(buf_ptr), promise = std::move(promise),
-						cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-						timeout = get_associated_redirect_time(token)
-					]() mutable noexcept -> awaitable<void>
-					{
-						promise->set_value(co_await self->_co_write (
-							{buf->data(), buf->size()}, cancel_slot, timeout
-						));
-						co_return ;
-					});
-				}
-				return promise->get_future();
-			}
-			else if constexpr( is_detached_v<original_token_t> )
-				_write_detach(body);
-			else
-			{
-				auto buf_ptr = std::make_shared<std::string>(
-					static_cast<const char*>(body.data()), body.size()
-				);
-				if constexpr( is_redirect_error_v<no_time_token_t> )
-				{
-					libgs::dispatch(m_connection->get_executor(), [
-						self = this->shared_from_this(), no_time_token, original_token,
-						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
-						cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-					]() mutable noexcept -> awaitable<void>
-					{
-						auto expected = co_await self->_co_write (
-							no_time_token.ec_, buf, cancel_slot, timeout
-						);
-						expected
-						.transform([&callback = original_token](int code) {
-							callback(error_code(), code);
-						})
-						.or_else([&callback = original_token](const error_code &error) {
-							callback(error, 255);
-						});
-					});
-				}
-				else
-				{
-					libgs::dispatch(m_connection->get_executor(), [self = this->shared_from_this(), original_token,
-						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
-						cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-					]() mutable noexcept -> awaitable<void>
-					{
-						auto expected = co_await self->_co_write (
-							buf, cancel_slot, timeout
-						);
-						expected
-						.transform([&callback = original_token](int code) {
-							callback(error_code(), code);
-						})
-						.or_else([&callback = original_token](const error_code &error) {
-							callback(error, 255);
-						});
-					});
-				}
-			}
+			},
+			std::forward<Token>(token));
 		}
 		else
 		{
-			using namespace libgs::operators;
 			using namespace std::chrono_literals;
-			return write(body, token | 0ns);
+			return detail::initiate_expected<size_t>(m_exec,
+			[self = this->shared_from_this(), body]() mutable -> awaitable<io_expected>
+			{
+				auto state = co_await asio::this_coro::cancellation_state;
+				co_return co_await self->_co_write (
+					body, state.slot(), 0ns
+				);
+			},
+			std::forward<Token>(token));
 		}
 	}
 
@@ -260,7 +142,10 @@ public:
 			auto error = do_transfer(0, token->file_size);
 			token->stream->close();
 			if( error )
+			{
+				close_connection();
 				return io_unexpected(error);
+			}
 		}
 		else if( norms.index() == 1 )
 		{
@@ -270,7 +155,10 @@ public:
 			auto error = do_transfer(range_norms.begin, range_norms.total);
 			token->stream->close();
 			if( error )
+			{
+				close_connection();
 				return io_unexpected(error);
+			}
 		}
 		else if( norms.index() == 2 )
 		{
@@ -293,6 +181,7 @@ public:
 				else if( auto error = do_transfer(range.begin, range.total) )
 				{
 					token->stream->close();
+					close_connection();
 					return io_unexpected(error);
 				}
 			}
@@ -323,8 +212,7 @@ public:
 		if( not token )
 			co_return io_unexpected(token.error());
 
-		auto task = libgs::dispatch(m_connection->get_executor(),
-		[&]() mutable noexcept -> awaitable<io_expected>
+		auto task = libgs::dispatch(m_exec, [&]() mutable noexcept -> awaitable<io_expected>
 		{
 			char buffer[128 * 1024] {0};
 			size_t sum = 0, total = 0;
@@ -360,7 +248,10 @@ public:
 				auto error = co_await do_transfer(0, token->file_size);
 				token->stream->close();
 				if( error )
+				{
+					close_connection();
 					co_return io_unexpected(error);
+				}
 			}
 			else if( norms.index() == 1 )
 			{
@@ -370,7 +261,10 @@ public:
 				auto error = co_await do_transfer(range_norms.begin, range_norms.total);
 				token->stream->close();
 				if( error )
+				{
+					close_connection();
 					co_return io_unexpected(error);
+				}
 			}
 			else if( norms.index() == 2 )
 			{
@@ -397,6 +291,7 @@ public:
 					if( error )
 					{
 						token->stream->close();
+						close_connection();
 						co_return io_unexpected(error);
 					}
 				}
@@ -427,7 +322,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_connection->get_executor(), timeout)
+				coro::sleep_for(m_exec, timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -489,7 +384,7 @@ public:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_connection->get_executor(), timeout)
+				coro::sleep_for(m_exec, timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -513,7 +408,7 @@ public:
 	}
 
 	void chunk_end_detach(const headers_t &headers) noexcept {
-		libgs::dispatch(m_connection->get_executor(), co_chunk_end(headers), detached);
+		libgs::dispatch(m_exec, co_chunk_end(headers), detached);
 	}
 
 private:
@@ -529,10 +424,13 @@ private:
 		size_t sum = 0;
 		if( pro_state == generator_state::header )
 		{
-			auto expected = write_header(body.size());
-			if( not expected )
-				return expected;
-			sum += *expected;
+			auto header = m_generator.header_data(method_v, body.size());
+			if( body.size() > 0 )
+			{
+				auto content = m_generator.body_data(body);
+				return base_write(std::move(header), std::move(content));
+			}
+			return base_write(std::move(header));
 		}
 		if( body.size() > 0 )
 		{
@@ -554,17 +452,22 @@ private:
 				make_error_code(errc::eof)
 			);
 		}
-		auto task = libgs::dispatch(m_connection->get_executor(),
-		[&]() mutable noexcept -> awaitable<io_expected>
+		auto task = libgs::dispatch(m_exec, [&]() mutable noexcept -> awaitable<io_expected>
 		{
 			size_t sum = 0;
 			if( pro_state == generator_state::header )
 			{
-				auto expected = co_await co_write_header(body.size(), cancel_slot);
-				if( expected )
-					 sum += *expected;
-				else
-					co_return expected;
+				auto header = m_generator.header_data(method_v, body.size());
+				if( body.size() > 0 )
+				{
+					auto content = m_generator.body_data(body);
+					co_return co_await co_base_write(std::move(header),
+						std::move(content), std::move(cancel_slot)
+					);
+				}
+				co_return co_await co_base_write(std::move(header),
+					std::move(cancel_slot)
+				);
 			}
 			if( body.size() > 0 )
 			{
@@ -586,7 +489,7 @@ private:
 		else
 		{
 			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_connection->get_executor(), timeout)
+				coro::sleep_for(m_exec, timeout)
 			);
 			if( var.index() == 0 )
 				expected = std::get<0>(var);
@@ -610,7 +513,7 @@ private:
 	}
 
 	void _write_detach(const const_buffer &body) noexcept {
-		libgs::dispatch(m_connection->get_executor(), _co_write(body), detached);
+		libgs::dispatch(m_exec, _co_write(body), detached);
 	}
 
 private:
@@ -641,48 +544,110 @@ private:
 private:
 	[[nodiscard]] io_expected base_write(std::string &&data) noexcept
 	{
-		auto &sock_helper = m_connection->opt_helper();
-		error_code error;
+		if( not has_connection() )
+		{
+			return io_unexpected (
+				make_error_code(std::errc::not_connected)
+			);
+		}
+		auto expected = connection().write(const_buffer(data), use_sync);
+		if( not expected )
+		{
+			close_connection();
+			return io_unexpected(expected.error());
+		}
+		return *expected;
+	}
 
-		sock_helper.non_blocking(false, error);
-		if( error )
+	[[nodiscard]] io_expected base_write
+	(std::string &&header, std::string &&body) noexcept
+	{
+		if( not has_connection() )
 		{
-			sock_helper.close();
-			return io_unexpected(error);
+			return io_unexpected (
+				make_error_code(std::errc::not_connected)
+			);
 		}
-		auto sum = sock_helper.write(data, error);
-		if( error )
+		const const_buffer buffers[] {
+			const_buffer(header), const_buffer(body)
+		};
+		auto expected = connection().write(buffers, use_sync);
+		if( not expected )
 		{
-			sock_helper.close();
-			return io_unexpected(error);
+			close_connection();
+			return io_unexpected(expected.error());
 		}
-		return sum;
+		return *expected;
 	}
 
 	[[nodiscard]] awaitable<io_expected>
-	co_base_write(std::string &&data, asio::cancellation_slot cancel_slot) noexcept
+	co_base_write(std::string data, asio::cancellation_slot cancel_slot) noexcept
 	{
-		auto &sock_helper = m_connection->opt_helper();
-		error_code error;
-
-		sock_helper.non_blocking(true, error);
-		if( error )
-		{
-			sock_helper.close();
-			co_return io_unexpected(error);
-		}
-		using namespace std::chrono_literals;
 		using namespace libgs::operators;
+		error_code error {};
 
-		auto sum = co_await sock_helper.write(data,
+		if( not has_connection() )
+		{
+			co_return io_unexpected(
+				make_error_code(std::errc::not_connected)
+			);
+		}
+		auto sum = co_await connection().write(const_buffer(data),
 			use_awaitable | error | cancel_slot
 		);
 		if( error )
 		{
-			sock_helper.close();
+			close_connection();
 			co_return io_unexpected(error);
 		}
 		co_return sum;
+	}
+
+	[[nodiscard]] awaitable<io_expected>
+	co_base_write(std::string header, std::string body,
+		asio::cancellation_slot cancel_slot) noexcept
+	{
+		using namespace libgs::operators;
+		error_code error {};
+
+		if( not has_connection() )
+		{
+			co_return io_unexpected(
+				make_error_code(std::errc::not_connected)
+			);
+		}
+		const const_buffer buffers[] {
+			const_buffer(header), const_buffer(body)
+		};
+		auto sum = co_await connection().write(buffers,
+			use_awaitable | error | cancel_slot
+		);
+		if( error )
+		{
+			close_connection();
+			co_return io_unexpected(error);
+		}
+		co_return sum;
+	}
+
+	[[nodiscard]] connection_t &connection() noexcept
+	{
+		return m_lease->get();
+	}
+
+	[[nodiscard]] bool has_connection() const noexcept
+	{
+		return m_lease and m_lease->is_valid();
+	}
+
+	void close_connection() noexcept
+	{
+		if( not has_connection() )
+			return ;
+
+		auto connection = m_lease->take();
+		if( connection )
+			ignore_unused(connection->close());
 	}
 
 private:
@@ -747,491 +712,241 @@ private:
 	}
 
 public:
-	connection_ptr m_connection {};
+	lease_ptr m_lease {};
+	executor_t m_exec {};
+
 	generator_t m_generator;
 	reply_ptr m_reply {};
+
 	std::shared_ptr<cookie_jar> m_cookie_store {};
 };
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::basic_request_context
-(connection_t &&connection, url_t url, options opt) :
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::basic_request_context(lease_ptr &&lease, url_t url, options opt) :
 	mutable_headers<basic_request_context>(nullptr),
 	mutable_cookies<value,basic_request_context>(nullptr),
 	mutable_chunk_attributes<basic_request_context>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(connection), std::move(url), std::move(opt)))
+	m_impl(std::make_shared<impl>(std::move(lease), std::move(url), std::move(opt)))
 {
 	this->m_headers = &m_impl->m_generator.headers();
 	this->m_cookies = &m_impl->m_generator.cookies();
 	this->m_chunk_attributes = &m_impl->m_generator.chunk_attributes();
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::~basic_request_context() = default;
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::~basic_request_context() = default;
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::basic_request_context
-(basic_request_context &&other) noexcept :
-	mutable_headers<basic_request_context>(nullptr),
-	mutable_cookies<value,basic_request_context>(nullptr),
-	mutable_chunk_attributes<basic_request_context>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
-{
-	this->m_headers = &m_impl->m_generator.headers();
-	this->m_cookies = &m_impl->m_generator.cookies();
-	this->m_chunk_attributes = &m_impl->m_generator.chunk_attributes();
-}
-
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>&
-basic_request_context<Method,Connection,Version>::operator=(basic_request_context &&other) noexcept
-{
-	if( &other != this )
-		*m_impl = std::move(*other.m_impl);
-	return *this;
-}
-
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request_context<Method,Connection,Version>::write(Token &&token) noexcept
+auto basic_request_context<Method,Exec,Version>::write(Token &&token)
 {
-	return m_impl->write({}, token);
+	return m_impl->write({}, std::forward<Token>(token));
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request_context<Method,Connection,Version>::write
-(const const_buffer &body, Token &&token) noexcept requires put_or_post
+auto basic_request_context<Method,Exec,Version>::write(const const_buffer &body, Token &&token)
+	requires put_or_post
 {
-	return m_impl->write(body, token);
+	return m_impl->write(body, std::forward<Token>(token));
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <typename T, typename Token>
-auto basic_request_context<Method,Connection,Version>::
-upload_file(body_norms_t norms, T &&opt, Token &&token)
-	noexcept requires file_task_token_v<T,Token>
+auto basic_request_context<Method,Exec,Version>::upload_file(body_norms_t norms, T &&opt, Token &&token)
+	requires file_task_token_v<T,Token>
 {
 	return upload_file(std::move(norms),
 		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
 	);
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <typename T, typename Progress, typename Token>
-auto basic_request_context<Method,Connection,Version>::
-upload_file(body_norms_t norms, T &&opt, Progress &&progress, Token &&token)
-	noexcept requires file_task_token_v<T,Token> and concepts::progress_callback<Progress,Token>
+auto basic_request_context<Method,Exec,Version>::upload_file
+(body_norms_t norms, T &&opt, Progress &&progress, Token &&token)
+	requires file_task_token_v<T,Token> and concepts::progress_callback<Progress,Token>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->upload_file(std::move(norms),
-			std::forward<T>(opt), std::forward<Progress>(progress)
-		)
-		.or_else([&token](const error_code &error) {
-			token = error;
-		});
+		return detail::expected_value_or_error(m_impl->upload_file (
+			std::move(norms), std::forward<T>(opt),
+			std::forward<Progress>(progress)
+		), token);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return m_impl->upload_file(std::move(norms),
-			std::forward<T>(opt), std::forward<Progress>(progress)
-		);
-	}
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_upload_file(no_time_token.ec_, std::move(norms),
-					std::forward<T>(opt), std::forward<Progress>(progress),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_upload_file(std::move(norms),
-					std::forward<T>(opt), std::forward<Progress>(progress),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_upload_file(no_time_token.ec_, std::move(norms),
-						std::forward<T>(opt), std::forward<Progress>(progress),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_upload_file(std::move(norms),
-						std::forward<T>(opt), std::forward<Progress>(progress),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					no_time_token, promise = std::move(promise), norms = std::move(norms),
-					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable noexcept -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_upload_file(no_time_token.ec_,
-						std::move(norms), std::move(opt), std::move(progress),
-						cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					promise = std::move(promise), norms = std::move(norms),
-					opt = std::forward<T>(opt), progress = std::forward<Progress>(progress),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable noexcept -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_upload_file (
-						std::move(norms), std::move(opt), std::move(progress),
-						cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-				no_time_token, original_token, norms = std::move(norms), opt = std::forward<T>(opt),
-				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable noexcept -> awaitable<void>
-			{
-				auto expected = co_await impl->co_upload_file(no_time_token.ec_,
-					std::move(norms), std::move(opt), std::move(progress),
-					cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-				original_token, norms = std::move(norms), opt = std::forward<T>(opt),
-				progress = std::forward<Progress>(progress), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable noexcept -> awaitable<void>
-			{
-				auto expected = co_await impl->co_upload_file (
-					std::move(norms), std::move(opt), std::move(progress),
-					cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
+		return detail::expected_value_or_throw(m_impl->upload_file (
+			std::move(norms), std::forward<T>(opt),
+			std::forward<Progress>(progress)
+		));
 	}
 	else
 	{
-		using namespace libgs::operators;
 		using namespace std::chrono_literals;
-		return upload_file(std::move(norms),
-			std::forward<T>(opt), std::forward<Progress>(progress),
-			token | 0ns
-		);
+		return detail::initiate_expected<size_t>(get_executor(), [
+			impl = m_impl, norms = std::move(norms),
+			opt = detail::capture_async_argument(std::forward<T>(opt)),
+			progress = detail::capture_async_argument(std::forward<Progress>(progress))
+		]()mutable -> awaitable<io_expected>
+		{
+			auto state = co_await asio::this_coro::cancellation_state;
+			co_return co_await impl->co_upload_file (
+				std::move(norms),
+				detail::unwrap_async_argument(opt),
+				detail::unwrap_async_argument(progress),
+				state.slot(), 0ns
+			);
+		},
+		std::forward<Token>(token));
 	}
 }
-
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request_context<Method,Connection,Version>::
-chunk_end(const headers_t &headers, Token &&token) noexcept requires put_or_post
+auto basic_request_context<Method,Exec,Version>::chunk_end(const headers_t &headers, Token &&token)
+	requires put_or_post
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->chunk_end(headers)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
+		return detail::expected_value_or_error (
+			m_impl->chunk_end(headers), token
+		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->chunk_end(headers);
-
-	else if constexpr( is_redirect_time_v<token_t> )
 	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_chunk_end(no_time_token.ec_, headers,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_chunk_end(headers,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_chunk_end(no_time_token.ec_, headers,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_chunk_end(headers,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(get_executor(), [
-					impl = m_impl->shared_from_this(), no_time_token, headers, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable noexcept -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_chunk_end (
-						no_time_token.ec_, headers, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [
-					impl = m_impl->shared_from_this(), headers, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable noexcept -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_chunk_end (
-						headers, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_detached_v<original_token_t> )
-			m_impl->chunk_end_detach(headers);
-
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(get_executor(), [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				headers, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable noexcept -> awaitable<void>
-			{
-				auto expected = co_await impl->co_chunk_end (
-					no_time_token.ec_, headers, cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [
-				impl = m_impl->shared_from_this(), original_token,
-				headers, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable noexcept -> awaitable<void>
-			{
-				auto expected = co_await impl->co_chunk_end (
-					headers, cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
+		return detail::expected_value_or_throw (
+			m_impl->chunk_end(headers)
+		);
 	}
 	else
 	{
-		using namespace operators;
 		using namespace std::chrono_literals;
-		return chunk_end(headers, token | 0ns);
+		return detail::initiate_expected<size_t>(get_executor(),
+		[impl = m_impl, headers]() mutable -> awaitable<io_expected>
+		{
+			auto state = co_await asio::this_coro::cancellation_state;
+			co_return co_await impl->co_chunk_end (
+				headers, state.slot(), 0ns
+			);
+		},
+		std::forward<Token>(token));
 	}
 }
-
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_request_context<Method,Connection,Version>::
-chunk_end(Token &&token) noexcept requires put_or_post
+auto basic_request_context<Method,Exec,Version>::chunk_end(Token &&token)
+	requires put_or_post
 {
-	return chunk_end({}, token);
+	return chunk_end({}, std::forward<Token>(token));
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
 template <typename Token>
-auto basic_request_context<Method,Connection,Version>::wait_reply(Token &&token)
-	noexcept requires task_token_v<Token,status_enum>
+auto basic_request_context<Method,Exec,Version>::wait_reply(Token &&token)
+	requires task_token_v<Token,status_enum>
 {
 	return reply()->wait(std::forward<Token>(token));
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::const_reply_ptr
-basic_request_context<Method,Connection,Version>::reply() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::const_reply_ptr
+basic_request_context<Method,Exec,Version>::reply() const noexcept
 {
 	return m_impl->m_reply;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::reply_ptr
-basic_request_context<Method,Connection,Version>::reply() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::reply_ptr
+basic_request_context<Method,Exec,Version>::reply() noexcept
 {
 	return m_impl->m_reply;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-bool basic_request_context<Method,Connection,Version>::responded() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+bool basic_request_context<Method,Exec,Version>::responded() const noexcept
 {
 	return reply()->valid();
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>&
-basic_request_context<Method,Connection,Version>::cancel() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>&
+basic_request_context<Method,Exec,Version>::cancel() noexcept
 {
-	connection().opt_helper().cancel();
+	if( m_impl->m_lease and m_impl->m_lease->is_valid() )
+	{
+		ignore_unused(m_impl->m_lease->get().cancel());
+		auto connection = m_impl->m_lease->take();
+		if( connection )
+			ignore_unused(connection->close());
+	}
 	return *this;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-const basic_request_context<Method,Connection,Version>::url_t&
-basic_request_context<Method,Connection,Version>::url() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+const basic_request_context<Method,Exec,Version>::url_t&
+basic_request_context<Method,Exec,Version>::url() const noexcept
 {
 	return m_impl->m_generator.url();
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::request_arg_t
-basic_request_context<Method,Connection,Version>::arg() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::request_arg_t
+basic_request_context<Method,Exec,Version>::arg() const noexcept
 {
 	return m_impl->m_generator.arg();
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::operator request_arg_t() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::operator request_arg_t() const noexcept
 {
 	return arg();
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-consteval method_enum basic_request_context<Method,Connection,Version>::method() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+consteval method_enum basic_request_context<Method,Exec,Version>::method() noexcept
 {
 	return method_v;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-consteval version_enum basic_request_context<Method,Connection,Version>::version() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+consteval version_enum basic_request_context<Method,Exec,Version>::version() noexcept
 {
 	return version_v;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-const basic_request_context<Method,Connection,Version>::connection_t&
-basic_request_context<Method,Connection,Version>::connection() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+const basic_request_context<Method,Exec,Version>::lease_t&
+basic_request_context<Method,Exec,Version>::lease() const noexcept
 {
-	return *m_impl->m_connection;
+	return *m_impl->m_lease;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::connection_t&
-basic_request_context<Method,Connection,Version>::connection() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::lease_t&
+basic_request_context<Method,Exec,Version>::lease() noexcept
 {
-	return *m_impl->m_connection;
+	return *m_impl->m_lease;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-const basic_request_context<Method,Connection,Version>::generator_t&
-basic_request_context<Method,Connection,Version>::generator() const noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+const basic_request_context<Method,Exec,Version>::generator_t&
+basic_request_context<Method,Exec,Version>::generator() const noexcept
 {
-	return *m_impl->m_generator;
+	return m_impl->m_generator;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::generator_t&
-basic_request_context<Method,Connection,Version>::generator() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::generator_t&
+basic_request_context<Method,Exec,Version>::generator() noexcept
 {
-	return *m_impl->m_generator;
+	return m_impl->m_generator;
 }
 
-template <method_enum Method, concepts::connection Connection, version_enum Version>
-basic_request_context<Method,Connection,Version>::executor_t
-basic_request_context<Method,Connection,Version>::get_executor() noexcept
+template <method_enum Method, core_concepts::exec Exec, version_enum Version>
+basic_request_context<Method,Exec,Version>::executor_t
+basic_request_context<Method,Exec,Version>::get_executor() noexcept
 {
-	return connection().get_executor();
+	return m_impl->m_exec;
 }
 
 } //namespace libgs::http

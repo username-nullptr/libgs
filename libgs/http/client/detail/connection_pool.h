@@ -1,4 +1,3 @@
-
 /************************************************************************************
 *                                                                                   *
 *   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
@@ -29,1748 +28,682 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
 
-#include <libgs/coro/utils.h>
-#include <libgs/core/shared_mutex.h>
+#include <libgs/http/utils/detail/async_expected.h>
+#include <condition_variable>
 #include <unordered_map>
-#include <unordered_set>
-#include <list>
+#include <deque>
 
 namespace libgs::http
 {
 
-template <concepts::stream Stream>
-default_stream_constructor<Stream>::socket_t
-default_stream_constructor<Stream>::make(auto &&exec)
-{
-	return socket_t(get_executor_helper (
-		std::forward<decltype(exec)>(exec))
-	);
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-class LIBGS_HTTP_TAPI basic_connection_pool<Stream,Constructor>::impl :
+template <core_concepts::exec Exec>
+class LIBGS_HTTP_TAPI basic_connection_pool<Exec>::impl :
 	public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
-	using opt_helper_t = connection_t::opt_helper_t;
-	using resolver_t = asio::ip::basic_resolver<protocol_t>;
+	using clock_t = std::chrono::steady_clock;
+	using timer_t = asio::basic_waitable_timer <
+		clock_t, asio::wait_traits<clock_t>, executor_t
+	>;
+	struct key_hash
+	{
+		[[nodiscard]] size_t operator()(const target_t &key) const noexcept
+		{
+			auto seed = std::hash<std::string>{}(key.host);
+
+			seed ^= std::hash<uint16_t>{}(key.port) + 0x9e3779b9U +
+				(seed << 6U) + (seed >> 2U);
+
+			seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.security))
+				+ 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
+
+			return seed;
+		}
+	};
+
+	struct idle_connection
+	{
+		connection_ptr connection {};
+		clock_t::time_point idle_since {};
+	};
+
+	struct connection_bucket
+	{
+		std::deque<idle_connection> idle {};
+		size_t connecting = 0;
+		size_t total = 0;
+	};
+
+	enum class wake_reason {
+		none, state_changed, cancelled, stopped
+	};
+
+	struct waiter
+	{
+		waiter(executor_t exec, target_t target) :
+			timer(std::move(exec)), key(std::move(target))
+		{
+			timer.expires_at(clock_t::time_point::max());
+		}
+		timer_t timer {};
+		target_t key {};
+		wake_reason reason = wake_reason::none;
+	};
 
 public:
-	explicit impl(const auto &exec, const config_t &config) :
-		m_config(config), m_exec(exec) {}
+	impl(connector_ptr connector, const config_t &config) :
+		m_connector(std::move(connector)), m_config(config),
+		m_exec(connector_executor(m_connector)) {}
 
-	impl(config_t config) :
-		m_config(config), m_exec(libgs::get_executor()) {}
+	impl(executor_t exec, const config_t &config) :
+		impl(std::make_shared<connector_t>(std::move(exec)), config) {}
 
-public:
-	[[nodiscard]] con_expected_t get
-	(const core_concepts::text_p<char> auto &host, const value &service) noexcept
-	{
-		resolver_t resolver(m_exec);
-		error_code error {};
-
-		auto results = resolver.resolve (
-			strtls::to_view(host), *service, error
-		);
-		if( error )
-			return sys_unexpected(error);
-
-		else if( results.empty() )
-		{
-			return sys_unexpected (
-				make_error_code(errc::not_found)
-			);
-		}
-		return get(results);
-	}
-
-	[[nodiscard]] awaitable<con_expected_t> co_get(
-		const core_concepts::text_p<char> auto &host, const value &service,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		using namespace std::chrono_literals;
-		using namespace libgs::operators;
-
-		con_expected_t result (
-			sys_unexpected(make_error_code(errc::invalid_argument))
-		);
-		auto task = libgs::dispatch(m_exec, [&]() mutable -> awaitable<void>
-		{
-			resolver_t resolver(m_exec);
-			error_code error {};
-
-			auto results = co_await resolver.async_resolve (
-				strtls::to_view(host), *service, use_awaitable | cancel_slot | error
-			);
-			if( error )
-			{
-				result.despair(error);
-				co_return ;
-			}
-			else if( results.empty() )
-			{
-				result.despair(make_error_code(errc::not_found));
-				co_return ;
-			}
-			result = co_await co_get(results, cancel_slot, 0ns);
-			co_return ;
-		},
-		use_awaitable);
-
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_exec, timeout)
-			);
-			if( var.index() == 1 )
-			{
-				if( not std::get<1>(var) )
-					result.despair(make_error_code(errc::timed_out));
-				else
-					result.despair(std::get<1>(var));
-			}
-		}
-		co_return result;
-	}
-
-	[[nodiscard]] con_expected_t co_get(std::error_code &error,
-		const core_concepts::text_p<char> auto &host, const value &service,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_get (
-			host, service, std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
+	~impl() {
+		invalidate();
 	}
 
 public:
-	[[nodiscard]] con_expected_t get(const dns_results &eps) noexcept
+	[[nodiscard]] sys_expected<lease_ptr>
+	acquire(const target_t &key, bool wait_when_full) noexcept
 	{
-		con_expected_t result (
-			sys_unexpected(make_error_code(errc::invalid_argument))
-		);
-		if( eps.empty() )
-			return result;
-
-		for(auto &ep : eps)
-		{
-			if( auto connection = get_connection(ep); connection )
-				return std::move(*connection);
-		}
-		for(auto &ep : eps)
-		{
-			result = get(ep);
-			if( result )
-				return result;
-		}
-		return result;
-	}
-
-	[[nodiscard]] awaitable<con_expected_t> co_get(const dns_results &eps,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		using namespace std::chrono_literals;
-		con_expected_t result (
-			sys_unexpected(make_error_code(errc::invalid_argument))
-		);
-		if( eps.empty() )
-			co_return result;
-
-		auto task = libgs::dispatch(m_exec, [&]() mutable -> awaitable<void>
-		{
-			for(auto &ep : eps)
+		try {
+			size_t request_generation = 0;
 			{
-				if( auto connection = get_connection(ep); connection )
+				std::lock_guard lock(m_mutex);
+				request_generation = m_cancel_generation;
+			}
+			for(;;)
+			{
+				connection_ptr connection {};
+				size_t generation = 0;
 				{
-					result = std::move(*connection);
-					co_return ;
+					std::unique_lock lock(m_mutex);
+					if( m_stopped )
+						return sys_unexpected(make_error_code(errc::operation_aborted));
+
+					if( request_generation != m_cancel_generation )
+						return sys_unexpected(make_error_code(errc::operation_aborted));
+
+					if( m_config.max_count == 0 )
+						return sys_unexpected(make_error_code(std::errc::no_buffer_space));
+
+					connection = take_idle_locked(key);
+					if( connection )
+					{
+						lock.unlock();
+						return lease_from_reserved(key, std::move(connection));
+					}
+					if( m_total_count >= m_config.max_count )
+						evict_one_idle_locked();
+
+					if( m_total_count < m_config.max_count )
+					{
+						auto &bucket = m_buckets[key];
+						++bucket.connecting;
+						++bucket.total;
+						++m_total_count;
+						generation = request_generation;
+					}
+					else if( not wait_when_full )
+					{
+						return sys_unexpected(make_error_code(
+							std::errc::resource_unavailable_try_again
+						));
+					}
+					else
+					{
+						auto epoch = m_state_epoch;
+						m_condition.wait(lock, [&] {
+							return m_stopped or m_state_epoch != epoch;
+						});
+						continue;
+					}
 				}
-			}
-			for(auto &ep : eps)
-			{
-				result = co_await co_get(ep, cancel_slot, 0ns);
-				if( result )
-					co_return ;
-			}
-		},
-		use_awaitable);
+				error_code error {};
+				connection = m_connector->connect(key, error);
 
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_exec, timeout)
-			);
-			if( var.index() == 1 )
-			{
-				if( not std::get<1>(var) )
-					result.despair(make_error_code(errc::timed_out));
-				else
-					result.despair(std::get<1>(var));
-			}
-		}
-		co_return result;
-	}
-
-	[[nodiscard]] con_expected_t co_get(std::error_code &error, const dns_results &eps,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_get (
-			eps, std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-public:
-	[[nodiscard]] con_expected_t get(const endpoint_t &ep) noexcept
-	{
-		using namespace std::chrono_literals;
-		auto connection = _get(ep, 0ns);
-
-		if( not connection or connection->peek() )
-			return connection;
-
-		std::error_code error;
-		connection->opt_helper().connect(ep, error);
-
-		if( error )
-			return sys_unexpected(error);
-		return finish_connect(std::move(connection));
-	}
-
-	[[nodiscard]] awaitable<con_expected_t> co_get(const endpoint_t &ep,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-
-		if( timeout == 0ns )
-		{
-			auto connection = co_await co_acquire(ep, cancel_slot, timeout);
-			if( not connection or connection->peek() )
-				co_return connection;
-
-			auto &sock_helper = connection->opt_helper();
-			add_task(&sock_helper);
-
-			std::error_code error;
-			co_await sock_helper.connect(ep, use_awaitable | cancel_slot | error);
-			erase_task(&sock_helper);
-
-			if( error )
-				co_return sys_unexpected(error);
-			co_return finish_connect(std::move(connection));
-		}
-		auto start_time = std::chrono::steady_clock::now();
-		auto connection = co_await co_acquire(ep, cancel_slot, timeout);
-
-		if( not connection or connection->peek() )
-			co_return connection;
-
-		auto end_time = std::chrono::steady_clock::now();
-		auto diff_time = end_time - start_time;
-
-		if( diff_time >= timeout )
-		{
-			co_return sys_unexpected (
-				make_error_code(errc::timed_out)
-			);
-		}
-		auto &sock_helper = connection->opt_helper();
-		add_task(&sock_helper);
-
-		std::error_code error;
-		auto var = co_await (
-			sock_helper.connect(ep, use_awaitable | cancel_slot | error) or
-			coro::sleep_for(sock_helper.get_executor(), timeout - diff_time)
-		);
-		erase_task(&sock_helper);
-
-		if( var.index() == 0 )
-		{
-			if( error )
-				co_return sys_unexpected(error);
-			co_return finish_connect(std::move(connection));
-		}
-
-		else if( not std::get<1>(var) )
-			co_return sys_unexpected(make_error_code(errc::timed_out));
-
-		co_return sys_unexpected(std::get<1>(var));
-	}
-
-	[[nodiscard]] con_expected_t co_get(std::error_code &error, const endpoint_t &ep,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_get (
-			ep, std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-public:
-	[[nodiscard]] con_expected_t try_get
-	(const core_concepts::text_p<char> auto &host, const value &service) noexcept
-	{
-		resolver_t resolver(m_exec);
-		error_code error {};
-
-		auto results = resolver.resolve (
-			strtls::to_view(host), *service, error
-		);
-		if( error )
-			return sys_unexpected(error);
-
-		else if( results.empty() )
-		{
-			return sys_unexpected (
-				make_error_code(errc::not_found)
-			);
-		}
-		return try_get(results);
-	}
-
-	[[nodiscard]] awaitable<con_expected_t> co_try_get(
-		const core_concepts::text_p<char> auto &host, const value &service,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		using namespace std::chrono_literals;
-		using namespace libgs::operators;
-
-		con_expected_t result (
-			sys_unexpected(make_error_code(errc::invalid_argument))
-		);
-		auto task = libgs::dispatch(m_exec, [&]() mutable -> awaitable<void>
-		{
-			resolver_t resolver(m_exec);
-			error_code error {};
-
-			auto results = co_await resolver.async_resolve (
-				strtls::to_view(host), *service, use_awaitable | cancel_slot | error
-			);
-			if( error )
-			{
-				result.despair(error);
-				co_return ;
-			}
-			else if( results.empty() )
-			{
-				result.despair(make_error_code(errc::not_found));
-				co_return ;
-			}
-			result = co_await co_try_get(results, cancel_slot, 0ns);
-			co_return ;
-		},
-		use_awaitable);
-
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_exec, timeout)
-			);
-			if( var.index() == 1 )
-			{
-				if( not std::get<1>(var) )
-					result.despair(make_error_code(errc::timed_out));
-				else
-					result.despair(std::get<1>(var));
-			}
-		}
-		co_return result;
-	}
-
-	[[nodiscard]] con_expected_t co_try_get(std::error_code &error,
-		const core_concepts::text_p<char> auto &host, const value &service,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_try_get (
-			host, service, std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-public:
-	[[nodiscard]] con_expected_t try_get(const dns_results &eps) noexcept
-	{
-		con_expected_t result (
-			sys_unexpected(make_error_code(errc::invalid_argument))
-		);
-		if( eps.empty() )
-			return result;
-
-		for(auto &ep : eps)
-		{
-			if( auto connection = get_connection(ep); connection )
-				return std::move(*connection);
-		}
-		for(auto &ep : eps)
-		{
-			result = try_get(ep);
-			if( result )
-				return result;
-		}
-		return result;
-	}
-
-	[[nodiscard]] awaitable<con_expected_t> co_try_get(const dns_results &eps,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		using namespace std::chrono_literals;
-		con_expected_t result (
-			sys_unexpected(make_error_code(errc::invalid_argument))
-		);
-		if( eps.empty() )
-			co_return result;
-
-		auto task = libgs::dispatch(m_exec, [&]() mutable -> awaitable<void>
-		{
-			for(auto &ep : eps)
-			{
-				if( auto connection = get_connection(ep); connection )
-				{
-					result = std::move(*connection);
-					co_return ;
-				}
-			}
-			for(auto &ep : eps)
-			{
-				result = co_await co_try_get(ep, cancel_slot, 0ns);
-				if( result )
-					co_return ;
-			}
-		},
-		use_awaitable);
-
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_exec, timeout)
-			);
-			if( var.index() == 1 )
-			{
-				if( not std::get<1>(var) )
-					result.despair(make_error_code(errc::timed_out));
-				else
-					result.despair(std::get<1>(var));
-			}
-		}
-		co_return result;
-	}
-
-	[[nodiscard]] con_expected_t co_try_get(std::error_code &error, const dns_results &eps,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_try_get (
-			eps, std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-public:
-	[[nodiscard]] con_expected_t try_get(const endpoint_t &ep) noexcept
-	{
-		auto connection = _try_get(ep);
-		if( not connection or connection->peek() )
-			return connection;
-
-		std::error_code error;
-		connection->opt_helper().connect(ep, error);
-
-		if( error )
-			return sys_unexpected(error);
-		return finish_connect(std::move(connection));
-	}
-
-	[[nodiscard]] awaitable<con_expected_t> co_try_get(const endpoint_t &ep,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto connection = _try_get(ep);
-		if( not connection or connection->peek() )
-			co_return connection;
-
-		auto &sock_helper = connection->opt_helper();
-		add_task(&sock_helper);
-
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-
-		std::error_code error;
-		auto task = sock_helper.connect(ep, use_awaitable | cancel_slot | error);
-
-		if( timeout == 0ns )
-		{
-			co_await std::move(task);
-			erase_task(&sock_helper);
-
-			if( error )
-				co_return sys_unexpected(error);
-			co_return finish_connect(std::move(connection));
-		}
-		auto var = co_await(std::move(task) or
-			coro::sleep_for(sock_helper.get_executor(), timeout)
-		);
-		erase_task(&sock_helper);
-
-		if( var.index() == 0 )
-		{
-			if( error )
-				co_return sys_unexpected(error);
-			co_return finish_connect(std::move(connection));
-		}
-
-		else if( not std::get<1>(var) )
-			co_return sys_unexpected(make_error_code(errc::timed_out));
-
-		co_return sys_unexpected(std::get<1>(var));
-	}
-
-	[[nodiscard]] con_expected_t co_try_get(std::error_code &error, const endpoint_t &ep,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_try_get (
-			ep, std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-public:
-	[[nodiscard]] bool try_increment() noexcept
-	{
-		std::lock_guard locker(m_mutex); LIBGS_UNUSED(locker);
-		if( m_counter.load(std::memory_order_relaxed) >= m_config.max_count )
-			return false;
-
-		m_counter.fetch_add(1, std::memory_order_relaxed);
-		return true;
-	}
-
-	bool emplace(socket_t &&socket, bool enable_no_delay = false)
-	{
-		opt_helper_t opt(socket);
-		if( enable_no_delay )
-		{
-			error_code error {};
-			if constexpr( std::is_same_v<protocol_t,asio::ip::tcp> )
-				opt.set_option(asio::ip::tcp::no_delay(true), error);
-
-			if( error )
-			{
-				decrement();
-				return false;
-			}
-		}
-		std::lock_guard locker(m_mutex);
-		if( not m_valid.load(std::memory_order_acquire) )
-		{
-			auto before = m_counter.fetch_sub(1, std::memory_order_relaxed);
-			assert(before > 0);
-			LIBGS_UNUSED(before);
-
-			notify_one_locked();
-			return false;
-		}
-		m_pool
-		.emplace(opt.remote_endpoint(), std::list<socket_t>())
-		.first->second
-		.emplace_back(std::move(socket));
-
-		notify_one_locked();
-		return true;
-	}
-
-	[[nodiscard]] size_t count() const noexcept {
-		return m_counter;
-	}
-
-private:
-	[[nodiscard]] con_expected_t _get
-	(const endpoint_t &ep, const std::chrono::nanoseconds &rtime) noexcept
-	{
-		const auto deadline = std::chrono::steady_clock::now() + rtime;
-		for(;;)
-		{
-			if( not m_valid.load(std::memory_order_acquire) )
-				return sys_unexpected(make_error_code(errc::operation_aborted));
-
-			if( auto connection = get_connection(ep); connection )
-				return std::move(*connection);
-
-			if( try_increment() )
-				return make(constructor_t::make(m_exec));
-
-			std::unique_lock locker(m_mutex);
-			auto available = [this, &ep]
-			{
-				auto it = m_pool.find(ep);
-				return not m_valid.load(std::memory_order_acquire) or
-					m_counter.load(std::memory_order_relaxed) < m_config.max_count or
-					(it != m_pool.end() and not it->second.empty());
-			};
-			using namespace std::chrono_literals;
-			if( rtime == 0ns )
-				m_condition.wait(locker, available);
-
-			else if( not m_condition.wait_until(locker, deadline, available) )
-			{
-				return sys_unexpected (
-					make_error_code(errc::timed_out)
-				);
-			}
-			if( not m_valid.load(std::memory_order_acquire) )
-			{
-				return sys_unexpected (
-					make_error_code(errc::operation_aborted)
+				return finish_connect(key, generation,
+					std::move(connection), error
 				);
 			}
 		}
-	}
-
-	[[nodiscard]] con_expected_t _try_get(const endpoint_t &ep) noexcept
-	{
-		for(;;)
-		{
-			if( not m_valid.load(std::memory_order_acquire) )
-				return sys_unexpected(make_error_code(errc::operation_aborted));
-
-			if( auto connection = get_connection(ep); connection )
-				return std::move(*connection);
-
-			if( not try_increment() )
-			{
-				return sys_unexpected (
-					make_error_code(errc::no_memory)
-				);
-			}
-			return make(constructor_t::make(m_exec));
+		catch(const std::bad_alloc&) {
+			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
 		}
+		catch(const std::system_error &ex) {
+			return sys_unexpected(ex.code());
+		}
+		catch(...) {}
+		return sys_unexpected(make_error_code(std::errc::io_error));
 	}
 
-private:
-	[[nodiscard]] awaitable<con_expected_t> co_acquire(const endpoint_t &ep,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<sys_expected<lease_ptr>>
+	co_acquire(target_t key, bool wait_when_full) noexcept
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-
-		const auto deadline = timeout == 0ns ?
-			asio::steady_timer::time_point::max() :
-			std::chrono::steady_clock::now() + timeout;
+		size_t request_generation = 0;
+		{
+			std::lock_guard lock(m_mutex);
+			request_generation = m_cancel_generation;
+		}
 		for(;;)
 		{
-			auto connection = _try_get(ep);
-			if( connection or connection.error() != errc::no_memory )
-				co_return connection;
-
-			auto waiter = std::make_shared<asio::steady_timer>(m_exec);
-			waiter->expires_at(deadline);
+			connection_ptr connection {};
+			size_t generation = 0;
+			std::shared_ptr<waiter> current_waiter {};
 			{
-				std::lock_guard locker(m_mutex);
-				if( not m_valid.load(std::memory_order_acquire) )
+				std::unique_lock lock(m_mutex);
+				if( m_stopped )
 					co_return sys_unexpected(make_error_code(errc::operation_aborted));
 
-				auto it = m_pool.find(ep);
-				if( m_counter.load(std::memory_order_relaxed) < m_config.max_count or
-					(it != m_pool.end() and not it->second.empty()) )
-					continue;
-				m_waiters.emplace_back(waiter);
-			}
-			error_code error {};
-			co_await waiter->async_wait(use_awaitable | cancel_slot | error);
+				if( request_generation != m_cancel_generation )
+					co_return sys_unexpected(make_error_code(errc::operation_aborted));
 
-			bool notified = true;
-			{
-				std::lock_guard locker(m_mutex);
-				auto it = std::find(m_waiters.begin(), m_waiters.end(), waiter);
-				if( it != m_waiters.end() )
+				if( m_config.max_count == 0 )
+					co_return sys_unexpected(make_error_code(std::errc::no_buffer_space));
+
+				connection = take_idle_locked(key);
+				if( connection )
 				{
-					m_waiters.erase(it);
-					notified = false;
+					lock.unlock();
+					co_return lease_from_reserved(key, std::move(connection));
+				}
+				if( m_total_count >= m_config.max_count )
+					evict_one_idle_locked();
+
+				if( m_total_count < m_config.max_count )
+				{
+					auto &bucket = m_buckets[key];
+					++bucket.connecting;
+					++bucket.total;
+					++m_total_count;
+					generation = request_generation;
+				}
+				else if( not wait_when_full )
+				{
+					co_return sys_unexpected(make_error_code (
+						std::errc::resource_unavailable_try_again
+					));
+				}
+				else
+				{
+					current_waiter = std::make_shared<waiter>(m_exec, key);
+					m_waiters.emplace_back(current_waiter);
 				}
 			}
-			if( notified )
+			if( current_waiter )
+			{
+				error_code wait_error {};
+				co_await current_waiter->timer.async_wait (
+					asio::redirect_error(use_awaitable, wait_error)
+				);
+				wake_reason reason = wake_reason::none;
+				{
+					std::lock_guard lock(m_mutex);
+					reason = current_waiter->reason;
+					remove_waiter_locked(current_waiter.get());
+				}
+				if( reason == wake_reason::state_changed )
+					continue;
+				if( reason == wake_reason::stopped )
+					co_return sys_unexpected(make_error_code(errc::operation_aborted));
+
+				if( reason == wake_reason::cancelled or wait_error )
+				{
+					co_return sys_unexpected(wait_error ? wait_error :
+						make_error_code(errc::operation_aborted));
+				}
 				continue;
-			if( not error )
-				co_return sys_unexpected(make_error_code(errc::timed_out));
-			co_return sys_unexpected(error);
+			}
+			error_code error {};
+			connection = co_await m_connector->connect (
+				key, asio::redirect_error(use_awaitable, error)
+			);
+			co_return finish_connect(key, generation,
+				std::move(connection), error
+			);
 		}
 	}
 
-	[[nodiscard]] optional<connection_t> get_connection(const endpoint_t &ep) noexcept
+public:
+	void cancel() noexcept
 	{
-		for(;;)
+		std::lock_guard lock(m_mutex);
+		++m_cancel_generation;
+
+		for(auto &item : m_waiters)
+			wake_waiter_locked(item, wake_reason::cancelled);
+
+		m_waiters.clear();
+		state_changed_locked();
+	}
+
+	void invalidate() noexcept
+	{
+		std::lock_guard lock(m_mutex);
+		if( m_stopped )
+			return ;
+
+		m_stopped = true;
+		++m_cancel_generation;
+
+		for(auto &item : m_waiters)
+			wake_waiter_locked(item, wake_reason::stopped);
+		m_waiters.clear();
+
+		for(auto &[key, bucket] : m_buckets)
 		{
-			auto socket = get_socket(ep);
-			if( not socket )
-				return {};
+			ignore_unused(key);
+			while( not bucket.idle.empty() )
+			{
+				auto connection = std::move(bucket.idle.front().connection);
+				bucket.idle.pop_front();
 
-			opt_helper_t opt_helper(*socket);
-			if( opt_helper.is_open() and opt_helper.message_peek() )
-				return make(std::move(*socket));
-
-			opt_helper.close();
-			decrement();
+				if( bucket.total > 0 )
+					--bucket.total;
+				if( m_total_count > 0 )
+					--m_total_count;
+				if( connection )
+					ignore_unused(connection->close());
+			}
 		}
+		state_changed_locked();
 	}
 
-	[[nodiscard]] optional<socket_t> get_socket(const endpoint_t &ep) noexcept
+	[[nodiscard]] size_t count() const noexcept
 	{
-		std::lock_guard locker(m_mutex);
-		auto it = m_pool.find(ep);
+		std::lock_guard lock(m_mutex);
+		return m_total_count;
+	}
 
-		if( it == m_pool.end() )
+private:
+	[[nodiscard]] static executor_t connector_executor(const connector_ptr &connector)
+	{
+		if( not connector )
+			invalid_argument::loc_throw("connection pool connector is null");
+		return connector->get_executor();
+	}
+
+	[[nodiscard]] bool reusable
+	(const connection_ptr &connection, clock_t::time_point idle_since = {}) const noexcept
+	{
+		if( not connection or not connection->is_open() )
+			return false;
+
+		if( idle_since != clock_t::time_point{} and
+			m_config.timeout.idle > config_t::seconds_t::zero() and
+			clock_t::now() - idle_since >= m_config.timeout.idle )
+			return false;
+
+		// Conservative policy: only an open connection with no readable data and
+		// no detected peer close is eligible for reuse. Probe failures and
+		// indeterminate states are discarded.
+		auto state = connection->probe();
+		return state and *state == connection_probe_state::no_event;
+	}
+
+	[[nodiscard]] connection_ptr take_idle_locked(const target_t &key) noexcept
+	{
+		auto pos = m_buckets.find(key);
+		if( pos == m_buckets.end() )
 			return {};
 
-		if( it->second.empty() )
+		while( not pos->second.idle.empty() )
 		{
-			m_pool.erase(it);
-			return {};
-		}
-		auto socket = std::move(it->second.front());
-		it->second.pop_front();
+			auto idle = std::move(pos->second.idle.back());
+			pos->second.idle.pop_back();
 
-		if( it->second.empty() )
-			m_pool.erase(it);
-		return socket;
+			if( reusable(idle.connection, idle.idle_since) )
+				return std::move(idle.connection);
+
+			if( idle.connection )
+				ignore_unused(idle.connection->close());
+
+			drop_count_locked(pos);
+			pos = m_buckets.find(key);
+
+			if( pos == m_buckets.end() )
+				break;
+		}
+		return {};
 	}
 
-	[[nodiscard]] connection_t make(socket_t &&socket) noexcept
+	bool evict_one_idle_locked() noexcept
 	{
-		return connection_t(std::move(socket),
-		[self = this->shared_from_this()](socket_t &&sock) mutable
-		{
-			if( not self->m_valid.load(std::memory_order_acquire) )
-				return ;
+		auto selected = m_buckets.end();
+		auto oldest = clock_t::time_point::max();
 
-			if( opt_helper_t opt_helper(sock); opt_helper.is_open() and opt_helper.message_peek() )
-				LIBGS_UNUSED(self->emplace(std::move(sock)));
+		for(auto pos = m_buckets.begin(); pos != m_buckets.end(); ++pos)
+		{
+			if( not pos->second.idle.empty() and pos->second.idle.front().idle_since < oldest )
+			{
+				selected = pos;
+				oldest = pos->second.idle.front().idle_since;
+			}
+		}
+		if( selected == m_buckets.end() )
+			return false;
+
+		auto connection = std::move(selected->second.idle.front().connection);
+		selected->second.idle.pop_front();
+
+		drop_count_locked(selected);
+		if( connection )
+			ignore_unused(connection->close());
+		return true;
+	}
+
+	[[nodiscard]] sys_expected<lease_ptr> finish_connect
+	(const target_t &key, size_t generation, connection_ptr connection, error_code error) noexcept
+	{
+		bool accepted = false;
+		{
+			std::lock_guard lock(m_mutex);
+			auto pos = m_buckets.find(key);
+
+			if( pos != m_buckets.end() and pos->second.connecting > 0 )
+				--pos->second.connecting;
+
+			if( m_stopped or generation != m_cancel_generation or error or not reusable(connection) )
+			{
+				drop_count_locked(pos);
+				if( not error )
+				{
+					error = m_stopped or generation != m_cancel_generation ?
+						make_error_code(errc::operation_aborted) :
+						make_error_code(std::errc::not_connected);
+				}
+			}
 			else
-				self->decrement();
+				accepted = true;
+		}
+		if( accepted )
+			return lease_from_reserved(key, std::move(connection));
+
+		if( connection )
+			ignore_unused(connection->close());
+		return sys_unexpected(error);
+	}
+
+	[[nodiscard]] sys_expected<lease_ptr> lease_from_reserved
+	(const target_t &key, connection_ptr connection) noexcept
+	{
+		try {
+			return make_lease(key, std::move(connection));
+		}
+		catch(const std::bad_alloc&)
+		{
+			std::lock_guard lock(m_mutex);
+			drop_count_locked(m_buckets.find(key));
+			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		}
+		catch(...)
+		{
+			std::lock_guard lock(m_mutex);
+			drop_count_locked(m_buckets.find(key));
+			return sys_unexpected(make_error_code(std::errc::io_error));
+		}
+	}
+
+	[[nodiscard]] lease_ptr make_lease(const target_t &key, connection_ptr connection)
+	{
+		auto weak = this->weak_from_this();
+		return std::make_shared<lease_t>(std::move(connection),
+		[weak = std::move(weak), key](connection_ptr released) mutable
+		{
+			if( auto self = weak.lock() )
+				self->give_back(key, std::move(released));
+			else if( released )
+				ignore_unused(released->close());
 		});
 	}
 
-private:
-	[[nodiscard]] con_expected_t finish_connect(con_expected_t connection) noexcept
+	void give_back(const target_t &key, connection_ptr connection) noexcept
 	{
-		if( not connection )
-			return connection;
+		const bool keep = reusable(connection);
+		{
+			std::lock_guard lock(m_mutex);
+			auto pos = m_buckets.find(key);
 
-		error_code error;
-		if constexpr( std::is_same_v<protocol_t,asio::ip::tcp> )
-		{
-			connection->opt_helper().set_option (
-				asio::ip::tcp::no_delay(true), error
-			);
+			if( not m_stopped and keep and pos != m_buckets.end() )
+			{
+				try {
+					pos->second.idle.push_back({std::move(connection), clock_t::now()});
+					if( not wake_matching_locked(key) )
+						wake_any_locked();
+					state_changed_locked();
+					return ;
+				}
+				catch(...) {}
+			}
+			drop_count_locked(pos);
 		}
-		if( error )
-		{
-			connection->opt_helper().close();
-			return sys_unexpected(error);
-		}
-		return connection;
+		if( connection )
+			ignore_unused(connection->close());
 	}
 
-	void decrement() noexcept
+	using bucket_iterator = std::unordered_map <
+		target_t, connection_bucket, key_hash
+	>::iterator;
+
+	void drop_count_locked(bucket_iterator pos) noexcept
 	{
-		std::lock_guard locker(m_mutex); LIBGS_UNUSED(locker);
-		auto before = m_counter.fetch_sub(1, std::memory_order_relaxed);
+		if( pos != m_buckets.end() )
+		{
+			if( pos->second.total > 0 )
+				--pos->second.total;
 
-		assert(before > 0);
-		LIBGS_UNUSED(before);
+			if( pos->second.total == 0 and
+				pos->second.connecting == 0 and
+				pos->second.idle.empty() )
+				m_buckets.erase(pos);
+		}
+		if( m_total_count > 0 )
+			--m_total_count;
 
-		notify_one_locked();
+		wake_any_locked();
+		state_changed_locked();
 	}
 
-public:
-	void invalidate() noexcept
+	void state_changed_locked() noexcept
 	{
-		std::lock_guard locker(m_mutex); LIBGS_UNUSED(locker);
-		m_valid.store(false, std::memory_order_release);
-
-		for(auto &waiter : m_waiters)
-			cancel_waiter(waiter);
-
-		m_waiters.clear();
+		++m_state_epoch;
 		m_condition.notify_all();
 	}
 
-private:
-	void notify_one_locked() noexcept
+	void wake_waiter_locked
+	(const std::shared_ptr<waiter> &item, wake_reason reason) noexcept
 	{
-		if( not m_waiters.empty() )
-		{
-			auto waiter = std::move(m_waiters.front());
-			m_waiters.pop_front();
-			cancel_waiter(waiter);
-		}
-		m_condition.notify_one();
-	}
-
-	static void cancel_waiter(const std::shared_ptr<asio::steady_timer> &waiter) noexcept
-	{
+		if( not item or item->reason != wake_reason::none )
+			return ;
+		item->reason = reason;
 		try {
-			waiter->cancel();
+			ignore_unused(item->timer.cancel());
 		}
 		catch(...) {}
 	}
 
-	void add_task(const opt_helper_t *obj)
+	[[nodiscard]] bool wake_matching_locked(const target_t &key) noexcept
 	{
-		m_tasks_mutex.lock();
-		m_curr_tasks.emplace(obj);
-		m_tasks_mutex.unlock();
+		for(auto pos = m_waiters.begin(); pos != m_waiters.end(); ++pos)
+		{
+			if( (*pos)->key == key )
+			{
+				wake_waiter_locked(*pos, wake_reason::state_changed);
+				m_waiters.erase(pos);
+				return true;
+			}
+		}
+		return false;
 	}
 
-	void erase_task(const opt_helper_t *obj)
+	void wake_any_locked() noexcept
 	{
-		m_tasks_mutex.lock();
-		m_curr_tasks.erase(obj);
-		m_tasks_mutex.unlock();
+		if( m_waiters.empty() )
+			return ;
+		auto item = std::move(m_waiters.front());
+		m_waiters.pop_front();
+		wake_waiter_locked(item, wake_reason::state_changed);
+	}
+
+	void remove_waiter_locked(waiter *value) noexcept
+	{
+		for(auto pos = m_waiters.begin(); pos != m_waiters.end(); ++pos)
+		{
+			if( pos->get() == value )
+			{
+				m_waiters.erase(pos);
+				return ;
+			}
+		}
 	}
 
 public:
+	connector_ptr m_connector {};
 	const config_t m_config {};
-	std::atomic_bool m_valid { true };
-
-	std::unordered_map<endpoint_t,std::list<socket_t>> m_pool {};
-	std::atomic_size_t m_counter {0};
-
-	std::condition_variable m_condition {};
-	std::mutex m_mutex {};
-	std::list<std::shared_ptr<asio::steady_timer>> m_waiters {};
-
-	std::unordered_set<const opt_helper_t*> m_curr_tasks {};
-	spin_mutex m_tasks_mutex {};
-
 	executor_t m_exec {};
+
+private:
+	std::unordered_map<target_t,connection_bucket,key_hash> m_buckets {};
+	std::deque<std::shared_ptr<waiter>> m_waiters {};
+
+	size_t m_total_count = 0;
+	size_t m_state_epoch = 0;
+	size_t m_cancel_generation = 0;
+	bool m_stopped = false;
+
+	mutable std::mutex m_mutex {};
+	std::condition_variable m_condition {};
 };
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>::basic_connection_pool(const config_t &config) requires
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::basic_connection_pool(const config_t &config) requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
-	m_impl(std::make_shared<impl>(config))
+	m_impl(std::make_shared<impl>(executor_t(libgs::get_executor()), config))
 {
 
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>::basic_connection_pool
-(core_concepts::match_sched<executor_t> auto &&exec, config_t config) :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec)), std::move(config)))
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::basic_connection_pool
+(core_concepts::match_sched<executor_t> auto &&exec, const config_t &config) :
+	m_impl(std::make_shared<impl>(
+		get_executor_helper(std::forward<decltype(exec)>(exec)), config
+	))
 {
 
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>::~basic_connection_pool()
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::basic_connection_pool
+(connector_ptr connector, const config_t &config) :
+	m_impl(std::make_shared<impl>(std::move(connector), config))
 {
-	m_impl->invalidate();
+
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>::basic_connection_pool(basic_connection_pool &&other) noexcept :
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::~basic_connection_pool()
+{
+	if( m_impl )
+		m_impl->invalidate();
+}
+
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::basic_connection_pool(basic_connection_pool &&other) noexcept :
 	m_impl(std::move(other.m_impl))
 {
-	other.m_impl = std::make_shared<impl>(config_t{});
+
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>&
-basic_connection_pool<Stream,Constructor>::operator=(basic_connection_pool &&other) noexcept
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>&
+basic_connection_pool<Exec>::operator=(basic_connection_pool &&other) noexcept
 {
 	if( this == &other )
 		return *this;
 
-	m_impl->invalidate();
+	if( m_impl )
+		m_impl->invalidate();
+
 	m_impl = std::move(other.m_impl);
-
-	other.m_impl = std::make_shared<impl>(config_t{});
 	return *this;
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
+template <core_concepts::exec Exec>
 template <typename Token>
-auto basic_connection_pool<Stream,Constructor>::get
-(const core_concepts::text_p<char> auto &host, const value &service, Token &&token)
-	requires core_concepts::tf_opt_token<Token,con_expected_t>
+auto basic_connection_pool<Exec>::get(const target_t &key, Token &&token) noexcept
+	requires concepts::dis_detach_opt_token<Token,error_code,lease_ptr>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->get(host, service)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
+		auto result = m_impl->acquire(key, true);
+		token = result ? error_code{} : result.error();
+		return result ? std::move(*result) : lease_ptr{};
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->get(host, service);
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_get(no_time_token.ec_, host, service,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_get(host, service,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_get(no_time_token.ec_, host, service,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_get(host, service,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(m_impl->m_exec, [impl = m_impl->shared_from_this(), no_time_token,
-					host = strtls::to_string(host), service, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_get (
-						no_time_token.ec_, host, service, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(m_impl->m_exec, [impl = m_impl->shared_from_this(),
-					host = strtls::to_string(host), service, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_get (
-						host, service, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				host = strtls::to_string(host), service, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_get (
-					no_time_token.ec_, host, service, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-		else
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), original_token,
-				host = strtls::to_string(host), service, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_get (
-					host, service, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-	}
+		return m_impl->acquire(key, true);
 	else
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return get(host, service, token | 0ns);
+		return detail::initiate_expected<lease_ptr>(get_executor(),
+		[impl = m_impl, key]() mutable -> awaitable<sys_expected<lease_ptr>> {
+			co_return co_await impl->co_acquire(std::move(key), true);
+		},
+		std::forward<Token>(token));
 	}
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
+template <core_concepts::exec Exec>
 template <typename Token>
-auto basic_connection_pool<Stream,Constructor>::get(const dns_results &eps, Token &&token)
-	requires core_concepts::tf_opt_token<Token,con_expected_t>
+auto basic_connection_pool<Exec>::try_get(const target_t &key, Token &&token) noexcept
+	requires concepts::dis_detach_opt_token<Token,error_code,lease_ptr>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->get(eps)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
+		auto result = m_impl->acquire(key, false);
+		token = result ? error_code{} : result.error();
+		return result ? std::move(*result) : lease_ptr{};
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->get(eps);
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_get(no_time_token.ec_, eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_get(eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_get(no_time_token.ec_, eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_get(eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), no_time_token, eps, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_get (
-						no_time_token.ec_, eps, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), eps, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_get (
-						eps, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				eps, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_get (
-					no_time_token.ec_, eps, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-		else
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), original_token,
-				eps, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_get (
-					eps, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-	}
+		return m_impl->acquire(key, false);
 	else
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return get(eps, token | 0ns);
+		return detail::initiate_expected<lease_ptr>(get_executor(),
+		[impl = m_impl, key]() mutable -> awaitable<sys_expected<lease_ptr>> {
+			co_return co_await impl->co_acquire(std::move(key), false);
+		},
+		std::forward<Token>(token));
 	}
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-template <typename Token>
-auto basic_connection_pool<Stream,Constructor>::get(const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,con_expected_t>
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>&
+basic_connection_pool<Exec>::cancel() noexcept
 {
-	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( is_error_code_token_v<Token> )
-	{
-		return m_impl->get(ep)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
-	}
-	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->get(ep);
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_get(no_time_token.ec_, ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_get(ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_get(no_time_token.ec_, ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_get(ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), no_time_token, ep, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_get (
-						no_time_token.ec_, ep, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), ep, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_get (
-						ep, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				ep, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_get (
-					no_time_token.ec_, ep, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-		else
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), original_token,
-				ep, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_get (
-					ep, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-	}
-	else
-	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return get(ep, token | 0ns);
-	}
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-template <typename Token>
-auto basic_connection_pool<Stream,Constructor>::try_get
-(const core_concepts::text_p<char> auto &host, const value &service, Token &&token)
-	requires core_concepts::tf_opt_token<Token,con_expected_t>
-{
-	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( is_error_code_token_v<Token> )
-	{
-		return m_impl->try_get(host, service)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
-	}
-	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->try_get(host, service);
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_try_get(no_time_token.ec_, host, service,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_try_get(host, service,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_try_get(no_time_token.ec_, host, service,
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_try_get(host, service,
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(m_impl->m_exec, [impl = m_impl->shared_from_this(), no_time_token,
-					host = strtls::to_string(host), service, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_try_get (
-						no_time_token.ec_, host, service, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(m_impl->m_exec, [impl = m_impl->shared_from_this(),
-					host = strtls::to_string(host), service, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_try_get (
-						host, service, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				host = strtls::to_string(host), service, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_try_get (
-					no_time_token.ec_, host, service, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-		else
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), original_token,
-				host = strtls::to_string(host), service, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_try_get (
-					host, service, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-	}
-	else
-	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return try_get(host, service, token | 0ns);
-	}
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-template <typename Token>
-auto basic_connection_pool<Stream,Constructor>::try_get(const dns_results &eps, Token &&token)
-	requires core_concepts::tf_opt_token<Token,con_expected_t>
-{
-	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( is_error_code_token_v<Token> )
-	{
-		return m_impl->try_get(eps)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
-	}
-	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->try_get(eps);
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_try_get(no_time_token.ec_, eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_try_get(eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_try_get(no_time_token.ec_, eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_try_get(eps,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), no_time_token, eps, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_try_get (
-						no_time_token.ec_, eps, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), eps, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_try_get (
-						eps, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				eps, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_try_get (
-					no_time_token.ec_, eps, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-		else
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), original_token,
-				eps, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_try_get (
-					eps, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-	}
-	else
-	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return try_get(eps, token | 0ns);
-	}
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-template <typename Token>
-auto basic_connection_pool<Stream,Constructor>::try_get(const endpoint_t &ep, Token &&token)
-	requires core_concepts::tf_opt_token<Token,con_expected_t>
-{
-	using token_t = std::remove_cvref_t<Token>;
-	if constexpr( is_error_code_token_v<Token> )
-	{
-		return m_impl->try_get(ep)
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
-	}
-	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->try_get(ep);
-
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_try_get(no_time_token.ec_, ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_try_get(ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_try_get(no_time_token.ec_, ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->co_try_get(ep,
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), no_time_token, ep, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_try_get (
-						no_time_token.ec_, ep, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(m_impl->m_exec, [
-					impl = m_impl->shared_from_this(), ep, promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await co_try_get (
-						ep, cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), no_time_token, original_token,
-				ep, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_try_get (
-					no_time_token.ec_, ep, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-		else
-		{
-			libgs::dispatch(m_impl->m_exec, [
-				impl = m_impl->shared_from_this(), original_token,
-				ep, timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_try_get (
-					ep, cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-			});
-		}
-	}
-	else
-	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return try_get(ep, token | 0ns);
-	}
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-bool basic_connection_pool<Stream,Constructor>::emplace(socket_t &socket)
-{
-	if( m_impl->try_increment() )
-		return m_impl->emplace(std::move(socket), true);
-	return false;
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-void basic_connection_pool<Stream,Constructor>::operator<<(socket_t &socket)
-{
-	emplace(socket);
-}
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>&
-basic_connection_pool<Stream,Constructor>::cancel() noexcept
-{
-	m_impl->m_tasks_mutex.lock();
-	for(auto &task : m_impl->m_curr_tasks)
-		task->cancel();
-	m_impl->m_tasks_mutex.unlock();
+	if( m_impl )
+		m_impl->cancel();
 	return *this;
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>::executor_t
-basic_connection_pool<Stream,Constructor>::get_executor() noexcept
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::executor_t basic_connection_pool<Exec>::get_executor() noexcept
 {
 	return m_impl->m_exec;
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-basic_connection_pool<Stream,Constructor>::config_t
-basic_connection_pool<Stream,Constructor>::config() const noexcept
+template <core_concepts::exec Exec>
+basic_connection_pool<Exec>::config_t basic_connection_pool<Exec>::config() const noexcept
 {
 	return m_impl->m_config;
 }
 
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-size_t basic_connection_pool<Stream,Constructor>::count() const noexcept
-{
-	return m_impl->count();
-}
-
-} //namespace libgs::http
-
-#if LIBGS_OPENSSL_SUPPORT
-namespace libgs::http { namespace detail
-{
-
-[[nodiscard]] LIBGS_HTTP_API
-asio::ssl::context &default_ssl_context() noexcept;
-
-} //namespace detail
-
 template <core_concepts::exec Exec>
-default_stream_constructor<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::socket_t
-default_stream_constructor<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::make(auto &&exec)
+size_t basic_connection_pool<Exec>::count() const noexcept
 {
-	using next_layer_t = socket_t::next_layer_type;
-	using next_layer_constructor_t = default_stream_constructor<next_layer_t>;
-
-	auto next_layer = next_layer_constructor_t::make (
-		std::forward<decltype(exec)>(exec)
-	);
-	return socket_t(std::move(next_layer),
-		detail::default_ssl_context()
-	);
+	return m_impl ? m_impl->count() : 0;
 }
 
 } //namespace libgs::http
 
-#endif //LIBGS_OPENSSL_SUPPORT
+
 #endif //LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H

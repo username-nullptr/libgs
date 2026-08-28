@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -29,139 +29,343 @@
 #ifndef LIBGS_CORE_ALGORITHM_DETAIL_UUID_H
 #define LIBGS_CORE_ALGORITHM_DETAIL_UUID_H
 
-#include <cinttypes>
-#include <random>
-#include <cuchar>
-#include <cstdio>
+namespace libgs::detail
+{
+
+[[nodiscard]] LIBGS_CORE_API uuid_data_t uuid_generate(uint8_t version);
+[[nodiscard]] LIBGS_CORE_API uuid_data_t uuid_generate_v5(const uuid_data_t &ns_uuid, std::string_view name);
+
+inline bool uuid_append_utf8(std::string &output, uint32_t code_point)
+{
+	if( code_point <= 0x7F )
+		output.push_back(static_cast<char>(code_point));
+
+	else if( code_point <= 0x7FF )
+	{
+		output.push_back(static_cast<char>(0xC0 | (code_point >> 6)));
+		output.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+	}
+	else if( code_point >= 0xD800 and code_point <= 0xDFFF )
+		return false;
+
+	else if( code_point <= 0xFFFF )
+	{
+		output.push_back(static_cast<char>(0xE0 | (code_point >> 12)));
+		output.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+		output.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+	}
+	else if( code_point <= 0x10FFFF )
+	{
+		output.push_back(static_cast<char>(0xF0 | (code_point >> 18)));
+		output.push_back(static_cast<char>(0x80 | ((code_point >> 12) & 0x3F)));
+		output.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+		output.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+	}
+	else
+		return false;
+	return true;
+}
+
+template <concepts::character CharT>
+[[nodiscard]] optional<std::string> uuid_name_to_utf8(std::basic_string_view<CharT> name)
+{
+	std::string output;
+	output.reserve(name.size());
+
+	if constexpr( is_char_v<CharT> or is_char8_v<CharT> )
+	{
+		for(auto ch : name)
+			output.push_back(static_cast<char>(static_cast<unsigned char>(ch)));
+	}
+	else if constexpr( sizeof(CharT) == 2 )
+	{
+		for(size_t index=0; index<name.size(); index++)
+		{
+			uint32_t code_point = static_cast<uint16_t>(name[index]);
+			if( code_point >= 0xD800 and code_point <= 0xDBFF )
+			{
+				if( index + 1 >= name.size() )
+					return {};
+
+				auto low = static_cast<uint32_t>(static_cast<uint16_t>(name[++index]));
+				if( low < 0xDC00 or low > 0xDFFF )
+					return {};
+
+				code_point = 0x10000 + ((code_point - 0xD800) << 10) + (low - 0xDC00);
+			}
+			else if( code_point >= 0xDC00 and code_point <= 0xDFFF )
+				return {};
+
+			if( not uuid_append_utf8(output, code_point) )
+				return {};
+		}
+	}
+	else
+	{
+		static_assert(sizeof(CharT) == 4);
+		for(auto ch : name)
+		{
+			using unsigned_char_t = std::make_unsigned_t<CharT>;
+			auto code_point = static_cast<uint32_t>(static_cast<unsigned_char_t>(ch));
+
+			if( not uuid_append_utf8(output, code_point) )
+				return {};
+		}
+	}
+	return output;
+}
+
+template <concepts::character CharT>
+[[nodiscard]] int uuid_hex_value(CharT ch) noexcept
+{
+	if( ch >= static_cast<CharT>('0') and ch <= static_cast<CharT>('9') )
+		return ch - static_cast<CharT>('0');
+
+	if( ch >= static_cast<CharT>('a') and ch <= static_cast<CharT>('f') )
+		return ch - static_cast<CharT>('a') + 10;
+
+	if( ch >= static_cast<CharT>('A') and ch <= static_cast<CharT>('F') )
+		return ch - static_cast<CharT>('A') + 10;
+	return -1;
+}
+
+} //namespace libgs::detail
 
 namespace libgs
 {
 
 template <concepts::character CharT>
-basic_uuid<CharT>::basic_uuid(string_view_t basic_uuid)
+basic_uuid<CharT>::basic_uuid(const data_t &data) :
+	m_data(data)
 {
-	operator=(basic_uuid);
+
 }
 
 template <concepts::character CharT>
-basic_uuid<CharT> basic_uuid<CharT>::generate()
+basic_uuid<CharT>::basic_uuid(string_view_t text)
 {
-#if defined(__APPLE__) || defined(__clang__)
-	std::random_device rd;
-	std::mt19937_64 gen(rd());
-#else
-	thread_local std::random_device rd;
-	thread_local std::mt19937_64 gen(rd());
-#endif
-	std::uniform_int_distribution<uint64_t> dis64;
-	basic_uuid obj {string_t()};
-
-	obj.wide_integers[0] = dis64(gen);
-	obj.wide_integers[1] = dis64(gen);
-
-	obj.bytes.d3[0] = (obj.bytes.d3[0] & 0x3F) | static_cast<uint8_t>(0x80);
-	obj.bytes.d2[1] = (obj.bytes.d2[1] & 0x0F) | static_cast<uint8_t>(0x40);
-	return obj;
+	operator=(text);
 }
 
 template <concepts::character CharT>
-basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t basic_uuid)
+template <concepts::character CharT0>
+basic_uuid<CharT>::basic_uuid(const basic_uuid<CharT0> &other)
 {
-	do {
-		size_t star_idx = 0;
-		size_t idxes[4] = { 8, 13, 18, 23 };
-		if( basic_uuid.size() == 40 ) //{aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee}
-		{
-			if( basic_uuid[0] != static_cast<char_t>('{') or basic_uuid[39] != static_cast<char_t>('}') )
-				break;
-			star_idx = 1;
-			for(auto &idx : idxes)
-				idx += 1;
-		}
-		else if( basic_uuid.size() != 38 ) //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
-			break;
-		for(auto &idx : idxes)
-		{
-			if( basic_uuid[idx] != static_cast<char_t>('-') )
-				break;
-		}
-		try {
-			internals.d0 = *strtls::to_uint32(basic_uuid.substr(star_idx,8), 16).or_else();
-			star_idx += 8 + 1;
+	operator=(other);
+}
 
-			internals.d1 = *strtls::to_uint16(basic_uuid.substr(star_idx,4), 16).or_else();
-			star_idx += 4 + 1;
-			internals.d2 = *strtls::to_uint16(basic_uuid.substr(star_idx,4), 16).or_else();
-			star_idx += 4 + 1;
-
-			for(size_t i=0; i<8; i++)
-			{
-				internals.d3[i] = *strtls::to_uint8(basic_uuid.substr(star_idx,2), 16).or_else();
-				star_idx += 2 + 1;
-			}
-		}
-		catch(...) {
-			break;
-		}
-		return *this;
-	}
-	while(0);
-	std::memset(this, 0, sizeof(*this));
+template <concepts::character CharT>
+template <concepts::character CharT0>
+basic_uuid<CharT> &basic_uuid<CharT>::operator=(const basic_uuid<CharT0> &other)
+{
+	m_data.reset();
+	auto value = other.data();
+	if( value )
+		m_data.emplace(*value);
 	return *this;
 }
 
 template <concepts::character CharT>
-bool basic_uuid<CharT>::operator==(const basic_uuid &other) const
+basic_uuid<CharT> &basic_uuid<CharT>::operator=(const data_t &data)
 {
-	return std::memcmp(&other, this, sizeof(basic_uuid)) == 0;
+	m_data.emplace(data);
+	return *this;
 }
 
 template <concepts::character CharT>
-bool basic_uuid<CharT>::operator!=(const basic_uuid &other) const
+basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t text)
 {
-	return not operator==(other);
+	m_data.reset();
+	if( text.size() == 38 )
+	{
+		if( text.front() != static_cast<char_t>('{') or
+			text.back() != static_cast<char_t>('}') )
+			return *this;
+
+		text = text.substr(1,36);
+	}
+	else if( text.size() != 36 )
+		return *this;
+
+	data_t data {};
+	size_t byte_index = 0;
+	int high_nibble = -1;
+
+	for(size_t index=0; index<text.size(); index++)
+	{
+		if( index == 8 or index == 13 or index == 18 or index == 23 )
+		{
+			if( text[index] != static_cast<char_t>('-') )
+				return *this;
+			continue;
+		}
+		auto value = detail::uuid_hex_value(text[index]);
+		if( value < 0 )
+			return *this;
+
+		if( high_nibble < 0 )
+			high_nibble = value;
+		else
+		{
+			data[byte_index++] = static_cast<std::byte>((high_nibble << 4) | value);
+			high_nibble = -1;
+		}
+	}
+	if( byte_index != data.size() or high_nibble >= 0 )
+		return *this;
+
+	m_data.emplace(data);
+	return *this;
 }
 
 template <concepts::character CharT>
-bool basic_uuid<CharT>::operator<(const basic_uuid &other) const
+bool basic_uuid<CharT>::operator==(const basic_uuid &other) const noexcept
 {
-	return std::memcmp(this, &other, sizeof(basic_uuid)) < 0;
+	if( is_valid() != other.is_valid() )
+		return false;
+
+	if( not is_valid() )
+		return true;
+
+	return *m_data == *other.m_data;
 }
 
 template <concepts::character CharT>
-bool basic_uuid<CharT>::operator>(const basic_uuid &other) const
+std::strong_ordering basic_uuid<CharT>::operator<=>(const basic_uuid &other) const noexcept
 {
-	return std::memcmp(this, &other, sizeof(basic_uuid)) > 0;
+	if( m_data and other.m_data )
+		return *m_data <=> *other.m_data;
+
+	if( m_data )
+		return std::strong_ordering::greater;
+
+	if( other.m_data )
+		return std::strong_ordering::less;
+
+	return std::strong_ordering::equal;
 }
 
 template <concepts::character CharT>
-std::basic_string<CharT> basic_uuid<CharT>::to_string(bool parcel) const
+template <uint8_t Version>
+basic_uuid<CharT> basic_uuid<CharT>::generate()
+	requires (Version == 4 or Version == 6 or Version == 7)
 {
-	char buffer[41] = ""; //aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+	return detail::uuid_generate(Version);
+}
+
+template <concepts::character CharT>
+template <concepts::character CharT0>
+basic_uuid<CharT> basic_uuid<CharT>::generate_v5(const basic_uuid<CharT0> &ns_uuid, string_view_t name)
+{
+	auto ns_data = ns_uuid.data();
+	if( not ns_data )
+		return {};
+	return generate_v5(*ns_data, name);
+}
+
+template <concepts::character CharT>
+basic_uuid<CharT> basic_uuid<CharT>::generate_v5(const data_t &ns_uuid, string_view_t name)
+{
+	auto name_data = detail::uuid_name_to_utf8(name);
+	if( not name_data )
+		return {};
+	return detail::uuid_generate_v5(ns_uuid, *name_data);
+}
+
+template <concepts::character CharT>
+basic_uuid<CharT> basic_uuid<CharT>::generate(uint8_t version)
+{
+	switch( version )
+	{
+	case uuid_version::v4: return generate<4>();
+	case uuid_version::v6: return generate<6>();
+	case uuid_version::v7: return generate<7>();
+	default: break;
+	}
+	return {};
+}
+
+template <concepts::character CharT>
+basic_uuid<CharT>::string_t basic_uuid<CharT>::to_string(bool parcel) const
+{
+	if( not m_data )
+		return {};
+
+	string_t result;
+
+	result.reserve(parcel ? 38 : 36);
 	if( parcel )
+		result.push_back(static_cast<char_t>('{'));
+
+	for(size_t index=0; index<m_data->size(); index++)
 	{
-		std::snprintf(buffer, 40, "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-			internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2],
-			internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]
-		);
+		constexpr char digits[] = "0123456789ABCDEF";
+		if( index == 4 or index == 6 or index == 8 or index == 10 )
+			result.push_back(static_cast<char_t>('-'));
+
+		auto value = std::to_integer<uint8_t>((*m_data)[index]);
+		result.push_back(static_cast<char_t>(digits[value >> 4]));
+		result.push_back(static_cast<char_t>(digits[value & 0x0F]));
 	}
-	else
+	if( parcel )
+		result.push_back(static_cast<char_t>('}'));
+	return result;
+}
+
+template <concepts::character CharT>
+optional<typename basic_uuid<CharT>::data_t> basic_uuid<CharT>::data() const noexcept
+{
+	return m_data;
+}
+
+template <concepts::character CharT>
+optional<typename basic_uuid<CharT>::data_t> basic_uuid<CharT>::operator*() const noexcept
+{
+	return data();
+}
+
+template <concepts::character CharT>
+uuid_version_enum basic_uuid<CharT>::version() const noexcept
+{
+	if( not m_data )
+		return uuid_version::none;
+
+	auto variant = std::to_integer<uint8_t>((*m_data)[8]);
+	if( (variant & 0xC0) != 0x80 )
+		return uuid_version::none;
+
+	switch( std::to_integer<uint8_t>((*m_data)[6]) >> 4 )
 	{
-		std::snprintf(buffer, 40, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
-			internals.d0, internals.d1, internals.d2, internals.d3[0], internals.d3[1], internals.d3[2],
-			internals.d3[3], internals.d3[4], internals.d3[5], internals.d3[6], internals.d3[7]
-		);
+	case uuid_version::v4: return uuid_version::v4;
+	case uuid_version::v5: return uuid_version::v5;
+	case uuid_version::v6: return uuid_version::v6;
+	case uuid_version::v7: return uuid_version::v7;
+	default: break;
 	}
-	return strtls::detail::ascii_transition<char_t>(buffer);
+	return uuid_version::none;
+}
+
+template <concepts::character CharT>
+bool basic_uuid<CharT>::is_valid() const noexcept
+{
+	return m_data.has_value();
+}
+
+template <concepts::character CharT>
+bool basic_uuid<CharT>::is_nil() const noexcept
+{
+	if( not m_data )
+		return false;
+
+	return std::ranges::all_of(*m_data, [](const auto &value) {
+		return value == std::byte {0};
+	});
 }
 
 } //namespace libgs
 
-namespace std
-{
-
 template <libgs::concepts::character CharT>
-struct formatter<libgs::basic_uuid<CharT>, CharT>
+struct std::formatter<libgs::basic_uuid<CharT>, CharT>
 {
 	auto format(const libgs::basic_uuid<CharT> &uuid, auto &context) const {
 		return m_formatter.format(uuid.to_string(), context);
@@ -173,8 +377,6 @@ struct formatter<libgs::basic_uuid<CharT>, CharT>
 private:
 	formatter<std::basic_string<CharT>, CharT> m_formatter;
 };
-
-} //namespace std
 
 
 #endif //LIBGS_CORE_ALGORITHM_DETAIL_UUID_H

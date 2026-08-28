@@ -398,6 +398,36 @@ bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const c
 namespace literals
 {
 
+inline auto operator""_y(unsigned long long value)
+{
+	using rep_t = std::chrono::years::rep;
+	return sleep_for(std::chrono::years(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_mon(unsigned long long value)
+{
+	using rep_t = std::chrono::months::rep;
+	return sleep_for(std::chrono::months(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_d(unsigned long long value)
+{
+	using rep_t = std::chrono::days::rep;
+	return sleep_for(std::chrono::days(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_h(unsigned long long value)
+{
+	using rep_t = std::chrono::hours::rep;
+	return sleep_for(std::chrono::hours(static_cast<rep_t>(value)));
+}
+
+inline auto operator""_min(unsigned long long value)
+{
+	using rep_t = std::chrono::minutes::rep;
+	return sleep_for(std::chrono::seconds(static_cast<rep_t>(value)));
+}
+
 inline auto operator""_s(unsigned long long value)
 {
 	using rep_t = std::chrono::seconds::rep;

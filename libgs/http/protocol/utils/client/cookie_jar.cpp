@@ -135,7 +135,7 @@ bool cookie_jar::store(const url &origin, std::string name, const cookie &input)
 	if( name.empty() )
 		return false;
 
-	auto host = canonical_host(origin.address());
+	auto host = canonical_host(origin.host());
 	if( host.empty() )
 		return false;
 
@@ -196,7 +196,6 @@ bool cookie_jar::store(const url &origin, std::string name, const cookie &input)
 			remove = item.expires and *item.expires <= now;
 		}
 	}
-
 	std::scoped_lock lock(m_impl->m_mutex);
 	m_impl->remove_expired(now);
 
@@ -225,8 +224,7 @@ bool cookie_jar::store(const url &origin, std::string name, const cookie &input)
 	return true;
 }
 
-void cookie_jar::store(const url &origin,
-	const std::vector<std::pair<std::string,cookie>> &values)
+void cookie_jar::store(const url &origin, const std::vector<std::pair<std::string,cookie>> &values)
 {
 	for(auto &[name,item] : values)
 		store(origin, name, item);
@@ -234,7 +232,7 @@ void cookie_jar::store(const url &origin,
 
 cookie_values cookie_jar::cookies_for(const url &target)
 {
-	auto host = canonical_host(target.address());
+	auto host = canonical_host(target.host());
 	auto path = target.path().empty() ? std::string_view("/") : target.path();
 
 	auto secure = strtls::to_lower(target.protocol()) == "https";

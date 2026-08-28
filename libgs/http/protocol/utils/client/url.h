@@ -69,9 +69,10 @@ public:
 
 public:
 	[[nodiscard]] std::string_view protocol() const noexcept;
-	[[nodiscard]] std::string_view address() const noexcept;
+	[[nodiscard]] std::string_view host() const noexcept;
 	[[nodiscard]] uint16_t port() const noexcept;
 	[[nodiscard]] std::string_view path() const noexcept;
+	[[nodiscard]] bool is_valid() const noexcept;
 
 public:
 	[[nodiscard]] std::string to_string() const noexcept;

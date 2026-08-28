@@ -29,33 +29,12 @@
 #ifndef LIBGS_HTTP_CLIENT_CONNECTION_POOL_H
 #define LIBGS_HTTP_CLIENT_CONNECTION_POOL_H
 
-#include <libgs/http/utils/connection.h>
+#include <libgs/http/client/connection_lease.h>
+#include <libgs/http/client/connector.h>
+#include <libgs/core/execution.h>
 
 namespace libgs::http
 {
-
-template <concepts::stream Stream>
-struct LIBGS_HTTP_TAPI default_stream_constructor
-{
-	using socket_t = Stream;
-	[[nodiscard]] static socket_t make(auto &&exec);
-};
-
-namespace concepts
-{
-
-template <typename Stream, template <typename> class Constructor>
-concept connection_pool_template = concepts::stream<Stream> and requires
-{
-	{
-		Constructor<Stream>::make (
-			std::declval<typename socket_operation_helper<Stream>::executor_t>()
-		)
-	}
-	-> std::same_as<Stream>;
-};
-
-} //namespace concepts
 
 struct connection_pool_config
 {
@@ -66,28 +45,24 @@ struct connection_pool_config
 	} timeout;
 };
 
-template <typename Stream = asio::ip::tcp::socket,
-		  template<typename> class Constructor = default_stream_constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
+template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_connection_pool
 {
 	LIBGS_DISABLE_COPY(basic_connection_pool)
 
 public:
-	using socket_t = Stream;
+	using executor_t = Exec;
 	using config_t = connection_pool_config;
+	using target_t = connect_target;
 
-	using constructor_t = Constructor<socket_t>;
-	using connection_t = basic_connection<socket_t>;
+	using connector_t = basic_connector<executor_t>;
+	using connector_ptr = connector_t::ptr_t;
 
-	using protocol_t = connection_t::protocol_t;
-	using con_expected_t = sys_expected<connection_t>;
+	using connection_t = basic_connection<executor_t>;
+	using connection_ptr = connection_t::ptr_t;
 
-	using opt_helper_t = connection_t::opt_helper_t;
-	using executor_t = connection_t::executor_t;
-
-	using endpoint_t = connection_t::endpoint_t;
-	using dns_results = asio::ip::basic_resolver_results<protocol_t>;
+	using lease_t = basic_connection_lease<executor_t>;
+	using lease_ptr = lease_t::ptr_t;
 
 public:
 	explicit basic_connection_pool(const config_t &config = {}) requires
@@ -95,7 +70,12 @@ public:
 
 	explicit basic_connection_pool (
 		core_concepts::match_sched<executor_t> auto &&exec,
-		config_t config = {}
+		const config_t &config = {}
+	);
+	// A configured connector is part of this pool's routing identity. Proxy-aware
+	// applications inject one here; the default constructors remain direct-only.
+	explicit basic_connection_pool (
+		connector_ptr connector, const config_t &config = {}
 	);
 	~basic_connection_pool();
 
@@ -104,38 +84,17 @@ public:
 
 public:
 	template <typename Token = use_sync_t>
-	[[nodiscard]] auto get(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,con_expected_t>;
+	[[nodiscard]] auto get(const target_t &key, Token &&token = {}) noexcept
+		requires concepts::dis_detach_opt_token<Token,error_code,lease_ptr>;
 
 	template <typename Token = use_sync_t>
-	[[nodiscard]] auto get(const dns_results &eps, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,con_expected_t>;
-
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto get(const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,con_expected_t>;
+	[[nodiscard]] auto try_get(const target_t &key, Token &&token = {}) noexcept
+		requires concepts::dis_detach_opt_token<Token,error_code,lease_ptr>;
 
 public:
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto try_get(const core_concepts::text_p<char> auto &host, const value &service, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,con_expected_t>;
-
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto try_get(const dns_results &eps, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,con_expected_t>;
-
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto try_get(const endpoint_t &ep, Token &&token = {})
-		requires core_concepts::tf_opt_token<Token,con_expected_t>;
-
-public:
-	bool emplace(socket_t &socket);
-	void operator<<(socket_t &socket);
-
 	basic_connection_pool &cancel() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 
-public:
 	[[nodiscard]] config_t config() const noexcept;
 	[[nodiscard]] size_t count() const noexcept;
 
@@ -144,69 +103,10 @@ private:
 	std::shared_ptr<impl> m_impl;
 };
 
-template <typename Exec>
-using basic_tcp_connection_pool = basic_connection_pool <
-	asio::basic_stream_socket<asio::ip::tcp,Exec>
->;
+using connection_pool = basic_connection_pool<>;
 
-using tcp_connection_pool = basic_tcp_connection_pool<asio::any_io_executor>;
-using connection_pool = tcp_connection_pool;
-
-template <typename>
-struct is_connection_pool : std::false_type {};
-
-template <typename Stream, template<typename> class Constructor>
-	requires concepts::connection_pool_template<Stream,Constructor>
-struct is_connection_pool<basic_connection_pool<Stream,Constructor>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_connection_pool_v = is_connection_pool<T>::value;
-
-namespace concepts
-{
-
-template <typename T>
-concept connection_pool = is_connection_pool_v<T>;
-
-template <typename T>
-concept connection_pool_p = connection_pool<std::remove_cvref_t<T>>;
-
-}} //namespace libgs::http::concepts
-
-#if LIBGS_OPENSSL_SUPPORT
-namespace libgs { namespace http
-{
-
-template <core_concepts::exec Exec>
-struct LIBGS_HTTP_TAPI default_stream_constructor
-	<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>
-{
-	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
-	[[nodiscard]] static socket_t make(auto &&exec);
-};
-
-template <typename Exec>
-using basic_ssl_tcp_connection_pool = basic_connection_pool <
-	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
->;
-
-using ssl_tcp_connection_pool = basic_ssl_tcp_connection_pool<asio::any_io_executor>;
-using ssl_connection_pool = ssl_tcp_connection_pool;
-
-} //namespace http
-
-namespace https
-{
-
-template <typename Exec>
-using basic_tcp_connection_pool = http::basic_ssl_tcp_connection_pool<Exec>;
-
-using tcp_connection_pool = http::ssl_tcp_connection_pool;
-using connection_pool = http::ssl_connection_pool;
-
-}} //namespace libgs::https
-
-#endif //LIBGS_OPENSSL_SUPPORT
+} //namespace libgs::http
 #include <libgs/http/client/detail/connection_pool.h>
+
 
 #endif //LIBGS_HTTP_CLIENT_CONNECTION_POOL_H

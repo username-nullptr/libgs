@@ -35,6 +35,25 @@
 namespace libgs::http
 {
 
+template <concepts::any_exec_stream>
+struct server_config;
+
+template <core_concepts::exec Exec>
+struct server_config<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+{
+	std::chrono::milliseconds first_reading_time {1500};
+	std::chrono::milliseconds keepalive_time {5000};
+};
+
+#if LIBGS_OPENSSL_SUPPORT
+template <core_concepts::exec Exec>
+struct server_config<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> :
+	server_config<asio::basic_stream_socket<asio::ip::tcp,Exec>>
+{
+	std::chrono::milliseconds tls_handshake_timeout {5000};
+};
+#endif //LIBGS_OPENSSL_SUPPORT
+
 template <concepts::any_exec_stream Stream = asio::ip::tcp::socket>
 class LIBGS_HTTP_TAPI basic_server
 {
@@ -43,25 +62,28 @@ class LIBGS_HTTP_TAPI basic_server
 public:
 	using socket_t = Stream;
 	using executor_t = socket_t::executor_type;
+	using config_t = server_config<socket_t>;
 
-	using connection_t = basic_connection<socket_t>;
-	using acceptor_wrap_t = basic_acceptor_wrap<connection_t>;
+	using acceptor_wrap_t = basic_acceptor_wrap<socket_t>;
 	using acceptor_t = acceptor_wrap_t::acceptor_t;
 
-	using endpoint_t = acceptor_t::endpoint_type;
-	using endpoint_wrapper_t = basic_endpoint_wrapper<typename endpoint_t::protocol_type>;
+	using connection_t = acceptor_wrap_t::connection_t;
+	using connection_ptr = acceptor_wrap_t::connection_ptr;
 
-	using request_t = basic_request<connection_t>;
-	using response_t = basic_response<connection_t>;
+	using endpoint_wrapper_t = basic_endpoint_wrapper <
+		typename acceptor_t::protocol_type
+	>;
+	using request_t = basic_request<executor_t>;
+	using response_t = basic_response<executor_t>;
 
 	using path_opt_token_t = basic_path_opt_token<char>;
-	using context_t = basic_service_context<connection_t>;
+	using context_t = basic_service_context<executor_t>;
 
-	using aop_t = basic_aop<connection_t>;
-	using ctrlr_aop_t = basic_ctrlr_aop<connection_t>;
+	using aop_t = basic_aop<executor_t>;
+	using ctrlr_aop_t = basic_ctrlr_aop<executor_t>;
 
-	using aop_ptr_t = basic_aop_ptr<connection_t>;
-	using ctrlr_aop_ptr_t = basic_ctrlr_aop_ptr<connection_t>;
+	using aop_ptr_t = basic_aop<executor_t>::ptr_t;
+	using ctrlr_aop_ptr_t = basic_ctrlr_aop<executor_t>::ptr_t;
 
 	using server_error_handler_t = std::function<bool(error_code)>;
 	using service_error_handler_t = std::function<bool(context_t&, const std::exception&)>;
@@ -96,8 +118,8 @@ public:
 public:
 	template <method_enum...Method, typename Func, typename...AopPtrs>
 	basic_server &on_request(const path_opt_token_t &path_rules, Func &&func, AopPtrs&&...aops) requires
-		concepts::request_handler<Func,connection_t> and
-		concepts::aop_ptr_list<connection_t,AopPtrs...>;
+		concepts::request_handler<Func,executor_t> and
+		concepts::aop_ptr_list<executor_t,AopPtrs...>;
 
 	template <method_enum...Method>
 	basic_server &on_request(const path_opt_token_t &path_rules, ctrlr_aop_ptr_t ctrlr);
@@ -107,7 +129,7 @@ public:
 
 	template <typename Func>
 	basic_server &on_default(Func &&func) requires
-		concepts::request_handler<Func,connection_t>;
+		concepts::request_handler<Func,executor_t>;
 
 	basic_server &on_server_error(server_error_handler_t func);
 	basic_server &on_service_error(service_error_handler_t func);
@@ -119,14 +141,10 @@ public:
 	basic_server &unbound_service_error();
 
 public:
-	template <typename Rep, typename Period>
-	basic_server &set_first_reading_time(const duration<Rep,Period> &d);
+	basic_server &set_config(const config_t &config);
+	[[nodiscard]] config_t config() const noexcept;
 
-	template <typename Rep, typename Period>
-	basic_server &set_keepalive_time(const duration<Rep,Period> &d = {});
-
-public:
-	[[nodiscard]] const executor_t &get_executor() noexcept;
+	[[nodiscard]] executor_t get_executor() noexcept;
 	basic_server &cancel() noexcept;
 	basic_server &stop() noexcept;
 
@@ -142,7 +160,7 @@ private:
 template <core_concepts::exec Exec = asio::any_io_executor>
 using basic_tcp_server = basic_server<asio::basic_stream_socket<asio::ip::tcp,Exec>>;
 
-using tcp_server = basic_tcp_server<asio::any_io_executor>;
+using tcp_server = basic_tcp_server<>;
 using server = tcp_server;
 
 } //namespace libgs::http
@@ -152,21 +170,28 @@ using server = tcp_server;
 namespace libgs { namespace http
 {
 
-template <typename Protocol = asio::ip::tcp>
+template <typename Protocol = asio::ip::tcp,
+		  core_concepts::exec Exec = asio::any_io_executor>
 using basic_ssl_server = basic_server <
-	asio::ssl::stream<asio::basic_stream_socket<Protocol>>
+	asio::ssl::stream<asio::basic_stream_socket<Protocol,Exec>>
 >;
-using ssl_tcp_server = basic_ssl_server<>;
-using ssl_server = ssl_tcp_server;
+
+template <core_concepts::exec Exec = asio::any_io_executor>
+using basic_tls_server = basic_ssl_server<asio::ip::tcp,Exec>;
+
+using tls_server = basic_tls_server<>;
+using ssl_tcp_server = tls_server;
+using ssl_server = tls_server;
 
 } //namespace libgs::http
 
 namespace https
 {
 
-template <typename Protocol = asio::ip::tcp>
+template <typename Protocol = asio::ip::tcp,
+		  concepts::exec Exec = asio::any_io_executor>
 using basic_server = http::basic_server <
-	asio::ssl::stream<asio::basic_stream_socket<Protocol>>
+	asio::ssl::stream<asio::basic_stream_socket<Protocol,Exec>>
 >;
 using tcp_server = basic_server<>;
 using server = tcp_server;

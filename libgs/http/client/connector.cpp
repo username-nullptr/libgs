@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,40 +26,43 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_CORE_CXX_SYS_EXPECTED_H
-#define LIBGS_CORE_CXX_SYS_EXPECTED_H
+#include "connector.h"
 
-#include <libgs/core/cxx/expected.h>
-
-namespace libgs
+namespace libgs::http::detail
 {
 
-template <concepts::expected_value Value = void>
-using sys_expected = expected<Value,error_code>;
+#if LIBGS_OPENSSL_SUPPORT
 
-using sys_unexpected = unexpected<error_code>;
+asio::ssl::context &default_ssl_context() noexcept
+{
+	static asio::ssl::context obj (
+		asio::ssl::context::tls_client
+	);
+	return obj;
+}
+LIBGS_REGISTRATION
+{
+	auto &ctx = default_ssl_context();
+	error_code error {};
+	ctx.set_verify_mode(asio::ssl::verify_peer, error);
+	if( not error )
+		ctx.set_default_verify_paths(error);
 
-template <concepts::optional_value_p Value>
-[[nodiscard]] LIBGS_CORE_TAPI auto make_sys_expected(Value &&value);
-[[nodiscard]] LIBGS_CORE_VAPI sys_expected<> make_sys_expected();
+	ctx.set_options (
+		asio::ssl::context::default_workarounds |
+		asio::ssl::context::no_tlsv1   |
+		asio::ssl::context::no_tlsv1_1 |
+		asio::ssl::context::no_sslv2   |
+		asio::ssl::context::no_sslv3
+	);
 
-template <concepts::expected_value Value = void>
-LIBGS_CORE_TAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
-	std::source_location loc = std::source_location::current()
-);
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+	SSL_CTX_set_options(ctx.native_handle(),
+		SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1
+	);
+#endif //OPENSSL_VERSION_NUMBER
+}
 
-template <concepts::expected_value Value = void>
-LIBGS_CORE_TAPI void sys_expected_loc_throw(const sys_expected<Value> &expected,
-	concepts::text_p<char> auto &&msg, std::source_location loc = std::source_location::current()
-);
+#endif //LIBGS_OPENSSL_SUPPORT
 
-using io_expected = sys_expected<size_t>;
-using io_unexpected = sys_unexpected;
-
-[[nodiscard]] LIBGS_CORE_TAPI io_expected make_io_expected(size_t sum);
-
-} //namespace libgs
-#include <libgs/core/cxx/detail/sys_expected.h>
-
-
-#endif //LIBGS_CORE_CXX_SYS_EXPECTED_H
+} //namespace libgs::http::detail

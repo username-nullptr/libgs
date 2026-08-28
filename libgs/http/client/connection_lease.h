@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,84 +26,59 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_SERVER_SERVICE_CONTEXT_H
-#define LIBGS_HTTP_SERVER_SERVICE_CONTEXT_H
+#ifndef LIBGS_HTTP_CLIENT_CONNECTION_LEASE_H
+#define LIBGS_HTTP_CLIENT_CONNECTION_LEASE_H
 
-#include <libgs/http/server/session_manager.h>
-#include <libgs/http/server/response.h>
-#include <libgs/http/server/request.h>
+#include <libgs/http/utils/connection.h>
 
 namespace libgs::http
 {
 
 template <core_concepts::exec Exec = asio::any_io_executor>
-class LIBGS_HTTP_TAPI basic_service_context
+class LIBGS_HTTP_TAPI basic_connection_lease
 {
-	LIBGS_DISABLE_COPY_MOVE(basic_service_context)
+	LIBGS_DISABLE_COPY_MOVE(basic_connection_lease)
 
 public:
 	using executor_t = Exec;
+	using ptr_t = std::shared_ptr<basic_connection_lease>;
+
 	using connection_t = basic_connection<executor_t>;
 	using connection_ptr = connection_t::ptr_t;
 
-	using request_t = basic_request<executor_t>;
-	using response_t = basic_response<executor_t>;
-	using session_t = http::session;
-	using parser_t = request_t::parser_t;
+	basic_connection_lease (
+		connection_ptr connection,
+		std::function<void(connection_ptr)> give_back
+	);
+	~basic_connection_lease(); // close
 
 public:
-	basic_service_context (
-		connection_ptr connection, session_manager &session_manager
-	);
-	basic_service_context (
-		connection_ptr connection, parser_t &&parser,
-		session_manager &session_manager
-	);
-	~basic_service_context();
+	[[nodiscard]] connection_t &get() noexcept;
+	[[nodiscard]] connection_t &operator*() noexcept;
+	[[nodiscard]] connection_t *operator->() noexcept;
 
-public:
-	[[nodiscard]] const request_t &request() const noexcept;
-	[[nodiscard]] request_t &request() noexcept;
+	[[nodiscard]] const connection_t &get() const noexcept;
+	[[nodiscard]] const connection_t &operator*() const noexcept;
+	[[nodiscard]] const connection_t *operator->() const noexcept;
 
-	[[nodiscard]] const response_t &response() const noexcept;
-	[[nodiscard]] response_t &response() noexcept;
+	// Detach the connection from the pool. The caller becomes responsible for it.
+	[[nodiscard]] connection_ptr take() noexcept;
+	// Explicitly offer the connection back to the pool. Destruction without
+	// release closes it instead of making an unverified implicit reuse decision.
+	void release();
 
-	[[nodiscard]] executor_t get_executor() noexcept;
-
-	// Generic HTTP Upgrade ownership boundary. A future WebSocket module can use
-	// this without coupling frame handling to the HTTP parser.
-	[[nodiscard]] connection_ptr hand_over_connection() noexcept;
-	[[nodiscard]] bool connection_handed_over() const noexcept;
-
-public: // Fucking msvc !!!
-	template <typename Session, typename...Args>
-	[[nodiscard]] std::shared_ptr<Session> session(Args&&...args) requires
-		core_concepts::base_of<Session,session_t> and core_concepts::constructible<Session, Args...>;
-
-	template <typename...Args>
-	[[nodiscard]] session_ptr session(Args&&...args)
-		requires core_concepts::constructible<session_t, Args...>;
-
-	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> session() const requires
-		core_concepts::base_of<Session,session_t>;
-
-	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> session_or() requires
-		core_concepts::base_of<Session,session_t>;
-
-	[[nodiscard]] session_ptr session() const;
-	[[nodiscard]] session_ptr session_or() noexcept;
+	[[nodiscard]] bool is_valid() const noexcept;
+	[[nodiscard]] operator bool() const noexcept;
 
 private:
 	class impl;
 	impl *m_impl;
 };
 
-using service_context = basic_service_context<>;
+using connection_lease = basic_connection_lease<>;
 
 } //namespace libgs::http
-#include <libgs/http/server/detail/service_context.h>
+#include <libgs/http/client/detail/connection_lease.h>
 
 
-#endif //LIBGS_HTTP_SERVER_SERVICE_CONTEXT_H
+#endif //LIBGS_HTTP_CLIENT_CONNECTION_LEASE_H

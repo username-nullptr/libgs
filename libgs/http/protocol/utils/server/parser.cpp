@@ -419,6 +419,17 @@ std::string parser<protocol_model::server>::take_partial_body(size_t size)
 	return m_impl->m_parser.take_partial_body(size);
 }
 
+size_t parser<protocol_model::server>::read_partial_body
+(const mutable_buffer &buffer) noexcept
+{
+	return m_impl->m_parser.read_partial_body(buffer);
+}
+
+size_t parser<protocol_model::server>::partial_body_size() const noexcept
+{
+	return m_impl->m_parser.partial_body_size();
+}
+
 std::string parser<protocol_model::server>::take_body()
 {
 	return m_impl->m_parser.take_body();
@@ -427,6 +438,16 @@ std::string parser<protocol_model::server>::take_body()
 std::string parser<protocol_model::server>::take_pending_data()
 {
 	return m_impl->m_parser.take_pending_data();
+}
+
+size_t parser<protocol_model::server>::prepare_direct_body_read(size_t size) const noexcept
+{
+	return m_impl->m_parser.prepare_direct_body_read(size);
+}
+
+bool parser<protocol_model::server>::commit_direct_body_read(size_t size) noexcept
+{
+	return m_impl->m_parser.commit_direct_body_read(size);
 }
 
 parser<protocol_model::server>::stage_t parser<protocol_model::server>::stage() const noexcept

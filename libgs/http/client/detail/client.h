@@ -1,4 +1,3 @@
-
 /************************************************************************************
 *                                                                                   *
 *   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
@@ -29,56 +28,19 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 
-namespace libgs::http { namespace detail
+#include <libgs/http/utils/detail/async_expected.h>
+
+namespace libgs::http
 {
 
-template <concepts::stream>
-struct protocol_name {
-	static constexpr auto name = "http";
-};
-
-#if LIBGS_OPENSSL_SUPPORT
-template <core_concepts::exec Exec>
-struct protocol_name
-<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>> {
-	static constexpr auto name = "https";
-};
-#endif //LIBGS_OPENSSL_SUPPORT
-
-template <concepts::stream Stream>
-constexpr auto protocol_name_v = protocol_name<Stream>::name;
-
-template <typename>
-struct is_async_reference : std::false_type {};
-
-template <typename T>
-struct is_async_reference<std::reference_wrapper<T>> : std::true_type {};
-
-template <typename T>
-[[nodiscard]] auto make_async_capture(T &&value)
+template <core_concepts::exec Exec, version_enum Version>
+class LIBGS_HTTP_TAPI basic_client<Exec,Version>::impl
 {
-	if constexpr( std::is_lvalue_reference_v<T> )
-		return std::ref(value);
-	else
-		return std::remove_cvref_t<T>(std::forward<T>(value));
-}
+	LIBGS_DISABLE_COPY_MOVE(impl)
 
-template <typename T>
-[[nodiscard]] decltype(auto) unwrap_async_capture(T &value) noexcept
-{
-	if constexpr( is_async_reference<std::remove_cvref_t<T>>::value )
-		return value.get();
-	else
-		return (value);
-}
-
-} //namespace detail
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-class LIBGS_HTTP_TAPI basic_client<ConnectionPool,Version>::impl
-{
-	LIBGS_DISABLE_COPY(impl)
-	using socket_t = connection_t::socket_t;
+	template <method_enum Method>
+	using result_t = sys_expected<context_ptr<Method>>;
+	using target_t = connection_pool_t::target_t;
 
 public:
 	impl() requires core_concepts::match_sched<io_executor_t,executor_t> :
@@ -90,7 +52,54 @@ public:
 	explicit impl(connection_pool_t &&pool) :
 		m_pool(std::move(pool)), m_cookie_store(std::make_shared<cookie_jar>()) {}
 
-public:
+private:
+	[[nodiscard]] static sys_expected<target_t> target_from_url(const url_t &value) noexcept
+	{
+		// url is a generic hierarchical resource descriptor. HTTP protocol
+		// selection is deliberately enforced only at the client boundary.
+		try {
+			if( not value.is_valid() )
+			{
+				return sys_unexpected (
+					make_error_code(std::errc::invalid_argument)
+				);
+			}
+			auto scheme = strtls::to_lower(value.protocol());
+			security_mode security {};
+			auto port = value.port();
+
+			if( scheme == "http" )
+			{
+				security = security_mode::plain;
+				if( port == 0 )
+					port = 80;
+			}
+			else if( scheme == "https" )
+			{
+				security = security_mode::tls;
+				if( port == 0 )
+					port = 443;
+			}
+			else
+			{
+				return sys_unexpected (
+					make_error_code(std::errc::protocol_not_supported)
+				);
+			}
+			return target_t {
+				strtls::to_lower(value.host()), port, security
+			};
+		}
+		catch(const std::bad_alloc&)
+		{
+			return sys_unexpected (
+				make_error_code(std::errc::not_enough_memory)
+			);
+		}
+		catch(...) {}
+		return sys_unexpected(make_error_code(std::errc::io_error));
+	}
+
 	[[nodiscard]] static bool redirect_status(status_enum value) noexcept
 	{
 		return value == status::moved_permanently or value == status::found or
@@ -98,32 +107,55 @@ public:
 			   value == status::permanent_redirect;
 	}
 
-	[[nodiscard]] static bool same_origin(const url &lhs, const url &rhs) noexcept
+	[[nodiscard]] static bool same_origin(const url_t &lhs, const url_t &rhs) noexcept
 	{
-		return strtls::to_lower(lhs.protocol()) == strtls::to_lower(rhs.protocol()) and
-			strtls::to_lower(lhs.address()) == strtls::to_lower(rhs.address()) and
-			lhs.port() == rhs.port();
+		try {
+			return strtls::to_lower(lhs.protocol()) ==
+				   strtls::to_lower(rhs.protocol()) and
+				   strtls::to_lower(lhs.host()) == strtls::to_lower(rhs.host()) and
+				   lhs.port() == rhs.port();
+		}
+		catch(...) {}
+		return false;
+	}
+
+	[[nodiscard]] static bool expects_continue(const req_info &info) noexcept
+	{
+		if constexpr( version_v <= version::v10 ) {
+			return false;
+		}
+		else
+		{
+			try {
+				auto it = info.arg.headers().find(header::expect);
+				return it != info.arg.headers().end() and
+					strtls::to_lower(*it->second) == "100-continue";
+			}
+			catch(...) {}
+			return false;
+		}
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] ctx_expected_t<Method> follow_redirects
-	(ctx_expected_t<Method> current, req_info info) noexcept
+	[[nodiscard]] result_t<Method> follow_redirects(context_ptr<Method> current, req_info info) noexcept
 	{
-		static_assert(Method == method::get or Method == method::head);
-		using namespace libgs::operators;
-		for(size_t followed=0;;)
+		static_assert (
+			Method == method::get or Method == method::head
+		);
+		for(size_t followed=0; ; followed++)
 		{
-			auto status_expected = current->wait_reply();
-			if( not status_expected )
-				return sys_unexpected(status_expected.error());
+			error_code io_error {};
+			auto reply_status = current->wait_reply(io_error);
+			if( io_error )
+				return sys_unexpected(io_error);
 
 			while( current->reply()->parser().is_informational() )
 			{
-				status_expected = current->wait_reply();
-				if( not status_expected )
-					return sys_unexpected(status_expected.error());
+				reply_status = current->wait_reply(io_error);
+				if( io_error )
+					return sys_unexpected(io_error);
 			}
-			if( not redirect_status(*status_expected) or followed == info.max_redirects )
+			if( not redirect_status(reply_status) or followed == info.max_redirects )
 				return current;
 
 			auto location = current->reply()->header(header::location);
@@ -135,16 +167,16 @@ public:
 				std::array<char,8192> data {};
 				for(;;)
 				{
-					auto read = current->reply()->read(buffer(data));
-					if( read )
+					ignore_unused(current->reply()->read(buffer(data), io_error));
+					if( not io_error )
 						continue;
-					if( read.error() != errc::eof )
-						return sys_unexpected(read.error());
+					if( io_error != errc::eof )
+						return sys_unexpected(io_error);
 					break;
 				}
 			}
 			try {
-				auto next = url::resolve(info.url, **location);
+				auto next = url_t::resolve(info.url, **location);
 				if( not same_origin(info.url, next) )
 				{
 					info.arg.unset_header(header::authorization);
@@ -152,40 +184,51 @@ public:
 				}
 				info.url = std::move(next);
 			}
-			catch(...) {
-				return sys_unexpected(make_error_code(std::errc::protocol_error));
+			catch(...)
+			{
+				return sys_unexpected (
+					make_error_code(std::errc::protocol_error)
+				);
 			}
-			current = make_context<Method>(info);
-			if( not current )
-				return current;
+			auto next = make_context<Method>(info);
+			if( not next )
+				return next;
+			current = std::move(*next);
 
-			auto written = current->write();
-			if( not written )
-				return sys_unexpected(written.error());
-			++followed;
+			ignore_unused(current->write(io_error));
+			if( io_error )
+				return sys_unexpected(io_error);
 		}
+		return {};
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_follow_redirects
-	(ctx_expected_t<Method> current, req_info info, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<result_t<Method>> co_follow_redirects
+	(context_ptr<Method> current, req_info info, asio::cancellation_slot cancel_slot) noexcept
 	{
-		static_assert(Method == method::get or Method == method::head);
+		static_assert (
+			Method == method::get or Method == method::head
+		);
 		using namespace libgs::operators;
 
-		for(size_t followed=0; ; )
+		for(size_t followed=0; ; followed++)
 		{
-			auto status_expected = co_await current->wait_reply(use_awaitable | cancel_slot);
-			if( not status_expected )
-				co_return sys_unexpected(status_expected.error());
+			error_code io_error {};
+			auto reply_status = co_await current->wait_reply (
+				use_awaitable | io_error | cancel_slot
+			);
+			if( io_error )
+				co_return sys_unexpected(io_error);
 
 			while( current->reply()->parser().is_informational() )
 			{
-				status_expected = co_await current->wait_reply(use_awaitable | cancel_slot);
-				if( not status_expected )
-					co_return sys_unexpected(status_expected.error());
+				reply_status = co_await current->wait_reply(
+					use_awaitable | io_error | cancel_slot
+				);
+				if( io_error )
+					co_return sys_unexpected(io_error);
 			}
-			if( not redirect_status(*status_expected) or followed == info.max_redirects )
+			if( not redirect_status(reply_status) or followed == info.max_redirects )
 				co_return current;
 
 			auto location = current->reply()->header(header::location);
@@ -197,19 +240,18 @@ public:
 				std::array<char,8192> data {};
 				for(;;)
 				{
-					auto read = co_await current->reply()->read (
-						buffer(data), use_awaitable |
-						std::chrono::nanoseconds(0) | cancel_slot
-					);
-					if( read )
+					ignore_unused(co_await current->reply()->read (
+						buffer(data), use_awaitable | io_error | cancel_slot
+					));
+					if( not io_error )
 						continue;
-					if( read.error() != errc::eof )
-						co_return sys_unexpected(read.error());
+					if( io_error != errc::eof )
+						co_return sys_unexpected(io_error);
 					break;
 				}
 			}
 			try {
-				auto next = url::resolve(info.url, **location);
+				auto next = url_t::resolve(info.url, **location);
 				if( not same_origin(info.url, next) )
 				{
 					info.arg.unset_header(header::authorization);
@@ -217,1332 +259,608 @@ public:
 				}
 				info.url = std::move(next);
 			}
-			catch(...) {
-				co_return sys_unexpected(make_error_code(std::errc::protocol_error));
+			catch(...)
+			{
+				co_return sys_unexpected (
+					make_error_code(std::errc::protocol_error)
+				);
 			}
-			current = co_await co_make_context<Method>(
-				info, cancel_slot, std::chrono::nanoseconds(0)
-			);
-			if( not current )
-				co_return current;
+			auto next = co_await co_make_context<Method>(info, cancel_slot);
+			if( not next )
+				co_return next;
+			current = std::move(*next);
 
-			auto written = co_await current->write (
-				use_awaitable | std::chrono::nanoseconds(0) | cancel_slot
-			);
-			if( not written )
-				co_return sys_unexpected(written.error());
-			++followed;
+			ignore_unused(co_await current->write (
+				use_awaitable | io_error | cancel_slot
+			));
+			if( io_error )
+				co_return sys_unexpected(io_error);
 		}
+		co_return result_t<Method>();
 	}
 
 public:
 	template <method_enum Method>
-	[[nodiscard]] ctx_expected_t<Method> request(req_info info) noexcept
+	[[nodiscard]] result_t<Method> request(req_info info) noexcept
 	{
-		bool continue_100 = false;
-		if constexpr( version_v > version::v10 )
-		{
-			auto it = info.arg.headers().find(header::expect);
-			continue_100 = it != info.arg.headers().end() and
-				strtls::to_lower(*it->second) == "100-continue";
-		}
-		ctx_expected_t<Method> ctx_expected {
-			sys_unexpected(make_error_code(std::errc::connection_aborted))
-		};
-		for(size_t i=0; i<10; i++)
-		{
-			ctx_expected = make_context<Method>(info);
-			if( not ctx_expected )
-				return ctx_expected;
+		const bool continue_100 = expects_continue(info);
+		auto context_expected = make_context<Method>(info);
 
-			if( ctx_expected->connection().peek() )
-				break;
-		}
-		if( not ctx_expected->connection().peek() )
-			return sys_unexpected(ctx_expected->reply()->first_error());
+		if( not context_expected )
+			return context_expected;
 
-		auto io_expected = ctx_expected->write();
-		if( not io_expected )
-			return sys_unexpected(io_expected.error());
+		error_code io_error {};
+		ignore_unused((*context_expected)->write(io_error));
+		if( io_error )
+			return sys_unexpected(io_error);
 
-		else if( continue_100 )
+		if( continue_100 )
 		{
 			for(;;)
 			{
-				auto reply_status = ctx_expected->reply()->status();
+				auto reply = (*context_expected)->reply();
+				auto reply_status = reply->status();
+
 				if( reply_status == status::continue_upload or
-					(reply_status != status::none and
-					 not ctx_expected->reply()->parser().is_informational()) )
+					(reply_status != status::none and not reply->parser().is_informational()) )
 					break;
 
-				auto status_expected = ctx_expected->wait_reply();
-				if( not status_expected )
-				{
-					ctx_expected.despair(status_expected.error());
-					break;
-				}
+				ignore_unused((*context_expected)->wait_reply(io_error));
+				if( io_error )
+					return sys_unexpected(io_error);
 			}
 		}
-		if( not ctx_expected )
-			return ctx_expected;
-
 		if constexpr( Method == method::get or Method == method::head )
 		{
 			if( info.max_redirects > 0 )
-				return follow_redirects<Method>(std::move(ctx_expected), std::move(info));
+			{
+				return follow_redirects<Method>(
+					std::move(*context_expected), std::move(info)
+				);
+			}
 		}
-		return ctx_expected;
+		return context_expected;
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_request(req_info info,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<result_t<Method>> co_request
+	(req_info info, asio::cancellation_slot cancel_slot) noexcept
 	{
-		using namespace std::chrono_literals;
 		using namespace libgs::operators;
+		const bool continue_100 = expects_continue(info);
+		auto context_expected = co_await co_make_context<Method>(info, cancel_slot);
 
-		ctx_expected_t<Method> ctx_expected {
-			sys_unexpected(make_error_code(std::errc::connection_aborted))
-		};
-		auto task = libgs::dispatch(m_pool.get_executor(), [&]() mutable -> awaitable<void>
+		if( not context_expected )
+			co_return context_expected;
+
+		error_code io_error {};
+		ignore_unused(co_await (*context_expected)->write (
+			use_awaitable | io_error | cancel_slot
+		));
+		if( io_error )
+			co_return sys_unexpected(io_error);
+
+		if( continue_100 )
 		{
-			bool continue_100 = false;
-			if constexpr( version_v > version::v10 )
+			for(;;)
 			{
-				auto it = info.arg.headers().find(header::expect);
-				continue_100 = it != info.arg.headers().end() and
-					strtls::to_lower(*it->second) == "100-continue";
-			}
-			for(size_t i=0; i<10; i++)
-			{
-				ctx_expected = co_await co_make_context<Method>(
-					info, cancel_slot, 0ns
-				);
-				if( not ctx_expected )
-					co_return ;
+				auto reply = (*context_expected)->reply();
+				auto reply_status = reply->status();
 
-				else if( ctx_expected->connection().peek() )
+				if( reply_status == status::continue_upload or
+					(reply_status != status::none and not reply->parser().is_informational()) )
 					break;
-			}
-			if( not ctx_expected->connection().peek() )
-			{
-				ctx_expected.despair (
-					ctx_expected->reply()->first_error()
-				);
-				co_return ;
-			}
-			auto io_expected = ctx_expected->write();
-			if( not io_expected )
-			{
-				ctx_expected.despair(io_expected.error());
-				co_return ;
-			}
-			else if( continue_100 )
-			{
-				for(;;)
-				{
-					auto reply_status = ctx_expected->reply()->status();
-					if( reply_status == status::continue_upload or
-						(reply_status != status::none and
-						 not ctx_expected->reply()->parser().is_informational()) )
-						break;
 
-					auto status_expected = co_await ctx_expected->wait_reply (
-						use_awaitable | cancel_slot
-					);
-					if( not status_expected )
-					{
-						ctx_expected.despair(status_expected.error());
-						break;
-					}
-				}
-			}
-			if( not ctx_expected )
-				co_return ;
-			if constexpr( Method == method::get or Method == method::head )
-			{
-				if( info.max_redirects > 0 )
-					ctx_expected = co_await co_follow_redirects<Method> (
-						std::move(ctx_expected), std::move(info), cancel_slot
-					);
-			}
-			co_return ;
-		},
-		use_awaitable);
-
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_pool.get_executor(), timeout)
-			);
-			if( var.index() == 1 )
-			{
-				if( not std::get<1>(var) )
-					ctx_expected.despair(make_error_code(errc::timed_out));
-				else
-					ctx_expected.despair(std::get<1>(var));
+				ignore_unused(co_await (*context_expected)->wait_reply (
+					use_awaitable | io_error | cancel_slot
+				));
+				if( io_error )
+					co_return sys_unexpected(io_error);
 			}
 		}
-		co_return ctx_expected;
-	}
-
-	template <method_enum Method>
-	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_request(std::error_code &error,
-		req_info info, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_request<Method>(std::move(info),
-			std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
+		if constexpr( Method == method::get or Method == method::head )
+		{
+			if( info.max_redirects > 0 )
+			{
+				co_return co_await co_follow_redirects<Method>(
+					std::move(*context_expected), std::move(info), cancel_slot
+				);
+			}
+		}
+		co_return context_expected;
 	}
 
 public:
-	[[nodiscard]] ctx_expected_t<method::put> upload_file
+	[[nodiscard]] result_t<method::put> upload_file
 	(req_info info, auto &&opt, auto &&progress) noexcept
 	{
 		auto pair = info.arg.set_header(std::forward<decltype(opt)>(opt));
 		if( not pair )
 			return sys_unexpected(pair.error());
 
-		auto ctx_expected = request<method::put>(std::move(info));
-		if( not ctx_expected )
-			return ctx_expected;
+		auto context_expected = request<method::put>(std::move(info));
+		if( not context_expected )
+			return context_expected;
 
+		auto &context = *context_expected;
 		if constexpr( version_v > version::v10 )
 		{
-			if( ctx_expected->responded() and
-				ctx_expected->reply()->status() != status::continue_upload )
-				return ctx_expected;
+			if( context->responded() and context->reply()->status() != status::continue_upload )
+				return context_expected;
 		}
-		else if( ctx_expected->responded() )
-			return ctx_expected;
-
-		auto io_expected = ctx_expected->upload_file (
+		else
+		{
+			if( context->responded() )
+				return context_expected;
+		}
+		error_code io_error {};
+		ignore_unused(context->upload_file (
 			std::move(pair->first), std::move(pair->second),
-			std::forward<decltype(progress)>(progress)
-		);
-		if( not io_expected )
-			return sys_unexpected(io_expected.error());
+			std::forward<decltype(progress)>(progress), io_error
+		));
+		if( io_error )
+			return sys_unexpected(io_error);
 
-		auto status_expected = ctx_expected->wait_reply();
-		if( not status_expected )
-			return sys_unexpected(status_expected.error());
-		return ctx_expected;
+		ignore_unused(context->wait_reply(io_error));
+		if( io_error )
+			return sys_unexpected(io_error);
+		return context_expected;
 	}
 
-	[[nodiscard]] awaitable<ctx_expected_t<method::put>> co_upload_file(
-		req_info info, auto opt, auto progress, asio::cancellation_slot cancel_slot,
-		std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<result_t<method::put>> co_upload_file
+	(req_info info, auto &opt, auto &progress, asio::cancellation_slot cancel_slot) noexcept
 	{
-		using namespace std::chrono_literals;
 		using namespace libgs::operators;
-
-		ctx_expected_t<method::put> ctx_expected {
-			sys_unexpected(make_error_code(std::errc::connection_aborted))
-		};
-		auto pair = info.arg.set_header(detail::unwrap_async_capture(opt));
+		auto pair = info.arg.set_header(opt);
 		if( not pair )
 			co_return sys_unexpected(pair.error());
 
-		auto task = libgs::dispatch(m_pool.get_executor(), [&]() mutable -> awaitable<void>
-		{
-			ctx_expected = co_await co_request<method::put>(
-				std::move(info), cancel_slot, 0ns
-			);
-			if( not ctx_expected )
-				co_return ;
+		auto context_expected = co_await co_request<method::put>(
+			std::move(info), cancel_slot
+		);
+		if( not context_expected )
+			co_return context_expected;
 
-			if constexpr( version_v > version::v10 )
-			{
-				if( ctx_expected->responded() and
-					ctx_expected->reply()->status() != status::continue_upload )
-					co_return ;
-			}
-			else
-			{
-				if( ctx_expected->responded() )
-					co_return ;
-			}
-			auto io_expected = co_await ctx_expected->upload_file (
-				std::move(pair->first), std::move(pair->second),
-				detail::unwrap_async_capture(progress),
-				use_awaitable | cancel_slot
-			);
-			if( not io_expected )
-			{
-				ctx_expected.despair(io_expected.error());
-				co_return ;
-			}
-			auto status_expected = co_await ctx_expected->wait_reply(use_awaitable | cancel_slot);
-			if( not status_expected )
-				ctx_expected.despair(status_expected.error());
-			co_return ;
-		},
-		use_awaitable);
-
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
+		auto &context = *context_expected;
+		if constexpr( version_v > version::v10 )
 		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_pool.get_executor(), timeout)
-			);
-			if( var.index() == 1 )
+			if( context->responded() and
+				context->reply()->status() != status::continue_upload )
 			{
-				if( not std::get<1>(var) )
-					ctx_expected.despair(make_error_code(errc::timed_out));
-				else
-					ctx_expected.despair(std::get<1>(var));
+				co_return context_expected;
 			}
 		}
-		co_return ctx_expected;
+		else
+		{
+			if( context->responded() )
+				co_return context_expected;
+		}
+		error_code io_error {};
+		ignore_unused(co_await context->upload_file (
+			std::move(pair->first), std::move(pair->second), progress,
+			use_awaitable | io_error | cancel_slot
+		));
+		if( io_error )
+			co_return sys_unexpected(io_error);
+
+		ignore_unused(co_await context->wait_reply (
+			use_awaitable | io_error | cancel_slot
+		));
+		if( io_error )
+			co_return sys_unexpected(io_error);
+		co_return context_expected;
 	}
 
-	[[nodiscard]] awaitable<ctx_expected_t<method::put>> co_upload_file(
-		std::error_code &error, req_info info, auto opt, auto progress,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_upload_file(std::move(info),
-			std::move(opt), std::move(progress),
-			std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
-	}
-
-public:
-	[[nodiscard]] ctx_expected_t<method::get> download_file
+	[[nodiscard]] result_t<method::get> download_file
 	(req_info info, auto &&opt, auto &&progress) noexcept
 	{
-		auto expected = request<method::get>(std::move(info));
-		if( not expected )
-			return expected;
+		auto context_expected = request<method::get>(std::move(info));
+		if( not context_expected )
+			return context_expected;
 
-		auto io_expected = expected->reply()->save_file (
+		error_code io_error {};
+		ignore_unused((*context_expected)->reply()->save_file (
 			std::forward<decltype(opt)>(opt),
-			std::forward<decltype(progress)>(progress)
-		);
-		if( not io_expected )
-			return sys_unexpected(io_expected.error());
-		return expected;
+			std::forward<decltype(progress)>(progress), io_error
+		));
+		if( io_error )
+			return sys_unexpected(io_error);
+		return context_expected;
 	}
 
-	[[nodiscard]] awaitable<ctx_expected_t<method::get>> co_download_file(
-		req_info info, auto opt, auto progress, asio::cancellation_slot cancel_slot,
-		std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<result_t<method::get>> co_download_file
+	(req_info info, auto &opt, auto &progress, asio::cancellation_slot cancel_slot) noexcept
 	{
-		using namespace std::chrono_literals;
 		using namespace libgs::operators;
-
-		ctx_expected_t<method::get> ctx_expected {
-			sys_unexpected(make_error_code(std::errc::connection_aborted))
-		};
-		auto task = libgs::dispatch(m_pool.get_executor(), [&]() mutable -> awaitable<void>
-		{
-			ctx_expected = co_await co_request<method::get> (
-				std::move(info), cancel_slot, 0ns
-			);
-			if( not ctx_expected )
-				co_return ;
-
-			auto io_expected = co_await ctx_expected->reply()->save_file (
-				detail::unwrap_async_capture(opt),
-				detail::unwrap_async_capture(progress),
-				use_awaitable | cancel_slot
-			);
-			if( not io_expected )
-				ctx_expected.despair(io_expected.error());
-			co_return ;
-		},
-		use_awaitable);
-
-		if( timeout == 0ns )
-			co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_pool.get_executor(), timeout)
-			);
-			if( var.index() == 1 )
-			{
-				if( not std::get<1>(var) )
-					ctx_expected.despair(make_error_code(errc::timed_out));
-				else
-					ctx_expected.despair(std::get<1>(var));
-			}
-		}
-		co_return ctx_expected;
-	}
-
-	[[nodiscard]] awaitable<ctx_expected_t<method::get>> co_download_file(
-		std::error_code &error, req_info info, auto opt, auto progress,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_download_file(std::move(info),
-			std::move(opt), std::move(progress),
-			std::move(cancel_slot), std::move(timeout)
+		auto context_expected = co_await co_request<method::get>(
+			std::move(info), cancel_slot
 		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
+		if( not context_expected )
+			co_return context_expected;
+
+		error_code io_error {};
+		ignore_unused(co_await (*context_expected)->reply()->save_file (
+			opt, progress, use_awaitable | io_error | cancel_slot
+		));
+		if( io_error )
+			co_return sys_unexpected(io_error);
+		co_return context_expected;
 	}
 
 public:
 	template <method_enum Method>
-	[[nodiscard]] ctx_expected_t<Method> make_context(req_info info) noexcept
+	[[nodiscard]] result_t<Method> make_context(req_info info) noexcept
 	{
-		if( strtls::to_lower(info.url.protocol()) != detail::protocol_name_v<socket_t> )
+		try {
+			auto target_expected = target_from_url(info.url);
+			if( not target_expected )
+				return sys_unexpected(target_expected.error());
+
+			if( info.proxy )
+			{
+				target_expected = target_from_url(*info.proxy);
+				if( not target_expected )
+					return sys_unexpected(target_expected.error());
+			}
+			for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
+			{
+				if( not info.arg.contains_cookie(name) )
+					info.arg.set_cookie(name, std::move(item));
+			}
+			auto lease_expected = m_pool.get(*target_expected);
+			if( not lease_expected )
+				return sys_unexpected(lease_expected.error());
+
+			auto context = std::make_shared<context_t<Method>>(
+				std::move(*lease_expected), std::move(info.url),
+				typename context_t<Method>::options {
+					std::move(info.arg), m_cookie_store, info.proxy ?
+						request_target_form::absolute : request_target_form::origin,
+					info.auto_decompression
+				}
+			);
+			return context;
+		}
+		catch(const std::system_error &ex) {
+			return sys_unexpected(ex.code());
+		}
+		catch(const std::bad_alloc&)
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::protocol_error)
+				make_error_code(std::errc::not_enough_memory)
 			);
 		}
-		for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
-		{
-			if( not info.arg.contains_cookie(name) )
-				info.arg.set_cookie(name, std::move(item));
-		}
-		if( info.proxy and strtls::to_lower(info.proxy->protocol()) != detail::protocol_name_v<socket_t> )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
-
-		const auto &connect_url = info.proxy ? *info.proxy : info.url;
-		auto expected = m_pool.get(connect_url.address(), connect_url.port());
-
-		if( not expected )
-			return sys_unexpected(expected.error());
-
-		return context_t<Method>(
-			std::move(*expected), std::move(info.url), {
-				std::move(info.arg), m_cookie_store,
-				info.proxy ? request_target_form::absolute : request_target_form::origin,
-				info.auto_decompression
-			}
-		);
+		catch(...) {}
+		return sys_unexpected(make_error_code(std::errc::io_error));
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_make_context(req_info info,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<result_t<Method>> co_make_context
+	(req_info info, asio::cancellation_slot cancel_slot) noexcept
 	{
-		if( strtls::to_lower(info.url.protocol()) != detail::protocol_name_v<socket_t> )
+		using namespace libgs::operators;
+		auto target_expected = target_from_url(info.url);
+		if( not target_expected )
+			co_return sys_unexpected(target_expected.error());
+
+		if( info.proxy )
+		{
+			target_expected = target_from_url(*info.proxy);
+			if( not target_expected )
+				co_return sys_unexpected(target_expected.error());
+		}
+		try {
+			for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
+			{
+				if( not info.arg.contains_cookie(name) )
+					info.arg.set_cookie(name, std::move(item));
+			}
+		}
+		catch(const std::bad_alloc&)
 		{
 			co_return sys_unexpected (
-				make_error_code(std::errc::protocol_error)
+				make_error_code(std::errc::not_enough_memory)
 			);
 		}
-		using namespace libgs::operators;
-		for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
-		{
-			if( not info.arg.contains_cookie(name) )
-				info.arg.set_cookie(name, std::move(item));
+		catch(...) {
+			co_return sys_unexpected(make_error_code(std::errc::io_error));
 		}
-		if( info.proxy and strtls::to_lower(info.proxy->protocol()) != detail::protocol_name_v<socket_t> )
-			co_return sys_unexpected(make_error_code(std::errc::protocol_error));
-
-		const auto &connect_url = info.proxy ? *info.proxy : info.url;
-		auto expected = co_await m_pool.get (
-			connect_url.address(), connect_url.port(), use_awaitable | cancel_slot | timeout
+		error_code io_error {};
+		auto lease = co_await m_pool.get (
+			*target_expected, use_awaitable | io_error | cancel_slot
 		);
-		if( not expected )
-			co_return sys_unexpected(expected.error());
-
-		co_return context_t<Method>(
-			std::move(*expected), std::move(info.url), {
-				std::move(info.arg), m_cookie_store,
-				info.proxy ? request_target_form::absolute : request_target_form::origin,
-				info.auto_decompression
-			}
-		);
-	}
-
-	template <method_enum Method>
-	[[nodiscard]] awaitable<ctx_expected_t<Method>> co_make_context(std::error_code &error,
-		req_info info, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
-	{
-		auto expected = co_await co_make_context<Method>(std::move(info),
-			std::move(cancel_slot), std::move(timeout)
-		);
-		if( not expected )
-			error = expected.error();
-		co_return expected;
+		if( io_error )
+			co_return sys_unexpected(io_error);
+		try {
+			auto context = std::make_shared<context_t<Method>>(
+				std::move(lease), std::move(info.url),
+				typename context_t<Method>::options {
+					std::move(info.arg), m_cookie_store, info.proxy ?
+						request_target_form::absolute : request_target_form::origin,
+					info.auto_decompression
+				}
+			);
+			co_return context;
+		}
+		catch(const std::system_error &ex) {
+			co_return sys_unexpected(ex.code());
+		}
+		catch(const std::bad_alloc&)
+		{
+			co_return sys_unexpected (
+				make_error_code(std::errc::not_enough_memory)
+			);
+		}
+		catch(...) {}
+		co_return sys_unexpected(make_error_code(std::errc::io_error));
 	}
 
 public:
 	connection_pool_t m_pool;
-	std::shared_ptr<cookie_jar> m_cookie_store;
+	std::shared_ptr<cookie_jar> m_cookie_store {};
 };
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>::basic_client() requires
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>::basic_client() requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
 	m_impl(std::make_shared<impl>())
 {
 
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>::basic_client(core_concepts::match_sched<executor_t> auto &&exec) :
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>::basic_client(
+	core_concepts::match_sched<executor_t> auto &&exec) :
 	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>::basic_client(connection_pool_t &&pool) :
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>::basic_client(connection_pool_t &&pool) :
 	m_impl(std::make_shared<impl>(std::move(pool)))
 {
 
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>::basic_client(basic_client &&other) noexcept :
-	m_impl(std::make_shared<impl>(std::move(*other.m_impl)))
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>::basic_client(basic_client &&other) noexcept :
+	m_impl(std::move(other.m_impl))
 {
 
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>&
-basic_client<ConnectionPool,Version>::operator=(basic_client &&other) noexcept
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>&
+basic_client<Exec,Version>::operator=(basic_client &&other) noexcept
 {
 	if( this != &other )
-		*m_impl = std::move(*other.m_impl);
+		m_impl = std::move(other.m_impl);
 	return *this;
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>::~basic_client() = default;
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>::~basic_client() = default;
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <core_concepts::exec Exec, version_enum Version>
 template <method_enum Method, typename Token>
-auto basic_client<ConnectionPool,Version>::request(req_info info, Token &&token)
-	noexcept requires request_token_v<Method,Token>
+auto basic_client<Exec,Version>::request(req_info info, Token &&token)
+	requires request_token_v<Method,Token>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->template request<Method>(std::move(info))
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
+		return detail::expected_value_or_error (
+			m_impl->template request<Method>(std::move(info)), token
+		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return m_impl->template request<Method>(std::move(info));
-
-	else if constexpr( is_redirect_time_v<token_t> )
 	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->template co_request<Method>(no_time_token.ec_, std::move(info),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->template co_request<Method>(std::move(info),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->template co_request<Method>(no_time_token.ec_, std::move(info),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->template co_request<Method>(std::move(info),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					no_time_token, info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->template co_request<Method> (
-						no_time_token.ec_, std::move(info), cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->template co_request<Method> (
-						std::move(info), cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), no_time_token, original_token,
-				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->template co_request<Method> (
-					no_time_token.ec_, std::move(info), cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), original_token,
-				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->template co_request<Method> (
-					std::move(info), cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
+		return detail::expected_value_or_throw (
+			m_impl->template request<Method>(std::move(info))
+		);
 	}
 	else
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return request<Method>(std::move(info), token | 0ns);
+		return detail::initiate_expected<context_ptr<Method>>(
+		get_executor(), [impl = m_impl, info = std::move(info)]
+		() mutable -> awaitable<sys_expected<context_ptr<Method>>>
+		{
+			auto state = co_await asio::this_coro::cancellation_state;
+			co_return co_await impl->template co_request<Method>(
+				std::move(info), state.slot()
+			);
+		},
+		std::forward<Token>(token));
 	}
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <core_concepts::exec Exec, version_enum Version>
 template <typename T, typename Token>
-auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, Token &&token)
-	noexcept requires upload_file_opt_token_v<T,Token>
+auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Token &&token)
+	requires upload_file_opt_token_v<T,Token>
 {
-	return upload_file(std::move(info),
-		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
+	return upload_file(std::move(info), std::forward<T>(opt),
+		[](size_t,size_t){}, std::forward<Token>(token)
 	);
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <core_concepts::exec Exec, version_enum Version>
 template <typename T, typename Progress, typename Token>
-auto basic_client<ConnectionPool,Version>::upload_file(req_info info, T &&opt, Progress &&progress, Token &&token)
-	noexcept requires upload_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>
+auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Progress &&progress, Token &&token)
+	requires upload_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->upload_file(std::move(info),
-			std::forward<T>(opt), std::forward<Progress>(progress)
-		)
-		.or_else([&token](const error_code &error) {
-			token = error;
-		});
+		return detail::expected_value_or_error (
+			m_impl->upload_file(std::move(info),
+				std::forward<T>(opt), std::forward<Progress>(progress)
+			), token
+		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return m_impl->upload_file(std::move(info),
-			std::forward<T>(opt), std::forward<Progress>(progress)
+		return detail::expected_value_or_throw (
+			m_impl->upload_file(std::move(info),
+				std::forward<T>(opt), std::forward<Progress>(progress)
+			)
 		);
-	}
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_upload_file(no_time_token.ec_, std::move(info),
-					detail::make_async_capture(std::forward<T>(opt)),
-					detail::make_async_capture(std::forward<Progress>(progress)),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_upload_file(std::move(info),
-					detail::make_async_capture(std::forward<T>(opt)),
-					detail::make_async_capture(std::forward<Progress>(progress)),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_upload_file(no_time_token.ec_, std::move(info),
-						detail::make_async_capture(std::forward<T>(opt)),
-						detail::make_async_capture(std::forward<Progress>(progress)),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_upload_file(std::move(info),
-						detail::make_async_capture(std::forward<T>(opt)),
-						detail::make_async_capture(std::forward<Progress>(progress)),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<ctx_expected_t<method::put>>>();
-			auto future = promise->get_future();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl,
-					no_time_token, promise = std::move(promise), info = std::move(info),
-					opt = detail::make_async_capture(std::forward<T>(opt)),
-					progress = detail::make_async_capture(std::forward<Progress>(progress)),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_upload_file(no_time_token.ec_,
-						std::move(info), std::move(opt), std::move(progress),
-						cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl,
-					promise = std::move(promise), info = std::move(info),
-					opt = detail::make_async_capture(std::forward<T>(opt)),
-					progress = detail::make_async_capture(std::forward<Progress>(progress)),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_upload_file (
-						std::move(info), std::move(opt), std::move(progress),
-						cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return future;
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl,
-				no_time_token, original_token, info = std::move(info),
-				opt = detail::make_async_capture(std::forward<T>(opt)),
-				progress = detail::make_async_capture(std::forward<Progress>(progress)),
-				timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_upload_file(no_time_token.ec_,
-					std::move(info), std::move(opt), std::move(progress),
-					cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-				co_return ;
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl,
-				original_token, info = std::move(info),
-				opt = detail::make_async_capture(std::forward<T>(opt)),
-				progress = detail::make_async_capture(std::forward<Progress>(progress)),
-				timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_upload_file (
-					std::move(info), std::move(opt), std::move(progress),
-					cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-				co_return ;
-			});
-		}
 	}
 	else
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return upload_file(std::move(info),
-			std::forward<T>(opt), std::forward<Progress>(progress),
-			token | 0ns
-		);
+		return detail::initiate_expected<context_ptr<method::put>>(get_executor(), [
+			impl = m_impl, info = std::move(info),
+			opt = detail::capture_async_argument(std::forward<T>(opt)),
+			progress = detail::capture_async_argument(std::forward<Progress>(progress))
+		]() mutable -> awaitable<sys_expected<context_ptr<method::put>>>
+		{
+			auto state = co_await asio::this_coro::cancellation_state;
+			co_return co_await impl->co_upload_file (
+				std::move(info), detail::unwrap_async_argument(opt),
+				detail::unwrap_async_argument(progress), state.slot()
+			);
+		},
+		std::forward<Token>(token));
 	}
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <core_concepts::exec Exec, version_enum Version>
 template <typename T, typename Token>
-auto basic_client<ConnectionPool,Version>::download_file(req_info info, T &&opt, Token &&token)
-	noexcept requires download_file_opt_token_v<T,Token>
+auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Token &&token)
+	requires download_file_opt_token_v<T,Token>
 {
-	return download_file(std::move(info),
-		std::forward<T>(opt), [](size_t,size_t){}, std::forward<Token>(token)
+	return download_file(std::move(info), std::forward<T>(opt),
+		[](size_t,size_t){}, std::forward<Token>(token)
 	);
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <core_concepts::exec Exec, version_enum Version>
 template <typename T, typename Progress, typename Token>
-auto basic_client<ConnectionPool,Version>::download_file(req_info info, T &&opt, Progress &&progress, Token &&token)
-	noexcept requires download_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>
+auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Progress &&progress, Token &&token)
+	requires download_file_opt_token_v<T,Token> and concepts::progress_handler<Progress,Token>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto expected = m_impl->download_file(std::move(info),
-			std::forward<T>(opt), std::forward<Progress>(progress)
+		return detail::expected_value_or_error (
+			m_impl->download_file(std::move(info),
+				std::forward<T>(opt), std::forward<Progress>(progress)
+			), token
 		);
-		if( not expected )
-			token = expected.error();
-		return expected;
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return m_impl->download_file(std::move(info),
-			std::forward<T>(opt), std::forward<Progress>(progress)
+		return detail::expected_value_or_throw (
+			m_impl->download_file(std::move(info),
+				std::forward<T>(opt), std::forward<Progress>(progress)
+			)
 		);
-	}
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->co_download_file(no_time_token.ec_, std::move(info),
-					detail::make_async_capture(std::forward<T>(opt)),
-					detail::make_async_capture(std::forward<Progress>(progress)),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->co_download_file(std::move(info),
-					detail::make_async_capture(std::forward<T>(opt)),
-					detail::make_async_capture(std::forward<Progress>(progress)),
-					asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_download_file(no_time_token.ec_, std::move(info),
-						detail::make_async_capture(std::forward<T>(opt)),
-						detail::make_async_capture(std::forward<Progress>(progress)),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(),
-					m_impl->co_download_file(std::move(info),
-						detail::make_async_capture(std::forward<T>(opt)),
-						detail::make_async_capture(std::forward<Progress>(progress)),
-						asio::get_associated_cancellation_slot(no_time_token),
-						get_associated_redirect_time(token)
-					), deferred
-				);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<ctx_expected_t<method::get>>>();
-			auto future = promise->get_future();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl,
-					no_time_token, promise = std::move(promise), info = std::move(info),
-					opt = detail::make_async_capture(std::forward<T>(opt)),
-					progress = detail::make_async_capture(std::forward<Progress>(progress)),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_download_file(no_time_token.ec_,
-						std::move(info), std::move(opt), std::move(progress),
-						cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl,
-					promise = std::move(promise), info = std::move(info),
-					opt = detail::make_async_capture(std::forward<T>(opt)),
-					progress = detail::make_async_capture(std::forward<Progress>(progress)),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->co_download_file (
-						std::move(info), std::move(opt), std::move(progress),
-						cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return future;
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl,
-				no_time_token, original_token, info = std::move(info),
-				opt = detail::make_async_capture(std::forward<T>(opt)),
-				progress = detail::make_async_capture(std::forward<Progress>(progress)),
-				timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_download_file(no_time_token.ec_,
-					std::move(info), std::move(opt), std::move(progress),
-					cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-				co_return ;
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl,
-				original_token, info = std::move(info),
-				opt = detail::make_async_capture(std::forward<T>(opt)),
-				progress = detail::make_async_capture(std::forward<Progress>(progress)),
-				timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->co_download_file (
-					std::move(info), std::move(opt), std::move(progress),
-					cancel_slot, timeout
-				);
-				original_token(std::move(expected));
-				co_return ;
-			});
-		}
 	}
 	else
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return download_file(std::move(info),
-			std::forward<T>(opt), std::forward<Progress>(progress),
-			token | 0ns
-		);
+		return detail::initiate_expected<context_ptr<method::get>>(get_executor(), [
+			impl = m_impl, info = std::move(info),
+			opt = detail::capture_async_argument(std::forward<T>(opt)),
+			progress = detail::capture_async_argument(std::forward<Progress>(progress))
+		]() mutable -> awaitable<sys_expected<context_ptr<method::get>>>
+		{
+			auto state = co_await asio::this_coro::cancellation_state;
+			co_return co_await impl->co_download_file (
+				std::move(info), detail::unwrap_async_argument(opt),
+				detail::unwrap_async_argument(progress), state.slot()
+			);
+		},
+		std::forward<Token>(token));
 	}
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_get(req_info info, Token &&token)
-	noexcept requires request_token_v<method::get,Token>
-{
-	return request<method::get>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
+#define LIBGS_HTTP_CLIENT_REQUEST_METHOD(Name, Method) \
+	template <core_concepts::exec Exec, version_enum Version> \
+	template <typename Token> \
+	auto basic_client<Exec,Version>::request_##Name(req_info info, Token &&token) \
+		requires request_token_v<method::Method,Token> { \
+		return request<method::Method>( \
+			std::move(info), std::forward<Token>(token) \
+		); \
+	}
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_put(req_info info, Token &&token)
-	noexcept requires request_token_v<method::put,Token>
-{
-	return request<method::put>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(get    , get    )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(put    , put    )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(post   , post   )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(head   , head   )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(patch  , patch  )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(delete , delet  )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(options, options)
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(trace  , trace  )
+LIBGS_HTTP_CLIENT_REQUEST_METHOD(connect, connect)
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_post(req_info info, Token &&token)
-	noexcept requires request_token_v<method::post,Token>
-{
-	return request<method::post>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
+#undef LIBGS_HTTP_CLIENT_REQUEST_METHOD
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_head(req_info info, Token &&token)
-	noexcept requires request_token_v<method::head,Token>
-{
-	return request<method::head>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_patch(req_info info, Token &&token)
-	noexcept requires request_token_v<method::patch,Token>
-{
-	return request<method::patch>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_delete(req_info info, Token &&token)
-	noexcept requires request_token_v<method::delet,Token>
-{
-	return request<method::delet>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_options(req_info info, Token &&token)
-	noexcept requires request_token_v<method::options,Token>
-{
-	return request<method::options>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_trace(req_info info, Token &&token)
-	noexcept requires request_token_v<method::trace,Token>
-{
-	return request<method::trace>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::request_connect(req_info info, Token &&token)
-	noexcept requires request_token_v<method::connect,Token>
-{
-	return request<method::connect>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
+template <core_concepts::exec Exec, version_enum Version>
 template <method_enum Method, typename Token>
-auto basic_client<ConnectionPool,Version>::make_context(req_info info, Token &&token)
-	noexcept requires request_token_v<Method,Token>
+auto basic_client<Exec,Version>::make_context(req_info info, Token &&token)
+	requires request_token_v<Method,Token>
 {
-	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return m_impl->template make_context<Method>(std::move(info))
-			.or_else([&token](const error_code &error) {
-				token = error;
-			});
+		return detail::expected_value_or_error (
+			m_impl->template make_context<Method>(std::move(info)), token
+		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return m_impl->template make_context<Method>(
-			std::move(info));
-
-	}
-	else if constexpr( is_redirect_time_v<token_t> )
-	{
-		decltype(auto) no_time_token = unbound_redirect_time(token);
-		using no_time_token_t = std::remove_cvref_t<decltype(no_time_token)>;
-
-		decltype(auto) original_token = unbound_token(no_time_token);
-		using original_token_t = std::remove_cvref_t<decltype(original_token)>;
-
-		if constexpr( is_use_awaitable_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return m_impl->template co_make_context<Method>(
-					no_time_token.ec_, std::move(info), asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-			else
-			{
-				return m_impl->template co_make_context<Method>(
-					std::move(info), asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				);
-			}
-		}
-		else if constexpr( is_deferred_v<original_token_t> )
-		{
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				return libgs::dispatch(get_executor(), m_impl->template co_make_context<Method>(
-					no_time_token.ec_, std::move(info), asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-			else
-			{
-				return libgs::dispatch(get_executor(), m_impl->template co_make_context<Method>(
-					std::move(info), asio::get_associated_cancellation_slot(no_time_token),
-					get_associated_redirect_time(token)
-				), deferred);
-			}
-		}
-		else if constexpr( is_use_future_v<original_token_t> )
-		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
-			if constexpr( is_redirect_error_v<no_time_token_t> )
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					no_time_token, info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->template co_make_context<Method> (
-						no_time_token.ec_, std::move(info), cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			else
-			{
-				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					info = std::move(info), promise = std::move(promise),
-					cancel_slot = asio::get_associated_cancellation_slot(no_time_token),
-					timeout = get_associated_redirect_time(token)
-				]() mutable -> awaitable<void>
-				{
-					promise->set_value(co_await impl->template co_make_context<Method> (
-						std::move(info), cancel_slot, timeout
-					));
-					co_return ;
-				});
-			}
-			return promise->get_future();
-		}
-		else if constexpr( is_redirect_error_v<no_time_token_t> )
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), no_time_token, original_token,
-				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->template co_make_context<Method> (
-					no_time_token.ec_, std::move(info), cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
-		else
-		{
-			libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(), original_token,
-				info = std::move(info), timeout = get_associated_redirect_time(token),
-				cancel_slot = asio::get_associated_cancellation_slot(no_time_token)
-			]() mutable -> awaitable<void>
-			{
-				auto expected = co_await impl->template co_make_context<Method> (
-					std::move(info), cancel_slot, timeout
-				);
-				expected
-				.transform([&callback = original_token](int code) {
-					callback(error_code(), code);
-				})
-				.or_else([&callback = original_token](const error_code &error) {
-					callback(error, 255);
-				});
-			});
-		}
+		return detail::expected_value_or_throw (
+			m_impl->template make_context<Method>(std::move(info))
+		);
 	}
 	else
 	{
-		using namespace libgs::operators;
-		using namespace std::chrono_literals;
-		return make_context<Method>(std::move(info), token | 0ns);
+		return detail::initiate_expected<context_ptr<Method>>(get_executor(),
+		[impl = m_impl, info = std::move(info)]() mutable -> awaitable<sys_expected<context_ptr<Method>>>
+		{
+			auto state = co_await asio::this_coro::cancellation_state;
+			co_return co_await impl->template co_make_context<Method>(
+				std::move(info), state.slot()
+			);
+		},
+		std::forward<Token>(token));
 	}
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_get(req_info info, Token &&token)
-	noexcept requires request_token_v<method::get,Token>
-{
-	return make_context<method::get>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
+#define LIBGS_HTTP_CLIENT_MAKE_METHOD(Name, Method) \
+	template <core_concepts::exec Exec, version_enum Version> \
+	template <typename Token> \
+	auto basic_client<Exec,Version>::make_##Name(req_info info, Token &&token) \
+		requires request_token_v<method::Method,Token> { \
+		return make_context<method::Method>( \
+			std::move(info), std::forward<Token>(token) \
+		); \
+	}
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_put(req_info info, Token &&token)
-	noexcept requires request_token_v<method::put,Token>
-{
-	return make_context<method::put>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
+LIBGS_HTTP_CLIENT_MAKE_METHOD(get    , get    )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(put    , put    )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(post   , post   )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(head   , head   )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(patch  , patch  )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(delete , delet  )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(options, options)
+LIBGS_HTTP_CLIENT_MAKE_METHOD(trace  , trace  )
+LIBGS_HTTP_CLIENT_MAKE_METHOD(connect, connect)
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_post(req_info info, Token &&token)
-	noexcept requires request_token_v<method::post,Token>
-{
-	return make_context<method::post>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
+#undef LIBGS_HTTP_CLIENT_MAKE_METHOD
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_head(req_info info, Token &&token)
-	noexcept requires request_token_v<method::head,Token>
-{
-	return make_context<method::head>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_patch(req_info info, Token &&token)
-	noexcept requires request_token_v<method::patch,Token>
-{
-	return make_context<method::patch>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_delete(req_info info, Token &&token)
-	noexcept requires request_token_v<method::delet,Token>
-{
-	return make_context<method::delet>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_options(req_info info, Token &&token)
-	noexcept requires request_token_v<method::options,Token>
-{
-	return make_context<method::options>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_trace(req_info info, Token &&token)
-	noexcept requires request_token_v<method::trace,Token>
-{
-	return make_context<method::trace>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-template <typename Token>
-auto basic_client<ConnectionPool,Version>::make_connect(req_info info, Token &&token)
-	noexcept requires request_token_v<method::connect,Token>
-{
-	return make_context<method::connect>(
-		std::move(info), std::forward<Token>(token)
-	);
-}
-
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-std::shared_ptr<cookie_jar>
-basic_client<ConnectionPool,Version>::cookie_store() noexcept
+template <core_concepts::exec Exec, version_enum Version>
+std::shared_ptr<cookie_jar> basic_client<Exec,Version>::cookie_store() noexcept
 {
 	return m_impl->m_cookie_store;
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-consteval version_enum basic_client<ConnectionPool,Version>::version() noexcept
+template <core_concepts::exec Exec, version_enum Version>
+consteval version_enum basic_client<Exec,Version>::version() noexcept
 {
 	return version_v;
 }
 
-template <concepts::connection_pool ConnectionPool, version_enum Version>
-basic_client<ConnectionPool,Version>::executor_t
-basic_client<ConnectionPool,Version>::get_executor() noexcept
+template <core_concepts::exec Exec, version_enum Version>
+basic_client<Exec,Version>::executor_t basic_client<Exec,Version>::get_executor() noexcept
 {
 	return m_impl->m_pool.get_executor();
 }

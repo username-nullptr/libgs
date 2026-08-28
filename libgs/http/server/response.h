@@ -35,25 +35,23 @@
 namespace libgs::http
 {
 
-template <concepts::connection Connection>
+template <core_concepts::exec Exec>
 class basic_request;
 
-template <concepts::connection Connection>
+template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_response :
-	public mutable_headers<basic_response<Connection>>,
-	public mutable_cookies<cookie,basic_response<Connection>>,
-	public mutable_chunk_attributes<basic_response<Connection>>
+	public mutable_headers<basic_response<Exec>>,
+	public mutable_cookies<cookie,basic_response<Exec>>,
+	public mutable_chunk_attributes<basic_response<Exec>>
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_response)
 
 public:
-	using connection_t = Connection;
-	using connection_ptr = std::shared_ptr<connection_t>;
-	using executor_t = connection_t::executor_t;
+	using executor_t = Exec;
+	using connection_t = basic_connection<executor_t>;
+	using connection_ptr = connection_t::ptr_t;
 
-	using request_t = basic_request<connection_t>;
-	using socket_t = connection_t::socket_t;
-	using endpoint_t = connection_t::endpoint_t;
+	using request_t = basic_request<executor_t>;
 
 	using value_t = libgs::value;
 	using headers_t = http::headers;
@@ -73,22 +71,30 @@ public:
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		core_concepts::dis_func_tf_opt_token<Token,Value...> and
+		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...> and
 		not is_detached_v<std::remove_cvref_t<Token>>;
 
+	template <typename Token, typename...Value>
+	static constexpr bool write_task_token_v =
+		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...>;
+
+	template <typename Token>
+	static constexpr bool detached_token_v =
+		is_detached_v<token_unbound_t<Token>>;
+
+	// As with Asio's basic I/O operations, asynchronous writes borrow body until
+	// completion. detached is the exception: it owns a copy until completion.
 	template <typename Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
-		requires task_token_v<Token,size_t>;
+		requires write_task_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
 	auto write(Token &&token = {})
-		requires task_token_v<Token,size_t>;
+		requires write_task_token_v<Token,size_t>;
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token_v =
-		core_concepts::dis_func_tf_opt_token<Token,size_t> and
-		not is_detached_v<std::remove_cvref_t<Token>> and
-		concepts::file_opt_token_p <
+		task_token_v<Token,size_t> and concepts::file_opt_token_p <
 			T, char, file_optype::single, io_permission::read
 		>;
 	template <typename T, typename Token = use_sync_t>
@@ -128,7 +134,7 @@ private:
 	impl *m_impl;
 };
 
-using response = basic_response<connection>;
+using response = basic_response<>;
 
 } //namespace libgs::http
 #include <libgs/http/server/detail/response.h>

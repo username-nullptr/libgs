@@ -88,9 +88,15 @@ public:
 
 public:
 	[[nodiscard]] std::string take_partial_body(size_t size);
+	[[nodiscard]] size_t read_partial_body(const mutable_buffer &buffer) noexcept;
+	[[nodiscard]] size_t partial_body_size() const noexcept;
+
 	[[nodiscard]] std::string take_body();
 	[[nodiscard]] std::string take_pending_data();
 	[[nodiscard]] optional<byte_range_chunk> take_range_body(size_t size);
+
+	[[nodiscard]] size_t prepare_direct_body_read(size_t size) const noexcept;
+	[[nodiscard]] bool commit_direct_body_read(size_t size) noexcept;
 
 	[[nodiscard]] stage_t stage() const noexcept;
 	parser &reset();

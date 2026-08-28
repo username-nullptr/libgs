@@ -202,7 +202,7 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 		std::string target {};
 		if( method == method::connect or m_impl->m_target_form == request_target_form::authority )
 		{
-			target = std::string(url.address());
+			target = std::string(url.host());
 			if( target.find(':') != std::string::npos and not target.starts_with('[') )
 				target = '[' + target + ']';
 			target += ':' + std::to_string(url.port());
@@ -218,7 +218,7 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 			+ version::string(m_impl->m_generator->version())
 			+ "\r\n";
 	}
-	auto host = std::string(url.address());
+	auto host = std::string(url.host());
 	if( host.find(':') != std::string::npos and not host.starts_with('[') )
 		host = '[' + host + ']';
 

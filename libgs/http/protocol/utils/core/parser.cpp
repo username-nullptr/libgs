@@ -73,15 +73,117 @@ public:
 		m_src_buf.reserve(init_buf_size);
 	}
 
+	[[nodiscard]] std::string_view source() const noexcept {
+		return std::string_view(m_src_buf).substr(m_src_pos);
+	}
+
+	[[nodiscard]] bool source_empty() const noexcept {
+		return m_src_pos == m_src_buf.size();
+	}
+
+	void clear_source() noexcept
+	{
+		m_src_buf.clear();
+		m_src_pos = 0;
+	}
+
+	void compact_source()
+	{
+		if( source_empty() )
+			clear_source();
+		else if( m_src_pos >= 0xFFFF and
+			m_src_pos >= m_src_buf.size() - m_src_pos )
+		{
+			m_src_buf.erase(0, m_src_pos);
+			m_src_pos = 0;
+		}
+	}
+
+	void append_source(const const_buffer &buffer)
+	{
+		compact_source();
+		m_src_buf.append(static_cast<const char*>(buffer.data()), buffer.size());
+	}
+
+	void consume_source(size_t size)
+	{
+		assert(size <= source().size());
+		m_src_pos += size;
+		compact_source();
+	}
+
+	[[nodiscard]] std::string take_source()
+	{
+		std::string result(source());
+		clear_source();
+		return result;
+	}
+
+	[[nodiscard]] std::string_view partial_body() const noexcept {
+		return std::string_view(m_partial_body).substr(m_partial_body_pos);
+	}
+
+	[[nodiscard]] bool partial_body_empty() const noexcept {
+		return m_partial_body_pos == m_partial_body.size();
+	}
+
+	void clear_partial_body() noexcept
+	{
+		m_partial_body.clear();
+		m_partial_body_pos = 0;
+	}
+
+	void compact_partial_body()
+	{
+		if( partial_body_empty() )
+			clear_partial_body();
+
+		else if( m_partial_body_pos >= 0xFFFF and
+				 m_partial_body_pos >= m_partial_body.size() - m_partial_body_pos )
+		{
+			m_partial_body.erase(0, m_partial_body_pos);
+			m_partial_body_pos = 0;
+		}
+	}
+
+	void append_partial_body(std::string_view body)
+	{
+		if( not body.empty() )
+		{
+			compact_partial_body();
+			m_partial_body.append(body.data(), body.size());
+		}
+	}
+
+	void consume_partial_body(size_t size)
+	{
+		assert(size <= partial_body().size());
+		m_partial_body_pos += size;
+		compact_partial_body();
+	}
+
+	[[nodiscard]] std::string take_all_partial_body()
+	{
+		if( m_partial_body_pos == 0 )
+		{
+			auto result = std::move(m_partial_body);
+			clear_partial_body();
+			return result;
+		}
+		std::string result(partial_body());
+		clear_partial_body();
+		return result;
+	}
+
 public:
 	[[nodiscard]] sys_expected<bool> parse_header()
 	{
 		sys_expected<bool> result = false;
 		do {
-			auto pos = m_src_buf.find("\r\n");
+			auto pos = source().find("\r\n");
 			if( pos == std::string::npos )
 			{
-				if( m_src_buf.size() < 8192 )
+				if( source().size() < 8192 )
 					break;
 				else if( m_state == state::waiting_request )
 					result.despair(make_error_code(parse_errno::RLTL));
@@ -89,8 +191,8 @@ public:
 					result.despair(make_error_code(parse_errno::HLTL));
 				break;
 			}
-			auto line_buf = m_src_buf.substr(0, pos);
-			m_src_buf.erase(0, pos + 2);
+			auto line_buf = std::string(source().substr(0, pos));
+			consume_source(pos + 2);
 
 			if( m_state == state::waiting_request )
 			{
@@ -125,7 +227,7 @@ public:
 					break;
 			}
 		}
-		while( not m_src_buf.empty() );
+		while( not source_empty() );
 		return result;
 	}
 
@@ -148,8 +250,16 @@ public:
 				make_error_code(parse_errno::IHL)
 			);
 		}
+		auto field_name = line_buf.substr(0, colon_index);
+		if( not valid_field_name(field_name) )
+		{
+			reset();
+			return result.despair (
+				make_error_code(parse_errno::IHL)
+			);
+		}
 		auto error = header_insert (
-			strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+			strtls::to_lower(field_name),
 			strtls::trimmed(line_buf.substr(colon_index + 1))
 		);
 		if( error )
@@ -200,10 +310,10 @@ public:
 		else if( m_read_until_eof )
 		{
 			m_state = state::reading_eof;
-			if( not m_src_buf.empty() )
+			if( not source_empty() )
 			{
-				m_partial_body += m_src_buf;
-				m_src_buf.clear();
+				append_partial_body(source());
+				clear_source();
 			}
 		}
 		else
@@ -214,12 +324,12 @@ public:
 	void parse_length() noexcept
 	{
 		auto rsize = m_content_length - m_content_length_counter;
-		if( rsize > m_src_buf.size() )
-			rsize = m_src_buf.size();
+		if( rsize > source().size() )
+			rsize = source().size();
 
 		m_content_length_counter += rsize;
-		m_partial_body += m_src_buf.substr(0, rsize);
-		m_src_buf.erase(0, rsize);
+		append_partial_body(source().substr(0, rsize));
+		consume_source(rsize);
 
 		m_state = m_content_length_counter == m_content_length ?
 			state::finished : state::reading_length;
@@ -232,6 +342,13 @@ public:
 			   (ch >= 'A' and ch <= 'Z') or
 			   (ch >= 'a' and ch <= 'z') or
 			   c_table.find(static_cast<char>(ch)) != std::string_view::npos;
+	}
+
+	[[nodiscard]] static bool valid_field_name(std::string_view value) noexcept
+	{
+		return not value.empty() and std::ranges::all_of(value, [](char ch) {
+			return is_token_char(static_cast<uint8_t>(ch));
+		});
 	}
 
 	[[nodiscard]] static bool is_quoted_char(uint8_t ch) noexcept
@@ -330,16 +447,16 @@ public:
 		{
 			if( m_state == state::chunked_wait_size )
 			{
-				auto pos = m_src_buf.find("\r\n");
+				auto pos = source().find("\r\n");
 				if( pos == std::string::npos )
 				{
-					if( m_src_buf.size() > 8192 )
+					if( source().size() > 8192 )
 						result.despair(make_error_code(parse_errno::HLTL));
 					return result;
 				}
+				auto line_buf = std::string(source().substr(0, pos));
+				consume_source(pos + 2);
 
-				auto line_buf = m_src_buf.substr(0, pos);
-				m_src_buf.erase(0, pos + 2);
 				auto attributes_pos = line_buf.find(';');
 				auto size_buf = line_buf.substr(0, attributes_pos);
 
@@ -373,12 +490,12 @@ public:
 			}
 			if( m_state == state::chunked_wait_content )
 			{
-				if( m_src_buf.empty() )
+				if( source_empty() )
 					return result;
 
-				auto size = std::min(m_chunk_size, m_src_buf.size());
-				m_partial_body.append(m_src_buf, 0, size);
-				m_src_buf.erase(0, size);
+				auto size = std::min(m_chunk_size, source().size());
+				append_partial_body(source().substr(0, size));
+				consume_source(size);
 				m_chunk_size -= size;
 
 				if( m_chunk_size == 0 )
@@ -387,28 +504,29 @@ public:
 			}
 			if( m_state == state::chunked_wait_content_end )
 			{
-				if( m_src_buf.size() < 2 )
+				if( source().size() < 2 )
 					return result;
-				if( not m_src_buf.starts_with("\r\n") )
+
+				if( not source().starts_with("\r\n") )
 				{
 					result.despair(make_error_code(parse_errno::SFE));
 					return result;
 				}
-				m_src_buf.erase(0, 2);
+				consume_source(2);
 				m_state = state::chunked_wait_size;
 				continue;
 			}
 			if( m_state == state::chunked_wait_headers )
 			{
-				auto pos = m_src_buf.find("\r\n");
+				auto pos = source().find("\r\n");
 				if( pos == std::string::npos )
 				{
-					if( m_src_buf.size() > 8192 )
+					if( source().size() > 8192 )
 						result.despair(make_error_code(parse_errno::HLTL));
 					return result;
 				}
-				auto line_buf = m_src_buf.substr(0, pos);
-				m_src_buf.erase(0, pos + 2);
+				auto line_buf = std::string(source().substr(0, pos));
+				consume_source(pos + 2);
 
 				if( line_buf.empty() )
 				{
@@ -422,8 +540,14 @@ public:
 					result.despair(make_error_code(parse_errno::SFE));
 					return result;
 				}
+				auto field_name = line_buf.substr(0, colon_index);
+				if( not valid_field_name(field_name) )
+				{
+					result.despair(make_error_code(parse_errno::SFE));
+					return result;
+				}
 				auto error = header_insert (
-					strtls::to_lower(strtls::trimmed(line_buf.substr(0, colon_index))),
+					strtls::to_lower(field_name),
 					strtls::trimmed(line_buf.substr(colon_index + 1))
 				);
 				if( error )
@@ -465,11 +589,11 @@ public:
 		m_version = version::none;
 
 		if( not preserve_input )
-			m_src_buf.clear();
+			clear_source();
 
 		m_headers.clear();
 		m_chunk_attributes.clear();
-		m_partial_body.clear();
+		clear_partial_body();
 
 		m_content_length_counter = 0;
 		m_content_length = 0;
@@ -493,12 +617,14 @@ public:
 	}
 	m_state = state::waiting_request;
 	std::string m_src_buf {};
+	size_t m_src_pos = 0;
 
 	version_enum m_version = static_cast<version_enum>(0);
 	headers_t m_headers {};
 
 	chunk_attributes_t m_chunk_attributes {};
 	std::string m_partial_body {};
+	size_t m_partial_body_pos = 0;
 
 	size_t m_content_length_counter = 0;
 	size_t m_content_length = 0;
@@ -565,17 +691,13 @@ error_code parser<protocol_model::base>::make_error_code(parse_errno errc)
 sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 {
 	using state_t = impl::state;
-	std::string str_buf (
-		static_cast<const char*>(buf.data()),
-		buf.size()
-	);
-	if( str_buf.empty() )
+	if( buf.size() == 0 )
 		return { make_error_code(parse_errno::IDE) };
 
 	else if( m_impl->m_state == state_t::finished )
 		return { make_error_code(parse_errno::RE) };
 
-	m_impl->m_src_buf += str_buf;
+	m_impl->append_source(buf);
 	if( m_impl->m_state <= state_t::reading_headers )
 		return m_impl->parse_header();
 
@@ -586,8 +708,8 @@ sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 	}
 	else if( m_impl->m_state == state_t::reading_eof )
 	{
-		m_impl->m_partial_body += m_impl->m_src_buf;
-		m_impl->m_src_buf.clear();
+		m_impl->append_partial_body(m_impl->source());
+		m_impl->clear_source();
 		return false;
 	}
 	return m_impl->parse_chunked();
@@ -620,7 +742,7 @@ parser<protocol_model::base> &parser<protocol_model::base>::read_until_eof(bool 
 sys_expected<bool> parser<protocol_model::base>::next_message()
 {
 	m_impl->reset(true);
-	if( m_impl->m_src_buf.empty() )
+	if( m_impl->source_empty() )
 		return false;
 	return m_impl->parse_header();
 }
@@ -637,22 +759,67 @@ std::string parser<protocol_model::base>::take_partial_body(size_t size)
 {
 	if( size == 0 )
 		return {};
-	else if( size > m_impl->m_partial_body.size() )
-		size = m_impl->m_partial_body.size();
+	else if( size > m_impl->partial_body().size() )
+		size = m_impl->partial_body().size();
 
-	auto res = m_impl->m_partial_body.substr(0,size);
-	m_impl->m_partial_body.erase(0,size);
+	auto res = std::string(m_impl->partial_body().substr(0, size));
+	m_impl->consume_partial_body(size);
 	return res;
+}
+
+size_t parser<protocol_model::base>::read_partial_body(const mutable_buffer &buffer) noexcept
+{
+	auto size = std::min(buffer.size(), m_impl->partial_body().size());
+	if( size == 0 )
+		return 0;
+
+	m_impl->m_partial_body.copy (
+		static_cast<char*>(buffer.data()), size,
+		m_impl->m_partial_body_pos
+	);
+	m_impl->consume_partial_body(size);
+	return size;
+}
+
+size_t parser<protocol_model::base>::partial_body_size() const noexcept
+{
+	return m_impl->partial_body().size();
 }
 
 std::string parser<protocol_model::base>::take_body()
 {
-	return std::exchange(m_impl->m_partial_body, {});
+	return m_impl->take_all_partial_body();
 }
 
 std::string parser<protocol_model::base>::take_pending_data()
 {
-	return std::exchange(m_impl->m_src_buf, {});
+	return m_impl->take_source();
+}
+
+size_t parser<protocol_model::base>::prepare_direct_body_read(size_t size) const noexcept
+{
+	if( size == 0 or m_impl->m_state != impl::state::reading_length or
+		not m_impl->source_empty() or not m_impl->partial_body_empty() )
+		return 0;
+
+	auto remaining = m_impl->m_content_length - m_impl->m_content_length_counter;
+	return std::min(size, remaining);
+}
+
+bool parser<protocol_model::base>::commit_direct_body_read(size_t size) noexcept
+{
+	if( m_impl->m_state != impl::state::reading_length or
+		not m_impl->source_empty() or not m_impl->partial_body_empty() )
+		return false;
+
+	auto remaining = m_impl->m_content_length - m_impl->m_content_length_counter;
+	if( size == 0 or size > remaining )
+		return false;
+
+	m_impl->m_content_length_counter += size;
+	if( m_impl->m_content_length_counter == m_impl->m_content_length )
+		m_impl->m_state = impl::state::finished;
+	return true;
 }
 
 version_enum parser<protocol_model::base>::version() const noexcept
@@ -666,7 +833,7 @@ parser<protocol_model::base>::stage_t parser<protocol_model::base>::stage() cons
 		return stage_t::header;
 	else if( m_impl->m_state > impl::state::reading_headers and m_impl->m_state < impl::state::finished )
 		return stage_t::body;
-	else if( m_impl->m_partial_body.empty() )
+	else if( m_impl->partial_body_empty() )
 		return stage_t::finished;
 	return stage_t::body;
 }

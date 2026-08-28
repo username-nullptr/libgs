@@ -50,6 +50,14 @@ void sys_expected_loc_throw(const sys_expected<Value> &expected, std::source_loc
 		system_error::loc_throw(expected.error(), std::move(loc));
 }
 
+template <concepts::expected_value Value>
+void sys_expected_loc_throw
+(const sys_expected<Value> &expected, concepts::text_p<char> auto &&msg, std::source_location loc)
+{
+	if( not expected )
+		system_error::loc_throw(expected.error(), strtls::to_view(msg), std::move(loc));
+}
+
 inline io_expected make_io_expected(size_t sum)
 {
 	return make_sys_expected(sum);

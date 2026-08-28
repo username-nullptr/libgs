@@ -12,26 +12,29 @@ int main()
 #if 0
 	libgs::dispatch([&]() -> asio::awaitable<void>
 	{
-		auto connection = co_await cpool.get(/*pool,*/
-			{asio::ip::make_address("127.0.0.1"), 8080}, libgs::use_awaitable
+		using namespace libgs::operators;
+		std::error_code error;
+
+		auto lease = co_await cpool.get(/*pool,*/
+			{ "127.0.0.1", 8080}, libgs::use_awaitable | error
 		);
-		if( not connection )
+		if( error )
 		{
-			spdlog::error("Failed get connection", connection.error());
+			spdlog::error("Failed get connection", error);
 			co_return ;
 		}
 		auto wbuf ="GET / HTTP/1.1\r\n"
 		           "Host: 127.0.0.1:8080\r\n"
 		           "\r\n";
-		auto res = co_await asio::async_write(connection->socket(),
+		auto res = co_await lease->get().write (
 			asio::buffer(wbuf, strlen(wbuf)), libgs::use_awaitable
 		);
 		spdlog::info("Sent {} bytes", res);
 
 		char rbuf[8192] {0};
-		res = co_await connection->socket()
-			.async_read_some(asio::buffer(rbuf, 8192), libgs::use_awaitable);
-
+		res = co_await lease->get().read (
+			asio::buffer(rbuf, 8192), libgs::use_awaitable
+		);
 		spdlog::info("Received {} bytes\n", res);
 		spdlog::info("Response: {}", rbuf);
 
@@ -40,19 +43,19 @@ int main()
 		co_return ;
 	});
 #else
-	cpool.get(/*pool,*/{asio::ip::make_address("127.0.0.1"),8080},
-	[&pool](libgs::http::connection_pool::con_expected_t connection)
+	cpool.get(/*pool,*/{ "127.0.0.1", 8080 },
+	[&pool](const std::error_code &error, libgs::http::connection_pool::lease_ptr lease)
 	{
-		if( not connection )
+		if( error )
 		{
-			spdlog::error("Failed get connection", connection.error());
+			spdlog::error("Failed get connection", error);
 			return ;
 		}
 		static auto wbuf ="GET / HTTP/1.1\r\n"
 	                      "Host: 127.0.0.1:8080\r\n"
 	                      "\r\n";
-	    asio::async_write(connection->socket(), asio::buffer(wbuf, strlen(wbuf)),
-	    [&pool, connection = std::move(connection)](const std::error_code &error, size_t wres) mutable
+	    lease->get().write(asio::buffer(wbuf, strlen(wbuf)),
+	    [&pool, lease = std::move(lease)](const std::error_code &error, size_t wres) mutable
 	    {
 	    	if( error )
 	    	{
@@ -62,7 +65,7 @@ int main()
 	        spdlog::info("Sent {} bytes", wres);
 	        static char rbuf[8192] {0};
 
-	        connection->socket().async_read_some(asio::buffer(rbuf, 8192),
+	        lease->get().read(asio::buffer(rbuf, 8192),
 	        [&pool](const std::error_code &error, size_t rres)
 	        {
 	        	LIBGS_UNUSED(error);

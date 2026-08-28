@@ -30,8 +30,31 @@
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
 
-namespace libgs::http
+namespace libgs::http { namespace
 {
+
+[[nodiscard]] bool ascii_alpha(char value) noexcept
+{
+	return (value >= 'a' and value <= 'z') or
+		(value >= 'A' and value <= 'Z');
+}
+
+[[nodiscard]] bool valid_scheme(std::string_view value) noexcept
+{
+	if( value.empty() or not ascii_alpha(value.front()) )
+		return false;
+	for(char item : value.substr(1))
+	{
+		if( not ascii_alpha(item) and not (item >= '0' and item <= '9') and
+			item != '+' and item != '-' and item != '.' )
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+} //namespace
 
 class LIBGS_DECL_HIDDEN url::impl
 {
@@ -51,6 +74,43 @@ public:
 		if( url.empty() )
 			return ;
 
+		m_valid = false;
+		try {
+			parse(url);
+			refresh_validity();
+		}
+		catch(const std::invalid_argument&) {
+			invalidate();
+		}
+	}
+
+	void set_path(std::string_view path)
+	{
+		auto value = from_percent_encoding(strtls::trimmed(path));
+		if( value.empty() )
+			value = "/";
+
+		else if( not value.starts_with('/') )
+			value.insert(value.begin(), '/');
+
+		m_path = strtls::replace (
+			std::move(value), "//", '/', false
+		);
+		refresh_validity();
+	}
+
+	void refresh_validity() noexcept
+	{
+		const bool http_scheme =
+			m_protocol == "http" or m_protocol == "https";
+		m_valid = not m_protocol.empty() and not m_host.empty() and
+			(not http_scheme or m_port != 0) and not m_path.empty() and
+			m_path.front() == '/';
+	}
+
+private:
+	void parse(std::string_view url)
+	{
 		auto resource = set_header(strtls::trimmed(url));
 		auto fragment = resource.find('#');
 
@@ -70,20 +130,20 @@ public:
 		set_path(path);
 
 		if( authority.empty() or authority.find('@') != std::string::npos )
-			invalid_argument::loc_throw("Invalid HTTP URL authority.");
+			invalid_argument::loc_throw("Invalid URL authority.");
 
-		m_port = m_protocol == "https" ? 443 : 80;
+		m_port = default_port(m_protocol);
 		if( authority.starts_with('[') )
 		{
 			auto close = authority.find(']');
 			if( close == std::string::npos )
 				invalid_argument::loc_throw("Invalid IPv6 URL authority.");
 
-			m_address = authority.substr(1, close - 1);
+			m_host = authority.substr(1, close - 1);
 			if( close + 1 < authority.size() )
 			{
 				if( authority[close + 1] != ':' )
-					invalid_argument::loc_throw("Invalid HTTP URL authority.");
+						invalid_argument::loc_throw("Invalid URL authority.");
 				set_port_text(authority.substr(close + 2));
 			}
 		}
@@ -92,36 +152,30 @@ public:
 			auto colon = authority.rfind(':');
 			if( colon != std::string::npos and authority.find(':') == colon )
 			{
-				m_address = authority.substr(0, colon);
+				m_host = authority.substr(0, colon);
 				set_port_text(authority.substr(colon + 1));
 			}
 			else
-				m_address = std::move(authority);
+				m_host = std::move(authority);
 		}
-		if( m_address.empty() )
-			invalid_argument::loc_throw("HTTP URL host is empty.");
+		if( m_host.empty() )
+			invalid_argument::loc_throw("URL host is empty.");
 	}
 
-	void set_path(std::string_view path)
+	[[nodiscard]] static uint16_t default_port(std::string_view scheme) noexcept
 	{
-		auto value = from_percent_encoding(strtls::trimmed(path));
-		if( value.empty() )
-			value = "/";
-
-		else if( not value.starts_with('/') )
-			value.insert(value.begin(), '/');
-
-		m_path = strtls::replace (
-			std::move(value), "//", '/', false
-		);
+		if( scheme == "http" )
+			return 80;
+		if( scheme == "https" )
+			return 443;
+		return 0;
 	}
 
-private:
 	void set_port_text(std::string_view text)
 	{
 		auto port = strtls::to_uint16(text);
 		if( not port or *port == 0 )
-			invalid_argument::loc_throw("Invalid HTTP URL port.");
+			invalid_argument::loc_throw("Invalid URL port.");
 		m_port = *port;
 	}
 
@@ -129,25 +183,34 @@ private:
 	{
 		m_protocol = "http";
 		m_path = "/";
-		m_address = "127.0.0.1";
+		m_host = "127.0.0.1";
 		m_port = 80;
 		m_parameters.clear();
+		m_valid = true;
+	}
+
+	void invalidate() noexcept
+	{
+		m_protocol.clear();
+		m_path.clear();
+		m_host.clear();
+		m_port = 0;
+		m_parameters.clear();
+		m_valid = false;
 	}
 
 	[[nodiscard]] std::string set_header(const std::string &resource_line)
 	{
-		auto lower = strtls::to_lower(resource_line);
-		if( lower.starts_with("https://") )
-		{
-			m_protocol = "https";
-			return resource_line.substr(8);
-		}
-		if( lower.starts_with("http://") )
-		{
-			m_protocol = "http";
-			return resource_line.substr(7);
-		}
-		invalid_argument::loc_throw("HTTP URL must use the http or https scheme.");
+		auto scheme_end = resource_line.find("://");
+		if( scheme_end == std::string::npos or scheme_end == 0 )
+			invalid_argument::loc_throw("URL scheme is missing.");
+
+		auto scheme = std::string_view(resource_line).substr(0, scheme_end);
+		if( not valid_scheme(scheme) )
+			invalid_argument::loc_throw("Invalid URL scheme.");
+
+		m_protocol = strtls::to_lower(scheme);
+		return resource_line.substr(scheme_end + 3);
 	}
 
 	[[nodiscard]] std::string parse_parameters(std::string resource_line)
@@ -182,9 +245,10 @@ private:
 public:
 	std::string m_protocol = "http";
 	std::string m_path = "/";
-	std::string m_address = "127.0.0.1";
+	std::string m_host = "127.0.0.1";
 	uint16_t m_port = 80;
 	parameters_t m_parameters {};
+	bool m_valid = true;
 };
 
 url::url(std::string_view url) :
@@ -260,13 +324,15 @@ url &url::emplace(std::string_view url)
 
 url &url::set_address(std::string addr)
 {
-	m_impl->m_address = std::move(addr);
+	m_impl->m_host = std::move(addr);
+	m_impl->refresh_validity();
 	return *this;
 }
 
 url &url::set_port(uint16_t port)
 {
 	m_impl->m_port = port;
+	m_impl->refresh_validity();
 	return *this;
 }
 
@@ -281,9 +347,9 @@ std::string_view url::protocol() const noexcept
 	return m_impl->m_protocol;
 }
 
-std::string_view url::address() const noexcept
+std::string_view url::host() const noexcept
 {
-	return m_impl->m_address;
+	return m_impl->m_host;
 }
 
 uint16_t url::port() const noexcept
@@ -296,16 +362,24 @@ std::string_view url::path() const noexcept
 	return m_impl->m_path;
 }
 
+bool url::is_valid() const noexcept
+{
+	return m_impl->m_valid;
+}
+
 std::string url::to_string() const noexcept
 {
-	auto authority = m_impl->m_address;
+	if( not is_valid() )
+		return {};
+
+	auto authority = m_impl->m_host;
 	if( authority.find(':') != std::string::npos and not authority.starts_with('[') )
 		authority = '[' + authority + ']';
 
-	auto buf = std::format("{}://{}:{}{}",
-		m_impl->m_protocol, authority, m_impl->m_port,
-		to_percent_encoding(m_impl->m_path, '/')
-	);
+	auto buf = std::format("{}://{}", m_impl->m_protocol, authority);
+	if( m_impl->m_port != 0 )
+		buf += ':' + std::to_string(m_impl->m_port);
+	buf += to_percent_encoding(m_impl->m_path, '/');
 	if( m_impl->m_parameters.empty() )
 		return buf;
 	buf += '?';
@@ -330,15 +404,19 @@ url url::resolve(const url &base, std::string_view reference)
 	if( auto fragment = value.find('#'); fragment != std::string::npos )
 		value.erase(fragment);
 
-	auto lower = strtls::to_lower(value);
-	if( lower.starts_with("http://") or lower.starts_with("https://") )
-		return { value };
+	if( auto scheme_end = value.find("://"); scheme_end != std::string::npos )
+	{
+		if( valid_scheme(std::string_view(value).substr(0, scheme_end)) )
+			return { value };
+	}
 
-	auto host = std::string(base.address());
+	auto host = std::string(base.host());
 	if( host.find(':') != std::string::npos and not host.starts_with('[') )
 		host = '[' + host + ']';
 
-	auto origin = std::format("{}://{}:{}", base.protocol(), host, base.port());
+	auto origin = std::format("{}://{}", base.protocol(), host);
+	if( base.port() != 0 )
+		origin += ':' + std::to_string(base.port());
 	if( value.starts_with("//") )
 		return { std::string(base.protocol()) + ":" + value };
 
