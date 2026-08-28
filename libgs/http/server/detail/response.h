@@ -97,6 +97,11 @@ public:
 			auto header = m_generator.header_data(wire_body.size(), m_req_method);
 			if( wire_body.size() > 0 and m_generator.pro_state() != generator_state::finish )
 			{
+				if( m_generator.pro_state() == generator_state::content_length )
+				{
+					auto content = m_generator.body_buffer(wire_body);
+					return base_write(std::move(header), content, error);
+				}
 				auto content = m_generator.body_data(wire_body);
 				return base_write(std::move(header), std::move(content), error);
 			}
@@ -112,8 +117,8 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_write(const_buffer body, error_code &error,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<size_t> co_write
+	(const_buffer body, error_code &error, std::chrono::nanoseconds timeout) noexcept
 	{
 		error.clear();
 		size_t sum = 0;
@@ -164,24 +169,30 @@ public:
 				if( wire_body.size() > 0 and
 					m_generator.pro_state() != generator_state::finish )
 				{
-					auto content = m_generator.body_data(wire_body);
-					sum = co_await co_base_write(std::move(header),
-						std::move(content), error, std::move(cancel_slot)
-					);
+					if( m_generator.pro_state() == generator_state::content_length )
+					{
+						auto content = m_generator.body_buffer(wire_body);
+						sum = co_await co_base_write(
+							std::move(header), content, error
+						);
+					}
+					else
+					{
+						auto content = m_generator.body_data(wire_body);
+						sum = co_await co_base_write(
+							std::move(header), std::move(content), error
+						);
+					}
 				}
 				else
 				{
-					sum = co_await co_base_write(std::move(header),
-						error, std::move(cancel_slot)
-					);
+					sum = co_await co_base_write(std::move(header), error);
 				}
 				co_return ;
 			}
 			if( wire_body.size() > 0 and m_generator.pro_state() != generator_state::finish )
 			{
-				auto bytes = co_await co_write_body (
-					wire_body, error, std::move(cancel_slot)
-				);
+				auto bytes = co_await co_write_body(wire_body, error);
 				if( error )
 					co_return ;
 				sum += bytes;
@@ -205,22 +216,6 @@ public:
 				else
 					error = std::get<1>(var);
 			}
-		}
-		co_return sum;
-	}
-
-	[[nodiscard]] awaitable<size_t> co_write(const_buffer body,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout)
-	{
-		error_code error;
-		auto sum = co_await co_write(body,
-			error, std::move(cancel_slot), std::move(timeout)
-		);
-		if( error )
-		{
-			system_error::loc_throw (
-				error, "libgs::http::basic_response::write"
-			);
 		}
 		co_return sum;
 	}
@@ -415,8 +410,8 @@ public:
 	}
 
 	template <typename Opt>
-	[[nodiscard]] awaitable<size_t> co_send_file(Opt &&opt, error_code &error,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<size_t> co_send_file
+	(Opt &&opt, error_code &error, std::chrono::nanoseconds timeout) noexcept
 	{
 		if( m_generator.pro_state() != generator_state::header )
 			co_return 0;
@@ -451,23 +446,19 @@ public:
 				else
 					m_generator.set_header(header::content_length, length);
 
-				sum = co_await co_write_header(length, error, cancel_slot);
+				sum = co_await co_write_header(length, error);
 				co_return ;
 			}
 			if( m_req_method != method::get or m_req_range.empty() or
 				not if_range_matches() or f_token->file_size == 0 )
 			{
-				sum = co_await co_default_transfer (
-					*f_token, error, cancel_slot
-				);
+				sum = co_await co_default_transfer(*f_token, error);
 				co_return ;
 			}
 			auto specifier = parse_range_header(m_req_range);
 			if( not specifier or specifier->unit != "bytes" or specifier->ranges.size() > 16 )
 			{
-				sum = co_await co_default_transfer (
-					*f_token, error, cancel_slot
-				);
+				sum = co_await co_default_transfer(*f_token, error);
 				co_return ;
 			}
 			auto resolved = resolve_byte_ranges(*specifier, f_token->file_size);
@@ -480,19 +471,16 @@ public:
 				.set_header(header::content_range,
 					format_unsatisfied_content_range(f_token->file_size)
 				);
-				sum = co_await co_write_header(0, error, cancel_slot);
+				sum = co_await co_write_header(0, error);
 			}
 			else if( excessive_range_set(resolved, f_token->file_size) )
 			{
-				sum = co_await co_default_transfer (
-					*f_token, error, cancel_slot
-				);
+				sum = co_await co_default_transfer(*f_token, error);
 			}
 			else
 			{
 				sum = co_await co_range_transfer (
-					*f_token, make_range_values(resolved, f_token->file_size),
-					error, cancel_slot
+					*f_token, make_range_values(resolved, f_token->file_size), error
 				);
 			}
 			co_return ;
@@ -517,23 +505,6 @@ public:
 		co_return sum;
 	}
 
-	template <typename Opt>
-	[[nodiscard]] awaitable<size_t> co_send_file
-	(Opt &&opt, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout)
-	{
-		error_code error;
-		auto sum = co_await co_send_file(std::forward<Opt>(opt),
-			error, std::move(cancel_slot), std::move(timeout)
-		);
-		if( error )
-		{
-			system_error::loc_throw (
-				error, "libgs::http::basic_response::send_file"
-			);
-		}
-		co_return sum;
-	}
-
 public:
 	[[nodiscard]] size_t chunk_end(const headers_t &headers, error_code &error) noexcept
 	{
@@ -545,33 +516,14 @@ public:
 		return base_write(std::move(buf), error);
 	}
 
-	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers,
-		error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers, error_code &error) noexcept
 	{
 		if( m_generator.pro_state() != generator_state::chunk )
 			co_return 0;
 		auto buf = m_generator.chunk_end_data(headers);
 		if( buf.empty() )
 			co_return 0;
-		co_return co_await co_base_write(
-			std::move(buf), error, std::move(cancel_slot)
-		);
-	}
-
-	[[nodiscard]] awaitable<size_t> co_chunk_end(const headers_t &headers,
-		asio::cancellation_slot cancel_slot)
-	{
-		error_code error;
-		auto sum = co_await co_chunk_end(
-			headers, error, std::move(cancel_slot)
-		);
-		if( error )
-		{
-			system_error::loc_throw (
-				error, "libgs::http::basic_response::chunk_end"
-			);
-		}
-		co_return sum;
+		co_return co_await co_base_write(std::move(buf), error);
 	}
 
 private:
@@ -700,15 +652,14 @@ private:
 		if( error )
 			return sum;
 
-		auto end = m_generator.chunk_end_data({});
-		if( not end.empty() )
+		if( auto end = m_generator.chunk_end_data({}); not end.empty() )
 			sum += base_write(std::move(end), error);
 		return sum;
 	}
 
 	template <typename Opt>
 	[[nodiscard]] awaitable<size_t> co_gzip_transfer
-	(Opt &token, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	(Opt &token, error_code &error) noexcept
 	{
 		m_generator
 		.set_status(status::ok)
@@ -727,7 +678,7 @@ private:
 			}
 			body_size = *expected;
 		}
-		auto sum = co_await co_write_header(body_size, error, cancel_slot);
+		auto sum = co_await co_write_header(body_size, error);
 		if( error or m_generator.pro_state() == generator_state::finish )
 			co_return sum;
 
@@ -756,7 +707,7 @@ private:
 				co_return sum;
 			}
 			if( not encoded->empty() )
-				sum += co_await co_write_body(buffer(*encoded), error, cancel_slot);
+				sum += co_await co_write_body(buffer(*encoded), error);
 
 			if( error )
 				co_return sum;
@@ -771,14 +722,13 @@ private:
 			co_return sum;
 		}
 		if( not encoded->empty() )
-			sum += co_await co_write_body(buffer(*encoded), error, cancel_slot);
+			sum += co_await co_write_body(buffer(*encoded), error);
 
 		if( error )
 			co_return sum;
 
-		auto end = m_generator.chunk_end_data({});
-		if( not end.empty() )
-			sum += co_await co_base_write(std::move(end), error, cancel_slot);
+		if( auto end = m_generator.chunk_end_data({}); not end.empty() )
+			sum += co_await co_base_write(std::move(end), error);
 		co_return sum;
 	}
 
@@ -820,10 +770,10 @@ private:
 
 	template <typename Opt>
 	[[nodiscard]] awaitable<size_t> co_default_transfer
-	(Opt &token, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	(Opt &token, error_code &error) noexcept
 	{
 		if( m_file_gzip )
-			co_return co_await co_gzip_transfer(token, error, cancel_slot);
+			co_return co_await co_gzip_transfer(token, error);
 
 		m_generator
 		.set_status(status::ok)
@@ -831,7 +781,7 @@ private:
 		.set_header(header::accept_ranges, "bytes")
 		.set_header(header::content_type, token.mime_type);
 
-		auto sum = co_await co_write_header(token.file_size, error, cancel_slot);
+		auto sum = co_await co_write_header(token.file_size, error);
 		if( error or token.file_size == 0 or
 			m_generator.pro_state() == generator_state::finish )
 			co_return sum;
@@ -848,9 +798,7 @@ private:
 			if( size == 0 )
 				break;
 
-			sum += co_await co_write_body (
-				buffer(fr_buf, size), error, cancel_slot
-			);
+			sum += co_await co_write_body(buffer(fr_buf, size), error);
 			if( error )
 				break;
 		}
@@ -924,9 +872,8 @@ private:
 		);
 	}
 
-	[[nodiscard]] awaitable<size_t> co_range_transfer(
-		auto &token, const std::vector<range_value> &ranges,
-		error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<size_t> co_range_transfer
+	(auto &token, const std::vector<range_value> &ranges, error_code &error) noexcept
 	{
 		m_generator.set_status(status::partial_content);
 		if( ranges.size() == 1 )
@@ -940,7 +887,7 @@ private:
 				format_content_range(range, token.file_size)
 			);
 			co_return co_await co_send_range (
-				token.stream, "", "", ranges, error, cancel_slot
+				token.stream, "", "", ranges, error
 			);
 		}
 		using namespace std::chrono;
@@ -987,7 +934,7 @@ private:
 		.set_header(header::accept_ranges , "bytes");
 
 		co_return co_await co_send_range (
-			token.stream, boundary, ct_line, ranges, error, cancel_slot
+			token.stream, boundary, ct_line, ranges, error
 		);
 	}
 
@@ -1079,13 +1026,13 @@ private:
 	}
 
 	template <typename FS>
-	[[nodiscard]] awaitable<size_t> co_send_range(
+	[[nodiscard]] awaitable<size_t> co_send_range (
 		FS &stream, std::string_view boundary, std::string_view ct_line,
-		std::vector<range_value> ranges, error_code &error, asio::cancellation_slot cancel_slot
+		std::vector<range_value> ranges, error_code &error
 	) noexcept
 	{
 		assert(not ranges.empty());
-		auto sum = co_await co_write_header(0, error, cancel_slot);
+		auto sum = co_await co_write_header(0, error);
 		if( error )
 			co_return sum;
 
@@ -1104,17 +1051,13 @@ private:
 					stream->read(buf, value.total);
 					auto size = static_cast<size_t>(stream->gcount());
 
-					sum += co_await co_write_body (
-						buffer(buf,size), error, cancel_slot
-					);
+					sum += co_await co_write_body(buffer(buf,size), error);
 					break;
 				}
 				stream->read(buf, buf_size);
 				auto size = static_cast<size_t>(stream->gcount());
 
-				sum += co_await co_write_body (
-					buffer(buf,size), error, cancel_slot
-				);
+				sum += co_await co_write_body(buffer(buf,size), error);
 				if( error )
 					break;
 				value.total -= size;
@@ -1132,9 +1075,7 @@ private:
 				ct_line,
 				value.cr_line
 			);
-			sum += co_await co_write_body (
-				buffer(body, body.size()), error, cancel_slot
-			);
+			sum += co_await co_write_body(buffer(body, body.size()), error);
 			if( error )
 				co_return sum;
 
@@ -1151,9 +1092,7 @@ private:
 					buf[size + 0] = '\r';
 					buf[size + 1] = '\n';
 
-					sum += co_await co_write_body (
-						buffer(buf, size + 2), error, cancel_slot
-					);
+					sum += co_await co_write_body(buffer(buf, size + 2), error);
 					if( error )
 						co_return sum;
 					break;
@@ -1161,18 +1100,14 @@ private:
 				stream->read(buf, buf_size);
 				auto size = static_cast<size_t>(stream->gcount());
 
-				sum += co_await co_write_body (
-					buffer(buf,size), error, cancel_slot
-				);
+				sum += co_await co_write_body(buffer(buf,size), error);
 				if( error )
 					co_return sum;
 				value.total -= size;
 			}
 		}
 		auto abuf = std::format("--{}--\r\n", boundary);
-		sum += co_await co_write_body (
-			buffer(abuf, abuf.size()), error, cancel_slot
-		);
+		sum += co_await co_write_body(buffer(abuf, abuf.size()), error);
 		co_return sum;
 	}
 
@@ -1182,30 +1117,56 @@ private:
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_header
-	(size_t size, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	(size_t size, error_code &error) noexcept
 	{
 		co_return co_await co_base_write (
-			m_generator.header_data(size, m_req_method), error, std::move(cancel_slot)
+			m_generator.header_data(size, m_req_method), error
 		);
 	}
 
 	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept {
+		if( m_generator.pro_state() == generator_state::content_length )
+			return base_write(m_generator.body_buffer(body), error);
 		return base_write(m_generator.body_data(body), error);
 	}
 
 	[[nodiscard]] awaitable<size_t> co_write_body
-	(const const_buffer &body, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	(const const_buffer &body, error_code &error) noexcept
 	{
-		co_return co_await co_base_write (
-			m_generator.body_data(body), error, std::move(cancel_slot)
-		);
+		if( m_generator.pro_state() == generator_state::content_length )
+		{
+			co_return co_await co_base_write(m_generator.body_buffer(body), error);
+		}
+		co_return co_await co_base_write(m_generator.body_data(body), error);
 	}
 
 private:
+	[[nodiscard]] size_t base_write(const_buffer data, error_code &error) noexcept
+	{
+		error.clear();
+		auto sum = m_connection->write(data, error);
+		if( error )
+			ignore_unused(m_connection->close());
+		return sum;
+	}
+
 	[[nodiscard]] size_t base_write(std::string &&data, error_code &error) noexcept
 	{
 		error.clear();
 		auto sum = m_connection->write(data, error);
+		if( error )
+			ignore_unused(m_connection->close());
+		return sum;
+	}
+
+	[[nodiscard]] size_t base_write
+	(std::string &&header, const_buffer body, error_code &error) noexcept
+	{
+		error.clear();
+		const const_buffer buffers[] {
+			const_buffer(header), body
+		};
+		auto sum = m_connection->write(buffers, error);
 		if( error )
 			ignore_unused(m_connection->close());
 		return sum;
@@ -1225,33 +1186,63 @@ private:
 	}
 
 	[[nodiscard]] awaitable<size_t> co_base_write
-	(std::string data, error_code &error, asio::cancellation_slot cancel_slot) noexcept
+	(const_buffer data, error_code &error) noexcept
 	{
 		error.clear();
-		using namespace std::chrono_literals;
-		using namespace libgs::operators;
-
-		auto sum = co_await m_connection->write(data,
-			use_awaitable | error | cancel_slot
-		);
+		auto result = co_await m_connection->co_write_all(data);
+		auto sum = result ? *result : 0;
+		if( not result )
+			error = result.error();
 		if( error )
 			ignore_unused(m_connection->close());
 		co_return sum;
 	}
 
 	[[nodiscard]] awaitable<size_t> co_base_write
-	(std::string header, std::string body, error_code &error,
-		asio::cancellation_slot cancel_slot) noexcept
+	(std::string data, error_code &error) noexcept
 	{
 		error.clear();
-		using namespace libgs::operators;
+		auto data_buffer = buffer(data);
 
+		auto result = co_await m_connection->co_write_all(data_buffer);
+		auto sum = result ? *result : 0;
+		if( not result )
+			error = result.error();
+
+		if( error )
+			ignore_unused(m_connection->close());
+		co_return sum;
+	}
+
+	[[nodiscard]] awaitable<size_t> co_base_write(std::string header,
+		const_buffer body, error_code &error) noexcept
+	{
+		error.clear();
+		const const_buffer buffers[] {
+			const_buffer(header), body
+		};
+		auto result = co_await m_connection->co_write_all(buffers);
+		auto sum = result ? *result : 0;
+		if( not result )
+			error = result.error();
+
+		if( error )
+			ignore_unused(m_connection->close());
+		co_return sum;
+	}
+
+	[[nodiscard]] awaitable<size_t> co_base_write(std::string header,
+		std::string body, error_code &error) noexcept
+	{
+		error.clear();
 		const const_buffer buffers[] {
 			const_buffer(header), const_buffer(body)
 		};
-		auto sum = co_await m_connection->write(buffers,
-			use_awaitable | error | cancel_slot
-		);
+		auto result = co_await m_connection->co_write_all(buffers);
+		auto sum = result ? *result : 0;
+		if( not result )
+			error = result.error();
+
 		if( error )
 			ignore_unused(m_connection->close());
 		co_return sum;
@@ -1513,11 +1504,10 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 		return detail::initiate_expected<size_t>(get_executor(),
 		[this, data = std::move(data)]() mutable -> awaitable<sys_expected<size_t>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
 			auto sum = co_await m_impl->co_write (
-				buffer(*data), error, state.slot(), std::chrono::nanoseconds::zero()
+				buffer(*data), error, std::chrono::nanoseconds::zero()
 			);
 			if( error )
 				co_return sys_unexpected(error);
@@ -1530,11 +1520,10 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 		return detail::initiate_expected<size_t>(get_executor(),
 		[this, body]() mutable -> awaitable<sys_expected<size_t>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
 			auto sum = co_await m_impl->co_write (
-				body, error, state.slot(), std::chrono::nanoseconds::zero()
+				body, error, std::chrono::nanoseconds::zero()
 			);
 			if( error )
 				co_return sys_unexpected(error);
@@ -1580,11 +1569,10 @@ auto basic_response<Exec>::send_file(T &&opt, Token &&token)
 		[this, opt = detail::capture_async_argument(std::forward<T>(opt))]
 		() mutable -> awaitable<sys_expected<size_t>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
 			auto sum = co_await m_impl->co_send_file(
-				detail::unwrap_async_argument(opt), error, state.slot(),
+				detail::unwrap_async_argument(opt), error,
 				std::chrono::nanoseconds::zero()
 			);
 			if( error )
@@ -1652,12 +1640,9 @@ auto basic_response<Exec>::chunk_end(const headers_t &headers, Token &&token)
 		return detail::initiate_expected<size_t>(get_executor(),
 		[this, headers]() mutable -> awaitable<sys_expected<size_t>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
-			auto sum = co_await m_impl->co_chunk_end (
-				headers, error, state.slot()
-			);
+			auto sum = co_await m_impl->co_chunk_end(headers, error);
 			if( error )
 				co_return sys_unexpected(error);
 			co_return sum;

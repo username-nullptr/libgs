@@ -85,7 +85,7 @@ namespace libgs::http { namespace
 		if( not safe_header(name, cookie_value) or not safe_cookie_value(cookie_value) )
 			continue;
 
-		result += "Set-Cookie: " + name + "=" + cookie_value;
+		result += std::format("Set-Cookie: {}={}", name, cookie_value);
 		for(auto &[attribute_name,attribute] : item.attributes())
 		{
 			auto serialized = cookie_attribute_data(attribute_name, attribute);
@@ -256,6 +256,11 @@ std::string generator<protocol_model::server>::header_data
 std::string generator<protocol_model::server>::body_data(const const_buffer &buffer)
 {
 	return m_impl->m_generator->body_data(buffer);
+}
+
+const_buffer generator<protocol_model::server>::body_buffer(const const_buffer &buffer) noexcept
+{
+	return m_impl->m_generator->body_buffer(buffer);
 }
 
 std::string generator<protocol_model::server>::chunk_end_data(const headers_t &headers)

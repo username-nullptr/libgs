@@ -220,27 +220,15 @@ std::string generator<protocol_model::base>::body_data(const const_buffer &buffe
 
 	else if( m_impl->m_state == state_t::content_length )
 	{
-		size_t size = 0;
-		if( m_impl->m_content_length > buffer.size() )
-		{
-			size = buffer.size();
-			m_impl->m_content_length -= size;
-		}
-		else
-		{
-			size = m_impl->m_content_length;
-			m_impl->m_content_length = 0;
-			m_impl->m_state = state_t::finish;
-		}
-		return {static_cast<const char*>(buffer.data()), size};
+		auto body = body_buffer(buffer);
+		return {static_cast<const char*>(body.data()), body.size()};
 	}
 	std::string sum;
 	sum += std::format("{:X}", buffer.size());
 
 	for(auto &attr : m_impl->m_chunk_attributes)
 	{
-		auto value = trim_ows(attr.to_string());
-		if( valid_chunk_extension(value) )
+		if( auto value = trim_ows(attr.to_string()); valid_chunk_extension(value) )
 			sum += "; " + std::string(value);
 	}
 	m_impl->m_chunk_attributes.clear();
@@ -249,6 +237,21 @@ std::string generator<protocol_model::base>::body_data(const const_buffer &buffe
 	return sum + std::string (
 		static_cast<const char*>(buffer.data()), buffer.size()
 	) + "\r\n";
+}
+
+const_buffer generator<protocol_model::base>::body_buffer
+(const const_buffer &buffer) noexcept
+{
+	if( m_impl->m_state != state_t::content_length )
+		return {};
+
+	auto size = std::min(m_impl->m_content_length, buffer.size());
+	m_impl->m_content_length -= size;
+
+	if( m_impl->m_content_length == 0 )
+		m_impl->m_state = state_t::finish;
+
+	return {buffer.data(), size};
 }
 
 std::string generator<protocol_model::base>::chunk_end_data(const headers_t &headers) noexcept

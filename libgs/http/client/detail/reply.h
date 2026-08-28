@@ -41,21 +41,18 @@ class LIBGS_HTTP_TAPI basic_reply<Exec>::impl :
 public:
 	explicit impl(lease_ptr lease) :
 		m_lease(std::move(lease)),
-		m_exec(lease_executor(m_lease)) {
-		check_active();
-	}
+		m_exec(lease_executor(m_lease)) {}
+
 	impl(lease_ptr lease, parser_t &&parser) :
 		m_lease(std::move(lease)),
 		m_exec(lease_executor(m_lease)),
-		m_parser(std::move(parser)) {
-		check_active();
-	}
+		m_parser(std::move(parser)) {}
 
 private:
 	[[nodiscard]] static executor_t lease_executor(const lease_ptr &lease)
 	{
 		if( not lease or not lease->is_valid() )
-			throw std::invalid_argument("reply connection lease is invalid");
+			invalid_argument::loc_throw("reply connection lease is invalid");
 		return lease->get().get_executor();
 	}
 
@@ -1012,60 +1009,6 @@ private:
 			m_lease->release();
 		}
 		catch(...) {
-			close_connection();
-		}
-	}
-
-	void check_active() noexcept
-	{
-		if( not m_lease or not m_lease->is_valid() )
-		{
-			m_first_error = errc::not_connected;
-			return ;
-		}
-		auto &conn = connection();
-		auto probe = conn.probe();
-
-		if( not probe )
-		{
-			m_first_error = probe.error();
-			close_connection();
-			return ;
-		}
-		if( *probe == connection_probe_state::no_event )
-			return ;
-
-		if( *probe == connection_probe_state::peer_closed )
-		{
-			m_first_error = errc::not_connected;
-			close_connection();
-			return ;
-		}
-		if( *probe == connection_probe_state::indeterminate )
-		{
-			m_first_error = make_error_code(std::errc::io_error);
-			close_connection();
-			return ;
-		}
-		char buffer[0xFFFF] {0};
-		error_code error {};
-
-		auto sum = conn.read({buffer, sizeof(buffer)}, error);
-		if( not error )
-		{
-			if( sum == 0 )
-				return ;
-
-			auto expected = m_parser.append({buffer, sum});
-			if( not expected )
-			{
-				m_first_error = expected.error();
-				close_connection();
-			}
-		}
-		else
-		{
-			m_first_error = error;
 			close_connection();
 		}
 	}

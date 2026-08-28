@@ -34,9 +34,35 @@
 namespace libgs::http { namespace detail
 {
 
+class const_buffer_sequence
+{
+	static constexpr size_t inline_capacity = 4;
+
+public:
+	explicit const_buffer_sequence(std::span<const const_buffer> buffers)
+	{
+		m_size = buffers.size();
+		if( m_size <= inline_capacity )
+			std::ranges::copy(buffers, m_inline.begin());
+		else
+			m_dynamic.assign(buffers.begin(), buffers.end());
+	}
+
+	[[nodiscard]] std::span<const const_buffer> buffers() const noexcept
+	{
+		if( m_size <= inline_capacity )
+			return {m_inline.data(), m_size};
+		return m_dynamic;
+	}
+
+private:
+	std::array<const_buffer,inline_capacity> m_inline {};
+	std::vector<const_buffer> m_dynamic {};
+	size_t m_size = 0;
+};
+
 template <typename Socket>
-[[nodiscard]] sys_expected<connection_probe_state>
-probe_tcp_socket(Socket &socket) noexcept
+[[nodiscard]] sys_expected<connection_probe_state> probe_tcp_socket(Socket &socket) noexcept
 {
 	if( not socket.is_open() )
 		return connection_probe_state::peer_closed;
@@ -88,9 +114,9 @@ template <typename Socket>
 		socket.set_option(option, error);
 		return not error;
 	};
-
 	if( options.no_delay and not set(asio::ip::tcp::no_delay(*options.no_delay)) )
 		return sys_unexpected(error);
+
 	if( options.keep_alive and not set(asio::socket_base::keep_alive(*options.keep_alive)) )
 		return sys_unexpected(error);
 
@@ -98,16 +124,16 @@ template <typename Socket>
 	{
 		if( *options.send_buffer_size > static_cast<size_t>(std::numeric_limits<int>::max()) )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
-		if( not set(asio::socket_base::send_buffer_size(
-			static_cast<int>(*options.send_buffer_size))) )
+
+		if( not set(asio::socket_base::send_buffer_size(static_cast<int>(*options.send_buffer_size))) )
 			return sys_unexpected(error);
 	}
 	if( options.receive_buffer_size )
 	{
 		if( *options.receive_buffer_size > static_cast<size_t>(std::numeric_limits<int>::max()) )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
-		if( not set(asio::socket_base::receive_buffer_size(
-			static_cast<int>(*options.receive_buffer_size))) )
+
+		if( not set(asio::socket_base::receive_buffer_size(static_cast<int>(*options.receive_buffer_size))) )
 			return sys_unexpected(error);
 	}
 	if( options.linger and not set(*options.linger) )
@@ -116,8 +142,7 @@ template <typename Socket>
 }
 
 template <typename Socket>
-[[nodiscard]] sys_expected<tcp_socket_state>
-get_tcp_socket_options(const Socket &socket) noexcept
+[[nodiscard]] sys_expected<tcp_socket_state> get_tcp_socket_options(const Socket &socket) noexcept
 {
 	tcp_socket_state state {};
 	error_code error {};
@@ -197,15 +222,13 @@ auto basic_connection<Exec>::write(const const_buffer &body, Token &&token) noex
 		return detail::initiate_expected<size_t>(get_executor(),
 		[this, body]() mutable -> awaitable<io_expected> {
 			co_return co_await co_write_all(body);
-		},
-		std::forward<Token>(token));
+		}, std::forward<Token>(token));
 	}
 }
 
 template <core_concepts::exec Exec>
 template <core_concepts::tf_opt_token<error_code,size_t> Token>
-auto basic_connection<Exec>::write
-(std::span<const const_buffer> buffers, Token &&token) noexcept
+auto basic_connection<Exec>::write(std::span<const const_buffer> buffers, Token &&token) noexcept
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
@@ -217,18 +240,16 @@ auto basic_connection<Exec>::write
 		return write_all(buffers);
 	else
 	{
-		std::vector<const_buffer> sequence(buffers.begin(), buffers.end());
+		detail::const_buffer_sequence sequence(buffers);
 		return detail::initiate_expected<size_t>(get_executor(),
 		[this, sequence = std::move(sequence)]() mutable -> awaitable<io_expected> {
-			co_return co_await co_write_all(sequence);
-		},
-		std::forward<Token>(token));
+			co_return co_await co_write_all(sequence.buffers());
+		}, std::forward<Token>(token));
 	}
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_connection<Exec>::write_all
-(std::span<const const_buffer> buffers) noexcept
+io_expected basic_connection<Exec>::write_all(std::span<const const_buffer> buffers) noexcept
 {
 	size_t sum = 0;
 	for( const auto &buffer : buffers )
@@ -242,8 +263,7 @@ io_expected basic_connection<Exec>::write_all
 }
 
 template <core_concepts::exec Exec>
-awaitable<io_expected> basic_connection<Exec>::co_write_all
-(std::span<const const_buffer> buffers) noexcept
+awaitable<io_expected> basic_connection<Exec>::co_write_all(std::span<const const_buffer> buffers) noexcept
 {
 	size_t sum = 0;
 	for( const auto &buffer : buffers )

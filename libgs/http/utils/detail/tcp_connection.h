@@ -165,7 +165,7 @@ basic_tcp_connection<Exec>::co_read_some(mutable_buffer buffer) noexcept
 
 template <core_concepts::exec Exec>
 awaitable<io_expected>
-basic_tcp_connection<Exec>::co_write_all(const const_buffer &buffer) noexcept
+basic_tcp_connection<Exec>::co_write_all(const_buffer buffer) noexcept
 {
 	error_code error {};
 	auto size = co_await asio::async_write(m_socket, buffer,

@@ -123,8 +123,9 @@ protected:
 	[[nodiscard]] virtual io_expected write_all(const const_buffer &buffer) noexcept = 0;
 	[[nodiscard]] virtual io_expected write_all(std::span<const const_buffer> buffers) noexcept;
 
+public:
 	[[nodiscard]] virtual awaitable<io_expected> co_read_some(mutable_buffer buffer) noexcept = 0;
-	[[nodiscard]] virtual awaitable<io_expected> co_write_all(const const_buffer &buffer) noexcept = 0;
+	[[nodiscard]] virtual awaitable<io_expected> co_write_all(const_buffer buffer) noexcept = 0;
 	[[nodiscard]] virtual awaitable<io_expected> co_write_all(std::span<const const_buffer> buffers) noexcept;
 };
 

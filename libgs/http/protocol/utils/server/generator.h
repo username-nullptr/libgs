@@ -65,6 +65,7 @@ public:
 	[[nodiscard]] std::string header_data(size_t body_size = 0);
 	[[nodiscard]] std::string header_data(size_t body_size, method_enum request_method);
 
+	[[nodiscard]] const_buffer body_buffer(const const_buffer &buffer) noexcept;
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
 	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
 

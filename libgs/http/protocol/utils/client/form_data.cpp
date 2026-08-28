@@ -146,6 +146,11 @@ multipart_form_data::multipart_form_data(std::string boundary) :
 
 }
 
+multipart_form_data::~multipart_form_data()
+{
+	delete m_impl;
+}
+
 multipart_form_data::multipart_form_data(const multipart_form_data &other) :
 	m_impl(new impl(*other.m_impl))
 {

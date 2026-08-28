@@ -52,6 +52,10 @@ public:
 	[[nodiscard]] virtual std::string header_data(size_t body_size) noexcept;
 	[[nodiscard]] std::string header_data_no_body(bool preserve_content_length = false) noexcept;
 
+	// Returns a borrowed slice for Content-Length framing and advances the
+	// generator state without copying the payload. Other framing modes return an
+	// empty buffer and continue to use body_data().
+	[[nodiscard]] const_buffer body_buffer(const const_buffer &buffer) noexcept;
 	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;
 	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers) noexcept;
 

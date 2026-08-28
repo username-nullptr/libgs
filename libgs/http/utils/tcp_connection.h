@@ -71,10 +71,10 @@ protected:
 	[[nodiscard]] io_expected
 	write_all(std::span<const const_buffer> buffers) noexcept override;
 
+public:
 	[[nodiscard]] awaitable<io_expected> co_read_some(mutable_buffer buffer) noexcept override;
-	[[nodiscard]] awaitable<io_expected> co_write_all(const const_buffer &buffer) noexcept override;
-	[[nodiscard]] awaitable<io_expected>
-	co_write_all(std::span<const const_buffer> buffers) noexcept override;
+	[[nodiscard]] awaitable<io_expected> co_write_all(const_buffer buffer) noexcept override;
+	[[nodiscard]] awaitable<io_expected> co_write_all(std::span<const const_buffer> buffers) noexcept override;
 
 private:
 	socket_t m_socket;

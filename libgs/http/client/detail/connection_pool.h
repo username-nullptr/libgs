@@ -404,7 +404,8 @@ private:
 			if( pos != m_buckets.end() and pos->second.connecting > 0 )
 				--pos->second.connecting;
 
-			if( m_stopped or generation != m_cancel_generation or error or not reusable(connection) )
+			if( m_stopped or generation != m_cancel_generation or error or
+				not connection or not connection->is_open() )
 			{
 				drop_count_locked(pos);
 				if( not error )

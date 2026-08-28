@@ -47,6 +47,7 @@ class LIBGS_HTTP_API multipart_form_data
 {
 public:
 	explicit multipart_form_data(std::string boundary = {});
+	~multipart_form_data();
 
 	multipart_form_data(const multipart_form_data &other);
 	multipart_form_data &operator=(const multipart_form_data &other);

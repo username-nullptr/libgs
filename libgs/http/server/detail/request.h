@@ -81,8 +81,8 @@ public:
 		}
 	}
 
-	[[nodiscard]] awaitable<void> co_wait(error_code &error,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<void> co_wait
+	(error_code &error, std::chrono::nanoseconds timeout) noexcept
 	{
 		error.clear();
 		if( m_parser.stage() != parser_t::stage_t::header )
@@ -104,14 +104,16 @@ public:
 		{
 			for(;;)
 			{
-				auto sum = co_await connection.read (
-					buffer(buf, buf_size), use_awaitable | cancel_slot | error
+				auto result = co_await connection.co_read_some (
+					buffer(buf, buf_size)
 				);
-				if( error )
+				if( not result )
 				{
+					error = result.error();
 					ignore_unused(connection.close());
 					co_return ;
 				}
+				auto sum = *result;
 				auto expected = m_parser.append({buf, sum});
 				if( not expected )
 				{
@@ -611,9 +613,8 @@ private:
 		}
 		try
 		{
-			constexpr size_t max_preallocated_body_size = 8 * 1024 * 1024;
-			if( direct_remaining != 0 and
-				direct_remaining <= max_preallocated_body_size and
+			if(constexpr size_t max_preallocated_body_size = 8 * 1024 * 1024;
+				direct_remaining != 0 and direct_remaining <= max_preallocated_body_size and
 				sum.capacity() < offset + direct_remaining )
 				sum.reserve(offset + direct_remaining);
 			sum.resize(offset + read_size);
@@ -693,10 +694,9 @@ auto basic_request<Exec>::wait(Token &&token)
 		return detail::initiate_expected_void(get_executor(),
 		[this]() mutable -> awaitable<sys_expected<>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
-			co_await m_impl->co_wait(error, state.slot(), 0ns);
+			co_await m_impl->co_wait(error, 0ns);
 			if( error )
 				co_return sys_unexpected(error);
 			co_return make_sys_expected();
