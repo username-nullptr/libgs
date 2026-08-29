@@ -75,7 +75,6 @@ class LIBGS_HTTP_TAPI basic_connection
 public:
 	using executor_t = Exec;
 	using probe_state_t = connection_probe_state;
-
 	using ptr_t = std::shared_ptr<basic_connection>;
 
 	basic_connection() = default;
@@ -84,8 +83,7 @@ public:
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		core_concepts::tf_opt_token<Token,error_code,Value...> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
+		concepts::dis_detach_opt_token<Token,error_code,Value...>;
 
 	template <typename Token = use_sync_t>
 	auto read(const mutable_buffer &buf, Token &&token = {})
@@ -123,10 +121,11 @@ protected:
 	[[nodiscard]] virtual io_expected write_all(const const_buffer &buffer) noexcept = 0;
 	[[nodiscard]] virtual io_expected write_all(std::span<const const_buffer> buffers) noexcept;
 
-public:
-	[[nodiscard]] virtual awaitable<io_expected> co_read_some(mutable_buffer buffer) noexcept = 0;
-	[[nodiscard]] virtual awaitable<io_expected> co_write_all(const_buffer buffer) noexcept = 0;
-	[[nodiscard]] virtual awaitable<io_expected> co_write_all(std::span<const const_buffer> buffers) noexcept;
+protected:
+	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;
+	virtual void co_read_some(mutable_buffer buffer, io_handler_t handler) noexcept = 0;
+	virtual void co_write_all(const_buffer buffer, io_handler_t handler) noexcept = 0;
+	virtual void co_write_all(std::span<const const_buffer> buffers, io_handler_t handler) noexcept;
 };
 
 using connection = basic_connection<>;

@@ -139,8 +139,8 @@ public:
 		return m_parser.status();
 	}
 
-	[[nodiscard]] awaitable<sys_expected<status_enum>> co_wait
-	(asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<sys_expected<status_enum>>
+	co_wait(std::chrono::nanoseconds timeout) noexcept
 	{
 		if( m_first_error )
 			co_return sys_unexpected(m_first_error);
@@ -195,7 +195,7 @@ public:
 			for(;;)
 			{
 				auto sum = co_await conn.read (
-					buffer(buf, buf_size), use_awaitable | cancel_slot | error
+					buffer(buf, buf_size), use_awaitable | error
 				);
 				if( error )
 				{
@@ -258,8 +258,7 @@ public:
 		}
 		if( m_parser.stage() == parser_t::stage_t::header )
 		{
-			auto expected = wait();
-			if( not expected )
+			if( auto expected = wait(); not expected )
 				return io_unexpected(expected.error());
 		}
 		if( m_parser.stage() == parser_t::stage_t::finished )
@@ -358,8 +357,8 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<io_expected> co_read(const mutable_buffer &buf,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<io_expected>
+	co_read(const mutable_buffer &buf, std::chrono::nanoseconds timeout) noexcept
 	{
 		if( m_first_error )
 			co_return sys_unexpected(m_first_error);
@@ -374,7 +373,7 @@ public:
 		if( m_parser.stage() == parser_t::stage_t::header )
 		{
 			using namespace std::chrono_literals;
-			auto expected = co_await co_wait(cancel_slot, 0ns);
+			auto expected = co_await co_wait(0ns);
 			if( not expected )
 				co_return io_unexpected(expected.error());
 		}
@@ -412,7 +411,7 @@ public:
 			read_size = 0xFFFF;
 
 		using namespace libgs::operators;
-		auto dst_buf = reinterpret_cast<char*>(buf.data());
+		auto dst_buf = static_cast<char*>(buf.data());
 
 		auto task = libgs::dispatch(m_exec, [&]() mutable noexcept -> awaitable<io_expected>
 		{
@@ -428,7 +427,7 @@ public:
 				{
 					error_code error {};
 					auto bytes = co_await conn.read({dst_buf + sum, direct_size},
-						use_awaitable | cancel_slot | error
+						use_awaitable | error
 					);
 					if( error )
 					{
@@ -451,7 +450,7 @@ public:
 				{
 					error_code error {};
 					auto tmp_sum = co_await conn.read({body.data(), body.size()},
-						use_awaitable | cancel_slot | error
+						use_awaitable | error
 					);
 					if( error )
 					{
@@ -515,8 +514,7 @@ public:
 
 		if( m_parser.stage() == stage::header )
 		{
-			auto expected = wait();
-			if( not expected )
+			if( auto expected = wait(); not expected )
 				return sys_unexpected(expected.error());
 		}
 		for(;;)
@@ -559,8 +557,7 @@ public:
 		return {};
 	}
 
-	[[nodiscard]] awaitable<sys_expected<byte_range_chunk>>
-	co_read_range_body(asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<sys_expected<byte_range_chunk>> co_read_range_body() noexcept
 	{
 		using namespace libgs::operators;
 		if( m_first_error )
@@ -569,7 +566,7 @@ public:
 		if( m_parser.stage() == stage::header )
 		{
 			using namespace std::chrono_literals;
-			auto expected = co_await co_wait(cancel_slot, 0ns);
+			auto expected = co_await co_wait(0ns);
 			if( not expected )
 				co_return sys_unexpected(expected.error());
 		}
@@ -598,7 +595,7 @@ public:
 			error_code error {};
 
 			auto size = co_await conn.read (
-				buffer(buf), use_awaitable | cancel_slot | error
+				buffer(buf), use_awaitable | error
 			);
 			if( error )
 			{
@@ -643,8 +640,8 @@ public:
 		return std::move(sum);
 	}
 
-	[[nodiscard]] awaitable<sys_expected<std::vector<std::byte>>> co_read_all
-	(asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<sys_expected<std::vector<std::byte>>>
+	co_read_all(std::chrono::nanoseconds timeout) noexcept
 	{
 		using namespace std::chrono_literals;
 		auto task = libgs::dispatch(m_exec,
@@ -660,7 +657,7 @@ public:
 					co_return sys_unexpected(buf_size.error());
 
 				auto expected = co_await co_read (
-					{sum.data() + offset, *buf_size}, cancel_slot, 0ns
+					{sum.data() + offset, *buf_size}, 0ns
 				);
 				if( expected )
 				{
@@ -704,8 +701,7 @@ public:
 		io_expected expected {};
 		if( m_parser.stage() == stage::header )
 		{
-			auto status = wait();
-			if( not status )
+			if( auto status = wait(); not status )
 				return expected.despair(status.error());
 		}
 		if( m_parser.status() == status::range_not_satisfiable )
@@ -766,8 +762,8 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<io_expected> co_save_file(auto &&opt, auto &&progress,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<io_expected> co_save_file
+	(auto &&opt, auto &&progress, std::chrono::nanoseconds timeout) noexcept
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
@@ -775,7 +771,7 @@ public:
 		io_expected expected {};
 		if( m_parser.stage() == stage::header )
 		{
-			auto status = co_await co_wait(cancel_slot, 0ns);
+			auto status = co_await co_wait(0ns);
 			if( not status )
 				co_return expected.despair(status.error());
 		}
@@ -807,7 +803,7 @@ public:
 
 			for(;;)
 			{
-				auto chunk = co_await co_read_range_body(cancel_slot);
+				auto chunk = co_await co_read_range_body();
 				if( not chunk )
 				{
 					expected.despair(chunk.error());
@@ -837,7 +833,7 @@ public:
 				co_return expected;
 			co_return sum;
 		},
-		use_awaitable | cancel_slot);
+		use_awaitable);
 
 		if( timeout == 0ns )
 			expected = co_await std::move(task);
@@ -883,9 +879,8 @@ private:
 		}
 		try
 		{
-			constexpr size_t max_preallocated_body_size = 8 * 1024 * 1024;
-			if( direct_remaining != 0 and
-				direct_remaining <= max_preallocated_body_size and
+			if( constexpr size_t max_preallocated_body_size = 8 * 1024 * 1024;
+				direct_remaining != 0 and direct_remaining <= max_preallocated_body_size and
 				sum.capacity() < offset + direct_remaining )
 				sum.reserve(offset + direct_remaining);
 			sum.resize(offset + read_size);
@@ -986,9 +981,7 @@ private:
 	{
 		if( not has_connection() )
 			return ;
-
-		auto connection = m_lease->take();
-		if( connection )
+		if( auto connection = m_lease->take() )
 			ignore_unused(connection->close());
 	}
 
@@ -1068,10 +1061,8 @@ auto basic_reply<Exec>::wait(Token &&token)
 	{
 		using namespace std::chrono_literals;
 		return detail::initiate_expected<status_enum>(get_executor(),
-		[impl = m_impl]() mutable -> awaitable<sys_expected<status_enum>>
-		{
-			auto state = co_await asio::this_coro::cancellation_state;
-			co_return co_await impl->co_wait(state.slot(), 0ns);
+		[impl = m_impl]() mutable -> awaitable<sys_expected<status_enum>> {
+			co_return co_await impl->co_wait(0ns);
 		},
 		std::forward<Token>(token));
 	}
@@ -1091,10 +1082,8 @@ auto basic_reply<Exec>::read(const mutable_buffer &buf, Token &&token)
 	{
 		using namespace std::chrono_literals;
 		return detail::initiate_expected<size_t>(get_executor(),
-		[impl = m_impl, buf]() mutable -> awaitable<io_expected>
-		{
-			auto state = co_await asio::this_coro::cancellation_state;
-			co_return co_await impl->co_read(buf, state.slot(), 0ns);
+		[impl = m_impl, buf]() mutable -> awaitable<io_expected> {
+			co_return co_await impl->co_read(buf, 0ns);
 		},
 		std::forward<Token>(token));
 	}
@@ -1129,9 +1118,8 @@ auto basic_reply<Exec>::read(Token &&token)
 			[impl = m_impl]() mutable -> awaitable<sys_expected<Buffer>>
 			{
 				Buffer result {};
-				auto state = co_await asio::this_coro::cancellation_state;
 				auto expected = co_await impl->co_read (
-					buffer(result), state.slot(), 0ns
+					buffer(result), 0ns
 				);
 				if( not expected )
 					co_return sys_unexpected(expected.error());
@@ -1156,8 +1144,7 @@ auto basic_reply<Exec>::read(Token &&token)
 		return detail::initiate_expected<Buffer>(get_executor(),
 		[impl = m_impl]() mutable -> awaitable<sys_expected<Buffer>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
-			auto expected = co_await impl->co_read_all(state.slot(), 0ns);
+			auto expected = co_await impl->co_read_all(0ns);
 			if( not expected )
 				co_return sys_unexpected(expected.error());
 			co_return detail::copy_buffer_data<Buffer>(std::move(*expected));
@@ -1208,11 +1195,10 @@ auto basic_reply<Exec>::save_file(T &&opt, Progress &&progress, Token &&token)
 			progress = detail::capture_async_argument(std::forward<Progress>(progress))
 		]() mutable -> awaitable<io_expected>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			co_return co_await impl->co_save_file (
 				detail::unwrap_async_argument(opt),
 				detail::unwrap_async_argument(progress),
-				state.slot(), 0ns
+				0ns
 			);
 		},
 		std::forward<Token>(token));
@@ -1319,8 +1305,7 @@ basic_reply<Exec> &basic_reply<Exec>::cancel() noexcept
 	if( m_impl->m_lease and m_impl->m_lease->is_valid() )
 	{
 		ignore_unused(m_impl->m_lease->get().cancel());
-		auto connection = m_impl->m_lease->take();
-		if( connection )
+		if( auto connection = m_impl->m_lease->take() )
 			ignore_unused(connection->close());
 	}
 	return *this;

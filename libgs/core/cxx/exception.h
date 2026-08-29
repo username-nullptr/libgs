@@ -86,6 +86,21 @@ public:
 	);
 };
 
+class LIBGS_CORE_VAPI length_error : public std::length_error
+{
+public:
+	using std::length_error::length_error;
+	~length_error() noexcept override = default;
+
+	template <typename Arg0, typename...Args>
+	length_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
+public:
+	[[noreturn]] static void loc_throw(std::string_view msg,
+		std::source_location loc = std::source_location::current()
+	);
+};
+
 class LIBGS_CORE_VAPI system_error : public std::system_error
 {
 public:

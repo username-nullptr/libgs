@@ -203,8 +203,8 @@ private:
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] awaitable<result_t<Method>> co_follow_redirects
-	(context_ptr<Method> current, req_info info, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<result_t<Method>>
+	co_follow_redirects(context_ptr<Method> current, req_info info) noexcept
 	{
 		static_assert (
 			Method == method::get or Method == method::head
@@ -215,7 +215,7 @@ private:
 		{
 			error_code io_error {};
 			auto reply_status = co_await current->wait_reply (
-				use_awaitable | io_error | cancel_slot
+				use_awaitable | io_error
 			);
 			if( io_error )
 				co_return sys_unexpected(io_error);
@@ -223,7 +223,7 @@ private:
 			while( current->reply()->parser().is_informational() )
 			{
 				reply_status = co_await current->wait_reply(
-					use_awaitable | io_error | cancel_slot
+					use_awaitable | io_error
 				);
 				if( io_error )
 					co_return sys_unexpected(io_error);
@@ -241,7 +241,7 @@ private:
 				for(;;)
 				{
 					ignore_unused(co_await current->reply()->read (
-						buffer(data), use_awaitable | io_error | cancel_slot
+						buffer(data), use_awaitable | io_error
 					));
 					if( not io_error )
 						continue;
@@ -265,13 +265,13 @@ private:
 					make_error_code(std::errc::protocol_error)
 				);
 			}
-			auto next = co_await co_make_context<Method>(info, cancel_slot);
+			auto next = co_await co_make_context<Method>(info);
 			if( not next )
 				co_return next;
 			current = std::move(*next);
 
 			ignore_unused(co_await current->write (
-				use_awaitable | io_error | cancel_slot
+				use_awaitable | io_error
 			));
 			if( io_error )
 				co_return sys_unexpected(io_error);
@@ -323,19 +323,18 @@ public:
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] awaitable<result_t<Method>> co_request
-	(req_info info, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<result_t<Method>> co_request(req_info info) noexcept
 	{
 		using namespace libgs::operators;
 		const bool continue_100 = expects_continue(info);
-		auto context_expected = co_await co_make_context<Method>(info, cancel_slot);
+		auto context_expected = co_await co_make_context<Method>(info);
 
 		if( not context_expected )
 			co_return context_expected;
 
 		error_code io_error {};
 		ignore_unused(co_await (*context_expected)->write (
-			use_awaitable | io_error | cancel_slot
+			use_awaitable | io_error
 		));
 		if( io_error )
 			co_return sys_unexpected(io_error);
@@ -352,7 +351,7 @@ public:
 					break;
 
 				ignore_unused(co_await (*context_expected)->wait_reply (
-					use_awaitable | io_error | cancel_slot
+					use_awaitable | io_error
 				));
 				if( io_error )
 					co_return sys_unexpected(io_error);
@@ -363,7 +362,7 @@ public:
 			if( info.max_redirects > 0 )
 			{
 				co_return co_await co_follow_redirects<Method>(
-					std::move(*context_expected), std::move(info), cancel_slot
+					std::move(*context_expected), std::move(info)
 				);
 			}
 		}
@@ -371,8 +370,8 @@ public:
 	}
 
 public:
-	[[nodiscard]] result_t<method::put> upload_file
-	(req_info info, auto &&opt, auto &&progress) noexcept
+	[[nodiscard]] result_t<method::put>
+	upload_file(req_info info, auto &&opt, auto &&progress) noexcept
 	{
 		auto pair = info.arg.set_header(std::forward<decltype(opt)>(opt));
 		if( not pair )
@@ -407,8 +406,8 @@ public:
 		return context_expected;
 	}
 
-	[[nodiscard]] awaitable<result_t<method::put>> co_upload_file
-	(req_info info, auto &opt, auto &progress, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<result_t<method::put>>
+	co_upload_file(req_info info, auto &opt, auto &progress) noexcept
 	{
 		using namespace libgs::operators;
 		auto pair = info.arg.set_header(opt);
@@ -416,7 +415,7 @@ public:
 			co_return sys_unexpected(pair.error());
 
 		auto context_expected = co_await co_request<method::put>(
-			std::move(info), cancel_slot
+			std::move(info)
 		);
 		if( not context_expected )
 			co_return context_expected;
@@ -438,21 +437,21 @@ public:
 		error_code io_error {};
 		ignore_unused(co_await context->upload_file (
 			std::move(pair->first), std::move(pair->second), progress,
-			use_awaitable | io_error | cancel_slot
+			use_awaitable | io_error
 		));
 		if( io_error )
 			co_return sys_unexpected(io_error);
 
 		ignore_unused(co_await context->wait_reply (
-			use_awaitable | io_error | cancel_slot
+			use_awaitable | io_error
 		));
 		if( io_error )
 			co_return sys_unexpected(io_error);
 		co_return context_expected;
 	}
 
-	[[nodiscard]] result_t<method::get> download_file
-	(req_info info, auto &&opt, auto &&progress) noexcept
+	[[nodiscard]] result_t<method::get>
+	download_file(req_info info, auto &&opt, auto &&progress) noexcept
 	{
 		auto context_expected = request<method::get>(std::move(info));
 		if( not context_expected )
@@ -468,19 +467,19 @@ public:
 		return context_expected;
 	}
 
-	[[nodiscard]] awaitable<result_t<method::get>> co_download_file
-	(req_info info, auto &opt, auto &progress, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<result_t<method::get>>
+	co_download_file(req_info info, auto &opt, auto &progress) noexcept
 	{
 		using namespace libgs::operators;
 		auto context_expected = co_await co_request<method::get>(
-			std::move(info), cancel_slot
+			std::move(info)
 		);
 		if( not context_expected )
 			co_return context_expected;
 
 		error_code io_error {};
 		ignore_unused(co_await (*context_expected)->reply()->save_file (
-			opt, progress, use_awaitable | io_error | cancel_slot
+			opt, progress, use_awaitable | io_error
 		));
 		if( io_error )
 			co_return sys_unexpected(io_error);
@@ -535,8 +534,7 @@ public:
 	}
 
 	template <method_enum Method>
-	[[nodiscard]] awaitable<result_t<Method>> co_make_context
-	(req_info info, asio::cancellation_slot cancel_slot) noexcept
+	[[nodiscard]] awaitable<result_t<Method>> co_make_context(req_info info) noexcept
 	{
 		using namespace libgs::operators;
 		auto target_expected = target_from_url(info.url);
@@ -567,7 +565,7 @@ public:
 		}
 		error_code io_error {};
 		auto lease = co_await m_pool.get (
-			*target_expected, use_awaitable | io_error | cancel_slot
+			*target_expected, use_awaitable | io_error
 		);
 		if( io_error )
 			co_return sys_unexpected(io_error);
@@ -663,12 +661,8 @@ auto basic_client<Exec,Version>::request(req_info info, Token &&token)
 	{
 		return detail::initiate_expected<context_ptr<Method>>(
 		get_executor(), [impl = m_impl, info = std::move(info)]
-		() mutable -> awaitable<sys_expected<context_ptr<Method>>>
-		{
-			auto state = co_await asio::this_coro::cancellation_state;
-			co_return co_await impl->template co_request<Method>(
-				std::move(info), state.slot()
-			);
+		() mutable -> awaitable<sys_expected<context_ptr<Method>>> {
+			co_return co_await impl->template co_request<Method>(std::move(info));
 		},
 		std::forward<Token>(token));
 	}
@@ -713,10 +707,9 @@ auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Progress &&
 			progress = detail::capture_async_argument(std::forward<Progress>(progress))
 		]() mutable -> awaitable<sys_expected<context_ptr<method::put>>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			co_return co_await impl->co_upload_file (
 				std::move(info), detail::unwrap_async_argument(opt),
-				detail::unwrap_async_argument(progress), state.slot()
+				detail::unwrap_async_argument(progress)
 			);
 		},
 		std::forward<Token>(token));
@@ -762,10 +755,9 @@ auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Progress 
 			progress = detail::capture_async_argument(std::forward<Progress>(progress))
 		]() mutable -> awaitable<sys_expected<context_ptr<method::get>>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			co_return co_await impl->co_download_file (
 				std::move(info), detail::unwrap_async_argument(opt),
-				detail::unwrap_async_argument(progress), state.slot()
+				detail::unwrap_async_argument(progress)
 			);
 		},
 		std::forward<Token>(token));
@@ -814,12 +806,8 @@ auto basic_client<Exec,Version>::make_context(req_info info, Token &&token)
 	else
 	{
 		return detail::initiate_expected<context_ptr<Method>>(get_executor(),
-		[impl = m_impl, info = std::move(info)]() mutable -> awaitable<sys_expected<context_ptr<Method>>>
-		{
-			auto state = co_await asio::this_coro::cancellation_state;
-			co_return co_await impl->template co_make_context<Method>(
-				std::move(info), state.slot()
-			);
+		[impl = m_impl, info = std::move(info)]() mutable -> awaitable<sys_expected<context_ptr<Method>>> {
+			co_return co_await impl->template co_make_context<Method>(std::move(info));
 		},
 		std::forward<Token>(token));
 	}

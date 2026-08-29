@@ -78,6 +78,18 @@ inline void logic_error::loc_throw(std::string_view msg, std::source_location lo
 }
 
 template <typename Arg0, typename...Args>
+length_error::length_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::length_error(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
+inline void length_error::loc_throw(std::string_view msg, std::source_location loc)
+{
+	throw length_error(with_location(msg, loc));
+}
+
+template <typename Arg0, typename...Args>
 system_error::system_error(std::error_code ec, std::format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
 	std::system_error(ec, std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {

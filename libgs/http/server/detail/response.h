@@ -1189,10 +1189,10 @@ private:
 	(const_buffer data, error_code &error) noexcept
 	{
 		error.clear();
-		auto result = co_await m_connection->co_write_all(data);
-		auto sum = result ? *result : 0;
-		if( not result )
-			error = result.error();
+		using namespace libgs::operators;
+		auto sum = co_await m_connection->write (
+			data, use_awaitable | error
+		);
 		if( error )
 			ignore_unused(m_connection->close());
 		co_return sum;
@@ -1203,11 +1203,10 @@ private:
 	{
 		error.clear();
 		auto data_buffer = buffer(data);
-
-		auto result = co_await m_connection->co_write_all(data_buffer);
-		auto sum = result ? *result : 0;
-		if( not result )
-			error = result.error();
+		using namespace libgs::operators;
+		auto sum = co_await m_connection->write (
+			data_buffer, use_awaitable | error
+		);
 
 		if( error )
 			ignore_unused(m_connection->close());
@@ -1221,10 +1220,10 @@ private:
 		const const_buffer buffers[] {
 			const_buffer(header), body
 		};
-		auto result = co_await m_connection->co_write_all(buffers);
-		auto sum = result ? *result : 0;
-		if( not result )
-			error = result.error();
+		using namespace libgs::operators;
+		auto sum = co_await m_connection->write (
+			buffers, use_awaitable | error
+		);
 
 		if( error )
 			ignore_unused(m_connection->close());
@@ -1238,10 +1237,10 @@ private:
 		const const_buffer buffers[] {
 			const_buffer(header), const_buffer(body)
 		};
-		auto result = co_await m_connection->co_write_all(buffers);
-		auto sum = result ? *result : 0;
-		if( not result )
-			error = result.error();
+		using namespace libgs::operators;
+		auto sum = co_await m_connection->write (
+			buffers, use_awaitable | error
+		);
 
 		if( error )
 			ignore_unused(m_connection->close());
@@ -1477,6 +1476,7 @@ template <typename Token>
 auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 	requires write_task_token_v<Token,size_t>
 {
+	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
 		return m_impl->write(body, token);
 
@@ -1492,12 +1492,12 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 		}
 		return sum;
 	}
-	else if constexpr( detached_token_v<Token> )
+	else if constexpr( is_detached_v<token_unbound_t<token_t>> )
 	{
 		auto data = std::make_shared<std::string>();
 		if( body.size() > 0 )
 		{
-			data->assign(
+			data->assign (
 				static_cast<const char*>(body.data()), body.size()
 			);
 		}

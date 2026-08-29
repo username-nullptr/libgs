@@ -164,42 +164,25 @@ io_expected basic_tls_connection<Exec>::write_all
 }
 
 template <core_concepts::exec Exec>
-awaitable<io_expected>
-basic_tls_connection<Exec>::co_read_some(mutable_buffer buffer) noexcept
+void basic_tls_connection<Exec>::co_read_some
+(mutable_buffer buffer, io_handler_t handler) noexcept
 {
-	error_code error {};
-	auto size = co_await m_socket.async_read_some (
-		buffer, asio::redirect_error(use_awaitable, error)
-	);
-	if( error )
-		co_return io_unexpected(error);
-	co_return size;
+	m_socket.async_read_some(buffer, std::move(handler));
 }
 
 template <core_concepts::exec Exec>
-awaitable<io_expected>
-basic_tls_connection<Exec>::co_write_all(const_buffer buffer) noexcept
+void basic_tls_connection<Exec>::co_write_all
+(const_buffer buffer, io_handler_t handler) noexcept
 {
-	error_code error {};
-	auto size = co_await asio::async_write(m_socket, buffer,
-		asio::redirect_error(use_awaitable, error)
-	);
-	if( error )
-		co_return io_unexpected(error);
-	co_return size;
+	asio::async_write(m_socket, buffer, std::move(handler));
 }
 
 template <core_concepts::exec Exec>
-awaitable<io_expected>
-basic_tls_connection<Exec>::co_write_all(std::span<const const_buffer> buffers) noexcept
+void basic_tls_connection<Exec>::co_write_all
+(std::span<const const_buffer> buffers, io_handler_t handler) noexcept
 {
-	error_code error {};
-	auto size = co_await asio::async_write(m_socket, buffers,
-		asio::redirect_error(use_awaitable, error)
-	);
-	if( error )
-		co_return io_unexpected(error);
-	co_return size;
+	detail::const_buffer_sequence sequence(buffers);
+	asio::async_write(m_socket, sequence, std::move(handler));
 }
 
 } //namespace libgs::http

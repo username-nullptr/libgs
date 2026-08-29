@@ -78,10 +78,6 @@ public:
 	static constexpr bool write_task_token_v =
 		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...>;
 
-	template <typename Token>
-	static constexpr bool detached_token_v =
-		is_detached_v<token_unbound_t<Token>>;
-
 	// As with Asio's basic I/O operations, asynchronous writes borrow body until
 	// completion. detached is the exception: it owns a copy until completion.
 	template <typename Token = use_sync_t>

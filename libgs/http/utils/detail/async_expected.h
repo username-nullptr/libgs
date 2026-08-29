@@ -39,22 +39,20 @@ template <typename Buffer, typename Source>
 {
 	using source_t = std::remove_cvref_t<Source>;
 	if constexpr( std::same_as<Buffer,source_t> )
-	{
 		return std::forward<Source>(source);
-	}
 	else
 	{
-		using value_t = typename Buffer::value_type;
+		using value_t = Buffer::value_type;
 		const auto byte_size = source.size() * sizeof(typename source_t::value_type);
+
 		const auto value_size = byte_size / sizeof(value_t) +
 			static_cast<size_t>(byte_size % sizeof(value_t) != 0);
 
 		Buffer result {};
 		result.resize(value_size);
+
 		if( byte_size > 0 )
-		{
 			std::memcpy(result.data(), source.data(), byte_size);
-		}
 		return result;
 	}
 }
@@ -63,7 +61,7 @@ template <typename Value>
 [[nodiscard]] Value expected_value_or_throw(sys_expected<Value> expected)
 {
 	if( not expected )
-		throw std::system_error(expected.error());
+		system_error::loc_throw(expected.error());
 	return std::move(*expected);
 }
 
@@ -90,26 +88,18 @@ template <typename T>
 [[nodiscard]] auto capture_async_argument(T &&value)
 {
 	if constexpr( std::is_lvalue_reference_v<T> )
-	{
 		return std::ref(value);
-	}
 	else
-	{
 		return std::remove_cvref_t<T>(std::forward<T>(value));
-	}
 }
 
 template <typename T>
 [[nodiscard]] decltype(auto) unwrap_async_argument(T &value) noexcept
 {
 	if constexpr( is_async_argument_reference<std::remove_cvref_t<T>>::value )
-	{
 		return value.get();
-	}
 	else
-	{
 		return (value);
-	}
 }
 
 template <typename Value, typename Factory>
@@ -122,6 +112,9 @@ template <typename Value, typename Factory>
 	auto exec = co_await asio::this_coro::executor;
 	using namespace asio::experimental::awaitable_operators;
 
+	// operator|| uses wait_for_one_success(cancellation_type::all). When the
+	// timer wins it emits cancellation to factory() through its associated
+	// cancellation slot, then waits for the cancelled I/O to finish.
 	auto result = co_await (
 		factory() or coro::sleep_for(exec, timeout)
 	);
@@ -140,8 +133,7 @@ template <typename Value, typename Factory, typename Handler>
 {
 	error_code error {};
 	Value value {};
-	try
-	{
+	try {
 		auto result = co_await co_expected_with_timeout<Value>(
 			std::move(factory), timeout
 		);
@@ -150,16 +142,13 @@ template <typename Value, typename Factory, typename Handler>
 		else
 			error = result.error();
 	}
-	catch(const std::system_error &ex)
-	{
+	catch(const std::system_error &ex) {
 		error = ex.code();
 	}
-	catch(const std::bad_alloc&)
-	{
+	catch(const std::bad_alloc&) {
 		error = make_error_code(std::errc::not_enough_memory);
 	}
-	catch(...)
-	{
+	catch(...) {
 		error = make_error_code(std::errc::io_error);
 	}
 	std::move(*handler)(error, std::move(value));
@@ -193,8 +182,7 @@ template <typename Value, core_concepts::exec Exec, typename Factory, typename T
 }
 
 template <typename Factory>
-[[nodiscard]] awaitable<sys_expected<std::monostate>> co_void_expected_value
-(Factory factory)
+[[nodiscard]] awaitable<sys_expected<std::monostate>> co_void_expected_value(Factory factory)
 {
 	auto result = co_await factory();
 	if( not result )
@@ -207,11 +195,9 @@ template <typename Factory, typename Handler>
 (Factory factory, std::chrono::nanoseconds timeout, std::shared_ptr<Handler> handler)
 {
 	error_code error {};
-	try
-	{
+	try {
 		auto result = co_await co_expected_with_timeout<std::monostate>(
-			[factory = std::move(factory)]() mutable
-			{
+			[factory = std::move(factory)]() mutable {
 				return co_void_expected_value(std::move(factory));
 			},
 			timeout
@@ -219,16 +205,13 @@ template <typename Factory, typename Handler>
 		if( not result )
 			error = result.error();
 	}
-	catch(const std::system_error &ex)
-	{
+	catch(const std::system_error &ex) {
 		error = ex.code();
 	}
-	catch(const std::bad_alloc&)
-	{
+	catch(const std::bad_alloc&) {
 		error = make_error_code(std::errc::not_enough_memory);
 	}
-	catch(...)
-	{
+	catch(...) {
 		error = make_error_code(std::errc::io_error);
 	}
 	std::move(*handler)(error);
@@ -236,8 +219,7 @@ template <typename Factory, typename Handler>
 }
 
 template <core_concepts::exec Exec, typename Factory, typename Token>
-[[nodiscard]] auto initiate_expected_void
-(const Exec &exec, Factory factory, Token &&token)
+[[nodiscard]] auto initiate_expected_void(const Exec &exec, Factory factory, Token &&token)
 {
 	auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(
 		get_associated_redirect_time(token)
@@ -253,7 +235,7 @@ template <core_concepts::exec Exec, typename Factory, typename Token>
 		auto slot = asio::get_associated_cancellation_slot(*handler_ptr);
 
 		asio::co_spawn(exec,
-			co_complete_expected_void(
+			co_complete_expected_void (
 				std::move(factory), timeout, std::move(handler_ptr)
 			),
 			asio::bind_cancellation_slot(slot, detached)

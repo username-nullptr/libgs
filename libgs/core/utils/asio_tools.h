@@ -32,6 +32,7 @@
 #include <libgs/core/utils/token_concepts.h>
 #include <libgs/core/utils/asio_concepts.h>
 #include <libgs/core/cxx/attributes.h>
+#include <libgs/core/cxx/tools.h>
 
 namespace libgs
 {
@@ -72,7 +73,7 @@ struct token_unbound
 };
 
 template <concepts::any_tf_opt_token Token>
-using token_unbound_t = typename token_unbound<Token>::type;
+using token_unbound_t = token_unbound<Token>::type;
 
 } //namespace libgs
 #include <libgs/core/utils/detail/asio_tools.h>

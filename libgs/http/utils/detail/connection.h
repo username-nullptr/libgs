@@ -39,6 +39,9 @@ class const_buffer_sequence
 	static constexpr size_t inline_capacity = 4;
 
 public:
+	using value_type = const_buffer;
+	using const_iterator = const value_type*;
+
 	explicit const_buffer_sequence(std::span<const const_buffer> buffers)
 	{
 		m_size = buffers.size();
@@ -55,11 +58,119 @@ public:
 		return m_dynamic;
 	}
 
+	[[nodiscard]] const_iterator begin() const noexcept {
+		return buffers().data();
+	}
+
+	[[nodiscard]] const_iterator end() const noexcept {
+		auto sequence = buffers();
+		return sequence.data() + sequence.size();
+	}
+
 private:
 	std::array<const_buffer,inline_capacity> m_inline {};
 	std::vector<const_buffer> m_dynamic {};
 	size_t m_size = 0;
 };
+
+template <typename Token, typename Initiation>
+[[nodiscard]] auto initiate_connection_io(Initiation initiation, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	token_t ntoken(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code,size_t)>(
+		std::move(initiation), ntoken
+	);
+}
+
+template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typename Initiation>
+[[nodiscard]] auto initiate_connection_io
+(const Exec &exec, Initiation initiation, Token &&token, std::shared_ptr<void> owner = {})
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_redirect_time_v<token_t> )
+	{
+		return initiate_expected<size_t>(exec,
+		[initiation = std::move(initiation), owner = std::move(owner)]()
+		mutable -> awaitable<io_expected>
+		{
+			error_code error {};
+			size_t size = 0;
+			if constexpr( OwnsBuffer )
+			{
+				size = co_await initiate_connection_io(
+					std::move(initiation),
+					asio::consign(
+						asio::redirect_error(use_awaitable, error), owner
+					)
+				);
+			}
+			else
+			{
+				size = co_await initiate_connection_io(
+					std::move(initiation),
+					asio::redirect_error(use_awaitable, error)
+				);
+			}
+			if( error )
+				co_return io_unexpected(error);
+			co_return size;
+		},
+		std::forward<Token>(token));
+	}
+	else if constexpr( OwnsBuffer )
+	{
+		auto owned_token = asio::consign(
+			std::forward<Token>(token), std::move(owner)
+		);
+		return initiate_connection_io(
+			std::move(initiation), std::move(owned_token)
+		);
+	}
+	else
+	{
+		return initiate_connection_io(
+			std::move(initiation), std::forward<Token>(token)
+		);
+	}
+}
+
+inline std::shared_ptr<std::string> copy_buffer(const const_buffer &buffer)
+{
+	auto result = std::make_shared<std::string>();
+	if( buffer.size() > 0 )
+	{
+		result->assign(
+			static_cast<const char*>(buffer.data()), buffer.size()
+		);
+	}
+	return result;
+}
+
+inline std::shared_ptr<std::string>
+copy_buffers(std::span<const const_buffer> buffers)
+{
+	auto result = std::make_shared<std::string>();
+	size_t size = 0;
+	for( const auto &buffer : buffers )
+	{
+		if( buffer.size() > result->max_size() - size )
+			length_error::loc_throw("libgs::http::basic_connection::write");
+		size += buffer.size();
+	}
+	result->reserve(size);
+	for( const auto &buffer : buffers )
+	{
+		if( buffer.size() > 0 )
+		{
+			result->append(
+				static_cast<const char*>(buffer.data()), buffer.size()
+			);
+		}
+	}
+	return result;
+}
 
 template <typename Socket>
 [[nodiscard]] sys_expected<connection_probe_state> probe_tcp_socket(Socket &socket) noexcept
@@ -68,7 +179,8 @@ template <typename Socket>
 		return connection_probe_state::peer_closed;
 
 	error_code error {};
-	const bool was_non_blocking = socket.non_blocking();
+	bool was_non_blocking = socket.non_blocking();
+
 	socket.non_blocking(true, error);
 	if( error )
 		return sys_unexpected(error);
@@ -77,9 +189,9 @@ template <typename Socket>
 	auto size = socket.receive(asio::buffer(&byte, 1),
 		asio::socket_base::message_peek, error
 	);
-
 	error_code restore_error {};
 	socket.non_blocking(was_non_blocking, restore_error);
+
 	if( restore_error )
 		return sys_unexpected(restore_error);
 
@@ -94,15 +206,14 @@ template <typename Socket>
 	if( error == errc::eof or error == errc::connection_reset or
 		error == errc::connection_aborted or error == errc::not_connected or
 		error == errc::bad_descriptor )
-	{
 		return connection_probe_state::peer_closed;
-	}
+
 	return sys_unexpected(error);
 }
 
 inline endpoint to_endpoint(const asio::ip::tcp::endpoint &value) noexcept
 {
-	return {value.address(), value.port()};
+	return { .address = value.address(), .port = value.port() };
 }
 
 template <typename Socket>
@@ -197,9 +308,9 @@ auto basic_connection<Exec>::read(const mutable_buffer &buf, Token &&token)
 		return read_some(buf);
 	else
 	{
-		return detail::initiate_expected<size_t>(get_executor(),
-		[this, buf]() mutable -> awaitable<io_expected> {
-			co_return co_await co_read_some(buf);
+		return detail::initiate_connection_io(get_executor(),
+		[this, buf](auto handler) mutable {
+			co_read_some(buf, io_handler_t(std::move(handler)));
 		},
 		std::forward<Token>(token));
 	}
@@ -219,10 +330,27 @@ auto basic_connection<Exec>::write(const const_buffer &body, Token &&token) noex
 		return write_all(body);
 	else
 	{
-		return detail::initiate_expected<size_t>(get_executor(),
-		[this, body]() mutable -> awaitable<io_expected> {
-			co_return co_await co_write_all(body);
-		}, std::forward<Token>(token));
+		using token_t = std::remove_cvref_t<Token>;
+		if constexpr( is_detached_v<token_unbound_t<token_t>> )
+		{
+			auto owner = detail::copy_buffer(body);
+			return detail::initiate_connection_io<true>(get_executor(),
+			[this, owner](auto handler) mutable
+			{
+				co_write_all (
+					const_buffer(*owner), io_handler_t(std::move(handler))
+				);
+			},
+			std::forward<Token>(token), owner);
+		}
+		else
+		{
+			return detail::initiate_connection_io(get_executor(),
+			[this, body](auto handler) mutable {
+				co_write_all(body, io_handler_t(std::move(handler)));
+			},
+			std::forward<Token>(token));
+		}
 	}
 }
 
@@ -240,11 +368,31 @@ auto basic_connection<Exec>::write(std::span<const const_buffer> buffers, Token 
 		return write_all(buffers);
 	else
 	{
-		detail::const_buffer_sequence sequence(buffers);
-		return detail::initiate_expected<size_t>(get_executor(),
-		[this, sequence = std::move(sequence)]() mutable -> awaitable<io_expected> {
-			co_return co_await co_write_all(sequence.buffers());
-		}, std::forward<Token>(token));
+		using token_t = std::remove_cvref_t<Token>;
+		if constexpr( is_detached_v<token_unbound_t<token_t>> )
+		{
+			auto owner = detail::copy_buffers(buffers);
+			return detail::initiate_connection_io<true>(get_executor(),
+			[this, owner](auto handler) mutable
+			{
+				co_write_all (
+					const_buffer(*owner), io_handler_t(std::move(handler))
+				);
+			},
+			std::forward<Token>(token), owner);
+		}
+		else
+		{
+			detail::const_buffer_sequence sequence(buffers);
+			return detail::initiate_connection_io(get_executor(),
+			[this, sequence = std::move(sequence)](auto handler) mutable
+			{
+				co_write_all (
+					sequence.buffers(), io_handler_t(std::move(handler))
+				);
+			},
+			std::forward<Token>(token));
+		}
 	}
 }
 
@@ -263,17 +411,66 @@ io_expected basic_connection<Exec>::write_all(std::span<const const_buffer> buff
 }
 
 template <core_concepts::exec Exec>
-awaitable<io_expected> basic_connection<Exec>::co_write_all(std::span<const const_buffer> buffers) noexcept
+void basic_connection<Exec>::co_write_all
+(std::span<const const_buffer> buffers, io_handler_t handler) noexcept
 {
-	size_t sum = 0;
-	for( const auto &buffer : buffers )
+	auto exec = get_executor();
+	auto slot = asio::get_associated_cancellation_slot(handler);
+
+	auto completion_exec = asio::get_associated_executor(handler, exec);
+	detail::const_buffer_sequence sequence(buffers);
+
+	asio::co_spawn(exec,
+	[this, sequence = std::move(sequence)]() mutable -> awaitable<io_expected>
 	{
-		auto result = co_await co_write_all(buffer);
+		size_t sum = 0;
+		for( const auto &buffer : sequence.buffers() )
+		{
+			error_code error {};
+			auto size = co_await detail::initiate_connection_io (
+			[this, buffer](auto next_handler) mutable
+			{
+				co_write_all (
+					buffer, io_handler_t(std::move(next_handler))
+				);
+			},
+			asio::redirect_error(use_awaitable, error));
+			if( error )
+				co_return io_unexpected(error);
+			sum += size;
+		}
+		co_return sum;
+	},
+	asio::bind_executor(completion_exec, asio::bind_cancellation_slot(slot,
+	[handler = std::move(handler)](const std::exception_ptr &exception, io_expected result) mutable
+	{
+		if( exception )
+		{
+			try {
+				std::rethrow_exception(exception);
+			}
+			catch(const std::system_error &ex) {
+				std::move(handler)(ex.code(), 0);
+			}
+			catch(const std::bad_alloc&)
+			{
+				std::move(handler) (
+					make_error_code(std::errc::not_enough_memory), 0
+				);
+			}
+			catch(...)
+			{
+				std::move(handler) (
+					make_error_code(std::errc::io_error), 0
+				);
+			}
+			return ;
+		}
 		if( not result )
-			co_return result;
-		sum += *result;
-	}
-	co_return sum;
+			std::move(handler)(result.error(), 0);
+		else
+			std::move(handler)(error_code{}, *result);
+	})));
 }
 
 } //namespace libgs::http

@@ -104,16 +104,14 @@ public:
 		{
 			for(;;)
 			{
-				auto result = co_await connection.co_read_some (
-					buffer(buf, buf_size)
+				auto sum = co_await connection.read (
+					buffer(buf, buf_size), use_awaitable | error
 				);
-				if( not result )
+				if( error )
 				{
-					error = result.error();
 					ignore_unused(connection.close());
 					co_return ;
 				}
-				auto sum = *result;
 				auto expected = m_parser.append({buf, sum});
 				if( not expected )
 				{
@@ -244,8 +242,8 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_read(const mutable_buffer &buf, error_code &error,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<size_t> co_read
+	(const mutable_buffer &buf, error_code &error, std::chrono::nanoseconds timeout) noexcept
 	{
 		error.clear();
 		size_t sum = 0;
@@ -276,8 +274,7 @@ public:
 			if( expects_continue() )
 			{
 				co_await m_connection->write (
-					"HTTP/1.1 100 Continue\r\n\r\n",
-					use_awaitable | cancel_slot | error
+					"HTTP/1.1 100 Continue\r\n\r\n", use_awaitable | error
 				);
 				if( error )
 					co_return ;
@@ -294,8 +291,7 @@ public:
 				if( auto read_size = m_parser.prepare_direct_body_read(buf_size - sum) )
 				{
 					auto bytes = co_await m_connection->read (
-						{dst_buf + sum, read_size},
-						use_awaitable | cancel_slot | error
+						{dst_buf + sum, read_size}, use_awaitable | error
 					);
 					if( error )
 						co_return ;
@@ -313,7 +309,7 @@ public:
 				for(;;)
 				{
 					auto tmp_sum = co_await m_connection->read (
-						{body.data(), body.size()}, use_awaitable | cancel_slot | error
+						{body.data(), body.size()}, use_awaitable | error
 					);
 					if( error )
 						co_return ;
@@ -388,8 +384,8 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<std::vector<std::byte>> co_read_all(error_code &error,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<std::vector<std::byte>>
+	co_read_all(error_code &error, std::chrono::nanoseconds timeout) noexcept
 	{
 		error.clear();
 		std::vector<std::byte> sum {};
@@ -419,7 +415,7 @@ public:
 					co_return ;
 
 				auto bytes = co_await co_read (
-					{sum.data() + offset, read_size}, error, cancel_slot, 0ns
+					{sum.data() + offset, read_size}, error, 0ns
 				);
 				if( error )
 				{
@@ -524,8 +520,8 @@ public:
 		return sum;
 	}
 
-	[[nodiscard]] awaitable<size_t> co_save_file(auto &&opt, error_code &error,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout)
+	[[nodiscard]] awaitable<size_t> co_save_file
+	(auto &&opt, error_code &error, std::chrono::nanoseconds timeout)
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
@@ -551,7 +547,7 @@ public:
 			{
 				char buffer[buf_size] {0};
 				auto bytes = co_await co_read (
-					{buffer, buf_size}, error, cancel_slot, 0ns
+					{buffer, buf_size}, error, 0ns
 				);
 				if( error )
 					break;
@@ -800,11 +796,10 @@ auto basic_request<Exec>::read(const mutable_buffer &buf, Token &&token)
 		return detail::initiate_expected<size_t>(get_executor(),
 		[this, buf]() mutable -> awaitable<sys_expected<size_t>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
 			auto sum = co_await m_impl->co_read(
-				buf, error, state.slot(), std::chrono::nanoseconds::zero()
+				buf, error, std::chrono::nanoseconds::zero()
 			);
 			if( error )
 				co_return sys_unexpected(error);
@@ -846,12 +841,10 @@ auto basic_request<Exec>::read(Token &&token)
 			[this]() mutable -> awaitable<sys_expected<Buffer>>
 			{
 				Buffer result {};
-				auto state = co_await asio::this_coro::cancellation_state;
 				error_code error {};
 
 				ignore_unused(co_await m_impl->co_read (
-					buffer(result), error, state.slot(),
-					std::chrono::nanoseconds::zero()
+					buffer(result), error, std::chrono::nanoseconds::zero()
 				));
 				if( error )
 					co_return sys_unexpected(error);
@@ -882,11 +875,9 @@ auto basic_request<Exec>::read(Token &&token)
 		return detail::initiate_expected<Buffer>(get_executor(),
 		[this]() mutable -> awaitable<sys_expected<Buffer>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
-
 			auto source = co_await m_impl->co_read_all (
-				error, state.slot(), std::chrono::nanoseconds::zero()
+				error, std::chrono::nanoseconds::zero()
 			);
 			if( error )
 				co_return sys_unexpected(error);
@@ -932,11 +923,10 @@ auto basic_request<Exec>::save_file(T &&opt, Token &&token)
 		[this, opt = detail::capture_async_argument(std::forward<T>(opt))]
 		() mutable -> awaitable<sys_expected<size_t>>
 		{
-			auto state = co_await asio::this_coro::cancellation_state;
 			error_code error {};
 
 			auto sum = co_await m_impl->co_save_file (
-				detail::unwrap_async_argument(opt), error, state.slot(),
+				detail::unwrap_async_argument(opt), error,
 				std::chrono::nanoseconds::zero()
 			);
 			if( error )
