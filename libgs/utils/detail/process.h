@@ -343,10 +343,11 @@ public:
 			}
 			else if constexpr( is_use_future_v<nntoken_t> )
 			{
-				auto promise = std::make_shared<std::promise<sys_expected<int>>>();
+				auto result_promise = std::make_shared<std::promise<sys_expected<int>>>();
+				auto future = result_promise->get_future();
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
-					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(promise),
+					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(result_promise),
 						ntoken, cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
@@ -359,7 +360,7 @@ public:
 				}
 				else
 				{
-					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(promise),
+					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(result_promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
@@ -370,7 +371,7 @@ public:
 						co_return ;
 					});
 				}
-				return promise->get_future();
+				return future;
 			}
 			else if constexpr( is_redirect_error_v<ntoken_t> )
 			{
@@ -457,20 +458,23 @@ public:
 			}
 			else if constexpr( is_use_future_v<nntoken_t> )
 			{
-				auto buf_ptr = std::make_shared<std::string>(
+				auto owned_buffer = std::make_shared<std::string>(
 					reinterpret_cast<const char*>(buf.data()), buf.size()
 				);
-				auto promise = std::make_shared<std::promise<io_expected>>();
+				auto result_promise = std::make_shared<std::promise<io_expected>>();
+				auto future = result_promise->get_future();
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
 					libgs::dispatch(m_exec, [self = this->shared_from_this(),
-						ntoken, buf = std::move(buf_ptr), promise = std::move(promise),
+						ntoken, payload_buffer = std::move(owned_buffer),
+						promise = std::move(result_promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
 						promise->set_value(co_await self->m_detail.co_write (
-							ntoken.ec_, {buf->data(), buf->size()}, cancel_slot, timeout
+							ntoken.ec_, {payload_buffer->data(), payload_buffer->size()},
+							cancel_slot, timeout
 						));
 						co_return ;
 					});
@@ -478,35 +482,37 @@ public:
 				else
 				{
 					libgs::dispatch(m_exec, [self = this->shared_from_this(),
-						buf = std::move(buf_ptr), promise = std::move(promise),
+						payload_buffer = std::move(owned_buffer), promise = std::move(result_promise),
 						cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
 					{
 						promise->set_value(co_await self->m_detail.co_write (
-							{buf->data(), buf->size()}, cancel_slot, timeout
+							{payload_buffer->data(), payload_buffer->size()}, cancel_slot, timeout
 						));
 						co_return ;
 					});
 				}
-				return promise->get_future();
+				return future;
 			}
 			else if constexpr( is_detached_v<nntoken_t> )
 				m_detail.write_detach(buf);
 			else
 			{
-				auto buf_ptr = std::make_shared<std::string>(
+				auto owned_buffer = std::make_shared<std::string>(
 					reinterpret_cast<const char*>(buf.data()), buf.size()
 				);
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
 					libgs::dispatch(m_exec, [self = this->shared_from_this(), ntoken, nntoken,
-						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
+						payload_buffer = std::move(owned_buffer),
+						timeout = get_associated_redirect_time(token),
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 					]() mutable -> awaitable<void>
 					{
 						auto expected = co_await self->m_detail.co_write (
-							ntoken.ec_, buf, cancel_slot, timeout
+							ntoken.ec_, {payload_buffer->data(), payload_buffer->size()},
+							cancel_slot, timeout
 						);
 						expected
 						.transform([&callback = nntoken](int code) {
@@ -520,12 +526,13 @@ public:
 				else
 				{
 					libgs::dispatch(m_exec, [self = this->shared_from_this(), nntoken,
-						buf = std::move(buf_ptr), timeout = get_associated_redirect_time(token),
+						payload_buffer = std::move(owned_buffer),
+						timeout = get_associated_redirect_time(token),
 						cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 					]() mutable -> awaitable<void>
 					{
 						auto expected = co_await self->m_detail.co_write (
-							buf, cancel_slot, timeout
+							{payload_buffer->data(), payload_buffer->size()}, cancel_slot, timeout
 						);
 						expected
 						.transform([&callback = nntoken](int code) {
@@ -589,10 +596,11 @@ public:
 			}
 			else if constexpr( is_use_future_v<nntoken_t> )
 			{
-				auto promise = std::make_shared<std::promise<io_expected>>();
+				auto result_promise = std::make_shared<std::promise<io_expected>>();
+				auto future = result_promise->get_future();
 				if constexpr( is_redirect_error_v<ntoken_t> )
 				{
-					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(promise),
+					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(result_promise),
 						ntoken, buf, cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
@@ -605,7 +613,7 @@ public:
 				}
 				else
 				{
-					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(promise),
+					libgs::dispatch(m_exec, [self = this->shared_from_this(), promise = std::move(result_promise),
 						buf, cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 						timeout = get_associated_redirect_time(token)
 					]() mutable -> awaitable<void>
@@ -616,10 +624,10 @@ public:
 						co_return ;
 					});
 				}
-				return promise->get_future();
+				return future;
 			}
 			else if constexpr( is_detached_v<nntoken_t> )
-				m_detail.write_detach(buf);
+				m_detail.read_detach(Channel, buf);
 
 			else if constexpr( is_redirect_error_v<ntoken_t> )
 			{
@@ -1021,10 +1029,11 @@ auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, const ar
 		}
 		else if constexpr( is_use_future_v<ntoken_t> )
 		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
+			auto result_promise = std::make_shared<std::promise<io_expected>>();
+			auto future = result_promise->get_future();
 			if constexpr( is_redirect_error_v<token_t> )
 			{
-				libgs::dispatch(obj->get_executor(), [promise = std::move(promise),
+				libgs::dispatch(obj->get_executor(), [promise = std::move(result_promise),
 					obj, token, cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 				]() mutable -> awaitable<void>
 				{
@@ -1036,7 +1045,7 @@ auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, const ar
 			}
 			else
 			{
-				libgs::dispatch(obj->get_executor(), [promise = std::move(promise),
+				libgs::dispatch(obj->get_executor(), [promise = std::move(result_promise),
 					obj, cancel_slot = asio::get_associated_cancellation_slot(ntoken)
 				]() mutable -> awaitable<void>
 				{
@@ -1046,7 +1055,7 @@ auto basic_process<CharT,Exec>::exec(Exec0 &&exec, const string_t &cmd, const ar
 					co_return ;
 				});
 			}
-			return promise->get_future();
+			return future;
 		}
 		else if constexpr( is_detached_v<ntoken_t> )
 			return detail::process_exec_detach(obj);

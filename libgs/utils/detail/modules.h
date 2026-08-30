@@ -112,11 +112,11 @@ auto modules::do_init(const string_vector &args, Token &&token)
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_use_future_v<token_t> )
 	{
-		auto promise = std::make_shared<std::promise<unexpected>>();
-		auto future = promise->get_future();
+		auto result_promise = std::make_shared<std::promise<unexpected>>();
+		auto future = result_promise->get_future();
 
 		detail::modules::do_init(args,
-		[promise = std::move(promise)](const unexpected &result) mutable {
+		[promise = std::move(result_promise)](const unexpected &result) mutable {
 			promise->set_value(result);
 		});
 		return future;
@@ -158,25 +158,25 @@ auto modules::do_init(int argc, const char **argv, concepts::sched auto &&exec, 
 }
 
 template <typename Func>
-auto modules::do_init(const string_vector &args, concepts::sched auto &&exec, Func &&callback)
+auto modules::do_init(const string_vector &args, concepts::sched auto &&executor_arg, Func &&callback)
 	requires init_callable_v<Func>
 {
-	using Exec = decltype(exec);
+	using Exec = decltype(executor_arg);
 	if constexpr( concepts::callable<Func,unexpected> )
 	{
 		return do_init(args,
-		[exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(callback)]
+		[exec = get_executor_helper(std::forward<Exec>(executor_arg)), func = std::forward<Func>(callback)]
 		(const unexpected &result)
 		{
-			libgs::dispatch(exec, [result, func = std::move(func)] {
-				func(result);
+			libgs::dispatch(exec, [result, callback_fn = std::move(func)] {
+				callback_fn(result);
 			});
 		});
 	}
 	else
 	{
 		return do_init(args,
-		[exec = get_executor_helper(std::forward<Exec>(exec)), func = std::forward<Func>(callback)]{
+		[exec = get_executor_helper(std::forward<Exec>(executor_arg)), func = std::forward<Func>(callback)]{
 			libgs::dispatch(exec, std::move(func));
 		});
 	}

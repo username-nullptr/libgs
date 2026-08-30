@@ -45,7 +45,7 @@ LIBGS_CORE_TAPI void promise_set_value(std::promise<T> &promise, auto &&func)
 }
 
 template <typename Func>
-LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
+LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, bool &finished)
 {
 	using return_t = std::invoke_result_t<Func>;
 	auto counter = std::make_shared<size_t>(0);
@@ -55,7 +55,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 		using co_return_t = return_t::value_type;
 		if constexpr( std::is_void_v<co_return_t> )
 		{
-			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
+			auto lambda = [counter, &finished, func = std::forward<Func>(work)]()
 			mutable noexcept -> awaitable<std::shared_ptr<size_t>>
 			{
 				co_await func();
@@ -66,7 +66,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 		}
 		else
 		{
-			auto lambda = [counter, &finished, func = std::forward<Func>(func)]()
+			auto lambda = [counter, &finished, func = std::forward<Func>(work)]()
 			mutable noexcept -> awaitable<std::pair<co_return_t,std::shared_ptr<size_t>>>
 			{
 				auto res = co_await func();
@@ -78,7 +78,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&func, bool &finished)
 	}
 	else
 	{
-		auto lambda = [counter, &finished, func = std::forward<Func>(func)]() mutable noexcept
+		auto lambda = [counter, &finished, func = std::forward<Func>(work)]() mutable noexcept
 		{
 			if constexpr( std::is_void_v<return_t> )
 			{
@@ -137,11 +137,11 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 
 			else if constexpr( is_use_future_v<ntoken_t> )
 			{
-				std::promise<return_t> promise;
-				auto future = promise.get_future();
+				std::promise<return_t> result_promise;
+				auto future = result_promise.get_future();
 
 				asio::dispatch(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept {
+				[promise = std::move(result_promise), func = std::forward<Work>(work)]() mutable noexcept {
 					detail::promise_set_value(promise, func);
 				});
 				return future;
@@ -156,14 +156,14 @@ decltype(auto) dispatch(concepts::sched auto &&exec, Work &&work, Token &&token)
 			else if constexpr( std::is_lvalue_reference_v<return_t> )
 			{
 				using nr_return_t = std::remove_reference_t<return_t>;
-				std::promise<nr_return_t*> promise;
-				auto future = promise.get_future();
+				std::promise<nr_return_t*> result_promise;
+				auto future = result_promise.get_future();
 
 				asio::dispatch(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept
+				[promise = std::move(result_promise), func = std::forward<Work>(work)]() mutable noexcept
 				{
-					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable noexcept {
-						return &func();
+					detail::promise_set_value(promise, [reference_func = std::forward<Work>(func)]() mutable noexcept {
+						return &reference_func();
 					});
 				});
 				return return_reference(*future.get());
@@ -210,11 +210,11 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 
 			else if constexpr( is_use_future_v<ntoken_t> )
 			{
-				std::promise<return_t> promise;
-				auto future = promise.get_future();
+				std::promise<return_t> result_promise;
+				auto future = result_promise.get_future();
 
 				asio::post(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept {
+				[promise = std::move(result_promise), func = std::forward<Work>(work)]() mutable noexcept {
 					detail::promise_set_value(promise, func);
 				});
 				return future;
@@ -229,14 +229,14 @@ decltype(auto) post(concepts::sched auto &&exec, Work &&work, Token &&token)
 			else if constexpr( std::is_lvalue_reference_v<return_t> )
 			{
 				using nr_return_t = std::remove_reference_t<return_t>;
-				std::promise<nr_return_t*> promise;
-				auto future = promise.get_future();
+				std::promise<nr_return_t*> result_promise;
+				auto future = result_promise.get_future();
 
 				asio::post(exec,
-				[promise = std::move(promise), func = std::forward<Work>(work)]() mutable noexcept
+				[promise = std::move(result_promise), func = std::forward<Work>(work)]() mutable noexcept
 				{
-					detail::promise_set_value(promise, [func = std::forward<Work>(func)]() mutable noexcept {
-						return &func();
+					detail::promise_set_value(promise, [reference_func = std::forward<Work>(func)]() mutable noexcept {
+						return &reference_func();
 					});
 				});
 				return return_reference(*future.get());
@@ -274,13 +274,13 @@ work_canceller_t post(concepts::sched auto &&exec, const duration<Rep,Period> &r
 		timer->cancel();
 	};
 	timer->async_wait([timer,
-		exec = get_executor_helper(exec),
-		work = std::forward<Work>(work)
+		scheduled_exec = get_executor_helper(exec),
+		scheduled_work = std::forward<Work>(work)
 	](const error_code &error) mutable
 	{
 		LIBGS_UNUSED(timer);
 		if( error != errc::operation_aborted )
-			dispatch(std::move(exec), std::move(work));
+			dispatch(std::move(scheduled_exec), std::move(scheduled_work));
 	});
 	return cancel;
 }
@@ -301,13 +301,13 @@ work_canceller_t post(concepts::sched auto &&exec, const time_point<Clock,Durati
 		timer->cancel();
 	};
 	timer->async_wait([timer,
-		exec = get_executor_helper(exec),
-		work = std::forward<Work>(work)
+		scheduled_exec = get_executor_helper(exec),
+		scheduled_work = std::forward<Work>(work)
 	](const error_code &error) mutable
 	{
 		LIBGS_UNUSED(timer);
 		if( error != errc::operation_aborted )
-			dispatch(std::move(exec), std::move(work));
+			dispatch(std::move(scheduled_exec), std::move(scheduled_work));
 	});
 	return cancel;
 }
@@ -456,8 +456,8 @@ auto local_dispatch(Work &&work, Token &&token)
 			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 			dispatch(*ioc, std::move(lambda), token);
 
-			std::thread([ioc = std::move(ioc), finished]() mutable {
-				detail::dispatch_poll(*ioc, *finished);
+			std::thread([poll_context = std::move(ioc), finished]() mutable {
+				detail::dispatch_poll(*poll_context, *finished);
 			}).detach();
 		}
 		else if constexpr( is_use_future_v<token_t> )
@@ -466,8 +466,8 @@ auto local_dispatch(Work &&work, Token &&token)
 			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 			auto future = dispatch(*ioc, std::move(lambda), token);
 
-			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
-				*counter = detail::dispatch_poll(*ioc, *finished);
+			std::thread([poll_context = std::move(ioc), finished, counter]() mutable {
+				*counter = detail::dispatch_poll(*poll_context, *finished);
 			}).detach();
 			return std::move(future);
 		}
@@ -477,8 +477,8 @@ auto local_dispatch(Work &&work, Token &&token)
 			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 			auto a = dispatch(*ioc, std::move(lambda), token);
 
-			std::thread([ioc = std::move(ioc), finished, counter]() mutable {
-				*counter = detail::dispatch_poll(*ioc, *finished);
+			std::thread([poll_context = std::move(ioc), finished, counter]() mutable {
+				*counter = detail::dispatch_poll(*poll_context, *finished);
 			}).detach();
 			return std::move(a);
 		}
@@ -546,8 +546,8 @@ auto local_dispatch(Work &&work)
 		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 		dispatch(*ioc, std::move(lambda), detached);
 
-		return std::thread([ioc = std::move(ioc), finished]() mutable {
-			detail::dispatch_poll(*ioc, *finished);
+		return std::thread([poll_context = std::move(ioc), finished]() mutable {
+			detail::dispatch_poll(*poll_context, *finished);
 		});
 	}
 }
@@ -735,8 +735,8 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 		timer->cancel();
 	};
 	libgs::dispatch(std::forward<decltype(exec)>(exec), [
-		timer = std::move(timer), cancel = std::move(cancel), canceller,
-		rtime = std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
+		timer_ptr = std::move(timer), cancel_flag = std::move(cancel), canceller,
+		delay = std::chrono::duration_cast<asio::steady_timer::duration>(rtime),
 		func = std::forward<Work>(work), immediately
 	]() mutable noexcept -> awaitable<void>
 	{
@@ -746,14 +746,14 @@ work_canceller_t start_timer(concepts::sched auto &&exec,
 		auto atime = std::chrono::steady_clock::now();
 		auto sleep = [&]() -> awaitable<bool>
 		{
-			if( *cancel )
+			if( *cancel_flag )
 				co_return false;
 
-			atime += rtime;
-			timer->expires_at(atime);
+			atime += delay;
+			timer_ptr->expires_at(atime);
 
-			co_await timer->async_wait(use_awaitable | error);
-			if( *cancel )
+			co_await timer_ptr->async_wait(use_awaitable | error);
+			if( *cancel_flag )
 				co_return false;
 
 			co_return not error;

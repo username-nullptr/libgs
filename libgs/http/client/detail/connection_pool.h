@@ -92,8 +92,8 @@ class LIBGS_HTTP_TAPI basic_connection_pool<Exec>::impl :
 	};
 
 public:
-	impl(connector_ptr connector, const config_t &config) :
-		m_connector(std::move(connector)), m_config(config),
+	impl(connector_ptr connector_instance, const config_t &config) :
+		m_connector(std::move(connector_instance)), m_config(config),
 		m_exec(connector_executor(m_connector)) {}
 
 	impl(executor_t exec, const config_t &config) :
@@ -115,7 +115,7 @@ public:
 			}
 			for(;;)
 			{
-				connection_ptr connection {};
+				connection_ptr conn {};
 				size_t generation = 0;
 				{
 					std::unique_lock lock(m_mutex);
@@ -128,11 +128,11 @@ public:
 					if( m_config.max_count == 0 )
 						return sys_unexpected(make_error_code(std::errc::no_buffer_space));
 
-					connection = take_idle_locked(key);
-					if( connection )
+					conn = take_idle_locked(key);
+					if( conn )
 					{
 						lock.unlock();
-						return lease_from_reserved(key, std::move(connection));
+						return lease_from_reserved(key, std::move(conn));
 					}
 					if( m_total_count >= m_config.max_count )
 						evict_one_idle_locked();
@@ -161,10 +161,10 @@ public:
 					}
 				}
 				error_code error {};
-				connection = m_connector->connect(key, error);
+				conn = m_connector->connect(key, error);
 
 				return finish_connect(key, generation,
-					std::move(connection), error
+					std::move(conn), error
 				);
 			}
 		}
@@ -188,7 +188,7 @@ public:
 		}
 		for(;;)
 		{
-			connection_ptr connection {};
+			connection_ptr conn {};
 			size_t generation = 0;
 			std::shared_ptr<waiter> current_waiter {};
 			{
@@ -202,11 +202,11 @@ public:
 				if( m_config.max_count == 0 )
 					co_return sys_unexpected(make_error_code(std::errc::no_buffer_space));
 
-				connection = take_idle_locked(key);
-				if( connection )
+				conn = take_idle_locked(key);
+				if( conn )
 				{
 					lock.unlock();
-					co_return lease_from_reserved(key, std::move(connection));
+					co_return lease_from_reserved(key, std::move(conn));
 				}
 				if( m_total_count >= m_config.max_count )
 					evict_one_idle_locked();
@@ -256,11 +256,11 @@ public:
 				continue;
 			}
 			error_code error {};
-			connection = co_await m_connector->connect (
+			conn = co_await m_connector->connect (
 				key, asio::redirect_error(use_awaitable, error)
 			);
 			co_return finish_connect(key, generation,
-				std::move(connection), error
+				std::move(conn), error
 			);
 		}
 	}
@@ -296,15 +296,15 @@ public:
 			ignore_unused(key);
 			while( not bucket.idle.empty() )
 			{
-				auto connection = std::move(bucket.idle.front().connection);
+				auto conn = std::move(bucket.idle.front().connection);
 				bucket.idle.pop_front();
 
 				if( bucket.total > 0 )
 					--bucket.total;
 				if( m_total_count > 0 )
 					--m_total_count;
-				if( connection )
-					ignore_unused(connection->close());
+				if( conn )
+					ignore_unused(conn->close());
 			}
 		}
 		state_changed_locked();
@@ -317,17 +317,17 @@ public:
 	}
 
 private:
-	[[nodiscard]] static executor_t connector_executor(const connector_ptr &connector)
+	[[nodiscard]] static executor_t connector_executor(const connector_ptr &connector_instance)
 	{
-		if( not connector )
+		if( not connector_instance )
 			invalid_argument::loc_throw("connection pool connector is null");
-		return connector->get_executor();
+		return connector_instance->get_executor();
 	}
 
 	[[nodiscard]] bool reusable
-	(const connection_ptr &connection, clock_t::time_point idle_since = {}) const noexcept
+	(const connection_ptr &conn, clock_t::time_point idle_since = {}) const noexcept
 	{
-		if( not connection or not connection->is_open() )
+		if( not conn or not conn->is_open() )
 			return false;
 
 		if( idle_since != clock_t::time_point{} and
@@ -338,7 +338,7 @@ private:
 		// Conservative policy: only an open connection with no readable data and
 		// no detected peer close is eligible for reuse. Probe failures and
 		// indeterminate states are discarded.
-		auto state = connection->probe();
+		auto state = conn->probe();
 		return state and *state == connection_probe_state::no_event;
 	}
 
@@ -384,17 +384,17 @@ private:
 		if( selected == m_buckets.end() )
 			return false;
 
-		auto connection = std::move(selected->second.idle.front().connection);
+		auto conn = std::move(selected->second.idle.front().connection);
 		selected->second.idle.pop_front();
 
 		drop_count_locked(selected);
-		if( connection )
-			ignore_unused(connection->close());
+		if( conn )
+			ignore_unused(conn->close());
 		return true;
 	}
 
 	[[nodiscard]] sys_expected<lease_ptr> finish_connect
-	(const target_t &key, size_t generation, connection_ptr connection, error_code error) noexcept
+	(const target_t &key, size_t generation, connection_ptr conn, error_code error) noexcept
 	{
 		bool accepted = false;
 		{
@@ -405,7 +405,7 @@ private:
 				--pos->second.connecting;
 
 			if( m_stopped or generation != m_cancel_generation or error or
-				not connection or not connection->is_open() )
+				not conn or not conn->is_open() )
 			{
 				drop_count_locked(pos);
 				if( not error )
@@ -419,18 +419,18 @@ private:
 				accepted = true;
 		}
 		if( accepted )
-			return lease_from_reserved(key, std::move(connection));
+			return lease_from_reserved(key, std::move(conn));
 
-		if( connection )
-			ignore_unused(connection->close());
+		if( conn )
+			ignore_unused(conn->close());
 		return sys_unexpected(error);
 	}
 
 	[[nodiscard]] sys_expected<lease_ptr> lease_from_reserved
-	(const target_t &key, connection_ptr connection) noexcept
+	(const target_t &key, connection_ptr conn) noexcept
 	{
 		try {
-			return make_lease(key, std::move(connection));
+			return make_lease(key, std::move(conn));
 		}
 		catch(const std::bad_alloc&)
 		{
@@ -446,22 +446,22 @@ private:
 		}
 	}
 
-	[[nodiscard]] lease_ptr make_lease(const target_t &key, connection_ptr connection)
+	[[nodiscard]] lease_ptr make_lease(const target_t &key, connection_ptr conn)
 	{
-		auto weak = this->weak_from_this();
-		return std::make_shared<lease_t>(std::move(connection),
-		[weak = std::move(weak), key](connection_ptr released) mutable
+		auto weak_self = this->weak_from_this();
+		return std::make_shared<lease_t>(std::move(conn),
+		[pool_weak = std::move(weak_self), key](connection_ptr released) mutable
 		{
-			if( auto self = weak.lock() )
+			if( auto self = pool_weak.lock() )
 				self->give_back(key, std::move(released));
 			else if( released )
 				ignore_unused(released->close());
 		});
 	}
 
-	void give_back(const target_t &key, connection_ptr connection) noexcept
+	void give_back(const target_t &key, connection_ptr conn) noexcept
 	{
-		const bool keep = reusable(connection);
+		const bool keep = reusable(conn);
 		{
 			std::lock_guard lock(m_mutex);
 			auto pos = m_buckets.find(key);
@@ -469,7 +469,7 @@ private:
 			if( not m_stopped and keep and pos != m_buckets.end() )
 			{
 				try {
-					pos->second.idle.push_back({std::move(connection), clock_t::now()});
+					pos->second.idle.push_back({std::move(conn), clock_t::now()});
 					if( not wake_matching_locked(key) )
 						wake_any_locked();
 					state_changed_locked();
@@ -479,8 +479,8 @@ private:
 			}
 			drop_count_locked(pos);
 		}
-		if( connection )
-			ignore_unused(connection->close());
+		if( conn )
+			ignore_unused(conn->close());
 	}
 
 	using bucket_iterator = std::unordered_map <
@@ -597,8 +597,8 @@ basic_connection_pool<Exec>::basic_connection_pool
 
 template <core_concepts::exec Exec>
 basic_connection_pool<Exec>::basic_connection_pool
-(connector_ptr connector, const config_t &config) :
-	m_impl(std::make_shared<impl>(std::move(connector), config))
+(connector_ptr connector_instance, const config_t &config) :
+	m_impl(std::make_shared<impl>(std::move(connector_instance), config))
 {
 
 }

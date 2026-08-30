@@ -127,10 +127,10 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 			result = home + wpath.erase(0,1);
 		}
 	}
-	return result.transform([](const path_t &path) -> path_t
+	return result.transform([](const path_t &resolved_path) -> path_t
 	{
-		auto str = strtls::replace(path.wstring(), L"/./", L"/", false);
-		return strtls::replace(std::move(str), L"//", L"/", false);
+		auto normalized_path = strtls::replace(resolved_path.wstring(), L"/./", L"/", false);
+		return strtls::replace(std::move(normalized_path), L"//", L"/", false);
 	});
 }
 

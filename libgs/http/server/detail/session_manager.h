@@ -74,17 +74,17 @@ std::shared_ptr<Session> session_manager::make(Args&&...args) requires
 			"Session-id duplicated."
 		);
 	}
-	auto id = session->id();
+	auto session_id = session->id();
 
-	session->on_timeout([this, id]{
-		m_impl->erase(id);
+	session->on_timeout([this, session_id]{
+		m_impl->erase(session_id);
 	});
 	session->set_lifecycle(lifecycle());
 
-	session->on_error([this, id = std::move(id)](const error_code &error)
+	session->on_error([this, error_session_id = std::move(session_id)](const error_code &error)
 	{
 		if( m_impl->m_error_handle )
-			m_impl->m_error_handle(get(id), error);
+			m_impl->m_error_handle(get(error_session_id), error);
 	});
 	return session;
 }

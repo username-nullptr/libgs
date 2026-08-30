@@ -239,9 +239,9 @@ private:
 	}
 
 private:
-	void init(string_vector args, std::function<void(unexpected_t)> callback)
+	void init(string_vector init_args, std::function<void(unexpected_t)> completion)
 	{
-		std::thread([this, args = std::move(args), callback = std::move(callback)]
+		std::thread([this, args = std::move(init_args), callback = std::move(completion)]
 		{
 			unexpected_t unexpected;
 			do_init(m_dsd, true, args, unexpected);
@@ -258,12 +258,12 @@ private:
 		.detach();
 	}
 
-	void do_init(const dsd_t &nodes, bool success, const string_vector &args, unexpected_t &unexpected)
+	void do_init(const dsd_t &nodes, bool initial_success, const string_vector &args, unexpected_t &unexpected)
 	{
 		for(auto &[name, node] : nodes)
 		{
 			if( node->success )
-				node->success = success;
+				node->success = initial_success;
 			if( --node->counter > 0 )
 				continue;
 

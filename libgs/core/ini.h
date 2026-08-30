@@ -64,7 +64,7 @@ public:
 
 	void write (
 		const concepts::text_p<char_t> auto &key,
-		concepts::value_set<char_t> auto &&value
+		concepts::value_set<char_t> auto &&new_value
 	) noexcept;
 
 public:
@@ -143,8 +143,8 @@ public:
 		string_t key;
 
 		group_key (
-			const concepts::text_p<char_t> auto &group,
-			const concepts::text_p<char_t> auto &key
+			const concepts::text_p<char_t> auto &group_name,
+			const concepts::text_p<char_t> auto &key_name
 		) noexcept;
 
 		template <concepts::text<CharT> Text0, concepts::text<CharT> Text1>
@@ -201,12 +201,12 @@ public:
 
 public:
 	void write (
-		group_key gk, concepts::value_set<char_t> auto &&value
+		group_key gk, concepts::value_set<char_t> auto &&new_value
 	) noexcept;
 
 	void write (
 		const concepts::string_p<char_t> auto &path,
-		concepts::value_set<char_t> auto &&value
+		concepts::value_set<char_t> auto &&new_value
 	) noexcept;
 
 public:

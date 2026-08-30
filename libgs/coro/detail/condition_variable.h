@@ -62,7 +62,7 @@ public:
 	{
 		auto _exec = get_executor_helper(std::forward<decltype(exec)>(exec));
 		co_return co_await async_work<bool>::handle(_exec,
-		[this, &lock, timeout = std::move(timeout), _exec]
+		[this, &lock, wait_timeout = std::move(timeout), _exec]
 		(async_work<bool>::handler_t wake_up) mutable
 		{
 			auto waiter = std::make_shared<detail::lock_wake_up>(
@@ -70,7 +70,7 @@ public:
 			);
 			std::lock_guard guard(m_mutex);
 			m_wait_queue.emplace(waiter);
-			waiter->start_timer(timeout);
+			waiter->start_timer(wait_timeout);
 			lock.unlock();
 		});
 	}

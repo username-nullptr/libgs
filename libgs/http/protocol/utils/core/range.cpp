@@ -443,7 +443,7 @@ public:
 					break;
 				continue;
 			}
-			if( m_state == state::headers )
+			if( m_state == state::header_fields )
 			{
 				auto pos = m_buffer.find("\r\n\r\n");
 				if( pos == std::string::npos )
@@ -559,7 +559,7 @@ public:
 			return true;
 		}
 		m_buffer.erase(0, padding + 2);
-		m_state = state::headers;
+		m_state = state::header_fields;
 		return true;
 	}
 
@@ -586,7 +586,7 @@ public:
 	enum class state
 	{
 		preamble,
-		headers,
+		header_fields,
 		body,
 		boundary,
 		closing,

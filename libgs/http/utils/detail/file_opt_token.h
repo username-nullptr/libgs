@@ -112,14 +112,14 @@ LIBGS_HTTP_TAPI void init_mime_type(concepts::any_file_opt_token auto &opt) noex
 
 } //namespace detail
 
-inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_name) :
-	file_name(std::move(file_name))
+inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_path) :
+	file_name(std::move(file_path))
 {
 
 }
 
-inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_name, const file_range &range) :
-	file_name(std::move(file_name)), range(range)
+inline file_opt_token<void,file_optype::single>::file_opt_token(path_t file_path, const file_range &byte_range) :
+	file_name(std::move(file_path)), range(byte_range)
 {
 
 }
@@ -165,16 +165,16 @@ inline sys_expected<> file_opt_token<void,file_optype::single>::init(std::ios_ba
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&stream) :
-	stream(new fstream_t(std::move(stream)))
+file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&file_stream) :
+	stream(new fstream_t(std::move(file_stream)))
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&stream, const file_range &range) :
-	stream(new fstream_t(std::move(stream))),
-	range(range)
+file_opt_token<FS&&,file_optype::single>::file_opt_token(fstream_t &&file_stream, const file_range &byte_range) :
+	stream(new fstream_t(std::move(file_stream))),
+	range(byte_range)
 {
 
 }
@@ -204,16 +204,16 @@ sys_expected<> file_opt_token<FS&&,file_optype::single>::init(std::ios_base::ope
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream) :
-	stream(&stream)
+file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &file_stream) :
+	stream(&file_stream)
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &stream, const file_range &range) :
-	stream(&stream),
-	range(range)
+file_opt_token<FS&,file_optype::single>::file_opt_token(fstream_t &file_stream, const file_range &byte_range) :
+	stream(&file_stream),
+	range(byte_range)
 {
 
 }
@@ -235,29 +235,29 @@ sys_expected<> file_opt_token<FS&,file_optype::single>::init(std::ios_base::open
 	return {};
 }
 
-inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name) :
-	stream(new fstream_t()), file_name(std::move(file_name))
+inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_path) :
+	stream(new fstream_t()), file_name(std::move(file_path))
 {
 
 }
 
-inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, const file_range &range) :
-	file_opt_token(std::move(file_name), file_ranges{range})
+inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_path, const file_range &byte_range) :
+	file_opt_token(std::move(file_path), file_ranges{byte_range})
 {
 
 }
 
-inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, file_ranges ranges) :
+inline file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_path, file_ranges byte_ranges) :
 	stream(new fstream_t()),
-	file_name(std::move(file_name)),
-	ranges(std::move(ranges))
+	file_name(std::move(file_path)),
+	ranges(std::move(byte_ranges))
 {
 
 }
 
 template <concepts::file_ranges_init_list...Args>
-file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_name, Args&&...ranges) :
-	file_opt_token(std::move(file_name), file_ranges{std::forward<Args>(ranges)...})
+file_opt_token<void,file_optype::multiple>::file_opt_token(path_t file_path, Args&&...range_args) :
+	file_opt_token(std::move(file_path), file_ranges{std::forward<Args>(range_args)...})
 {
 
 }
@@ -312,31 +312,31 @@ inline sys_expected<> file_opt_token<void,file_optype::multiple>::init(std::ios_
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream) :
-	stream(new fstream_t(std::move(stream)))
+file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&file_stream) :
+	stream(new fstream_t(std::move(file_stream)))
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, const file_range &range) :
-	file_opt_token(std::move(stream), file_ranges{range})
+file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&file_stream, const file_range &byte_range) :
+	file_opt_token(std::move(file_stream), file_ranges{byte_range})
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, file_ranges ranges) :
-	stream(new fstream_t(std::move(stream))),
-	ranges(std::move(ranges))
+file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&file_stream, file_ranges byte_ranges) :
+	stream(new fstream_t(std::move(file_stream))),
+	ranges(std::move(byte_ranges))
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
 template <concepts::file_ranges_init_list...Args>
-file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&stream, Args&&...ranges) :
-	file_opt_token(std::move(stream), file_ranges{std::forward<Args>(ranges)...})
+file_opt_token<FS&&,file_optype::multiple>::file_opt_token(fstream_t &&file_stream, Args&&...range_args) :
+	file_opt_token(std::move(file_stream), file_ranges{std::forward<Args>(range_args)...})
 {
 
 }
@@ -375,31 +375,31 @@ sys_expected<> file_opt_token<FS&&,file_optype::multiple>::init(std::ios_base::o
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream) :
-	stream(&stream)
+file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &file_stream) :
+	stream(&file_stream)
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, const file_range &range) :
-	file_opt_token(stream, file_ranges{range})
+file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &file_stream, const file_range &byte_range) :
+	file_opt_token(file_stream, file_ranges{byte_range})
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
-file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, file_ranges ranges) :
-	stream(stream),
-	ranges(std::move(ranges))
+file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &file_stream, file_ranges byte_ranges) :
+	stream(file_stream),
+	ranges(std::move(byte_ranges))
 {
 
 }
 
 template <core_concepts::any_fstream_p FS>
 template <concepts::file_ranges_init_list...Args>
-file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &stream, Args&&...ranges) :
-	file_opt_token(stream, file_ranges{std::forward<Args>(ranges)...})
+file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &file_stream, Args&&...range_args) :
+	file_opt_token(file_stream, file_ranges{std::forward<Args>(range_args)...})
 {
 
 }

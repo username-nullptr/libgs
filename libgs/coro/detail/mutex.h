@@ -80,10 +80,10 @@ public:
 			co_return true;
 
 		co_return co_await async_work<bool>::handle(exec,
-		[this, timeout, exec = get_executor_helper(exec)]
+		[this, timeout, wait_exec = get_executor_helper(exec)]
 		(async_work<bool>::handler_t wake_up) mutable
 		{
-			auto wake_up_ptr = std::make_shared<wake_up_t>(exec, std::move(wake_up));
+			auto wake_up_ptr = std::make_shared<wake_up_t>(wait_exec, std::move(wake_up));
 			m_wait_queue.emplace(wake_up_ptr);
 			wake_up_ptr->start_timer(timeout);
 		});

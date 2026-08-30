@@ -264,9 +264,9 @@ std::string generator<protocol_model::client>::body_data(const const_buffer &buf
 	return m_impl->m_generator->body_data(buffer);
 }
 
-std::string generator<protocol_model::client>::chunk_end_data(const headers_t &headers)
+std::string generator<protocol_model::client>::chunk_end_data(const headers_t &trailer_headers)
 {
-	return m_impl->m_generator->chunk_end_data(headers);
+	return m_impl->m_generator->chunk_end_data(trailer_headers);
 }
 
 version_enum generator<protocol_model::client>::version() const noexcept

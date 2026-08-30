@@ -227,21 +227,21 @@ public:
 		auto _curr = curr.data = { view.begin(), view.end() };
 		locker.unlock();
 
-		dispatch(m_subscriber.get_executor(), [this, topic = std::string(topic),
-			prev = std::move(_prev), curr = _curr]() -> awaitable<void>
+		dispatch(m_subscriber.get_executor(), [this, delivery_topic = std::string(topic),
+			previous_payload = std::move(_prev), current_payload = _curr]() -> awaitable<void>
 		{
 			signal_ptr<payload_t,payload_t> signal {};
 			m_signals_mutex.lock();
 			{
-				auto &obj = m_signals[topic];
+				auto &obj = m_signals[delivery_topic];
 				if( not obj )
 					obj = std::make_shared<signal_t<payload_t,payload_t>>();
 				signal = obj;
 			}
 			m_signals_mutex.unlock();
 
-			co_await signal->emit(curr, prev);
-			co_await m_signal.emit(topic, curr, prev);
+			co_await signal->emit(current_payload, previous_payload);
+			co_await m_signal.emit(delivery_topic, current_payload, previous_payload);
 			co_return ;
 		});
 		auto pid = process::self_pid();
@@ -359,10 +359,12 @@ public:
 				changed(topic).disconnect(observer);
 
 				libgs::dispatch(exec, [
-					topic = std::move(topic), observer, notifier_ptr = std::move(notifier_ptr)
+					delivery_topic = std::move(topic), observer,
+					delivery_notifier = std::move(notifier_ptr)
 				]() mutable noexcept
 				{
-					std::move(*notifier_ptr) (
+					LIBGS_UNUSED(delivery_topic);
+					std::move(*delivery_notifier) (
 						asio::error::make_error_code(asio::error::operation_aborted),
 						changed_result<T>()
 					);
@@ -375,14 +377,14 @@ public:
 				cancel_state.slot().assign(std::move(canceller));
 
 			changed(topic).connect(observer, std::move(exec),
-			[this, topic, observer, completed, notifier_ptr = std::move(notifier_ptr)]
+			[this, topic, observer, completed, change_notifier = std::move(notifier_ptr)]
 			(payload_t curr, payload_t prev) mutable noexcept
 			{
 				if( completed->exchange(true) )
 					return ;
 				changed(topic).disconnect(observer);
 
-				std::move(*notifier_ptr)(std::error_code(),
+				std::move(*change_notifier)(std::error_code(),
 					decode_changed<T>(std::move(curr), std::move(prev))
 				);
 			});
@@ -533,8 +535,8 @@ std::map<std::string,typename cache<Subscriber>::payload_t> cache<Subscriber>::g
 	std::map<std::string,payload_t> map;
 	m_impl->m_caches_mutex.lock_shared();
 
-	for(auto &[topic, cache] : m_impl->m_caches)
-		map.emplace(topic, cache.data);
+	for(auto &[topic, cached_entry] : m_impl->m_caches)
+		map.emplace(topic, cached_entry.data);
 
 	m_impl->m_caches_mutex.unlock_shared();
 	return map;
@@ -635,17 +637,18 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 		}
 		else if constexpr( is_use_future_v<nntoken_t> )
 		{
-			auto promise = std::make_shared<std::promise<io_expected>>();
+			auto result_promise = std::make_shared<std::promise<io_expected>>();
+			auto future = result_promise->get_future();
 			if constexpr( is_redirect_error_v<ntoken_t> )
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					ntoken, topic = std::string(topic), promise = std::move(promise),
+					ntoken, wait_topic = std::string(topic), promise = std::move(result_promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
 					promise->set_value(co_await impl->template co_wait_changed<T> (
-						ntoken.ec_, topic, cancel_slot, timeout
+						ntoken.ec_, wait_topic, cancel_slot, timeout
 					));
 					co_return ;
 				});
@@ -653,18 +656,18 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 			else
 			{
 				libgs::dispatch(get_executor(), [impl = m_impl->shared_from_this(),
-					topic = std::string(topic), promise = std::move(promise),
+					wait_topic = std::string(topic), promise = std::move(result_promise),
 					cancel_slot = asio::get_associated_cancellation_slot(nntoken),
 					timeout = get_associated_redirect_time(token)
 				]() mutable -> awaitable<void>
 				{
 					promise->set_value(co_await impl->template co_wait_changed<T> (
-						topic, cancel_slot, timeout
+						wait_topic, cancel_slot, timeout
 					));
 					co_return ;
 				});
 			}
-			return promise->get_future();
+			return future;
 		}
 		else if constexpr( is_redirect_error_v<ntoken_t> )
 		{

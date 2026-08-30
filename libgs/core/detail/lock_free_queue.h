@@ -137,21 +137,21 @@ public:
 
 		[[nodiscard]] node *protect(size_t index, const std::atomic<node*> &source)
 		{
-			node *value = nullptr;
+			node *protected_node = nullptr;
 			do {
-				value = source.load(std::memory_order_acquire);
-				m_record->pointers[index].store(value, std::memory_order_release);
+				protected_node = source.load(std::memory_order_acquire);
+				m_record->pointers[index].store(protected_node, std::memory_order_release);
 			}
-			while( value != source.load(std::memory_order_acquire) );
-			return value;
+			while( protected_node != source.load(std::memory_order_acquire) );
+			return protected_node;
 		}
 
 		void clear(size_t index) noexcept {
 			m_record->pointers[index].store(nullptr, std::memory_order_release);
 		}
 
-		void retire(node *value) {
-			m_owner->retire(m_record, value);
+		void retire(node *retired_node) {
+			m_owner->retire(m_record, retired_node);
 		}
 
 	private:
@@ -224,24 +224,24 @@ private:
 		return new_record.release();
 	}
 
-	[[nodiscard]] bool is_hazard(const node *value) const noexcept
+	[[nodiscard]] bool is_hazard(const node *target_node) const noexcept
 	{
 		for(auto record=m_hazard_records.load(std::memory_order_acquire);
 			record; record=record->next)
 		{
 			for(auto &pointer : record->pointers)
 			{
-				if( pointer.load(std::memory_order_acquire) == value )
+				if( pointer.load(std::memory_order_acquire) == target_node )
 					return true;
 			}
 		}
 		return false;
 	}
 
-	void retire(hazard_record *record, node *value)
+	void retire(hazard_record *record, node *retired_node)
 	{
-		value->retired_next = record->retired;
-		record->retired = value;
+		retired_node->retired_next = record->retired;
+		record->retired = retired_node;
 
 		auto link = &record->retired;
 		while( *link )

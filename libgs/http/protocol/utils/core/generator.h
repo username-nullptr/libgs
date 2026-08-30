@@ -57,7 +57,7 @@ public:
 	// empty buffer and continue to use body_data().
 	[[nodiscard]] const_buffer body_buffer(const const_buffer &buffer) noexcept;
 	[[nodiscard]] virtual std::string body_data(const const_buffer &buffer) noexcept;
-	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &headers) noexcept;
+	[[nodiscard]] virtual std::string chunk_end_data(const headers_t &trailer_headers) noexcept;
 
 	[[nodiscard]] std::string header_data() noexcept;
 	[[nodiscard]] std::string chunk_end_data() noexcept;

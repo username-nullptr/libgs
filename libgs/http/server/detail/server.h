@@ -145,43 +145,43 @@ private:
 	void do_tcp_accept(const executor_t &service_exec)
 	{
 		auto callback =
-		[self = this->shared_from_this(), service_exec](connection_ptr connection) mutable
+		[server_self = this->shared_from_this(), service_exec](connection_ptr accepted_connection) mutable
 		{
-			if( not connection )
+			if( not accepted_connection )
 			{
-				if( not self->m_is_start )
+				if( not server_self->m_is_start )
 				{
 					error_code ignored {};
-					self->m_wrap.acceptor().cancel(ignored);
-					self->m_wrap.acceptor().close(ignored);
+					server_self->m_wrap.acceptor().cancel(ignored);
+					server_self->m_wrap.acceptor().close(ignored);
 				}
 				return ;
 			}
-			if( not self->m_is_start or not connection->is_open() )
+			if( not server_self->m_is_start or not accepted_connection->is_open() )
 			{
-				ignore_unused(connection->close());
+				ignore_unused(accepted_connection->close());
 				return ;
 			}
 			tcp_socket_options options {};
 			options.no_delay = true;
 
-			auto set_result = connection->set_options(options);
+			auto set_result = accepted_connection->set_options(options);
 			if( not set_result )
 			{
-				ignore_unused(connection->close());
-				self->call_on_server_error(set_result.error());
+				ignore_unused(accepted_connection->close());
+				server_self->call_on_server_error(set_result.error());
 				return ;
 			}
-			auto config = self->m_config;
+			auto config = server_self->m_config;
 			libgs::dispatch(service_exec,
-			[self = std::move(self), connection = std::move(connection), config]
+			[server = std::move(server_self), client_connection = std::move(accepted_connection), config]
 			() mutable -> awaitable<void>
 			{
 				bool abd = false;
 				bool released = false;
 				try {
-					released = co_await self->do_tcp_service (
-						connection, config.first_reading_time,
+					released = co_await server->do_tcp_service (
+						client_connection, config.first_reading_time,
 						config.keepalive_time
 					);
 				}
@@ -189,7 +189,7 @@ private:
 					abd = true;
 				}
 				if( not released )
-					ignore_unused(connection->close());
+					ignore_unused(client_connection->close());
 				if( abd )
 					forced_termination();
 				co_return ;
@@ -207,7 +207,7 @@ private:
 	}
 
 	[[nodiscard]] awaitable<bool> do_tcp_service
-	(const connection_ptr &connection, milliseconds first_reading_time,
+	(const connection_ptr &client_connection, milliseconds first_reading_time,
 	 milliseconds keepalive_time)
 	{
 		using namespace std::chrono_literals;
@@ -228,7 +228,7 @@ private:
 				}
 			}
 			context_t context (
-				connection, std::move(parser), m_session_manager
+				client_connection, std::move(parser), m_session_manager
 			);
 			try {
 				co_await context.request().wait(use_awaitable | *time);
@@ -465,9 +465,9 @@ public:
 	public:
 		[[nodiscard]] awaitable<bool> before(context_t &context) override
 		{
-			for(auto &aop : m_aops)
+			for(auto &interceptor : m_aops)
 			{
-				if( co_await aop->before(context) )
+				if( co_await interceptor->before(context) )
 					co_return true;
 			}
 			co_return false;
@@ -475,9 +475,9 @@ public:
 
 		[[nodiscard]] awaitable<bool> after(context_t &context) override
 		{
-			for(auto &aop : m_aops)
+			for(auto &interceptor : m_aops)
 			{
-				if( co_await aop->after(context) )
+				if( co_await interceptor->after(context) )
 					co_return true;
 			}
 			co_return false;
@@ -485,9 +485,9 @@ public:
 
 		[[nodiscard]] bool exception(context_t &context, const std::exception &ex) override
 		{
-			for(auto &aop : m_aops)
+			for(auto &interceptor : m_aops)
 			{
-				if( aop->exception(context, ex) )
+				if( interceptor->exception(context, ex) )
 					return true;
 			}
 			return false;
@@ -505,8 +505,8 @@ public:
 
 	struct tk_handler
 	{
-		explicit tk_handler(ctrlr_aop_ptr_t aop) :
-			aop(std::move(aop)) {}
+		explicit tk_handler(ctrlr_aop_ptr_t handler_aop) :
+			aop(std::move(handler_aop)) {}
 
 		template <method_enum...Method>
 		tk_handler &bind_method()
@@ -682,8 +682,8 @@ basic_server<Stream> &basic_server<Stream>::on_request
 				"libgs::http::server::on_request: path_rule duplication."
 			);
 		}
-		auto aop = new impl::multi_ctrlr_aop(func, aops...);
-		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(aop));
+		auto controller_aop = new impl::multi_ctrlr_aop(func, aops...);
+		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(controller_aop));
 		it->second->template bind_method<Method...>();
 	}
 	return *this;

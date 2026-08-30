@@ -77,10 +77,10 @@ public:
 	using token_t = Token;
 
 	template <typename Rep, typename Period>
-	redirect_time_t(auto &&token, const duration<Rep,Period> &rtime);
+	redirect_time_t(auto &&completion_token, const duration<Rep,Period> &rtime);
 
 	template <typename Clock, typename Duration>
-	redirect_time_t(auto &&token, const time_point<Clock,Duration> &atime);
+	redirect_time_t(auto &&completion_token, const time_point<Clock,Duration> &atime);
 
 	token_t token;
 	milliseconds time {0};

@@ -38,9 +38,9 @@ class LIBGS_HTTP_TAPI basic_connection_lease<Exec>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl(connection_ptr connection, std::function<void(connection_ptr)> give_back) :
+	impl(connection_ptr conn, std::function<void(connection_ptr)> give_back) :
 		m_give_back(std::move(give_back)),
-		m_connection(std::move(connection)) {}
+		m_connection(std::move(conn)) {}
 
 	std::function<void(connection_ptr)> m_give_back {};
 	connection_ptr m_connection {};
@@ -48,8 +48,8 @@ public:
 
 template <core_concepts::exec Exec>
 basic_connection_lease<Exec>::basic_connection_lease
-(connection_ptr connection, std::function<void(connection_ptr)> give_back) :
-	m_impl(new impl(std::move(connection), std::move(give_back)))
+(connection_ptr conn, std::function<void(connection_ptr)> give_back) :
+	m_impl(new impl(std::move(conn), std::move(give_back)))
 {
 
 }
@@ -59,13 +59,13 @@ basic_connection_lease<Exec>::~basic_connection_lease()
 {
 	if( m_impl->m_connection )
 	{
-		auto connection = std::move(m_impl->m_connection);
+		auto conn = std::move(m_impl->m_connection);
 		if( m_impl->m_give_back )
 		{
 			try { m_impl->m_give_back({}); }
 			catch(...) {}
 		}
-		ignore_unused(connection->close());
+		ignore_unused(conn->close());
 	}
 	delete m_impl;
 }
@@ -123,7 +123,7 @@ basic_connection_lease<Exec>::take() noexcept
 	if( not m_impl->m_connection )
 		return {};
 
-	auto connection = std::move(m_impl->m_connection);
+	auto conn = std::move(m_impl->m_connection);
 	if( m_impl->m_give_back )
 	{
 		try {
@@ -132,7 +132,7 @@ basic_connection_lease<Exec>::take() noexcept
 		catch(...) {}
 		m_impl->m_give_back = {};
 	}
-	return connection;
+	return conn;
 }
 
 template <core_concepts::exec Exec>
@@ -141,20 +141,20 @@ void basic_connection_lease<Exec>::release()
 	if( not m_impl->m_connection )
 		return ;
 
-	auto connection = std::move(m_impl->m_connection);
+	auto conn = std::move(m_impl->m_connection);
 	if( not m_impl->m_give_back )
 	{
-		ignore_unused(connection->close());
+		ignore_unused(conn->close());
 		return ;
 	}
 	auto give_back = std::move(m_impl->m_give_back);
 	try {
-		give_back(std::move(connection));
+		give_back(std::move(conn));
 	}
 	catch(...)
 	{
-		if( connection )
-			ignore_unused(connection->close());
+		if( conn )
+			ignore_unused(conn->close());
 		throw ;
 	}
 }

@@ -159,9 +159,9 @@ template <concepts::character CharT0>
 basic_uuid<CharT> &basic_uuid<CharT>::operator=(const basic_uuid<CharT0> &other)
 {
 	m_data.reset();
-	auto value = other.data();
-	if( value )
-		m_data.emplace(*value);
+	auto uuid_data = other.data();
+	if( uuid_data )
+		m_data.emplace(*uuid_data);
 	return *this;
 }
 
@@ -199,15 +199,15 @@ basic_uuid<CharT> &basic_uuid<CharT>::operator=(string_view_t text)
 				return *this;
 			continue;
 		}
-		auto value = detail::uuid_hex_value(text[index]);
-		if( value < 0 )
+		auto hex_value = detail::uuid_hex_value(text[index]);
+		if( hex_value < 0 )
 			return *this;
 
 		if( high_nibble < 0 )
-			high_nibble = value;
+			high_nibble = hex_value;
 		else
 		{
-			data[byte_index++] = static_cast<std::byte>((high_nibble << 4) | value);
+			data[byte_index++] = static_cast<std::byte>((high_nibble << 4) | hex_value);
 			high_nibble = -1;
 		}
 	}
@@ -303,9 +303,9 @@ basic_uuid<CharT>::string_t basic_uuid<CharT>::to_string(bool parcel) const
 		if( index == 4 or index == 6 or index == 8 or index == 10 )
 			result.push_back(static_cast<char_t>('-'));
 
-		auto value = std::to_integer<uint8_t>((*m_data)[index]);
-		result.push_back(static_cast<char_t>(digits[value >> 4]));
-		result.push_back(static_cast<char_t>(digits[value & 0x0F]));
+		auto byte_value = std::to_integer<uint8_t>((*m_data)[index]);
+		result.push_back(static_cast<char_t>(digits[byte_value >> 4]));
+		result.push_back(static_cast<char_t>(digits[byte_value & 0x0F]));
 	}
 	if( parcel )
 		result.push_back(static_cast<char_t>('}'));
@@ -357,8 +357,8 @@ bool basic_uuid<CharT>::is_nil() const noexcept
 	if( not m_data )
 		return false;
 
-	return std::ranges::all_of(*m_data, [](const auto &value) {
-		return value == std::byte {0};
+	return std::ranges::all_of(*m_data, [](const auto &byte_value) {
+		return byte_value == std::byte {0};
 	});
 }
 

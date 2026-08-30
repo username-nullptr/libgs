@@ -47,7 +47,7 @@ public:
 	using connection_ptr = connection_t::ptr_t;
 
 	basic_connection_lease (
-		connection_ptr connection,
+		connection_ptr conn,
 		std::function<void(connection_ptr)> give_back
 	);
 	~basic_connection_lease(); // close
@@ -63,6 +63,7 @@ public:
 
 	// Detach the connection from the pool. The caller becomes responsible for it.
 	[[nodiscard]] connection_ptr take() noexcept;
+
 	// Explicitly offer the connection back to the pool. Destruction without
 	// release closes it instead of making an unverified implicit reuse decision.
 	void release();

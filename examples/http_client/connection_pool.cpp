@@ -44,38 +44,40 @@ int main()
 	});
 #else
 	cpool.get(/*pool,*/{ "127.0.0.1", 8080 },
-	[&pool](const std::error_code &error, libgs::http::connection_pool::lease_ptr lease)
+	[&pool](const std::error_code &acquire_error,
+		libgs::http::connection_pool::lease_ptr lease_result)
 	{
-		if( error )
+		if( acquire_error )
 		{
-			spdlog::error("Failed get connection", error);
+			spdlog::error("Failed get connection", acquire_error);
 			return ;
 		}
 		static auto wbuf ="GET / HTTP/1.1\r\n"
 	                      "Host: 127.0.0.1:8080\r\n"
 	                      "\r\n";
-	    lease->get().write(asio::buffer(wbuf, strlen(wbuf)),
-	    [&pool, lease = std::move(lease)](const std::error_code &error, size_t wres) mutable
-	    {
-	    	if( error )
-	    	{
-				spdlog::error("Failed write to server", error);
+		lease_result->get().write(asio::buffer(wbuf, strlen(wbuf)),
+		[&event_loop = pool, lease = std::move(lease_result)]
+		(const std::error_code &write_error, size_t wres) mutable
+		{
+			if( write_error )
+			{
+				spdlog::error("Failed write to server", write_error);
 				return ;
 			}
-	        spdlog::info("Sent {} bytes", wres);
-	        static char rbuf[8192] {0};
+			spdlog::info("Sent {} bytes", wres);
+			static char rbuf[8192] {0};
 
-	        lease->get().read(asio::buffer(rbuf, 8192),
-	        [&pool](const std::error_code &error, size_t rres)
-	        {
-	        	LIBGS_UNUSED(error);
-	            spdlog::info("Received {} bytes\n", rres);
-	            spdlog::info("Response: {}", rbuf);
+			lease->get().read(asio::buffer(rbuf, 8192),
+			[&event_loop](const std::error_code &read_error, size_t rres)
+			{
+				LIBGS_UNUSED(read_error);
+				spdlog::info("Received {} bytes\n", rres);
+				spdlog::info("Response: {}", rbuf);
 
-	            pool.stop();
-	            libgs::exit(0);
-	        });
-	    });
+				event_loop.stop();
+				libgs::exit(0);
+			});
+		});
 	});
 #endif
 	return libgs::exec();

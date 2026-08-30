@@ -53,10 +53,10 @@ public:
 
 public:
 	basic_service_context (
-		connection_ptr connection, session_manager &session_manager
+		connection_ptr conn, session_manager &session_manager
 	);
 	basic_service_context (
-		connection_ptr connection, parser_t &&parser,
+		connection_ptr conn, parser_t &&parser,
 		session_manager &session_manager
 	);
 	~basic_service_context();

@@ -147,11 +147,11 @@ public:
 			return {};
 		m_attributes_set = true;
 
-		const auto &headers = m_parser.headers();
-		auto it = headers.find(header::connection);
+		const auto &response_headers = m_parser.headers();
+		auto it = response_headers.find(header::connection);
 		m_keep_alive = m_parser.version() != version::v10;
 
-		if( it != headers.end() )
+		if( it != response_headers.end() )
 		{
 			for(auto &str : string_vector::from_string(it->second.to_string(), ','))
 			{
@@ -163,8 +163,8 @@ public:
 					m_keep_alive = true;
 			}
 		}
-		it = headers.find(header::content_encoding);
-		if( it == headers.end() )
+		it = response_headers.find(header::content_encoding);
+		if( it == response_headers.end() )
 			m_support_gzip = false;
 		else
 		{
@@ -187,8 +187,8 @@ public:
 		}
 		if( m_status == status::range_not_satisfiable )
 		{
-			it = headers.find(header::content_range);
-			if( it == headers.end() )
+			it = response_headers.find(header::content_range);
+			if( it == response_headers.end() )
 				return {};
 
 			auto range = parse_content_range(it->second.to_string());
@@ -201,8 +201,8 @@ public:
 		if( m_status != status::partial_content )
 			return {};
 
-		it = headers.find(header::content_type);
-		if( it != headers.end() )
+		it = response_headers.find(header::content_type);
+		if( it != response_headers.end() )
 		{
 			auto content_type = it->second.to_string();
 			auto pos = content_type.find(';');
@@ -221,8 +221,8 @@ public:
 				return {};
 			}
 		}
-		it = headers.find(header::content_range);
-		if( it == headers.end() )
+		it = response_headers.find(header::content_range);
+		if( it == response_headers.end() )
 			return base_parser::make_error_code(parse_errno::SFE);
 
 		auto range = parse_content_range(it->second.to_string());
@@ -371,10 +371,10 @@ public:
 		while( packages.size() < parts.size() )
 		{
 			const auto &part = parts[packages.size()];
-			auto &[headers, range] = packages.emplace_back();
+			auto &[package_headers, range] = packages.emplace_back();
 
 			for(auto &[key,value] : part.fields)
-				headers.emplace_back(key + ": " + value.to_string());
+				package_headers.emplace_back(key + ": " + value.to_string());
 
 			range = {
 				.begin = part.range.first,
@@ -387,14 +387,14 @@ public:
 	{
 		while( size > 0 and not m_segments.empty() )
 		{
-			auto &segment = m_segments.front();
-			auto consumed = std::min(size, segment.length);
+			auto &current_segment = m_segments.front();
+			auto consumed = std::min(size, current_segment.length);
 
-			segment.offset += consumed;
-			segment.length -= consumed;
+			current_segment.offset += consumed;
+			current_segment.length -= consumed;
 			size -= consumed;
 
-			if( segment.length == 0 )
+			if( current_segment.length == 0 )
 				m_segments.pop_front();
 		}
 	}
@@ -464,12 +464,12 @@ public:
 		if( size == 0 or m_segments.empty() )
 			return {};
 
-		auto segment = m_segments.front();
-		size = std::min(size, segment.length);
+		auto current_segment = m_segments.front();
+		size = std::min(size, current_segment.length);
 
 		byte_range_chunk result {
-			.part_index = segment.part_index,
-			.offset = segment.offset,
+			.part_index = current_segment.part_index,
+			.offset = current_segment.offset,
 			.data = std::string(partial_body().substr(0, size))
 		};
 		m_partial_body_pos += size;

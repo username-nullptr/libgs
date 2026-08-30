@@ -263,9 +263,9 @@ const_buffer generator<protocol_model::server>::body_buffer(const const_buffer &
 	return m_impl->m_generator->body_buffer(buffer);
 }
 
-std::string generator<protocol_model::server>::chunk_end_data(const headers_t &headers)
+std::string generator<protocol_model::server>::chunk_end_data(const headers_t &trailer_headers)
 {
-	return m_impl->m_generator->chunk_end_data(headers);
+	return m_impl->m_generator->chunk_end_data(trailer_headers);
 }
 
 version_enum generator<protocol_model::server>::version() const noexcept

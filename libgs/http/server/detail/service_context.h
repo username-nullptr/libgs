@@ -38,18 +38,18 @@ class LIBGS_HTTP_TAPI basic_service_context<Exec>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl(connection_ptr connection, session_manager &session_manager) :
+	impl(connection_ptr conn, session_manager &session_manager) :
 		m_session_manager(session_manager),
-		m_connection(connection),
-		m_response(connection),
-		m_request(connection) {}
+		m_connection(conn),
+		m_response(conn),
+		m_request(conn) {}
 
-	impl(connection_ptr connection, parser_t &&parser,
+	impl(connection_ptr conn, parser_t &&parser,
 		session_manager &session_manager) :
 		m_session_manager(session_manager),
-		m_connection(connection),
-		m_response(connection),
-		m_request(connection, std::move(parser)) {}
+		m_connection(conn),
+		m_response(conn),
+		m_request(conn, std::move(parser)) {}
 
 public:
 	session_manager &m_session_manager;
@@ -61,16 +61,16 @@ public:
 
 template <core_concepts::exec Exec>
 basic_service_context<Exec>::basic_service_context
-(connection_ptr connection, session_manager &session_manager) :
-	m_impl(new impl(std::move(connection), session_manager))
+(connection_ptr conn, session_manager &session_manager) :
+	m_impl(new impl(std::move(conn), session_manager))
 {
 
 }
 
 template <core_concepts::exec Exec>
 basic_service_context<Exec>::basic_service_context
-(connection_ptr connection, parser_t &&parser, session_manager &session_manager) :
-	m_impl(new impl(std::move(connection), std::move(parser), session_manager))
+(connection_ptr conn, parser_t &&parser, session_manager &session_manager) :
+	m_impl(new impl(std::move(conn), std::move(parser), session_manager))
 {
 
 }

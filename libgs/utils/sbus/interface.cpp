@@ -57,11 +57,11 @@ class /* LIBGS_DECL_HIDDEN */ subscriber_thread : public std::enable_shared_from
 protected:
 	subscriber_thread() = default;
 
-	void start(std::function<awaitable<bool>()> task)
+	void start(std::function<awaitable<bool>()> task_arg)
 	{
 		m_run = true;
 		libgs::dispatch(m_exec,
-		[this, task = std::move(task)]() mutable noexcept -> awaitable<void>
+		[this, task = std::move(task_arg)]() mutable noexcept -> awaitable<void>
 		{
 			try {
 				co_await do_task(std::move(task));
@@ -372,11 +372,11 @@ void local_interface::publish(std::string_view topic, const void *buffer, size_t
 	}
 }
 
-uint64_t local_interface::subscribe(std::string_view topic, std::function<void(const void*, size_t)> func)
+uint64_t local_interface::subscribe(std::string_view topic, std::function<void(const void*, size_t)> callback)
 {
 	auto [id, subr] = m_impl->make_subscriber(topic);
 	subr->received.connect (
-	[func = std::move(func)](const detail::payload_t &payload) {
+	[func = std::move(callback)](const detail::payload_t &payload) {
 		func(payload.data(), payload.size());
 	});
 	m_objs_lock.lock();
@@ -385,11 +385,11 @@ uint64_t local_interface::subscribe(std::string_view topic, std::function<void(c
 	return id;
 }
 
-uint64_t local_interface::subscribe(std::function<void(std::string_view topic, const void*, size_t)> func)
+uint64_t local_interface::subscribe(std::function<void(std::string_view topic, const void*, size_t)> callback)
 {
 	auto [id, subr] = m_impl->make_subscriber();
 	subr->received.connect (
-	[func = std::move(func)](std::string_view topic, const detail::payload_t &payload) {
+	[func = std::move(callback)](std::string_view topic, const detail::payload_t &payload) {
 		func(topic, payload.data(), payload.size());
 	});
 	m_objs_lock.lock();

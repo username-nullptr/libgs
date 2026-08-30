@@ -83,7 +83,7 @@ public:
 	[[nodiscard]] std::string header_data(method_enum method, size_t body_size = 0);
 
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const headers_t &trailer_headers = {});
 
 public:
 	[[nodiscard]] version_enum version() const noexcept;

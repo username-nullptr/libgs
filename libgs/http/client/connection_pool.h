@@ -75,7 +75,7 @@ public:
 	// A configured connector is part of this pool's routing identity. Proxy-aware
 	// applications inject one here; the default constructors remain direct-only.
 	explicit basic_connection_pool (
-		connector_ptr connector, const config_t &config = {}
+		connector_ptr connector_instance, const config_t &config = {}
 	);
 	~basic_connection_pool();
 

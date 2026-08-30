@@ -184,9 +184,9 @@ public:
 public:
 	void set_attribute()
 	{
-		auto headers = m_parser.headers();
-		auto it = headers.find(header::connection);
-		if( it == headers.end() )
+		auto request_headers = m_parser.headers();
+		auto it = request_headers.find(header::connection);
+		if( it == request_headers.end() )
 			m_keep_alive = m_parser.version() != version::v10;
 		else
 		{
@@ -201,8 +201,8 @@ public:
 					m_keep_alive = true;
 			}
 		}
-		it = headers.find(header::accept_encoding);
-		if( it == headers.end() )
+		it = request_headers.find(header::accept_encoding);
+		if( it == request_headers.end() )
 		{
 			m_support_gzip = false;
 			return ;

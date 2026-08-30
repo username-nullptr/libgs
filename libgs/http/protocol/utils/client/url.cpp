@@ -251,9 +251,9 @@ public:
 	bool m_valid = true;
 };
 
-url::url(std::string_view url) :
+url::url(std::string_view url_text) :
 	mutable_parameters(nullptr),
-	m_impl(new impl(url))
+	m_impl(new impl(url_text))
 {
 	m_parameters = &m_impl->m_parameters;
 }
@@ -316,9 +316,9 @@ url &url::operator=(url &&other) noexcept
 	return *this;
 }
 
-url &url::emplace(std::string_view url)
+url &url::emplace(std::string_view url_text)
 {
-	m_impl->set(url);
+	m_impl->set(url_text);
 	return *this;
 }
 

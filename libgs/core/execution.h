@@ -310,21 +310,21 @@ public:
 	using handler_t = asio::detail::awaitable_handler<Exec,Args...>;
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
-	[[nodiscard]] static auto handle(concepts::sched auto &&exec,
-		concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable)
+	[[nodiscard]] static auto handle(concepts::sched auto &&executor_arg,
+		concepts::async_wake_up<handler_t&&> auto &&wake_up_arg, Token &&token = use_awaitable)
 	{
 		using token_t = std::remove_cvref_t<Token>;
-		using func_t = decltype(wake_up);
+		using func_t = decltype(wake_up_arg);
 		auto ntoken = unbound_redirect_time(token);
 
 		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
-		[exec = get_executor_helper(exec), wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		[exec = get_executor_helper(executor_arg), wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
 		{
 			auto work = asio::make_work_guard(handler);
 			asio::dispatch(exec,
-			[exec = work.get_executor(), wake_up = std::move(wake_up), handler = std::move(handler)]
+			[inner_exec = work.get_executor(), inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)]
 			() mutable noexcept {
-				detail::async_xx(exec, std::move(wake_up), std::move(handler));
+				detail::async_xx(inner_exec, std::move(inner_wake_up), std::move(inner_handler));
 			});
 		},
 		ntoken);
@@ -332,21 +332,21 @@ public:
 
 	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
 	[[nodiscard]] static auto handle
-	(concepts::async_wake_up<handler_t&&> auto &&wake_up, Token &&token = use_awaitable)
+	(concepts::async_wake_up<handler_t&&> auto &&wake_up_arg, Token &&token = use_awaitable)
 	{
 		using token_t = std::remove_cvref_t<Token>;
-		using func_t = decltype(wake_up);
+		using func_t = decltype(wake_up_arg);
 		auto ntoken = unbound_redirect_time(token);
 
 		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
-		[wake_up = std::forward<func_t>(wake_up)](auto handler) mutable
+		[wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
 		{
 			auto work = asio::make_work_guard(handler);
 			auto exec = work.get_executor();
 
 			asio::dispatch(exec,
-			[exec, wake_up = std::move(wake_up), handler = std::move(handler)]() mutable noexcept {
-				detail::async_xx(exec, std::move(wake_up), std::move(handler));
+			[exec, inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)]() mutable noexcept {
+				detail::async_xx(exec, std::move(inner_wake_up), std::move(inner_handler));
 			});
 		},
 		ntoken);

@@ -67,7 +67,7 @@ public:
 
 	[[nodiscard]] const_buffer body_buffer(const const_buffer &buffer) noexcept;
 	[[nodiscard]] std::string body_data(const const_buffer &buffer);
-	[[nodiscard]] std::string chunk_end_data(const headers_t &headers = {});
+	[[nodiscard]] std::string chunk_end_data(const headers_t &trailer_headers = {});
 
 	[[nodiscard]] version_enum version() const noexcept;
 	[[nodiscard]] generator_state pro_state() const noexcept;

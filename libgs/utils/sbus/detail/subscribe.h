@@ -50,9 +50,9 @@ basic_subscriber<Interface,Exec>::~basic_subscriber() = default;
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
 uint64_t basic_subscriber<Interface,Exec>::subscribe
-(std::string_view topic, concepts::subscribe_func<1> auto &&func)
+(std::string_view topic, concepts::subscribe_func<1> auto &&callback)
 {
-	using Func = decltype(func);
+	using Func = decltype(callback);
 	using func_t = std::remove_cvref_t<Func>;
 
 	using func_tr_t = function_traits<func_t>;
@@ -66,7 +66,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 	}
 	if constexpr( is_awaitable_v<return_t> )
 	{
-		return subscribe(topic, [func = std::forward<Func>(func)]
+		return subscribe(topic, [func = std::forward<Func>(callback)]
 		(const void *data, size_t size) -> awaitable<void>
 		{
 			if constexpr( libgs::concepts::streamer_type<arg_t> )
@@ -86,7 +86,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 	}
 	else
 	{
-		return subscribe(topic, [func = std::forward<Func>(func)]
+		return subscribe(topic, [func = std::forward<Func>(callback)]
 		(const void *data, size_t size)
 		{
 			if constexpr( libgs::concepts::streamer_type<arg_t> )
@@ -106,9 +106,9 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<2> auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<2> auto &&callback)
 {
-	using Func = decltype(func);
+	using Func = decltype(callback);
 	using func_t = std::remove_cvref_t<Func>;
 
 	using func_tr_t = function_traits<func_t>;
@@ -117,7 +117,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<2>
 	using arg1_t = std::remove_cvref_t<typename func_tr_t::template arg_type_t<1>>;
 	if constexpr( is_awaitable_v<return_t> )
 	{
-		return subscribe([func = std::forward<Func>(func)]
+		return subscribe([func = std::forward<Func>(callback)]
 		(const std::string_view &topic, const void *data, size_t size) -> awaitable<void>
 		{
 			if constexpr( libgs::concepts::streamer_type<arg1_t> )
@@ -137,7 +137,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<2>
 	}
 	else
 	{
-		return subscribe([func = std::forward<Func>(func)]
+		return subscribe([func = std::forward<Func>(callback)]
 		(const std::string_view &topic, const void *data, size_t size)
 		{
 			if constexpr( libgs::concepts::streamer_type<arg1_t> )
@@ -158,9 +158,9 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_func<2>
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
 uint64_t basic_subscriber<Interface,Exec>::subscribe
-(std::string_view topic, libgs::concepts::callable<const void*,size_t> auto &&func)
+(std::string_view topic, libgs::concepts::callable<const void*,size_t> auto &&callback)
 {
-	using Func = decltype(func);
+	using Func = decltype(callback);
 	using func_t = std::remove_cvref_t<Func>;
 
 	constexpr bool has_interface = requires(interface_t &interface) {
@@ -171,7 +171,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 	if constexpr( has_interface )
 	{
 		return m_interface->subscribe(topic,
-		[exec = m_exec, func = std::forward<Func>(func)]
+		[exec = m_exec, func = std::forward<Func>(callback)]
 		(const void *data, size_t size) noexcept
 		{
 			using func_tr_t = function_traits<func_t>;
@@ -193,7 +193,7 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 	else
 	{
 		return m_interface->subscribe(
-		[exec = m_exec, topic, func = std::forward<Func>(func)]
+		[exec = m_exec, topic, func = std::forward<Func>(callback)]
 		(const std::string_view &t, const void *data, size_t size) noexcept
 		{
 			if( t != topic )
@@ -219,13 +219,13 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
 uint64_t basic_subscriber<Interface,Exec>::subscribe
-(libgs::concepts::callable<std::string_view,const void*,size_t> auto &&func)
+(libgs::concepts::callable<std::string_view,const void*,size_t> auto &&callback)
 {
-	using Func = decltype(func);
+	using Func = decltype(callback);
 	using func_t = std::remove_cvref_t<Func>;
 
 	return m_interface->subscribe(
-	[exec = m_exec, func = std::forward<Func>(func)]
+	[exec = m_exec, func = std::forward<Func>(callback)]
 	(std::string_view topic, const void *data, size_t size) noexcept
 	{
 		using func_tr_t = function_traits<func_t>;

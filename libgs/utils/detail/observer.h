@@ -127,21 +127,23 @@ void basic_observer_base<Derived,Exec,Funcs...>::trigger(uint64_t id, Args0&&...
 
 		functions.emplace_back([exec = obj->m_exec, funcs, args...]() mutable
 		{
-			auto call = [exec = std::move(exec)]<typename...Args>(auto func, Args&&...args)
+			auto call = [call_exec = std::move(exec)]<typename...Args>(auto callback, Args&&...call_args)
 			{
-				using return_t = decltype(func(std::forward<Args>(args)...));
+				using return_t = decltype(callback(std::forward<Args>(call_args)...));
 				if constexpr( is_awaitable_v<return_t> )
 				{
-					libgs::dispatch(exec, [func = std::move(func), ...args = std::forward<Args>(args)]
+					libgs::dispatch(call_exec, [slot = std::move(callback),
+						...slot_args = std::forward<Args>(call_args)]
 					() mutable -> awaitable<void> {
-						co_await func(std::move(args)...);
+						co_await slot(std::move(slot_args)...);
 						co_return ;
 					});
 				}
 				else
 				{
-					libgs::dispatch(exec, [func = std::move(func), ...args = std::forward<Args>(args)]() mutable {
-						func(std::move(args)...);
+					libgs::dispatch(call_exec, [slot = std::move(callback),
+						...slot_args = std::forward<Args>(call_args)]() mutable {
+						slot(std::move(slot_args)...);
 					});
 				}
 			};

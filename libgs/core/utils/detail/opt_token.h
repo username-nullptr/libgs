@@ -34,16 +34,16 @@ namespace libgs
 
 template <typename Token>
 template <typename Rep, typename Period>
-redirect_time_t<Token>::redirect_time_t(auto &&token, const duration<Rep,Period> &rtime) :
-	token(std::forward<decltype(token)>(token)), time(std::chrono::duration_cast<milliseconds>(rtime))
+redirect_time_t<Token>::redirect_time_t(auto &&completion_token, const duration<Rep,Period> &rtime) :
+	token(std::forward<decltype(completion_token)>(completion_token)), time(std::chrono::duration_cast<milliseconds>(rtime))
 {
 
 }
 
 template <typename Token>
 template <typename Clock, typename Duration>
-redirect_time_t<Token>::redirect_time_t(auto &&token, const time_point<Clock,Duration> &atime) :
-	token(std::forward<decltype(token)>(token))
+redirect_time_t<Token>::redirect_time_t(auto &&completion_token, const time_point<Clock,Duration> &atime) :
+	token(std::forward<decltype(completion_token)>(completion_token))
 {
 	auto now = std::chrono::system_clock::now();
 	auto rtime = std::chrono::time_point_cast<decltype(now)>(atime) - now;

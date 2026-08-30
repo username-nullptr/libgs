@@ -40,8 +40,8 @@ class LIBGS_HTTP_VAPI session::impl
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	impl(session *q_ptr, const duration<Rep,Period> &seconds, const executor_t &exec) :
-		q_ptr(q_ptr), m_second(seconds.count()), m_timer(exec) {}
+	impl(session *owner, const duration<Rep,Period> &seconds, const executor_t &exec) :
+		q_ptr(owner), m_second(seconds.count()), m_timer(exec) {}
 
 	void start();
 

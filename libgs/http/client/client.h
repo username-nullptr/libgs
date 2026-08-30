@@ -69,14 +69,14 @@ public:
 		size_t max_redirects = 0;
 		bool auto_decompression = true;
 
-		req_info(url_t url, request_arg_t arg) :
-			url(std::move(url)), arg(std::move(arg)) {}
+		req_info(url_t request_url, request_arg_t request_options) :
+			url(std::move(request_url)), arg(std::move(request_options)) {}
 
-		req_info(url_t url) :
-			url(std::move(url)) {}
+		req_info(url_t request_url) :
+			url(std::move(request_url)) {}
 
-		req_info(core_concepts::string_p<char> auto &&url) :
-			url(std::forward<decltype(url)>(url)) {}
+		req_info(core_concepts::string_p<char> auto &&request_url) :
+			url(std::forward<decltype(request_url)>(request_url)) {}
 
 		req_info &set_proxy(url_t value)
 		{

@@ -45,7 +45,7 @@ public:
 public:
 	template <typename Arg0, typename...Args>
 	url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	url(std::string_view url);
+	url(std::string_view url_text);
 	url(const std::string &url);
 	url(const char *url);
 
@@ -61,7 +61,7 @@ public:
 public:
 	template <typename Arg0, typename...Args>
 	url &emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	url &emplace(std::string_view url);
+	url &emplace(std::string_view url_text);
 
 	url &set_address(std::string addr);
 	url &set_port(uint16_t port);

@@ -247,8 +247,8 @@ public:
 	config_t m_config {};
 };
 
-logger::source_loc::source_loc(const char *file, const char *func, int line) :
-	file(file), func(func), line(line)
+logger::source_loc::source_loc(const char *source_file, const char *source_func, int source_line) :
+	file(source_file), func(source_func), line(source_line)
 {
 
 }
@@ -350,19 +350,19 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 	}
 	for(size_t i=1; i<4; i++)
 	{
-		auto &logger = m_impl->m_file_loggers[i];
-		if( not logger or logger->level() != conf_lv )
+		auto &file_logger = m_impl->m_file_loggers[i];
+		if( not file_logger or file_logger->level() != conf_lv )
 			continue;
 
-		logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
+		file_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
 			std::format(": \n{}\n", strtls::trimmed(msg)) :
 			std::format(": {}", strtls::trimmed(msg))
 		);
-		loggers.emplace_back(logger);
+		loggers.emplace_back(file_logger);
 	}
 	m_impl->m_terminal_logger->flush();
-	for(auto &logger : loggers)
-		logger->flush();
+	for(auto &file_logger : loggers)
+		file_logger->flush();
 }
 
 void logger::check_level(level_t lv)

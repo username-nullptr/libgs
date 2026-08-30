@@ -254,7 +254,7 @@ const_buffer generator<protocol_model::base>::body_buffer
 	return {buffer.data(), size};
 }
 
-std::string generator<protocol_model::base>::chunk_end_data(const headers_t &headers) noexcept
+std::string generator<protocol_model::base>::chunk_end_data(const headers_t &trailer_headers) noexcept
 {
 	if( m_impl->m_state != state_t::chunk )
 		return {};
@@ -262,7 +262,7 @@ std::string generator<protocol_model::base>::chunk_end_data(const headers_t &hea
 	m_impl->m_state = state_t::finish;
 	std::string buf = "0\r\n";
 
-	return buf + serialize_headers(headers) + "\r\n";
+	return buf + serialize_headers(trailer_headers) + "\r\n";
 }
 
 std::string generator<protocol_model::base>::header_data() noexcept

@@ -42,26 +42,26 @@ basic_path_opt_token<CharT>::basic_path_opt_token(Str &&path) :
 
 template <core_concepts::character CharT>
 template <core_concepts::string<CharT> Str>
-basic_path_opt_token<CharT>::basic_path_opt_token(std::vector<Str> &&paths) :
-	paths{std::forward<std::vector<Str>>(paths)}
+basic_path_opt_token<CharT>::basic_path_opt_token(std::vector<Str> &&path_values) :
+	paths{std::forward<std::vector<Str>>(path_values)}
 {
 
 }
 
 template <core_concepts::character CharT>
 template <core_concepts::string<CharT> Str>
-basic_path_opt_token<CharT>::basic_path_opt_token(std::initializer_list<Str> paths)
+basic_path_opt_token<CharT>::basic_path_opt_token(std::initializer_list<Str> path_values)
 {
-	for(auto &path : paths)
+	for(auto &path : path_values)
 		this->paths.emplace_back(path);
 }
 
 template <core_concepts::character CharT>
 template <core_concepts::string_p<CharT>...Str>
-basic_path_opt_token<CharT>::basic_path_opt_token(Str&&...paths)
+basic_path_opt_token<CharT>::basic_path_opt_token(Str&&...path_args)
 {
 	(void) std::initializer_list<int> {
-		(this->paths.emplace_back(std::forward<Str>(paths)), 0) ...
+		(this->paths.emplace_back(std::forward<Str>(path_args)), 0) ...
 	};
 }
 

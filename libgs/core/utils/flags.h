@@ -52,7 +52,7 @@ public:
 	constexpr flags() noexcept = default;
 	constexpr flags(enum_t f) noexcept;
 	constexpr flags(const flags &other) = default;
-	constexpr flags(std::initializer_list<enum_t> flags) noexcept;
+	constexpr flags(std::initializer_list<enum_t> flag_values) noexcept;
 	flags &operator=(const flags &other) = default;
 
 public:

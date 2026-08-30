@@ -99,7 +99,7 @@ public:
 public:
 	struct LIBGS_UTILS_API source_loc
 	{
-		source_loc(const char *file, const char *func, int line);
+		source_loc(const char *source_file, const char *source_func, int source_line);
 		const char *file = nullptr;
 		const char *func = nullptr;
 		int line = 0;

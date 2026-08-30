@@ -48,19 +48,19 @@ void basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept
 		std::forward<decltype(service_exec)>(service_exec)
 	);
 	m_acceptor.async_accept(exec,
-	[this, exec, callback = std::move(callback)](const error_code &error, auto socket) mutable
+	[this, exec, accept_callback = std::move(callback)](const error_code &error, auto socket) mutable
 	{
 		if( error )
 		{
-			callback(nullptr);
+			accept_callback(nullptr);
 			if( m_acceptor.is_open() )
-				accept(exec, std::move(callback));
+				accept(exec, std::move(accept_callback));
 			return ;
 		}
 		// Keep an accept pending before handing the connection to the server.
 		// This also keeps TCP and TLS accept behavior consistent.
-		accept(exec, callback);
-		callback(std::make_shared<basic_tcp_connection<executor_t>>(
+		accept(exec, accept_callback);
+		accept_callback(std::make_shared<basic_tcp_connection<executor_t>>(
 			socket_t(std::move(socket))
 		));
 	});
@@ -98,8 +98,8 @@ basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ctx) :
 
 template <core_concepts::exec Exec>
 void basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::accept
-(core_concepts::match_sched<executor_t> auto &&service_exec,
-	std::function<void(connection_ptr)> callback, std::chrono::milliseconds handshake_timeout)
+	(core_concepts::match_sched<executor_t> auto &&service_exec,
+		std::function<void(connection_ptr)> callback_arg, std::chrono::milliseconds handshake_timeout)
 {
 	using namespace std::chrono_literals;
 	if( handshake_timeout <= 0ms )
@@ -109,7 +109,7 @@ void basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::t
 		std::forward<decltype(service_exec)>(service_exec)
 	);
 	m_acceptor.async_accept(exec,
-	[this, exec, callback = std::move(callback), handshake_timeout]
+	[this, exec, callback = std::move(callback_arg), handshake_timeout]
 	(const error_code &error, auto tcp_socket) mutable
 	{
 		if( error )

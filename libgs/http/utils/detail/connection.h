@@ -92,7 +92,7 @@ template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typ
 	if constexpr( is_redirect_time_v<token_t> )
 	{
 		return initiate_expected<size_t>(exec,
-		[initiation = std::move(initiation), owner = std::move(owner)]()
+		[io_initiation = std::move(initiation), buffer_owner = std::move(owner)]()
 		mutable -> awaitable<io_expected>
 		{
 			error_code error {};
@@ -100,16 +100,16 @@ template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typ
 			if constexpr( OwnsBuffer )
 			{
 				size = co_await initiate_connection_io(
-					std::move(initiation),
+					std::move(io_initiation),
 					asio::consign(
-						asio::redirect_error(use_awaitable, error), owner
+						asio::redirect_error(use_awaitable, error), buffer_owner
 					)
 				);
 			}
 			else
 			{
 				size = co_await initiate_connection_io(
-					std::move(initiation),
+					std::move(io_initiation),
 					asio::redirect_error(use_awaitable, error)
 				);
 			}
@@ -385,10 +385,10 @@ auto basic_connection<Exec>::write(std::span<const const_buffer> buffers, Token 
 		{
 			detail::const_buffer_sequence sequence(buffers);
 			return detail::initiate_connection_io(get_executor(),
-			[this, sequence = std::move(sequence)](auto handler) mutable
+			[this, buffer_sequence = std::move(sequence)](auto handler) mutable
 			{
 				co_write_all (
-					sequence.buffers(), io_handler_t(std::move(handler))
+					buffer_sequence.buffers(), io_handler_t(std::move(handler))
 				);
 			},
 			std::forward<Token>(token));
@@ -421,10 +421,10 @@ void basic_connection<Exec>::co_write_all
 	detail::const_buffer_sequence sequence(buffers);
 
 	asio::co_spawn(exec,
-	[this, sequence = std::move(sequence)]() mutable -> awaitable<io_expected>
+	[this, buffer_sequence = std::move(sequence)]() mutable -> awaitable<io_expected>
 	{
 		size_t sum = 0;
-		for( const auto &buffer : sequence.buffers() )
+		for( const auto &buffer : buffer_sequence.buffers() )
 		{
 			error_code error {};
 			auto size = co_await detail::initiate_connection_io (
@@ -442,7 +442,7 @@ void basic_connection<Exec>::co_write_all
 		co_return sum;
 	},
 	asio::bind_executor(completion_exec, asio::bind_cancellation_slot(slot,
-	[handler = std::move(handler)](const std::exception_ptr &exception, io_expected result) mutable
+	[completion_handler = std::move(handler)](const std::exception_ptr &exception, io_expected result) mutable
 	{
 		if( exception )
 		{
@@ -450,26 +450,26 @@ void basic_connection<Exec>::co_write_all
 				std::rethrow_exception(exception);
 			}
 			catch(const std::system_error &ex) {
-				std::move(handler)(ex.code(), 0);
+				std::move(completion_handler)(ex.code(), 0);
 			}
 			catch(const std::bad_alloc&)
 			{
-				std::move(handler) (
+				std::move(completion_handler) (
 					make_error_code(std::errc::not_enough_memory), 0
 				);
 			}
 			catch(...)
 			{
-				std::move(handler) (
+				std::move(completion_handler) (
 					make_error_code(std::errc::io_error), 0
 				);
 			}
 			return ;
 		}
 		if( not result )
-			std::move(handler)(result.error(), 0);
+			std::move(completion_handler)(result.error(), 0);
 		else
-			std::move(handler)(error_code{}, *result);
+			std::move(completion_handler)(error_code{}, *result);
 	})));
 }
 

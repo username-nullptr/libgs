@@ -45,13 +45,13 @@ struct LIBGS_HTTP_TAPI basic_path_opt_token
 	basic_path_opt_token(Str &&path);
 
 	template <core_concepts::string<CharT> Str>
-	basic_path_opt_token(std::vector<Str> &&paths);
+	basic_path_opt_token(std::vector<Str> &&path_values);
 
 	template <core_concepts::string<CharT> Str>
-	basic_path_opt_token(std::initializer_list<Str> paths);
+	basic_path_opt_token(std::initializer_list<Str> path_values);
 
 	template <core_concepts::string_p<CharT>...Str>
-	basic_path_opt_token(Str&&...paths);
+	basic_path_opt_token(Str&&...path_args);
 };
 
 using path_opt_token  = basic_path_opt_token<char>;

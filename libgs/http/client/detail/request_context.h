@@ -168,7 +168,7 @@ public:
 		else if( norms.index() == 2 )
 		{
 			const auto &[boundary, packages] = std::get<multipart_body_norms>(norms);
-			for(auto &[headers, range] : packages)
+			for(auto &[package_headers, range] : packages)
 				total += range.total;
 
 			for(auto &[package_headers, range] : packages)
@@ -444,17 +444,17 @@ public:
 				else if( upload_norms.index() == 2 )
 				{
 					auto &[boundary, packages] = std::get<multipart_body_norms>(upload_norms);
-					for(const auto &[headers, range] : packages)
+					for(const auto &[package_headers, range] : packages)
 						total += range.total;
 
-					for(const auto &[headers, range] : packages)
+					for(const auto &[package_headers, range] : packages)
 					{
 						std::string prefix;
 						try {
 							prefix = std::format (
 								"--{}\r\n", boundary
 							);
-							for(const auto &field : headers)
+							for(const auto &field : package_headers)
 								prefix += std::format("{}\r\n", field);
 							prefix += "\r\n";
 						}

@@ -40,8 +40,8 @@ constexpr flags<Enum>::flags(enum_t f) noexcept :
 }
 
 template <concepts::flag_template Enum>
-constexpr flags<Enum>::flags(std::initializer_list<enum_t> flags) noexcept :
-	m_value(initializer_list_helper(flags.begin(), flags.end()))
+constexpr flags<Enum>::flags(std::initializer_list<enum_t> flag_values) noexcept :
+	m_value(initializer_list_helper(flag_values.begin(), flag_values.end()))
 {
 
 }

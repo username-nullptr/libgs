@@ -56,12 +56,12 @@ template <typename Tag, typename T>
 }
 
 template <concepts::function Slot, typename...Args>
-[[nodiscard]] LIBGS_UTILS_TAPI static bool slot_args_can_auto_cast(Args&&...args) noexcept
+[[nodiscard]] LIBGS_UTILS_TAPI static bool slot_args_can_auto_cast(Args&&...call_args) noexcept
 {
 	using slot_tr = function_traits<Slot>;
 	using indices = std::make_index_sequence<slot_tr::arg_count>;
 
-	return [args = std::make_tuple(std::forward<Args>(args)...)]
+	return [args = std::make_tuple(std::forward<Args>(call_args)...)]
 	<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 	{
 		return ([&]() mutable noexcept
@@ -128,13 +128,13 @@ private:
 	}
 
 	template <slot_mode Mode, concepts::sched Exec, concepts::function Slot>
-	void emplace(Exec &&exec, Slot &&slot) noexcept
+	void emplace(Exec &&executor_arg, Slot &&slot_arg) noexcept
 	{
 		if constexpr( Mode == slot_mode::sync )
 			m_block = true;
 
-		m_func = [exec = get_executor_helper(std::forward<Exec>(exec)),
-			slot = std::forward<Slot>(slot)](Args...args) mutable noexcept
+		m_func = [exec = get_executor_helper(std::forward<Exec>(executor_arg)),
+			slot = std::forward<Slot>(slot_arg)](Args...args) mutable noexcept
 		{
 			if( not slot_args_can_auto_cast<Slot>(args...) )
 			{
@@ -155,7 +155,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static std::future<void> glob_sync_call(Slot &slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> glob_sync_call(Slot &slot_fn, Args0&&...call_args) noexcept
 	{
 		std::promise<void> promise;
 		auto future = promise.get_future();
@@ -163,9 +163,9 @@ private:
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
 
-		[&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
+		[&slot_fn, args = std::make_tuple(std::forward<Args0>(call_args)...)]
 		<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
-			slot(get_slot_arg<slot_tr, Is>(args)...);
+			slot_fn(get_slot_arg<slot_tr, Is>(args)...);
 		} (indices());
 
 		promise.set_value();
@@ -173,7 +173,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static std::future<void> glob_async_call(auto &exec, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> glob_async_call(auto &exec, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		std::promise<void> promise;
 		auto future = promise.get_future();
@@ -184,7 +184,7 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			libgs::post(exec, [slot = std::move(slot), args = std::make_tuple(std::move(args)...)]
+			libgs::post(exec, [slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]
 			() mutable noexcept -> awaitable<void>
 			{
 				co_return co_await [&]<size_t...Is>
@@ -199,7 +199,7 @@ private:
 		else
 		{
 			libgs::post(exec,
-			[slot = std::move(slot), args = std::make_tuple(std::move(args)...)]() mutable noexcept
+			[slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]() mutable noexcept
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
 					slot(get_slot_arg<slot_tr, Is>(args)...);
@@ -211,7 +211,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static std::future<void> glob_backpressure_call(auto &exec, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> glob_backpressure_call(auto &exec, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -219,7 +219,7 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			return libgs::dispatch(exec, [slot = std::move(slot), args = std::make_tuple(std::move(args)...)]
+			return libgs::dispatch(exec, [slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]
 			() mutable noexcept -> awaitable<void>
 			{
 				co_return co_await [&]<size_t...Is>
@@ -235,7 +235,7 @@ private:
 		else
 		{
 			return libgs::dispatch(exec,
-			[slot = std::move(slot), args = std::make_tuple(std::move(args)...)]() mutable noexcept
+			[slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]() mutable noexcept
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
 					slot(get_slot_arg<slot_tr, Is>(args)...);
@@ -252,19 +252,19 @@ private:
 	}
 
 	template <slot_mode Mode, typename Obj, concepts::sched Exec, concepts::function Slot>
-	void emplace(Obj &&obj, Exec &&exec, Slot &&slot) noexcept
+	void emplace(Obj &&observer, Exec &&executor_arg, Slot &&slot_arg) noexcept
 	{
-		m_obj = obj.get();
+		m_obj = observer.get();
 		if constexpr( Mode != slot_mode::async )
 			m_block = true;
 
 		using obj_t = std::remove_cvref_t<Obj>::element_type;
-		m_is_valid = [obj = std::weak_ptr<obj_t>(obj)] {
+		m_is_valid = [obj = std::weak_ptr<obj_t>(observer)] {
 			return not obj.expired();
 		};
-		m_func = [obj = obj.get(), is_valid = m_is_valid,
-			exec = get_executor_helper(std::forward<Exec>(exec)),
-			slot = std::forward<Slot>(slot)](Args...args) mutable noexcept
+		m_func = [obj = observer.get(), is_valid = m_is_valid,
+			exec = get_executor_helper(std::forward<Exec>(executor_arg)),
+			slot = std::forward<Slot>(slot_arg)](Args...args) mutable noexcept
 		{
 			if( not slot_args_can_auto_cast<Slot>(args...) )
 			{
@@ -297,7 +297,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static std::future<void> obj_sync_call(auto &obj, Slot &slot, Args0&&...args) noexcept
+	[[nodiscard]] static std::future<void> obj_sync_call(auto &object_ptr, Slot &slot_fn, Args0&&...call_args) noexcept
 	{
 		std::promise<void> promise;
 		auto future = promise.get_future();
@@ -305,9 +305,9 @@ private:
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
 
-		[&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
+		[&object_ptr, &slot_fn, args = std::make_tuple(std::forward<Args0>(call_args)...)]
 		<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
-			(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
+			(object_ptr->*slot_fn)(get_slot_arg<slot_tr, Is>(args)...);
 		} (indices());
 
 		promise.set_value();
@@ -316,7 +316,7 @@ private:
 
 	template <typename Slot, typename...Args0>
 	[[nodiscard]] static std::future<void> obj_async_call
-	(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
+	(auto &exec, auto object_ptr, auto validity_check, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		std::promise<void> promise;
 		auto future = promise.get_future();
@@ -327,8 +327,8 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			libgs::post(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			libgs::post(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept -> awaitable<void>
 			{
 				if( not is_valid() )
@@ -345,8 +345,8 @@ private:
 		}
 		else
 		{
-			libgs::post(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			libgs::post(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept
 			{
 				if( not is_valid() )
@@ -363,7 +363,7 @@ private:
 
 	template <typename Slot, typename...Args0>
 	[[nodiscard]] static std::future<void> obj_backpressure_call
-	(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
+	(auto &exec, auto object_ptr, auto validity_check, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -371,8 +371,8 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			return libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			return libgs::dispatch(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept -> awaitable<void>
 			{
 				if( not is_valid() )
@@ -390,8 +390,8 @@ private:
 		}
 		else
 		{
-			return libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			return libgs::dispatch(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept
 			{
 				if( not is_valid() )
@@ -452,10 +452,10 @@ private:
 	}
 
 	template <slot_mode Mode, concepts::sched Exec, concepts::function Slot>
-	void emplace(Exec &&exec, Slot &&slot) noexcept
+	void emplace(Exec &&executor_arg, Slot &&slot_arg) noexcept
 	{
-		m_func = [exec = get_executor_helper(std::forward<Exec>(exec)),
-			slot = std::forward<Slot>(slot)](Args...args) mutable noexcept -> awaitable<void>
+		m_func = [exec = get_executor_helper(std::forward<Exec>(executor_arg)),
+			slot = std::forward<Slot>(slot_arg)](Args...args) mutable noexcept -> awaitable<void>
 		{
 			if( not slot_args_can_auto_cast<Slot>(args...) )
 				co_return ;
@@ -473,7 +473,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static awaitable<void> glob_sync_call(Slot &slot, Args0&&...args) noexcept
+	[[nodiscard]] static awaitable<void> glob_sync_call(Slot &slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -481,26 +481,26 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			co_await [&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
+			co_await [&slot_fn, args = std::make_tuple(std::forward<Args0>(call_args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 			{
-				co_await slot(get_slot_arg<slot_tr, Is>(args)...);
+				co_await slot_fn(get_slot_arg<slot_tr, Is>(args)...);
 				co_return ;
 			}
 			(indices());
 		}
 		else
 		{
-			[&slot, args = std::make_tuple(std::forward<Args0>(args)...)]
+			[&slot_fn, args = std::make_tuple(std::forward<Args0>(call_args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
-				slot(get_slot_arg<slot_tr, Is>(args)...);
+				slot_fn(get_slot_arg<slot_tr, Is>(args)...);
 			} (indices());
 		}
 		co_return ;
 	}
 
 	template <typename Slot, typename...Args0>
-	static void glob_async_call(auto &exec, Slot slot, Args0&&...args) noexcept
+	static void glob_async_call(auto &exec, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -508,7 +508,7 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			libgs::post(exec, [slot = std::move(slot), args = std::make_tuple(std::move(args)...)]
+			libgs::post(exec, [slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]
 			() mutable noexcept -> awaitable<void>
 			{
 				co_return co_await [&]<size_t...Is>
@@ -523,7 +523,7 @@ private:
 		else
 		{
 			libgs::post(exec,
-			[slot = std::move(slot), args = std::make_tuple(std::move(args)...)]() mutable noexcept
+			[slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]() mutable noexcept
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
 					slot(get_slot_arg<slot_tr, Is>(args)...);
@@ -533,7 +533,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static awaitable<void> glob_backpressure_call(auto &exec, Slot slot, Args0&&...args) noexcept
+	[[nodiscard]] static awaitable<void> glob_backpressure_call(auto &exec, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -541,7 +541,7 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			co_await libgs::dispatch(exec, [slot = std::move(slot), args = std::make_tuple(std::move(args)...)]
+			co_await libgs::dispatch(exec, [slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]
 			() mutable noexcept -> awaitable<void>
 			{
 				co_return co_await [&]<size_t...Is>
@@ -557,7 +557,7 @@ private:
 		else
 		{
 			co_await libgs::dispatch(exec,
-			[slot = std::move(slot), args = std::make_tuple(std::move(args)...)]() mutable noexcept
+			[slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)]() mutable noexcept
 			{
 				[&]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
 					slot(get_slot_arg<slot_tr, Is>(args)...);
@@ -575,17 +575,17 @@ private:
 	}
 
 	template <slot_mode Mode, typename Obj, concepts::sched Exec, concepts::function Slot>
-	void emplace(Obj &&obj, Exec &&exec, Slot &&slot) noexcept
+	void emplace(Obj &&observer, Exec &&executor_arg, Slot &&slot_arg) noexcept
 	{
 		using obj_t = std::remove_cvref_t<Obj>::element_type;
-		m_obj = obj.get();
+		m_obj = observer.get();
 
-		m_is_valid = [obj = std::weak_ptr<obj_t>(obj)] {
+		m_is_valid = [obj = std::weak_ptr<obj_t>(observer)] {
 			return not obj.expired();
 		};
-		m_func = [obj = obj.get(), is_valid = m_is_valid,
-			exec = get_executor_helper(std::forward<Exec>(exec)),
-			slot = std::forward<Slot>(slot)](Args...args) mutable noexcept -> awaitable<void>
+		m_func = [obj = observer.get(), is_valid = m_is_valid,
+			exec = get_executor_helper(std::forward<Exec>(executor_arg)),
+			slot = std::forward<Slot>(slot_arg)](Args...args) mutable noexcept -> awaitable<void>
 		{
 			if( not slot_args_can_auto_cast<Slot>(args...) )
 				co_return ;
@@ -615,7 +615,7 @@ private:
 	}
 
 	template <typename Slot, typename...Args0>
-	[[nodiscard]] static awaitable<void> obj_sync_call(auto &obj, Slot &slot, Args0&&...args) noexcept
+	[[nodiscard]] static awaitable<void> obj_sync_call(auto &object_ptr, Slot &slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -623,26 +623,26 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			co_await [&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
+			co_await [&object_ptr, &slot_fn, args = std::make_tuple(std::forward<Args0>(call_args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept -> awaitable<void>
 			{
-				co_await (obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
+				co_await (object_ptr->*slot_fn)(get_slot_arg<slot_tr, Is>(args)...);
 				co_return ;
 			}
 			(indices());
 		}
 		else
 		{
-			[&obj, &slot, args = std::make_tuple(std::forward<Args0>(args)...)]
+			[&object_ptr, &slot_fn, args = std::make_tuple(std::forward<Args0>(call_args)...)]
 			<size_t...Is>(std::index_sequence<Is...>) mutable noexcept {
-				(obj->*slot)(get_slot_arg<slot_tr, Is>(args)...);
+				(object_ptr->*slot_fn)(get_slot_arg<slot_tr, Is>(args)...);
 			} (indices());
 		}
 		co_return ;
 	}
 
 	template <typename Slot, typename...Args0>
-	static void obj_async_call(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
+	static void obj_async_call(auto &exec, auto object_ptr, auto validity_check, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -650,8 +650,8 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			libgs::post(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			libgs::post(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept -> awaitable<void>
 			{
 				if( not is_valid() )
@@ -668,8 +668,8 @@ private:
 		}
 		else
 		{
-			libgs::post(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			libgs::post(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept
 			{
 				if( not is_valid() )
@@ -684,7 +684,7 @@ private:
 
 	template <typename Slot, typename...Args0>
 	[[nodiscard]] static awaitable<void> obj_backpressure_call
-	(auto &exec, auto obj, auto is_valid, Slot slot, Args0&&...args) noexcept
+	(auto &exec, auto object_ptr, auto validity_check, Slot slot_fn, Args0&&...call_args) noexcept
 	{
 		using slot_tr = function_traits<Slot>;
 		using indices = std::make_index_sequence<slot_tr::arg_count>;
@@ -692,8 +692,8 @@ private:
 
 		if constexpr( is_awaitable_v<return_t> )
 		{
-			co_await libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			co_await libgs::dispatch(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept -> awaitable<void>
 			{
 				if( not is_valid() )
@@ -711,8 +711,8 @@ private:
 		}
 		else
 		{
-			co_await libgs::dispatch(exec, [obj = std::move(obj), is_valid = std::move(is_valid),
-				slot = std::move(slot), args = std::make_tuple(std::move(args)...)
+			co_await libgs::dispatch(exec, [obj = std::move(object_ptr), is_valid = std::move(validity_check),
+				slot = std::move(slot_fn), args = std::make_tuple(std::move(call_args)...)
 			]() mutable noexcept -> awaitable<void>
 			{
 				if( not is_valid() )
@@ -980,12 +980,12 @@ signal_base<Derived,Func>::~signal_base()
 template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, typename...Slots>
 signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Slots&&...funcs)
+signal_base<Derived,Func>::connect(Slots&&...slots)
 	noexcept requires is_global_slots_v<Mode,Slots...>
 {
 	m_impl->m_mutex.lock();
 	(void) std::initializer_list<int> {(
-		m_impl->template connect<Mode>(std::forward<Slots>(funcs)),
+		m_impl->template connect<Mode>(std::forward<Slots>(slots)),
 	0)...};
 	m_impl->m_mutex.unlock();
 	return static_cast<derived_t&>(*this);
@@ -1042,11 +1042,11 @@ signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs
 template <typename Derived, concepts::std_func_temp Func>
 template <typename...Slots>
 signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Slots&&...funcs)
+signal_base<Derived,Func>::connect(Slots&&...slots)
 	noexcept requires is_global_slots_def_v<Slots...>
 {
 	using indices = std::make_index_sequence<sizeof...(Slots)>;
-	[this, funcs = std::make_tuple(std::forward<Slots>(funcs)...)]
+	[this, funcs = std::make_tuple(std::forward<Slots>(slots)...)]
 	<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 	{
 		([&]() mutable noexcept
@@ -1076,15 +1076,15 @@ signal_base<Derived,Func>::connect(Slots&&...funcs)
 template <typename Derived, concepts::std_func_temp Func>
 template <typename Obj, typename...Slots>
 signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs)
+signal_base<Derived,Func>::connect(Obj &&observer_arg, Slots&&...slots)
 	requires is_obj_slots_def_v<Obj,Slots...>
 {
-	if( not observer )
+	if( not observer_arg )
 		invalid_argument::loc_throw("libgs::utils::signal::connect: observer is nullptr");
 
 	using indices = std::make_index_sequence<sizeof...(Slots)>;
-	[this, observer = std::forward<Obj>(observer),
-		funcs = std::make_tuple(std::forward<Slots>(funcs)...)
+	[this, observer = std::forward<Obj>(observer_arg),
+		funcs = std::make_tuple(std::forward<Slots>(slots)...)
 	]<size_t...Is>(std::index_sequence<Is...>) mutable noexcept
 	{
 		([&]() mutable noexcept

@@ -57,9 +57,9 @@ optional<basic_value<CharT>> basic_ini_keys<CharT,Map,MapArgs...>::read
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini_keys<CharT,Map,MapArgs...>::write
-(const concepts::text_p<char_t> auto &key, concepts::value_set<char_t> auto &&value) noexcept
+	(const concepts::text_p<char_t> auto &key, concepts::value_set<char_t> auto &&new_value) noexcept
 {
-	m_keys[detail::ini_replace<char_t>(key)] = std::forward<decltype(value)>(value);
+	m_keys[detail::ini_replace<char_t>(key)] = std::forward<decltype(new_value)>(new_value);
 }
 
 template <concepts::character CharT, template <typename,typename,typename...> class Map, typename...MapArgs>
@@ -318,7 +318,7 @@ public:
 					curr_group = &data[parsing_group(buf, line)];
 				else
 				{
-					auto [key, value] = parsing_key_value(buf, line);
+					auto [key, parsed_value] = parsing_key_value(buf, line);
 					if( not curr_group )
 					{
 						system_error::loc_throw (
@@ -326,7 +326,7 @@ public:
 							"libgs::basic_ini"
 						);
 					}
-					(*curr_group)[std::move(key)] = std::move(value);
+					(*curr_group)[std::move(key)] = std::move(parsed_value);
 				}
 			}
 		}
@@ -374,29 +374,29 @@ public:
 					 << l_str(char_t,"]")
 					 << l_str(char_t,"\n");
 
-				for(auto &[key, value] : values)
+				for(auto &[key, entry_value] : values)
 				{
-					if( key.empty() or value->empty() )
+					if( key.empty() or entry_value->empty() )
 						continue;
 
 					file << (strtls::is_ascii(key) ? key : to_percent_encoding(key))
 						 << l_str(char_t,"=");
 
-					if( value.is_rlnum() )
+					if( entry_value.is_rlnum() )
 					{
-						if( value->front() == 0x2B/*+*/ )
-							value = value->substr(1);
-						file << value.to_string();
+						if( entry_value->front() == 0x2B/*+*/ )
+							entry_value = entry_value->substr(1);
+						file << entry_value.to_string();
 					}
 					else
 					{
-						auto str = value.to_string();
+						auto str = entry_value.to_string();
 						if( str == "true" or str == "false" )
 							file << str;
 						else
 						{
 							file << l_str(char_t,"\"")
-								 << (value.is_ascii() ? str : to_percent_encoding(str))
+								 << (entry_value.is_ascii() ? str : to_percent_encoding(str))
 								 << l_str(char_t,"\"");
 						}
 					}
@@ -458,8 +458,8 @@ public:
 					break;
 				detail::ini_commit_io_work([self, data = self->data()]
 				{
-					error_code error; LIBGS_UNUSED(error);
-					self->sync(std::move(data), error, []{return false;});
+					error_code sync_error; LIBGS_UNUSED(sync_error);
+					self->sync(std::move(data), sync_error, []{return false;});
 				});
 			}
 			co_return ;
@@ -471,8 +471,8 @@ public:
 	{
 		for(auto &[group, values] : data)
 		{
-			for(auto &[key, value] : values)
-				m_groups[std::move(group)][std::move(key)] = std::move(value);
+			for(auto &[key, entry_value] : values)
+				m_groups[std::move(group)][std::move(key)] = std::move(entry_value);
 		}
 	}
 
@@ -481,8 +481,8 @@ public:
 		data_t data;
 		for(auto &[group, values] : m_groups)
 		{
-			for(auto &[key, value] : values)
-				data[group][key] = value;
+			for(auto &[key, entry_value] : values)
+				data[group][key] = entry_value;
 		}
 		return data;
 	}
@@ -542,22 +542,22 @@ private:
 				"libgs::basic_ini"
 			);
 		}
-		auto value = strtls::trimmed(str.substr(pos+1));
+		auto parsed_value = strtls::trimmed(str.substr(pos+1));
 		{
 			int i = 0;
-			for(; i<static_cast<int>(value.size()); i++)
+			for(; i<static_cast<int>(parsed_value.size()); i++)
 			{
-				if( value[i] != static_cast<char_t>('=') )
+				if( parsed_value[i] != static_cast<char_t>('=') )
 					break;
 			}
 			if( --i >= 0 )
-				value = value.substr(0,i);
+				parsed_value = parsed_value.substr(0,i);
 		}
-		if( value.size() == 1 )
+		if( parsed_value.size() == 1 )
 		{
-			if( value[0] == static_cast<char_t>('=') or
-				value[0] == static_cast<char_t>('\'') or
-				value[0] == static_cast<char_t>('"') )
+			if( parsed_value[0] == static_cast<char_t>('=') or
+				parsed_value[0] == static_cast<char_t>('\'') or
+				parsed_value[0] == static_cast<char_t>('"') )
 			{
 				system_error::loc_throw (
 					std::error_code(static_cast<int>(line), detail::ini_invalid_value()),
@@ -565,19 +565,19 @@ private:
 				);
 			}
 		}
-		else if( value[0] == static_cast<char_t>('\'') or value[0] == static_cast<char_t>('"') )
+		else if( parsed_value[0] == static_cast<char_t>('\'') or parsed_value[0] == static_cast<char_t>('"') )
 		{
-			if( value.back() != value[0] )
+			if( parsed_value.back() != parsed_value[0] )
 			{
 				system_error::loc_throw (
 					std::error_code(static_cast<int>(line), detail::ini_invalid_value()),
 					"libgs::basic_ini"
 				);
 			}
-			value = value.substr(1, value.size() - 2);
+			parsed_value = parsed_value.substr(1, parsed_value.size() - 2);
 		}
 		return std::pair<string_t,value_t>(
-			detail::ini_replace<char_t>(key), from_percent_encoding(value)
+			detail::ini_replace<char_t>(key), from_percent_encoding(parsed_value)
 		);
 	}
 
@@ -596,8 +596,8 @@ public:
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 basic_ini<CharT,Exec,Map,MapArgs...>::group_key::group_key
-(const concepts::text_p<char_t> auto &group, const concepts::text_p<char_t> auto &key) noexcept :
-	group(impl::replace(group)), key(impl::replace(key))
+	(const concepts::text_p<char_t> auto &group_name, const concepts::text_p<char_t> auto &key_name) noexcept :
+	group(impl::replace(group_name)), key(impl::replace(key_name))
 {
 
 }
@@ -738,20 +738,20 @@ optional<basic_value<CharT>> basic_ini<CharT,Exec,Map,MapArgs...>::read
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::write
-(group_key gk, concepts::value_set<char_t> auto &&value) noexcept
+	(group_key gk, concepts::value_set<char_t> auto &&new_value) noexcept
 {
 	m_impl->m_groups[std::move(gk.group)].write (
-		std::move(gk.key), std::forward<decltype(value)>(value)
+		std::move(gk.key), std::forward<decltype(new_value)>(new_value)
 	);
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::write
-(const concepts::string_p<char_t> auto &path, concepts::value_set<char_t> auto &&value) noexcept
+	(const concepts::string_p<char_t> auto &path, concepts::value_set<char_t> auto &&new_value) noexcept
 {
 	auto pair = m_impl->from_path(path, "write");
-	write(std::move(pair), std::forward<decltype(value)>(value));
+	write(std::move(pair), std::forward<decltype(new_value)>(new_value));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -982,24 +982,25 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 		m_impl->m_cancel_vector.emplace_back(cflag);
 
 		auto slot = asio::get_associated_cancellation_slot(token);
-		cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(slot)]{
-			return *cflag or state.cancelled() != asio::cancellation_type::none;
+		cancelled = [cancellation_flag = std::move(cflag), state = asio::cancellation_state(slot)]{
+			return *cancellation_flag or state.cancelled() != asio::cancellation_type::none;
 		};
 		return async_work<error_code>::handle(get_executor(),
-		[impl = m_impl, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
+		[ini_impl = m_impl, cancellation_check = std::move(cancelled)](auto completion_handler, auto exec) mutable
 		{
-			using handle_t = std::remove_cvref_t<decltype(handle)>;
+			using handle_t = std::remove_cvref_t<decltype(completion_handler)>;
 			detail::ini_commit_io_work([
-				impl, cancelled = std::move(cancelled),
-				handle = std::make_shared<handle_t>(std::move(handle)), exec
+				ini_impl, io_cancelled = std::move(cancellation_check),
+				shared_handler = std::make_shared<handle_t>(std::move(completion_handler)), exec
 			]() mutable
 			{
 				error_code error;
-				auto data = impl->load(error, cancelled); // !!! thread
-				dispatch(exec, [impl, data = std::move(data), handle = std::move(handle), error]() mutable
+				auto data = ini_impl->load(error, io_cancelled); // !!! thread
+				dispatch(exec, [ini_impl, loaded_data = std::move(data),
+					completion = std::move(shared_handler), error]() mutable
 				{
-					impl->set_data(std::move(data));
-					std::move(*handle)(error);
+					ini_impl->set_data(std::move(loaded_data));
+					std::move(*completion)(error);
 				});
 			});
 		},
@@ -1020,8 +1021,8 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load_or(Token &&token)
 		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
 		{
 			using handle_t = std::remove_cvref_t<decltype(handle)>;
-			dispatch(exec, [handle = std::make_shared<handle_t>(std::move(handle))]() mutable {
-				std::move(*handle)(std::error_code());
+			dispatch(exec, [shared_handler = std::make_shared<handle_t>(std::move(handle))]() mutable {
+				std::move(*shared_handler)(std::error_code());
 			});
 		},
 		std::forward<Token>(token));
@@ -1065,22 +1066,22 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(Token &&token)
 		m_impl->m_cancel_vector.emplace_back(cflag);
 
 		auto slot = asio::get_associated_cancellation_slot(token);
-		cancelled = [cflag = std::move(cflag), state = asio::cancellation_state(slot)]{
-			return *cflag or state.cancelled() != asio::cancellation_type::none;
+		cancelled = [cancellation_flag = std::move(cflag), state = asio::cancellation_state(slot)]{
+			return *cancellation_flag or state.cancelled() != asio::cancellation_type::none;
 		};
 		return async_work<error_code>::handle(get_executor(),
-		[impl = m_impl, cancelled = std::move(cancelled)](auto handle, auto exec) mutable
+		[ini_impl = m_impl, cancellation_check = std::move(cancelled)](auto completion_handler, auto exec) mutable
 		{
-			using handle_t = std::remove_cvref_t<decltype(handle)>;
+			using handle_t = std::remove_cvref_t<decltype(completion_handler)>;
 			detail::ini_commit_io_work([
-				impl, data = impl->data(), cancelled = std::move(cancelled),
-				handle = std::make_shared<handle_t>(std::move(handle)), exec
+				ini_impl, data = ini_impl->data(), io_cancelled = std::move(cancellation_check),
+				shared_handler = std::make_shared<handle_t>(std::move(completion_handler)), exec
 			]() mutable
 			{
 				error_code error;
-				impl->sync(std::move(data), error, cancelled);
-				dispatch(exec, [handle = std::move(handle), error]() mutable {
-					std::move(*handle)(error);
+				ini_impl->sync(std::move(data), error, io_cancelled);
+				dispatch(exec, [completion = std::move(shared_handler), error]() mutable {
+					std::move(*completion)(error);
 				});
 			});
 		},
