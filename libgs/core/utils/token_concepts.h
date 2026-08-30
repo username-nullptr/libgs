@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -302,6 +302,18 @@ concept use_awaitable = is_use_awaitable_v<T>;
 
 template <typename T>
 concept use_awaitable_p = use_awaitable<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept use_future = is_use_future_v<T>;
+
+template <typename T>
+concept use_future_p = use_future<std::remove_cvref_t<T>>;
+
+template <typename T>
+concept detached = is_detached_v<T>;
+
+template <typename T>
+concept detached_p = detached<std::remove_cvref_t<T>>;
 
 template <typename T>
 concept redirect_error = is_redirect_error_v<T>;

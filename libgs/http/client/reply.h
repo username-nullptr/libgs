@@ -68,7 +68,7 @@ public:
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token =
-		core_concepts::tf_opt_token<Token,error_code,size_t> and
+		task_token_v<Token,size_t> and
 		concepts::file_opt_token_p <
 			T, char, file_optype::single, io_permission::write
 		>;

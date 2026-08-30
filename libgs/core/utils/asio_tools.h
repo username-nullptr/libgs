@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2025 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -56,15 +56,11 @@ template <typename...Args>
 [[nodiscard]] LIBGS_CORE_TAPI auto buffer(Args&&...args)
 	requires (sizeof...(Args) > 0);
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) get_executor_helper (
-	concepts::sched auto &&exec
-);
+template <typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI
+decltype(auto) unbound_token(Token &&token);
 
-[[nodiscard]] LIBGS_CORE_TAPI decltype(auto) unbound_token (
-	concepts::any_tf_opt_token auto &&token
-);
-
-template <concepts::any_tf_opt_token Token>
+template <typename Token>
 struct token_unbound
 {
 	using type = std::remove_cvref_t <
@@ -72,8 +68,11 @@ struct token_unbound
 	>;
 };
 
-template <concepts::any_tf_opt_token Token>
+template <typename Token>
 using token_unbound_t = token_unbound<Token>::type;
+
+[[nodiscard]] LIBGS_CORE_TAPI
+decltype(auto) get_executor_helper(concepts::sched auto &&exec);
 
 } //namespace libgs
 #include <libgs/core/utils/detail/asio_tools.h>

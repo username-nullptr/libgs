@@ -19,3 +19,10 @@ target_compile_options(${target_name} PRIVATE
 set_target_properties(${target_name} PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
 )
+
+set(http_io_token_test libgs.http_io_token_test)
+add_executable(${http_io_token_test} http_io_token_test.cpp)
+target_link_libraries(${http_io_token_test} PRIVATE gs.http gs.utils)
+set_target_properties(${http_io_token_test} PROPERTIES
+	RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
+)

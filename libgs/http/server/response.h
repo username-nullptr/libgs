@@ -71,22 +71,17 @@ public:
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
-
-	template <typename Token, typename...Value>
-	static constexpr bool write_task_token_v =
 		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...>;
 
 	// As with Asio's basic I/O operations, asynchronous writes borrow body until
 	// completion. detached is the exception: it owns a copy until completion.
 	template <typename Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
-		requires write_task_token_v<Token,size_t>;
+		requires task_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
 	auto write(Token &&token = {})
-		requires write_task_token_v<Token,size_t>;
+		requires task_token_v<Token,size_t>;
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token_v =

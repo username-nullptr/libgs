@@ -1474,7 +1474,7 @@ bool basic_response<Exec>::auto_compression() const noexcept
 template <core_concepts::exec Exec>
 template <typename Token>
 auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
-	requires write_task_token_v<Token,size_t>
+	requires task_token_v<Token,size_t>
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
@@ -1536,7 +1536,7 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 template <core_concepts::exec Exec>
 template <typename Token>
 auto basic_response<Exec>::write(Token &&token)
-	requires write_task_token_v<Token,size_t>
+	requires task_token_v<Token,size_t>
 {
 	return write({nullptr,0}, std::forward<Token>(token));
 }
