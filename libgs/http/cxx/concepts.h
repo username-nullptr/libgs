@@ -134,13 +134,13 @@ concept progress_handler =
 	libgs::concepts::callable<Func,size_t,size_t> and
 	[]() consteval -> bool
 	{
-		using token_t = decltype(unbound_token(std::declval<Token>()));
+		using token_t = token_unbound_t<Token>;
 		using return_t = decltype(std::declval<Func>()(0,0));
 
 		if constexpr( (is_use_awaitable_v<token_t> or is_deferred_v<token_t>) and
 			is_awaitable_v<return_t> )
 		{
-			using co_return_t = return_t::value_t;
+			using co_return_t = return_t::value_type;
 			return std::is_same_v<co_return_t, bool> or
 				   std::is_same_v<co_return_t, void>;
 		}

@@ -81,7 +81,7 @@ const value &parameter_map::operator[](std::string_view key) const
 	auto it = find(key);
 	if( it == end() )
 	{
-		throw std::out_of_range (
+		out_of_range::loc_throw (
 			"libgs::http::parameter_map: key not found"
 		);
 	}

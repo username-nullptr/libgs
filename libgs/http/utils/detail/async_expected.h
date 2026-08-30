@@ -121,64 +121,87 @@ template <typename Value, typename Factory>
 	if( result.index() == 0 )
 		co_return std::move(std::get<0>(result));
 
-	const auto &timer_error = std::get<1>(result);
-	if( timer_error )
+	if( const auto &timer_error = std::get<1>(result) )
 		co_return sys_unexpected(timer_error);
 	co_return sys_unexpected(make_error_code(errc::timed_out));
 }
 
-template <typename Value, typename Factory, typename Handler>
-[[nodiscard]] awaitable<void> co_complete_expected
-(Factory factory, std::chrono::nanoseconds timeout, std::shared_ptr<Handler> handler)
+inline error_code exception_error(const std::exception_ptr &exception) noexcept
 {
-	error_code error {};
-	Value value {};
+	if( not exception )
+		return {};
 	try {
-		auto result = co_await co_expected_with_timeout<Value>(
-			std::move(factory), timeout
-		);
-		if( result )
-			value = std::move(*result);
-		else
-			error = result.error();
+		std::rethrow_exception(exception);
 	}
 	catch(const std::system_error &ex) {
-		error = ex.code();
+		return ex.code();
 	}
 	catch(const std::bad_alloc&) {
-		error = make_error_code(std::errc::not_enough_memory);
+		return make_error_code(std::errc::not_enough_memory);
 	}
-	catch(...) {
-		error = make_error_code(std::errc::io_error);
-	}
-	std::move(*handler)(error, std::move(value));
-	co_return ;
+	catch(...) {}
+	return make_error_code(std::errc::io_error);
+}
+
+template <typename Value, core_concepts::exec Exec, typename Factory, typename Token>
+[[nodiscard]] auto initiate_expected_impl
+(const Exec &exec, Factory factory_fn,
+	std::chrono::nanoseconds timeout, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code,Value)>(
+	[exec, operation = std::move(factory_fn), timeout]
+	(auto completion_handler) mutable
+	{
+		auto slot = asio::get_associated_cancellation_slot(completion_handler);
+		auto completion_exec = asio::get_associated_executor(
+			completion_handler, exec
+		);
+		auto allocator = asio::get_associated_allocator(completion_handler);
+
+		asio::co_spawn(exec,
+			co_expected_with_timeout<Value>(std::move(operation), timeout),
+			asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot,
+				[handler = std::move(completion_handler)]
+				(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+				{
+					if( auto error = exception_error(exception) )
+					{
+						std::move(handler)(error, Value{});
+						return ;
+					}
+					if( not result )
+						std::move(handler)(result.error(), Value{});
+					else
+						std::move(handler)(error_code{}, std::move(*result));
+				}))
+			)
+		);
+	},
+	completion_token);
 }
 
 template <typename Value, core_concepts::exec Exec, typename Factory, typename Token>
 [[nodiscard]] auto initiate_expected(const Exec &exec, Factory factory, Token &&token)
 {
-	auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(
-		get_associated_redirect_time(token)
-	);
-	decltype(auto) no_time_token = unbound_redirect_time(
-		std::forward<Token>(token)
-	);
-	return async_work<error_code,Value>::handle(exec,
-	[exec, factory = std::move(factory), timeout](auto handler) mutable
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_redirect_time_v<token_t> )
 	{
-		using handler_t = std::remove_cvref_t<decltype(handler)>;
-		auto handler_ptr = std::make_shared<handler_t>(std::move(handler));
-		auto slot = asio::get_associated_cancellation_slot(*handler_ptr);
-
-		asio::co_spawn(exec,
-			co_complete_expected<Value>(
-				std::move(factory), timeout, std::move(handler_ptr)
-			),
-			asio::bind_cancellation_slot(slot, detached)
+		token_t timed_token(std::forward<Token>(token));
+		return initiate_expected_impl<Value>(exec, std::move(factory),
+			std::chrono::duration_cast<std::chrono::nanoseconds>(timed_token.time),
+			std::move(timed_token.token)
 		);
-	},
-	std::forward<decltype(no_time_token)>(no_time_token));
+	}
+	else
+	{
+		return initiate_expected_impl<Value>(exec, std::move(factory),
+			std::chrono::nanoseconds::zero(), std::forward<Token>(token)
+		);
+	}
 }
 
 template <typename Factory>
@@ -190,58 +213,209 @@ template <typename Factory>
 	co_return std::monostate {};
 }
 
-template <typename Factory, typename Handler>
-[[nodiscard]] awaitable<void> co_complete_expected_void
-(Factory factory, std::chrono::nanoseconds timeout, std::shared_ptr<Handler> handler)
+template <core_concepts::exec Exec, typename Factory, typename Token>
+[[nodiscard]] auto initiate_expected_void_impl
+(const Exec &exec, Factory factory_fn,
+	std::chrono::nanoseconds timeout, Token &&token)
 {
-	error_code error {};
-	try {
-		auto result = co_await co_expected_with_timeout<std::monostate>(
-			[factory = std::move(factory)]() mutable {
-				return co_void_expected_value(std::move(factory));
-			},
-			timeout
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code)>(
+	[exec, operation = std::move(factory_fn), timeout]
+	(auto completion_handler) mutable
+	{
+		auto slot = asio::get_associated_cancellation_slot(completion_handler);
+		auto completion_exec = asio::get_associated_executor(
+			completion_handler, exec
 		);
-		if( not result )
-			error = result.error();
-	}
-	catch(const std::system_error &ex) {
-		error = ex.code();
-	}
-	catch(const std::bad_alloc&) {
-		error = make_error_code(std::errc::not_enough_memory);
-	}
-	catch(...) {
-		error = make_error_code(std::errc::io_error);
-	}
-	std::move(*handler)(error);
-	co_return ;
+		auto allocator = asio::get_associated_allocator(completion_handler);
+
+		asio::co_spawn(exec,
+			co_expected_with_timeout<std::monostate>(
+				[void_operation = std::move(operation)]() mutable {
+					return co_void_expected_value(std::move(void_operation));
+				}, timeout
+			),
+			asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot,
+				[handler = std::move(completion_handler)]
+				(const std::exception_ptr &exception, sys_expected<std::monostate> result) mutable
+				{
+					if( auto error = exception_error(exception) )
+						std::move(handler)(error);
+					else if( not result )
+						std::move(handler)(result.error());
+					else
+						std::move(handler)(error_code{});
+				}))
+			)
+		);
+	},
+	completion_token);
 }
 
 template <core_concepts::exec Exec, typename Factory, typename Token>
 [[nodiscard]] auto initiate_expected_void(const Exec &exec, Factory factory, Token &&token)
 {
-	auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(
-		get_associated_redirect_time(token)
-	);
-	decltype(auto) no_time_token = unbound_redirect_time(
-		std::forward<Token>(token)
-	);
-	return async_work<error_code>::handle(exec,
-	[exec, factory = std::move(factory), timeout](auto handler) mutable
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_redirect_time_v<token_t> )
 	{
-		using handler_t = std::remove_cvref_t<decltype(handler)>;
-		auto handler_ptr = std::make_shared<handler_t>(std::move(handler));
-		auto slot = asio::get_associated_cancellation_slot(*handler_ptr);
-
-		asio::co_spawn(exec,
-			co_complete_expected_void (
-				std::move(factory), timeout, std::move(handler_ptr)
-			),
-			asio::bind_cancellation_slot(slot, detached)
+		token_t timed_token(std::forward<Token>(token));
+		return initiate_expected_void_impl(exec, std::move(factory),
+			std::chrono::duration_cast<std::chrono::nanoseconds>(timed_token.time),
+			std::move(timed_token.token)
 		);
+	}
+	else
+	{
+		return initiate_expected_void_impl(exec, std::move(factory),
+			std::chrono::nanoseconds::zero(), std::forward<Token>(token)
+		);
+	}
+}
+
+// Normal completion tokens are passed straight to a compile-time composed
+// operation. Only a positive redirect_time needs the coroutine timer race.
+template <typename Value, core_concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] auto initiate_io_direct
+(const Exec &exec, Initiator initiation, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code,Value)>(
+	[exec, start = std::move(initiation)](auto completion_handler) mutable
+	{
+		auto completion_exec = asio::get_associated_executor(
+			completion_handler, exec
+		);
+		auto slot = asio::get_associated_cancellation_slot(completion_handler);
+		auto allocator = asio::get_associated_allocator(completion_handler);
+
+		auto bridge = asio::bind_allocator(allocator,
+			asio::bind_executor(completion_exec, asio::bind_cancellation_slot(slot,
+				[completion_exec, allocator,
+				 handler = std::move(completion_handler)]
+				(error_code error, Value value) mutable
+				{
+					asio::post(completion_exec, asio::bind_allocator(allocator,
+					[final_handler = std::move(handler), error,
+					 result_value = std::move(value)]() mutable
+					{
+						std::move(final_handler)(
+							error, std::move(result_value)
+						);
+					}));
+				})
+			)
+		);
+		start(std::move(bridge));
 	},
-	std::forward<decltype(no_time_token)>(no_time_token));
+	completion_token);
+}
+
+template <core_concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] auto initiate_io_direct_void
+(const Exec &exec, Initiator initiation, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code)>(
+	[exec, start = std::move(initiation)](auto completion_handler) mutable
+	{
+		auto completion_exec = asio::get_associated_executor(
+			completion_handler, exec
+		);
+		auto slot = asio::get_associated_cancellation_slot(completion_handler);
+		auto allocator = asio::get_associated_allocator(completion_handler);
+
+		auto bridge = asio::bind_allocator(allocator,
+			asio::bind_executor(completion_exec, asio::bind_cancellation_slot(slot,
+				[completion_exec, allocator,
+				 handler = std::move(completion_handler)]
+				(error_code error) mutable
+				{
+					asio::post(completion_exec, asio::bind_allocator(allocator,
+					[final_handler = std::move(handler), error]() mutable {
+						std::move(final_handler)(error);
+					}));
+				})
+			)
+		);
+		start(std::move(bridge));
+	},
+	completion_token);
+}
+
+template <typename Value, core_concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] auto initiate_io
+(const Exec &exec, Initiator initiation, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_redirect_time_v<token_t> )
+	{
+		token_t timed_token(std::forward<Token>(token));
+		if( timed_token.time <= milliseconds::zero() )
+		{
+			return initiate_io_direct<Value>(exec, std::move(initiation),
+				std::move(timed_token.token)
+			);
+		}
+		return initiate_expected<Value>(exec,
+		[operation = std::move(initiation)]() mutable
+		-> awaitable<sys_expected<Value>>
+		{
+			error_code error {};
+			auto value = co_await operation(
+				asio::redirect_error(use_awaitable, error)
+			);
+			if( error )
+				co_return sys_unexpected(error);
+			co_return std::move(value);
+		},
+		std::move(timed_token));
+	}
+	else
+	{
+		return initiate_io_direct<Value>(exec, std::move(initiation),
+			std::forward<Token>(token)
+		);
+	}
+}
+
+template <core_concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] auto initiate_io_void
+(const Exec &exec, Initiator initiation, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	if constexpr( is_redirect_time_v<token_t> )
+	{
+		token_t timed_token(std::forward<Token>(token));
+		if( timed_token.time <= milliseconds::zero() )
+		{
+			return initiate_io_direct_void(exec, std::move(initiation),
+				std::move(timed_token.token)
+			);
+		}
+		return initiate_expected_void(exec,
+		[operation = std::move(initiation)]() mutable -> awaitable<sys_expected<>>
+		{
+			error_code error {};
+			co_await operation(asio::redirect_error(use_awaitable, error));
+			if( error )
+				co_return sys_unexpected(error);
+			co_return make_sys_expected();
+		},
+		std::move(timed_token));
+	}
+	else
+	{
+		return initiate_io_direct_void(exec, std::move(initiation),
+			std::forward<Token>(token)
+		);
+	}
 }
 
 } //namespace libgs::http::detail

@@ -57,13 +57,13 @@ public:
 	using headers_t = http::headers;
 
 public:
-	explicit basic_response(connection_ptr connection);
+	explicit basic_response(connection_ptr conn);
 	~basic_response() override;
 
 public:
 	[[nodiscard]] version_enum version() const noexcept;
 	basic_response &set_status(status_enum status);
-	basic_response &auto_set(request_t &request);
+	basic_response &auto_set(request_t &req);
 
 	basic_response &set_auto_compression(bool enabled = true) noexcept;
 	[[nodiscard]] bool auto_compression() const noexcept;
@@ -106,7 +106,7 @@ public:
 		requires task_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
-	auto chunk_end(const headers_t &headers, Token &&token = {})
+	auto chunk_end(const headers_t &trailing_headers, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
@@ -122,7 +122,7 @@ public:
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
 using response = basic_response<>;

@@ -163,7 +163,7 @@ std::basic_string<CharT> to_string(concepts::integral_p auto &&value, size_t bas
 {
 	if( base < 2 or base > 36 )
 	{
-		throw std::invalid_argument (
+		invalid_argument::loc_throw (
 			"libgs::strtls::to_string: Invalid base - must be between 2 and 36"
 		);
 	}

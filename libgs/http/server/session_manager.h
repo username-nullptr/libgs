@@ -49,7 +49,8 @@ public:
 public: // Fucking msvc !!!
 	template <typename Session, typename...Args>
 	[[nodiscard]] std::shared_ptr<Session> make(Args&&...args) requires
-		core_concepts::base_of<Session,session> and core_concepts::constructible<Session,Args...>;
+		core_concepts::base_of<Session,session> and
+		core_concepts::constructible<Session,Args...>;
 
 	template <typename...Args>
 	[[nodiscard]] std::shared_ptr<session> make(Args&&...args) requires
@@ -70,15 +71,23 @@ public: // Fucking msvc !!!
 
 public: // Fucking msvc !!!
 	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> get(const core_concepts::text_p<char> auto &id) requires
-		core_concepts::base_of<Session,session>;
+	[[nodiscard]] std::shared_ptr<Session> get (
+		const core_concepts::text_p<char> auto &id
+	) requires
+	core_concepts::base_of<Session,session>;
 
 	template <typename Session>
-	[[nodiscard]] std::shared_ptr<Session> get_or(const core_concepts::text_p<char> auto &id) requires
-		core_concepts::base_of<Session,session>;
+	[[nodiscard]] std::shared_ptr<Session> get_or (
+		const core_concepts::text_p<char> auto &id
+	) requires
+	core_concepts::base_of<Session,session>;
 
-	[[nodiscard]] std::shared_ptr<session> get(const core_concepts::text_p<char> auto &id);
-	[[nodiscard]] std::shared_ptr<session> get_or(const core_concepts::text_p<char> auto &id) noexcept;
+	[[nodiscard]] std::shared_ptr<session> get (
+		const core_concepts::text_p<char> auto &id
+	);
+	[[nodiscard]] std::shared_ptr<session> get_or (
+		const core_concepts::text_p<char> auto &id
+	) noexcept;
 
 public:
 	template <typename Rep, typename Period>

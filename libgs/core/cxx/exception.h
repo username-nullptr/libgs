@@ -50,7 +50,6 @@ public:
 	template <typename Arg0, typename...Args>
 	runtime_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
-public:
 	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);
@@ -65,7 +64,6 @@ public:
 	template <typename Arg0, typename...Args>
 	invalid_argument(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
-public:
 	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);
@@ -80,7 +78,6 @@ public:
 	template <typename Arg0, typename...Args>
 	logic_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
-public:
 	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);
@@ -95,7 +92,20 @@ public:
 	template <typename Arg0, typename...Args>
 	length_error(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
 
+	[[noreturn]] static void loc_throw(std::string_view msg,
+		std::source_location loc = std::source_location::current()
+	);
+};
+
+class LIBGS_CORE_VAPI out_of_range : public std::out_of_range
+{
 public:
+	using std::out_of_range::out_of_range;
+	~out_of_range() noexcept override = default;
+
+	template <typename Arg0, typename...Args>
+	out_of_range(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+
 	[[noreturn]] static void loc_throw(std::string_view msg,
 		std::source_location loc = std::source_location::current()
 	);

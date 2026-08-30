@@ -34,7 +34,8 @@ namespace libgs::http
 {
 
 template <core_concepts::exec Exec, version_enum Version>
-class LIBGS_HTTP_TAPI basic_client<Exec,Version>::impl
+class LIBGS_HTTP_TAPI basic_client<Exec,Version>::impl :
+	public std::enable_shared_from_this<impl>
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
@@ -202,81 +203,128 @@ private:
 		return {};
 	}
 
-	template <method_enum Method>
-	[[nodiscard]] awaitable<result_t<Method>>
-	co_follow_redirects(context_ptr<Method> current, req_info info) noexcept
+	template <method_enum Method, typename Token>
+	[[nodiscard]] auto async_follow_redirects(context_ptr<Method> current, req_info info, Token &&token)
 	{
 		static_assert (
 			Method == method::get or Method == method::head
 		);
-		using namespace libgs::operators;
+		using token_t = std::remove_cvref_t<Token>;
 
-		for(size_t followed=0; ; followed++)
-		{
-			error_code io_error {};
-			auto reply_status = co_await current->wait_reply (
-				use_awaitable | io_error
-			);
-			if( io_error )
-				co_return sys_unexpected(io_error);
+		token_t completion_token(std::forward<Token>(token));
+		auto operation = this->shared_from_this();
 
-			while( current->reply()->parser().is_informational() )
+		return asio::async_initiate<token_t,void(error_code,context_ptr<Method>)>
+		(
+			asio::co_composed<void(error_code,context_ptr<Method>)>(
+			[](auto state, std::shared_ptr<impl> self,
+				context_ptr<Method> active_context, req_info request_info) -> void
 			{
-				reply_status = co_await current->wait_reply(
-					use_awaitable | io_error
-				);
-				if( io_error )
-					co_return sys_unexpected(io_error);
-			}
-			if( not redirect_status(reply_status) or followed == info.max_redirects )
-				co_return current;
-
-			auto location = current->reply()->header(header::location);
-			if( not location )
-				co_return current;
-
-			if constexpr( Method == method::get )
-			{
-				std::array<char,8192> data {};
-				for(;;)
+				ignore_unused(state);
+				for(size_t followed = 0; ; ++followed)
 				{
-					ignore_unused(co_await current->reply()->read (
-						buffer(data), use_awaitable | io_error
-					));
-					if( not io_error )
-						continue;
-					if( io_error != errc::eof )
-						co_return sys_unexpected(io_error);
-					break;
-				}
-			}
-			try {
-				auto next = url_t::resolve(info.url, **location);
-				if( not same_origin(info.url, next) )
-				{
-					info.arg.unset_header(header::authorization);
-					info.arg.cookies().clear();
-				}
-				info.url = std::move(next);
-			}
-			catch(...)
-			{
-				co_return sys_unexpected (
-					make_error_code(std::errc::protocol_error)
-				);
-			}
-			auto next = co_await co_make_context<Method>(info);
-			if( not next )
-				co_return next;
-			current = std::move(*next);
+					auto [wait_error, reply_status] =
+						co_await active_context->wait_reply(asio::as_tuple(deferred));
+					if( wait_error )
+					{
+						co_return std::tuple<error_code,context_ptr<Method>>{
+							wait_error, {}
+						};
+					}
+					while( active_context->reply()->parser().is_informational() )
+					{
+						auto [informational_error, informational_status] =
+							co_await active_context->wait_reply (
+								asio::as_tuple(deferred)
+							);
+						if( informational_error )
+						{
+							co_return std::tuple<error_code,context_ptr<Method>> {
+								informational_error, {}
+							};
+						}
+						reply_status = informational_status;
+					}
+					if( not redirect_status(reply_status) or followed == request_info.max_redirects )
+					{
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							error_code{}, std::move(active_context)
+						};
+					}
+					auto location = active_context->reply()->header(header::location);
+					if( not location )
+					{
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							error_code{}, std::move(active_context)
+						};
+					}
+					if constexpr( Method == method::get )
+					{
+						std::array<char,8192> redirect_body {};
+						for(;;)
+						{
+							auto [read_error, bytes] =
+								co_await active_context->reply()->read (
+									buffer(redirect_body), asio::as_tuple(deferred)
+								);
+							ignore_unused(bytes);
+							if( not read_error )
+								continue;
 
-			ignore_unused(co_await current->write (
-				use_awaitable | io_error
-			));
-			if( io_error )
-				co_return sys_unexpected(io_error);
-		}
-		co_return result_t<Method>();
+							if( read_error != errc::eof )
+							{
+								co_return std::tuple<error_code,context_ptr<Method>> {
+									read_error, {}
+								};
+							}
+							break;
+						}
+					}
+					try {
+						auto resolved_url = url_t::resolve (
+							request_info.url, **location
+						);
+						if( not same_origin(request_info.url, resolved_url) )
+						{
+							request_info.arg.unset_header(header::authorization);
+							request_info.arg.cookies().clear();
+						}
+						request_info.url = std::move(resolved_url);
+					}
+					catch(...)
+					{
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							make_error_code(std::errc::protocol_error), {}
+						};
+					}
+					auto [context_error, next_context] =
+						co_await self->template async_make_context<Method>(
+							request_info, asio::as_tuple(deferred)
+						);
+					if( context_error )
+					{
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							context_error, {}
+						};
+					}
+					active_context = std::move(next_context);
+					auto [write_error, bytes] = co_await active_context->write(
+						asio::as_tuple(deferred)
+					);
+					ignore_unused(bytes);
+
+					if( write_error )
+					{
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							write_error, {}
+						};
+					}
+				}
+			},
+			m_pool.get_executor()),
+			completion_token, std::move(operation), std::move(current),
+			std::move(info)
+		);
 	}
 
 public:
@@ -291,6 +339,7 @@ public:
 
 		error_code io_error {};
 		ignore_unused((*context_expected)->write(io_error));
+
 		if( io_error )
 			return sys_unexpected(io_error);
 
@@ -322,51 +371,87 @@ public:
 		return context_expected;
 	}
 
-	template <method_enum Method>
-	[[nodiscard]] awaitable<result_t<Method>> co_request(req_info info) noexcept
+	template <method_enum Method, typename Token>
+	[[nodiscard]] auto async_request(req_info info, Token &&token)
 	{
-		using namespace libgs::operators;
-		const bool continue_100 = expects_continue(info);
-		auto context_expected = co_await co_make_context<Method>(info);
+		using token_t = std::remove_cvref_t<Token>;
+		token_t completion_token(std::forward<Token>(token));
+		auto operation = this->shared_from_this();
 
-		if( not context_expected )
-			co_return context_expected;
-
-		error_code io_error {};
-		ignore_unused(co_await (*context_expected)->write (
-			use_awaitable | io_error
-		));
-		if( io_error )
-			co_return sys_unexpected(io_error);
-
-		if( continue_100 )
-		{
-			for(;;)
+		return asio::async_initiate<token_t,void(error_code,context_ptr<Method>)>
+		(
+			asio::co_composed<void(error_code,context_ptr<Method>)>(
+			[](auto state, std::shared_ptr<impl> self, req_info request_info) -> void
 			{
-				auto reply = (*context_expected)->reply();
-				auto reply_status = reply->status();
+				ignore_unused(state);
+				const bool wait_for_continue = expects_continue(request_info);
 
-				if( reply_status == status::continue_upload or
-					(reply_status != status::none and not reply->parser().is_informational()) )
-					break;
-
-				ignore_unused(co_await (*context_expected)->wait_reply (
-					use_awaitable | io_error
-				));
-				if( io_error )
-					co_return sys_unexpected(io_error);
-			}
-		}
-		if constexpr( Method == method::get or Method == method::head )
-		{
-			if( info.max_redirects > 0 )
-			{
-				co_return co_await co_follow_redirects<Method>(
-					std::move(*context_expected), std::move(info)
+				auto [context_error, active_context] =
+					co_await self->template async_make_context<Method>(
+						request_info, asio::as_tuple(deferred)
+					);
+				if( context_error )
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						context_error, {}
+					};
+				}
+				auto [write_error, bytes] = co_await active_context->write (
+					asio::as_tuple(deferred)
 				);
-			}
-		}
-		co_return context_expected;
+				ignore_unused(bytes);
+
+				if( write_error )
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						write_error, {}
+					};
+				}
+				if( wait_for_continue )
+				{
+					for(;;)
+					{
+						auto reply = active_context->reply();
+						auto reply_status = reply->status();
+
+						if( reply_status == status::continue_upload or
+							(reply_status != status::none and not reply->parser().is_informational()) )
+							break;
+
+						auto [wait_error, received_status] = co_await active_context->wait_reply (
+							asio::as_tuple(deferred)
+						);
+						ignore_unused(received_status);
+
+						if( wait_error )
+						{
+							co_return std::tuple<error_code,context_ptr<Method>> {
+								wait_error, {}
+							};
+						}
+					}
+				}
+				if constexpr( Method == method::get or Method == method::head )
+				{
+					if( request_info.max_redirects > 0 )
+					{
+						auto [redirect_error, redirected_context] =
+							co_await self->template async_follow_redirects<Method>(
+								std::move(active_context), std::move(request_info),
+								asio::as_tuple(deferred)
+							);
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							redirect_error, std::move(redirected_context)
+						};
+					}
+				}
+				co_return std::tuple<error_code,context_ptr<Method>> {
+					error_code{}, std::move(active_context)
+				};
+			},
+			m_pool.get_executor()),
+			completion_token, std::move(operation), std::move(info)
+		);
 	}
 
 public:
@@ -406,48 +491,93 @@ public:
 		return context_expected;
 	}
 
-	[[nodiscard]] awaitable<result_t<method::put>>
-	co_upload_file(req_info info, auto &opt, auto &progress) noexcept
+	template <typename AsyncOpt, typename AsyncProgress, typename Token>
+	[[nodiscard]] auto async_upload_file
+	(req_info info, AsyncOpt async_opt, AsyncProgress async_progress, Token &&token)
 	{
-		using namespace libgs::operators;
-		auto pair = info.arg.set_header(opt);
-		if( not pair )
-			co_return sys_unexpected(pair.error());
+		using opt_t = std::remove_cvref_t<AsyncOpt>;
+		using progress_t = std::remove_cvref_t<AsyncProgress>;
+		using token_t = std::remove_cvref_t<Token>;
 
-		auto context_expected = co_await co_request<method::put>(
-			std::move(info)
-		);
-		if( not context_expected )
-			co_return context_expected;
+		token_t completion_token(std::forward<Token>(token));
+		auto operation = this->shared_from_this();
 
-		auto &context = *context_expected;
-		if constexpr( version_v > version::v10 )
-		{
-			if( context->responded() and
-				context->reply()->status() != status::continue_upload )
+		return asio::async_initiate<token_t, void(error_code,context_ptr<method::put>)>
+		(
+			asio::co_composed<void(error_code,context_ptr<method::put>)>(
+			[](auto state, std::shared_ptr<impl> self,
+				req_info request_info, opt_t opt, progress_t progress) -> void
 			{
-				co_return context_expected;
-			}
-		}
-		else
-		{
-			if( context->responded() )
-				co_return context_expected;
-		}
-		error_code io_error {};
-		ignore_unused(co_await context->upload_file (
-			std::move(pair->first), std::move(pair->second), progress,
-			use_awaitable | io_error
-		));
-		if( io_error )
-			co_return sys_unexpected(io_error);
+				ignore_unused(state);
+				auto &upload_opt = detail::unwrap_async_argument(opt);
 
-		ignore_unused(co_await context->wait_reply (
-			use_awaitable | io_error
-		));
-		if( io_error )
-			co_return sys_unexpected(io_error);
-		co_return context_expected;
+				auto &progress_callback = detail::unwrap_async_argument(progress);
+				auto header_expected = request_info.arg.set_header(upload_opt);
+
+				if( not header_expected )
+				{
+					co_return std::tuple<error_code,context_ptr<method::put>> {
+						header_expected.error(), {}
+					};
+				}
+				auto [request_error, active_context] =
+					co_await self->template async_request<method::put>(
+						std::move(request_info), asio::as_tuple(deferred)
+					);
+				if( request_error )
+				{
+					co_return std::tuple<error_code,context_ptr<method::put>> {
+						request_error, {}
+					};
+				}
+				if constexpr( version_v > version::v10 )
+				{
+					if( active_context->responded() and
+						active_context->reply()->status() != status::continue_upload )
+					{
+						co_return std::tuple<error_code,context_ptr<method::put>> {
+							error_code{}, std::move(active_context)
+						};
+					}
+				}
+				else if( active_context->responded() )
+				{
+					co_return std::tuple<error_code,context_ptr<method::put>> {
+						error_code{}, std::move(active_context)
+					};
+				}
+				error_code upload_error {};
+				auto bytes = co_await active_context->upload_file (
+					std::move(header_expected->first),
+					std::move(header_expected->second), progress_callback,
+					asio::redirect_error(deferred, upload_error)
+				);
+				ignore_unused(bytes);
+
+				if( upload_error )
+				{
+					co_return std::tuple<error_code,context_ptr<method::put>> {
+						upload_error, {}
+					};
+				}
+				auto [wait_error, reply_status] =
+					co_await active_context->wait_reply(asio::as_tuple(deferred));
+
+				ignore_unused(reply_status);
+				if( wait_error )
+				{
+					co_return std::tuple<error_code,context_ptr<method::put>> {
+						wait_error, {}
+					};
+				}
+				co_return std::tuple<error_code,context_ptr<method::put>> {
+					error_code{}, std::move(active_context)
+				};
+			},
+			m_pool.get_executor()),
+			completion_token, std::move(operation), std::move(info),
+			std::move(async_opt), std::move(async_progress)
+		);
 	}
 
 	[[nodiscard]] result_t<method::get>
@@ -467,23 +597,58 @@ public:
 		return context_expected;
 	}
 
-	[[nodiscard]] awaitable<result_t<method::get>>
-	co_download_file(req_info info, auto &opt, auto &progress) noexcept
+	template <typename AsyncOpt, typename AsyncProgress, typename Token>
+	[[nodiscard]] auto async_download_file
+	(req_info info, AsyncOpt async_opt, AsyncProgress async_progress, Token &&token)
 	{
-		using namespace libgs::operators;
-		auto context_expected = co_await co_request<method::get>(
-			std::move(info)
-		);
-		if( not context_expected )
-			co_return context_expected;
+		using opt_t = std::remove_cvref_t<AsyncOpt>;
+		using progress_t = std::remove_cvref_t<AsyncProgress>;
+		using token_t = std::remove_cvref_t<Token>;
 
-		error_code io_error {};
-		ignore_unused(co_await (*context_expected)->reply()->save_file (
-			opt, progress, use_awaitable | io_error
-		));
-		if( io_error )
-			co_return sys_unexpected(io_error);
-		co_return context_expected;
+		token_t completion_token(std::forward<Token>(token));
+		auto operation = this->shared_from_this();
+
+		return asio::async_initiate<token_t, void(error_code,context_ptr<method::get>)>
+		(
+			asio::co_composed<void(error_code,context_ptr<method::get>)>(
+			[](auto state, std::shared_ptr<impl> self,
+				req_info request_info, opt_t opt, progress_t progress) -> void
+			{
+				ignore_unused(state);
+				auto [request_error, active_context] =
+					co_await self->template async_request<method::get>(
+						std::move(request_info), asio::as_tuple(deferred)
+					);
+				if( request_error )
+				{
+					co_return std::tuple<error_code,context_ptr<method::get>> {
+						request_error, {}
+					};
+				}
+				auto &download_opt = detail::unwrap_async_argument(opt);
+				auto &progress_callback = detail::unwrap_async_argument(progress);
+
+				error_code save_error {};
+				auto bytes = co_await active_context->reply()->save_file (
+					download_opt, progress_callback,
+					asio::redirect_error(deferred, save_error)
+				);
+				ignore_unused(bytes);
+
+				if( save_error )
+				{
+					co_return std::tuple<error_code,context_ptr<method::get>> {
+						save_error, {}
+					};
+				}
+				co_return std::tuple<error_code,context_ptr<method::get>> {
+					error_code{}, std::move(active_context)
+				};
+			},
+			m_pool.get_executor()),
+			completion_token, std::move(operation), std::move(info),
+			std::move(async_opt), std::move(async_progress)
+		);
 	}
 
 public:
@@ -510,7 +675,8 @@ public:
 			if( not lease_expected )
 				return sys_unexpected(lease_expected.error());
 
-			auto context = std::make_shared<context_t<Method>>(
+			auto context = std::make_shared<context_t<Method>>
+			(
 				std::move(*lease_expected), std::move(info.url),
 				typename context_t<Method>::options {
 					std::move(info.arg), m_cookie_store, info.proxy ?
@@ -533,64 +699,106 @@ public:
 		return sys_unexpected(make_error_code(std::errc::io_error));
 	}
 
-	template <method_enum Method>
-	[[nodiscard]] awaitable<result_t<Method>> co_make_context(req_info info) noexcept
+	template <method_enum Method, typename Token>
+	[[nodiscard]] auto async_make_context(req_info info, Token &&token)
 	{
-		using namespace libgs::operators;
-		auto target_expected = target_from_url(info.url);
-		if( not target_expected )
-			co_return sys_unexpected(target_expected.error());
+		using token_t = std::remove_cvref_t<Token>;
+		token_t completion_token(std::forward<Token>(token));
+		auto operation = this->shared_from_this();
 
-		if( info.proxy )
-		{
-			target_expected = target_from_url(*info.proxy);
-			if( not target_expected )
-				co_return sys_unexpected(target_expected.error());
-		}
-		try {
-			for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
+		return asio::async_initiate<token_t,void(error_code,context_ptr<Method>)>
+		(
+			asio::co_composed<void(error_code,context_ptr<Method>)>(
+			[](auto state, std::shared_ptr<impl> self, req_info request_info) -> void
 			{
-				if( not info.arg.contains_cookie(name) )
-					info.arg.set_cookie(name, std::move(item));
-			}
-		}
-		catch(const std::bad_alloc&)
-		{
-			co_return sys_unexpected (
-				make_error_code(std::errc::not_enough_memory)
-			);
-		}
-		catch(...) {
-			co_return sys_unexpected(make_error_code(std::errc::io_error));
-		}
-		error_code io_error {};
-		auto lease = co_await m_pool.get (
-			*target_expected, use_awaitable | io_error
-		);
-		if( io_error )
-			co_return sys_unexpected(io_error);
-		try {
-			auto context = std::make_shared<context_t<Method>>(
-				std::move(lease), std::move(info.url),
-				typename context_t<Method>::options {
-					std::move(info.arg), m_cookie_store, info.proxy ?
-						request_target_form::absolute : request_target_form::origin,
-					info.auto_decompression
+				ignore_unused(state);
+				auto target_expected = target_from_url(request_info.url);
+
+				if( not target_expected )
+				{
+					co_return std::tuple<error_code,context_ptr<Method>>{
+						target_expected.error(), {}
+					};
 				}
-			);
-			co_return context;
-		}
-		catch(const std::system_error &ex) {
-			co_return sys_unexpected(ex.code());
-		}
-		catch(const std::bad_alloc&)
-		{
-			co_return sys_unexpected (
-				make_error_code(std::errc::not_enough_memory)
-			);
-		}
-		catch(...) {}
-		co_return sys_unexpected(make_error_code(std::errc::io_error));
+				if( request_info.proxy )
+				{
+					target_expected = target_from_url(*request_info.proxy);
+					if( not target_expected )
+					{
+						co_return std::tuple<error_code,context_ptr<Method>> {
+							target_expected.error(), {}
+						};
+					}
+				}
+				try {
+					for(auto &[cookie_name, cookie_item] : self->m_cookie_store->cookies_for(request_info.url))
+					{
+						if( not request_info.arg.contains_cookie(cookie_name) )
+						{
+							request_info.arg.set_cookie (
+								cookie_name, std::move(cookie_item)
+							);
+						}
+					}
+				}
+				catch(const std::bad_alloc&)
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						make_error_code(std::errc::not_enough_memory), {}
+					};
+				}
+				catch(...)
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						make_error_code(std::errc::io_error), {}
+					};
+				}
+				auto [lease_error, lease] = co_await self->m_pool.get (
+					*target_expected, asio::as_tuple(deferred)
+				);
+				if( lease_error )
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						lease_error, {}
+					};
+				}
+				try {
+					auto context = std::make_shared<context_t<Method>>
+					(
+						std::move(lease), std::move(request_info.url),
+						typename context_t<Method>::options {
+							std::move(request_info.arg), self->m_cookie_store,
+							request_info.proxy ? request_target_form::absolute :
+								request_target_form::origin,
+							request_info.auto_decompression
+						}
+					);
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						error_code{}, std::move(context)
+					};
+				}
+				catch(const std::system_error &exception)
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						exception.code(), {}
+					};
+				}
+				catch(const std::bad_alloc&)
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						make_error_code(std::errc::not_enough_memory), {}
+					};
+				}
+				catch(...)
+				{
+					co_return std::tuple<error_code,context_ptr<Method>> {
+						make_error_code(std::errc::io_error), {}
+					};
+				}
+			},
+			m_pool.get_executor()),
+			completion_token, std::move(operation), std::move(info)
+		);
 	}
 
 public:
@@ -607,8 +815,7 @@ basic_client<Exec,Version>::basic_client() requires
 }
 
 template <core_concepts::exec Exec, version_enum Version>
-basic_client<Exec,Version>::basic_client(
-	core_concepts::match_sched<executor_t> auto &&exec) :
+basic_client<Exec,Version>::basic_client(core_concepts::match_sched<executor_t> auto &&exec) :
 	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec))))
 {
 
@@ -659,10 +866,13 @@ auto basic_client<Exec,Version>::request(req_info info, Token &&token)
 	}
 	else
 	{
-		return detail::initiate_expected<context_ptr<Method>>(
-		get_executor(), [impl = m_impl, info = std::move(info)]
-		() mutable -> awaitable<sys_expected<context_ptr<Method>>> {
-			co_return co_await impl->template co_request<Method>(std::move(info));
+		return detail::initiate_io<context_ptr<Method>>(
+		get_executor(), [impl = m_impl, request_info = std::move(info)]
+		<typename T0>(T0 &&completion_token) mutable
+		{
+			return impl->template async_request<Method>(
+				std::move(request_info), std::forward<T0>(completion_token)
+			);
 		},
 		std::forward<Token>(token));
 	}
@@ -701,15 +911,18 @@ auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Progress &&
 	}
 	else
 	{
-		return detail::initiate_expected<context_ptr<method::put>>(get_executor(), [
-			impl = m_impl, info = std::move(info),
-			opt = detail::capture_async_argument(std::forward<T>(opt)),
-			progress = detail::capture_async_argument(std::forward<Progress>(progress))
-		]() mutable -> awaitable<sys_expected<context_ptr<method::put>>>
+		return detail::initiate_io<context_ptr<method::put>>(get_executor(), [
+			impl = m_impl, request_info = std::move(info),
+			async_opt = detail::capture_async_argument(std::forward<T>(opt)),
+			async_progress = detail::capture_async_argument (
+				std::forward<Progress>(progress)
+			)
+		]
+		<typename T0>(T0 &&completion_token) mutable
 		{
-			co_return co_await impl->co_upload_file (
-				std::move(info), detail::unwrap_async_argument(opt),
-				detail::unwrap_async_argument(progress)
+			return impl->async_upload_file (
+				std::move(request_info), std::move(async_opt),
+				std::move(async_progress), std::forward<T0>(completion_token)
 			);
 		},
 		std::forward<Token>(token));
@@ -749,15 +962,18 @@ auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Progress 
 	}
 	else
 	{
-		return detail::initiate_expected<context_ptr<method::get>>(get_executor(), [
-			impl = m_impl, info = std::move(info),
-			opt = detail::capture_async_argument(std::forward<T>(opt)),
-			progress = detail::capture_async_argument(std::forward<Progress>(progress))
-		]() mutable -> awaitable<sys_expected<context_ptr<method::get>>>
+		return detail::initiate_io<context_ptr<method::get>>(get_executor(), [
+			impl = m_impl, request_info = std::move(info),
+			async_opt = detail::capture_async_argument(std::forward<T>(opt)),
+			async_progress = detail::capture_async_argument (
+				std::forward<Progress>(progress)
+			)
+		]
+		<typename T0>(T0 &&completion_token) mutable
 		{
-			co_return co_await impl->co_download_file (
-				std::move(info), detail::unwrap_async_argument(opt),
-				detail::unwrap_async_argument(progress)
+			return impl->async_download_file(
+				std::move(request_info), std::move(async_opt),
+				std::move(async_progress), std::forward<T0>(completion_token)
 			);
 		},
 		std::forward<Token>(token));
@@ -805,9 +1021,12 @@ auto basic_client<Exec,Version>::make_context(req_info info, Token &&token)
 	}
 	else
 	{
-		return detail::initiate_expected<context_ptr<Method>>(get_executor(),
-		[impl = m_impl, info = std::move(info)]() mutable -> awaitable<sys_expected<context_ptr<Method>>> {
-			co_return co_await impl->template co_make_context<Method>(std::move(info));
+		return detail::initiate_io<context_ptr<Method>>(get_executor(),
+		[impl = m_impl, request_info = std::move(info)]<typename T0>(T0 &&completion_token) mutable
+		{
+			return impl->template async_make_context<Method>(
+				std::move(request_info), std::forward<T0>(completion_token)
+			);
 		},
 		std::forward<Token>(token));
 	}

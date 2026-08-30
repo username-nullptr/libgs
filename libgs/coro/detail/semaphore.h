@@ -48,7 +48,7 @@ public:
 	{
 		if( initial_count > max_v )
 		{
-			throw std::invalid_argument (
+			invalid_argument::loc_throw (
 				"libgs::basic_semaphore: Initial count is greater than max value."
 			);
 		}
@@ -164,7 +164,7 @@ size_t basic_semaphore<Max>::release(size_t n) requires (max_v > 1)
 {
 	if( n == 0 or n > max_v - m_impl->m_counter )
 	{
-		throw std::invalid_argument (
+		invalid_argument::loc_throw (
 			"libgs::basic_semaphore: Invalid release count."
 		);
 	}
@@ -178,7 +178,7 @@ size_t basic_semaphore<Max>::release() requires (max_v == 1)
 {
 	if( m_impl->m_counter == 1 )
 	{
-		throw std::runtime_error (
+		runtime_error::loc_throw (
 			"libgs::basic_semaphore: Release a binary_semaphore with max count 1 more than once."
 		);
 	}

@@ -137,7 +137,7 @@ public:
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
 using request = basic_request<>;

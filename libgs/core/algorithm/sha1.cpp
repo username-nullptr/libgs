@@ -273,7 +273,7 @@ sha1 &sha1::append(const void *data, size_t size)
 {
 	if( data == nullptr )
 	{
-		throw std::invalid_argument (
+		invalid_argument::loc_throw (
 			"libgs::sha1::append: data is nullptr"
 		);
 	}

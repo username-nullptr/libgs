@@ -998,7 +998,7 @@ signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs)
 	requires is_obj_slots_v<Mode,Obj,Slots...>
 {
 	if( not observer )
-		throw std::invalid_argument("libgs::utils::signal::connect: observer is nullptr");
+		invalid_argument::loc_throw("libgs::utils::signal::connect: observer is nullptr");
 
 	m_impl->m_mutex.lock();
 	(void) std::initializer_list<int> {(
@@ -1029,7 +1029,7 @@ signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs
 	requires (Mode != slot_mode::sync) and is_obj_slots_v<Mode,Obj,Slots...>
 {
 	if( not observer )
-		throw std::invalid_argument("libgs::utils::signal::connect: observer is nullptr");
+		invalid_argument::loc_throw("libgs::utils::signal::connect: observer is nullptr");
 
 	m_impl->m_mutex.lock();
 	(void) std::initializer_list<int> {(
@@ -1080,7 +1080,7 @@ signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs)
 	requires is_obj_slots_def_v<Obj,Slots...>
 {
 	if( not observer )
-		throw std::invalid_argument("libgs::utils::signal::connect: observer is nullptr");
+		invalid_argument::loc_throw("libgs::utils::signal::connect: observer is nullptr");
 
 	using indices = std::make_index_sequence<sizeof...(Slots)>;
 	[this, observer = std::forward<Obj>(observer),
@@ -1154,7 +1154,7 @@ signal_base<Derived,Func>::disconnect(const Obj &observer, Func0&&...funcs)
 	requires is_obj_slots_def_v<Obj,Func0...>
 {
 	if( not observer )
-		throw std::invalid_argument("libgs::utils::signal::disconnect: observer is nullptr");
+		invalid_argument::loc_throw("libgs::utils::signal::disconnect: observer is nullptr");
 
 	m_impl->m_mutex.lock();
 	(void) std::initializer_list<int> {(
@@ -1181,7 +1181,7 @@ signal_base<Derived,Func>::disconnect(const Obj &observer)
 	requires is_observer_v<Obj>
 {
 	if( not observer )
-		throw std::invalid_argument("libgs::utils::signal::disconnect: observer is nullptr");
+		invalid_argument::loc_throw("libgs::utils::signal::disconnect: observer is nullptr");
 
 	m_impl->m_mutex.lock();
 	for(auto it=m_impl->m_slots.begin(); it!=m_impl->m_slots.end();)

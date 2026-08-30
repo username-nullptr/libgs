@@ -90,6 +90,18 @@ inline void length_error::loc_throw(std::string_view msg, std::source_location l
 }
 
 template <typename Arg0, typename...Args>
+out_of_range::out_of_range(std::format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	std::out_of_range(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
+
+}
+
+inline void out_of_range::loc_throw(std::string_view msg, std::source_location loc)
+{
+	throw out_of_range(with_location(msg, loc));
+}
+
+template <typename Arg0, typename...Args>
 system_error::system_error(std::error_code ec, std::format_string<Arg0, Args...> fmt, Arg0 &&arg0, Args&&...args) :
 	std::system_error(ec, std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
 {

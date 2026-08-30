@@ -272,7 +272,7 @@ auto mutable_headers<Derived>::set_header(Opt &&opt)
 		set_header(header_t::accept_ranges , "bytes"         );
 
 		set_header(header_t::content_range, value {
-			"{}-{}/{}", range.begin, end, range.total
+			"bytes {}-{}/{}", range.begin, end, token->file_size
 		});
 		mode = range;
 	}

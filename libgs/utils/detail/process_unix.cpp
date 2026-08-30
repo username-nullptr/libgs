@@ -1155,7 +1155,7 @@ sys_expected<uint64_t> process::set_single(const fs::path &path, std::string_vie
 		not flag.compare_exchange_strong(expected, true,
 		std::memory_order_acquire, std::memory_order_relaxed) )
 	{
-		throw std::runtime_error (
+		runtime_error::loc_throw (
 			"libgs::app::set_single: Another instance is running (Prohibition of concurrent operation)."
 		);
 	}

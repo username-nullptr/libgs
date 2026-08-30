@@ -115,7 +115,7 @@ public:
 
 public:
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto chunk_end(const headers_t &headers, Token &&token = {})
+	auto chunk_end(const headers_t &completion_headers, Token &&token = {})
 		requires put_or_post;
 
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
