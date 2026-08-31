@@ -1149,7 +1149,7 @@ io_expected process::write(const const_buffer &buf) const noexcept
 	return 0;
 }
 
-void process::async_write(const_buffer buf, io_handler_t handler) const
+void process::async_write(const const_buffer &buf, io_handler_t handler) const
 {
 	m_impl->m_vindicator->async_write(buf, std::move(handler));
 }
@@ -1161,7 +1161,7 @@ io_expected process::read(read_channel channel, const mutable_buffer &buf) const
 	return 0;
 }
 
-void process::async_read(read_channel channel, mutable_buffer buf, io_handler_t handler) const
+void process::async_read(read_channel channel, const mutable_buffer &buf, io_handler_t handler) const
 {
 	m_impl->m_vindicator->async_read(channel, buf, std::move(handler));
 }
