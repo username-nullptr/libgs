@@ -32,7 +32,6 @@
 #include <shellapi.h>
 
 #include <libgs/utils/process.h>
-#include <libgs/utils/logger.h>
 #include <libgs/coro/utils.h>
 
 #include <asio/readable_pipe.hpp>
@@ -128,12 +127,9 @@ using envs_t = std::map<std::string, value>;
 
 [[nodiscard]] static bool has_shell_meta(std::wstring_view str) noexcept
 {
-	for(auto ch : str)
-	{
-		if( ch == L'|' or ch == L'&' or ch == L'<' or ch == L'>' )
-			return true;
-	}
-	return false;
+	return std::ranges::any_of(str, [](auto ch) {
+		return ch == L'|' or ch == L'&' or ch == L'<' or ch == L'>';
+	});
 }
 
 [[nodiscard]] static std::wstring to_wstring(std::string_view str)
@@ -157,8 +153,7 @@ using envs_t = std::map<std::string, value>;
 [[nodiscard]] static std::vector<wchar_t> make_environment(const envs_t &envs)
 {
 	std::map<std::wstring,std::wstring> merged;
-	auto block = GetEnvironmentStringsW();
-	if( block )
+	if( auto block = GetEnvironmentStringsW() )
 	{
 		for(auto ptr = block; *ptr != L'\0'; )
 		{
@@ -244,7 +239,7 @@ static void close_handle(HANDLE handle) noexcept
 		return expected.despair(error);
 	}
 	error_code error;
-	parent.assign(parent_handle, error);
+	error = parent.assign(parent_handle, error);
 	if( error )
 	{
 		close_handle(parent_handle);
@@ -291,7 +286,7 @@ static void close_handle(HANDLE handle) noexcept
 		return expected.despair(error);
 	}
 	error_code error;
-	parent.assign(parent_handle, error);
+	error = parent.assign(parent_handle, error);
 	if( error )
 	{
 		close_handle(parent_handle);
@@ -312,8 +307,7 @@ public:
 	explicit vindicator(const executor_t &exec) :
 		m_exec(exec), m_stdin(exec), m_stdout(exec), m_stderr(exec) {}
 
-	~vindicator() noexcept
-	{
+	~vindicator() noexcept {
 		stop_and_reap(false);
 	}
 
@@ -338,9 +332,7 @@ public:
 		}
 		join_monitor_thread();
 		finish_io(m_generation.load(std::memory_order_acquire), true);
-		const auto generation = m_generation.fetch_add(
-			1, std::memory_order_acq_rel
-		) + 1;
+		auto generation = m_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
 
 		write_pipe_t stdin_write(m_exec);
 		read_pipe_t stdout_read(m_exec);
@@ -367,12 +359,12 @@ public:
 			close_handle(child_stdout);
 			return pipe_expected;
 		}
-
 		std::wstring command_line;
 		if( is_pipe )
 		{
 			wchar_t comspec[MAX_PATH] {};
 			auto len = GetEnvironmentVariableW(L"COMSPEC", comspec, MAX_PATH);
+
 			std::wstring shell = len > 0 ? std::wstring(comspec, len) : L"cmd.exe";
 			command_line = make_cmdline(shell, {L"/C", std::wstring(cmd)});
 		}
@@ -389,6 +381,7 @@ public:
 		PROCESS_INFORMATION pi {};
 		auto env_block = envs.empty() ? std::vector<wchar_t>{} : make_environment(envs);
 		auto work_path_str = work_path.empty() ? std::wstring{} : work_path.wstring();
+
 		HANDLE job_handle = CreateJobObjectW(nullptr, nullptr);
 		if( job_handle == nullptr )
 		{
@@ -398,10 +391,9 @@ public:
 			close_handle(child_stderr);
 			return expected.despair(job_error);
 		}
-
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_info {};
-		job_info.BasicLimitInformation.LimitFlags =
-			JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+		job_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
 		if( not SetInformationJobObject(job_handle,
 			JobObjectExtendedLimitInformation, &job_info, sizeof(job_info)) )
 		{
@@ -412,13 +404,11 @@ public:
 			close_handle(child_stderr);
 			return expected.despair(job_error);
 		}
-
 		if( not CreateProcessW (
 			nullptr, command_line.data(), nullptr, nullptr, TRUE,
 			CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
 			env_block.empty() ? nullptr : env_block.data(),
-			work_path_str.empty() ? nullptr : work_path_str.c_str(), &si, &pi
-		))
+			work_path_str.empty() ? nullptr : work_path_str.c_str(), &si, &pi) )
 		{
 			auto create_error = sys_error();
 			close_handle(job_handle);
@@ -432,6 +422,7 @@ public:
 			auto assign_error = sys_error();
 			TerminateProcess(pi.hProcess, static_cast<UINT>(-9));
 			WaitForSingleObject(pi.hProcess, INFINITE);
+
 			close_handle(pi.hThread);
 			close_handle(pi.hProcess);
 			close_handle(job_handle);
@@ -445,6 +436,7 @@ public:
 			auto resume_error = sys_error();
 			TerminateProcess(pi.hProcess, static_cast<UINT>(-9));
 			WaitForSingleObject(pi.hProcess, INFINITE);
+
 			close_handle(pi.hThread);
 			close_handle(pi.hProcess);
 			close_handle(job_handle);
@@ -470,7 +462,6 @@ public:
 
 		error.clear();
 		m_stderr = std::move(stderr_read);
-
 		{
 			std::lock_guard resource_lock(m_resource_mutex);
 			m_process = pi.hProcess;
@@ -478,16 +469,11 @@ public:
 			m_pid.store(pi.dwProcessId, std::memory_order_release);
 		}
 		m_state = process_state::running;
-
-		try
-		{
-			const HANDLE process_handle = pi.hProcess;
-			m_thread = std::thread(
-				[self = shared_from_this(), process_handle, generation]
-				{
-					self->monitor_child(process_handle, generation);
-				}
-			);
+		try {
+			m_thread = std::thread (
+			[self = shared_from_this(), process_handle = pi.hProcess, generation]{
+				self->monitor_child(process_handle, generation);
+			});
 			m_joinable.store(true, std::memory_order_release);
 		}
 		catch(const std::system_error &exception)
@@ -508,14 +494,15 @@ public:
 		return expected;
 	}
 
-
 private:
 	void monitor_child(HANDLE process_handle, std::uint64_t generation) noexcept
 	{
 		const DWORD wait_result = WaitForSingleObject(process_handle, INFINITE);
 		DWORD child_exit_code = 255;
+
 		const bool got_exit_code = wait_result == WAIT_OBJECT_0 and
 			GetExitCodeProcess(process_handle, &child_exit_code);
+
 		const bool forced = generation ==
 			m_forced_generation.load(std::memory_order_acquire);
 
@@ -534,9 +521,7 @@ private:
 			}
 			m_cv.notify_all();
 		}
-
-		try
-		{
+		try {
 			libgs::post(m_exec, [self = shared_from_this(), generation] {
 				self->finish_io(generation, false);
 			});
@@ -550,8 +535,7 @@ private:
 	{
 		if( not m_thread.joinable() )
 			return ;
-		try
-		{
+		try {
 			if( m_thread.get_id() == std::this_thread::get_id() )
 				m_thread.detach();
 			else
@@ -570,15 +554,15 @@ private:
 		{
 			std::lock_guard resource_lock(m_resource_mutex);
 			error_code close_error;
-			m_stdin.close(close_error);
+			close_error = m_stdin.close(close_error);
 			if( close_output )
 			{
 				close_error.clear();
-				m_stdout.close(close_error);
+				close_error = m_stdout.close(close_error);
 				close_error.clear();
-				m_stderr.close(close_error);
+				close_error = m_stderr.close(close_error);
+				LIBGS_UNUSED(close_error);
 			}
-
 			process_handle = std::exchange(m_process, nullptr);
 			job_handle = std::exchange(m_job, nullptr);
 			m_pid.store(0, std::memory_order_release);
@@ -610,12 +594,13 @@ private:
 		{
 			m_forced_generation.store(generation, std::memory_order_release);
 			std::lock_guard resource_lock(m_resource_mutex);
+
 			if( m_process != nullptr )
 				TerminateProcess(m_process, static_cast<UINT>(-9));
 		}
-
 		if( m_thread.joinable() )
 			join_monitor_thread();
+
 		else if( must_stop )
 		{
 			HANDLE process_handle = nullptr;
@@ -625,6 +610,7 @@ private:
 			}
 			if( process_handle != nullptr )
 				WaitForSingleObject(process_handle, INFINITE);
+
 			m_exit_code = 255;
 			m_state = process_state::crashed;
 			m_cv.notify_all();
@@ -638,8 +624,7 @@ private:
 		finish_io(generation, true);
 	}
 
-	[[nodiscard]] bool register_join_timer(
-		const std::shared_ptr<asio::steady_timer> &timer)
+	[[nodiscard]] bool register_join_timer(const std::shared_ptr<asio::steady_timer> &timer)
 	{
 		std::lock_guard timer_lock(m_timer_mutex);
 		if( m_state.load(std::memory_order_acquire) != process_state::running )
@@ -653,12 +638,10 @@ private:
 		if( not m_joinable.load(std::memory_order_acquire) )
 			return make_error_code(std::errc::invalid_argument);
 
-		bool expected = false;
-		if( not m_join_in_progress.compare_exchange_strong(expected, true,
-			std::memory_order_acq_rel) )
-		{
+		if( bool expected = false;
+			not m_join_in_progress.compare_exchange_strong(expected, true, std::memory_order_acq_rel) )
 			return make_error_code(std::errc::device_or_resource_busy);
-		}
+
 		if( not m_joinable.load(std::memory_order_acquire) )
 		{
 			m_join_in_progress.store(false, std::memory_order_release);
@@ -670,7 +653,9 @@ private:
 	class join_claim final
 	{
 	public:
-		explicit join_claim(vindicator &owner) noexcept : m_owner(owner) {}
+		explicit join_claim(vindicator &owner) noexcept :
+			m_owner(owner) {}
+
 		~join_claim()
 		{
 			if( m_consume )
@@ -699,7 +684,7 @@ public:
 	{
 		if( m_state == process_state::running )
 		{
-			m_forced_generation.store(
+			m_forced_generation.store (
 				m_generation.load(std::memory_order_acquire),
 				std::memory_order_release
 			);
@@ -709,8 +694,7 @@ public:
 		}
 	}
 
-	void kill() const noexcept
-	{
+	void kill() const noexcept {
 		terminate();
 	}
 
@@ -718,19 +702,16 @@ public:
 	{
 		if( not m_joinable.load(std::memory_order_acquire) )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
 		if( m_join_in_progress.load(std::memory_order_acquire) )
 		{
-			return sys_unexpected(make_error_code(
+			return sys_unexpected(make_error_code (
 				std::errc::device_or_resource_busy
 			));
 		}
-
-		bool expected = true;
-		if( not m_joinable.compare_exchange_strong(expected, false,
-			std::memory_order_acq_rel) )
-		{
+		if( bool expected = true;
+			not m_joinable.compare_exchange_strong(expected, false, std::memory_order_acq_rel) )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
-		}
 		return {};
 	}
 
@@ -761,9 +742,10 @@ public:
 	{
 		if( auto claim_error = claim_join() )
 			return sys_unexpected(claim_error);
-		join_claim claim(*this);
 
+		join_claim claim(*this);
 		auto state = m_state.load();
+
 		if( state == process_state::idle )
 		{
 			claim.consume();
@@ -783,7 +765,6 @@ public:
 			claim.consume();
 			return m_exit_code.load();
 		}
-
 		std::unique_lock locker(m_cv_mutex);
 		if( timeout == 0ns )
 		{
@@ -820,9 +801,10 @@ public:
 	{
 		if( auto claim_error = claim_join() )
 			co_return sys_unexpected(claim_error);
-		join_claim claim(*this);
 
+		join_claim claim(*this);
 		auto state = m_state.load();
+
 		if( state == process_state::idle )
 		{
 			claim.consume();
@@ -842,7 +824,6 @@ public:
 			claim.consume();
 			co_return m_exit_code.load();
 		}
-
 		auto exec = co_await asio::this_coro::executor;
 		auto timer = std::make_shared<asio::steady_timer>(exec);
 
@@ -861,7 +842,6 @@ public:
 					}
 					break;
 				}
-
 				std::error_code error;
 				co_await timer->async_wait (
 					use_awaitable | cancel_slot | error
@@ -930,7 +910,7 @@ public:
 		return sum;
 	}
 
-	void async_write(const_buffer buf, process::io_handler_t handler)
+	void async_write(const const_buffer &buf, process::io_handler_t handler)
 	{
 		if( buf.size() == 0 )
 		{
@@ -944,7 +924,6 @@ public:
 			);
 			return ;
 		}
-
 		asio::async_write(m_stdin, buf, std::move(handler));
 	}
 
@@ -966,19 +945,18 @@ public:
 		}
 		std::error_code error;
 		auto sum = stream->read_some(buf, error);
+
 		if( error.value() == ERROR_BROKEN_PIPE or
-			 error.value() == ERROR_HANDLE_EOF or
-			 error.value() == ERROR_NO_DATA )
-		{
+			error.value() == ERROR_HANDLE_EOF or
+			error.value() == ERROR_NO_DATA )
 			error = make_error_code(asio::error::eof);
-		}
+
 		if( error )
 			return {error};
 		return sum;
 	}
 
-	void async_read(read_channel_t channel, mutable_buffer buf,
-		process::io_handler_t handler)
+	void async_read(read_channel_t channel, const mutable_buffer &buf, process::io_handler_t handler)
 	{
 		if( buf.size() == 0 )
 		{
@@ -992,7 +970,6 @@ public:
 			);
 			return ;
 		}
-
 		auto stream = read_stream(channel);
 		if( stream == nullptr or not stream->is_open() )
 		{
@@ -1019,13 +996,11 @@ public:
 	}
 
 private:
-	[[nodiscard]] read_pipe_t *read_stream(read_channel_t channel) noexcept
-	{
+	[[nodiscard]] read_pipe_t *read_stream(read_channel_t channel) noexcept {
 		return channel == read_channel_t::std_output ? &m_stdout : &m_stderr;
 	}
 
-	void post_io_result(process::io_handler_t handler,
-		error_code error, size_t size)
+	void post_io_result(process::io_handler_t handler, error_code error, size_t size)
 	{
 		auto allocator = asio::get_associated_allocator(handler);
 		asio::post(m_exec, asio::bind_allocator(allocator,
@@ -1038,8 +1013,10 @@ public:
 	std::thread m_thread {};
 	HANDLE m_process = nullptr;
 	HANDLE m_job = nullptr;
+
 	std::atomic<DWORD> m_pid {0};
 	std::atomic_uint64_t m_generation {0};
+
 	mutable std::atomic_uint64_t m_forced_generation {
 		static_cast<std::uint64_t>(-1)
 	};
@@ -1063,6 +1040,7 @@ public:
 	std::vector <
 		std::shared_ptr<asio::steady_timer>
 	> m_co_join_list {};
+
 	std::mutex m_timer_mutex {};
 };
 
@@ -1084,11 +1062,11 @@ public:
 	}
 
 public:
-	std::wstring m_cmd;
-	args_t m_args;
+	std::wstring m_cmd {};
+	args_t m_args {};
 
-	path_t m_work_path;
-	envs_t m_envs;
+	path_t m_work_path {};
+	envs_t m_envs {};
 
 	executor_t m_exec {};
 	vindicator_ptr m_vindicator {};
@@ -1131,7 +1109,6 @@ void process::set(const path_t &cmd, const std::vector<path_t> &args) const
 			m_impl->m_is_pipe = true;
 		}
 	}
-
 	for(auto &arg : args)
 		add_arg(arg);
 }
@@ -1184,9 +1161,9 @@ sys_expected<> process::detach() const noexcept
 	catch(...) {
 		return sys_unexpected(make_error_code(std::errc::io_error));
 	}
-
 	if( auto expected = m_impl->m_vindicator->detach(); not expected )
 		return expected;
+
 	m_impl->m_vindicator = std::move(replacement);
 	return {};
 }
@@ -1232,7 +1209,7 @@ io_expected process::write(const const_buffer &buf) const noexcept
 	return 0;
 }
 
-void process::async_write(const_buffer buf, io_handler_t handler) const
+void process::async_write(const const_buffer &buf, io_handler_t handler) const
 {
 	m_impl->m_vindicator->async_write(buf, std::move(handler));
 }
@@ -1244,8 +1221,7 @@ io_expected process::read(read_channel channel, const mutable_buffer &buf) const
 	return 0;
 }
 
-void process::async_read(read_channel channel, mutable_buffer buf,
-	io_handler_t handler) const
+void process::async_read(read_channel channel, const mutable_buffer &buf, io_handler_t handler) const
 {
 	m_impl->m_vindicator->async_read(channel, buf, std::move(handler));
 }
@@ -1253,11 +1229,9 @@ void process::async_read(read_channel channel, mutable_buffer buf,
 void process::normalize_read_error(error_code &error) const noexcept
 {
 	if( error.value() == ERROR_BROKEN_PIPE or
-		 error.value() == ERROR_HANDLE_EOF or
-		 error.value() == ERROR_NO_DATA )
-	{
+		error.value() == ERROR_HANDLE_EOF or
+		error.value() == ERROR_NO_DATA )
 		error = make_error_code(asio::error::eof);
-	}
 }
 
 void process::protect_io_error(const error_code &error) const noexcept
@@ -1265,13 +1239,11 @@ void process::protect_io_error(const error_code &error) const noexcept
 	if( not error or state() != process_state::running )
 		return ;
 
-	const auto condition = error.default_error_condition();
-	if( condition == std::errc::bad_file_descriptor or
+	if( const auto condition = error.default_error_condition();
+		condition == std::errc::bad_file_descriptor or
 		condition == std::errc::io_error or
 		condition == std::errc::bad_address )
-	{
 		m_impl->m_vindicator->kill();
-	}
 }
 
 void process::set_work_path(path_t path) noexcept
@@ -1346,21 +1318,22 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 	{
 		wchar_t tmp[MAX_PATH] {};
 		auto len = GetTempPathW(MAX_PATH, tmp);
+
 		if( len == 0 or len > MAX_PATH )
 			return result.despair(sys_error());
+
 		dir = fs::path(std::wstring(tmp, len));
 	}
 	dir /= L".libgs.utils.process";
 
-	std::error_code error;
-	if( not fs::exists(dir, error) )
+	if( std::error_code error; not fs::exists(dir, error) )
 	{
 		if( not fs::create_directories(dir, error) )
 			return result.despair(error);
 	}
 	g_pid_file = dir / fs::path(std::string(key));
-
 	auto curr_pid = GetCurrentProcessId();
+
 	auto file = CreateFileW(g_pid_file.wstring().c_str(), GENERIC_WRITE, 0,
 		nullptr, CREATE_NEW, FILE_ATTRIBUTE_READONLY, nullptr
 	);
@@ -1368,6 +1341,7 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 	{
 		auto pid_str = std::to_string(curr_pid);
 		DWORD written = 0; LIBGS_UNUSED(written);
+
 		WriteFile(file, pid_str.c_str(), static_cast<DWORD>(pid_str.size()), &written, nullptr);
 		CloseHandle(file);
 
@@ -1405,6 +1379,7 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 	}
 	auto existing_pid = static_cast<DWORD>(*opt);
 	auto process = OpenProcess(SYNCHRONIZE, FALSE, existing_pid);
+
 	if( process != nullptr )
 	{
 		auto wait_res = WaitForSingleObject(process, 0);
@@ -1416,6 +1391,7 @@ static sys_expected<uint64_t> do_set_single(const fs::path &path, std::string_vi
 		}
 	}
 	SetFileAttributesW(g_pid_file.wstring().c_str(), FILE_ATTRIBUTE_NORMAL);
+
 	if( DeleteFileW(g_pid_file.wstring().c_str()) )
 		return do_set_single(path, key);
 	return result.despair(sys_error());

@@ -18,6 +18,7 @@
 **/*Debug
 **/*DEBUG
 **/*.back
+**/*.pdb
 /src/out
 /src/.vs
 /src/*.json

@@ -116,13 +116,13 @@ public:
 	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;
 
 	[[nodiscard]] io_expected write(const const_buffer &buf) const noexcept;
-	void async_write(const_buffer buf, io_handler_t handler) const;
+	void async_write(const const_buffer &buf, io_handler_t handler) const;
 
 	enum class read_channel {
 		std_output, std_error
 	};
 	[[nodiscard]] io_expected read(read_channel channel, const mutable_buffer &buf) const noexcept;
-	void async_read(read_channel channel, mutable_buffer buf, io_handler_t handler) const;
+	void async_read(read_channel channel, const mutable_buffer &buf, io_handler_t handler) const;
 
 	void normalize_read_error(error_code &error) const noexcept;
 	void protect_io_error(const error_code &error) const noexcept;
