@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025 Xiaoqiang <username_nullptr@163.com>                         *
+*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -31,6 +31,7 @@
 
 #include <libgs/utils/global.h>
 #include <libgs/core/execution.h>
+#include <libgs/core/async_expected.h>
 #include <libgs/core/value.h>
 
 namespace libgs::utils
@@ -67,13 +68,16 @@ public:
 		concepts::match_sched<io_executor_t,Exec> and
 		concepts::formatter<char_t,Args...>;
 
-	basic_process(concepts::match_sched<Exec> auto &&exec,
-		string_t cmd = {}, args_t args = {}
-	);
-	template <typename...Args>
-	basic_process(concepts::match_sched<Exec> auto &&exec,
-		string_t cmd, Args&&...args
-	) requires concepts::formatter<char_t,Args...>;
+	template <typename Scheduler>
+	basic_process(Scheduler &&exec, string_t cmd = {}, args_t args = {}) requires
+		(not std::same_as<std::remove_cvref_t<Scheduler>,basic_process>) and
+		concepts::match_sched<Scheduler,Exec>;
+
+	template <typename Scheduler, typename...Args>
+	basic_process(Scheduler &&exec, string_t cmd, Args&&...args) requires
+		(not std::same_as<std::remove_cvref_t<Scheduler>,basic_process>) and
+		concepts::match_sched<Scheduler,Exec> and
+		concepts::formatter<char_t,Args...>;
 
 	basic_process(basic_process &&other) noexcept;
 	basic_process &operator=(basic_process &&other) noexcept;
@@ -90,43 +94,63 @@ public:
 
 	void terminate() noexcept;
 	void kill() noexcept;
-	void detach() noexcept;
+	void detach();
 	void cancel() noexcept;
 
 public:
-	template <typename Token>
-	static constexpr bool task_token_v = concepts::time_p<Token> or
-		concepts::tf_opt_token<Token,error_code,int>;
+	template <typename Token, typename...Value>
+	static constexpr bool task_token_v =
+		concepts::tf_opt_token<Token,error_code,Value...>;
 
-	template <typename Token>
-	static constexpr bool join_token_v =
-		task_token_v<Token> and not is_detached_v<std::remove_cvref_t<Token>>;
-
-	template <typename Token = std::chrono::nanoseconds>
-	auto join(Token &&token = {}) noexcept
-		requires join_token_v<Token>;
-
-	template <concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto write(const const_buffer &buf, Token &&token = {}) noexcept;
-
-	template <concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto read(const mutable_buffer &buf, Token &&token = {}) noexcept;
-
-	template <concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
-	auto read_stderr(const mutable_buffer &buf, Token &&token = {}) noexcept;
+	template <typename Token, typename...Value>
+	static constexpr bool dis_detach_token_v =
+		task_token_v<Token,Value...> and not is_detached_v<token_unbound_t<Token>>;
 
 public:
-	template <typename Token = std::chrono::nanoseconds>
-	auto run(const string_t &cmd, const args_t &args, Token &&token = {}) noexcept
-		requires task_token_v<Token>;
+	template <typename Token = use_sync_t>
+	auto join(Token &&token = {})
+		requires dis_detach_token_v<Token,int> or
+		concepts::time_p<Token>;
 
-	template <typename Token = std::chrono::nanoseconds>
-	auto run(const string_t &cmd, Token &&token = {}) noexcept
-		requires task_token_v<Token>;
+	template <concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
+	auto write(const const_buffer &buf, Token &&token = {});
 
-	template <typename Token = std::chrono::nanoseconds>
-	auto run(Token &&token = {}) noexcept
-		requires task_token_v<Token>;
+	template <typename Token = use_sync_t>
+	auto read(const mutable_buffer &buf, Token &&token = {}) requires
+		dis_detach_token_v<Token,size_t>;
+
+	template <concepts::buffer Buffer, typename Token = use_sync_t>
+	auto read(Token &&token = {}) requires
+		dis_detach_token_v<Token,Buffer>;
+
+	template <typename Token = use_sync_t>
+	auto read(Token &&token = {}) requires
+		dis_detach_token_v<Token,std::vector<std::byte>>;
+
+	template <typename Token = use_sync_t>
+	auto read_stderr(const mutable_buffer &buf, Token &&token = {}) requires
+		dis_detach_token_v<Token,size_t>;
+
+	template <concepts::buffer Buffer, typename Token = use_sync_t>
+	auto read_stderr(Token &&token = {}) requires
+		dis_detach_token_v<Token,Buffer>;
+
+	template <typename Token = use_sync_t>
+	auto read_stderr(Token &&token = {}) requires
+		dis_detach_token_v<Token,std::vector<std::byte>>;
+
+public:
+	template <typename Token = use_sync_t>
+	auto run(const string_t &cmd, const args_t &args, Token &&token = {})
+		requires task_token_v<Token,int>;
+
+	template <typename Token = use_sync_t>
+	auto run(const string_t &cmd, Token &&token = {})
+		requires task_token_v<Token,int>;
+
+	template <typename Token = use_sync_t>
+	auto run(Token &&token = {})
+		requires task_token_v<Token,int>;
 
 public:
 	void set_work_path(path_t path) noexcept;
@@ -138,32 +162,39 @@ public:
 	[[nodiscard]] int exit_code() const noexcept;
 
 	[[nodiscard]] pid_t pid() const noexcept;
+	[[nodiscard]] bool joinable() const noexcept;
 	[[nodiscard]] executor_t get_executor() const noexcept;
 
 public:
-	template <concepts::opt_token<error_code> Token = use_sync_t>
-	static auto exec(const string_t &cmd, const args_t &args, Token &&token = {}) noexcept;
+	template <typename Token>
+	static constexpr bool exec_token_v =
+		task_token_v<Token,int> or concepts::time_p<Token>;
 
-	template <concepts::opt_token<error_code> Token = use_sync_t>
-	static auto exec(const string_t &cmd, Token &&token = {}) noexcept;
+	template <typename Token = use_sync_t>
+	static auto exec(const string_t &cmd, const args_t &args, Token &&token = {})
+		requires exec_token_v<Token>;
 
-	template <concepts::match_sched<Exec> Exec0, concepts::opt_token<error_code> Token = use_sync_t>
-	static auto exec(Exec0 &&exec, const string_t &cmd, const args_t &args, Token &&token = {}) noexcept;
+	template <typename Token = use_sync_t>
+	static auto exec(const string_t &cmd, Token &&token = {})
+		requires exec_token_v<Token>;
 
-	template <concepts::match_sched<Exec> Exec0, concepts::opt_token<error_code> Token = use_sync_t>
-	static auto exec(Exec0 &&exec, const string_t &cmd, Token &&token = {}) noexcept;
+	template <concepts::match_sched<Exec> Exec0, typename Token = use_sync_t>
+	static auto exec(Exec0 &&exec, const string_t &cmd, const args_t &args, Token &&token = {})
+		requires exec_token_v<Token>;
+
+	template <concepts::match_sched<Exec> Exec0, typename Token = use_sync_t>
+	static auto exec(Exec0 &&exec, const string_t &cmd, Token &&token = {})
+		requires exec_token_v<Token>;
 
 public:
 	[[nodiscard]] static sys_expected<pid_t> self_pid() noexcept;
 	static sys_expected<> terminate(pid_t pid) noexcept;
 	static sys_expected<> kill(pid_t pid) noexcept;
-
-	// @return existing pid or self pid.
-	[[nodiscard]] static sys_expected<pid_t> set_single(const path_t &path, std::string_view key);
 	/*
-	 * @path default to home directory.
+	 * @path lock file path, default to home directory.
 	 * @return existing pid or self pid.
 	 */
+	[[nodiscard]] static sys_expected<pid_t> set_single(const path_t &path, std::string_view key);
 	[[nodiscard]] static sys_expected<pid_t> set_single(std::string_view key);
 
 private:

@@ -30,7 +30,7 @@
 #define LIBGS_CORE_CXX_DETAIL_STREAMER_CONTAINER_H
 
 #include <libgs/core/utils/string_tools.h>
-#include <bits/fs_path.h>
+#include <filesystem>
 
 #include <vector>
 #include <bitset>

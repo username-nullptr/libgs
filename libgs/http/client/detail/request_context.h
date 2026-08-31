@@ -65,10 +65,10 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		if constexpr( is_error_code_token_v<Token> )
-			return detail::expected_value_or_error(_write(body), token);
+			return expected_value_or_error(_write(body), token);
 
 		else if constexpr( is_sync_opt_token_v<Token> )
-			return detail::expected_value_or_throw(_write(body));
+			return expected_value_or_throw(_write(body));
 
 		else if constexpr( is_detached_v<token_unbound_t<token_t>> )
 		{
@@ -79,7 +79,7 @@ public:
 					static_cast<const char*>(body.data()), body.size()
 				);
 			}
-			return detail::initiate_io<size_t>(m_exec,
+			return initiate_io<size_t>(m_exec,
 			[self = this->shared_from_this(), owned_body = std::move(body_storage)]
 			<typename T0>(T0 &&completion_token) mutable
 			{
@@ -92,7 +92,7 @@ public:
 		}
 		else
 		{
-			return detail::initiate_io<size_t>(m_exec,
+			return initiate_io<size_t>(m_exec,
 			[self = this->shared_from_this(), body]<typename T0>(T0 &&completion_token) mutable
 			{
 				return self->async_write(body,
@@ -185,7 +185,7 @@ public:
 					token->stream->close();
 					close_connection();
 					return io_unexpected (
-						detail::exception_error(std::current_exception())
+						exception_error(std::current_exception())
 					);
 				}
 				if( auto expected = _write(prefix); not expected )
@@ -215,7 +215,7 @@ public:
 			{
 				close_connection();
 				return io_unexpected (
-					detail::exception_error(std::current_exception())
+					exception_error(std::current_exception())
 				);
 			}
 			if( auto expected = _write(std::move(suffix)); not expected )
@@ -259,7 +259,7 @@ public:
 							if( exception )
 							{
 								co_return std::tuple<error_code> {
-									detail::exception_error(exception)
+									exception_error(exception)
 								};
 							}
 							co_return std::tuple<error_code> {
@@ -274,14 +274,14 @@ public:
 								asio::as_tuple(deferred)
 							);
 							co_return std::tuple<error_code> {
-								detail::exception_error(exception)
+								exception_error(exception)
 							};
 						}
 					}
 					catch(...)
 					{
 						co_return std::tuple{
-							detail::exception_error(std::current_exception())
+							exception_error(std::current_exception())
 						};
 					}
 				}
@@ -298,7 +298,7 @@ public:
 							(*progress)(sum, total);
 					}
 					catch(...) {
-						error = detail::exception_error(std::current_exception());
+						error = exception_error(std::current_exception());
 					}
 					co_return std::tuple{error};
 				}
@@ -400,7 +400,7 @@ public:
 			{
 				ignore_unused(state);
 				auto file_expected = self->make_file_opt_token (
-					detail::unwrap_async_argument(opt)
+					unwrap_async_arg(opt)
 				);
 				if( not file_expected )
 				{
@@ -409,7 +409,7 @@ public:
 					};
 				}
 				auto &file = *file_expected;
-				auto &progress_callback = detail::unwrap_async_argument(progress);
+				auto &progress_callback = unwrap_async_arg(progress);
 
 				size_t sum = 0;
 				size_t total = 0;
@@ -460,7 +460,7 @@ public:
 						}
 						catch(...)
 						{
-							transfer_error = detail::exception_error (
+							transfer_error = exception_error (
 								std::current_exception()
 							);
 							break;
@@ -504,7 +504,7 @@ public:
 						}
 						catch(...)
 						{
-							transfer_error = detail::exception_error (
+							transfer_error = exception_error (
 								std::current_exception()
 							);
 						}
@@ -558,7 +558,7 @@ public:
 		{
 			close_connection();
 			return io_unexpected (
-				detail::exception_error(std::current_exception())
+				exception_error(std::current_exception())
 			);
 		}
 		if( buf.empty() )
@@ -593,7 +593,7 @@ public:
 				{
 					self->close_connection();
 					co_return std::tuple<error_code,size_t> {
-						detail::exception_error(std::current_exception()), 0
+						exception_error(std::current_exception()), 0
 					};
 				}
 				if( data.empty() )
@@ -647,7 +647,7 @@ private:
 		{
 			close_connection();
 			return io_unexpected (
-				detail::exception_error(std::current_exception())
+				exception_error(std::current_exception())
 			);
 		}
 	}
@@ -706,7 +706,7 @@ private:
 				{
 					self->close_connection();
 					co_return std::tuple<error_code,size_t> {
-						detail::exception_error(std::current_exception()), 0
+						exception_error(std::current_exception()), 0
 					};
 				}
 			},
@@ -860,7 +860,7 @@ private:
 				progress(sum, total);
 		}
 		catch(...) {
-			return detail::exception_error(std::current_exception());
+			return exception_error(std::current_exception());
 		}
 		return {};
 	}
@@ -950,24 +950,24 @@ auto basic_request_context<Method,Exec,Version>::upload_file
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error(m_impl->upload_file (
+		return expected_value_or_error(m_impl->upload_file (
 			std::move(norms), std::forward<T>(opt),
 			std::forward<Progress>(progress)
 		), token);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw(m_impl->upload_file (
+		return expected_value_or_throw(m_impl->upload_file (
 			std::move(norms), std::forward<T>(opt),
 			std::forward<Progress>(progress)
 		));
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(), [
+		return initiate_io<size_t>(get_executor(), [
 			impl = m_impl, upload_norms = std::move(norms),
-			async_opt = detail::capture_async_argument(std::forward<T>(opt)),
-			async_progress = detail::capture_async_argument (
+			async_opt = capture_async_argument(std::forward<T>(opt)),
+			async_progress = capture_async_argument (
 				std::forward<Progress>(progress)
 			)
 		]
@@ -989,19 +989,19 @@ auto basic_request_context<Method,Exec,Version>::chunk_end
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error (
+		return expected_value_or_error (
 			m_impl->chunk_end(completion_headers), token
 		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw (
+		return expected_value_or_throw (
 			m_impl->chunk_end(completion_headers)
 		);
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl, trailing_headers = completion_headers]
 		<typename T0>(T0 &&completion_token) mutable
 		{

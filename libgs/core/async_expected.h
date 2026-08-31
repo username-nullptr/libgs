@@ -1,0 +1,140 @@
+/************************************************************************************
+*                                                                                   *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
+*                                                                                   *
+*   This file is part of LIBGS                                                      *
+*   License: MIT License                                                            *
+*                                                                                   *
+*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
+*   of this software and associated documentation files (the "Software"), to deal   *
+*   in the Software without restriction, including without limitation the rights    *
+*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
+*   copies of the Software, and to permit persons to whom the Software is           *
+*   furnished to do so, subject to the following conditions:                        *
+*                                                                                   *
+*   The above copyright notice and this permission notice shall be included in      *
+*   all copies or substantial portions of the Software.                             *
+*                                                                                   *
+*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
+*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
+*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
+*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
+*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
+*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
+*   SOFTWARE.                                                                       *
+*                                                                                   *
+*************************************************************************************/
+
+#ifndef LIBGS_CORE_ASYNC_EXPECTED_H
+#define LIBGS_CORE_ASYNC_EXPECTED_H
+
+#include <libgs/core/execution.h>
+
+namespace libgs
+{
+
+template <typename>
+struct is_array_buffer : std::false_type {};
+
+template <typename T, size_t N>
+struct is_array_buffer<std::array<T,N>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_array_buffer_v = is_array_buffer<T>::value;
+
+template <typename>
+struct is_vector_buffer : std::false_type {};
+
+template <typename T>
+struct is_vector_buffer<std::vector<T>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_vector_buffer_v = is_vector_buffer<T>::value;
+
+template <typename>
+struct is_string_buffer : std::false_type {};
+
+template <concepts::character CharT, typename Traits, typename Alloc>
+struct is_string_buffer<std::basic_string<CharT,Traits,Alloc>> : std::true_type {};
+
+template <typename T>
+constexpr bool is_string_buffer_v = is_string_buffer<T>::value;
+
+template <typename T>
+struct is_buffer : std::disjunction <
+	is_array_buffer<T>, is_vector_buffer<T>, is_string_buffer<T>
+> {};
+
+template <typename T>
+constexpr bool is_buffer_v = is_buffer<T>::value;
+
+template <typename Buffer, typename Source>
+[[nodiscard]] LIBGS_CORE_TAPI Buffer copy_buffer_data(Source &&source)
+	requires (not is_array_buffer_v<Buffer>);
+
+template <typename Value>
+[[nodiscard]] LIBGS_CORE_TAPI
+Value expected_value_or_throw(sys_expected<Value> expected);
+
+template <typename Value>
+[[nodiscard]] LIBGS_CORE_TAPI Value expected_value_or_error (
+	sys_expected<Value> expected, error_code &error
+) noexcept(std::is_nothrow_move_constructible_v<Value>);
+
+template <typename T>
+[[nodiscard]] LIBGS_CORE_TAPI auto capture_async_argument(T &&argument);
+
+template <typename T>
+[[nodiscard]] LIBGS_CORE_TAPI
+decltype(auto) unwrap_async_argument(T &argument) noexcept;
+
+[[nodiscard]] LIBGS_CORE_VAPI error_code exception_error (
+	const std::exception_ptr &exception
+) noexcept;
+
+template <typename Value, concepts::exec Exec, typename Factory, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_expected (
+	const Exec &exec, Factory factory, Token &&token
+);
+
+template <typename Value, concepts::exec Exec, typename Factory, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_preserved_expected (
+	const Exec &exec, Factory factory, Token &&token
+);
+
+template <concepts::exec Exec, typename Factory, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_expected_void (
+	const Exec &exec, Factory factory, Token &&token
+);
+
+template <typename Value, concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_io (
+	const Exec &exec, Initiator initiation, Token &&token
+);
+
+template <concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_io_void (
+	const Exec &exec, Initiator initiation, Token &&token
+);
+
+namespace concepts
+{
+
+template <typename T>
+concept array_buffer = is_array_buffer_v<T>;
+
+template <typename T>
+concept vector_buffer = is_vector_buffer_v<T>;
+
+template <typename T>
+concept string_buffer = is_string_buffer_v<T>;
+
+template <typename T>
+concept buffer = is_buffer_v<T>;
+
+}} //namespace libgs::concepts
+
+#include <libgs/core/detail/async_expected.h>
+
+
+#endif //LIBGS_CORE_ASYNC_EXPECTED_H

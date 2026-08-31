@@ -63,8 +63,7 @@ public:
 	// stores the error. Async completion uses (error_code, value).
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		core_concepts::tf_opt_token<Token,error_code,Value...> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
+		concepts::dis_detach_opt_token<Token,error_code,Value...>;
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token =
@@ -82,7 +81,7 @@ public:
 	auto read(const mutable_buffer &buf, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
-	template <concepts::buffer Buffer, typename Token = use_sync_t>
+	template <core_concepts::buffer Buffer, typename Token = use_sync_t>
 	auto read(Token &&token = {})
 		requires task_token_v<Token,Buffer>;
 

@@ -28,7 +28,7 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
 
-#include <libgs/http/utils/detail/async_expected.h>
+#include <libgs/core/async_expected.h>
 #include <condition_variable>
 #include <unordered_map>
 #include <deque>
@@ -646,7 +646,7 @@ auto basic_connection_pool<Exec>::get(const target_t &key, Token &&token) noexce
 		return m_impl->acquire(key, true);
 	else
 	{
-		return detail::initiate_expected<lease_ptr>(get_executor(),
+		return initiate_expected<lease_ptr>(get_executor(),
 		[impl = m_impl, key]() mutable -> awaitable<sys_expected<lease_ptr>> {
 			co_return co_await impl->co_acquire(std::move(key), true);
 		},
@@ -669,7 +669,7 @@ auto basic_connection_pool<Exec>::try_get(const target_t &key, Token &&token) no
 		return m_impl->acquire(key, false);
 	else
 	{
-		return detail::initiate_expected<lease_ptr>(get_executor(),
+		return initiate_expected<lease_ptr>(get_executor(),
 		[impl = m_impl, key]() mutable -> awaitable<sys_expected<lease_ptr>> {
 			co_return co_await impl->co_acquire(std::move(key), false);
 		},

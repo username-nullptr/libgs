@@ -719,7 +719,7 @@ public:
 		);
 	}
 
-	template <concepts::buffer Buffer, typename Token>
+	template <core_concepts::buffer Buffer, typename Token>
 	[[nodiscard]] auto async_read_buffer(Token &&token)
 	{
 		using token_t = std::remove_cvref_t<Token>;
@@ -753,13 +753,13 @@ public:
 
 					Buffer result {};
 					try {
-						result = detail::copy_buffer_data<Buffer>(
+						result = copy_buffer_data<Buffer>(
 							std::move(source)
 						);
 					}
 					catch(...)
 					{
-						error = detail::exception_error (
+						error = exception_error (
 							std::current_exception()
 						);
 					}
@@ -867,7 +867,7 @@ public:
 							if( exception )
 							{
 								co_return std::tuple<error_code> {
-									detail::exception_error(exception)
+									exception_error(exception)
 								};
 							}
 							co_return std::tuple<error_code> {
@@ -881,13 +881,13 @@ public:
 								exec, (*progress)(sum, total), asio::as_tuple(deferred)
 							);
 							co_return std::tuple<error_code> {
-								detail::exception_error(exception)
+								exception_error(exception)
 							};
 						}
 					}
 					catch(...) {
 						co_return std::tuple<error_code> {
-							detail::exception_error(std::current_exception())
+							exception_error(std::current_exception())
 						};
 					}
 				}
@@ -904,7 +904,7 @@ public:
 							(*progress)(sum, total);
 					}
 					catch(...) {
-						error = detail::exception_error(std::current_exception());
+						error = exception_error(std::current_exception());
 					}
 					co_return std::tuple{error};
 				}
@@ -947,7 +947,7 @@ public:
 					};
 				}
 				auto file_token = self->make_file_opt_token (
-					detail::unwrap_async_argument(opt),
+					unwrap_async_arg(opt),
 					self->m_parser.status() == status::partial_content
 				);
 				if( not file_token )
@@ -965,7 +965,7 @@ public:
 						 not self->m_parser.is_range_response() and length )
 					total = *length->template get<size_t>().or_else(0);
 
-				auto &progress_ref = detail::unwrap_async_argument(progress);
+				auto &progress_ref = unwrap_async_arg(progress);
 				for(;;)
 				{
 					auto [error, chunk] = co_await self->async_read_range_body (
@@ -1075,7 +1075,7 @@ private:
 				progress(sum, total);
 		}
 		catch(...) {
-			return detail::exception_error(std::current_exception());
+			return exception_error(std::current_exception());
 		}
 		return {};
 	}
@@ -1200,13 +1200,13 @@ auto basic_reply<Exec>::wait(Token &&token)
 	requires task_token_v<Token,status_enum>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return detail::expected_value_or_error(m_impl->wait(), token);
+		return expected_value_or_error(m_impl->wait(), token);
 
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return detail::expected_value_or_throw(m_impl->wait());
+		return expected_value_or_throw(m_impl->wait());
 	else
 	{
-		return detail::initiate_io<status_enum>(get_executor(),
+		return initiate_io<status_enum>(get_executor(),
 		[impl = m_impl]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_wait (
@@ -1223,13 +1223,13 @@ auto basic_reply<Exec>::read(const mutable_buffer &buf, Token &&token)
 	requires task_token_v<Token,size_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return detail::expected_value_or_error(m_impl->read(buf), token);
+		return expected_value_or_error(m_impl->read(buf), token);
 
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return detail::expected_value_or_throw(m_impl->read(buf));
+		return expected_value_or_throw(m_impl->read(buf));
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl, buf]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_read(buf,
@@ -1240,7 +1240,7 @@ auto basic_reply<Exec>::read(const mutable_buffer &buf, Token &&token)
 	}
 }
 template <core_concepts::exec Exec>
-template <concepts::buffer Buffer, typename Token>
+template <core_concepts::buffer Buffer, typename Token>
 auto basic_reply<Exec>::read(Token &&token)
 	requires task_token_v<Token,Buffer>
 {
@@ -1249,7 +1249,7 @@ auto basic_reply<Exec>::read(Token &&token)
 		if constexpr( is_error_code_token_v<Token> )
 		{
 			Buffer result {};
-			ignore_unused(detail::expected_value_or_error (
+			ignore_unused(expected_value_or_error (
 				m_impl->read(buffer(result)), token
 			));
 			return result;
@@ -1257,14 +1257,14 @@ auto basic_reply<Exec>::read(Token &&token)
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
 			Buffer result {};
-			ignore_unused(detail::expected_value_or_throw (
+			ignore_unused(expected_value_or_throw (
 				m_impl->read(buffer(result))
 			));
 			return result;
 		}
 		else
 		{
-			return detail::initiate_io<Buffer>(get_executor(),
+			return initiate_io<Buffer>(get_executor(),
 			[impl = m_impl]<typename T0>(T0 &&completion_token) mutable
 			{
 				return impl->template async_read_buffer<Buffer>(
@@ -1276,17 +1276,17 @@ auto basic_reply<Exec>::read(Token &&token)
 	}
 	else if constexpr( is_error_code_token_v<Token> )
 	{
-		auto source = detail::expected_value_or_error(m_impl->read_all(), token);
-		return detail::copy_buffer_data<Buffer>(std::move(source));
+		auto source = expected_value_or_error(m_impl->read_all(), token);
+		return copy_buffer_data<Buffer>(std::move(source));
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		auto source = detail::expected_value_or_throw(m_impl->read_all());
-		return detail::copy_buffer_data<Buffer>(std::move(source));
+		auto source = expected_value_or_throw(m_impl->read_all());
+		return copy_buffer_data<Buffer>(std::move(source));
 	}
 	else
 	{
-		return detail::initiate_io<Buffer>(get_executor(),
+		return initiate_io<Buffer>(get_executor(),
 		[impl = m_impl]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->template async_read_buffer<Buffer>(
@@ -1321,22 +1321,22 @@ auto basic_reply<Exec>::save_file(T &&opt, Progress &&progress, Token &&token)
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error(m_impl->save_file(
+		return expected_value_or_error(m_impl->save_file (
 			std::forward<T>(opt), std::forward<Progress>(progress)
 		), token);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw(m_impl->save_file (
+		return expected_value_or_throw(m_impl->save_file (
 			std::forward<T>(opt), std::forward<Progress>(progress)
 		));
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(), [
+		return initiate_io<size_t>(get_executor(), [
 			impl = m_impl,
-			async_opt = detail::capture_async_argument(std::forward<T>(opt)),
-			async_progress = detail::capture_async_argument(
+			async_opt = capture_async_argument(std::forward<T>(opt)),
+			async_progress = capture_async_argument (
 				std::forward<Progress>(progress)
 			)
 		]

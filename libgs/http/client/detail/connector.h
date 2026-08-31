@@ -102,7 +102,7 @@ auto basic_connector<Exec>::connect(const connect_target &target, Token &&token)
 		return do_connect(target);
 	else
 	{
-		return detail::initiate_expected<connection_ptr>(get_executor(),
+		return initiate_expected<connection_ptr>(get_executor(),
 		[this, target]() mutable -> awaitable<sys_expected<connection_ptr>> {
 			co_return co_await co_do_connect(target);
 		},

@@ -28,7 +28,7 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 
-#include <libgs/http/utils/detail/async_expected.h>
+#include <libgs/core/async_expected.h>
 
 namespace libgs::http
 {
@@ -509,9 +509,9 @@ public:
 				req_info request_info, opt_t opt, progress_t progress) -> void
 			{
 				ignore_unused(state);
-				auto &upload_opt = detail::unwrap_async_argument(opt);
+				auto &upload_opt = unwrap_async_arg(opt);
 
-				auto &progress_callback = detail::unwrap_async_argument(progress);
+				auto &progress_callback = unwrap_async_arg(progress);
 				auto header_expected = request_info.arg.set_header(upload_opt);
 
 				if( not header_expected )
@@ -625,8 +625,8 @@ public:
 						request_error, {}
 					};
 				}
-				auto &download_opt = detail::unwrap_async_argument(opt);
-				auto &progress_callback = detail::unwrap_async_argument(progress);
+				auto &download_opt = unwrap_async_arg(opt);
+				auto &progress_callback = unwrap_async_arg(progress);
 
 				error_code save_error {};
 				auto bytes = co_await active_context->reply()->save_file (
@@ -854,19 +854,19 @@ auto basic_client<Exec,Version>::request(req_info info, Token &&token)
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error (
+		return expected_value_or_error (
 			m_impl->template request<Method>(std::move(info)), token
 		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw (
+		return expected_value_or_throw (
 			m_impl->template request<Method>(std::move(info))
 		);
 	}
 	else
 	{
-		return detail::initiate_io<context_ptr<Method>>(
+		return initiate_io<context_ptr<Method>>(
 		get_executor(), [impl = m_impl, request_info = std::move(info)]
 		<typename T0>(T0 &&completion_token) mutable
 		{
@@ -895,7 +895,7 @@ auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Progress &&
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error (
+		return expected_value_or_error (
 			m_impl->upload_file(std::move(info),
 				std::forward<T>(opt), std::forward<Progress>(progress)
 			), token
@@ -903,7 +903,7 @@ auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Progress &&
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw (
+		return expected_value_or_throw (
 			m_impl->upload_file(std::move(info),
 				std::forward<T>(opt), std::forward<Progress>(progress)
 			)
@@ -911,10 +911,10 @@ auto basic_client<Exec,Version>::upload_file(req_info info, T &&opt, Progress &&
 	}
 	else
 	{
-		return detail::initiate_io<context_ptr<method::put>>(get_executor(), [
+		return initiate_io<context_ptr<method::put>>(get_executor(), [
 			impl = m_impl, request_info = std::move(info),
-			async_opt = detail::capture_async_argument(std::forward<T>(opt)),
-			async_progress = detail::capture_async_argument (
+			async_opt = capture_async_argument(std::forward<T>(opt)),
+			async_progress = capture_async_argument (
 				std::forward<Progress>(progress)
 			)
 		]
@@ -946,7 +946,7 @@ auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Progress 
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error (
+		return expected_value_or_error (
 			m_impl->download_file(std::move(info),
 				std::forward<T>(opt), std::forward<Progress>(progress)
 			), token
@@ -954,7 +954,7 @@ auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Progress 
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw (
+		return expected_value_or_throw (
 			m_impl->download_file(std::move(info),
 				std::forward<T>(opt), std::forward<Progress>(progress)
 			)
@@ -962,10 +962,10 @@ auto basic_client<Exec,Version>::download_file(req_info info, T &&opt, Progress 
 	}
 	else
 	{
-		return detail::initiate_io<context_ptr<method::get>>(get_executor(), [
+		return initiate_io<context_ptr<method::get>>(get_executor(), [
 			impl = m_impl, request_info = std::move(info),
-			async_opt = detail::capture_async_argument(std::forward<T>(opt)),
-			async_progress = detail::capture_async_argument (
+			async_opt = capture_async_argument(std::forward<T>(opt)),
+			async_progress = capture_async_argument (
 				std::forward<Progress>(progress)
 			)
 		]
@@ -1009,19 +1009,19 @@ auto basic_client<Exec,Version>::make_context(req_info info, Token &&token)
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return detail::expected_value_or_error (
+		return expected_value_or_error (
 			m_impl->template make_context<Method>(std::move(info)), token
 		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return detail::expected_value_or_throw (
+		return expected_value_or_throw (
 			m_impl->template make_context<Method>(std::move(info))
 		);
 	}
 	else
 	{
-		return detail::initiate_io<context_ptr<Method>>(get_executor(),
+		return initiate_io<context_ptr<Method>>(get_executor(),
 		[impl = m_impl, request_info = std::move(info)]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->template async_make_context<Method>(

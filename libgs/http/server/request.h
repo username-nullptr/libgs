@@ -65,7 +65,7 @@ public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
 		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
+		not is_detached_v<token_unbound_t<Token>>;
 
 	template <typename Token = use_sync_t>
 	auto wait(Token &&token = {}) requires task_token_v<Token>;
@@ -98,7 +98,7 @@ public:
 	auto read(const mutable_buffer &buf, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
-	template <concepts::buffer Buffer, typename Token = use_sync_t>
+	template <core_concepts::buffer Buffer, typename Token = use_sync_t>
 	auto read(Token &&token = {})
 		requires task_token_v<Token,Buffer>;
 

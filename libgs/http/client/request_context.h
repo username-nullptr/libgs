@@ -125,8 +125,7 @@ public:
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		core_concepts::tf_opt_token<Token,error_code,Value...> and
-		not is_detached_v<std::remove_cvref_t<Token>>;
+		concepts::dis_detach_opt_token<Token,error_code,Value...>;
 
 	template <typename Token = use_sync_t>
 	auto wait_reply(Token &&token = {})

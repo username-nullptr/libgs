@@ -459,7 +459,7 @@ public:
 		);
 	}
 
-	template <concepts::buffer Buffer, typename Token>
+	template <core_concepts::buffer Buffer, typename Token>
 	[[nodiscard]] auto async_read_buffer(Token &&token)
 	{
 		using token_t = std::remove_cvref_t<Token>;
@@ -493,13 +493,13 @@ public:
 
 					Buffer result {};
 					try {
-						result = detail::copy_buffer_data<Buffer>(
+						result = copy_buffer_data<Buffer>(
 							std::move(source)
 						);
 					}
 					catch(...)
 					{
-						error = detail::exception_error (
+						error = exception_error (
 							std::current_exception()
 						);
 					}
@@ -603,7 +603,7 @@ public:
 			{
 				LIBGS_UNUSED(state);
 				auto expected = self->make_file_opt_token (
-					detail::unwrap_async_argument(opt)
+					unwrap_async_arg(opt)
 				);
 				if( not expected )
 				{
@@ -745,7 +745,7 @@ auto basic_request<Exec>::wait(Token &&token)
 	}
 	else
 	{
-		return detail::initiate_io_void(get_executor(),
+		return initiate_io_void(get_executor(),
 		[impl = m_impl]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_wait(
@@ -848,7 +848,7 @@ auto basic_request<Exec>::read(const mutable_buffer &buf, Token &&token)
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl, buf]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_read(buf,
@@ -860,7 +860,7 @@ auto basic_request<Exec>::read(const mutable_buffer &buf, Token &&token)
 }
 
 template <core_concepts::exec Exec>
-template <concepts::buffer Buffer, typename Token>
+template <core_concepts::buffer Buffer, typename Token>
 auto basic_request<Exec>::read(Token &&token)
 	requires task_token_v<Token,Buffer>
 {
@@ -879,7 +879,7 @@ auto basic_request<Exec>::read(Token &&token)
 			ignore_unused(m_impl->read(buffer(result), error));
 			if( error )
 			{
-				system_error::loc_throw(
+				system_error::loc_throw (
 					error, "libgs::http::basic_request::read"
 				);
 			}
@@ -887,7 +887,7 @@ auto basic_request<Exec>::read(Token &&token)
 		}
 		else
 		{
-			return detail::initiate_io<Buffer>(get_executor(),
+			return initiate_io<Buffer>(get_executor(),
 			[impl = m_impl]<typename T0>(T0 &&completion_token) mutable
 			{
 				return impl->template async_read_buffer<Buffer>(
@@ -900,7 +900,7 @@ auto basic_request<Exec>::read(Token &&token)
 	else if constexpr( is_error_code_token_v<Token> )
 	{
 		auto source = m_impl->read_all(token);
-		return detail::copy_buffer_data<Buffer>(std::move(source));
+		return copy_buffer_data<Buffer>(std::move(source));
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -912,11 +912,11 @@ auto basic_request<Exec>::read(Token &&token)
 				error, "libgs::http::basic_request::read"
 			);
 		}
-		return detail::copy_buffer_data<Buffer>(std::move(source));
+		return copy_buffer_data<Buffer>(std::move(source));
 	}
 	else
 	{
-		return detail::initiate_io<Buffer>(get_executor(),
+		return initiate_io<Buffer>(get_executor(),
 		[impl = m_impl]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->template async_read_buffer<Buffer>(
@@ -959,9 +959,9 @@ auto basic_request<Exec>::save_file(T &&opt, Token &&token)
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl,
-		 async_opt = detail::capture_async_argument(std::forward<T>(opt))]
+		 async_opt = capture_async_argument(std::forward<T>(opt))]
 		<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_save_file (

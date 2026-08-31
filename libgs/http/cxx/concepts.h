@@ -62,41 +62,6 @@ struct is_any_exec_stream
 template <typename Stream>
 constexpr bool is_any_exec_stream_v = is_any_exec_stream<Stream>::value;
 
-template <typename>
-struct is_array_buffer : std::false_type {};
-
-template <typename T, size_t N>
-struct is_array_buffer<std::array<T,N>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_array_buffer_v = is_array_buffer<T>::value;
-
-template <typename>
-struct is_vector_buffer : std::false_type {};
-
-template <typename T>
-struct is_vector_buffer<std::vector<T>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_vector_buffer_v = is_vector_buffer<T>::value;
-
-template <typename>
-struct is_string_buffer : std::false_type {};
-
-template <concepts::character CharT, typename Traits, typename Alloc>
-struct is_string_buffer<std::basic_string<CharT,Traits,Alloc>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_string_buffer_v = is_string_buffer<T>::value;
-
-template <typename T>
-struct is_buffer : std::disjunction <
-	is_array_buffer<T>, is_vector_buffer<T>, is_string_buffer<T>
-> {};
-
-template <typename T>
-constexpr bool is_buffer_v = is_buffer<T>::value;
-
 namespace concepts
 {
 
@@ -112,22 +77,10 @@ concept any_exec_stream = is_any_exec_stream_v<Stream>;
 template <typename Stream>
 concept any_exec_stream_p = is_any_exec_stream_v<std::remove_cvref_t<Stream>>;
 
-template <typename T>
-concept array_buffer = is_array_buffer_v<T>;
-
-template <typename T>
-concept vector_buffer = is_vector_buffer_v<T>;
-
-template <typename T>
-concept string_buffer = is_string_buffer_v<T>;
-
-template <typename T>
-concept buffer = is_buffer_v<T>;
-
 template <typename Token, typename...Args>
 concept dis_detach_opt_token =
 	libgs::concepts::tf_opt_token<Token,Args...> and
-	not is_detached_v<std::remove_cvref_t<Token>>;
+	not is_detached_v<token_unbound_t<Token>>;
 
 template <typename Func, typename Token>
 concept progress_handler =

@@ -421,7 +421,7 @@ public:
 					co_return std::tuple<error_code,size_t>{error_code{}, 0};
 
 				auto file_token = self->make_file_opt_token (
-					detail::unwrap_async_argument(opt)
+					unwrap_async_arg(opt)
 				);
 				if( not file_token )
 				{
@@ -1700,7 +1700,7 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 				static_cast<const char*>(body.data()), body.size()
 			);
 		}
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl, data = std::move(owned_data)]
 		<typename T0>(T0 &&completion_token) mutable
 		{
@@ -1712,7 +1712,7 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl, body]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_write(body,
@@ -1755,9 +1755,9 @@ auto basic_response<Exec>::send_file(T &&opt, Token &&token)
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
+		return initiate_io<size_t>(get_executor(),
 		[impl = m_impl,
-		 async_opt = detail::capture_async_argument(std::forward<T>(opt))]
+		 async_opt = capture_async_argument(std::forward<T>(opt))]
 		<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_send_file (
@@ -1824,9 +1824,8 @@ auto basic_response<Exec>::chunk_end
 	}
 	else
 	{
-		return detail::initiate_io<size_t>(get_executor(),
-		[impl = m_impl, trailing_headers]
-		<typename T0>(T0 &&completion_token) mutable
+		return initiate_io<size_t>(get_executor(),
+		[impl = m_impl, trailing_headers]<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_chunk_end(std::move(trailing_headers),
 				std::forward<T0>(completion_token)

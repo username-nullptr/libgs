@@ -29,7 +29,7 @@
 #ifndef LIBGS_HTTP_UTILS_DETAIL_CONNECTION_H
 #define LIBGS_HTTP_UTILS_DETAIL_CONNECTION_H
 
-#include <libgs/http/utils/detail/async_expected.h>
+#include <libgs/core/async_expected.h>
 
 namespace libgs::http { namespace detail
 {

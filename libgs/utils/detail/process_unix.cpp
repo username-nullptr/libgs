@@ -64,6 +64,34 @@ using envs_t = std::map<std::string, value>;
 	return { errno, std::system_category() };
 }
 
+[[nodiscard]] static bool is_shell_assignment(std::string_view word) noexcept
+{
+	const auto equal_pos = word.find('=');
+	if( equal_pos == std::string_view::npos or equal_pos == 0 )
+		return false;
+
+	auto is_name_head = [](char character) noexcept
+	{
+		return character == '_' or
+			(character >= 'A' and character <= 'Z') or
+			(character >= 'a' and character <= 'z');
+	};
+	auto is_name_body = [is_name_head](char character) noexcept
+	{
+		return is_name_head(character) or
+			(character >= '0' and character <= '9');
+	};
+	if( not is_name_head(word.front()) )
+		return false;
+
+	for(size_t index = 1; index < equal_pos; ++index)
+	{
+		if( not is_name_body(word[index]) )
+			return false;
+	}
+	return true;
+}
+
 [[nodiscard]] static bool exit_on_parent_exit(::pid_t parent_pid) noexcept
 {
 #ifdef __linux__
@@ -76,6 +104,9 @@ using envs_t = std::map<std::string, value>;
 #endif
 }
 
+namespace
+{
+
 class LIBGS_DECL_HIDDEN vindicator final :
 	public std::enable_shared_from_this<vindicator>
 {
@@ -86,38 +117,33 @@ public:
 	explicit vindicator(const executor_t &exec) :
 		m_exec(exec), m_stdin(exec), m_stdout(exec), m_stderr(exec) {}
 
-	~vindicator()
-	{
-		error_code error; LIBGS_UNUSED(error);
-		error = m_stdin .close(error);
-		error = m_stdout.close(error);
-		error = m_stderr.close(error);
-
-		if( m_thread.joinable() )
-		{
-			try {
-				m_thread.detach();
-			}
-			catch(...) {}
-		}
+	~vindicator() noexcept {
+		stop_and_reap(false);
 	}
 
 public:
 	[[nodiscard]] sys_expected<> start(bool is_pipe, std::string_view cmd,
-		const args_t &args, std::string_view work_path, const envs_t &envs) noexcept
+		const args_t &args, std::string_view work_path, const envs_t &envs)
 	{
 		error_code error; LIBGS_UNUSED(error);
 		sys_expected<> expected;
 
-		if( m_state == process_state::running )
-			return expected;
-
+		if( m_joinable.load(std::memory_order_acquire) )
+		{
+			return expected.despair(std::make_error_code (
+				std::errc::device_or_resource_busy
+			));
+		}
 		else if( cmd.empty() )
 		{
 			return expected.despair(std::make_error_code (
 				std::errc::no_such_file_or_directory
 			));
 		}
+		join_monitor_thread();
+		finish_io(m_generation.load(std::memory_order_acquire), true);
+		auto generation = m_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
+
 		// From the perspective of the child process.
 		int stdin_pipe [2] {-1,-1};
 		int stdout_pipe[2] {-1,-1};
@@ -155,7 +181,7 @@ public:
 				_exit(255);
 
 			fcntl(stdin_pipe[0], F_SETFL,
-				fcntl(stdin_pipe[0], F_GETFL) | O_NONBLOCK
+				fcntl(stdin_pipe[0], F_GETFL) & ~O_NONBLOCK
 			);
 			fcntl(stdout_pipe[1], F_SETFL,
 				fcntl(stdout_pipe[1], F_GETFL) & ~O_NONBLOCK
@@ -214,80 +240,80 @@ public:
 		if( not expected )
 			goto exec_error;
 
-		m_stdin.assign(stdin_pipe[1]);
+		error.clear();
+		error = m_stdin.assign(stdin_pipe[1], error);
+		if( error )
+		{
+			expected.despair(error);
+			stop_and_reap(true);
+			goto exec_error;
+		}
+		stdin_pipe[1] = -1;
 		close(stdin_pipe[0]);
+		stdin_pipe[0] = -1;
 
-		m_stdout.assign(stdout_pipe[0]);
+		error.clear();
+		error = m_stdout.assign(stdout_pipe[0], error);
+		if( error )
+		{
+			expected.despair(error);
+			stop_and_reap(true);
+			goto exec_error;
+		}
+		stdout_pipe[0] = -1;
 		close(stdout_pipe[1]);
+		stdout_pipe[1] = -1;
 
-		m_stderr.assign(stderr_pipe[0]);
+		error.clear();
+		error = m_stderr.assign(stderr_pipe[0], error);
+		if( error )
+		{
+			expected.despair(error);
+			stop_and_reap(true);
+			goto exec_error;
+		}
+		stderr_pipe[0] = -1;
 		close(stderr_pipe[1]);
+		stderr_pipe[1] = -1;
 
 		m_state = process_state::running;
-		if( m_thread.joinable() )
-		{
-			try {
-				m_thread.detach();
-			}
-			catch(...) {}
-		}
-		m_thread = std::thread([self = shared_from_this()]
-		{
-			int status = 0;
-			for(;;)
-			{
-				int res = waitpid(self->m_pid, &status, 0);
-				if( res < 0 )
-				{
-					int err = errno;
-					libgs_utils_clog_error("LibGS.Utils",
-						"process: waitpid failed: '{}' ({}), retrying...",
-						strerror(err), err
-					);
-					sleep_for(10us);
-					continue;
-				}
-				else if( not WIFSTOPPED(status) and not WIFCONTINUED(status) )
-					break;
-			}
-			if( WIFEXITED(status) )
-			{
-				self->m_exit_code = WEXITSTATUS(status);
-				self->m_state = process_state::exited;
-			}
-			else
-			{
-				if( WIFSIGNALED(status) )
-				{
-					auto signal = WTERMSIG(status);
-					self->m_exit_code = signal;
-				}
-				else
-					self->m_exit_code = 255;
-
-				self->m_state = process_state::crashed;
-			}
-			self->m_cv.notify_all();
-
-			libgs::post(self->m_exec, [self]
-			{
-				self->m_stdin.close();
-				self->m_pid = -1;
-
-				auto vector = std::move(self->m_co_join_list);
-				for(auto &timer : vector)
-					timer->cancel();
+		try {
+			const auto child_pid = m_pid.load(std::memory_order_acquire);
+			m_thread = std::thread([self = shared_from_this(), child_pid, generation]{
+				self->monitor_child(child_pid, generation);
 			});
-		});
+			m_joinable.store(true, std::memory_order_release);
+		}
+		catch(const std::system_error &exception)
+		{
+			expected.despair(exception.code());
+			stop_and_reap(true);
+		}
+		catch(const std::bad_alloc&)
+		{
+			expected.despair(make_error_code(std::errc::not_enough_memory));
+			stop_and_reap(true);
+		}
+		catch(...)
+		{
+			expected.despair(make_error_code(std::errc::io_error));
+			stop_and_reap(true);
+		}
 		return expected;
 
 	exec_error: {
+		m_joinable.store(false, std::memory_order_release);
+		m_join_in_progress.store(false, std::memory_order_release);
 		m_state = process_state::crashed;
 		m_exit_code = 255;
 		m_pid = -1;
 
 		m_cv.notify_all();
-		auto vector = std::move(m_co_join_list);
+		std::vector<std::shared_ptr<asio::steady_timer>> vector;
+		{
+			std::lock_guard timer_lock(m_timer_mutex);
+			vector = std::move(m_co_join_list);
+		}
 		for(auto &timer : vector)
 			timer->cancel();
 	}
@@ -310,31 +336,222 @@ public:
 		return expected;
 	}
 
-	void _throw()
+private:
+	void monitor_child(int child_pid, std::uint64_t generation) noexcept
 	{
-		::kill(m_pid, SIGKILL);
-		if( m_thread.joinable() )
-			m_thread.join();
+		int status = 0;
+		bool reaped = false;
+		for(;;)
+		{
+			const int result = waitpid(child_pid, &status, 0);
+			if( result == child_pid )
+			{
+				if( WIFSTOPPED(status) or WIFCONTINUED(status) )
+					continue;
+				reaped = true;
+				break;
+			}
+			if( result < 0 and errno == EINTR )
+				continue;
 
-		runtime_error::loc_throw (
-			"The process is being destructed while it is still running."
-		);
+			const int wait_error = errno;
+			libgs_utils_clog_error("LibGS.Utils",
+				"process: waitpid failed: '{}' ({})",
+				strerror(wait_error), wait_error
+			);
+			break;
+		}
+		if( generation == m_generation.load(std::memory_order_acquire) )
+		{
+			if( reaped and WIFEXITED(status) )
+			{
+				m_exit_code = WEXITSTATUS(status);
+				m_state = process_state::exited;
+			}
+			else
+			{
+				m_exit_code = reaped and WIFSIGNALED(status) ?
+					WTERMSIG(status) : 255;
+				m_state = process_state::crashed;
+			}
+			m_cv.notify_all();
+		}
+		try {
+			libgs::post(m_exec, [self = shared_from_this(), generation]{
+				self->finish_io(generation, false);
+			});
+		}
+		catch(...) {
+			finish_io(generation, false);
+		}
+	}
+
+	void join_monitor_thread() noexcept
+	{
+		if( not m_thread.joinable() )
+			return ;
+		try {
+			if( m_thread.get_id() == std::this_thread::get_id() )
+				m_thread.detach();
+			else
+				m_thread.join();
+		}
+		catch(...) {}
+	}
+
+	void finish_io(std::uint64_t generation, bool close_output) noexcept
+	{
+		if( generation != m_generation.load(std::memory_order_acquire) )
+			return ;
+
+		error_code error;
+		error = m_stdin.close(error);
+		if( close_output )
+		{
+			error.clear();
+			error = m_stdout.close(error);
+			error.clear();
+			error = m_stderr.close(error);
+		}
+		m_pid.store(-1, std::memory_order_release);
+
+		std::vector<std::shared_ptr<asio::steady_timer>> timers;
+		{
+			std::lock_guard timer_lock(m_timer_mutex);
+			timers = std::move(m_co_join_list);
+		}
+		for(auto &timer : timers)
+		{
+			try {
+				timer->cancel();
+			}
+			catch(...) {}
+		}
+	}
+
+	void stop_and_reap(bool force) noexcept
+	{
+		const auto state = m_state.load(std::memory_order_acquire);
+		const int child_pid = m_pid.load(std::memory_order_acquire);
+		const bool must_stop = force or state == process_state::running;
+
+		if( must_stop and child_pid > 0 )
+			::kill(child_pid, SIGKILL);
+
+		if( m_thread.joinable() )
+			join_monitor_thread();
+
+		else if( must_stop and child_pid > 0 )
+		{
+			int status = 0;
+			int wait_result = -1;
+			do {
+				wait_result = waitpid(child_pid, &status, 0);
+			}
+			while( wait_result < 0 and errno == EINTR );
+
+			m_exit_code = wait_result == child_pid and WIFSIGNALED(status) ?
+				WTERMSIG(status) : 255;
+
+			m_state = process_state::crashed;
+			m_cv.notify_all();
+		}
+		if( m_state.load(std::memory_order_acquire) == process_state::running )
+		{
+			m_exit_code = 255;
+			m_state = process_state::crashed;
+			m_cv.notify_all();
+		}
+		finish_io(m_generation.load(std::memory_order_acquire), true);
+	}
+
+	[[nodiscard]] bool register_join_timer(const std::shared_ptr<asio::steady_timer> &timer)
+	{
+		std::lock_guard timer_lock(m_timer_mutex);
+		if( m_state.load(std::memory_order_acquire) != process_state::running )
+			return false;
+		m_co_join_list.emplace_back(timer);
+		return true;
+	}
+
+	[[nodiscard]] error_code claim_join() noexcept
+	{
+		if( not m_joinable.load(std::memory_order_acquire) )
+			return make_error_code(std::errc::invalid_argument);
+
+		if( bool expected = false;
+			not m_join_in_progress.compare_exchange_strong(expected, true, std::memory_order_acq_rel) )
+			return make_error_code(std::errc::device_or_resource_busy);
+
+		if( not m_joinable.load(std::memory_order_acquire) )
+		{
+			m_join_in_progress.store(false, std::memory_order_release);
+			return make_error_code(std::errc::invalid_argument);
+		}
+		return {};
+	}
+
+	class join_claim final
+	{
+	public:
+		explicit join_claim(vindicator &owner) noexcept :
+			m_owner(owner) {}
+
+		~join_claim()
+		{
+			if( m_consume )
+				m_owner.m_joinable.store(false, std::memory_order_release);
+			m_owner.m_join_in_progress.store(false, std::memory_order_release);
+		}
+
+		void consume() noexcept {
+			m_consume = true;
+		}
+
+	private:
+		vindicator &m_owner;
+		bool m_consume = false;
+	};
+
+public:
+	[[noreturn]] void _throw() noexcept
+	{
+		stop_and_reap(true);
+		std::terminate();
 	}
 
 public:
 	void terminate() const noexcept
 	{
 		if( m_state == process_state::running )
-			::kill(m_pid, SIGTERM);
+			::kill(m_pid.load(std::memory_order_acquire), SIGTERM);
 	}
 
 	void kill() noexcept
 	{
 		if( m_state == process_state::running )
+			::kill(m_pid.load(std::memory_order_acquire), SIGKILL);
+	}
+
+	[[nodiscard]] sys_expected<> detach() noexcept
+	{
+		if( not m_joinable.load(std::memory_order_acquire) )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		if( m_join_in_progress.load(std::memory_order_acquire) )
 		{
-			::kill(m_pid, SIGKILL);
-			m_state = process_state::crashed;
+			return sys_unexpected(make_error_code (
+				std::errc::device_or_resource_busy
+			));
 		}
+		if( bool expected = true;
+			not m_joinable.compare_exchange_strong(expected, false, std::memory_order_acq_rel) )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+		return {};
+	}
+
+	[[nodiscard]] bool joinable() const noexcept {
+		return m_joinable.load(std::memory_order_acquire);
 	}
 
 	void cancel() noexcept
@@ -345,7 +562,11 @@ public:
 			self->m_stdout.cancel();
 			self->m_stderr.cancel();
 
-			auto vector = std::move(self->m_co_join_list);
+			std::vector<std::shared_ptr<asio::steady_timer>> vector;
+			{
+				std::lock_guard timer_lock(self->m_timer_mutex);
+				vector = std::move(self->m_co_join_list);
+			}
 			for(auto &timer : vector)
 				timer->cancel();
 		});
@@ -354,22 +575,31 @@ public:
 public:
 	[[nodiscard]] sys_expected<int> join(std::chrono::nanoseconds timeout) noexcept
 	{
+		if( auto claim_error = claim_join() )
+			return sys_unexpected(claim_error);
+
+		join_claim claim(*this);
 		auto state = m_state.load();
+
 		if( state == process_state::idle )
 		{
+			claim.consume();
 			return sys_unexpected (
 				make_error_code(std::errc::no_such_process)
 			);
 		}
 		else if( state == process_state::crashed )
 		{
+			claim.consume();
 			return sys_unexpected (
 				make_error_code(std::errc::io_error)
 			);
 		}
 		else if( state == process_state::exited )
+		{
+			claim.consume();
 			return m_exit_code.load();
-
+		}
 		std::unique_lock locker(m_cv_mutex);
 		if( timeout == 0ns )
 		{
@@ -392,32 +622,43 @@ public:
 		}
 		else if( state != process_state::exited )
 		{
+			claim.consume();
 			return sys_unexpected (
 				make_error_code(std::errc::io_error)
 			);
 		}
+		claim.consume();
 		return m_exit_code.load();
 	}
 
 	[[nodiscard]] awaitable<sys_expected<int>> co_join
 	(std::chrono::nanoseconds timeout, asio::cancellation_slot cancel_slot) noexcept
 	{
+		if( auto claim_error = claim_join() )
+			co_return sys_unexpected(claim_error);
+
+		join_claim claim(*this);
 		auto state = m_state.load();
+
 		if( state == process_state::idle )
 		{
+			claim.consume();
 			co_return sys_unexpected (
 				make_error_code(std::errc::no_such_process)
 			);
 		}
 		else if( state == process_state::crashed )
 		{
+			claim.consume();
 			co_return sys_unexpected (
 				make_error_code(std::errc::io_error)
 			);
 		}
 		else if( state == process_state::exited )
+		{
+			claim.consume();
 			co_return m_exit_code.load();
-
+		}
 		auto exec = co_await asio::this_coro::executor;
 		auto timer = std::make_shared<asio::steady_timer>(exec);
 
@@ -426,8 +667,16 @@ public:
 			for(;;)
 			{
 				timer->expires_after(24h);
-				m_co_join_list.emplace_back(timer);
-
+				if( not register_join_timer(timer) )
+				{
+					state = m_state.load();
+					if( state != process_state::exited )
+					{
+						claim.consume();
+						co_return sys_unexpected(make_error_code(std::errc::io_error));
+					}
+					break;
+				}
 				std::error_code error;
 				if( cancel_slot.is_connected() )
 					co_await timer->async_wait(use_awaitable | cancel_slot | error);
@@ -443,6 +692,7 @@ public:
 				}
 				else if( state != process_state::exited )
 				{
+					claim.consume();
 					co_return sys_unexpected (
 						make_error_code(std::errc::io_error)
 					);
@@ -453,14 +703,16 @@ public:
 		else
 		{
 			timer->expires_after(timeout);
-			m_co_join_list.emplace_back(timer);
+			const bool timer_registered = register_join_timer(timer);
 
 			std::error_code error;
-			if( cancel_slot.is_connected() )
-				co_await timer->async_wait(use_awaitable | cancel_slot | error);
-			else
-				co_await timer->async_wait(use_awaitable | error);
-
+			if( timer_registered )
+			{
+				if( cancel_slot.is_connected() )
+					co_await timer->async_wait(use_awaitable | cancel_slot | error);
+				else
+					co_await timer->async_wait(use_awaitable | error);
+			}
 			state = m_state.load();
 			if( state == process_state::running )
 			{
@@ -470,11 +722,13 @@ public:
 			}
 			else if( state != process_state::exited )
 			{
+				claim.consume();
 				co_return sys_unexpected (
 					make_error_code(std::errc::io_error)
 				);
 			}
 		}
+		claim.consume();
 		co_return m_exit_code.load();
 	}
 
@@ -498,68 +752,28 @@ public:
 		return sum;
 	}
 
-	void write_detach(const const_buffer &buf) noexcept
+	void async_write(const_buffer buf, process::io_handler_t handler)
 	{
-		if( m_state != process_state::running )
+		if( buf.size() == 0 )
+		{
+			post_io_result(std::move(handler), {}, 0);
 			return ;
-
-		auto buf_ptr = std::make_shared<std::string>(
-			static_cast<const char*>(buf.data()), buf.size()
-		);
+		}
+		if( m_state != process_state::running )
+		{
+			post_io_result(std::move(handler),
+				make_error_code(std::errc::no_such_process), 0
+			);
+			return ;
+		}
 		std::error_code error;
 		error = m_stdin.non_blocking(true, error);
 		if( error )
 		{
-			libgs_utils_clog_warning("LibGS.Utils",
-				"process::write<detach>: {}", error
-			);
+			post_io_result(std::move(handler), error, 0);
 			return ;
 		}
-		asio::async_write(m_stdin, asio::buffer(*buf_ptr),
-		[buf_ptr](const std::error_code &err, size_t)
-		{
-			LIBGS_UNUSED(buf_ptr);
-			if( not err )
-				return ;
-			libgs_utils_clog_warning("LibGS.Utils",
-				"process::write<detach>: {}", err
-			);
-		});
-	}
-
-	[[nodiscard]] awaitable<io_expected> co_write(const const_buffer &buf,
-		asio::cancellation_slot cancel_slot, const std::chrono::nanoseconds &timeout) noexcept
-	{
-		if( m_state != process_state::running )
-		{
-			co_return io_unexpected (
-				make_error_code(std::errc::no_such_process)
-			);
-		}
-		std::error_code error;
-		error = m_stdin.non_blocking(true, error);
-		if( error )
-			co_return io_unexpected(error);
-
-		awaitable<size_t> task;
-		if( cancel_slot.is_connected() )
-			task = asio::async_write(m_stdin, buf, use_awaitable | cancel_slot | error);
-		else
-			task = asio::async_write(m_stdin, buf, use_awaitable | error);
-
-		size_t sum = 0;
-		if( timeout == 0ns )
-			sum = co_await std::move(task);
-		else
-		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_exec, timeout)
-			);
-			sum = check_time_out(var, error);
-		}
-		if( error )
-			co_return io_unexpected(error);
-		co_return sum;
+		asio::async_write(m_stdin, buf, std::move(handler));
 	}
 
 public:
@@ -622,11 +836,20 @@ public:
 		return sum;
 	}
 
-	void read_detach(read_channel_t channel, const mutable_buffer &buf) noexcept
+	void async_read(read_channel_t channel, mutable_buffer buf, process::io_handler_t handler)
 	{
-		if( m_state == process_state::idle )
+		if( buf.size() == 0 )
+		{
+			post_io_result(std::move(handler), {}, 0);
 			return ;
-
+		}
+		if( m_state == process_state::idle )
+		{
+			post_io_result(std::move(handler),
+				make_error_code(std::errc::no_such_process), 0
+			);
+			return ;
+		}
 		std::error_code error;
 		descriptor_t *stream = nullptr;
 
@@ -634,9 +857,8 @@ public:
 		{
 			if( not m_stdout.is_open() )
 			{
-				libgs_utils_clog_warning (
-					"LibGS.Utils", "process::read<detach>: {}",
-					make_error_code(std::errc::no_such_process)
+				post_io_result(std::move(handler),
+					make_error_code(std::errc::no_such_process), 0
 				);
 				return ;
 			}
@@ -646,87 +868,20 @@ public:
 		{
 			if( not m_stderr.is_open() )
 			{
-				libgs_utils_clog_warning (
-					"LibGS.Utils", "process::read_stderr<detach>: {}",
-					make_error_code(std::errc::no_such_process)
+				post_io_result(std::move(handler),
+					make_error_code(std::errc::no_such_process), 0
 				);
 				return ;
-			}
-			stream = &m_stdout;
-		}
-		error = stream->non_blocking(true, error);
-		if( error )
-		{
-			libgs_utils_clog_warning("LibGS.Utils",
-				"process::read<detach>: {}", error
-			);
-			return ;
-		}
-		stream->async_read_some(buf, [](const std::error_code &err, size_t)
-		{
-			if( not err )
-				return ;
-			libgs_utils_clog_warning("LibGS.Utils",
-				"process::read<detach>: {}", err
-			);
-		});
-	}
-
-	awaitable<io_expected> co_read(read_channel_t channel, const mutable_buffer &buf,
-		asio::cancellation_slot cancel_slot, const std::chrono::nanoseconds &timeout) noexcept
-	{
-		if( m_state == process_state::idle )
-		{
-			co_return io_unexpected (
-				make_error_code(std::errc::no_such_process)
-			);
-		}
-		descriptor_t *stream = nullptr;
-
-		if( channel == read_channel_t::std_output )
-		{
-			if( not m_stdout.is_open() )
-			{
-				co_return io_unexpected (
-					make_error_code(std::errc::no_such_process)
-				);
-			}
-			stream = &m_stdout;
-		}
-		else
-		{
-			if( not m_stderr.is_open() )
-			{
-				co_return io_unexpected (
-					make_error_code(std::errc::no_such_process)
-				);
 			}
 			stream = &m_stderr;
 		}
-		std::error_code error;
 		error = stream->non_blocking(true, error);
 		if( error )
-			co_return io_unexpected(error);
-
-		awaitable<size_t> task;
-		if( cancel_slot.is_connected() )
-			task = stream->async_read_some(buf, use_awaitable | cancel_slot | error);
-		else
-			task = stream->async_read_some(buf, use_awaitable | error);
-
-		size_t sum = 0;
-		if( timeout == 0ns )
-			sum = co_await std::move(task);
-		else
 		{
-			auto var = co_await(std::move(task) or
-				coro::sleep_for(m_exec, timeout)
-			);
-			sum = check_time_out(var, error);
+			post_io_result(std::move(handler), error, 0);
+			return ;
 		}
-		if( error )
-			co_return io_unexpected(error);
-		co_return sum;
+		stream->async_read_some(buf, std::move(handler));
 	}
 
 public:
@@ -740,17 +895,17 @@ public:
 	[[nodiscard]] uint64_t pid() const noexcept
 	{
 		return m_state == process_state::running ?
-			static_cast<uint64_t>(m_pid) : 0;
+			static_cast<uint64_t>(m_pid.load(std::memory_order_acquire)) : 0;
 	}
 
 private:
-	[[nodiscard]] size_t check_time_out(const auto &var, std::error_code &error) const
+	void post_io_result(process::io_handler_t handler, error_code error, size_t size)
 	{
-		if( var.index() == 0 )
-			return std::get<0>(var);
-		else if( not std::get<1>(var) )
-			error = make_error_code(errc::timed_out);
-		return 0;
+		auto allocator = asio::get_associated_allocator(handler);
+		asio::post(m_exec, asio::bind_allocator(allocator,
+		[completion = std::move(handler), error, size]() mutable {
+			std::move(completion)(error, size);
+		}));
 	}
 
 	[[nodiscard]] static optional<std::string> default_shell() noexcept
@@ -766,12 +921,15 @@ private:
 
 public:
 	std::thread m_thread {};
-	int m_pid = -1;
+	std::atomic_int m_pid {-1};
+	std::atomic_uint64_t m_generation {0};
 
 	std::atomic<process_state> m_state {
 		process_state::idle
 	};
 	std::atomic_int m_exit_code {0};
+	std::atomic_bool m_joinable {false};
+	std::atomic_bool m_join_in_progress {false};
 
 	// From the perspective of the child process.
 	executor_t m_exec {};
@@ -785,9 +943,12 @@ public:
 	std::vector <
 		std::shared_ptr<asio::steady_timer>
 	> m_co_join_list {};
+	std::mutex m_timer_mutex {};
 };
 
 using vindicator_ptr = vindicator::ptr_t;
+
+} //namespace
 
 class LIBGS_DECL_HIDDEN process::impl
 {
@@ -798,18 +959,18 @@ public:
 		m_exec(std::move(exec)),
 		m_vindicator(std::make_shared<vindicator>(m_exec)) {}
 
-	~impl()
+	~impl() noexcept
 	{
-		if( m_vindicator->state() == process_state::running )
+		if( m_vindicator->joinable() )
 			m_vindicator->_throw();
 	}
 
 public:
-	std::string m_cmd;
-	args_t m_args;
+	std::string m_cmd {};
+	args_t m_args {};
 
-	path_t m_work_path;
-	envs_t m_envs;
+	path_t m_work_path {};
+	envs_t m_envs {};
 
 	executor_t m_exec {};
 	vindicator_ptr m_vindicator {};
@@ -817,31 +978,50 @@ public:
 };
 
 process::process(const executor_t &exec) :
-	m_impl(new impl(exec))
+	m_impl(std::make_shared<impl>(exec))
 {
 
 }
 
-process::~process()
-{
-	delete m_impl;
-}
+process::~process() = default;
 
-void process::set(const path_t &cmd, const std::vector<path_t> &args) const noexcept
+void process::set(const path_t &cmd, const std::vector<path_t> &args) const
 {
 	if( cmd.empty() )
 		return ;
 
 	auto cmd_str = strtls::trimmed(cmd.string());
-	wordexp_t word;
+	wordexp_t word {};
 
 	auto res = wordexp(cmd_str.c_str(), &word, 0);
 	if( res != 0 )
 	{
+		if( res == WRDE_NOSPACE )
+			wordfree(&word);
+
 		for(auto &arg : args)
 			cmd_str += " " + strtls::trimmed(arg.string());
 
 		m_impl->m_cmd = std::move(cmd_str);
+		m_impl->m_is_pipe = true;
+		return ;
+	}
+	if( word.we_wordc == 0 )
+	{
+		wordfree(&word);
+		m_impl->m_cmd.clear();
+		m_impl->m_args.clear();
+		m_impl->m_is_pipe = false;
+		return ;
+	}
+	if( is_shell_assignment(word.we_wordv[0]) )
+	{
+		wordfree(&word);
+		for(auto &arg : args)
+			cmd_str += " " + strtls::trimmed(arg.string());
+
+		m_impl->m_cmd = std::move(cmd_str);
+		m_impl->m_args.clear();
 		m_impl->m_is_pipe = true;
 		return ;
 	}
@@ -851,11 +1031,14 @@ void process::set(const path_t &cmd, const std::vector<path_t> &args) const noex
 	for(size_t i=1; i<word.we_wordc; i++)
 		m_impl->m_args.emplace_back(word.we_wordv[i]);
 
+	wordfree(&word);
+	m_impl->m_is_pipe = false;
+
 	for(auto &arg : args)
 		add_arg(arg);
 }
 
-void process::add_arg(const path_t &arg) const noexcept
+void process::add_arg(const path_t &arg) const
 {
 	if( arg.empty() )
 		return ;
@@ -866,23 +1049,22 @@ void process::add_arg(const path_t &arg) const noexcept
 		return ;
 	}
 	auto arg_str = strtls::trimmed(arg.string());
-	wordexp_t word;
+	wordexp_t word {};
 
 	auto res = wordexp(arg_str.c_str(), &word, 0);
 	if( res != 0 )
 	{
-		for(auto &_arg : m_impl->m_args)
-			m_impl->m_cmd += " " + std::move(_arg);
-
-		m_impl->m_args.clear();
-		m_impl->m_is_pipe = true;
+		if( res == WRDE_NOSPACE )
+			wordfree(&word);
+		m_impl->m_args.emplace_back(std::move(arg_str));
 		return ;
 	}
 	for(size_t i=0; i<word.we_wordc; i++)
 		m_impl->m_args.emplace_back(word.we_wordv[i]);
+	wordfree(&word);
 }
 
-sys_expected<> process::start() const noexcept
+sys_expected<> process::start() const
 {
 	return m_impl->m_vindicator->start (
 		m_impl->m_is_pipe, m_impl->m_cmd, m_impl->m_args,
@@ -900,15 +1082,40 @@ void process::kill() const noexcept
 	m_impl->m_vindicator->kill();
 }
 
-void process::detach() const noexcept
+sys_expected<> process::detach() const noexcept
 {
-	if( state() == process_state::running )
-		m_impl->m_vindicator = std::make_shared<vindicator>(m_impl->m_exec);
+	// Detach releases only the public join ownership.  The old control block is
+	// kept alive by its monitor thread until waitpid() has reaped the child; the
+	// replacement lets this process object be reused without abandoning that
+	// parent-side resource management.
+	vindicator_ptr replacement;
+	try {
+		replacement = std::make_shared<vindicator>(m_impl->m_exec);
+	}
+	catch(const std::system_error &exception) {
+		return sys_unexpected(exception.code());
+	}
+	catch(const std::bad_alloc&) {
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...) {
+		return sys_unexpected(make_error_code(std::errc::io_error));
+	}
+	if( auto expected = m_impl->m_vindicator->detach(); not expected )
+		return expected;
+
+	m_impl->m_vindicator = std::move(replacement);
+	return {};
 }
 
 void process::cancel() const noexcept
 {
 	m_impl->m_vindicator->cancel();
+}
+
+bool process::joinable() const noexcept
+{
+	return m_impl->m_vindicator->joinable();
 }
 
 sys_expected<int> process::join
@@ -942,36 +1149,9 @@ io_expected process::write(const const_buffer &buf) const noexcept
 	return 0;
 }
 
-void process::write_detach(const const_buffer &buf) const noexcept
+void process::async_write(const_buffer buf, io_handler_t handler) const
 {
-	if( buf.size() > 0 )
-		m_impl->m_vindicator->write_detach(buf);
-}
-
-awaitable<io_expected> process::co_write(const const_buffer &buf,
-	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
-{
-	if( buf.size() > 0 )
-	{
-		co_return co_await m_impl->m_vindicator
-			->co_write(buf, cancel_slot, timeout);
-	}
-	co_return 0;
-}
-
-awaitable<io_expected> process::co_write(std::error_code &error, const const_buffer &buf,
-	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
-{
-	error.clear();
-	if( buf.size() == 0 )
-		co_return 0;
-
-	auto expected = co_await m_impl->m_vindicator
-		->co_write(buf, cancel_slot, timeout);
-
-	if( not expected )
-		error = expected.error();
-	co_return expected;
+	m_impl->m_vindicator->async_write(buf, std::move(handler));
 }
 
 io_expected process::read(read_channel channel, const mutable_buffer &buf) const noexcept
@@ -981,36 +1161,29 @@ io_expected process::read(read_channel channel, const mutable_buffer &buf) const
 	return 0;
 }
 
-void process::read_detach(read_channel channel, const mutable_buffer &buf) const noexcept
+void process::async_read(read_channel channel, mutable_buffer buf, io_handler_t handler) const
 {
-	if( buf.size() > 0 )
-		m_impl->m_vindicator->read_detach(channel, buf);
+	m_impl->m_vindicator->async_read(channel, buf, std::move(handler));
 }
 
-awaitable<io_expected> process::co_read(read_channel channel, const mutable_buffer &buf,
-	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
+void process::normalize_read_error(error_code &error) const noexcept
 {
-	if( buf.size() > 0 )
+	if( error.default_error_condition() == std::errc::broken_pipe )
+		error = make_error_code(asio::error::eof);
+}
+
+void process::protect_io_error(const error_code &error) const noexcept
+{
+	if( not error or state() != process_state::running )
+		return ;
+
+	const auto condition = error.default_error_condition();
+	if( condition == std::errc::bad_file_descriptor or
+		condition == std::errc::io_error or
+		condition == std::errc::bad_address )
 	{
-		co_return co_await m_impl->m_vindicator
-			->co_read(channel, buf, cancel_slot, timeout);
+		m_impl->m_vindicator->kill();
 	}
-	co_return 0;
-}
-
-awaitable<io_expected> process::co_read(
-	read_channel channel, std::error_code &error, const mutable_buffer &buf,
-	asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) const noexcept
-{
-	if( buf.size() == 0 )
-		co_return 0;
-
-	auto expected = co_await m_impl->m_vindicator
-		->co_read(channel, buf, cancel_slot, timeout);
-
-	if( not expected )
-		error = expected.error();
-	co_return expected;
 }
 
 void process::set_work_path(path_t path) noexcept
