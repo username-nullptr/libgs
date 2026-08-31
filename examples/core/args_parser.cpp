@@ -1,0 +1,20 @@
+#include <libgs/core/args_parser.h>
+#include <iostream>
+
+int main(int argc, const char *argv[])
+{
+	libgs::string_vector positional;
+	auto options = libgs::cmdline::args_parser("LibGS command-line example")
+		.add_group("-o,--output", "Output file", "path")
+		.add_flag("-v,--verbose", "Enable verbose output", "verbose")
+		.set_version("LibGS example 1.0")
+		.enable_h()
+		.parsing(argc, argv, positional);
+
+	for(const auto &[name, value] : options)
+		std::cout << name << " = " << value.to_string() << '\n';
+
+	for(const auto &argument : positional)
+		std::cout << "positional = " << argument << '\n';
+	return 0;
+}

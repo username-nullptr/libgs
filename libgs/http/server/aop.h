@@ -79,14 +79,14 @@ namespace concepts
 template <typename Exec, typename...Args>
 concept aop_ptr_list = requires(Args&&...args) {
 	std::vector<typename basic_aop<Exec>::ptr_t> {
-		basic_aop<Exec>::ptr_t(std::forward<Args>(args))...
+		typename basic_aop<Exec>::ptr_t(std::forward<Args>(args))...
 	};
 };
 
 template <typename Exec, typename...Args>
 concept ctrlr_aop_ptr_list = requires(Args&&...args) {
 	std::vector<typename basic_ctrlr_aop<Exec>::ptr_t> {
-		basic_ctrlr_aop<Exec>::ptr_t(std::forward<Args>(args))...
+		typename basic_ctrlr_aop<Exec>::ptr_t(std::forward<Args>(args))...
 	};
 };
 

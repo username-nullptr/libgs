@@ -1,32 +1,31 @@
 #include <libgs/coro.h>
-#include <spdlog/spdlog.h>
 
-using namespace std::chrono_literals;
-using namespace libgs::coro::literals;
+#include <iostream>
 
 int main()
 {
-	spdlog::set_level(spdlog::level::trace);
-	constexpr size_t count = 8;
+	using namespace libgs::coro::literals;
+	constexpr int worker_count = 4;
+
 	libgs::coro::mutex mutex;
-	size_t j = 0;
+	int next_value = 0;
+	int completed = 0;
 
-	for(size_t i=0; i<count; i++)
+	for(int worker = 0; worker < worker_count; ++worker)
 	{
-		libgs::dispatch([&, id = libgs::this_thread_id()]() -> libgs::awaitable<void>
+		libgs::dispatch([&, worker]() -> libgs::awaitable<void>
 		{
-			// co_await mutex.lock();
-			libgs::coro::unique_lock locker(mutex);
-			co_await locker.lock();
+			libgs::coro::unique_lock lock(mutex);
+			co_await lock.lock();
 
-			spdlog::info("======== {} : {}", id, j++);
-			co_await 1_s;
+			const auto value = next_value++;
+			co_await 10_ms;
 
-			// mutex.unlock();
+			std::cout << "worker " << worker << " observed " << value << '\n';
+			lock.unlock();
 
-			if( j == count )
+			if(++completed == worker_count)
 				libgs::exit();
-			co_return ;
 		});
 	}
 	return libgs::exec();

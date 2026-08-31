@@ -14,7 +14,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	if (LIBGS_USE_LIBCXX)
 		message(STATUS "${PRO_NAME}: Use clang libcxx.")
 		add_compile_options(-stdlib=libc++)
-		link_libraries(c++ c++abi)
+		add_link_options(-stdlib=libc++)
 	endif ()
 
 	option(LIBGS_USE_LLD

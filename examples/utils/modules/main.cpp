@@ -1,13 +1,13 @@
 #include <libgs/utils/modules.h>
-#include <spdlog/spdlog.h>
 #include <iostream>
 
 int main()
 {
-	spdlog::set_level(spdlog::level::trace);
-	std::cout << libgs::utils::modules::sprint() << std::endl;
+	std::cout << "Registered module graph:\n"
+		<< libgs::utils::modules::sprint() << '\n';
 
 	libgs::utils::modules::do_init();
-	spdlog::info("modules initialized.");
+
+	std::cout << "All modules initialized\n";
 	return 0;
 }

@@ -1,30 +1,36 @@
 #include <libgs/coro.h>
-#include <spdlog/spdlog.h>
 
-using namespace std::chrono_literals;
-using namespace libgs::coro::literals;
+#include <algorithm>
+#include <iostream>
 
 int main()
 {
-	spdlog::set_level(spdlog::level::trace);
-	constexpr size_t count = 8;
-	libgs::coro::semaphore semaphore(3);
-	size_t j = 0;
+	using namespace libgs::coro::literals;
+	constexpr int task_count = 6;
 
-	for(size_t i=0; i<count; i++)
+	libgs::coro::semaphore slots(2);
+	int active = 0;
+	int maximum_active = 0;
+	int completed = 0;
+
+	for(int task = 0; task < task_count; ++task)
 	{
-		libgs::dispatch([&, id = libgs::this_thread_id()]() -> libgs::awaitable<void>
+		libgs::dispatch([&, task]() -> libgs::awaitable<void>
 		{
-			co_await semaphore.acquire();
+			co_await slots.acquire();
+			maximum_active = std::max(maximum_active, ++active);
 
-			spdlog::info("======== {} : {}", id, j++);
-			co_await 1_s;
+			std::cout << "task " << task << " entered; active = " << active << '\n';
+			co_await 15_ms;
 
-			semaphore.release();
+			--active;
+			slots.release();
 
-			if( j == count )
+			if(++completed == task_count)
+			{
+				std::cout << "maximum concurrency = " << maximum_active << '\n';
 				libgs::exit();
-			co_return ;
+			}
 		});
 	}
 	return libgs::exec();

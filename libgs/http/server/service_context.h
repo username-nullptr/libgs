@@ -53,11 +53,12 @@ public:
 
 public:
 	basic_service_context (
-		connection_ptr conn, session_manager &session_manager
+		connection_ptr conn, session_manager &session_manager,
+		std::filesystem::path resource_root = {}
 	);
 	basic_service_context (
-		connection_ptr conn, parser_t &&parser,
-		session_manager &session_manager
+		connection_ptr conn, parser_t &&parser, session_manager &session_manager,
+		std::filesystem::path resource_root = {}
 	);
 	~basic_service_context();
 

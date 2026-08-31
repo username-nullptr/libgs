@@ -73,7 +73,8 @@ basic_observer_base<Derived,Exec,Funcs...>::basic_observer_base(uint64_t id, Exe
 	m_impl(new impl(id, std::forward<Exec0>(exec)))
 {
 	detail::observer::mutex().lock();
-	auto [it, inserted] = detail::observer::map()[typeid(derived_t).hash_code()]
+	[[maybe_unused]] auto [it, inserted] =
+		detail::observer::map()[typeid(derived_t).hash_code()]
 		.emplace(static_cast<void*>(m_impl));
 
 	detail::observer::mutex().unlock();

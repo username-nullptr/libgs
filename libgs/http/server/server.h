@@ -43,6 +43,10 @@ struct server_config<asio::basic_stream_socket<asio::ip::tcp,Exec>>
 {
 	std::chrono::milliseconds first_reading_time {1500};
 	std::chrono::milliseconds keepalive_time {5000};
+
+	// Base for relative server-side file paths. Empty keeps the executable
+	// directory as the base for backward compatibility.
+	std::filesystem::path resource_root {};
 };
 
 #if LIBGS_OPENSSL_SUPPORT

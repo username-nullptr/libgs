@@ -1,47 +1,36 @@
 #include <libgs/core/ini.h>
-#include <spdlog/spdlog.h>
+#include <filesystem>
+#include <iostream>
 
-#ifdef _MSC_VER
-# pragma warning(disable:4819)
-#endif
-
-int main()
+int main(int argc, const char *argv[])
 {
-	spdlog::set_level(spdlog::level::trace);
-	libgs::ini ini("./test.ini");
-	try {
-		ini.load_or();
-#if 0
-		ini["hello"]["hello"] = "hello";
-		ini["hello"]["world"] = "world";
-		ini["hello"]["aaa"] = 123;
+	const std::filesystem::path path = argc > 1 ?
+		argv[1] : "libgs-example.ini";
 
-		ini["test"]["aaa"] = 3.14;
-		ini["test"]["bbb"] = true;
+	libgs::ini config(path);
+	std::error_code error;
 
-#ifndef _MSC_VER
-		ini["test"]["测"] = "aaa 你 bbb 好 ccc";
-#endif
-		ini.sync();
-#endif
-
-		spdlog::debug("hello-hello: {}", ini["hello"]["hello"]);
-		spdlog::debug("hello-world: {}", ini["hello"]["world"]);
-		spdlog::debug("hello-aaa: {}", ini["hello"]["aaa"]);
-
-		spdlog::debug("test-aaa: {}", ini["test"]["aaa"]);
-		spdlog::debug("test-bbb: {}", ini["test"]["bbb"]);
-
-		// spdlog::debug("test-bbb: {}", ini[{"test", "bbb"}]);
-
-#ifndef _MSC_VER
-		spdlog::debug("test-测: {}", ini["test"]["测"]);
-#endif
-	}
-	catch(const std::exception &ex)
+	config.load_or(error);
+	if(error)
 	{
-		spdlog::error("Exception: '{}'.", ex);
-		return -1;
+		std::cerr << "Load failed: " << error.message() << '\n';
+		return 1;
 	}
+	config.write("server/host", "127.0.0.1");
+	config.write("server/port", 8080);
+	config.write("features/logging", true);
+
+	config.sync(error);
+	if(error)
+	{
+		std::cerr << "Save failed: " << error.message() << '\n';
+		return 1;
+	}
+	auto host = config.read("server/host");
+	auto port = config.read("server/port");
+
+	std::cout << "Saved " << path << '\n';
+	std::cout << "Server: " << (host ? host->to_string() : "missing") << ':'
+			<< (port ? port->to_int().value_or(0) : 0) << '\n';
 	return 0;
 }

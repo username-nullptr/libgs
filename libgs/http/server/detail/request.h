@@ -39,12 +39,15 @@ class LIBGS_HTTP_TAPI basic_request<Exec>::impl :
 	LIBGS_DISABLE_COPY(impl)
 
 public:
-	explicit impl(connection_ptr conn) :
-		m_connection(std::move(conn)) {}
-
-	impl(connection_ptr conn, parser_t &&parser) :
+	explicit impl(connection_ptr conn, std::filesystem::path resource_root) :
 		m_connection(std::move(conn)),
-		m_parser(std::move(parser)) {}
+		m_resource_root(std::move(resource_root)) {}
+
+	impl(connection_ptr conn, parser_t &&parser,
+		 std::filesystem::path resource_root) :
+		m_connection(std::move(conn)),
+		m_parser(std::move(parser)),
+		m_resource_root(std::move(resource_root)) {}
 
 public:
 	void wait(error_code &error) noexcept
@@ -514,6 +517,14 @@ public:
 	}
 
 public:
+	[[nodiscard]] std::filesystem::path
+	resource_file_name(std::filesystem::path file_name) const
+	{
+		if( file_name.empty() or m_resource_root.empty() or app::is_absolute_path(file_name) )
+			return file_name;
+		return m_resource_root / file_name;
+	}
+
 	template <typename Opt>
 	auto make_file_opt_token(Opt &&opt) noexcept
 	{
@@ -523,6 +534,9 @@ public:
 		{
 			auto token = http::make_file_opt_token(std::forward<Opt>(opt));
 			using token_t = decltype(token);
+
+			if constexpr( requires { token.file_name; } )
+				token.file_name = resource_file_name(std::move(token.file_name));
 
 			auto expected = token.init (
 				std::ios::out | std::ios::binary | std::ios::trunc
@@ -535,6 +549,9 @@ public:
 		{
 			if( opt.stream->is_open() )
 				return sys_expected<opt_t>(std::forward<Opt>(opt));
+
+			if constexpr( requires { opt.file_name; } )
+				opt.file_name = resource_file_name(std::move(opt.file_name));
 
 			auto expected = opt.init (
 				std::ios::out | std::ios::binary | std::ios::trunc
@@ -694,15 +711,18 @@ private:
 public:
 	connection_ptr m_connection {};
 	parser_t m_parser {};
+
+	std::filesystem::path m_resource_root {};
 	bool m_continue_sent = false;
 };
 
 template <core_concepts::exec Exec>
-basic_request<Exec>::basic_request(connection_ptr connection) :
+basic_request<Exec>::basic_request
+(connection_ptr connection, std::filesystem::path resource_root) :
 	const_headers<basic_request>(nullptr),
 	const_cookies<value_t,basic_request>(nullptr),
 	const_parameters<basic_request>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(connection)))
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(resource_root)))
 {
 	this->m_headers = &m_impl->m_parser.headers();
 	this->m_cookies = &m_impl->m_parser.cookies();
@@ -710,11 +730,13 @@ basic_request<Exec>::basic_request(connection_ptr connection) :
 }
 
 template <core_concepts::exec Exec>
-basic_request<Exec>::basic_request(connection_ptr connection, parser_t &&parser) :
+basic_request<Exec>::basic_request
+(connection_ptr connection, parser_t &&parser, std::filesystem::path resource_root) :
 	const_headers<basic_request>(nullptr),
 	const_cookies<value_t,basic_request>(nullptr),
 	const_parameters<basic_request>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(connection), std::move(parser)))
+	m_impl(std::make_shared<impl>(std::move(connection), std::move(parser),
+		std::move(resource_root)))
 {
 	this->m_headers = &m_impl->m_parser.headers();
 	this->m_cookies = &m_impl->m_parser.cookies();

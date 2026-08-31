@@ -1,47 +1,36 @@
 #include <libgs/utils/settings.h>
-#include <libgs/utils/logger.h>
+#include <filesystem>
+#include <iostream>
 
-int main()
+int main(int argc, const char *argv[])
 {
+	const std::filesystem::path path = argc > 1 ?
+		argv[1] : "libgs-example-settings.ini";
+
 	auto &settings = libgs::utils::settings::instance();
-	settings.load("/home/pi/app/config/config.ini");
-
-	settings.changed.connect([](std::string_view path, const libgs::value &value) {
-		libgs_utils_log_info("on changed: {} - {}", path, value);
+	settings.changed.connect([](std::string_view key, const libgs::value &value) {
+		std::cout << "Changed " << key << " = " << value.to_string() << '\n';
 	});
 
+	if(auto loaded = settings.load(path); not loaded)
+	{
+		std::cerr << "Load failed: " << loaded.error().message() << '\n';
+		return 1;
+	}
 	settings
-	.set("group0/key0", "hello")
-	.set("group0/key1", 123)
-	.set("group0/key2", libgs::value("hello {} {}", 123, "str"));
+		.set("server/host", "127.0.0.1")
+		.set("server/port", 8080);
 
-	settings
-	.set({"group1", "key0"}, "hello")
-	.set({"group1", "key1"}, 123)
-	.set({"group1", "key2"}, libgs::value("hello {} {}", 123, "str"));
+	if(auto saved = settings.sync(); not saved)
+	{
+		std::cerr << "Save failed: " << saved.error().message() << '\n';
+		return 1;
+	}
+	std::cout << "Saved " << settings.file_name() << '\n';
 
-	settings.sync();
+	auto port = settings.get("server/port");
+	std::cout << "Port: "
+		<< (port ? port->to_int().value_or(0) : 0) << '\n';
 
-	auto value0 = settings.get("group0/key0");
-
-	int value1 = *settings.get("group0/key1").or_else()->get<int>().or_else();
-	int value2 = *settings.get("group0/key1").or_else()->get<int>().or_else();
-
-	auto value3 = settings.get("group0/key2");
-	auto value4 = settings.get("group0/key2").or_else();
-
-	auto value5 = settings.get("group0/key0").or_else("none");
-
-	auto value6 = *settings.get("group0/key1").or_else(123);
-	int value7 = *settings.get("group0/key1").or_else(123)->get<int>().or_else(123);
-
-	auto value8 = settings.get("group0/key2").or_else("hello");
-
-	libgs::ignore_unused(value0, value1, value2, value3, value4, value5, value6, value7, value8);
-
-	using namespace std::chrono_literals;
-	libgs::post(2s, []{
-		libgs::exit();
-	});
-	return libgs::exec();
+	return 0;
 }

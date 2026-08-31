@@ -50,8 +50,9 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 	};
 
 public:
-	explicit impl(connection_ptr conn) :
-		m_connection(std::move(conn)) {}
+	explicit impl(connection_ptr conn, std::filesystem::path resource_root) :
+		m_connection(std::move(conn)),
+		m_resource_root(std::move(resource_root)) {}
 
 	[[nodiscard]] size_t write(const_buffer body, error_code &error) noexcept
 	{
@@ -1558,6 +1559,14 @@ private:
 		return result;
 	}
 
+	[[nodiscard]] std::filesystem::path
+	resource_file_name(std::filesystem::path file_name) const
+	{
+		if( file_name.empty() or m_resource_root.empty() or app::is_absolute_path(file_name) )
+			return file_name;
+		return m_resource_root / file_name;
+	}
+
 	template <typename Opt>
 	auto make_file_opt_token(Opt &&opt) noexcept
 	{
@@ -1567,6 +1576,9 @@ private:
 		{
 			auto token = http::make_file_opt_token(std::forward<Opt>(opt));
 			using token_t = decltype(token);
+
+			if constexpr( requires { token.file_name; } )
+				token.file_name = resource_file_name(std::move(token.file_name));
 
 			auto expected = token.init(std::ios::in | std::ios::binary);
 			if( expected )
@@ -1578,6 +1590,9 @@ private:
 			if( opt.stream->is_open() )
 				return sys_expected<opt_t>(std::forward<Opt>(opt));
 
+			if constexpr( requires { opt.file_name; } )
+				opt.file_name = resource_file_name(std::move(opt.file_name));
+
 			auto expected = opt.init(std::ios::in | std::ios::binary);
 			if( expected )
 				return sys_expected<opt_t>(std::forward<Opt>(opt));
@@ -1587,6 +1602,7 @@ private:
 
 public:
 	connection_ptr m_connection {};
+	std::filesystem::path m_resource_root {};
 	generator_t m_generator {};
 
 	method_enum m_req_method = method::get;
@@ -1602,11 +1618,12 @@ public:
 };
 
 template <core_concepts::exec Exec>
-basic_response<Exec>::basic_response(connection_ptr conn) :
+basic_response<Exec>::basic_response(connection_ptr conn,
+	std::filesystem::path resource_root) :
 	mutable_headers<basic_response>(nullptr),
 	mutable_cookies<cookie,basic_response>(nullptr),
 	mutable_chunk_attributes<basic_response>(nullptr),
-	m_impl(std::make_shared<impl>(std::move(conn)))
+	m_impl(std::make_shared<impl>(std::move(conn), std::move(resource_root)))
 {
 	this->m_headers = &m_impl->m_generator.headers();
 	this->m_cookies = &m_impl->m_generator.cookies();

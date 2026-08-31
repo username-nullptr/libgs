@@ -57,7 +57,9 @@ public:
 	using headers_t = http::headers;
 
 public:
-	explicit basic_response(connection_ptr conn);
+	explicit basic_response(connection_ptr conn,
+		std::filesystem::path resource_root = {}
+	);
 	~basic_response() override;
 
 public:

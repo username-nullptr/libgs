@@ -1,104 +1,139 @@
-if (CMAKE_COMPILER_IS_GNUCXX)
+include(CMakeParseArguments)
+
+if(CMAKE_COMPILER_IS_GNUCXX)
 	include(CheckCXXCompilerFlag)
-	check_cxx_compiler_flag("-Wa,-mbig-obj" GNU_BIG_OBJ_FLAG_ENABLE)
-	message(STATUS GNU_BIG_OBJ_FLAG_ENABLE=${GNU_BIG_OBJ_FLAG_ENABLE})
-endif ()
+	check_cxx_compiler_flag("-Wa,-mbig-obj" LIBGS_EXAMPLE_GNU_BIG_OBJ)
+endif()
 
-function(set_target)
-	set(INDEX 1)
-	math(EXPR MAX "${ARGC}")
+function(libgs_add_example category name)
+	set(options)
+	set(one_value_args)
+	set(multi_value_args SOURCES LIBRARIES)
 
-	set(lib_file ${ARGV0})
-	set(defines)
-	set(sources)
+	cmake_parse_arguments(EXAMPLE
+		"${options}" "${one_value_args}" "${multi_value_args}" ${ARGN}
+	)
+	if(NOT EXAMPLE_SOURCES)
+		set(EXAMPLE_SOURCES "${category}/${name}.cpp")
+	endif()
 
-	while (INDEX LESS ${MAX})
-		set(cpp_file ${ARGV${INDEX}})
-		list(APPEND sources ${cpp_file})
+	set(target "libgs.example.${category}.${name}")
+	add_executable(${target} ${EXAMPLE_SOURCES})
 
-		string(REPLACE ".cpp" "" target_name ${cpp_file})
-		string(FIND ${target_name} "/" s_index REVERSE)
-
-		string(SUBSTRING ${target_name} 0 ${s_index} path)
-		math(EXPR s_index "${s_index} + 1")
-
-		string(SUBSTRING ${target_name} ${s_index} -1 target_name)
-		set(headers ../../libgs)
-		set(lib_path)
-
-		if (${target_name} MATCHES ssl OR ${target_name} MATCHES https)
-			if (NOT OpenSSL_DIR)
-				math(EXPR INDEX "${INDEX} + 1")
-				continue ()
-			endif()
-
-			list(APPEND defines LIBGS_ENABLE_OPENSSL)
-			list(APPEND headers ${OpenSSL_DIR}/include)
-			list(APPEND lib_path ${OpenSSL_DIR}/lib)
-			list(APPEND lib_file crypto ssl)
-		endif ()
-		add_executable(${target_name} ${cpp_file})
-
-		target_compile_definitions(${target_name} PRIVATE ${defines})
-		target_include_directories(${target_name} PRIVATE ${headers})
-
-		target_link_directories(${target_name} PRIVATE ${lib_path})
-		target_link_libraries(${target_name} PRIVATE ${lib_file})
-
-		target_compile_options(${target_name} PRIVATE
-			$<$<CXX_COMPILER_ID:MSVC>:/bigobj>
-			$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${GNU_BIG_OBJ_FLAG_ENABLE}>>:-Wa,-mbig-obj>
-		)
-		set_target_properties(${target_name} PROPERTIES
-			RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/examples/${path}/
-		)
-		install(TARGETS ${target_name} DESTINATION examples/${path})
-		math(EXPR INDEX "${INDEX} + 1")
-	endwhile ()
-
-	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${sources})
+	target_link_libraries(${target} PRIVATE ${EXAMPLE_LIBRARIES})
+	target_compile_options(${target} PRIVATE
+		$<$<CXX_COMPILER_ID:MSVC>:/bigobj>
+		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_EXAMPLE_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
+	)
+	set_target_properties(${target} PROPERTIES
+		OUTPUT_NAME ${name}
+		RUNTIME_OUTPUT_DIRECTORY "${LIBGS_OUTPUT_DIR}/examples/${category}"
+	)
+	install(TARGETS ${target}
+		RUNTIME DESTINATION "examples/${category}"
+	)
 endfunction()
 
-set(sources
-	core/algorithm.cpp
-	core/app_utls.cpp
+# Core
+libgs_add_example(core algorithms       LIBRARIES gs.core)
+libgs_add_example(core app_paths        LIBRARIES gs.core)
+libgs_add_example(core args_parser      LIBRARIES gs.core)
+libgs_add_example(core execution        LIBRARIES gs.core)
+libgs_add_example(core ini              LIBRARIES gs.core)
+libgs_add_example(core lock_free_queue  LIBRARIES gs.core)
+libgs_add_example(core value            LIBRARIES gs.core)
+
+add_library(libgs.example.core.dynamic_library_plugin SHARED
+	core/dynamic_library_plugin.cpp
+)
+set_target_properties(libgs.example.core.dynamic_library_plugin PROPERTIES
+	OUTPUT_NAME dynamic_library_plugin
+	PREFIX ""
+	LIBRARY_OUTPUT_DIRECTORY "${LIBGS_OUTPUT_DIR}/examples/core"
+	RUNTIME_OUTPUT_DIRECTORY "${LIBGS_OUTPUT_DIR}/examples/core"
+)
+install(TARGETS libgs.example.core.dynamic_library_plugin
+	LIBRARY DESTINATION examples/core
+	RUNTIME DESTINATION examples/core
+)
+libgs_add_example(core dynamic_library LIBRARIES gs.core)
+add_dependencies(libgs.example.core.dynamic_library
+	libgs.example.core.dynamic_library_plugin
+)
+
+# Coroutines
+libgs_add_example(coro basics             LIBRARIES gs.core)
+libgs_add_example(coro mutex              LIBRARIES gs.core)
+libgs_add_example(coro shared_mutex       LIBRARIES gs.core)
+libgs_add_example(coro semaphore          LIBRARIES gs.core)
+libgs_add_example(coro condition_variable LIBRARIES gs.core)
+
+# HTTP/1.0 and HTTP/1.1
+libgs_add_example(http client_sync      LIBRARIES gs.http)
+libgs_add_example(http client_awaitable LIBRARIES gs.http)
+libgs_add_example(http client_cookies   LIBRARIES gs.http)
+libgs_add_example(http client_file      LIBRARIES gs.http)
+libgs_add_example(http protocol         LIBRARIES gs.http)
+libgs_add_example(http server           LIBRARIES gs.http)
+libgs_add_example(http server_aop       LIBRARIES gs.http)
+libgs_add_example(http server_file      LIBRARIES gs.http)
+libgs_add_example(http server_session   LIBRARIES gs.http)
+
+if(LIBGS_OPENSSL_SUPPORT)
+	libgs_add_example(http https_server LIBRARIES gs.http)
+endif()
+
+# Application utilities
+libgs_add_example(utils logger       LIBRARIES gs.utils)
+libgs_add_example(utils observer     LIBRARIES gs.utils)
+libgs_add_example(utils process      LIBRARIES gs.utils)
+libgs_add_example(utils soft_bus_local     LIBRARIES gs.utils)
+libgs_add_example(utils soft_bus_transport LIBRARIES gs.utils)
+libgs_add_example(utils settings     LIBRARIES gs.utils)
+libgs_add_example(utils signal_slot  LIBRARIES gs.utils)
+libgs_add_example(utils modules
+	SOURCES
+		utils/modules/main.cpp
+		utils/modules/foundation.cpp
+		utils/modules/cache.cpp
+		utils/modules/api.cpp
+	LIBRARIES gs.utils
+)
+
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
+	core/algorithms.cpp
+	core/app_paths.cpp
+	core/args_parser.cpp
+	core/dynamic_library.cpp
+	core/dynamic_library_plugin.cpp
+	core/execution.cpp
+	core/ini.cpp
 	core/lock_free_queue.cpp
 	core/value.cpp
-	core/ini.cpp
-	core/argv_parse.cpp
-	core/library.cpp
-	core/execution.cpp
-)
-set_target(gs.core ${sources})
-
-set(sources
-	coro/coroutine.cpp
+	coro/basics.cpp
+	coro/condition_variable.cpp
 	coro/mutex.cpp
 	coro/semaphore.cpp
-)
-set_target(gs.core ${sources})
-
-set(sources
-	http_server/http_server_parser.cpp
-	http_server/http_server.cpp
-	http_server/http_server_aop.cpp
-	http_server/http_session.cpp
-	http_server/https_server.cpp
-)
-#set_target(gs.http ${sources})
-
-set(sources
-	http_client/connection_pool.cpp
-	http_client/protocol.cpp
-	http_client/client.cpp
-)
-set_target(gs.http ${sources})
-
-set(sources
+	coro/shared_mutex.cpp
+	http/client_awaitable.cpp
+	http/client_cookies.cpp
+	http/client_file.cpp
+	http/client_sync.cpp
+	http/https_server.cpp
+	http/protocol.cpp
+	http/server.cpp
+	http/server_aop.cpp
+	http/server_file.cpp
+	http/server_session.cpp
 	utils/logger.cpp
-	utils/signal_slot.cpp
-	utils/settings.cpp
+	utils/modules/api.cpp
+	utils/modules/cache.cpp
+	utils/modules/foundation.cpp
+	utils/modules/main.cpp
+	utils/observer.cpp
 	utils/process.cpp
+	utils/soft_bus_local.cpp
+	utils/soft_bus_transport.cpp
+	utils/settings.cpp
+	utils/signal_slot.cpp
 )
-set_target(gs.utils ${sources})
-add_subdirectory(utils/modules)

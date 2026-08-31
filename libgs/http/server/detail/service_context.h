@@ -38,39 +38,42 @@ class LIBGS_HTTP_TAPI basic_service_context<Exec>::impl
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
 public:
-	impl(connection_ptr conn, session_manager &session_manager) :
+	impl(connection_ptr conn,
+		session_manager &session_manager, std::filesystem::path resource_root) :
 		m_session_manager(session_manager),
 		m_connection(conn),
-		m_response(conn),
-		m_request(conn) {}
+		m_response(conn, resource_root),
+		m_request(conn, std::move(resource_root)) {}
 
 	impl(connection_ptr conn, parser_t &&parser,
-		session_manager &session_manager) :
+		session_manager &session_manager, std::filesystem::path resource_root) :
 		m_session_manager(session_manager),
 		m_connection(conn),
-		m_response(conn),
-		m_request(conn, std::move(parser)) {}
+		m_response(conn, resource_root),
+		m_request(conn, std::move(parser), std::move(resource_root)) {}
 
 public:
 	session_manager &m_session_manager;
 	connection_ptr m_connection {};
+
 	response_t m_response;
 	request_t m_request;
+
 	bool m_connection_handed_over = false;
 };
 
 template <core_concepts::exec Exec>
 basic_service_context<Exec>::basic_service_context
-(connection_ptr conn, session_manager &session_manager) :
-	m_impl(new impl(std::move(conn), session_manager))
+(connection_ptr conn, session_manager &session_manager, std::filesystem::path resource_root) :
+	m_impl(new impl(std::move(conn), session_manager, std::move(resource_root)))
 {
 
 }
 
 template <core_concepts::exec Exec>
-basic_service_context<Exec>::basic_service_context
-(connection_ptr conn, parser_t &&parser, session_manager &session_manager) :
-	m_impl(new impl(std::move(conn), std::move(parser), session_manager))
+basic_service_context<Exec>::basic_service_context(connection_ptr conn,
+	parser_t &&parser, session_manager &session_manager, std::filesystem::path resource_root) :
+	m_impl(new impl(std::move(conn), std::move(parser), session_manager, std::move(resource_root)))
 {
 
 }

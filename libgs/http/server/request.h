@@ -57,8 +57,12 @@ public:
 	using headers_t = http::headers;
 
 public:
-	explicit basic_request(connection_ptr connection);
-	basic_request(connection_ptr connection, parser_t &&parser);
+	explicit basic_request(connection_ptr connection,
+		std::filesystem::path resource_root = {}
+	);
+	basic_request(connection_ptr connection, parser_t &&parser,
+		std::filesystem::path resource_root = {}
+	);
 	~basic_request() override;
 
 public:

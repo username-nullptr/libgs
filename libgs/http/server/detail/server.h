@@ -182,7 +182,7 @@ private:
 				try {
 					released = co_await server->do_tcp_service (
 						client_connection, config.first_reading_time,
-						config.keepalive_time
+						config.keepalive_time, config.resource_root
 					);
 				}
 				catch(...) {
@@ -208,7 +208,7 @@ private:
 
 	[[nodiscard]] awaitable<bool> do_tcp_service
 	(const connection_ptr &client_connection, milliseconds first_reading_time,
-	 milliseconds keepalive_time)
+		milliseconds keepalive_time, std::filesystem::path resource_root)
 	{
 		using namespace std::chrono_literals;
 		using namespace libgs::operators;
@@ -228,7 +228,8 @@ private:
 				}
 			}
 			context_t context (
-				client_connection, std::move(parser), m_session_manager
+				client_connection, std::move(parser), m_session_manager,
+				resource_root
 			);
 			try {
 				co_await context.request().wait(use_awaitable | *time);
