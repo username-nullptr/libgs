@@ -603,7 +603,7 @@ public:
 			{
 				LIBGS_UNUSED(state);
 				auto expected = self->make_file_opt_token (
-					unwrap_async_arg(opt)
+					unwrap_async_argument(opt)
 				);
 				if( not expected )
 				{

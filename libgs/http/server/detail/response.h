@@ -421,7 +421,7 @@ public:
 					co_return std::tuple<error_code,size_t>{error_code{}, 0};
 
 				auto file_token = self->make_file_opt_token (
-					unwrap_async_arg(opt)
+					unwrap_async_argument(opt)
 				);
 				if( not file_token )
 				{

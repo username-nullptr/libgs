@@ -400,7 +400,7 @@ public:
 			{
 				ignore_unused(state);
 				auto file_expected = self->make_file_opt_token (
-					unwrap_async_arg(opt)
+					unwrap_async_argument(opt)
 				);
 				if( not file_expected )
 				{
@@ -409,7 +409,7 @@ public:
 					};
 				}
 				auto &file = *file_expected;
-				auto &progress_callback = unwrap_async_arg(progress);
+				auto &progress_callback = unwrap_async_argument(progress);
 
 				size_t sum = 0;
 				size_t total = 0;

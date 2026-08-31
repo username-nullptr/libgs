@@ -947,7 +947,7 @@ public:
 					};
 				}
 				auto file_token = self->make_file_opt_token (
-					unwrap_async_arg(opt),
+					unwrap_async_argument(opt),
 					self->m_parser.status() == status::partial_content
 				);
 				if( not file_token )
@@ -965,7 +965,7 @@ public:
 						 not self->m_parser.is_range_response() and length )
 					total = *length->template get<size_t>().or_else(0);
 
-				auto &progress_ref = unwrap_async_arg(progress);
+				auto &progress_ref = unwrap_async_argument(progress);
 				for(;;)
 				{
 					auto [error, chunk] = co_await self->async_read_range_body (

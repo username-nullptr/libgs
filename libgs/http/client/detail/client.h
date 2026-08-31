@@ -509,9 +509,9 @@ public:
 				req_info request_info, opt_t opt, progress_t progress) -> void
 			{
 				ignore_unused(state);
-				auto &upload_opt = unwrap_async_arg(opt);
+				auto &upload_opt = unwrap_async_argument(opt);
 
-				auto &progress_callback = unwrap_async_arg(progress);
+				auto &progress_callback = unwrap_async_argument(progress);
 				auto header_expected = request_info.arg.set_header(upload_opt);
 
 				if( not header_expected )
@@ -625,8 +625,8 @@ public:
 						request_error, {}
 					};
 				}
-				auto &download_opt = unwrap_async_arg(opt);
-				auto &progress_callback = unwrap_async_arg(progress);
+				auto &download_opt = unwrap_async_argument(opt);
+				auto &progress_callback = unwrap_async_argument(progress);
 
 				error_code save_error {};
 				auto bytes = co_await active_context->reply()->save_file (
