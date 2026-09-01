@@ -578,9 +578,12 @@ optional<bool> to_bool(const concepts::any_text_p auto &text, size_t base) noexc
 		{
 			using string_t = std::basic_string<char_t>;
 			try {
-				return !!detail::_sto_int<char_t>(
+				auto value = detail::_sto_int<char_t>(
 					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
 				);
+				if( value )
+					return *value != 0;
+				return {};
 			}
 			catch(...) {
 				return {};
