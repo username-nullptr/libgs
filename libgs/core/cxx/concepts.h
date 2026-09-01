@@ -114,6 +114,27 @@ concept pointer_p = pointer<std::remove_cvref_t<T>>;
 template <typename T>
 concept rvalue_reference = std::is_rvalue_reference_v<T>;
 
+template <typename T>
+concept trivial = std::is_trivial_v<T>;
+
+template <typename T>
+concept trivially_constructible = std::is_trivially_constructible_v<T>;
+
+template <typename T>
+concept trivially_destructible = std::is_trivially_destructible_v<T>;
+
+template <typename T>
+concept trivially_copy_constructible = std::is_trivially_copy_constructible_v<T>;
+
+template <typename T>
+concept trivially_copyable = std::is_trivially_copyable_v<T>;
+
+template <typename T, typename U>
+concept trivially_assignable = std::is_trivially_assignable_v<T,U>;
+
+template <typename T>
+concept trivially_copy_assignable = std::is_trivially_copy_assignable_v<T>;
+
 template <typename Func>
 concept function = is_function_v<Func>;
 

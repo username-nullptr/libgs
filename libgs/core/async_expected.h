@@ -36,7 +36,8 @@ namespace libgs
 template <typename>
 struct is_array_buffer : std::false_type {};
 
-template <typename T, size_t N>
+template <concepts::trivially_copyable T, size_t N>
+requires (not std::is_const_v<T> and not std::is_volatile_v<T>)
 struct is_array_buffer<std::array<T,N>> : std::true_type {};
 
 template <typename T>
@@ -45,7 +46,10 @@ constexpr bool is_array_buffer_v = is_array_buffer<T>::value;
 template <typename>
 struct is_vector_buffer : std::false_type {};
 
-template <typename T>
+template <concepts::trivially_copyable T>
+requires requires(std::vector<T> &buffer) {
+	{ buffer.data() } -> std::same_as<T*>;
+}
 struct is_vector_buffer<std::vector<T>> : std::true_type {};
 
 template <typename T>
@@ -69,8 +73,11 @@ template <typename T>
 constexpr bool is_buffer_v = is_buffer<T>::value;
 
 template <typename Buffer, typename Source>
-[[nodiscard]] LIBGS_CORE_TAPI Buffer copy_buffer_data(Source &&source)
-	requires (not is_array_buffer_v<Buffer>);
+[[nodiscard]] LIBGS_CORE_TAPI Buffer copy_buffer_data(Source &&source) requires (
+	is_buffer_v<Buffer> and
+	is_buffer_v<std::remove_cvref_t<Source>> and
+	not is_array_buffer_v<Buffer>
+);
 
 template <typename Value>
 [[nodiscard]] LIBGS_CORE_TAPI

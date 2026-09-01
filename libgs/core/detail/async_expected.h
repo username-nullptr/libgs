@@ -356,8 +356,8 @@ template <concepts::exec Exec, typename Initiator, typename Token>
 } //namespace detail
 
 template <typename Buffer, typename Source>
-Buffer copy_buffer_data(Source &&source)
-	requires (not is_array_buffer_v<Buffer>)
+Buffer copy_buffer_data(Source &&source) requires
+(is_buffer_v<Buffer> and is_buffer_v<std::remove_cvref_t<Source>> and not is_array_buffer_v<Buffer>)
 {
 	using source_t = std::remove_cvref_t<Source>;
 	if constexpr( std::same_as<Buffer,source_t> )
