@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,43 +26,69 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_CONTAINER_H
-#define LIBGS_HTTP_CXX_CONTAINER_H
+#ifndef LIBGS_CORE_URL_H
+#define LIBGS_CORE_URL_H
 
-#include <libgs/http/cxx/attributes.h>
-#include <libgs/http/cxx/concepts.h>
 #include <libgs/core/container.h>
-#include <map>
-#include <set>
 
-namespace libgs::http
+namespace libgs
 {
 
-using key_t = std::string;
+class LIBGS_CORE_API url : public mutable_parameters<url>
+{
+public:
+	template <typename...Args>
+	using format_string = std::format_string <
+		std::type_identity_t<Args>...
+	>;
 
-struct LIBGS_HTTP_API less_case_insensitive {
-	[[nodiscard]] bool operator()(const key_t &v1, const key_t &v2) const;
+public:
+	template <typename Arg0, typename...Args>
+	url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+	url(std::string_view url_text);
+	url(const std::string &url);
+	url(const char *url);
+
+	url();
+	~url() override;
+
+	url(const url &other);
+	url &operator=(const url &other);
+
+	url(url &&other) noexcept;
+	url &operator=(url &&other) noexcept;
+
+public:
+	template <typename Arg0, typename...Args>
+	url &emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
+	url &emplace(std::string_view url_text);
+
+	url &set_address(std::string addr);
+	url &set_port(uint16_t port);
+	url &set_path(std::string_view path);
+
+public:
+	[[nodiscard]] std::string_view protocol() const noexcept;
+	[[nodiscard]] std::string_view host() const noexcept;
+	[[nodiscard]] uint16_t port() const noexcept;
+	[[nodiscard]] std::string_view path() const noexcept;
+	[[nodiscard]] bool is_valid() const noexcept;
+
+public:
+	[[nodiscard]] std::string to_string() const noexcept;
+	[[nodiscard]] explicit operator std::string() const noexcept;
+
+	[[nodiscard]] static url resolve (
+		const url &base, std::string_view reference
+	);
+
+private:
+	class impl;
+	impl *m_impl;
 };
 
-template <typename Value>
-using map = std::map<key_t, Value, less_case_insensitive>;
-
-template <typename Value>
-using set = std::set<Value, less_case_insensitive>;
-
-using value_map = map<value>;
-using value_set = set<value>;
-
-[[nodiscard]] LIBGS_HTTP_TAPI optional<value> value_map_get (
-	const value_map &map, const core_concepts::text_p<char> auto &key
-) noexcept;
-
-[[nodiscard]] LIBGS_HTTP_VAPI optional<value> value_set_get (
-	const value_set &set, const value &node
-) noexcept;
-
-} //namespace libgs::http
-#include <libgs/http/cxx/detail/container.h>
+} //namespace libgs
+#include <libgs/core/detail/url.h>
 
 
-#endif //LIBGS_HTTP_CXX_CONTAINER_H
+#endif //LIBGS_CORE_URL_H

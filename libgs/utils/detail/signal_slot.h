@@ -1184,13 +1184,9 @@ signal_base<Derived,Func>::disconnect(const Obj &observer)
 		invalid_argument::loc_throw("libgs::utils::signal::disconnect: observer is nullptr");
 
 	m_impl->m_mutex.lock();
-	for(auto it=m_impl->m_slots.begin(); it!=m_impl->m_slots.end();)
-	{
-		if( (*it)->slot->m_obj == observer.get() )
-			it = m_impl->m_slots.erase(it);
-		else
-			++it;
-	}
+	std::erase_if(m_impl->m_slots, [&observer](const auto &item) {
+		return item->slot->m_obj == observer.get();
+	});
 	m_impl->m_mutex.unlock();
 	return static_cast<derived_t&>(*this);
 }

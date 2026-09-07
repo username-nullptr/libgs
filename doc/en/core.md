@@ -11,6 +11,7 @@ used by every other LibGS module. Link it as `gs.core`.
 | --- | --- |
 | `<libgs/core/execution.h>` | Default event loop, dispatch, post, timers, sleeps, and completion initiation |
 | `<libgs/core/value.h>` | String-backed typed values and conversions |
+| `<libgs/core/url.h>` | Protocol-neutral hierarchical URL parsing, query parameters, and reference resolution |
 | `<libgs/core/ini.h>` | In-memory INI data with synchronous and asynchronous persistence |
 | `<libgs/core/args_parser.h>` | Command-line groups, flags, version, and help handling |
 | `<libgs/core/algorithm.h>` | UUID, SHA-1, wildcard matching, percent encoding, and math helpers |
@@ -107,6 +108,22 @@ int main()
 
 Conversions return LibGS optional values. Test the result or use the optional
 fallback helpers rather than assuming arbitrary input is valid.
+
+## URLs
+
+`libgs::url` is a protocol-neutral hierarchical URL type. It parses the scheme,
+host, port, path, and query parameters and resolves relative references. The
+default value is the local URL `local:///`; HTTP-specific scheme validation is
+performed by the HTTP client rather than by the Core type.
+
+```cpp
+#include <libgs/core/url.h>
+
+libgs::url source("file:///tmp/report.txt");
+libgs::url endpoint("https://example.test/api?page=1");
+
+auto next = libgs::url::resolve(endpoint, "../status");
+```
 
 ## INI data
 

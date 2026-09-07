@@ -28,8 +28,8 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_COOKIE_JAR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_COOKIE_JAR_H
 
-#include <libgs/http/protocol/utils/client/url.h>
 #include <libgs/http/protocol/cookie.h>
+#include <libgs/core/url.h>
 
 namespace libgs::http
 {

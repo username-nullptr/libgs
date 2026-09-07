@@ -11,6 +11,7 @@ Core 模块提供所有其他 LibGS 模块共用的执行模型和通用设施�
 | --- | --- |
 | `<libgs/core/execution.h>` | 默认事件循环、dispatch、post、定时器、休眠和完成操作初始化 |
 | `<libgs/core/value.h>` | 基于字符串存储的类型化 value 与转换 |
+| `<libgs/core/url.h>` | 协议无关的层次化 URL 解析、查询参数和相对引用解析 |
 | `<libgs/core/ini.h>` | 支持同步和异步持久化的内存 INI 数据 |
 | `<libgs/core/args_parser.h>` | 命令行选项组、标志、版本和帮助处理 |
 | `<libgs/core/algorithm.h>` | UUID、SHA-1、通配符匹配、百分号编码和数学工具 |
@@ -105,6 +106,21 @@ int main()
 
 转换操作返回 LibGS optional。面对任意输入时，应检查结果或使用 optional 的
 默认值工具，不要假定输入一定有效。
+
+## URL
+
+`libgs::url` 是协议无关的层次化 URL 类型，可解析 scheme、host、port、path 和
+查询参数，也可解析相对引用。默认值为本地 URL `local:///`；HTTP scheme 的约束
+由 HTTP 客户端负责，而不是由 Core 类型强制施加。
+
+```cpp
+#include <libgs/core/url.h>
+
+libgs::url source("file:///tmp/report.txt");
+libgs::url endpoint("https://example.test/api?page=1");
+
+auto next = libgs::url::resolve(endpoint, "../status");
+```
 
 ## INI 数据
 

@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,69 +26,57 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_URL_H
-#define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_URL_H
+#include "container.h"
 
-#include <libgs/http/protocol/utils/core/container_helper.h>
-
-namespace libgs::http
+namespace libgs
 {
 
-class LIBGS_HTTP_API url : public mutable_parameters<url>
+parameter_map::iterator parameter_map::find(std::string_view key)
 {
-public:
-	template <typename...Args>
-	using format_string = std::format_string <
-		std::type_identity_t<Args>...
-	>;
+	return std::ranges::find(*this, key, [](const auto &pair) {
+		return return_reference(pair.first);
+	});
+}
 
-public:
-	template <typename Arg0, typename...Args>
-	url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	url(std::string_view url_text);
-	url(const std::string &url);
-	url(const char *url);
+parameter_map::const_iterator parameter_map::find(std::string_view key) const
+{
+	return std::ranges::find(*this, key, [](const auto &pair) {
+		return return_reference(pair.first);
+	});
+}
 
-	url();
-	~url() override;
+value &parameter_map::operator[](std::string_view key)
+{
+	auto it = find(key);
+	if( it == end() )
+	{
+		emplace_back(key, value{});
+		it = std::prev(end());
+	}
+	return it->second;
+}
 
-	url(const url &other);
-	url &operator=(const url &other);
+value &parameter_map::operator[](std::string &&key)
+{
+	auto it = find(key);
+	if( it == end() )
+	{
+		emplace_back(std::move(key), value{});
+		it = std::prev(end());
+	}
+	return it->second;
+}
 
-	url(url &&other) noexcept;
-	url &operator=(url &&other) noexcept;
+const value &parameter_map::operator[](std::string_view key) const
+{
+	auto it = find(key);
+	if( it == end() )
+	{
+		out_of_range::loc_throw (
+			"libgs::parameter_map: key not found"
+		);
+	}
+	return it->second;
+}
 
-public:
-	template <typename Arg0, typename...Args>
-	url &emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args);
-	url &emplace(std::string_view url_text);
-
-	url &set_address(std::string addr);
-	url &set_port(uint16_t port);
-	url &set_path(std::string_view path);
-
-public:
-	[[nodiscard]] std::string_view protocol() const noexcept;
-	[[nodiscard]] std::string_view host() const noexcept;
-	[[nodiscard]] uint16_t port() const noexcept;
-	[[nodiscard]] std::string_view path() const noexcept;
-	[[nodiscard]] bool is_valid() const noexcept;
-
-public:
-	[[nodiscard]] std::string to_string() const noexcept;
-	[[nodiscard]] explicit operator std::string() const noexcept;
-
-	[[nodiscard]] static url resolve (
-		const url &base, std::string_view reference
-	);
-
-private:
-	class impl;
-	impl *m_impl;
-};
-
-} //namespace libgs::http
-#include <libgs/http/protocol/utils/client/detail/url.h>
-
-
-#endif //LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_URL_H
+} //namespace libgs

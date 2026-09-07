@@ -139,7 +139,7 @@ LIBGS_HTTP_DEFINE_ENUM(uint32_t, redirect, LIBGS_HTTP_REDIRECT_TYPE_TABLE, descr
 enum class request_target_form {
 	origin, absolute, authority, asterisk
 };
-using parameters = parameter_map;
+using parameters = libgs::parameter_map;
 
 } //namespace libgs::http
 #include <libgs/http/protocol/detail/types.h>

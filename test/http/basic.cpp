@@ -2,7 +2,6 @@
 
 #include <libgs/http/protocol/cookie.h>
 #include <libgs/http/protocol/types.h>
-#include <libgs/http/protocol/utils/client/url.h>
 #include <libgs/http/protocol/version.h>
 
 #include <cstdint>
@@ -28,54 +27,6 @@ void protocol_enums()
 	static_assert(safe_methods.test_flag(method::get));
 	static_assert(safe_methods.test_flag(method::head));
 	static_assert(not safe_methods.test_flag(method::post));
-}
-
-void url_parsing()
-{
-	libgs::http::url target("HTTPS://example.test:8443/a%20b/items?q=hello%20world&flag");
-	LIBGS_TEST_CHECK(target.is_valid());
-	LIBGS_TEST_CHECK_EQ(target.protocol(), "https");
-	LIBGS_TEST_CHECK_EQ(target.host(), "example.test");
-	LIBGS_TEST_CHECK_EQ(target.port(), 8443);
-	LIBGS_TEST_CHECK_EQ(target.path(), "/a b/items");
-	LIBGS_TEST_CHECK(target.contains_parameter("q", "hello world"));
-	LIBGS_TEST_CHECK(target.contains_parameter("flag", "flag"));
-	LIBGS_TEST_CHECK_EQ(
-		target.to_string(),
-		"https://example.test:8443/a%20b/items?q=hello%20world&flag=flag"
-	);
-
-	const libgs::http::url ipv6("http://[::1]/health");
-	LIBGS_TEST_CHECK(ipv6.is_valid());
-	LIBGS_TEST_CHECK_EQ(ipv6.host(), "::1");
-	LIBGS_TEST_CHECK_EQ(ipv6.port(), 80);
-	LIBGS_TEST_CHECK_EQ(ipv6.to_string(), "http://[::1]:80/health");
-
-	const libgs::http::url invalid("example.test/no-scheme");
-	LIBGS_TEST_CHECK(not invalid.is_valid());
-	LIBGS_TEST_CHECK(invalid.to_string().empty());
-}
-
-void url_resolution()
-{
-	const libgs::http::url base("https://example.test:443/a/b/index.html?old=1");
-
-	LIBGS_TEST_CHECK_EQ(
-		libgs::http::url::resolve(base, "../image.png").to_string(),
-		"https://example.test:443/a/image.png"
-	);
-	LIBGS_TEST_CHECK_EQ(
-		libgs::http::url::resolve(base, "/status?q=ok").to_string(),
-		"https://example.test:443/status?q=ok"
-	);
-	LIBGS_TEST_CHECK_EQ(
-		libgs::http::url::resolve(base, "?fresh=1").to_string(),
-		"https://example.test:443/a/b/index.html?fresh=1"
-	);
-	LIBGS_TEST_CHECK_EQ(
-		libgs::http::url::resolve(base, "http://other.test/x").to_string(),
-		"http://other.test:80/x"
-	);
 }
 
 void cookie_values()
@@ -119,8 +70,6 @@ int main()
 {
 	return libgs::test::run({
 		{"protocol enums", protocol_enums},
-		{"URL parsing", url_parsing},
-		{"URL resolution", url_resolution},
 		{"cookie values", cookie_values},
 	});
 }

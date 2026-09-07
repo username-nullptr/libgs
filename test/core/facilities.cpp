@@ -6,6 +6,7 @@
 #include <libgs/core/mime_type.h>
 #include <libgs/core/string_vector.h>
 #include <libgs/core/system/app_utls.h>
+#include <libgs/core/url.h>
 #include <libgs/core/value.h>
 
 #include <atomic>
@@ -45,6 +46,77 @@ void string_containers()
 
 	const libgs::string_vector empty;
 	LIBGS_TEST_CHECK(empty.join(',').empty());
+}
+
+void url_parsing()
+{
+	const libgs::url local;
+	LIBGS_TEST_CHECK(local.is_valid());
+	LIBGS_TEST_CHECK_EQ(local.protocol(), "local");
+	LIBGS_TEST_CHECK(local.host().empty());
+	LIBGS_TEST_CHECK_EQ(local.port(), 0);
+	LIBGS_TEST_CHECK_EQ(local.to_string(), "local:///");
+
+	const libgs::url file("file:///tmp/libgs.txt");
+	LIBGS_TEST_CHECK(file.is_valid());
+	LIBGS_TEST_CHECK(file.host().empty());
+	LIBGS_TEST_CHECK_EQ(file.port(), 0);
+	LIBGS_TEST_CHECK_EQ(file.to_string(), "file:///tmp/libgs.txt");
+
+	const libgs::url ftp("ftp://example.test/pub");
+	LIBGS_TEST_CHECK(ftp.is_valid());
+	LIBGS_TEST_CHECK_EQ(ftp.port(), 21);
+
+	libgs::url target("HTTPS://example.test:8443/a%20b/items?q=hello%20world&flag");
+	LIBGS_TEST_CHECK(target.is_valid());
+	LIBGS_TEST_CHECK_EQ(target.protocol(), "https");
+	LIBGS_TEST_CHECK_EQ(target.host(), "example.test");
+	LIBGS_TEST_CHECK_EQ(target.port(), 8443);
+	LIBGS_TEST_CHECK_EQ(target.path(), "/a b/items");
+	LIBGS_TEST_CHECK(target.contains_parameter("q", "hello world"));
+	LIBGS_TEST_CHECK(target.contains_parameter("flag", "flag"));
+	target.set_parameter("page", 2).unset_parameter("flag");
+	LIBGS_TEST_CHECK_EQ(target.parameter("page")->to_int().value_or(0), 2);
+	LIBGS_TEST_CHECK(not target.contains_parameter("flag"));
+	LIBGS_TEST_CHECK_EQ(
+		target.to_string(),
+		"https://example.test:8443/a%20b/items?q=hello%20world&page=2"
+	);
+
+	const libgs::url ipv6("http://[::1]/health");
+	LIBGS_TEST_CHECK(ipv6.is_valid());
+	LIBGS_TEST_CHECK_EQ(ipv6.host(), "::1");
+	LIBGS_TEST_CHECK_EQ(ipv6.port(), 80);
+	LIBGS_TEST_CHECK_EQ(ipv6.to_string(), "http://[::1]:80/health");
+
+	const libgs::url invalid("example.test/no-scheme");
+	LIBGS_TEST_CHECK(not invalid.is_valid());
+	LIBGS_TEST_CHECK(invalid.to_string().empty());
+
+	const libgs::url invalid_scheme("ht*tp://example.test/");
+	LIBGS_TEST_CHECK(not invalid_scheme.is_valid());
+}
+
+void url_resolution()
+{
+	const libgs::url base("https://example.test:443/a/b/index.html?old=1");
+
+	LIBGS_TEST_CHECK_EQ(
+		libgs::url::resolve(base, "../image.png").to_string(),
+		"https://example.test:443/a/image.png"
+	);
+	LIBGS_TEST_CHECK_EQ(
+		libgs::url::resolve(base, "/status?q=ok").to_string(),
+		"https://example.test:443/status?q=ok"
+	);
+	LIBGS_TEST_CHECK_EQ(
+		libgs::url::resolve(base, "?fresh=1").to_string(),
+		"https://example.test:443/a/b/index.html?fresh=1"
+	);
+	LIBGS_TEST_CHECK_EQ(
+		libgs::url::resolve(base, "http://other.test/x").to_string(),
+		"http://other.test:80/x"
+	);
 }
 
 void command_line_parsing()
@@ -186,6 +258,8 @@ int main()
 	return libgs::test::run({
 		{"values", values},
 		{"string containers", string_containers},
+		{"URL parsing", url_parsing},
+		{"URL resolution", url_resolution},
 		{"command line parsing", command_line_parsing},
 		{"INI memory and file", ini_memory_and_file},
 		{"lock-free queues", lock_free_queues},

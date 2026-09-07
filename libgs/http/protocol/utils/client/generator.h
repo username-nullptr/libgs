@@ -29,9 +29,9 @@
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_GENERATOR_H
 
-#include <libgs/http/protocol/utils/core/generator.h>
 #include <libgs/http/protocol/utils/client/request_arg.h>
-#include <libgs/http/protocol/utils/client/url.h>
+#include <libgs/http/protocol/utils/core/generator.h>
+#include <libgs/core/url.h>
 
 namespace libgs::http
 {
@@ -45,7 +45,7 @@ class LIBGS_HTTP_API generator<protocol_model::client> final :
 	LIBGS_DISABLE_COPY(generator)
 
 public:
-	using url_t = http::url;
+	using url_t = libgs::url;
 	using request_arg_t = request_arg;
 
 	using version_t = http::version;

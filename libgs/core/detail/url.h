@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,43 +26,28 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_CXX_CONTAINER_H
-#define LIBGS_HTTP_CXX_CONTAINER_H
+#ifndef LIBGS_CORE_DETAIL_URL_H
+#define LIBGS_CORE_DETAIL_URL_H
 
-#include <libgs/http/cxx/attributes.h>
-#include <libgs/http/cxx/concepts.h>
-#include <libgs/core/container.h>
-#include <map>
-#include <set>
-
-namespace libgs::http
+namespace libgs
 {
 
-using key_t = std::string;
+template <typename Arg0, typename...Args>
+url::url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
+	url(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
+{
 
-struct LIBGS_HTTP_API less_case_insensitive {
-	[[nodiscard]] bool operator()(const key_t &v1, const key_t &v2) const;
-};
+}
 
-template <typename Value>
-using map = std::map<key_t, Value, less_case_insensitive>;
+template <typename Arg0, typename...Args>
+url &url::emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args)
+{
+	return emplace(std::format(
+		fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...
+	));
+}
 
-template <typename Value>
-using set = std::set<Value, less_case_insensitive>;
-
-using value_map = map<value>;
-using value_set = set<value>;
-
-[[nodiscard]] LIBGS_HTTP_TAPI optional<value> value_map_get (
-	const value_map &map, const core_concepts::text_p<char> auto &key
-) noexcept;
-
-[[nodiscard]] LIBGS_HTTP_VAPI optional<value> value_set_get (
-	const value_set &set, const value &node
-) noexcept;
-
-} //namespace libgs::http
-#include <libgs/http/cxx/detail/container.h>
+} //namespace libgs
 
 
-#endif //LIBGS_HTTP_CXX_CONTAINER_H
+#endif //LIBGS_CORE_DETAIL_URL_H

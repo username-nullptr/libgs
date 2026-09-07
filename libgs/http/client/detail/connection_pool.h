@@ -31,6 +31,7 @@
 #include <libgs/core/async_expected.h>
 #include <condition_variable>
 #include <unordered_map>
+#include <algorithm>
 #include <deque>
 
 namespace libgs::http
@@ -526,16 +527,16 @@ private:
 
 	[[nodiscard]] bool wake_matching_locked(const target_t &key) noexcept
 	{
-		for(auto pos = m_waiters.begin(); pos != m_waiters.end(); ++pos)
-		{
-			if( (*pos)->key == key )
-			{
-				wake_waiter_locked(*pos, wake_reason::state_changed);
-				m_waiters.erase(pos);
-				return true;
-			}
-		}
-		return false;
+		auto pos = std::ranges::find(m_waiters, key,
+			[](const auto &item) -> const target_t& {
+				return item->key;
+			});
+		if( pos == m_waiters.end() )
+			return false;
+
+		wake_waiter_locked(*pos, wake_reason::state_changed);
+		m_waiters.erase(pos);
+		return true;
 	}
 
 	void wake_any_locked() noexcept
@@ -549,14 +550,11 @@ private:
 
 	void remove_waiter_locked(waiter *value) noexcept
 	{
-		for(auto pos = m_waiters.begin(); pos != m_waiters.end(); ++pos)
-		{
-			if( pos->get() == value )
-			{
-				m_waiters.erase(pos);
-				return ;
-			}
-		}
+		auto pos = std::ranges::find(m_waiters, value, [](const auto &item) {
+			return item.get();
+		});
+		if( pos != m_waiters.end() )
+			m_waiters.erase(pos);
 	}
 
 public:

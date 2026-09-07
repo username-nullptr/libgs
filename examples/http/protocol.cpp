@@ -9,7 +9,7 @@ int main()
 	arguments.set_header("Accept", "text/plain");
 
 	libgs::http::client_generator generator (
-		libgs::http::url("http://example.test/hello?name=LibGS"),
+		libgs::url("http://example.test/hello?name=LibGS"),
 		arguments
 	);
 	std::cout << "Generated request:\n"
