@@ -29,6 +29,11 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_REQUEST_CONTEXT_H
 #define LIBGS_HTTP_CLIENT_DETAIL_REQUEST_CONTEXT_H
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 namespace libgs::http
 {
 
@@ -240,8 +245,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code)>
 		(
-			asio::co_composed<void(error_code)>(
-			[](auto state, executor_t exec, Progress *progress, size_t sum, size_t total) -> void
+			asio::co_composed<void(error_code)>([]
+			(auto state, executor_t exec, Progress *progress, size_t sum, size_t total) -> void
 			{
 				ignore_unused(state);
 				using result_t = decltype((*progress)(sum, total));
@@ -302,6 +307,7 @@ public:
 					}
 					co_return std::tuple{error};
 				}
+				co_return std::tuple<error_code>{};
 			},
 			m_exec),
 			completion_token, m_exec, &callback, current, total_size
@@ -318,11 +324,12 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, File *file_token,
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, File *file_token,
 				Progress *progress_callback, size_t begin_offset,
 				size_t transfer_length, size_t already_completed,
-				size_t total_size) -> void
+				size_t total_size
+			) -> void
 			{
 				ignore_unused(state);
 				char data[128 * 1024] {};
@@ -394,9 +401,10 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, body_norms_t upload_norms,
-				opt_t opt, progress_t progress) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, body_norms_t upload_norms,
+				opt_t opt, progress_t progress
+			) -> void
 			{
 				ignore_unused(state);
 				auto file_expected = self->make_file_opt_token (
@@ -575,8 +583,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, headers_t trailing_headers) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, headers_t trailing_headers) -> void
 			{
 				ignore_unused(state);
 				if( self->m_generator.pro_state() != generator_state::chunk )
@@ -662,9 +670,10 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, const_buffer input_body,
-				std::shared_ptr<void> body_owner) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, const_buffer input_body,
+				std::shared_ptr<void> body_owner
+			) -> void
 			{
 				ignore_unused(state, body_owner);
 				try {
@@ -702,13 +711,11 @@ private:
 					);
 					co_return std::tuple<error_code,size_t>{error, bytes};
 				}
-				catch(...)
-				{
-					self->close_connection();
-					co_return std::tuple<error_code,size_t> {
-						exception_error(std::current_exception()), 0
-					};
-				}
+				catch(...) {}
+				self->close_connection();
+				co_return std::tuple<error_code,size_t> {
+					exception_error(std::current_exception()), 0
+				};
 			},
 			m_exec),
 			completion_token, std::move(operation), body, std::move(owner)
@@ -771,8 +778,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, std::string payload) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, std::string payload) -> void
 			{
 				ignore_unused(state);
 				if( not self->has_connection() )
@@ -803,8 +810,10 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, std::string wire_header, std::string wire_body) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, std::string wire_header,
+				std::string wire_body
+			) -> void
 			{
 				ignore_unused(state);
 				if( not self->has_connection() )
@@ -1130,5 +1139,8 @@ basic_request_context<Method,Exec,Version>::get_executor() noexcept
 
 } //namespace libgs::http
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
 
 #endif //LIBGS_HTTP_CLIENT_DETAIL_REQUEST_CONTEXT_H

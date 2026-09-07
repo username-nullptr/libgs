@@ -760,7 +760,7 @@ const basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group) const
 {
 	auto it = m_impl->m_groups.find(impl::replace(group));
-	if( it != m_impl->m_groups.end() )
+	if( it == m_impl->m_groups.end() )
 	{
 		runtime_error::loc_throw(std::format (
 			"basic_ini: group: The group '{}' is not exists.",
@@ -776,7 +776,7 @@ basic_ini<CharT,Exec,Map,MapArgs...>::ini_keys_t&
 basic_ini<CharT,Exec,Map,MapArgs...>::group(const concepts::text_p<char_t> auto &group)
 {
 	auto it = m_impl->m_groups.find(impl::replace(group));
-	if( it != m_impl->m_groups.end() )
+	if( it == m_impl->m_groups.end() )
 	{
 		runtime_error::loc_throw(std::format (
 			"basic_ini: group: The group '{}' is not exists.",

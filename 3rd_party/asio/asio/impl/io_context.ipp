@@ -2,7 +2,7 @@
 // impl/io_context.ipp
 // ~~~~~~~~~~~~~~~~~~~
 //
-// Copyright (c) 2003-2025 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2026 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -20,7 +20,6 @@
 #include "asio/io_context.hpp"
 #include "asio/detail/concurrency_hint.hpp"
 #include "asio/detail/limits.hpp"
-#include "asio/detail/scoped_ptr.hpp"
 #include "asio/detail/service_registry.hpp"
 #include "asio/detail/throw_error.hpp"
 
@@ -33,30 +32,24 @@
 #include "asio/detail/push_options.hpp"
 
 namespace asio {
+ASIO_INLINE_NAMESPACE_BEGIN
 
 io_context::io_context()
   : execution_context(config_from_concurrency_hint()),
-    impl_(add_impl(new impl_type(*this, false)))
+    impl_(asio::make_service<impl_type>(*this, false))
 {
 }
 
 io_context::io_context(int concurrency_hint)
   : execution_context(config_from_concurrency_hint(concurrency_hint)),
-    impl_(add_impl(new impl_type(*this, false)))
+    impl_(asio::make_service<impl_type>(*this, false))
 {
 }
 
 io_context::io_context(const execution_context::service_maker& initial_services)
   : execution_context(initial_services),
-    impl_(add_impl(new impl_type(*this, false)))
+    impl_(asio::make_service<impl_type>(*this, false))
 {
-}
-
-io_context::impl_type& io_context::add_impl(io_context::impl_type* impl)
-{
-  asio::detail::scoped_ptr<impl_type> scoped_impl(impl);
-  asio::add_service<impl_type>(*this, scoped_impl.get());
-  return *scoped_impl.release();
 }
 
 io_context::~io_context()
@@ -128,6 +121,7 @@ void io_context::service::notify_fork(io_context::fork_event)
 {
 }
 
+ASIO_INLINE_NAMESPACE_END
 } // namespace asio
 
 #include "asio/detail/pop_options.hpp"

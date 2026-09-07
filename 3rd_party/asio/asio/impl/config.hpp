@@ -2,7 +2,7 @@
 // impl/config.hpp
 // ~~~~~~~~~~~~~~~
 //
-// Copyright (c) 2003-2025 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2026 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -24,17 +24,19 @@
 #include "asio/detail/push_options.hpp"
 
 namespace asio {
+ASIO_INLINE_NAMESPACE_BEGIN
 namespace detail {
 
 template <typename T>
 T config_get(const config_service& service, const char* section,
-    const char* key, T default_value, false_type /*is_bool*/)
+    const char* key_name, T default_value, false_type /*is_bool*/)
 {
   if (is_unsigned<T>::value)
   {
     char buf[std::numeric_limits<unsigned long long>::digits10
         + 1 /* sign */ + 1 /* partial digit */ + 1 /* NUL */];
-    if (const char* str = service.get_value(section, key, buf, sizeof(buf)))
+    if (const char* str = service.get_value(
+          section, key_name, buf, sizeof(buf)))
     {
       char* end = nullptr;
       errno = 0;
@@ -50,7 +52,8 @@ T config_get(const config_service& service, const char* section,
   {
     char buf[std::numeric_limits<unsigned long long>::digits10
         + 1 /* sign */ + 1 /* partial digit */ + 1 /* NUL */];
-    if (const char* str = service.get_value(section, key, buf, sizeof(buf)))
+    if (const char* str = service.get_value(
+          section, key_name, buf, sizeof(buf)))
     {
       char* end = nullptr;
       errno = 0;
@@ -66,11 +69,12 @@ T config_get(const config_service& service, const char* section,
 
 template <typename T>
 T config_get(const config_service& service, const char* section,
-    const char* key, T default_value, true_type /*is_bool*/)
+    const char* key_name, T default_value, true_type /*is_bool*/)
 {
   char buf[std::numeric_limits<unsigned long long>::digits10
       + 1 /* sign */ + 1 /* partial digit */ + 1 /* NUL */];
-  if (const char* str = service.get_value(section, key, buf, sizeof(buf)))
+  if (const char* str = service.get_value(
+        section, key_name, buf, sizeof(buf)))
   {
     char* end = nullptr;
     errno = 0;
@@ -86,12 +90,13 @@ T config_get(const config_service& service, const char* section,
 
 template <typename T>
 constraint_t<is_integral<T>::value, T>
-config::get(const char* section, const char* key, T default_value) const
+config::get(const char* section, const char* key_name, T default_value) const
 {
   return detail::config_get(service_, section,
-      key, default_value, is_same<T, bool>());
+      key_name, default_value, is_same<T, bool>());
 }
 
+ASIO_INLINE_NAMESPACE_END
 } // namespace asio
 
 #include "asio/detail/pop_options.hpp"

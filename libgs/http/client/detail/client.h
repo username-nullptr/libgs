@@ -28,6 +28,11 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 #include <libgs/core/async_expected.h>
 
 namespace libgs::http
@@ -216,9 +221,10 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,context_ptr<Method>)>
 		(
-			asio::co_composed<void(error_code,context_ptr<Method>)>(
-			[](auto state, std::shared_ptr<impl> self,
-				context_ptr<Method> active_context, req_info request_info) -> void
+			asio::co_composed<void(error_code,context_ptr<Method>)>([](
+				auto state, std::shared_ptr<impl> self, context_ptr<Method> active_context,
+				req_info request_info
+			) -> void
 			{
 				ignore_unused(state);
 				for(size_t followed = 0; ; ++followed)
@@ -320,6 +326,7 @@ private:
 						};
 					}
 				}
+				co_return std::tuple<error_code,context_ptr<Method>>{};
 			},
 			m_pool.get_executor()),
 			completion_token, std::move(operation), std::move(current),
@@ -380,8 +387,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,context_ptr<Method>)>
 		(
-			asio::co_composed<void(error_code,context_ptr<Method>)>(
-			[](auto state, std::shared_ptr<impl> self, req_info request_info) -> void
+			asio::co_composed<void(error_code,context_ptr<Method>)>([]
+			(auto state, std::shared_ptr<impl> self, req_info request_info) -> void
 			{
 				ignore_unused(state);
 				const bool wait_for_continue = expects_continue(request_info);
@@ -504,9 +511,10 @@ public:
 
 		return asio::async_initiate<token_t, void(error_code,context_ptr<method::put>)>
 		(
-			asio::co_composed<void(error_code,context_ptr<method::put>)>(
-			[](auto state, std::shared_ptr<impl> self,
-				req_info request_info, opt_t opt, progress_t progress) -> void
+			asio::co_composed<void(error_code,context_ptr<method::put>)>([](
+				auto state, std::shared_ptr<impl> self, req_info request_info,
+				opt_t opt, progress_t progress
+			) -> void
 			{
 				ignore_unused(state);
 				auto &upload_opt = unwrap_async_argument(opt);
@@ -610,9 +618,10 @@ public:
 
 		return asio::async_initiate<token_t, void(error_code,context_ptr<method::get>)>
 		(
-			asio::co_composed<void(error_code,context_ptr<method::get>)>(
-			[](auto state, std::shared_ptr<impl> self,
-				req_info request_info, opt_t opt, progress_t progress) -> void
+			asio::co_composed<void(error_code,context_ptr<method::get>)>([](
+				auto state, std::shared_ptr<impl> self, req_info request_info,
+				opt_t opt, progress_t progress
+			) -> void
 			{
 				ignore_unused(state);
 				auto [request_error, active_context] =
@@ -708,8 +717,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,context_ptr<Method>)>
 		(
-			asio::co_composed<void(error_code,context_ptr<Method>)>(
-			[](auto state, std::shared_ptr<impl> self, req_info request_info) -> void
+			asio::co_composed<void(error_code,context_ptr<Method>)>([]
+			(auto state, std::shared_ptr<impl> self, req_info request_info) -> void
 			{
 				ignore_unused(state);
 				auto target_expected = target_from_url(request_info.url);
@@ -789,12 +798,10 @@ public:
 						make_error_code(std::errc::not_enough_memory), {}
 					};
 				}
-				catch(...)
-				{
-					co_return std::tuple<error_code,context_ptr<Method>> {
-						make_error_code(std::errc::io_error), {}
-					};
-				}
+				catch(...) {}
+				co_return std::tuple<error_code,context_ptr<Method>> {
+					make_error_code(std::errc::io_error), {}
+				};
 			},
 			m_pool.get_executor()),
 			completion_token, std::move(operation), std::move(info)
@@ -1074,5 +1081,8 @@ basic_client<Exec,Version>::executor_t basic_client<Exec,Version>::get_executor(
 
 } //namespace libgs::http
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
 
 #endif //LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H

@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.15)
 
 set(MAJOR_VERSION  0)
-set(MINOR_VERSION 11)
-set(PATCH_VERSION  1)
+set(MINOR_VERSION 12)
+set(PATCH_VERSION  0)
 
 set(PRO_VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION})
 set(PRO_NAME LibGS)
@@ -37,7 +37,14 @@ endif()
 
 include_directories(.)
 add_subdirectory(libgs)
-add_subdirectory(test)
+
+option(BUILD_TESTING
+	"-- ${PRO_NAME}: Build tests." OFF
+)
+include(CTest)
+if (BUILD_TESTING)
+	add_subdirectory(test)
+endif()
 
 option(LIBGS_BUILD_EXAMPLES
 	"-- ${PRO_NAME}: Enable this to build the examples." OFF

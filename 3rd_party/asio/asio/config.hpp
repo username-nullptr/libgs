@@ -2,7 +2,7 @@
 // config.hpp
 // ~~~~~~~~~~
 //
-// Copyright (c) 2003-2025 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2026 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -25,6 +25,7 @@
 #include "asio/detail/push_options.hpp"
 
 namespace asio {
+ASIO_INLINE_NAMESPACE_BEGIN
 
 /// Base class for configuration implementations.
 class config_service :
@@ -47,11 +48,14 @@ public:
 
   /// Retrieve a configuration value.
   ASIO_DECL virtual const char* get_value(const char* section,
-      const char* key, char* value, std::size_t value_len) const;
+      const char* key_name, char* value, std::size_t value_len) const;
 };
 
 /// Provides access to the configuration values associated with an execution
 /// context.
+/**
+ * @sa @ref overview_configuration "Runtime configuration and concurrency hints"
+ */
 class config
 {
 public:
@@ -74,7 +78,7 @@ public:
   /// Retrieve an integral configuration value.
   template <typename T>
   constraint_t<is_integral<T>::value, T>
-  get(const char* section, const char* key, T default_value) const;
+  get(const char* section, const char* key_name, T default_value) const;
 
 private:
   config_service& service_;
@@ -181,6 +185,7 @@ private:
   std::string prefix_;
 };
 
+ASIO_INLINE_NAMESPACE_END
 } // namespace asio
 
 #include "asio/detail/pop_options.hpp"

@@ -2,7 +2,7 @@
 // experimental/detail/channel_service.hpp
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //
-// Copyright (c) 2003-2025 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+// Copyright (c) 2003-2026 Christopher M. Kohlhoff (chris at kohlhoff dot com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -31,6 +31,7 @@
 #include "asio/detail/push_options.hpp"
 
 namespace asio {
+ASIO_INLINE_NAMESPACE_BEGIN
 namespace experimental {
 namespace detail {
 
@@ -543,10 +544,10 @@ struct channel_service<Mutex>::implementation_type<
   // Move from another buffer.
   void buffer_move_from(implementation_type& other)
   {
-    size_ = other.buffer_;
+    size_ = other.size_;
     other.size_ = 0;
     first_ = other.first_;
-    other.first.count_ = 0;
+    other.first_.count_ = 0;
     rest_ = static_cast<
         typename traits_type::template container<buffered_value>::type&&>(
           other.rest_);
@@ -630,7 +631,7 @@ struct channel_service<Mutex>::implementation_type<
   void buffer_clear()
   {
     size_ = 0;
-    first_.count_ == 0;
+    first_.count_ = 0;
     rest_.clear();
   }
 
@@ -670,6 +671,7 @@ private:
 
 } // namespace detail
 } // namespace experimental
+ASIO_INLINE_NAMESPACE_END
 } // namespace asio
 
 #include "asio/detail/pop_options.hpp"

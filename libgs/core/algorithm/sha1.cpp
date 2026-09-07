@@ -239,8 +239,11 @@ sha1::~sha1()
 
 sha1 &sha1::operator=(const sha1 &other)
 {
-	memcpy(m_impl->m_state, other.m_impl->m_state, 5);
-	memcpy(m_impl->m_buf, other.m_impl->m_buf, 64);
+	if( this == &other )
+		return *this;
+
+	std::memcpy(m_impl->m_state, other.m_impl->m_state, sizeof(m_impl->m_state));
+	std::memcpy(m_impl->m_buf, other.m_impl->m_buf, sizeof(m_impl->m_buf));
 
 	m_impl->m_i = other.m_impl->m_i;
 	m_impl->m_n_bits = other.m_impl->m_n_bits;

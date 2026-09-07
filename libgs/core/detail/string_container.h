@@ -35,7 +35,7 @@ namespace libgs
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
 basic_string_container<CharT,Container,Args...>::string_t
-basic_string_container<CharT,Container,Args...>::join(const Text &splits)
+basic_string_container<CharT,Container,Args...>::join(const Text &splits) const
 {
 	string_t result;
 	auto view = strtls::to_view(splits);
@@ -43,14 +43,15 @@ basic_string_container<CharT,Container,Args...>::join(const Text &splits)
 	for(auto &str : *this)
 		result += str + string_t(view.data(), view.size());
 
-	result.erase(result.size() - view.size(), view.size());
+	if( not this->empty() and not view.empty() )
+		result.erase(result.size() - view.size(), view.size());
 	return result;
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
 basic_string_container<CharT,Container,Args...>::string_t
-basic_string_container<CharT,Container,Args...>::join(size_t index, size_t length, const Text &splits)
+basic_string_container<CharT,Container,Args...>::join(size_t index, size_t length, const Text &splits) const
 {
 	string_t result;
 	auto view = strtls::to_view(splits);
@@ -64,14 +65,16 @@ basic_string_container<CharT,Container,Args...>::join(size_t index, size_t lengt
 	}
 	while( index < end )
 		result += (*this)[index++] + string_t(view.data(), view.size());
-	result.erase(result.size() - view.size(), view.size());
+
+	if( not result.empty() and not view.empty() )
+		result.erase(result.size() - view.size(), view.size());
 	return result;
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
 basic_string_container<CharT,Container,Args...>::string_t
-basic_string_container<CharT,Container,Args...>::join(size_t index, const Text &splits)
+basic_string_container<CharT,Container,Args...>::join(size_t index, const Text &splits) const
 {
 	return join(index, this->size(), splits);
 }

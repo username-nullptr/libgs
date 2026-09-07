@@ -29,6 +29,11 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_RESPONSE_H
 #define LIBGS_HTTP_SERVER_DETAIL_RESPONSE_H
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 #include <libgs/http/protocol/utils/server/generator.h>
 #include <libgs/http/protocol/utils/core/compression.h>
 #include <libgs/http/protocol/utils/core/conditional.h>
@@ -128,9 +133,10 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, const_buffer body,
-				std::shared_ptr<void> owner) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, const_buffer body,
+				std::shared_ptr<void> owner
+			) -> void
 			{
 				ignore_unused(state, owner);
 				auto pro_state = self->m_generator.pro_state();
@@ -414,8 +420,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, opt_t opt) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, opt_t opt) -> void
 			{
 				LIBGS_UNUSED(state);
 				if( self->m_generator.pro_state() != generator_state::header )
@@ -540,9 +546,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				headers_t trailing_headers) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, headers_t trailing_headers) -> void
 			{
 				LIBGS_UNUSED(state);
 				if( self->m_generator.pro_state() != generator_state::chunk )
@@ -702,9 +707,8 @@ private:
 		auto operation = this->shared_from_this();
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				Opt *file_token) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, Opt *file_token) -> void
 			{
 				LIBGS_UNUSED(state);
 				auto &token = *file_token;
@@ -846,9 +850,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				Opt *file_token) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, Opt *file_token) -> void
 			{
 				LIBGS_UNUSED(state);
 				auto &token = *file_token;
@@ -974,9 +977,10 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, Opt *file_token,
-				std::vector<range_value> ranges) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, Opt *file_token,
+				std::vector<range_value> ranges
+			) -> void
 			{
 				LIBGS_UNUSED(state);
 				auto &token = *file_token;
@@ -1138,10 +1142,10 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, FS *stream,
-				std::string boundary,
-				std::string content_type_line, std::vector<range_value> ranges) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, FS *stream, std::string boundary,
+				std::string content_type_line, std::vector<range_value> ranges
+			) -> void
 			{
 				LIBGS_UNUSED(state);
 				assert(not ranges.empty());
@@ -1316,9 +1320,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				const_buffer data) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, const_buffer data) -> void
 			{
 				LIBGS_UNUSED(state);
 				auto [error, bytes] = co_await self->m_connection->write (
@@ -1342,9 +1345,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				std::string data) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, std::string data) -> void
 			{
 				LIBGS_UNUSED(state);
 				auto [error, bytes] = co_await self->m_connection->write (
@@ -1369,9 +1371,10 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				std::string header_data, const_buffer body) -> void
+			asio::co_composed<void(error_code,size_t)>([](
+				auto state, std::shared_ptr<impl> self, std::string header_data,
+				const_buffer body
+			) -> void
 			{
 				LIBGS_UNUSED(state);
 				const const_buffer buffers[] {buffer(header_data), body};
@@ -1399,9 +1402,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				std::string header_data, std::string body) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, std::string header_data, std::string body) -> void
 			{
 				LIBGS_UNUSED(state);
 				const const_buffer buffers[] {buffer(header_data), buffer(body)};
@@ -1428,9 +1430,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				const_buffer body) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, const_buffer body) -> void
 			{
 				LIBGS_UNUSED(state);
 				if( self->m_generator.pro_state() == generator_state::content_length )
@@ -1887,5 +1888,8 @@ basic_response<Exec> &basic_response<Exec>::cancel() noexcept
 
 } //namespace libgs::http
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
 
 #endif //LIBGS_HTTP_SERVER_DETAIL_RESPONSE_H

@@ -59,13 +59,13 @@ public:
 
 public:
 	template <concepts::text_p<CharT> Text = char_t>
-	[[nodiscard]] string_t join(const Text &splits = space);
+	[[nodiscard]] string_t join(const Text &splits = space) const;
 
 	template <concepts::text_p<CharT> Text = char_t>
-	[[nodiscard]] string_t join(size_t index, size_t length, const Text &splits = space);
+	[[nodiscard]] string_t join(size_t index, size_t length, const Text &splits = space) const;
 
 	template <concepts::text_p<CharT> Text = char_t>
-	[[nodiscard]] string_t join(size_t index, const Text &splits = space);
+	[[nodiscard]] string_t join(size_t index, const Text &splits = space) const;
 
 	template <concepts::str_container_iter<CharT,Container,Args...> Iter,
 			  concepts::text_p<CharT> Text = char_t>
@@ -77,7 +77,8 @@ public:
 		for(auto it=begin; it!=end; ++it)
 			result += *it + string_t(view.data(), view.size());
 
-		result.erase(result.size() - view.size(), view.size());
+		if(begin != end and not view.empty())
+			result.erase(result.size() - view.size(), view.size());
 		return result;
 	}
 

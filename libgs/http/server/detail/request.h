@@ -29,6 +29,11 @@
 #ifndef LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 #define LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
 namespace libgs::http
 {
 
@@ -100,12 +105,12 @@ public:
 			{
 				LIBGS_UNUSED(state);
 				if( self->m_parser.stage() != parser_t::stage_t::header )
-					co_return {error_code{}};
+					co_return std::tuple{ error_code{} };
 
 				auto &conn = *self->m_connection;
 				if( not conn.is_open() )
 				{
-					co_return {
+					co_return std::tuple {
 						make_error_code(std::errc::not_connected)
 					};
 				}
@@ -128,9 +133,11 @@ public:
 						co_return std::tuple<error_code>{expected.error()};
 					}
 					if( *expected )
-						co_return {error_code{}};
+						co_return std::tuple{ error_code{} };
 				}
-			}, m_connection->get_executor()),
+				co_return std::tuple{error_code{}};
+			},
+			m_connection->get_executor()),
 			completion_token, std::move(operation)
 		);
 	}
@@ -246,15 +253,14 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self,
-				mutable_buffer buf) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, mutable_buffer buf) -> void
 			{
 				LIBGS_UNUSED(state);
 				size_t sum = 0;
 
 				if( buf.size() == 0 )
-					co_return {error_code{}, sum};
+					co_return std::tuple{error_code{}, sum};
 
 				if( self->m_parser.stage() == stage::header )
 				{
@@ -265,11 +271,11 @@ public:
 						co_return std::tuple<error_code,size_t>{error, sum};
 				}
 				if( self->m_parser.stage() != stage::body and self->m_parser.partial_body_size() == 0 )
-					co_return {make_error_code(errc::eof), sum};
+					co_return std::tuple{make_error_code(errc::eof), sum};
 
 				auto options = self->m_connection->options();
 				if( not options )
-					co_return {options.error(), sum};
+					co_return std::tuple{options.error(), sum};
 
 				auto receive_buffer_size = options->receive_buffer_size;
 				if( receive_buffer_size == 0 )
@@ -292,7 +298,7 @@ public:
 						{dst_buf + sum, buf.size() - sum}
 					);
 					if( sum == buf.size() or self->m_parser.stage() == stage::finished )
-						co_return {error_code{}, sum};
+						co_return std::tuple{error_code{}, sum};
 
 					if( auto read_size = self->m_parser.prepare_direct_body_read(buf.size() - sum) )
 					{
@@ -304,7 +310,7 @@ public:
 
 						if( not self->m_parser.commit_direct_body_read(bytes) )
 						{
-							co_return {
+							co_return std::tuple {
 								make_error_code(std::errc::protocol_error), sum
 							};
 						}
@@ -333,6 +339,7 @@ public:
 							break;
 					}
 				}
+				co_return std::tuple<error_code,size_t>{};
 			},
 			m_connection->get_executor()),
 			completion_token, std::move(operation), output
@@ -392,8 +399,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,buffer_t)>
 		(
-			asio::co_composed<void(error_code,buffer_t)>(
-			[](auto state, std::shared_ptr<impl> self) -> void
+			asio::co_composed<void(error_code,buffer_t)>([]
+			(auto state, std::shared_ptr<impl> self) -> void
 			{
 				LIBGS_UNUSED(state);
 				buffer_t sum {};
@@ -451,8 +458,10 @@ public:
 					}
 					sum.resize(offset + bytes);
 				}
-				while( self->m_parser.stage() == stage::body or self->m_parser.partial_body_size() > 0 );
-
+				while (
+					self->m_parser.stage() == stage::body or
+					self->m_parser.partial_body_size() > 0
+				);
 				co_return std::tuple {
 					error_code{}, std::move(sum)
 				};
@@ -471,8 +480,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,Buffer)>
 		(
-			asio::co_composed<void(error_code,Buffer)>(
-			[](auto state, std::shared_ptr<impl> self) -> void
+			asio::co_composed<void(error_code,Buffer)>([]
+			(auto state, std::shared_ptr<impl> self) -> void
 			{
 				LIBGS_UNUSED(state);
 				if constexpr( is_array_buffer_v<Buffer> )
@@ -510,6 +519,7 @@ public:
 						error, std::move(result)
 					};
 				}
+				co_return std::tuple<error_code,Buffer>{};
 			},
 			m_connection->get_executor()),
 			completion_token, std::move(operation)
@@ -615,8 +625,8 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>(
-			[](auto state, std::shared_ptr<impl> self, opt_t opt) -> void
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, opt_t opt) -> void
 			{
 				LIBGS_UNUSED(state);
 				auto expected = self->make_file_opt_token (
@@ -659,6 +669,7 @@ public:
 					}
 					sum += bytes;
 				}
+				co_return std::tuple<error_code,size_t>{};
 			},
 			m_connection->get_executor()),
 			completion_token, std::move(operation), std::move(async_opt)
@@ -1079,5 +1090,8 @@ basic_request<Exec>::connection_t &basic_request<Exec>::connection() noexcept
 
 } //namespace libgs::http
 
+#if defined(__GNUC__) && !defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
 
 #endif //LIBGS_HTTP_SERVER_DETAIL_REQUEST_H
