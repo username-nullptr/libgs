@@ -98,13 +98,13 @@ public:
 	~basic_subscriber();
 
 public:
-	uint64_t subscribe(std::string_view topic, concepts::subscribe_func<1> auto &&func);
-	uint64_t subscribe(concepts::subscribe_func<2> auto &&func);
+	uint64_t subscribe(std::string_view topic, concepts::subscribe_func<1> auto &&callback);
+	uint64_t subscribe(concepts::subscribe_func<2> auto &&callback);
 
-	uint64_t subscribe(std::string_view topic, libgs::concepts::callable<const void*,size_t> auto &&func);
-	uint64_t subscribe(libgs::concepts::callable<std::string_view,const void*,size_t> auto &&func);
+	uint64_t subscribe(std::string_view topic, libgs::concepts::callable<const void*,size_t> auto &&callback);
+	uint64_t subscribe(libgs::concepts::callable<std::string_view,const void*,size_t> auto &&callback);
 
-	uint64_t subscribe(concepts::subscribe_type_func auto &&func);
+	uint64_t subscribe(concepts::subscribe_type_func auto &&callback);
 
 	basic_subscriber &cancel_topic(const std::string_view &topic);
 	basic_subscriber &cancel_sid(uint64_t sid);
@@ -112,9 +112,10 @@ public:
 
 public:
 	template <typename...Args>
-	basic_subscriber(Args&&...args) requires requires(basic_subscriber &obj) {
-		obj.subscribe(std::forward<Args>(args)...);
-	};
+	basic_subscriber(Args&&...args) requires (
+		(not std::is_same_v<std::remove_cvref_t<Args>,basic_subscriber> and ...) and
+		requires(basic_subscriber &obj) { obj.subscribe(std::forward<Args>(args)...); }
+	){ subscribe(std::forward<Args>(args)...); }
 
 	[[nodiscard]] interface_ptr interface() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;

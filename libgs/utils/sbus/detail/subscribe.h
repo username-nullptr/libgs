@@ -250,15 +250,15 @@ uint64_t basic_subscriber<Interface,Exec>::subscribe
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_type_func auto &&func)
+uint64_t basic_subscriber<Interface,Exec>::subscribe(concepts::subscribe_type_func auto &&callback)
 {
-	using Func = decltype(func);
+	using Func = decltype(callback);
 	using func_t = std::remove_cvref_t<Func>;
 
 	using func_tr_t = function_traits<func_t>;
 	using arg_t = std::remove_cvref_t<typename func_tr_t::template arg_type_t<0>>;
 
-	return subscribe(arg_t::libgs_sbus_topic_v, std::forward<Func>(func));
+	return subscribe(arg_t::libgs_sbus_topic_v, std::forward<Func>(callback));
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
@@ -280,14 +280,6 @@ basic_subscriber<Interface,Exec> &basic_subscriber<Interface,Exec>::cancel()
 {
 	m_interface->cancel();
 	return *this;
-}
-
-template <concepts::interface Interface, libgs::concepts::exec Exec>
-template <typename...Args>
-basic_subscriber<Interface,Exec>::basic_subscriber(Args&&...args) requires
-	requires(basic_subscriber &obj) { obj.subscribe(std::forward<Args>(args)...); }
-{
-	subscribe(std::forward<Args>(args)...);
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>

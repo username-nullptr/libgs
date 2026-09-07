@@ -17,7 +17,7 @@ int main(int argc, const char *argv[])
 	.bind({libgs::ip_type::v4, port})
 	.on_request<libgs::http::method::get>(
 		"/",
-		[](libgs::http::server::context_t &context) -> libgs::awaitable<void>
+		[root_body](libgs::http::server::context_t &context) -> libgs::awaitable<void>
 		{
 			co_await context.response().write (
 				asio::buffer(root_body), libgs::use_awaitable
