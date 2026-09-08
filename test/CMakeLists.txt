@@ -31,6 +31,8 @@ add_libgs_test(http.loopback http/loopback.cpp gs.http)
 
 set_tests_properties(libgs.http.loopback PROPERTIES TIMEOUT 15)
 
+add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
+
 add_libgs_test(utils utils/basic.cpp gs.utils)
 add_libgs_test(utils.runtime utils/runtime.cpp gs.utils)
 add_libgs_test(utils.modules utils/modules.cpp gs.utils)

@@ -1,30 +1,5 @@
-
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #include "generator.h"
 #include <libgs/core/algorithm/misc.h>
@@ -191,14 +166,10 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 	auto &url = this->url();
 	auto buf = std::string(method::string(method)) + " ";
 	{
-		auto path = to_percent_encoding(url.path(), '/');
-		if( not url.parameters().empty() )
-		{
-			path += '?';
-			for(auto &[key,value] : url.parameters())
-				path += to_percent_encoding(key) + "=" + to_percent_encoding(*value) + "&";
-			path.pop_back();
-		}
+		auto path = std::string(url.encoded_path());
+		if( url.has_query() )
+			path += '?' + url.encoded_query();
+
 		std::string target {};
 		if( method == method::connect or m_impl->m_target_form == request_target_form::authority )
 		{
@@ -208,7 +179,11 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 			target += ':' + std::to_string(url.port());
 		}
 		else if( m_impl->m_target_form == request_target_form::absolute )
+		{
 			target = url.to_string();
+			if( url.has_fragment() )
+				target.erase(target.rfind('#'));
+		}
 		else if( m_impl->m_target_form == request_target_form::asterisk )
 			target = "*";
 		else
@@ -222,8 +197,9 @@ std::string generator<protocol_model::client>::header_data(method_enum method, s
 	if( host.find(':') != std::string::npos and not host.starts_with('[') )
 		host = '[' + host + ']';
 
-	if( (url.protocol() == "http" and url.port() != 80) or
-		(url.protocol() == "https" and url.port() != 443) )
+	if( url.port() != 0 and
+		((url.protocol() == "http" and url.port() != 80) or
+		 (url.protocol() == "https" and url.port() != 443)) )
 		host += ':' + std::to_string(url.port());
 
 	mutable_headers::set_header(header::host, std::move(host));

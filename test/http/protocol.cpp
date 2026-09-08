@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
 #include "test.h"
 
 #include <libgs/http/protocol/utils/client/cookie_jar.h>
@@ -115,6 +118,38 @@ void generators_round_trip()
 	LIBGS_TEST_CHECK_EQ(response_parser.header("X-Response")->to_string(), "yes");
 	LIBGS_TEST_CHECK_EQ(response_parser.take_body(), "ok");
 	LIBGS_TEST_CHECK_EQ(response_parser.set_cookies().front().first, "session");
+}
+
+void request_url_boundaries()
+{
+	using namespace libgs::http;
+	const libgs::url target(
+		"http://example.test/a%2Fb//c?flag&empty=#client-fragment"
+	);
+
+	client_generator origin_form(target, request_arg {});
+	auto origin_head = origin_form.header_data(method::get, 0);
+	LIBGS_TEST_CHECK(
+		origin_head.starts_with("GET /a%2Fb//c?flag&empty= HTTP/1.1\r\n")
+	);
+	LIBGS_TEST_CHECK(
+		origin_head.find("Host: example.test\r\n") != std::string::npos
+	);
+	LIBGS_TEST_CHECK(
+		origin_head.find("example.test:0") == std::string::npos
+	);
+	LIBGS_TEST_CHECK(
+		origin_head.find("client-fragment") == std::string::npos
+	);
+
+	client_generator absolute_form(target, request_arg {});
+	absolute_form.set_target_form(request_target_form::absolute);
+	auto absolute_head = absolute_form.header_data(method::get, 0);
+	LIBGS_TEST_CHECK(
+		absolute_head.starts_with(
+			"GET http://example.test/a%2Fb//c?flag&empty= HTTP/1.1\r\n"
+		)
+	);
 }
 
 void range_headers()
@@ -245,6 +280,7 @@ int main()
 		{"request parser", request_parser},
 		{"response parser", response_parser},
 		{"generators round trip", generators_round_trip},
+		{"request URL boundaries", request_url_boundaries},
 		{"range headers", range_headers},
 		{"conditional and upgrade headers", conditional_and_upgrade_headers},
 		{"form data and authentication", form_data_and_authentication},

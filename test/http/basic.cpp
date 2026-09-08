@@ -1,8 +1,12 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
 #include "test.h"
 
 #include <libgs/http/protocol/cookie.h>
 #include <libgs/http/protocol/types.h>
 #include <libgs/http/protocol/version.h>
+#include <libgs/http/client.h>
 
 #include <cstdint>
 #include <string>
@@ -64,6 +68,33 @@ void cookie_values()
 	LIBGS_TEST_CHECK_EQ(*copied.path(), "/other");
 }
 
+void client_url_validation()
+{
+	libgs::io_context_t context;
+	libgs::http::client client(context.get_executor());
+	std::error_code error;
+
+	auto fragmented = client.request_get(
+		libgs::url("http://example.test/path#fragment"), error
+	);
+	LIBGS_TEST_CHECK(not fragmented);
+	LIBGS_TEST_CHECK(error == std::errc::invalid_argument);
+
+	error.clear();
+	auto wrong_scheme = client.request_get(
+		libgs::url("ws://example.test/path"), error
+	);
+	LIBGS_TEST_CHECK(not wrong_scheme);
+	LIBGS_TEST_CHECK(error == std::errc::protocol_not_supported);
+
+	error.clear();
+	auto missing_host = client.request_get(
+		libgs::url("http:///path"), error
+	);
+	LIBGS_TEST_CHECK(not missing_host);
+	LIBGS_TEST_CHECK(error == std::errc::invalid_argument);
+}
+
 } //namespace
 
 int main()
@@ -71,5 +102,6 @@ int main()
 	return libgs::test::run({
 		{"protocol enums", protocol_enums},
 		{"cookie values", cookie_values},
+		{"client URL validation", client_url_validation},
 	});
 }

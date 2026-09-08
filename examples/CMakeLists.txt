@@ -83,6 +83,9 @@ if(LIBGS_OPENSSL_SUPPORT)
 	libgs_add_example(http https_server LIBRARIES gs.http)
 endif()
 
+# WebSocket protocol
+libgs_add_example(websocket protocol LIBRARIES gs.websocket)
+
 # Application utilities
 libgs_add_example(utils logger       LIBRARIES gs.utils)
 libgs_add_example(utils observer     LIBRARIES gs.utils)
@@ -125,6 +128,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	http/server_aop.cpp
 	http/server_file.cpp
 	http/server_session.cpp
+	websocket/protocol.cpp
 	utils/logger.cpp
 	utils/modules/api.cpp
 	utils/modules/cache.cpp
