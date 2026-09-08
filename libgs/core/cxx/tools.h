@@ -31,13 +31,8 @@
 
 #include <libgs/core/cxx/aggregate_template.h>
 #include <libgs/core/cxx/type_traits.h>
-
-#ifdef __GNUC__
-# include <cxxabi.h>
-# define LIBGS_ABI_CXA_DEMANGLE(name)  abi::__cxa_demangle(name, nullptr, nullptr, nullptr)
-#else //_MSVC
-# define LIBGS_ABI_CXA_DEMANGLE(name)  name
-#endif //__GNUC__
+#include <libgs/core/cxx/attributes.h>
+#include <typeinfo>
 
 namespace libgs
 {
@@ -46,6 +41,8 @@ using std_typeid_t = decltype(typeid(void).hash_code());
 
 template <typename T>
 [[nodiscard]] LIBGS_CORE_TAPI const char *type_name();
+
+[[nodiscard]] LIBGS_CORE_API const char *type_name(const std::type_info &type);
 [[nodiscard]] LIBGS_CORE_TAPI const char *type_name(auto &&t);
 
 template <typename T>

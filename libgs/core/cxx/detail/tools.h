@@ -36,12 +36,12 @@ namespace libgs
 template <typename T>
 const char *type_name()
 {
-	return LIBGS_ABI_CXA_DEMANGLE(typeid(T).name());
+	return type_name(typeid(T));
 }
 
 const char *type_name(auto &&t)
 {
-	return LIBGS_ABI_CXA_DEMANGLE(typeid(t).name());
+	return type_name(typeid(t));
 }
 
 template <typename T>

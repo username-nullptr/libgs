@@ -7,6 +7,7 @@
 #include <libgs/core/async_expected.h>
 #include <libgs/core/cxx/expected.h>
 #include <libgs/core/cxx/optional.h>
+#include <libgs/core/cxx/tools.h>
 #include <libgs/core/utils/byte_order.h>
 #include <libgs/core/utils/string_tools.h>
 
@@ -45,6 +46,35 @@ static_assert(not buffer_data_copyable<
 static_assert(not buffer_data_copyable<
 	std::vector<std::byte>, std::vector<std::string>
 >);
+
+struct polymorphic_base
+{
+	virtual ~polymorphic_base() = default;
+};
+
+struct polymorphic_derived final : polymorphic_base {};
+
+void type_names()
+{
+	const char *first = libgs::type_name<int>();
+	LIBGS_TEST_CHECK(first != nullptr);
+	LIBGS_TEST_CHECK(first == libgs::type_name<int>());
+	LIBGS_TEST_CHECK_EQ(std::string_view(first), "int");
+	LIBGS_TEST_CHECK_EQ(
+		std::string_view(libgs::type_name(typeid(int))),
+		std::string_view(first)
+	);
+
+	polymorphic_derived derived;
+	polymorphic_base &base = derived;
+	const char *dynamic = libgs::type_name(base);
+	LIBGS_TEST_CHECK(dynamic != nullptr);
+	LIBGS_TEST_CHECK(dynamic == libgs::type_name(base));
+	LIBGS_TEST_CHECK_EQ(
+		std::string_view(dynamic),
+		std::string_view(libgs::type_name<polymorphic_derived>())
+	);
+}
 
 void percent_encoding()
 {
@@ -215,6 +245,7 @@ void optional_and_expected()
 int main()
 {
 	return libgs::test::run({
+		{"type names", type_names},
 		{"percent encoding", percent_encoding},
 		{"wildcard matching", wildcard_matching},
 		{"SHA-1 vectors", sha1_vectors},
