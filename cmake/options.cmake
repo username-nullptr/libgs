@@ -43,6 +43,57 @@ if (LIBGS_OPENSSL_SUPPORT)
 	add_definitions(-DLIBGS_OPENSSL_SUPPORT=1)
 endif ()
 
+option(LIBGS_BUILD_CORO
+	"-- ${PRO_NAME}: Build module <Coroutine>." ON
+)
+if (LIBGS_BUILD_CORO)
+	message(STATUS "${PRO_NAME}: Build module <Coroutine>.")
+endif ()
+
+option(LIBGS_BUILD_HTTP
+	"-- ${PRO_NAME}: Build module <HTTP>." ON
+)
+if (LIBGS_BUILD_HTTP)
+	if (NOT LIBGS_BUILD_CORO)
+		message(FATAL_ERROR "${PRO_NAME}: <HTTP> module depends on <Coroutine> module.")
+		unset(LIBGS_BUILD_HTTP)
+	elseif (LIBGS_OPENSSL_SUPPORT)
+		message(STATUS "${PRO_NAME}: Build module <HTTP/HTTPS>.")
+	else ()
+		message(STATUS "${PRO_NAME}: Build module <HTTP>.")
+	endif ()
+endif ()
+
+option(LIBGS_BUILD_WEBSOCKET
+	"-- ${PRO_NAME}: Build module <WebSocket>." ON
+)
+if (LIBGS_BUILD_WEBSOCKET)
+	if (NOT LIBGS_BUILD_HTTP)
+		message(FATAL_ERROR "${PRO_NAME}: <WebSocket> module depends on <HTTP> module.")
+		unset(LIBGS_BUILD_WEBSOCKET)
+	else ()
+		message(STATUS "${PRO_NAME}: Build module <WebSocket>.")
+	endif ()
+endif ()
+
+option(LIBGS_BUILD_UTILITIES
+	"-- ${PRO_NAME}: Build module <Utilities>." ON
+)
+if (LIBGS_BUILD_UTILITIES)
+	if (NOT LIBGS_BUILD_CORO)
+		message(FATAL_ERROR "${PRO_NAME}: <Utilities> module depends on <Coroutine> module.")
+		unset(LIBGS_BUILD_UTILITIES)
+	else ()
+		message(STATUS "${PRO_NAME}: Build module <Utilities>.")
+	endif ()
+endif ()
+
+set(LIBGS_CORO_SUPPORT ${LIBGS_BUILD_CORO})
+set(LIBGS_HTTP_SUPPORT ${LIBGS_BUILD_HTTP})
+
+set(LIBGS_WEBSOCKET_SUPPORT ${LIBGS_BUILD_WEBSOCKET})
+set(LIBGS_UTILITIES_SUPPORT ${LIBGS_BUILD_UTILITIES})
+
 set(LIBGS_CONFIG_INCLUDE
 	${LIBGS_OUTPUT_DIR}/config_include
 )

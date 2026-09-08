@@ -1,12 +1,24 @@
 set(target_name libgs.test)
 add_executable(${target_name} main.cpp)
 
-target_link_libraries(${target_name} PRIVATE gs.http)
-target_link_libraries(${target_name} PRIVATE gs.utils)
+target_link_libraries(${target_name} PRIVATE gs.core)
+
+if (LIBGS_BUILD_HTTP)
+	target_link_libraries(${target_name} PRIVATE gs.http)
+endif ()
+
+if (LIBGS_BUILD_WEBSOCKET)
+	target_link_libraries(${target_name} PRIVATE gs.websocket)
+endif ()
+
+if (LIBGS_BUILD_UTILITIES)
+	target_link_libraries(${target_name} PRIVATE gs.utils)
+endif ()
 
 set_target_properties(${target_name} PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
 )
+
 
 function(add_libgs_test name source library)
 	set(test_target libgs.test.${name})
@@ -21,18 +33,28 @@ function(add_libgs_test name source library)
 	add_test(NAME libgs.${name} COMMAND $<TARGET_FILE:${test_target}>)
 endfunction()
 
+
 add_libgs_test(core core/basic.cpp gs.core)
 add_libgs_test(core.facilities core/facilities.cpp gs.core)
 add_libgs_test(core.runtime core/runtime.cpp gs.core)
-add_libgs_test(coro coro/basic.cpp gs.core)
-add_libgs_test(http http/basic.cpp gs.http)
-add_libgs_test(http.protocol http/protocol.cpp gs.http)
-add_libgs_test(http.loopback http/loopback.cpp gs.http)
 
-set_tests_properties(libgs.http.loopback PROPERTIES TIMEOUT 15)
+if (LIBGS_BUILD_CORO)
+	add_libgs_test(coro coro/basic.cpp gs.core)
+endif ()
 
-add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
+if (LIBGS_BUILD_HTTP)
+	add_libgs_test(http http/basic.cpp gs.http)
+	add_libgs_test(http.protocol http/protocol.cpp gs.http)
+	add_libgs_test(http.loopback http/loopback.cpp gs.http)
+	set_tests_properties(libgs.http.loopback PROPERTIES TIMEOUT 15)
+endif ()
 
-add_libgs_test(utils utils/basic.cpp gs.utils)
-add_libgs_test(utils.runtime utils/runtime.cpp gs.utils)
-add_libgs_test(utils.modules utils/modules.cpp gs.utils)
+if (LIBGS_BUILD_WEBSOCKET)
+	add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
+endif ()
+
+if (LIBGS_BUILD_UTILITIES)
+	add_libgs_test(utils utils/basic.cpp gs.utils)
+	add_libgs_test(utils.runtime utils/runtime.cpp gs.utils)
+	add_libgs_test(utils.modules utils/modules.cpp gs.utils)
+endif ()
