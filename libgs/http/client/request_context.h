@@ -31,7 +31,7 @@
 
 #include <libgs/http/protocol/utils/client/generator.h>
 #include <libgs/http/protocol/utils/client/request_arg.h>
-#include <libgs/http/protocol/utils/client/url.h>
+#include <libgs/core/url.h>
 #include <libgs/http/client/reply.h>
 
 namespace libgs::http
@@ -55,7 +55,7 @@ public:
 	using lease_t = basic_connection_lease<executor_t>;
 	using lease_ptr = lease_t::ptr_t;
 
-	using url_t = http::url;
+	using url_t = libgs::url;
 	using method_t = http::method;
 	using request_arg_t = request_arg;
 

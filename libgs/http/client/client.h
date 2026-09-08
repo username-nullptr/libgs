@@ -57,7 +57,7 @@ public:
 
 	using reply_t = basic_reply<executor_t>;
 	using request_arg_t = request_arg;
-	using url_t = url;
+	using url_t = libgs::url;
 
 public:
 	struct req_info

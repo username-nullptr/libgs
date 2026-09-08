@@ -64,7 +64,7 @@ private:
 		// url is a generic hierarchical resource descriptor. HTTP protocol
 		// selection is deliberately enforced only at the client boundary.
 		try {
-			if( not value.is_valid() )
+			if( not value.is_valid() or value.host().empty() )
 			{
 				return sys_unexpected (
 					make_error_code(std::errc::invalid_argument)

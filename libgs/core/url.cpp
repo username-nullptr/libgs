@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -27,31 +27,28 @@
 *************************************************************************************/
 
 #include "url.h"
-#include <libgs/core/algorithm/misc.h>
-#include <libgs/core/string_vector.h>
+#include "algorithm/misc.h"
+#include "string_vector.h"
 
-namespace libgs::http { namespace
+namespace libgs { namespace
 {
 
 [[nodiscard]] bool ascii_alpha(char value) noexcept
 {
 	return (value >= 'a' and value <= 'z') or
-		(value >= 'A' and value <= 'Z');
+		   (value >= 'A' and value <= 'Z');
 }
 
 [[nodiscard]] bool valid_scheme(std::string_view value) noexcept
 {
 	if( value.empty() or not ascii_alpha(value.front()) )
 		return false;
-	for(char item : value.substr(1))
+
+	return std::ranges::all_of(value.substr(1), [](char item)
 	{
-		if( not ascii_alpha(item) and not (item >= '0' and item <= '9') and
-			item != '+' and item != '-' and item != '.' )
-		{
-			return false;
-		}
-	}
-	return true;
+		return ascii_alpha(item) or (item >= '0' and item <= '9') or
+			item == '+' or item == '-' or item == '.';
+	});
 }
 
 } //namespace
@@ -101,10 +98,7 @@ public:
 
 	void refresh_validity() noexcept
 	{
-		const bool http_scheme =
-			m_protocol == "http" or m_protocol == "https";
-		m_valid = not m_protocol.empty() and not m_host.empty() and
-			(not http_scheme or m_port != 0) and not m_path.empty() and
+		m_valid = not m_protocol.empty() and not m_path.empty() and
 			m_path.front() == '/';
 	}
 
@@ -129,7 +123,7 @@ private:
 		auto path = parse_parameters(std::move(path_query));
 		set_path(path);
 
-		if( authority.empty() or authority.find('@') != std::string::npos )
+		if( authority.find('@') != std::string::npos )
 			invalid_argument::loc_throw("Invalid URL authority.");
 
 		m_port = default_port(m_protocol);
@@ -143,7 +137,7 @@ private:
 			if( close + 1 < authority.size() )
 			{
 				if( authority[close + 1] != ':' )
-						invalid_argument::loc_throw("Invalid URL authority.");
+					invalid_argument::loc_throw("Invalid URL authority.");
 				set_port_text(authority.substr(close + 2));
 			}
 		}
@@ -158,16 +152,16 @@ private:
 			else
 				m_host = std::move(authority);
 		}
-		if( m_host.empty() )
-			invalid_argument::loc_throw("URL host is empty.");
 	}
 
 	[[nodiscard]] static uint16_t default_port(std::string_view scheme) noexcept
 	{
-		if( scheme == "http" )
+		if( scheme == "http" or scheme == "ws" )
 			return 80;
-		if( scheme == "https" )
+		else if( scheme == "https" or scheme == "wss" )
 			return 443;
+		else if( scheme == "ftp" )
+			return 21;
 		return 0;
 	}
 
@@ -181,10 +175,10 @@ private:
 
 	void reset()
 	{
-		m_protocol = "http";
+		m_protocol = "local";
 		m_path = "/";
-		m_host = "127.0.0.1";
-		m_port = 80;
+		m_host.clear();
+		m_port = 0;
 		m_parameters.clear();
 		m_valid = true;
 	}
@@ -243,10 +237,10 @@ private:
 	}
 
 public:
-	std::string m_protocol = "http";
+	std::string m_protocol = "local";
 	std::string m_path = "/";
-	std::string m_host = "127.0.0.1";
-	uint16_t m_port = 80;
+	std::string m_host {};
+	uint16_t m_port = 0;
 	parameters_t m_parameters {};
 	bool m_valid = true;
 };
@@ -455,4 +449,4 @@ url url::resolve(const url &base, std::string_view reference)
 	return { origin + path };
 }
 
-} //namespace libgs::http
+} //namespace libgs

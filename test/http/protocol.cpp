@@ -86,7 +86,7 @@ void generators_round_trip()
 	request_arg argument;
 	argument.set_header("X-Request", "yes")
 		.set_cookie("sid", "token");
-	client_generator request(url("http://example.test/api?q=42"), argument);
+	client_generator request(libgs::url("http://example.test/api?q=42"), argument);
 	std::string request_data = request.header_data(method::post, 7);
 	request_data += request.body_data(buffer("payload"));
 	LIBGS_TEST_CHECK_EQ(request.pro_state(), generator_state::finish);
@@ -210,25 +210,25 @@ void cookie_storage_policy()
 {
 	using namespace libgs::http;
 	cookie_jar jar;
-	const url origin("https://api.example.test/account/login");
+	const libgs::url origin("https://api.example.test/account/login");
 	LIBGS_TEST_CHECK(jar.store(origin, "host", cookie("one").set_path("/account")));
 	LIBGS_TEST_CHECK(jar.store(origin, "domain",
 		cookie("two").set_domain("example.test").set_path("/")
 	));
 	LIBGS_TEST_CHECK(jar.store(origin, "secure", cookie("three").set_secure(true)));
 	LIBGS_TEST_CHECK(not jar.store(
-		url("http://api.example.test/"), "invalid-secure", cookie("x").set_secure(true)
+		libgs::url("http://api.example.test/"), "invalid-secure", cookie("x").set_secure(true)
 	));
 	LIBGS_TEST_CHECK_EQ(jar.size(), 3U);
 
-	auto account = jar.cookies_for(url("https://api.example.test/account/profile"));
+	auto account = jar.cookies_for(libgs::url("https://api.example.test/account/profile"));
 	LIBGS_TEST_CHECK_EQ(account.at("host").to_string(), "one");
 	LIBGS_TEST_CHECK_EQ(account.at("domain").to_string(), "two");
 	LIBGS_TEST_CHECK_EQ(account.at("secure").to_string(), "three");
-	auto sibling = jar.cookies_for(url("https://www.example.test/"));
+	auto sibling = jar.cookies_for(libgs::url("https://www.example.test/"));
 	LIBGS_TEST_CHECK(not sibling.contains("host"));
 	LIBGS_TEST_CHECK(sibling.contains("domain"));
-	auto plain = jar.cookies_for(url("http://api.example.test/account/profile"));
+	auto plain = jar.cookies_for(libgs::url("http://api.example.test/account/profile"));
 	LIBGS_TEST_CHECK(not plain.contains("secure"));
 
 	LIBGS_TEST_CHECK(jar.store(origin, "host", cookie("gone").set_path("/account").set_max_age(0)));

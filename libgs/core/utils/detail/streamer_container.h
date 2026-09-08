@@ -31,6 +31,7 @@
 
 #include <libgs/core/utils/string_tools.h>
 #include <filesystem>
+#include <iterator>
 
 #include <vector>
 #include <bitset>
@@ -308,9 +309,7 @@ struct streamer<std::forward_list<T,Alloc>>
 	[[nodiscard]] static auto encode(const list_t &v)
 	{
 		std::vector<std::byte> buf;
-		uint64_t size = 0;
-		for(auto it = v.begin(); it != v.end(); ++it)
-			size++;
+		auto size = static_cast<uint64_t>(std::ranges::distance(v));
 
 		buf.resize(8);
 		detail::streamer_write_u64(buf.data(), size);

@@ -35,63 +35,6 @@ namespace libgs::http
 {
 
 template <typename Derived>
-const_parameters<Derived>::const_parameters(const parameters_t *parameters) :
-	m_parameters(parameters)
-{
-
-}
-
-template <typename Derived>
-optional<typename const_parameters<Derived>::value_t>
-const_parameters<Derived>::parameter(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	auto it = parameters().find(strtls::to_string(key));
-	if( it == parameters().end() )
-		return nullopt;
-	return it->second;
-}
-
-template <typename Derived>
-bool const_parameters<Derived>::contains_parameter
-(const core_concepts::text_p<char> auto &key, const value_t &value) const noexcept
-{
-	auto it = parameters().find(strtls::to_string(key));
-	if( it != parameters().end() )
-		return it->second == value;
-	return false;
-}
-
-template <typename Derived>
-bool const_parameters<Derived>::contains_parameter
-(const core_concepts::text_p<char> auto &key) const noexcept
-{
-	auto it = parameters().find(strtls::to_string(key));
-	return it != parameters().end();
-}
-
-template <typename Derived>
-optional<typename const_parameters<Derived>::value_t>
-const_parameters<Derived>::parameter(size_t index) const
-{
-	if( not contains_parameter(index) )
-		runtime_error::loc_throw("index out of range.");
-	return parameters()[index].second;
-}
-
-template <typename Derived>
-bool const_parameters<Derived>::contains_parameter(size_t index) const noexcept
-{
-	return index < parameters().size();
-}
-
-template <typename Derived>
-const const_parameters<Derived>::parameters_t&
-const_parameters<Derived>::parameters() const noexcept
-{
-	return *m_parameters;
-}
-
-template <typename Derived>
 const_headers<Derived>::const_headers(const headers_t *headers) :
 	m_headers(headers)
 {
@@ -182,31 +125,6 @@ const const_chunk_attributes<Derived>::values_t&
 const_chunk_attributes<Derived>::chunk_attributes() const noexcept
 {
 	return *m_chunk_attributes;
-}
-
-template <typename Derived>
-template <core_concepts::text_p<char> T>
-mutable_parameters<Derived>::base_t::derived_t &mutable_parameters<Derived>::set_parameter
-(T &&key, typename base_t::value_t value) noexcept
-{
-	parameters()[strtls::to_string(std::forward<T>(key))] = std::move(value);
-	return static_cast<base_t::derived_t&>(*this);
-}
-
-template <typename Derived>
-template <core_concepts::text_p<char> T>
-mutable_parameters<Derived>::base_t::derived_t&
-mutable_parameters<Derived>::unset_parameter(const T &key) noexcept
-{
-	parameters().erase(strtls::to_string(key));
-	return static_cast<base_t::derived_t&>(*this);
-}
-
-template <typename Derived>
-mutable_parameters<Derived>::base_t::parameters_t&
-mutable_parameters<Derived>::parameters() noexcept
-{
-	return remove_const(*this->m_parameters);
 }
 
 template <typename Derived>

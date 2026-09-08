@@ -9,8 +9,6 @@ LibGS is not limited to HTTP. HTTP/HTTPS is the first protocol family included
 in the repository, while the architecture and roadmap cover a broader set of
 application and networking capabilities.
 
-The current development version is `0.11.1-dev`.
-
 ## Modules
 
 | Area | What it provides |

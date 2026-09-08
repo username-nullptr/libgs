@@ -1,7 +1,7 @@
 
 /************************************************************************************
 *                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
+*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
 *                                                                                   *
 *   This file is part of LIBGS                                                      *
 *   License: MIT License                                                            *
@@ -26,28 +26,24 @@
 *                                                                                   *
 *************************************************************************************/
 
-#ifndef LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_URL_H
-#define LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_URL_H
+#ifndef LIBGS_WEBSOCKET_CXX_ATTRIBUTES_H
+#define LIBGS_WEBSOCKET_CXX_ATTRIBUTES_H
 
-namespace libgs::http
-{
+#include <libgs/http/global.h>
 
-template <typename Arg0, typename...Args>
-url::url(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args) :
-	url(std::format(fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...))
-{
+#ifdef LIBGS_WEBSOCKET_SHARED
+# ifdef gs_websocket_EXPORTS
+#  define LIBGS_WEBSOCKET_API  LIBGS_DECL_EXPORT
+# else //gs_websocket_EXPORTS
+#  define LIBGS_WEBSOCKET_API  LIBGS_DECL_IMPORT
+# endif //gs_websocket_EXPORTS
 
-}
+#else //LIBGS_WEBSOCKET_SHARED
+# define LIBGS_WEBSOCKET_API
+#endif //LIBGS_WEBSOCKET_SHARED
 
-template <typename Arg0, typename...Args>
-url &url::emplace(format_string<Arg0,Args...> fmt, Arg0 &&arg0, Args&&...args)
-{
-	return emplace(std::format(
-		fmt, std::forward<Arg0>(arg0), std::forward<Args>(args)...
-	));
-}
-
-} //namespace libgs::http
+# define LIBGS_WEBSOCKET_VAPI  LIBGS_CORE_VAPI
+# define LIBGS_WEBSOCKET_TAPI  LIBGS_CORE_TAPI
 
 
-#endif //LIBGS_HTTP_PROTOCOL_UTILS_CLIENT_DETAIL_URL_H
+#endif //LIBGS_WEBSOCKET_CXX_ATTRIBUTES_H

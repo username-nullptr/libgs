@@ -35,6 +35,8 @@
 #include <libgs/core/args_parser.h>
 #include <libgs/core/shared_mutex.h>
 #include <libgs/core/string_list.h>
+#include <libgs/core/container.h>
+#include <libgs/core/url.h>
 #include <libgs/core/ini.h>
 
 #endif //LIBGS_CORE_H

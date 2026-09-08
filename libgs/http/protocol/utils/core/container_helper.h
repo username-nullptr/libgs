@@ -43,41 +43,6 @@ public:
 
 	using header_t = header;
 	using headers_t = headers;
-
-	using parameters_t = parameters;
-};
-
-template <typename Derived>
-class LIBGS_HTTP_TAPI const_parameters : public type_helper
-{
-public:
-	using derived_t = crtp_derived_t<Derived,const_parameters>;
-	using container_t = headers_t;
-
-public:
-	explicit const_parameters(const parameters_t *parameters);
-	virtual ~const_parameters() = default;
-
-	[[nodiscard]] optional<value_t> parameter (
-		const core_concepts::text_p<char> auto &key
-	) const noexcept;
-
-	[[nodiscard]] bool contains_parameter (
-		const core_concepts::text_p<char> auto &key,
-		const value_t &value
-	) const noexcept;
-
-	[[nodiscard]] bool contains_parameter (
-		const core_concepts::text_p<char> auto &key
-	) const noexcept;
-
-	[[nodiscard]] optional<value_t> parameter(size_t index) const;
-	[[nodiscard]] bool contains_parameter(size_t index) const noexcept;
-
-	[[nodiscard]] const parameters_t &parameters() const noexcept;
-
-protected:
-	const parameters_t *m_parameters = nullptr;
 };
 
 template <typename Derived>
@@ -153,23 +118,6 @@ public:
 
 protected:
 	const values_t *m_chunk_attributes = nullptr;
-};
-
-template <typename Derived>
-class LIBGS_HTTP_TAPI mutable_parameters : public const_parameters<Derived>
-{
-	using base_t = const_parameters<Derived>;
-
-public:
-	template <core_concepts::text_p<char> T>
-	base_t::derived_t &set_parameter(T &&key, base_t::value_t value) noexcept;
-
-	template <core_concepts::text_p<char> T>
-	base_t::derived_t &unset_parameter(const T &key) noexcept;
-
-	[[nodiscard]] base_t::parameters_t &parameters() noexcept;
-	using base_t::parameters;
-	using base_t::base_t;
 };
 
 template <typename Derived>
