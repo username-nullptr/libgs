@@ -4,23 +4,7 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_H
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_H
 
-namespace libgs::websocket
-{
-
-template <core_concepts::exec Exec>
-class LIBGS_WEBSOCKET_TAPI basic_stream<Exec>::impl :
-	public std::enable_shared_from_this<impl>
-{
-
-public:
-
-public:
-
-};
-
-
-
-} //namespace libgs::websocket
-
+#include <libgs/websocket/detail/stream/impl.h>
+#include <libgs/websocket/detail/stream/api.ipp>
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_H

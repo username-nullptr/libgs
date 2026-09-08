@@ -6,16 +6,6 @@
 
 #include <libgs/websocket/global.h>
 #include <libgs/core/utils/flags.h>
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <system_error>
-#include <type_traits>
-#include <utility>
-#include <vector>
 
 namespace libgs::websocket
 {
@@ -140,6 +130,18 @@ const std::error_category &protocol_error_category() noexcept;
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
 error_code make_error_code(protocol_errc value) noexcept;
+
+[[nodiscard]] LIBGS_WEBSOCKET_API
+bool operator==(const error_code &error, protocol_errc value) noexcept;
+
+[[nodiscard]] LIBGS_WEBSOCKET_API
+bool operator==(protocol_errc value, const error_code &error) noexcept;
+
+[[nodiscard]] LIBGS_WEBSOCKET_API
+bool operator!=(const error_code &error, protocol_errc value) noexcept;
+
+[[nodiscard]] LIBGS_WEBSOCKET_API
+bool operator!=(protocol_errc value, const error_code &error) noexcept;
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
 bool is_known_opcode(opcode value) noexcept;

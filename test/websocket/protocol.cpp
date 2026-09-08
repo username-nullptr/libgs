@@ -6,6 +6,7 @@
 #include <libgs/websocket/protocol/generator.h>
 #include <libgs/websocket/protocol/handshake.h>
 #include <libgs/websocket/protocol/parser.h>
+#include <libgs/websocket/detail/secure_random.h>
 #include <array>
 #include <cstring>
 #include <limits>
@@ -38,12 +39,46 @@ void test_error_categories()
 	LIBGS_TEST_CHECK_EQ(std::string_view(stream_error.category().name()),
 		"libgs::websocket");
 	LIBGS_TEST_CHECK(not stream_error.message().empty());
+	LIBGS_TEST_CHECK(stream_error == ws::errc::not_open);
+	LIBGS_TEST_CHECK(ws::errc::not_open == stream_error);
+	LIBGS_TEST_CHECK(stream_error != ws::errc::closed);
 
 	const libgs::error_code protocol_error = ws::protocol_errc::invalid_utf8;
 	LIBGS_TEST_CHECK_EQ(protocol_error.category(), ws::protocol_error_category());
 	LIBGS_TEST_CHECK_EQ(std::string_view(protocol_error.category().name()),
 		"libgs::websocket::protocol");
 	LIBGS_TEST_CHECK(not protocol_error.message().empty());
+	LIBGS_TEST_CHECK(protocol_error == ws::protocol_errc::invalid_utf8);
+	LIBGS_TEST_CHECK(ws::protocol_errc::invalid_utf8 == protocol_error);
+	LIBGS_TEST_CHECK(protocol_error != ws::protocol_errc::missing_mask);
+
+#define X_MACRO(e,v,d) \
+	{ \
+		const libgs::error_code mapped = ws::errc::e; \
+		LIBGS_TEST_CHECK_EQ(mapped.value(), v); \
+		LIBGS_TEST_CHECK_EQ(mapped.message(), d); \
+	}
+	LIBGS_WEBSOCKET_ERRC_TABLE
+#undef X_MACRO
+}
+
+void test_secure_random_source()
+{
+	auto empty = ws::detail::secure_random_bytes(libgs::mutable_buffer {});
+	LIBGS_TEST_CHECK(empty.has_value());
+
+	auto invalid = ws::detail::secure_random_bytes(
+		libgs::mutable_buffer(nullptr, 1)
+	);
+	LIBGS_TEST_CHECK(not invalid.has_value());
+	LIBGS_TEST_CHECK_EQ(invalid.error(),
+		std::make_error_code(std::errc::invalid_argument));
+
+	std::array<std::byte,32> bytes {};
+	auto filled = ws::detail::secure_random_bytes(
+		libgs::mutable_buffer(bytes.data(), bytes.size())
+	);
+	LIBGS_TEST_CHECK(filled.has_value());
 }
 
 void test_opcode_and_close_code_helpers()
@@ -617,6 +652,7 @@ int main()
 {
 	return libgs::test::run({
 		{"error categories", test_error_categories},
+		{"secure random source", test_secure_random_source},
 		{"opcode and close code helpers", test_opcode_and_close_code_helpers},
 		{"frame header encoding", test_frame_header_encoding},
 		{"frame header errors", test_frame_header_errors},

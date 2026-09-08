@@ -51,6 +51,7 @@ endif ()
 
 if (LIBGS_BUILD_WEBSOCKET)
 	add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
+	add_libgs_test(websocket.stream websocket/stream.cpp gs.websocket)
 endif ()
 
 if (LIBGS_BUILD_UTILITIES)

@@ -41,7 +41,7 @@ public:
 public:
 	parser &on_parse_begin(parse_begin_handler func);
 	parser &on_parse_cookie(parse_cookie_handler func);
-	[[nodiscard]] static error_code make_error_code(parse_errno errc);
+	[[nodiscard]] static error_code make_error_code(parse_errc errc);
 
 	sys_expected<bool> append(const const_buffer &buf);
 	parser &operator<<(const const_buffer &buf);

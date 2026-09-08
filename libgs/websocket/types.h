@@ -6,12 +6,6 @@
 
 #include <libgs/websocket/error.h>
 #include <libgs/websocket/protocol/types.h>
-#include <chrono>
-#include <cstddef>
-#include <cstdint>
-#include <optional>
-#include <string>
-#include <vector>
 
 namespace libgs::websocket
 {
@@ -55,7 +49,7 @@ struct control_event
 struct adopt_options
 {
 	role stream_role = role::client;
-	std::string pending_data {};
+	std::vector<std::byte> pending_data {};
 	std::string negotiated_subprotocol {};
 	// Reserved for post-baseline extension codecs. The baseline stream rejects
 	// non-empty negotiated extensions with errc::unsupported_extension.

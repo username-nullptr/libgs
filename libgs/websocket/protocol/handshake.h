@@ -7,8 +7,6 @@
 #include <libgs/websocket/error.h>
 #include <libgs/websocket/protocol/types.h>
 #include <libgs/http/protocol/types.h>
-#include <span>
-#include <vector>
 
 namespace libgs::websocket
 {

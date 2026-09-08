@@ -6,8 +6,8 @@
 
 #include <libgs/http/protocol/utils/client/generator.h>
 #include <libgs/http/protocol/utils/client/request_arg.h>
-#include <libgs/core/url.h>
 #include <libgs/http/client/reply.h>
+#include <libgs/core/url.h>
 
 namespace libgs::http
 {
@@ -60,11 +60,12 @@ public:
 	~basic_request_context() override;
 
 public:
-	// Synchronous I/O returns the value directly. The default token throws
-	// std::system_error on failure; error_code& returns a default value and
-	// stores the error. Async completion uses (error_code, value). As with
-	// Asio's basic I/O operations, asynchronous writes borrow body until
-	// completion. detached owns a copy until completion.
+	// Byte counts describe caller-supplied body bytes only; request headers and
+	// transfer framing are excluded. error_code& and asynchronous completions
+	// preserve the partial body count when an error is also reported. The
+	// throwing/expected synchronous form can only report the error on failure.
+	// Asynchronous writes borrow body until completion, except detached, which
+	// owns a copy. chunk_end has no caller body and therefore returns zero.
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(Token &&token = {});
 

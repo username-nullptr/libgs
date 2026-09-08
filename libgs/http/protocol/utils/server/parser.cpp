@@ -28,7 +28,7 @@ public:
 				not strtls::to_upper(request_line_parts[2]).starts_with("HTTP/") )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IREQL)
+					base_parser::make_error_code(parse_errc::IREQL)
 				);
 			}
 			method_enum method;
@@ -38,7 +38,7 @@ public:
 			catch(const std::exception&)
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IHM)
+					base_parser::make_error_code(parse_errc::IHM)
 				);
 			}
 			m_method = method;
@@ -49,12 +49,12 @@ public:
 			catch(const std::exception&)
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IREQL)
+					base_parser::make_error_code(parse_errc::IREQL)
 				);
 			}
 			m_target = request_line_parts[1];
 			if( m_target.find('#') != std::string::npos )
-				return result.despair(base_parser::make_error_code(parse_errno::IHP));
+				return result.despair(base_parser::make_error_code(parse_errc::IHP));
 
 			std::string url_line = m_target;
 			if( method == method::connect )
@@ -62,7 +62,7 @@ public:
 				m_target_form = request_target_form::authority;
 				if( url_line.find('/') != std::string::npos or
 					url_line.find(':') == std::string::npos )
-					return result.despair(base_parser::make_error_code(parse_errno::IHP));
+					return result.despair(base_parser::make_error_code(parse_errc::IHP));
 
 				m_path = "/";
 				return result;
@@ -70,7 +70,7 @@ public:
 			if( url_line == "*" )
 			{
 				if( method != method::options )
-					return result.despair(base_parser::make_error_code(parse_errno::IHP));
+					return result.despair(base_parser::make_error_code(parse_errc::IHP));
 
 				m_target_form = request_target_form::asterisk;
 				m_path = "*";
@@ -120,7 +120,7 @@ public:
 			if( not m_path.starts_with('/') )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IHP)
+					base_parser::make_error_code(parse_errc::IHP)
 				);
 			}
 			auto n_it = std::ranges::unique(m_path, [](char c0, char c1) {
@@ -138,7 +138,7 @@ public:
 		{
 			auto vector = string_vector::from_string(line_buf, ';');
 			if( vector.empty() )
-				return base_parser::make_error_code(parse_errno::ICL);
+				return base_parser::make_error_code(parse_errc::ICL);
 
 			for(auto &statement : vector)
 			{
@@ -146,7 +146,7 @@ public:
 				auto pos = statement.find('=');
 
 				if( pos == std::string::npos )
-					return base_parser::make_error_code(parse_errno::ICL);
+					return base_parser::make_error_code(parse_errc::ICL);
 
 				auto key = strtls::trimmed(statement.substr(0,pos));
 				auto value = strtls::trimmed(statement.substr(pos+1));
@@ -260,7 +260,7 @@ sys_expected<bool> parser<protocol_model::server>::append(const const_buffer &bu
 		if( m_impl->m_parser.version() == version::v11 and
 			(host == m_impl->m_parser.headers().end() or
 			 host->second.to_string().find(',') != std::string::npos) )
-			return sys_unexpected(base_parser::make_error_code(parse_errno::IHL));
+			return sys_unexpected(base_parser::make_error_code(parse_errc::IHL));
 		m_impl->set_attribute();
 	}
 	return expected;

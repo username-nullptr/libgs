@@ -24,6 +24,24 @@ libgs::const_buffer buffer(std::string_view value)
 	return {value.data(), value.size()};
 }
 
+void parser_errors()
+{
+	using namespace libgs::http;
+	const libgs::error_code empty = parse_errc::IDE;
+	LIBGS_TEST_CHECK(empty == parse_errc::IDE);
+	LIBGS_TEST_CHECK(parse_errc::IDE == empty);
+	LIBGS_TEST_CHECK(empty != parse_errc::RE);
+	LIBGS_TEST_CHECK(parse_errc::RE != empty);
+	LIBGS_TEST_CHECK_EQ(empty, make_error_code(parse_errc::IDE));
+	LIBGS_TEST_CHECK_EQ(empty.category(), parse_error_category());
+	LIBGS_TEST_CHECK_EQ(empty.message(), "The inserted data is empty.");
+
+	server_parser parser;
+	auto result = parser.append({});
+	LIBGS_TEST_CHECK(not result);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::IDE);
+}
+
 void request_parser()
 {
 	using namespace libgs::http;
@@ -277,6 +295,7 @@ void cookie_storage_policy()
 int main()
 {
 	return libgs::test::run({
+		{"parser errors", parser_errors},
 		{"request parser", request_parser},
 		{"response parser", response_parser},
 		{"generators round trip", generators_round_trip},

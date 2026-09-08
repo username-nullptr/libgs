@@ -9,7 +9,7 @@ application utilities.
 
 HTTP/HTTPS is an important implemented module, but it is not the boundary of
 the project. The protocol layer is intended to expand over time; WebSocket
-support is currently planned and is not yet part of the public API.
+support is currently under development, with protocol and basic stream capabilities available.
 
 ## Documentation map
 

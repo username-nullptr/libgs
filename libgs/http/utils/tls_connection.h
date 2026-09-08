@@ -43,10 +43,9 @@ public:
 	[[nodiscard]] executor_t get_executor() noexcept override;
 
 protected:
-	[[nodiscard]] io_expected read_some(mutable_buffer buffer) noexcept override;
-	[[nodiscard]] io_expected write_all(const const_buffer &buffer) noexcept override;
-	[[nodiscard]] io_expected
-	write_all(std::span<const const_buffer> buffers) noexcept override;
+	[[nodiscard]] size_t read_some(mutable_buffer buffer, error_code &error) noexcept override;
+	[[nodiscard]] size_t write_all(const const_buffer &buffer, error_code &error) noexcept override;
+	[[nodiscard]] size_t write_all(std::span<const const_buffer> buffers, error_code &error) noexcept override;
 
 protected:
 	using io_handler_t = basic_connection<Exec>::io_handler_t;

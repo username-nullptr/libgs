@@ -28,7 +28,7 @@ public:
 				not strtls::to_upper(request_line_parts[0]).starts_with("HTTP/") )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IRPYL)
+					base_parser::make_error_code(parse_errc::IRPYL)
 				);
 			}
 			try {
@@ -37,14 +37,14 @@ public:
 			catch(const std::exception&)
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IRPYL)
+					base_parser::make_error_code(parse_errc::IRPYL)
 				);
 			}
 			auto status_value = strtls::to_arith<status_enum>(request_line_parts[1]);
 			if( not status_value )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IHSC)
+					base_parser::make_error_code(parse_errc::IHSC)
 				);
 			}
 			m_status = *status_value;
@@ -52,7 +52,7 @@ public:
 			if( m_status == static_cast<status_enum>(0) )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errno::IHSC)
+					base_parser::make_error_code(parse_errc::IHSC)
 				);
 			}
 			auto code = static_cast<uint16_t>(m_status);
@@ -73,13 +73,13 @@ public:
 		{
 			auto vector = string_vector::from_string(line_buf, ';');
 			if( vector.empty() )
-				return base_parser::make_error_code(parse_errno::ICL);
+				return base_parser::make_error_code(parse_errc::ICL);
 
 			vector[0] = strtls::trimmed(vector[0]);
 			auto pos = vector[0].find('=');
 
 			if( pos == std::string::npos )
-				return base_parser::make_error_code(parse_errno::ICL);
+				return base_parser::make_error_code(parse_errc::ICL);
 
 			auto key = strtls::trimmed(vector[0].substr(0, pos));
 			auto cookie_name = key;
@@ -168,7 +168,7 @@ public:
 
 			auto range = parse_content_range(it->second.to_string());
 			if( not range or range->unit != "bytes" or range->satisfied )
-				return base_parser::make_error_code(parse_errno::SFE);
+				return base_parser::make_error_code(parse_errc::SFE);
 
 			m_content_range = *range;
 			return {};
@@ -189,7 +189,7 @@ public:
 			{
 				auto boundary = parse_multipart_byte_ranges_boundary(content_type);
 				if( not boundary )
-					return base_parser::make_error_code(parse_errno::SFE);
+					return base_parser::make_error_code(parse_errc::SFE);
 
 				m_multipart_parser = std::make_unique<multipart_byte_ranges_parser>(*boundary);
 				m_body_norms = multipart_body_norms {.boundary = *boundary};
@@ -198,11 +198,11 @@ public:
 		}
 		it = response_headers.find(header::content_range);
 		if( it == response_headers.end() )
-			return base_parser::make_error_code(parse_errno::SFE);
+			return base_parser::make_error_code(parse_errc::SFE);
 
 		auto range = parse_content_range(it->second.to_string());
 		if( not range or range->unit != "bytes" or not range->satisfied )
-			return base_parser::make_error_code(parse_errno::SFE);
+			return base_parser::make_error_code(parse_errc::SFE);
 
 		m_content_range = *range;
 		m_body_norms = range_body_norms {
@@ -221,7 +221,7 @@ public:
 				body, m_parser.stage() == stage::finished
 			);
 			if( not decoded )
-				return base_parser::make_error_code(parse_errno::SFE);
+				return base_parser::make_error_code(parse_errc::SFE);
 
 			body = std::move(*decoded);
 			m_content_decoded = true;
@@ -232,7 +232,7 @@ public:
 			{
 				auto chunks = m_multipart_parser->append(body);
 				if( not chunks )
-					return base_parser::make_error_code(parse_errno::SFE);
+					return base_parser::make_error_code(parse_errc::SFE);
 
 				for(auto &[part_index, offset, data] : *chunks)
 					append_body(part_index, offset, data);
@@ -241,7 +241,7 @@ public:
 			if( m_parser.stage() == stage::finished )
 			{
 				if( auto error = m_multipart_parser->finish(); error )
-					return base_parser::make_error_code(parse_errno::SFE);
+					return base_parser::make_error_code(parse_errc::SFE);
 				sync_multipart_norms();
 			}
 			return {};
@@ -253,7 +253,7 @@ public:
 			{
 				if( body.size() > m_content_range->length() -
 					std::min(m_plain_body_size, m_content_range->length()) )
-					return base_parser::make_error_code(parse_errno::SFE);
+					return base_parser::make_error_code(parse_errc::SFE);
 				offset += m_content_range->first;
 			}
 			m_plain_body_size += body.size();
@@ -261,7 +261,7 @@ public:
 		}
 		if( m_parser.stage() == stage::finished and m_content_range and
 			m_content_range->satisfied and m_plain_body_size != m_content_range->length() )
-			return base_parser::make_error_code(parse_errno::SFE);
+			return base_parser::make_error_code(parse_errc::SFE);
 		return {};
 	}
 

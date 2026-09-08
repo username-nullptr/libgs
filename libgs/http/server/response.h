@@ -50,8 +50,12 @@ public:
 	static constexpr bool task_token_v =
 		core_concepts::dis_func_tf_opt_token<Token,error_code,Value...>;
 
-	// As with Asio's basic I/O operations, asynchronous writes borrow body until
-	// completion. detached is the exception: it owns a copy until completion.
+	// Byte counts describe caller-supplied body bytes only; response headers and
+	// transfer framing are excluded. send_file counts source-file bytes, while
+	// redirect, continues, and chunk_end have no caller body and return zero.
+	// error_code& and asynchronous completions preserve partial counts alongside
+	// an error. Asynchronous writes borrow body until completion; detached owns a
+	// copy.
 	template <typename Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
 		requires task_token_v<Token,size_t>;

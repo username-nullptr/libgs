@@ -45,11 +45,20 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		if constexpr( is_error_code_token_v<Token> )
-			return expected_value_or_error(_write(body), token);
+			return _write(body, token);
 
 		else if constexpr( is_sync_opt_token_v<Token> )
-			return expected_value_or_throw(_write(body));
-
+		{
+			error_code error {};
+			auto size = _write(body, error);
+			if( error )
+			{
+				system_error::loc_throw (
+					error, "libgs::http::basic_request_context::write"
+				);
+			}
+			return size;
+		}
 		else if constexpr( is_detached_v<token_unbound_t<token_t>> )
 		{
 			auto body_storage = std::make_shared<std::string>();
@@ -84,13 +93,16 @@ public:
 	}
 
 public:
-	[[nodiscard]] io_expected upload_file
-	(const body_norms_t &norms, auto &&opt, auto &&progress) noexcept
+	[[nodiscard]] size_t upload_file
+	(const body_norms_t &norms, auto &&opt, auto &&progress, error_code &error) noexcept
 	{
+		error.clear();
 		auto token = make_file_opt_token(std::forward<decltype(opt)>(opt));
 		if( not token )
-			return io_unexpected(token.error());
-
+		{
+			error = token.error();
+			return 0;
+		}
 		char buffer[128 * 1024] {0};
 		size_t sum = 0, total = 0;
 
@@ -110,26 +122,34 @@ public:
 				if( gcount == 0 )
 					return make_error_code(std::errc::io_error);
 
-				if( auto expected = _write({buffer, gcount}); not expected )
-					return expected.error();
+				error_code write_error {};
+				auto bytes = _write({buffer, gcount}, write_error);
 
-				loc_sum += gcount;
-				sum += gcount;
+				loc_sum += bytes;
+				sum += bytes;
 
-				if( auto error = invoke_progress(progress, sum, total) )
-					return error;
+				if( write_error )
+					return write_error;
+
+				if( bytes != gcount )
+					return make_error_code(std::errc::io_error);
+
+				if( auto progress_error = invoke_progress(progress, sum, total) )
+					return progress_error;
 			}
 			return error_code();
 		};
 		if( norms.index() == 0 or norms.index() == std::variant_npos )
 		{
 			total = token->file_size;
-			auto error = do_transfer(0, token->file_size);
+			auto transfer_error = do_transfer(0, token->file_size);
 			token->stream->close();
-			if( error )
+
+			if( transfer_error )
 			{
 				close_connection();
-				return io_unexpected(error);
+				error = transfer_error;
+				return sum;
 			}
 		}
 		else if( norms.index() == 1 )
@@ -137,12 +157,14 @@ public:
 			auto &range_norms = std::get<range_body_norms>(norms);
 			total = range_norms.total;
 
-			auto error = do_transfer(range_norms.begin, range_norms.total);
+			auto transfer_error = do_transfer(range_norms.begin, range_norms.total);
 			token->stream->close();
-			if( error )
+
+			if( transfer_error )
 			{
 				close_connection();
-				return io_unexpected(error);
+				error = transfer_error;
+				return sum;
 			}
 		}
 		else if( norms.index() == 2 )
@@ -164,26 +186,30 @@ public:
 				{
 					token->stream->close();
 					close_connection();
-					return io_unexpected (
-						exception_error(std::current_exception())
-					);
+					error = exception_error(std::current_exception());
+					return sum;
 				}
-				if( auto expected = _write(prefix); not expected )
+				error_code write_error {};
+				ignore_unused(_write(prefix, write_error));
+				if( write_error )
 				{
 					token->stream->close();
-					return io_unexpected(expected.error());
+					error = write_error;
+					return sum;
 				}
-				else if( auto error = do_transfer(range.begin, range.total) )
+				else if( auto transfer_error = do_transfer(range.begin, range.total) )
 				{
 					token->stream->close();
 					close_connection();
-					return io_unexpected(error);
+					error = transfer_error;
+					return sum;
 				}
-				else if( auto separator_expected = _write({"\r\n", 2});
-						 not separator_expected )
+				ignore_unused(_write({"\r\n", 2}, write_error));
+				if( write_error )
 				{
 					token->stream->close();
-					return io_unexpected(separator_expected.error());
+					error = write_error;
+					return sum;
 				}
 			}
 			token->stream->close();
@@ -194,19 +220,22 @@ public:
 			catch(...)
 			{
 				close_connection();
-				return io_unexpected (
-					exception_error(std::current_exception())
-				);
+				error = exception_error(std::current_exception());
+				return sum;
 			}
-			if( auto expected = _write(std::move(suffix)); not expected )
-				return io_unexpected(expected.error());
+			error_code write_error {};
+			ignore_unused(_write(std::move(suffix), write_error));
+			if( write_error )
+			{
+				error = write_error;
+				return sum;
+			}
 		}
 		else
 		{
 			token->stream->close();
-			return io_unexpected (
-				make_error_code(std::errc::invalid_argument)
-			);
+			error = make_error_code(std::errc::invalid_argument);
+			return sum;
 		}
 		return sum;
 	}
@@ -333,15 +362,19 @@ public:
 					auto [write_error, bytes] = co_await self->async_write (
 						const_buffer{data, count}, asio::as_tuple(deferred)
 					);
+					transferred += bytes;
 					if( write_error )
 					{
 						co_return std::tuple<error_code,size_t>{
 							write_error, transferred
 						};
 					}
-					ignore_unused(bytes);
-					transferred += count;
-
+					if( bytes != count )
+					{
+						co_return std::tuple {
+							make_error_code(std::errc::io_error), transferred
+						};
+					}
 					auto [progress_error] = co_await self->async_invoke_progress (
 						*progress_callback, already_completed + transferred,
 						total_size, asio::as_tuple(deferred)
@@ -496,8 +529,8 @@ public:
 							file.stream->close();
 							self->close_connection();
 
-							co_return std::tuple<error_code,size_t> {
-								transfer_error, 0
+							co_return std::tuple {
+								transfer_error, sum
 							};
 						}
 						auto [suffix_error, suffix_bytes] = co_await self->async_write (
@@ -514,7 +547,7 @@ public:
 				if( transfer_error )
 				{
 					self->close_connection();
-					co_return std::tuple<error_code,size_t>{transfer_error, 0};
+					co_return std::tuple{transfer_error, sum};
 				}
 				co_return std::tuple{error_code{}, sum};
 			},
@@ -525,13 +558,14 @@ public:
 	}
 
 public:
-	[[nodiscard]] io_expected chunk_end(const headers_t &completion_headers) noexcept
+	[[nodiscard]] size_t chunk_end
+	(const headers_t &completion_headers, error_code &error) noexcept
 	{
+		error.clear();
 		if( m_generator.pro_state() != generator_state::chunk )
 		{
-			return io_unexpected (
-				make_error_code(std::errc::protocol_error)
-			);
+			error = make_error_code(std::errc::protocol_error);
+			return 0;
 		}
 		std::string buf;
 		try {
@@ -540,13 +574,14 @@ public:
 		catch(...)
 		{
 			close_connection();
-			return io_unexpected (
-				exception_error(std::current_exception())
-			);
+			error = exception_error(std::current_exception());
+			return 0;
 		}
 		if( buf.empty() )
 			return 0;
-		return base_write(std::move(buf));
+
+		ignore_unused(base_write(std::move(buf), error));
+		return 0;
 	}
 
 	template <typename Token>
@@ -585,7 +620,8 @@ public:
 				auto [error, bytes] = co_await self->async_base_write (
 					std::move(data), asio::as_tuple(deferred)
 				);
-				co_return std::tuple<error_code,size_t>{error, bytes};
+				ignore_unused(bytes);
+				co_return std::tuple<error_code,size_t>{error, 0};
 			},
 			m_exec),
 			completion_token, std::move(operation),
@@ -594,44 +630,62 @@ public:
 	}
 
 private:
-	[[nodiscard]] io_expected _write(const_buffer body) noexcept
+	[[nodiscard]] static size_t body_bytes_transferred
+	(size_t wire_bytes, size_t body_offset, size_t body_size) noexcept
 	{
+		if( wire_bytes <= body_offset )
+			return 0;
+		return std::min(wire_bytes - body_offset, body_size);
+	}
+
+	[[nodiscard]] static size_t framed_body_offset
+	(size_t framed_size, size_t body_size) noexcept
+	{
+		// Chunk framing is: size-line, body, CRLF. Content-Length framing has
+		// no overhead. body_data() only produces these two forms.
+		if( framed_size - std::min(framed_size, body_size) <= 2 )
+			return 0;
+		return framed_size - body_size - 2;
+	}
+
+	[[nodiscard]] size_t _write(const_buffer body, error_code &error) noexcept
+	{
+		error.clear();
 		try {
 			auto pro_state = m_generator.pro_state();
 			if( pro_state == generator_state::finish )
 			{
-				return io_unexpected (
-					make_error_code(errc::eof)
-				);
+				error = make_error_code(errc::eof);
+				return 0;
 			}
-			size_t sum = 0;
 			if( pro_state == generator_state::header )
 			{
 				auto header = m_generator.header_data(method_v, body.size());
 				if( body.size() > 0 )
 				{
 					auto content = m_generator.body_data(body);
-					return base_write (
-						std::move(header), std::move(content)
+					auto body_size = std::min(body.size(), content.size());
+
+					auto offset = header.size() +
+						framed_body_offset(content.size(), body_size);
+
+					auto wire_bytes = base_write (
+						std::move(header), std::move(content), error
 					);
+					return body_bytes_transferred(wire_bytes, offset, body_size);
 				}
-				return base_write(std::move(header));
+				ignore_unused(base_write(std::move(header), error));
+				return 0;
 			}
 			if( body.size() > 0 )
-			{
-				auto expected = write_body(body);
-				if( not expected )
-					return expected;
-				sum += *expected;
-			}
-			return sum;
+				return write_body(body, error);
+			return 0;
 		}
 		catch(...)
 		{
 			close_connection();
-			return io_unexpected (
-				exception_error(std::current_exception())
-			);
+			error = exception_error(std::current_exception());
+			return 0;
 		}
 	}
 
@@ -667,26 +721,40 @@ private:
 						if( input_body.size() > 0 )
 						{
 							auto body_data = self->m_generator.body_data(input_body);
+							auto body_size = std::min(input_body.size(), body_data.size());
+
+							auto offset = header_data.size() +
+								framed_body_offset(body_data.size(), body_size);
+
 							auto [error, bytes] = co_await self->async_base_write (
 								std::move(header_data), std::move(body_data), asio::as_tuple(deferred)
 							);
-							co_return std::tuple<error_code,size_t>{error, bytes};
+							co_return std::tuple<error_code,size_t> {
+								error, body_bytes_transferred(bytes, offset, body_size)
+							};
 						}
 						auto [error, bytes] = co_await self->async_base_write (
 							std::move(header_data), asio::as_tuple(deferred)
 						);
-						co_return std::tuple<error_code,size_t>{error, bytes};
+						ignore_unused(bytes);
+						co_return std::tuple<error_code,size_t>{error, 0};
 					}
 					if( input_body.size() == 0 )
 						co_return std::tuple<error_code,size_t>{error_code{}, 0};
 
 					auto body_data = self->m_generator.body_data(input_body);
+					auto body_size = std::min(input_body.size(), body_data.size());
+					auto offset = framed_body_offset(body_data.size(), body_size);
+
 					auto [error, bytes] = co_await self->async_base_write (
 						std::move(body_data), asio::as_tuple(deferred)
 					);
-					co_return std::tuple<error_code,size_t>{error, bytes};
+					co_return std::tuple<error_code,size_t> {
+						error, body_bytes_transferred(bytes, offset, body_size)
+					};
 				}
 				catch(...) {}
+
 				self->close_connection();
 				co_return std::tuple<error_code,size_t> {
 					exception_error(std::current_exception()), 0
@@ -698,50 +766,56 @@ private:
 	}
 
 private:
-	[[nodiscard]] io_expected write_header(size_t size) noexcept {
-		return base_write(m_generator.header_data(method_v, size));
+	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept
+	{
+		ignore_unused(base_write(m_generator.header_data(method_v, size), error));
+		return 0;
 	}
 
-	[[nodiscard]] io_expected write_body(const const_buffer &body) noexcept {
-		return base_write(m_generator.body_data(body));
+	[[nodiscard]] size_t write_body
+	(const const_buffer &body, error_code &error) noexcept
+	{
+		auto content = m_generator.body_data(body);
+		auto body_size = std::min(body.size(), content.size());
+
+		auto offset = framed_body_offset(content.size(), body_size);
+		auto wire_bytes = base_write(std::move(content), error);
+
+		return body_bytes_transferred(wire_bytes, offset, body_size);
 	}
 
 private:
-	[[nodiscard]] io_expected base_write(std::string &&data) noexcept
+	[[nodiscard]] size_t base_write
+	(std::string &&data, error_code &error) noexcept
 	{
+		error.clear();
 		if( not has_connection() )
 		{
-			return io_unexpected (
-				make_error_code(std::errc::not_connected)
-			);
+			error = make_error_code(std::errc::not_connected);
+			return 0;
 		}
-		auto expected = connection().write(const_buffer(data), use_sync);
-		if( not expected )
-		{
+		auto size = connection().write(const_buffer(data), error);
+		if( error )
 			close_connection();
-			return io_unexpected(expected.error());
-		}
-		return *expected;
+		return size;
 	}
 
-	[[nodiscard]] io_expected base_write(std::string &&header, std::string &&body) noexcept
+	[[nodiscard]] size_t base_write
+	(std::string &&header, std::string &&body, error_code &error) noexcept
 	{
+		error.clear();
 		if( not has_connection() )
 		{
-			return io_unexpected (
-				make_error_code(std::errc::not_connected)
-			);
+			error = make_error_code(std::errc::not_connected);
+			return 0;
 		}
 		const const_buffer buffers[] {
 			const_buffer(header), const_buffer(body)
 		};
-		auto expected = connection().write(buffers, use_sync);
-		if( not expected )
-		{
+		auto size = connection().write(buffers, error);
+		if( error )
 			close_connection();
-			return io_unexpected(expected.error());
-		}
-		return *expected;
+		return size;
 	}
 
 	template <typename Token>
@@ -934,17 +1008,25 @@ auto basic_request_context<Method,Exec,Version>::upload_file
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		return expected_value_or_error(m_impl->upload_file (
+		return m_impl->upload_file (
 			std::move(norms), std::forward<T>(opt),
-			std::forward<Progress>(progress)
-		), token);
+			std::forward<Progress>(progress), token
+		);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return expected_value_or_throw(m_impl->upload_file (
+		error_code error {};
+		auto size = m_impl->upload_file (
 			std::move(norms), std::forward<T>(opt),
-			std::forward<Progress>(progress)
-		));
+			std::forward<Progress>(progress), error
+		);
+		if( error )
+		{
+			system_error::loc_throw (
+				error, "libgs::http::basic_request_context::upload_file"
+			);
+		}
+		return size;
 	}
 	else
 	{
@@ -972,16 +1054,19 @@ auto basic_request_context<Method,Exec,Version>::chunk_end
 	requires put_or_post
 {
 	if constexpr( is_error_code_token_v<Token> )
-	{
-		return expected_value_or_error (
-			m_impl->chunk_end(completion_headers), token
-		);
-	}
+		return m_impl->chunk_end(completion_headers, token);
+
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
-		return expected_value_or_throw (
-			m_impl->chunk_end(completion_headers)
-		);
+		error_code error {};
+		auto size = m_impl->chunk_end(completion_headers, error);
+		if( error )
+		{
+			system_error::loc_throw (
+				error, "libgs::http::basic_request_context::chunk_end"
+			);
+		}
+		return size;
 	}
 	else
 	{

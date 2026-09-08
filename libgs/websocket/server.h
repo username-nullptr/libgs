@@ -6,8 +6,6 @@
 
 #include <libgs/websocket/stream.h>
 #include <libgs/http/server.h>
-#include <functional>
-#include <span>
 
 namespace libgs::websocket
 {
@@ -156,7 +154,7 @@ class LIBGS_WEBSOCKET_TAPI basic_server
 
 public:
 	using socket_t = Stream;
-	using executor_t = typename socket_t::executor_type;
+	using executor_t = socket_t::executor_type;
 	using config_t = server_config;
 	using stream_t = basic_stream<executor_t>;
 	using upgrade_options_t = upgrade_options;
@@ -165,13 +163,13 @@ public:
 	using accept_result_t = basic_accept_result<executor_t>;
 
 	using http_server_t = http::basic_server<socket_t>;
-	using http_config_t = typename http_server_t::config_t;
-	using acceptor_wrap_t = typename http_server_t::acceptor_wrap_t;
-	using endpoint_wrapper_t = typename http_server_t::endpoint_wrapper_t;
-	using path_opt_token_t = typename http_server_t::path_opt_token_t;
-	using context_t = typename http_server_t::context_t;
-	using server_error_handler_t = typename http_server_t::server_error_handler_t;
-	using service_error_handler_t = typename http_server_t::service_error_handler_t;
+	using http_config_t = http_server_t::config_t;
+	using acceptor_wrap_t = http_server_t::acceptor_wrap_t;
+	using endpoint_wrapper_t = http_server_t::endpoint_wrapper_t;
+	using path_opt_token_t = http_server_t::path_opt_token_t;
+	using context_t = http_server_t::context_t;
+	using server_error_handler_t = http_server_t::server_error_handler_t;
+	using service_error_handler_t = http_server_t::service_error_handler_t;
 
 	template <typename Token>
 	static constexpr bool accept_token_v =

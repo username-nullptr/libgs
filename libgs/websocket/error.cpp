@@ -17,34 +17,9 @@ public:
 	{
 		switch(static_cast<errc>(code))
 		{
-		case errc::handshake_rejected:
-			return "WebSocket handshake rejected";
-		case errc::invalid_upgrade:
-			return "Invalid WebSocket upgrade";
-		case errc::invalid_accept_key:
-			return "Invalid WebSocket accept key";
-		case errc::unsupported_version:
-			return "Unsupported WebSocket version";
-		case errc::unsupported_subprotocol:
-			return "Unsupported WebSocket subprotocol";
-		case errc::unsupported_extension:
-			return "Unsupported WebSocket extension";
-		case errc::redirect_limit_exceeded:
-			return "WebSocket redirect limit exceeded";
-		case errc::insecure_redirect:
-			return "Insecure WebSocket redirect";
-		case errc::message_too_big:
-			return "WebSocket message too big";
-		case errc::write_queue_full:
-			return "WebSocket write queue full";
-		case errc::already_open:
-			return "WebSocket stream already open";
-		case errc::not_open:
-			return "WebSocket stream is not open";
-		case errc::closing:
-			return "WebSocket stream is closing";
-		case errc::closed:
-			return "WebSocket stream is closed";
+#define X_MACRO(e,v,d) case errc::e: return d;
+		LIBGS_WEBSOCKET_ERRC_TABLE
+#undef X_MACRO
 		default:
 			return "Unknown WebSocket error";
 		}
@@ -62,6 +37,28 @@ const std::error_category &error_category() noexcept
 error_code make_error_code(errc value) noexcept
 {
 	return { static_cast<int>(value), error_category() };
+}
+
+bool operator==(const error_code &error, errc value) noexcept
+{
+	return error.category() == error_category() and
+		error.value() == static_cast<int>(value);
+}
+
+bool operator==(errc value, const error_code &error) noexcept
+{
+	return error.category() == error_category() and
+		error.value() == static_cast<int>(value);
+}
+
+bool operator!=(const error_code &error, errc value) noexcept
+{
+	return not operator==(error, value);
+}
+
+bool operator!=(errc value, const error_code &error) noexcept
+{
+	return not operator==(value, error);
 }
 
 } //namespace libgs::websocket

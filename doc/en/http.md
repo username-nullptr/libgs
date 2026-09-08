@@ -256,6 +256,11 @@ objects support reads into caller-provided buffers, typed buffer containers,
 byte vectors, and files. The high-level client also provides upload and download
 helpers with optional progress callbacks.
 
+HTTP write counts cover caller-supplied body bytes only (source-file bytes for
+file operations), excluding HTTP headers, chunk framing, and multipart
+boundaries. The `error_code&` and asynchronous forms preserve a partial body
+count alongside an error. Header-only operations and `chunk_end()` return zero.
+
 Read or save the complete reply body before dropping the request context when a
 connection should be reused. Cancellation is available on clients, contexts,
 replies, connections, and pools.

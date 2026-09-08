@@ -34,6 +34,68 @@ public:
 		m_connection(std::move(conn)),
 		m_resource_root(std::move(resource_root)) {}
 
+private:
+	[[nodiscard]] static size_t body_bytes_transferred
+	(size_t wire_bytes, size_t body_offset, size_t body_size) noexcept
+	{
+		if( wire_bytes <= body_offset )
+			return 0;
+		return std::min(wire_bytes - body_offset, body_size);
+	}
+
+	[[nodiscard]] static size_t framed_body_offset
+	(size_t framed_size, size_t body_size) noexcept
+	{
+		if( framed_size - std::min(framed_size, body_size) <= 2 )
+			return 0;
+		return framed_size - body_size - 2;
+	}
+
+	[[nodiscard]] static size_t logical_body_bytes(size_t wire_bytes, size_t body_offset,
+		size_t representation_size, size_t logical_size, bool transformed = false) noexcept
+	{
+		if( not transformed )
+		{
+			return body_bytes_transferred (
+				wire_bytes, body_offset,
+				std::min(representation_size, logical_size)
+			);
+		}
+		if( wire_bytes <= body_offset or
+			wire_bytes - body_offset < representation_size )
+			return 0;
+		return logical_size;
+	}
+
+	[[nodiscard]] size_t write_representation(const const_buffer &representation,
+		size_t logical_offset, size_t logical_size, error_code &error) noexcept
+	{
+		if( m_generator.pro_state() == generator_state::content_length )
+		{
+			auto body = m_generator.body_buffer(representation);
+			auto wire_bytes = base_write(body, error);
+
+			return body_bytes_transferred(wire_bytes, logical_offset,
+				std::min(logical_size, body.size() > logical_offset ?
+					body.size() - logical_offset : size_t{0})
+			);
+		}
+		auto content = m_generator.body_data(representation);
+		auto representation_size = representation.size();
+
+		auto offset = framed_body_offset(content.size(), representation_size) +
+			logical_offset;
+
+		auto wire_bytes = base_write(std::move(content), error);
+
+		return body_bytes_transferred(wire_bytes, offset,
+			std::min(logical_size, representation_size > logical_offset ?
+				representation_size - logical_offset : size_t{0}
+			)
+		);
+	}
+
+public:
 	[[nodiscard]] size_t write(const_buffer body, error_code &error) noexcept
 	{
 		error.clear();
@@ -41,12 +103,12 @@ public:
 
 		std::string compressed {};
 		const_buffer wire_body = body;
-		size_t sum = 0;
+		bool transformed = false;
 
 		if( pro_state == generator_state::finish )
 		{
 			error = make_error_code(errc::eof);
-			return sum;
+			return 0;
 		}
 		else if( pro_state == generator_state::header )
 		{
@@ -66,12 +128,13 @@ public:
 				if( not encoded )
 				{
 					error = encoded.error();
-					return sum;
+					return 0;
 				}
 				if( encoded->size() < body.size() or m_req_method == method::head )
 				{
 					compressed = std::move(*encoded);
 					wire_body = buffer(compressed);
+					transformed = true;
 					prepare_gzip_headers(false);
 				}
 			}
@@ -81,21 +144,32 @@ public:
 				if( m_generator.pro_state() == generator_state::content_length )
 				{
 					auto content = m_generator.body_buffer(wire_body);
-					return base_write(std::move(header), content, error);
+					auto offset = header.size();
+					auto wire_bytes = base_write(std::move(header), content, error);
+
+					return logical_body_bytes(wire_bytes, offset,
+						transformed ? wire_body.size() : content.size(),
+						body.size(), transformed
+					);
 				}
 				auto content = m_generator.body_data(wire_body);
-				return base_write(std::move(header), std::move(content), error);
+				auto representation_size = wire_body.size();
+
+				auto offset = header.size() +
+					framed_body_offset(content.size(), representation_size);
+
+				auto wire_bytes = base_write (
+					std::move(header), std::move(content), error
+				);
+				return logical_body_bytes(wire_bytes, offset,
+					representation_size, body.size(), transformed);
 			}
-			return base_write(std::move(header), error);
+			ignore_unused(base_write(std::move(header), error));
+			return 0;
 		}
 		if( wire_body.size() > 0 and m_generator.pro_state() != generator_state::finish )
-		{
-			auto bytes = write_body(wire_body, error);
-			if( error )
-				return sum;
-			sum += bytes;
-		}
-		return sum;
+			return write_body(wire_body, error);
+		return 0;
 	}
 
 	template <typename Token>
@@ -119,6 +193,7 @@ public:
 				size_t sum = 0;
 				std::string compressed {};
 				const_buffer wire_body = body;
+				bool transformed = false;
 
 				if( pro_state == generator_state::finish )
 				{
@@ -150,6 +225,7 @@ public:
 						{
 							compressed = std::move(*encoded);
 							wire_body = buffer(compressed);
+							transformed = true;
 							self->prepare_gzip_headers(false);
 						}
 					}
@@ -164,23 +240,38 @@ public:
 						if( self->m_generator.pro_state() == generator_state::content_length )
 						{
 							auto content = self->m_generator.body_buffer(wire_body);
+							auto offset = header_data.size();
+
 							auto [error, bytes] = co_await self->async_base_write (
 								std::move(header_data), content, asio::as_tuple(deferred)
 							);
-							co_return std::tuple<error_code,size_t>{error, bytes};
+							co_return std::tuple<error_code,size_t> {
+								error, logical_body_bytes(bytes, offset,
+									transformed ? wire_body.size() : content.size(),
+									body.size(), transformed
+								)
+							};
 						}
 						auto content = self->m_generator.body_data(wire_body);
+						auto representation_size = wire_body.size();
+
+						auto offset = header_data.size() +
+							framed_body_offset(content.size(), representation_size);
+
 						auto [error, bytes] = co_await self->async_base_write (
 							std::move(header_data), std::move(content), asio::as_tuple(deferred)
 						);
-						co_return std::tuple<error_code,size_t>{error, bytes};
+						co_return std::tuple<error_code,size_t> {
+							error, logical_body_bytes(bytes, offset, representation_size,
+								body.size(), transformed)
+						};
 					}
 					auto [error, bytes] = co_await self->async_base_write (
 						std::move(header_data), asio::as_tuple(deferred)
 					);
-					co_return std::tuple<error_code,size_t>{error, bytes};
+					ignore_unused(bytes);
+					co_return std::tuple<error_code,size_t>{error, 0};
 				}
-
 				if( wire_body.size() > 0 and self->m_generator.pro_state() != generator_state::finish )
 				{
 					auto [error, bytes] = co_await self->async_write_body (
@@ -329,6 +420,7 @@ public:
 	template <typename Opt>
 	[[nodiscard]] size_t send_file(Opt &&opt, error_code &error) noexcept
 	{
+		error.clear();
 		if( m_generator.pro_state() != generator_state::header )
 			return 0;
 
@@ -432,7 +524,7 @@ public:
 						length, asio::as_tuple(deferred)
 					);
 					co_return std::tuple<error_code,size_t> {
-						error, error ? 0 : bytes
+						error, bytes
 					};
 				}
 				if( self->m_req_method != method::get or
@@ -443,7 +535,7 @@ public:
 						*file_token, asio::as_tuple(deferred)
 					);
 					co_return std::tuple<error_code,size_t> {
-						error, error ? 0 : bytes
+						error, bytes
 					};
 				}
 				auto specifier = parse_range_header(self->m_req_range);
@@ -454,7 +546,7 @@ public:
 						*file_token, asio::as_tuple(deferred)
 					);
 					co_return std::tuple<error_code,size_t> {
-						error, error ? 0 : bytes
+						error, bytes
 					};
 				}
 				auto resolved = resolve_byte_ranges (
@@ -473,7 +565,7 @@ public:
 						0, asio::as_tuple(deferred)
 					);
 					co_return std::tuple<error_code,size_t>{
-						error, error ? 0 : bytes
+						error, bytes
 					};
 				}
 				if( self->excessive_range_set(resolved, file_token->file_size) )
@@ -482,7 +574,7 @@ public:
 						*file_token, asio::as_tuple(deferred)
 					);
 					co_return std::tuple<error_code,size_t> {
-						error, error ? 0 : bytes
+						error, bytes
 					};
 				}
 				auto ranges = self->make_range_values (
@@ -492,7 +584,7 @@ public:
 					*file_token, std::move(ranges), asio::as_tuple(deferred)
 				);
 				co_return std::tuple<error_code,size_t> {
-					error, error ? 0 : bytes
+					error, bytes
 				};
 			},
 			m_connection->get_executor()),
@@ -504,12 +596,16 @@ public:
 	[[nodiscard]] size_t chunk_end
 	(const headers_t &trailing_headers, error_code &error) noexcept
 	{
+		error.clear();
 		if( m_generator.pro_state() != generator_state::chunk )
 			return 0;
+
 		auto buf = m_generator.chunk_end_data(trailing_headers);
 		if( buf.empty() )
 			return 0;
-		return base_write(std::move(buf), error);
+
+		ignore_unused(base_write(std::move(buf), error));
+		return 0;
 	}
 
 	template <typename Token>
@@ -535,7 +631,8 @@ public:
 				auto [error, bytes] = co_await self->async_base_write (
 					std::move(data), asio::as_tuple(deferred)
 				);
-				co_return std::tuple<error_code,size_t>{error, bytes};
+				ignore_unused(bytes);
+				co_return std::tuple<error_code,size_t>{error, 0};
 			},
 			m_connection->get_executor()),
 			completion_token, std::move(operation), std::move(completion_headers)
@@ -626,7 +723,9 @@ private:
 
 		gzip_encoder encoder;
 		constexpr size_t buf_size = 64 * 1024;
+
 		char data[buf_size] {};
+		size_t pending_source = 0;
 
 		token.stream->clear();
 		token.stream->seekg(0);
@@ -648,8 +747,18 @@ private:
 				error = encoded.error();
 				return sum;
 			}
+			pending_source += size;
 			if( not encoded->empty() )
-				sum += write_body(buffer(*encoded), error);
+			{
+				auto bytes = write_body(buffer(*encoded), error);
+				if( not error and bytes == encoded->size() )
+				{
+					sum += pending_source;
+					pending_source = 0;
+				}
+				else if( not error )
+					error = make_error_code(std::errc::io_error);
+			}
 			if( error )
 				return sum;
 		}
@@ -663,13 +772,22 @@ private:
 			return sum;
 		}
 		if( not encoded->empty() )
-			sum += write_body(buffer(*encoded), error);
+		{
+			auto bytes = write_body(buffer(*encoded), error);
+			if( not error and bytes == encoded->size() )
+			{
+				sum += pending_source;
+				pending_source = 0;
+			}
+			else if( not error )
+				error = make_error_code(std::errc::io_error);
+		}
 
 		if( error )
 			return sum;
 
 		if( auto end = m_generator.chunk_end_data({}); not end.empty() )
-			sum += base_write(std::move(end), error);
+			ignore_unused(base_write(std::move(end), error));
 		return sum;
 	}
 
@@ -714,7 +832,9 @@ private:
 
 				gzip_encoder encoder;
 				constexpr size_t buf_size = 64 * 1024;
+
 				char data[buf_size] {};
+				size_t pending_source = 0;
 
 				token.stream->clear();
 				token.stream->seekg(0);
@@ -740,36 +860,52 @@ private:
 							encoded.error(), sum
 						};
 					}
+					pending_source += size;
 					if( not encoded->empty() )
 					{
 						auto [write_error, bytes] = co_await self->async_write_body (
 							buffer(*encoded), asio::as_tuple(deferred)
 						);
-						sum += bytes;
 						if( write_error )
 							co_return std::tuple<error_code,size_t>{write_error, sum};
+
+						if( bytes != encoded->size() )
+						{
+							co_return std::tuple<error_code,size_t> {
+								make_error_code(std::errc::io_error), sum
+							};
+						}
+						sum += pending_source;
+						pending_source = 0;
 					}
 				}
 				auto encoded = encoder.append({}, true);
 				if( not encoded )
-				{
 					co_return std::tuple<error_code,size_t>{encoded.error(), sum};
-				}
+
 				if( not encoded->empty() )
 				{
 					auto [write_error, bytes] = co_await self->async_write_body (
 						buffer(*encoded), asio::as_tuple(deferred)
 					);
-					sum += bytes;
 					if( write_error )
 						co_return std::tuple<error_code,size_t>{write_error, sum};
+
+					if( bytes != encoded->size() )
+					{
+						co_return std::tuple<error_code,size_t> {
+							make_error_code(std::errc::io_error), sum
+						};
+					}
+					sum += pending_source;
+					pending_source = 0;
 				}
 				if( auto end = self->m_generator.chunk_end_data({}); not end.empty() )
 				{
 					auto [write_error, bytes] = co_await self->async_base_write (
 						std::move(end), asio::as_tuple(deferred)
 					);
-					sum += bytes;
+					ignore_unused(bytes);
 					if( write_error )
 						co_return std::tuple<error_code,size_t>{write_error, sum};
 				}
@@ -1070,7 +1206,7 @@ private:
 				ct_line,
 				value.cr_line
 			);
-			sum += write_body(buffer(body, body.size()), error);
+			sum += write_representation(buffer(body, body.size()), 0, 0, error);
 			if( error )
 				return sum;
 
@@ -1087,7 +1223,9 @@ private:
 					buf[size + 0] = '\r';
 					buf[size + 1] = '\n';
 
-					sum += write_body(buffer(buf, size + 2), error);
+					sum += write_representation (
+						buffer(buf, size + 2), 0, static_cast<size_t>(size), error
+					);
 					if( error )
 						return sum;
 					break;
@@ -1102,14 +1240,13 @@ private:
 			}
 		}
 		auto abuf = std::format("--{}--\r\n", boundary);
-		sum += write_body(buffer(abuf, abuf.size()), error);
+		sum += write_representation(buffer(abuf, abuf.size()), 0, 0, error);
 		return sum;
 	}
 
 	template <typename FS, typename Token>
-	[[nodiscard]] auto async_send_range(FS &source_stream,
-		std::string multipart_boundary, std::string mime_header,
-		std::vector<range_value> range_set, Token &&completion)
+	[[nodiscard]] auto async_send_range(FS &source_stream, std::string multipart_boundary,
+		std::string mime_header, std::vector<range_value> range_set, Token &&completion)
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		token_t completion_token(std::forward<Token>(completion));
@@ -1167,8 +1304,8 @@ private:
 						"--{}\r\n{}\r\n{}\r\n\r\n",
 						boundary, content_type_line, value.cr_line
 					);
-					auto [body_error, body_bytes] = co_await self->async_write_body (
-						buffer(body), asio::as_tuple(deferred)
+					auto [body_error, body_bytes] = co_await self->async_write_representation (
+						buffer(body), 0, 0, asio::as_tuple(deferred)
 					);
 					sum += body_bytes;
 					if( body_error )
@@ -1183,6 +1320,7 @@ private:
 						auto size = static_cast<size_t>(stream->gcount());
 						if( size == 0 )
 							break;
+						auto logical_size = size;
 
 						if( value.total <= buf_size )
 						{
@@ -1190,8 +1328,8 @@ private:
 							buf[size + 1] = '\n';
 							size += 2;
 						}
-						auto [write_error, bytes] = co_await self->async_write_body (
-							buffer(buf, size), asio::as_tuple(deferred)
+						auto [write_error, bytes] = co_await self->async_write_representation (
+							buffer(buf, size), 0, logical_size, asio::as_tuple(deferred)
 						);
 						sum += bytes;
 						if( write_error )
@@ -1207,8 +1345,8 @@ private:
 				}
 				auto end = std::format("--{}--\r\n", boundary);
 
-				auto [end_error, end_bytes] = co_await self->async_write_body (
-					buffer(end), asio::as_tuple(deferred)
+				auto [end_error, end_bytes] = co_await self->async_write_representation (
+					buffer(end), 0, 0, asio::as_tuple(deferred)
 				);
 				sum += end_bytes;
 				co_return std::tuple<error_code,size_t>{end_error, sum};
@@ -1221,24 +1359,39 @@ private:
 	}
 
 private:
-	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept {
-		return base_write(m_generator.header_data(size, m_req_method), error);
+	[[nodiscard]] size_t write_header(size_t size, error_code &error) noexcept
+	{
+		ignore_unused(base_write(m_generator.header_data(size, m_req_method), error));
+		return 0;
 	}
 
 	template <typename Token>
 	[[nodiscard]] auto async_write_header(size_t size, Token &&token)
 	{
-		return async_base_write(
-			m_generator.header_data(size, m_req_method),
-			std::forward<Token>(token)
+		using token_t = std::remove_cvref_t<Token>;
+		token_t completion_token(std::forward<Token>(token));
+		auto operation = this->shared_from_this();
+
+		return asio::async_initiate<token_t,void(error_code,size_t)>(
+			asio::co_composed<void(error_code,size_t)>([]
+			(auto state, std::shared_ptr<impl> self, std::string data) -> void
+			{
+				LIBGS_UNUSED(state);
+				auto [error, bytes] = co_await self->async_base_write (
+					std::move(data), asio::as_tuple(deferred)
+				);
+				ignore_unused(bytes);
+				co_return std::tuple<error_code,size_t>{error, 0};
+			},
+			m_connection->get_executor()),
+			completion_token, std::move(operation),
+			m_generator.header_data(size, m_req_method)
 		);
 	}
 
 	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept
 	{
-		if( m_generator.pro_state() == generator_state::content_length )
-			return base_write(m_generator.body_buffer(body), error);
-		return base_write(m_generator.body_data(body), error);
+		return write_representation(body, 0, body.size(), error);
 	}
 
 private:
@@ -1397,7 +1550,8 @@ private:
 	}
 
 	template <typename Token>
-	[[nodiscard]] auto async_write_body(const_buffer input_body, Token &&token)
+	[[nodiscard]] auto async_write_representation
+	(const_buffer input_body, size_t logical_offset, size_t logical_size, Token &&token)
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		token_t completion_token(std::forward<Token>(token));
@@ -1405,8 +1559,8 @@ private:
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>
 		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, const_buffer body) -> void
+			asio::co_composed<void(error_code,size_t)>([](auto state, std::shared_ptr<impl> self,
+				const_buffer body, size_t body_offset, size_t body_size) -> void
 			{
 				LIBGS_UNUSED(state);
 				if( self->m_generator.pro_state() == generator_state::content_length )
@@ -1415,16 +1569,39 @@ private:
 					auto [error, bytes] = co_await self->async_base_write (
 						content, asio::as_tuple(deferred)
 					);
-					co_return std::tuple<error_code,size_t>{error, bytes};
+					co_return std::tuple<error_code,size_t> {
+						error, body_bytes_transferred(bytes, body_offset,
+							std::min(body_size, content.size() > body_offset ?
+								content.size() - body_offset : size_t{0}
+							)
+						)
+					};
 				}
 				auto content = self->m_generator.body_data(body);
+				auto offset = framed_body_offset(content.size(), body.size()) + body_offset;
+
 				auto [error, bytes] = co_await self->async_base_write (
 					std::move(content), asio::as_tuple(deferred)
 				);
-				co_return std::tuple<error_code,size_t>{error, bytes};
+				co_return std::tuple<error_code,size_t> {
+					error, body_bytes_transferred(bytes, offset,
+						std::min(body_size, body.size() > body_offset ?
+							body.size() - body_offset : size_t{0}
+						)
+					)
+				};
 			},
 			m_connection->get_executor()),
-			completion_token, std::move(operation), input_body
+			completion_token, std::move(operation), input_body,
+			logical_offset, logical_size
+		);
+	}
+
+	template <typename Token>
+	[[nodiscard]] auto async_write_body(const_buffer input_body, Token &&token)
+	{
+		return async_write_representation(input_body, 0, input_body.size(),
+			std::forward<Token>(token)
 		);
 	}
 

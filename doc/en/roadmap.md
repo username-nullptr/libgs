@@ -17,7 +17,7 @@ Roadmap entries describe intent, not a release date or compatibility promise.
 | Coroutine support | Implemented | Awaitable waits, synchronization primitives, and executor switching |
 | HTTP/HTTPS | Implemented | HTTP/1.0 and HTTP/1.1 clients, servers, protocol utilities, TLS, and optional gzip |
 | Application utilities | Implemented | Logging, settings, signals, observers, modules, processes, and an extensible soft bus with a built-in in-process transport |
-| WebSocket | Planned | No public WebSocket framing or session API exists yet |
+| WebSocket | In development | Protocol framing, handshake, and basic stream send I/O exist; read state machine is in progress |
 
 ## Planned WebSocket support
 
@@ -36,8 +36,11 @@ Expected design areas include:
 - cancellation, timeout, queue, and backpressure behavior; and
 - clear ownership of buffers and handed-over connections.
 
-These items are proposed scope, not implemented API. Names and exact behavior
-should be documented only after the corresponding code lands.
+Current landed conventions: `read()` returns complete data messages only; Ping/Pong
+events are retained while reading continues; after Close, subsequent reads return
+`0 + eof`. Concurrent operations in one direction remain the caller's
+responsibility. The protocol parser is incremental and borrows the input buffer;
+payload copying is limited to message aggregation where ownership is required.
 
 ## Existing preparation for upgrades
 

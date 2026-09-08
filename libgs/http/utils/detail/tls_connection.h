@@ -108,34 +108,21 @@ basic_tls_connection<Exec>::executor_t basic_tls_connection<Exec>::get_executor(
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_tls_connection<Exec>::read_some(mutable_buffer buffer) noexcept
+size_t basic_tls_connection<Exec>::read_some(mutable_buffer buffer, error_code &error) noexcept
 {
-	error_code error {};
-	auto size = m_socket.read_some(buffer, error);
-	if( error )
-		return io_unexpected(error);
-	return size;
+	return m_socket.read_some(buffer, error);
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_tls_connection<Exec>::write_all(const const_buffer &buffer) noexcept
+size_t basic_tls_connection<Exec>::write_all(const const_buffer &buffer, error_code &error) noexcept
 {
-	error_code error {};
-	auto size = asio::write(m_socket, buffer, error);
-	if( error )
-		return io_unexpected(error);
-	return size;
+	return asio::write(m_socket, buffer, error);
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_tls_connection<Exec>::write_all
-(std::span<const const_buffer> buffers) noexcept
+size_t basic_tls_connection<Exec>::write_all(std::span<const const_buffer> buffers, error_code &error) noexcept
 {
-	error_code error {};
-	auto size = asio::write(m_socket, buffers, error);
-	if( error )
-		return io_unexpected(error);
-	return size;
+	return asio::write(m_socket, buffers, error);
 }
 
 template <core_concepts::exec Exec>

@@ -59,6 +59,59 @@ template <typename Token, typename Initiation>
 	);
 }
 
+struct connection_io_completion
+{
+	error_code error {};
+	size_t transferred = 0;
+};
+
+template <typename Initiation>
+[[nodiscard]] awaitable<connection_io_completion> co_connection_io_with_timeout
+(Initiation initiation, std::chrono::nanoseconds timeout, std::shared_ptr<void> owner)
+{
+	if( timeout <= std::chrono::nanoseconds::zero() )
+	{
+		error_code error {};
+		auto size = co_await initiate_connection_io (
+			std::move(initiation), asio::redirect_error(use_awaitable, error)
+		);
+		ignore_unused(owner);
+		co_return connection_io_completion {
+			libgs::detail::canonical_error(error), size
+		};
+	}
+	auto exec = co_await asio::this_coro::executor;
+	asio::steady_timer timer(exec);
+	timer.expires_after(timeout);
+
+	auto io_operation = initiate_connection_io (
+		std::move(initiation), deferred
+	);
+	auto [order, io_error, transferred, timer_error] =
+		co_await asio::experimental::make_parallel_group (
+			std::move(io_operation), timer.async_wait(deferred)
+		).async_wait(asio::experimental::wait_for_one(), use_awaitable);
+	ignore_unused(owner);
+
+	io_error = libgs::detail::canonical_error(io_error);
+	timer_error = libgs::detail::canonical_error(timer_error);
+	if( order[0] == 0 )
+		co_return connection_io_completion {io_error, transferred};
+
+	// A successful timer completion is the timeout event. parallel_group waits
+	// for cancellation of the I/O operation, so its final partial byte count is
+	// still available here and must not be replaced with zero.
+	if( not timer_error )
+	{
+		co_return connection_io_completion {
+			make_error_code(errc::timed_out), transferred
+		};
+	}
+	co_return connection_io_completion {
+		io_error ? io_error : timer_error, transferred
+	};
+}
+
 template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typename Initiation>
 [[nodiscard]] auto initiate_connection_io
 (const Exec &exec, Initiation initiation, Token &&token, std::shared_ptr<void> owner = {})
@@ -66,46 +119,52 @@ template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typ
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_redirect_time_v<token_t> )
 	{
-		return initiate_expected<size_t>(exec,
-		[io_initiation = std::move(initiation), buffer_owner = std::move(owner)]()
-		mutable -> awaitable<io_expected>
+		token_t timed_token(std::forward<Token>(token));
+		using completion_token_t = std::remove_cvref_t<decltype(timed_token.token)>;
+		completion_token_t completion_token(std::move(timed_token.token));
+		auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(
+			timed_token.time
+		);
+		return asio::async_initiate<completion_token_t,void(error_code,size_t)>(
+		[exec, io_initiation = std::move(initiation), timeout, buffer_owner = std::move(owner)]
+		(auto completion_handler) mutable
 		{
-			error_code error {};
-			size_t size = 0;
-			if constexpr( OwnsBuffer )
-			{
-				size = co_await initiate_connection_io(
-					std::move(io_initiation),
-					asio::consign(
-						asio::redirect_error(use_awaitable, error), buffer_owner
-					)
-				);
-			}
-			else
-			{
-				size = co_await initiate_connection_io(
-					std::move(io_initiation),
-					asio::redirect_error(use_awaitable, error)
-				);
-			}
-			if( error )
-				co_return io_unexpected(error);
-			co_return size;
+			auto slot = asio::get_associated_cancellation_slot(completion_handler);
+			auto completion_exec = asio::get_associated_executor (
+				completion_handler, exec
+			);
+			auto allocator = asio::get_associated_allocator(completion_handler);
+
+			asio::co_spawn(exec,
+				co_connection_io_with_timeout (
+					std::move(io_initiation), timeout, std::move(buffer_owner)
+				),
+				asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+					asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+					(const std::exception_ptr &exception, connection_io_completion result) mutable
+					{
+						if( auto error = exception_error(exception) )
+							std::move(handler)(error, 0);
+						else
+							std::move(handler)(result.error, result.transferred);
+					})
+				))
+			);
 		},
-		std::forward<Token>(token));
+		completion_token);
 	}
 	else if constexpr( OwnsBuffer )
 	{
-		auto owned_token = asio::consign(
+		auto owned_token = asio::consign (
 			std::forward<Token>(token), std::move(owner)
 		);
-		return initiate_connection_io(
+		return initiate_connection_io (
 			std::move(initiation), std::move(owned_token)
 		);
 	}
 	else
 	{
-		return initiate_connection_io(
+		return initiate_connection_io (
 			std::move(initiation), std::forward<Token>(token)
 		);
 	}
@@ -275,19 +334,21 @@ auto basic_connection<Exec>::read(const mutable_buffer &buf, Token &&token)
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto result = read_some(buf);
-		token = result ? error_code{} : result.error();
-		return result ? *result : size_t{};
+		token.clear();
+		return read_some(buf, token);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return read_some(buf);
+	{
+		error_code error {};
+		auto size = read_some(buf, error);
+		return error ? io_expected(io_unexpected(error)) : io_expected(size);
+	}
 	else
 	{
 		return detail::initiate_connection_io(get_executor(),
 		[this, buf](auto handler) mutable {
 			co_read_some(buf, io_handler_t(std::move(handler)));
-		},
-		std::forward<Token>(token));
+		}, std::forward<Token>(token));
 	}
 }
 
@@ -297,12 +358,15 @@ auto basic_connection<Exec>::write(const const_buffer &body, Token &&token) noex
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto result = write_all(body);
-		token = result ? error_code{} : result.error();
-		return result ? *result : size_t{};
+		token.clear();
+		return write_all(body, token);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return write_all(body);
+	{
+		error_code error {};
+		auto size = write_all(body, error);
+		return error ? io_expected(io_unexpected(error)) : io_expected(size);
+	}
 	else
 	{
 		using token_t = std::remove_cvref_t<Token>;
@@ -335,12 +399,15 @@ auto basic_connection<Exec>::write(std::span<const const_buffer> buffers, Token 
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		auto result = write_all(buffers);
-		token = result ? error_code{} : result.error();
-		return result ? *result : size_t{};
+		token.clear();
+		return write_all(buffers, token);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
-		return write_all(buffers);
+	{
+		error_code error {};
+		auto size = write_all(buffers, error);
+		return error ? io_expected(io_unexpected(error)) : io_expected(size);
+	}
 	else
 	{
 		using token_t = std::remove_cvref_t<Token>;
@@ -372,16 +439,24 @@ auto basic_connection<Exec>::write(std::span<const const_buffer> buffers, Token 
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_connection<Exec>::write_all(std::span<const const_buffer> buffers) noexcept
+size_t basic_connection<Exec>::write_all
+(std::span<const const_buffer> buffers, error_code &error) noexcept
 {
+	error.clear();
 	size_t sum = 0;
 	for( const auto &buffer : buffers )
 	{
-		auto result = write_all(buffer);
-		if( not result )
-			return result;
-		sum += *result;
+		auto size = write_all(buffer, error);
+		if( size > std::numeric_limits<size_t>::max() - sum )
+		{
+			error = make_error_code(std::errc::value_too_large);
+			return sum;
+		}
+		sum += size;
+		if( error )
+			return sum;
 	}
+	error.clear();
 	return sum;
 }
 
@@ -395,8 +470,8 @@ void basic_connection<Exec>::co_write_all
 	auto completion_exec = asio::get_associated_executor(handler, exec);
 	detail::const_buffer_sequence sequence(buffers);
 
-	asio::co_spawn(exec,
-	[this, buffer_sequence = std::move(sequence)]() mutable -> awaitable<io_expected>
+	asio::co_spawn(exec, [this, buffer_sequence = std::move(sequence)]
+	() mutable -> awaitable<detail::connection_io_completion>
 	{
 		size_t sum = 0;
 		for( const auto &buffer : buffer_sequence.buffers() )
@@ -410,42 +485,52 @@ void basic_connection<Exec>::co_write_all
 				);
 			},
 			asio::redirect_error(use_awaitable, error));
-			if( error )
-				co_return io_unexpected(error);
+
+			if( size > std::numeric_limits<size_t>::max() - sum )
+			{
+				co_return detail::connection_io_completion {
+					make_error_code(std::errc::value_too_large), sum
+				};
+			}
 			sum += size;
+			if( error )
+			{
+				co_return detail::connection_io_completion {
+					libgs::detail::canonical_error(error), sum
+				};
+			}
 		}
-		co_return sum;
+		co_return detail::connection_io_completion {{}, sum};
 	},
-	asio::bind_executor(completion_exec, asio::bind_cancellation_slot(slot,
-	[completion_handler = std::move(handler)](const std::exception_ptr &exception, io_expected result) mutable
-	{
-		if( exception )
+	asio::bind_executor(completion_exec,
+		asio::bind_cancellation_slot(slot, [completion_handler = std::move(handler)]
+		(const std::exception_ptr &exception, detail::connection_io_completion result) mutable
 		{
-			try {
-				std::rethrow_exception(exception);
-			}
-			catch(const std::system_error &ex) {
-				std::move(completion_handler)(ex.code(), 0);
-			}
-			catch(const std::bad_alloc&)
+			if( exception )
 			{
-				std::move(completion_handler) (
-					make_error_code(std::errc::not_enough_memory), 0
-				);
+				try {
+					std::rethrow_exception(exception);
+				}
+				catch(const std::system_error &ex) {
+					std::move(completion_handler)(ex.code(), 0);
+				}
+				catch(const std::bad_alloc&)
+				{
+					std::move(completion_handler) (
+						make_error_code(std::errc::not_enough_memory), 0
+					);
+				}
+				catch(...)
+				{
+					std::move(completion_handler) (
+						make_error_code(std::errc::io_error), 0
+					);
+				}
+				return ;
 			}
-			catch(...)
-			{
-				std::move(completion_handler) (
-					make_error_code(std::errc::io_error), 0
-				);
-			}
-			return ;
-		}
-		if( not result )
-			std::move(completion_handler)(result.error(), 0);
-		else
-			std::move(completion_handler)(error_code{}, *result);
-	})));
+			std::move(completion_handler)(result.error, result.transferred);
+		})
+	));
 }
 
 } //namespace libgs::http

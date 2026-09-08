@@ -16,7 +16,7 @@ LibGS 的目标是成为可复用的异步应用基础库，而不是绑定到�
 | 协程支持 | 已实现 | Awaitable wait、同步原语和执行器切换 |
 | HTTP/HTTPS | 已实现 | HTTP/1.0 和 HTTP/1.1 客户端、服务端、协议工具、TLS 和可选 gzip |
 | 应用工具 | 已实现 | 日志、设置、信号、观察者、模块、进程，以及默认使用进程内传输的可扩展软总线 |
-| WebSocket | 规划中 | 尚无公共 WebSocket frame 或 session API |
+| WebSocket | 开发中 | 已有协议 frame、握手及基础 stream 发送 IO；读取状态机仍在实现 |
 
 ## 规划中的 WebSocket 支持
 
@@ -34,8 +34,9 @@ WebSocket 是下一个明确规划的协议扩展。计划将其构建为协议�
 - cancel、timeout、queue 和 backpressure 行为；
 - 明确的 buffer 与移交连接所有权。
 
-以上内容是建议范围，并非已实现 API。具体名称和行为应在对应代码落地后再写入
-模块文档。
+当前已落地的基础约定：`read()` 只返回完整 data message；Ping/Pong 由控制事件
+暂存并继续读取；收到 Close 后后续读取返回 `0 + eof`。同一方向的并发 IO 由调用方
+负责管理，底层 parser 保持增量、借用输入缓冲区，消息仅在需要聚合时复制。
 
 ## 现有 Upgrade 准备
 
