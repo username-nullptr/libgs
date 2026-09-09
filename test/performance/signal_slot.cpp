@@ -11,17 +11,33 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iostream>
+#include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace
 {
 
 #ifdef NDEBUG
-constexpr size_t emission_count = 1'000'000;
+constexpr size_t emission_count = 5'000'000;
 #else
 constexpr size_t emission_count = 100'000;
 #endif
+
+constexpr size_t asynchronous_emission_count = emission_count / 10;
+constexpr size_t connection_cycle_count = emission_count / 10;
+#ifdef NDEBUG
+constexpr size_t large_value_emission_count = 512;
+constexpr size_t large_shared_emission_count = 100'000;
+#else
+constexpr size_t large_value_emission_count = 64;
+constexpr size_t large_shared_emission_count = 5'000;
+#endif
+constexpr size_t large_payload_size = 1'024 * 1'024;
+
+void connection_slot(size_t) {}
 
 void measure_synchronous_signal(size_t slot_count, std::string_view name)
 {
@@ -65,11 +81,179 @@ void synchronous_signal_throughput()
 	measure_synchronous_signal(8, "signal-slot/synchronous 8 slots");
 }
 
+void asynchronous_signal_throughput()
+{
+	libgs::io_context_t context;
+	libgs::utils::signal<void(size_t)> fired;
+	std::uint64_t checksum = 0;
+	fired.connect<libgs::utils::slot_mode::async>(
+		context, [&](size_t value) { checksum += value; }
+	);
+
+	for(size_t index = 0; index < 1'000; ++index)
+		fired(index);
+	context.run();
+	context.restart();
+	checksum = 0;
+
+	const auto begin = std::chrono::steady_clock::now();
+	for(size_t index = 1; index <= asynchronous_emission_count; ++index)
+		fired(index);
+	context.run();
+	const auto elapsed = std::chrono::steady_clock::now() - begin;
+
+	const auto expected = static_cast<std::uint64_t>(asynchronous_emission_count) *
+		(static_cast<std::uint64_t>(asynchronous_emission_count) + 1) / 2;
+	LIBGS_TEST_CHECK_EQ(checksum, expected);
+	libgs::test::print_performance_result(
+		"signal-slot/asynchronous 1 slot", asynchronous_emission_count,
+		elapsed, "event"
+	);
+}
+
+void connection_throughput()
+{
+	libgs::utils::signal<void(size_t)> fired;
+	for(size_t index = 0; index < 100; ++index)
+	{
+		fired.connect<libgs::utils::slot_mode::sync>(connection_slot);
+		fired.disconnect(connection_slot);
+	}
+
+	const auto begin = std::chrono::steady_clock::now();
+	for(size_t index = 0; index < connection_cycle_count; ++index)
+	{
+		fired.connect<libgs::utils::slot_mode::sync>(connection_slot);
+		fired.disconnect(connection_slot);
+	}
+	const auto elapsed = std::chrono::steady_clock::now() - begin;
+
+	libgs::test::print_performance_result(
+		"signal-slot/connect + disconnect", connection_cycle_count,
+		elapsed, "cycle"
+	);
+}
+
+void print_large_payload_result(
+	std::string_view name, size_t count, size_t slot_count,
+	std::chrono::steady_clock::duration elapsed)
+{
+	libgs::test::print_performance_result(name, count, elapsed, "emit");
+	const auto bytes = static_cast<double>(count) *
+		static_cast<double>(slot_count) * large_payload_size;
+	const auto seconds = std::chrono::duration<double>(elapsed).count();
+	std::cout << "[PERF] " << name << " logical payload: "
+		<< bytes / seconds / (1'024.0 * 1'024.0) << " MiB/s\n";
+}
+
+void large_synchronous_arguments()
+{
+	std::vector<std::byte> payload(large_payload_size, std::byte {0x2a});
+	libgs::utils::signal<void(std::vector<std::byte>)> borrowed;
+	size_t checksum = 0;
+	borrowed.connect<libgs::utils::slot_mode::sync>(
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); },
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); },
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); },
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); }
+	);
+
+	const auto borrowed_begin = std::chrono::steady_clock::now();
+	for(size_t index = 0; index < large_shared_emission_count; ++index)
+		borrowed(payload);
+	const auto borrowed_elapsed = std::chrono::steady_clock::now() - borrowed_begin;
+	LIBGS_TEST_CHECK_EQ(
+		checksum, large_shared_emission_count * large_payload_size * 4
+	);
+	print_large_payload_result(
+		"signal-slot/synchronous const-ref 4 slots (1 MiB)",
+		large_shared_emission_count, 4, borrowed_elapsed
+	);
+
+	libgs::utils::signal<void(std::vector<std::byte>)> by_value;
+	checksum = 0;
+	by_value.connect<libgs::utils::slot_mode::sync>(
+		[&](std::vector<std::byte> value) { checksum += value.size(); }
+	);
+	const auto value_begin = std::chrono::steady_clock::now();
+	for(size_t index = 0; index < large_value_emission_count; ++index)
+		by_value(payload);
+	const auto value_elapsed = std::chrono::steady_clock::now() - value_begin;
+	LIBGS_TEST_CHECK_EQ(checksum, large_value_emission_count * large_payload_size);
+	print_large_payload_result(
+		"signal-slot/synchronous by-value 1 slot (1 MiB)",
+		large_value_emission_count, 1, value_elapsed
+	);
+}
+
+void large_asynchronous_shared_arguments()
+{
+	libgs::io_context_t context;
+	using payload_t = std::vector<std::byte>;
+	using shared_payload_t = std::shared_ptr<const payload_t>;
+	libgs::utils::signal<void(shared_payload_t)> fired;
+	auto payload = std::make_shared<const payload_t>(
+		large_payload_size, std::byte {0x2a}
+	);
+	size_t checksum = 0;
+	fired.connect<libgs::utils::slot_mode::async>(
+		context, [&](shared_payload_t value) { checksum += value->size(); }
+	);
+
+	const auto begin = std::chrono::steady_clock::now();
+	for(size_t index = 0; index < large_shared_emission_count; ++index)
+		fired(payload);
+	context.run();
+	const auto elapsed = std::chrono::steady_clock::now() - begin;
+	LIBGS_TEST_CHECK_EQ(checksum, large_shared_emission_count * large_payload_size);
+	print_large_payload_result(
+		"signal-slot/asynchronous shared immutable 1 slot (1 MiB)",
+		large_shared_emission_count, 1, elapsed
+	);
+}
+
+void large_awaitable_arguments()
+{
+	libgs::io_context_t context;
+	std::vector<std::byte> payload(large_payload_size, std::byte {0x2a});
+	libgs::utils::signal<libgs::awaitable<void>(std::vector<std::byte>)> fired;
+	size_t checksum = 0;
+	fired.connect<libgs::utils::slot_mode::sync>(
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); },
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); },
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); },
+		[&](const std::vector<std::byte> &value) { checksum += value.size(); }
+	);
+
+	auto future = asio::co_spawn(context, [&]() -> libgs::awaitable<void>
+	{
+		for(size_t index = 0; index < large_value_emission_count; ++index)
+			co_await fired(payload);
+		co_return ;
+	}, libgs::use_future);
+	const auto begin = std::chrono::steady_clock::now();
+	context.run();
+	future.get();
+	const auto elapsed = std::chrono::steady_clock::now() - begin;
+	LIBGS_TEST_CHECK_EQ(
+		checksum, large_value_emission_count * large_payload_size * 4
+	);
+	print_large_payload_result(
+		"signal-slot/awaitable const-ref 4 slots (1 MiB)",
+		large_value_emission_count, 4, elapsed
+	);
+}
+
 } //namespace
 
 int main()
 {
 	return libgs::test::run({
 		{"synchronous signal throughput", synchronous_signal_throughput},
+		{"asynchronous signal throughput", asynchronous_signal_throughput},
+		{"connection throughput", connection_throughput},
+		{"large synchronous signal arguments", large_synchronous_arguments},
+		{"large asynchronous shared signal arguments", large_asynchronous_shared_arguments},
+		{"large awaitable signal arguments", large_awaitable_arguments},
 	});
 }

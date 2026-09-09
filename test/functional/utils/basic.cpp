@@ -6,11 +6,15 @@
 #include <libgs/utils/observer.h>
 #include <libgs/utils/signal_slot.h>
 
+#include <atomic>
+#include <any>
 #include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
+#include <vector>
 
 namespace
 {
@@ -60,6 +64,43 @@ struct synchronous_observer
 	}
 };
 
+libgs::utils::signal<void()> *reentrant_signal = nullptr;
+int reentrant_first_count = 0;
+int reentrant_second_count = 0;
+std::atomic<std::int64_t> *concurrent_received = nullptr;
+
+struct tracked_payload
+{
+	tracked_payload() : bytes(64 * 1'024, std::byte {0x2a}) {}
+
+	tracked_payload(const tracked_payload &other) : bytes(other.bytes) {
+		copies.fetch_add(1, std::memory_order_relaxed);
+	}
+	tracked_payload(tracked_payload&&) noexcept = default;
+	tracked_payload &operator=(const tracked_payload&) = default;
+	tracked_payload &operator=(tracked_payload&&) noexcept = default;
+
+	static inline std::atomic_size_t copies {0};
+	std::vector<std::byte> bytes;
+};
+
+void reentrant_second()
+{
+	++reentrant_second_count;
+}
+
+void reentrant_first()
+{
+	++reentrant_first_count;
+	reentrant_signal->disconnect(reentrant_first);
+	reentrant_signal->connect(reentrant_second);
+}
+
+void concurrent_slot(int value)
+{
+	concurrent_received->fetch_add(value, std::memory_order_relaxed);
+}
+
 void synchronous_signal()
 {
 	libgs::utils::signal<void(int,std::string_view)> changed;
@@ -83,6 +124,20 @@ void synchronous_signal()
 	changed.disconnect();
 	changed(10, "disconnected");
 	LIBGS_TEST_CHECK_EQ(total, 3);
+}
+
+void backpressure_signal()
+{
+	asio::thread_pool pool(1);
+	libgs::utils::signal<void(int)> fired;
+	int received = 0;
+	fired.connect<libgs::utils::slot_mode::backpressure>(
+		pool, [&](int value) { received = value; }
+	);
+
+	fired(42);
+	LIBGS_TEST_CHECK_EQ(received, 42);
+	pool.join();
 }
 
 void observer_lifecycle()
@@ -222,12 +277,158 @@ void repeated_signal_operations()
 	LIBGS_TEST_CHECK_EQ(received, 50'005'000);
 }
 
+void disconnected_slot_releases_resources()
+{
+	libgs::utils::signal<void()> fired;
+	auto resource = std::make_shared<int>(42);
+	std::weak_ptr<int> weak_resource = resource;
+	fired.connect([resource] {});
+	resource.reset();
+	LIBGS_TEST_CHECK(not weak_resource.expired());
+
+	fired.disconnect();
+	LIBGS_TEST_CHECK(weak_resource.expired());
+}
+
+void reentrant_signal_mutation()
+{
+	libgs::utils::signal<void()> fired;
+	reentrant_signal = &fired;
+	reentrant_first_count = 0;
+	reentrant_second_count = 0;
+
+	fired.connect(reentrant_first);
+	fired();
+	LIBGS_TEST_CHECK_EQ(reentrant_first_count, 1);
+	LIBGS_TEST_CHECK_EQ(reentrant_second_count, 0);
+
+	fired();
+	LIBGS_TEST_CHECK_EQ(reentrant_first_count, 1);
+	LIBGS_TEST_CHECK_EQ(reentrant_second_count, 1);
+	reentrant_signal = nullptr;
+}
+
+void concurrent_signal_mutation()
+{
+	libgs::utils::signal<void(int)> fired;
+	std::atomic<std::int64_t> received { 0 };
+	std::atomic_bool start { false };
+	concurrent_received = &received;
+	fired.connect(concurrent_slot);
+
+	std::thread emitter([&]
+	{
+		while( not start.load(std::memory_order_acquire) )
+			std::this_thread::yield();
+		for(int index = 0; index < 50'000; ++index)
+			fired(1);
+	});
+	std::thread mutator([&]
+	{
+		start.store(true, std::memory_order_release);
+		for(int index = 0; index < 2'000; ++index)
+		{
+			fired.disconnect();
+			fired.connect(concurrent_slot);
+		}
+	});
+
+	emitter.join();
+	mutator.join();
+	fired.disconnect();
+	const auto before = received.load(std::memory_order_relaxed);
+	fired(1);
+	LIBGS_TEST_CHECK_EQ(received.load(std::memory_order_relaxed), before);
+	concurrent_received = nullptr;
+}
+
+void large_synchronous_signal_arguments()
+{
+	tracked_payload payload;
+	libgs::utils::signal<void(tracked_payload)> borrowed;
+	size_t received = 0;
+	borrowed.connect(
+		[&](const tracked_payload &value) { received += value.bytes.size(); },
+		[&](const tracked_payload &value) { received += value.bytes.size(); }
+	);
+
+	tracked_payload::copies.store(0, std::memory_order_relaxed);
+	borrowed(payload);
+	LIBGS_TEST_CHECK_EQ(tracked_payload::copies.load(std::memory_order_relaxed), 0);
+	LIBGS_TEST_CHECK_EQ(received, payload.bytes.size() * 2);
+
+	libgs::utils::signal<void(tracked_payload)> by_value;
+	by_value.connect(
+		[](tracked_payload) {},
+		[](tracked_payload) {}
+	);
+	tracked_payload::copies.store(0, std::memory_order_relaxed);
+	by_value(payload);
+	LIBGS_TEST_CHECK_EQ(tracked_payload::copies.load(std::memory_order_relaxed), 2);
+}
+
+void large_awaitable_signal_arguments()
+{
+	libgs::io_context_t context;
+	tracked_payload payload;
+	libgs::utils::signal<libgs::awaitable<void>(tracked_payload)> borrowed;
+	size_t received = 0;
+	borrowed.connect<libgs::utils::slot_mode::sync>(
+		[&](const tracked_payload &value) { received += value.bytes.size(); },
+		[&](const tracked_payload &value) { received += value.bytes.size(); }
+	);
+
+	tracked_payload::copies.store(0, std::memory_order_relaxed);
+	auto future = asio::co_spawn(context, borrowed(payload), libgs::use_future);
+	context.run();
+	future.get();
+	LIBGS_TEST_CHECK_EQ(tracked_payload::copies.load(std::memory_order_relaxed), 1);
+	LIBGS_TEST_CHECK_EQ(received, payload.bytes.size() * 2);
+}
+
+void large_async_signal_owns_arguments()
+{
+	libgs::io_context_t context;
+	libgs::utils::signal<void(tracked_payload)> fired;
+	size_t received_size = 0;
+	fired.connect<libgs::utils::slot_mode::async>(
+		context, [&](const tracked_payload &value) {
+			received_size = value.bytes.size();
+		}
+	);
+
+	tracked_payload::copies.store(0, std::memory_order_relaxed);
+	{
+		tracked_payload payload;
+		fired(payload);
+	}
+	context.run();
+	LIBGS_TEST_CHECK_EQ(tracked_payload::copies.load(std::memory_order_relaxed), 1);
+	LIBGS_TEST_CHECK_EQ(received_size, 64 * 1'024);
+}
+
+void large_any_signal_borrows_stored_value()
+{
+	libgs::utils::signal<void(std::any)> fired;
+	size_t received_size = 0;
+	fired.connect([&](const tracked_payload &value) {
+		received_size = value.bytes.size();
+	});
+	std::any payload(std::in_place_type<tracked_payload>);
+
+	tracked_payload::copies.store(0, std::memory_order_relaxed);
+	fired(payload);
+	LIBGS_TEST_CHECK_EQ(tracked_payload::copies.load(std::memory_order_relaxed), 0);
+	LIBGS_TEST_CHECK_EQ(received_size, 64 * 1'024);
+}
+
 } //namespace
 
 int main()
 {
 	return libgs::test::run({
 		{"synchronous signal", synchronous_signal},
+		{"backpressure signal", backpressure_signal},
 		{"observer lifecycle", observer_lifecycle},
 		{"awaitable signal lifecycle", awaitable_signal_lifecycle},
 		{"async signal lifecycle", async_signal_lifecycle},
@@ -235,5 +436,12 @@ int main()
 		{"expired signal observer", expired_signal_observer},
 		{"invalid signal observer", invalid_signal_observer},
 		{"repeated signal operations", repeated_signal_operations},
+		{"disconnected slot releases resources", disconnected_slot_releases_resources},
+		{"reentrant signal mutation", reentrant_signal_mutation},
+		{"concurrent signal mutation", concurrent_signal_mutation},
+		{"large synchronous signal arguments", large_synchronous_signal_arguments},
+		{"large awaitable signal arguments", large_awaitable_signal_arguments},
+		{"large async signal owns arguments", large_async_signal_owns_arguments},
+		{"large any signal borrows stored value", large_any_signal_borrows_stored_value},
 	});
 }

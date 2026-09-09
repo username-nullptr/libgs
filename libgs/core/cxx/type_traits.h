@@ -44,8 +44,8 @@ template <> struct byte_type<2> { using unsigned_t = uint16_t; using signed_t = 
 template <> struct byte_type<4> { using unsigned_t = uint32_t; using signed_t = int32_t; };
 template <> struct byte_type<8> { using unsigned_t = uint64_t; using signed_t = int64_t; };
 
-template <size_t N> using byte_unsigned_t = typename byte_type<N>::unsigned_t;
-template <size_t N> using byte_signed_t   = typename byte_type<N>::signed_t  ;
+template <size_t N> using byte_unsigned_t = byte_type<N>::unsigned_t;
+template <size_t N> using byte_signed_t   = byte_type<N>::signed_t  ;
 
 template <typename T>
 struct sizeof_type : byte_type<sizeof(T)> {

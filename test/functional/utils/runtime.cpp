@@ -96,6 +96,7 @@ void local_message_bus()
 	std::atomic_bool changed = false;
 	std::atomic_size_t current_size = 0;
 	std::atomic_size_t previous_size = 0;
+	std::atomic_int decoded_current = 0;
 	libgs::utils::sbus::local_cache cache(pool);
 	cache.changed(topic).connect([&](std::vector<std::byte> current,
 		std::vector<std::byte> previous) -> libgs::awaitable<void>
@@ -105,9 +106,13 @@ void local_message_bus()
 		changed = true;
 		co_return;
 	});
+	cache.changed(topic).connect([&](int current, int) {
+		decoded_current = current;
+	});
 	cache.set(topic, 7);
 	LIBGS_TEST_CHECK_EQ(cache.get<int>(topic).value_or(0), 7);
 	LIBGS_TEST_CHECK(wait_for(changed));
+	LIBGS_TEST_CHECK_EQ(decoded_current.load(), 7);
 	LIBGS_TEST_CHECK_EQ(current_size.load(), sizeof(int));
 	LIBGS_TEST_CHECK(previous_size == 0 or previous_size == sizeof(int));
 

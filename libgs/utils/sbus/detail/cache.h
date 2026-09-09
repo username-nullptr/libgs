@@ -132,7 +132,9 @@ public:
 			m_signals_mutex.unlock();
 
 			co_await signal->emit(_curr, _prev);
-			co_await m_signal.emit(_topic, _curr, _prev);
+			co_await m_signal.emit(
+				std::move(_topic), std::move(_curr), std::move(_prev)
+			);
 			co_return ;
 		});
 	}
@@ -203,7 +205,7 @@ public:
 		locker.unlock();
 
 		dispatch(m_subscriber.get_executor(), [this, delivery_topic = std::string(topic),
-			previous_payload = std::move(_prev), current_payload = _curr]() -> awaitable<void>
+			previous_payload = std::move(_prev), current_payload = _curr]() mutable -> awaitable<void>
 		{
 			signal_ptr<payload_t,payload_t> signal {};
 			m_signals_mutex.lock();
@@ -216,7 +218,10 @@ public:
 			m_signals_mutex.unlock();
 
 			co_await signal->emit(current_payload, previous_payload);
-			co_await m_signal.emit(delivery_topic, current_payload, previous_payload);
+			co_await m_signal.emit(
+				std::move(delivery_topic),
+				std::move(current_payload), std::move(previous_payload)
+			);
 			co_return ;
 		});
 		auto pid = process::self_pid();

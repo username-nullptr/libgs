@@ -21,7 +21,7 @@ struct arg_converter
 {
 	static constexpr bool valid = std::is_convertible_v<T,Tag>;
 	using tag_t = std::remove_reference_t<Tag>;
-	using t_t = std::remove_reference_t<T>;
+	using t_t = std::remove_cvref_t<T>;
 
 	[[nodiscard]] static decltype(auto) convert(const t_t &value) requires valid;
 	[[nodiscard]] static decltype(auto) convert(t_t &&value) requires valid;
