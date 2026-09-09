@@ -27,6 +27,7 @@ int main()
 		std::cout << "Moved to worker thread " << libgs::this_thread_id() << '\n';
 
 		libgs::exit();
+		co_return;
 	});
 	return libgs::exec();
 }

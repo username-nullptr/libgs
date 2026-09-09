@@ -79,7 +79,7 @@ constexpr size_t g_max_buf_size = 4096;
 sys_expected<path_t> absolute_path(const path_t &path) noexcept
 {
 	auto wpath = path.wstring();
-	sys_expected<path_t> result {L""};
+	sys_expected<path_t> result {path};
 
 	if( not is_absolute_path(path) )
 	{
@@ -171,11 +171,11 @@ sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 	return result;
 }
 
-sys_expected<> setenv(std::string_view key, std::string_view value, bool overwrite) noexcept
+sys_expected<> setenv(std::string_view key, const libgs::value &value, bool overwrite) noexcept
 {
 	sys_expected<> result;
 	if( (not overwrite and app::getenv(key).has_value()) or
-		SetEnvironmentVariable(key.data(), value.data()) )
+		SetEnvironmentVariable(key.data(), value->c_str()) )
 		return result;
 	return result.despair(sys_error());
 }

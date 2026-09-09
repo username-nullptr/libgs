@@ -29,6 +29,7 @@ int main()
 
 			if(++completed == worker_count)
 				libgs::exit();
+			co_return;
 		});
 	}
 	return libgs::exec();

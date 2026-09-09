@@ -219,7 +219,7 @@ public:
 
 private:
 	class impl;
-	impl *m_impl;
+	std::shared_ptr<impl> m_impl;
 };
 
 template <concepts::std_func_temp Func>

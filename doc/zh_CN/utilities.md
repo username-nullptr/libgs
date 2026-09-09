@@ -92,6 +92,14 @@ int main()
 Signal 支持自由函数、lambda、由 shared pointer 持有的 observer 对象、显式执行器、
 协程 slot、断开连接和临时阻塞。
 
+触发操作会持有其内部状态和 slot 快照直至本次分发完成，因此已经返回的 awaitable
+不会依赖 signal 对象继续存活。按值传递的参数也由该操作持有。使用 observer 重载时，
+实现会在调用前锁定其 weak pointer，并在整个回调（包括协程挂起期间）持有强引用。
+
+Signal 无法管理 slot 自行捕获的外部对象，也无法延长引用、裸指针或 view 所指数据的
+生命周期。调用方仍须保证这些非 owning 数据有效；signal 对象的析构也不得与另一个
+线程正在进入该对象的成员函数并发发生。
+
 ```cpp
 #include <libgs/utils/signal_slot.h>
 

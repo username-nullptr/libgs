@@ -21,6 +21,7 @@ int main()
 
 		std::cout << "consumer observed ready = true\n";
 		libgs::exit();
+		co_return;
 	});
 
 	libgs::dispatch([&]() -> libgs::awaitable<void>
@@ -32,6 +33,7 @@ int main()
 		ready = true;
 		lock.unlock();
 		changed.notify_one();
+		co_return;
 	});
 
 	return libgs::exec();

@@ -34,6 +34,7 @@ int main()
 				std::cout << "maximum concurrency = " << maximum_active << '\n';
 				libgs::exit();
 			}
+			co_return;
 		});
 	}
 	return libgs::exec();

@@ -98,6 +98,18 @@ Signals support free functions, lambdas, observer objects held by shared
 pointers, explicit executors, coroutine slots, disconnect operations, and
 temporary blocking.
 
+An emission owns its internal state and slot snapshot until that dispatch
+finishes, so a returned awaitable does not require the signal object to remain
+alive. Arguments passed by value are owned by the operation as well. With an
+observer overload, the implementation locks the weak pointer before invocation
+and holds the resulting strong reference across the complete callback,
+including coroutine suspension.
+
+A signal cannot manage external objects captured by a slot or extend the
+lifetime of data referenced through references, raw pointers, or views. The
+caller must keep such non-owning data valid, and must not destroy the signal
+object concurrently with another thread entering one of its member functions.
+
 ```cpp
 #include <libgs/utils/signal_slot.h>
 

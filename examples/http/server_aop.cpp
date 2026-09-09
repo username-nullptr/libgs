@@ -30,6 +30,7 @@ public:
 		co_await context.response().write(
 			asio::buffer(body), libgs::use_awaitable
 		);
+		co_return;
 	}
 };
 
@@ -51,6 +52,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().write (
 				asio::buffer(body), libgs::use_awaitable
 			);
+			co_return;
 		},
 		std::make_shared<request_log>()
 	)

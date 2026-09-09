@@ -117,6 +117,7 @@ awaitable<void> condition_variable::wait
 	auto _exec = get_executor_helper(std::forward<decltype(exec)>(exec));
 	co_await m_impl->wait(_exec, lock);
 	co_await lock.lock(_exec);
+	co_return ;
 }
 
 template <typename Mutex>
@@ -126,6 +127,7 @@ awaitable<void> condition_variable::wait
 	auto _exec = get_executor_helper(std::forward<decltype(exec)>(exec));
 	while( not pred() )
 		co_await wait(_exec, lock);
+	co_return ;
 }
 
 inline void condition_variable::notify_one() noexcept

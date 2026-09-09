@@ -17,6 +17,7 @@ int main()
 		libgs::coro::shared_unique_lock lock(mutex);
 		co_await lock.lock();
 		value = 42;
+		co_return;
 	});
 
 	libgs::dispatch([&]() -> libgs::awaitable<void>
@@ -27,6 +28,7 @@ int main()
 
 		std::cout << "Shared read: " << value << '\n';
 		libgs::exit();
+		co_return;
 	});
 
 	return libgs::exec();

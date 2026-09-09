@@ -38,6 +38,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().send_file (
 				download_name, libgs::use_awaitable
 			);
+			co_return;
 		}
 	)
 	.on_request<libgs::http::method::put>(
@@ -51,6 +52,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().write (
 				asio::buffer(body), libgs::use_awaitable
 			);
+			co_return;
 		}
 	)
 	.start();

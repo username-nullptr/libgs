@@ -8,7 +8,7 @@ or one small integration path and is built as an independent executable.
 | [`core`](core) | Execution, values, INI files, algorithms, queues, application paths, command-line parsing, and dynamic libraries |
 | [`coro`](coro) | Awaitable basics and coroutine synchronization primitives |
 | [`http`](http) | Offline HTTP parsing, clients, servers, middleware, sessions, and optional HTTPS |
-| [`websocket`](websocket) | Offline opening-handshake and frame codec flow |
+| [`websocket`](websocket) | Offline protocol flow and a live HTTP/WebSocket mixed application |
 | [`utils`](utils) | Logging, settings, signals, observers, modules, processes, and the extensible soft bus |
 
 ## Build
@@ -53,6 +53,19 @@ private-key paths; run an executable without arguments to see required inputs.
 The `dynamic_library` executable loads the companion plugin from its own
 directory. You may instead pass another plugin path as the first argument.
 
+The mixed WebSocket examples keep `http::server` and `http::client` as their
+root objects. The same `/mixed` route first handles an ordinary HTTP request,
+then hands an Upgrade request to `websocket::upgrade`. The client upgrades
+through `websocket::open` and completes a text-frame echo.
+
+```bash
+# Terminal 1
+./build/output/examples/websocket/mixed_http_server
+
+# Terminal 2
+./build/output/examples/websocket/mixed_http_client
+```
+
 ## Coverage
 
 | Capability | Examples |
@@ -62,6 +75,6 @@ directory. You may instead pass another plugin path as the first argument.
 | Coroutine synchronization | `coro/basics`, `mutex`, `shared_mutex`, `semaphore`, `condition_variable` |
 | HTTP clients and protocol | `http/client_sync`, `client_awaitable`, `client_cookies`, `client_file`, `protocol` |
 | HTTP servers | `http/server`, `server_aop`, `server_file` (uploads, downloads, and `resource_root`), `server_session`, and optional `https_server` |
-| WebSocket protocol | `websocket/protocol` performs an opening handshake and masked frame round trip without network I/O |
+| WebSocket protocol | `websocket/protocol` performs an offline opening handshake and masked frame round trip; `mixed_http_server` and `mixed_http_client` run HTTP and an upgraded WebSocket on the same route |
 | Utilities | `utils/logger`, `settings`, `signal_slot`, `observer`, `modules`, `process` |
 | Soft bus | `utils/soft_bus_local` uses the built-in in-process transport; `soft_bus_transport` shows the interface used to plug in DDS, IPC, or another transport |

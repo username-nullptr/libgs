@@ -25,6 +25,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().write (
 				asio::buffer(root_body), libgs::use_awaitable
 			);
+			co_return;
 		}
 	)
 	.on_request<libgs::http::method::get>(
@@ -41,6 +42,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().write (
 				asio::buffer(body), libgs::use_awaitable
 			);
+			co_return;
 		}
 	)
 	.on_request<libgs::http::method::get>(
@@ -56,6 +58,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().write (
 				asio::buffer(body), libgs::use_awaitable
 			);
+			co_return;
 		}
 	)
 	.on_request<libgs::http::method::get>(
@@ -70,6 +73,7 @@ int main(int argc, const char *argv[])
 			co_await context.response().write (
 				asio::buffer(body), libgs::use_awaitable
 			);
+			co_return;
 		}
 	)
 	.on_default([](libgs::http::server::context_t &context) -> libgs::awaitable<void>
@@ -80,6 +84,7 @@ int main(int argc, const char *argv[])
 		co_await context.response().write (
 			asio::buffer(body), libgs::use_awaitable
 		);
+		co_return;
 	})
 	.on_server_error([](std::error_code error)
 	{

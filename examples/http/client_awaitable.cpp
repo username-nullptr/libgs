@@ -30,6 +30,7 @@ int main(int argc, const char *argv[])
 			co_return ;
 		}
 		libgs::exit();
+		co_return ;
 	});
 	return libgs::exec();
 }

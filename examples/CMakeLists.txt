@@ -5,6 +5,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 	check_cxx_compiler_flag("-Wa,-mbig-obj" LIBGS_EXAMPLE_GNU_BIG_OBJ)
 endif()
 
+
 function(libgs_add_example category name)
 	set(options)
 	set(one_value_args)
@@ -33,6 +34,7 @@ function(libgs_add_example category name)
 		RUNTIME DESTINATION "examples/${category}"
 	)
 endfunction()
+
 
 # Core
 libgs_add_example(core algorithms       LIBRARIES gs.core)
@@ -90,6 +92,8 @@ endif ()
 # WebSocket protocol
 if (LIBGS_BUILD_WEBSOCKET)
 	libgs_add_example(websocket protocol LIBRARIES gs.websocket)
+	libgs_add_example(websocket mixed_http_client LIBRARIES gs.websocket)
+	libgs_add_example(websocket mixed_http_server LIBRARIES gs.websocket)
 endif ()
 
 # Application utilities
@@ -136,6 +140,8 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	http/server_aop.cpp
 	http/server_file.cpp
 	http/server_session.cpp
+	websocket/mixed_http_client.cpp
+	websocket/mixed_http_server.cpp
 	websocket/protocol.cpp
 	utils/logger.cpp
 	utils/modules/api.cpp

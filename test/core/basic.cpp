@@ -12,6 +12,7 @@
 #include <libgs/core/cxx/optional.h>
 #include <libgs/core/cxx/tools.h>
 #include <libgs/core/utils/byte_order.h>
+#include <libgs/core/utils/streamer.h>
 #include <libgs/core/utils/string_tools.h>
 
 #include <array>
@@ -56,6 +57,120 @@ struct polymorphic_base
 };
 
 struct polymorphic_derived final : polymorphic_base {};
+
+struct meta_fields_sample
+{
+	LIBGS_META_FIELDS (
+		( int, plain ),
+		( std::string, initialized, "value" ),
+		( (std::pair<int,int>), pair )
+	);
+};
+
+struct large_meta_fields_sample
+{
+	LIBGS_META_FIELDS (
+		( int, field_00 ),
+		( int, field_01 ),
+		( int, field_02 ),
+		( int, field_03 ),
+		( int, field_04 ),
+		( int, field_05 ),
+		( int, field_06 ),
+		( int, field_07 ),
+		( int, field_08 ),
+		( int, field_09 ),
+		( int, field_10 ),
+		( int, field_11 ),
+		( int, field_12 ),
+		( int, field_13 ),
+		( int, field_14 ),
+		( int, field_15 ),
+		( int, field_16 ),
+		( int, field_17 ),
+		( int, field_18 ),
+		( int, field_19 ),
+		( int, field_20 ),
+		( int, field_21 ),
+		( int, field_22 ),
+		( int, field_23 ),
+		( int, field_24 ),
+		( int, field_25 ),
+		( int, field_26 ),
+		( int, field_27 ),
+		( int, field_28 ),
+		( int, field_29 ),
+		( int, field_30 ),
+		( int, field_31 ),
+		( int, field_32 ),
+		( int, field_33 ),
+		( int, field_34 ),
+		( int, field_35 ),
+		( int, field_36 ),
+		( int, field_37 ),
+		( int, field_38 ),
+		( int, field_39 ),
+		( int, field_40 ),
+		( int, field_41 ),
+		( int, field_42 ),
+		( int, field_43 ),
+		( int, field_44 ),
+		( int, field_45 ),
+		( int, field_46 ),
+		( int, field_47 ),
+		( int, field_48 ),
+		( int, field_49 ),
+		( int, field_50 ),
+		( int, field_51 ),
+		( int, field_52 ),
+		( int, field_53 ),
+		( int, field_54 ),
+		( int, field_55 ),
+		( int, field_56 ),
+		( int, field_57 ),
+		( int, field_58 ),
+		( int, field_59 ),
+		( int, field_60 ),
+		( int, field_61 ),
+		( int, field_62 ),
+		( int, field_63 ),
+		( int, field_64 ),
+		( int, field_65 ),
+		( int, field_66 ),
+		( int, field_67 ),
+		( int, field_68 ),
+		( int, field_69 ),
+		( int, field_70 ),
+		( int, field_71 ),
+		( int, field_72 ),
+		( int, field_73 ),
+		( int, field_74 ),
+		( int, field_75 ),
+		( int, field_76 ),
+		( int, field_77 ),
+		( int, field_78 ),
+		( int, field_79 )
+	);
+};
+
+void meta_fields_macros()
+{
+	meta_fields_sample sample;
+	LIBGS_TEST_CHECK_EQ(sample.plain, 0);
+	LIBGS_TEST_CHECK_EQ(sample.initialized, "value");
+	LIBGS_TEST_CHECK_EQ(sample.pair, (std::pair<int,int> {}));
+
+	auto fields = sample.meta_fields();
+	static_assert(std::tuple_size_v<decltype(fields)> == 3);
+	std::get<0>(fields) = 42;
+	LIBGS_TEST_CHECK_EQ(sample.plain, 42);
+
+	large_meta_fields_sample large;
+	auto large_fields = large.meta_fields();
+	static_assert(std::tuple_size_v<decltype(large_fields)> == 80);
+	std::get<79>(large_fields) = 79;
+	LIBGS_TEST_CHECK_EQ(large.field_79, 79);
+}
 
 void type_names()
 {
@@ -248,6 +363,7 @@ void optional_and_expected()
 int main()
 {
 	return libgs::test::run({
+		{"meta fields macros", meta_fields_macros},
 		{"type names", type_names},
 		{"percent encoding", percent_encoding},
 		{"wildcard matching", wildcard_matching},

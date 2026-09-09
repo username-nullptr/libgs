@@ -170,8 +170,15 @@ auto basic_stream<Exec>::write(message_type type,
 	}
 	else
 	{
-		return initiate_io<size_t>(get_executor(), [self = m_impl, type, body]<typename T0>(T0 &&completion_token) mutable
-			{ self->async_write_message(type, body,
+		// The span itself may point at a temporary const_buffer descriptor (as it
+		// does for write_text/write_binary). Keep the descriptors alive until the
+		// deferred asynchronous initiation has copied or prepared them. Payload
+		// storage retains the documented borrowed lifetime.
+		auto buffers = std::vector<const_buffer>(body.begin(), body.end());
+		return initiate_io<size_t>(get_executor(),
+			[self = m_impl, type, buffers = std::move(buffers)]
+			<typename T0>(T0 &&completion_token) mutable
+			{ self->async_write_message(type, buffers,
 				  std::forward<T0>(completion_token)); }, std::forward<Token>(token));
 	}
 }

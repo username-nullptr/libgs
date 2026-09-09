@@ -43,13 +43,11 @@ public:
 	) noexcept;
 
 public:
-	[[nodiscard]] optional<value_t> operator[] (
-		const concepts::text_p<char_t> auto &key
-	) const noexcept;
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] optional<value_t> operator[](const Text &key) const noexcept;
 
-	[[nodiscard]] value_t &operator[] (
-		const concepts::text_p<char_t> auto &key
-	) noexcept;
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] value_t &operator[](const Text &key) noexcept;
 
 public:
 	using iterator = map_t::iterator;
@@ -75,8 +73,11 @@ public:
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
 public:
-	[[nodiscard]] iterator find(const concepts::text_p<char_t> auto &key) noexcept;
-	[[nodiscard]] const_iterator find(const concepts::text_p<char_t> auto &key) const noexcept;
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] iterator find(const Text &key) noexcept;
+
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] const_iterator find(const Text &key) const noexcept;
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;
@@ -185,24 +186,30 @@ public:
 	) noexcept;
 
 public:
-	[[nodiscard]] const ini_keys_t &group(const concepts::text_p<char_t> auto &group) const;
-	[[nodiscard]] ini_keys_t &group(const concepts::text_p<char_t> auto &group);
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] const ini_keys_t &group(const Text &group) const;
 
-	[[nodiscard]] const ini_keys_t &operator[](const concepts::text_p<char_t> auto &group) const;
-	[[nodiscard]] ini_keys_t &operator[](const concepts::text_p<char_t> auto &group) noexcept;
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] ini_keys_t &group(const Text &group);
+
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] const ini_keys_t &operator[](const Text &group) const;
+
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] ini_keys_t &operator[](const Text &group) noexcept;
 
 	[[nodiscard]] value_t operator[](const group_key &gk) const;
 	[[nodiscard]] value_t &operator[](group_key gk) noexcept;
 
 #if LIBGS_CPLUSPLUS >= 202100L
+	template <concepts::text_p<CharT> Group, concepts::text_p<CharT> Key>
 	[[nodiscard]] value_t operator[] (
-		const concepts::text_p<char_t> auto &group,
-		const concepts::text_p<char_t> auto &key
+		const Group &group, const Key &key
 	) const;
 
+	template <concepts::text_p<CharT> Group, concepts::text_p<CharT> Key>
 	[[nodiscard]] value_t &operator[] (
-		concepts::text_p<char_t> auto &&group,
-		concepts::text_p<char_t> auto &&key
+		Group &&group, Key &&key
 	) noexcept;
 #endif //LIBGS_CPLUSPLUS
 
@@ -257,8 +264,11 @@ public:
 	void cancel();
 
 public:
-	[[nodiscard]] iterator find(const concepts::text_p<char_t> auto &group) noexcept;
-	[[nodiscard]] const_iterator find(const concepts::text_p<char_t> auto &group) const noexcept;
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] iterator find(const Text &group) noexcept;
+
+	template <concepts::text_p<CharT> Text>
+	[[nodiscard]] const_iterator find(const Text &group) const noexcept;
 
 	void clear() noexcept;
 	[[nodiscard]] size_t size() const noexcept;

@@ -41,7 +41,7 @@ function(check_compiler_version CMAKE_CXX_STANDARD)
 			message(FATAL_ERROR "There is a bug in 1950(VS2026). It is awaiting to be fixed by MicroSoft...")
 		endif ()
 		add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_WIN32_WINNT=0x0A00)
-		add_compile_options(/W4 /wd4819)
+		add_compile_options(/W4 /wd4819 /Zc:preprocessor /bigobj)
 
 	else()
 		message(STATUS "Unknow compiler: " ${CMAKE_CXX_COMPILER_ID} " (" ${CMAKE_CXX_COMPILER_VERSION} ").")

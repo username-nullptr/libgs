@@ -518,29 +518,23 @@ std::map<std::string,typename cache<Subscriber>::payload_t> cache<Subscriber>::g
 }
 
 template <concepts::subscriber Subscriber>
-cache<Subscriber>::template signal_t <
-	typename cache<Subscriber>::payload_t, typename cache<Subscriber>::payload_t
->&
-cache<Subscriber>::changed(std::string_view topic) noexcept
+auto cache<Subscriber>::changed(std::string_view topic) noexcept
+	-> signal_t<payload_t,payload_t>&
 {
 	return m_impl->changed(topic);
 }
 
 template <concepts::subscriber Subscriber>
-cache<Subscriber>::template signal_t<std::string_view,
-	typename cache<Subscriber>::payload_t, typename cache<Subscriber>::payload_t
->&
-cache<Subscriber>::changed() noexcept
+auto cache<Subscriber>::changed() noexcept
+	-> signal_t<std::string_view,payload_t,payload_t>&
 {
 	return m_impl->m_signal;
 }
 
 template <concepts::subscriber Subscriber>
 template <concepts::topic_type T>
-cache<Subscriber>::template signal_t <
-	typename cache<Subscriber>::payload_t, typename cache<Subscriber>::payload_t
->&
-cache<Subscriber>::changed() noexcept
+auto cache<Subscriber>::changed() noexcept
+	-> signal_t<payload_t,payload_t>&
 {
 	using type = std::remove_cvref_t<T>;
 	return changed(type::libgs_sbus_topic_v);
@@ -662,6 +656,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 				.or_else([&callback = nntoken](const error_code &error) {
 					callback(error, 255);
 				});
+				co_return ;
 			});
 		}
 		else
@@ -682,6 +677,7 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 				.or_else([&callback = nntoken](const error_code &error) {
 					callback(error, 255);
 				});
+				co_return ;
 			});
 		}
 	}

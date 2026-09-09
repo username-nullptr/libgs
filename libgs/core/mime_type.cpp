@@ -976,21 +976,20 @@ std::string search(const mapping::mime_head_map &mimes, const char *buf, size_t 
 {
 	if( size == 0 )
 		return "text/plain";
-	size_t index = 0;
 
-	for(auto &[key,value] : mimes)
+	const std::string *matched = nullptr;
+	size_t matched_size = 0;
+
+	for(const auto &[key,value] : mimes)
 	{
-		if( key[index] != buf[index] )
-			continue;
-		do {
-			if( ++index == key.size() )
-				return value;
-			else if( index == size or key[index] > buf[index] )
-				return "unknown";
+		if( key.size() > matched_size and key.size() <= size and
+			std::equal(key.begin(), key.end(), buf) )
+		{
+			matched = &value;
+			matched_size = key.size();
 		}
-		while( key[index] == buf[index] );
 	}
-	return "unknown";
+	return matched ? *matched : "unknown";
 }
 
 } //namespace detail
@@ -1001,8 +1000,9 @@ std::string search(const mapping::mime_head_map &mimes, const char *buf, size_t 
 	if( not opt )
 		return "unknown";
 
-	std::ifstream file(*opt);
+	std::ifstream file(*opt, std::ios::binary);
 	auto mime_type = detail::from_magic(file);
+
 	file.close();
 	return mime_type;
 }

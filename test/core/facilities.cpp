@@ -13,12 +13,34 @@
 #include <libgs/core/value.h>
 
 #include <atomic>
+#include <concepts>
 #include <fstream>
 #include <numeric>
+#include <string_view>
 #include <thread>
+#include <utility>
 
 namespace
 {
+
+struct ini_char_traits : std::char_traits<char> {};
+
+using ini_traits_string = std::basic_string<char,ini_char_traits>;
+using ini_traits_view = std::basic_string_view<char,ini_char_traits>;
+using ini_keys_t = libgs::ini::ini_keys_t;
+
+static_assert(std::same_as<
+	decltype(std::declval<libgs::ini&>()["group"]), ini_keys_t&
+>);
+static_assert(std::same_as<
+	decltype(std::declval<const libgs::ini&>()["group"]), const ini_keys_t&
+>);
+static_assert(std::same_as<
+	decltype(std::declval<ini_keys_t&>()["key"]), libgs::value&
+>);
+static_assert(std::same_as<
+	decltype(std::declval<const ini_keys_t&>()["key"]), libgs::optional<libgs::value>
+>);
 
 void values()
 {
@@ -193,6 +215,38 @@ void ini_memory_and_file()
 	LIBGS_TEST_CHECK_EQ(restored.file_name(), file);
 }
 
+void ini_text_parameters()
+{
+	libgs::ini config;
+
+	char group_buffer[] = "pointer group";
+	char *group_pointer = group_buffer;
+	const char key_array[] = "array key";
+	config[group_pointer][key_array] = 11;
+
+	std::string group_string = "string group";
+	std::string_view key_view = "view key";
+	config[group_string][key_view] = 12;
+
+	ini_traits_string traits_group = "traits group";
+	ini_traits_string traits_key = "traits key";
+	config[traits_group][traits_key] = 13;
+
+	config['g']['k'] = 14;
+
+	ini_traits_view traits_group_view(traits_group.data(), traits_group.size());
+	ini_traits_view traits_key_view(traits_key.data(), traits_key.size());
+	LIBGS_TEST_CHECK(config.find(traits_group_view) != config.end());
+	LIBGS_TEST_CHECK(config.group(traits_group_view).find(traits_key_view) !=
+		config.group(traits_group_view).end());
+
+	const auto &reader = config;
+	LIBGS_TEST_CHECK_EQ(reader[std::string_view("pointer group")][key_array]->to_int().value_or(0), 11);
+	LIBGS_TEST_CHECK_EQ(reader[group_string][key_view]->to_int().value_or(0), 12);
+	LIBGS_TEST_CHECK_EQ(reader[traits_group_view][traits_key_view]->to_int().value_or(0), 13);
+	LIBGS_TEST_CHECK_EQ(reader['g']['k']->to_int().value_or(0), 14);
+}
+
 template <libgs::queue_type Type>
 void check_queue_type()
 {
@@ -293,6 +347,7 @@ int main()
 		{"URL resolution", url_resolution},
 		{"command line parsing", command_line_parsing},
 		{"INI memory and file", ini_memory_and_file},
+		{"INI text parameters", ini_text_parameters},
 		{"lock-free queues", lock_free_queues},
 		{"MIME detection", mime_detection},
 		{"application environment", application_environment},

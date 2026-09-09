@@ -34,6 +34,7 @@ void client_server_round_trip()
 			);
 			request_context.response().set_header("X-LibGS-Test", "loopback");
 			co_await request_context.response().write(asio::buffer(body), libgs::use_awaitable);
+			co_return;
 		})
 		.on_request<method::get>("/cookie/set",
 		[](server::context_t &request_context) -> libgs::awaitable<void>
@@ -43,6 +44,7 @@ void client_server_round_trip()
 			);
 			constexpr std::string_view body = "set";
 			co_await request_context.response().write(asio::buffer(body), libgs::use_awaitable);
+			co_return;
 		})
 		.on_request<method::get>("/cookie/show",
 		[](server::context_t &request_context) -> libgs::awaitable<void>
@@ -50,12 +52,14 @@ void client_server_round_trip()
 			const auto value = request_context.request().cookie("session")
 				.value_or("missing").to_string();
 			co_await request_context.response().write(asio::buffer(value), libgs::use_awaitable);
+			co_return;
 		})
 		.on_default([](server::context_t &request_context) -> libgs::awaitable<void>
 		{
 			request_context.response().set_status(status::not_found);
 			constexpr std::string_view body = "not found";
 			co_await request_context.response().write(asio::buffer(body), libgs::use_awaitable);
+			co_return;
 		})
 		.start();
 
@@ -118,6 +122,7 @@ void client_server_round_trip()
 			throw;
 		}
 		service.stop();
+		co_return;
 	}, asio::use_future);
 	context.run();
 	completed.get();

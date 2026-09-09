@@ -51,6 +51,8 @@ endif ()
 
 if (LIBGS_BUILD_WEBSOCKET)
 	add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
+	add_libgs_test(websocket.handshake websocket/handshake.cpp gs.websocket)
+	set_tests_properties(libgs.websocket.handshake PROPERTIES TIMEOUT 15)
 	add_libgs_test(websocket.stream websocket/stream.cpp gs.websocket)
 endif ()
 
