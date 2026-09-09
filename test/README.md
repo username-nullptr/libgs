@@ -3,8 +3,8 @@
 The test suite has two layers:
 
 - `functional`: correctness tests for each enabled module.
-- `performance`: coarse local measurements for the lock-free queues, HTTP
-  loopback requests, and synchronous signal-slot dispatch.
+- `performance`: coarse local measurements for the lock-free queues, coroutine
+  synchronization primitives, HTTP loopback requests, and utility dispatch.
 
 Performance tests require the `libgs.functional` CTest fixture. Selecting only
 the `performance` label therefore runs the functional suite first, and skips
@@ -23,6 +23,11 @@ ctest --test-dir build -L performance -V
 The reported throughput and latency have no fixed pass threshold. They are
 intended for rough comparisons on the same machine; a performance test fails
 only when its result is functionally incorrect or it times out.
+
+The coroutine synchronization measurements include raw atomic and immediate
+awaitable baselines, uncontended acquire/release cycles, and queued waiter
+wake-ups. This keeps runtime and primitive overhead distinguishable when
+comparing two builds.
 
 For memory errors and undefined behavior, use a separate ASan/UBSan build. The
 instrumented build omits performance tests and should not be used for install

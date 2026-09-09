@@ -4,6 +4,9 @@
 #ifndef LIBGS_CORO_DETAIL_CONDITION_VARIABLE_H
 #define LIBGS_CORO_DETAIL_CONDITION_VARIABLE_H
 
+#include <deque>
+#include <mutex>
+
 namespace libgs::coro
 {
 
@@ -26,7 +29,7 @@ public:
 				_exec, std::move(wake_up)
 			);
 			std::lock_guard guard(m_mutex);
-			m_wait_queue.emplace(std::move(waiter));
+			m_wait_queue.emplace_back(std::move(waiter));
 			lock.unlock();
 		});
 	}
@@ -44,7 +47,7 @@ public:
 				_exec, std::move(wake_up)
 			);
 			std::lock_guard guard(m_mutex);
-			m_wait_queue.emplace(waiter);
+			m_wait_queue.emplace_back(waiter);
 			waiter->start_timer(wait_timeout);
 			lock.unlock();
 		});
@@ -57,34 +60,30 @@ public:
 			detail::lock_wake_up_ptr waiter;
 			{
 				std::lock_guard guard(m_mutex);
-				auto value = m_wait_queue.dequeue();
-				if( not value )
-					return;
-				waiter = std::move(*value);
+				if( m_wait_queue.empty() )
+					return ;
+				waiter = std::move(m_wait_queue.front());
+				m_wait_queue.pop_front();
 			}
 			if( (*waiter)(true) )
-				return;
+				return ;
 		}
 	}
 
 	void notify_all() noexcept
 	{
-		std::vector<detail::lock_wake_up_ptr> waiters;
+		std::deque<detail::lock_wake_up_ptr> waiters;
 		{
 			std::lock_guard guard(m_mutex);
-			while( auto value = m_wait_queue.dequeue() )
-				waiters.emplace_back(std::move(*value));
+			waiters.swap(m_wait_queue);
 		}
 		for(auto &waiter : waiters)
 			(*waiter)(true);
 	}
 
 public:
-	linked_lock_free_queue <
-		detail::lock_wake_up_ptr
-	> m_wait_queue {};
-
-	std::recursive_mutex m_mutex {};
+	std::deque<detail::lock_wake_up_ptr> m_wait_queue;
+	std::mutex m_mutex;
 };
 
 inline condition_variable::condition_variable() :

@@ -257,6 +257,64 @@ auto checked_dequeue(Queue &queue)
 	return std::move(*value);
 }
 
+struct throwing_queue_value
+{
+	explicit throwing_queue_value(int value) : value(value)
+	{
+		if( value < 0 )
+			throw std::runtime_error("queue value construction failed");
+	}
+	throwing_queue_value(throwing_queue_value &&other) : value(other.value)
+	{
+		if( std::exchange(throw_on_move, false) )
+			throw std::runtime_error("queue value move failed");
+	}
+
+	static bool throw_on_move;
+	int value;
+};
+
+bool throwing_queue_value::throw_on_move = false;
+
+void check_linked_queue_exception_reuse()
+{
+	libgs::linked_lock_free_queue<throwing_queue_value> queue(128);
+	for(int value = 0; value < 128; ++value)
+	{
+		LIBGS_TEST_CHECK(queue.emplace(value));
+		LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, value);
+	}
+
+	bool caught = false;
+	try {
+		queue.emplace(-1);
+	}
+	catch(const std::runtime_error&)
+	{
+		caught = true;
+	}
+	LIBGS_TEST_CHECK(caught);
+	LIBGS_TEST_CHECK(queue.empty());
+	LIBGS_TEST_CHECK_EQ(queue.size(), 0U);
+
+	LIBGS_TEST_CHECK(queue.emplace(41));
+	throwing_queue_value::throw_on_move = true;
+	caught = false;
+	try {
+		queue.dequeue();
+	}
+	catch(const std::runtime_error&)
+	{
+		caught = true;
+	}
+	LIBGS_TEST_CHECK(caught);
+	LIBGS_TEST_CHECK(queue.empty());
+	LIBGS_TEST_CHECK_EQ(queue.size(), 0U);
+
+	LIBGS_TEST_CHECK(queue.emplace(42));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 42);
+}
+
 template <libgs::queue_type Type>
 void check_queue_type()
 {
@@ -455,6 +513,7 @@ void lock_free_queues()
 	check_concurrent_queue_type<libgs::queue_type::circular>();
 	check_mpmc_queue_type<libgs::queue_type::linked>();
 	check_mpmc_queue_type<libgs::queue_type::circular>();
+	check_linked_queue_exception_reuse();
 }
 
 void mime_detection()

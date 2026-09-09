@@ -1,5 +1,9 @@
 add_libgs_performance_test(lock-free-queue lock_free_queue.cpp gs.core)
 
+if (LIBGS_BUILD_CORO)
+	add_libgs_performance_test(coro coro.cpp gs.core)
+endif ()
+
 if (LIBGS_BUILD_HTTP)
 	add_libgs_performance_test(http http.cpp gs.http)
 endif ()

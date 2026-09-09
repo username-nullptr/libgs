@@ -4,8 +4,9 @@
 #ifndef LIBGS_CORO_DETAIL_SEMAPHORE_H
 #define LIBGS_CORO_DETAIL_SEMAPHORE_H
 
-#include <libgs/core/lock_free_queue.h>
 #include <libgs/coro/detail/wake_up.h>
+#include <deque>
+#include <mutex>
 
 namespace libgs::coro
 {
@@ -34,22 +35,47 @@ public:
 public:
 	[[nodiscard]] bool try_acquire()
 	{
-		auto counter = m_counter.load();
-		if( counter == 0 )
-			return false;
-		/*
-			if( m_counter == counter )
-	 		{
-	 			m_counter = counter - 1;
-	 			return true;
+		auto counter = m_counter.load(std::memory_order_relaxed);
+		while( counter != 0 )
+		{
+			if( m_counter.compare_exchange_weak(counter, counter - 1,
+				std::memory_order_acquire, std::memory_order_relaxed) )
+				return true;
+		}
+		return false;
+	}
+
+	void enqueue(wake_up_t::ptr_t waiter)
+	{
+		bool acquired = false;
+		{
+			// Close the failed-fast-path/enqueue gap against release().
+			std::lock_guard guard(m_wait_mutex);
+			if( try_acquire() )
+				acquired = true;
+			else
+				m_wait_queue.emplace_back(waiter);
+		}
+		if( acquired )
+			(*waiter)(true);
+	}
+
+	void enqueue_timed(wake_up_t::ptr_t waiter, const auto &timeout)
+	{
+		bool acquired = false;
+		{
+			// Close the failed-fast-path/enqueue gap against release().
+			std::lock_guard guard(m_wait_mutex);
+			if( try_acquire() )
+				acquired = true;
+			else
+			{
+				m_wait_queue.emplace_back(waiter);
+				waiter->start_timer(timeout);
 			}
-	 		else
-	 		{
-	 			counter = m_counter;
-				return false;
-	 		}
-		*/
-		return m_counter.compare_exchange_strong(counter, counter - 1);
+		}
+		if( acquired )
+			(*waiter)(true);
 	}
 
 	[[nodiscard]] awaitable<bool> try_acquire_x
@@ -65,30 +91,67 @@ public:
 			auto wake_up_ptr = std::make_shared<wake_up_t>(
 				wait_exec, std::forward<decltype(wake_up)>(wake_up)
 			);
-			m_wait_queue.emplace(wake_up_ptr);
-			wake_up_ptr->start_timer(timeout);
+			enqueue_timed(std::move(wake_up_ptr), timeout);
 		});
 	}
 
-	void release_one()
+	size_t release(size_t n)
 	{
+		std::lock_guard guard(m_wait_mutex);
+		auto counter = m_counter.load(std::memory_order_relaxed);
+		if( n == 0 or n > max_v - counter )
+		{
+			invalid_argument::loc_throw (
+				"libgs::basic_semaphore: Invalid release count."
+			);
+		}
+		while( n-- )
+		{
+			for(;;)
+			{
+				if( m_wait_queue.empty() )
+				{
+					m_counter.fetch_add(1, std::memory_order_release);
+					break;
+				}
+				auto waiter = std::move(m_wait_queue.front());
+				m_wait_queue.pop_front();
+				if( (*waiter)(true) )
+					break;
+			}
+		}
+		return m_counter.load(std::memory_order_acquire);
+	}
+
+	size_t release_binary()
+	{
+		std::lock_guard guard(m_wait_mutex);
+		if( m_counter.load(std::memory_order_relaxed) == 1 )
+		{
+			runtime_error::loc_throw (
+				"libgs::basic_semaphore: Release a binary_semaphore with max count 1 more than once."
+			);
+		}
 		for(;;)
 		{
-			auto wake_up = m_wait_queue.dequeue();
-			if( wake_up )
+			if( m_wait_queue.empty() )
 			{
-				if( not std::move(**wake_up)(true) )
-					continue;
+				m_counter.store(1, std::memory_order_release);
+				break;
 			}
-			else
-				m_counter.fetch_add(1);
-			break;
+			auto waiter = std::move(m_wait_queue.front());
+			m_wait_queue.pop_front();
+
+			if( (*waiter)(true) )
+				break;
 		}
+		return m_counter.load(std::memory_order_acquire);
 	}
 
 public:
 	std::atomic_size_t m_counter = 0;
-	linked_lock_free_queue<detail::lock_wake_up_ptr> m_wait_queue;
+	std::mutex m_wait_mutex;
+	std::deque<wake_up_t::ptr_t> m_wait_queue;
 };
 
 template<size_t Max>
@@ -113,9 +176,9 @@ awaitable<void> basic_semaphore<Max>::acquire(concepts::sched auto &&exec)
 	co_await async_work<bool>::handle(exec,
 	[this, wait_exec = get_executor_helper(exec)](async_work<bool>::handler_t wake_up) mutable
 	{
-		m_impl->m_wait_queue.emplace (
-			std::make_shared<typename impl::wake_up_t>(wait_exec, std::move(wake_up))
-		);
+		m_impl->enqueue(std::make_shared<typename impl::wake_up_t>(
+			wait_exec, std::move(wake_up)
+		));
 	});
 	co_return ;
 }
@@ -137,28 +200,13 @@ bool basic_semaphore<Max>::try_acquire()
 template<size_t Max>
 size_t basic_semaphore<Max>::release(size_t n) requires (max_v > 1)
 {
-	if( n == 0 or n > max_v - m_impl->m_counter )
-	{
-		invalid_argument::loc_throw (
-			"libgs::basic_semaphore: Invalid release count."
-		);
-	}
-	while( n-- )
-		m_impl->release_one();
-	return count();
+	return m_impl->release(n);
 }
 
 template<size_t Max>
 size_t basic_semaphore<Max>::release() requires (max_v == 1)
 {
-	if( m_impl->m_counter == 1 )
-	{
-		runtime_error::loc_throw (
-			"libgs::basic_semaphore: Release a binary_semaphore with max count 1 more than once."
-		);
-	}
-	m_impl->release_one();
-	return count();
+	return m_impl->release_binary();
 }
 
 template<size_t Max>
@@ -206,7 +254,7 @@ consteval size_t basic_semaphore<Max>::max() const noexcept
 template<size_t Max>
 size_t basic_semaphore<Max>::count() const noexcept
 {
-	return m_impl->m_counter;
+	return m_impl->m_counter.load(std::memory_order_acquire);
 }
 
 } //namespace libgs::coro

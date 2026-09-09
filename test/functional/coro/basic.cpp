@@ -5,10 +5,12 @@
 
 #include <libgs/coro.h>
 
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -98,6 +100,133 @@ void asynchronous_semaphore()
 	LIBGS_TEST_CHECK_EQ(semaphore.count(), 0U);
 }
 
+void asynchronous_semaphore_timeout()
+{
+	libgs::io_context_t context;
+	libgs::coro::binary_semaphore semaphore(0);
+	auto result = asio::co_spawn(context, [&]() -> libgs::awaitable<bool>
+	{
+		if( co_await semaphore.try_acquire_for(1ms) )
+			co_return false;
+		semaphore.release();
+		co_return semaphore.try_acquire();
+	}, asio::use_future);
+	context.run();
+	LIBGS_TEST_CHECK(result.get());
+	LIBGS_TEST_CHECK_EQ(semaphore.count(), 0U);
+}
+
+void multithreaded_mutex_contention()
+{
+	constexpr size_t task_count = 8;
+	constexpr size_t iteration_count = 1'000;
+	asio::thread_pool pool(4);
+	libgs::coro::mutex mutex;
+	std::atomic_size_t active {0};
+	std::atomic_size_t completed {0};
+	std::atomic_bool overlap {false};
+	std::vector<std::future<void>> futures;
+
+	for(size_t task = 0; task < task_count; ++task)
+	{
+		futures.emplace_back(asio::co_spawn(pool,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto exec = co_await asio::this_coro::executor;
+			for(size_t iteration = 0; iteration < iteration_count; ++iteration)
+			{
+				co_await mutex.lock();
+				if( active.fetch_add(1, std::memory_order_acq_rel) != 0 )
+					overlap.store(true, std::memory_order_relaxed);
+				co_await asio::post(exec, asio::use_awaitable);
+				active.fetch_sub(1, std::memory_order_release);
+				completed.fetch_add(1, std::memory_order_relaxed);
+				mutex.unlock();
+				co_await asio::post(exec, asio::use_awaitable);
+			}
+		}, asio::use_future));
+	}
+	for(auto &future : futures)
+		future.get();
+	pool.join();
+
+	LIBGS_TEST_CHECK(not overlap.load(std::memory_order_relaxed));
+	LIBGS_TEST_CHECK_EQ(active.load(std::memory_order_relaxed), 0U);
+	LIBGS_TEST_CHECK_EQ(
+		completed.load(std::memory_order_relaxed), task_count * iteration_count
+	);
+}
+
+void multithreaded_semaphore_contention()
+{
+	constexpr size_t max_concurrency = 3;
+	constexpr size_t task_count = 8;
+	constexpr size_t iteration_count = 1'000;
+	asio::thread_pool pool(4);
+	libgs::coro::basic_semaphore<max_concurrency> semaphore(max_concurrency);
+	std::atomic_size_t active {0};
+	std::atomic_size_t high_watermark {0};
+	std::atomic_size_t completed {0};
+	std::vector<std::future<void>> futures;
+
+	for(size_t task = 0; task < task_count; ++task)
+	{
+		futures.emplace_back(asio::co_spawn(pool,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto exec = co_await asio::this_coro::executor;
+			for(size_t iteration = 0; iteration < iteration_count; ++iteration)
+			{
+				co_await semaphore.acquire();
+				const auto current = active.fetch_add(1, std::memory_order_acq_rel) + 1;
+				auto maximum = high_watermark.load(std::memory_order_relaxed);
+				while( maximum < current and not high_watermark.compare_exchange_weak(
+					maximum, current, std::memory_order_relaxed
+				)) {}
+				co_await asio::post(exec, asio::use_awaitable);
+				active.fetch_sub(1, std::memory_order_release);
+				completed.fetch_add(1, std::memory_order_relaxed);
+				semaphore.release();
+				co_await asio::post(exec, asio::use_awaitable);
+			}
+		}, asio::use_future));
+	}
+	for(auto &future : futures)
+		future.get();
+	pool.join();
+
+	LIBGS_TEST_CHECK(high_watermark.load(std::memory_order_relaxed) <= max_concurrency);
+	LIBGS_TEST_CHECK_EQ(active.load(std::memory_order_relaxed), 0U);
+	LIBGS_TEST_CHECK_EQ(
+		completed.load(std::memory_order_relaxed), task_count * iteration_count
+	);
+	LIBGS_TEST_CHECK_EQ(semaphore.count(), max_concurrency);
+}
+
+void large_mutex_waiter_queue()
+{
+	constexpr size_t waiter_count = 20'000;
+	libgs::io_context_t context;
+	libgs::coro::mutex mutex;
+	size_t completed = 0;
+	LIBGS_TEST_CHECK(mutex.try_lock());
+
+	for(size_t index = 0; index < waiter_count; ++index)
+	{
+		asio::co_spawn(context, [&]() -> libgs::awaitable<void>
+		{
+			co_await mutex.lock();
+			++completed;
+			mutex.unlock();
+		}, asio::detached);
+	}
+	asio::post(context, [&mutex] { mutex.unlock(); });
+	context.run();
+
+	LIBGS_TEST_CHECK_EQ(completed, waiter_count);
+	LIBGS_TEST_CHECK(not mutex.is_locked());
+}
+
 void condition_variable_notification()
 {
 	libgs::io_context_t context;
@@ -162,6 +291,10 @@ int main()
 		{"semaphore counts", semaphore_counts},
 		{"asynchronous mutex timeout", asynchronous_mutex_and_timeout},
 		{"asynchronous semaphore", asynchronous_semaphore},
+		{"asynchronous semaphore timeout", asynchronous_semaphore_timeout},
+		{"multithreaded mutex contention", multithreaded_mutex_contention},
+		{"multithreaded semaphore contention", multithreaded_semaphore_contention},
+		{"large mutex waiter queue", large_mutex_waiter_queue},
 		{"condition variable notification", condition_variable_notification},
 		{"shared mutex readers", shared_mutex_readers},
 		{"future waiting", future_waiting},

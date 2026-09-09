@@ -82,7 +82,13 @@ class LIBGS_CORE_TAPI lock_free_queue<T,queue_type::linked,N>::impl :
 public:
 	struct node
 	{
-		std::unique_ptr<element_t> data {};
+		node() = default;
+
+		template <typename...Args>
+		explicit node(std::in_place_t, Args&&...args) {
+			data.emplace(std::forward<Args>(args)...);
+		}
+		optional<element_t> data {};
 		std::atomic<node*> next {nullptr};
 		node *retired_next = nullptr;
 	};
@@ -92,7 +98,10 @@ public:
 		std::atomic_bool active {false};
 		std::atomic<node*> pointers[2] {};
 		hazard_record *next = nullptr;
+
 		node *retired = nullptr;
+		node *available = nullptr;
+		size_t retired_count = 0;
 	};
 
 	class hazard_guard
@@ -100,8 +109,8 @@ public:
 		LIBGS_DISABLE_COPY_MOVE(hazard_guard)
 
 	public:
-		explicit hazard_guard(impl *owner) :
-			m_owner(owner), m_record(owner->acquire_hazard_record()) {}
+		explicit hazard_guard(impl *owner, std::atomic<hazard_record*> &hint) :
+			m_owner(owner), m_record(owner->acquire_hazard_record(hint)) {}
 
 		~hazard_guard()
 		{
@@ -127,6 +136,11 @@ public:
 
 		void retire(node *retired_node) {
 			m_owner->retire(m_record, retired_node);
+		}
+
+		template <typename...Args>
+		[[nodiscard]] node *make_node(Args&&...args) {
+			return m_owner->make_node(m_record, std::forward<Args>(args)...);
 		}
 
 	private:
@@ -170,22 +184,46 @@ public:
 				delete current;
 				current = next;
 			}
+			current = record->available;
+			while( current )
+			{
+				auto next = current->retired_next;
+				delete current;
+				current = next;
+			}
 			auto next = record->next;
 			delete record;
 			record = next;
 		}
+		current = m_recycled.exchange(nullptr, std::memory_order_relaxed);
+		while( current )
+		{
+			auto next = current->retired_next;
+			delete current;
+			current = next;
+		}
 	}
 
 private:
-	[[nodiscard]] hazard_record *acquire_hazard_record()
+	[[nodiscard]] hazard_record *acquire_hazard_record(std::atomic<hazard_record*> &hint)
 	{
+		if( auto record = hint.load(std::memory_order_acquire) )
+		{
+			if( bool expected = false;
+				record->active.compare_exchange_strong(expected, true,
+					std::memory_order_acq_rel, std::memory_order_relaxed) )
+				return record;
+		}
 		for(auto record=m_hazard_records.load(std::memory_order_acquire);
 			record; record=record->next)
 		{
 			if( bool expected = false;
 				record->active.compare_exchange_strong(expected, true,
 					std::memory_order_acq_rel, std::memory_order_relaxed) )
+			{
+				hint.store(record, std::memory_order_release);
 				return record;
+			}
 		}
 		auto new_record = std::make_unique<hazard_record>();
 		new_record->active.store(true, std::memory_order_relaxed);
@@ -195,8 +233,11 @@ private:
 			new_record->next = head;
 		}
 		while( not m_hazard_records.compare_exchange_weak(head, new_record.get(),
-			std::memory_order_release, std::memory_order_relaxed) );
-		return new_record.release();
+			   std::memory_order_release, std::memory_order_relaxed) );
+
+		auto result = new_record.release();
+		hint.store(result, std::memory_order_release);
+		return result;
 	}
 
 	[[nodiscard]] bool is_hazard(const node *target_node) const noexcept
@@ -213,30 +254,145 @@ private:
 		return false;
 	}
 
+	void recycle(node *first, node *last, size_t count) noexcept
+	{
+		if( count > recycled_node_capacity )
+		{
+			while( first )
+			{
+				auto next = first->retired_next;
+				delete first;
+				first = next;
+			}
+			return ;
+		}
+		auto pooled = m_recycled_count.fetch_add(count, std::memory_order_relaxed);
+		if( pooled > recycled_node_capacity - count )
+		{
+			m_recycled_count.fetch_sub(count, std::memory_order_relaxed);
+			while( first )
+			{
+				auto next = first->retired_next;
+				delete first;
+				first = next;
+			}
+			return ;
+		}
+		auto head = m_recycled.load(std::memory_order_relaxed);
+		do {
+			last->retired_next = head;
+		}
+		while( not m_recycled.compare_exchange_weak(head, first,
+			std::memory_order_release, std::memory_order_relaxed) );
+	}
+
+	template <typename...Args>
+	[[nodiscard]] node *make_node(hazard_record *record, Args&&...args)
+	{
+		auto result = record->available;
+		if( result )
+			record->available = result->retired_next;
+		else
+		{
+			result = m_recycled.exchange(nullptr, std::memory_order_acq_rel);
+			if( not result )
+				return new node(std::in_place, std::forward<Args>(args)...);
+
+			size_t recycled_count = 0;
+			for(auto current=result; current; current=current->retired_next)
+				recycled_count++;
+
+			m_recycled_count.fetch_sub(recycled_count, std::memory_order_relaxed);
+			record->available = result->retired_next;
+		}
+		result->retired_next = nullptr;
+		result->next.store(nullptr, std::memory_order_relaxed);
+		try {
+			result->data.emplace(std::forward<Args>(args)...);
+		}
+		catch(...)
+		{
+			result->retired_next = record->available;
+			record->available = result;
+			throw;
+		}
+		return result;
+	}
+
 	void retire(hazard_record *record, node *retired_node)
 	{
 		retired_node->retired_next = record->retired;
 		record->retired = retired_node;
 
+		if( ++record->retired_count < retire_scan_threshold )
+			return ;
+
+		node *hazards[hazard_snapshot_capacity] {};
+		size_t hazard_count = 0;
+		bool hazard_overflow = false;
+
+		for(auto current_record=m_hazard_records.load(std::memory_order_acquire);
+			current_record; current_record=current_record->next)
+		{
+			for(auto &pointer : current_record->pointers)
+			{
+				if( auto pointer_value = pointer.load(std::memory_order_acquire) )
+				{
+					if( hazard_count == hazard_snapshot_capacity )
+						hazard_overflow = true;
+					else
+						hazards[hazard_count++] = pointer_value;
+				}
+			}
+		}
+		node *reclaimed = nullptr;
+		node *reclaimed_tail = nullptr;
+
+		size_t reclaimed_count = 0;
 		auto link = &record->retired;
+
 		while( *link )
 		{
 			auto current = *link;
-			if( is_hazard(current) )
+			const auto hazardous = hazard_overflow ? is_hazard(current) :
+				std::find(hazards, hazards + hazard_count, current) != hazards + hazard_count;
+
+			if( hazardous )
 				link = &current->retired_next;
 			else
 			{
 				*link = current->retired_next;
-				delete current;
+				record->retired_count--;
+
+				current->next.store(nullptr, std::memory_order_relaxed);
+				current->retired_next = reclaimed;
+
+				reclaimed = current;
+				reclaimed_count++;
+
+				if( not reclaimed_tail )
+					reclaimed_tail = current;
 			}
 		}
+		if( reclaimed )
+			recycle(reclaimed, reclaimed_tail, reclaimed_count);
 	}
 
 public:
-	std::atomic<node*> m_head {nullptr};
-	std::atomic<node*> m_tail {nullptr};
-	std::atomic<size_t> m_size {0};
-	std::atomic<hazard_record*> m_hazard_records {nullptr};
+	static constexpr size_t retire_scan_threshold = 64;
+	static constexpr size_t hazard_snapshot_capacity = 32;
+	static constexpr size_t recycled_node_capacity = 1024;
+
+	alignas(64) std::atomic<node*> m_head {nullptr};
+	alignas(64) std::atomic<node*> m_tail {nullptr};
+	alignas(64) std::atomic<size_t> m_size {0};
+	alignas(64) std::atomic<hazard_record*> m_hazard_records {nullptr};
+
+	std::atomic<hazard_record*> m_enqueue_hazard_hint {nullptr};
+	std::atomic<hazard_record*> m_dequeue_hazard_hint {nullptr};
+
+	alignas(64) std::atomic<node*> m_recycled {nullptr};
+	std::atomic_size_t m_recycled_count {0};
 };
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -304,9 +460,7 @@ template <typename...Args>
 bool lock_free_queue<T,queue_type::linked,N>::emplace(Args&&...args) requires
 	concepts::constructible<element_t,Args...>
 {
-	auto new_node = std::make_unique<typename impl::node>();
-	new_node->data = std::make_unique<element_t>(std::forward<Args>(args)...);
-	typename impl::hazard_guard hazard(m_impl);
+	typename impl::hazard_guard hazard(m_impl, m_impl->m_enqueue_hazard_hint);
 
 	// Reserve capacity before publishing the node. This keeps concurrent
 	// producers from exceeding a bounded queue's configured capacity.
@@ -320,6 +474,15 @@ bool lock_free_queue<T,queue_type::linked,N>::emplace(Args&&...args) requires
 			std::memory_order_acq_rel, std::memory_order_relaxed) )
 			break;
 	}
+	typename impl::node *new_node = nullptr;
+	try {
+		new_node = hazard.make_node(std::forward<Args>(args)...);
+	}
+	catch(...)
+	{
+		m_impl->m_size.fetch_sub(1, std::memory_order_release);
+		throw;
+	}
 	for(;;)
 	{
 		auto old_tail = hazard.protect(0, m_impl->m_tail);
@@ -327,20 +490,17 @@ bool lock_free_queue<T,queue_type::linked,N>::emplace(Args&&...args) requires
 
 		if( old_tail != m_impl->m_tail.load(std::memory_order_acquire) )
 			continue;
-
 		if( next )
 		{
 			m_impl->m_tail.compare_exchange_weak(old_tail, next,
 				std::memory_order_release, std::memory_order_relaxed);
 			continue;
 		}
-
 		if( auto expected = static_cast<impl::node*>(nullptr);
-			old_tail->next.compare_exchange_weak(expected, new_node.get(),
+			old_tail->next.compare_exchange_weak(expected, new_node,
 				std::memory_order_release, std::memory_order_relaxed) )
 		{
-			auto node = new_node.release();
-			m_impl->m_tail.compare_exchange_strong(old_tail, node,
+			m_impl->m_tail.compare_exchange_strong(old_tail, new_node,
 				std::memory_order_release, std::memory_order_relaxed);
 			return true;
 		}
@@ -350,7 +510,10 @@ bool lock_free_queue<T,queue_type::linked,N>::emplace(Args&&...args) requires
 template <concepts::copy_or_move_constructible T, size_t N>
 optional<T> lock_free_queue<T,queue_type::linked,N>::dequeue()
 {
-	typename impl::hazard_guard hazard(m_impl);
+	if( m_impl->m_size.load(std::memory_order_acquire) == 0 )
+		return nullopt;
+
+	typename impl::hazard_guard hazard(m_impl, m_impl->m_dequeue_hazard_hint);
 	for(;;)
 	{
 		auto old_head = hazard.protect(0, m_impl->m_head);
@@ -373,13 +536,21 @@ optional<T> lock_free_queue<T,queue_type::linked,N>::dequeue()
 			std::memory_order_acq_rel, std::memory_order_relaxed) )
 			continue;
 
-		auto elem = std::move(next->data);
 		m_impl->m_size.fetch_sub(1, std::memory_order_release);
-
 		hazard.clear(0);
 		hazard.retire(old_head);
 
-		return std::move(*elem);
+		optional<element_t> elem;
+		try {
+			elem.emplace(std::move(*next->data));
+		}
+		catch(...)
+		{
+			next->data.reset();
+			throw;
+		}
+		next->data.reset();
+		return elem;
 	}
 }
 

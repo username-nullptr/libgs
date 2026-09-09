@@ -4,8 +4,9 @@
 #ifndef LIBGS_CORO_DETAIL_MUTEX_H
 #define LIBGS_CORO_DETAIL_MUTEX_H
 
-#include <libgs/core/lock_free_queue.h>
 #include <libgs/coro/detail/wake_up.h>
+#include <deque>
+#include <mutex>
 
 namespace libgs::coro
 {
@@ -33,19 +34,62 @@ public:
 	[[nodiscard]] bool try_lock()
 	{
 		bool flag = false;
-		/*
-			if( m_native_handle == flag )
-	 		{
-	 			m_native_handle = true;
-	 			return true;
+		return m_native_handle.compare_exchange_strong(flag, true,
+			std::memory_order_acquire, std::memory_order_relaxed
+		);
+	}
+
+	void enqueue(const wake_up_t::ptr_t &waiter)
+	{
+		bool acquired = false;
+		{
+			// Close the failed-fast-path/enqueue gap against unlock().
+			std::lock_guard guard(m_wait_mutex);
+			if( try_lock() )
+				acquired = true;
+			else
+				m_wait_queue.emplace_back(waiter);
+		}
+		if( acquired )
+			(*waiter)(true);
+	}
+
+	void enqueue_timed(wake_up_t::ptr_t waiter, const auto &timeout)
+	{
+		bool acquired = false;
+		{
+			// Close the failed-fast-path/enqueue gap against unlock().
+			std::lock_guard guard(m_wait_mutex);
+			if( try_lock() )
+				acquired = true;
+			else
+			{
+				m_wait_queue.emplace_back(waiter);
+				waiter->start_timer(timeout);
 			}
-	 		else
-	 		{
-	 			flag = m_native_handle;
-				return false;
-	 		}
-		*/
-		return m_native_handle.compare_exchange_strong(flag, true);
+		}
+		if( acquired )
+			(*waiter)(true);
+	}
+
+	void unlock()
+	{
+		for(;;)
+		{
+			wake_up_t::ptr_t waiter;
+			{
+				std::lock_guard guard(m_wait_mutex);
+				if( m_wait_queue.empty() )
+				{
+					m_native_handle.store(false, std::memory_order_release);
+					return ;
+				}
+				waiter = std::move(m_wait_queue.front());
+				m_wait_queue.pop_front();
+			}
+			if( (*waiter)(true) )
+				return ;
+		}
 	}
 
 	[[nodiscard]] awaitable<bool> try_lock_x
@@ -59,14 +103,14 @@ public:
 		(async_work<bool>::handler_t wake_up) mutable
 		{
 			auto wake_up_ptr = std::make_shared<wake_up_t>(wait_exec, std::move(wake_up));
-			m_wait_queue.emplace(wake_up_ptr);
-			wake_up_ptr->start_timer(timeout);
+			enqueue_timed(std::move(wake_up_ptr), timeout);
 		});
 	}
 
 public:
 	native_handle_t m_native_handle {false};
-	linked_lock_free_queue<detail::lock_wake_up_ptr> m_wait_queue;
+	std::mutex m_wait_mutex;
+	std::deque<wake_up_t::ptr_t> m_wait_queue;
 };
 
 inline mutex::mutex() :
@@ -85,10 +129,13 @@ awaitable<void> mutex::lock(concepts::sched auto &&exec)
 	if( try_lock() )
 		co_return ;
 
-	auto _exec = get_executor_helper(std::forward<decltype(exec)>(exec));
-	co_await async_work<bool>::handle(_exec, [this, _exec](async_work<bool>::handler_t wake_up) mutable
+	auto _exec = get_executor_helper (
+		std::forward<decltype(exec)>(exec)
+	);
+	co_await async_work<bool>::handle(_exec,
+	[this, _exec](async_work<bool>::handler_t wake_up) mutable
 	{
-		m_impl->m_wait_queue.emplace (
+		m_impl->enqueue (
 			std::make_shared<impl::wake_up_t>(_exec, std::move(wake_up))
 		);
 	});
@@ -109,17 +156,7 @@ inline bool mutex::try_lock()
 
 inline void mutex::unlock()
 {
-	for(;;)
-	{
-		if( auto wake_up = m_impl->m_wait_queue.dequeue() )
-		{
-			if( not std::move(**wake_up)(true) )
-				continue;
-		}
-		else
-			m_impl->m_native_handle = false;
-		break;
-	}
+	m_impl->unlock();
 }
 
 template<typename Rep, typename Period>
@@ -156,7 +193,7 @@ awaitable<bool> mutex::try_lock_until(const time_point<Clock,Duration> &timeout)
 
 inline bool mutex::is_locked() const noexcept
 {
-	return m_impl->m_native_handle;
+	return m_impl->m_native_handle.load(std::memory_order_acquire);
 }
 
 inline mutex::native_handle_t &mutex::native_handle() noexcept
