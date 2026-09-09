@@ -8,6 +8,7 @@ or one small integration path and is built as an independent executable.
 | [`core`](core) | Execution, values, INI files, algorithms, queues, application paths, command-line parsing, and dynamic libraries |
 | [`coro`](coro) | Awaitable basics and coroutine synchronization primitives |
 | [`http`](http) | Offline HTTP parsing, clients, servers, middleware, sessions, and optional HTTPS |
+| [`websocket`](websocket) | Offline opening-handshake and frame codec flow |
 | [`utils`](utils) | Logging, settings, signals, observers, modules, processes, and the extensible soft bus |
 
 ## Build
@@ -61,5 +62,6 @@ directory. You may instead pass another plugin path as the first argument.
 | Coroutine synchronization | `coro/basics`, `mutex`, `shared_mutex`, `semaphore`, `condition_variable` |
 | HTTP clients and protocol | `http/client_sync`, `client_awaitable`, `client_cookies`, `client_file`, `protocol` |
 | HTTP servers | `http/server`, `server_aop`, `server_file` (uploads, downloads, and `resource_root`), `server_session`, and optional `https_server` |
+| WebSocket protocol | `websocket/protocol` performs an opening handshake and masked frame round trip without network I/O |
 | Utilities | `utils/logger`, `settings`, `signal_slot`, `observer`, `modules`, `process` |
 | Soft bus | `utils/soft_bus_local` uses the built-in in-process transport; `soft_bus_transport` shows the interface used to plug in DDS, IPC, or another transport |

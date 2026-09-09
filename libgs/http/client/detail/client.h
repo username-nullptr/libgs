@@ -1,29 +1,5 @@
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CLIENT_H
@@ -64,7 +40,7 @@ private:
 		// url is a generic hierarchical resource descriptor. HTTP protocol
 		// selection is deliberately enforced only at the client boundary.
 		try {
-			if( not value.is_valid() or value.host().empty() )
+			if( not value.is_valid() or value.host().empty() or value.has_fragment() )
 			{
 				return sys_unexpected (
 					make_error_code(std::errc::invalid_argument)
@@ -116,10 +92,22 @@ private:
 	[[nodiscard]] static bool same_origin(const url_t &lhs, const url_t &rhs) noexcept
 	{
 		try {
-			return strtls::to_lower(lhs.protocol()) ==
-				   strtls::to_lower(rhs.protocol()) and
+			auto lhs_scheme = strtls::to_lower(lhs.protocol());
+			auto rhs_scheme = strtls::to_lower(rhs.protocol());
+
+			const auto effective_port = [](std::string_view scheme, uint16_t port)
+			{
+				if( port != 0 )
+					return port;
+				if( scheme == "http" )
+					return static_cast<uint16_t>(80);
+				if( scheme == "https" )
+					return static_cast<uint16_t>(443);
+				return static_cast<uint16_t>(0);
+			};
+			return lhs_scheme == rhs_scheme and
 				   strtls::to_lower(lhs.host()) == strtls::to_lower(rhs.host()) and
-				   lhs.port() == rhs.port();
+				   effective_port(lhs_scheme, lhs.port()) == effective_port(rhs_scheme, rhs.port());
 		}
 		catch(...) {}
 		return false;

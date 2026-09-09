@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
 #ifndef LIBGS_TEST_TEST_H
 #define LIBGS_TEST_TEST_H
 
@@ -100,9 +103,7 @@ inline int run(std::initializer_list<test_case> tests)
 
 #define LIBGS_TEST_CHECK_EQ(actual, expected) \
 	do { \
-		auto &&libgs_test_actual = (actual); \
-		auto &&libgs_test_expected = (expected); \
-		if( not (libgs_test_actual == libgs_test_expected) ) \
+		if( not ((actual) == (expected)) ) \
 			::libgs::test::fail(#actual " == " #expected); \
 	} while(false)
 

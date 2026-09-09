@@ -1,30 +1,5 @@
-
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_HTTP_UTILS_DETAIL_TCP_CONNECTION_H
 #define LIBGS_HTTP_UTILS_DETAIL_TCP_CONNECTION_H
@@ -118,34 +93,21 @@ auto basic_tcp_connection<Exec>::get_executor() noexcept -> executor_t
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_tcp_connection<Exec>::read_some(mutable_buffer buffer) noexcept
+size_t basic_tcp_connection<Exec>::read_some(mutable_buffer buffer, error_code &error) noexcept
 {
-	error_code error {};
-	auto size = m_socket.read_some(buffer, error);
-	if( error )
-		return io_unexpected(error);
-	return size;
+	return m_socket.read_some(buffer, error);
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_tcp_connection<Exec>::write_all(const const_buffer &buffer) noexcept
+size_t basic_tcp_connection<Exec>::write_all(const const_buffer &buffer, error_code &error) noexcept
 {
-	error_code error {};
-	auto size = asio::write(m_socket, buffer, error);
-	if( error )
-		return io_unexpected(error);
-	return size;
+	return asio::write(m_socket, buffer, error);
 }
 
 template <core_concepts::exec Exec>
-io_expected basic_tcp_connection<Exec>::write_all
-(std::span<const const_buffer> buffers) noexcept
+size_t basic_tcp_connection<Exec>::write_all(std::span<const const_buffer> buffers, error_code &error) noexcept
 {
-	error_code error {};
-	auto size = asio::write(m_socket, buffers, error);
-	if( error )
-		return io_unexpected(error);
-	return size;
+	return asio::write(m_socket, buffers, error);
 }
 
 template <core_concepts::exec Exec>

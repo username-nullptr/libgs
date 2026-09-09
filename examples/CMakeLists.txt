@@ -62,43 +62,54 @@ add_dependencies(libgs.example.core.dynamic_library
 )
 
 # Coroutines
-libgs_add_example(coro basics             LIBRARIES gs.core)
-libgs_add_example(coro mutex              LIBRARIES gs.core)
-libgs_add_example(coro shared_mutex       LIBRARIES gs.core)
-libgs_add_example(coro semaphore          LIBRARIES gs.core)
-libgs_add_example(coro condition_variable LIBRARIES gs.core)
+if (LIBGS_BUILD_CORO)
+	libgs_add_example(coro basics             LIBRARIES gs.core)
+	libgs_add_example(coro mutex              LIBRARIES gs.core)
+	libgs_add_example(coro shared_mutex       LIBRARIES gs.core)
+	libgs_add_example(coro semaphore          LIBRARIES gs.core)
+	libgs_add_example(coro condition_variable LIBRARIES gs.core)
+endif ()
 
 # HTTP/1.0 and HTTP/1.1
-libgs_add_example(http client_sync      LIBRARIES gs.http)
-libgs_add_example(http client_awaitable LIBRARIES gs.http)
-libgs_add_example(http client_cookies   LIBRARIES gs.http)
-libgs_add_example(http client_file      LIBRARIES gs.http)
-libgs_add_example(http protocol         LIBRARIES gs.http)
-libgs_add_example(http server           LIBRARIES gs.http)
-libgs_add_example(http server_aop       LIBRARIES gs.http)
-libgs_add_example(http server_file      LIBRARIES gs.http)
-libgs_add_example(http server_session   LIBRARIES gs.http)
+if (LIBGS_BUILD_HTTP)
+	libgs_add_example(http client_sync      LIBRARIES gs.http)
+	libgs_add_example(http client_awaitable LIBRARIES gs.http)
+	libgs_add_example(http client_cookies   LIBRARIES gs.http)
+	libgs_add_example(http client_file      LIBRARIES gs.http)
+	libgs_add_example(http protocol         LIBRARIES gs.http)
+	libgs_add_example(http server           LIBRARIES gs.http)
+	libgs_add_example(http server_aop       LIBRARIES gs.http)
+	libgs_add_example(http server_file      LIBRARIES gs.http)
+	libgs_add_example(http server_session   LIBRARIES gs.http)
 
-if(LIBGS_OPENSSL_SUPPORT)
-	libgs_add_example(http https_server LIBRARIES gs.http)
-endif()
+	if (LIBGS_OPENSSL_SUPPORT)
+		libgs_add_example(http https_server LIBRARIES gs.http)
+	endif ()
+endif ()
+
+# WebSocket protocol
+if (LIBGS_BUILD_WEBSOCKET)
+	libgs_add_example(websocket protocol LIBRARIES gs.websocket)
+endif ()
 
 # Application utilities
-libgs_add_example(utils logger       LIBRARIES gs.utils)
-libgs_add_example(utils observer     LIBRARIES gs.utils)
-libgs_add_example(utils process      LIBRARIES gs.utils)
-libgs_add_example(utils soft_bus_local     LIBRARIES gs.utils)
-libgs_add_example(utils soft_bus_transport LIBRARIES gs.utils)
-libgs_add_example(utils settings     LIBRARIES gs.utils)
-libgs_add_example(utils signal_slot  LIBRARIES gs.utils)
-libgs_add_example(utils modules
-	SOURCES
-		utils/modules/main.cpp
-		utils/modules/foundation.cpp
-		utils/modules/cache.cpp
-		utils/modules/api.cpp
-	LIBRARIES gs.utils
-)
+if (LIBGS_BUILD_UTILITIES)
+	libgs_add_example(utils logger       LIBRARIES gs.utils)
+	libgs_add_example(utils observer     LIBRARIES gs.utils)
+	libgs_add_example(utils process      LIBRARIES gs.utils)
+	libgs_add_example(utils soft_bus_local     LIBRARIES gs.utils)
+	libgs_add_example(utils soft_bus_transport LIBRARIES gs.utils)
+	libgs_add_example(utils settings     LIBRARIES gs.utils)
+	libgs_add_example(utils signal_slot  LIBRARIES gs.utils)
+	libgs_add_example(utils modules
+		SOURCES
+			utils/modules/main.cpp
+			utils/modules/foundation.cpp
+			utils/modules/cache.cpp
+			utils/modules/api.cpp
+		LIBRARIES gs.utils
+	)
+endif ()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	core/algorithms.cpp
@@ -125,6 +136,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	http/server_aop.cpp
 	http/server_file.cpp
 	http/server_session.cpp
+	websocket/protocol.cpp
 	utils/logger.cpp
 	utils/modules/api.cpp
 	utils/modules/cache.cpp

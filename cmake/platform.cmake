@@ -19,6 +19,7 @@ else ()
 	set(install_dir lib)
 endif()
 
+
 function(check_compiler_version CMAKE_CXX_STANDARD)
 
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")

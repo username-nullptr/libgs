@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(MAJOR_VERSION  0)
-set(MINOR_VERSION 12)
+set(MINOR_VERSION 13)
 set(PATCH_VERSION  0)
 
 set(PRO_VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION})
@@ -57,6 +57,29 @@ endif()
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES libgs.h)
 install(FILES libgs.h DESTINATION include/)
 
-install(DIRECTORY libgs/ DESTINATION include/libgs/
-	FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
-)
+
+function(libgs_install_module_headers module)
+	install(FILES libgs/${module}.h DESTINATION include/libgs/)
+	install(DIRECTORY libgs/${module}/ DESTINATION include/libgs/${module}/
+		FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+	)
+endfunction()
+
+
+libgs_install_module_headers(core)
+
+if (LIBGS_BUILD_CORO)
+	libgs_install_module_headers(coro)
+endif ()
+
+if (LIBGS_BUILD_HTTP)
+	libgs_install_module_headers(http)
+endif ()
+
+if (LIBGS_BUILD_WEBSOCKET)
+	libgs_install_module_headers(websocket)
+endif ()
+
+if (LIBGS_BUILD_UTILITIES)
+	libgs_install_module_headers(utils)
+endif ()

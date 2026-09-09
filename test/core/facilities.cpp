@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
 #include "test.h"
 
 #include <libgs/core/args_parser.h>
@@ -65,7 +68,8 @@ void url_parsing()
 
 	const libgs::url ftp("ftp://example.test/pub");
 	LIBGS_TEST_CHECK(ftp.is_valid());
-	LIBGS_TEST_CHECK_EQ(ftp.port(), 21);
+	// URL parsing is protocol-neutral; default ports belong to protocol modules.
+	LIBGS_TEST_CHECK_EQ(ftp.port(), 0);
 
 	libgs::url target("HTTPS://example.test:8443/a%20b/items?q=hello%20world&flag");
 	LIBGS_TEST_CHECK(target.is_valid());
@@ -86,8 +90,24 @@ void url_parsing()
 	const libgs::url ipv6("http://[::1]/health");
 	LIBGS_TEST_CHECK(ipv6.is_valid());
 	LIBGS_TEST_CHECK_EQ(ipv6.host(), "::1");
-	LIBGS_TEST_CHECK_EQ(ipv6.port(), 80);
-	LIBGS_TEST_CHECK_EQ(ipv6.to_string(), "http://[::1]:80/health");
+	LIBGS_TEST_CHECK_EQ(ipv6.port(), 0);
+	LIBGS_TEST_CHECK_EQ(ipv6.to_string(), "http://[::1]/health");
+
+	libgs::url preserved("wss://example.test/a%2Fb//c?flag&empty=#part%2Fone");
+	LIBGS_TEST_CHECK_EQ(preserved.encoded_path(), "/a%2Fb//c");
+	LIBGS_TEST_CHECK(preserved.has_query());
+	LIBGS_TEST_CHECK_EQ(preserved.encoded_query(), "flag&empty=");
+	LIBGS_TEST_CHECK(preserved.has_fragment());
+	LIBGS_TEST_CHECK_EQ(preserved.fragment(), "part/one");
+	LIBGS_TEST_CHECK_EQ(
+		preserved.to_string(),
+		"wss://example.test/a%2Fb//c?flag&empty=#part%2Fone"
+	);
+	preserved.clear_fragment().set_fragment("next/value");
+	LIBGS_TEST_CHECK_EQ(
+		preserved.to_string(),
+		"wss://example.test/a%2Fb//c?flag&empty=#next/value"
+	);
 
 	const libgs::url invalid("example.test/no-scheme");
 	LIBGS_TEST_CHECK(not invalid.is_valid());
@@ -95,6 +115,13 @@ void url_parsing()
 
 	const libgs::url invalid_scheme("ht*tp://example.test/");
 	LIBGS_TEST_CHECK(not invalid_scheme.is_valid());
+
+	const libgs::url invalid_escape("https://example.test/a%2");
+	LIBGS_TEST_CHECK(not invalid_escape.is_valid());
+	LIBGS_TEST_CHECK_EQ(
+		libgs::url("https://example.test/a b?q=hello world").to_string(),
+		"https://example.test/a%20b?q=hello%20world"
+	);
 }
 
 void url_resolution()
@@ -115,7 +142,11 @@ void url_resolution()
 	);
 	LIBGS_TEST_CHECK_EQ(
 		libgs::url::resolve(base, "http://other.test/x").to_string(),
-		"http://other.test:80/x"
+		"http://other.test/x"
+	);
+	LIBGS_TEST_CHECK_EQ(
+		libgs::url::resolve(base, "#section").to_string(),
+		"https://example.test:443/a/b/index.html?old=1#section"
 	);
 }
 

@@ -1,30 +1,5 @@
-
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H
 #define LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H
@@ -38,7 +13,11 @@ namespace libgs::http
 template <protocol_model>
 class parser {};
 
-#define LIBGS_HTTP_PARSER_ERRNO \
+enum class stage {
+	header, body, finished
+};
+
+#define LIBGS_HTTP_PARSE_ERRC_TABLE \
 X_MACRO( RLTL  , 10000 , "Request line too long."      ) \
 X_MACRO( HLTL  , 10001 , "Header line too long."       ) \
 X_MACRO( IREQL , 10002 , "Invalid request line."       ) \
@@ -52,18 +31,40 @@ X_MACRO( IDE   , 10009 , "The inserted data is empty." ) \
 X_MACRO( SFE   , 10010 , "Size format error."          ) \
 X_MACRO( RE    , 10011 , "This request is ended."      )
 
-enum class parse_errno
+enum class parse_errc
 {
 #define X_MACRO(e,v,d) e=(v),
-	LIBGS_HTTP_PARSER_ERRNO
+	LIBGS_HTTP_PARSE_ERRC_TABLE
 #undef X_MACRO
 };
 
-enum class stage {
-	header, body, finished
-};
+[[nodiscard]] LIBGS_HTTP_API
+const std::error_category &parse_error_category() noexcept;
+
+[[nodiscard]] LIBGS_HTTP_API
+error_code make_error_code(parse_errc value) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_API
+bool operator==(const error_code &error, parse_errc value) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_API
+bool operator==(parse_errc value, const error_code &error) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_API
+bool operator!=(const error_code &error, parse_errc value) noexcept;
+
+[[nodiscard]] LIBGS_HTTP_API
+bool operator!=(parse_errc value, const error_code &error) noexcept;
 
 } //namespace libgs::http
+
+namespace std
+{
+
+template <>
+struct is_error_code_enum<libgs::http::parse_errc> : true_type {};
+
+} //namespace std
 
 
 #endif //LIBGS_HTTP_PROTOCOL_UTILS_CORE_PARSER_TYPES_H

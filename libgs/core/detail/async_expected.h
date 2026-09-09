@@ -1,29 +1,5 @@
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_CORE_DETAIL_ASYNC_EXPECTED_H
 #define LIBGS_CORE_DETAIL_ASYNC_EXPECTED_H
@@ -322,6 +298,149 @@ template <typename Value, concepts::exec Exec, typename Initiator, typename Toke
 	completion_token);
 }
 
+template <typename Value>
+struct io_completion
+{
+	error_code error {};
+	Value value {};
+};
+
+template <typename Value, typename Initiator>
+[[nodiscard]] awaitable<io_completion<Value>> co_io_with_timeout
+(Initiator initiation, std::chrono::nanoseconds timeout)
+{
+	auto exec = co_await asio::this_coro::executor;
+	asio::steady_timer timer(exec);
+
+	timer.expires_after(timeout);
+	deferred_t completion_token;
+
+	auto io_operation = asio::async_initiate<deferred_t,void(error_code,Value)>
+	([start = std::move(initiation)](auto completion_handler) mutable {
+		start(std::move(completion_handler));
+	}, completion_token);
+
+	auto [order, io_error, value, timer_error] =
+		co_await asio::experimental::make_parallel_group (
+			std::move(io_operation), timer.async_wait(deferred)
+		).async_wait(asio::experimental::wait_for_one(), use_awaitable);
+
+	io_error = canonical_error(io_error);
+	timer_error = canonical_error(timer_error);
+
+	if( order[0] == 0 )
+		co_return io_completion<Value>{io_error, std::move(value)};
+
+	// The group waits for cancellation of the I/O operation. Its completion
+	// value can therefore contain useful partial progress and must be forwarded
+	// together with the timeout error.
+	if( not timer_error )
+	{
+		co_return io_completion<Value> {
+			make_error_code(errc::timed_out), std::move(value)
+		};
+	}
+	co_return io_completion<Value> {
+		io_error ? io_error : timer_error, std::move(value)
+	};
+}
+
+template <typename Initiator>
+[[nodiscard]] awaitable<error_code> co_io_void_with_timeout
+(Initiator initiation, std::chrono::nanoseconds timeout)
+{
+	auto exec = co_await asio::this_coro::executor;
+	asio::steady_timer timer(exec);
+
+	timer.expires_after(timeout);
+	deferred_t completion_token;
+
+	auto io_operation = asio::async_initiate<deferred_t,void(error_code)>
+	([start = std::move(initiation)](auto completion_handler) mutable {
+		start(std::move(completion_handler));
+	}, completion_token);
+
+	auto [order, io_error, timer_error] =
+		co_await asio::experimental::make_parallel_group(
+			std::move(io_operation), timer.async_wait(deferred)
+		).async_wait(asio::experimental::wait_for_one(), use_awaitable);
+
+	io_error = canonical_error(io_error);
+	timer_error = canonical_error(timer_error);
+
+	if( order[0] == 0 )
+		co_return io_error;
+
+	if( not timer_error )
+		co_return make_error_code(errc::timed_out);
+	co_return io_error ? io_error : timer_error;
+}
+
+template <typename Value, concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] auto initiate_io_timed
+(const Exec &exec, Initiator initiation, std::chrono::nanoseconds timeout, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code,Value)>(
+	[exec, operation = std::move(initiation), timeout](auto completion_handler) mutable
+	{
+		auto slot = asio::get_associated_cancellation_slot(completion_handler);
+		auto completion_exec = asio::get_associated_executor (
+			completion_handler, exec
+		);
+		auto allocator = asio::get_associated_allocator(completion_handler);
+
+		asio::co_spawn(exec,
+			co_io_with_timeout<Value>(std::move(operation), timeout),
+			asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+				(const std::exception_ptr &exception, io_completion<Value> result) mutable
+				{
+					if( auto error = exception_error(exception) )
+						std::move(handler)(error, Value{});
+					else
+						std::move(handler)(result.error, std::move(result.value));
+				}))
+			)
+		);
+	},
+	completion_token);
+}
+
+template <concepts::exec Exec, typename Initiator, typename Token>
+[[nodiscard]] auto initiate_io_timed_void(const Exec &exec,
+	Initiator initiation, std::chrono::nanoseconds timeout, Token &&token)
+{
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+
+	return asio::async_initiate<token_t,void(error_code)>(
+	[exec, operation = std::move(initiation), timeout](auto completion_handler) mutable
+	{
+		auto slot = asio::get_associated_cancellation_slot(completion_handler);
+		auto completion_exec = asio::get_associated_executor (
+			completion_handler, exec
+		);
+		auto allocator = asio::get_associated_allocator(completion_handler);
+
+		asio::co_spawn(exec,
+			co_io_void_with_timeout(std::move(operation), timeout),
+			asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+				(const std::exception_ptr &exception, error_code error) mutable
+				{
+					if( auto exception_result = exception_error(exception) )
+						std::move(handler)(exception_result);
+					else
+						std::move(handler)(error);
+				}))
+			)
+		);
+	}, completion_token);
+}
+
 template <concepts::exec Exec, typename Initiator, typename Token>
 [[nodiscard]] auto initiate_io_direct_void(const Exec &exec, Initiator initiation, Token &&token)
 {
@@ -510,18 +629,10 @@ template <typename Value, concepts::exec Exec, typename Initiator, typename Toke
 				std::move(timed_token.token)
 			);
 		}
-		return initiate_expected<Value>(exec,
-		[operation = std::move(initiation)]() mutable -> awaitable<sys_expected<Value>>
-		{
-			error_code error {};
-			auto result_value = co_await operation(
-				asio::redirect_error(use_awaitable, error)
-			);
-			if( error )
-				co_return sys_unexpected(error);
-			co_return std::move(result_value);
-		},
-		std::move(timed_token));
+		return detail::initiate_io_timed<Value>(exec, std::move(initiation),
+			std::chrono::duration_cast<std::chrono::nanoseconds>(timed_token.time),
+			std::move(timed_token.token)
+		);
 	}
 	else
 	{
@@ -544,16 +655,10 @@ template <concepts::exec Exec, typename Initiator, typename Token>
 				std::move(timed_token.token)
 			);
 		}
-		return initiate_expected_void(exec,
-		[operation = std::move(initiation)]() mutable -> awaitable<sys_expected<>>
-		{
-			error_code error {};
-			co_await operation(asio::redirect_error(use_awaitable, error));
-			if( error )
-				co_return sys_unexpected(error);
-			co_return make_sys_expected();
-		},
-		std::move(timed_token));
+		return detail::initiate_io_timed_void(exec, std::move(initiation),
+			std::chrono::duration_cast<std::chrono::nanoseconds>(timed_token.time),
+			std::move(timed_token.token)
+		);
 	}
 	else
 	{

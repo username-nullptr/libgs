@@ -1,30 +1,5 @@
-
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #include "url.h"
 #include "algorithm/misc.h"
@@ -49,6 +24,101 @@ namespace libgs { namespace
 		return ascii_alpha(item) or (item >= '0' and item <= '9') or
 			item == '+' or item == '-' or item == '.';
 	});
+}
+
+[[nodiscard]] bool ascii_hex(char value) noexcept
+{
+	return (value >= '0' and value <= '9') or
+		   (value >= 'a' and value <= 'f') or
+		   (value >= 'A' and value <= 'F');
+}
+
+[[nodiscard]] bool unreserved(char value) noexcept
+{
+	return ascii_alpha(value) or (value >= '0' and value <= '9') or
+		   value == '-' or value == '.' or value == '_' or value == '~';
+}
+
+[[nodiscard]] std::string normalize_encoded_component
+(std::string_view value, std::string_view allowed)
+{
+	static constexpr char hex[] = "0123456789ABCDEF";
+	std::string result;
+	result.reserve(value.size());
+
+	for(size_t i = 0; i < value.size(); ++i)
+	{
+		auto item = value[i];
+		if( item == '%' )
+		{
+			if( i + 2 >= value.size() or not ascii_hex(value[i + 1]) or
+				not ascii_hex(value[i + 2]) )
+				invalid_argument::loc_throw("Invalid URL percent-encoding.");
+			result.append(value.substr(i, 3));
+			i += 2;
+		}
+		else if( unreserved(item) or allowed.find(item) != std::string_view::npos )
+			result += item;
+		else
+		{
+			auto byte = static_cast<unsigned char>(item);
+			result += '%';
+			result += hex[byte >> 4];
+			result += hex[byte & 0x0F];
+		}
+	}
+	return result;
+}
+
+[[nodiscard]] std::string remove_dot_segments(std::string input)
+{
+	std::string output;
+	const auto remove_last_segment = [&output]
+	{
+		auto pos = output.rfind('/');
+		if( pos == std::string::npos )
+			output.clear();
+		else
+			output.erase(pos);
+	};
+	while( not input.empty() )
+	{
+		if( input.starts_with("../") )
+			input.erase(0, 3);
+		else if( input.starts_with("./") or input.starts_with("/./") )
+			input.erase(0, 2);
+		else if( input == "/." )
+			input = "/";
+		else if( input.starts_with("/../") )
+		{
+			input.erase(0, 3);
+			remove_last_segment();
+		}
+		else if( input == "/.." )
+		{
+			input = "/";
+			remove_last_segment();
+		}
+		else if( input == "." or input == ".." )
+			input.clear();
+		else
+		{
+			auto end = input.front() == '/' ?
+				input.find('/', 1) : input.find('/');
+
+			if( end == std::string::npos )
+			{
+				output += input;
+				input.clear();
+			}
+			else
+			{
+				output += input.substr(0, end);
+				input.erase(0, end);
+			}
+		}
+	}
+	return output;
 }
 
 } //namespace
@@ -90,10 +160,76 @@ public:
 		else if( not value.starts_with('/') )
 			value.insert(value.begin(), '/');
 
-		m_path = strtls::replace (
-			std::move(value), "//", '/', false
-		);
+		m_path = std::move(value);
+		m_encoded_path = to_percent_encoding(m_path, "!$&'()*+,;=:@/");
 		refresh_validity();
+	}
+
+	void set_encoded_path(std::string_view path)
+	{
+		auto value = strtls::trimmed(path);
+		if( value.empty() )
+			value = "/";
+		else if( not value.starts_with('/') )
+			value.insert(value.begin(), '/');
+
+		m_encoded_path = normalize_encoded_component (
+			value, "!$&'()*+,;=:@/"
+		);
+		m_path = from_percent_encoding(m_encoded_path);
+		refresh_validity();
+	}
+
+	void set_fragment(std::string_view fragment)
+	{
+		m_has_fragment = true;
+		m_fragment = from_percent_encoding(fragment);
+
+		m_encoded_fragment = to_percent_encoding (
+			m_fragment, "!$&'()*+,;=:@/?"
+		);
+	}
+
+	void set_encoded_fragment(std::string_view fragment)
+	{
+		m_has_fragment = true;
+		m_encoded_fragment = normalize_encoded_component (
+			fragment, "!$&'()*+,;=:@/?"
+		);
+		m_fragment = from_percent_encoding(m_encoded_fragment);
+	}
+
+	void clear_fragment() noexcept
+	{
+		m_has_fragment = false;
+		m_fragment.clear();
+		m_encoded_fragment.clear();
+	}
+
+	[[nodiscard]] bool query_unchanged() const noexcept
+	{
+		return m_parameters == m_parsed_parameters;
+	}
+
+	[[nodiscard]] bool has_query() const noexcept
+	{
+		return query_unchanged() ? m_has_query : not m_parameters.empty();
+	}
+
+	[[nodiscard]] std::string encoded_query() const
+	{
+		if( query_unchanged() )
+			return m_encoded_query;
+
+		std::string result;
+		for(auto &[key,value] : m_parameters)
+		{
+			result += to_percent_encoding(key) + "=" +
+				to_percent_encoding(value.to_string()) + "&";
+		}
+		if( not result.empty() )
+			result.pop_back();
+		return result;
 	}
 
 	void refresh_validity() noexcept
@@ -109,8 +245,10 @@ private:
 		auto fragment = resource.find('#');
 
 		if( fragment != std::string::npos )
+		{
+			set_encoded_fragment(std::string_view(resource).substr(fragment + 1));
 			resource.erase(fragment);
-
+		}
 		auto authority_end = resource.find_first_of("/?");
 		auto authority = resource.substr(0, authority_end);
 
@@ -121,12 +259,13 @@ private:
 			path_query.insert(path_query.begin(), '/');
 
 		auto path = parse_parameters(std::move(path_query));
-		set_path(path);
+		set_encoded_path(path);
+		m_parsed_parameters = m_parameters;
 
 		if( authority.find('@') != std::string::npos )
 			invalid_argument::loc_throw("Invalid URL authority.");
 
-		m_port = default_port(m_protocol);
+		m_port = 0;
 		if( authority.starts_with('[') )
 		{
 			auto close = authority.find(']');
@@ -154,17 +293,6 @@ private:
 		}
 	}
 
-	[[nodiscard]] static uint16_t default_port(std::string_view scheme) noexcept
-	{
-		if( scheme == "http" or scheme == "ws" )
-			return 80;
-		else if( scheme == "https" or scheme == "wss" )
-			return 443;
-		else if( scheme == "ftp" )
-			return 21;
-		return 0;
-	}
-
 	void set_port_text(std::string_view text)
 	{
 		auto port = strtls::to_uint16(text);
@@ -177,9 +305,14 @@ private:
 	{
 		m_protocol = "local";
 		m_path = "/";
+		m_encoded_path = "/";
 		m_host.clear();
 		m_port = 0;
 		m_parameters.clear();
+		m_parsed_parameters.clear();
+		m_has_query = false;
+		m_encoded_query.clear();
+		clear_fragment();
 		m_valid = true;
 	}
 
@@ -187,9 +320,14 @@ private:
 	{
 		m_protocol.clear();
 		m_path.clear();
+		m_encoded_path.clear();
 		m_host.clear();
 		m_port = 0;
 		m_parameters.clear();
+		m_parsed_parameters.clear();
+		m_has_query = false;
+		m_encoded_query.clear();
+		clear_fragment();
 		m_valid = false;
 	}
 
@@ -214,8 +352,13 @@ private:
 			return resource_line;
 
 		auto addpth = resource_line.substr(0,pos);
+		m_has_query = true;
 
-		for(auto parameters_string = resource_line.substr(pos + 1);
+		m_encoded_query = normalize_encoded_component (
+			std::string_view(resource_line).substr(pos + 1),
+			"!$&'()*+,;=:@/?"
+		);
+		for(auto parameters_string = m_encoded_query;
 			auto &para_str : string_vector::from_string(parameters_string, "&"))
 		{
 			pos = para_str.find('=');
@@ -239,9 +382,20 @@ private:
 public:
 	std::string m_protocol = "local";
 	std::string m_path = "/";
+	std::string m_encoded_path = "/";
+
 	std::string m_host {};
 	uint16_t m_port = 0;
+
 	parameters_t m_parameters {};
+	parameters_t m_parsed_parameters {};
+
+	std::string m_fragment {};
+	std::string m_encoded_fragment {};
+	std::string m_encoded_query {};
+
+	bool m_has_fragment = false;
+	bool m_has_query = false;
 	bool m_valid = true;
 };
 
@@ -336,6 +490,18 @@ url &url::set_path(std::string_view path)
 	return *this;
 }
 
+url &url::set_fragment(std::string_view fragment)
+{
+	m_impl->set_fragment(fragment);
+	return *this;
+}
+
+url &url::clear_fragment() noexcept
+{
+	m_impl->clear_fragment();
+	return *this;
+}
+
 std::string_view url::protocol() const noexcept
 {
 	return m_impl->m_protocol;
@@ -356,6 +522,31 @@ std::string_view url::path() const noexcept
 	return m_impl->m_path;
 }
 
+std::string_view url::fragment() const noexcept
+{
+	return m_impl->m_fragment;
+}
+
+std::string_view url::encoded_path() const noexcept
+{
+	return m_impl->m_encoded_path;
+}
+
+std::string url::encoded_query() const
+{
+	return m_impl->encoded_query();
+}
+
+bool url::has_fragment() const noexcept
+{
+	return m_impl->m_has_fragment;
+}
+
+bool url::has_query() const noexcept
+{
+	return m_impl->has_query();
+}
+
 bool url::is_valid() const noexcept
 {
 	return m_impl->m_valid;
@@ -373,17 +564,13 @@ std::string url::to_string() const noexcept
 	auto buf = std::format("{}://{}", m_impl->m_protocol, authority);
 	if( m_impl->m_port != 0 )
 		buf += ':' + std::to_string(m_impl->m_port);
-	buf += to_percent_encoding(m_impl->m_path, '/');
-	if( m_impl->m_parameters.empty() )
-		return buf;
-	buf += '?';
 
-	for(auto &[key,value] : m_impl->m_parameters)
-	{
-		buf += to_percent_encoding(key) + "=" +
-			to_percent_encoding(value.to_string()) + "&";
-	}
-	buf.pop_back();
+	buf += m_impl->m_encoded_path;
+	if( m_impl->has_query() )
+		buf += '?' + m_impl->encoded_query();
+
+	if( m_impl->m_has_fragment )
+		buf += '#' + m_impl->m_encoded_fragment;
 	return buf;
 }
 
@@ -395,15 +582,11 @@ url::operator std::string() const noexcept
 url url::resolve(const url &base, std::string_view reference)
 {
 	auto value = strtls::trimmed(reference);
-	if( auto fragment = value.find('#'); fragment != std::string::npos )
-		value.erase(fragment);
-
 	if( auto scheme_end = value.find("://"); scheme_end != std::string::npos )
 	{
 		if( valid_scheme(std::string_view(value).substr(0, scheme_end)) )
 			return { value };
 	}
-
 	auto host = std::string(base.host());
 	if( host.find(':') != std::string::npos and not host.starts_with('[') )
 		host = '[' + host + ']';
@@ -411,42 +594,54 @@ url url::resolve(const url &base, std::string_view reference)
 	auto origin = std::format("{}://{}", base.protocol(), host);
 	if( base.port() != 0 )
 		origin += ':' + std::to_string(base.port());
+
 	if( value.starts_with("//") )
 		return { std::string(base.protocol()) + ":" + value };
 
 	if( value.empty() )
-		return base;
-
-	if( value.front() == '/' )
-		return { origin + value };
-
-	if( value.front() == '?' )
-		return { origin + std::string(base.path()) + value };
-
-	auto path = std::string(base.path());
-	path.erase(path.rfind('/') + 1);
-	path += value;
-
-	std::vector<std::string> segments {};
-	for(auto &segment : string_vector::from_string(path, '/'))
 	{
-		if( segment.empty() or segment == "." )
-			continue;
-		if( segment == ".." )
-		{
-			if( not segments.empty() )
-				segments.pop_back();
-		}
-		else
-			segments.emplace_back(std::move(segment));
+		auto result = base;
+		result.clear_fragment();
+		return result;
 	}
-	path = "/";
-	for(auto &segment : segments)
-		path += segment + '/';
+	std::string fragment_suffix;
+	if( auto pos = value.find('#'); pos != std::string::npos )
+	{
+		fragment_suffix = value.substr(pos);
+		value.erase(pos);
+	}
+	if( value.empty() )
+	{
+		auto result = base;
+		result.clear_fragment();
 
-	if( not value.ends_with('/') and path.size() > 1 )
-		path.pop_back();
-	return { origin + path };
+		if( not fragment_suffix.empty() )
+			result.m_impl->set_encoded_fragment(fragment_suffix.substr(1));
+		return result;
+	}
+	std::string query_suffix;
+	if( auto pos = value.find('?'); pos != std::string::npos )
+	{
+		query_suffix = value.substr(pos);
+		value.erase(pos);
+	}
+	std::string path;
+	if( value.empty() )
+	{
+		path = base.encoded_path();
+		if( query_suffix.empty() and base.has_query() )
+			query_suffix = '?' + base.encoded_query();
+	}
+	else if( value.front() == '/' )
+		path = remove_dot_segments(std::move(value));
+	else
+	{
+		path = base.encoded_path();
+		path.erase(path.rfind('/') + 1);
+		path += value;
+		path = remove_dot_segments(std::move(path));
+	}
+	return { origin + path + query_suffix + fragment_suffix };
 }
 
 } //namespace libgs

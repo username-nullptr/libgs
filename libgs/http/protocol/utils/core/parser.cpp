@@ -1,68 +1,12 @@
-
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2025-2026 Xiaoqiang <username_nullptr@163.com>                    *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #include "parser.h"
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
 
-namespace libgs::http { namespace
+namespace libgs::http
 {
-
-class LIBGS_DECL_HIDDEN error_category : public std::error_category
-{
-	LIBGS_DISABLE_COPY_MOVE(error_category)
-
-public:
-	error_category() = default;
-
-	[[nodiscard]] const char *name() const noexcept override {
-		return "libgs::http::request_parser_error";
-	}
-
-	[[nodiscard]] std::string message(int code) const override
-	{
-		switch(static_cast<parse_errno>(code))
-		{
-#define X_MACRO(e,v,d) case parse_errno::e: return d;
-		LIBGS_HTTP_PARSER_ERRNO
-#undef X_MACRO
-		default: break;
-		}
-		return "Unknown error.";
-	}
-}
-g_error_category;
-
-} //namespace
-
-[[nodiscard]] static error_code make_error_code(parse_errno errc) {
-	return { static_cast<int>(errc), g_error_category };
-}
 
 class LIBGS_DECL_HIDDEN parser<protocol_model::base>::impl
 {
@@ -91,6 +35,7 @@ public:
 	{
 		if( source_empty() )
 			clear_source();
+
 		else if( m_src_pos >= 0xFFFF and
 			m_src_pos >= m_src_buf.size() - m_src_pos )
 		{
@@ -186,9 +131,9 @@ public:
 				if( source().size() < 8192 )
 					break;
 				else if( m_state == state::waiting_request )
-					result.despair(make_error_code(parse_errno::RLTL));
+					result.despair(make_error_code(parse_errc::RLTL));
 				else if( m_state == state::reading_headers )
-					result.despair(make_error_code(parse_errno::HLTL));
+					result.despair(make_error_code(parse_errc::HLTL));
 				break;
 			}
 			auto line_buf = std::string(source().substr(0, pos));
@@ -247,7 +192,7 @@ public:
 		{
 			reset();
 			return result.despair (
-				make_error_code(parse_errno::IHL)
+				make_error_code(parse_errc::IHL)
 			);
 		}
 		auto field_name = line_buf.substr(0, colon_index);
@@ -255,7 +200,7 @@ public:
 		{
 			reset();
 			return result.despair (
-				make_error_code(parse_errno::IHL)
+				make_error_code(parse_errc::IHL)
 			);
 		}
 		auto error = header_insert (
@@ -282,13 +227,13 @@ public:
 		auto transfer_encoding = m_headers.find(header::transfer_encoding);
 
 		if( content_length != m_headers.end() and transfer_encoding != m_headers.end() )
-			return make_error_code(parse_errno::SFE);
+			return make_error_code(parse_errc::SFE);
 
 		if( content_length != m_headers.end() )
 		{
 			auto expected = content_length->second.get<size_t>();
 			if( not expected )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 
 			m_content_length = *expected;
 			parse_length();
@@ -296,11 +241,11 @@ public:
 		else if( transfer_encoding != m_headers.end() )
 		{
 			if( m_version != version::v11 )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 
 			auto codings = string_vector::from_string(transfer_encoding->second.to_string(), ',');
 			if( codings.size() != 1 or strtls::to_lower(strtls::trimmed(codings.back())) != "chunked" )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 
 			m_state = state::chunked_wait_size;
 			parse_chunked().or_else([&](const error_code &e) {
@@ -371,7 +316,7 @@ public:
 		while( pos < line_buf.size() )
 		{
 			if( line_buf[pos] != ';' )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 			++pos;
 			skip_bws();
 
@@ -380,7 +325,7 @@ public:
 				++pos;
 
 			if( begin == pos )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 
 			std::string attribute(line_buf.substr(begin, pos - begin));
 			skip_bws();
@@ -390,7 +335,7 @@ public:
 				++pos;
 				skip_bws();
 				if( pos == line_buf.size() )
-					return make_error_code(parse_errno::SFE);
+					return make_error_code(parse_errc::SFE);
 
 				begin = pos;
 				if( line_buf[pos] == '"' )
@@ -408,17 +353,17 @@ public:
 						if( ch == '\\' )
 						{
 							if( pos == line_buf.size() )
-								return make_error_code(parse_errno::SFE);
+								return make_error_code(parse_errc::SFE);
 
 							ch = static_cast<uint8_t>(line_buf[pos++]);
 							if( ch != '\t' and (ch < 0x20 or ch == 0x7F) )
-								return make_error_code(parse_errno::SFE);
+								return make_error_code(parse_errc::SFE);
 						}
 						else if( not is_quoted_char(ch) )
-							return make_error_code(parse_errno::SFE);
+							return make_error_code(parse_errc::SFE);
 					}
 					if( not closed )
-						return make_error_code(parse_errno::SFE);
+						return make_error_code(parse_errc::SFE);
 				}
 				else
 				{
@@ -426,13 +371,13 @@ public:
 						++pos;
 
 					if( begin == pos )
-						return make_error_code(parse_errno::SFE);
+						return make_error_code(parse_errc::SFE);
 				}
 				attribute += line_buf.substr(begin, pos - begin);
 				skip_bws();
 			}
 			if( pos < line_buf.size() and line_buf[pos] != ';' )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 			attributes.emplace(std::move(attribute));
 		}
 		for(auto &attribute : attributes)
@@ -451,7 +396,7 @@ public:
 				if( pos == std::string::npos )
 				{
 					if( source().size() > 8192 )
-						result.despair(make_error_code(parse_errno::HLTL));
+						result.despair(make_error_code(parse_errc::HLTL));
 					return result;
 				}
 				auto line_buf = std::string(source().substr(0, pos));
@@ -463,13 +408,13 @@ public:
 				size_buf = strtls::trimmed(size_buf);
 				if( size_buf.empty() or size_buf.size() > sizeof(size_t) * 2 )
 				{
-					result.despair(make_error_code(parse_errno::SFE));
+					result.despair(make_error_code(parse_errc::SFE));
 					return result;
 				}
 				auto expected = strtls::to_arith<size_t>(size_buf, 16);
 				if( not expected )
 				{
-					result.despair(make_error_code(parse_errno::SFE));
+					result.despair(make_error_code(parse_errc::SFE));
 					return result;
 				}
 				if( attributes_pos != std::string::npos )
@@ -509,7 +454,7 @@ public:
 
 				if( not source().starts_with("\r\n") )
 				{
-					result.despair(make_error_code(parse_errno::SFE));
+					result.despair(make_error_code(parse_errc::SFE));
 					return result;
 				}
 				consume_source(2);
@@ -522,7 +467,7 @@ public:
 				if( pos == std::string::npos )
 				{
 					if( source().size() > 8192 )
-						result.despair(make_error_code(parse_errno::HLTL));
+						result.despair(make_error_code(parse_errc::HLTL));
 					return result;
 				}
 				auto line_buf = std::string(source().substr(0, pos));
@@ -537,13 +482,13 @@ public:
 				auto colon_index = line_buf.find(':');
 				if( colon_index == std::string::npos )
 				{
-					result.despair(make_error_code(parse_errno::SFE));
+					result.despair(make_error_code(parse_errc::SFE));
 					return result;
 				}
 				auto field_name = line_buf.substr(0, colon_index);
 				if( not valid_field_name(field_name) )
 				{
-					result.despair(make_error_code(parse_errno::SFE));
+					result.despair(make_error_code(parse_errc::SFE));
 					return result;
 				}
 				auto error = header_insert (
@@ -575,7 +520,7 @@ public:
 		if( auto it = m_headers.find(key); it != m_headers.end() )
 		{
 			if( key == "content-length" )
-				return make_error_code(parse_errno::SFE);
+				return make_error_code(parse_errc::SFE);
 			it->second = it->second.to_string() + ", " + value;
 		}
 		else
@@ -683,7 +628,7 @@ parser<protocol_model::base> &parser<protocol_model::base>::on_parse_cookie(pars
 	return *this;
 }
 
-error_code parser<protocol_model::base>::make_error_code(parse_errno errc)
+error_code parser<protocol_model::base>::make_error_code(parse_errc errc)
 {
 	return http::make_error_code(errc);
 }
@@ -692,10 +637,10 @@ sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 {
 	using state_t = impl::state;
 	if( buf.size() == 0 )
-		return { make_error_code(parse_errno::IDE) };
+		return { make_error_code(parse_errc::IDE) };
 
 	else if( m_impl->m_state == state_t::finished )
-		return { make_error_code(parse_errno::RE) };
+		return { make_error_code(parse_errc::RE) };
 
 	m_impl->append_source(buf);
 	if( m_impl->m_state <= state_t::reading_headers )

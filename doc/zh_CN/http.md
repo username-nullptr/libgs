@@ -241,6 +241,11 @@ int main()
 数据读入调用方 buffer、类型化 buffer container、byte vector 或文件。高层客户端
 还提供上传和下载工具，并支持可选进度回调。
 
+HTTP 写操作返回的字节数只统计调用方提供的 body（文件操作统计源文件数据），不含
+HTTP 头、chunk framing 或 multipart 边界。使用 `error_code&` 或异步完成参数时，
+错误与已经写入的部分 body 字节数会同时保留；header-only 操作和 `chunk_end()` 返回
+零。
+
 如果希望复用连接，应在释放 request context 之前读完或保存完整的 reply body。
 Client、context、reply、connection 和 pool 都提供取消操作。
 

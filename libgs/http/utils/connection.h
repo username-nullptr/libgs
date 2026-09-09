@@ -1,30 +1,5 @@
-
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2024-2026 Xiaoqiang <username_nullptr@163.com>                    *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*   Permission is hereby granted, free of charge, to any person obtaining a copy    *
-*   of this software and associated documentation files (the "Software"), to deal   *
-*   in the Software without restriction, including without limitation the rights    *
-*   to use, copy, modify, merge, publish, distribute, sublicense, and/or sell       *
-*   copies of the Software, and to permit persons to whom the Software is           *
-*   furnished to do so, subject to the following conditions:                        *
-*                                                                                   *
-*   The above copyright notice and this permission notice shall be included in      *
-*   all copies or substantial portions of the Software.                             *
-*                                                                                   *
-*   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR      *
-*   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,        *
-*   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE     *
-*   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER          *
-*   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,   *
-*   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE   *
-*   SOFTWARE.                                                                       *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_HTTP_UTILS_CONNECTION_H
 #define LIBGS_HTTP_UTILS_CONNECTION_H
@@ -89,6 +64,9 @@ public:
 	auto read(const mutable_buffer &buf, Token &&token = {})
 		noexcept requires task_token_v<Token,size_t>;
 
+	// With an error_code token, the return value is the number of bytes actually
+	// transferred even when error is set. Asynchronous completions provide the
+	// same guarantee through their size_t argument.
 	template <core_concepts::tf_opt_token<error_code,size_t> Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {}) noexcept;
 
@@ -117,9 +95,11 @@ public:
 protected:
 	// read() deliberately preserves read_some semantics: one successful stream
 	// read completes the operation even when the buffer still has free space.
-	[[nodiscard]] virtual io_expected read_some(mutable_buffer buffer) noexcept = 0;
-	[[nodiscard]] virtual io_expected write_all(const const_buffer &buffer) noexcept = 0;
-	[[nodiscard]] virtual io_expected write_all(std::span<const const_buffer> buffers) noexcept;
+	// The size return is independent of error so a transport can report partial
+	// progress instead of losing it when an operation fails.
+	[[nodiscard]] virtual size_t read_some(mutable_buffer buffer, error_code &error) noexcept = 0;
+	[[nodiscard]] virtual size_t write_all(const const_buffer &buffer, error_code &error) noexcept = 0;
+	[[nodiscard]] virtual size_t write_all(std::span<const const_buffer> buffers, error_code &error) noexcept;
 
 protected:
 	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;

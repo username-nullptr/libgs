@@ -1,11 +1,5 @@
-/************************************************************************************
-*                                                                                   *
-*   Copyright (c) 2026 Xiaoqiang <username_nullptr@163.com>                         *
-*                                                                                   *
-*   This file is part of LIBGS                                                      *
-*   License: MIT License                                                            *
-*                                                                                   *
-*************************************************************************************/
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
 
 #include "form_data.h"
 #include <libgs/core/algorithm/uuid.h>
