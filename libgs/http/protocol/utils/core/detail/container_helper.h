@@ -17,8 +17,8 @@ const_headers<Derived>::const_headers(const headers_t *headers) :
 }
 
 template <typename Derived>
-optional<typename const_headers<Derived>::value_t>
-const_headers<Derived>::header(const core_concepts::text_p<char> auto &key) const noexcept
+auto const_headers<Derived>::header
+(const core_concepts::text_p<char> auto &key) const noexcept -> optional<value_t>
 {
 	auto it = headers().find(strtls::to_string(key));
 	if( it == headers().end() )
@@ -45,8 +45,7 @@ bool const_headers<Derived>::contains_header
 }
 
 template <typename Derived>
-const const_headers<Derived>::headers_t&
-const_headers<Derived>::headers() const noexcept
+auto const_headers<Derived>::headers() const noexcept -> const headers_t&
 {
 	return *m_headers;
 }
@@ -59,8 +58,8 @@ const_cookies<Cookie,Derived>::const_cookies(const cookies_t *cookies) :
 }
 
 template <typename Cookie, typename Derived>
-optional<typename const_cookies<Cookie,Derived>::cookie_t>
-const_cookies<Cookie,Derived>::cookie(const core_concepts::text_p<char> auto &key) const noexcept
+auto const_cookies<Cookie,Derived>::cookie
+(const core_concepts::text_p<char> auto &key) const noexcept -> optional<cookie_t>
 {
 	auto it = cookies().find(strtls::to_string(key));
 	if( it == cookies().end() )
@@ -76,8 +75,7 @@ bool const_cookies<Cookie,Derived>::contains_cookie
 }
 
 template <typename Cookie, typename Derived>
-const const_cookies<Cookie,Derived>::cookies_t&
-const_cookies<Cookie,Derived>::cookies() const noexcept
+auto const_cookies<Cookie,Derived>::cookies() const noexcept -> const cookies_t&
 {
 	return *m_cookies;
 }
@@ -104,8 +102,8 @@ const_chunk_attributes<Derived>::chunk_attributes() const noexcept
 
 template <typename Derived>
 template <core_concepts::text_p<char> T>
-mutable_headers<Derived>::base_t::derived_t &mutable_headers<Derived>::set_header
-(T &&key, typename base_t::value_t value) noexcept
+auto mutable_headers<Derived>::set_header
+(T &&key, typename base_t::value_t value) noexcept -> base_t::derived_t&
 {
 	headers()[strtls::to_string(std::forward<T>(key))] = std::move(value);
 	return static_cast<base_t::derived_t&>(*this);
@@ -113,15 +111,14 @@ mutable_headers<Derived>::base_t::derived_t &mutable_headers<Derived>::set_heade
 
 template <typename Derived>
 template <core_concepts::text_p<char> T>
-mutable_headers<Derived>::base_t::derived_t&
-mutable_headers<Derived>::unset_header(const T &key) noexcept
+auto mutable_headers<Derived>::unset_header(const T &key) noexcept -> base_t::derived_t&
 {
 	headers().erase(strtls::to_string(key));
 	return static_cast<base_t::derived_t&>(*this);
 }
 
 template <typename Derived>
-mutable_headers<Derived>::base_t::headers_t &mutable_headers<Derived>::headers() noexcept
+auto mutable_headers<Derived>::headers() noexcept -> base_t::headers_t&
 {
 	return remove_const(*this->m_headers);
 }
@@ -297,8 +294,8 @@ auto mutable_headers<Derived>::make_file_opt_token(Opt &&opt)
 
 template <typename Cookie, typename Derived>
 template <core_concepts::text_p<char> T>
-mutable_cookies<Cookie,Derived>::base_t::derived_t &mutable_cookies<Cookie,Derived>::set_cookie
-(T &&key, typename base_t::cookie_t value) noexcept
+auto mutable_cookies<Cookie,Derived>::set_cookie
+(T &&key, typename base_t::cookie_t value) noexcept -> base_t::derived_t &
 {
 	cookies()[strtls::to_string(std::forward<T>(key))] = std::move(value);
 	return static_cast<base_t::derived_t&>(*this);
@@ -306,23 +303,21 @@ mutable_cookies<Cookie,Derived>::base_t::derived_t &mutable_cookies<Cookie,Deriv
 
 template <typename Cookie, typename Derived>
 template <core_concepts::text_p<char> T>
-mutable_cookies<Cookie,Derived>::base_t::derived_t&
-mutable_cookies<Cookie,Derived>::unset_cookie(const T &key) noexcept
+auto mutable_cookies<Cookie,Derived>::unset_cookie(const T &key) noexcept -> base_t::derived_t&
 {
 	cookies().erase(strtls::to_string(key));
 	return static_cast<base_t::derived_t&>(*this);
 }
 
 template <typename Cookie, typename Derived>
-mutable_cookies<Cookie,Derived>::base_t::cookies_t&
-mutable_cookies<Cookie,Derived>::cookies() noexcept
+auto mutable_cookies<Cookie,Derived>::cookies() noexcept -> base_t::cookies_t&
 {
 	return remove_const(*this->m_cookies);
 }
 
 template <typename Derived>
-mutable_chunk_attributes<Derived>::base_t::derived_t&
-mutable_chunk_attributes<Derived>::set_chunk_attribute(typename base_t::value_t attr) noexcept
+auto mutable_chunk_attributes<Derived>::
+set_chunk_attribute(typename base_t::value_t attr) noexcept -> base_t::derived_t&
 {
 	if( auto [it, inserted] = chunk_attributes().emplace(std::move(attr)); not inserted )
 	{
@@ -333,16 +328,15 @@ mutable_chunk_attributes<Derived>::set_chunk_attribute(typename base_t::value_t 
 }
 
 template <typename Derived>
-mutable_chunk_attributes<Derived>::base_t::derived_t&
-mutable_chunk_attributes<Derived>::unset_chunk_attribute(const typename base_t::value_t &attr) noexcept
+auto mutable_chunk_attributes<Derived>::
+unset_chunk_attribute(const typename base_t::value_t &attr) noexcept -> base_t::derived_t&
 {
 	chunk_attributes().erase(attr);
 	return static_cast<base_t::derived_t&>(*this);
 }
 
 template <typename Derived>
-mutable_chunk_attributes<Derived>::base_t::values_t&
-mutable_chunk_attributes<Derived>::chunk_attributes() noexcept
+auto mutable_chunk_attributes<Derived>::chunk_attributes() noexcept -> base_t::values_t&
 {
 	return remove_const(*this->m_chunk_attributes);
 }

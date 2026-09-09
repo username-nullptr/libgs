@@ -46,8 +46,7 @@ basic_connection_lease<Exec>::~basic_connection_lease()
 }
 
 template <core_concepts::exec Exec>
-basic_connection_lease<Exec>::connection_t&
-basic_connection_lease<Exec>::get() noexcept
+auto basic_connection_lease<Exec>::get() noexcept -> connection_t&
 {
 	if( not m_impl->m_connection )
 		std::terminate();
@@ -55,22 +54,19 @@ basic_connection_lease<Exec>::get() noexcept
 }
 
 template <core_concepts::exec Exec>
-basic_connection_lease<Exec>::connection_t&
-basic_connection_lease<Exec>::operator*() noexcept
+auto basic_connection_lease<Exec>::operator*() noexcept -> connection_t&
 {
 	return get();
 }
 
 template <core_concepts::exec Exec>
-basic_connection_lease<Exec>::connection_t*
-basic_connection_lease<Exec>::operator->() noexcept
+auto basic_connection_lease<Exec>::operator->() noexcept -> connection_t*
 {
 	return &get();
 }
 
 template <core_concepts::exec Exec>
-const basic_connection_lease<Exec>::connection_t&
-basic_connection_lease<Exec>::get() const noexcept
+auto basic_connection_lease<Exec>::get() const noexcept -> const connection_t&
 {
 	if( not m_impl->m_connection )
 		std::terminate();
@@ -78,22 +74,19 @@ basic_connection_lease<Exec>::get() const noexcept
 }
 
 template <core_concepts::exec Exec>
-const basic_connection_lease<Exec>::connection_t&
-basic_connection_lease<Exec>::operator*() const noexcept
+auto basic_connection_lease<Exec>::operator*() const noexcept -> const connection_t&
 {
 	return get();
 }
 
 template <core_concepts::exec Exec>
-const basic_connection_lease<Exec>::connection_t*
-basic_connection_lease<Exec>::operator->() const noexcept
+auto basic_connection_lease<Exec>::operator->() const noexcept -> const connection_t*
 {
 	return &get();
 }
 
 template <core_concepts::exec Exec>
-basic_connection_lease<Exec>::connection_ptr
-basic_connection_lease<Exec>::take() noexcept
+auto basic_connection_lease<Exec>::take() noexcept -> connection_ptr
 {
 	if( not m_impl->m_connection )
 		return {};

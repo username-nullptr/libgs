@@ -258,13 +258,13 @@ basic_subscriber<Interface,Exec> &basic_subscriber<Interface,Exec>::cancel()
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-basic_subscriber<Interface,Exec>::interface_ptr basic_subscriber<Interface,Exec>::interface() noexcept
+auto basic_subscriber<Interface,Exec>::interface() noexcept -> interface_ptr
 {
 	return m_interface;
 }
 
 template <concepts::interface Interface, libgs::concepts::exec Exec>
-basic_subscriber<Interface,Exec>::executor_t basic_subscriber<Interface,Exec>::get_executor() noexcept
+auto basic_subscriber<Interface,Exec>::get_executor() noexcept -> executor_t
 {
 	return m_exec;
 }

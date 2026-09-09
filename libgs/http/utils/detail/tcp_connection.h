@@ -53,8 +53,7 @@ sys_expected<> basic_tcp_connection<Exec>::set_options(const tcp_socket_options 
 }
 
 template <core_concepts::exec Exec>
-sys_expected<tcp_socket_state>
-basic_tcp_connection<Exec>::options() const noexcept
+sys_expected<tcp_socket_state> basic_tcp_connection<Exec>::options() const noexcept
 {
 	return detail::get_tcp_socket_options(m_socket);
 }
@@ -66,8 +65,7 @@ bool basic_tcp_connection<Exec>::is_open() const noexcept
 }
 
 template <core_concepts::exec Exec>
-sys_expected<typename basic_tcp_connection<Exec>::probe_state_t>
-basic_tcp_connection<Exec>::probe() noexcept
+auto basic_tcp_connection<Exec>::probe() noexcept -> sys_expected<probe_state_t>
 {
 	return detail::probe_tcp_socket(m_socket);
 }
@@ -89,7 +87,7 @@ endpoint basic_tcp_connection<Exec>::local_endpoint() const noexcept
 }
 
 template <core_concepts::exec Exec>
-basic_tcp_connection<Exec>::executor_t basic_tcp_connection<Exec>::get_executor() noexcept
+auto basic_tcp_connection<Exec>::get_executor() noexcept -> executor_t
 {
 	return m_socket.get_executor();
 }

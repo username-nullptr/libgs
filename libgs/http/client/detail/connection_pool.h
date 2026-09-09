@@ -652,8 +652,7 @@ auto basic_connection_pool<Exec>::try_get(const target_t &key, Token &&token) no
 }
 
 template <core_concepts::exec Exec>
-basic_connection_pool<Exec>&
-basic_connection_pool<Exec>::cancel() noexcept
+basic_connection_pool<Exec> &basic_connection_pool<Exec>::cancel() noexcept
 {
 	if( m_impl )
 		m_impl->cancel();
@@ -661,13 +660,13 @@ basic_connection_pool<Exec>::cancel() noexcept
 }
 
 template <core_concepts::exec Exec>
-basic_connection_pool<Exec>::executor_t basic_connection_pool<Exec>::get_executor() noexcept
+auto basic_connection_pool<Exec>::get_executor() noexcept -> executor_t
 {
 	return m_impl->m_exec;
 }
 
 template <core_concepts::exec Exec>
-basic_connection_pool<Exec>::config_t basic_connection_pool<Exec>::config() const noexcept
+auto basic_connection_pool<Exec>::config() const noexcept -> config_t
 {
 	return m_impl->m_config;
 }

@@ -60,43 +60,37 @@ basic_service_context<Exec>::~basic_service_context()
 }
 
 template <core_concepts::exec Exec>
-const basic_service_context<Exec>::request_t&
-basic_service_context<Exec>::request() const noexcept
+auto basic_service_context<Exec>::request() const noexcept -> const request_t&
 {
 	return m_impl->m_request;
 }
 
 template <core_concepts::exec Exec>
-basic_service_context<Exec>::request_t&
-basic_service_context<Exec>::request() noexcept
+auto basic_service_context<Exec>::request() noexcept -> request_t&
 {
 	return m_impl->m_request;
 }
 
 template <core_concepts::exec Exec>
-const basic_service_context<Exec>::response_t&
-basic_service_context<Exec>::response() const noexcept
+auto basic_service_context<Exec>::response() const noexcept -> const response_t&
 {
 	return m_impl->m_response;
 }
 
 template <core_concepts::exec Exec>
-basic_service_context<Exec>::response_t&
-basic_service_context<Exec>::response() noexcept
+auto basic_service_context<Exec>::response() noexcept -> response_t&
 {
 	return m_impl->m_response;
 }
 
 template <core_concepts::exec Exec>
-basic_service_context<Exec>::executor_t
-basic_service_context<Exec>::get_executor() noexcept
+auto basic_service_context<Exec>::get_executor() noexcept -> executor_t
 {
 	return request().get_executor();
 }
 
 template <core_concepts::exec Exec>
-basic_service_context<Exec>::connection_ptr
-basic_service_context<Exec>::hand_over_connection() noexcept
+auto basic_service_context<Exec>::hand_over_connection() noexcept -> connection_ptr
 {
 	m_impl->m_connection_handed_over = true;
 	return m_impl->m_connection;

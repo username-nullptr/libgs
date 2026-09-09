@@ -42,21 +42,15 @@ void basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept
 }
 
 template <core_concepts::exec Exec>
-const basic_acceptor_wrap <
-	asio::basic_stream_socket<asio::ip::tcp,Exec>
->::acceptor_t&
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
-acceptor() const noexcept
+auto basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+acceptor() const noexcept -> const acceptor_t&
 {
 	return m_acceptor;
 }
 
 template <core_concepts::exec Exec>
-basic_acceptor_wrap <
-	asio::basic_stream_socket<asio::ip::tcp,Exec>
->::acceptor_t&
-basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
-acceptor() noexcept
+auto basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+acceptor() noexcept -> acceptor_t&
 {
 	return m_acceptor;
 }
@@ -73,8 +67,8 @@ basic_acceptor_wrap(acceptor_t &&acceptor, asio::ssl::context &ctx) :
 
 template <core_concepts::exec Exec>
 void basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::accept
-	(core_concepts::match_sched<executor_t> auto &&service_exec,
-		std::function<void(connection_ptr)> callback_arg, std::chrono::milliseconds handshake_timeout)
+(core_concepts::match_sched<executor_t> auto &&service_exec, std::function<void(connection_ptr)> callback_arg,
+	std::chrono::milliseconds handshake_timeout)
 {
 	using namespace std::chrono_literals;
 	if( handshake_timeout <= 0ms )
@@ -142,21 +136,15 @@ void basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::t
 }
 
 template <core_concepts::exec Exec>
-const basic_acceptor_wrap <
-	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
->::acceptor_t&
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
-acceptor() const noexcept
+auto basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+acceptor() const noexcept -> const acceptor_t&
 {
 	return m_acceptor;
 }
 
 template <core_concepts::exec Exec>
-basic_acceptor_wrap <
-	asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>
->::acceptor_t&
-basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
-acceptor() noexcept
+auto basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+acceptor() noexcept -> acceptor_t&
 {
 	return m_acceptor;
 }

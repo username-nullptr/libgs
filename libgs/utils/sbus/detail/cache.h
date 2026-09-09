@@ -498,14 +498,14 @@ optional<T> cache<Subscriber>::get(std::string_view topic) const
 }
 
 template <concepts::subscriber Subscriber>
-cache<Subscriber>::payload_t cache<Subscriber>::get(std::string_view topic) const
+auto cache<Subscriber>::get(std::string_view topic) const -> payload_t
 {
 	spin_shared_shared_lock locker(m_impl->m_caches_mutex); LIBGS_UNUSED(locker);
 	return m_impl->m_caches[std::string(topic)].data;
 }
 
 template <concepts::subscriber Subscriber>
-std::map<std::string,typename cache<Subscriber>::payload_t> cache<Subscriber>::get() const noexcept
+auto cache<Subscriber>::get() const noexcept -> std::map<std::string,payload_t>
 {
 	std::map<std::string,payload_t> map;
 	m_impl->m_caches_mutex.lock_shared();
@@ -518,23 +518,20 @@ std::map<std::string,typename cache<Subscriber>::payload_t> cache<Subscriber>::g
 }
 
 template <concepts::subscriber Subscriber>
-auto cache<Subscriber>::changed(std::string_view topic) noexcept
-	-> signal_t<payload_t,payload_t>&
+auto cache<Subscriber>::changed(std::string_view topic) noexcept -> signal_t<payload_t,payload_t>&
 {
 	return m_impl->changed(topic);
 }
 
 template <concepts::subscriber Subscriber>
-auto cache<Subscriber>::changed() noexcept
-	-> signal_t<std::string_view,payload_t,payload_t>&
+auto cache<Subscriber>::changed() noexcept -> signal_t<std::string_view,payload_t,payload_t>&
 {
 	return m_impl->m_signal;
 }
 
 template <concepts::subscriber Subscriber>
 template <concepts::topic_type T>
-auto cache<Subscriber>::changed() noexcept
-	-> signal_t<payload_t,payload_t>&
+auto cache<Subscriber>::changed() noexcept -> signal_t<payload_t,payload_t>&
 {
 	using type = std::remove_cvref_t<T>;
 	return changed(type::libgs_sbus_topic_v);
@@ -690,13 +687,13 @@ auto cache<Subscriber>::wait_changed(std::string_view topic, Token &&token) noex
 }
 
 template <concepts::subscriber Subscriber>
-cache<Subscriber>::subscriber_t cache<Subscriber>::subscriber() noexcept
+auto cache<Subscriber>::subscriber() noexcept -> subscriber_t
 {
 	return m_impl->m_subscriber;
 }
 
 template <concepts::subscriber Subscriber>
-cache<Subscriber>::executor_t cache<Subscriber>::get_executor() noexcept
+auto cache<Subscriber>::get_executor() noexcept -> executor_t
 {
 	return subscriber().get_executor();
 }

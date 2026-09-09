@@ -1045,9 +1045,8 @@ signal_base<Derived,Func>::~signal_base() = default;
 
 template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Slots&&...slots)
-	noexcept requires is_global_slots_v<Mode,Slots...>
+auto signal_base<Derived,Func>::connect(Slots&&...slots) noexcept -> derived_t&
+	requires is_global_slots_v<Mode,Slots...>
 {
 	auto state = m_impl;
 	std::lock_guard lock(state->m_mutex);
@@ -1060,8 +1059,7 @@ signal_base<Derived,Func>::connect(Slots&&...slots)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, typename Obj, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs)
+auto signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs) -> derived_t&
 	requires is_obj_slots_v<Mode,Obj,Slots...>
 {
 	if( not observer )
@@ -1078,9 +1076,8 @@ signal_base<Derived,Func>::connect(Obj &&observer, Slots&&...funcs)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, concepts::sched Exec0, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Exec0 &&exec, Slots&&...funcs)
-	noexcept requires (Mode != slot_mode::sync) and is_global_slots_v<Mode,Slots...>
+auto signal_base<Derived,Func>::connect(Exec0 &&exec, Slots&&...funcs) noexcept -> derived_t&
+	requires (Mode != slot_mode::sync) and is_global_slots_v<Mode,Slots...>
 {
 	auto state = m_impl;
 	std::lock_guard lock(state->m_mutex);
@@ -1093,8 +1090,7 @@ signal_base<Derived,Func>::connect(Exec0 &&exec, Slots&&...funcs)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, typename Obj, concepts::sched Exec0, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs)
+auto signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs) -> derived_t&
 	requires (Mode != slot_mode::sync) and is_obj_slots_v<Mode,Obj,Slots...>
 {
 	if( not observer )
@@ -1111,9 +1107,8 @@ signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Slots&&...slots)
-	noexcept requires is_global_slots_def_v<Slots...>
+auto signal_base<Derived,Func>::connect(Slots&&...slots) noexcept -> derived_t&
+	requires is_global_slots_def_v<Slots...>
 {
 	using indices = std::make_index_sequence<sizeof...(Slots)>;
 	[this, funcs = std::make_tuple(std::forward<Slots>(slots)...)]
@@ -1145,8 +1140,7 @@ signal_base<Derived,Func>::connect(Slots&&...slots)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename Obj, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Obj &&observer_arg, Slots&&...slots)
+auto signal_base<Derived,Func>::connect(Obj &&observer_arg, Slots&&...slots) -> derived_t&
 	requires is_obj_slots_def_v<Obj,Slots...>
 {
 	if( not observer_arg )
@@ -1183,9 +1177,8 @@ signal_base<Derived,Func>::connect(Obj &&observer_arg, Slots&&...slots)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <concepts::sched Exec0, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Exec0 &&exec, Slots&&...funcs)
-	noexcept requires is_global_slots_v<slot_mode::async,Slots...>
+auto signal_base<Derived,Func>::connect(Exec0 &&exec, Slots&&...funcs) noexcept -> derived_t&
+	requires is_global_slots_v<slot_mode::async,Slots...>
 {
 	return connect<slot_mode::async>(
 		std::forward<Exec0>(exec), std::forward<Slots>(funcs)...
@@ -1194,8 +1187,7 @@ signal_base<Derived,Func>::connect(Exec0 &&exec, Slots&&...funcs)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename Obj, concepts::sched Exec0, typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs)
+auto signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs) -> derived_t&
 	requires is_obj_slots_v<slot_mode::async,Obj,Slots...>
 {
 	return connect<slot_mode::async>(std::forward<Obj>(observer),
@@ -1205,9 +1197,8 @@ signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...funcs
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename...Slots>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::disconnect(Slots&&...funcs)
-	noexcept requires is_global_slots_def_v<Slots...>
+auto signal_base<Derived,Func>::disconnect(Slots&&...funcs) noexcept -> derived_t&
+	requires is_global_slots_def_v<Slots...>
 {
 	auto state = m_impl;
 	std::lock_guard lock(state->m_mutex);
@@ -1220,8 +1211,7 @@ signal_base<Derived,Func>::disconnect(Slots&&...funcs)
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename Obj, typename...Func0>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::disconnect(const Obj &observer, Func0&&...funcs)
+auto signal_base<Derived,Func>::disconnect(const Obj &observer, Func0&&...funcs) -> derived_t&
 	requires is_obj_slots_def_v<Obj,Func0...>
 {
 	if( not observer )
@@ -1237,8 +1227,7 @@ signal_base<Derived,Func>::disconnect(const Obj &observer, Func0&&...funcs)
 }
 
 template <typename Derived, concepts::std_func_temp Func>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::disconnect() noexcept
+auto signal_base<Derived,Func>::disconnect() noexcept -> derived_t&
 {
 	auto state = m_impl;
 	std::lock_guard lock(state->m_mutex);
@@ -1248,8 +1237,7 @@ signal_base<Derived,Func>::disconnect() noexcept
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename Obj>
-signal_base<Derived,Func>::derived_t&
-signal_base<Derived,Func>::disconnect(const Obj &observer)
+auto signal_base<Derived,Func>::disconnect(const Obj &observer) -> derived_t&
 	requires is_observer_v<Obj>
 {
 	if( not observer )
