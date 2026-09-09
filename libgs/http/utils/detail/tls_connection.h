@@ -96,17 +96,19 @@ bool basic_tls_connection<Exec>::is_open() const noexcept
 }
 
 template <core_concepts::exec Exec>
-sys_expected<typename basic_tls_connection<Exec>::probe_state_t>
-basic_tls_connection<Exec>::probe() noexcept
+auto basic_tls_connection<Exec>::probe() noexcept -> sys_expected<probe_state_t>
 {
 	if( (::SSL_get_shutdown(m_socket.native_handle()) & SSL_RECEIVED_SHUTDOWN) != 0 )
 		return connection_probe_state::peer_closed;
+
 	if( ::SSL_pending(m_socket.native_handle()) > 0 )
 		return connection_probe_state::data_pending;
+
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	if( ::SSL_has_pending(m_socket.native_handle()) > 0 )
 		return connection_probe_state::data_pending;
 #endif //OPENSSL_VERSION_NUMBER
+
 	return detail::probe_tcp_socket(m_socket.next_layer());
 }
 
@@ -127,7 +129,7 @@ endpoint basic_tls_connection<Exec>::local_endpoint() const noexcept
 }
 
 template <core_concepts::exec Exec>
-basic_tls_connection<Exec>::executor_t basic_tls_connection<Exec>::get_executor() noexcept
+auto basic_tls_connection<Exec>::get_executor() noexcept -> executor_t
 {
 	return m_socket.get_executor();
 }

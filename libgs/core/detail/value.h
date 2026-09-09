@@ -48,22 +48,19 @@ basic_value<CharT,Traits,Alloc>::basic_value
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t&
-basic_value<CharT,Traits,Alloc>::to_string() & noexcept
+auto basic_value<CharT,Traits,Alloc>::to_string() & noexcept -> string_t&
 {
 	return get();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-const basic_value<CharT,Traits,Alloc>::string_t&
-basic_value<CharT,Traits,Alloc>::to_string() const & noexcept
+auto basic_value<CharT,Traits,Alloc>::to_string() const & noexcept -> const string_t&
 {
 	return get();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t
-basic_value<CharT,Traits,Alloc>::to_string() && noexcept
+auto basic_value<CharT,Traits,Alloc>::to_string() && noexcept -> string_t
 {
 	return std::move(*this).get();
 }
@@ -123,22 +120,19 @@ decltype(auto) basic_value<CharT,Traits,Alloc>::get(Args&&...args) const &&
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t&
-basic_value<CharT,Traits,Alloc>::get() & noexcept
+auto basic_value<CharT,Traits,Alloc>::get() & noexcept -> string_t&
 {
 	return m_str;
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-const basic_value<CharT,Traits,Alloc>::string_t&
-basic_value<CharT,Traits,Alloc>::get() const & noexcept
+auto basic_value<CharT,Traits,Alloc>::get() const & noexcept -> const string_t&
 {
 	return m_str;
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t&&
-basic_value<CharT,Traits,Alloc>::get() && noexcept
+auto basic_value<CharT,Traits,Alloc>::get() && noexcept -> string_t&&
 {
 	return std::move(m_str);
 }
@@ -241,29 +235,25 @@ bool basic_value<CharT,Traits,Alloc>::is_ascii() const noexcept
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t&
-basic_value<CharT,Traits,Alloc>::operator*() & noexcept
+auto basic_value<CharT,Traits,Alloc>::operator*() & noexcept -> string_t&
 {
 	return get();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-const basic_value<CharT,Traits,Alloc>::string_t&
-basic_value<CharT,Traits,Alloc>::operator*() const & noexcept
+auto basic_value<CharT,Traits,Alloc>::operator*() const & noexcept -> const string_t&
 {
 	return get();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t
-basic_value<CharT,Traits,Alloc>::operator*() && noexcept
+auto basic_value<CharT,Traits,Alloc>::operator*() && noexcept -> string_t
 {
 	return std::move(*this).get();
 }
 
 template <concepts::character CharT, typename Traits, typename Alloc>
-basic_value<CharT,Traits,Alloc>::string_t*
-basic_value<CharT,Traits,Alloc>::operator->() noexcept
+auto basic_value<CharT,Traits,Alloc>::operator->() noexcept -> string_t*
 {
 	return &get();
 }

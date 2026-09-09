@@ -809,13 +809,13 @@ basic_server<Stream> &basic_server<Stream>::set_config(const config_t &config)
 }
 
 template <concepts::any_exec_stream Stream>
-basic_server<Stream>::config_t basic_server<Stream>::config() const noexcept
+auto basic_server<Stream>::config() const noexcept -> config_t
 {
 	return m_impl->config();
 }
 
 template <concepts::any_exec_stream Stream>
-basic_server<Stream>::executor_t basic_server<Stream>::get_executor() noexcept
+auto basic_server<Stream>::get_executor() noexcept -> executor_t
 {
 	return m_impl->m_wrap.acceptor().get_executor();
 }
@@ -836,13 +836,13 @@ basic_server<Stream> &basic_server<Stream>::stop() noexcept
 }
 
 template <concepts::any_exec_stream Stream>
-const basic_server<Stream>::acceptor_wrap_t &basic_server<Stream>::acceptor_wrap() const
+auto basic_server<Stream>::acceptor_wrap() const -> const acceptor_wrap_t &
 {
 	return m_impl->m_wrap;
 }
 
 template <concepts::any_exec_stream Stream>
-basic_server<Stream>::acceptor_wrap_t &basic_server<Stream>::acceptor_wrap()
+auto basic_server<Stream>::acceptor_wrap() -> acceptor_wrap_t&
 {
 	return m_impl->m_wrap;
 }

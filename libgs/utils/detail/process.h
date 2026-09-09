@@ -1097,7 +1097,7 @@ void basic_process<CharT,Exec>::unsetenv(std::string_view key) noexcept
 }
 
 template <concepts::character CharT, concepts::exec Exec>
-basic_process<CharT,Exec>::state_t basic_process<CharT,Exec>::state() const noexcept
+auto basic_process<CharT,Exec>::state() const noexcept -> state_t
 {
 	return m_impl->state();
 }

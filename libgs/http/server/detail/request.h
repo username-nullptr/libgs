@@ -826,8 +826,8 @@ std::string_view basic_request<Exec>::path() const noexcept
 }
 
 template <core_concepts::exec Exec>
-optional<typename basic_request<Exec>::value_t>
-basic_request<Exec>::path_arg(const core_concepts::text_p<char> auto &key) const noexcept
+auto basic_request<Exec>::path_arg
+(const core_concepts::text_p<char> auto &key) const noexcept -> optional<value_t>
 {
 	return m_impl->m_parser.path_arg(key);
 }
@@ -840,8 +840,7 @@ bool basic_request<Exec>::contains_path_arg(const core_concepts::text_p<char> au
 }
 
 template <core_concepts::exec Exec>
-optional<typename basic_request<Exec>::value_t>
-basic_request<Exec>::path_arg(size_t index) const
+auto basic_request<Exec>::path_arg(size_t index) const -> optional<value_t>
 {
 	return m_impl->m_parser.path_arg(index);
 }
@@ -853,8 +852,7 @@ bool basic_request<Exec>::contains_path_arg(size_t index) const noexcept
 }
 
 template <core_concepts::exec Exec>
-const basic_request<Exec>::parameters_t&
-basic_request<Exec>::path_args() const noexcept
+auto basic_request<Exec>::path_args() const noexcept -> const parameters_t&
 {
 	return m_impl->m_parser.path_args();
 }
@@ -1077,13 +1075,13 @@ basic_request<Exec> &basic_request<Exec>::cancel() noexcept
 }
 
 template <core_concepts::exec Exec>
-const basic_request<Exec>::connection_t &basic_request<Exec>::connection() const noexcept
+auto basic_request<Exec>::connection() const noexcept -> const connection_t&
 {
 	return *m_impl->m_connection;
 }
 
 template <core_concepts::exec Exec>
-basic_request<Exec>::connection_t &basic_request<Exec>::connection() noexcept
+auto basic_request<Exec>::connection() noexcept -> connection_t&
 {
 	return *m_impl->m_connection;
 }

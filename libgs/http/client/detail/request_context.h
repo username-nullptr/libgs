@@ -1038,15 +1038,13 @@ auto basic_request_context<Method,Exec,Version>::wait_reply(Token &&token)
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-basic_request_context<Method,Exec,Version>::const_reply_ptr
-basic_request_context<Method,Exec,Version>::reply() const noexcept
+auto basic_request_context<Method,Exec,Version>::reply() const noexcept -> const_reply_ptr
 {
 	return m_impl->m_reply;
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-basic_request_context<Method,Exec,Version>::reply_ptr
-basic_request_context<Method,Exec,Version>::reply() noexcept
+auto basic_request_context<Method,Exec,Version>::reply() noexcept -> reply_ptr
 {
 	return m_impl->m_reply;
 }
@@ -1071,15 +1069,13 @@ basic_request_context<Method,Exec,Version>::cancel() noexcept
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-const basic_request_context<Method,Exec,Version>::url_t&
-basic_request_context<Method,Exec,Version>::url() const noexcept
+auto basic_request_context<Method,Exec,Version>::url() const noexcept -> const url_t&
 {
 	return m_impl->m_generator.url();
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-basic_request_context<Method,Exec,Version>::request_arg_t
-basic_request_context<Method,Exec,Version>::arg() const noexcept
+auto basic_request_context<Method,Exec,Version>::arg() const noexcept -> request_arg_t
 {
 	return m_impl->m_generator.arg();
 }
@@ -1103,36 +1099,31 @@ consteval version_enum basic_request_context<Method,Exec,Version>::version() noe
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-const basic_request_context<Method,Exec,Version>::lease_t&
-basic_request_context<Method,Exec,Version>::lease() const noexcept
+auto basic_request_context<Method,Exec,Version>::lease() const noexcept -> const lease_t&
 {
 	return *m_impl->m_lease;
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-basic_request_context<Method,Exec,Version>::lease_t&
-basic_request_context<Method,Exec,Version>::lease() noexcept
+auto basic_request_context<Method,Exec,Version>::lease() noexcept -> lease_t&
 {
 	return *m_impl->m_lease;
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-const basic_request_context<Method,Exec,Version>::generator_t&
-basic_request_context<Method,Exec,Version>::generator() const noexcept
+auto basic_request_context<Method,Exec,Version>::generator() const noexcept -> const generator_t&
 {
 	return m_impl->m_generator;
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-basic_request_context<Method,Exec,Version>::generator_t&
-basic_request_context<Method,Exec,Version>::generator() noexcept
+auto basic_request_context<Method,Exec,Version>::generator() noexcept -> generator_t&
 {
 	return m_impl->m_generator;
 }
 
 template <method_enum Method, core_concepts::exec Exec, version_enum Version>
-basic_request_context<Method,Exec,Version>::executor_t
-basic_request_context<Method,Exec,Version>::get_executor() noexcept
+auto basic_request_context<Method,Exec,Version>::get_executor() noexcept -> executor_t
 {
 	return m_impl->m_exec;
 }

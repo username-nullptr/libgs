@@ -51,7 +51,8 @@ public:
 
 } //namespace detail
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
 class LIBGS_UTILS_TAPI basic_observer_base<Derived,Exec,Funcs...>::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
@@ -67,7 +68,8 @@ public:
 	uint64_t m_id = 0;
 };
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
 template <concepts::match_sched<Exec> Exec0>
 basic_observer_base<Derived,Exec,Funcs...>::basic_observer_base(uint64_t id, Exec0 &&exec) :
 	m_impl(new impl(id, std::forward<Exec0>(exec)))
@@ -81,7 +83,8 @@ basic_observer_base<Derived,Exec,Funcs...>::basic_observer_base(uint64_t id, Exe
 	assert(inserted);
 }
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
 basic_observer_base<Derived,Exec,Funcs...>::~basic_observer_base()
 {
 	detail::observer::mutex().lock();
@@ -92,25 +95,27 @@ basic_observer_base<Derived,Exec,Funcs...>::~basic_observer_base()
 	delete m_impl;
 }
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
 template <typename...Args0>
-basic_observer_base<Derived,Exec,Funcs...>::ptr_t
-basic_observer_base<Derived,Exec,Funcs...>::make(Args0&&...args) requires
-	concepts::constructible<derived_t,Args0...>
+auto basic_observer_base<Derived,Exec,Funcs...>::make(Args0&&...args) -> ptr_t
+	requires concepts::constructible<derived_t,Args0...>
 {
 	return std::make_shared<derived_t>(std::forward<Args0>(args)...);
 }
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
 template <size_t Idx>
-basic_observer_base<Derived,Exec,Funcs...>::ptr_t
-basic_observer_base<Derived,Exec,Funcs...>::on_triggered(callback_t<Idx> func) requires idx_valid_v<Idx>
+auto basic_observer_base<Derived,Exec,Funcs...>::on_triggered(callback_t<Idx> func)
+	-> ptr_t requires idx_valid_v<Idx>
 {
 	std::get<Idx>(m_impl->m_callbacks).emplace_back(std::move(func));
 	return this->shared_from_this();
 }
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
 template <size_t Idx, typename...Args0>
 void basic_observer_base<Derived,Exec,Funcs...>::trigger(uint64_t id, Args0&&...args)
 	requires idx_valid_v<Idx> and concepts::callable<callback_t<Idx>,Args0...>
@@ -158,9 +163,9 @@ void basic_observer_base<Derived,Exec,Funcs...>::trigger(uint64_t id, Args0&&...
 		func();
 }
 
-template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs> requires (sizeof...(Funcs) > 0)
-basic_observer_base<Derived,Exec,Funcs...>::executor_t
-basic_observer_base<Derived,Exec,Funcs...>::get_executor() noexcept
+template <typename Derived, concepts::exec Exec, concepts::std_func_temp...Funcs>
+requires (sizeof...(Funcs) > 0)
+auto basic_observer_base<Derived,Exec,Funcs...>::get_executor() noexcept -> executor_t
 {
 	return m_impl->m_exec;
 }
