@@ -19,7 +19,7 @@ void client_server_round_trip()
 	asio::ip::tcp::acceptor acceptor(context);
 	server service(std::move(acceptor));
 	auto server_config = service.config();
-	server_config.keepalive_time = std::chrono::milliseconds(20);
+	server_config.keepalive_time = std::chrono::milliseconds(100);
 	service.set_config(server_config);
 	service
 		.bind({libgs::ip_type::v4, 0})
@@ -115,6 +115,22 @@ void client_server_round_trip()
 			LIBGS_TEST_CHECK_EQ(
 				co_await missing->reply()->read<std::string>(libgs::use_awaitable), "not found"
 			);
+
+			for(int index = 0; index < 100; ++index)
+			{
+				auto repeated = co_await requester.request_get(
+					base + std::format("/hello/repeat?value={}", index),
+					libgs::use_awaitable
+				);
+				LIBGS_TEST_CHECK(repeated);
+				LIBGS_TEST_CHECK_EQ(
+					co_await repeated->wait_reply(libgs::use_awaitable), status::ok
+				);
+				LIBGS_TEST_CHECK_EQ(
+					co_await repeated->reply()->read<std::string>(libgs::use_awaitable),
+					std::format("hello:repeat:{}", index)
+				);
+			}
 		}
 		catch(...)
 		{

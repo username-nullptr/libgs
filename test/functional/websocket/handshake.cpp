@@ -97,12 +97,13 @@ void mixed_http_upgrade_round_trip()
 
 	const auto port = service.acceptor_wrap().acceptor().local_endpoint().port();
 	const auto base = std::format("ws://127.0.0.1:{}", port);
+	const auto http_base = std::format("http://127.0.0.1:{}", port);
 	libgs::http::client http_client(context.get_executor());
 	auto completed = asio::co_spawn(context, [&]() -> libgs::awaitable<void>
 	{
 		try
 		{
-			ws::connect_request request(base + "/echo?value=42");
+			ws::connect_request request(http_base + "/echo?value=42");
 			request.subprotocols = {"superchat", "chat"};
 			request.request_options.set_header(
 				libgs::http::header::origin, "https://example.test");
@@ -221,17 +222,19 @@ void client_preflight_sync()
 	libgs::http::client http_client(context.get_executor());
 	libgs::error_code error;
 
-	ws::connect_request unsupported("http://example.test/socket");
+	ws::connect_request unsupported("ftp://example.test/socket");
 	auto stream = ws::open(http_client, std::move(unsupported), error);
 	LIBGS_TEST_CHECK_EQ(error,
 		std::make_error_code(std::errc::protocol_not_supported));
 	LIBGS_TEST_CHECK(not stream.is_open());
 
-	ws::connect_request expired("ws://example.test/socket");
+	ws::open_diagnostics diagnostics;
+	ws::connect_request expired("http://example.test/socket");
 	expired.handshake_timeout = std::chrono::milliseconds::zero();
-	stream = ws::open(http_client, std::move(expired), error);
+	stream = ws::open(http_client, std::move(expired), diagnostics, error);
 	LIBGS_TEST_CHECK_EQ(error, libgs::error_code(asio::error::timed_out));
 	LIBGS_TEST_CHECK(not stream.is_open());
+	LIBGS_TEST_CHECK_EQ(diagnostics.endpoint.protocol(), "ws");
 
 	ws::connect_request conflicting("ws://example.test/socket");
 	conflicting.request_options.set_header("Connection", "keep-alive");
@@ -241,14 +244,16 @@ void client_preflight_sync()
 	LIBGS_TEST_CHECK(not stream.is_open());
 
 	bool callback_completed = false;
-	ws::connect_request async_expired("ws://example.test/socket");
+	ws::open_diagnostics async_diagnostics;
+	ws::connect_request async_expired("https://example.test/socket");
 	async_expired.handshake_timeout = std::chrono::milliseconds::zero();
-	ws::open(http_client, std::move(async_expired),
+	ws::open(http_client, std::move(async_expired), async_diagnostics,
 		[&](libgs::error_code callback_error, ws::stream callback_stream)
 		{
 			LIBGS_TEST_CHECK_EQ(callback_error,
 				libgs::error_code(asio::error::timed_out));
 			LIBGS_TEST_CHECK(not callback_stream.is_open());
+			LIBGS_TEST_CHECK_EQ(async_diagnostics.endpoint.protocol(), "wss");
 			callback_completed = true;
 		});
 	LIBGS_TEST_CHECK(not callback_completed);

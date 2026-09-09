@@ -56,7 +56,8 @@ directory. You may instead pass another plugin path as the first argument.
 The mixed WebSocket examples keep `http::server` and `http::client` as their
 root objects. The same `/mixed` route first handles an ordinary HTTP request,
 then hands an Upgrade request to `websocket::upgrade`. The client upgrades
-through `websocket::open` and completes a text-frame echo.
+the same `http://` URL through `websocket::open` (which also accepts `ws://`)
+and completes a text-frame echo.
 
 ```bash
 # Terminal 1

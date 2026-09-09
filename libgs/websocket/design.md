@@ -132,10 +132,13 @@ HTTP 模块不识别 `ws/wss`，frame codec 不依赖 socket、executor、HTTP c
 WebSocket client/open 在任何网络 I/O 前检查：
 
 - URL 有效且 host 非空；
-- scheme 只能是 `ws` 或 `wss`；
+- scheme 可以是 `ws`、`wss`、`http` 或 `https`；
 - URL 不包含 fragment。
 
-无效 URL、空 host 或 fragment 返回 `std::errc::invalid_argument`；不支持的 scheme 返回 `std::errc::protocol_not_supported`。
+`http` 和 `https` 是输入别名，必须在其他验证、安全策略及网络 I/O
+之前分别规范化为 `ws` 和 `wss`。无效 URL、空 host 或 fragment 返回
+`std::errc::invalid_argument`；其他 scheme 返回
+`std::errc::protocol_not_supported`。
 
 HTTP client 的公共边界仍只接受 `http/https`。WebSocket adapter 保留逻辑 WS URL，只为调用 HTTP client 创建临时 transport URL：
 
@@ -144,7 +147,10 @@ ws  → http   默认端口 80
 wss → https  默认端口 443
 ```
 
-映射副本必须保留 host、显式端口和编码 path/query。WebSocket resource-name 由 encoded path 加可选 encoded query 构成，至少包含 `/`，且永远不包含 fragment。diagnostics、redirect 基址及对外可见 endpoint 始终保持 `ws/wss`。
+映射和规范化副本必须保留 host、显式端口和编码 path/query。
+WebSocket resource-name 由 encoded path 加可选 encoded query 构成，至少包含
+`/`，且永远不包含 fragment。diagnostics、redirect 基址及对外可见
+endpoint 始终保持规范化后的 `ws/wss`。
 
 ### 5.2 代理与路由
 
@@ -152,7 +158,10 @@ WebSocket API 不提供 `proxy` 字段，也不生成或解释代理认证。own
 
 ### 5.3 Redirect
 
-adapter 自己处理 301、302、303、307 和 308，不启用 HTTP client 的通用自动 redirect。`Location` 相对于当前逻辑 WS URL 解析，然后重新执行完整 WS URL 校验。目标只能是 `ws/wss`，`http/https` 不作为别名。收到可跟随的 redirect 但剩余次数为零时返回 `errc::redirect_limit_exceeded`。
+adapter 自己处理 301、302、303、307 和 308，不启用 HTTP client 的通用自动
+redirect。`Location` 相对于当前逻辑 WS URL 解析，然后重新执行完整 WS URL
+校验；绝对 `http/https` 目标同样先规范化为 `ws/wss`。收到可跟随的
+redirect 但剩余次数为零时返回 `errc::redirect_limit_exceeded`。
 
 每一跳都必须：
 

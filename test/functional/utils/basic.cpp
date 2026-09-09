@@ -7,6 +7,7 @@
 #include <libgs/utils/signal_slot.h>
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -189,6 +190,38 @@ void expired_signal_observer()
 	LIBGS_TEST_CHECK_EQ(received, 0);
 }
 
+void invalid_signal_observer()
+{
+	libgs::utils::signal<void(int)> fired;
+	std::shared_ptr<synchronous_observer> observer;
+	LIBGS_TEST_CHECK_THROWS((fired.connect<libgs::utils::slot_mode::sync>(
+		observer, &synchronous_observer::receive)), libgs::invalid_argument);
+	LIBGS_TEST_CHECK_THROWS((fired.disconnect(
+		observer, &synchronous_observer::receive)), libgs::invalid_argument);
+	LIBGS_TEST_CHECK_THROWS(fired.disconnect(observer), libgs::invalid_argument);
+}
+
+void repeated_signal_operations()
+{
+	libgs::utils::signal<void(int)> fired;
+	std::int64_t received = 0;
+	for(int round = 1; round <= 10'000; ++round)
+	{
+		fired.connect([&](int value) { received += value; });
+		fired(round);
+
+		fired.block();
+		fired(round);
+		fired.block(false);
+
+		fired.disconnect();
+		fired.disconnect();
+		fired(round);
+	}
+
+	LIBGS_TEST_CHECK_EQ(received, 50'005'000);
+}
+
 } //namespace
 
 int main()
@@ -200,5 +233,7 @@ int main()
 		{"async signal lifecycle", async_signal_lifecycle},
 		{"signal observer lifecycle", signal_observer_lifecycle},
 		{"expired signal observer", expired_signal_observer},
+		{"invalid signal observer", invalid_signal_observer},
+		{"repeated signal operations", repeated_signal_operations},
 	});
 }

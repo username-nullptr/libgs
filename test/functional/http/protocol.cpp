@@ -40,6 +40,72 @@ void parser_errors()
 	auto result = parser.append({});
 	LIBGS_TEST_CHECK(not result);
 	LIBGS_TEST_CHECK(result.error() == parse_errc::IDE);
+
+	server_parser malformed_header;
+	result = malformed_header.append(buffer(
+		"GET / HTTP/1.1\r\nMissing-Colon\r\n\r\n"
+	));
+	LIBGS_TEST_CHECK(not result);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::IHL);
+
+	server_parser invalid_method;
+	result = invalid_method.append(buffer("FETCH / HTTP/1.1\r\n\r\n"));
+	LIBGS_TEST_CHECK(not result);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::IHM);
+
+	server_parser conflicting_size;
+	result = conflicting_size.append(buffer(
+		"POST / HTTP/1.1\r\n"
+		"Host: example.test\r\n"
+		"Content-Length: 1\r\n"
+		"Transfer-Encoding: chunked\r\n\r\n"
+	));
+	LIBGS_TEST_CHECK(not result);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::SFE);
+}
+
+void enum_input_validation()
+{
+	using namespace libgs::http;
+	const auto invalid_status = static_cast<status_enum>(999);
+	const auto invalid_method = static_cast<method_enum>(0x8000);
+	const auto invalid_version = static_cast<version_enum>(0x0909);
+
+	LIBGS_TEST_CHECK(not status::check(invalid_status, false));
+	LIBGS_TEST_CHECK_EQ(std::string(status::description(invalid_status, false)), "");
+	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status), libgs::runtime_error);
+
+	LIBGS_TEST_CHECK(not method::check(invalid_method, false));
+	LIBGS_TEST_CHECK_EQ(std::string(method::string(invalid_method, false)), "");
+	LIBGS_TEST_CHECK_THROWS(method::from_string("FETCH"), libgs::runtime_error);
+
+	LIBGS_TEST_CHECK(not version::check(invalid_version, false));
+	LIBGS_TEST_CHECK_EQ(version::number(invalid_version, false), 0.0);
+	LIBGS_TEST_CHECK_THROWS(version::from_string("9.9"), libgs::runtime_error);
+}
+
+void parser_reuse()
+{
+	using namespace libgs::http;
+	constexpr std::string_view request =
+		"GET /repeat?q=42 HTTP/1.1\r\n"
+		"Host: example.test\r\n\r\n";
+	server_parser parser(32);
+
+	for(size_t round = 0; round < 2'000; ++round)
+	{
+		auto result = parser.append(buffer(request));
+		LIBGS_TEST_CHECK(result and *result);
+		LIBGS_TEST_CHECK_EQ(parser.method(), method::get);
+		LIBGS_TEST_CHECK_EQ(parser.path(), "/repeat");
+		auto parameter = parser.parameter("q");
+		LIBGS_TEST_CHECK(parameter);
+		LIBGS_TEST_CHECK_EQ(parameter->to_int().value_or(0), 42);
+		LIBGS_TEST_CHECK(parser.keep_alive());
+		LIBGS_TEST_CHECK(parser.take_body().empty());
+		parser.reset();
+		LIBGS_TEST_CHECK_EQ(parser.stage(), stage::header);
+	}
 }
 
 void request_parser()
@@ -296,6 +362,8 @@ int main()
 {
 	return libgs::test::run({
 		{"parser errors", parser_errors},
+		{"enum input validation", enum_input_validation},
+		{"parser reuse", parser_reuse},
 		{"request parser", request_parser},
 		{"response parser", response_parser},
 		{"generators round trip", generators_round_trip},

@@ -13,7 +13,7 @@ int main(int argc, const char *argv[])
 	const std::string http_url = argc > 1 ?
 		argv[1] : "http://127.0.0.1:8080/mixed";
 	const std::string websocket_url = argc > 2 ?
-		argv[2] : "ws://127.0.0.1:8080/mixed";
+		argv[2] : http_url;
 
 	// One HTTP client owns both the ordinary request and the Upgrade request.
 	libgs::http::client http_client;

@@ -13,8 +13,10 @@
 #include <libgs/core/value.h>
 
 #include <atomic>
+#include <array>
 #include <concepts>
 #include <fstream>
+#include <memory>
 #include <numeric>
 #include <string_view>
 #include <thread>
@@ -247,6 +249,14 @@ void ini_text_parameters()
 	LIBGS_TEST_CHECK_EQ(reader['g']['k']->to_int().value_or(0), 14);
 }
 
+template <typename Queue>
+auto checked_dequeue(Queue &queue)
+{
+	auto value = queue.dequeue();
+	LIBGS_TEST_CHECK(value);
+	return std::move(*value);
+}
+
 template <libgs::queue_type Type>
 void check_queue_type()
 {
@@ -257,12 +267,181 @@ void check_queue_type()
 	LIBGS_TEST_CHECK(queue.enqueue(3));
 	LIBGS_TEST_CHECK(queue.full());
 	LIBGS_TEST_CHECK(not queue.enqueue(4));
-	LIBGS_TEST_CHECK_EQ(*queue.dequeue(), 1);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 1);
 	LIBGS_TEST_CHECK_EQ(queue.force_emplace(4), 0U);
 	LIBGS_TEST_CHECK_EQ(queue.force_emplace(5), 1U);
-	LIBGS_TEST_CHECK_EQ(*queue.dequeue(), 3);
-	LIBGS_TEST_CHECK_EQ(*queue.dequeue(), 4);
-	LIBGS_TEST_CHECK_EQ(*queue.dequeue(), 5);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 3);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 4);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 5);
+	LIBGS_TEST_CHECK(queue.empty());
+}
+
+template <libgs::queue_type Type>
+void check_concurrent_queue_type()
+{
+	libgs::lock_free_queue<int,Type> queue(32);
+	for(size_t round = 0; round < 20; ++round)
+	{
+		std::atomic_bool done = false;
+		std::atomic_int sum = 0;
+		std::thread producer([&]
+		{
+			for(int value = 1; value <= 1000; ++value)
+			{
+				while(not queue.enqueue(value))
+					std::this_thread::yield();
+			}
+			done = true;
+		});
+		std::thread consumer([&]
+		{
+			while(not done or not queue.empty())
+			{
+				if(auto value = queue.dequeue())
+					sum += *value;
+				else
+					std::this_thread::yield();
+			}
+		});
+		producer.join();
+		consumer.join();
+		LIBGS_TEST_CHECK_EQ(sum.load(), 500500);
+		LIBGS_TEST_CHECK(queue.empty());
+	}
+}
+
+template <libgs::queue_type Type>
+void check_queue_boundaries_and_reuse()
+{
+	libgs::lock_free_queue<int,Type> queue(1);
+	int output = -1;
+	LIBGS_TEST_CHECK(not queue.dequeue(output));
+	LIBGS_TEST_CHECK_EQ(output, -1);
+	for(int value = 0; value < 10'000; ++value)
+	{
+		LIBGS_TEST_CHECK(queue.empty());
+		LIBGS_TEST_CHECK_EQ(queue.size(), 0U);
+		LIBGS_TEST_CHECK(not queue.dequeue());
+		LIBGS_TEST_CHECK(queue.enqueue(value));
+		LIBGS_TEST_CHECK(queue.full());
+		LIBGS_TEST_CHECK_EQ(queue.size(), 1U);
+		LIBGS_TEST_CHECK(not queue.enqueue(value + 1));
+		LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), value);
+	}
+
+	LIBGS_TEST_CHECK_EQ(queue.force_emplace(1), 0U);
+	for(int value = 2; value <= 100; ++value)
+		LIBGS_TEST_CHECK_EQ(queue.force_emplace(value), 1U);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 100);
+
+	queue.set_capacity(2);
+	LIBGS_TEST_CHECK(queue.enqueue(1));
+	queue.set_capacity(3);
+	LIBGS_TEST_CHECK(queue.enqueue(2));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 1);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 2);
+
+	LIBGS_TEST_CHECK(queue.enqueue(3));
+	LIBGS_TEST_CHECK(queue.enqueue(4));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 3);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 4);
+	queue.set_capacity(1);
+	LIBGS_TEST_CHECK(queue.enqueue(5));
+	LIBGS_TEST_CHECK(not queue.enqueue(6));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 5);
+
+	queue.set_capacity(0);
+	LIBGS_TEST_CHECK(queue.capacity() > 0);
+	LIBGS_TEST_CHECK(queue.enqueue(7));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 7);
+
+	libgs::lock_free_queue<int,Type> source(4);
+	LIBGS_TEST_CHECK(source.enqueue(11));
+	LIBGS_TEST_CHECK(source.enqueue(12));
+	libgs::lock_free_queue<int,Type> moved(std::move(source));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(moved), 11);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(moved), 12);
+	LIBGS_TEST_CHECK(source.enqueue(13));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(source), 13);
+
+	auto *same_queue = &moved;
+	moved = std::move(*same_queue);
+	LIBGS_TEST_CHECK(moved.enqueue(14));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(moved), 14);
+
+	libgs::lock_free_queue<std::unique_ptr<int>,Type> move_only(2);
+	LIBGS_TEST_CHECK(move_only.enqueue(std::make_unique<int>(42)));
+	auto move_only_value = checked_dequeue(move_only);
+	LIBGS_TEST_CHECK(move_only_value);
+	LIBGS_TEST_CHECK_EQ(*move_only_value, 42);
+
+	std::weak_ptr<int> lifetime;
+	{
+		auto owner = std::make_shared<int>(7);
+		lifetime = owner;
+		libgs::lock_free_queue<std::shared_ptr<int>,Type> retained(2);
+		LIBGS_TEST_CHECK(retained.enqueue(std::move(owner)));
+	}
+	LIBGS_TEST_CHECK(lifetime.expired());
+}
+
+template <libgs::queue_type Type>
+void check_mpmc_queue_type()
+{
+	constexpr size_t producer_count = 2;
+	constexpr size_t items_per_producer = 2'000;
+	constexpr size_t item_count = producer_count * items_per_producer;
+	libgs::lock_free_queue<size_t,Type> queue(64);
+	std::array<std::atomic_uint,item_count> seen {};
+	std::atomic_size_t consumed = 0;
+	std::atomic_size_t producers_left = producer_count;
+	std::atomic_bool invalid_value = false;
+
+	std::array<std::thread,producer_count> producers;
+	for(size_t producer = 0; producer < producer_count; ++producer)
+	{
+		producers[producer] = std::thread([&, producer]
+		{
+			const auto begin = producer * items_per_producer;
+			for(size_t index = begin; index < begin + items_per_producer; ++index)
+			{
+				while(not queue.enqueue(index))
+					std::this_thread::yield();
+			}
+			producers_left.fetch_sub(1, std::memory_order_release);
+		});
+	}
+
+	std::array<std::thread,2> consumers;
+	for(auto &consumer : consumers)
+	{
+		consumer = std::thread([&]
+		{
+			while(producers_left.load(std::memory_order_acquire) != 0 or
+				not queue.empty())
+			{
+				if(auto value = queue.dequeue())
+				{
+					if(*value < item_count)
+						seen[*value].fetch_add(1, std::memory_order_relaxed);
+					else
+						invalid_value.store(true, std::memory_order_relaxed);
+					consumed.fetch_add(1, std::memory_order_relaxed);
+				}
+				else
+					std::this_thread::yield();
+			}
+		});
+	}
+
+	for(auto &producer : producers)
+		producer.join();
+	for(auto &consumer : consumers)
+		consumer.join();
+	LIBGS_TEST_CHECK(not invalid_value.load());
+	LIBGS_TEST_CHECK_EQ(consumed.load(), item_count);
+	for(const auto &count : seen)
+		LIBGS_TEST_CHECK_EQ(count.load(), 1U);
 	LIBGS_TEST_CHECK(queue.empty());
 }
 
@@ -270,32 +449,12 @@ void lock_free_queues()
 {
 	check_queue_type<libgs::queue_type::linked>();
 	check_queue_type<libgs::queue_type::circular>();
-
-	libgs::circular_lock_free_queue<int> queue(32);
-	std::atomic_bool done = false;
-	std::atomic_int sum = 0;
-	std::thread producer([&]
-	{
-		for(int value = 1; value <= 1000; ++value)
-		{
-			while(not queue.enqueue(value))
-				std::this_thread::yield();
-		}
-		done = true;
-	});
-	std::thread consumer([&]
-	{
-		while(not done or not queue.empty())
-		{
-			if(auto value = queue.dequeue())
-				sum += *value;
-			else
-				std::this_thread::yield();
-		}
-	});
-	producer.join();
-	consumer.join();
-	LIBGS_TEST_CHECK_EQ(sum.load(), 500500);
+	check_queue_boundaries_and_reuse<libgs::queue_type::linked>();
+	check_queue_boundaries_and_reuse<libgs::queue_type::circular>();
+	check_concurrent_queue_type<libgs::queue_type::linked>();
+	check_concurrent_queue_type<libgs::queue_type::circular>();
+	check_mpmc_queue_type<libgs::queue_type::linked>();
+	check_mpmc_queue_type<libgs::queue_type::circular>();
 }
 
 void mime_detection()

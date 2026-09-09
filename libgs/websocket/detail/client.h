@@ -50,18 +50,56 @@ inline constexpr std::chrono::milliseconds default_handshake_timeout {30000};
 			name.substr(0, 14), "Sec-WebSocket-"));
 }
 
-[[nodiscard]] inline error_code validate_open_request
-(const connect_request &request, const stream_config &stream) noexcept
+[[nodiscard]] inline sys_expected<url>
+canonical_websocket_url(const url &endpoint) noexcept
 {
 	try
 	{
-		if(not request.endpoint.is_valid() or request.endpoint.host().empty() or
-			request.endpoint.has_fragment())
-			return make_error_code(std::errc::invalid_argument);
+		if(not endpoint.is_valid() or endpoint.host().empty() or
+			endpoint.has_fragment())
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
 
-		const auto scheme = strtls::to_lower(request.endpoint.protocol());
-		if(scheme != "ws" and scheme != "wss")
-			return make_error_code(std::errc::protocol_not_supported);
+		const auto scheme = strtls::to_lower(endpoint.protocol());
+		std::string_view canonical_scheme;
+		if(scheme == "ws" or scheme == "http")
+			canonical_scheme = "ws";
+		else if(scheme == "wss" or scheme == "https")
+			canonical_scheme = "wss";
+		else
+			return sys_unexpected(
+				make_error_code(std::errc::protocol_not_supported));
+
+		auto text = endpoint.to_string();
+		auto separator = text.find("://");
+		if(separator == std::string::npos)
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+		text.replace(0, separator, canonical_scheme);
+
+		url result(text);
+		if(not result.is_valid())
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+		return result;
+	}
+	catch(const std::bad_alloc&)
+	{
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...)
+	{
+		return sys_unexpected(make_error_code(std::errc::io_error));
+	}
+}
+
+[[nodiscard]] inline error_code validate_open_request
+(connect_request &request, const stream_config &stream) noexcept
+{
+	try
+	{
+		auto endpoint = canonical_websocket_url(request.endpoint);
+		if(not endpoint)
+			return endpoint.error();
+		request.endpoint = std::move(*endpoint);
+
 		if(stream.read_buffer_size == 0)
 			return make_error_code(std::errc::invalid_argument);
 		if(not request.extensions.empty())
@@ -183,6 +221,8 @@ void open_sync(http::basic_client<Exec,Version> &http_client,
 		error = validate_open_request(request, stream_config_value);
 		if(error)
 			return;
+		if(diagnostics)
+			diagnostics->endpoint = request.endpoint;
 		if(timeout <= std::chrono::milliseconds::zero())
 		{
 			error = asio::error::timed_out;
@@ -285,12 +325,13 @@ void open_sync(http::basic_client<Exec,Version> &http_client,
 					error = make_error_code(errc::handshake_rejected);
 					return;
 				}
-				auto next = url::resolve(endpoint, location->to_string());
+				auto resolved = url::resolve(endpoint, location->to_string());
 				auto probe = request;
-				probe.endpoint = next;
+				probe.endpoint = std::move(resolved);
 				error = validate_open_request(probe, stream_config_value);
 				if(error)
 					return;
+				auto next = std::move(probe.endpoint);
 				if(ascii_equal_case_insensitive(endpoint.protocol(), "wss") and
 					ascii_equal_case_insensitive(next.protocol(), "ws") and
 					not request.allow_insecure_redirects)
@@ -378,6 +419,8 @@ auto async_open(http::basic_client<Exec,Version> &http_client,
 				if(error)
 					co_return std::tuple<error_code,result_t>{
 						error, std::move(result)};
+				if(active_diagnostics)
+					active_diagnostics->endpoint = active_request.endpoint;
 				if(active_timeout <= std::chrono::milliseconds::zero())
 				{
 					co_return std::tuple<error_code,result_t>{
@@ -491,9 +534,10 @@ auto async_open(http::basic_client<Exec,Version> &http_client,
 								make_error_code(errc::handshake_rejected),
 								std::move(result)};
 						}
-						auto next = url::resolve(endpoint, location->to_string());
+						auto resolved = url::resolve(
+							endpoint, location->to_string());
 						auto probe = active_request;
-						probe.endpoint = next;
+						probe.endpoint = std::move(resolved);
 						auto redirect_error = validate_open_request(
 							probe, active_stream_config);
 						if(redirect_error)
@@ -501,6 +545,7 @@ auto async_open(http::basic_client<Exec,Version> &http_client,
 							co_return std::tuple<error_code,result_t>{
 								redirect_error, std::move(result)};
 						}
+						auto next = std::move(probe.endpoint);
 						if(ascii_equal_case_insensitive(endpoint.protocol(), "wss") and
 							ascii_equal_case_insensitive(next.protocol(), "ws") and
 							not active_request.allow_insecure_redirects)

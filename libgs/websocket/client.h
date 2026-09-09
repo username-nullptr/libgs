@@ -21,6 +21,8 @@ struct client_config
 // Per-connection overrides for an opening handshake.
 struct connect_request
 {
+	// http/https are accepted input aliases and normalized to ws/wss before
+	// validation, redirects, diagnostics, and transport selection.
 	url endpoint {};
 	http::request_arg request_options {};
 	std::optional<stream_config> stream_options {};
@@ -51,6 +53,8 @@ struct basic_open_diagnostics
 	using reply_t = http::basic_reply<executor_t>;
 	using reply_ptr = std::shared_ptr<reply_t>;
 
+	// The final logical endpoint, always normalized to ws or wss after a valid
+	// opening request reaches client processing.
 	url endpoint {};
 	reply_ptr reply {};
 };

@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace libgs::test
 {
@@ -93,6 +94,29 @@ inline int run(std::initializer_list<test_case> tests)
 	return failures == 0 ? 0 : 1;
 }
 
+template <typename Exception, typename Function>
+inline void check_throws(
+	Function &&function,
+	std::string_view expression,
+	const std::source_location &location = std::source_location::current()
+)
+{
+	try
+	{
+		std::forward<Function>(function)();
+	}
+	catch(const Exception&)
+	{
+		return;
+	}
+	catch(...)
+	{
+		fail(std::string("unexpected exception type from: ") +
+			std::string(expression), location);
+	}
+	fail(std::string("expected exception from: ") + std::string(expression), location);
+}
+
 } //namespace libgs::test
 
 #define LIBGS_TEST_CHECK(expression) \
@@ -105,6 +129,14 @@ inline int run(std::initializer_list<test_case> tests)
 	do { \
 		if( not ((actual) == (expected)) ) \
 			::libgs::test::fail(#actual " == " #expected); \
+	} while(false)
+
+#define LIBGS_TEST_CHECK_THROWS(expression, exception_type) \
+	do { \
+		::libgs::test::check_throws<exception_type>( \
+			[&] { static_cast<void>(expression); }, #expression, \
+			std::source_location::current() \
+		); \
 	} while(false)
 
 #endif //LIBGS_TEST_TEST_H
