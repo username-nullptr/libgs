@@ -273,28 +273,36 @@ private:
 	{
 		tk_handler_ptr handler {};
 		const std::string *selected_rule = nullptr;
+		auto routes = m_routes.load(std::memory_order_acquire);
 
-		int32_t weight = std::numeric_limits<int32_t>::max();
-		size_t path_length = std::numeric_limits<size_t>::min();
-
-		for(auto &[rule, _handler] : m_request_handler_map)
+		if( auto exact = routes->exact.find(context.request().path());
+			exact != routes->exact.end() )
+			handler = exact->second;
+		else
 		{
-			auto _path_length = rule.length();
-			auto _weight = context.request().path_match(rule);
+			int32_t weight = std::numeric_limits<int32_t>::max();
+			size_t path_length = std::numeric_limits<size_t>::min();
 
-			if( _weight == 0 )
+			for(auto &[rule, _handler] : routes->patterns)
 			{
-				handler = _handler;
-				selected_rule = &rule;
-				weight = _weight;
-				break;
-			}
-			else if( _weight > 0 and (_weight < weight or (_weight == weight and _path_length > path_length)) )
-			{
-				handler = _handler;
-				selected_rule = &rule;
-				weight = _weight;
-				path_length = _path_length;
+				auto _path_length = rule.length();
+				auto _weight = context.request().path_match(rule);
+
+				if( _weight == 0 )
+				{
+					handler = _handler;
+					selected_rule = &rule;
+					weight = _weight;
+					break;
+				}
+				else if( _weight > 0 and (_weight < weight or
+					(_weight == weight and _path_length > path_length)) )
+				{
+					handler = _handler;
+					selected_rule = &rule;
+					weight = _weight;
+					path_length = _path_length;
+				}
 			}
 		}
 		if( not handler )
@@ -302,9 +310,10 @@ private:
 			context.response().set_status(status::not_found);
 			co_return ;
 		}
-		ignore_unused(context.request().path_match(*selected_rule));
-		auto method = context.request().method();
+		if( selected_rule )
+			ignore_unused(context.request().path_match(*selected_rule));
 
+		auto method = context.request().method();
 		if( not ( handler->method & method ) )
 		{
 			if( method == method::head )
@@ -506,6 +515,86 @@ public:
 	};
 	using tk_handler_ptr = std::shared_ptr<tk_handler>;
 
+	struct transparent_string_hash
+	{
+		using is_transparent = void;
+
+		[[nodiscard]] size_t operator()(std::string_view value) const noexcept {
+			return std::hash<std::string_view>{}(value);
+		}
+		[[nodiscard]] size_t operator()(const std::string &value) const noexcept {
+			return operator()(std::string_view(value));
+		}
+	};
+	using exact_route_map = std::unordered_map <
+		std::string, tk_handler_ptr, transparent_string_hash, std::equal_to<>
+	>;
+
+	struct route_table
+	{
+		exact_route_map exact {};
+		std::map<std::string,tk_handler_ptr> patterns {};
+	};
+
+private:
+	[[nodiscard]] static bool is_path_argument_segment(std::string_view segment) noexcept
+	{
+		if( segment.size() < 2 or not segment.starts_with('{') or
+			not segment.ends_with('}') )
+			return false;
+
+		return segment.substr(1, segment.size() - 2).find_first_of("{}") ==
+			std::string_view::npos;
+	}
+
+	[[nodiscard]] static bool is_exact_route(std::string_view rule) noexcept
+	{
+		if( rule.find_first_of("*?") != std::string_view::npos )
+			return false;
+
+		auto slash = rule.rfind('/');
+		auto segment = slash == std::string_view::npos ?
+			rule : rule.substr(slash + 1);
+
+		return not is_path_argument_segment(segment);
+	}
+
+public:
+	[[nodiscard]] bool add_route(std::string rule, tk_handler_ptr handler)
+	{
+		// Publishing a table copies containers and may allocate. A blocking writer
+		// lock avoids wasting CPU; request dispatch never waits on this mutex.
+		std::lock_guard lock(m_routes_write_mutex);
+		auto current = m_routes.load(std::memory_order_acquire);
+
+		if( current->exact.contains(rule) or current->patterns.contains(rule) )
+			return false;
+
+		auto updated = std::make_shared<route_table>(*current);
+		if( is_exact_route(rule) )
+			updated->exact.emplace(std::move(rule), std::move(handler));
+		else
+			updated->patterns.emplace(std::move(rule), std::move(handler));
+
+		m_routes.store(std::move(updated), std::memory_order_release);
+		return true;
+	}
+
+	void remove_route(const std::string &rule)
+	{
+		std::lock_guard lock(m_routes_write_mutex);
+		auto current = m_routes.load(std::memory_order_acquire);
+
+		if( not current->exact.contains(rule) and not current->patterns.contains(rule) )
+			return ;
+
+		auto updated = std::make_shared<route_table>(*current);
+		updated->exact.erase(rule);
+		updated->patterns.erase(rule);
+
+		m_routes.store(std::move(updated), std::memory_order_release);
+	}
+
 public:
 	acceptor_wrap_t m_wrap {};
 	asio::any_io_executor m_service_exec {};
@@ -514,7 +603,11 @@ public:
 	service_error_handler_t m_service_error_handler {};
 	request_handler_t m_default_handler {};
 
-	std::map<std::string, tk_handler_ptr> m_request_handler_map {};
+	// A request keeps its immutable snapshot alive while selecting a handler.
+	std::atomic<std::shared_ptr<const route_table>> m_routes {
+		std::make_shared<const route_table>()
+	};
+	std::mutex m_routes_write_mutex {};
 	session_manager m_session_manager {};
 
 	config_t m_config {};
@@ -651,16 +744,18 @@ basic_server<Stream> &basic_server<Stream>::on_request
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
 
-		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
-		if( not res )
+		auto controller_aop = new impl::multi_ctrlr_aop(func, aops...);
+		auto handler = std::make_shared<typename impl::tk_handler>(
+			ctrlr_aop_ptr_t(controller_aop)
+		);
+		handler->template bind_method<Method...>();
+
+		if( not m_impl->add_route(std::move(rule), std::move(handler)) )
 		{
 			runtime_error::loc_throw (
 				"libgs::http::server::on_request: path_rule duplication."
 			);
 		}
-		auto controller_aop = new impl::multi_ctrlr_aop(func, aops...);
-		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(controller_aop));
-		it->second->template bind_method<Method...>();
 	}
 	return *this;
 }
@@ -681,15 +776,15 @@ basic_server<Stream> &basic_server<Stream>::on_request
 		std::string rule(path_rule.data(), path_rule.size());
 		m_impl->rule_path_check(rule);
 
-		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
-		if( not res )
+		auto handler = std::make_shared<typename impl::tk_handler>(ctrlr);
+		handler->template bind_method<Method...>();
+
+		if( not m_impl->add_route(std::move(rule), std::move(handler)) )
 		{
 			runtime_error::loc_throw (
 				"libgs::http::server::on_request: path_rule duplication."
 			);
 		}
-		it->second = std::make_shared<typename impl::tk_handler>(std::move(ctrlr));
-		it->second->template bind_method<Method...>();
 	}
 	return *this;
 }
@@ -699,28 +794,7 @@ template <method_enum...Method>
 basic_server<Stream> &basic_server<Stream>::on_request
 (const path_opt_token_t &path_rules, ctrlr_aop_t *ctrlr)
 {
-	for(auto &path_rule : path_rules.paths)
-	{
-		if( path_rule.empty() )
-		{
-			runtime_error::loc_throw (
-				"libgs::http::server::on_request: path_rule is empty."
-			);
-		}
-		std::string rule(path_rule.data(), path_rule.size());
-		m_impl->rule_path_check(rule);
-
-		auto [it, res] = m_impl->m_request_handler_map.emplace(rule, nullptr);
-		if( not res )
-		{
-			runtime_error::loc_throw (
-				"libgs::http::server::on_request: path_rule duplication."
-			);
-		}
-		it->second = std::make_shared<typename impl::tk_handler>(ctrlr_aop_ptr_t(ctrlr));
-		it->second->template bind_method<Method...>();
-	}
-	return *this;
+	return on_request<Method...>(path_rules, ctrlr_aop_ptr_t(ctrlr));
 }
 
 template <concepts::any_exec_stream Stream>
@@ -758,7 +832,7 @@ basic_server<Stream> &basic_server<Stream>::unbound_request(const Text &path_rul
 		);
 	}
 	m_impl->rule_path_check(rule);
-	m_impl->m_request_handler_map.erase(rule);
+	m_impl->remove_route(rule);
 	return *this;
 }
 

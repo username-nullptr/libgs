@@ -19,6 +19,8 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace
 {
@@ -50,6 +52,7 @@ public:
 	}
 
 	libgs::sys_expected<> close() noexcept override {
+		m_open = false;
 		return libgs::make_sys_expected();
 	}
 
@@ -65,7 +68,7 @@ public:
 	}
 
 	bool is_open() const noexcept override {
-		return true;
+		return m_open;
 	}
 
 	libgs::sys_expected<probe_state_t> probe() noexcept override {
@@ -170,6 +173,53 @@ private:
 
 	executor_t m_exec;
 	std::deque<io_step> m_writes {};
+	bool m_open = true;
+};
+
+class scripted_connector final : public libgs::http::connector
+{
+public:
+	explicit scripted_connector(executor_t exec) :
+		libgs::http::connector(std::move(exec)) {}
+
+	[[nodiscard]] size_t connection_count(std::string_view host) const
+	{
+		auto pos = m_connection_counts.find(std::string(host));
+		return pos == m_connection_counts.end() ? 0 : pos->second;
+	}
+
+protected:
+	libgs::sys_expected<connection_ptr> do_connect(
+		const libgs::http::connect_target &target
+	) noexcept override
+	{
+		try {
+			++m_connection_counts[target.host];
+			return connection_ptr(
+				std::make_shared<scripted_connection>(get_executor())
+			);
+		}
+		catch(const std::bad_alloc&) {
+			return libgs::sys_unexpected(
+				std::make_error_code(std::errc::not_enough_memory)
+			);
+		}
+		catch(...) {
+			return libgs::sys_unexpected(
+				std::make_error_code(std::errc::io_error)
+			);
+		}
+	}
+
+	libgs::awaitable<libgs::sys_expected<connection_ptr>> co_do_connect(
+		const libgs::http::connect_target &target
+	) noexcept override
+	{
+		co_return do_connect(target);
+	}
+
+private:
+	std::unordered_map<std::string,size_t> m_connection_counts {};
 };
 
 void protocol_enums()
@@ -593,6 +643,88 @@ void http_file_body_write_counts()
 	}
 }
 
+void connection_pool_indexed_lru()
+{
+	using namespace libgs::http;
+	libgs::io_context_t context;
+	auto connector = std::make_shared<scripted_connector>(context.get_executor());
+	connection_pool_config config;
+	config.max_count = 2;
+	config.timeout.idle = std::chrono::seconds(60);
+	connection_pool pool(connector, config);
+
+	const connect_target first {"first.test", 80, security_mode::plain};
+	const connect_target second {"second.test", 80, security_mode::plain};
+	const connect_target third {"third.test", 80, security_mode::plain};
+
+	auto acquire_and_release = [&](const connect_target &target)
+	{
+		auto lease = pool.get(target);
+		LIBGS_TEST_CHECK(lease);
+		LIBGS_TEST_CHECK(*lease);
+		(*lease)->release();
+	};
+
+	acquire_and_release(first);
+	acquire_and_release(second);
+	LIBGS_TEST_CHECK_EQ(pool.count(), 2U);
+
+	// At capacity, a new target evicts the globally oldest idle connection.
+	acquire_and_release(third);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("first.test"), 1U);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("second.test"), 1U);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("third.test"), 1U);
+	LIBGS_TEST_CHECK_EQ(pool.count(), 2U);
+
+	// first.test was evicted, while third.test remains reusable by exact key.
+	acquire_and_release(first);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("first.test"), 2U);
+	acquire_and_release(third);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("third.test"), 1U);
+	LIBGS_TEST_CHECK_EQ(pool.count(), 2U);
+}
+
+void connection_pool_indexed_waiters()
+{
+	using namespace libgs::http;
+	libgs::io_context_t context;
+	auto connector = std::make_shared<scripted_connector>(context.get_executor());
+	connection_pool_config config;
+	config.max_count = 1;
+	connection_pool pool(connector, config);
+	const connect_target first {"first.test", 80, security_mode::plain};
+	const connect_target second {"second.test", 80, security_mode::plain};
+
+	auto held_result = pool.get(first);
+	LIBGS_TEST_CHECK(held_result);
+	auto held = *held_result;
+	std::vector<std::string> acquisition_order;
+
+	auto second_waiter = asio::co_spawn(context,
+	[&]() -> libgs::awaitable<void>
+	{
+		auto lease = co_await pool.get(second, libgs::use_awaitable);
+		acquisition_order.emplace_back("second");
+		lease->release();
+	}, asio::use_future);
+	auto matching_waiter = asio::co_spawn(context,
+	[&]() -> libgs::awaitable<void>
+	{
+		auto lease = co_await pool.get(first, libgs::use_awaitable);
+		acquisition_order.emplace_back("first");
+		lease->release();
+	}, asio::use_future);
+
+	// Both waiters are enqueued before the held connection is returned.
+	asio::post(context, [held] { held->release(); });
+	context.run();
+	second_waiter.get();
+	matching_waiter.get();
+	LIBGS_TEST_CHECK_EQ(acquisition_order.size(), 2U);
+	LIBGS_TEST_CHECK_EQ(acquisition_order[0], "first");
+	LIBGS_TEST_CHECK_EQ(acquisition_order[1], "second");
+}
+
 } //namespace
 
 int main()
@@ -604,5 +736,7 @@ int main()
 		{"connection partial write counts", connection_partial_write_counts},
 		{"HTTP body write counts", http_body_write_counts},
 		{"HTTP file body write counts", http_file_body_write_counts},
+		{"connection pool indexed LRU", connection_pool_indexed_lru},
+		{"connection pool indexed waiters", connection_pool_indexed_waiters},
 	});
 }

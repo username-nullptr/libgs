@@ -224,7 +224,7 @@ parser<protocol_model::server>::parser(parser &&other) noexcept :
 	const_cookies(other.m_cookies),
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl(0xFFFF);
+	other.m_impl = new impl(0);
 	other.m_parameters = &other.m_impl->m_parameters;
 	other.m_headers = &other.m_impl->m_parser.headers();
 	other.m_cookies = &other.m_impl->m_cookies;
@@ -241,7 +241,7 @@ parser<protocol_model::server> &parser<protocol_model::server>::operator=(parser
 	m_headers = other.m_headers;
 	m_cookies = other.m_cookies;
 
-	other.m_impl = new impl(0xFFFF);
+	other.m_impl = new impl(0);
 	other.m_parameters = &other.m_impl->m_parameters;
 	other.m_headers = &other.m_impl->m_parser.headers();
 	other.m_cookies = &other.m_impl->m_cookies;
@@ -440,6 +440,7 @@ parser<protocol_model::server> &parser<protocol_model::server>::reset()
 	m_impl->m_path.clear();
 
 	m_impl->m_parameters.clear();
+	m_impl->m_path_args.clear();
 	m_impl->m_cookies.clear();
 
 	m_impl->m_keep_alive = false;

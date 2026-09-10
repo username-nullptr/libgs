@@ -29,6 +29,113 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 		std::string cr_line {};
 	};
 
+	class static_file_cache
+	{
+		static constexpr size_t max_file_size = 2 * 1024 * 1024;
+		static constexpr size_t max_total_size = 32 * 1024 * 1024;
+
+		using file_time_t = std::filesystem::file_time_type;
+		using order_list = std::list<std::filesystem::path>;
+
+		struct entry
+		{
+			size_t source_size = 0;
+			file_time_t modified {};
+
+			std::shared_ptr<const std::string> source {};
+			std::shared_ptr<const std::string> gzip {};
+			order_list::iterator order_position {};
+		};
+
+	public:
+		[[nodiscard]] static bool cacheable(size_t size) noexcept {
+			return size > 0 and size <= max_file_size;
+		}
+
+		[[nodiscard]] std::shared_ptr<const std::string> find
+		(const std::filesystem::path &path, size_t source_size, file_time_t modified, bool gzip) const
+		{
+			std::shared_lock lock(m_mutex);
+			auto pos = m_entries.find(path);
+
+			if( pos == m_entries.end() or pos->second.source_size != source_size or
+				pos->second.modified != modified )
+				return {};
+			return gzip ? pos->second.gzip : pos->second.source;
+		}
+
+		void store_source(const std::filesystem::path &path, size_t source_size,
+			file_time_t modified, std::shared_ptr<const std::string> source)
+		{
+			if( not source )
+				return ;
+
+			std::unique_lock lock(m_mutex);
+			erase_locked(path);
+
+			m_order.emplace_back(path);
+			auto order_position = std::prev(m_order.end());
+			try {
+				m_entries.emplace(path, entry {
+					source_size, modified, std::move(source), {}, order_position
+				});
+			}
+			catch(...)
+			{
+				m_order.erase(order_position);
+				return ;
+			}
+			m_total_size += source_size;
+			evict_locked();
+		}
+
+		void store_gzip(const std::filesystem::path &path, size_t source_size,
+			file_time_t modified, std::shared_ptr<const std::string> gzip)
+		{
+			if( not gzip )
+				return ;
+
+			std::unique_lock lock(m_mutex);
+			auto pos = m_entries.find(path);
+
+			if( pos == m_entries.end() or pos->second.source_size != source_size or
+				pos->second.modified != modified )
+				return ;
+
+			if( pos->second.gzip )
+				m_total_size -= pos->second.gzip->size();
+
+			m_total_size += gzip->size();
+			pos->second.gzip = std::move(gzip);
+			evict_locked();
+		}
+
+	private:
+		void erase_locked(const std::filesystem::path &path)
+		{
+			auto pos = m_entries.find(path);
+			if( pos == m_entries.end() )
+				return ;
+
+			m_total_size -= pos->second.source ? pos->second.source->size() : 0;
+			m_total_size -= pos->second.gzip ? pos->second.gzip->size() : 0;
+
+			m_order.erase(pos->second.order_position);
+			m_entries.erase(pos);
+		}
+
+		void evict_locked()
+		{
+			while( m_total_size > max_total_size and not m_order.empty() )
+				erase_locked(m_order.front());
+		}
+
+		std::unordered_map<std::filesystem::path,entry> m_entries {};
+		order_list m_order {};
+		size_t m_total_size = 0;
+		mutable std::shared_mutex m_mutex {};
+	};
+
 public:
 	explicit impl(connection_ptr conn, std::filesystem::path resource_root) :
 		m_connection(std::move(conn)),
@@ -640,6 +747,120 @@ public:
 	}
 
 private:
+	[[nodiscard]] static static_file_cache &file_cache()
+	{
+		static static_file_cache cache {};
+		return cache;
+	}
+
+	template <typename Opt>
+	[[nodiscard]] std::shared_ptr<const std::string> cached_file_source(Opt &token) noexcept
+	{
+		using opt_t = std::remove_cvref_t<Opt>;
+		if constexpr( requires { token.file_name; typename opt_t::type; } )
+		{
+			if constexpr( std::same_as<typename opt_t::type,void> )
+			{
+				if( token.file_name.empty() or not m_file_modified or
+					not static_file_cache::cacheable(token.file_size) )
+					return {};
+
+				auto &cache = file_cache();
+				if( auto source = cache.find(token.file_name, token.file_size, *m_file_modified, false) )
+					return source;
+				try {
+					auto source = std::make_shared<std::string>(token.file_size, '\0');
+					token.stream->clear();
+					token.stream->seekg(0);
+
+					token.stream->read(source->data(),
+						static_cast<std::streamsize>(source->size())
+					);
+					auto complete = static_cast<size_t>(token.stream->gcount()) ==
+						source->size();
+
+					token.stream->clear();
+					token.stream->seekg(0);
+
+					if( not complete or not *token.stream )
+						return {};
+
+					std::shared_ptr<const std::string> result = std::move(source);
+					cache.store_source (
+						token.file_name, token.file_size, *m_file_modified, result
+					);
+					return result;
+				}
+				catch(...) {}
+				return {};
+			}
+		}
+		return {};
+	}
+
+	template <typename Opt>
+	[[nodiscard]] std::shared_ptr<const std::string> cached_gzip_file(Opt &token) noexcept
+	{
+		using opt_t = std::remove_cvref_t<Opt>;
+		if constexpr( requires { token.file_name; typename opt_t::type; } )
+		{
+			if constexpr( std::same_as<typename opt_t::type,void> )
+			{
+				if( token.file_name.empty() or not m_file_modified or
+					not static_file_cache::cacheable(token.file_size) )
+					return {};
+
+				auto &cache = file_cache();
+				if( auto gzip = cache.find(token.file_name, token.file_size, *m_file_modified, true) )
+					return gzip;
+
+				auto source = cached_file_source(token);
+				if( not source )
+					return {};
+
+				auto encoded = gzip_compress(*source);
+				if( not encoded )
+					return {};
+				try {
+					std::shared_ptr<const std::string> result =
+						std::make_shared<std::string>(std::move(*encoded));
+
+					cache.store_gzip (
+						token.file_name, token.file_size, *m_file_modified, result
+					);
+					return result;
+				}
+				catch(...) {}
+				return {};
+			}
+		}
+		return {};
+	}
+
+	template <typename Opt>
+	[[nodiscard]] size_t cached_gzip_transfer(Opt &token,
+		const std::shared_ptr<const std::string> &data,
+		error_code &error) noexcept
+	{
+		auto sum = write_header(data->size(), error);
+		if( error or m_generator.pro_state() == generator_state::finish )
+			return sum;
+
+		auto bytes = write_body(buffer(*data), error);
+		if( not error and bytes == data->size() )
+			sum += token.file_size;
+
+		else if( not error )
+			error = make_error_code(std::errc::io_error);
+
+		if( not error )
+		{
+			if( auto end = m_generator.chunk_end_data({}); not end.empty() )
+				ignore_unused(base_write(std::move(end), error));
+		}
+		return sum;
+	}
+
 	template <typename Opt>
 	[[nodiscard]] sys_expected<size_t> gzip_file_size(Opt &token) noexcept
 	{
@@ -705,6 +926,9 @@ private:
 		.unset_header(header::content_range)
 		.set_header(header::accept_ranges, "none")
 		.set_header(header::content_type, token.mime_type);
+
+		if( auto cached = cached_gzip_file(token) )
+			return cached_gzip_transfer(token, cached, error);
 
 		size_t body_size = 0;
 		if( m_req_method == method::head )
@@ -812,6 +1036,38 @@ private:
 				.set_header(header::accept_ranges, "none")
 				.set_header(header::content_type, token.mime_type);
 
+				if( auto cached = self->cached_gzip_file(token) )
+				{
+					auto [error, sum] = co_await self->async_write_header (
+						cached->size(), asio::as_tuple(deferred)
+					);
+					if( error or self->m_generator.pro_state() == generator_state::finish )
+						co_return std::tuple<error_code,size_t>{error, sum};
+
+					auto [write_error, bytes] = co_await self->async_write_body (
+						buffer(*cached), asio::as_tuple(deferred)
+					);
+					if( write_error )
+						co_return std::tuple<error_code,size_t>{write_error, sum};
+
+					if( bytes != cached->size() )
+					{
+						co_return std::tuple<error_code,size_t> {
+							make_error_code(std::errc::io_error), sum
+						};
+					}
+					sum += token.file_size;
+					if( auto end = self->m_generator.chunk_end_data({}); not end.empty() )
+					{
+						auto [end_error, end_bytes] = co_await self->async_base_write (
+							std::move(end), asio::as_tuple(deferred)
+						);
+						ignore_unused(end_bytes);
+						if( end_error )
+							co_return std::tuple<error_code,size_t>{end_error, sum};
+					}
+					co_return std::tuple<error_code,size_t>{error_code{}, sum};
+				}
 				size_t body_size = 0;
 				if( self->m_req_method == method::head )
 				{
@@ -932,6 +1188,9 @@ private:
 		if( error or token.file_size == 0 or m_generator.pro_state() == generator_state::finish )
 			return sum;
 
+		if( auto cached = cached_file_source(token) )
+			return sum + write_body(buffer(*cached), error);
+
 		token.stream->seekg(0);
 		while( not token.stream->eof() )
 		{
@@ -986,6 +1245,13 @@ private:
 				if( error or token.file_size == 0 or self->m_generator.pro_state() == generator_state::finish )
 					co_return std::tuple<error_code,size_t>{error, sum};
 
+				if( auto cached = self->cached_file_source(token) )
+				{
+					auto [write_error, bytes] = co_await self->async_write_body (
+						buffer(*cached), asio::as_tuple(deferred)
+					);
+					co_return std::tuple<error_code,size_t>{write_error, sum + bytes};
+				}
 				constexpr size_t buf_size = 0xFFFF;
 				char data[buf_size] {};
 				token.stream->seekg(0);
@@ -1609,6 +1875,7 @@ private:
 	template <typename Opt>
 	void set_file_validators(const Opt &token) noexcept
 	{
+		m_file_modified.reset();
 		if constexpr( requires { token.file_name; } )
 		{
 			if( token.file_name.empty() )
@@ -1619,6 +1886,7 @@ private:
 			if( error )
 				return ;
 
+			m_file_modified = file_time;
 			auto modified = std::chrono::time_point_cast<std::chrono::system_clock::duration> (
 				file_time - decltype(file_time)::clock::now() + std::chrono::system_clock::now()
 			);
@@ -1764,6 +2032,10 @@ public:
 	headers_t m_req_headers {};
 	std::string m_req_range {};
 	std::string m_req_if_range {};
+
+	optional <
+		std::filesystem::file_time_type
+	> m_file_modified {};
 
 	bool m_auto_compression = false;
 	bool m_client_accepts_gzip = false;

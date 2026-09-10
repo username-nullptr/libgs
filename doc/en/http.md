@@ -92,6 +92,14 @@ Use `on_default` for requests that do not match a registered route. Server-wide
 and per-service errors can be handled with `on_server_error` and
 `on_service_error`.
 
+Routes may still be added with `on_request` or removed with `unbound_request`
+after the server starts. These updates are safe to perform concurrently with
+request handling: each individual route update is published atomically, so
+subsequent requests observe either the complete old route table or the complete
+new one, while requests that already selected a handler continue using it.
+Literal paths use a fast exact-match index; wildcard rules and rules ending in
+path arguments keep the matching and precedence behavior described above.
+
 ### Responses
 
 The response API can:
@@ -129,6 +137,13 @@ Absolute paths bypass the root. An empty root preserves the earlier behavior,
 where relative paths use the executable directory. `resource_root` resolves
 paths; it is not a static-file router or a security sandbox. Validate any path
 derived from request data and reject traversal such as `..` before file I/O.
+
+Path-based `send_file()` calls cache raw file data and negotiated gzip variants
+for files up to 2 MiB. The in-process cache is bounded to 32 MiB and validates
+entries with file size and modification time on every request. Larger files,
+range responses, and caller-owned streams continue to use streaming I/O. This
+trades bounded memory for avoiding repeated reads and compression on hot static
+assets.
 
 ### Middleware and sessions
 

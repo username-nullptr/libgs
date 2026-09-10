@@ -23,23 +23,22 @@ inline spin_mutex::~spin_mutex()
 
 inline void spin_mutex::lock()
 {
-	using namespace std::chrono;
-	constexpr auto max_spin_duration = 64us;
-
-	auto start = high_resolution_clock::now();
-	bool expected = false;
-
-	while( not m_native_handle.compare_exchange_weak(expected, true,
-		std::memory_order_acquire, std::memory_order_relaxed) )
+	constexpr size_t spin_count = 64;
+	for(;;)
 	{
-		expected = false;
-		if( high_resolution_clock::now() - start < max_spin_duration )
-			none_instruction();
-		else
+		bool expected = false;
+		if( m_native_handle.compare_exchange_weak(expected, true,
+			std::memory_order_acquire, std::memory_order_relaxed) )
+			return ;
+
+		for(size_t count = 0; count < spin_count; ++count)
 		{
-			std::this_thread::yield();
-			start = high_resolution_clock::now();
+			if( not m_native_handle.load(std::memory_order_relaxed) )
+				break;
+			none_instruction();
 		}
+		if( m_native_handle.load(std::memory_order_relaxed) )
+			m_native_handle.wait(true, std::memory_order_relaxed);
 	}
 }
 
@@ -65,7 +64,8 @@ inline bool spin_mutex::try_lock()
 
 inline void spin_mutex::unlock()
 {
-	m_native_handle.store(false, std::memory_order_relaxed);
+	m_native_handle.store(false, std::memory_order_release);
+	m_native_handle.notify_one();
 }
 
 inline spin_mutex::native_handle_t &spin_mutex::native_handle() noexcept

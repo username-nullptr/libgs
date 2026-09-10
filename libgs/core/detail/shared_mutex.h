@@ -23,74 +23,80 @@ inline spin_shared_mutex::~spin_shared_mutex()
 
 inline void spin_shared_mutex::lock()
 {
-	using namespace std::chrono;
-	constexpr auto max_spin_duration = 64us;
-
-	auto start = steady_clock::now();
-	bool expected = false;
-
-	while( not m_write_flag.compare_exchange_weak(expected, true,
-		std::memory_order_acquire, std::memory_order_relaxed) )
+	constexpr size_t spin_count = 64;
+	for(;;)
 	{
-		expected = false;
-		if( steady_clock::now() - start < max_spin_duration )
-			none_instruction();
-		else
+		bool expected = false;
+		if( m_write_flag.compare_exchange_weak(expected, true,
+			std::memory_order_acquire, std::memory_order_relaxed) )
+			break;
+
+		for(size_t count = 0; count < spin_count; ++count)
 		{
-			std::this_thread::yield();
-			start = steady_clock::now();
+			if( not m_write_flag.load(std::memory_order_relaxed) )
+				break;
+			none_instruction();
 		}
+		if( m_write_flag.load(std::memory_order_relaxed) )
+			m_write_flag.wait(true, std::memory_order_relaxed);
 	}
-	while( m_read_count.load(std::memory_order_relaxed) > 0 )
+	for(auto readers = m_read_count.load(std::memory_order_acquire); readers > 0;
+		readers = m_read_count.load(std::memory_order_acquire))
 	{
-		if( steady_clock::now() - start < max_spin_duration )
-			none_instruction();
-		else
+		for(size_t count = 0; count < spin_count; ++count)
 		{
-			std::this_thread::yield();
-			start = steady_clock::now();
+			if( m_read_count.load(std::memory_order_relaxed) == 0 )
+				break;
+			none_instruction();
 		}
+		readers = m_read_count.load(std::memory_order_acquire);
+		if( readers > 0 )
+			m_read_count.wait(readers, std::memory_order_relaxed);
 	}
 }
 
 inline bool spin_shared_mutex::try_lock()
 {
-	if( m_write_flag.load(std::memory_order_acquire) or
-		m_read_count.load(std::memory_order_acquire) > 0 )
+	bool expected = false;
+	if( not m_write_flag.compare_exchange_strong(expected, true,
+		std::memory_order_acquire, std::memory_order_relaxed) )
 		return false;
 
-	bool expected = false;
-	return m_write_flag.compare_exchange_strong(expected, true,
-		std::memory_order_acquire, std::memory_order_relaxed
-	);
+	if( m_read_count.load(std::memory_order_acquire) == 0 )
+		return true;
+
+	m_write_flag.store(false, std::memory_order_release);
+	m_write_flag.notify_all();
+	return false;
 }
 
 inline void spin_shared_mutex::unlock()
 {
-	m_write_flag.store(false, std::memory_order_relaxed);
+	m_write_flag.store(false, std::memory_order_release);
+	m_write_flag.notify_all();
 }
 
 inline void spin_shared_mutex::lock_shared()
 {
-	using namespace std::chrono;
-	constexpr auto max_spin_duration = 64us;
-	auto start = steady_clock::now();
+	constexpr size_t spin_count = 64;
 	for(;;)
 	{
 		while( m_write_flag.load(std::memory_order_acquire) )
 		{
-			if( steady_clock::now() - start < max_spin_duration )
-				none_instruction();
-			else
+			for(size_t count = 0; count < spin_count; ++count)
 			{
-				std::this_thread::yield();
-				start = steady_clock::now();
+				if( not m_write_flag.load(std::memory_order_relaxed) )
+					break;
+				none_instruction();
 			}
+			if( m_write_flag.load(std::memory_order_relaxed) )
+				m_write_flag.wait(true, std::memory_order_relaxed);
 		}
 		m_read_count.fetch_add(1, std::memory_order_relaxed);
 		if( m_write_flag.load(std::memory_order_acquire) )
 		{
-			m_read_count.fetch_sub(1, std::memory_order_relaxed);
+			if( m_read_count.fetch_sub(1, std::memory_order_release) == 1 )
+				m_read_count.notify_all();
 			continue;
 		}
 		break;
@@ -105,7 +111,8 @@ inline bool spin_shared_mutex::try_lock_shared()
 	m_read_count.fetch_add(1, std::memory_order_relaxed);
 	if( m_write_flag.load(std::memory_order_acquire) )
 	{
-		m_read_count.fetch_sub(1, std::memory_order_relaxed);
+		if( m_read_count.fetch_sub(1, std::memory_order_release) == 1 )
+			m_read_count.notify_all();
 		return false;
 	}
 	return true;
@@ -113,7 +120,8 @@ inline bool spin_shared_mutex::try_lock_shared()
 
 inline void spin_shared_mutex::unlock_shared()
 {
-	m_read_count.fetch_sub(1, std::memory_order_relaxed);
+	if( m_read_count.fetch_sub(1, std::memory_order_release) == 1 )
+		m_read_count.notify_all();
 }
 
 } //namesapace libgs

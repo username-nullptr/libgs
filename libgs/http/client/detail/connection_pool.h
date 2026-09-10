@@ -5,10 +5,6 @@
 #define LIBGS_HTTP_CLIENT_DETAIL_CONNECTION_POOL_H
 
 #include <libgs/core/async_expected.h>
-#include <condition_variable>
-#include <unordered_map>
-#include <algorithm>
-#include <deque>
 
 namespace libgs::http
 {
@@ -43,11 +39,14 @@ class LIBGS_HTTP_TAPI basic_connection_pool<Exec>::impl :
 	{
 		connection_ptr connection {};
 		clock_t::time_point idle_since {};
+		target_t key {};
 	};
+	using idle_list = std::list<idle_connection>;
+	using idle_iterator = idle_list::iterator;
 
 	struct connection_bucket
 	{
-		std::deque<idle_connection> idle {};
+		std::deque<idle_iterator> idle {};
 		size_t connecting = 0;
 		size_t total = 0;
 	};
@@ -55,6 +54,9 @@ class LIBGS_HTTP_TAPI basic_connection_pool<Exec>::impl :
 	enum class wake_reason {
 		none, state_changed, cancelled, stopped
 	};
+
+	struct waiter;
+	using waiter_list = std::list<std::shared_ptr<waiter>>;
 
 	struct waiter
 	{
@@ -66,6 +68,10 @@ class LIBGS_HTTP_TAPI basic_connection_pool<Exec>::impl :
 		timer_t timer {};
 		target_t key {};
 		wake_reason reason = wake_reason::none;
+
+		waiter_list::iterator all_position {};
+		waiter_list::iterator key_position {};
+		bool queued = false;
 	};
 
 public:
@@ -205,7 +211,12 @@ public:
 				else
 				{
 					current_waiter = std::make_shared<waiter>(m_exec, key);
-					m_waiters.emplace_back(current_waiter);
+					if( not enqueue_waiter_locked(current_waiter) )
+					{
+						co_return sys_unexpected(make_error_code (
+							std::errc::not_enough_memory
+						));
+					}
 				}
 			}
 			if( current_waiter )
@@ -249,9 +260,12 @@ public:
 		++m_cancel_generation;
 
 		for(auto &item : m_waiters)
+		{
+			item->queued = false;
 			wake_waiter_locked(item, wake_reason::cancelled);
-
+		}
 		m_waiters.clear();
+		m_waiters_by_key.clear();
 		state_changed_locked();
 	}
 
@@ -265,21 +279,30 @@ public:
 		++m_cancel_generation;
 
 		for(auto &item : m_waiters)
+		{
+			item->queued = false;
 			wake_waiter_locked(item, wake_reason::stopped);
+		}
 		m_waiters.clear();
+		m_waiters_by_key.clear();
 
 		for(auto &[key, bucket] : m_buckets)
 		{
 			ignore_unused(key);
 			while( not bucket.idle.empty() )
 			{
-				auto conn = std::move(bucket.idle.front().connection);
+				auto idle = bucket.idle.front();
+				auto conn = std::move(idle->connection);
+
 				bucket.idle.pop_front();
+				m_idle_lru.erase(idle);
 
 				if( bucket.total > 0 )
 					--bucket.total;
+
 				if( m_total_count > 0 )
 					--m_total_count;
+
 				if( conn )
 					ignore_unused(conn->close());
 			}
@@ -327,8 +350,11 @@ private:
 
 		while( not pos->second.idle.empty() )
 		{
-			auto idle = std::move(pos->second.idle.back());
+			auto idle_pos = pos->second.idle.back();
+			auto idle = std::move(*idle_pos);
+
 			pos->second.idle.pop_back();
+			m_idle_lru.erase(idle_pos);
 
 			if( reusable(idle.connection, idle.idle_since) )
 				return std::move(idle.connection);
@@ -347,22 +373,18 @@ private:
 
 	bool evict_one_idle_locked() noexcept
 	{
-		auto selected = m_buckets.end();
-		auto oldest = clock_t::time_point::max();
-
-		for(auto pos = m_buckets.begin(); pos != m_buckets.end(); ++pos)
-		{
-			if( not pos->second.idle.empty() and pos->second.idle.front().idle_since < oldest )
-			{
-				selected = pos;
-				oldest = pos->second.idle.front().idle_since;
-			}
-		}
-		if( selected == m_buckets.end() )
+		if( m_idle_lru.empty() )
 			return false;
 
-		auto conn = std::move(selected->second.idle.front().connection);
+		auto idle = m_idle_lru.begin();
+		auto selected = m_buckets.find(idle->key);
+		if( selected == m_buckets.end() or selected->second.idle.empty() )
+			return false;
+
+		assert(selected->second.idle.front() == idle);
+		auto conn = std::move(idle->connection);
 		selected->second.idle.pop_front();
+		m_idle_lru.erase(idle);
 
 		drop_count_locked(selected);
 		if( conn )
@@ -446,9 +468,20 @@ private:
 			if( not m_stopped and keep and pos != m_buckets.end() )
 			{
 				try {
-					pos->second.idle.push_back({std::move(conn), clock_t::now()});
+					m_idle_lru.push_back({std::move(conn), clock_t::now(), key});
+					auto idle = std::prev(m_idle_lru.end());
+					try {
+						pos->second.idle.push_back(idle);
+					}
+					catch(...)
+					{
+						conn = std::move(idle->connection);
+						m_idle_lru.erase(idle);
+						throw;
+					}
 					if( not wake_matching_locked(key) )
 						wake_any_locked();
+
 					state_changed_locked();
 					return ;
 				}
@@ -501,17 +534,66 @@ private:
 		catch(...) {}
 	}
 
+	[[nodiscard]] bool enqueue_waiter_locked
+	(const std::shared_ptr<waiter> &item) noexcept
+	{
+		bool all_inserted = false;
+		try {
+			m_waiters.emplace_back(item);
+			item->all_position = std::prev(m_waiters.end());
+			all_inserted = true;
+
+			auto [key, inserted] = m_waiters_by_key.try_emplace(item->key);
+			ignore_unused(inserted);
+			try {
+				key->second.emplace_back(item);
+			}
+			catch(...)
+			{
+				m_waiters.erase(item->all_position);
+				all_inserted = false;
+
+				if( key->second.empty() )
+					m_waiters_by_key.erase(key);
+				throw;
+			}
+			item->key_position = std::prev(key->second.end());
+			item->queued = true;
+			return true;
+		}
+		catch(...)
+		{
+			if( all_inserted )
+				m_waiters.erase(item->all_position);
+			return false;
+		}
+	}
+
+	void dequeue_waiter_locked(waiter *item) noexcept
+	{
+		if( not item or not item->queued )
+			return ;
+
+		m_waiters.erase(item->all_position);
+		if( auto key = m_waiters_by_key.find(item->key); key != m_waiters_by_key.end() )
+		{
+			key->second.erase(item->key_position);
+			if( key->second.empty() )
+				m_waiters_by_key.erase(key);
+		}
+		item->queued = false;
+	}
+
 	[[nodiscard]] bool wake_matching_locked(const target_t &key) noexcept
 	{
-		auto pos = std::ranges::find(m_waiters, key,
-			[](const auto &item) -> const target_t& {
-				return item->key;
-			});
-		if( pos == m_waiters.end() )
+		auto pos = m_waiters_by_key.find(key);
+		if( pos == m_waiters_by_key.end() or pos->second.empty() )
 			return false;
 
-		wake_waiter_locked(*pos, wake_reason::state_changed);
-		m_waiters.erase(pos);
+		auto item = pos->second.front();
+		dequeue_waiter_locked(item.get());
+
+		wake_waiter_locked(item, wake_reason::state_changed);
 		return true;
 	}
 
@@ -519,18 +601,14 @@ private:
 	{
 		if( m_waiters.empty() )
 			return ;
-		auto item = std::move(m_waiters.front());
-		m_waiters.pop_front();
+		auto item = m_waiters.front();
+		dequeue_waiter_locked(item.get());
 		wake_waiter_locked(item, wake_reason::state_changed);
 	}
 
 	void remove_waiter_locked(waiter *value) noexcept
 	{
-		auto pos = std::ranges::find(m_waiters, value, [](const auto &item) {
-			return item.get();
-		});
-		if( pos != m_waiters.end() )
-			m_waiters.erase(pos);
+		dequeue_waiter_locked(value);
 	}
 
 public:
@@ -539,11 +617,20 @@ public:
 	executor_t m_exec {};
 
 private:
-	std::unordered_map<target_t,connection_bucket,key_hash> m_buckets {};
-	std::deque<std::shared_ptr<waiter>> m_waiters {};
+	std::unordered_map <
+		target_t, connection_bucket,key_hash
+	> m_buckets {};
+
+	idle_list m_idle_lru {};
+	waiter_list m_waiters {};
+
+	std::unordered_map <
+		target_t, waiter_list, key_hash
+	> m_waiters_by_key {};
 
 	size_t m_total_count = 0;
 	size_t m_state_epoch = 0;
+
 	size_t m_cancel_generation = 0;
 	bool m_stopped = false;
 

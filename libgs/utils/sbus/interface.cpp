@@ -5,12 +5,26 @@
 #include <libgs/core/lock_free_queue.h>
 #include <libgs/utils/signal_slot.h>
 #include <libgs/utils/logger.h>
+#include <unordered_set>
 
 namespace libgs::utils::sbus { namespace detail
 {
 
 using payload_buffer_t = std::vector<std::byte>;
 using shared_payload_t = std::shared_ptr<const payload_buffer_t>;
+
+struct transparent_string_hash
+{
+	using is_transparent = void;
+
+	[[nodiscard]] size_t operator()(std::string_view value) const noexcept {
+		return std::hash<std::string_view>{}(value);
+	}
+
+	[[nodiscard]] size_t operator()(const std::string &value) const noexcept {
+		return operator()(std::string_view(value));
+	}
+};
 
 class payload_t
 {
@@ -250,22 +264,11 @@ class LIBGS_DECL_HIDDEN local_interface::impl
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
-	struct transparent_string_hash
-	{
-		using is_transparent = void;
-
-		[[nodiscard]] size_t operator()(std::string_view value) const noexcept {
-			return std::hash<std::string_view>{}(value);
-		}
-
-		[[nodiscard]] size_t operator()(const std::string &value) const noexcept {
-			return operator()(std::string_view(value));
-		}
-	};
-
-	using subscriber_map = std::unordered_map<uint64_t,detail::subscriber_ptr>;
-	using topic_map = std::unordered_map<
-		std::string, subscriber_map, transparent_string_hash, std::equal_to<>
+	using subscriber_map = std::unordered_map <
+		uint64_t, detail::subscriber_ptr
+	>;
+	using topic_map = std::unordered_map <
+		std::string, subscriber_map, detail::transparent_string_hash, std::equal_to<>
 	>;
 
 public:
@@ -282,6 +285,7 @@ public:
 			std::string(topic), std::unordered_map<uint64_t,detail::subscriber_ptr>()
 		);
 		it.first->second.emplace(id, obj);
+		m_topics_by_sid.emplace(id, it.first->first);
 		return { id, obj };
 	}
 
@@ -333,75 +337,47 @@ public:
 			subscriber->tigger(payload);
 	}
 
-	void broadcast_large(std::string_view topic, const void *data, size_t size) noexcept
+	[[nodiscard]] size_t global_subscriber_count() const noexcept
 	{
-		std::shared_lock global_lock(m_global_subscribers_lock);
-		std::shared_lock topic_lock(m_subscribers_lock);
-
-		auto topic_it = m_subscribers.find(topic);
-		const auto topic_subscriber_count = topic_it == m_subscribers.end() ?
-			0 : topic_it->second.size();
-
-		const auto count = m_global_subscribers.size() + topic_subscriber_count;
-		if( count == 0 )
-			return ;
-
-		if( count == 1 )
-		{
-			if( not m_global_subscribers.empty() )
-				m_global_subscribers.begin()->second->tigger(topic, data, size);
-			else
-				topic_it->second.begin()->second->tigger(data, size);
-			return ;
-		}
-		auto begin = static_cast<const std::byte*>(data);
-
-		detail::shared_payload_t payload =
-			std::make_shared<detail::payload_buffer_t>(begin, begin + size);
-
-		for(auto &[id, subscriber] : m_global_subscribers)
-			subscriber->tigger(topic, payload);
-
-		if( topic_it != m_subscribers.end() )
-		{
-			for(auto &[id, subscriber] : topic_it->second)
-				subscriber->tigger(payload);
-		}
+		std::shared_lock lock(m_global_subscribers_lock);
+		return m_global_subscribers.size();
 	}
 
-	[[nodiscard]] size_t subscriber_count(std::string_view topic) const noexcept
+	[[nodiscard]] size_t topic_subscriber_count(std::string_view topic) const noexcept
 	{
-		size_t result = 0;
-		{
-			std::shared_lock lock(m_global_subscribers_lock);
-			result += m_global_subscribers.size();
-		}
-		{
-			std::shared_lock lock(m_subscribers_lock);
-			if( auto it = m_subscribers.find(topic); it != m_subscribers.end() )
-				result += it->second.size();
-		}
-		return result;
+		std::shared_lock lock(m_subscribers_lock);
+		if( auto it = m_subscribers.find(topic); it != m_subscribers.end() )
+			return it->second.size();
+		return 0;
 	}
 
 public:
 	std::atomic_uint64_t m_id_seq {0};
-
 	topic_map m_subscribers {};
-	mutable spin_shared_mutex m_subscribers_lock {};
+
+	std::unordered_map<uint64_t,std::string> m_topics_by_sid {};
+	mutable shared_mutex m_subscribers_lock {};
 
 	std::unordered_map<uint64_t,
 		detail::global_subscriber_ptr
 	> m_global_subscribers {};
 
-	mutable spin_shared_mutex m_global_subscribers_lock {};
+	mutable shared_mutex m_global_subscribers_lock {};
 };
 
-static std::map<local_interface*,
-	std::shared_ptr<local_interface>
+using interface_set = std::unordered_set<local_interface*>;
+
+using topic_interface_map = std::unordered_map <
+	std::string, interface_set, detail::transparent_string_hash, std::equal_to<>
+>;
+
+static std::unordered_map <
+	local_interface*, std::shared_ptr<local_interface>
 > g_obj_map {};
 
-static spin_shared_mutex m_objs_lock {};
+static interface_set g_global_interfaces {};
+static topic_interface_map g_topic_interfaces {};
+static shared_mutex m_objs_lock {};
 
 local_interface::local_interface() :
 	m_impl(std::make_unique<impl>())
@@ -414,72 +390,98 @@ local_interface::~local_interface() = default;
 void local_interface::publish(std::string_view topic, const void *buffer, size_t size)
 {
 	std::shared_lock lock(m_objs_lock);
+	auto topic_pos = g_topic_interfaces.find(topic);
+
+	if( g_global_interfaces.empty() and topic_pos == g_topic_interfaces.end() )
+		return ;
+
 	if( size >= detail::g_shared_payload_threshold )
 	{
-		if( g_obj_map.size() == 1 )
-		{
-			g_obj_map.begin()->second->m_impl->broadcast_large(topic, buffer, size);
-			return ;
-		}
 		size_t subscriber_count = 0;
-		for(auto &obj : g_obj_map | std::views::values)
-			subscriber_count += obj->m_impl->subscriber_count(topic);
+		for(auto *obj : g_global_interfaces)
+			subscriber_count += obj->m_impl->global_subscriber_count();
 
+		if( topic_pos != g_topic_interfaces.end() )
+		{
+			for(auto *obj : topic_pos->second)
+				subscriber_count += obj->m_impl->topic_subscriber_count(topic);
+		}
 		if( subscriber_count > 1 )
 		{
 			auto begin = static_cast<const std::byte*>(buffer);
 			detail::shared_payload_t payload =
 				std::make_shared<detail::payload_buffer_t>(begin, begin + size);
 
-			for(auto &obj : g_obj_map | std::views::values)
-			{
+			for(auto *obj : g_global_interfaces)
 				obj->m_impl->global_broadcast(topic, payload);
-				obj->m_impl->broadcast(topic, payload);
+
+			if( topic_pos != g_topic_interfaces.end() )
+			{
+				for(auto *obj : topic_pos->second)
+					obj->m_impl->broadcast(topic, payload);
 			}
 			return ;
 		}
 	}
-	for(auto &obj : g_obj_map | std::views::values)
-	{
+	for(auto *obj : g_global_interfaces)
 		obj->m_impl->global_broadcast(topic, buffer, size);
-		obj->m_impl->broadcast(topic, buffer, size);
+
+	if( topic_pos != g_topic_interfaces.end() )
+	{
+		for(auto *obj : topic_pos->second)
+			obj->m_impl->broadcast(topic, buffer, size);
 	}
 }
 
 uint64_t local_interface::subscribe(std::string_view topic, std::function<void(const void*, size_t)> callback)
 {
+	std::unique_lock objs_lock(m_objs_lock);
 	auto [id, subr] = m_impl->make_subscriber(topic);
+
 	subr->received.connect (
 	[func = std::move(callback)](const detail::payload_t &payload) {
 		func(payload.data(), payload.size());
 	});
-	m_objs_lock.lock();
 	g_obj_map.emplace(this, shared_from_this());
-	m_objs_lock.unlock();
+	g_topic_interfaces[std::string(topic)].emplace(this);
 	return id;
 }
 
 uint64_t local_interface::subscribe(std::function<void(std::string_view topic, const void*, size_t)> callback)
 {
+	std::unique_lock objs_lock(m_objs_lock);
 	auto [id, subr] = m_impl->make_subscriber();
+
 	subr->received.connect (
 	[func = std::move(callback)](std::string_view topic, const detail::payload_t &payload) {
 		func(topic, payload.data(), payload.size());
 	});
-	m_objs_lock.lock();
 	g_obj_map.emplace(this, shared_from_this());
-	m_objs_lock.unlock();
+	g_global_interfaces.emplace(this);
 	return id;
 }
 
 void local_interface::cancel_topic(std::string_view topic)
 {
+	std::unique_lock objs_lock(m_objs_lock);
 	{
 		std::unique_lock lock(m_impl->m_subscribers_lock);
 		if( auto it = m_impl->m_subscribers.find(topic); it != m_impl->m_subscribers.end() )
+		{
+			for(auto &[sid, subscriber] : it->second)
+			{
+				ignore_unused(subscriber);
+				m_impl->m_topics_by_sid.erase(sid);
+			}
 			m_impl->m_subscribers.erase(it);
+		}
 	}
-	std::unique_lock objs_lock(m_objs_lock);
+	if( auto pos = g_topic_interfaces.find(topic); pos != g_topic_interfaces.end() )
+	{
+		pos->second.erase(this);
+		if( pos->second.empty() )
+			g_topic_interfaces.erase(pos);
+	}
 	std::shared_lock global_lock(m_impl->m_global_subscribers_lock);
 	std::shared_lock topic_lock(m_impl->m_subscribers_lock);
 
@@ -489,29 +491,56 @@ void local_interface::cancel_topic(std::string_view topic)
 
 void local_interface::cancel_sid(uint64_t sid)
 {
+	std::unique_lock objs_lock(m_objs_lock);
 	bool erased = false;
+	bool global_empty = false;
 	{
 		std::unique_lock lock(m_impl->m_global_subscribers_lock);
 		erased = m_impl->m_global_subscribers.erase(sid) > 0;
+		global_empty = m_impl->m_global_subscribers.empty();
 	}
+	std::string topic {};
+	bool topic_subscription = false;
+	bool topic_empty = false;
+
 	if( not erased )
 	{
 		std::unique_lock lock(m_impl->m_subscribers_lock);
-		for(auto it = m_impl->m_subscribers.begin(); it != m_impl->m_subscribers.end(); ++it)
-		{
-			if( it->second.erase(sid) == 0 )
-				continue;
+		auto sid_pos = m_impl->m_topics_by_sid.find(sid);
 
-			erased = true;
-			if( it->second.empty() )
-				m_impl->m_subscribers.erase(it);
-			break;
+		if( sid_pos != m_impl->m_topics_by_sid.end() )
+		{
+			topic_subscription = true;
+			topic = sid_pos->second;
+
+			m_impl->m_topics_by_sid.erase(sid_pos);
+			if( auto pos = m_impl->m_subscribers.find(topic); pos != m_impl->m_subscribers.end() )
+			{
+				erased = pos->second.erase(sid) > 0;
+				topic_empty = pos->second.empty();
+
+				if( topic_empty )
+					m_impl->m_subscribers.erase(pos);
+			}
 		}
 	}
 	if( not erased )
 		return ;
 
-	std::unique_lock objs_lock(m_objs_lock);
+	if( not topic_subscription )
+	{
+		if( global_empty )
+			g_global_interfaces.erase(this);
+	}
+	else if( topic_empty )
+	{
+		if( auto pos = g_topic_interfaces.find(topic); pos != g_topic_interfaces.end() )
+		{
+			pos->second.erase(this);
+			if( pos->second.empty() )
+				g_topic_interfaces.erase(pos);
+		}
+	}
 	std::shared_lock global_lock(m_impl->m_global_subscribers_lock);
 	std::shared_lock topic_lock(m_impl->m_subscribers_lock);
 
@@ -521,17 +550,29 @@ void local_interface::cancel_sid(uint64_t sid)
 
 void local_interface::cancel()
 {
+	std::unique_lock objs_lock(m_objs_lock);
+	for(auto &[topic, subscribers] : m_impl->m_subscribers)
+	{
+		ignore_unused(subscribers);
+		if( auto pos = g_topic_interfaces.find(topic); pos != g_topic_interfaces.end() )
+		{
+			pos->second.erase(this);
+			if( pos->second.empty() )
+				g_topic_interfaces.erase(pos);
+		}
+	}
+	g_global_interfaces.erase(this);
+
 	m_impl->m_global_subscribers_lock.lock();
 	m_impl->m_global_subscribers.clear();
 	m_impl->m_global_subscribers_lock.unlock();
 
 	m_impl->m_subscribers_lock.lock();
 	m_impl->m_subscribers.clear();
+	m_impl->m_topics_by_sid.clear();
 	m_impl->m_subscribers_lock.unlock();
 
-	m_objs_lock.lock();
 	g_obj_map.erase(this);
-	m_objs_lock.unlock();
 }
 
 } //namespace libgs::utils::sbus

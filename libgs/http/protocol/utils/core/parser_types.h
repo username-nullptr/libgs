@@ -10,6 +10,8 @@
 namespace libgs::http
 {
 
+constexpr size_t default_parser_buffer_size = 4 * 1024;
+
 template <protocol_model>
 class parser {};
 

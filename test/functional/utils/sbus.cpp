@@ -91,6 +91,65 @@ void large_payload_fanout_owns_one_copy()
 	interface->cancel();
 }
 
+void indexed_topics_and_empty_topic_cancellation()
+{
+	constexpr std::string_view target_topic = "libgs.test.sbus.indexed-target";
+	std::vector<std::shared_ptr<libgs::utils::sbus::local_interface>> unrelated;
+	std::atomic_size_t unrelated_received {0};
+	unrelated.reserve(32);
+	for(size_t index = 0; index < 32; ++index)
+	{
+		auto interface = std::make_shared<libgs::utils::sbus::local_interface>();
+		interface->subscribe(
+			"libgs.test.sbus.unrelated." + std::to_string(index),
+			[&](const void*, size_t) { unrelated_received.fetch_add(1); }
+		);
+		unrelated.emplace_back(std::move(interface));
+	}
+
+	auto target = std::make_shared<libgs::utils::sbus::local_interface>();
+	std::atomic_size_t target_received {0};
+	const auto target_sid = target->subscribe(target_topic,
+	[&](const void*, size_t) {
+		target_received.fetch_add(1, std::memory_order_release);
+	});
+
+	libgs::utils::sbus::publish(target_topic, 42);
+	LIBGS_TEST_CHECK(wait_for_count(target_received, 1));
+	std::this_thread::sleep_for(5ms);
+	LIBGS_TEST_CHECK_EQ(unrelated_received.load(), 0U);
+
+	target->cancel_sid(target_sid);
+	libgs::utils::sbus::publish(target_topic, 43);
+	std::this_thread::sleep_for(5ms);
+	LIBGS_TEST_CHECK_EQ(target_received.load(), 1U);
+
+	// Topic "" and a global subscription are distinct index entries.
+	auto empty = std::make_shared<libgs::utils::sbus::local_interface>();
+	std::atomic_size_t empty_received {0};
+	std::atomic_size_t global_received {0};
+	const auto empty_sid = empty->subscribe("", [&](const void*, size_t) {
+		empty_received.fetch_add(1, std::memory_order_release);
+	});
+	empty->subscribe([&](std::string_view, const void*, size_t) {
+		global_received.fetch_add(1, std::memory_order_release);
+	});
+
+	libgs::utils::sbus::publish("", 1);
+	LIBGS_TEST_CHECK(wait_for_count(empty_received, 1));
+	LIBGS_TEST_CHECK(wait_for_count(global_received, 1));
+	empty->cancel_sid(empty_sid);
+	libgs::utils::sbus::publish("", 2);
+	LIBGS_TEST_CHECK(wait_for_count(global_received, 2));
+	std::this_thread::sleep_for(5ms);
+	LIBGS_TEST_CHECK_EQ(empty_received.load(), 1U);
+
+	empty->cancel();
+	target->cancel();
+	for(auto &interface : unrelated)
+		interface->cancel();
+}
+
 } //namespace
 
 int main()
@@ -98,5 +157,6 @@ int main()
 	return libgs::test::run({
 		{"sbus delivery and cancellation", delivery_and_cancellation},
 		{"sbus large payload fanout owns one copy", large_payload_fanout_owns_one_copy},
+		{"sbus indexed topics and empty-topic cancellation", indexed_topics_and_empty_topic_cancellation},
 	});
 }

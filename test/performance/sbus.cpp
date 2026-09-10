@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -45,6 +46,7 @@ constexpr size_t payload_1m_fanout_publish_count = 16;
 constexpr size_t publish_batch_size = 64;
 constexpr size_t max_batch_payload_bytes = 4 * 1'024 * 1'024;
 constexpr size_t sample_count = 3;
+constexpr size_t unrelated_interface_count = 32;
 constexpr std::string_view topic = "libgs.performance.sbus";
 
 struct measurement
@@ -77,6 +79,33 @@ duration_t measure_without_subscribers(size_t payload_size)
 	for(size_t index = 0; index < no_subscriber_publish_count; ++index)
 		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
 	return steady_clock_t::now() - begin;
+}
+
+duration_t measure_with_unrelated_interfaces(size_t payload_size)
+{
+	std::vector<std::shared_ptr<libgs::utils::sbus::local_interface>> interfaces;
+	interfaces.reserve(unrelated_interface_count);
+	for(size_t index = 0; index < unrelated_interface_count; ++index)
+	{
+		auto interface = std::make_shared<libgs::utils::sbus::local_interface>();
+		interface->subscribe(
+			"libgs.performance.sbus.unrelated." + std::to_string(index),
+			[](const void*, size_t) {}
+		);
+		interfaces.emplace_back(std::move(interface));
+	}
+
+	std::vector<std::byte> payload(payload_size, std::byte {0x2a});
+	for(size_t index = 0; index < 1'000; ++index)
+		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+
+	const auto begin = steady_clock_t::now();
+	for(size_t index = 0; index < no_subscriber_publish_count; ++index)
+		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+	const auto elapsed = steady_clock_t::now() - begin;
+	for(auto &interface : interfaces)
+		interface->cancel();
+	return elapsed;
 }
 
 duration_t measure_connection_cycles()
@@ -283,6 +312,11 @@ void sbus_throughput()
 	libgs::test::print_performance_result(
 		"sbus/publish no subscribers (8 B, median of 3)", no_subscriber_publish_count,
 		median_duration([] { return measure_without_subscribers(8); }), "message"
+	);
+	libgs::test::print_performance_result(
+		"sbus/publish with 32 unrelated interfaces (8 B, median of 3)",
+		no_subscriber_publish_count,
+		median_duration([] { return measure_with_unrelated_interfaces(8); }), "message"
 	);
 	print_connection_performance();
 	libgs::test::print_performance_result(

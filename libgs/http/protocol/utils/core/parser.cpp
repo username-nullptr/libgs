@@ -5,8 +5,12 @@
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/string_vector.h>
 
-namespace libgs::http
+namespace libgs::http { namespace
 {
+
+constexpr size_t compact_threshold = default_parser_buffer_size;
+
+} //namespace
 
 class LIBGS_DECL_HIDDEN parser<protocol_model::base>::impl
 {
@@ -36,7 +40,7 @@ public:
 		if( source_empty() )
 			clear_source();
 
-		else if( m_src_pos >= 0xFFFF and
+		else if( m_src_pos >= compact_threshold and
 			m_src_pos >= m_src_buf.size() - m_src_pos )
 		{
 			m_src_buf.erase(0, m_src_pos);
@@ -83,7 +87,7 @@ public:
 		if( partial_body_empty() )
 			clear_partial_body();
 
-		else if( m_partial_body_pos >= 0xFFFF and
+		else if( m_partial_body_pos >= compact_threshold and
 				 m_partial_body_pos >= m_partial_body.size() - m_partial_body_pos )
 		{
 			m_partial_body.erase(0, m_partial_body_pos);
@@ -598,7 +602,7 @@ parser<protocol_model::base>::parser(parser &&other) noexcept :
 	const_headers(other.m_headers),
 	m_impl(other.m_impl)
 {
-	other.m_impl = new impl(0xFFFF);
+	other.m_impl = new impl(0);
 	other.m_headers = &other.m_impl->m_headers;
 }
 
@@ -611,7 +615,7 @@ parser<protocol_model::base> &parser<protocol_model::base>::operator=(parser &&o
 	m_impl = other.m_impl;
 	m_headers = other.m_headers;
 
-	other.m_impl = new impl(0xFFFF);
+	other.m_impl = new impl(0);
 	other.m_headers = &other.m_impl->m_headers;
 	return *this;
 }

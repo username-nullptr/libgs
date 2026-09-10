@@ -1178,13 +1178,20 @@ public:
 	void connect(Exec0 &&exec, Func0 &&func) noexcept
 		requires is_global_slot_v<Mode,Func0>
 	{
-		auto it = std::ranges::find_if(m_slots, [&func](const auto &info) {
-			return info.func == &func and info.slot->m_obj == nullptr;
-		});
+		auto it = m_slots.end();
+		const void *identity = nullptr;
+
+		if constexpr( std::is_lvalue_reference_v<Func0> )
+		{
+			identity = reinterpret_cast<const void*>(std::addressof(func));
+			it = std::ranges::find_if(m_slots, [identity](const auto &info) {
+				return info.func == identity and info.slot->m_obj == nullptr;
+			});
+		}
 		if( it == m_slots.end() )
 			it = m_slots.emplace(m_slots.end());
 
-		it->func = reinterpret_cast<const void*>(&func);
+		it->func = identity;
 		it->slot = adapter::template make<Mode>(
 			std::forward<Exec0>(exec), std::forward<Func0>(func)
 		);
@@ -1194,13 +1201,20 @@ public:
 	void connect(Obj &&observer, Func0 &&func) noexcept
 		requires is_obj_slot_v<Mode,Obj,Func0>
 	{
-		auto it = std::ranges::find_if(m_slots, [&observer, &func](const auto &info) {
-			return info.slot->m_obj == observer.get() and info.func == &func;
-		});
+		auto it = m_slots.end();
+		const void *identity = nullptr;
+
+		if constexpr( std::is_lvalue_reference_v<Func0> )
+		{
+			identity = reinterpret_cast<const void*>(std::addressof(func));
+			it = std::ranges::find_if(m_slots, [&observer, identity](const auto &info) {
+				return info.slot->m_obj == observer.get() and info.func == identity;
+			});
+		}
 		if( it == m_slots.end() )
 			it = m_slots.emplace(m_slots.end());
 
-		it->func = reinterpret_cast<const void*>(&func);
+		it->func = identity;
 		it->slot = adapter::template make<Mode>(
 			std::forward<Obj>(observer), std::forward<Func0>(func)
 		);
@@ -1210,13 +1224,20 @@ public:
 	void connect(Obj &&observer, Exec0 &&exec, Func0 &&func) noexcept
 		requires is_obj_slot_v<Mode,Obj,Func0>
 	{
-		auto it = std::ranges::find_if(m_slots, [&observer, &func](const auto &info) {
-			return info.slot->m_obj == observer.get() and info.func == &func;
-		});
+		auto it = m_slots.end();
+		const void *identity = nullptr;
+
+		if constexpr( std::is_lvalue_reference_v<Func0> )
+		{
+			identity = reinterpret_cast<const void*>(std::addressof(func));
+			it = std::ranges::find_if(m_slots, [&observer, identity](const auto &info) {
+				return info.slot->m_obj == observer.get() and info.func == identity;
+			});
+		}
 		if( it == m_slots.end() )
 			it = m_slots.emplace(m_slots.end());
 
-		it->func = reinterpret_cast<const void*>(&func);
+		it->func = identity;
 		it->slot = adapter::template make<Mode>(std::forward<Obj>(observer),
 			std::forward<Exec0>(exec), std::forward<Func0>(func)
 		);
@@ -1348,8 +1369,7 @@ public:
 				}
 				if( slot->m_backpressure )
 				{
-					auto future = (*slot)(args...);
-					if( future.valid() )
+					if( auto future = (*slot)(args...); future.valid() )
 						futures.emplace_back(std::move(future));
 				}
 				else if( slot->m_borrowed )
@@ -1394,14 +1414,14 @@ signal_base<Derived,Func>::~signal_base() = default;
 
 template <typename Derived, concepts::std_func_temp Func>
 template <slot_mode Mode, typename...Slots>
-auto signal_base<Derived,Func>::connect(Slots&&...slots) noexcept -> derived_t&
+auto signal_base<Derived,Func>::connect(Slots&&...funcs) noexcept -> derived_t&
 	requires is_global_slots_v<Mode,Slots...>
 {
 	auto state = m_impl;
 	std::lock_guard lock(state->m_mutex);
 
 	(void) std::initializer_list<int> {(
-		state->template connect<Mode>(std::forward<Slots>(slots)),
+		state->template connect<Mode>(std::forward<Slots>(funcs)),
 	0)...};
 
 	state->rebuild_snapshot_locked();
@@ -1464,7 +1484,7 @@ auto signal_base<Derived,Func>::connect(Obj &&observer, Exec0 &&exec, Slots&&...
 
 template <typename Derived, concepts::std_func_temp Func>
 template <typename...Slots>
-auto signal_base<Derived,Func>::connect(Slots&&...slots) noexcept -> derived_t&
+auto signal_base<Derived,Func>::connect(Slots&&...funcs) noexcept -> derived_t&
 	requires is_global_slots_def_v<Slots...>
 {
 	auto state = m_impl;
@@ -1486,7 +1506,7 @@ auto signal_base<Derived,Func>::connect(Slots&&...slots) noexcept -> derived_t&
 		else
 			state->template connect<slot_mode::sync>(std::forward<Slot>(func));
 	};
-	(connect_slot(std::forward<Slots>(slots)), ...);
+	(connect_slot(std::forward<Slots>(funcs)), ...);
 
 	state->rebuild_snapshot_locked();
 	return static_cast<derived_t&>(*this);

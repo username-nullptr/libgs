@@ -20,7 +20,6 @@ class LIBGS_HTTP_API parser<protocol_model::server> final :
 
 public:
 	using stage_t = http::stage;
-
 	using value_t = libgs::value;
 	using path_args_t = parameter_map;
 
@@ -28,7 +27,7 @@ public:
 	using headers_t = http::headers;
 
 public:
-	explicit parser(size_t init_buf_size = 0xFFFF);
+	explicit parser(size_t init_buf_size = default_parser_buffer_size);
 	~parser() override;
 
 	parser(parser &&other) noexcept;

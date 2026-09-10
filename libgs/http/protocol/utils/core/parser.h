@@ -32,7 +32,7 @@ public:
 	>;
 
 public:
-	explicit parser(size_t init_buf_size = 0xFFFF);
+	explicit parser(size_t init_buf_size = default_parser_buffer_size);
 	~parser() override;
 
 	parser(parser &&other) noexcept;

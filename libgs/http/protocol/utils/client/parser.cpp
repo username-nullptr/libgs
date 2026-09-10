@@ -284,7 +284,7 @@ public:
 		if( partial_body_empty() )
 			clear_partial_body();
 
-		else if( m_partial_body_pos >= 0xFFFF and
+		else if( m_partial_body_pos >= default_parser_buffer_size and
 				 m_partial_body_pos >= m_partial_body.size() - m_partial_body_pos )
 		{
 			m_partial_body.erase(0, m_partial_body_pos);
@@ -691,7 +691,7 @@ parser<protocol_model::client>::parser(parser &&other) noexcept :
 	m_cookies = &m_impl->m_cookies;
 	m_chunk_attributes = &m_impl->m_parser.chunk_attributes();
 
-	other.m_impl = new impl(0xFFFF);
+	other.m_impl = new impl(0);
 	other.m_headers = &other.m_impl->m_parser.headers();
 	other.m_cookies = &other.m_impl->m_cookies;
 	other.m_chunk_attributes = &other.m_impl->m_parser.chunk_attributes();
@@ -708,7 +708,7 @@ parser<protocol_model::client> &parser<protocol_model::client>::operator=(parser
 	m_cookies = &m_impl->m_cookies;
 	m_chunk_attributes = &m_impl->m_parser.chunk_attributes();
 
-	other.m_impl = new impl(0xFFFF);
+	other.m_impl = new impl(0);
 	other.m_headers = &other.m_impl->m_parser.headers();
 	other.m_cookies = &other.m_impl->m_cookies;
 	other.m_chunk_attributes = &other.m_impl->m_parser.chunk_attributes();

@@ -106,6 +106,22 @@ void parser_reuse()
 		parser.reset();
 		LIBGS_TEST_CHECK_EQ(parser.stage(), stage::header);
 	}
+
+	server_parser source(32);
+	auto parsed = source.append(buffer(request));
+	LIBGS_TEST_CHECK(parsed and *parsed);
+	LIBGS_TEST_CHECK(source.path_match("/{name}") >= 0);
+	LIBGS_TEST_CHECK_EQ(source.path_arg("name")->to_string(), "repeat");
+
+	server_parser moved(std::move(source));
+	LIBGS_TEST_CHECK_EQ(moved.path(), "/repeat");
+	moved.reset();
+	LIBGS_TEST_CHECK(moved.path_args().empty());
+
+	// A moved-from parser remains reusable without eagerly reserving a large buffer.
+	parsed = source.append(buffer(request));
+	LIBGS_TEST_CHECK(parsed and *parsed);
+	LIBGS_TEST_CHECK_EQ(source.path(), "/repeat");
 }
 
 void request_parser()
@@ -352,6 +368,35 @@ void cookie_storage_policy()
 
 	LIBGS_TEST_CHECK(jar.store(origin, "host", cookie("gone").set_path("/account").set_max_age(0)));
 	LIBGS_TEST_CHECK(not jar.cookies_for(origin).contains("host"));
+	const auto future_expiry = static_cast<uint64_t>(
+		std::chrono::duration_cast<std::chrono::seconds>(
+			std::chrono::system_clock::now().time_since_epoch()
+		).count() + 3'600
+	);
+	LIBGS_TEST_CHECK(jar.store(origin, "expiry-index",
+		cookie("timed").set_expires(future_expiry)
+	));
+	LIBGS_TEST_CHECK(jar.store(origin, "expiry-index", cookie("session")));
+	LIBGS_TEST_CHECK_EQ(
+		jar.cookies_for(origin).at("expiry-index").to_string(), "session"
+	);
+	LIBGS_TEST_CHECK(jar.store(origin, "expiry-index",
+		cookie("gone").set_max_age(0)
+	));
+
+	// Unrelated domains must not affect candidate lookup for the requested host.
+	for(size_t index = 0; index < 500; ++index)
+	{
+		const auto host = "host" + std::to_string(index) + ".invalid";
+		LIBGS_TEST_CHECK(jar.store(
+			libgs::url("https://" + host + "/"),
+			"unrelated", cookie(std::to_string(index)).set_path("/")
+		));
+	}
+	auto indexed = jar.cookies_for(origin);
+	LIBGS_TEST_CHECK_EQ(indexed.size(), 2U);
+	LIBGS_TEST_CHECK_EQ(indexed.at("domain").to_string(), "two");
+	LIBGS_TEST_CHECK_EQ(indexed.at("secure").to_string(), "three");
 	jar.clear();
 	LIBGS_TEST_CHECK_EQ(jar.size(), 0U);
 }

@@ -43,10 +43,10 @@ public:
 	void store(const url &origin,
 		const std::vector<std::pair<std::string,cookie>> &values
 	);
-	[[nodiscard]] cookie_values cookies_for(const url &target);
-	[[nodiscard]] std::vector<entry> entries();
+	[[nodiscard]] cookie_values cookies_for(const url &target) const;
+	[[nodiscard]] std::vector<entry> entries() const;
 
-	[[nodiscard]] size_t size();
+	[[nodiscard]] size_t size() const;
 	void clear() noexcept;
 
 private:
