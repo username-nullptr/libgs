@@ -14,6 +14,7 @@
 #include <libgs/http/protocol/utils/core/conditional.h>
 #include <libgs/http/protocol/utils/core/upgrade.h>
 #include <libgs/http/protocol/utils/core/range.h>
+#include <shared_mutex>
 
 namespace libgs::http
 {
@@ -45,6 +46,10 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 			std::shared_ptr<const std::string> source {};
 			std::shared_ptr<const std::string> gzip {};
 			order_list::iterator order_position {};
+
+			std::shared_ptr<std::atomic_bool> referenced {
+				std::make_shared<std::atomic_bool>(true)
+			};
 		};
 
 	public:
@@ -61,6 +66,8 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 			if( pos == m_entries.end() or pos->second.source_size != source_size or
 				pos->second.modified != modified )
 				return {};
+
+			pos->second.referenced->store(true, std::memory_order_relaxed);
 			return gzip ? pos->second.gzip : pos->second.source;
 		}
 
@@ -77,7 +84,8 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 			auto order_position = std::prev(m_order.end());
 			try {
 				m_entries.emplace(path, entry {
-					source_size, modified, std::move(source), {}, order_position
+					source_size, modified, std::move(source), {}, order_position,
+					std::make_shared<std::atomic_bool>(true)
 				});
 			}
 			catch(...)
@@ -104,9 +112,10 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 
 			if( pos->second.gzip )
 				m_total_size -= pos->second.gzip->size();
-
 			m_total_size += gzip->size();
+
 			pos->second.gzip = std::move(gzip);
+			pos->second.referenced->store(true, std::memory_order_relaxed);
 			evict_locked();
 		}
 
@@ -127,7 +136,16 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 		void evict_locked()
 		{
 			while( m_total_size > max_total_size and not m_order.empty() )
+			{
+				auto pos = m_entries.find(m_order.front());
+				if( pos != m_entries.end() and m_order.size() > 1 and
+					pos->second.referenced->exchange(false, std::memory_order_relaxed) )
+				{
+					m_order.splice(m_order.end(), m_order, pos->second.order_position);
+					continue;
+				}
 				erase_locked(m_order.front());
+			}
 		}
 
 		std::unordered_map<std::filesystem::path,entry> m_entries {};

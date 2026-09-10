@@ -799,8 +799,8 @@ auto trimmed(const concepts::any_text_p auto &text)
 		if( right < static_cast<int>(left) )
 			return result;
 
-		result = view.substr(0, right + 1UL);
-		result = result.substr(left);
+		result.assign(view.substr(left,
+			static_cast<size_t>(right) - left + 1));
 		return result;
 	}
 }

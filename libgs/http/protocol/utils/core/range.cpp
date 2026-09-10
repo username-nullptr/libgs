@@ -371,7 +371,41 @@ class LIBGS_DECL_HIDDEN multipart_byte_ranges_parser::impl
 public:
 	explicit impl(std::string boundary) :
 		m_boundary(std::move(boundary)),
-		m_delimiter("--" + m_boundary) {}
+		m_delimiter("--" + m_boundary),
+		m_marker("\r\n" + m_delimiter) {}
+
+	[[nodiscard]] std::string_view available_buffer() const noexcept {
+		return std::string_view(m_buffer).substr(m_buffer_head);
+	}
+
+	[[nodiscard]] size_t available_size() const noexcept {
+		return m_buffer.size() - m_buffer_head;
+	}
+
+	[[nodiscard]] bool buffer_empty() const noexcept {
+		return m_buffer_head == m_buffer.size();
+	}
+
+	void consume(size_t size) noexcept {
+		m_buffer_head += size;
+	}
+
+	void compact_buffer() noexcept
+	{
+		if( m_buffer_head == 0 )
+			return ;
+
+		if( m_buffer_head == m_buffer.size() )
+		{
+			m_buffer.clear();
+			m_buffer_head = 0;
+		}
+		else if( m_buffer_head >= 64 * 1024 and m_buffer_head >= m_buffer.size() / 2 )
+		{
+			m_buffer.erase(0, m_buffer_head);
+			m_buffer_head = 0;
+		}
+	}
 
 	[[nodiscard]] static bool boundary_suffix_ready(std::string_view suffix) noexcept
 	{
@@ -390,58 +424,59 @@ public:
 	append(std::string_view data) noexcept
 	{
 		std::vector<byte_range_chunk> chunks;
+		compact_buffer();
+
 		m_buffer.append(data);
 		for(;;)
 		{
 			if( m_state == state::preamble )
 			{
-				auto pos = m_buffer.find(m_delimiter);
+				const auto buffer = available_buffer();
+				auto pos = buffer.find(m_delimiter);
+
 				if( pos == std::string::npos )
 				{
-					if( auto retained = m_delimiter.size() + 2;
-						m_buffer.size() > retained )
-						m_buffer.erase(0, m_buffer.size() - retained);
+					if( auto retained = m_delimiter.size() + 2; buffer.size() > retained )
+						consume(buffer.size() - retained);
 					break;
 				}
-				if( pos != 0 and (pos < 2 or m_buffer.substr(pos - 2, 2) != "\r\n") )
+				if( pos != 0 and (pos < 2 or buffer.substr(pos - 2, 2) != "\r\n") )
 				{
-					m_buffer.erase(0, pos + m_delimiter.size());
+					consume(pos + m_delimiter.size());
 					continue;
 				}
 				auto suffix_pos = pos + m_delimiter.size();
-				if( not boundary_suffix_ready(
-					std::string_view(m_buffer).substr(suffix_pos)) )
+				if( not boundary_suffix_ready(buffer.substr(suffix_pos)) )
 					break;
 
-				m_buffer.erase(0, pos + m_delimiter.size());
+				consume(pos + m_delimiter.size());
 				if( not consume_boundary_suffix() )
 					break;
 				continue;
 			}
 			if( m_state == state::header_fields )
 			{
-				auto pos = m_buffer.find("\r\n\r\n");
+				const auto buffer = available_buffer();
+				auto pos = buffer.find("\r\n\r\n");
+
 				if( pos == std::string::npos )
 				{
-					if( m_buffer.size() > 8192 )
+					if( buffer.size() > 8192 )
 						return sys_unexpected(invalid_argument_error());
 					break;
 				}
-				auto parsed_headers = parse_part_headers (
-					std::string_view(m_buffer).substr(0, pos)
-				);
+				auto parsed_headers = parse_part_headers(buffer.substr(0, pos));
 				if( not parsed_headers )
 					return sys_unexpected(parsed_headers.error());
 
-				m_buffer.erase(0, pos + 4);
+				consume(pos + 4);
 				auto it = parsed_headers->find(header::content_range);
 
 				if( it == parsed_headers->end() )
 					return sys_unexpected(invalid_argument_error());
 
 				auto parsed_range = parse_content_range(it->second.to_string());
-				if( not parsed_range or parsed_range->unit != "bytes" or
-					not parsed_range->satisfied )
+				if( not parsed_range or parsed_range->unit != "bytes" or not parsed_range->satisfied )
 					return sys_unexpected(invalid_argument_error());
 
 				if( parsed_range->complete_length )
@@ -470,33 +505,34 @@ public:
 					m_state = state::boundary;
 					continue;
 				}
-				if( m_buffer.empty() )
+				if( buffer_empty() )
 					break;
 
-				auto size = std::min(remaining, m_buffer.size());
+				const auto buffer = available_buffer();
+				auto size = std::min(remaining, buffer.size());
+
 				chunks.emplace_back(byte_range_chunk {
 					.part_index = m_parts.size() - 1,
 					.offset = range.first + m_part_consumed,
-					.data = m_buffer.substr(0, size)
+					.data = std::string(buffer.substr(0, size))
 				});
-				m_buffer.erase(0, size);
+				consume(size);
 				m_part_consumed += size;
 				continue;
 			}
 			if( m_state == state::boundary )
 			{
-				auto marker = std::string("\r\n") + m_delimiter;
-				if( m_buffer.size() < marker.size() )
+				const auto buffer = available_buffer();
+				if( buffer.size() < m_marker.size() )
 					break;
 
-				if( not boundary_suffix_ready(
-					std::string_view(m_buffer).substr(marker.size())) )
+				if( not boundary_suffix_ready(buffer.substr(m_marker.size())) )
 					break;
 
-				if( not m_buffer.starts_with(marker) )
+				if( not buffer.starts_with(m_marker) )
 					return sys_unexpected(invalid_argument_error());
 
-				m_buffer.erase(0, marker.size());
+				consume(m_marker.size());
 				if( not consume_boundary_suffix() )
 					break;
 				continue;
@@ -509,50 +545,56 @@ public:
 			}
 			break;
 		}
+		compact_buffer();
 		return chunks;
 	}
 
 	[[nodiscard]] bool consume_boundary_suffix() noexcept
 	{
-		if( m_buffer.starts_with("--") )
+		const auto buffer = available_buffer();
+		if( buffer.starts_with("--") )
 		{
-			m_buffer.erase(0, 2);
+			consume(2);
 			m_state = state::closing;
 			return consume_closing_suffix();
 		}
 		size_t padding = 0;
-		while( padding < m_buffer.size() and
-			(m_buffer[padding] == ' ' or m_buffer[padding] == '\t') )
+		while( padding < buffer.size() and (buffer[padding] == ' ' or buffer[padding] == '\t') )
 			++padding;
 
-		if( m_buffer.size() < padding + 2 )
+		if( buffer.size() < padding + 2 )
 			return false;
 
-		if( m_buffer.substr(padding, 2) != "\r\n" )
+		if( buffer.substr(padding, 2) != "\r\n" )
 		{
 			m_state = state::failed;
 			return true;
 		}
-		m_buffer.erase(0, padding + 2);
+		consume(padding + 2);
 		m_state = state::header_fields;
 		return true;
 	}
 
 	[[nodiscard]] bool consume_closing_suffix() noexcept
 	{
-		while( not m_buffer.empty() and
-			(m_buffer.front() == ' ' or m_buffer.front() == '\t') )
-			m_buffer.erase(0, 1);
+		auto buffer = available_buffer();
+		size_t padding = 0;
 
-		if( m_buffer.empty() or m_buffer == "\r" )
+		while( padding < buffer.size() and (buffer[padding] == ' ' or buffer[padding] == '\t') )
+			++padding;
+
+		consume(padding);
+		buffer = available_buffer();
+
+		if( buffer.empty() or buffer == "\r" )
 			return false;
 
-		if( not m_buffer.starts_with("\r\n") )
+		if( not buffer.starts_with("\r\n") )
 		{
 			m_state = state::failed;
 			return true;
 		}
-		m_buffer.erase(0, 2);
+		consume(2);
 		m_state = state::finished;
 		return true;
 	}
@@ -572,7 +614,10 @@ public:
 
 	std::string m_boundary {};
 	std::string m_delimiter {};
+	std::string m_marker {};
+
 	std::string m_buffer {};
+	size_t m_buffer_head = 0;
 
 	std::vector<byte_range_part> m_parts {};
 	optional<size_t> m_complete_length {};
@@ -620,7 +665,7 @@ error_code multipart_byte_ranges_parser::finish() const noexcept
 	if( m_impl->m_parts.empty() )
 		return invalid_argument_error();
 
-	if( finished() or (m_impl->m_state == impl::state::closing and m_impl->m_buffer.empty()) )
+	if( finished() or (m_impl->m_state == impl::state::closing and m_impl->buffer_empty()) )
 		return {};
 
 	return invalid_argument_error();

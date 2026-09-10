@@ -76,7 +76,7 @@ auto from_percent_encoding(concepts::any_string_p auto &&str, char percent)
 		++outlen;
 	}
 	if( outlen != len )
-		result = result.substr(0, outlen);
+		result.resize(outlen);
 	return result;
 }
 
@@ -128,7 +128,7 @@ auto to_percent_encoding(const Str &str, StrArg &&exclude, StrArg &&include, cha
 		}
 	}
 	if( expanded )
-		result = result.substr(0, length);
+		result.resize(length);
 	return result;
 }
 
@@ -140,36 +140,55 @@ int32_t wildcard_match(const Str &rule, const StrArg &str)
 
 	size_t rule_len = rule_view.size();
 	size_t str_len = str_view.size();
-	int32_t weight = 0;
 
-	std::vector dp(str_len + 1, std::vector(rule_len + 1, false));
-	dp[0][0] = true;
+	size_t rule_pos = 0;
+	size_t str_pos = 0;
 
-	for(size_t j=1; j<rule_len+1; j++)
+	size_t star_pos = std::basic_string_view<strtls::get_char_t<Str>>::npos;
+	size_t star_str_pos = 0;
+
+	while( str_pos < str_len )
 	{
-		if( rule_view[j-1] == 0x2A/***/ )
-			dp[0][j] = dp[0][j-1];
-	}
-	for(size_t i=1; i<str_len+1; i++)
-	{
-		for(size_t j=1; j<rule_len+1; j++)
+		if( rule_pos < rule_len and
+			(rule_view[rule_pos] == 0x3F/*?*/ or
+			 rule_view[rule_pos] == str_view[str_pos]) )
 		{
-			if( rule_view[j-1] == 0x3F/*?*/ )
-			{
-				dp[i][j] = dp[i-1][j-1];
-				weight++;
-			}
-			else if( rule_view[j-1] == str_view[i-1] )
-				dp[i][j] = dp[i-1][j-1];
-
-			else if( rule_view[j-1] == 0x2A/***/ )
-			{
-				dp[i][j] = dp[i-1][j] or dp[i][j-1];
-				weight += 2;
-			}
+			++rule_pos;
+			++str_pos;
 		}
+		else if( rule_pos < rule_len and rule_view[rule_pos] == 0x2A/***/ )
+		{
+			star_pos = rule_pos++;
+			star_str_pos = str_pos;
+		}
+		else if( star_pos != std::basic_string_view<strtls::get_char_t<Str>>::npos )
+		{
+			rule_pos = star_pos + 1;
+			str_pos = ++star_str_pos;
+		}
+		else
+			return -1;
 	}
-	return dp.back().back() ? weight : -1;
+	while( rule_pos < rule_len and rule_view[rule_pos] == 0x2A/***/ )
+		++rule_pos;
+
+	if( rule_pos != rule_len )
+		return -1;
+
+	size_t unit_weight = 0;
+	for(auto ch : rule_view)
+	{
+		if( ch == 0x3F/*?*/ )
+			++unit_weight;
+
+		else if( ch == 0x2A/***/ )
+			unit_weight += 2;
+	}
+	if( unit_weight != 0 and
+		str_len > static_cast<size_t>(std::numeric_limits<int32_t>::max()) / unit_weight )
+		return std::numeric_limits<int32_t>::max();
+
+	return static_cast<int32_t>(str_len * unit_weight);
 }
 
 } //namespace libgs

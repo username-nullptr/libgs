@@ -119,7 +119,21 @@ void apply_mask(const mutable_buffer &payload, const masking_key &key,
 {
 	auto *data = static_cast<std::byte*>(payload.data());
 	const auto initial = static_cast<size_t>(payload_offset & 0x03);
-	for(size_t index = 0; index < payload.size(); index++)
+	std::array<std::byte,8> expanded {};
+	for(size_t index=0; index<expanded.size(); ++index)
+		expanded[index] = key.bytes[(initial + index) & 0x03];
+
+	uint64_t mask = 0;
+	std::memcpy(&mask, expanded.data(), sizeof(mask));
+	size_t index = 0;
+	for(; payload.size() - index >= sizeof(uint64_t); index += sizeof(uint64_t))
+	{
+		uint64_t value = 0;
+		std::memcpy(&value, data + index, sizeof(value));
+		value ^= mask;
+		std::memcpy(data + index, &value, sizeof(value));
+	}
+	for(; index<payload.size(); ++index)
 		data[index] ^= key.bytes[(initial + index) & 0x03];
 }
 

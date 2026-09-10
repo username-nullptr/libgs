@@ -90,6 +90,8 @@ public:
 public:
 	// Concurrent writes are serialized. Successful size_t results count bytes
 	// from the user payload only; WebSocket frame headers and masking never count.
+	// Non-detached asynchronous writes borrow payload storage until completion;
+	// detached writes take an internal copy before the initiating call returns.
 	// Cancellation removes an operation while it is queued. Once its first frame
 	// owns the transport write, cancellation is too late and may be ignored.
 	template <message_type Type, typename Token = use_sync_t>

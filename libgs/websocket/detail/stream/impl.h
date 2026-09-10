@@ -28,6 +28,7 @@ public:
 	struct prepared_frame
 	{
 		std::shared_ptr<std::vector<std::byte>> wire;
+		std::vector<const_buffer> buffers;
 		size_t header_size = 0;
 		size_t payload_size = 0;
 	};
@@ -40,6 +41,7 @@ public:
 	{
 		send_kind kind = send_kind::data;
 		std::vector<prepared_frame> frames;
+		std::shared_ptr<std::vector<std::byte>> payload_owner;
 		asio::any_completion_handler<void(error_code,size_t)> completion;
 		size_t frame_index = 0;
 		size_t transferred = 0;
@@ -96,7 +98,8 @@ public:
 	[[nodiscard]] size_t write(message_type type,
 		std::span<const const_buffer> buffers, error_code &error) noexcept;
 	[[nodiscard]] sys_expected<prepared_frame> prepare_control_frame(
-		opcode op, const const_buffer &payload) const noexcept;
+		opcode op, const const_buffer &payload,
+		bool borrow_payload = false) const noexcept;
 	[[nodiscard]] sys_expected<std::vector<prepared_frame>> prepare_frames(
 		message_type type, std::span<const const_buffer> buffers) const noexcept;
 	[[nodiscard]] size_t write_prepared(const prepared_frame &frame,
@@ -129,7 +132,9 @@ public:
 
 	template <typename Handler>
 	void async_write_message(message_type type,
-		std::span<const const_buffer> buffers, Handler &&handler);
+		std::span<const const_buffer> buffers,
+		std::shared_ptr<std::vector<std::byte>> payload_owner,
+		Handler &&handler);
 
 	template <typename Handler>
 	void async_write_control(opcode op, const const_buffer &payload,

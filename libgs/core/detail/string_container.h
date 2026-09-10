@@ -15,18 +15,37 @@ basic_string_container<CharT,Container,Args...>::join(const Text &splits) const
 	string_t result;
 	auto view = strtls::to_view(splits);
 
-	for(auto &str : *this)
-		result += str + string_t(view.data(), view.size());
+	size_t length = 0;
+	for(const auto &str : *this)
+	{
+		if( str.size() > result.max_size() - length )
+			length_error::loc_throw("basic_string_container::join");
+		length += str.size();
+	}
+	if( this->size() > 1 and not view.empty() )
+	{
+		const auto separators = this->size() - 1;
+		if( separators > (result.max_size() - length) / view.size() )
+			length_error::loc_throw("basic_string_container::join");
+		length += separators * view.size();
+	}
+	result.reserve(length);
 
-	if( not this->empty() and not view.empty() )
-		result.erase(result.size() - view.size(), view.size());
+	bool first = true;
+	for(const auto &str : *this)
+	{
+		if( not first )
+			result.append(view.data(), view.size());
+		result.append(str);
+		first = false;
+	}
 	return result;
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
-basic_string_container<CharT,Container,Args...>::string_t
-basic_string_container<CharT,Container,Args...>::join(size_t index, size_t length, const Text &splits) const
+auto basic_string_container<CharT,Container,Args...>::
+join(size_t index, size_t length, const Text &splits) const -> string_t
 {
 	string_t result;
 	auto view = strtls::to_view(splits);
@@ -38,20 +57,75 @@ basic_string_container<CharT,Container,Args...>::join(size_t index, size_t lengt
 		if( end <= index )
 			return result;
 	}
-	while( index < end )
-		result += (*this)[index++] + string_t(view.data(), view.size());
+	size_t output_length = 0;
+	for(size_t pos=index; pos<end; ++pos)
+	{
+		if( (*this)[pos].size() > result.max_size() - output_length )
+			length_error::loc_throw("basic_string_container::join");
+		output_length += (*this)[pos].size();
+	}
+	const auto count = end - index;
+	if( count > 1 and not view.empty() )
+	{
+		const auto separators = count - 1;
+		if( separators > (result.max_size() - output_length) / view.size() )
+			length_error::loc_throw("basic_string_container::join");
+		output_length += separators * view.size();
+	}
+	result.reserve(output_length);
 
-	if( not result.empty() and not view.empty() )
-		result.erase(result.size() - view.size(), view.size());
+	for(size_t pos=index; pos<end; ++pos)
+	{
+		if( pos != index )
+			result.append(view.data(), view.size());
+		result.append((*this)[pos]);
+	}
 	return result;
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
 template <concepts::text_p<CharT> Text>
-basic_string_container<CharT,Container,Args...>::string_t
-basic_string_container<CharT,Container,Args...>::join(size_t index, const Text &splits) const
+auto basic_string_container<CharT,Container,Args...>::join(size_t index, const Text &splits) const -> string_t
 {
 	return join(index, this->size(), splits);
+}
+
+template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
+template <typename Iter, concepts::text_p<CharT> Text>
+auto basic_string_container<CharT,Container,Args...>::join(Iter begin, Iter end, const Text &splits)
+	-> string_t requires is_container_iter_v<Iter>
+{
+	string_t result;
+	auto view = strtls::to_view(splits);
+
+	size_t length = 0;
+	size_t count = 0;
+
+	for(auto it=begin; it!=end; ++it)
+	{
+		if( it->size() > result.max_size() - length )
+			length_error::loc_throw("basic_string_container::join");
+		length += it->size();
+		++count;
+	}
+	if( count > 1 and not view.empty() )
+	{
+		const auto separators = count - 1;
+		if( separators > (result.max_size() - length) / view.size() )
+			length_error::loc_throw("basic_string_container::join");
+		length += separators * view.size();
+	}
+	result.reserve(length);
+
+	bool first = true;
+	for(auto it=begin; it!=end; ++it)
+	{
+		if( not first )
+			result.append(view.data(), view.size());
+		result.append(*it);
+		first = false;
+	}
+	return result;
 }
 
 template <concepts::character CharT, template<typename,typename...> class Container, typename...Args>
@@ -61,24 +135,28 @@ basic_string_container<CharT,Container,Args...>::from_string
 (concepts::string_p<char_t> auto &&str, const Text &splits, bool ignore_empty)
 {
 	basic_string_container result;
-	auto view = strtls::to_view(splits);
+	const auto delimiter = strtls::to_view(splits);
 
-	if( view.empty() )
+	if( delimiter.empty() )
 		return result;
 
-	string_t strs(std::forward<decltype(str)>(str));
-	strs += view;
+	const auto input = strtls::to_view(str);
+	if constexpr( requires { result.reserve(size_t{}); } )
+		result.reserve(input.size() / delimiter.size() + 1);
 
-	auto pos = strs.find(view);
-	auto step = view.size();
-
-	while( pos != std::basic_string<CharT>::npos )
+	size_t begin = 0;
+	for(;;)
 	{
-		if( auto tmp = strs.substr(0, pos); not strtls::trimmed(tmp).empty() or not ignore_empty )
+		const auto pos = input.find(delimiter, begin);
+		const auto end = pos == string_view_t::npos ? input.size() : pos;
+
+		string_t tmp(input.substr(begin, end - begin));
+		if( not strtls::trimmed(tmp).empty() or not ignore_empty )
 			result.emplace_back(std::move(tmp));
 
-		strs = strs.substr(pos + step, strs.size());
-		pos = strs.find(view);
+		if( pos == string_view_t::npos )
+			break;
+		begin = pos + delimiter.size();
 	}
 	return result;
 }

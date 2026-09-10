@@ -248,10 +248,9 @@ void stream_impl<Exec>::start_wire_frame(prepared_frame frame,
 {
 	m_wire_write_active = true;
 	auto self = this->shared_from_this();
-	auto wire = const_buffer(frame.wire->data(), frame.wire->size());
 	try
 	{
-		m_connection->write(wire,
+		m_connection->write(std::span<const const_buffer>(frame.buffers),
 			asio::any_completion_handler<void(error_code, size_t)>(
 				[self, frame, kind, operation](error_code error, size_t wire_size) mutable
 				{
@@ -260,7 +259,7 @@ void stream_impl<Exec>::start_wire_frame(prepared_frame frame,
 					const auto payload_size = wire_size > frame.header_size ? std::min(frame.payload_size, wire_size - frame.header_size) : 0;
 					if(operation)
 						operation->transferred += payload_size;
-					if(not error and wire_size != frame.wire->size())
+					if(not error and wire_size != frame.header_size + frame.payload_size)
 						error = make_error_code(std::errc::io_error);
 
 					if(shutdown and not error)
@@ -533,7 +532,9 @@ error_code stream_impl<Exec>::enqueue_send_operation(
 template <core_concepts::exec Exec>
 template <typename Handler>
 void stream_impl<Exec>::async_write_message(message_type type,
-	std::span<const const_buffer> buffers, Handler &&handler)
+	std::span<const const_buffer> buffers,
+	std::shared_ptr<std::vector<std::byte>> payload_owner,
+	Handler &&handler)
 {
 	auto completion = asio::any_completion_handler<void(error_code, size_t)>(
 		std::forward<Handler>(handler));
@@ -561,6 +562,7 @@ void stream_impl<Exec>::async_write_message(message_type type,
 		operation = std::make_shared<send_operation>();
 		operation->kind = send_kind::data;
 		operation->frames = std::move(*frames);
+		operation->payload_owner = std::move(payload_owner);
 		operation->completion = std::move(completion);
 		operation->id = ++self->m_next_send_operation_id;
 		for(const auto &frame : operation->frames)
@@ -614,7 +616,7 @@ void stream_impl<Exec>::async_write_control(opcode op, const const_buffer &paylo
 			{ std::move(handler)(error, 0); });
 		return;
 	}
-	auto frame = self->prepare_control_frame(op, payload);
+	auto frame = self->prepare_control_frame(op, payload, true);
 	if(not frame)
 	{
 		auto error = frame.error();
@@ -672,7 +674,7 @@ size_t stream_impl<Exec>::write_control(opcode op, const const_buffer &payload,
 		error = state_write_error();
 		return 0;
 	}
-	auto frame = prepare_control_frame(op, payload);
+	auto frame = prepare_control_frame(op, payload, true);
 	if(not frame)
 	{
 		error = frame.error();

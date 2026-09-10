@@ -71,6 +71,24 @@ void string_containers()
 	LIBGS_TEST_CHECK_EQ(with_empty.size(), 3U);
 	LIBGS_TEST_CHECK(with_empty[1].empty());
 
+	const auto trailing = libgs::string_vector::from_string("a,", ',', false);
+	LIBGS_TEST_CHECK_EQ(trailing.size(), 2U);
+	LIBGS_TEST_CHECK(trailing.back().empty());
+
+	const auto multi = libgs::string_vector::from_string(
+		"left::middle::::right::", "::", false);
+	LIBGS_TEST_CHECK_EQ(multi.size(), 5U);
+	LIBGS_TEST_CHECK_EQ(multi[0], "left");
+	LIBGS_TEST_CHECK_EQ(multi[1], "middle");
+	LIBGS_TEST_CHECK(multi[2].empty());
+	LIBGS_TEST_CHECK_EQ(multi[3], "right");
+	LIBGS_TEST_CHECK(multi[4].empty());
+
+	const auto whitespace = libgs::string_vector::from_string(
+		"left, \t , right", ',', true);
+	LIBGS_TEST_CHECK_EQ(whitespace.size(), 2U);
+	LIBGS_TEST_CHECK_EQ(whitespace[1], " right");
+
 	const libgs::string_vector empty;
 	LIBGS_TEST_CHECK(empty.join(',').empty());
 }

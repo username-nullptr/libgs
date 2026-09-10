@@ -10,94 +10,73 @@
 namespace libgs::websocket::detail
 {
 
+class utf8_validator
+{
+	public:
+	[[nodiscard]] bool consume(std::string_view text) noexcept
+	{
+		for(auto value : text)
+		{
+			const auto byte = static_cast<uint8_t>(value);
+			if( m_remaining != 0 )
+			{
+				if( byte < m_lower or byte > m_upper )
+					return false;
+				--m_remaining;
+				m_lower = 0x80;
+				m_upper = 0xBF;
+				continue;
+			}
+
+			if( byte <= 0x7F )
+				continue;
+			if( byte >= 0xC2 and byte <= 0xDF )
+				m_remaining = 1;
+			else if( byte == 0xE0 )
+			{
+				m_remaining = 2;
+				m_lower = 0xA0;
+			}
+			else if( (byte >= 0xE1 and byte <= 0xEC) or
+				(byte >= 0xEE and byte <= 0xEF) )
+				m_remaining = 2;
+			else if( byte == 0xED )
+			{
+				m_remaining = 2;
+				m_upper = 0x9F;
+			}
+			else if( byte == 0xF0 )
+			{
+				m_remaining = 3;
+				m_lower = 0x90;
+			}
+			else if( byte >= 0xF1 and byte <= 0xF3 )
+				m_remaining = 3;
+			else if( byte == 0xF4 )
+			{
+				m_remaining = 3;
+				m_upper = 0x8F;
+			}
+			else
+				return false;
+		}
+		return true;
+	}
+
+	[[nodiscard]] bool complete() const noexcept {
+		return m_remaining == 0;
+	}
+
+	private:
+	uint8_t m_remaining = 0;
+	uint8_t m_lower = 0x80;
+	uint8_t m_upper = 0xBF;
+};
+
 [[nodiscard]] inline bool is_valid_utf8(std::string_view text) noexcept
 {
-	const auto *data = reinterpret_cast<const uint8_t*>(text.data());
-	const auto size = text.size();
-	size_t index = 0;
-
-	const auto continuation = [](uint8_t value) noexcept {
-		return value >= 0x80 and value <= 0xBF;
-	};
-
-	while( index < size )
-	{
-		const auto first = data[index];
-		if( first <= 0x7F )
-		{
-			index++;
-			continue;
-		}
-
-		if( first >= 0xC2 and first <= 0xDF )
-		{
-			if( size - index < 2 or not continuation(data[index + 1]) )
-				return false;
-			index += 2;
-			continue;
-		}
-
-		if( first == 0xE0 )
-		{
-			if( size - index < 3 or data[index + 1] < 0xA0 or
-				data[index + 1] > 0xBF or not continuation(data[index + 2]) )
-				return false;
-			index += 3;
-			continue;
-		}
-
-		if( (first >= 0xE1 and first <= 0xEC) or
-			(first >= 0xEE and first <= 0xEF) )
-		{
-			if( size - index < 3 or not continuation(data[index + 1]) or
-				not continuation(data[index + 2]) )
-				return false;
-			index += 3;
-			continue;
-		}
-
-		if( first == 0xED )
-		{
-			if( size - index < 3 or data[index + 1] < 0x80 or
-				data[index + 1] > 0x9F or not continuation(data[index + 2]) )
-				return false;
-			index += 3;
-			continue;
-		}
-
-		if( first == 0xF0 )
-		{
-			if( size - index < 4 or data[index + 1] < 0x90 or
-				data[index + 1] > 0xBF or not continuation(data[index + 2]) or
-				not continuation(data[index + 3]) )
-				return false;
-			index += 4;
-			continue;
-		}
-
-		if( first >= 0xF1 and first <= 0xF3 )
-		{
-			if( size - index < 4 or not continuation(data[index + 1]) or
-				not continuation(data[index + 2]) or
-				not continuation(data[index + 3]) )
-				return false;
-			index += 4;
-			continue;
-		}
-
-		if( first == 0xF4 )
-		{
-			if( size - index < 4 or data[index + 1] < 0x80 or
-				data[index + 1] > 0x8F or not continuation(data[index + 2]) or
-				not continuation(data[index + 3]) )
-				return false;
-			index += 4;
-			continue;
-		}
-
-		return false;
-	}
-	return true;
+	utf8_validator validator;
+	return validator.consume(text) and validator.complete();
 }
 
 } //namespace libgs::websocket::detail

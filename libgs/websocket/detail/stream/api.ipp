@@ -170,16 +170,79 @@ auto basic_stream<Exec>::write(message_type type,
 	}
 	else
 	{
-		// The span itself may point at a temporary const_buffer descriptor (as it
-		// does for write_text/write_binary). Keep the descriptors alive until the
-		// deferred asynchronous initiation has copied or prepared them. Payload
-		// storage retains the documented borrowed lifetime.
 		auto buffers = std::vector<const_buffer>(body.begin(), body.end());
+		std::shared_ptr<std::vector<std::byte>> payload_owner;
+		error_code buffer_error {};
+
+		// A detached operation has no caller-managed completion boundary, so it
+		// takes ownership before initiation returns. Every other async token keeps
+		// Asio's borrowed-buffer contract and performs no lifetime copy here.
+		if constexpr( is_detached_v<token_unbound_t<Token>> )
+		{
+			try
+			{
+				size_t size = 0;
+				for(const auto &input : buffers)
+				{
+					if( input.size() != 0 and input.data() == nullptr )
+					{
+						buffer_error = make_error_code(std::errc::invalid_argument);
+						break;
+					}
+					if( input.size() > std::numeric_limits<size_t>::max() - size )
+					{
+						buffer_error = make_error_code(std::errc::value_too_large);
+						break;
+					}
+					size += input.size();
+				}
+				if( not buffer_error )
+				{
+					payload_owner =
+						std::make_shared<std::vector<std::byte>>(size);
+					size_t offset = 0;
+					for(const auto &input : buffers)
+					{
+						if( input.size() == 0 )
+							continue;
+						std::memcpy(payload_owner->data() + offset,
+							input.data(), input.size());
+						offset += input.size();
+					}
+					buffers.assign(1, const_buffer(
+						payload_owner->data(), payload_owner->size()
+					));
+				}
+				else
+					buffers.clear();
+			}
+			catch(const std::bad_alloc &)
+			{
+				buffer_error = make_error_code(std::errc::not_enough_memory);
+				buffers.clear();
+			}
+			catch(...)
+			{
+				buffer_error = make_error_code(std::errc::io_error);
+				buffers.clear();
+			}
+		}
 		return initiate_io<size_t>(get_executor(),
-			[self = m_impl, type, buffers = std::move(buffers)]
+			[self = m_impl, type, buffers = std::move(buffers),
+			 payload_owner = std::move(payload_owner), buffer_error]
 			<typename T0>(T0 &&completion_token) mutable
-			{ self->async_write_message(type, buffers,
-				  std::forward<T0>(completion_token)); }, std::forward<Token>(token));
+			{
+				if( buffer_error )
+				{
+					asio::post(self->m_exec,
+						[handler = std::forward<T0>(completion_token), buffer_error]() mutable {
+							std::move(handler)(buffer_error, 0);
+						});
+					return ;
+				}
+				self->async_write_message(type, buffers, std::move(payload_owner),
+					std::forward<T0>(completion_token));
+			}, std::forward<Token>(token));
 	}
 }
 

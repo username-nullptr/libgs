@@ -282,23 +282,24 @@ private:
 		{
 			int32_t weight = std::numeric_limits<int32_t>::max();
 			size_t path_length = std::numeric_limits<size_t>::min();
+			auto path_index = index_request_path(context.request().path());
 
-			for(auto &[rule, _handler] : routes->patterns)
+			for(const auto &[rule, route] : routes->patterns)
 			{
 				auto _path_length = rule.length();
-				auto _weight = context.request().path_match(rule);
+				auto _weight = match_pattern(route, path_index);
 
 				if( _weight == 0 )
 				{
-					handler = _handler;
+					handler = route.handler;
 					selected_rule = &rule;
 					weight = _weight;
 					break;
 				}
-				else if( _weight > 0 and (_weight < weight or
-					(_weight == weight and _path_length > path_length)) )
+				else if( _weight > 0 and (
+					_weight < weight or (_weight == weight and _path_length > path_length) ) )
 				{
-					handler = _handler;
+					handler = route.handler;
 					selected_rule = &rule;
 					weight = _weight;
 					path_length = _path_length;
@@ -530,10 +531,26 @@ public:
 		std::string, tk_handler_ptr, transparent_string_hash, std::equal_to<>
 	>;
 
+	struct pattern_route
+	{
+		tk_handler_ptr handler {};
+		std::string wildcard_rule {};
+		std::vector<std::string> argument_names {};
+
+		size_t segment_count = 0;
+		size_t wildcard_weight = 0;
+	};
+
+	struct request_path_index
+	{
+		std::string normalized {};
+		std::vector<size_t> segment_ends {};
+	};
+
 	struct route_table
 	{
 		exact_route_map exact {};
-		std::map<std::string,tk_handler_ptr> patterns {};
+		std::map<std::string,pattern_route> patterns {};
 	};
 
 private:
@@ -559,6 +576,145 @@ private:
 		return not is_path_argument_segment(segment);
 	}
 
+	[[nodiscard]] static bool is_blank_segment(std::string_view segment) noexcept
+	{
+		return std::ranges::all_of(segment, [](unsigned char ch) {
+			return ch >= 1 and ch <= 32;
+		});
+	}
+
+	[[nodiscard]] static std::vector<std::string_view> split_path(std::string_view path)
+	{
+		std::vector<std::string_view> result;
+		result.reserve(path.size() / 2 + 1);
+
+		size_t begin = 0;
+		for(;;)
+		{
+			auto end = path.find('/', begin);
+			if( end == std::string_view::npos )
+				end = path.size();
+
+			auto segment = path.substr(begin, end - begin);
+			if( not segment.empty() and not is_blank_segment(segment) )
+				result.emplace_back(segment);
+
+			if( end == path.size() )
+				break;
+			begin = end + 1;
+		}
+		if( result.empty() )
+			result.emplace_back("/");
+		return result;
+	}
+
+	[[nodiscard]] static pattern_route compile_pattern(std::string_view rule, tk_handler_ptr handler)
+	{
+		auto segments = split_path(rule);
+		pattern_route result {};
+
+		result.handler = std::move(handler);
+		result.segment_count = segments.size();
+
+		size_t prefix_count = segments.size();
+		while( prefix_count > 0 and is_path_argument_segment(segments[prefix_count - 1]) )
+			--prefix_count;
+
+		result.argument_names.reserve(segments.size() - prefix_count);
+		for(size_t index=prefix_count; index<segments.size(); ++index)
+		{
+			result.argument_names.emplace_back (
+				segments[index].substr(1, segments[index].size() - 2)
+			);
+		}
+		for(size_t index=0; index<prefix_count; ++index)
+		{
+			if( index != 0 )
+				result.wildcard_rule.push_back('/');
+			result.wildcard_rule.append(segments[index]);
+		}
+		for(auto ch : result.wildcard_rule)
+		{
+			if( ch == '?' )
+				result.wildcard_weight++;
+			else if( ch == '*' )
+				result.wildcard_weight += 2;
+		}
+		return result;
+	}
+
+	[[nodiscard]] static request_path_index index_request_path(std::string_view path)
+	{
+		auto segments = split_path(path);
+		request_path_index result {};
+
+		result.normalized.reserve(path.size());
+		result.segment_ends.reserve(segments.size());
+
+		for(size_t index=0; index<segments.size(); ++index)
+		{
+			if( index != 0 )
+				result.normalized.push_back('/');
+
+			result.normalized.append(segments[index]);
+			result.segment_ends.emplace_back(result.normalized.size());
+		}
+		return result;
+	}
+
+	[[nodiscard]] static bool wildcard_matches(std::string_view rule, std::string_view path) noexcept
+	{
+		size_t rule_pos = 0;
+		size_t path_pos = 0;
+
+		size_t star_pos = std::string_view::npos;
+		size_t star_path_pos = 0;
+
+		while( path_pos < path.size() )
+		{
+			if( rule_pos < rule.size() and
+				(rule[rule_pos] == '?' or rule[rule_pos] == path[path_pos]) )
+			{
+				++rule_pos;
+				++path_pos;
+			}
+			else if( rule_pos < rule.size() and rule[rule_pos] == '*' )
+			{
+				star_pos = rule_pos++;
+				star_path_pos = path_pos;
+			}
+			else if( star_pos != std::string_view::npos )
+			{
+				rule_pos = star_pos + 1;
+				path_pos = ++star_path_pos;
+			}
+			else
+				return false;
+		}
+		while( rule_pos < rule.size() and rule[rule_pos] == '*' )
+			++rule_pos;
+		return rule_pos == rule.size();
+	}
+
+	[[nodiscard]] static int32_t match_pattern
+	(const pattern_route &route, const request_path_index &path) noexcept
+	{
+		if( path.segment_ends.size() < route.segment_count )
+			return -1;
+
+		const auto prefix_count = path.segment_ends.size() - route.argument_names.size();
+		const auto prefix_size = prefix_count == 0 ? 0 : path.segment_ends[prefix_count - 1];
+
+		const std::string_view prefix(path.normalized.data(), prefix_size);
+		if( not wildcard_matches(route.wildcard_rule, prefix) )
+			return -1;
+
+		const auto weight = route.wildcard_weight > 0 and
+			prefix.size() > static_cast<size_t>(std::numeric_limits<int32_t>::max()) / route.wildcard_weight ?
+			std::numeric_limits<int32_t>::max() : static_cast<int32_t>(prefix.size() * route.wildcard_weight);
+		return weight;
+	}
+
 public:
 	[[nodiscard]] bool add_route(std::string rule, tk_handler_ptr handler)
 	{
@@ -574,8 +730,10 @@ public:
 		if( is_exact_route(rule) )
 			updated->exact.emplace(std::move(rule), std::move(handler));
 		else
-			updated->patterns.emplace(std::move(rule), std::move(handler));
-
+		{
+			auto compiled = compile_pattern(rule, std::move(handler));
+			updated->patterns.emplace(std::move(rule), std::move(compiled));
+		}
 		m_routes.store(std::move(updated), std::memory_order_release);
 		return true;
 	}

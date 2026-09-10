@@ -5,6 +5,7 @@
 #define LIBGS_CORE_STRING_CONTAINER_H
 
 #include <libgs/core/global.h>
+#include <stdexcept>
 #include <string>
 
 namespace libgs { namespace concepts
@@ -42,20 +43,13 @@ public:
 	template <concepts::text_p<CharT> Text = char_t>
 	[[nodiscard]] string_t join(size_t index, const Text &splits = space) const;
 
-	template <concepts::str_container_iter<CharT,Container,Args...> Iter,
-			  concepts::text_p<CharT> Text = char_t>
+	template <typename T>
+	static constexpr bool is_container_iter_v =
+		concepts::str_container_iter<T,CharT,Container,Args...>;
+
+	template <typename Iter, concepts::text_p<CharT> Text = char_t>
 	[[nodiscard]] static string_t join(Iter begin, Iter end, const Text &splits = space)
-	{
-		string_t result;
-		auto view = strtls::to_view(splits);
-
-		for(auto it=begin; it!=end; ++it)
-			result += *it + string_t(view.data(), view.size());
-
-		if(begin != end and not view.empty())
-			result.erase(result.size() - view.size(), view.size());
-		return result;
-	}
+		requires is_container_iter_v<Iter>;
 
 	template <concepts::text_p<CharT> Str = char_t>
 	[[nodiscard]] static basic_string_container from_string (

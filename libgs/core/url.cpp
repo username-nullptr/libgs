@@ -73,6 +73,9 @@ namespace libgs { namespace
 [[nodiscard]] std::string remove_dot_segments(std::string input)
 {
 	std::string output;
+	output.reserve(input.size());
+	std::string_view remaining(input);
+
 	const auto remove_last_segment = [&output]
 	{
 		auto pos = output.rfind('/');
@@ -81,40 +84,43 @@ namespace libgs { namespace
 		else
 			output.erase(pos);
 	};
-	while( not input.empty() )
+	while( not remaining.empty() )
 	{
-		if( input.starts_with("../") )
-			input.erase(0, 3);
-		else if( input.starts_with("./") or input.starts_with("/./") )
-			input.erase(0, 2);
-		else if( input == "/." )
-			input = "/";
-		else if( input.starts_with("/../") )
+		if( remaining.starts_with("../") )
+			remaining.remove_prefix(3);
+
+		else if( remaining.starts_with("./") or remaining.starts_with("/./") )
+			remaining.remove_prefix(2);
+
+		else if( remaining == "/." )
+			remaining.remove_suffix(1);
+
+		else if( remaining.starts_with("/../") )
 		{
-			input.erase(0, 3);
+			remaining.remove_prefix(3);
 			remove_last_segment();
 		}
-		else if( input == "/.." )
+		else if( remaining == "/.." )
 		{
-			input = "/";
+			remaining.remove_suffix(2);
 			remove_last_segment();
 		}
-		else if( input == "." or input == ".." )
-			input.clear();
+		else if( remaining == "." or remaining == ".." )
+			remaining = {};
 		else
 		{
-			auto end = input.front() == '/' ?
-				input.find('/', 1) : input.find('/');
+			auto end = remaining.front() == '/' ?
+				remaining.find('/', 1) : remaining.find('/');
 
 			if( end == std::string::npos )
 			{
-				output += input;
-				input.clear();
+				output += remaining;
+				remaining = {};
 			}
 			else
 			{
-				output += input.substr(0, end);
-				input.erase(0, end);
+				output += remaining.substr(0, end);
+				remaining.remove_prefix(end);
 			}
 		}
 	}

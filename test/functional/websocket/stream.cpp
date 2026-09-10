@@ -454,6 +454,10 @@ void test_client_write_is_masked()
 	const std::array<std::byte,4> payload {
 		std::byte {0x10}, std::byte {0x20}, std::byte {0x30}, std::byte {0x40}
 	};
+	const std::array<libgs::const_buffer,2> payload_buffers {
+		libgs::const_buffer(payload.data(), 1),
+		libgs::const_buffer(payload.data() + 1, payload.size() - 1)
+	};
 	const auto transferred = stream.write_binary(
 		libgs::const_buffer(payload.data(), payload.size()), error
 	);
@@ -472,6 +476,22 @@ void test_client_write_is_masked()
 		parsed->payload_offset);
 	LIBGS_TEST_CHECK(parsed->payload.size() == payload.size());
 	LIBGS_TEST_CHECK(std::memcmp(parsed->payload.data(), payload.data(),
+		payload.size()) == 0);
+
+	const auto split_transferred = stream.write(ws::message_type::binary,
+		payload_buffers, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(split_transferred, payload.size());
+	auto split_wire = std::vector<std::byte>(
+		connection->wire().begin() + 10, connection->wire().end());
+	ws::frame_parser split_parser({.local_role = ws::role::server});
+	auto split_parsed = split_parser.parse(
+		libgs::mutable_buffer(split_wire.data(), split_wire.size()));
+	LIBGS_TEST_CHECK(split_parsed.has_value());
+	LIBGS_TEST_CHECK(split_parser.header().mask.has_value());
+	ws::apply_mask(split_parsed->payload, *split_parser.header().mask,
+		split_parsed->payload_offset);
+	LIBGS_TEST_CHECK(std::memcmp(split_parsed->payload.data(), payload.data(),
 		payload.size()) == 0);
 }
 
@@ -500,6 +520,21 @@ void test_preflight_and_partial_failure()
 		ws::make_error_code(ws::protocol_errc::invalid_utf8));
 	LIBGS_TEST_CHECK(text_connection->wire().empty());
 	LIBGS_TEST_CHECK(text_stream.is_open());
+
+	const std::array<std::byte,4> split_utf8 {
+		std::byte {0xF0}, std::byte {0x9F}, std::byte {0x98}, std::byte {0x80}
+	};
+	const std::array<libgs::const_buffer,3> split_utf8_buffers {
+		libgs::const_buffer(split_utf8.data(), 1),
+		libgs::const_buffer(split_utf8.data() + 1, 1),
+		libgs::const_buffer(split_utf8.data() + 2, 2)
+	};
+	LIBGS_TEST_CHECK_EQ(text_stream.write(ws::message_type::text,
+		split_utf8_buffers, error), split_utf8.size());
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(text_connection->wire().size(), size_t {6});
+	LIBGS_TEST_CHECK(std::memcmp(text_connection->wire().data() + 2,
+		split_utf8.data(), split_utf8.size()) == 0);
 
 	ws::stream_config limited_config;
 	limited_config.max_message_size = 4;
@@ -796,6 +831,38 @@ void test_detached_write_barrier_error()
 	auto observed = stream.wait_written(libgs::use_future);
 	context.run();
 	observed.get();
+}
+
+void test_detached_write_owns_payload()
+{
+	libgs::io_context_t context;
+	ws::stream_config config;
+	config.write_fragment_size = 2;
+	ws::stream stream(context.get_executor(), config);
+	auto connection = std::make_shared<memory_connection>(context.get_executor());
+	libgs::error_code error;
+	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+		{.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+
+	std::string first = "ab";
+	std::string second = "cdef";
+	const std::array<libgs::const_buffer,2> payload {
+		libgs::buffer(first), libgs::buffer(second)
+	};
+	stream.write(ws::message_type::text, payload,
+		libgs::redirect_time(libgs::detached, std::chrono::seconds(1)));
+	std::ranges::fill(first, 'x');
+	std::ranges::fill(second, 'x');
+	auto barrier = stream.wait_written(libgs::use_future);
+	context.run();
+	barrier.get();
+
+	const auto &wire = connection->wire();
+	LIBGS_TEST_CHECK_EQ(wire.size(), size_t {12});
+	LIBGS_TEST_CHECK(std::memcmp(wire.data() + 2, "ab", 2) == 0);
+	LIBGS_TEST_CHECK(std::memcmp(wire.data() + 6, "cd", 2) == 0);
+	LIBGS_TEST_CHECK(std::memcmp(wire.data() + 10, "ef", 2) == 0);
 }
 
 void test_control_failure_completes_paused_data()
@@ -1784,6 +1851,7 @@ int main()
 		{"queued write cancellation", test_queued_write_cancellation},
 		{"write barrier cancellation", test_write_barrier_cancellation},
 		{"detached write barrier error", test_detached_write_barrier_error},
+		{"detached write owns payload", test_detached_write_owns_payload},
 		{"control failure completes paused data",
 			test_control_failure_completes_paused_data},
 		{"shutdown aborts write queue", test_shutdown_aborts_write_queue},

@@ -79,6 +79,17 @@ public:
 			( payload_t  , data     )
 		);
 	};
+	struct transparent_string_hash
+	{
+		using is_transparent = void;
+
+		[[nodiscard]] size_t operator()(std::string_view value) const noexcept {
+			return std::hash<std::string_view>{}(value);
+		}
+		[[nodiscard]] size_t operator()(const std::string &value) const noexcept {
+			return operator()(std::string_view(value));
+		}
+	};
 
 public:
 	template <typename Exec0>
@@ -404,11 +415,17 @@ public:
 
 public:
 	subscriber_t m_subscriber {};
-	std::unordered_map<std::string,cache_t> m_caches {};
+
+	std::unordered_map<
+		std::string, cache_t, transparent_string_hash, std::equal_to<>
+	> m_caches {};
 	spin_shared_mutex m_caches_mutex {};
 
 	signal_t<std::string_view,payload_t,payload_t> m_signal {};
-	std::unordered_map<std::string,signal_ptr<payload_t,payload_t>> m_signals {};
+
+	std::unordered_map <
+		std::string, signal_ptr<payload_t,payload_t>
+	> m_signals {};
 	spin_mutex m_signals_mutex {};
 };
 
@@ -490,8 +507,11 @@ optional<T> cache<Subscriber>::get(std::string_view topic) const
 			invalid_argument::loc_throw("Topic does not match.");
 	}
 	spin_shared_shared_lock locker(m_impl->m_caches_mutex);
-	auto payload = m_impl->m_caches[std::string(topic)];
+	auto pos = m_impl->m_caches.find(topic);
+	if( pos == m_impl->m_caches.end() )
+		return {};
 
+	auto payload = pos->second;
 	if( payload.data.empty() )
 		return {};
 
@@ -506,7 +526,8 @@ template <concepts::subscriber Subscriber>
 auto cache<Subscriber>::get(std::string_view topic) const -> payload_t
 {
 	spin_shared_shared_lock locker(m_impl->m_caches_mutex); LIBGS_UNUSED(locker);
-	return m_impl->m_caches[std::string(topic)].data;
+	auto pos = m_impl->m_caches.find(topic);
+	return pos == m_impl->m_caches.end() ? payload_t{} : pos->second.data;
 }
 
 template <concepts::subscriber Subscriber>

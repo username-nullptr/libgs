@@ -13,6 +13,7 @@
 #include <libgs/http/protocol/utils/server/generator.h>
 #include <libgs/http/protocol/utils/server/parser.h>
 
+#include <array>
 #include <chrono>
 #include <string>
 
@@ -278,6 +279,43 @@ void range_headers()
 	LIBGS_TEST_CHECK(not parse_range_header("bytes=9-2"));
 }
 
+void multipart_byte_ranges_streaming()
+{
+	using namespace libgs::http;
+	const std::string body =
+		"preamble\r\n"
+		"--libgs-range\r\n"
+		"Content-Range: bytes 0-2/6\r\n"
+		"X-Part: first\r\n\r\n"
+		"abc\r\n"
+		"--libgs-range\r\n"
+		"Content-Range: bytes 3-5/6\r\n\r\n"
+		"def\r\n"
+		"--libgs-range--\r\n";
+
+	multipart_byte_ranges_parser parser("libgs-range");
+	std::array<std::string,2> payloads {};
+	for(size_t offset=0; offset<body.size(); )
+	{
+		const auto size = std::min<size_t>((offset % 7) + 1, body.size() - offset);
+		auto chunks = parser.append(std::string_view(body).substr(offset, size));
+		LIBGS_TEST_CHECK(chunks);
+		for(auto &chunk : *chunks)
+		{
+			LIBGS_TEST_CHECK(chunk.part_index < payloads.size());
+			payloads[chunk.part_index] += chunk.data;
+		}
+		offset += size;
+	}
+	LIBGS_TEST_CHECK(parser.finished());
+	LIBGS_TEST_CHECK(not parser.finish());
+	LIBGS_TEST_CHECK_EQ(parser.parts().size(), 2U);
+	LIBGS_TEST_CHECK_EQ(payloads[0], "abc");
+	LIBGS_TEST_CHECK_EQ(payloads[1], "def");
+	LIBGS_TEST_CHECK_EQ(parser.parts()[0].range.first, 0U);
+	LIBGS_TEST_CHECK_EQ(parser.parts()[1].range.first, 3U);
+}
+
 void conditional_and_upgrade_headers()
 {
 	using namespace libgs::http;
@@ -414,6 +452,7 @@ int main()
 		{"generators round trip", generators_round_trip},
 		{"request URL boundaries", request_url_boundaries},
 		{"range headers", range_headers},
+		{"multipart byte ranges streaming", multipart_byte_ranges_streaming},
 		{"conditional and upgrade headers", conditional_and_upgrade_headers},
 		{"form data and authentication", form_data_and_authentication},
 		{"cookie storage policy", cookie_storage_policy},

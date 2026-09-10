@@ -88,7 +88,8 @@ private:
 		std::string domain {};
 		std::string path {};
 
-		[[nodiscard]] bool operator==(const cookie_key&) const noexcept = default;
+		[[nodiscard]] bool operator==(const cookie_key&)
+			const noexcept = default;
 	};
 
 	struct cookie_key_view
@@ -100,6 +101,8 @@ private:
 
 	struct cookie_key_hash
 	{
+		using is_transparent = void;
+
 		[[nodiscard]] size_t operator()(const cookie_key_view &key) const noexcept
 		{
 			auto seed = std::hash<std::string_view>{}(key.name);
@@ -123,6 +126,8 @@ private:
 
 	struct cookie_key_equal
 	{
+		using is_transparent = void;
+
 		[[nodiscard]] bool operator()(const cookie_key_view &lhs, const cookie_key_view &rhs) const noexcept
 		{
 			return lhs.name == rhs.name and lhs.domain == rhs.domain and
@@ -165,6 +170,8 @@ private:
 
 	struct transparent_string_hash
 	{
+		using is_transparent = void;
+
 		[[nodiscard]] size_t operator()(std::string_view value) const noexcept {
 			return std::hash<std::string_view>{}(value);
 		}
