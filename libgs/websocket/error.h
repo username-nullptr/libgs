@@ -40,18 +40,6 @@ const std::error_category &error_category() noexcept;
 [[nodiscard]] LIBGS_WEBSOCKET_API
 error_code make_error_code(errc value) noexcept;
 
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator==(const error_code &error, errc value) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator==(errc value, const error_code &error) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator!=(const error_code &error, errc value) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator!=(errc value, const error_code &error) noexcept;
-
 } //namespace libgs::websocket
 
 namespace std

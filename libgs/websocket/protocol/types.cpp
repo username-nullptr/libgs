@@ -62,28 +62,6 @@ error_code make_error_code(protocol_errc value) noexcept
 	return { static_cast<int>(value), protocol_error_category() };
 }
 
-bool operator==(const error_code &error, protocol_errc value) noexcept
-{
-	return error.category() == protocol_error_category() and
-		error.value() == static_cast<int>(value);
-}
-
-bool operator==(protocol_errc value, const error_code &error) noexcept
-{
-	return error.category() == protocol_error_category() and
-		error.value() == static_cast<int>(value);
-}
-
-bool operator!=(const error_code &error, protocol_errc value) noexcept
-{
-	return not operator==(error, value);
-}
-
-bool operator!=(protocol_errc value, const error_code &error) noexcept
-{
-	return not operator==(value, error);
-}
-
 bool is_known_opcode(opcode value) noexcept
 {
 	switch(value)

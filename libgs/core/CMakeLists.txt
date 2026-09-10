@@ -15,3 +15,23 @@ if (LIBGS_OPENSSL_SUPPORT)
 		OpenSSL::SSL OpenSSL::Crypto
 	)
 endif ()
+
+if (LIBGS_IO_URING_SUPPORT)
+	find_path(LIBURING_INCLUDE_DIR NAMES liburing.h)
+	find_library(LIBURING_LIBRARY NAMES uring)
+
+	if (NOT LIBURING_INCLUDE_DIR OR NOT LIBURING_LIBRARY)
+		message(FATAL_ERROR
+			"${PRO_NAME}: Linux I/O uring support requires liburing."
+		)
+	endif ()
+
+	target_compile_definitions(${target_name} PUBLIC
+		LIBGS_IO_URING_SUPPORT=1
+		ASIO_HAS_IO_URING=1
+		ASIO_DISABLE_EPOLL=1
+	)
+	target_include_directories(${target_name} PUBLIC ${LIBURING_INCLUDE_DIR})
+	target_link_libraries(${target_name} PUBLIC ${LIBURING_LIBRARY})
+	mark_as_advanced(LIBURING_INCLUDE_DIR LIBURING_LIBRARY)
+endif ()

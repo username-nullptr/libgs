@@ -11,21 +11,28 @@ template <typename Iter>
 auto mean(Iter begin, Iter end) requires
 	concepts::arithmetic_p<decltype(*begin)>
 {
-	return mean(begin, end, [](auto &x){return x;});
+	return mean(begin, end, [](auto &x){return &x;});
 }
 
-template <typename Iter>
-auto mean(Iter begin, Iter end, auto &&func) requires (
-	concepts::arithmetic_p<decltype(*func(*begin))> or
-	concepts::arithmetic_p<decltype(*func(begin))>
-){
-	using sum_t = std::remove_cvref_t<decltype(*func(begin))>;
+template <typename Iter, typename Func>
+auto mean(Iter begin, Iter end, Func &&func) requires
+(concepts::mean_value_projection<Iter,Func> or concepts::mean_iterator_projection<Iter,Func>)
+{
+	auto project = [&func](Iter it) -> decltype(auto)
+	{
+		if constexpr( concepts::mean_value_projection<Iter,Func> )
+			return func(*it);
+		else
+			return func(it);
+	};
+	using sum_t = std::remove_cvref_t<decltype(*project(begin))>;
+
 	auto sum = static_cast<sum_t>(0);
 	auto count = static_cast<sum_t>(0);
 
 	for(auto it=begin; it!=end; ++it)
 	{
-		auto p = func(it);
+		auto p = project(it);
 		using p_t = std::remove_cvref_t<decltype(p)>;
 
 		if constexpr( std::is_pointer_v<p_t> )

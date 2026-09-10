@@ -14,6 +14,9 @@
 
 namespace ws = libgs::websocket;
 
+static_assert(std::is_error_code_enum_v<ws::errc>);
+static_assert(std::is_error_code_enum_v<ws::protocol_errc>);
+
 namespace
 {
 

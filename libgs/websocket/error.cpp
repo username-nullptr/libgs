@@ -39,26 +39,4 @@ error_code make_error_code(errc value) noexcept
 	return { static_cast<int>(value), error_category() };
 }
 
-bool operator==(const error_code &error, errc value) noexcept
-{
-	return error.category() == error_category() and
-		error.value() == static_cast<int>(value);
-}
-
-bool operator==(errc value, const error_code &error) noexcept
-{
-	return error.category() == error_category() and
-		error.value() == static_cast<int>(value);
-}
-
-bool operator!=(const error_code &error, errc value) noexcept
-{
-	return not operator==(error, value);
-}
-
-bool operator!=(errc value, const error_code &error) noexcept
-{
-	return not operator==(value, error);
-}
-
 } //namespace libgs::websocket

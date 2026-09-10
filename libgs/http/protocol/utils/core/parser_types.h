@@ -46,18 +46,6 @@ const std::error_category &parse_error_category() noexcept;
 [[nodiscard]] LIBGS_HTTP_API
 error_code make_error_code(parse_errc value) noexcept;
 
-[[nodiscard]] LIBGS_HTTP_API
-bool operator==(const error_code &error, parse_errc value) noexcept;
-
-[[nodiscard]] LIBGS_HTTP_API
-bool operator==(parse_errc value, const error_code &error) noexcept;
-
-[[nodiscard]] LIBGS_HTTP_API
-bool operator!=(const error_code &error, parse_errc value) noexcept;
-
-[[nodiscard]] LIBGS_HTTP_API
-bool operator!=(parse_errc value, const error_code &error) noexcept;
-
 } //namespace libgs::http
 
 namespace std

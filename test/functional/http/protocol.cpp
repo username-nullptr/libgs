@@ -17,6 +17,8 @@
 #include <chrono>
 #include <string>
 
+static_assert(std::is_error_code_enum_v<libgs::http::parse_errc>);
+
 namespace
 {
 

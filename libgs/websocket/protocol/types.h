@@ -132,18 +132,6 @@ const std::error_category &protocol_error_category() noexcept;
 error_code make_error_code(protocol_errc value) noexcept;
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator==(const error_code &error, protocol_errc value) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator==(protocol_errc value, const error_code &error) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator!=(const error_code &error, protocol_errc value) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
-bool operator!=(protocol_errc value, const error_code &error) noexcept;
-
-[[nodiscard]] LIBGS_WEBSOCKET_API
 bool is_known_opcode(opcode value) noexcept;
 
 // Recognized control opcodes only; reserved 0xB-0xF values return false.

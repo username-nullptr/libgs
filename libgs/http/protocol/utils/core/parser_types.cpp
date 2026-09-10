@@ -43,28 +43,4 @@ error_code make_error_code(parse_errc value) noexcept
 	return { static_cast<int>(value), parse_error_category() };
 }
 
-bool operator==(const error_code &error, parse_errc value) noexcept
-{
-	return error.category() == parse_error_category() and
-		error.value() == static_cast<int>(value);
-}
-
-bool operator==(parse_errc value, const error_code &error) noexcept
-{
-	return error.category() == parse_error_category() and
-		error.value() == static_cast<int>(value);
-}
-
-bool operator!=(const error_code &error, parse_errc value) noexcept
-{
-	return error.category() != parse_error_category() or
-		error.value() != static_cast<int>(value);
-}
-
-bool operator!=(parse_errc value, const error_code &error) noexcept
-{
-	return error.category() != parse_error_category() or
-		error.value() != static_cast<int>(value);
-}
-
 } //namespace libgs::http

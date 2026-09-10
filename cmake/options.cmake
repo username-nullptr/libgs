@@ -43,6 +43,15 @@ if (LIBGS_OPENSSL_SUPPORT)
 	add_definitions(-DLIBGS_OPENSSL_SUPPORT=1)
 endif ()
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	option(LIBGS_IO_URING_SUPPORT
+		"-- ${PRO_NAME}: Linux I/O uring support." OFF
+	)
+	if (LIBGS_IO_URING_SUPPORT)
+		message(STATUS "${PRO_NAME}: Enable Linux I/O uring support.")
+	endif ()
+endif ()
+
 option(LIBGS_BUILD_CORO
 	"-- ${PRO_NAME}: Build module <Coroutine>." ON
 )

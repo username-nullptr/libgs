@@ -18,6 +18,7 @@
 #include <atomic>
 #include <filesystem>
 #include <format>
+#include <list>
 #include <limits>
 #include <string>
 #include <system_error>
@@ -96,11 +97,13 @@ void value_and_string_algorithms()
 
 	const std::array projected {1, 2, 3};
 	LIBGS_TEST_CHECK_EQ(libgs::mean(projected.begin(), projected.end(),
-		[](const auto &value) {
-			if constexpr( std::is_pointer_v<std::remove_cvref_t<decltype(value)>> )
-				return value;
-			else
-				return &value;
+		[](const int &value) {
+			return &value;
+		}), 2);
+	const std::list<int> iterator_projected {1, 2, 3};
+	LIBGS_TEST_CHECK_EQ(libgs::mean(iterator_projected.begin(), iterator_projected.end(),
+		[](std::list<int>::const_iterator it) {
+			return &*it;
 		}), 2);
 
 	const libgs::string_deque deque {"a", "b", "c"};
