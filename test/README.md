@@ -3,8 +3,20 @@
 The test suite has two layers:
 
 - `functional`: correctness tests for each enabled module.
-- `performance`: coarse local measurements for the lock-free queues, coroutine
-  synchronization primitives, HTTP loopback requests, and utility dispatch.
+- `performance`: coarse local measurements for core transforms, lock-free queues,
+  coroutine synchronization primitives, HTTP protocol/loopback work, and utility
+  dispatch.
+
+Coverage is organized by observable behavior rather than one test per function.
+A representative public workflow is allowed to cover its small helpers; a separate
+test is added only for a distinct boundary, error, state-transition, ownership, or
+configuration branch. Performance tests likewise sample important dimensions
+(for example protocol versus socket work, small versus large bodies, and reused
+versus reconnected HTTP sessions) instead of building an unbounded cross-product.
+
+The WebSocket module is still under development. Its existing regression tests
+remain enabled, but the stable-module public API and performance expansion does
+not treat its current surface as a coverage target yet.
 
 Performance tests require the `libgs.functional` CTest fixture. Selecting only
 the `performance` label therefore runs the functional suite first, and skips
@@ -23,6 +35,12 @@ ctest --test-dir build -L performance -V
 The reported throughput and latency have no fixed pass threshold. They are
 intended for rough comparisons on the same machine; a performance test fails
 only when its result is functionally incorrect or it times out.
+
+Core measurements cover percent encoding, URL parse/serialization, and SHA-1.
+HTTP measurements separate parser/generator cost from loopback requests and,
+when `LIBGS_HTTP_ZLIB_SUPPORT=ON`, include a gzip round trip. Loopback reporting
+uses median-of-three samples for keep-alive small bodies, keep-alive 64 KiB
+bodies, and reconnecting small requests.
 
 The coroutine synchronization measurements include raw atomic and immediate
 awaitable baselines, uncontended acquire/release cycles, and queued waiter

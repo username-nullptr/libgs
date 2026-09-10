@@ -16,7 +16,7 @@ function(add_libgs_test name source library)
 	set_target_properties(${test_target} PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
 	)
-	add_test(NAME libgs.${name} COMMAND $<TARGET_FILE:${test_target}>)
+	add_test(NAME libgs.${name} COMMAND $<TARGET_FILE:${test_target}> ${ARGN})
 	set_tests_properties(libgs.${name} PROPERTIES
 		LABELS functional
 		FIXTURES_SETUP libgs.functional

@@ -365,7 +365,7 @@ file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &file_stream
 
 template <core_concepts::any_fstream_p FS>
 file_opt_token<FS&,file_optype::multiple>::file_opt_token(fstream_t &file_stream, file_ranges byte_ranges) :
-	stream(file_stream),
+	stream(&file_stream),
 	ranges(std::move(byte_ranges))
 {
 

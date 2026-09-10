@@ -77,6 +77,66 @@ void child_process_io()
 	LIBGS_TEST_CHECK(libgs::utils::process::self_pid().value_or(0) != 0);
 }
 
+void child_process_environment_and_channels()
+{
+	libgs::test::temporary_directory directory;
+	libgs::utils::process process;
+	process.set_work_path(directory.path());
+	process.setenv("LIBGS_PROCESS_VALUE", "from-child");
+#if defined(_WIN32)
+	auto started = process.start("cmd.exe", "/C",
+		"echo %LIBGS_PROCESS_VALUE% & cd & echo stderr-value 1>&2");
+#else
+	auto started = process.start("/bin/sh", "-c",
+		"printf '%s\\n' \"$LIBGS_PROCESS_VALUE\"; pwd; printf 'stderr-value\\n' >&2");
+#endif
+	LIBGS_TEST_CHECK(started);
+	const auto output = process.read<std::string>();
+	const auto errors = process.read_stderr<std::string>();
+	LIBGS_TEST_CHECK_EQ(process.join(), 0);
+	LIBGS_TEST_CHECK(output.find("from-child") != std::string::npos);
+	LIBGS_TEST_CHECK(output.find(directory.path().string()) != std::string::npos);
+	LIBGS_TEST_CHECK(errors.find("stderr-value") != std::string::npos);
+
+	process.unsetenv("LIBGS_PROCESS_VALUE");
+#if defined(_WIN32)
+	const libgs::utils::process::args_t args {"/C", "exit", "7"};
+	LIBGS_TEST_CHECK_EQ(libgs::utils::process::exec("cmd.exe", args).value_or(-1), 7);
+	LIBGS_TEST_CHECK_EQ(
+		libgs::utils::process::exec("cmd.exe /C \"exit 6\"").value_or(-1), 6);
+#else
+	const libgs::utils::process::args_t args {"-c", "exit 7"};
+	LIBGS_TEST_CHECK_EQ(libgs::utils::process::exec("/bin/sh", args).value_or(-1), 7);
+	LIBGS_TEST_CHECK_EQ(
+		libgs::utils::process::exec("/bin/sh -c 'exit 6'").value_or(-1), 6);
+#endif
+}
+
+void child_process_state_errors()
+{
+	using namespace std::chrono_literals;
+	libgs::utils::process process;
+	LIBGS_TEST_CHECK_EQ(process.state(), libgs::utils::process_state::idle);
+	LIBGS_TEST_CHECK(not process.joinable());
+
+#if defined(_WIN32)
+	LIBGS_TEST_CHECK(process.start("cmd.exe", "/C", "ping -n 2 127.0.0.1 >nul"));
+#else
+	LIBGS_TEST_CHECK(process.start("/bin/sh", "-c", "sleep 0.05"));
+#endif
+	auto duplicate = process.start();
+	LIBGS_TEST_CHECK(not duplicate);
+	LIBGS_TEST_CHECK(duplicate.error() == std::errc::device_or_resource_busy);
+	LIBGS_TEST_CHECK_THROWS(process.join(1ms), std::system_error);
+	process.kill();
+	std::error_code join_error;
+	LIBGS_TEST_CHECK_EQ(process.join(join_error), 0);
+	LIBGS_TEST_CHECK(join_error == std::errc::io_error);
+	LIBGS_TEST_CHECK_EQ(process.state(), libgs::utils::process_state::crashed);
+	LIBGS_TEST_CHECK(process.exit_code() != 0);
+	LIBGS_TEST_CHECK(not process.joinable());
+}
+
 void local_message_bus()
 {
 	constexpr std::string_view topic = "libgs.test.counter";
@@ -155,6 +215,8 @@ int main()
 	return libgs::test::run({
 		{"settings persistence and signals", settings_persistence_and_signals},
 		{"child process IO", child_process_io},
+		{"child process environment and channels", child_process_environment_and_channels},
+		{"child process state errors", child_process_state_errors},
 		{"local message bus", local_message_bus},
 		{"logger configuration", logger_configuration},
 	});

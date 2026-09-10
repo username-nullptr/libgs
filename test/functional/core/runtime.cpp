@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <future>
+#include <thread>
 #include <vector>
 
 namespace
@@ -73,6 +74,41 @@ void periodic_timer()
 	LIBGS_TEST_CHECK_EQ(ticks, 3);
 }
 
+void awaitable_and_absolute_work()
+{
+	libgs::io_context_t context;
+	auto awaitable_result = libgs::post(context,
+		[]() -> libgs::awaitable<int> { co_return 42; }, libgs::use_future);
+	bool absolute_invoked = false;
+	libgs::post(context, std::chrono::steady_clock::now(),
+		[&] { absolute_invoked = true; });
+
+	int ticks = 0;
+	libgs::work_canceller_t cancel;
+	cancel = libgs::start_timer(context, 1ms,
+		[&](const libgs::work_canceller_t &stop)
+		{
+			++ticks;
+			stop();
+		}, true);
+	context.run();
+	LIBGS_TEST_CHECK_EQ(awaitable_result.get(), 42);
+	LIBGS_TEST_CHECK(absolute_invoked);
+	LIBGS_TEST_CHECK_EQ(ticks, 1);
+}
+
+void global_event_loop()
+{
+	auto result = std::async(std::launch::async, [] { return libgs::exec(); });
+	for(size_t retry = 0; retry < 1'000 and not libgs::is_run(); ++retry)
+		std::this_thread::sleep_for(1ms);
+	const bool started = libgs::is_run();
+	libgs::post([] { libgs::exit(7); });
+	LIBGS_TEST_CHECK_EQ(result.get(), 7);
+	LIBGS_TEST_CHECK(started);
+	LIBGS_TEST_CHECK(not libgs::is_run());
+}
+
 } //namespace
 
 int main()
@@ -82,5 +118,7 @@ int main()
 		{"delayed work cancellation", delayed_work_cancellation},
 		{"local dispatch and sleep", local_dispatch_and_sleep},
 		{"periodic timer", periodic_timer},
+		{"awaitable and absolute work", awaitable_and_absolute_work},
+		{"global event loop", global_event_loop},
 	});
 }

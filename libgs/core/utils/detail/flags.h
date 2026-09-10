@@ -23,42 +23,42 @@ constexpr flags<Enum>::flags(std::initializer_list<enum_t> flag_values) noexcept
 
 template <concepts::flag_template Enum>
 template <concepts::flag_number Int>
-const flags<Enum> &flags<Enum>::operator&=(Int mask) noexcept
+flags<Enum> &flags<Enum>::operator&=(Int mask) noexcept
 {
 	m_value &= static_cast<uint32_t>(mask);
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const flags<Enum> &flags<Enum>::operator&=(enum_t mask) noexcept
+flags<Enum> &flags<Enum>::operator&=(enum_t mask) noexcept
 {
 	m_value &= static_cast<uint32_t>(mask);
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const flags<Enum> &flags<Enum>::operator|=(flags f) noexcept
+flags<Enum> &flags<Enum>::operator|=(flags f) noexcept
 {
 	m_value |= f.m_value;
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const flags<Enum> &flags<Enum>::operator|=(enum_t f) noexcept
+flags<Enum> &flags<Enum>::operator|=(enum_t f) noexcept
 {
 	m_value |= static_cast<uint32_t>(f);
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const flags<Enum> &flags<Enum>::operator^=(flags f) noexcept
+flags<Enum> &flags<Enum>::operator^=(flags f) noexcept
 {
 	m_value ^= f.m_value;
 	return *this;
 }
 
 template <concepts::flag_template Enum>
-const flags<Enum> &flags<Enum>::operator^=(enum_t f) noexcept
+flags<Enum> &flags<Enum>::operator^=(enum_t f) noexcept
 {
 	m_value ^= static_cast<uint32_t>(f);
 	return *this;
@@ -159,9 +159,9 @@ constexpr bool flags<Enum>::test_flag(enum_t f) const noexcept
 }
 
 template <concepts::flag_template Enum>
-constexpr flags<Enum> &flags<Enum>::set_flag(enum_t f, bool on) const noexcept
+constexpr flags<Enum> &flags<Enum>::set_flag(enum_t f, bool on) noexcept
 {
-	return on ? (*this |= static_cast<uint32_t>(f)) : (*this &= ~static_cast<uint32_t>(f));
+	return on ? (*this |= f) : (*this &= ~static_cast<uint32_t>(f));
 }
 
 template <concepts::flag_template Enum>

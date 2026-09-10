@@ -11,7 +11,10 @@ void session::impl::start()
 	if( m_restart )
 		m_timer.cancel();
 	else if( not m_valid )
+	{
+		m_valid = true;
 		dispatch(work());
+	}
 }
 
 awaitable<void> session::impl::work()

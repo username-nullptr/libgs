@@ -32,13 +32,13 @@ public:
 
 public:
 	template <concepts::flag_number Int>
-	const flags &operator&=(Int mask) noexcept;
+	flags &operator&=(Int mask) noexcept;
 
-	const flags &operator&=(enum_t mask) noexcept;
-	const flags &operator|=(flags f) noexcept;
-	const flags &operator|=(enum_t f) noexcept;
-	const flags &operator^=(flags f) noexcept;
-	const flags &operator^=(enum_t f) noexcept;
+	flags &operator&=(enum_t mask) noexcept;
+	flags &operator|=(flags f) noexcept;
+	flags &operator|=(enum_t f) noexcept;
+	flags &operator^=(flags f) noexcept;
+	flags &operator^=(enum_t f) noexcept;
 
 public:
 	template <concepts::flag_number Int>
@@ -69,7 +69,7 @@ public:
 	[[nodiscard]] constexpr T value() const noexcept;
 
 	[[nodiscard]] constexpr bool test_flag(enum_t f) const noexcept;
-	constexpr flags &set_flag(enum_t f, bool on = true) const noexcept;
+	constexpr flags &set_flag(enum_t f, bool on = true) noexcept;
 
 private:
 	using iterator = std::initializer_list<enum_t>::const_iterator;

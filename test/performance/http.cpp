@@ -26,6 +26,7 @@ constexpr size_t request_count = 2'000;
 constexpr size_t warmup_count = 10;
 constexpr size_t request_count = 200;
 #endif
+constexpr size_t secondary_request_count = request_count / 10;
 
 void http_loopback_throughput()
 {
@@ -33,6 +34,7 @@ void http_loopback_throughput()
 	libgs::io_context_t context;
 	asio::ip::tcp::acceptor acceptor(context);
 	server service(std::move(acceptor));
+	const std::string large_body(64 * 1024, 'x');
 	auto server_config = service.config();
 	server_config.keepalive_time = std::chrono::seconds(30);
 	service.set_config(server_config);
@@ -46,54 +48,67 @@ void http_loopback_throughput()
 				asio::buffer(body), libgs::use_awaitable
 			);
 		})
+		.on_request<method::get>("/benchmark-large",
+		[&large_body](server::context_t &request_context) -> libgs::awaitable<void>
+		{
+			co_await request_context.response().write(
+				asio::buffer(large_body), libgs::use_awaitable
+			);
+		})
 		.start();
 
 	const auto port = service.acceptor_wrap().acceptor().local_endpoint().port();
 	LIBGS_TEST_CHECK(port != 0);
 	const auto url = std::format("http://127.0.0.1:{}/benchmark", port);
+	const auto large_url = std::format(
+		"http://127.0.0.1:{}/benchmark-large", port);
 	client requester(context.get_executor());
 	auto completed = asio::co_spawn(context, [&]() -> libgs::awaitable<void>
 	{
 		try
 		{
-			constexpr size_t sample_count = 3;
-			std::array<std::chrono::steady_clock::duration,sample_count> samples {};
-			for(size_t sample = 0; sample <= sample_count; ++sample)
+			auto measure = [&](const std::string &target, std::string_view expected_body,
+				size_t iterations, bool close) -> libgs::awaitable<std::chrono::steady_clock::duration>
 			{
-				const auto iterations = sample == 0 ? warmup_count : request_count;
 				const auto begin = std::chrono::steady_clock::now();
 				for(size_t index = 0; index < iterations; ++index)
 				{
-					auto request = co_await requester.request_get(url, libgs::use_awaitable);
+					client::req_info request_info(target);
+					if( close )
+						request_info.arg.set_header(header::connection, "close");
+					auto request = co_await requester.request_get(
+						std::move(request_info), libgs::use_awaitable);
 					LIBGS_TEST_CHECK(request);
 					LIBGS_TEST_CHECK_EQ(
 						co_await request->wait_reply(libgs::use_awaitable), status::ok
 					);
 					LIBGS_TEST_CHECK_EQ(
-						co_await request->reply()->read<std::string>(libgs::use_awaitable), "ok"
+						co_await request->reply()->read<std::string>(libgs::use_awaitable),
+						expected_body
 					);
 				}
-				if(sample != 0)
-					samples[sample - 1] = std::chrono::steady_clock::now() - begin;
-			}
-			std::ranges::sort(samples);
-			libgs::test::print_performance_result(
-				"HTTP/1.1 loopback sequential request (median of 3)", request_count,
-				samples[sample_count / 2], "request"
-			);
+				co_return std::chrono::steady_clock::now() - begin;
+			};
+			auto report = [&](std::string_view name, const std::string &target,
+				std::string_view body, size_t iterations, bool close)
+				-> libgs::awaitable<void>
+			{
+				co_await measure(target, body,
+					std::min(warmup_count, iterations), close);
+				std::array<std::chrono::steady_clock::duration,3> samples {};
+				for(auto &sample : samples)
+					sample = co_await measure(target, body, iterations, close);
+				std::ranges::sort(samples);
+				libgs::test::print_performance_result(
+					name, iterations, samples[1], "request");
+			};
 
-			client::req_info close_request(url);
-			close_request.arg.set_header(header::connection, "close");
-			auto closing = co_await requester.request_get(
-				std::move(close_request), libgs::use_awaitable
-			);
-			LIBGS_TEST_CHECK(closing);
-			LIBGS_TEST_CHECK_EQ(
-				co_await closing->wait_reply(libgs::use_awaitable), status::ok
-			);
-			LIBGS_TEST_CHECK_EQ(
-				co_await closing->reply()->read<std::string>(libgs::use_awaitable), "ok"
-			);
+			co_await report("HTTP/1.1 keep-alive, 2 B body (median of 3)",
+				url, "ok", request_count, false);
+			co_await report("HTTP/1.1 keep-alive, 64 KiB body (median of 3)",
+				large_url, large_body, secondary_request_count, false);
+			co_await report("HTTP/1.1 reconnect, 2 B body (median of 3)",
+				url, "ok", secondary_request_count, true);
 		}
 		catch(...)
 		{

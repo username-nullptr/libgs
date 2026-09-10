@@ -5,6 +5,7 @@
 
 #include <libgs/utils/modules.h>
 
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -27,16 +28,34 @@ int main()
 		std::scoped_lock lock(mutex);
 		order.emplace_back("service");
 	});
+	libgs::utils::modules::reg_init("failing", [] { return false; });
+	libgs::utils::modules::reg_init("blocked", {
+		.parents = {"failing"}
+	}, [] {});
+	libgs::utils::modules::reg_init("orphan", {
+		.parents = {"missing-parent"}
+	}, [] {});
+	LIBGS_TEST_CHECK_THROWS(
+		libgs::utils::modules::reg_init("database", [] {}),
+		libgs::runtime_error
+	);
+	LIBGS_TEST_CHECK_THROWS(
+		libgs::utils::modules::reg_init("", [] {}),
+		libgs::runtime_error
+	);
 
 	const auto graph = libgs::utils::modules::sprint();
 	LIBGS_TEST_CHECK(graph.find("database") != std::string::npos);
 	LIBGS_TEST_CHECK(graph.find("service") != std::string::npos);
-	const auto unexpected = libgs::utils::modules::do_init(
+	auto unexpected = libgs::utils::modules::do_init(
 		libgs::string_vector {"--test", "value"}
 	);
-	LIBGS_TEST_CHECK(unexpected.failures.empty());
-	LIBGS_TEST_CHECK(unexpected.unregistered.empty());
-	LIBGS_TEST_CHECK(unexpected.children.empty());
+	LIBGS_TEST_CHECK_EQ(unexpected.failures, std::vector<std::string> {"failing"});
+	LIBGS_TEST_CHECK_EQ(unexpected.unregistered,
+		std::vector<std::string> {"missing-parent"});
+	std::ranges::sort(unexpected.children);
+	LIBGS_TEST_CHECK_EQ(unexpected.children,
+		(std::vector<std::string> {"blocked", "orphan"}));
 	LIBGS_TEST_CHECK_EQ(order.size(), 2U);
 	LIBGS_TEST_CHECK_EQ(order[0], "database");
 	LIBGS_TEST_CHECK_EQ(order[1], "service");

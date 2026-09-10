@@ -94,7 +94,7 @@ error_code library::impl::load_native()
 
 	auto _file_name = m_file_name.wstring();
 	m_handle = LoadLibraryW(_file_name.c_str());
-	if( m_handle )
+	if( not m_handle )
 		return { static_cast<int>(GetLastError()), g_library_category };
 	return {};
 }

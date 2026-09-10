@@ -1023,20 +1023,10 @@ void process::add_arg(const path_t &arg) const
 		m_impl->m_cmd += " " + strtls::trimmed(arg.string());
 		return ;
 	}
-	auto arg_str = strtls::trimmed(arg.string());
-	wordexp_t word {};
-
-	auto res = wordexp(arg_str.c_str(), &word, 0);
-	if( res != 0 )
-	{
-		if( res == WRDE_NOSPACE )
-			wordfree(&word);
-		m_impl->m_args.emplace_back(std::move(arg_str));
-		return ;
-	}
-	for(size_t i=0; i<word.we_wordc; i++)
-		m_impl->m_args.emplace_back(word.we_wordv[i]);
-	wordfree(&word);
+	// Arguments supplied separately are already tokenized by the caller.  In
+	// particular, a value containing spaces must remain one argv entry (matching
+	// the Windows implementation and normal execvp semantics).
+	m_impl->m_args.emplace_back(strtls::trimmed(arg.string()));
 }
 
 sys_expected<> process::start() const

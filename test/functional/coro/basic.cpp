@@ -269,6 +269,70 @@ void shared_mutex_readers()
 	LIBGS_TEST_CHECK(not mutex.is_locked());
 }
 
+void timed_shared_mutex_and_lock_ownership()
+{
+	libgs::coro::shared_mutex mutex;
+	libgs::coro::shared_lock lock(mutex);
+	LIBGS_TEST_CHECK(lock.mutex() == &mutex);
+	LIBGS_TEST_CHECK(lock.try_lock_shared());
+	LIBGS_TEST_CHECK(lock.is_locked());
+
+	libgs::coro::shared_lock moved(std::move(lock));
+	LIBGS_TEST_CHECK(not lock.is_locked());
+	LIBGS_TEST_CHECK(moved.is_locked());
+
+	libgs::io_context_t context;
+	auto result = asio::co_spawn(context, [&]() -> libgs::awaitable<bool>
+	{
+		const bool writer = co_await mutex.try_lock_until(
+			std::chrono::steady_clock::now() + 1ms);
+		moved.unlock_shared();
+		const bool reader = co_await mutex.try_lock_shared_for(5ms);
+		if( reader )
+			mutex.unlock_shared();
+		co_return not writer and reader;
+	}, asio::use_future);
+	context.run();
+	LIBGS_TEST_CHECK(result.get());
+	LIBGS_TEST_CHECK(not mutex.is_locked());
+}
+
+void condition_variable_timeout()
+{
+	libgs::io_context_t context;
+	libgs::coro::mutex mutex;
+	libgs::coro::condition_variable condition;
+	auto result = asio::co_spawn(context, [&]() -> libgs::awaitable<bool>
+	{
+		libgs::coro::unique_lock lock(mutex);
+		co_await lock.lock();
+		const auto deadline = std::chrono::steady_clock::now() + 1ms;
+		const bool notified = co_await condition.wait_until(lock, deadline);
+		LIBGS_TEST_CHECK(lock.is_locked());
+		lock.unlock();
+		co_return notified;
+	}, asio::use_future);
+	context.run();
+	LIBGS_TEST_CHECK(not result.get());
+}
+
+void coroutine_utilities()
+{
+	using namespace libgs::coro::literals;
+	libgs::io_context_t context;
+	bool thread_completed = false;
+	std::thread worker([&] { thread_completed = true; });
+	auto result = asio::co_spawn(context, [&]() -> libgs::awaitable<bool>
+	{
+		co_await 0_ms;
+		co_await libgs::coro::sleep_until(std::chrono::steady_clock::now());
+		co_await libgs::coro::wait(worker);
+		co_return thread_completed and not worker.joinable();
+	}, asio::use_future);
+	context.run();
+	LIBGS_TEST_CHECK(result.get());
+}
+
 void future_waiting()
 {
 	libgs::io_context_t context;
@@ -297,6 +361,9 @@ int main()
 		{"large mutex waiter queue", large_mutex_waiter_queue},
 		{"condition variable notification", condition_variable_notification},
 		{"shared mutex readers", shared_mutex_readers},
+		{"timed shared mutex and lock ownership", timed_shared_mutex_and_lock_ownership},
+		{"condition variable timeout", condition_variable_timeout},
+		{"coroutine utilities", coroutine_utilities},
 		{"future waiting", future_waiting},
 	});
 }

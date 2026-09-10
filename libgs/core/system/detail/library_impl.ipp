@@ -39,21 +39,30 @@ public:
 
 	impl(impl &&other) noexcept :
 		m_file_name(std::move(other.m_file_name)),
-		m_load_count(other.m_load_count.load()),
-		m_handle(other.m_handle)
+		m_load_count(other.m_load_count.exchange(0)),
+		m_handle(std::exchange(other.m_handle, nullptr))
 #ifdef __linux__
 		, m_version(std::move(other.m_version))
 #endif //__linux__
 	{}
 	impl &operator=(impl &&other) noexcept
 	{
+		if( this == &other )
+			return *this;
+		if( m_handle )
+			LIBGS_UNUSED(unload_native());
 		m_file_name = std::move(other.m_file_name);
-		m_load_count = other.m_load_count.load();
-		m_handle = other.m_handle;
+		m_load_count = other.m_load_count.exchange(0);
+		m_handle = std::exchange(other.m_handle, nullptr);
 #ifdef __linux__
 		m_version = std::move(other.m_version);
 #endif //__linux__
 		return *this;
+	}
+	~impl()
+	{
+		if( m_handle )
+			LIBGS_UNUSED(unload_native());
 	}
 
 public:

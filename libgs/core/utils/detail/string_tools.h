@@ -6,6 +6,7 @@
 
 #include <ranges>
 #include <algorithm>
+#include <utility>
 
 namespace libgs::strtls { namespace detail
 {
@@ -98,6 +99,15 @@ template <concepts::character CharT, typename T>
 	return static_cast<T>(!!res);
 }
 
+template <std::integral To, std::integral From>
+[[nodiscard]] LIBGS_CORE_TAPI optional<To>
+checked_integral_cast(const optional<From> &value) noexcept
+{
+	if( not value or not std::in_range<To>(*value) )
+		return {};
+	return static_cast<To>(*value);
+}
+
 template <concepts::character CharT>
 LIBGS_CORE_TAPI size_t replace
 (std::basic_string<CharT> &str, std::basic_string_view<CharT> find, std::basic_string_view<CharT> repl, bool step)
@@ -142,30 +152,26 @@ std::basic_string<CharT> to_string(concepts::integral_p auto &&value, size_t bas
 			"libgs::strtls::to_string: Invalid base - must be between 2 and 36"
 		);
 	}
-	std::basic_string<CharT> result;
-	if( value == 0 )
-		return result;
-
-	bool is_negative = false;
 	using T = std::remove_cvref_t<decltype(value)>;
+	using unsigned_t = std::make_unsigned_t<decltype(+value)>;
+	const bool is_negative = std::is_signed_v<T> and value < 0;
+	const unsigned_t magnitude = is_negative ?
+		unsigned_t {0} - static_cast<unsigned_t>(value) : static_cast<unsigned_t>(value);
 
-	if constexpr( std::is_signed_v<T> )
-	{
-		if( value < 0 )
-		{
-			is_negative = true;
-			value = -value;
-		}
-	}
+	std::basic_string<CharT> result;
+	if( magnitude == 0 )
+		return {static_cast<CharT>('0')};
+
 	constexpr auto digits_lower = l_str(CharT,"0123456789abcdefghijklmnopqrstuvwxyz");
 	constexpr auto digits_upper = l_str(CharT,"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 	const CharT *digits = uppercase ? digits_upper : digits_lower;
 
-	while( value > 0 )
+	auto remaining = magnitude;
+	while( remaining > 0 )
 	{
-		auto remainder = static_cast<unsigned int>(value % base);
+		auto remainder = static_cast<unsigned int>(remaining % base);
 		result.insert(result.begin(), digits[remainder]);
-		value = value / base;
+		remaining = remaining / base;
 	}
 	if( is_negative )
 		result.insert(result.begin(), static_cast<CharT>('-'));
@@ -273,6 +279,8 @@ bool is_rlnum(const concepts::any_string_p auto &str) noexcept
 		auto it = view.begin();
 		if( *it == 0x2D/*-*/ or *it == 0x2B/*+*/ )
 			++it;
+		if( it == view.end() )
+			return false;
 
 		if( not std::isdigit(*it) )
 			return false;
@@ -350,8 +358,8 @@ optional<int8_t> to_int8(const concepts::any_text_p auto &text, size_t base) noe
 			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol),
 			_text, base
 		);
-		if( opt )
-			return static_cast<int8_t>(*opt);
+		if( auto result = detail::checked_integral_cast<int8_t>(opt) )
+			return result;
 	}
 	catch(std::exception&) {}
 	return detail::try_to_booltot<char_t,int8_t>(_text);
@@ -369,8 +377,8 @@ optional<uint8_t> to_uint8(const concepts::any_text_p auto &text, size_t base) n
 			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul),
 			_text, base
 		);
-		if( opt )
-			return static_cast<uint8_t>(*opt);
+		if( auto result = detail::checked_integral_cast<uint8_t>(opt) )
+			return result;
 	}
 	catch(std::exception&) {}
 	return detail::try_to_booltot<char_t,uint8_t>(_text);
@@ -388,8 +396,8 @@ optional<int16_t> to_int16(const concepts::any_text_p auto &text, size_t base) n
 			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol),
 			_text, base
 		);
-		if( opt )
-			return static_cast<int16_t>(*opt);
+		if( auto result = detail::checked_integral_cast<int16_t>(opt) )
+			return result;
 	}
 	catch(std::exception&) {}
 	return detail::try_to_booltot<char_t,int16_t>(_text);
@@ -407,8 +415,8 @@ optional<uint16_t> to_uint16(const concepts::any_text_p auto &text, size_t base)
 			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul),
 			_text, base
 		);
-		if( opt )
-			return static_cast<uint16_t>(*opt);
+		if( auto result = detail::checked_integral_cast<uint16_t>(opt) )
+			return result;
 	}
 	catch(std::exception&) {}
 	return detail::try_to_booltot<char_t,uint16_t>(_text);
@@ -426,8 +434,8 @@ optional<int32_t> to_int32(const concepts::any_text_p auto &text, size_t base) n
 			static_cast<long(*)(const string_t&,size_t*,int)>(std::stol),
 			_text, base
 		);
-		if( opt )
-			return static_cast<int32_t>(*opt);
+		if( auto result = detail::checked_integral_cast<int32_t>(opt) )
+			return result;
 	}
 	catch(std::exception&) {}
 	return detail::try_to_booltot<char_t,int32_t>(_text);
@@ -445,8 +453,8 @@ optional<uint32_t> to_uint32(const concepts::any_text_p auto &text, size_t base)
 			static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul),
 			_text, base
 		);
-		if( opt )
-			return static_cast<uint32_t>(*opt);
+		if( auto result = detail::checked_integral_cast<uint32_t>(opt) )
+			return result;
 	}
 	catch(std::exception&) {}
 	return detail::try_to_booltot<char_t,uint32_t>(_text);
@@ -589,84 +597,18 @@ template <typename T>
 	{
 		using string_t = std::basic_string<char_t>;
 		try {
-			if constexpr( std::is_same_v<T, char> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				)
-				.transform([](long value) {
-					return static_cast<char>(value);
-				});
-			}
-			else if constexpr( std::is_same_v<T, unsigned char> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				)
-				.transform([](unsigned long value) {
-					return static_cast<unsigned char>(value);
-				});
-			}
-			else if constexpr( std::is_same_v<T, short> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				)
-				.transform([](long value) {
-					return static_cast<short>(value);
-				});
-			}
-			else if constexpr( std::is_same_v<T, unsigned short> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				)
-				.transform([](unsigned long value) {
-					return static_cast<unsigned short>(value);
-				});
-			}
-			else if constexpr( std::is_same_v<T, int> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				)
-				.transform([](long value) {
-					return static_cast<int>(value);
-				});
-			}
-			else if constexpr( std::is_same_v<T, unsigned int> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				)
-				.transform([](unsigned long value) {
-					return static_cast<unsigned int>(value);
-				});
-			}
-			else if constexpr( std::is_same_v<T, long> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base
-				);
-			}
-			else if constexpr( std::is_same_v<T, unsigned long> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base
-				);
-			}
-			else if constexpr( std::is_same_v<T, long long> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _text, base
-				);
-			}
-			else if constexpr( std::is_same_v<T, unsigned long long> )
-			{
-				return detail::_sto_int<char_t>(
-					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _text, base
-				);
-			}
+			if constexpr( std::is_signed_v<T> and sizeof(T) <= sizeof(long) )
+				return detail::checked_integral_cast<T>(detail::_sto_int<char_t>(
+					static_cast<long(*)(const string_t&,size_t*,int)>(std::stol), _text, base));
+			else if constexpr( std::is_signed_v<T> )
+				return detail::checked_integral_cast<T>(detail::_sto_int<char_t>(
+					static_cast<long long(*)(const string_t&,size_t*,int)>(std::stoll), _text, base));
+			else if constexpr( sizeof(T) <= sizeof(unsigned long) )
+				return detail::checked_integral_cast<T>(detail::_sto_int<char_t>(
+					static_cast<unsigned long(*)(const string_t&,size_t*,int)>(std::stoul), _text, base));
+			else
+				return detail::checked_integral_cast<T>(detail::_sto_int<char_t>(
+					static_cast<unsigned long long(*)(const string_t&,size_t*,int)>(std::stoull), _text, base));
 		}
 		catch(std::exception&) {}
 		return detail::try_to_booltot<char_t,T>(_text);
@@ -822,7 +764,7 @@ auto remove(const Str &str, const Find &find, bool step)
 	else
 	{
 		std::basic_string<char_t> res(str.data(), str.size());
-		replace(res, find, std::basic_string<char_t>(), step);
+		res = replace(std::move(res), find, std::basic_string<char_t>(), step);
 		return res;
 	}
 }
