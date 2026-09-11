@@ -158,6 +158,67 @@ void child_process_state_errors()
 	LIBGS_TEST_CHECK(not process.joinable());
 }
 
+void child_process_cancel_options()
+{
+	using process_t = libgs::utils::process;
+	using cancel_option = process_t::cancel_option;
+
+	auto check = [](cancel_option option, bool remains_joinable)
+	{
+		libgs::io_context_t context;
+	#if defined(_WIN32)
+		process_t process(context, "cmd.exe", "/C",
+			"ping -n 6 127.0.0.1 >nul");
+	#else
+		process_t process(context, "/bin/sh", "-c", "sleep 5");
+	#endif
+		LIBGS_TEST_CHECK(process.start());
+		const auto pid = process.pid();
+		std::error_code run_error;
+		auto completed = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			co_await process.join(asio::redirect_error (
+				libgs::use_awaitable, run_error
+			));
+		}, asio::use_future);
+
+		asio::steady_timer timer(context, 5ms);
+		timer.async_wait([&](const std::error_code &error)
+		{
+			if( not error )
+				process.cancel(option);
+		});
+		context.run();
+		completed.get();
+
+		LIBGS_TEST_CHECK(run_error);
+		LIBGS_TEST_CHECK_EQ(process.joinable(), remains_joinable);
+		if( remains_joinable )
+		{
+			LIBGS_TEST_CHECK_EQ(process.state(), process_t::state_t::running);
+			process.cancel(cancel_option::kill);
+		}
+		else if( option == cancel_option::detach )
+		{
+			// A detached child keeps running until explicitly stopped by PID.
+			LIBGS_TEST_CHECK(process_t::kill(pid).has_value());
+		}
+
+		// Let the background monitor reap the released child while its executor
+		// is still alive.
+		context.restart();
+		asio::steady_timer cleanup_delay(context, 50ms);
+		cleanup_delay.async_wait([](const std::error_code&) {});
+		context.run();
+	};
+
+	check(cancel_option::none, true);
+	check(cancel_option::terminate, false);
+	check(cancel_option::kill, false);
+	check(cancel_option::detach, false);
+}
+
 void local_message_bus()
 {
 	constexpr std::string_view topic = "libgs.test.counter";
@@ -239,6 +300,7 @@ int main()
 		{"completed child single-byte read", child_process_completed_single_byte_read},
 		{"child process environment and channels", child_process_environment_and_channels},
 		{"child process state errors", child_process_state_errors},
+		{"child process cancel options", child_process_cancel_options},
 		{"local message bus", local_message_bus},
 		{"logger configuration", logger_configuration},
 	});

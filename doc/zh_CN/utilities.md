@@ -169,6 +169,9 @@ API 支持：
 
 应检查 `sys_expected<T>` 和 error-code 结果来处理平台错误。异步标准流操作结束
 之前，必须保证 process 对象仍然存活。
+`cancel()` 会结束未完成的等待和标准流操作。`cancel_option::none` 保持子进程
+运行且仍可 join；`terminate` 和 `kill` 向子进程发信号，并把回收工作移交给后台
+监控对象；`detach` 不向子进程发信号，只解除对象对它的管理。
 
 ## 软总线
 
