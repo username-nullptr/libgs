@@ -44,7 +44,7 @@ int main(int argc, const char *argv[])
 				auto [upgrade_error, accepted] = co_await ws::upgrade(
 					context, std::move(options),
 					asio::as_tuple(libgs::use_awaitable));
-				if(upgrade_error)
+				if( upgrade_error )
 				{
 					std::cerr << "WebSocket upgrade failed: "
 						<< upgrade_error.message() << '\n';

@@ -40,16 +40,16 @@ bool websocket_owned_request_header(std::string_view name) noexcept
 sys_expected<url> canonical_websocket_url(const url &endpoint) noexcept
 {
 	try {
-		if( not endpoint.is_valid() or endpoint.host().empty() or endpoint.has_fragment())
+		if( not endpoint.is_valid() or endpoint.host().empty() or endpoint.has_fragment() )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
 
 		const auto scheme = strtls::to_lower(endpoint.protocol());
 		std::string_view canonical_scheme;
 
-		if(scheme == "ws" or scheme == "http")
+		if( scheme == "ws" or scheme == "http" )
 			canonical_scheme = "ws";
 
-		else if(scheme == "wss" or scheme == "https")
+		else if( scheme == "wss" or scheme == "https" )
 			canonical_scheme = "wss";
 		else
 		{

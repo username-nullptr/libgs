@@ -45,7 +45,7 @@ int main()
 
 	auto response_headers = ws::make_opening_response_headers (
 		*server_request,
-		ws::opening_response {.subprotocol = "chat"}
+		ws::opening_response {.subprotocol = std::string("chat")}
 	);
 	if( not response_headers )
 		return fail("Opening response generation", response_headers.error());

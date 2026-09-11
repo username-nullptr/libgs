@@ -13,6 +13,10 @@ if (LIBGS_BUILD_HTTP)
 	add_libgs_performance_test(http-protocol http_protocol.cpp gs.http)
 endif ()
 
+if (LIBGS_BUILD_WEBSOCKET)
+	add_libgs_performance_test(websocket websocket.cpp gs.websocket)
+endif ()
+
 if (LIBGS_BUILD_UTILITIES)
 	add_libgs_performance_test(signal-slot signal_slot.cpp gs.utils)
 	add_libgs_performance_test(sbus sbus.cpp gs.utils)

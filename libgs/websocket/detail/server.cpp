@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
-#include <libgs/websocket/detail/server.h>
+#include <libgs/websocket/server.h>
 
 namespace libgs::websocket::detail
 {

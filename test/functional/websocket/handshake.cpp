@@ -30,11 +30,11 @@ void mixed_http_upgrade_round_trip()
 			ws::upgrade_options options;
 			options.supported_subprotocols = {"chat"};
 			options.response_headers["X-WebSocket-Test"] = "accepted";
-			options.origin_validator = [](std::optional<std::string_view> origin)
+			options.origin_validator = [](libgs::optional<std::string_view> origin)
 				-> ws::upgrade_validation_result
 			{
-				if(origin == "https://example.test")
-					return std::nullopt;
+				if( origin and *origin == "https://example.test" )
+					return libgs::nullopt;
 				return ws::upgrade_rejection {
 					.status = libgs::http::status::forbidden,
 					.body = "origin rejected"
@@ -43,11 +43,11 @@ void mixed_http_upgrade_round_trip()
 			auto [upgrade_error, accepted] = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
-			if(upgrade_error)
+			if( upgrade_error )
 				co_return;
 			auto message = co_await accepted.stream.read<std::string>(
 				libgs::use_awaitable);
-			if(message.type != ws::message_type::text or message.body != "hello")
+			if( message.type != ws::message_type::text or message.body != "hello" )
 				throw std::runtime_error(std::format(
 					"unexpected WebSocket request payload: type={}, body={}",
 					static_cast<unsigned>(message.type), message.body));
@@ -80,7 +80,7 @@ void mixed_http_upgrade_round_trip()
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
 			libgs::ignore_unused(rejected);
-			if(error != ws::errc::handshake_rejected)
+			if( error != ws::errc::handshake_rejected )
 				throw std::runtime_error("unexpected server rejection result");
 			co_return;
 		})

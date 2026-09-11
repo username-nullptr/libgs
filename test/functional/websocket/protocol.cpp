@@ -307,7 +307,7 @@ void test_close_payload()
 	check_error(decoded.error(), ws::protocol_errc::invalid_close_payload);
 
 	encoded = ws::encode_close_payload(ws::close_payload_view {
-		.code = std::nullopt,
+		.code = libgs::nullopt,
 		.reason = "reason without code",
 	});
 	LIBGS_TEST_CHECK(not encoded.has_value());
@@ -355,7 +355,7 @@ void test_opening_handshake_round_trip()
 	compression.name = "permessage-deflate";
 	compression.parameters = {
 		{.name = "client_max_window_bits"},
-		{.name = "mode", .value = "fast"},
+		{.name = "mode", .value = std::string("fast")},
 	};
 	ws::opening_request request {
 		.key = *client_key,
@@ -389,7 +389,7 @@ void test_opening_handshake_round_trip()
 	LIBGS_TEST_CHECK_EQ(*parsed_request->extensions[0].parameters[1].value, "fast");
 
 	ws::opening_response response {
-		.subprotocol = "chat",
+		.subprotocol = std::string("chat"),
 		.extensions = {compression},
 	};
 	auto response_headers = ws::make_opening_response_headers(*parsed_request, response);

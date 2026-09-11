@@ -10,14 +10,14 @@ namespace libgs::websocket::detail
 template <core_concepts::exec Exec>
 mutable_buffer stream_impl<Exec>::available_read_data() noexcept
 {
-	if(m_pending_offset < m_pending_data.size())
+	if( m_pending_offset < m_pending_data.size() )
 	{
 		return {
 			m_pending_data.data() + m_pending_offset,
 			m_pending_data.size() - m_pending_offset
 		};
 	}
-	if(m_read_offset < m_read_size)
+	if( m_read_offset < m_read_size )
 	{
 		return {
 			m_read_buffer->data() + m_read_offset,
@@ -30,10 +30,10 @@ mutable_buffer stream_impl<Exec>::available_read_data() noexcept
 template <core_concepts::exec Exec>
 void stream_impl<Exec>::consume_read_data(size_t size) noexcept
 {
-	if(m_pending_offset < m_pending_data.size())
+	if( m_pending_offset < m_pending_data.size() )
 	{
 		m_pending_offset += size;
-		if(m_pending_offset == m_pending_data.size())
+		if( m_pending_offset == m_pending_data.size() )
 		{
 			m_pending_data.clear();
 			m_pending_offset = 0;
@@ -41,7 +41,7 @@ void stream_impl<Exec>::consume_read_data(size_t size) noexcept
 		return ;
 	}
 	m_read_offset += size;
-	if(m_read_offset == m_read_size)
+	if( m_read_offset == m_read_size )
 	{
 		m_read_offset = 0;
 		m_read_size = 0;
@@ -52,30 +52,30 @@ template <core_concepts::exec Exec>
 auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<received_event>>
 {
 	auto input = available_read_data();
-	if(input.size() == 0)
+	if( input.size() == 0 )
 		return optional<received_event>{};
 
 	auto parsed = m_parser->parse(input);
-	if(not parsed)
+	if( not parsed )
 		return sys_unexpected(parsed.error());
 
-	if(parsed->consumed == 0)
+	if( parsed->consumed == 0 )
 		return sys_unexpected(make_error_code(std::errc::io_error));
 
 	const auto &header = m_parser->header();
-	if(parsed->header_ready)
+	if( parsed->header_ready )
 	{
-		if(header.op == opcode::text or header.op == opcode::binary)
+		if( header.op == opcode::text or header.op == opcode::binary )
 		{
 			m_message_type = header.op == opcode::text ?
 				message_type::text : message_type::binary;
 
 			m_message_body.clear();
 		}
-		else if(is_control_opcode(header.op))
+		else if( is_control_opcode(header.op) )
 			m_control_body.clear();
 
-		if(is_data_opcode(header.op) or header.op == opcode::continuation)
+		if( is_data_opcode(header.op) or header.op == opcode::continuation )
 		{
 			if( header.payload_size > std::numeric_limits<size_t>::max() or
 				static_cast<size_t>(header.payload_size) > m_message_body.max_size() - m_message_body.size() )
@@ -87,9 +87,9 @@ auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<r
 				return sys_unexpected(make_error_code(errc::message_too_big));
 		}
 	}
-	if(parsed->payload.size() != 0)
+	if( parsed->payload.size() != 0 )
 	{
-		if(header.mask)
+		if( header.mask )
 			apply_mask(parsed->payload, *header.mask, parsed->payload_offset);
 		try {
 			const auto *begin = static_cast<const std::byte*>(parsed->payload.data());
@@ -107,23 +107,23 @@ auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<r
 		}
 	}
 	consume_read_data(parsed->consumed);
-	if(not parsed->frame_finished)
+	if( not parsed->frame_finished )
 		return optional<received_event>{};
 
 	received_event event{.op = header.op};
-	if(is_data_opcode(header.op) or header.op == opcode::continuation)
+	if( is_data_opcode(header.op) or header.op == opcode::continuation )
 	{
-		if(header.fin)
+		if( header.fin )
 		{
-			if(not m_message_type)
+			if( not m_message_type )
 				return sys_unexpected(make_error_code(protocol_errc::unexpected_continuation));
 
-			if(*m_message_type == message_type::text)
+			if( *m_message_type == message_type::text )
 			{
 				const auto text = m_message_body.empty() ? std::string_view{} :
 					std::string_view(reinterpret_cast<const char*>(m_message_body.data()), m_message_body.size());
 
-				if(not is_valid_utf8(text))
+				if( not is_valid_utf8(text) )
 					return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 			}
 			event.data = message {
@@ -143,7 +143,7 @@ auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<r
 template <core_concepts::exec Exec>
 void stream_impl<Exec>::close_transport(error_code &error) noexcept
 {
-	if(not m_connection or m_transport_closed)
+	if( not m_connection or m_transport_closed )
 	{
 		error.clear();
 		return ;
@@ -158,14 +158,14 @@ void stream_impl<Exec>::close_transport(error_code &error) noexcept
 template <core_concepts::exec Exec>
 message stream_impl<Exec>::finish_read_error(error_code &error) noexcept
 {
-	if(error == asio::error::operation_aborted)
+	if( error == asio::error::operation_aborted )
 		return {};
 
-	if(error == asio::error::eof)
+	if( error == asio::error::eof )
 	{
 		error_code close_error;
 		close_transport(close_error);
-		if(close_error)
+		if( close_error )
 		{
 			fail(close_error);
 			error = close_error;
@@ -187,27 +187,27 @@ template <core_concepts::exec Exec>
 message stream_impl<Exec>::read(error_code &error) noexcept
 {
 	error.clear();
-	if(m_state == connection_state::idle)
+	if( m_state == connection_state::idle )
 	{
 		error = make_error_code(errc::not_open);
 		return {};
 	}
-	if(m_state == connection_state::closing)
+	if( m_state == connection_state::closing )
 	{
 		error = make_error_code(errc::closing);
 		return {};
 	}
-	if(m_state == connection_state::closed)
+	if( m_state == connection_state::closed )
 	{
 		error = asio::error::eof;
 		return {};
 	}
-	if(m_state == connection_state::failed)
+	if( m_state == connection_state::failed )
 	{
 		error = m_error ? m_error : make_error_code(std::errc::io_error);
 		return {};
 	}
-	if(m_read_active)
+	if( m_read_active )
 	{
 		error = make_error_code(std::errc::operation_in_progress);
 		return {};
@@ -227,27 +227,27 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 		while(available_read_data().size() != 0)
 		{
 			auto event = consume_frame_data();
-			if(not event)
+			if( not event )
 			{
 				error = event.error();
 				begin_protocol_failure(error, true);
 				return {};
 			}
-			if(not *event)
+			if( not *event )
 				continue;
 
 			auto &value = **event;
-			if(value.data)
+			if( value.data )
 				return std::move(*value.data);
 
-			if(value.op == opcode::ping or value.op == opcode::pong)
+			if( value.op == opcode::ping or value.op == opcode::pong )
 			{
-				if(value.op == opcode::ping and m_config.automatic_pong)
+				if( value.op == opcode::ping and m_config.automatic_pong )
 				{
-					if(send_engine_busy())
+					if( send_engine_busy() )
 					{
 						auto retained = queue_automatic_pong(value.control);
-						if(not retained)
+						if( not retained )
 						{
 							error = retained.error();
 							fail(error);
@@ -259,14 +259,14 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 					auto frame = prepare_control_frame(opcode::pong,
 						const_buffer(value.control.data(), value.control.size())
 					);
-					if(not frame)
+					if( not frame )
 					{
 						error = frame.error();
 						fail(error);
 						return {};
 					}
 					ignore_unused(write_prepared(*frame, error));
-					if(error)
+					if( error )
 					{
 						fail(error);
 						return {};
@@ -275,19 +275,19 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 				remember_control(value.op, std::move(value.control));
 				continue;
 			}
-			if(value.op == opcode::close)
+			if( value.op == opcode::close )
 			{
 				auto remembered = remember_peer_close(value.control);
-				if(not remembered)
+				if( not remembered )
 				{
 					error = remembered.error();
 					begin_protocol_failure(error, true);
 					return {};
 				}
-				if(send_engine_busy())
+				if( send_engine_busy() )
 				{
 					start_close_deadline();
-					if(m_state == connection_state::failed)
+					if( m_state == connection_state::failed )
 					{
 						error = m_error;
 						return {};
@@ -295,7 +295,7 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 					auto retained = retain_protocol_payload(
 						m_pending_close_response, value.control
 					);
-					if(not retained)
+					if( not retained )
 					{
 						error = retained.error();
 						fail(error);
@@ -311,14 +311,14 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 				auto frame = prepare_control_frame(opcode::close,
 					const_buffer(value.control.data(), value.control.size())
 				);
-				if(not frame)
+				if( not frame )
 				{
 					error = frame.error();
 					fail(error);
 					return {};
 				}
 				ignore_unused(write_prepared(*frame, error));
-				if(error)
+				if( error )
 				{
 					fail(error);
 					return {};
@@ -328,7 +328,7 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 				return {};
 			}
 		}
-		if(m_read_error)
+		if( m_read_error )
 		{
 			error = std::exchange(m_read_error, {});
 			return finish_read_error(error);
@@ -338,7 +338,7 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 			mutable_buffer(m_read_buffer->data(), m_read_buffer->size()),
 			read_error
 		);
-		if(size > m_read_buffer->size())
+		if( size > m_read_buffer->size() )
 		{
 			error = make_error_code(std::errc::io_error);
 			fail(error);
@@ -348,10 +348,10 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 		m_read_offset = 0;
 		m_read_error = read_error;
 
-		if(size == 0)
+		if( size == 0 )
 		{
 			error = std::exchange(m_read_error, {});
-			if(not error)
+			if( not error )
 				error = make_error_code(std::errc::io_error);
 			return finish_read_error(error);
 		}
@@ -365,7 +365,7 @@ basic_message<Buffer> stream_impl<Exec>::convert_message(message value, error_co
 {
 	try {
 		auto type = value.type;
-		if constexpr(std::same_as<Buffer, std::vector<std::byte>>)
+		if constexpr( std::same_as<Buffer, std::vector<std::byte>> )
 		{
 			error.clear();
 			return {.type = type, .body = std::move(value.body)};
@@ -394,7 +394,7 @@ void stream_impl<Exec>::async_read_message(Handler &&handler)
 		<void(error_code, message)>(std::forward<Handler>(handler));
 
 	auto self = this->shared_from_this();
-	if(self->m_state != connection_state::open or self->m_read_active)
+	if( self->m_state != connection_state::open or self->m_read_active )
 	{
 		auto error =
 			self->m_read_active ? make_error_code(std::errc::operation_in_progress) :
@@ -424,7 +424,7 @@ void stream_impl<Exec>::async_read_message(Handler &&handler)
 		self->m_read_waiter = waiter;
 
 		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if(slot.is_connected())
+		if( slot.is_connected() )
 		{
 			slot.assign([weak = self->weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept
@@ -447,7 +447,7 @@ void stream_impl<Exec>::async_read_message(Handler &&handler)
 	catch(...)
 	{
 		auto error = exception_error(std::current_exception());
-		if(waiter)
+		if( waiter )
 			self->complete_read_waiter(error);
 		else
 		{
@@ -613,14 +613,14 @@ void stream_impl<Exec>::async_read_message(Handler &&handler)
 template <core_concepts::exec Exec>
 void stream_impl<Exec>::complete_read_waiter(error_code error, message value, bool clear_slot) noexcept
 {
-	if(not m_read_waiter)
+	if( not m_read_waiter )
 		return ;
 
 	auto waiter = std::exchange(m_read_waiter, {});
-	if(clear_slot)
+	if( clear_slot )
 	{
 		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if(slot.is_connected())
+		if( slot.is_connected() )
 			slot.clear();
 	}
 	try {
@@ -633,7 +633,7 @@ void stream_impl<Exec>::complete_read_waiter(error_code error, message value, bo
 template <core_concepts::exec Exec>
 void stream_impl<Exec>::cancel_read_waiter(uint64_t id, asio::cancellation_type type) noexcept
 {
-	if(not m_read_waiter or m_read_waiter->id != id)
+	if( not m_read_waiter or m_read_waiter->id != id )
 		return ;
 	try {
 		m_read_waiter->cancellation.emit(type);

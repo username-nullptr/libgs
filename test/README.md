@@ -4,8 +4,8 @@ The test suite has two layers:
 
 - `functional`: correctness tests for each enabled module.
 - `performance`: coarse local measurements for core transforms, lock-free queues,
-  coroutine synchronization primitives, HTTP protocol/loopback work, and utility
-  dispatch.
+  coroutine synchronization primitives, HTTP and WebSocket protocol/loopback
+  work, and utility dispatch.
 
 Coverage is organized by observable behavior rather than one test per function.
 A representative public workflow is allowed to cover its small helpers; a separate
@@ -14,9 +14,11 @@ configuration branch. Performance tests likewise sample important dimensions
 (for example protocol versus socket work, small versus large bodies, and reused
 versus reconnected HTTP sessions) instead of building an unbounded cross-product.
 
-The WebSocket module is still under development. Its existing regression tests
-remain enabled, but the stable-module public API and performance expansion does
-not treat its current surface as a coverage target yet.
+The initially implemented WebSocket surface is covered as a bounded baseline.
+Functional tests group opening-handshake validation, owned client/server API,
+request snapshots and subprotocol negotiation, accept-queue behavior, and stream
+state transitions. Frame/control/close details that are already reached through a
+broader state test are not repeated as standalone combinations.
 
 Performance tests require the `libgs.functional` CTest fixture. Selecting only
 the `performance` label therefore runs the functional suite first, and skips
@@ -41,6 +43,11 @@ HTTP measurements separate parser/generator cost from loopback requests and,
 when `LIBGS_HTTP_ZLIB_SUPPORT=ON`, include a gzip round trip. Loopback reporting
 uses median-of-three samples for keep-alive small bodies, keep-alive 64 KiB
 bodies, and reconnecting small requests.
+
+WebSocket measurements keep the protocol and transport costs distinguishable:
+they sample 4 KiB masking and frame parsing, then reuse one loopback connection
+for 64 B and 64 KiB binary messages. They intentionally do not form a matrix of
+roles, opcodes, fragmentation sizes, and connection lifetimes.
 
 The coroutine synchronization measurements include raw atomic and immediate
 awaitable baselines, uncontended acquire/release cycles, and queued waiter

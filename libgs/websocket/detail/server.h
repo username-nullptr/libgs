@@ -36,6 +36,7 @@ constexpr const char
 template <core_concepts::exec Exec>
 LIBGS_WEBSOCKET_TAPI void close_upgrade_connection(http::basic_service_context<Exec> &context) noexcept
 {
+	ignore_unused(context.hand_over_connection());
 	context.request().cancel();
 	context.response().cancel();
 	ignore_unused(context.request().connection().cancel());
@@ -146,7 +147,7 @@ template <core_concepts::exec Exec>
 			reject_upgrade(plan, asio::error::timed_out);
 			return plan;
 		}
-		if(options.request_validator)
+		if( options.request_validator )
 		{
 			try {
 				if( auto rejection = options.request_validator(plan.request) )
@@ -174,7 +175,7 @@ template <core_concepts::exec Exec>
 		if( options.origin_validator )
 		{
 			try {
-				std::optional<std::string_view> origin;
+				optional<std::string_view> origin;
 				if( auto iterator = plan.request.request_headers.find(http::header::origin);
 					iterator != plan.request.request_headers.end() )
 					origin = iterator->second.to_string();
@@ -201,7 +202,7 @@ template <core_concepts::exec Exec>
 			reject_upgrade(plan, asio::error::timed_out);
 			return plan;
 		}
-		std::optional<std::string> selected_protocol;
+		optional<std::string> selected_protocol;
 		if( options.subprotocol_selector )
 		{
 			try {
@@ -1006,7 +1007,7 @@ public:
 
 	template <typename Func>
 	void bind_connection
-	(const path_opt_token_t &path_rules, Func &&func, std::optional<upgrade_options_t> options)
+	(const path_opt_token_t &path_rules, Func &&func, optional<upgrade_options_t> options)
 	{
 		enter_handler_mode();
 		auto selected = options.value_or(config_snapshot().default_upgrade);
@@ -1027,7 +1028,7 @@ public:
 	}
 
 	template <typename Func>
-	void bind_default(Func &&func, std::optional<upgrade_options_t> options)
+	void bind_default(Func &&func, optional<upgrade_options_t> options)
 	{
 		enter_handler_mode();
 		auto selected = options.value_or(config_snapshot().default_upgrade);
@@ -1243,7 +1244,7 @@ size_t basic_server<Stream>::pending_handshake_count() const noexcept
 template <http::concepts::any_exec_stream Stream>
 template <typename Func>
 basic_server<Stream> &basic_server<Stream>::on_connection
-(const path_opt_token_t &path_rules, Func &&func, std::optional<upgrade_options_t> options)
+(const path_opt_token_t &path_rules, Func &&func, optional<upgrade_options_t> options)
 	requires connection_handler_v<Func>
 {
 	m_impl->bind_connection (
@@ -1255,7 +1256,7 @@ basic_server<Stream> &basic_server<Stream>::on_connection
 template <http::concepts::any_exec_stream Stream>
 template <typename Func>
 basic_server<Stream> &basic_server<Stream>::on_default
-(Func &&func, std::optional<upgrade_options_t> options)
+(Func &&func, optional<upgrade_options_t> options)
 	requires connection_handler_v<Func>
 {
 	m_impl->bind_default(std::forward<Func>(func), std::move(options));

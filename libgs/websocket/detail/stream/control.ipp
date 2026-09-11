@@ -13,7 +13,7 @@ sys_expected<> stream_impl<Exec>::remember_peer_close(const std::vector<std::byt
 	auto decoded = decode_close_payload(const_buffer(
 		payload.data(), payload.size())
 	);
-	if(not decoded)
+	if( not decoded )
 		return sys_unexpected(decoded.error());
 	try {
 		m_peer_close = close_info_t {
@@ -37,16 +37,16 @@ sys_expected<> stream_impl<Exec>::remember_peer_close(const std::vector<std::byt
 template <core_concepts::exec Exec>
 error_code stream_impl<Exec>::control_state_error() const noexcept
 {
-	if(m_state == connection_state::failed)
+	if( m_state == connection_state::failed )
 		return m_error ? m_error : make_error_code(std::errc::io_error);
 
-	if(m_state == connection_state::closed)
+	if( m_state == connection_state::closed )
 		return asio::error::eof;
 
-	if(m_state == connection_state::closing)
+	if( m_state == connection_state::closing )
 		return make_error_code(errc::closing);
 
-	if(m_state == connection_state::idle)
+	if( m_state == connection_state::idle )
 		return make_error_code(errc::not_open);
 	return {};
 }
@@ -55,14 +55,14 @@ template <core_concepts::exec Exec>
 void stream_impl<Exec>::complete_control_waiter
 (error_code error, control_event_t event, bool clear_slot) noexcept
 {
-	if(not m_control_waiter)
+	if( not m_control_waiter )
 		return ;
 
 	auto waiter = std::exchange(m_control_waiter, {});
-	if(clear_slot)
+	if( clear_slot )
 	{
 		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if(slot.is_connected())
+		if( slot.is_connected() )
 			slot.clear();
 	}
 	try {
@@ -79,7 +79,7 @@ void stream_impl<Exec>::complete_control_waiter
 template <core_concepts::exec Exec>
 void stream_impl<Exec>::cancel_control_waiter(uint64_t id) noexcept
 {
-	if(m_control_waiter and m_control_waiter->id == id)
+	if( m_control_waiter and m_control_waiter->id == id )
 		complete_control_waiter(asio::error::operation_aborted, {}, false);
 }
 
@@ -100,7 +100,7 @@ void stream_impl<Exec>::remember_control(opcode op, std::vector<std::byte> paylo
 		control_event_t event {
 			.type = type, .payload = std::move(payload)
 		};
-		if(m_control_waiter)
+		if( m_control_waiter )
 		{
 			complete_control_waiter({}, std::move(event));
 			return ;
@@ -121,17 +121,17 @@ void stream_impl<Exec>::remember_control(opcode op, std::vector<std::byte> paylo
 template <core_concepts::exec Exec>
 auto stream_impl<Exec>::wait_control(error_code &error) noexcept -> control_event_t
 {
-	if(m_control_waiter)
+	if( m_control_waiter )
 	{
 		error = make_error_code(std::errc::operation_in_progress);
 		return {};
 	}
-	if(auto state_error = control_state_error())
+	if( auto state_error = control_state_error() )
 	{
 		error = state_error;
 		return {};
 	}
-	if(not m_control_event)
+	if( not m_control_event )
 	{
 		error = make_error_code(std::errc::operation_would_block);
 		return {};
@@ -148,7 +148,7 @@ void stream_impl<Exec>::async_wait_control(Handler &&handler)
 		<void(error_code, control_event_t)>(std::forward<Handler>(handler));
 
 	auto self = this->shared_from_this();
-	if(self->m_control_waiter)
+	if( self->m_control_waiter )
 	{
 		auto error = make_error_code(std::errc::operation_in_progress);
 		asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
@@ -156,16 +156,16 @@ void stream_impl<Exec>::async_wait_control(Handler &&handler)
 		});
 		return ;
 	}
-	if(auto error = self->control_state_error())
+	if( auto error = self->control_state_error() )
 	{
 		asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
 			std::move(handler)(error, control_event_t{});
 		});
 		return ;
 	}
-	if(self->m_control_event)
+	if( self->m_control_event )
 	{
-		auto event = std::exchange(self->m_control_event, std::nullopt).value();
+		auto event = std::exchange(self->m_control_event, nullopt).value();
 		asio::post(self->m_exec,
 		[handler = std::move(completion), event = std::move(event)]() mutable {
 			std::move(handler)(error_code{}, std::move(event));
@@ -187,7 +187,7 @@ void stream_impl<Exec>::async_wait_control(Handler &&handler)
 		self->m_control_waiter = waiter;
 		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
 
-		if(slot.is_connected())
+		if( slot.is_connected() )
 		{
 			slot.assign([weak = self->weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept
@@ -210,7 +210,7 @@ void stream_impl<Exec>::async_wait_control(Handler &&handler)
 	catch(const std::bad_alloc&)
 	{
 		auto error = make_error_code(std::errc::not_enough_memory);
-		if(self->m_control_waiter)
+		if( self->m_control_waiter )
 			self->complete_control_waiter(error);
 		else
 		{
@@ -222,7 +222,7 @@ void stream_impl<Exec>::async_wait_control(Handler &&handler)
 	catch(...)
 	{
 		auto error = make_error_code(std::errc::io_error);
-		if(self->m_control_waiter)
+		if( self->m_control_waiter )
 			self->complete_control_waiter(error);
 		else
 		{

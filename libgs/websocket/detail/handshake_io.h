@@ -41,13 +41,13 @@ co_handshake_io_with_timeout(Initiator initiation, std::chrono::nanoseconds time
 	io_error = libgs::detail::canonical_error(io_error);
 	timer_error = libgs::detail::canonical_error(timer_error);
 
-	if(order[0] == 0)
+	if( order[0] == 0 )
 	{
 		co_return std::make_unique<handshake_io_completion<Value>>(
 			handshake_io_completion<Value>{io_error, std::move(value)}
 		);
 	}
-	if(not timer_error)
+	if( not timer_error )
 	{
 		co_return std::make_unique<handshake_io_completion<Value>>(
 			handshake_io_completion<Value> {
@@ -90,10 +90,10 @@ template <typename Value, core_concepts::exec Exec, typename Initiator, typename
 				[handler = std::move(completion_handler), make_idle = std::move(make_fallback)]
 				(const std::exception_ptr &exception, std::unique_ptr<handshake_io_completion<Value>> result) mutable
 				{
-					if(auto error = exception_error(exception))
+					if( auto error = exception_error(exception) )
 						std::move(handler)(error, make_idle());
 
-					else if(not result)
+					else if( not result )
 					{
 						std::move(handler) (
 							make_error_code(std::errc::io_error), make_idle()

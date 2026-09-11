@@ -18,41 +18,41 @@ template <core_concepts::exec Exec>
 void stream_impl<Exec>::adopt
 (connection_ptr connection, adopt_options_t options, error_code &error) noexcept
 {
-	if(m_state != connection_state::idle)
+	if( m_state != connection_state::idle )
 	{
 		error = make_error_code(errc::already_open);
 		return ;
 	}
-	if(not connection)
+	if( not connection )
 	{
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
 	}
-	if(m_config.read_buffer_size == 0)
+	if( m_config.read_buffer_size == 0 )
 	{
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
 	}
-	if(options.stream_role != role::client and options.stream_role != role::server)
+	if( options.stream_role != role::client and options.stream_role != role::server )
 	{
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
 	}
-	if(not options.negotiated_extensions.empty())
+	if( not options.negotiated_extensions.empty() )
 	{
 		error = make_error_code(errc::unsupported_extension);
 		return ;
 	}
-	if(not connection->is_open())
+	if( not connection->is_open() )
 	{
 		error = make_error_code(std::errc::not_connected);
 		return ;
 	}
 	try {
 		auto connection_exec = connection->get_executor();
-		if constexpr(requires { connection_exec != m_exec; })
+		if constexpr( requires { connection_exec != m_exec; } )
 		{
-			if(connection_exec != m_exec)
+			if( connection_exec != m_exec )
 			{
 				error = make_error_code(std::errc::invalid_argument);
 				return ;

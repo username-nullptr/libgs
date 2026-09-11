@@ -23,15 +23,21 @@ void owned_handler_round_trip()
 	ws::upgrade_options options;
 	options.supported_subprotocols = {"owned.chat"};
 	options.require_subprotocol = true;
-	service.on_connection("/echo",
+	service.on_connection("/echo/{id}",
 		[](ws::accept_result accepted) -> libgs::awaitable<void>
 		{
+			auto id = accepted.request.path_arguments.find("id");
+			const auto id_text = id == accepted.request.path_arguments.end() ?
+				std::string("missing") : id->second.to_string();
 			auto request = co_await accepted.stream.read<std::string>(
 				libgs::use_awaitable);
 			co_await accepted.stream.write_text(
-				"owned: " + request.body, libgs::use_awaitable);
-			libgs::ignore_unused(co_await accepted.stream.close(
-				libgs::use_awaitable));
+				"owned:" + id_text + ": " + request.body,
+				libgs::use_awaitable);
+			auto [close_error, trailing] = co_await
+				accepted.stream.read<std::string>(
+					asio::as_tuple(libgs::use_awaitable));
+			libgs::ignore_unused(close_error, trailing);
 			co_return;
 		}, options);
 	service.bind({libgs::ip_type::v4, 0}).start();
@@ -43,7 +49,7 @@ void owned_handler_round_trip()
 		[&]() -> libgs::awaitable<void>
 		{
 			ws::connect_request request(std::format(
-				"ws://127.0.0.1:{}/echo", port));
+				"ws://127.0.0.1:{}/echo/7", port));
 			request.subprotocols = {"owned.chat"};
 			auto stream = co_await client.open(
 				std::move(request), libgs::use_awaitable);
@@ -53,10 +59,12 @@ void owned_handler_round_trip()
 			co_await stream.write_text("hello", libgs::use_awaitable);
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
-			LIBGS_TEST_CHECK_EQ(response.body, "owned: hello");
-			const auto closed = co_await stream.close(libgs::use_awaitable);
-			LIBGS_TEST_CHECK(closed.clean);
+			LIBGS_TEST_CHECK_EQ(response.body, "owned:7: hello");
+			auto [close_error, closed] = co_await stream.close(
+				asio::as_tuple(libgs::use_awaitable));
 			service.stop();
+			LIBGS_TEST_CHECK(not close_error);
+			LIBGS_TEST_CHECK(closed.clean);
 			co_return;
 		}, asio::use_future);
 	context.run();
@@ -71,18 +79,52 @@ void owned_accept_round_trip()
 	service.bind({libgs::ip_type::v4, 0}).start();
 	const auto port = service.http_server().acceptor_wrap()
 		.acceptor().local_endpoint().port();
+	ws::upgrade_options options;
+	options.supported_subprotocols = {"meta.v1", "meta.v2"};
+	options.require_subprotocol = true;
+	options.subprotocol_selector = [](std::span<const std::string> offered)
+		-> libgs::optional<std::string>
+	{
+		if( offered.size() == 2 and offered[0] == "meta.v1" and
+			offered[1] == "meta.v2" )
+			return std::string("meta.v2");
+		return libgs::nullopt;
+	};
 
 	auto accepted = asio::co_spawn(context,
-		[&]() -> libgs::awaitable<void>
+		[&, options = std::move(options)]() mutable -> libgs::awaitable<void>
 		{
-			auto connection = co_await service.accept(libgs::use_awaitable);
-			LIBGS_TEST_CHECK_EQ(connection.request.path, "/accept");
+			auto connection = co_await service.accept(
+				std::move(options), libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(connection.request.method,
+				libgs::http::method::get);
+			LIBGS_TEST_CHECK_EQ(connection.request.version,
+				libgs::http::version::v11);
+			LIBGS_TEST_CHECK_EQ(connection.request.target,
+				"/accept/42?mode=full");
+			LIBGS_TEST_CHECK_EQ(connection.request.path, "/accept/42");
+			LIBGS_TEST_CHECK_EQ(connection.request.request_headers
+				.at("X-WebSocket-Metadata").to_string(), "present");
+			auto mode = connection.request.query_parameters.find("mode");
+			LIBGS_TEST_CHECK(mode !=
+				connection.request.query_parameters.end());
+			LIBGS_TEST_CHECK_EQ(mode->second.to_string(), "full");
+			LIBGS_TEST_CHECK(connection.request.path_arguments.empty());
+			LIBGS_TEST_CHECK(connection.request.remote_endpoint.port != 0);
+			LIBGS_TEST_CHECK_EQ(connection.request.local_endpoint.port, port);
+			LIBGS_TEST_CHECK_EQ(connection.handshake.subprotocol, "meta.v2");
+			LIBGS_TEST_CHECK(connection.handshake.extensions.empty());
+			LIBGS_TEST_CHECK_EQ(connection.stream.negotiated_subprotocol(),
+				"meta.v2");
+			LIBGS_TEST_CHECK(connection.stream.negotiated_extensions().empty());
 			auto message = co_await connection.stream.read<std::string>(
 				libgs::use_awaitable);
 			co_await connection.stream.write_text(
 				message.body, libgs::use_awaitable);
-			libgs::ignore_unused(co_await connection.stream.close(
-				libgs::use_awaitable));
+			auto [close_error, trailing] = co_await
+				connection.stream.read<std::string>(
+					asio::as_tuple(libgs::use_awaitable));
+			libgs::ignore_unused(close_error, trailing);
 			co_return;
 		}, asio::use_future);
 
@@ -90,21 +132,69 @@ void owned_accept_round_trip()
 	auto connected = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
 		{
-			auto stream = co_await client.open(std::format(
-				"ws://127.0.0.1:{}/accept", port), libgs::use_awaitable);
+			ws::connect_request request(std::format(
+				"ws://127.0.0.1:{}/accept/42?mode=full", port));
+			request.subprotocols = {"meta.v1", "meta.v2"};
+			request.request_options.set_header(
+				"X-WebSocket-Metadata", "present");
+			auto stream = co_await client.open(
+				std::move(request), libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(stream.negotiated_subprotocol(), "meta.v2");
 			co_await stream.write_text("accept-mode", libgs::use_awaitable);
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(response.body, "accept-mode");
-			const auto closed = co_await stream.close(libgs::use_awaitable);
-			LIBGS_TEST_CHECK(closed.clean);
+			auto [close_error, closed] = co_await stream.close(
+				asio::as_tuple(libgs::use_awaitable));
 			service.stop();
+			LIBGS_TEST_CHECK(not close_error);
+			LIBGS_TEST_CHECK(closed.clean);
 			co_return;
 		}, asio::use_future);
 
 	context.run();
 	accepted.get();
 	connected.get();
+}
+
+void owned_configuration_and_resources()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	libgs::http::client http_client(context.get_executor());
+	auto cookie_store = http_client.cookie_store();
+
+	ws::client_config client_config;
+	client_config.handshake_timeout = 321ms;
+	client_config.stream.max_message_size = 4096;
+	ws::client original(std::move(http_client), client_config);
+	LIBGS_TEST_CHECK_EQ(original.config().handshake_timeout, 321ms);
+	LIBGS_TEST_CHECK_EQ(original.config().stream.max_message_size, 4096U);
+	LIBGS_TEST_CHECK_EQ(original.cookie_store(), cookie_store);
+	LIBGS_TEST_CHECK(original.get_executor() == context.get_executor());
+	const auto &const_client = original;
+	LIBGS_TEST_CHECK_EQ(&const_client.http_client(), &original.http_client());
+
+	ws::client moved(std::move(original));
+	ws::client assigned(context.get_executor());
+	assigned = std::move(moved);
+	LIBGS_TEST_CHECK_EQ(assigned.cookie_store(), cookie_store);
+	LIBGS_TEST_CHECK_EQ(assigned.config().handshake_timeout, 321ms);
+
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server_config server_config;
+	server_config.max_pending_handshakes = 7;
+	ws::server service(std::move(acceptor), server_config);
+	LIBGS_TEST_CHECK_EQ(service.config().max_pending_handshakes, 7U);
+	LIBGS_TEST_CHECK(service.get_executor() == context.get_executor());
+	const auto &const_service = service;
+	LIBGS_TEST_CHECK_EQ(&const_service.http_server(), &service.http_server());
+
+	server_config.max_pending_handshakes = 3;
+	server_config.pending_handshake_timeout = 456ms;
+	service.set_config(server_config);
+	LIBGS_TEST_CHECK_EQ(service.config().max_pending_handshakes, 3U);
+	LIBGS_TEST_CHECK_EQ(service.config().pending_handshake_timeout, 456ms);
 }
 
 void delivery_modes_and_cancellation()
@@ -218,6 +308,60 @@ void pending_handshake_queue()
 	accepted.get();
 }
 
+void unavailable_handshake_queue()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server service(std::move(acceptor));
+	auto config = service.config();
+	config.max_pending_handshakes = 0;
+	config.default_upgrade.handshake_timeout = 1s;
+	service.set_config(config);
+
+	// Enter accept mode and remove the only waiter. With queueing disabled, the
+	// next otherwise-valid opening request must receive a bounded 503 response.
+	asio::cancellation_signal cancellation;
+	bool initial_cancelled = false;
+	service.accept(asio::bind_cancellation_slot(cancellation.slot(),
+		[&](libgs::error_code error, ws::accept_result)
+		{
+			LIBGS_TEST_CHECK_EQ(error,
+				libgs::error_code(asio::error::operation_aborted));
+			initial_cancelled = true;
+		}));
+	cancellation.emit(asio::cancellation_type::all);
+	context.poll();
+	LIBGS_TEST_CHECK(initial_cancelled);
+	context.restart();
+
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	ws::client client(context.get_executor());
+	auto completed = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			ws::open_diagnostics diagnostics;
+			auto [error, stream] = co_await client.open(ws::connect_request(
+				std::format("ws://127.0.0.1:{}/unavailable", port)),
+				diagnostics, asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK_EQ(error,
+				ws::make_error_code(ws::errc::handshake_rejected));
+			LIBGS_TEST_CHECK(not stream.is_open());
+			LIBGS_TEST_CHECK(diagnostics.reply);
+			LIBGS_TEST_CHECK_EQ(diagnostics.reply->status(),
+				libgs::http::status::service_unavailable);
+			LIBGS_TEST_CHECK_EQ(co_await diagnostics.reply->read<std::string>(
+				libgs::use_awaitable), "WebSocket accept queue unavailable\n");
+			LIBGS_TEST_CHECK_EQ(service.pending_handshake_count(), 0U);
+			service.stop();
+			co_return;
+		}, asio::use_future);
+	context.run();
+	completed.get();
+}
+
 void owned_client_cancellation()
 {
 	using namespace std::chrono_literals;
@@ -273,6 +417,14 @@ void invalid_owned_config()
 	LIBGS_TEST_CHECK(not stream.is_open());
 	LIBGS_TEST_CHECK_EQ(preflight_client.pending_open_count(), 0U);
 
+	ws::connect_request unsupported("ws://example.test/socket");
+	unsupported.extensions.push_back({.name = "permessage-deflate"});
+	stream = preflight_client.open(std::move(unsupported), error);
+	LIBGS_TEST_CHECK_EQ(error,
+		ws::make_error_code(ws::errc::unsupported_extension));
+	LIBGS_TEST_CHECK(not stream.is_open());
+	LIBGS_TEST_CHECK_EQ(preflight_client.pending_open_count(), 0U);
+
 	ws::client_config client_config;
 	client_config.stream.read_buffer_size = 0;
 	LIBGS_TEST_CHECK_THROWS(ws::client(client_config), std::system_error);
@@ -291,8 +443,10 @@ int main()
 	return libgs::test::run({
 		{"owned handler round trip", owned_handler_round_trip},
 		{"owned accept round trip", owned_accept_round_trip},
+		{"owned configuration and resources", owned_configuration_and_resources},
 		{"delivery modes and cancellation", delivery_modes_and_cancellation},
 		{"pending handshake queue", pending_handshake_queue},
+		{"unavailable handshake queue", unavailable_handshake_queue},
 		{"owned client cancellation", owned_client_cancellation},
 		{"invalid owned config", invalid_owned_config},
 	});

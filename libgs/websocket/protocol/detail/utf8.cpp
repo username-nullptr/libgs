@@ -30,7 +30,7 @@ utf8_validator::~utf8_validator()
 
 bool utf8_validator::consume(std::string_view text) noexcept
 {
-	return std::ranges::any_of(text, [this](auto value)
+	return std::ranges::all_of(text, [this](auto value)
 	{
 		const auto byte = static_cast<uint8_t>(value);
 		if( m_impl->m_remaining != 0 )

@@ -510,8 +510,8 @@ void test_preflight_and_partial_failure()
 	text_stream.adopt(
 		std::static_pointer_cast<libgs::http::connection>(text_connection),
 		{.stream_role = ws::role::server}, error);
-	const std::array<std::byte,2> invalid_utf8 {
-		std::byte {0xC0}, std::byte {0x80}
+	const std::array<std::byte,3> invalid_utf8 {
+		std::byte {'a'}, std::byte {0xC0}, std::byte {0x80}
 	};
 	LIBGS_TEST_CHECK_EQ(text_stream.write(ws::message_type::text,
 		libgs::const_buffer(invalid_utf8.data(), invalid_utf8.size()), error),
@@ -1532,7 +1532,7 @@ void test_peer_close()
 	LIBGS_TEST_CHECK(not connection->is_open());
 	auto close = stream.peer_close();
 	LIBGS_TEST_CHECK(close.has_value());
-	LIBGS_TEST_CHECK_EQ(close->code, std::optional<uint16_t> {1000});
+	LIBGS_TEST_CHECK_EQ(close->code, libgs::optional<uint16_t> {1000});
 	LIBGS_TEST_CHECK_EQ(close->reason, "done");
 	LIBGS_TEST_CHECK(close->clean);
 	LIBGS_TEST_CHECK_EQ(octet(connection->wire(), 0), uint8_t {0x88});
@@ -1666,7 +1666,7 @@ void test_local_close_sync()
 		ws::close_code::normal_closure, "local"
 	}, error);
 	LIBGS_TEST_CHECK(not error);
-	LIBGS_TEST_CHECK_EQ(result.code, std::optional<uint16_t> {1001});
+	LIBGS_TEST_CHECK_EQ(result.code, libgs::optional<uint16_t> {1001});
 	LIBGS_TEST_CHECK_EQ(result.reason, "peer");
 	LIBGS_TEST_CHECK(result.clean);
 	LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::closed);
