@@ -3,10 +3,6 @@
 
 #include "parser.h"
 #include "detail/utf8.h"
-#include <algorithm>
-#include <array>
-#include <cstring>
-#include <utility>
 
 namespace libgs::websocket
 {
@@ -24,8 +20,10 @@ public:
 
 		const auto second = std::to_integer<uint8_t>(m_header_storage[1]);
 		const auto length = second & 0x7F;
-		const auto extended_size = length == 126 ? size_t {2} :
-			length == 127 ? size_t {8} : size_t {0};
+
+		const auto extended_size = length == 126 ?
+			size_t {2} : length == 127 ? size_t {8} : size_t {0};
+
 		return 2 + extended_size + ((second & 0x80) != 0 ? 4 : 0);
 	}
 
@@ -33,6 +31,7 @@ public:
 	{
 		const auto first = std::to_integer<uint8_t>(m_header_storage[0]);
 		const auto second = std::to_integer<uint8_t>(m_header_storage[1]);
+
 		const auto length_code = second & 0x7F;
 		const bool masked = (second & 0x80) != 0;
 
@@ -44,11 +43,13 @@ public:
 		size_t offset = 2;
 		if( length_code <= 125 )
 			m_header.payload_size = length_code;
+
 		else if( length_code == 126 )
 		{
 			m_header.payload_size =
 				static_cast<uint64_t>(std::to_integer<uint8_t>(m_header_storage[offset])) << 8 |
 				std::to_integer<uint8_t>(m_header_storage[offset + 1]);
+
 			offset += 2;
 			if( m_header.payload_size <= 125 )
 				return make_error_code(protocol_errc::noncanonical_length);
@@ -67,25 +68,26 @@ public:
 			if( m_header.payload_size <= 0xFFFF )
 				return make_error_code(protocol_errc::noncanonical_length);
 		}
-
 		if( masked )
 		{
 			masking_key key;
 			std::copy_n(m_header_storage.data() + offset,
-				key.bytes.size(), key.bytes.data());
+				key.bytes.size(), key.bytes.data()
+			);
 			m_header.mask = key;
 		}
-
 		if( not is_known_opcode(m_header.op) )
 			return make_error_code(protocol_errc::reserved_opcode);
 
 		const auto rsv = m_header.rsv.value<uint8_t>();
 		const auto allowed_rsv = m_config.allowed_rsv.value<uint8_t>();
+
 		if( (rsv & ~allowed_rsv) != 0 )
 			return make_error_code(protocol_errc::unexpected_rsv);
 
 		if( m_config.local_role == role::server and not masked )
 			return make_error_code(protocol_errc::missing_mask);
+
 		if( m_config.local_role == role::client and masked )
 			return make_error_code(protocol_errc::unexpected_mask);
 
@@ -93,12 +95,11 @@ public:
 		{
 			if( not m_header.fin )
 				return make_error_code(protocol_errc::fragmented_control_frame);
+
 			if( m_header.payload_size > 125 )
 				return make_error_code(protocol_errc::control_payload_too_large);
 		}
-
-		if( m_config.max_frame_size != 0 and
-			m_header.payload_size > m_config.max_frame_size )
+		if( m_config.max_frame_size != 0 and m_header.payload_size > m_config.max_frame_size )
 			return make_error_code(protocol_errc::frame_too_large);
 
 		if( m_header.op == opcode::continuation )
@@ -108,7 +109,6 @@ public:
 		}
 		else if( is_data_opcode(m_header.op) and m_fragmented_message )
 			return make_error_code(protocol_errc::data_during_fragmentation);
-
 		return {};
 	}
 
@@ -130,8 +130,7 @@ public:
 		m_reading_payload = false;
 	}
 
-	[[nodiscard]] sys_expected<frame_parse_result>
-	fail(error_code error) noexcept
+	[[nodiscard]] sys_expected<frame_parse_result> fail(error_code error) noexcept
 	{
 		if( not m_error )
 			m_error = error;
@@ -141,37 +140,15 @@ public:
 public:
 	frame_codec_config m_config;
 	frame_header m_header {};
+
 	std::array<std::byte,14> m_header_storage {};
 	size_t m_header_size = 0;
 	uint64_t m_payload_remaining = 0;
+
 	bool m_reading_payload = false;
 	bool m_fragmented_message = false;
 	error_code m_error {};
 };
-
-sys_expected<close_payload_view>
-decode_close_payload(const const_buffer &payload) noexcept
-{
-	if( payload.size() == 0 )
-		return close_payload_view {};
-	if( payload.size() == 1 or payload.size() > 125 )
-		return sys_unexpected(make_error_code(protocol_errc::invalid_close_payload));
-
-	const auto *data = static_cast<const std::byte*>(payload.data());
-	const auto code = static_cast<uint16_t> (
-		static_cast<uint16_t>(std::to_integer<uint8_t>(data[0])) << 8 |
-		std::to_integer<uint8_t>(data[1])
-	);
-	if( not is_valid_close_code(code) )
-		return sys_unexpected(make_error_code(protocol_errc::invalid_close_payload));
-
-	const std::string_view reason (
-		reinterpret_cast<const char*>(data + 2), payload.size() - 2
-	);
-	if( not detail::is_valid_utf8(reason) )
-		return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
-	return close_payload_view { code, reason };
-}
 
 frame_parser::frame_parser(frame_codec_config config) :
 	m_impl(new impl(config))
@@ -200,11 +177,11 @@ frame_parser &frame_parser::operator=(frame_parser &&other) noexcept
 	return *this;
 }
 
-sys_expected<frame_parse_result>
-frame_parser::parse(const mutable_buffer &input) noexcept
+sys_expected<frame_parse_result> frame_parser::parse(const mutable_buffer &input) noexcept
 {
 	if( not m_impl )
 		return sys_unexpected(make_error_code(std::errc::operation_not_permitted));
+
 	if( m_impl->m_error )
 		return sys_unexpected(m_impl->m_error);
 
@@ -219,8 +196,7 @@ frame_parser::parse(const mutable_buffer &input) noexcept
 			const auto count = std::min(input.size(), 2 - m_impl->m_header_size);
 			if( count != 0 )
 			{
-				std::memcpy(m_impl->m_header_storage.data() + m_impl->m_header_size,
-					data, count);
+				std::memcpy(m_impl->m_header_storage.data() + m_impl->m_header_size, data, count);
 				m_impl->m_header_size += count;
 				input_offset += count;
 			}
@@ -230,14 +206,15 @@ frame_parser::parse(const mutable_buffer &input) noexcept
 				return result;
 			}
 		}
-
 		const auto expected_size = m_impl->expected_header_size();
 		const auto available = input.size() - input_offset;
 		const auto count = std::min(available, expected_size - m_impl->m_header_size);
+
 		if( count != 0 )
 		{
 			std::memcpy(m_impl->m_header_storage.data() + m_impl->m_header_size,
-				data + input_offset, count);
+				data + input_offset, count
+			);
 			m_impl->m_header_size += count;
 			input_offset += count;
 		}
@@ -260,20 +237,17 @@ frame_parser::parse(const mutable_buffer &input) noexcept
 			return result;
 		}
 	}
-
 	const auto available = input.size() - input_offset;
 	const auto count = static_cast<size_t>(std::min<uint64_t> (
 		m_impl->m_payload_remaining, available
 	));
 	if( count != 0 )
 	{
-		result.payload_offset = m_impl->m_header.payload_size -
-			m_impl->m_payload_remaining;
+		result.payload_offset = m_impl->m_header.payload_size - m_impl->m_payload_remaining;
 		result.payload = mutable_buffer(data + input_offset, count);
 		result.consumed += count;
 		m_impl->m_payload_remaining -= count;
 	}
-
 	if( m_impl->m_payload_remaining == 0 )
 	{
 		m_impl->finish_frame();
@@ -322,6 +296,30 @@ frame_parser &frame_parser::reset() noexcept
 	m_impl->m_fragmented_message = false;
 	m_impl->m_error.clear();
 	return *this;
+}
+
+sys_expected<close_payload_view> decode_close_payload(const const_buffer &payload) noexcept
+{
+	if( payload.size() == 0 )
+		return close_payload_view {};
+
+	if( payload.size() == 1 or payload.size() > 125 )
+		return sys_unexpected(make_error_code(protocol_errc::invalid_close_payload));
+
+	const auto *data = static_cast<const std::byte*>(payload.data());
+	const auto code = static_cast<uint16_t>(
+		static_cast<uint16_t>(std::to_integer<uint8_t>(data[0])) << 8 |
+		std::to_integer<uint8_t>(data[1])
+	);
+	if( not is_valid_close_code(code) )
+		return sys_unexpected(make_error_code(protocol_errc::invalid_close_payload));
+
+	const std::string_view reason (
+		reinterpret_cast<const char*>(data + 2), payload.size() - 2
+	);
+	if( not detail::is_valid_utf8(reason) )
+		return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
+	return close_payload_view { code, reason };
 }
 
 } //namespace libgs::websocket

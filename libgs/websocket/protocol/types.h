@@ -30,7 +30,7 @@ struct extension_parameter
 	std::string name {};
 	// RFC 6455 defines an extension value as token or quoted-string. Numeric
 	// meaning, when any, belongs to the concrete extension codec.
-	std::optional<std::string> value {};
+	optional<std::string> value {};
 };
 
 struct extension
@@ -42,8 +42,10 @@ struct extension
 struct frame_codec_config
 {
 	role local_role = role::client;
+
 	// Zero permits every payload length representable by RFC 6455.
 	uint64_t max_frame_size = 16 * 1024 * 1024;
+
 	// Reserved for post-baseline extension codecs. The baseline value is empty.
 	reserved_bits allowed_rsv {};
 };
@@ -80,32 +82,32 @@ struct close_frame
 	std::string reason {};
 
 	close_frame() = default;
-	close_frame(close_code value, std::string text = {}) :
-		code(static_cast<uint16_t>(value)), reason(std::move(text)) {}
-	close_frame(uint16_t value, std::string text = {}) :
-		code(value), reason(std::move(text)) {}
+	close_frame(close_code value, std::string text = {});
+	close_frame(uint16_t value, std::string text = {});
 };
 
 struct close_payload_view
 {
-	std::optional<uint16_t> code {};
+	optional<uint16_t> code {};
 	std::string_view reason {};
 };
 
 struct masking_key
 {
 	std::array<std::byte,4> bytes {};
-
-	[[nodiscard]] bool operator==(const masking_key&) const noexcept = default;
+	[[nodiscard]] bool operator==(const masking_key&)
+		const noexcept = default;
 };
 
 struct frame_header
 {
 	bool fin = true;
 	reserved_bits rsv {};
+
 	opcode op = opcode::binary;
 	uint64_t payload_size = 0;
-	std::optional<masking_key> mask {};
+
+	optional<masking_key> mask {};
 };
 
 enum class protocol_errc
@@ -159,5 +161,6 @@ template <>
 struct is_error_code_enum<libgs::websocket::protocol_errc> : true_type {};
 
 } //namespace std
+
 
 #endif //LIBGS_WEBSOCKET_PROTOCOL_TYPES_H

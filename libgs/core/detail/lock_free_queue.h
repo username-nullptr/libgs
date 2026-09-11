@@ -505,6 +505,7 @@ bool lock_free_queue<T,queue_type::linked,N>::emplace(Args&&...args) requires
 			return true;
 		}
 	}
+	return false;
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -552,6 +553,7 @@ optional<T> lock_free_queue<T,queue_type::linked,N>::dequeue()
 		next->data.reset();
 		return elem;
 	}
+	return nullopt;
 }
 
 template <concepts::copy_or_move_constructible T, size_t N>
@@ -807,6 +809,7 @@ public:
 			current->m_active_enqueues.fetch_sub(1, std::memory_order_release);
 			return result;
 		}
+		return false;
 	}
 
 	[[nodiscard]] optional<T> dequeue()
@@ -829,6 +832,7 @@ public:
 			m_dequeue_block.compare_exchange_weak(current, next,
 				std::memory_order_release, std::memory_order_relaxed);
 		}
+		return nullopt;
 	}
 
 	void set_capacity(size_t capacity)

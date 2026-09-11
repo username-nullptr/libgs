@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 add_libgs_test(core core/basic.cpp gs.core)
 add_libgs_test(core.facilities core/facilities.cpp gs.core)
 add_libgs_test(core.runtime core/runtime.cpp gs.core)
@@ -31,9 +34,11 @@ endif ()
 if (LIBGS_BUILD_WEBSOCKET)
 	add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
 	add_libgs_test(websocket.handshake websocket/handshake.cpp gs.websocket)
+	add_libgs_test(websocket.client-server websocket/client_server.cpp gs.websocket)
 
 	if (NOT LIBGS_ENABLE_TEST_SANITIZERS AND NOT LIBGS_ENABLE_TEST_TSAN)
 		set_tests_properties(libgs.websocket.handshake PROPERTIES TIMEOUT 15)
+		set_tests_properties(libgs.websocket.client-server PROPERTIES TIMEOUT 15)
 	endif ()
 
 	add_libgs_test(websocket.stream websocket/stream.cpp gs.websocket)

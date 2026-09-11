@@ -44,12 +44,25 @@ public:
 		case protocol_errc::data_during_fragmentation:
 			return "WebSocket data frame during fragmented message";
 		default:
-			return "Unknown WebSocket protocol error";
+			break;
 		}
+		return "Unknown WebSocket protocol error";
 	}
 };
 
 } //namespace
+
+close_frame::close_frame(close_code value, std::string text) :
+	code(static_cast<uint16_t>(value)), reason(std::move(text))
+{
+
+}
+
+close_frame::close_frame(uint16_t value, std::string text) :
+	code(value), reason(std::move(text))
+{
+
+}
 
 const std::error_category &protocol_error_category() noexcept
 {
@@ -74,8 +87,9 @@ bool is_known_opcode(opcode value) noexcept
 	case opcode::pong:
 		return true;
 	default:
-		return false;
+		break;
 	}
+	return false;
 }
 
 bool is_control_opcode(opcode value) noexcept
@@ -109,8 +123,9 @@ bool is_valid_close_code(uint16_t value) noexcept
 	case close_code::bad_gateway:
 		return true;
 	default:
-		return false;
+		break;
 	}
+	return false;
 }
 
 close_code close_code_for(protocol_errc value) noexcept
@@ -122,8 +137,9 @@ close_code close_code_for(protocol_errc value) noexcept
 	case protocol_errc::frame_too_large:
 		return close_code::message_too_big;
 	default:
-		return close_code::protocol_error;
+		break;
 	}
+	return close_code::protocol_error;
 }
 
 } //namespace libgs::websocket

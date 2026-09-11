@@ -7,10 +7,5 @@
 #include <libgs/websocket/cxx/attributes.h>
 #include <libgs/websocket/cxx/concepts.h>
 
-namespace libgs::websocket
-{
-
-} //namespace libgs::websocket
-
 
 #endif //LIBGS_WEBSOCKET_GLOBAL_H

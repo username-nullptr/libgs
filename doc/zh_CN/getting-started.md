@@ -2,7 +2,7 @@
 
 语言：[English](../en/getting-started.md) | 简体中文
 
-本文介绍 LibGS 0.11.1-dev 当前的源码构建与安装流程。
+本文介绍 LibGS 当前的源码构建与安装流程。
 
 ## 环境要求
 

@@ -251,6 +251,7 @@ public:
 				std::move(conn), error
 			);
 		}
+		co_return sys_unexpected(make_error_code(std::errc::io_error));
 	}
 
 public:
@@ -428,21 +429,19 @@ private:
 	[[nodiscard]] sys_expected<lease_ptr> lease_from_reserved
 	(const target_t &key, connection_ptr conn) noexcept
 	{
+		error_code error {};
 		try {
 			return make_lease(key, std::move(conn));
 		}
-		catch(const std::bad_alloc&)
-		{
-			std::lock_guard lock(m_mutex);
-			drop_count_locked(m_buckets.find(key));
-			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		catch(const std::bad_alloc&) {
+			error = make_error_code(std::errc::not_enough_memory);
 		}
-		catch(...)
-		{
-			std::lock_guard lock(m_mutex);
-			drop_count_locked(m_buckets.find(key));
-			return sys_unexpected(make_error_code(std::errc::io_error));
+		catch(...) {
+			error = make_error_code(std::errc::io_error);
 		}
+		std::lock_guard lock(m_mutex);
+		drop_count_locked(m_buckets.find(key));
+		return sys_unexpected(error);
 	}
 
 	[[nodiscard]] lease_ptr make_lease(const target_t &key, connection_ptr conn)
@@ -565,8 +564,8 @@ private:
 		{
 			if( all_inserted )
 				m_waiters.erase(item->all_position);
-			return false;
 		}
+		return false;
 	}
 
 	void dequeue_waiter_locked(waiter *item) noexcept

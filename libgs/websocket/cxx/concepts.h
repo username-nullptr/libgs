@@ -6,10 +6,7 @@
 
 #include <libgs/http/global.h>
 
-namespace libgs::websocket
-{
-
-namespace concepts
+namespace libgs::websocket { namespace concepts
 {
 
 template <typename Token, typename...Args>

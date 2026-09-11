@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 add_libgs_performance_test(lock-free-queue lock_free_queue.cpp gs.core)
 add_libgs_performance_test(core core.cpp gs.core)
 

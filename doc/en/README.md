@@ -69,7 +69,7 @@ signature.
 
 ### API status
 
-The current version is `0.11.1-dev`. The project has not reached a 1.0 API
+The project has not reached a 1.0 API
 stability milestone, so public interfaces may still evolve. Implemented and
 planned features are kept separate throughout these documents.
 

@@ -1,8 +1,11 @@
+# SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.15)
 
 set(MAJOR_VERSION  0)
 set(MINOR_VERSION 13)
-set(PATCH_VERSION  3)
+set(PATCH_VERSION  4)
 
 set(PRO_VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION})
 set(PRO_NAME LibGS)

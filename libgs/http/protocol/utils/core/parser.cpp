@@ -507,6 +507,7 @@ public:
 				}
 			}
 		}
+		return result;
 	}
 
 	[[nodiscard]] error_code header_insert(std::string key, std::string value)

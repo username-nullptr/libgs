@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 set(target_name gs.http)
 add_project(${target_name} gs.core)
 

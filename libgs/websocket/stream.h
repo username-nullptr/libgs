@@ -15,7 +15,6 @@ class stream_impl;
 
 } //namespace detail
 
-// One upgraded WebSocket session and its transport.
 template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_WEBSOCKET_TAPI basic_stream
 {
@@ -24,8 +23,10 @@ class LIBGS_WEBSOCKET_TAPI basic_stream
 public:
 	using executor_t = Exec;
 	using config_t = stream_config;
+
 	using close_frame_t = close_frame;
 	using close_info_t = close_info;
+
 	using control_event_t = control_event;
 	using adopt_options_t = adopt_options;
 
@@ -34,7 +35,6 @@ public:
 
 	template <typename Buffer>
 	using recv_buf = basic_message<Buffer>;
-
 	using body_type = message_type;
 
 public:
@@ -48,7 +48,6 @@ public:
 		core_concepts::match_sched<executor_t> auto &&exec,
 		config_t config = {}
 	);
-
 	basic_stream(basic_stream &&other) noexcept;
 	basic_stream &operator=(basic_stream &&other) noexcept;
 	~basic_stream();
@@ -69,23 +68,20 @@ public:
 		not is_array_buffer_v<std::remove_cvref_t<T>>;
 
 public:
-	// Adopts a connection after a validated HTTP Upgrade.
-	basic_stream &adopt(connection_ptr connection, adopt_options_t options);
-
+	basic_stream &adopt (
+		connection_ptr connection, adopt_options_t options
+	);
 	basic_stream &adopt (
 		connection_ptr connection, adopt_options_t options,
 		error_code &error
 	) noexcept;
 
 public:
-	// Reads one complete data message. Once a cleanly closed stream reaches the
-	// closed state, read completes with eof and a default result whose body is
-	// empty. Cancelling an asynchronous read preserves any partially parsed frame
-	// so a later read can resume it.
+	// A closed stream returns eof and an empty result. Cancelling an asynchronous
+	// read preserves the partially parsed frame for the next read.
 	template <typename Buffer = std::vector<std::byte>, typename Token = use_sync_t>
 	[[nodiscard]] auto read(Token &&token = {}) requires
-		message_buffer_v<Buffer> and
-		task_token_v<Token,basic_message<std::remove_cvref_t<Buffer>>>;
+		message_buffer_v<Buffer> and task_token_v<Token,basic_message<std::remove_cvref_t<Buffer>>>;
 
 public:
 	// Concurrent writes are serialized. Successful size_t results count bytes
@@ -103,10 +99,8 @@ public:
 		requires completion_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
-	auto write (
-		message_type type, std::span<const const_buffer> body,
-		Token &&token = {}
-	) requires completion_token_v<Token,size_t>;
+	auto write(message_type type, std::span<const const_buffer> body, Token &&token = {})
+		requires completion_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
 	auto write_text(std::string_view text, Token &&token = {})
@@ -116,19 +110,14 @@ public:
 	auto write_binary(const const_buffer &body, Token &&token = {})
 		requires completion_token_v<Token,size_t>;
 
-	// Waits for every data write queued before this call. Cancelling this observer
-	// does not cancel or otherwise alter those writes.
+	// Cancelling this observer does not affect the writes it is waiting for.
 	template <typename Token = use_sync_t>
 	auto wait_written(Token &&token = {})
 		requires task_token_v<Token>;
 
 public:
-	// Observes the next incoming Ping or Pong parsed by read() or close(). It does
-	// not start a second transport read. With automatic_pong enabled, receiving
-	// Ping queues the corresponding Pong before this operation completes. When
-	// disabled, the latest unobserved Ping is retained for the application. The
-	// synchronous form only consumes an already parsed event and otherwise
-	// reports std::errc::operation_would_block.
+	// Does not start a transport read. The synchronous form reports
+	// operation_would_block unless read() or close() has already parsed an event.
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto wait_ctrl(Token &&token = {})
 		requires task_token_v<Token,control_event_t>;
@@ -166,24 +155,28 @@ public:
 		requires task_token_v<Token,close_info_t>;
 
 public:
+	basic_stream &cancel(error_code &error) noexcept;
+	basic_stream &cancel();
+
+	basic_stream &shutdown(error_code &error) noexcept;
+	basic_stream &shutdown();
+
+public:
+	[[nodiscard]] executor_t get_executor() const noexcept;
 	[[nodiscard]] connection_state state() const noexcept;
+
 	[[nodiscard]] bool is_open() const noexcept;
 	[[nodiscard]] bool is_closing() const noexcept;
+
 	[[nodiscard]] role stream_role() const noexcept;
 	[[nodiscard]] std::string negotiated_subprotocol() const;
 	[[nodiscard]] std::vector<extension> negotiated_extensions() const;
 
 	[[nodiscard]] config_t config() const noexcept;
-	[[nodiscard]] std::optional<close_info_t> peer_close() const;
+	[[nodiscard]] optional<close_info_t> peer_close() const;
 
 	[[nodiscard]] http::endpoint remote_endpoint() const noexcept;
 	[[nodiscard]] http::endpoint local_endpoint() const noexcept;
-	[[nodiscard]] executor_t get_executor() const noexcept;
-
-	basic_stream &cancel();
-	basic_stream &cancel(error_code &error) noexcept;
-	basic_stream &shutdown();
-	basic_stream &shutdown(error_code &error) noexcept;
 
 private:
 	using impl = detail::stream_impl<Exec>;

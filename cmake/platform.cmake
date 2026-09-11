@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 if (WIN32)
 	set(OS_CPP win)
 	set(IS_CPP winnt)

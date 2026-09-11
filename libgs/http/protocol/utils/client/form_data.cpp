@@ -11,9 +11,11 @@ namespace libgs::http { namespace
 [[nodiscard]] bool safe_header(std::string_view name, std::string_view value) noexcept
 {
 	constexpr std::string_view punctuation = "!#$%&'*+-.^_`|~";
-	return not name.empty() and std::ranges::all_of(name, [&](unsigned char ch) {
-		return std::isalnum(ch) or punctuation.find(static_cast<char>(ch)) != std::string_view::npos;
-	}) and value.find_first_of("\r\n") == std::string_view::npos and
+	return not name.empty() and
+		std::ranges::all_of(name, [&](unsigned char ch) {
+			return std::isalnum(ch) or punctuation.find(static_cast<char>(ch)) != std::string_view::npos;
+		}) and
+		value.find_first_of("\r\n") == std::string_view::npos and
 		value.find('\0') == std::string_view::npos;
 }
 
@@ -338,6 +340,7 @@ sys_expected<form_data_parts> parse_multipart_form_data
 		result.emplace_back(std::move(part));
 		cursor = next + 2 + delimiter.size();
 	}
+	return sys_unexpected(make_error_code(std::errc::protocol_error));
 }
 
 } //namespace libgs::http

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 include(CMakeParseArguments)
 
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -91,6 +94,8 @@ endif ()
 
 # WebSocket protocol
 if (LIBGS_BUILD_WEBSOCKET)
+	libgs_add_example(websocket client LIBRARIES gs.websocket)
+	libgs_add_example(websocket server LIBRARIES gs.websocket)
 	libgs_add_example(websocket protocol LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_client LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_server LIBRARIES gs.websocket)
@@ -143,6 +148,8 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	websocket/mixed_http_client.cpp
 	websocket/mixed_http_server.cpp
 	websocket/protocol.cpp
+	websocket/client.cpp
+	websocket/server.cpp
 	utils/logger.cpp
 	utils/modules/api.cpp
 	utils/modules/cache.cpp

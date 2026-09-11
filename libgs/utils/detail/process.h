@@ -521,6 +521,7 @@ public:
 				chunk.begin() + read_size
 			);
 		}
+		return result;
 	}
 
 	template <read_channel Channel, concepts::buffer Buffer, typename Handler>

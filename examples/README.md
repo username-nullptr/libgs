@@ -8,7 +8,7 @@ or one small integration path and is built as an independent executable.
 | [`core`](core) | Execution, values, INI files, algorithms, queues, application paths, command-line parsing, and dynamic libraries |
 | [`coro`](coro) | Awaitable basics and coroutine synchronization primitives |
 | [`http`](http) | Offline HTTP parsing, clients, servers, middleware, sessions, and optional HTTPS |
-| [`websocket`](websocket) | Offline protocol flow and a live HTTP/WebSocket mixed application |
+| [`websocket`](websocket) | Standalone clients/servers, offline protocol flow, and a live HTTP/WebSocket mixed application |
 | [`utils`](utils) | Logging, settings, signals, observers, modules, processes, and the extensible soft bus |
 
 ## Build
@@ -67,6 +67,18 @@ and completes a text-frame echo.
 ./build/output/examples/websocket/mixed_http_client
 ```
 
+For a dedicated WebSocket service, the higher-level `websocket::server` owns
+the listener and performs each opening handshake, while `websocket::client`
+owns the HTTP connector used by `open()`:
+
+```bash
+# Terminal 1
+./build/output/examples/websocket/server
+
+# Terminal 2
+./build/output/examples/websocket/client
+```
+
 ## Coverage
 
 | Capability | Examples |
@@ -76,6 +88,6 @@ and completes a text-frame echo.
 | Coroutine synchronization | `coro/basics`, `mutex`, `shared_mutex`, `semaphore`, `condition_variable` |
 | HTTP clients and protocol | `http/client_sync`, `client_awaitable`, `client_cookies`, `client_file`, `protocol` |
 | HTTP servers | `http/server`, `server_aop`, `server_file` (uploads, downloads, and `resource_root`), `server_session`, and optional `https_server` |
-| WebSocket protocol | `websocket/protocol` performs an offline opening handshake and masked frame round trip; `mixed_http_server` and `mixed_http_client` run HTTP and an upgraded WebSocket on the same route |
+| WebSocket protocol | `websocket/client` and `server` use the owned high-level API; `protocol` performs an offline handshake/frame round trip; the `mixed_http_*` pair shares one HTTP route |
 | Utilities | `utils/logger`, `settings`, `signal_slot`, `observer`, `modules`, `process` |
 | Soft bus | `utils/soft_bus_local` uses the built-in in-process transport; `soft_bus_transport` shows the interface used to plug in DDS, IPC, or another transport |

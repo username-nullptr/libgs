@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 include(project)
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES core.h)

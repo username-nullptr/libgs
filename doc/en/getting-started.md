@@ -3,7 +3,7 @@
 Language: English | [Simplified Chinese](../zh_CN/getting-started.md)
 
 This guide covers the current source-build and installation workflow for
-LibGS 0.11.1-dev.
+LibGS.
 
 ## Requirements
 

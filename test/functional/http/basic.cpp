@@ -193,6 +193,7 @@ protected:
 		const libgs::http::connect_target &target
 	) noexcept override
 	{
+		libgs::error_code error {};
 		try {
 			++m_connection_counts[target.host];
 			return connection_ptr(
@@ -200,15 +201,12 @@ protected:
 			);
 		}
 		catch(const std::bad_alloc&) {
-			return libgs::sys_unexpected(
-				std::make_error_code(std::errc::not_enough_memory)
-			);
+			error = std::make_error_code(std::errc::not_enough_memory);
 		}
 		catch(...) {
-			return libgs::sys_unexpected(
-				std::make_error_code(std::errc::io_error)
-			);
+			error = std::make_error_code(std::errc::io_error);
 		}
+		return libgs::sys_unexpected(error);
 	}
 
 	libgs::awaitable<libgs::sys_expected<connection_ptr>> co_do_connect(

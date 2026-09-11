@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "secure_random.h"
-#include <algorithm>
-#include <cstddef>
-#include <cerrno>
-#include <limits>
 
 #if defined(_WIN32)
 # define WIN32_LEAN_AND_MEAN

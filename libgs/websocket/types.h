@@ -4,8 +4,8 @@
 #ifndef LIBGS_WEBSOCKET_TYPES_H
 #define LIBGS_WEBSOCKET_TYPES_H
 
-#include <libgs/websocket/error.h>
 #include <libgs/websocket/protocol/types.h>
+#include <libgs/websocket/error.h>
 
 namespace libgs::websocket
 {
@@ -26,7 +26,8 @@ struct close_info
 {
 	// Empty means the peer sent an empty Close frame, or the transport ended
 	// without a Close frame.
-	std::optional<uint16_t> code {};
+	optional<uint16_t> code {};
+
 	std::string reason {};
 	bool clean = false;
 };
@@ -51,6 +52,7 @@ struct adopt_options
 	role stream_role = role::client;
 	std::vector<std::byte> pending_data {};
 	std::string negotiated_subprotocol {};
+
 	// Reserved for post-baseline extension codecs. The baseline stream rejects
 	// non-empty negotiated extensions with errc::unsupported_extension.
 	std::vector<extension> negotiated_extensions {};
@@ -85,5 +87,6 @@ struct stream_config
 };
 
 } //namespace libgs::websocket
+
 
 #endif //LIBGS_WEBSOCKET_TYPES_H

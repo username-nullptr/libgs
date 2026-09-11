@@ -21,8 +21,9 @@ public:
 		LIBGS_WEBSOCKET_ERRC_TABLE
 #undef X_MACRO
 		default:
-			return "Unknown WebSocket error";
+			break;
 		}
+		return "Unknown WebSocket error";
 	}
 };
 

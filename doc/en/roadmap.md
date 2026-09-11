@@ -76,6 +76,6 @@ blocking and error behavior.
 
 ## Versioning
 
-LibGS is currently at `0.11.1-dev` and has not declared a 1.0 stability
+LibGS has not declared a 1.0 stability
 milestone. Until then, protocol and utility APIs may evolve as module boundaries
 and completion semantics are refined.

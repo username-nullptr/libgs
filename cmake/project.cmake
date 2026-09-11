@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
 function(add_project target_name)
 
 	file(GLOB_RECURSE ${target_name}_sources "*.cpp" "*.c" "*.ixx")

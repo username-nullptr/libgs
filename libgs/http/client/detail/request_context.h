@@ -685,8 +685,8 @@ private:
 		{
 			close_connection();
 			error = exception_error(std::current_exception());
-			return 0;
 		}
+		return 0;
 	}
 
 	template <typename Token>
