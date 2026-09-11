@@ -1,0 +1,54 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
+#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_BUFFER_H
+#define LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_BUFFER_H
+
+#include <libgs/websocket/protocol/parser.h>
+#include <libgs/websocket/types.h>
+
+namespace libgs::websocket::detail
+{
+
+struct received_event
+{
+	opcode op = opcode::binary;
+	optional<message> data {};
+	std::vector<std::byte> control {};
+};
+
+// Owns buffered wire data, incremental frame parsing and message assembly.
+// Transport I/O and operation waiters remain in receive_engine.
+class LIBGS_WEBSOCKET_API receive_buffer
+{
+public:
+	void reset(role local_role, const stream_config &config,
+		std::vector<std::byte> pending_data
+	);
+	[[nodiscard]] mutable_buffer available_data() noexcept;
+
+	[[nodiscard]] std::shared_ptr<std::vector<std::byte>> read_storage() const noexcept;
+	[[nodiscard]] error_code commit_read(size_t size) noexcept;
+
+	[[nodiscard]] sys_expected<optional<received_event>> consume() noexcept;
+
+private:
+	std::vector<std::byte> m_pending_data {};
+	size_t m_pending_offset = 0;
+
+	std::unique_ptr<frame_parser> m_parser {};
+	std::shared_ptr<std::vector<std::byte>> m_read_buffer {};
+
+	size_t m_read_size = 0;
+	size_t m_read_offset = 0;
+	size_t m_max_message_size = 0;
+
+	optional<message_type> m_message_type {};
+	std::vector<std::byte> m_message_body {};
+	std::vector<std::byte> m_control_body {};
+};
+
+} //namespace libgs::websocket::detail
+
+
+#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_BUFFER_H

@@ -123,7 +123,7 @@ install(FILES libgs.h DESTINATION include/)
 function(libgs_install_module_headers module)
 	install(FILES libgs/${module}.h DESTINATION include/libgs/)
 	install(DIRECTORY libgs/${module}/ DESTINATION include/libgs/${module}/
-		FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+		FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.ipp"
 	)
 endfunction()
 

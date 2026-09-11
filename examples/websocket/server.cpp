@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <libgs/websocket/server.h>
-
 #include <iostream>
-#include <string>
 
 namespace ws = libgs::websocket;
 
@@ -12,36 +10,34 @@ int main(int argc, const char *argv[])
 {
 	const auto port = static_cast<std::uint16_t>(
 		argc > 1 ? std::stoul(argv[1]) : 8080);
+
 	asio::ip::tcp::acceptor acceptor(libgs::get_executor());
 	ws::server server(std::move(acceptor));
-
 	server
-		.bind({libgs::ip_type::v4, port})
-		.on_connection("/echo",
-			[](ws::accept_result accepted) -> libgs::awaitable<void>
-			{
-				try
-				{
-					auto message = co_await accepted.stream.read<std::string>(
-						libgs::use_awaitable);
-					co_await accepted.stream.write_text(
-						"echo: " + message.body, libgs::use_awaitable);
-					libgs::ignore_unused(co_await accepted.stream.close(
-						libgs::use_awaitable));
-				}
-				catch(const std::exception &exception)
-				{
-					std::cerr << "WebSocket session failed: "
-						<< exception.what() << '\n';
-				}
-				co_return;
-			})
-		.on_server_error([](libgs::error_code error)
-		{
-			std::cerr << "WebSocket server failed: " << error.message() << '\n';
-			return true;
-		})
-		.start();
+	.bind({libgs::ip_type::v4, port})
+
+	.on_connection("/echo", [](ws::accept_result accepted) -> libgs::awaitable<void>
+	{
+		try {
+			auto message = co_await accepted.stream
+				.read<std::string>(libgs::use_awaitable);
+
+			co_await accepted.stream
+				.write_text("echo: " + message.body, libgs::use_awaitable);
+
+			co_await accepted.stream.close(libgs::use_awaitable);
+		}
+		catch(const std::exception &exception) {
+			std::cerr << "WebSocket session failed: " << exception.what() << '\n';
+		}
+		co_return ;
+	})
+	.on_server_error([](libgs::error_code error)
+	{
+		std::cerr << "WebSocket server failed: " << error.message() << '\n';
+		return true;
+	})
+	.start();
 
 	std::cout << "Listening on ws://127.0.0.1:" << port << "/echo\n";
 	return libgs::exec();

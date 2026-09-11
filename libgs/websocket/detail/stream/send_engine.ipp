@@ -1,14 +1,54 @@
 // SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
-#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_IPP
-#define LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_IPP
+#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_IPP
+#define LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_IPP
+
+#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_H
+# error "Include <libgs/websocket/detail/stream/send_engine.h> instead."
+#endif
 
 namespace libgs::websocket
 {
 
-template <core_concepts::exec Exec>
-bool basic_stream<Exec>::impl::send_engine_busy() const noexcept
+template <typename Owner>
+detail::send_engine<Owner>::send_engine(Owner &owner) noexcept :
+	m_owner(owner)
+{
+
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::reset(role local_role, const stream_config &config) noexcept
+{
+	m_frame_builder.reset(local_role, config);
+	m_max_queued_write_bytes = config.max_queued_write_bytes;
+	m_max_queued_write_operations = config.max_queued_write_operations;
+}
+
+template <typename Owner>
+auto detail::send_engine<Owner>::prepare_control
+(opcode op, const const_buffer &payload, bool borrow_payload) const noexcept -> sys_expected<prepared_frame>
+{
+	return m_frame_builder.prepare_control(op, payload, borrow_payload);
+}
+
+template <typename Owner>
+auto detail::send_engine<Owner>::prepare_close(const close_frame &frame)
+	const noexcept -> sys_expected<prepared_frame>
+{
+	return m_frame_builder.prepare_close(frame);
+}
+
+template <typename Owner>
+auto detail::send_engine<Owner>::prepare_message(message_type type, std::span<const const_buffer> buffers)
+	const noexcept -> sys_expected<std::vector<prepared_frame>>
+{
+	return m_frame_builder.prepare_message(type, buffers);
+}
+
+template <typename Owner>
+bool detail::send_engine<Owner>::busy() const noexcept
 {
 	return m_wire_write_active or m_current_data or
 		   not m_data_write_queue.empty() or not m_control_write_queue.empty() or
@@ -16,52 +56,51 @@ bool basic_stream<Exec>::impl::send_engine_busy() const noexcept
 		   m_pending_close_response or m_pending_protocol_close;
 }
 
-template <core_concepts::exec Exec>
-error_code basic_stream<Exec>::impl::state_write_error() const noexcept
+template <typename Owner>
+bool detail::send_engine<Owner>::wire_write_active() const noexcept
 {
-	if( m_state == connection_state::failed )
-		return m_error ? m_error : make_error_code(std::errc::io_error);
-
-	if( m_state == connection_state::closed )
-		return make_error_code(errc::closed);
-
-	if( m_state == connection_state::closing )
-	{
-		return m_peer_close ?
-			make_error_code(std::errc::broken_pipe) :
-			make_error_code(errc::closing);
-	}
-	return make_error_code(errc::not_open);
+	return m_wire_write_active;
 }
 
-template <core_concepts::exec Exec>
-bool basic_stream<Exec>::impl::queue_has_capacity(send_kind kind, size_t payload_size) const noexcept
+template <typename Owner>
+bool detail::send_engine<Owner>::current_data_active() const noexcept
 {
-	if( m_config.max_queued_write_operations == 0 or m_config.max_queued_write_bytes == 0 )
+	return static_cast<bool>(m_current_data);
+}
+
+template <typename Owner>
+bool detail::send_engine<Owner>::ready_for_sync_protocol_write() const noexcept
+{
+	return not m_wire_write_active and not m_current_data;
+}
+
+template <typename Owner>
+bool detail::send_engine<Owner>::queue_has_capacity(send_kind kind, size_t payload_size) const noexcept
+{
+	if( m_max_queued_write_operations == 0 or m_max_queued_write_bytes == 0 )
 		return false;
 
-	if( m_queued_write_operations >= m_config.max_queued_write_operations )
+	if( m_queued_write_operations >= m_max_queued_write_operations )
 		return false;
 
 	if( kind == send_kind::data and
-		payload_size > m_config.max_queued_write_bytes -
-			std::min(m_queued_write_bytes, m_config.max_queued_write_bytes) )
+		payload_size > m_max_queued_write_bytes -
+			std::min(m_queued_write_bytes, m_max_queued_write_bytes) )
 		return false;
 	return true;
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::remember_write_error(uint64_t sequence, error_code error) noexcept
+template <typename Owner>
+void detail::send_engine<Owner>::remember_write_error(uint64_t sequence, error_code error) noexcept
 {
 	if( error and not m_unobserved_write_error )
 		m_unobserved_write_error = std::pair{sequence, error};
 }
 
-template <core_concepts::exec Exec>
-error_code basic_stream<Exec>::impl::observe_write_error(uint64_t target) noexcept
+template <typename Owner>
+error_code detail::send_engine<Owner>::observe_write_error(uint64_t target) noexcept
 {
-	if( m_unobserved_write_error and
-		m_unobserved_write_error->first <= target )
+	if( m_unobserved_write_error and m_unobserved_write_error->first <= target )
 	{
 		auto error = m_unobserved_write_error->second;
 		m_unobserved_write_error.reset();
@@ -70,14 +109,13 @@ error_code basic_stream<Exec>::impl::observe_write_error(uint64_t target) noexce
 	return {};
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::complete_write_waiters()
+template <typename Owner>
+void detail::send_engine<Owner>::complete_write_waiters()
 {
 	if( m_current_data )
 		return ;
 
-	while( not m_write_waiters.empty() and
-		   m_write_waiters.front()->target <= m_completed_write_sequence )
+	while( not m_write_waiters.empty() and m_write_waiters.front()->target <= m_completed_write_sequence )
 	{
 		auto waiter = std::move(m_write_waiters.front());
 		m_write_waiters.pop_front();
@@ -87,9 +125,9 @@ void basic_stream<Exec>::impl::complete_write_waiters()
 	}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::deliver_write_waiter
-(std::shared_ptr<write_waiter> waiter, error_code error, bool clear_slot) noexcept
+template <typename Owner>
+void detail::send_engine<Owner>::deliver_write_waiter
+(const std::shared_ptr<write_waiter> &waiter, error_code error, bool clear_slot) noexcept
 {
 	if( not waiter or not waiter->completion )
 		return ;
@@ -107,8 +145,8 @@ void basic_stream<Exec>::impl::deliver_write_waiter
 	catch(...) {}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::cancel_write_waiter(uint64_t id) noexcept
+template <typename Owner>
+void detail::send_engine<Owner>::cancel_write_waiter(uint64_t id) noexcept
 {
 	for(auto iterator = m_write_waiters.begin(); iterator != m_write_waiters.end(); ++iterator)
 	{
@@ -123,8 +161,8 @@ void basic_stream<Exec>::impl::cancel_write_waiter(uint64_t id) noexcept
 	}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::deliver_send_completion
+template <typename Owner>
+void detail::send_engine<Owner>::deliver_send_completion
 (const std::shared_ptr<send_operation> &operation, error_code error) noexcept
 {
 	if( not operation->completion )
@@ -140,8 +178,8 @@ void basic_stream<Exec>::impl::deliver_send_completion
 	catch(...) {}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::complete_send_operation
+template <typename Owner>
+void detail::send_engine<Owner>::complete_send_operation
 (const std::shared_ptr<send_operation> &operation, error_code error) noexcept
 {
 	if( operation->kind == send_kind::data )
@@ -155,14 +193,14 @@ void basic_stream<Exec>::impl::complete_send_operation
 		complete_write_waiters();
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::install_send_cancellation(const std::shared_ptr<send_operation> &operation)
+template <typename Owner>
+void detail::send_engine<Owner>::install_send_cancellation(const std::shared_ptr<send_operation> &operation)
 {
 	auto slot = asio::get_associated_cancellation_slot(operation->completion);
 	if( not slot.is_connected() )
 		return ;
 
-	slot.assign([weak = this->weak_from_this(), id = operation->id](asio::cancellation_type type) noexcept
+	slot.assign([weak = m_owner.weak_from_this(), id = operation->id](asio::cancellation_type type) noexcept
 	{
 		if( type == asio::cancellation_type::none )
 			return ;
@@ -170,8 +208,8 @@ void basic_stream<Exec>::impl::install_send_cancellation(const std::shared_ptr<s
 		if( auto self = weak.lock() )
 		{
 			try {
-				asio::dispatch(self->m_exec, [self, id]{
-					self->cancel_queued_send(id);
+				asio::dispatch(self->executor(), [self, id]{
+					self->send_side().cancel_queued_send(id);
 				});
 			}
 			catch(...) {}
@@ -179,8 +217,8 @@ void basic_stream<Exec>::impl::install_send_cancellation(const std::shared_ptr<s
 	});
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::cancel_queued_send(uint64_t id) noexcept
+template <typename Owner>
+void detail::send_engine<Owner>::cancel_queued_send(uint64_t id) noexcept
 {
 	for(auto &operation : m_data_write_queue)
 	{
@@ -212,8 +250,8 @@ void basic_stream<Exec>::impl::cancel_queued_send(uint64_t id) noexcept
 	}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::fail_queued_controls(error_code error)
+template <typename Owner>
+void detail::send_engine<Owner>::fail_queued_controls(error_code error)
 {
 	while(not m_control_write_queue.empty())
 	{
@@ -227,8 +265,8 @@ void basic_stream<Exec>::impl::fail_queued_controls(error_code error)
 	}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::fail_queued_writes(error_code error)
+template <typename Owner>
+void detail::send_engine<Owner>::fail_queued_writes(error_code error)
 {
 	fail_queued_controls(error);
 	while(not m_data_write_queue.empty())
@@ -247,137 +285,170 @@ void basic_stream<Exec>::impl::fail_queued_writes(error_code error)
 	}
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::start_wire_frame
+template <typename Owner>
+void detail::send_engine<Owner>::fail_current_if_idle(error_code error) noexcept
+{
+	if( m_wire_write_active or not m_current_data )
+		return ;
+
+	auto operation = std::exchange(m_current_data, {});
+	complete_send_operation(operation, error);
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::clear_automatic_pong() noexcept
+{
+	m_pending_auto_pong.reset();
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::clear_local_close() noexcept
+{
+	m_pending_local_close.reset();
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::clear_close_response() noexcept
+{
+	m_pending_close_response.reset();
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::clear_protocol_close() noexcept
+{
+	m_pending_protocol_close.reset();
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::clear_protocol_frames() noexcept
+{
+	clear_automatic_pong();
+	clear_local_close();
+	clear_close_response();
+	clear_protocol_close();
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::queue_local_close(prepared_frame frame)
+{
+	m_pending_local_close = std::move(frame);
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::queue_protocol_close(prepared_frame frame)
+{
+	m_pending_protocol_close = std::move(frame);
+}
+
+template <typename Owner>
+bool detail::send_engine<Owner>::has_local_close() const noexcept
+{
+	return m_pending_local_close.has_value();
+}
+
+template <typename Owner>
+sys_expected<> detail::send_engine<Owner>::queue_close_response
+(const std::vector<std::byte> &payload) noexcept
+{
+	return retain_protocol_payload(m_pending_close_response, payload);
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::start_wire_frame
 (prepared_frame frame, wire_frame_kind kind, std::shared_ptr<send_operation> operation) noexcept
 {
 	m_wire_write_active = true;
-	auto self = this->shared_from_this();
-	try {
-		m_connection->write(std::span<const const_buffer>(frame.buffers),
-			asio::any_completion_handler<void(error_code, size_t)>(
-			[self, frame, kind, operation](error_code error, size_t wire_size) mutable
-			{
-				self->m_wire_write_active = false;
-				const bool shutdown = self->m_state == connection_state::closed;
+	m_owner.start_transport_write(std::move(frame), kind, std::move(operation));
+}
 
-				const auto payload_size = wire_size > frame.header_size ?
-					std::min(frame.payload_size, wire_size - frame.header_size) : 0;
+template <typename Owner>
+void detail::send_engine<Owner>::complete_wire_frame(const prepared_frame &frame, wire_frame_kind kind,
+	std::shared_ptr<send_operation> operation, error_code error, size_t wire_size) noexcept
+{
+	m_wire_write_active = false;
+	const bool shutdown = not m_owner.send_transport_ready();
 
-				if( operation )
-					operation->transferred += payload_size;
+	const auto payload_size = wire_size > frame.header_size ?
+		std::min(frame.payload_size, wire_size - frame.header_size) : 0;
 
-				if( not error and wire_size != frame.header_size + frame.payload_size )
-					error = make_error_code(std::errc::io_error);
+	if( operation )
+		operation->transferred += payload_size;
 
-				if( shutdown and not error )
-					error = asio::error::operation_aborted;
+	if( not error and wire_size != frame.header_size + frame.payload_size )
+		error = make_error_code(std::errc::io_error);
 
-				if( error )
-				{
-					const auto completion_error = self->m_protocol_failure_active and
-						self->m_error ? self->m_error : error;
+	if( shutdown and not error )
+		error = asio::error::operation_aborted;
 
-					if( operation )
-					{
-						if( operation->kind == send_kind::data )
-							self->m_current_data.reset();
-						self->complete_send_operation(operation, completion_error);
-					}
-					if( self->m_current_data )
-					{
-						auto data = std::exchange(self->m_current_data, {});
-						self->complete_send_operation(data, completion_error);
-					}
-					self->fail_queued_writes(completion_error);
-					self->m_pending_auto_pong.reset();
-					self->m_pending_close_response.reset();
-
-					if( not shutdown )
-						self->fail(error);
-					return ;
-				}
-				switch(kind)
-				{
-				case wire_frame_kind::data:
-					self->m_last_wire_was_control = false;
-					operation->frame_index++;
-					if( self->m_protocol_failure_active )
-					{
-						self->m_current_data.reset();
-						self->complete_send_operation(operation,
-							operation->frame_index == operation->frames.size() ?
-							error_code{} : self->m_error
-						);
-						self->schedule_send();
-						return ;
-					}
-					if( operation->frame_index == operation->frames.size() )
-					{
-						self->m_current_data.reset();
-						self->complete_send_operation(operation, {});
-					}
-					break;
-
-				case wire_frame_kind::application_control:
-					self->m_last_wire_was_control = true;
-					self->complete_send_operation(operation, {});
-					break;
-
-				case wire_frame_kind::automatic_pong:
-					self->m_last_wire_was_control = true;
-					break;
-
-				case wire_frame_kind::local_close:
-					self->m_last_wire_was_control = true;
-					self->m_local_close_sent = true;
-
-					if( self->m_peer_close )
-						self->finish_close({}, true);
-					else
-						self->start_close_receive();
-					return ;
-
-				case wire_frame_kind::close_response:
-					self->m_last_wire_was_control = true;
-					self->finish_close({}, true);
-					return ;
-
-				case wire_frame_kind::protocol_close:
-					self->m_last_wire_was_control = true;
-					self->finish_protocol_failure();
-					return ;
-				}
-				self->schedule_send();
-			}
-		));
-	}
-	catch(...)
+	if( error )
 	{
-		m_wire_write_active = false;
-		auto error = exception_error(std::current_exception());
+		const auto completion_error = m_owner.protocol_failure_error(error);
+
 		if( operation )
 		{
 			if( operation->kind == send_kind::data )
 				m_current_data.reset();
-			complete_send_operation(operation, error);
+			complete_send_operation(operation, completion_error);
 		}
 		if( m_current_data )
 		{
 			auto data = std::exchange(m_current_data, {});
-			complete_send_operation(data, error);
+			complete_send_operation(data, completion_error);
 		}
-		fail_queued_writes(error);
-		fail(error);
+		fail_queued_writes(completion_error);
+		m_pending_auto_pong.reset();
+		m_pending_close_response.reset();
+
+		if( not shutdown )
+			m_owner.handle_send_failure(error);
+		return ;
 	}
+	switch(kind)
+	{
+	case wire_frame_kind::data:
+		m_last_wire_was_control = false;
+		operation->frame_index++;
+
+		if( m_owner.protocol_failure_active() )
+		{
+			m_current_data.reset();
+			complete_send_operation(operation,
+				operation->frame_index == operation->frames.size() ?
+				error_code{} : m_owner.protocol_failure_error({})
+			);
+			schedule();
+			return ;
+		}
+		if( operation->frame_index == operation->frames.size() )
+		{
+			m_current_data.reset();
+			complete_send_operation(operation, {});
+		}
+		break;
+
+	case wire_frame_kind::application_control:
+		m_last_wire_was_control = true;
+		complete_send_operation(operation, {});
+		break;
+
+	case wire_frame_kind::automatic_pong:
+		m_last_wire_was_control = true;
+		break;
+
+	case wire_frame_kind::local_close:
+	case wire_frame_kind::close_response:
+	case wire_frame_kind::protocol_close:
+		m_last_wire_was_control = true;
+		m_owner.handle_wire_frame_sent(kind);
+		return ;
+	}
+	schedule();
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::schedule_send()
+template <typename Owner>
+void detail::send_engine<Owner>::schedule()
 {
-	if( m_wire_write_active or not m_connection or m_transport_closed or
-		(m_state == connection_state::failed and not m_protocol_failure_active) or
-		m_state == connection_state::closed )
+	if( m_wire_write_active or not m_owner.send_transport_ready() )
 		return ;
 
 	if( m_pending_protocol_close and not m_current_data )
@@ -386,19 +457,18 @@ void basic_stream<Exec>::impl::schedule_send()
 		start_wire_frame(std::move(frame), wire_frame_kind::protocol_close);
 		return ;
 	}
-
 	if( m_pending_close_response and not m_current_data )
 	{
 		auto payload = std::exchange(m_pending_close_response, nullopt);
 		m_pending_auto_pong.reset();
 
-		auto frame = prepare_control_frame(opcode::close,
+		auto frame = m_frame_builder.prepare_control(opcode::close,
 			const_buffer(payload->data(), payload->size())
 		);
 		if( not frame )
 		{
 			fail_queued_writes(frame.error());
-			fail(frame.error());
+			m_owner.handle_send_failure(frame.error());
 			return ;
 		}
 		start_wire_frame(std::move(*frame), wire_frame_kind::close_response);
@@ -420,13 +490,13 @@ void basic_stream<Exec>::impl::schedule_send()
 		not m_pending_close_response )
 	{
 		auto payload = std::exchange(m_pending_auto_pong, nullopt);
-		auto frame = prepare_control_frame(opcode::pong,
+		auto frame = m_frame_builder.prepare_control(opcode::pong,
 			const_buffer(payload->data(), payload->size())
 		);
 		if( not frame )
 		{
 			fail_queued_writes(frame.error());
-			fail(frame.error());
+			m_owner.handle_send_failure(frame.error());
 			return ;
 		}
 		start_wire_frame(std::move(*frame), wire_frame_kind::automatic_pong);
@@ -470,7 +540,7 @@ void basic_stream<Exec>::impl::schedule_send()
 			}
 			if( m_data_write_queue.empty() )
 			{
-				schedule_send();
+				schedule();
 				return ;
 			}
 			m_current_data = std::move(m_data_write_queue.front());
@@ -491,13 +561,14 @@ void basic_stream<Exec>::impl::schedule_send()
 	// With no data pending, fairness no longer limits consecutive controls.
 	m_last_wire_was_control = false;
 	if( m_pending_auto_pong or m_pending_local_close or not m_control_write_queue.empty() )
-		schedule_send();
+		schedule();
 }
 
-template <core_concepts::exec Exec>
-error_code basic_stream<Exec>::impl::enqueue_send_operation(std::shared_ptr<send_operation> operation) noexcept
+template <typename Owner>
+error_code detail::send_engine<Owner>::enqueue_send_operation
+(std::shared_ptr<send_operation> operation) noexcept
 {
-	if( not send_engine_busy() )
+	if( not busy() )
 	{
 		if( operation->kind == send_kind::data )
 			m_current_data = std::move(operation);
@@ -509,7 +580,7 @@ error_code basic_stream<Exec>::impl::enqueue_send_operation(std::shared_ptr<send
 			);
 			return {};
 		}
-		schedule_send();
+		schedule();
 		return {};
 	}
 	if( not queue_has_capacity(operation->kind, operation->queued_payload_size) )
@@ -548,28 +619,28 @@ error_code basic_stream<Exec>::impl::enqueue_send_operation(std::shared_ptr<send
 	return make_error_code(std::errc::io_error);
 }
 
-template <core_concepts::exec Exec>
+template <typename Owner>
 template <typename Handler>
-void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<const const_buffer> buffers,
+void detail::send_engine<Owner>::async_write_message
+(message_type type, std::span<const const_buffer> buffers,
 	std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, size_t)>(std::forward<Handler>(handler));
 
-	auto self = this->shared_from_this();
-	if( self->m_state != connection_state::open )
+	auto self = m_owner.shared_from_this();
+	if( auto error = self->write_state_error() )
 	{
-		auto error = self->state_write_error();
-		asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 			std::move(handler)(error, 0);
 		});
 		return ;
 	}
-	auto frames = self->prepare_frames(type, buffers);
+	auto frames = self->send_side().prepare_message(type, buffers);
 	if( not frames )
 	{
 		auto error = frames.error();
-		asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 			std::move(handler)(error, 0);
 		});
 		return ;
@@ -584,28 +655,28 @@ void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<
 
 		operation->payload_owner = std::move(payload_owner);
 		operation->completion = std::move(completion);
-		operation->id = ++self->m_next_send_operation_id;
+		operation->id = ++self->send_side().m_next_send_operation_id;
 
 		for(const auto &frame : operation->frames)
 			operation->queued_payload_size += frame.payload_size;
 
-		self->install_send_cancellation(operation);
-		operation->sequence = ++self->m_last_write_sequence;
+		self->send_side().install_send_cancellation(operation);
+		operation->sequence = ++self->send_side().m_last_write_sequence;
 
-		if( auto error = self->enqueue_send_operation(operation) )
+		if( auto error = self->send_side().enqueue_send_operation(operation) )
 		{
-			self->m_last_write_sequence--;
-			self->deliver_send_completion(operation, error);
+			self->send_side().m_last_write_sequence--;
+			self->send_side().deliver_send_completion(operation, error);
 		}
 	}
 	catch(const std::bad_alloc&)
 	{
 		auto error = make_error_code(std::errc::not_enough_memory);
 		if( operation and operation->completion )
-			self->deliver_send_completion(operation, error);
+			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+			asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 				std::move(handler)(error, 0);
 			});
 		}
@@ -614,38 +685,37 @@ void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<
 	{
 		auto error = make_error_code(std::errc::io_error);
 		if( operation and operation->completion )
-			self->deliver_send_completion(operation, error);
+			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+			asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 				std::move(handler)(error, 0);
 			});
 		}
 	}
 }
 
-template <core_concepts::exec Exec>
+template <typename Owner>
 template <typename Handler>
-void basic_stream<Exec>::impl::async_write_control(opcode op, const const_buffer &payload,
-	Handler &&handler)
+void detail::send_engine<Owner>::async_write_control
+(opcode op, const const_buffer &payload, Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, size_t)>(std::forward<Handler>(handler));
 
-	auto self = this->shared_from_this();
-	if( self->m_state != connection_state::open )
+	auto self = m_owner.shared_from_this();
+	if( auto error = self->write_state_error() )
 	{
-		auto error = self->state_write_error();
-		asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 			std::move(handler)(error, 0);
 		});
 		return ;
 	}
-	auto frame = self->prepare_control_frame(op, payload, true);
+	auto frame = self->send_side().prepare_control(op, payload, true);
 	if( not frame )
 	{
 		auto error = frame.error();
-		asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 			std::move(handler)(error, 0);
 		});
 		return ;
@@ -658,21 +728,21 @@ void basic_stream<Exec>::impl::async_write_control(opcode op, const const_buffer
 		operation->frames.push_back(std::move(*frame));
 		operation->completion = std::move(completion);
 
-		operation->id = ++self->m_next_send_operation_id;
+		operation->id = ++self->send_side().m_next_send_operation_id;
 		operation->queued_payload_size = operation->frames.front().payload_size;
 
-		self->install_send_cancellation(operation);
-		if( auto error = self->enqueue_send_operation(operation) )
-			self->deliver_send_completion(operation, error);
+		self->send_side().install_send_cancellation(operation);
+		if( auto error = self->send_side().enqueue_send_operation(operation) )
+			self->send_side().deliver_send_completion(operation, error);
 	}
 	catch(const std::bad_alloc&)
 	{
 		auto error = make_error_code(std::errc::not_enough_memory);
 		if( operation and operation->completion )
-			self->deliver_send_completion(operation, error);
+			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+			asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 				std::move(handler)(error, 0);
 			});
 		}
@@ -681,40 +751,40 @@ void basic_stream<Exec>::impl::async_write_control(opcode op, const const_buffer
 	{
 		auto error = make_error_code(std::errc::io_error);
 		if( operation and operation->completion )
-			self->deliver_send_completion(operation, error);
+			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->m_exec, [handler = std::move(completion), error]() mutable {
+			asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
 				std::move(handler)(error, 0);
 			});
 		}
 	}
 }
 
-template <core_concepts::exec Exec>
-size_t basic_stream<Exec>::impl::write_control
+template <typename Owner>
+size_t detail::send_engine<Owner>::write_control
 (opcode op, const const_buffer &payload, error_code &error) noexcept
 {
 	error.clear();
-	if( m_state != connection_state::open )
+	if( auto state_error = m_owner.write_state_error() )
 	{
-		error = state_write_error();
+		error = state_error;
 		return 0;
 	}
-	auto frame = prepare_control_frame(op, payload, true);
+	auto frame = m_frame_builder.prepare_control(op, payload, true);
 	if( not frame )
 	{
 		error = frame.error();
 		return 0;
 	}
-	auto transferred = write_prepared(*frame, error);
+	auto transferred = m_owner.write_prepared(*frame, error);
 	if( error )
-		fail(error);
+		m_owner.handle_send_failure(error);
 	return transferred;
 }
 
-template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::wait_written(error_code &error) noexcept
+template <typename Owner>
+void detail::send_engine<Owner>::wait_written(error_code &error) noexcept
 {
 	if( m_completed_write_sequence < m_last_write_sequence )
 	{
@@ -724,9 +794,9 @@ void basic_stream<Exec>::impl::wait_written(error_code &error) noexcept
 	error = observe_write_error(m_last_write_sequence);
 }
 
-template <core_concepts::exec Exec>
+template <typename Owner>
 template <typename Handler>
-void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
+void detail::send_engine<Owner>::async_wait_written(Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code)>(std::forward<Handler>(handler));
@@ -735,7 +805,7 @@ void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 	if( target <= m_completed_write_sequence )
 	{
 		auto error = observe_write_error(target);
-		asio::post(m_exec, [handler = std::move(completion), error]() mutable {
+		asio::post(m_owner.executor(), [handler = std::move(completion), error]() mutable {
 			std::move(handler)(error);
 		});
 		return ;
@@ -761,7 +831,7 @@ void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
 		if( slot.is_connected() )
 		{
-			slot.assign([weak = this->weak_from_this(), id = waiter->id]
+			slot.assign([weak = m_owner.weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept
 			{
 				if( type == asio::cancellation_type::none )
@@ -770,8 +840,8 @@ void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 				if( auto self = weak.lock() )
 				{
 					try {
-						asio::dispatch(self->m_exec, [self, id]{
-							self->cancel_write_waiter(id);
+						asio::dispatch(self->executor(), [self, id]{
+							self->send_side().cancel_write_waiter(id);
 						});
 					}
 					catch(...) {}
@@ -794,7 +864,8 @@ void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 		}
 		else
 		{
-			asio::post(m_exec, [handler = std::move(completion), error]() mutable {
+			asio::post(m_owner.executor(),
+			[handler = std::move(completion), error]() mutable {
 				std::move(handler)(error);
 			});
 		}
@@ -814,15 +885,16 @@ void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 		}
 		else
 		{
-			asio::post(m_exec, [handler = std::move(completion), error]() mutable {
+			asio::post(m_owner.executor(),
+			[handler = std::move(completion), error]() mutable {
 				std::move(handler)(error);
 			});
 		}
 	}
 }
 
-template <core_concepts::exec Exec>
-sys_expected<> basic_stream<Exec>::impl::retain_protocol_payload
+template <typename Owner>
+sys_expected<> detail::send_engine<Owner>::retain_protocol_payload
 (optional<std::vector<std::byte>> &slot, const std::vector<std::byte> &payload) noexcept
 {
 	try {
@@ -836,52 +908,17 @@ sys_expected<> basic_stream<Exec>::impl::retain_protocol_payload
 	return sys_unexpected(make_error_code(std::errc::io_error));
 }
 
-template <core_concepts::exec Exec>
-sys_expected<> basic_stream<Exec>::impl::queue_automatic_pong(const std::vector<std::byte> &payload) noexcept
+template <typename Owner>
+sys_expected<> detail::send_engine<Owner>::queue_automatic_pong
+(const std::vector<std::byte> &payload) noexcept
 {
 	auto retained = retain_protocol_payload(m_pending_auto_pong, payload);
 	if( retained )
-		schedule_send();
+		schedule();
 	return retained;
-}
-
-template <core_concepts::exec Exec>
-sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std::byte> &payload) noexcept
-{
-	auto remembered = remember_peer_close(payload);
-	if( not remembered )
-		return remembered;
-
-	start_close_deadline();
-	if( m_state == connection_state::failed )
-		return sys_unexpected(m_error);
-
-	if( m_config.close_timeout <= std::chrono::milliseconds::zero() )
-	{
-		m_pending_auto_pong.reset();
-		fail_queued_writes(make_error_code(std::errc::broken_pipe));
-		return make_sys_expected();
-	}
-	if( m_local_close_sent )
-	{
-		finish_close({}, true);
-		return make_sys_expected();
-	}
-	if( not m_local_close_initiated )
-	{
-		auto retained = retain_protocol_payload(m_pending_close_response, payload);
-		if( not retained )
-			return retained;
-	}
-	m_pending_auto_pong.reset();
-	fail_queued_writes(make_error_code(std::errc::broken_pipe));
-
-	if( m_state == connection_state::closing )
-		schedule_send();
-	return make_sys_expected();
 }
 
 } //namespace libgs::websocket
 
 
-#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_IPP
+#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_IPP

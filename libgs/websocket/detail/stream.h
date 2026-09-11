@@ -6,6 +6,14 @@
 
 #include <libgs/websocket/detail/stream/impl.h>
 
+#ifndef LIBGS_WEBSOCKET_STREAM_H
+# error "Include <libgs/websocket/stream.h> instead."
+#endif //LIBGS_WEBSOCKET_STREAM_H
+
+#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_H
+# error "The stream implementation must be declared before this fragment."
+#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_H
+
 namespace libgs::websocket
 {
 
@@ -563,7 +571,7 @@ http::endpoint basic_stream<Exec>::local_endpoint() const noexcept
 		m_impl->m_connection->local_endpoint() : http::endpoint{};
 }
 
-} // namespace libgs::websocket
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_H

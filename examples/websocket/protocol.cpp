@@ -4,11 +4,7 @@
 #include <libgs/websocket/protocol/generator.h>
 #include <libgs/websocket/protocol/handshake.h>
 #include <libgs/websocket/protocol/parser.h>
-#include <array>
-#include <cstring>
 #include <iostream>
-#include <string>
-#include <vector>
 
 namespace ws = libgs::websocket;
 
@@ -18,12 +14,12 @@ int main()
 		std::cerr << operation << " failed: " << error.message() << '\n';
 		return 1;
 	};
-
 	const std::string nonce_text = "the sample nonce";
 	std::array<std::byte,16> nonce {};
-	std::memcpy(nonce.data(), nonce_text.data(), nonce.size());
 
+	std::memcpy(nonce.data(), nonce_text.data(), nonce.size());
 	auto client_key = ws::make_client_key(nonce);
+
 	if( not client_key )
 		return fail("Client key generation", client_key.error());
 
@@ -36,24 +32,21 @@ int main()
 		return fail("Opening request generation", request_headers.error());
 
 	auto server_request = ws::parse_opening_request (
-		libgs::http::method::get,
-		libgs::http::version::v11,
+		libgs::http::method::get, libgs::http::version::v11,
 		*request_headers
 	);
 	if( not server_request )
 		return fail("Opening request parsing", server_request.error());
 
 	auto response_headers = ws::make_opening_response_headers (
-		*server_request,
-		ws::opening_response {.subprotocol = std::string("chat")}
+		*server_request, ws::opening_response {.subprotocol = std::string("chat")}
 	);
 	if( not response_headers )
 		return fail("Opening response generation", response_headers.error());
 
 	auto client_response = ws::parse_opening_response (
 		libgs::http::status::switching_protocols,
-		*response_headers,
-		client_request
+		*response_headers, client_request
 	);
 	if( not client_response )
 		return fail("Opening response parsing", client_response.error());
@@ -63,6 +56,7 @@ int main()
 	}};
 	const std::string text = "Hello";
 	std::vector<std::byte> masked(text.size());
+
 	auto masked_size = ws::mask_copy (
 		libgs::mutable_buffer(masked.data(), masked.size()),
 		libgs::const_buffer(text), mask
@@ -70,19 +64,26 @@ int main()
 	if( not masked_size )
 		return fail("Payload masking", masked_size.error());
 
-	auto frame_head = ws::encode_frame_header(ws::frame_header {
-		.fin = true,
-		.op = ws::opcode::text,
-		.payload_size = masked.size(),
-		.mask = mask,
-	}, ws::frame_codec_config {.local_role = ws::role::client});
+	auto frame_head = ws::encode_frame_header (
+		ws::frame_header {
+			.fin = true,
+			.op = ws::opcode::text,
+			.payload_size = masked.size(),
+			.mask = mask,
+		},
+		ws::frame_codec_config {
+			.local_role = ws::role::client
+		}
+	);
 	if( not frame_head )
 		return fail("Frame generation", frame_head.error());
 
 	std::vector<std::byte> wire;
 	wire.reserve(frame_head->size + masked.size());
+
 	wire.insert(wire.end(), frame_head->storage.begin(),
-		frame_head->storage.begin() + frame_head->size);
+		frame_head->storage.begin() + frame_head->size
+	);
 	wire.insert(wire.end(), masked.begin(), masked.end());
 
 	ws::frame_parser parser(ws::frame_codec_config {
@@ -91,21 +92,25 @@ int main()
 	auto frame = parser.parse(libgs::mutable_buffer(wire.data(), wire.size()));
 	if( not frame )
 		return fail("Frame parsing", frame.error());
+
 	if( not frame->header_ready or not frame->frame_finished or not parser.header().mask )
 	{
 		std::cerr << "Frame parsing produced an incomplete result\n";
 		return 1;
 	}
-
 	ws::apply_mask(frame->payload, *parser.header().mask, frame->payload_offset);
-	const std::string decoded(static_cast<const char*>(frame->payload.data()),
-		frame->payload.size());
 
+	const std::string decoded (
+		static_cast<const char*>(frame->payload.data()),
+		frame->payload.size()
+	);
 	std::cout << "Client key: " << *client_key << '\n';
 	std::cout << "Accept key: "
 		<< response_headers->at("Sec-WebSocket-Accept").to_string() << '\n';
+
 	std::cout << "Subprotocol: "
 		<< client_response->subprotocol.value_or("(none)") << '\n';
+
 	std::cout << "Decoded frame: " << decoded << '\n';
 	return decoded == text ? 0 : 1;
 }

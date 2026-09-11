@@ -363,6 +363,27 @@ peer 先发送 Close 时，stream 启动同一个 close deadline，不再开始�
 
 stream 遵循 Asio shared-object-unsafe 约定。跨线程调用必须由 strand 或外部锁串行化。允许在同一串行 executor 上重叠发起 write；状态查询和修改也必须遵循同一规则。取消 wait_ctrl 只取消观察者，不取消 parser 或由 read 驱动的 transport read；取消 read 可以取消由它驱动的底层 read，但不能销毁 parser state。client/server 的配置、启动、取消和状态查询同样需要串行调用或外部同步。
 
+### 8.7 内部实现边界
+
+stream 的私有实现按状态所有权拆分：
+
+- `frame_builder` 负责 outgoing message/control frame 的校验、分片、masking
+  和 wire buffer 构造，不拥有 connection 或 executor；
+- `receive_buffer` 负责 pending/transport 输入缓存、增量 frame parsing 和完整
+  message assembly，不启动 transport read，也不保存 operation waiter；
+- operation/waiter 按方向拆在 `send_operations.h`、`receive_operations.h` 和
+  `close_operations.h`，接收方向不会间接依赖出站 frame builder；
+- `send_engine` 独占 frame builder、发送队列、wire scheduler、write waiter 和
+  automatic Pong/Close 等待发送槽；
+- `receive_engine` 独占 receive buffer、read operation/waiter、control observer，
+  并通过同一个 frame-event pump 为普通 read 与 Close 接管流程提供输入；
+- `stream::impl` 是 transport 与生命周期 facade，独占 connection I/O，只通过窄
+  host contract 协调两侧 engine、Close handshake、protocol failure 和连接终态。
+
+新增协议算法应优先放入无 transport/executor 依赖的组件；单向 operation 状态属于
+对应 engine，只有跨 receive、send 和 Close 生命周期的状态转换留在 `stream::impl`。
+完整组件图、文件职责和代码跳转路径见 `detail/stream/README.md`。
+
 ## 9. 协议 codec
 
 ### 9.1 文件职责

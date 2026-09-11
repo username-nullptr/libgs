@@ -1,11 +1,169 @@
 // SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
-#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_CLOSE_IPP
-#define LIBGS_WEBSOCKET_DETAIL_STREAM_CLOSE_IPP
+#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_CLOSE_IPP
+#define LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_CLOSE_IPP
+
+#ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_H
+# error "Include <libgs/websocket/detail/stream/impl.h> instead."
+#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_H
 
 namespace libgs::websocket
 {
+
+template <core_concepts::exec Exec>
+bool basic_stream<Exec>::impl::local_close_started() const noexcept
+{
+	return m_local_close_phase != local_close_phase::none;
+}
+
+template <core_concepts::exec Exec>
+bool basic_stream<Exec>::impl::local_close_sent() const noexcept
+{
+	return m_local_close_phase == local_close_phase::sent;
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::mark_local_close_queued() noexcept
+{
+	if( m_local_close_phase == local_close_phase::none )
+		m_local_close_phase = local_close_phase::queued;
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::mark_local_close_sent() noexcept
+{
+	m_local_close_phase = local_close_phase::sent;
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::handle_wire_frame_sent
+(detail::wire_frame_kind kind) noexcept
+{
+	switch(kind)
+	{
+	case detail::wire_frame_kind::local_close:
+		mark_local_close_sent();
+		if( m_peer_close )
+			finish_close({}, true);
+		else
+			start_close_receive();
+		break;
+
+	case detail::wire_frame_kind::close_response:
+		finish_close({}, true);
+		break;
+
+	case detail::wire_frame_kind::protocol_close:
+		finish_protocol_failure();
+		break;
+
+	case detail::wire_frame_kind::data:
+	case detail::wire_frame_kind::application_control:
+	case detail::wire_frame_kind::automatic_pong:
+		break;
+	}
+}
+
+template <core_concepts::exec Exec>
+sys_expected<> basic_stream<Exec>::impl::remember_peer_close(const std::vector<std::byte> &payload) noexcept
+{
+	auto decoded = decode_close_payload (
+		const_buffer(payload.data(), payload.size())
+	);
+	if( not decoded )
+		return sys_unexpected(decoded.error());
+	try {
+		m_peer_close = close_info_t {
+			.code = decoded->code,
+			.reason = std::string(decoded->reason),
+			.clean = false,
+		};
+		m_state = connection_state::closing;
+		m_receive_engine.stop_control_observer(make_error_code(errc::closing));
+		return make_sys_expected();
+	}
+	catch(const std::bad_alloc&) {
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...) {}
+	return sys_unexpected(make_error_code(std::errc::io_error));
+}
+
+template <core_concepts::exec Exec>
+sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std::byte> &payload) noexcept
+{
+	auto remembered = remember_peer_close(payload);
+	if( not remembered )
+		return remembered;
+
+	start_close_deadline();
+	if( m_state == connection_state::failed )
+		return sys_unexpected(m_error);
+
+	if( m_config.close_timeout <= std::chrono::milliseconds::zero() )
+	{
+		m_send_engine.clear_automatic_pong();
+		m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
+		return make_sys_expected();
+	}
+	if( local_close_sent() )
+	{
+		finish_close({}, true);
+		return make_sys_expected();
+	}
+	if( not local_close_started() )
+	{
+		auto retained = m_send_engine.queue_close_response(payload);
+		if( not retained )
+			return retained;
+	}
+	m_send_engine.clear_automatic_pong();
+	m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
+
+	if( m_state == connection_state::closing )
+		m_send_engine.schedule();
+	return make_sys_expected();
+}
+
+template <core_concepts::exec Exec>
+sys_expected<> basic_stream<Exec>::impl::handle_sync_peer_close
+(const std::vector<std::byte> &payload) noexcept
+{
+	auto remembered = remember_peer_close(payload);
+	if( not remembered )
+		return remembered;
+
+	if( m_send_engine.busy() )
+	{
+		start_close_deadline();
+		if( m_state == connection_state::failed )
+			return sys_unexpected(m_error);
+
+		auto retained = m_send_engine.queue_close_response(payload);
+		if( not retained )
+			return retained;
+
+		m_send_engine.clear_automatic_pong();
+		m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
+		m_send_engine.schedule();
+		return make_sys_expected();
+	}
+
+	auto frame = m_send_engine.prepare_control(opcode::close,
+		const_buffer(payload.data(), payload.size())
+	);
+	if( not frame )
+		return sys_unexpected(frame.error());
+
+	error_code error;
+	ignore_unused(write_prepared(*frame, error));
+	if( error )
+		return sys_unexpected(error);
+
+	finish_close({}, true);
+	return make_sys_expected();
+}
 
 template <core_concepts::exec Exec>
 auto basic_stream<Exec>::impl::retained_close_info(bool clean) const -> close_info_t
@@ -59,13 +217,13 @@ void basic_stream<Exec>::impl::cancel_close_waiter(uint64_t id) noexcept
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::start_close_deadline() noexcept
 {
-	if( m_close_timer or (m_state != connection_state::closing and not m_protocol_failure_active) )
+	if( m_close_timer or
+		(m_state != connection_state::closing and not m_protocol_failure_active) )
 		return ;
 	try {
 		m_close_timer = std::make_shared<asio::steady_timer>(m_exec);
 		m_close_timer->expires_after (
-			std::chrono::duration_cast<asio::steady_timer::duration>
-				(m_config.close_timeout)
+			std::chrono::duration_cast<asio::steady_timer::duration>(m_config.close_timeout)
 		);
 		auto timer = m_close_timer;
 		auto self = this->shared_from_this();
@@ -120,9 +278,9 @@ void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool c
 		complete_close_waiters(close_error);
 		return ;
 	}
-	m_pending_auto_pong.reset();
-	m_pending_local_close.reset();
-	m_pending_close_response.reset();
+	m_send_engine.clear_automatic_pong();
+	m_send_engine.clear_local_close();
+	m_send_engine.clear_close_response();
 
 	if( m_peer_close )
 		m_peer_close->clean = clean and not error and not close_error;
@@ -130,111 +288,76 @@ void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool c
 	m_close_result = retained_close_info(clean and not error and not close_error);
 	m_state = connection_state::closed;
 
-	stop_control_observer(error ? error : error_code(asio::error::eof));
-	fail_queued_writes(error ? error : make_error_code(std::errc::broken_pipe));
+	m_receive_engine.stop_control_observer(error ? error : error_code(asio::error::eof));
+	m_send_engine.fail_queued_writes(error ? error : make_error_code(std::errc::broken_pipe));
 	complete_close_waiters(error);
 }
 
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::begin_local_close(prepared_frame frame) noexcept
 {
-	m_local_close_initiated = true;
+	mark_local_close_queued();
 	m_state = connection_state::closing;
-	m_pending_auto_pong.reset();
+	m_send_engine.clear_automatic_pong();
 
-	stop_control_observer(make_error_code(errc::closing));
-	fail_queued_controls(make_error_code(errc::closing));
+	m_receive_engine.stop_control_observer(make_error_code(errc::closing));
+	m_send_engine.fail_queued_controls(make_error_code(errc::closing));
 
 	if( m_config.close_timeout > std::chrono::milliseconds::zero() )
-		m_pending_local_close = std::move(frame);
+		m_send_engine.queue_local_close(std::move(frame));
 
 	start_close_deadline();
-	if( m_state == connection_state::closing and m_pending_local_close )
-		schedule_send();
+	if( m_state == connection_state::closing and m_send_engine.has_local_close() )
+		m_send_engine.schedule();
 }
 
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::start_close_receive() noexcept
 {
-	if( m_read_active or m_state != connection_state::closing or
-		not m_local_close_sent or m_peer_close )
+	if( m_receive_engine.active() or m_state != connection_state::closing or
+		not local_close_sent() or m_peer_close )
 		return ;
 
-	m_read_active = true;
+	m_receive_engine.set_active(true);
 	auto self = this->shared_from_this();
 	try {
-		asio::co_spawn(self->m_exec, [self]() -> awaitable<error_code>
+		asio::co_spawn(self->executor(), [self]() -> awaitable<error_code>
 		{
 			for(;;)
 			{
 				if( self->m_state != connection_state::closing )
 					co_return asio::error::operation_aborted;
 
-				while( self->available_read_data().size() != 0 )
+				auto next = co_await self->m_receive_engine.async_next_event();
+				if( next.error )
+					co_return next.error;
+
+				auto &value = *next.event;
+				if( value.data )
+					continue;
+
+				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					auto event = self->consume_frame_data();
-					if( not event )
-						co_return event.error();
-
-					if( not *event )
-						continue;
-
-					auto &value = **event;
-					if( value.data )
-						continue;
-
-					if( value.op == opcode::ping or value.op == opcode::pong )
+					if( value.op == opcode::ping and self->automatic_pong_enabled() )
 					{
-						if( value.op == opcode::ping and self->m_config.automatic_pong )
-						{
-							auto queued = self->queue_automatic_pong(value.control);
-							if( not queued )
-								co_return queued.error();
-						}
-						self->remember_control(value.op, std::move(value.control));
-						continue;
+						auto queued = self->queue_automatic_pong(value.control);
+						if( not queued )
+							co_return queued.error();
 					}
-					if( value.op == opcode::close )
-					{
-						auto remembered = self->remember_peer_close(value.control);
-						co_return remembered ? error_code {} : remembered.error();
-					}
+					self->m_receive_engine.remember_control(value.op, std::move(value.control));
+					continue;
 				}
-				if( self->m_read_error )
-					co_return std::exchange(self->m_read_error, {});
-
-				auto owner = self->m_read_buffer;
-				auto [error, size] = co_await http::detail::initiate_connection_io (
-				[self, owner](auto next_handler) mutable
+				if( value.op == opcode::close )
 				{
-					self->m_connection->read (
-						mutable_buffer(owner->data(), owner->size()),
-						asio::any_completion_handler<void(error_code,size_t)>
-							(std::move(next_handler))
-					);
-				},
-				asio::as_tuple(asio::use_awaitable));
-
-				if( size > owner->size() )
-					co_return make_error_code(std::errc::io_error);
-
-				self->m_read_size = size;
-				self->m_read_offset = 0;
-				self->m_read_error = error;
-
-				if( size == 0 )
-				{
-					if( not error )
-						error = make_error_code(std::errc::io_error);
-					self->m_read_error.clear();
-					co_return error;
+					auto remembered = self->remember_peer_close(value.control);
+					co_return remembered ? error_code {} : remembered.error();
 				}
 			}
 		},
-		asio::bind_executor(self->m_exec,
+		asio::bind_executor(self->executor(),
 		[self](const std::exception_ptr &exception, error_code error)
 		{
-			self->m_read_active = false;
+			self->m_receive_engine.set_active(false);
 			if( self->m_state != connection_state::closing )
 				return ;
 
@@ -258,7 +381,7 @@ void basic_stream<Exec>::impl::start_close_receive() noexcept
 	}
 	catch(...)
 	{
-		m_read_active = false;
+		m_receive_engine.set_active(false);
 		auto error = exception_error(std::current_exception());
 		fail(error);
 		complete_close_waiters(error);
@@ -282,26 +405,20 @@ auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error
 		error = make_error_code(errc::not_open);
 		return {};
 	}
-	if( m_state == connection_state::closing or m_read_active or send_engine_busy() )
+	if( m_state == connection_state::closing or m_receive_engine.active() or m_send_engine.busy() )
 	{
 		error = make_error_code(std::errc::operation_in_progress);
 		return retained_close_info();
 	}
-	auto payload = encode_close_payload(frame);
-	if( not payload )
-	{
-		error = payload.error();
-		return {};
-	}
-	auto prepared = prepare_control_frame(opcode::close, payload->buffer());
+	auto prepared = m_send_engine.prepare_close(frame);
 	if( not prepared )
 	{
 		error = prepared.error();
 		return {};
 	}
-	m_local_close_initiated = true;
+	mark_local_close_queued();
 	m_state = connection_state::closing;
-	stop_control_observer(make_error_code(errc::closing));
+	m_receive_engine.stop_control_observer(make_error_code(errc::closing));
 
 	const auto started = std::chrono::steady_clock::now();
 	auto expired = [&]
@@ -321,7 +438,7 @@ auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error
 		fail(error);
 		return retained_close_info();
 	}
-	m_local_close_sent = true;
+	mark_local_close_sent();
 	for(;;)
 	{
 		if( expired() )
@@ -330,61 +447,10 @@ auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error
 			finish_close(error, false, true);
 			return *m_close_result;
 		}
-		while(available_read_data().size() != 0)
+		auto next = m_receive_engine.next_event();
+		if( next.error )
 		{
-			auto event = consume_frame_data();
-			if( not event )
-			{
-				error = event.error();
-				fail(error);
-				return retained_close_info();
-			}
-			if( not *event )
-				continue;
-
-			auto &value = **event;
-			if( value.data )
-				continue;
-
-			if( value.op == opcode::ping or value.op == opcode::pong )
-			{
-				remember_control(value.op, std::move(value.control));
-				continue;
-			}
-			if( value.op == opcode::close )
-			{
-				auto remembered = remember_peer_close(value.control);
-				if( not remembered )
-				{
-					error = remembered.error();
-					fail(error);
-					return retained_close_info();
-				}
-				finish_close({}, true);
-				error.clear();
-				return *m_close_result;
-			}
-		}
-		error_code read_error;
-		auto size = m_connection->read (
-			mutable_buffer(m_read_buffer->data(), m_read_buffer->size()),
-			read_error
-		);
-		if( size > m_read_buffer->size() )
-		{
-			error = make_error_code(std::errc::io_error);
-			fail(error);
-			return retained_close_info();
-		}
-		m_read_size = size;
-		m_read_offset = 0;
-		m_read_error = read_error;
-
-		if( size == 0 )
-		{
-			error = read_error ? read_error : make_error_code(std::errc::io_error);
-			m_read_error.clear();
-
+			error = next.error;
 			if( error == asio::error::eof )
 				finish_close(error, false);
 			else
@@ -392,8 +458,30 @@ auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error
 
 			return m_close_result.value_or(retained_close_info());
 		}
+
+		auto &value = *next.event;
+		if( value.data )
+			continue;
+
+		if( value.op == opcode::ping or value.op == opcode::pong )
+		{
+			m_receive_engine.remember_control(value.op, std::move(value.control));
+			continue;
+		}
+		if( value.op == opcode::close )
+		{
+			auto remembered = remember_peer_close(value.control);
+			if( not remembered )
+			{
+				error = remembered.error();
+				fail(error);
+				return retained_close_info();
+			}
+			finish_close({}, true);
+			error.clear();
+			return *m_close_result;
+		}
 	}
-	return retained_close_info();
 }
 
 template <core_concepts::exec Exec>
@@ -448,7 +536,7 @@ bool basic_stream<Exec>::impl::add_close_waiter(Handler &&handler) noexcept
 				if( auto self = weak.lock() )
 				{
 					try {
-						asio::dispatch(self->m_exec, [self, id] {
+						asio::dispatch(self->executor(), [self, id] {
 							self->cancel_close_waiter(id);
 						});
 					}
@@ -503,16 +591,7 @@ void basic_stream<Exec>::impl::async_close(close_frame frame, Handler &&handler)
 		ignore_unused(add_close_waiter(std::move(completion)));
 		return ;
 	}
-	auto payload = encode_close_payload(frame);
-	if( not payload )
-	{
-		auto error = payload.error();
-		asio::post(m_exec, [handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, close_info_t{});
-		});
-		return ;
-	}
-	auto prepared = prepare_control_frame(opcode::close, payload->buffer());
+	auto prepared = m_send_engine.prepare_close(frame);
 	if( not prepared )
 	{
 		auto error = prepared.error();
@@ -525,7 +604,7 @@ void basic_stream<Exec>::impl::async_close(close_frame frame, Handler &&handler)
 		return ;
 
 	begin_local_close(std::move(*prepared));
-	complete_read_waiter(make_error_code(errc::closing));
+	m_receive_engine.complete_read_waiter(make_error_code(errc::closing));
 }
 
 template <core_concepts::exec Exec>
@@ -560,4 +639,4 @@ void basic_stream<Exec>::impl::async_wait_closed(Handler &&handler)
 } //namespace libgs::websocket
 
 
-#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_CLOSE_IPP
+#endif //LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_CLOSE_IPP
