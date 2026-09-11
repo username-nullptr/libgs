@@ -70,7 +70,14 @@ public:
 	void terminate() noexcept;
 	void kill() noexcept;
 	void detach();
-	void cancel() noexcept;
+
+	enum class cancel_option {
+		none, terminate, kill, detach
+	};
+	// Cancel pending waits and stream operations.  The terminal options release
+	// join ownership after signalling the child so cancellation stays
+	// non-blocking while the platform monitor finishes resource reclamation.
+	void cancel(cancel_option option = cancel_option::none) noexcept;
 
 public:
 	template <typename Token, typename...Value>

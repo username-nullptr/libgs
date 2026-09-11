@@ -29,7 +29,7 @@ public:
 	void kill() const noexcept;
 
 	[[nodiscard]] sys_expected<> detach() const noexcept;
-	void cancel() const noexcept;
+	void cancel(bool release) const noexcept;
 
 	[[nodiscard]] bool joinable() const noexcept;
 
@@ -237,8 +237,23 @@ public:
 			);
 		}
 	}
-	void cancel() noexcept {
-		m_detail.cancel();
+	void cancel(cancel_option option) noexcept
+	{
+		switch( option )
+		{
+		case cancel_option::terminate:
+			m_detail.terminate();
+			break;
+
+		case cancel_option::kill:
+			m_detail.kill();
+			break;
+
+		case cancel_option::none:
+		case cancel_option::detach:
+			break;
+		}
+		m_detail.cancel(option != cancel_option::none);
 	}
 	[[nodiscard]] bool joinable() const noexcept {
 		return m_detail.joinable();
@@ -832,9 +847,9 @@ void basic_process<CharT,Exec>::detach()
 }
 
 template <concepts::character CharT, concepts::exec Exec>
-void basic_process<CharT,Exec>::cancel() noexcept
+void basic_process<CharT,Exec>::cancel(cancel_option option) noexcept
 {
-	m_impl->cancel();
+	m_impl->cancel(option);
 }
 
 template <concepts::character CharT, concepts::exec Exec>

@@ -182,6 +182,10 @@ a chosen executor. The API supports:
 
 Check `sys_expected<T>` and error-code results for platform failures. Keep the
 process object alive while asynchronous stream operations are outstanding.
+`cancel()` stops pending waits and stream operations. With `cancel_option::none`
+the child keeps running and remains joinable. `terminate` and `kill` signal the
+child and release join ownership to the background reaper; `detach` releases
+ownership without signalling the child.
 
 ## Soft bus
 

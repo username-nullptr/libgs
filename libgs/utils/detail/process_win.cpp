@@ -695,8 +695,11 @@ public:
 		return m_joinable.load(std::memory_order_acquire);
 	}
 
-	void cancel() noexcept
+	void cancel(bool release) noexcept
 	{
+		if( release )
+			m_joinable.store(false, std::memory_order_release);
+
 		libgs::dispatch(m_exec, [self = shared_from_this()]
 		{
 			self->m_stdin .cancel();
@@ -1144,9 +1147,26 @@ sys_expected<> process::detach() const noexcept
 	return {};
 }
 
-void process::cancel() const noexcept
+void process::cancel(bool release) const noexcept
 {
-	m_impl->m_vindicator->cancel();
+	auto current = m_impl->m_vindicator;
+	if( not release )
+	{
+		current->cancel(false);
+		return ;
+	}
+	vindicator_ptr replacement;
+	try {
+		replacement = std::make_shared<vindicator>(m_impl->m_exec);
+	}
+	catch(...) {}
+
+	// Releasing join ownership must not wait for an outstanding co_join() to
+	// unwind.  The monitor thread keeps the old control block alive and closes
+	// its process handles after the pending operations have been cancelled.
+	current->cancel(true);
+	if( replacement )
+		m_impl->m_vindicator = std::move(replacement);
 }
 
 bool process::joinable() const noexcept
