@@ -4,11 +4,11 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_CONTROL_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_CONTROL_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-sys_expected<> stream_impl<Exec>::remember_peer_close(const std::vector<std::byte> &payload) noexcept
+sys_expected<> basic_stream<Exec>::impl::remember_peer_close(const std::vector<std::byte> &payload) noexcept
 {
 	auto decoded = decode_close_payload(const_buffer(
 		payload.data(), payload.size())
@@ -35,7 +35,7 @@ sys_expected<> stream_impl<Exec>::remember_peer_close(const std::vector<std::byt
 }
 
 template <core_concepts::exec Exec>
-error_code stream_impl<Exec>::control_state_error() const noexcept
+error_code basic_stream<Exec>::impl::control_state_error() const noexcept
 {
 	if( m_state == connection_state::failed )
 		return m_error ? m_error : make_error_code(std::errc::io_error);
@@ -52,7 +52,7 @@ error_code stream_impl<Exec>::control_state_error() const noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::complete_control_waiter
+void basic_stream<Exec>::impl::complete_control_waiter
 (error_code error, control_event_t event, bool clear_slot) noexcept
 {
 	if( not m_control_waiter )
@@ -77,21 +77,21 @@ void stream_impl<Exec>::complete_control_waiter
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::cancel_control_waiter(uint64_t id) noexcept
+void basic_stream<Exec>::impl::cancel_control_waiter(uint64_t id) noexcept
 {
 	if( m_control_waiter and m_control_waiter->id == id )
 		complete_control_waiter(asio::error::operation_aborted, {}, false);
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::stop_control_observer(error_code error) noexcept
+void basic_stream<Exec>::impl::stop_control_observer(error_code error) noexcept
 {
 	m_control_event.reset();
 	complete_control_waiter(error);
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::remember_control(opcode op, std::vector<std::byte> payload) noexcept
+void basic_stream<Exec>::impl::remember_control(opcode op, std::vector<std::byte> payload) noexcept
 {
 	try {
 		const auto type = op == opcode::ping ?
@@ -119,7 +119,7 @@ void stream_impl<Exec>::remember_control(opcode op, std::vector<std::byte> paylo
 }
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::wait_control(error_code &error) noexcept -> control_event_t
+auto basic_stream<Exec>::impl::wait_control(error_code &error) noexcept -> control_event_t
 {
 	if( m_control_waiter )
 	{
@@ -142,7 +142,7 @@ auto stream_impl<Exec>::wait_control(error_code &error) noexcept -> control_even
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_wait_control(Handler &&handler)
+void basic_stream<Exec>::impl::async_wait_control(Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, control_event_t)>(std::forward<Handler>(handler));
@@ -233,7 +233,7 @@ void stream_impl<Exec>::async_wait_control(Handler &&handler)
 	}
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_CONTROL_IPP

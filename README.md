@@ -76,7 +76,7 @@ headers, bundled dependency headers, and the enabled LibGS shared libraries.
 | `LIBGS_BUILD_STATIC` | `OFF` | Build static libraries instead of shared libraries. |
 | `LIBGS_ADD_LIBRARY_VERSION` | `ON` | Add version information to shared-library names. |
 | `LIBGS_BUILD_EXAMPLES` | `OFF` | Build and install the example programs. |
-| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Enable HTTPS/TLS support. Requires OpenSSL. |
+| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Enable HTTPS/WSS TLS support. Requires OpenSSL. |
 | `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | Enable HTTP gzip support. Requires zlib. |
 | `LIBGS_USE_LIBCXX` | `OFF` | Use libc++ when compiling with Clang. |
 | `LIBGS_USE_LLD` | `OFF` | Use lld when compiling with Clang. |

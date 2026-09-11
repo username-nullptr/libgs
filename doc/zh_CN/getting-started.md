@@ -50,7 +50,7 @@ cmake --install build --config Release
 | `LIBGS_BUILD_STATIC` | `OFF` | 所有库 | 构建静态库而不是共享库 |
 | `LIBGS_ADD_LIBRARY_VERSION` | `ON` | 共享库构建 | 在库名称中加入项目版本和 ABI 版本 |
 | `LIBGS_BUILD_EXAMPLES` | `OFF` | 示例 | 构建当前 CMake 配置已启用的示例 |
-| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core 和 HTTP | 通过 OpenSSL 启用 TLS 与 HTTPS 支持 |
+| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core、HTTP 和 WebSocket | 通过 OpenSSL 启用 TLS、HTTPS 与 WSS 支持 |
 | `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP | 通过 zlib 启用 gzip 压缩与解压缩 |
 | `LIBGS_USE_LIBCXX` | `OFF` | Clang | 使用 libc++ 编译和链接 |
 | `LIBGS_USE_LLD` | `OFF` | Clang | 使用 lld 链接 |
@@ -83,10 +83,11 @@ cmake --build build --parallel
 - [`examples/core`](../../examples/core)
 - [`examples/coro`](../../examples/coro)
 - [`examples/http`](../../examples/http)
+- [`examples/websocket`](../../examples/websocket)
 - [`examples/utils`](../../examples/utils)
 
-启用 `LIBGS_BUILD_EXAMPLES` 后会构建上述全部示例，包括 HTTP 服务端。HTTPS
-还需要启用 `LIBGS_OPENSSL_SUPPORT=ON`。运行方法和能力覆盖情况见
+启用 `LIBGS_BUILD_EXAMPLES` 后会构建上述全部示例，包括 HTTP 服务端。HTTPS 和
+WSS 还需要启用 `LIBGS_OPENSSL_SUPPORT=ON`。运行方法和能力覆盖情况见
 [示例指南](../../examples/README.md)。
 
 ## 使用已安装的构建

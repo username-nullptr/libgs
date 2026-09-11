@@ -82,9 +82,10 @@ public:
 	explicit basic_client(config_t config) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	explicit basic_client (
-		core_concepts::match_sched<executor_t> auto &&exec,
-		config_t config = {}
+	template <typename Exec0>
+	explicit basic_client(Exec0 &&exec, config_t config = {}) requires (
+		not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and
+		core_concepts::match_sched<Exec0,executor_t>
 	);
 	explicit basic_client(http_client_t &&http_client, config_t config = {});
 

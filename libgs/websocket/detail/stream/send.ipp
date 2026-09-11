@@ -4,11 +4,11 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-bool stream_impl<Exec>::send_engine_busy() const noexcept
+bool basic_stream<Exec>::impl::send_engine_busy() const noexcept
 {
 	return m_wire_write_active or m_current_data or
 		   not m_data_write_queue.empty() or not m_control_write_queue.empty() or
@@ -17,7 +17,7 @@ bool stream_impl<Exec>::send_engine_busy() const noexcept
 }
 
 template <core_concepts::exec Exec>
-error_code stream_impl<Exec>::state_write_error() const noexcept
+error_code basic_stream<Exec>::impl::state_write_error() const noexcept
 {
 	if( m_state == connection_state::failed )
 		return m_error ? m_error : make_error_code(std::errc::io_error);
@@ -35,7 +35,7 @@ error_code stream_impl<Exec>::state_write_error() const noexcept
 }
 
 template <core_concepts::exec Exec>
-bool stream_impl<Exec>::queue_has_capacity(send_kind kind, size_t payload_size) const noexcept
+bool basic_stream<Exec>::impl::queue_has_capacity(send_kind kind, size_t payload_size) const noexcept
 {
 	if( m_config.max_queued_write_operations == 0 or m_config.max_queued_write_bytes == 0 )
 		return false;
@@ -51,14 +51,14 @@ bool stream_impl<Exec>::queue_has_capacity(send_kind kind, size_t payload_size) 
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::remember_write_error(uint64_t sequence, error_code error) noexcept
+void basic_stream<Exec>::impl::remember_write_error(uint64_t sequence, error_code error) noexcept
 {
 	if( error and not m_unobserved_write_error )
 		m_unobserved_write_error = std::pair{sequence, error};
 }
 
 template <core_concepts::exec Exec>
-error_code stream_impl<Exec>::observe_write_error(uint64_t target) noexcept
+error_code basic_stream<Exec>::impl::observe_write_error(uint64_t target) noexcept
 {
 	if( m_unobserved_write_error and
 		m_unobserved_write_error->first <= target )
@@ -71,7 +71,7 @@ error_code stream_impl<Exec>::observe_write_error(uint64_t target) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::complete_write_waiters()
+void basic_stream<Exec>::impl::complete_write_waiters()
 {
 	if( m_current_data )
 		return ;
@@ -88,7 +88,7 @@ void stream_impl<Exec>::complete_write_waiters()
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::deliver_write_waiter
+void basic_stream<Exec>::impl::deliver_write_waiter
 (std::shared_ptr<write_waiter> waiter, error_code error, bool clear_slot) noexcept
 {
 	if( not waiter or not waiter->completion )
@@ -108,7 +108,7 @@ void stream_impl<Exec>::deliver_write_waiter
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::cancel_write_waiter(uint64_t id) noexcept
+void basic_stream<Exec>::impl::cancel_write_waiter(uint64_t id) noexcept
 {
 	for(auto iterator = m_write_waiters.begin(); iterator != m_write_waiters.end(); ++iterator)
 	{
@@ -124,7 +124,7 @@ void stream_impl<Exec>::cancel_write_waiter(uint64_t id) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::deliver_send_completion
+void basic_stream<Exec>::impl::deliver_send_completion
 (const std::shared_ptr<send_operation> &operation, error_code error) noexcept
 {
 	if( not operation->completion )
@@ -141,7 +141,7 @@ void stream_impl<Exec>::deliver_send_completion
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::complete_send_operation
+void basic_stream<Exec>::impl::complete_send_operation
 (const std::shared_ptr<send_operation> &operation, error_code error) noexcept
 {
 	if( operation->kind == send_kind::data )
@@ -156,7 +156,7 @@ void stream_impl<Exec>::complete_send_operation
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::install_send_cancellation(const std::shared_ptr<send_operation> &operation)
+void basic_stream<Exec>::impl::install_send_cancellation(const std::shared_ptr<send_operation> &operation)
 {
 	auto slot = asio::get_associated_cancellation_slot(operation->completion);
 	if( not slot.is_connected() )
@@ -180,7 +180,7 @@ void stream_impl<Exec>::install_send_cancellation(const std::shared_ptr<send_ope
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::cancel_queued_send(uint64_t id) noexcept
+void basic_stream<Exec>::impl::cancel_queued_send(uint64_t id) noexcept
 {
 	for(auto &operation : m_data_write_queue)
 	{
@@ -213,7 +213,7 @@ void stream_impl<Exec>::cancel_queued_send(uint64_t id) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::fail_queued_controls(error_code error)
+void basic_stream<Exec>::impl::fail_queued_controls(error_code error)
 {
 	while(not m_control_write_queue.empty())
 	{
@@ -228,7 +228,7 @@ void stream_impl<Exec>::fail_queued_controls(error_code error)
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::fail_queued_writes(error_code error)
+void basic_stream<Exec>::impl::fail_queued_writes(error_code error)
 {
 	fail_queued_controls(error);
 	while(not m_data_write_queue.empty())
@@ -248,7 +248,7 @@ void stream_impl<Exec>::fail_queued_writes(error_code error)
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::start_wire_frame
+void basic_stream<Exec>::impl::start_wire_frame
 (prepared_frame frame, wire_frame_kind kind, std::shared_ptr<send_operation> operation) noexcept
 {
 	m_wire_write_active = true;
@@ -373,7 +373,7 @@ void stream_impl<Exec>::start_wire_frame
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::schedule_send()
+void basic_stream<Exec>::impl::schedule_send()
 {
 	if( m_wire_write_active or not m_connection or m_transport_closed or
 		(m_state == connection_state::failed and not m_protocol_failure_active) or
@@ -495,7 +495,7 @@ void stream_impl<Exec>::schedule_send()
 }
 
 template <core_concepts::exec Exec>
-error_code stream_impl<Exec>::enqueue_send_operation(std::shared_ptr<send_operation> operation) noexcept
+error_code basic_stream<Exec>::impl::enqueue_send_operation(std::shared_ptr<send_operation> operation) noexcept
 {
 	if( not send_engine_busy() )
 	{
@@ -550,7 +550,7 @@ error_code stream_impl<Exec>::enqueue_send_operation(std::shared_ptr<send_operat
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_write_message(message_type type, std::span<const const_buffer> buffers,
+void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<const const_buffer> buffers,
 	std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
@@ -626,7 +626,7 @@ void stream_impl<Exec>::async_write_message(message_type type, std::span<const c
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_write_control(opcode op, const const_buffer &payload,
+void basic_stream<Exec>::impl::async_write_control(opcode op, const const_buffer &payload,
 	Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
@@ -692,7 +692,7 @@ void stream_impl<Exec>::async_write_control(opcode op, const const_buffer &paylo
 }
 
 template <core_concepts::exec Exec>
-size_t stream_impl<Exec>::write_control
+size_t basic_stream<Exec>::impl::write_control
 (opcode op, const const_buffer &payload, error_code &error) noexcept
 {
 	error.clear();
@@ -714,7 +714,7 @@ size_t stream_impl<Exec>::write_control
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::wait_written(error_code &error) noexcept
+void basic_stream<Exec>::impl::wait_written(error_code &error) noexcept
 {
 	if( m_completed_write_sequence < m_last_write_sequence )
 	{
@@ -726,7 +726,7 @@ void stream_impl<Exec>::wait_written(error_code &error) noexcept
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_wait_written(Handler &&handler)
+void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code)>(std::forward<Handler>(handler));
@@ -822,7 +822,7 @@ void stream_impl<Exec>::async_wait_written(Handler &&handler)
 }
 
 template <core_concepts::exec Exec>
-sys_expected<> stream_impl<Exec>::retain_protocol_payload
+sys_expected<> basic_stream<Exec>::impl::retain_protocol_payload
 (optional<std::vector<std::byte>> &slot, const std::vector<std::byte> &payload) noexcept
 {
 	try {
@@ -837,7 +837,7 @@ sys_expected<> stream_impl<Exec>::retain_protocol_payload
 }
 
 template <core_concepts::exec Exec>
-sys_expected<> stream_impl<Exec>::queue_automatic_pong(const std::vector<std::byte> &payload) noexcept
+sys_expected<> basic_stream<Exec>::impl::queue_automatic_pong(const std::vector<std::byte> &payload) noexcept
 {
 	auto retained = retain_protocol_payload(m_pending_auto_pong, payload);
 	if( retained )
@@ -846,7 +846,7 @@ sys_expected<> stream_impl<Exec>::queue_automatic_pong(const std::vector<std::by
 }
 
 template <core_concepts::exec Exec>
-sys_expected<> stream_impl<Exec>::begin_peer_close(const std::vector<std::byte> &payload) noexcept
+sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std::byte> &payload) noexcept
 {
 	auto remembered = remember_peer_close(payload);
 	if( not remembered )
@@ -881,7 +881,7 @@ sys_expected<> stream_impl<Exec>::begin_peer_close(const std::vector<std::byte> 
 	return make_sys_expected();
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_IPP

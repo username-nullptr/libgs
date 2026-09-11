@@ -17,8 +17,10 @@ versus reconnected HTTP sessions) instead of building an unbounded cross-product
 The initially implemented WebSocket surface is covered as a bounded baseline.
 Functional tests group opening-handshake validation, owned client/server API,
 request snapshots and subprotocol negotiation, accept-queue behavior, and stream
-state transitions. Frame/control/close details that are already reached through a
-broader state test are not repeated as standalone combinations.
+state transitions. When OpenSSL support is enabled, a hermetic WSS loopback also
+covers certificate verification and the TLS upgrade path. Frame/control/close
+details that are already reached through a broader state test are not repeated as
+standalone combinations.
 
 Performance tests require the `libgs.functional` CTest fixture. Selecting only
 the `performance` label therefore runs the functional suite first, and skips

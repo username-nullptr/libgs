@@ -646,11 +646,11 @@ basic_connection_pool<Exec>::basic_connection_pool(const config_t &config) requi
 }
 
 template <core_concepts::exec Exec>
-basic_connection_pool<Exec>::basic_connection_pool
-(core_concepts::match_sched<executor_t> auto &&exec, const config_t &config) :
-	m_impl(std::make_shared<impl>(
-		get_executor_helper(std::forward<decltype(exec)>(exec)), config
-	))
+template <typename Exec0>
+basic_connection_pool<Exec>::basic_connection_pool(Exec0 &&exec, const config_t &config) requires (
+	not std::same_as<std::remove_cvref_t<Exec0>,basic_connection_pool> and
+	core_concepts::match_sched<Exec0,executor_t> ):
+	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec)), config))
 {
 
 }

@@ -8,7 +8,7 @@ or one small integration path and is built as an independent executable.
 | [`core`](core) | Execution, values, INI files, algorithms, queues, application paths, command-line parsing, and dynamic libraries |
 | [`coro`](coro) | Awaitable basics and coroutine synchronization primitives |
 | [`http`](http) | Offline HTTP parsing, clients, servers, middleware, sessions, and optional HTTPS |
-| [`websocket`](websocket) | Standalone clients/servers, offline protocol flow, and a live HTTP/WebSocket mixed application |
+| [`websocket`](websocket) | Standalone WS/WSS clients and servers, offline protocol flow, and a live HTTP/WebSocket mixed application |
 | [`utils`](utils) | Logging, settings, signals, observers, modules, processes, and the extensible soft bus |
 
 ## Build
@@ -20,8 +20,8 @@ cmake -S . -B build -DLIBGS_BUILD_EXAMPLES=ON
 cmake --build build -j
 ```
 
-Executables are written below `build/output/examples/<module>/`. HTTPS is built
-only when `LIBGS_OPENSSL_SUPPORT=ON` and OpenSSL is available.
+Executables are written below `build/output/examples/<module>/`. HTTPS and WSS
+examples are built only when `LIBGS_OPENSSL_SUPPORT=ON` and OpenSSL is available.
 
 ## Run
 
@@ -79,6 +79,20 @@ owns the HTTP connector used by `open()`:
 ./build/output/examples/websocket/client
 ```
 
+The secure pair uses the same WebSocket API with an injected client TLS context
+and a TLS server. The server takes a certificate and private key; the optional
+second client argument adds a private CA or self-signed server certificate to
+the trust store:
+
+```bash
+# Terminal 1
+./build/output/examples/websocket/wss_server server.pem server-key.pem
+
+# Terminal 2
+./build/output/examples/websocket/wss_client \
+  wss://127.0.0.1:8443/echo server.pem
+```
+
 ## Coverage
 
 | Capability | Examples |
@@ -88,6 +102,6 @@ owns the HTTP connector used by `open()`:
 | Coroutine synchronization | `coro/basics`, `mutex`, `shared_mutex`, `semaphore`, `condition_variable` |
 | HTTP clients and protocol | `http/client_sync`, `client_awaitable`, `client_cookies`, `client_file`, `protocol` |
 | HTTP servers | `http/server`, `server_aop`, `server_file` (uploads, downloads, and `resource_root`), `server_session`, and optional `https_server` |
-| WebSocket protocol | `websocket/client` and `server` use the owned high-level API; `protocol` performs an offline handshake/frame round trip; the `mixed_http_*` pair shares one HTTP route |
+| WebSocket protocol | `websocket/client` and `server` use the owned high-level API; optional `wss_client` and `wss_server` add TLS; `protocol` performs an offline handshake/frame round trip; the `mixed_http_*` pair shares one HTTP route |
 | Utilities | `utils/logger`, `settings`, `signal_slot`, `observer`, `modules`, `process` |
 | Soft bus | `utils/soft_bus_local` uses the built-in in-process transport; `soft_bus_transport` shows the interface used to plug in DDS, IPC, or another transport |

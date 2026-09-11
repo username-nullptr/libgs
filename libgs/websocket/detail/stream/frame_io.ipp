@@ -4,11 +4,11 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_FRAME_IO_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_FRAME_IO_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-size_t stream_impl<Exec>::write
+size_t basic_stream<Exec>::impl::write
 (message_type type, std::span<const const_buffer> buffers, error_code &error) noexcept
 {
 	error.clear();
@@ -63,7 +63,7 @@ size_t stream_impl<Exec>::write
 }
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::prepare_control_frame
+auto basic_stream<Exec>::impl::prepare_control_frame
 (opcode op, const const_buffer &payload, bool borrow_payload) const noexcept -> sys_expected<prepared_frame>
 {
 	try {
@@ -80,8 +80,9 @@ auto stream_impl<Exec>::prepare_control_frame
 		if( m_role == role::client )
 		{
 			masking_key key;
-			auto random = secure_random_bytes(mutable_buffer(key.bytes.data(), key.bytes.size()));
-
+			auto random = detail::secure_random_bytes (
+				mutable_buffer(key.bytes.data(), key.bytes.size())
+			);
 			if( not random )
 				return sys_unexpected(random.error());
 			header.mask = key;
@@ -141,7 +142,7 @@ auto stream_impl<Exec>::prepare_control_frame
 }
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::prepare_frames(message_type type, std::span<const const_buffer> buffers)
+auto basic_stream<Exec>::impl::prepare_frames(message_type type, std::span<const const_buffer> buffers)
 	const noexcept -> sys_expected<std::vector<prepared_frame>>
 {
 	try {
@@ -149,7 +150,7 @@ auto stream_impl<Exec>::prepare_frames(message_type type, std::span<const const_
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
 
 		size_t body_size = 0;
-		utf8_validator utf8;
+		detail::utf8_validator utf8;
 
 		for(const auto &buffer : buffers)
 		{
@@ -203,7 +204,9 @@ auto stream_impl<Exec>::prepare_frames(message_type type, std::span<const const_
 			if( m_role == role::client )
 			{
 				masking_key key;
-				auto random = secure_random_bytes(mutable_buffer(key.bytes.data(), key.bytes.size()));
+				auto random = detail::secure_random_bytes (
+					mutable_buffer(key.bytes.data(), key.bytes.size())
+				);
 				if( not random )
 					return sys_unexpected(random.error());
 				header.mask = key;
@@ -276,7 +279,7 @@ auto stream_impl<Exec>::prepare_frames(message_type type, std::span<const const_
 }
 
 template <core_concepts::exec Exec>
-size_t stream_impl<Exec>::write_prepared(const prepared_frame &frame, error_code &error) noexcept
+size_t basic_stream<Exec>::impl::write_prepared(const prepared_frame &frame, error_code &error) noexcept
 {
 	if( send_engine_busy() )
 	{
@@ -294,7 +297,7 @@ size_t stream_impl<Exec>::write_prepared(const prepared_frame &frame, error_code
 	return payload_size;
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_FRAME_IO_IPP

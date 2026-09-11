@@ -722,12 +722,10 @@ basic_client<Exec>::basic_client(config_t config) requires
 }
 
 template <core_concepts::exec Exec>
-basic_client<Exec>::basic_client
-(core_concepts::match_sched<executor_t> auto &&exec, config_t config) :
-	m_impl(std::make_shared<impl>(
-		get_executor_helper(std::forward<decltype(exec)>(exec)),
-		std::move(config))
-	)
+template <typename Exec0>
+basic_client<Exec>::basic_client(Exec0 &&exec, config_t config) requires
+(not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and core_concepts::match_sched<Exec0,executor_t>) :
+	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Exec0>(exec)), std::move(config)))
 {
 
 }

@@ -4,11 +4,11 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-mutable_buffer stream_impl<Exec>::available_read_data() noexcept
+mutable_buffer basic_stream<Exec>::impl::available_read_data() noexcept
 {
 	if( m_pending_offset < m_pending_data.size() )
 	{
@@ -28,7 +28,7 @@ mutable_buffer stream_impl<Exec>::available_read_data() noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::consume_read_data(size_t size) noexcept
+void basic_stream<Exec>::impl::consume_read_data(size_t size) noexcept
 {
 	if( m_pending_offset < m_pending_data.size() )
 	{
@@ -49,7 +49,7 @@ void stream_impl<Exec>::consume_read_data(size_t size) noexcept
 }
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<received_event>>
+auto basic_stream<Exec>::impl::consume_frame_data() noexcept -> sys_expected<optional<received_event>>
 {
 	auto input = available_read_data();
 	if( input.size() == 0 )
@@ -123,7 +123,7 @@ auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<r
 				const auto text = m_message_body.empty() ? std::string_view{} :
 					std::string_view(reinterpret_cast<const char*>(m_message_body.data()), m_message_body.size());
 
-				if( not is_valid_utf8(text) )
+				if( not detail::is_valid_utf8(text) )
 					return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 			}
 			event.data = message {
@@ -141,7 +141,7 @@ auto stream_impl<Exec>::consume_frame_data() noexcept -> sys_expected<optional<r
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::close_transport(error_code &error) noexcept
+void basic_stream<Exec>::impl::close_transport(error_code &error) noexcept
 {
 	if( not m_connection or m_transport_closed )
 	{
@@ -156,7 +156,7 @@ void stream_impl<Exec>::close_transport(error_code &error) noexcept
 }
 
 template <core_concepts::exec Exec>
-message stream_impl<Exec>::finish_read_error(error_code &error) noexcept
+message basic_stream<Exec>::impl::finish_read_error(error_code &error) noexcept
 {
 	if( error == asio::error::operation_aborted )
 		return {};
@@ -184,7 +184,7 @@ message stream_impl<Exec>::finish_read_error(error_code &error) noexcept
 }
 
 template <core_concepts::exec Exec>
-message stream_impl<Exec>::read(error_code &error) noexcept
+message basic_stream<Exec>::impl::read(error_code &error) noexcept
 {
 	error.clear();
 	if( m_state == connection_state::idle )
@@ -361,7 +361,7 @@ message stream_impl<Exec>::read(error_code &error) noexcept
 
 template <core_concepts::exec Exec>
 template <typename Buffer>
-basic_message<Buffer> stream_impl<Exec>::convert_message(message value, error_code &error) noexcept
+basic_message<Buffer> basic_stream<Exec>::impl::convert_message(message value, error_code &error) noexcept
 {
 	try {
 		auto type = value.type;
@@ -388,7 +388,7 @@ basic_message<Buffer> stream_impl<Exec>::convert_message(message value, error_co
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_read_message(Handler &&handler)
+void basic_stream<Exec>::impl::async_read_message(Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, message)>(std::forward<Handler>(handler));
@@ -611,7 +611,7 @@ void stream_impl<Exec>::async_read_message(Handler &&handler)
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::complete_read_waiter(error_code error, message value, bool clear_slot) noexcept
+void basic_stream<Exec>::impl::complete_read_waiter(error_code error, message value, bool clear_slot) noexcept
 {
 	if( not m_read_waiter )
 		return ;
@@ -631,7 +631,7 @@ void stream_impl<Exec>::complete_read_waiter(error_code error, message value, bo
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::cancel_read_waiter(uint64_t id, asio::cancellation_type type) noexcept
+void basic_stream<Exec>::impl::cancel_read_waiter(uint64_t id, asio::cancellation_type type) noexcept
 {
 	if( not m_read_waiter or m_read_waiter->id != id )
 		return ;
@@ -641,7 +641,7 @@ void stream_impl<Exec>::cancel_read_waiter(uint64_t id, asio::cancellation_type 
 	catch(...) {}
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_IPP

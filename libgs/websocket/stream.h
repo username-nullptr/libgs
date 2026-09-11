@@ -7,13 +7,8 @@
 #include <libgs/websocket/types.h>
 #include <libgs/http/utils/connection.h>
 
-namespace libgs::websocket { namespace detail
+namespace libgs::websocket
 {
-
-template <core_concepts::exec Exec>
-class stream_impl;
-
-} //namespace detail
 
 template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_WEBSOCKET_TAPI basic_stream
@@ -179,7 +174,7 @@ public:
 	[[nodiscard]] http::endpoint local_endpoint() const noexcept;
 
 private:
-	using impl = detail::stream_impl<Exec>;
+	class impl;
 	std::shared_ptr<impl> m_impl;
 };
 

@@ -4,18 +4,18 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_TRANSPORT_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_TRANSPORT_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-stream_impl<Exec>::stream_impl(executor_t exec, config_t config)
+basic_stream<Exec>::impl::impl(executor_t exec, config_t config)
 	: m_exec(std::move(exec)), m_config(config)
 {
 
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::adopt
+void basic_stream<Exec>::impl::adopt
 (connection_ptr connection, adopt_options_t options, error_code &error) noexcept
 {
 	if( m_state != connection_state::idle )
@@ -93,7 +93,7 @@ void stream_impl<Exec>::adopt
 	}
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_TRANSPORT_IPP

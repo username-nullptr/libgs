@@ -1,0 +1,156 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
+#include "test.h"
+
+#include <libgs/websocket/client.h>
+#include <libgs/websocket/server.h>
+
+#include <format>
+#include <future>
+#include <memory>
+#include <string_view>
+
+namespace
+{
+
+namespace ws = libgs::websocket;
+
+// Test-only CA/server identity for 127.0.0.1 and localhost. Keeping it in the
+// binary makes the TLS round trip hermetic and avoids invoking OpenSSL tools.
+constexpr std::string_view certificate = R"PEM(-----BEGIN CERTIFICATE-----
+MIIDNzCCAh+gAwIBAgIUG+Y00SCSOoyXCDj+ErjHjy49UhcwDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MCAXDTI2MDkxMTAxNTIxNVoYDzIxMjYw
+ODE4MDE1MjE1WjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEB
+AQUAA4IBDwAwggEKAoIBAQCXDa32OqIeVfXD+eEUUVrr668n5ZpPkn/wUrmq+A1x
++HC11RLHGS1A6xs/oqSyRo3M0OVQ8+ZvsNFJ8IjkDp2elIdfG1BNkO+NSxWRg2R4
+uPiQb7blCAc4V/weqOihP3/Lr2USAhendMWKtWWgw1H/oftLL4M14dOj0LLABSBz
+zwC3dSxmnqBoPA8m0hFhAQcExwBMcebms+MAsQB1R3dC+ek/alVXiL6I8oJVJ5ZN
+ZigjefuU3rgT8SIJunfk+t8WjDjPb0mKrBrwNjdIyRdqsMWIKDSfYWWkaxYJBMdu
+wKyXZ6Vqeq3Rok6DxTQjbcc9wBYSkTbp6FRg1VsZjmHZAgMBAAGjfzB9MB0GA1Ud
+DgQWBBTNAXXOO5neJJbN9+ku4UsVhNudXTAfBgNVHSMEGDAWgBTNAXXOO5neJJbN
+9+ku4UsVhNudXTAaBgNVHREEEzARgglsb2NhbGhvc3SHBH8AAAEwDwYDVR0TAQH/
+BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAqQwDQYJKoZIhvcNAQELBQADggEBAHCzj6oQ
+dhdLx+dYnmgsC//vDrv2hdQQFOdzG0QYs/5qnt/Wm+gb+qMs6gCSbw+l/gpVyMEo
+iLHfsDhDEa07nkRl2SUFE6e7VQVLjACd3F3O2BNUgwHgxnqmcQRSwt+/1XyurHue
+33V81vNrQIH5lpxxzAOL8B9JlNqNOrg+DI4gj5OV+YIgPeWQZgUSolQpZs75KWRQ
+KCgL+GDaKVG/WCtK2S52iDyAf903R5gCgELYbx6JXzQ0zRiy4dGKpsUOMoQdQlOE
+8go2/Jrlo4funkaoCmqIvsKNW5xmmp0glwsTAA8LlP0WzC6Cx1hTPWKDF8nljdfR
+o2v1PpYnNtf+HfI=
+-----END CERTIFICATE-----
+)PEM";
+
+constexpr std::string_view private_key = R"PEM(-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCXDa32OqIeVfXD
++eEUUVrr668n5ZpPkn/wUrmq+A1x+HC11RLHGS1A6xs/oqSyRo3M0OVQ8+ZvsNFJ
+8IjkDp2elIdfG1BNkO+NSxWRg2R4uPiQb7blCAc4V/weqOihP3/Lr2USAhendMWK
+tWWgw1H/oftLL4M14dOj0LLABSBzzwC3dSxmnqBoPA8m0hFhAQcExwBMcebms+MA
+sQB1R3dC+ek/alVXiL6I8oJVJ5ZNZigjefuU3rgT8SIJunfk+t8WjDjPb0mKrBrw
+NjdIyRdqsMWIKDSfYWWkaxYJBMduwKyXZ6Vqeq3Rok6DxTQjbcc9wBYSkTbp6FRg
+1VsZjmHZAgMBAAECggEACNlTDdfo++R2wYyPqDhM3oG/0NNFSzCOoKZD/LVL2lee
+yLQrBbFeoo0zWzK8ubni4DMDoA6tuvDNjeqSpmOJzcqvNH3d4jFhqzIRGSVsmxrg
+6ts0iG3EOIOFAEnOWPXml2jWv6uSNavkT6gpRDX1BYf4d/LYWa15T8Ev24phWI9a
+jz0/VFiye2mls4HN0bE3BnB+DdhoSJHHNSouJ0MDhD9ZX6fx2345oYpe/z76ttis
+RyzIqTRHlBqEJ2SXEDj53/dF5XcxU755Iatg1Savuemv/AEbgnUlOz6HaUMxcNqL
+0fd4KAb2/G7Oi6tZ+ZL4waKLrY7YtNPbxuarr+1DtQKBgQDOOejVZu/7yGlMPrIk
+KAKXej3yP17prjnm7o5YJZrWjMsxufq2tZ3bTTUps3TTHCDDAw1SUQJMl98BhZVJ
+VPcT5BIgqToLzDiTNQR4yGXYBp+y11VuF80lIiAwAFe61OAnt+6WBgsBpFKr/xiu
+qrRk43JLkvg7fGM69kbdy9MmhQKBgQC7gs/mAPbJBisBG80Wtt2/h6I10dTzp1PP
+CFMDKooNbqChjMhrYGp4j70+Yqd6xfUnhlcZ69TEJKF4n28uveNH6KLPvGGhXhzJ
+yNztbOY290jXO6Ty7xbIE3yl3lxabgk3I+Z5KciJ/mpswmSQeot0BAiXCA5SHdES
+5c0DMKEARQKBgQDNVSF74YtO8cPOE5rBn0i9VAx7uBcjqsKiKaJ3J7Icr4DdmSSF
+aR2srhoh1DmcvSPtp4tLC7ezVX/Ifx4eLsf3+R0Hghd2ibdG8wHp1PZ6elXl9rtr
+66zprSnJQX4YWz54rY2TuJ6a2ucps8v6laMZ1NEHaGVarUYL/gyfaANsFQKBgEKP
+EXrkNrVukg9Hrgn1CUt2Orb976g5af9gRg8mp3BTJ4OQtIeg5so6w4MEg8yJvha0
+kfBqjNC+6+4kMdQWpTmeM0Sn6sPb4z4hJYLFmAZEyr9TtZ5iDeUhPaqm/oM+8dh3
+ztSNZ1jMTTyj2AyM4zlgQShTPLobSV564cXTGiM9AoGBALJ0CUaAzQB+2/dLOPPv
+p1qYLtIHS6d8fgvIPB4Am5E/xqKmA33Cpoupxn+6/SeBP1jLmZOmOwVZwsrqWu53
+qDi2BO5EEQJEuR4fhJkP2OsAqiC6ytGxwiBN1p2moipNGZwYnbMuAdYbAHMmvucx
+rVFcoTPAjw+pZOOdRgD1V3TG
+-----END PRIVATE KEY-----
+)PEM";
+
+void secure_round_trip()
+{
+	libgs::io_context_t context;
+	asio::ssl::context server_tls(asio::ssl::context::tls_server);
+	server_tls.set_options(
+		asio::ssl::context::default_workarounds |
+		asio::ssl::context::no_sslv2 |
+		asio::ssl::context::no_sslv3
+	);
+	server_tls.use_certificate_chain(
+		asio::buffer(certificate.data(), certificate.size()));
+	server_tls.use_private_key(
+		asio::buffer(private_key.data(), private_key.size()),
+		asio::ssl::context::pem);
+
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::tls_server service({std::move(acceptor), server_tls});
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+
+	auto accepted = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto connection = co_await service.accept(libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(connection.request.path, "/secure/echo");
+			auto message = co_await connection.stream.read<std::string>(
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(message.body, "hello over TLS");
+			co_await connection.stream.write_text(
+				"secure: " + message.body, libgs::use_awaitable);
+			auto [close_error, trailing] = co_await
+				connection.stream.read<std::string>(
+					asio::as_tuple(libgs::use_awaitable));
+			libgs::ignore_unused(close_error, trailing);
+			co_return;
+		}, asio::use_future);
+
+	asio::ssl::context client_tls(asio::ssl::context::tls_client);
+	client_tls.set_verify_mode(asio::ssl::verify_peer);
+	client_tls.add_certificate_authority(
+		asio::buffer(certificate.data(), certificate.size()));
+	auto connector = std::make_shared<libgs::http::connector>(
+		context.get_executor(), client_tls);
+	libgs::http::connection_pool pool(std::move(connector));
+	libgs::http::client http_client(std::move(pool));
+	ws::client client(std::move(http_client));
+
+	auto connected = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			ws::open_diagnostics diagnostics;
+			auto stream = co_await client.open(ws::connect_request(std::format(
+				"wss://127.0.0.1:{}/secure/echo", port)), diagnostics,
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(diagnostics.endpoint.protocol(), "wss");
+			LIBGS_TEST_CHECK(diagnostics.reply);
+			LIBGS_TEST_CHECK_EQ(diagnostics.reply->status(),
+				libgs::http::status::switching_protocols);
+			co_await stream.write_text("hello over TLS", libgs::use_awaitable);
+			auto response = co_await stream.read<std::string>(
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(response.body, "secure: hello over TLS");
+			auto [close_error, closed] = co_await stream.close(
+				asio::as_tuple(libgs::use_awaitable));
+			service.stop();
+			LIBGS_TEST_CHECK(not close_error);
+			LIBGS_TEST_CHECK(closed.clean);
+			co_return;
+		}, asio::use_future);
+
+	context.run();
+	accepted.get();
+	connected.get();
+}
+
+} //namespace
+
+int main()
+{
+	return libgs::test::run({
+		{"secure round trip", secure_round_trip},
+	});
+}

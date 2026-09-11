@@ -4,11 +4,11 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_LIFECYCLE_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_LIFECYCLE_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::cancel(error_code &error) noexcept
+void basic_stream<Exec>::impl::cancel(error_code &error) noexcept
 {
 	if( not m_connection or m_transport_closed )
 	{
@@ -20,7 +20,7 @@ void stream_impl<Exec>::cancel(error_code &error) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::shutdown(error_code &error) noexcept
+void basic_stream<Exec>::impl::shutdown(error_code &error) noexcept
 {
 	if( m_close_timer )
 	{
@@ -73,7 +73,7 @@ void stream_impl<Exec>::shutdown(error_code &error) noexcept
 }
 
 template <core_concepts::exec Exec>
-optional<close_code> stream_impl<Exec>::protocol_failure_code(error_code error) noexcept
+optional<close_code> basic_stream<Exec>::impl::protocol_failure_code(error_code error) noexcept
 {
 	if( error.category() == protocol_error_category() )
 		return close_code_for(static_cast<protocol_errc>(error.value()));
@@ -84,7 +84,7 @@ optional<close_code> stream_impl<Exec>::protocol_failure_code(error_code error) 
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::finish_protocol_failure(bool cancel_transport) noexcept
+void basic_stream<Exec>::impl::finish_protocol_failure(bool cancel_transport) noexcept
 {
 	if( not m_protocol_failure_active )
 		return ;
@@ -111,7 +111,7 @@ void stream_impl<Exec>::finish_protocol_failure(bool cancel_transport) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::begin_protocol_failure(error_code error, bool synchronous) noexcept
+void basic_stream<Exec>::impl::begin_protocol_failure(error_code error, bool synchronous) noexcept
 {
 	auto code = protocol_failure_code(error);
 	if( not code or m_state != connection_state::open or m_local_close_sent or m_transport_closed )
@@ -176,7 +176,7 @@ void stream_impl<Exec>::begin_protocol_failure(error_code error, bool synchronou
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::fail(error_code error) noexcept
+void basic_stream<Exec>::impl::fail(error_code error) noexcept
 {
 	if( not m_error )
 		m_error = error;
@@ -215,7 +215,7 @@ void stream_impl<Exec>::fail(error_code error) noexcept
 	}
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_LIFECYCLE_IPP

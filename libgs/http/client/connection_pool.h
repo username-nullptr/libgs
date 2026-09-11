@@ -43,9 +43,10 @@ public:
 	explicit basic_connection_pool(const config_t &config = {}) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	explicit basic_connection_pool (
-		core_concepts::match_sched<executor_t> auto &&exec,
-		const config_t &config = {}
+	template <typename Exec0>
+	explicit basic_connection_pool(Exec0 &&exec, const config_t &config = {}) requires (
+		not std::same_as<std::remove_cvref_t<Exec0>,basic_connection_pool> and
+		core_concepts::match_sched<Exec0,executor_t>
 	);
 	// A configured connector is part of this pool's routing identity. Proxy-aware
 	// applications inject one here; the default constructors remain direct-only.

@@ -101,8 +101,10 @@ public:
 	basic_client() requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	explicit basic_client (
-		core_concepts::match_sched<executor_t> auto &&exec
+	template <typename Exec0>
+	explicit basic_client(Exec0 &&exec) requires (
+		not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and
+		core_concepts::match_sched<Exec0,executor_t>
 	);
 	explicit basic_client(connection_pool_t &&pool);
 

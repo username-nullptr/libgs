@@ -9,23 +9,16 @@
 #include <libgs/websocket/protocol/generator.h>
 #include <libgs/websocket/protocol/parser.h>
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-class LIBGS_WEBSOCKET_TAPI stream_impl :
-	public std::enable_shared_from_this<stream_impl<Exec>>
+class LIBGS_WEBSOCKET_TAPI basic_stream<Exec>::impl :
+	public std::enable_shared_from_this<impl>
 {
 public:
-	using executor_t = Exec;
-	using config_t = stream_config;
-
-	using connection_t = http::basic_connection<executor_t>;
-	using connection_ptr = std::shared_ptr<connection_t>;
-
 	using adopt_options_t = adopt_options;
-	using close_info_t = close_info;
-
+	using close_info_t    = close_info   ;
 	using control_event_t = control_event;
 
 	struct prepared_frame
@@ -111,7 +104,7 @@ public:
 		std::vector<std::byte> control {};
 	};
 
-	explicit stream_impl(executor_t exec, config_t config);
+	explicit impl(executor_t exec, config_t config);
 
 public:
 	void adopt(connection_ptr connection,
@@ -360,7 +353,7 @@ public:
 	uint64_t m_next_write_waiter_id = 0;
 };
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 #include <libgs/websocket/detail/stream/transport.ipp>
 #include <libgs/websocket/detail/stream/lifecycle.ipp>

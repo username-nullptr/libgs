@@ -52,7 +52,7 @@ libraries. Generated files and binaries are placed below `build/output`.
 | `LIBGS_BUILD_STATIC` | `OFF` | All libraries | Build static instead of shared libraries |
 | `LIBGS_ADD_LIBRARY_VERSION` | `ON` | Shared builds | Add project and ABI versions to library names |
 | `LIBGS_BUILD_EXAMPLES` | `OFF` | Examples | Build the examples enabled by the current CMake configuration |
-| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core and HTTP | Enable TLS and HTTPS support through OpenSSL |
+| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core, HTTP, and WebSocket | Enable TLS, HTTPS, and WSS support through OpenSSL |
 | `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP | Enable gzip compression and decompression through zlib |
 | `LIBGS_USE_LIBCXX` | `OFF` | Clang | Compile and link with libc++ |
 | `LIBGS_USE_LLD` | `OFF` | Clang | Link with lld |
@@ -86,10 +86,12 @@ Example executables are written to subdirectories of
 - [`examples/core`](../../examples/core)
 - [`examples/coro`](../../examples/coro)
 - [`examples/http`](../../examples/http)
+- [`examples/websocket`](../../examples/websocket)
 - [`examples/utils`](../../examples/utils)
 
 All listed examples, including the HTTP servers, are enabled by
-`LIBGS_BUILD_EXAMPLES`. HTTPS additionally requires `LIBGS_OPENSSL_SUPPORT=ON`.
+`LIBGS_BUILD_EXAMPLES`. HTTPS and WSS additionally require
+`LIBGS_OPENSSL_SUPPORT=ON`.
 See the [examples guide](../../examples/README.md) for run instructions and
 capability coverage.
 

@@ -99,6 +99,11 @@ if (LIBGS_BUILD_WEBSOCKET)
 	libgs_add_example(websocket protocol LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_client LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_server LIBRARIES gs.websocket)
+
+	if (LIBGS_OPENSSL_SUPPORT)
+		libgs_add_example(websocket wss_client LIBRARIES gs.websocket)
+		libgs_add_example(websocket wss_server LIBRARIES gs.websocket)
+	endif ()
 endif ()
 
 # Application utilities
@@ -150,6 +155,8 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	websocket/protocol.cpp
 	websocket/client.cpp
 	websocket/server.cpp
+	websocket/wss_client.cpp
+	websocket/wss_server.cpp
 	utils/logger.cpp
 	utils/modules/api.cpp
 	utils/modules/cache.cpp

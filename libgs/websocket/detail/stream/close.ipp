@@ -4,11 +4,11 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_CLOSE_IPP
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_CLOSE_IPP
 
-namespace libgs::websocket::detail
+namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::retained_close_info(bool clean) const -> close_info_t
+auto basic_stream<Exec>::impl::retained_close_info(bool clean) const -> close_info_t
 {
 	auto result = m_peer_close.value_or(close_info_t{});
 	result.clean = clean;
@@ -16,7 +16,7 @@ auto stream_impl<Exec>::retained_close_info(bool clean) const -> close_info_t
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::complete_close_waiters(error_code error) noexcept
+void basic_stream<Exec>::impl::complete_close_waiters(error_code error) noexcept
 {
 	while( not m_close_waiters.empty() )
 	{
@@ -37,7 +37,7 @@ void stream_impl<Exec>::complete_close_waiters(error_code error) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::cancel_close_waiter(uint64_t id) noexcept
+void basic_stream<Exec>::impl::cancel_close_waiter(uint64_t id) noexcept
 {
 	for(auto iterator = m_close_waiters.begin();
 		iterator != m_close_waiters.end(); ++iterator)
@@ -57,7 +57,7 @@ void stream_impl<Exec>::cancel_close_waiter(uint64_t id) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::start_close_deadline() noexcept
+void basic_stream<Exec>::impl::start_close_deadline() noexcept
 {
 	if( m_close_timer or (m_state != connection_state::closing and not m_protocol_failure_active) )
 		return ;
@@ -95,7 +95,7 @@ void stream_impl<Exec>::start_close_deadline() noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::finish_close(error_code error, bool clean, bool cancel_transport) noexcept
+void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool cancel_transport) noexcept
 {
 	if( m_state == connection_state::closed or m_state == connection_state::failed )
 		return ;
@@ -136,7 +136,7 @@ void stream_impl<Exec>::finish_close(error_code error, bool clean, bool cancel_t
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::begin_local_close(prepared_frame frame) noexcept
+void basic_stream<Exec>::impl::begin_local_close(prepared_frame frame) noexcept
 {
 	m_local_close_initiated = true;
 	m_state = connection_state::closing;
@@ -154,7 +154,7 @@ void stream_impl<Exec>::begin_local_close(prepared_frame frame) noexcept
 }
 
 template <core_concepts::exec Exec>
-void stream_impl<Exec>::start_close_receive() noexcept
+void basic_stream<Exec>::impl::start_close_receive() noexcept
 {
 	if( m_read_active or m_state != connection_state::closing or
 		not m_local_close_sent or m_peer_close )
@@ -266,7 +266,7 @@ void stream_impl<Exec>::start_close_receive() noexcept
 }
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::close(const close_frame &frame, error_code &error) noexcept -> close_info_t
+auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error) noexcept -> close_info_t
 {
 	error.clear();
 	if( m_state == connection_state::closed )
@@ -397,7 +397,7 @@ auto stream_impl<Exec>::close(const close_frame &frame, error_code &error) noexc
 }
 
 template <core_concepts::exec Exec>
-auto stream_impl<Exec>::wait_closed(error_code &error) noexcept -> close_info_t
+auto basic_stream<Exec>::impl::wait_closed(error_code &error) noexcept -> close_info_t
 {
 	if( m_state == connection_state::closed )
 	{
@@ -419,7 +419,7 @@ auto stream_impl<Exec>::wait_closed(error_code &error) noexcept -> close_info_t
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-bool stream_impl<Exec>::add_close_waiter(Handler &&handler) noexcept
+bool basic_stream<Exec>::impl::add_close_waiter(Handler &&handler) noexcept
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, close_info_t)>(std::forward<Handler>(handler));
@@ -474,7 +474,7 @@ bool stream_impl<Exec>::add_close_waiter(Handler &&handler) noexcept
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_close(close_frame frame, Handler &&handler)
+void basic_stream<Exec>::impl::async_close(close_frame frame, Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, close_info_t)>(std::forward<Handler>(handler));
@@ -530,7 +530,7 @@ void stream_impl<Exec>::async_close(close_frame frame, Handler &&handler)
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void stream_impl<Exec>::async_wait_closed(Handler &&handler)
+void basic_stream<Exec>::impl::async_wait_closed(Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
 		<void(error_code, close_info_t)>(std::forward<Handler>(handler));
@@ -557,7 +557,7 @@ void stream_impl<Exec>::async_wait_closed(Handler &&handler)
 	ignore_unused(add_close_waiter(std::move(completion)));
 }
 
-} //namespace libgs::websocket::detail
+} //namespace libgs::websocket
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_CLOSE_IPP

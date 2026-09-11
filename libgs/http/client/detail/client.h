@@ -810,8 +810,10 @@ basic_client<Exec,Version>::basic_client() requires
 }
 
 template <core_concepts::exec Exec, version_enum Version>
-basic_client<Exec,Version>::basic_client(core_concepts::match_sched<executor_t> auto &&exec) :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec))))
+template <typename Exec0>
+basic_client<Exec,Version>::basic_client(Exec0 &&exec) requires
+(not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and core_concepts::match_sched<Exec0,executor_t>) :
+	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Exec0>(exec))))
 {
 
 }
