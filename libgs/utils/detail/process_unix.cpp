@@ -760,7 +760,6 @@ public:
 				make_error_code(std::errc::no_such_process)
 			);
 		}
-		size_t sum = 0;
 		descriptor_t *stream = nullptr;
 
 		if( channel == read_channel_t::std_output )
@@ -784,31 +783,14 @@ public:
 			stream = &m_stderr;
 		}
 		std::error_code error;
-		error = stream->non_blocking(true, error);
-		if( error )
-			return {error};
-
-		char c = 0;
-		auto res = ::read(stream->native_handle(), &c, 1);
-		if( res == 0 )
-			return io_unexpected(make_error_code(errc::eof));
-		else if( res == 1 )
-			sum = 1;
-
 		error = stream->non_blocking(false, error);
 		if( error )
 			return {error};
 
-		auto char_buf = static_cast<char*>(buf.data());
-		char_buf[0] = c;
-
-		sum += stream->read_some (
-			asio::buffer(char_buf + sum, buf.size() - sum),
-			error
-		);
+		auto size = stream->read_some(buf, error);
 		if( error )
 			return {error};
-		return sum;
+		return size;
 	}
 
 	void async_read(read_channel_t channel, mutable_buffer buf, process::io_handler_t handler)

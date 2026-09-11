@@ -9,6 +9,7 @@
 #include <libgs/utils/settings.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <string>
@@ -75,6 +76,26 @@ void child_process_io()
 	LIBGS_TEST_CHECK_EQ(process.state(), libgs::utils::process_state::exited);
 	LIBGS_TEST_CHECK_EQ(process.exit_code(), 0);
 	LIBGS_TEST_CHECK(libgs::utils::process::self_pid().value_or(0) != 0);
+}
+
+void child_process_completed_single_byte_read()
+{
+#if defined(__unix__)
+	libgs::utils::process process("/bin/sh", "-c", "printf x");
+	LIBGS_TEST_CHECK_EQ(process.run(), 0);
+
+	std::array<char,8> output {};
+	std::error_code error;
+	const auto size = process.read(asio::buffer(output), error);
+
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(size, 1);
+	LIBGS_TEST_CHECK_EQ(output[0], 'x');
+
+	LIBGS_TEST_CHECK_EQ(process.read(asio::buffer(output), error), 0);
+	LIBGS_TEST_CHECK_EQ(error,
+		asio::error::make_error_code(asio::error::eof));
+#endif
 }
 
 void child_process_environment_and_channels()
@@ -215,6 +236,7 @@ int main()
 	return libgs::test::run({
 		{"settings persistence and signals", settings_persistence_and_signals},
 		{"child process IO", child_process_io},
+		{"completed child single-byte read", child_process_completed_single_byte_read},
 		{"child process environment and channels", child_process_environment_and_channels},
 		{"child process state errors", child_process_state_errors},
 		{"local message bus", local_message_bus},
