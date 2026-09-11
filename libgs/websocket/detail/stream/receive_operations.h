@@ -22,6 +22,13 @@ struct read_wait_operation
 	asio::cancellation_signal cancellation {};
 };
 
+struct frame_read_wait_operation
+{
+	uint64_t id = 0;
+	asio::any_completion_handler<void(error_code,data_frame)> completion {};
+	asio::cancellation_signal cancellation {};
+};
+
 } //namespace libgs::websocket::detail
 
 

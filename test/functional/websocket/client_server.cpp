@@ -6,6 +6,8 @@
 #include <libgs/websocket/client.h>
 #include <libgs/websocket/server.h>
 
+#include <algorithm>
+#include <array>
 #include <format>
 #include <future>
 
@@ -405,6 +407,321 @@ void owned_client_cancellation()
 	cancellation.get();
 }
 
+void owned_client_handshake_timeout()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context,
+		{asio::ip::address_v4::loopback(), 0});
+	asio::ip::tcp::socket peer(context);
+	acceptor.async_accept(peer, [](libgs::error_code error) {
+		LIBGS_TEST_CHECK(not error);
+	});
+
+	ws::client_config config;
+	config.handshake_timeout = 20ms;
+	ws::client client(context.get_executor(), config);
+	const auto port = acceptor.local_endpoint().port();
+	auto opening = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto [error, stream] = co_await client.open(
+				std::format("ws://127.0.0.1:{}/stall", port),
+				asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK_EQ(error,
+				libgs::error_code(asio::error::timed_out));
+			LIBGS_TEST_CHECK(not stream.is_open());
+			LIBGS_TEST_CHECK_EQ(client.pending_open_count(), 0U);
+		}, asio::use_future);
+	context.run();
+	opening.get();
+}
+
+void pending_handshake_timeout()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server_config config;
+	config.max_pending_handshakes = 1;
+	config.pending_handshake_timeout = 20ms;
+	config.default_upgrade.handshake_timeout = 1s;
+	ws::server service(std::move(acceptor), config);
+
+	asio::cancellation_signal cancellation;
+	service.accept(asio::bind_cancellation_slot(cancellation.slot(),
+		[](libgs::error_code error, ws::accept_result)
+		{
+			LIBGS_TEST_CHECK_EQ(error,
+				libgs::error_code(asio::error::operation_aborted));
+		}));
+	cancellation.emit(asio::cancellation_type::all);
+	context.poll();
+	context.restart();
+
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	ws::client client(context.get_executor());
+	auto completed = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			ws::open_diagnostics diagnostics;
+			auto [error, stream] = co_await client.open(ws::connect_request(
+				std::format("ws://127.0.0.1:{}/timeout", port)), diagnostics,
+				asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK_EQ(error,
+				ws::make_error_code(ws::errc::handshake_rejected));
+			LIBGS_TEST_CHECK(not stream.is_open());
+			LIBGS_TEST_CHECK(diagnostics.reply);
+			LIBGS_TEST_CHECK_EQ(diagnostics.reply->status(),
+				libgs::http::status::service_unavailable);
+			LIBGS_TEST_CHECK_EQ(service.pending_handshake_count(), 0U);
+			service.stop();
+		}, asio::use_future);
+	context.run();
+	completed.get();
+}
+
+void pending_handshake_fifo_and_capacity()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server_config config;
+	config.max_pending_handshakes = 2;
+	config.pending_handshake_timeout = 1s;
+	ws::server service(std::move(acceptor), config);
+
+	asio::cancellation_signal cancellation;
+	service.accept(asio::bind_cancellation_slot(cancellation.slot(),
+		[](libgs::error_code error, ws::accept_result)
+		{
+			LIBGS_TEST_CHECK_EQ(error,
+				libgs::error_code(asio::error::operation_aborted));
+		}));
+	cancellation.emit(asio::cancellation_type::all);
+	context.poll();
+	context.restart();
+
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	const auto endpoint = [&](std::string_view path) {
+		return std::format("ws://127.0.0.1:{}{}", port, path);
+	};
+	ws::client first_client(context.get_executor());
+	ws::client second_client(context.get_executor());
+	ws::client overflow_client(context.get_executor());
+	bool overflow_rejected = false;
+
+	auto first = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto stream = co_await first_client.open(
+				endpoint("/first"), libgs::use_awaitable);
+			auto closed = co_await stream.close(libgs::use_awaitable);
+			LIBGS_TEST_CHECK(closed.clean);
+		}, asio::use_future);
+
+	auto second = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			asio::steady_timer delay(context.get_executor());
+			while( service.pending_handshake_count() < 1 )
+			{
+				delay.expires_after(1ms);
+				co_await delay.async_wait(libgs::use_awaitable);
+			}
+			auto stream = co_await second_client.open(
+				endpoint("/second"), libgs::use_awaitable);
+			auto closed = co_await stream.close(libgs::use_awaitable);
+			LIBGS_TEST_CHECK(closed.clean);
+		}, asio::use_future);
+
+	auto overflow = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			asio::steady_timer delay(context.get_executor());
+			while( service.pending_handshake_count() < 2 )
+			{
+				delay.expires_after(1ms);
+				co_await delay.async_wait(libgs::use_awaitable);
+			}
+			ws::open_diagnostics diagnostics;
+			auto [error, stream] = co_await overflow_client.open(
+				ws::connect_request(endpoint("/overflow")), diagnostics,
+				asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK_EQ(error,
+				ws::make_error_code(ws::errc::handshake_rejected));
+			LIBGS_TEST_CHECK(not stream.is_open());
+			LIBGS_TEST_CHECK(diagnostics.reply);
+			LIBGS_TEST_CHECK_EQ(diagnostics.reply->status(),
+				libgs::http::status::service_unavailable);
+			overflow_rejected = true;
+		}, asio::use_future);
+
+	auto accepted = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			asio::steady_timer delay(context.get_executor());
+			while( not overflow_rejected )
+			{
+				delay.expires_after(1ms);
+				co_await delay.async_wait(libgs::use_awaitable);
+			}
+			LIBGS_TEST_CHECK_EQ(service.pending_handshake_count(), 2U);
+			auto first_connection = co_await service.accept(libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(first_connection.request.path, "/first");
+			LIBGS_TEST_CHECK((co_await first_connection.stream.close(
+				libgs::use_awaitable)).clean);
+
+			auto second_connection = co_await service.accept(libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(second_connection.request.path, "/second");
+			LIBGS_TEST_CHECK((co_await second_connection.stream.close(
+				libgs::use_awaitable)).clean);
+			service.stop();
+		}, asio::use_future);
+
+	context.run();
+	first.get();
+	second.get();
+	overflow.get();
+	accepted.get();
+}
+
+void simultaneous_close()
+{
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server service(std::move(acceptor));
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+
+	auto accepted = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto connection = co_await service.accept(libgs::use_awaitable);
+			auto closed = co_await connection.stream.close(
+				ws::close_frame(ws::close_code::normal_closure, "server"),
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK(closed.clean);
+			LIBGS_TEST_CHECK_EQ(closed.code.value_or(0), 1000);
+		}, asio::use_future);
+
+	ws::client client(context.get_executor());
+	auto connected = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			auto stream = co_await client.open(std::format(
+				"ws://127.0.0.1:{}/close", port), libgs::use_awaitable);
+			auto closed = co_await stream.close(
+				ws::close_frame(ws::close_code::normal_closure, "client"),
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK(closed.clean);
+			LIBGS_TEST_CHECK_EQ(closed.code.value_or(0), 1000);
+			service.stop();
+		}, asio::use_future);
+
+	context.run();
+	accepted.get();
+	connected.get();
+}
+
+#if LIBGS_WEBSOCKET_ZLIB_SUPPORT
+void permessage_deflate_round_trip()
+{
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server service(std::move(acceptor));
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+
+	ws::upgrade_options options;
+	options.supported_extensions = {ws::permessage_deflate_extension()};
+	options.stream.write_fragment_size = 7;
+	auto accepted = asio::co_spawn(context,
+		[&, options = std::move(options)]() mutable -> libgs::awaitable<void>
+		{
+			auto connection = co_await service.accept(
+				std::move(options), libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(connection.handshake.extensions.size(), 1U);
+			LIBGS_TEST_CHECK(ws::is_permessage_deflate_extension(
+				connection.handshake.extensions.front()));
+			LIBGS_TEST_CHECK_EQ(connection.stream.negotiated_extensions().size(), 1U);
+
+			for(size_t index = 0; index < 3; ++index)
+			{
+				auto request = co_await connection.stream.read<>(
+					libgs::use_awaitable);
+				co_await connection.stream.write(request.type,
+					libgs::const_buffer(request.body.data(), request.body.size()),
+					libgs::use_awaitable);
+			}
+			auto [close_error, trailing] = co_await connection.stream.read<>(
+				asio::as_tuple(libgs::use_awaitable));
+			libgs::ignore_unused(close_error, trailing);
+		}, asio::use_future);
+
+	ws::client client(context.get_executor());
+	auto connected = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			ws::connect_request request(std::format(
+				"ws://127.0.0.1:{}/compressed", port));
+			request.extensions = {ws::permessage_deflate_extension()};
+			ws::stream_config stream_config;
+			stream_config.write_fragment_size = 5;
+			request.stream_options = stream_config;
+			auto stream = co_await client.open(
+				std::move(request), libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(stream.negotiated_extensions().size(), 1U);
+
+			libgs::error_code frame_error;
+			libgs::ignore_unused(stream.read_frame<>(frame_error));
+			LIBGS_TEST_CHECK_EQ(frame_error,
+				std::make_error_code(std::errc::operation_not_supported));
+
+			LIBGS_TEST_CHECK_EQ(co_await stream.write_text(
+				"", libgs::use_awaitable), 0U);
+			auto empty = co_await stream.read<std::string>(
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(empty.type, ws::message_type::text);
+			LIBGS_TEST_CHECK(empty.body.empty());
+
+			const std::array<std::byte,8> binary_payload {
+				std::byte {0x00}, std::byte {0xFF}, std::byte {0x01},
+				std::byte {0x02}, std::byte {0x80}, std::byte {0x7F},
+				std::byte {0x00}, std::byte {0x55}
+			};
+			LIBGS_TEST_CHECK_EQ(co_await stream.write_binary(
+				libgs::const_buffer(binary_payload.data(), binary_payload.size()),
+				libgs::use_awaitable), binary_payload.size());
+			auto binary = co_await stream.read<>(libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(binary.type, ws::message_type::binary);
+			LIBGS_TEST_CHECK(std::ranges::equal(binary.body, binary_payload));
+
+			std::string payload;
+			for(size_t index = 0; index < 128; ++index)
+				payload += "compressible websocket payload ";
+			LIBGS_TEST_CHECK_EQ(co_await stream.write_text(
+				payload, libgs::use_awaitable), payload.size());
+			auto response = co_await stream.read<std::string>(
+				libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(response.body, payload);
+			auto closed = co_await stream.close(libgs::use_awaitable);
+			LIBGS_TEST_CHECK(closed.clean);
+			service.stop();
+		}, asio::use_future);
+
+	context.run();
+	accepted.get();
+	connected.get();
+}
+#endif
+
 void invalid_owned_config()
 {
 	libgs::io_context_t context;
@@ -424,6 +741,15 @@ void invalid_owned_config()
 		ws::make_error_code(ws::errc::unsupported_extension));
 	LIBGS_TEST_CHECK(not stream.is_open());
 	LIBGS_TEST_CHECK_EQ(preflight_client.pending_open_count(), 0U);
+
+#if !LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	ws::connect_request unavailable("ws://example.test/socket");
+	unavailable.extensions = {ws::permessage_deflate_extension()};
+	stream = preflight_client.open(std::move(unavailable), error);
+	LIBGS_TEST_CHECK_EQ(error,
+		ws::make_error_code(ws::errc::unsupported_extension));
+	LIBGS_TEST_CHECK(not stream.is_open());
+#endif
 
 	ws::client_config client_config;
 	client_config.stream.read_buffer_size = 0;
@@ -448,6 +774,14 @@ int main()
 		{"pending handshake queue", pending_handshake_queue},
 		{"unavailable handshake queue", unavailable_handshake_queue},
 		{"owned client cancellation", owned_client_cancellation},
+		{"owned client handshake timeout", owned_client_handshake_timeout},
+		{"pending handshake timeout", pending_handshake_timeout},
+		{"pending handshake FIFO and capacity",
+			pending_handshake_fifo_and_capacity},
+		{"simultaneous close", simultaneous_close},
+#if LIBGS_WEBSOCKET_ZLIB_SUPPORT
+		{"permessage-deflate round trip", permessage_deflate_round_trip},
+#endif
 		{"invalid owned config", invalid_owned_config},
 	});
 }

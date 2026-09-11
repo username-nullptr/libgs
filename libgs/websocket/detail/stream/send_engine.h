@@ -17,7 +17,10 @@ class LIBGS_WEBSOCKET_TAPI send_engine
 {
 public:
 	explicit send_engine(Owner &owner) noexcept;
-	void reset(role local_role, const stream_config &config) noexcept;
+
+	void reset(role local_role, const stream_config &config,
+		std::span<const extension> extensions
+	) noexcept;
 
 	[[nodiscard]] sys_expected<prepared_frame> prepare_control (
 		opcode op, const const_buffer &payload, bool borrow_payload = false

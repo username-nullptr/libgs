@@ -5,6 +5,7 @@
 #define LIBGS_WEBSOCKET_CXX_CONCEPTS_H
 
 #include <libgs/http/global.h>
+#include <libgs/core/async_expected.h>
 
 namespace libgs::websocket { namespace concepts
 {
@@ -13,6 +14,11 @@ template <typename Token, typename...Args>
 concept dis_detach_opt_token =
 	libgs::concepts::tf_opt_token<Token,Args...> and
 	not is_detached_v<token_unbound_t<Token>>;
+
+template <typename T>
+concept buffer =
+	libgs::concepts::buffer<T> and
+	not libgs::concepts::array_buffer<T>;
 
 } //namespace concepts
 

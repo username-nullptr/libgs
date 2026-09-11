@@ -14,13 +14,18 @@ configuration branch. Performance tests likewise sample important dimensions
 (for example protocol versus socket work, small versus large bodies, and reused
 versus reconnected HTTP sessions) instead of building an unbounded cross-product.
 
-The initially implemented WebSocket surface is covered as a bounded baseline.
-Functional tests group opening-handshake validation, owned client/server API,
-request snapshots and subprotocol negotiation, accept-queue behavior, and stream
-state transitions. When OpenSSL support is enabled, a hermetic WSS loopback also
-covers certificate verification and the TLS upgrade path. Frame/control/close
-details that are already reached through a broader state test are not repeated as
-standalone combinations.
+The HTTP/1.1 WebSocket implementation is covered by protocol, public-API,
+handshake, owned client/server, stream, and optional WSS groups. Coverage includes
+incremental frame parsing across a deterministic chunk corpus, opening-handshake
+validation, cross-origin redirect credential handling, request snapshots,
+subprotocol and constrained `permessage-deflate` negotiation, asynchronous
+Upgrade validators, frame-level reads, accept-queue capacity/FIFO/timeout
+behavior, real handshake deadlines, simultaneous Close, and stream state
+transitions. When OpenSSL support is enabled, a hermetic WSS loopback covers
+certificate verification and the TLS upgrade path. When WebSocket zlib support
+is enabled, a fragmented compressed loopback and invalid compressed payload are
+also covered. Frame/control/close details already reached through a broader state
+test are not repeated as standalone combinations.
 
 Performance tests require the `libgs.functional` CTest fixture. Selecting only
 the `performance` label therefore runs the functional suite first, and skips
@@ -79,3 +84,18 @@ ctest --test-dir build-tsan -L sanitizer --output-on-failure
 
 For repeated stability runs, append `--repeat until-fail:20` to either CTest
 command.
+
+The incremental frame and opening-handshake parsers also have Clang libFuzzer
+harnesses. Build them separately from the other sanitizer modes and run them
+locally with a bounded iteration count or duration:
+
+```sh
+cmake -S . -B build-fuzz -DBUILD_TESTING=ON \
+  -DLIBGS_BUILD_FUZZERS=ON -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-fuzz --target \
+  libgs.fuzz.websocket.frame-parser \
+  libgs.fuzz.websocket.handshake-parser -j
+build-fuzz/output/fuzz/libgs.fuzz.websocket.frame-parser -runs=10000
+build-fuzz/output/fuzz/libgs.fuzz.websocket.handshake-parser -runs=10000
+```

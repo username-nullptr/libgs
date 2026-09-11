@@ -33,6 +33,7 @@ endif ()
 
 if (LIBGS_BUILD_WEBSOCKET)
 	add_libgs_test(websocket.protocol websocket/protocol.cpp gs.websocket)
+	add_libgs_test(websocket.public-api websocket/public_api.cpp gs.websocket)
 	add_libgs_test(websocket.handshake websocket/handshake.cpp gs.websocket)
 	add_libgs_test(websocket.client-server websocket/client_server.cpp gs.websocket)
 	if (LIBGS_OPENSSL_SUPPORT)

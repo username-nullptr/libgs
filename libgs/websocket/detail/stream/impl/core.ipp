@@ -77,6 +77,14 @@ error_code basic_stream<Exec>::impl::read_state_error() const noexcept
 }
 
 template <core_concepts::exec Exec>
+error_code basic_stream<Exec>::impl::frame_read_state_error() const noexcept
+{
+	if( not m_extensions.empty() )
+		return make_error_code(std::errc::operation_not_supported);
+	return read_state_error();
+}
+
+template <core_concepts::exec Exec>
 error_code basic_stream<Exec>::impl::control_state_error() const noexcept
 {
 	if( m_state == connection_state::open )
@@ -150,7 +158,7 @@ void basic_stream<Exec>::impl::adopt
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
 	}
-	if( not options.negotiated_extensions.empty() )
+	if( not detail::supported_extension_set(options.negotiated_extensions) )
 	{
 		error = make_error_code(errc::unsupported_extension);
 		return ;
@@ -171,9 +179,11 @@ void basic_stream<Exec>::impl::adopt
 			}
 		}
 		m_role = options.stream_role;
-		m_send_engine.reset(m_role, m_config);
-		m_receive_engine.reset(m_role, m_config, std::move(options.pending_data));
+		m_send_engine.reset(m_role, m_config, options.negotiated_extensions);
 
+		m_receive_engine.reset(m_role, m_config,
+			options.negotiated_extensions, std::move(options.pending_data)
+		);
 		m_subprotocol = std::move(options.negotiated_subprotocol);
 		m_extensions = std::move(options.negotiated_extensions);
 		m_connection = std::move(connection);

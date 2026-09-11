@@ -11,6 +11,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <vector>
 
 namespace ws = libgs::websocket;
 
@@ -649,6 +650,99 @@ void test_frame_fragmentation_state()
 	LIBGS_TEST_CHECK(not parser.failed());
 }
 
+void test_frame_codec_chunk_corpus()
+{
+	constexpr std::array<size_t,9> payload_sizes {
+		0, 1, 2, 7, 125, 126, 127, 65535, 65536,
+	};
+	constexpr std::array<size_t,8> chunk_sizes {
+		1, 2, 3, 5, 7, 13, 127, 4096,
+	};
+	const ws::masking_key mask {{
+		std::byte {0x12}, std::byte {0x34},
+		std::byte {0x56}, std::byte {0x78},
+	}};
+
+	for( const auto sender_role : {ws::role::client, ws::role::server} )
+	{
+		for( const auto payload_size : payload_sizes )
+		{
+			std::vector<std::byte> payload(payload_size);
+			for( size_t index = 0; index < payload.size(); ++index )
+				payload[index] = static_cast<std::byte>((index * 37U + 11U) & 0xFFU);
+
+			ws::frame_header header {
+				.fin = true,
+				.op = ws::opcode::binary,
+				.payload_size = payload.size(),
+				.mask = sender_role == ws::role::client ?
+					libgs::optional<ws::masking_key>(mask) : libgs::nullopt,
+			};
+			auto encoded = ws::encode_frame_header(header, ws::frame_codec_config {
+				.local_role = sender_role,
+				.max_frame_size = 0,
+			});
+			LIBGS_TEST_CHECK(encoded.has_value());
+
+			std::vector<std::byte> wire(encoded->size + payload.size());
+			std::memcpy(wire.data(), encoded->buffer().data(), encoded->size);
+			if( not payload.empty() )
+				std::memcpy(wire.data() + encoded->size, payload.data(), payload.size());
+			if( header.mask and not payload.empty() )
+			{
+				ws::apply_mask(libgs::mutable_buffer(
+					wire.data() + encoded->size, payload.size()), *header.mask);
+			}
+
+			for( const auto chunk_size : chunk_sizes )
+			{
+				ws::frame_parser parser(ws::frame_codec_config {
+					.local_role = sender_role == ws::role::client ?
+						ws::role::server : ws::role::client,
+					.max_frame_size = 0,
+				});
+				auto input = wire;
+				std::vector<std::byte> decoded;
+				size_t offset = 0;
+				bool header_ready = false;
+				bool frame_finished = false;
+
+				while( offset < input.size() )
+				{
+					const auto available = std::min(chunk_size, input.size() - offset);
+					auto result = parser.parse(libgs::mutable_buffer(
+						input.data() + offset, available));
+					LIBGS_TEST_CHECK(result.has_value());
+					LIBGS_TEST_CHECK(result->consumed > 0);
+					if( result->header_ready )
+						header_ready = true;
+					if( result->payload.size() > 0 )
+					{
+						if( parser.header().mask )
+						{
+							ws::apply_mask(result->payload, *parser.header().mask,
+								result->payload_offset);
+						}
+						auto *begin = static_cast<const std::byte*>(
+							result->payload.data());
+						decoded.insert(decoded.end(), begin,
+							begin + result->payload.size());
+					}
+					frame_finished = frame_finished or result->frame_finished;
+					offset += result->consumed;
+				}
+
+				LIBGS_TEST_CHECK(header_ready);
+				LIBGS_TEST_CHECK(frame_finished);
+				LIBGS_TEST_CHECK_EQ(decoded, payload);
+				LIBGS_TEST_CHECK_EQ(parser.header().payload_size,
+					static_cast<uint64_t>(payload.size()));
+				LIBGS_TEST_CHECK(not parser.failed());
+			}
+		}
+	}
+}
+
 } //namespace
 
 int main()
@@ -666,5 +760,6 @@ int main()
 		{"incremental frame parser", test_incremental_frame_parser},
 		{"frame parser errors", test_frame_parser_errors},
 		{"frame fragmentation state", test_frame_fragmentation_state},
+		{"frame codec chunk corpus", test_frame_codec_chunk_corpus},
 	});
 }

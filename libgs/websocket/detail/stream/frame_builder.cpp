@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <libgs/websocket/detail/stream/frame_builder.h>
+#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/detail/secure_random.h>
 #include <libgs/websocket/protocol/detail/utf8.h>
 #include <libgs/websocket/protocol/generator.h>
@@ -9,17 +10,20 @@
 namespace libgs::websocket::detail
 {
 
-frame_builder::frame_builder(role local_role, const stream_config &config) noexcept
+frame_builder::frame_builder
+(role local_role, const stream_config &config, std::span<const extension> extensions) noexcept
 {
-	reset(local_role, config);
+	reset(local_role, config, extensions);
 }
 
-frame_builder &frame_builder::reset(role local_role, const stream_config &config) noexcept
+frame_builder &frame_builder::reset
+(role local_role, const stream_config &config, std::span<const extension> extensions) noexcept
 {
 	m_role = local_role;
 	m_max_frame_size = config.max_frame_size;
 	m_max_message_size = config.max_message_size;
 	m_fragment_size = config.write_fragment_size;
+	m_permessage_deflate = not extensions.empty();
 	return *this;
 }
 
@@ -71,6 +75,7 @@ sys_expected<prepared_frame> frame_builder::prepare_control
 			};
 			result.header_size = encoded->size;
 			result.payload_size = payload.size();
+			result.application_size = payload.size();
 			return result;
 		}
 		if( header.mask )
@@ -93,6 +98,7 @@ sys_expected<prepared_frame> frame_builder::prepare_control
 		};
 		result.header_size = encoded->size;
 		result.payload_size = payload.size();
+		result.application_size = payload.size();
 		return result;
 	}
 	catch(const std::bad_alloc&) {
@@ -143,9 +149,28 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 		if( type == message_type::text and not utf8.complete() )
 			return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 
+		std::shared_ptr<std::vector<std::byte>> transformed_owner;
+		std::vector payload_buffers(buffers.begin(), buffers.end());
+
+		if( m_permessage_deflate )
+		{
+			auto compressed = deflate_message(buffers);
+			if( not compressed )
+				return sys_unexpected(compressed.error());
+
+			transformed_owner = std::make_shared
+				<std::vector<std::byte>>(std::move(*compressed));
+
+			payload_buffers = {
+				const_buffer(transformed_owner->data(), transformed_owner->size())
+			};
+		}
+		const auto wire_body_size = transformed_owner ?
+			transformed_owner->size() : body_size;
+
 		std::vector<prepared_frame> frames;
-		const auto frame_count = body_size == 0 or
-			m_fragment_size == 0 ? 1 : 1 + (body_size - 1) / m_fragment_size;
+		const auto frame_count = wire_body_size == 0 or
+			m_fragment_size == 0 ? 1 : 1 + (wire_body_size - 1) / m_fragment_size;
 
 		if( frame_count > frames.max_size() )
 			return sys_unexpected(make_error_code(std::errc::value_too_large));
@@ -156,7 +181,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 		size_t buffer_offset = 0;
 		bool first = true;
 		do {
-			const auto remaining = body_size - offset;
+			const auto remaining = wire_body_size - offset;
 			const auto payload_size = m_fragment_size == 0 ?
 				remaining : std::min(remaining, m_fragment_size);
 
@@ -167,6 +192,9 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 					opcode::continuation,
 				.payload_size = payload_size,
 			};
+			if( first and m_permessage_deflate )
+				header.rsv = reserved_bit::rsv1;
+
 			if( m_role == role::client )
 			{
 				masking_key key;
@@ -177,22 +205,30 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 					return sys_unexpected(random.error());
 				header.mask = key;
 			}
-			auto encoded = encode_frame_header(header, frame_codec_config {
+			frame_codec_config codec_config {
 				.local_role = m_role, .max_frame_size = m_max_frame_size
-			});
+			};
+			if( m_permessage_deflate )
+				codec_config.allowed_rsv = reserved_bit::rsv1;
+
+			auto encoded = encode_frame_header(header, codec_config);
 			if( not encoded )
 				return sys_unexpected(encoded.error());
 
 			prepared_frame prepared;
 			prepared.header_size = encoded->size;
 			prepared.payload_size = payload_size;
+			prepared.payload_owner = transformed_owner;
+
+			prepared.application_size = m_permessage_deflate ?
+				(header.fin ? body_size : 0) : payload_size;
 
 			prepared.wire = std::make_shared<std::vector<std::byte>>(
 				encoded->size + (header.mask ? payload_size : 0)
 			);
 			std::memcpy(prepared.wire->data(), encoded->buffer().data(), encoded->size);
 
-			const auto payload_buffer_count = std::min(buffers.size(), payload_size);
+			const auto payload_buffer_count = std::min(payload_buffers.size(), payload_size);
 			prepared.buffers.reserve(header.mask ? 1 : payload_buffer_count + 1);
 
 			prepared.buffers.emplace_back(prepared.wire->data(),
@@ -201,15 +237,16 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			size_t frame_offset = 0;
 			while(frame_offset < payload_size)
 			{
-				while(buffer_index < buffers.size() and buffer_offset == buffers[buffer_index].size())
+				while( buffer_index < payload_buffers.size() and
+					   buffer_offset == payload_buffers[buffer_index].size() )
 				{
 					++buffer_index;
 					buffer_offset = 0;
 				}
-				if( buffer_index == buffers.size() )
+				if( buffer_index == payload_buffers.size() )
 					return sys_unexpected(make_error_code(std::errc::io_error));
 
-				const auto &source = buffers[buffer_index];
+				const auto &source = payload_buffers[buffer_index];
 				const auto available = source.size() - buffer_offset;
 
 				const auto size = std::min(payload_size - frame_offset, available);
@@ -234,7 +271,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			offset += payload_size;
 			first = false;
 		}
-		while( offset < body_size );
+		while( offset < wire_body_size );
 		return frames;
 	}
 	catch(const std::bad_alloc&) {

@@ -234,6 +234,13 @@ private:
 			}
 			co_await call_on_request(context);
 
+			// An upgrade handler may hand the transport over even when it does not
+			// finish an HTTP response (for example, when a timed-out handshake has
+			// already closed the transport). Never run the default HTTP responder on
+			// a connection that has left the HTTP request lifecycle.
+			if( context.connection_handed_over() )
+				co_return true;
+
 			if( not context.response().is_finished() )
 				co_await call_on_default(context);
 

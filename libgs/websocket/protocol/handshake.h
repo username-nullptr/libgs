@@ -16,16 +16,16 @@ struct opening_request
 	std::string key {};
 	std::vector<std::string> subprotocols {};
 
-	// Parsed for forward compatibility. Baseline client configuration must leave
-	// this empty; a baseline server may parse and ignore a valid peer offer.
+	// Wire offers. Client/server adapters apply the installed capability policy
+	// after this syntax-only codec accepts the header.
 	std::vector<extension> extensions {};
 };
 
 struct opening_response
 {
 	optional<std::string> subprotocol {};
-	// Reserved for post-baseline negotiation. A baseline response must be empty,
-	// and a baseline client rejects a non-empty peer response.
+	// Wire selections. The adapter verifies that each selection was offered and
+	// has an installed codec capability.
 	std::vector<extension> extensions {};
 };
 

@@ -92,8 +92,8 @@ basic_stream<Exec> &basic_stream<Exec>::adopt
 
 template <core_concepts::exec Exec>
 template <typename Buffer, typename Token>
-auto basic_stream<Exec>::read(Token &&token)
-	requires message_buffer_v<Buffer> and task_token_v<Token,basic_message<std::remove_cvref_t<Buffer>>>
+auto basic_stream<Exec>::read(Token &&token) requires
+	concepts::buffer<Buffer> and task_token_v<Token,basic_message<Buffer>>
 {
 	using buffer_t = std::remove_cvref_t<Buffer>;
 	using result_t = basic_message<buffer_t>;
@@ -143,6 +143,66 @@ auto basic_stream<Exec>::read(Token &&token)
 				}))
 			);
 			self->async_read_message(std::move(bridge));
+		},
+		std::forward<Token>(token));
+	}
+}
+
+template <core_concepts::exec Exec>
+template <typename Buffer, typename Token>
+auto basic_stream<Exec>::read_frame(Token &&token) requires
+	concepts::buffer<Buffer> and task_token_v<Token,basic_data_frame<Buffer>>
+{
+	using buffer_t = std::remove_cvref_t<Buffer>;
+	using result_t = basic_data_frame<buffer_t>;
+
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		auto value = m_impl->read_frame(token);
+		if( token )
+			return result_t{};
+		return impl::template convert_frame<buffer_t>(std::move(value), token);
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		error_code error;
+		auto value = m_impl->read_frame(error);
+		if( error )
+			system_error::loc_throw(error, "libgs::websocket::basic_stream::read_frame");
+
+		auto result = impl::template convert_frame<buffer_t>(
+			std::move(value), error
+		);
+		if( error )
+			system_error::loc_throw(error, "libgs::websocket::basic_stream::read_frame");
+		return result;
+	}
+	else
+	{
+		return initiate_io<result_t>(get_executor(),
+		[self = m_impl]<typename T0>(T0 &&completion_token) mutable
+		{
+			auto slot = asio::get_associated_cancellation_slot(completion_token);
+			auto completion_exec = asio::get_associated_executor(completion_token, self->m_exec);
+			auto allocator = asio::get_associated_allocator(completion_token);
+
+			auto bridge = asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot,
+				[handler = std::forward<T0>(completion_token)]
+				(error_code error, data_frame value) mutable
+				{
+					if( error )
+					{
+						std::move(handler)(error, result_t {});
+						return;
+					}
+					auto result = impl::template convert_frame<buffer_t>(
+						std::move(value), error
+					);
+					std::move(handler)(error, std::move(result));
+				}))
+			);
+			self->async_read_frame(std::move(bridge));
 		},
 		std::forward<Token>(token));
 	}

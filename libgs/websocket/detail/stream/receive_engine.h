@@ -34,9 +34,8 @@ public:
 	explicit receive_engine(Owner &owner) noexcept;
 
 	void reset(role local_role, const stream_config &config,
-		std::vector<std::byte> pending_data
+		std::span<const extension> extensions, std::vector<std::byte> pending_data
 	);
-
 	[[nodiscard]] bool active() const noexcept;
 	void set_active(bool value) noexcept;
 
@@ -58,12 +57,20 @@ public:
 	void async_wait_control(Handler &&handler);
 
 	[[nodiscard]] message read(error_code &error) noexcept;
+	[[nodiscard]] data_frame read_frame(error_code &error) noexcept;
 
 	template <typename Handler>
 	void async_read_message(Handler &&handler);
 
+	template <typename Handler>
+	void async_read_frame(Handler &&handler);
+
 	void complete_read_waiter(error_code error,
 		message value = {}, bool clear_slot = true
+	) noexcept;
+
+	void complete_frame_read_waiter(error_code error,
+		data_frame value = {}, bool clear_slot = true
 	) noexcept;
 
 private:
@@ -80,6 +87,7 @@ private:
 	bool m_read_active = false;
 
 	std::shared_ptr<read_wait_operation> m_read_waiter {};
+	std::shared_ptr<frame_read_wait_operation> m_frame_read_waiter {};
 	uint64_t m_next_read_waiter_id = 0;
 
 	optional<control_event> m_control_event {};

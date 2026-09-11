@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -34,6 +35,12 @@ public:
 		libgs::error_code error {};
 		bool wait_for_cancellation = false;
 	};
+	struct read_step
+	{
+		std::string payload {};
+		libgs::error_code error {};
+		size_t offset = 0;
+	};
 
 	explicit scripted_connection(executor_t exec) : m_exec(std::move(exec)) {}
 
@@ -45,6 +52,16 @@ public:
 	void push_cancellable_write(size_t transferred)
 	{
 		m_writes.push_back({transferred, {}, true});
+	}
+
+	void push_read(std::string payload, libgs::error_code error = {})
+	{
+		m_reads.push_back({std::move(payload), error});
+	}
+
+	void set_probe_state(libgs::sys_expected<probe_state_t> state)
+	{
+		m_probe_state = std::move(state);
 	}
 
 	libgs::sys_expected<> cancel() noexcept override {
@@ -72,7 +89,7 @@ public:
 	}
 
 	libgs::sys_expected<probe_state_t> probe() noexcept override {
-		return probe_state_t::no_event;
+		return m_probe_state;
 	}
 
 	libgs::http::endpoint remote_endpoint() const noexcept override {
@@ -89,11 +106,10 @@ public:
 
 protected:
 	size_t read_some(
-		libgs::mutable_buffer, libgs::error_code &error
+		libgs::mutable_buffer buffer, libgs::error_code &error
 	) noexcept override
 	{
-		error = asio::error::eof;
-		return 0;
+		return read_into(buffer, error);
 	}
 
 	size_t write_all(
@@ -106,12 +122,14 @@ protected:
 	}
 
 	void co_read_some(
-		libgs::mutable_buffer, io_handler_t completion
+		libgs::mutable_buffer buffer, io_handler_t completion
 	) noexcept override
 	{
+		libgs::error_code error {};
+		const auto size = read_into(buffer, error);
 		asio::post(m_exec,
-			[handler = std::move(completion)]() mutable {
-				std::move(handler)(asio::error::eof, 0);
+			[handler = std::move(completion), error, size]() mutable {
+				std::move(handler)(error, size);
 			});
 	}
 
@@ -161,6 +179,32 @@ protected:
 	}
 
 private:
+	[[nodiscard]] size_t read_into(
+		libgs::mutable_buffer buffer, libgs::error_code &error
+	) noexcept
+	{
+		if( m_reads.empty() )
+		{
+			error = asio::error::eof;
+			return 0;
+		}
+
+		auto &front = m_reads.front();
+		const auto remaining = front.payload.size() - front.offset;
+		const auto size = std::min(remaining, buffer.size());
+		if( size > 0 )
+		{
+			std::memcpy(buffer.data(), front.payload.data() + front.offset, size);
+			front.offset += size;
+		}
+		if( front.offset == front.payload.size() )
+		{
+			error = front.error;
+			m_reads.pop_front();
+		}
+		return size;
+	}
+
 	[[nodiscard]] io_step next_write(size_t requested) noexcept
 	{
 		if( m_writes.empty() )
@@ -172,7 +216,9 @@ private:
 	}
 
 	executor_t m_exec;
+	std::deque<read_step> m_reads {};
 	std::deque<io_step> m_writes {};
+	libgs::sys_expected<probe_state_t> m_probe_state {probe_state_t::no_event};
 	bool m_open = true;
 };
 
@@ -188,6 +234,16 @@ public:
 		return pos == m_connection_counts.end() ? 0 : pos->second;
 	}
 
+	void push_response(std::string response)
+	{
+		m_responses.emplace_back(std::move(response));
+	}
+
+	[[nodiscard]] std::shared_ptr<scripted_connection> last_connection() const
+	{
+		return m_connections.empty() ? nullptr : m_connections.back();
+	}
+
 protected:
 	libgs::sys_expected<connection_ptr> do_connect(
 		const libgs::http::connect_target &target
@@ -196,9 +252,14 @@ protected:
 		libgs::error_code error {};
 		try {
 			++m_connection_counts[target.host];
-			return connection_ptr(
-				std::make_shared<scripted_connection>(get_executor())
-			);
+			auto connection = std::make_shared<scripted_connection>(get_executor());
+			if( not m_responses.empty() )
+			{
+				connection->push_read(std::move(m_responses.front()));
+				m_responses.pop_front();
+			}
+			m_connections.emplace_back(connection);
+			return connection_ptr(std::move(connection));
 		}
 		catch(const std::bad_alloc&) {
 			error = std::make_error_code(std::errc::not_enough_memory);
@@ -218,6 +279,8 @@ protected:
 
 private:
 	std::unordered_map<std::string,size_t> m_connection_counts {};
+	std::deque<std::string> m_responses {};
+	std::vector<std::shared_ptr<scripted_connection>> m_connections {};
 };
 
 void protocol_enums()
@@ -723,6 +786,61 @@ void connection_pool_indexed_waiters()
 	LIBGS_TEST_CHECK_EQ(acquisition_order[1], "second");
 }
 
+void connection_pool_discards_failed_connections()
+{
+	using namespace libgs::http;
+	libgs::io_context_t context;
+	auto connector = std::make_shared<scripted_connector>(context.get_executor());
+	connection_pool pool(connector);
+	const connect_target target {"failed.test", 80, security_mode::plain};
+
+	auto first_result = pool.get(target);
+	LIBGS_TEST_CHECK(first_result);
+	auto first = *first_result;
+	auto failed_connection = connector->last_connection();
+	LIBGS_TEST_CHECK(failed_connection);
+	failed_connection->set_probe_state(connection_probe_state::peer_closed);
+	first->release();
+
+	LIBGS_TEST_CHECK(not failed_connection->is_open());
+	LIBGS_TEST_CHECK_EQ(pool.count(), 0U);
+
+	auto second_result = pool.get(target);
+	LIBGS_TEST_CHECK(second_result);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("failed.test"), 2U);
+	(*second_result)->release();
+}
+
+void http_client_does_not_reuse_malformed_reply()
+{
+	using namespace libgs::http;
+	libgs::io_context_t context;
+	auto connector = std::make_shared<scripted_connector>(context.get_executor());
+	connector->push_response(
+		"HTTP/1.1 200 OK\r\nMissing-Colon\r\n\r\n");
+	connector->push_response(
+		"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
+	connection_pool pool(connector);
+	client requester(std::move(pool));
+
+	libgs::error_code error {};
+	auto malformed = requester.request_get(
+		"http://malformed.test/first", error);
+	LIBGS_TEST_CHECK(malformed);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(malformed->wait_reply(error), status::none);
+	LIBGS_TEST_CHECK(error);
+	LIBGS_TEST_CHECK(not malformed->reply()->lease().is_valid());
+
+	error.clear();
+	auto valid = requester.request_get("http://malformed.test/second", error);
+	LIBGS_TEST_CHECK(valid);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(valid->wait_reply(error), status::ok);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(connector->connection_count("malformed.test"), 2U);
+}
+
 } //namespace
 
 int main()
@@ -736,5 +854,9 @@ int main()
 		{"HTTP file body write counts", http_file_body_write_counts},
 		{"connection pool indexed LRU", connection_pool_indexed_lru},
 		{"connection pool indexed waiters", connection_pool_indexed_waiters},
+		{"connection pool discards failed connections",
+			connection_pool_discards_failed_connections},
+		{"HTTP client does not reuse malformed replies",
+			http_client_does_not_reuse_malformed_reply},
 	});
 }

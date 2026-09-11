@@ -7,8 +7,8 @@ servers, connections, routing, and optional TLS and gzip support. Link it as
 `gs.http` together with `gs.core`.
 
 WebSocket framing is not implemented by this module. The server exposes a
-generic HTTP Upgrade connection handover boundary that can support a future
-WebSocket module; see the [roadmap](roadmap.md).
+generic HTTP Upgrade connection handover boundary used by the separate,
+implemented [`gs.websocket`](websocket.md) module.
 
 ## Header guide
 
@@ -161,7 +161,8 @@ configurable cookie key.
 For a valid upgrade request, `context.hand_over_connection()` transfers the
 underlying connection away from normal HTTP request processing. The caller then
 owns protocol handling and any pending bytes returned by the request. This is a
-low-level ownership boundary, not a WebSocket implementation.
+low-level ownership boundary; applications normally use
+`websocket::upgrade()` rather than implementing RFC 6455 framing themselves.
 
 ## Synchronous HTTP client
 
@@ -292,8 +293,9 @@ verification settings into production without reviewing them.
 
 ## Protocol scope
 
-The implemented protocol versions are HTTP/1.0 and HTTP/1.1. HTTP/2, HTTP/3,
-and WebSocket framing are not currently exposed as implemented modules.
+The HTTP module implements HTTP/1.0 and HTTP/1.1. HTTP/2 and HTTP/3 are not
+implemented. RFC 6455 framing is provided by the separate
+[`gs.websocket`](websocket.md) module over HTTP/1.1 Upgrade.
 
 ## Related examples
 

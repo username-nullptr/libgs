@@ -43,6 +43,8 @@ public:
 			return "Unexpected WebSocket continuation frame";
 		case protocol_errc::data_during_fragmentation:
 			return "WebSocket data frame during fragmented message";
+		case protocol_errc::invalid_compressed_payload:
+			return "Invalid compressed WebSocket message payload";
 		default:
 			break;
 		}
@@ -62,6 +64,44 @@ close_frame::close_frame(uint16_t value, std::string text) :
 	code(value), reason(std::move(text))
 {
 
+}
+
+extension permessage_deflate_extension()
+{
+	return {
+		.name = "permessage-deflate",
+		.parameters = {
+			{.name = "server_no_context_takeover"},
+			{.name = "client_no_context_takeover"},
+		}
+	};
+}
+
+bool is_permessage_deflate_extension(const extension &value) noexcept
+{
+	if( value.name != "permessage-deflate" or value.parameters.size() != 2 )
+		return false;
+
+	bool server_no_context_takeover = false;
+	bool client_no_context_takeover = false;
+	for(const auto &parameter : value.parameters)
+	{
+		if( parameter.value )
+			return false;
+		if( parameter.name == "server_no_context_takeover" )
+		{
+			if( std::exchange(server_no_context_takeover, true) )
+				return false;
+		}
+		else if( parameter.name == "client_no_context_takeover" )
+		{
+			if( std::exchange(client_no_context_takeover, true) )
+				return false;
+		}
+		else
+			return false;
+	}
+	return server_no_context_takeover and client_no_context_takeover;
 }
 
 const std::error_category &protocol_error_category() noexcept

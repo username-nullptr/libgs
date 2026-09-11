@@ -2,30 +2,40 @@
 // SPDX-License-Identifier: MIT
 
 #include <libgs/websocket/detail/stream/receive_buffer.h>
+#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/protocol/detail/utf8.h>
 #include <libgs/websocket/protocol/generator.h>
 
 namespace libgs::websocket::detail
 {
 
-void receive_buffer::reset
-(role local_role, const stream_config &config, std::vector<std::byte> pending_data)
+void receive_buffer::reset(role local_role, const stream_config &config,
+	std::span<const extension> extensions, std::vector<std::byte> pending_data)
 {
-	auto parser = std::make_unique<frame_parser>(frame_codec_config {
+	frame_codec_config codec_config {
 		.local_role = local_role, .max_frame_size = config.max_frame_size
-	});
+	};
+	if( not extensions.empty() )
+		codec_config.allowed_rsv = reserved_bit::rsv1;
+
+	auto parser = std::make_unique<frame_parser>(codec_config);
 	auto read_buffer = std::make_shared<std::vector<std::byte>>(config.read_buffer_size);
 
 	m_parser = std::move(parser);
 	m_read_buffer = std::move(read_buffer);
 	m_pending_data = std::move(pending_data);
+
 	m_max_message_size = config.max_message_size;
+	m_permessage_deflate = not extensions.empty();
+	m_message_compressed = false;
 
 	m_pending_offset = 0;
 	m_read_size = 0;
 	m_read_offset = 0;
+
 	m_message_type.reset();
 	m_message_body.clear();
+	m_frame_body.clear();
 	m_control_body.clear();
 }
 
@@ -82,13 +92,22 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 	const auto &header = m_parser->header();
 	if( parsed->header_ready )
 	{
+		const bool compressed = header.rsv.test_flag(reserved_bit::rsv1);
+		if( compressed and (not m_permessage_deflate or
+			header.op == opcode::continuation or is_control_opcode(header.op)) )
+			return sys_unexpected(make_error_code(protocol_errc::unexpected_rsv));
+
 		if( header.op == opcode::text or header.op == opcode::binary )
 		{
 			m_message_type = header.op == opcode::text ?
 				message_type::text : message_type::binary;
 
 			m_message_body.clear();
+			m_message_compressed = compressed;
 		}
+		if( is_data_opcode(header.op) or header.op == opcode::continuation )
+			m_frame_body.clear();
+
 		else if( is_control_opcode(header.op) )
 			m_control_body.clear();
 
@@ -98,9 +117,16 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 				static_cast<size_t>(header.payload_size) > m_message_body.max_size() - m_message_body.size() )
 				return sys_unexpected(make_error_code(errc::message_too_big));
 
-			if( m_max_message_size != 0 and
+			size_t wire_limit = m_max_message_size;
+			if( m_message_compressed and wire_limit != 0 )
+			{
+				const auto overhead = wire_limit / 8 + 1024;
+				wire_limit = overhead > std::numeric_limits<size_t>::max() - wire_limit ?
+					std::numeric_limits<size_t>::max() : wire_limit + overhead;
+			}
+			if( wire_limit != 0 and
 				static_cast<size_t>(header.payload_size) >
-					m_max_message_size - std::min(m_message_body.size(), m_max_message_size) )
+					wire_limit - std::min(m_message_body.size(), wire_limit) )
 				return sys_unexpected(make_error_code(errc::message_too_big));
 		}
 	}
@@ -110,11 +136,19 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 			apply_mask(parsed->payload, *header.mask, parsed->payload_offset);
 		try {
 			const auto *begin = static_cast<const std::byte*>(parsed->payload.data());
-			auto &destination = is_control_opcode(header.op) ?
-				m_control_body : m_message_body;
+			if( is_control_opcode(header.op) )
+			{
+				m_control_body.insert(m_control_body.end(), begin,
+					begin + parsed->payload.size());
+			}
+			else
+			{
+				m_frame_body.insert(m_frame_body.end(), begin,
+					begin + parsed->payload.size());
 
-			destination.insert(destination.end(), begin,
-				begin + parsed->payload.size());
+				m_message_body.insert(m_message_body.end(), begin,
+					begin + parsed->payload.size());
+			}
 		}
 		catch(const std::bad_alloc&) {
 			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
@@ -147,11 +181,25 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 	received_event event{.op = header.op};
 	if( is_data_opcode(header.op) or header.op == opcode::continuation )
 	{
+		if( not m_message_type )
+			return sys_unexpected(make_error_code(protocol_errc::unexpected_continuation));
+
+		event.frame = data_frame {
+			.type = *m_message_type,
+			.fin = header.fin,
+			.continuation = header.op == opcode::continuation,
+			.body = std::move(m_frame_body),
+		};
+		m_frame_body.clear();
 		if( header.fin )
 		{
-			if( not m_message_type )
-				return sys_unexpected(make_error_code(protocol_errc::unexpected_continuation));
-
+			if( m_message_compressed )
+			{
+				auto inflated = inflate_message(m_message_body, m_max_message_size);
+				if( not inflated )
+					return sys_unexpected(inflated.error());
+				m_message_body = std::move(*inflated);
+			}
 			if( *m_message_type == message_type::text )
 			{
 				const auto text = m_message_body.empty() ? std::string_view{} :
@@ -165,6 +213,7 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 				.body = std::move(m_message_body),
 			};
 			m_message_type.reset();
+			m_message_compressed = false;
 			m_message_body.clear();
 		}
 	}

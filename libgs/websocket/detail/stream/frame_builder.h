@@ -12,10 +12,12 @@ namespace libgs::websocket::detail
 struct prepared_frame
 {
 	std::shared_ptr<std::vector<std::byte>> wire;
+	std::shared_ptr<std::vector<std::byte>> payload_owner;
 	std::vector<const_buffer> buffers;
 
 	size_t header_size = 0;
 	size_t payload_size = 0;
+	size_t application_size = 0;
 };
 
 // Owns outbound frame construction policy. It deliberately has no connection
@@ -25,9 +27,12 @@ class LIBGS_WEBSOCKET_API frame_builder
 {
 public:
 	frame_builder() noexcept = default;
-	frame_builder(role local_role, const stream_config &config) noexcept;
 
-	frame_builder &reset(role local_role, const stream_config &config) noexcept;
+	frame_builder(role local_role, const stream_config &config,
+		std::span<const extension> extensions = {}) noexcept;
+
+	frame_builder &reset(role local_role, const stream_config &config,
+		std::span<const extension> extensions = {}) noexcept;
 
 	[[nodiscard]] sys_expected<prepared_frame> prepare_control (
 		opcode op, const const_buffer &payload, bool borrow_payload = false
@@ -46,6 +51,7 @@ private:
 	size_t m_max_frame_size = stream_config{}.max_frame_size;
 	size_t m_max_message_size = stream_config{}.max_message_size;
 	size_t m_fragment_size = stream_config{}.write_fragment_size;
+	bool m_permessage_deflate = false;
 };
 
 } //namespace libgs::websocket::detail

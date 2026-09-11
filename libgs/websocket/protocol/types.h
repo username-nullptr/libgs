@@ -39,6 +39,15 @@ struct extension
 	std::vector<extension_parameter> parameters {};
 };
 
+// LibGS currently implements the RFC 7692 profile that disables context
+// takeover in both directions. The descriptor returned here is suitable for
+// connect_request::extensions and upgrade_options::supported_extensions.
+[[nodiscard]] LIBGS_WEBSOCKET_API extension
+permessage_deflate_extension();
+
+[[nodiscard]] LIBGS_WEBSOCKET_API bool
+is_permessage_deflate_extension(const extension &value) noexcept;
+
 struct frame_codec_config
 {
 	role local_role = role::client;
@@ -46,7 +55,7 @@ struct frame_codec_config
 	// Zero permits every payload length representable by RFC 6455.
 	uint64_t max_frame_size = 16 * 1024 * 1024;
 
-	// Reserved for post-baseline extension codecs. The baseline value is empty.
+	// Extension codecs set the bits they own; the default rejects all RSV bits.
 	reserved_bits allowed_rsv {};
 };
 
@@ -125,6 +134,7 @@ enum class protocol_errc
 	invalid_utf8,
 	unexpected_continuation,
 	data_during_fragmentation,
+	invalid_compressed_payload,
 };
 
 [[nodiscard]] LIBGS_WEBSOCKET_API

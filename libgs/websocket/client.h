@@ -30,9 +30,8 @@ struct connect_request
 	optional<std::chrono::milliseconds> handshake_timeout {};
 	std::vector<std::string> subprotocols {};
 
-	// Wire-level offers reserved for post-baseline extension support. Enabling an
-	// offer will additionally require an installed frame codec capability; the
-	// baseline rejects a non-empty value before network I/O starts.
+	// The built-in permessage_deflate_extension() offer is available when zlib
+	// support is compiled in. Unsupported profiles fail before opening I/O.
 	std::vector<extension> extensions {};
 
 	size_t max_redirects = 0;

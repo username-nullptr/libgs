@@ -9,6 +9,7 @@
 #endif
 
 #include <libgs/websocket/detail/stream/close_operations.h>
+#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/detail/stream/receive_engine.h>
 #include <libgs/websocket/detail/stream/send_engine.h>
 
@@ -68,13 +69,22 @@ public:
 	// Inbound application operations (impl/read.ipp) and control observation
 	// (impl/control.ipp).
 	[[nodiscard]] message read(error_code &error) noexcept;
+	[[nodiscard]] data_frame read_frame(error_code &error) noexcept;
 
 	template <typename Handler>
 	void async_read_message(Handler &&handler);
 
+	template <typename Handler>
+	void async_read_frame(Handler &&handler);
+
 	template <typename Buffer>
 	[[nodiscard]] static basic_message<Buffer> convert_message (
 		message value, error_code &error
+	) noexcept;
+
+	template <typename Buffer>
+	[[nodiscard]] static basic_data_frame<Buffer> convert_frame (
+		data_frame value, error_code &error
 	) noexcept;
 
 	[[nodiscard]] control_event_t wait_control(error_code &error) noexcept;
@@ -119,6 +129,8 @@ public:
 
 	[[nodiscard]] error_code write_state_error() const noexcept;
 	[[nodiscard]] error_code read_state_error() const noexcept;
+
+	[[nodiscard]] error_code frame_read_state_error() const noexcept;
 	[[nodiscard]] error_code control_state_error() const noexcept;
 
 	[[nodiscard]] bool send_transport_ready() const noexcept;

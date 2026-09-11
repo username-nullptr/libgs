@@ -32,7 +32,7 @@ struct close_info
 	bool clean = false;
 };
 
-template <typename Buffer>
+template <concepts::buffer Buffer>
 struct basic_message
 {
 	message_type type = message_type::binary;
@@ -40,6 +40,20 @@ struct basic_message
 };
 
 using message = basic_message<std::vector<std::byte>>;
+
+template <concepts::buffer Buffer>
+struct basic_data_frame
+{
+	// The effective type of the containing message. Continuation frames retain
+	// the type established by the first frame.
+	message_type type = message_type::binary;
+	Buffer body {};
+
+	bool continuation = false;
+	bool fin = true;
+};
+
+using data_frame = basic_data_frame<std::vector<std::byte>>;
 
 struct control_event
 {
@@ -53,8 +67,8 @@ struct adopt_options
 	std::vector<std::byte> pending_data {};
 	std::string negotiated_subprotocol {};
 
-	// Reserved for post-baseline extension codecs. The baseline stream rejects
-	// non-empty negotiated extensions with errc::unsupported_extension.
+	// The built-in permessage_deflate_extension() profile is accepted when zlib
+	// support is compiled in. Unsupported profiles fail adoption.
 	std::vector<extension> negotiated_extensions {};
 };
 

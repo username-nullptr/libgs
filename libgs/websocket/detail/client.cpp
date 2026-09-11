@@ -88,7 +88,7 @@ error_code validate_open_request(connect_request &request, const stream_config &
 		if( stream.read_buffer_size == 0 )
 			return make_error_code(std::errc::invalid_argument);
 
-		if( not request.extensions.empty() )
+		if( not supported_extension_set(request.extensions) )
 			return make_error_code(errc::unsupported_extension);
 
 		for(const auto &[name, value] : request.request_options.headers())

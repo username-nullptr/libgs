@@ -1,10 +1,10 @@
 # WebSocket 模块设计
 
-本文定义 `libgs::websocket` 的实现边界和可观察行为。除明确标记为“后续扩展”的内容外，均视为基础版本的实现约束。
+本文定义 `libgs::websocket` 的实现边界和可观察行为。除明确标记为“后续扩展”的内容外，均视为当前版本的实现约束。
 
 ## 1. 目标与范围
 
-基础版本实现 RFC 6455 的 HTTP/1.1 WebSocket：
+当前版本实现 RFC 6455 的 HTTP/1.1 WebSocket：
 
 - client/server opening handshake；
 - text、binary、continuation、Ping、Pong 和 Close；
@@ -12,12 +12,15 @@
 - UTF-8、Close code、长度、RSV、opcode 和状态转换校验；
 - 同步、异步、取消、超时、背压和优雅关闭；
 - 独立 WS/WSS 服务，以及与现有 HTTP/HTTPS 服务混合部署；
-- extension header 的通用解析和结构化表达。
+- extension header 的通用解析和结构化表达；
+- 数据帧级读取与异步 Upgrade validator；
+- 可选的 RFC 7692 `permessage-deflate`，两个方向均关闭 context takeover。
 
-基础版本不实现：
+当前版本不实现：
 
 - HTTP/2、HTTP/3 extended CONNECT；
-- extension 协商和帧变换 codec；
+- 通用 extension capability registry，以及 context takeover、window bits
+  等其他 RFC 7692 参数配置；
 - WebSocket 层的代理配置、自动 keepalive、业务重连或消息路由。
 
 WebSocket 复用 HTTP 模块完成 TCP/TLS 建连、Cookie、HTTP/1.1 报文处理和监听。升级成功后连接脱离 HTTP connection pool 和 HTTP keep-alive 生命周期，由 `websocket::stream` 独占。
@@ -108,7 +111,7 @@ HTTP 模块不识别 `ws/wss`，frame codec 不依赖 socket、executor、HTTP c
 | --- | --- | --- |
 | `write()` | 是 | `wait_written()` |
 | `close()` | 是 | `wait_closed()` |
-| `read()`、`wait_ctrl()` | 否 | 自身返回数据 |
+| `read()`、`read_frame()`、`wait_ctrl()` | 否 | 自身返回数据 |
 | `ping()`、`pong()` | 否 | 无独立结果屏障 |
 | `open()`、`accept()`、`upgrade()` | 否 | 成功结果包含 stream 所有权 |
 | `wait_written()`、`wait_closed()` | 否 | 自身即观察操作 |
@@ -178,7 +181,7 @@ origin 由 scheme、规范化 host 和有效端口组成。默认禁止 `wss →
 
 `websocket::client` 拥有一个 HTTP/1.1 client；每次 `client.open()` 返回独立 stream。自由 `websocket::open(http_client, ...)` 用于 HTTP/WebSocket 混合客户端，不拥有传入的 HTTP client。
 
-`connect_request` 保存 endpoint、本次 HTTP request options、可选 stream 配置、可选 handshake timeout、subprotocol offer、extension 占位和 redirect policy。owned client 在请求未覆盖时使用 `client_config::stream` 和 `client_config::handshake_timeout`；自由 `open()` 没有 client-level 默认值，未覆盖项使用 WebSocket 默认配置。
+`connect_request` 保存 endpoint、本次 HTTP request options、可选 stream 配置、可选 handshake timeout、subprotocol offer、extension offer 和 redirect policy。owned client 在请求未覆盖时使用 `client_config::stream` 和 `client_config::handshake_timeout`；自由 `open()` 没有 client-level 默认值，未覆盖项使用 WebSocket 默认配置。
 
 ### 6.2 请求与验证
 
@@ -193,7 +196,7 @@ final response 必须满足：
 - `Upgrade` ASCII case-insensitive 等于 `websocket`；
 - `Sec-WebSocket-Accept` 与本次 key 匹配；
 - 选择的 subprotocol 属于 client offer；
-- 基础版本没有选择 extension。
+- extension response 是本地 codec 支持且由 client offer 允许的配置。
 
 非 101 final response 返回 `errc::handshake_rejected`。收到 101 但 WebSocket 校验失败时，连接必须从 lease 中移除并关闭，不能回池。
 
@@ -220,7 +223,7 @@ deadline 小于或等于零时不触碰网络。deadline 到达后取消当前�
 
 `upgrade_options::handshake_timeout` 从 `upgrade()` initiation，或 owned server 把 request 与 accept/handler 配对时开始；它覆盖 policy 前后检查、响应生成和完整 response write，不包含 HTTP request header 的读取时间及 pending queue 等待时间。
 
-timeout 小于或等于零时不写 101 或 rejection，立即关闭对应 HTTP connection 并返回 `asio::error::timed_out`。response write 期间到期时取消写入并关闭连接。同步 validator/selector 不能被强制中断，adapter 必须在每个 callback 返回后重新检查 deadline。
+timeout 小于或等于零时不写 101 或 rejection，立即关闭对应 HTTP connection 并返回 `asio::error::timed_out`。response write 期间到期时取消写入并关闭连接。同步 validator/selector 不能被强制中断，adapter 必须在每个 callback 返回后重新检查 deadline；异步 validator 继承 operation 的 cancellation slot。
 
 ### 7.2 Owned server 与交付模式
 
@@ -257,10 +260,12 @@ server 有两种互斥的 stream 交付模式：
 2. WebSocket version、key、subprotocol token 和 extension 语法；
 3. `request_validator`；
 4. `origin_validator`；
-5. subprotocol 选择；
-6. 基础版 extension policy；
-7. 写出 final response；
-8. 仅在成功 101 后移交 connection。
+5. `async_request_validator`；
+6. `async_origin_validator`；
+7. subprotocol 选择；
+8. extension 选择与 capability 校验；
+9. 写出 final response；
+10. 仅在成功 101 后移交 connection。
 
 默认 subprotocol 算法按 client offer 顺序选择第一个服务端支持项。自定义 selector 替代默认算法，但结果仍必须同时属于 client offer 和 server capability；`require_subprotocol` 为 true 且无共同协议时以 400 拒绝。
 
@@ -275,7 +280,7 @@ server 有两种互斥的 stream 交付模式：
 
 失败完成错误保持具体原因：格式错误为 `errc::invalid_upgrade`，version 非 13 为 `errc::unsupported_version`，明确 policy rejection 为 `errc::handshake_rejected`，subprotocol/extension policy 分别为对应 unsupported error，response I/O 则保留 transport error。若非 101 response 已完整写出且允许 HTTP keep-alive，混合模式仍由原 service context 管理连接，owned server 也继续遵循其 HTTP session 生命周期；任何失败都不能产生 WebSocket stream。
 
-protocol-owned 101 headers 不能被 `response_headers` 覆盖；rejection 的协议 header 和 body framing header 同样由 adapter 管理。validator/selector 是同步用户代码，adapter 必须捕获异常并用 `exception_error()` 映射；可以安全写响应时尝试发送 500，但 operation 始终保留先出现的 callback error。需要异步鉴权时，应用应先在 HTTP route 中完成，再调用 `upgrade()`。owned server 仅在成功升级后调用 connection handler；失败交给 HTTP/WebSocket 错误路径和已注册的 service error handler。
+protocol-owned 101 headers 不能被 `response_headers` 覆盖；rejection 的协议 header 和 body framing header 同样由 adapter 管理。同步/异步 validator 及 selector 的异常由 adapter 捕获并通过 `exception_error()` 映射；可以安全写响应时尝试发送 500，但 operation 始终保留先出现的 callback error。异步 validator 只参与异步 `upgrade()` 和 owned-server 路径；同步 `upgrade()` 配置它们时以 `std::errc::operation_not_supported` 失败。owned server 仅在成功升级后调用 connection handler；失败交给 HTTP/WebSocket 错误路径和已注册的 service error handler。
 
 `server::cancel()` 和 `stop()` 只影响 listener、pending accept 和未完成 handshake，不影响已交付 stream。
 
@@ -293,15 +298,15 @@ protocol-owned 101 headers 不能被 `response_headers` 覆盖；rejection 的�
 | `closed` | 正常关闭或显式 shutdown 已完成 |
 | `failed` | 协议、framing 或 transport 出现不可恢复错误 |
 
-`adopt()` 只接受已经完成并验证 HTTP Upgrade 的 connection。它设置角色、pending data、subprotocol 和协商 extension，不解析 URL，也不发送 opening handshake。重复 adopt、非法预读状态或不匹配 executor 必须失败；基础版拒绝非空 `negotiated_extensions`。
+`adopt()` 只接受已经完成并验证 HTTP Upgrade 的 connection。它设置角色、pending data、subprotocol 和协商 extension，不解析 URL，也不发送 opening handshake。重复 adopt、非法预读状态或不匹配 executor 必须失败；非空 `negotiated_extensions` 必须对应当前已编译的 codec capability。
 
 ### 8.2 Receive engine
 
 stream 不启动后台读取。只有 `read()` 和正在完成关闭握手的 `close()` 从 transport 读取。每个 stream 始终只有一个 receive engine 和一个底层 read。
 
-`read<Buffer>()` 返回一个完整 text/binary message；TCP 分段、多个 frame、continuation 和控制帧都由内部 parser/assembler 消化。零长度 message 合法。控制帧不作为普通 message 返回。
+`read<Buffer>()` 返回一个完整 text/binary message；TCP 分段、多个 frame、continuation 和控制帧都由内部 parser/assembler 消化。`read_frame<Buffer>()` 返回单个 data frame，并携带 `fin`、是否为 continuation 及所属消息的有效类型。零长度 message/frame 合法，控制帧不作为普通数据返回。压缩会改变 frame payload 边界，因此协商 extension 的 stream 不支持 `read_frame()`。
 
-同一时刻最多有一个 message waiter 和一个 control waiter；重叠发起同类 operation 返回 `std::errc::operation_in_progress`。`close()` 接管接收方向前先以 `errc::closing` 完成已有 read/control waiter。
+同一时刻最多有一个 data read（message 或 frame）和一个 control waiter；重叠发起读取返回 `std::errc::operation_in_progress`。`close()` 接管接收方向前先以 `errc::closing` 完成已有 read/control waiter。
 
 `read_buffer_size` 只决定内部 transport read block。`max_frame_size` 限制单帧，`max_message_size` 限制全部 continuation 累计后的完整消息；两者独立。消息超过上限返回 `errc::message_too_big`，并在 framing 仍可信时发送 Close 1009。
 
@@ -434,16 +439,7 @@ handshake codec 负责：
 
 基础层把 extension header 解析为有序 `extension`/`extension_parameter`：名称和值使用字符串，vector 保留顺序和重复项；quoted-string 解转义后保存语义值，不保留原始引号，解转义结果仍必须满足 token 语法。generator 可以规范化为 token 输出，无法合法表示的值必须拒绝。通用 parser 只验证 RFC 6455 语法，参数唯一性、数值范围和组合规则由具体 extension 判断。
 
-基础版本行为固定为：
-
-- 可以解析合法 client extension offer，server 默认忽略；
-- `connect_request::extensions` 非空时在 I/O 前返回 `errc::unsupported_extension`；
-- server 的 `supported_extensions` 非空或设置 `extension_selector` 时拒绝本地配置；
-- client 收到任何 extension response 时失败并关闭已参与 handshake 的连接；
-- adopt 收到非空 negotiated extensions 时失败；
-- `allowed_rsv` 始终为空，任何 RSV 位均为 protocol error。
-
-后续 extension 实现必须把四个层次作为一个能力单元：
+当前实现把四个层次作为一个能力单元：
 
 | 层次 | 责任 |
 | --- | --- |
@@ -452,7 +448,21 @@ handshake codec 负责：
 | Codec capability | RSV 所有权、收发变换和组合顺序 |
 | Session state | 每连接、每消息、fragment 和 context takeover 状态 |
 
-selector 只能选择已经安装 codec capability 的 offer；成功协商必须同时创建逐连接 codec state 并检查 RSV 冲突。裸 `extension` 描述不能单独启用扩展。首个计划实现为 RFC 7692 permessage-deflate，但其 codec 生命周期稳定前不冻结额外的公开 provider vtable。
+selector 只能选择已经安装 codec capability 的 offer；成功协商必须同时创建逐连接 codec state 并检查 RSV 冲突。裸 `extension` 描述不能单独启用扩展。
+
+当前内置 capability 仅接受 `permessage_deflate_extension()` 返回的规范配置：
+
+- `server_no_context_takeover` 与 `client_no_context_takeover` 必须同时存在，
+  均不得带值，也不得重复；
+- 只有编译了 WebSocket zlib 支持时才可在 connect、upgrade 或 adopt 中使用；
+- server 只从 client 的同一规范 offer 中选择，client 允许 server 不选择；
+- RSV1 只允许出现在压缩消息的首个 data frame，control/continuation frame 不得设置；
+- 完整压缩消息聚合后解压，再执行消息大小和 text UTF-8 校验；
+- control frame 不压缩，每条消息使用独立的 deflate/inflate context。
+
+启用 `LIBGS_HTTP_ZLIB_SUPPORT` 时 WebSocket 自然继承 zlib；只有 HTTP zlib 关闭时，
+才由 `LIBGS_WEBSOCKET_ZLIB_SUPPORT` 单独控制。其他 extension、context takeover、
+window bits 或参数组合在 I/O 前或握手校验阶段以 `unsupported_extension` 拒绝。
 
 ## 11. 错误与失败语义
 
@@ -471,7 +481,7 @@ opening handshake 主要映射：
 - WebSocket version 非 13：`unsupported_version`；
 - Accept 不匹配：`invalid_accept_key`；
 - subprotocol 非 offer 成员：`unsupported_subprotocol`；
-- 基础版 extension 配置/响应：`unsupported_extension`；
+- 不受支持的 extension 配置/响应：`unsupported_extension`；
 - redirect 超限/安全降级：`redirect_limit_exceeded` / `insecure_redirect`。
 
 发生 frame protocol error 时统一执行 `fail_connection`：
@@ -486,19 +496,19 @@ protocol failure 不转换成正常 EOF。所有不可恢复路径遵循首错�
 
 ## 12. 实现与验证顺序
 
-按依赖顺序实现：
+实现按以下依赖顺序组织：
 
 1. error category、协议类型和基础校验；
 2. frame generator、mask 和 Close payload codec；
 3. incremental frame parser；
 4. opening handshake codec；
-5. 无 extension 的 stream 状态机；
+5. 无 extension 的 stream 状态机与 frame-level read；
 6. `open()` 和 owned client；
 7. `upgrade()` 和 owned server；
-8. 独立设计 extension capability registry；
-9. RFC 7692 permessage-deflate。
+8. 受限 RFC 7692 permessage-deflate capability；
+9. parser fuzz harness 与构建/安装验证。
 
-基础版本至少覆盖以下验证矩阵：
+当前版本至少覆盖以下验证矩阵：
 
 - generator/parser round-trip、partial header/payload、多个 frame 和 fuzz；
 - canonical length、masking 方向、RSV/opcode/control frame 边界；
@@ -515,4 +525,4 @@ protocol failure 不转换成正常 EOF。所有不可恢复路径遵循首错�
 - 不能由全局 executor 默认构造的自定义 `Exec` 错误路径；
 - 真实 socket 的 client/server 互操作。
 
-公共头文件能够编译不代表基础版本完成；只有无 extension 路径通过以上协议与互操作测试后，才视为具备可发布实现。
+公共头文件能够编译不代表功能完成；无 extension 与启用压缩的路径都必须通过对应协议、回环与安装验证后，才视为具备可发布实现。

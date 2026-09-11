@@ -5,8 +5,8 @@
 HTTP 模块实现 HTTP/1.0 和 HTTP/1.1 协议工具、客户端、服务端、连接与路由，
 并提供可选的 TLS 和 gzip 支持。链接时使用 `gs.http` 和 `gs.core`。
 
-该模块尚未实现 WebSocket 帧。服务端提供了通用的 HTTP Upgrade 连接移交边界，
-可供未来的 WebSocket 模块使用；详情参阅[路线图](roadmap.md)。
+WebSocket 帧不属于本模块。服务端提供了通用的 HTTP Upgrade 连接移交边界，
+由独立且已经实现的 [`gs.websocket`](websocket.md) 模块使用。
 
 ## 头文件索引
 
@@ -149,7 +149,8 @@ Session 支持通过继承扩展类型、任意属性、过期时间、生命周
 
 对于有效的 upgrade 请求，`context.hand_over_connection()` 会将底层连接移出
 常规 HTTP 请求处理流程。之后由调用方负责协议处理，以及 request 中剩余字节的
-处理。这是低层所有权边界，并不是 WebSocket 实现。
+处理。这是低层所有权边界；应用通常应调用 `websocket::upgrade()`，无需自行实现
+RFC 6455 framing。
 
 ## 同步 HTTP 客户端
 
@@ -271,8 +272,9 @@ TLS 策略与具体应用有关。未经审核，不要将开发环境的证书�
 
 ## 协议范围
 
-目前实现的协议版本为 HTTP/1.0 和 HTTP/1.1。HTTP/2、HTTP/3 和 WebSocket 帧
-尚未作为已实现模块提供。
+HTTP 模块目前实现 HTTP/1.0 和 HTTP/1.1，尚不支持 HTTP/2 和 HTTP/3。
+RFC 6455 framing 由独立的 [`gs.websocket`](websocket.md) 模块通过 HTTP/1.1
+Upgrade 提供。
 
 ## 相关示例
 

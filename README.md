@@ -16,6 +16,7 @@ application and networking capabilities.
 | Core | Execution, scheduling, timers, values, INI data, argument parsing, algorithms, lock-free queues, dynamic libraries, and system helpers |
 | Coroutines | Coroutine mutexes, shared mutexes, semaphores, condition variables, sleeps, future waiting, and executor switching |
 | HTTP | HTTP/1.0 and HTTP/1.1 clients, servers, protocol parsing, routing, sessions, connection pooling, file transfer, cookies, redirects, and proxies |
+| WebSocket | RFC 6455 framing, WS/WSS clients and servers, HTTP Upgrade integration, message/frame/control I/O, optional constrained `permessage-deflate`, cancellation, timeouts, and backpressure |
 | Utilities | Logging, persistent settings, signals and observers, module initialization, process management, and an extensible soft bus with a built-in in-process transport |
 
 Most asynchronous APIs follow Asio completion-token conventions, allowing the
@@ -76,8 +77,10 @@ headers, bundled dependency headers, and the enabled LibGS shared libraries.
 | `LIBGS_BUILD_STATIC` | `OFF` | Build static libraries instead of shared libraries. |
 | `LIBGS_ADD_LIBRARY_VERSION` | `ON` | Add version information to shared-library names. |
 | `LIBGS_BUILD_EXAMPLES` | `OFF` | Build and install the example programs. |
+| `LIBGS_BUILD_FUZZERS` | `OFF` | Build Clang libFuzzer parser harnesses. Requires `BUILD_TESTING=ON`. |
 | `LIBGS_OPENSSL_SUPPORT` | `OFF` | Enable HTTPS/WSS TLS support. Requires OpenSSL. |
-| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | Enable HTTP gzip support. Requires zlib. |
+| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | Enable HTTP gzip and let WebSocket inherit zlib support. Requires zlib. |
+| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | `OFF`* | Enable WebSocket `permessage-deflate` when HTTP zlib support is disabled. Requires zlib. |
 | `LIBGS_USE_LIBCXX` | `OFF` | Use libc++ when compiling with Clang. |
 | `LIBGS_USE_LLD` | `OFF` | Use lld when compiling with Clang. |
 | `LIBGS_ENABLE_LTO` | `OFF` | Enable link-time optimization when compiling with GCC. |
@@ -92,6 +95,11 @@ cmake -S . -B build \
   -DLIBGS_BUILD_EXAMPLES=ON
 cmake --build build --parallel
 ```
+
+`LIBGS_WEBSOCKET_ZLIB_SUPPORT` is exposed only when
+`LIBGS_HTTP_ZLIB_SUPPORT=OFF`. When HTTP zlib support is enabled, WebSocket
+inherits it automatically and enables the supported `permessage-deflate`
+profile without a second switch.
 
 Example executables are written below `build/output/examples`.
 
@@ -135,6 +143,7 @@ server examples, configuration, logging, process control, and other modules.
 | `gs.core` / `<libgs/core.h>` | Execution, algorithms, values, configuration, containers, and system helpers |
 | `<libgs/coro.h>` | Header-only coroutine synchronization primitives |
 | `gs.http` / `<libgs/http.h>` | HTTP protocol, client, server, and TLS APIs |
+| `gs.websocket` / `<libgs/websocket.h>` | HTTP/1.1 WebSocket protocol, stream, client, server, optional compression, and optional WSS APIs |
 | `gs.utils` / `<libgs/utils.h>` | Utilities library; the umbrella exposes logging, settings, modules, and soft-bus APIs |
 | `<libgs.h>` | Umbrella header for all public modules |
 
@@ -148,6 +157,7 @@ LibGS also links against the platform thread and dynamic-loader libraries.
 - [Core runtime and facilities](doc/en/core.md)
 - [Coroutine support](doc/en/coroutines.md)
 - [HTTP client and server](doc/en/http.md)
+- [WebSocket client, server, and stream](doc/en/websocket.md)
 - [Application utilities](doc/en/utilities.md)
 - [Project roadmap](doc/en/roadmap.md)
 
@@ -159,6 +169,7 @@ Sources are grouped by public module:
 - [Core utilities](examples/core)
 - [Coroutine primitives](examples/coro)
 - [HTTP and HTTPS](examples/http)
+- [WebSocket and WSS](examples/websocket)
 - [Application utilities](examples/utils)
 
 Configure the project with `-DLIBGS_BUILD_EXAMPLES=ON` to build them.
@@ -166,9 +177,11 @@ Configure the project with `-DLIBGS_BUILD_EXAMPLES=ON` to build them.
 ## Project direction
 
 LibGS is intended to grow as a reusable asynchronous application foundation,
-not as an HTTP-only package. WebSocket support is planned as a future protocol
-module. Planned features are documented separately from implemented APIs; see
-the [roadmap](doc/en/roadmap.md) for the current direction.
+not as an HTTP-only package. The WebSocket module implements the HTTP/1.1
+RFC 6455 baseline and an optional RFC 7692 no-context-takeover
+`permessage-deflate` profile. HTTP/2 and HTTP/3 WebSocket transports, broader
+extension profiles, and application-level reconnect or routing remain future
+work. See the [roadmap](doc/en/roadmap.md) for the current direction.
 
 ## License
 

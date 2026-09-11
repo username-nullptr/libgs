@@ -14,6 +14,7 @@ struct received_event
 {
 	opcode op = opcode::binary;
 	optional<message> data {};
+	optional<data_frame> frame {};
 	std::vector<std::byte> control {};
 };
 
@@ -23,7 +24,7 @@ class LIBGS_WEBSOCKET_API receive_buffer
 {
 public:
 	void reset(role local_role, const stream_config &config,
-		std::vector<std::byte> pending_data
+		std::span<const extension> extensions, std::vector<std::byte> pending_data
 	);
 	[[nodiscard]] mutable_buffer available_data() noexcept;
 
@@ -43,8 +44,13 @@ private:
 	size_t m_read_offset = 0;
 	size_t m_max_message_size = 0;
 
+	bool m_permessage_deflate = false;
+	bool m_message_compressed = false;
+
 	optional<message_type> m_message_type {};
 	std::vector<std::byte> m_message_body {};
+
+	std::vector<std::byte> m_frame_body {};
 	std::vector<std::byte> m_control_body {};
 };
 

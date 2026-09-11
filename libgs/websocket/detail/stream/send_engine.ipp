@@ -19,9 +19,10 @@ detail::send_engine<Owner>::send_engine(Owner &owner) noexcept :
 }
 
 template <typename Owner>
-void detail::send_engine<Owner>::reset(role local_role, const stream_config &config) noexcept
+void detail::send_engine<Owner>::reset
+(role local_role, const stream_config &config, std::span<const extension> extensions) noexcept
 {
-	m_frame_builder.reset(local_role, config);
+	m_frame_builder.reset(local_role, config, extensions);
 	m_max_queued_write_bytes = config.max_queued_write_bytes;
 	m_max_queued_write_operations = config.max_queued_write_operations;
 }
@@ -371,12 +372,17 @@ void detail::send_engine<Owner>::complete_wire_frame(const prepared_frame &frame
 	const auto payload_size = wire_size > frame.header_size ?
 		std::min(frame.payload_size, wire_size - frame.header_size) : 0;
 
-	if( operation )
-		operation->transferred += payload_size;
-
 	if( not error and wire_size != frame.header_size + frame.payload_size )
 		error = make_error_code(std::errc::io_error);
 
+	if( operation )
+	{
+		if( not error )
+			operation->transferred += frame.application_size;
+
+		else if( frame.application_size == frame.payload_size )
+			operation->transferred += payload_size;
+	}
 	if( shutdown and not error )
 		error = asio::error::operation_aborted;
 
@@ -658,7 +664,7 @@ void detail::send_engine<Owner>::async_write_message
 		operation->id = ++self->send_side().m_next_send_operation_id;
 
 		for(const auto &frame : operation->frames)
-			operation->queued_payload_size += frame.payload_size;
+			operation->queued_payload_size += frame.application_size;
 
 		self->send_side().install_send_cancellation(operation);
 		operation->sequence = ++self->send_side().m_last_write_sequence;
@@ -729,7 +735,7 @@ void detail::send_engine<Owner>::async_write_control
 		operation->completion = std::move(completion);
 
 		operation->id = ++self->send_side().m_next_send_operation_id;
-		operation->queued_payload_size = operation->frames.front().payload_size;
+		operation->queued_payload_size = operation->frames.front().application_size;
 
 		self->send_side().install_send_cancellation(operation);
 		if( auto error = self->send_side().enqueue_send_operation(operation) )

@@ -10,6 +10,7 @@
 #endif
 
 #include <libgs/websocket/protocol/handshake.h>
+#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/detail/secure_random.h>
 #include <libgs/websocket/detail/handshake_io.h>
 
@@ -109,7 +110,8 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 			}
 			opening_request opening {
 				.key = std::move(*key),
-				.subprotocols = request.subprotocols
+				.subprotocols = request.subprotocols,
+				.extensions = request.extensions,
 			};
 			auto opening_headers = make_opening_request_headers(opening);
 			if( not opening_headers )
@@ -221,7 +223,8 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 					close_reply_connection(reply);
 				return ;
 			}
-			if( not response->extensions.empty() )
+			if( not detail::supported_extension_set(response->extensions) or
+				(not response->extensions.empty() and request.extensions.empty()) )
 			{
 				error = make_error_code(errc::unsupported_extension);
 				close_reply_connection(reply);
@@ -233,7 +236,8 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 			adopt_options adopt {
 				.stream_role = role::client,
 				.pending_data = std::move(pending),
-				.negotiated_subprotocol = response->subprotocol.value_or("")
+				.negotiated_subprotocol = response->subprotocol.value_or(""),
+				.negotiated_extensions = response->extensions,
 			};
 			result.adopt(std::move(connection), std::move(adopt), error);
 			return ;
@@ -315,7 +319,8 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 					}
 					opening_request opening {
 						.key = std::move(*key),
-						.subprotocols = active_request.subprotocols
+						.subprotocols = active_request.subprotocols,
+						.extensions = active_request.extensions,
 					};
 					auto opening_headers = make_opening_request_headers(opening);
 					if( not opening_headers )
@@ -450,7 +455,8 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 							response.error(), std::move(result)
 						};
 					}
-					if( not response->extensions.empty() )
+					if( not detail::supported_extension_set(response->extensions) or
+						(not response->extensions.empty() and active_request.extensions.empty()) )
 					{
 						close_reply_connection(reply);
 						co_return std::tuple<error_code,result_t> {
@@ -464,8 +470,8 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 					adopt_options adopt {
 						.stream_role = role::client,
 						.pending_data = std::move(pending),
-						.negotiated_subprotocol =
-							response->subprotocol.value_or("")
+						.negotiated_subprotocol = response->subprotocol.value_or(""),
+						.negotiated_extensions = response->extensions,
 					};
 					error_code adopt_error;
 					result.adopt(std::move(connection), std::move(adopt), adopt_error);

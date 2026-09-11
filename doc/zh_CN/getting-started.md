@@ -40,8 +40,8 @@ cmake --build build --config Release --parallel
 cmake --install build --config Release
 ```
 
-默认构建会生成共享的 `gs.core`、`gs.http` 和 `gs.utils` 库。生成文件和二进制
-文件位于 `build/output` 下。
+默认构建会生成共享的 `gs.core`、`gs.http`、`gs.websocket` 和 `gs.utils` 库。
+生成文件和二进制文件位于 `build/output` 下。
 
 ## 构建选项
 
@@ -50,8 +50,10 @@ cmake --install build --config Release
 | `LIBGS_BUILD_STATIC` | `OFF` | 所有库 | 构建静态库而不是共享库 |
 | `LIBGS_ADD_LIBRARY_VERSION` | `ON` | 共享库构建 | 在库名称中加入项目版本和 ABI 版本 |
 | `LIBGS_BUILD_EXAMPLES` | `OFF` | 示例 | 构建当前 CMake 配置已启用的示例 |
+| `LIBGS_BUILD_FUZZERS` | `OFF` | 测试 | 构建 Clang libFuzzer parser harness；需要 `BUILD_TESTING=ON` |
 | `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core、HTTP 和 WebSocket | 通过 OpenSSL 启用 TLS、HTTPS 与 WSS 支持 |
-| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP | 通过 zlib 启用 gzip 压缩与解压缩 |
+| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP 与 WebSocket | 启用 HTTP gzip，并让 WebSocket 继承 zlib 支持 |
+| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | `OFF`* | WebSocket | HTTP zlib 关闭时单独启用 `permessage-deflate` |
 | `LIBGS_USE_LIBCXX` | `OFF` | Clang | 使用 libc++ 编译和链接 |
 | `LIBGS_USE_LLD` | `OFF` | Clang | 使用 lld 链接 |
 | `LIBGS_ENABLE_LTO` | `OFF` | GCC | 启用链接时优化 |
@@ -65,6 +67,11 @@ cmake -S . -B build \
   -DLIBGS_HTTP_ZLIB_SUPPORT=ON
 cmake --build build --parallel
 ```
+
+只有 `LIBGS_HTTP_ZLIB_SUPPORT=OFF` 时才提供
+`LIBGS_WEBSOCKET_ZLIB_SUPPORT` 选项。启用 HTTP zlib 后，WebSocket 会自动继承
+并启用基于 zlib 的受支持压缩配置，无需再设置第二个开关。如果 HTTP 不需要
+zlib，可通过 `-DLIBGS_WEBSOCKET_ZLIB_SUPPORT=ON` 仅启用 WebSocket 压缩。
 
 不要手工定义生成的功能宏。应通过 CMake 选项配置，以保证库与安装后的配置
 头文件保持一致。
@@ -113,8 +120,9 @@ target_link_libraries(my_app PRIVATE
 ```
 
 如果 CMake 无法找到这些文件，请将安装前缀加入 `CMAKE_PREFIX_PATH`。使用
-`gs.utils` 的应用需要同时查找并链接 `gs.utils` 和 `gs.core`。启动程序时，
-还应确保平台的运行时加载器能够找到共享库目录。
+`gs.utils` 的应用需要同时查找并链接 `gs.utils` 和 `gs.core`。使用 WebSocket 的
+应用还应查找并链接 `gs.websocket`；它通过公开依赖取得 HTTP Upgrade 层。启动
+程序时，还应确保平台的运行时加载器能够找到共享库目录。
 
 ## 启动默认运行时
 

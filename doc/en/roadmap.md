@@ -17,38 +17,51 @@ Roadmap entries describe intent, not a release date or compatibility promise.
 | Coroutine support | Implemented | Awaitable waits, synchronization primitives, and executor switching |
 | HTTP/HTTPS | Implemented | HTTP/1.0 and HTTP/1.1 clients, servers, protocol utilities, TLS, and optional gzip |
 | Application utilities | Implemented | Logging, settings, signals, observers, modules, processes, and an extensible soft bus with a built-in in-process transport |
-| WebSocket | In development | Protocol framing, handshake, and basic stream send I/O exist; read state machine is in progress |
+| WebSocket | Implemented | HTTP/1.1 WS/WSS, opening handshakes, message/frame/control I/O, fragmentation, optional constrained `permessage-deflate`, close, cancellation, timeouts, queues, and backpressure |
 
-## Planned WebSocket support
+## WebSocket scope and planned extensions
 
-WebSocket is the next explicitly planned protocol expansion. The intended
-direction is to build it as a protocol module that integrates with existing
-LibGS execution, connection, TLS, and completion-token conventions.
+The `gs.websocket` module implements the RFC 6455 HTTP/1.1 baseline and
+integrates with LibGS execution, connection, TLS, and completion-token
+conventions.
 
-Expected design areas include:
+The implemented baseline includes:
 
 - client and server roles;
 - `ws://` and `wss://` transports;
 - HTTP Upgrade validation and connection handover;
 - text, binary, continuation, ping, pong, and close frames;
 - fragmented-message assembly;
+- data-frame reads alongside complete-message reads;
+- asynchronous request and Origin validation during Upgrade;
+- optional RFC 7692 `permessage-deflate` with context takeover disabled;
 - callback and coroutine completion styles;
 - cancellation, timeout, queue, and backpressure behavior; and
 - clear ownership of buffers and handed-over connections.
 
-Current landed conventions: `read()` returns complete data messages only; Ping/Pong
-events are retained while reading continues; after Close, subsequent reads return
-`0 + eof`. Concurrent operations in one direction remain the caller's
-responsibility. The protocol parser is incremental and borrows the input buffer;
-payload copying is limited to message aggregation where ownership is required.
+`read()` returns complete data messages and `read_frame()` returns individual
+data frames when no extension is negotiated; Ping/Pong events are retained while
+reading continues; after a clean Close, subsequent reads return EOF. Concurrent operations must
+follow the stream's documented serialization rules. The protocol parser is
+incremental and borrows the input buffer; payload copying is limited to message
+aggregation and transforms where ownership is required.
+
+Planned extensions, outside the implemented scope, are:
+
+- a general extension capability registry and additional RFC 7692 parameter
+  profiles, including context takeover and window-bit negotiation;
+- HTTP/2 and HTTP/3 extended CONNECT transports;
+- optional WebSocket-level proxy configuration and authentication; and
+- application-level keepalive, reconnect, and message-routing helpers.
 
 ## Existing preparation for upgrades
 
 The HTTP server already exposes a protocol-neutral ownership boundary through
 `service_context::hand_over_connection()`. It allows an accepted HTTP Upgrade
 connection and pending input to leave the normal HTTP request lifecycle. This
-reduces coupling between the HTTP parser and a future upgraded protocol, but it
-does not parse or generate WebSocket frames.
+keeps the HTTP parser independent of upgraded protocols. Applications should
+normally use `websocket::upgrade()`, which performs the RFC 6455 handshake and
+adopts the handed-over connection into a WebSocket stream.
 
 ## Architectural direction
 
@@ -69,8 +82,7 @@ blocking and error behavior.
 
 - The README presents stable project scope and implemented modules.
 - Module documents describe APIs present in the source tree.
-- This roadmap is the only place where planned but unimplemented protocol work
-  is presented as planned scope.
+- Planned protocol work is labeled separately from the implemented baseline.
 - Documentation code snippets should compile against the branch that contains
   them.
 

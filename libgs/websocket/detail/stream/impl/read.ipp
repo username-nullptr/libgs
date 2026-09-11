@@ -39,9 +39,52 @@ basic_message<Buffer> basic_stream<Exec>::impl::convert_message(message value, e
 }
 
 template <core_concepts::exec Exec>
+template <typename Buffer>
+basic_data_frame<Buffer> basic_stream<Exec>::impl::convert_frame
+(data_frame value, error_code &error) noexcept
+{
+	try {
+		auto type = value.type;
+		auto fin = value.fin;
+		auto continuation = value.continuation;
+
+		if constexpr( std::same_as<Buffer, std::vector<std::byte>> )
+		{
+			error.clear();
+			return {
+				.type = type, .fin = fin, .continuation = continuation,
+				.body = std::move(value.body)
+			};
+		}
+		else
+		{
+			auto body = copy_buffer_data<Buffer>(std::move(value.body));
+			error.clear();
+			return {
+				.type = type, .fin = fin, .continuation = continuation,
+				.body = std::move(body)
+			};
+		}
+	}
+	catch(const std::bad_alloc&) {
+		error = make_error_code(std::errc::not_enough_memory);
+	}
+	catch(...) {
+		error = make_error_code(std::errc::io_error);
+	}
+	return {};
+}
+
+template <core_concepts::exec Exec>
 message basic_stream<Exec>::impl::read(error_code &error) noexcept
 {
 	return m_receive_engine.read(error);
+}
+
+template <core_concepts::exec Exec>
+data_frame basic_stream<Exec>::impl::read_frame(error_code &error) noexcept
+{
+	return m_receive_engine.read_frame(error);
 }
 
 template <core_concepts::exec Exec>
@@ -49,6 +92,13 @@ template <typename Handler>
 void basic_stream<Exec>::impl::async_read_message(Handler &&handler)
 {
 	m_receive_engine.async_read_message(std::forward<Handler>(handler));
+}
+
+template <core_concepts::exec Exec>
+template <typename Handler>
+void basic_stream<Exec>::impl::async_read_frame(Handler &&handler)
+{
+	m_receive_engine.async_read_frame(std::forward<Handler>(handler));
 }
 
 } //namespace libgs::websocket

@@ -46,6 +46,12 @@ struct upgrade_options
 	using origin_validator_t = std::function <
 		upgrade_validation_result(optional<std::string_view>)
 	>;
+	using async_request_validator_t = std::function <
+		awaitable<upgrade_validation_result>(const request_info&)
+	>;
+	using async_origin_validator_t = std::function <
+		awaitable<upgrade_validation_result>(optional<std::string>)
+	>;
 	using subprotocol_selector_t = std::function <
 		optional<std::string>(std::span<const std::string>)
 	>;
@@ -58,7 +64,8 @@ struct upgrade_options
 	std::chrono::milliseconds handshake_timeout {30000};
 	std::vector<std::string> supported_subprotocols {};
 
-	// The baseline rejects non-empty extension configuration.
+	// The built-in permessage_deflate_extension() profile is available when zlib
+	// support is compiled in. Unsupported profiles are rejected.
 	std::vector<extension> supported_extensions {};
 
 	// Additional 101 response headers. Protocol-owned upgrade headers cannot be
@@ -68,8 +75,14 @@ struct upgrade_options
 
 	request_validator_t request_validator {};
 	origin_validator_t origin_validator {};
-	subprotocol_selector_t subprotocol_selector {};
 
+	// These validators participate only in asynchronous upgrade/owned-server
+	// paths. A synchronous upgrade reports operation_not_supported when either
+	// callback is configured.
+	async_request_validator_t async_request_validator {};
+	async_origin_validator_t async_origin_validator {};
+
+	subprotocol_selector_t subprotocol_selector {};
 	extension_selector_t extension_selector {};
 };
 

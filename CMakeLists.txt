@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.15)
 
 set(MAJOR_VERSION  0)
 set(MINOR_VERSION 13)
-set(PATCH_VERSION  5)
+set(PATCH_VERSION  6)
 
 set(PRO_VERSION ${MAJOR_VERSION}.${MINOR_VERSION}.${PATCH_VERSION})
 set(PRO_NAME LibGS)
@@ -41,10 +41,27 @@ option(LIBGS_ENABLE_TEST_SANITIZERS
 option(LIBGS_ENABLE_TEST_TSAN
 	"-- ${PRO_NAME}: Enable TSan for functional tests." OFF
 )
+option(LIBGS_BUILD_FUZZERS
+	"-- ${PRO_NAME}: Build Clang libFuzzer protocol harnesses." OFF
+)
 if (LIBGS_ENABLE_TEST_SANITIZERS AND LIBGS_ENABLE_TEST_TSAN)
 	message(FATAL_ERROR
 		"${PRO_NAME}: ASan/UBSan and TSan cannot be enabled together."
 	)
+endif ()
+
+if (LIBGS_BUILD_FUZZERS)
+	if (NOT BUILD_TESTING)
+		message(FATAL_ERROR "${PRO_NAME}: Fuzzers require BUILD_TESTING=ON.")
+	endif ()
+	if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+		message(FATAL_ERROR "${PRO_NAME}: Fuzzers require Clang libFuzzer.")
+	endif ()
+	if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
+		message(FATAL_ERROR
+			"${PRO_NAME}: Fuzzer instrumentation cannot be combined with test sanitizer options."
+		)
+	endif ()
 endif ()
 
 if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
@@ -95,6 +112,18 @@ endif()
 
 include_directories(.)
 add_subdirectory(libgs)
+
+if (LIBGS_BUILD_FUZZERS)
+	foreach(target gs.core gs.http gs.websocket)
+		if (TARGET ${target})
+			target_compile_options(${target} PRIVATE
+				-fsanitize=fuzzer-no-link,address,undefined
+				-fno-omit-frame-pointer
+			)
+			target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+		endif ()
+	endforeach()
+endif ()
 
 if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 	foreach(target gs.core gs.http gs.websocket gs.utils)

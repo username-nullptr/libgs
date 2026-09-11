@@ -57,11 +57,6 @@ public:
 	static constexpr bool completion_token_v =
 		core_concepts::tf_opt_token<Token,error_code,Args...>;
 
-	template <typename T>
-	static constexpr bool message_buffer_v =
-		libgs::is_buffer_v<std::remove_cvref_t<T>> and
-		not is_array_buffer_v<std::remove_cvref_t<T>>;
-
 public:
 	basic_stream &adopt (
 		connection_ptr connection, adopt_options_t options
@@ -76,7 +71,14 @@ public:
 	// read preserves the partially parsed frame for the next read.
 	template <typename Buffer = std::vector<std::byte>, typename Token = use_sync_t>
 	[[nodiscard]] auto read(Token &&token = {}) requires
-		message_buffer_v<Buffer> and task_token_v<Token,basic_message<std::remove_cvref_t<Buffer>>>;
+		concepts::buffer<Buffer> and task_token_v<Token,basic_message<Buffer>>;
+
+	// Returns individual data frames and consumes interleaved control frames.
+	// Compression changes payload boundaries, so negotiated extensions make this
+	// operation fail with std::errc::operation_not_supported.
+	template <typename Buffer = std::vector<std::byte>, typename Token = use_sync_t>
+	[[nodiscard]] auto read_frame(Token &&token = {}) requires
+		concepts::buffer<Buffer> and task_token_v<Token,basic_data_frame<Buffer>>;
 
 public:
 	// Concurrent writes are serialized. Successful size_t results count bytes

@@ -55,12 +55,15 @@ size_t basic_stream<Exec>::impl::write
 	size_t body_transferred = 0;
 	for(const auto &frame : *prepared)
 	{
-		body_transferred += write_prepared(frame, error);
+		const auto wire_transferred = write_prepared(frame, error);
 		if( error )
 		{
+			if( frame.application_size == frame.payload_size )
+				body_transferred += wire_transferred;
 			fail(error);
 			return body_transferred;
 		}
+		body_transferred += frame.application_size;
 	}
 	error.clear();
 	return body_transferred;

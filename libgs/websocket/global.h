@@ -4,8 +4,8 @@
 #ifndef LIBGS_WEBSOCKET_GLOBAL_H
 #define LIBGS_WEBSOCKET_GLOBAL_H
 
+#include <libgs/websocket/cxx/configs.h>
 #include <libgs/websocket/cxx/attributes.h>
 #include <libgs/websocket/cxx/concepts.h>
-
 
 #endif //LIBGS_WEBSOCKET_GLOBAL_H

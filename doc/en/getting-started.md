@@ -42,8 +42,9 @@ cmake --build build --config Release --parallel
 cmake --install build --config Release
 ```
 
-The default build produces shared `gs.core`, `gs.http`, and `gs.utils`
-libraries. Generated files and binaries are placed below `build/output`.
+The default build produces shared `gs.core`, `gs.http`, `gs.websocket`, and
+`gs.utils` libraries. Generated files and binaries are placed below
+`build/output`.
 
 ## Build options
 
@@ -52,8 +53,10 @@ libraries. Generated files and binaries are placed below `build/output`.
 | `LIBGS_BUILD_STATIC` | `OFF` | All libraries | Build static instead of shared libraries |
 | `LIBGS_ADD_LIBRARY_VERSION` | `ON` | Shared builds | Add project and ABI versions to library names |
 | `LIBGS_BUILD_EXAMPLES` | `OFF` | Examples | Build the examples enabled by the current CMake configuration |
+| `LIBGS_BUILD_FUZZERS` | `OFF` | Tests | Build Clang libFuzzer parser harnesses; requires `BUILD_TESTING=ON` |
 | `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core, HTTP, and WebSocket | Enable TLS, HTTPS, and WSS support through OpenSSL |
-| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP | Enable gzip compression and decompression through zlib |
+| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP and WebSocket | Enable HTTP gzip and let WebSocket inherit zlib support |
+| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | `OFF`* | WebSocket | Enable `permessage-deflate` when HTTP zlib support is disabled |
 | `LIBGS_USE_LIBCXX` | `OFF` | Clang | Compile and link with libc++ |
 | `LIBGS_USE_LLD` | `OFF` | Clang | Link with lld |
 | `LIBGS_ENABLE_LTO` | `OFF` | GCC | Enable link-time optimization |
@@ -67,6 +70,12 @@ cmake -S . -B build \
   -DLIBGS_HTTP_ZLIB_SUPPORT=ON
 cmake --build build --parallel
 ```
+
+`LIBGS_WEBSOCKET_ZLIB_SUPPORT` is offered only while
+`LIBGS_HTTP_ZLIB_SUPPORT=OFF`. Enabling HTTP zlib support automatically enables
+the WebSocket zlib-backed profile, so no second option is needed. With HTTP
+zlib disabled, enable only WebSocket compression with
+`-DLIBGS_WEBSOCKET_ZLIB_SUPPORT=ON`.
 
 Do not define the generated feature macros manually. Configure the CMake
 options so the library and installed configuration headers agree.
@@ -120,8 +129,10 @@ target_link_libraries(my_app PRIVATE
 
 Set `CMAKE_PREFIX_PATH` to the install prefix if CMake cannot locate the files.
 Applications using `gs.utils` should locate and link `gs.utils` together with
-`gs.core`. Ensure the shared-library directory is available to the platform
-runtime loader when launching the application.
+`gs.core`. Applications using WebSocket should also locate and link
+`gs.websocket`; its public dependency on `gs.http` supplies the HTTP upgrade
+layer. Ensure the shared-library directory is available to the platform runtime
+loader when launching the application.
 
 ## Start the default runtime
 

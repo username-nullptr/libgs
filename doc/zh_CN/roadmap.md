@@ -16,34 +16,47 @@ LibGS 的目标是成为可复用的异步应用基础库，而不是绑定到�
 | 协程支持 | 已实现 | Awaitable wait、同步原语和执行器切换 |
 | HTTP/HTTPS | 已实现 | HTTP/1.0 和 HTTP/1.1 客户端、服务端、协议工具、TLS 和可选 gzip |
 | 应用工具 | 已实现 | 日志、设置、信号、观察者、模块、进程，以及默认使用进程内传输的可扩展软总线 |
-| WebSocket | 开发中 | 已有协议 frame、握手及基础 stream 发送 IO；读取状态机仍在实现 |
+| WebSocket | 已实现 | HTTP/1.1 WS/WSS、opening handshake、消息/帧/控制 IO、分片、可选的受限 `permessage-deflate`、关闭、取消、超时、队列和背压 |
 
-## 规划中的 WebSocket 支持
+## WebSocket 范围与规划扩展
 
-WebSocket 是下一个明确规划的协议扩展。计划将其构建为协议模块，并与现有 LibGS
-执行模型、连接、TLS 和 completion-token 约定集成。
+`gs.websocket` 已实现 RFC 6455 的 HTTP/1.1 基础版，并与 LibGS 现有的执行模型、
+连接、TLS 和 completion-token 约定集成。
 
-预期设计范围包括：
+已经实现的基础范围包括：
 
 - 客户端和服务端角色；
 - `ws://` 和 `wss://` 传输；
 - HTTP Upgrade 验证和连接移交；
 - text、binary、continuation、ping、pong 和 close frame；
 - fragmented message 组装；
+- 数据帧级读取及完整消息读取；
+- Upgrade 期间的异步 request 与 Origin 校验；
+- 可选 RFC 7692 `permessage-deflate`，关闭两个方向的 context takeover；
 - callback 和 coroutine 完成方式；
 - cancel、timeout、queue 和 backpressure 行为；
 - 明确的 buffer 与移交连接所有权。
 
-当前已落地的基础约定：`read()` 只返回完整 data message；Ping/Pong 由控制事件
-暂存并继续读取；收到 Close 后后续读取返回 `0 + eof`。同一方向的并发 IO 由调用方
-负责管理，底层 parser 保持增量、借用输入缓冲区，消息仅在需要聚合时复制。
+`read()` 返回完整 data message，`read_frame()` 在未协商 extension 时返回单个
+数据帧；读取过程中 Ping/Pong 由控制事件保留；正常 Close 后继续读取会返回 EOF。并发操作必须遵循
+stream 文档中的串行化约定。底层 parser 采用增量解析并借用输入缓冲区，只在
+聚合消息和协议变换需要所有权时复制 payload。
+
+下列能力不属于当前实现范围，仍在规划中：
+
+- 通用 extension capability registry，以及包括 context takeover 和 window bits
+  协商在内的其他 RFC 7692 参数配置；
+- HTTP/2、HTTP/3 extended CONNECT 传输；
+- 可选的 WebSocket 层代理配置与认证；
+- 应用层自动 keepalive、重连和消息路由工具。
 
 ## 现有 Upgrade 准备
 
 HTTP 服务端已经通过 `service_context::hand_over_connection()` 提供协议无关的
 所有权边界。它允许完成 HTTP Upgrade 的连接和剩余输入离开常规 HTTP 请求生命
-周期，从而降低 HTTP parser 与未来升级协议之间的耦合，但它不会解析或生成
-WebSocket frame。
+周期，使 HTTP parser 与升级后的协议保持独立。应用通常应调用
+`websocket::upgrade()`，由它完成 RFC 6455 握手并将移交的连接纳入 WebSocket
+stream。
 
 ## 架构方向
 
@@ -62,7 +75,7 @@ WebSocket frame。
 
 - 根 README 描述稳定的项目范围和已实现模块。
 - 模块文档描述源码树中已经存在的 API。
-- 只有本路线图会将尚未实现的协议功能描述为规划范围。
+- 规划中的协议工作应与已经实现的基础范围分开标注。
 - 文档代码片段应能在其所在分支上编译。
 
 ## 版本策略
