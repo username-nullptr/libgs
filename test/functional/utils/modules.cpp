@@ -5,11 +5,6 @@
 
 #include <libgs/utils/modules.h>
 
-#include <algorithm>
-#include <mutex>
-#include <string>
-#include <vector>
-
 int main()
 {
 	std::mutex mutex;

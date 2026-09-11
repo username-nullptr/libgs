@@ -5,13 +5,6 @@
 
 #include <libgs/coro.h>
 
-#include <atomic>
-#include <chrono>
-#include <future>
-#include <stdexcept>
-#include <utility>
-#include <vector>
-
 namespace
 {
 

@@ -8,13 +8,6 @@
 #include <libgs/utils/sbus.h>
 #include <libgs/utils/settings.h>
 
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <chrono>
-#include <string>
-#include <thread>
-
 namespace
 {
 

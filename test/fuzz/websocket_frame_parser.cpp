@@ -3,12 +3,6 @@
 
 #include <libgs/websocket/protocol/parser.h>
 
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <vector>
-
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
 	if( size < 3 )

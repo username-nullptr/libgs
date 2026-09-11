@@ -5,11 +5,6 @@
 
 #include <libgs/core/execution.h>
 
-#include <chrono>
-#include <future>
-#include <thread>
-#include <vector>
-
 namespace
 {
 

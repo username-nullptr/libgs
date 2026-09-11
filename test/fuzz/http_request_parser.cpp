@@ -3,10 +3,6 @@
 
 #include <libgs/http/protocol/utils/server/parser.h>
 
-#include <algorithm>
-#include <cstddef>
-#include <cstdint>
-
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
 	if( size < 2 )

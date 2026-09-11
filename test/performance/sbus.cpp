@@ -6,19 +6,6 @@
 
 #include <libgs/utils/sbus.h>
 
-#include <algorithm>
-#include <array>
-#include <atomic>
-#include <chrono>
-#include <cstddef>
-#include <cstdint>
-#include <iostream>
-#include <memory>
-#include <string>
-#include <string_view>
-#include <thread>
-#include <vector>
-
 namespace
 {
 

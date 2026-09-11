@@ -4,12 +4,6 @@
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/url.h>
 
-#include <cstdlib>
-#include <cstddef>
-#include <cstdint>
-#include <string>
-#include <utility>
-
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
 	if( size == 0 )
