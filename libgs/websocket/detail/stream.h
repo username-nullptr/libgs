@@ -34,7 +34,9 @@ basic_stream<Exec>::basic_stream(config_t config)
 }
 
 template <core_concepts::exec Exec>
-basic_stream<Exec>::basic_stream(core_concepts::match_sched<executor_t> auto &&exec, config_t config) :
+template <typename Exec0>
+basic_stream<Exec>::basic_stream(Exec0 &&exec, config_t config) requires
+(not std::same_as<std::remove_cvref_t<Exec0>,basic_stream> and core_concepts::match_sched<Exec0,executor_t>):
 	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec)), config))
 {
 

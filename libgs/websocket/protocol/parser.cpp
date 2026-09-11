@@ -59,7 +59,7 @@ public:
 			if( (std::to_integer<uint8_t>(m_header_storage[offset]) & 0x80) != 0 )
 				return make_error_code(protocol_errc::invalid_64bit_length);
 
-			for(size_t index = 0; index < 8; index++)
+			for(size_t index=0; index<8; index++)
 			{
 				m_header.payload_size = (m_header.payload_size << 8) |
 					std::to_integer<uint8_t>(m_header_storage[offset + index]);

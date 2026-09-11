@@ -93,8 +93,7 @@ sys_expected<> basic_stream<Exec>::impl::remember_peer_close(const std::vector<s
 template <core_concepts::exec Exec>
 sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std::byte> &payload) noexcept
 {
-	auto remembered = remember_peer_close(payload);
-	if( not remembered )
+	if( auto remembered = remember_peer_close(payload); not remembered )
 		return remembered;
 
 	start_close_deadline();
@@ -130,8 +129,7 @@ template <core_concepts::exec Exec>
 sys_expected<> basic_stream<Exec>::impl::handle_sync_peer_close
 (const std::vector<std::byte> &payload) noexcept
 {
-	auto remembered = remember_peer_close(payload);
-	if( not remembered )
+	if( auto remembered = remember_peer_close(payload); not remembered )
 		return remembered;
 
 	if( m_send_engine.busy() )
@@ -181,8 +179,7 @@ void basic_stream<Exec>::impl::complete_close_waiters(error_code error) noexcept
 		auto waiter = std::move(m_close_waiters.front());
 		m_close_waiters.pop_front();
 
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 			slot.clear();
 		try {
 			auto completion = std::move(waiter->completion);
@@ -197,14 +194,14 @@ void basic_stream<Exec>::impl::complete_close_waiters(error_code error) noexcept
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::cancel_close_waiter(uint64_t id) noexcept
 {
-	for(auto iterator = m_close_waiters.begin();
-		iterator != m_close_waiters.end(); ++iterator)
+	for(auto it=m_close_waiters.begin();
+		it!=m_close_waiters.end(); ++it)
 	{
-		if( (*iterator)->id != id )
+		if( (*it)->id != id )
 			continue;
 
-		auto waiter = std::move(*iterator);
-		m_close_waiters.erase(iterator);
+		auto waiter = std::move(*it);
+		m_close_waiters.erase(it);
 		try {
 			auto completion = std::move(waiter->completion);
 			std::move(completion)(asio::error::operation_aborted, close_info_t{});
@@ -524,8 +521,7 @@ bool basic_stream<Exec>::impl::add_close_waiter(Handler &&handler) noexcept
 		waiter->id = ++m_next_close_waiter_id;
 		waiter->completion = std::move(completion);
 
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 		{
 			slot.assign([weak = this->weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept

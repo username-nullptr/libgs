@@ -186,9 +186,9 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 
 		event.frame = data_frame {
 			.type = *m_message_type,
-			.fin = header.fin,
-			.continuation = header.op == opcode::continuation,
 			.body = std::move(m_frame_body),
+			.continuation = header.op == opcode::continuation,
+			.fin = header.fin,
 		};
 		m_frame_body.clear();
 		if( header.fin )

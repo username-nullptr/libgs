@@ -316,9 +316,9 @@ template <core_concepts::exec Exec>
 		{
 			try {
 				optional<std::string_view> origin;
-				if( auto iterator = plan.request.request_headers.find(http::header::origin);
-					iterator != plan.request.request_headers.end() )
-					origin = iterator->second.to_string();
+				if( auto it = plan.request.request_headers.find(http::header::origin);
+					it != plan.request.request_headers.end() )
+					origin = it->second.to_string();
 
 				if( auto rejection = options.origin_validator(origin) )
 				{
@@ -507,9 +507,9 @@ auto async_upgrade(http::basic_service_context<Exec> &context, upgrade_options o
 				if( plan.accepted and active_options.async_origin_validator )
 				{
 					optional<std::string> origin;
-					if( auto iterator = plan.request.request_headers.find(http::header::origin);
-						iterator != plan.request.request_headers.end() )
-						origin = iterator->second.to_string();
+					if( auto it = plan.request.request_headers.find(http::header::origin);
+						it != plan.request.request_headers.end() )
+						origin = it->second.to_string();
 
 					auto invoke = [&active_options, origin = std::move(origin)]
 					() mutable -> awaitable<upgrade_validation_result>
@@ -844,10 +844,10 @@ private:
 			return ;
 		{
 			std::lock_guard lock(m_mutex);
-			auto iterator = std::find(m_accepts.begin(), m_accepts.end(), waiter);
+			auto it = std::find(m_accepts.begin(), m_accepts.end(), waiter);
 
-			if( iterator != m_accepts.end() )
-				m_accepts.erase(iterator);
+			if( it != m_accepts.end() )
+				m_accepts.erase(it);
 		}
 		waiter->cancellation.emit(asio::cancellation_type::all);
 		waiter->complete(asio::error::operation_aborted, idle_result());
@@ -947,11 +947,11 @@ private:
 
 		if( pending->queued )
 		{
-			auto iterator = std::find(m_pending_handshakes.begin(),
+			auto it = std::find(m_pending_handshakes.begin(),
 				m_pending_handshakes.end(), pending
 			);
-			if( iterator != m_pending_handshakes.end() )
-				m_pending_handshakes.erase(iterator);
+			if( it != m_pending_handshakes.end() )
+				m_pending_handshakes.erase(it);
 			pending->queued = false;
 		}
 		co_return acquisition {

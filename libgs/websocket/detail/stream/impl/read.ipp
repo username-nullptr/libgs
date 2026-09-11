@@ -52,8 +52,9 @@ basic_data_frame<Buffer> basic_stream<Exec>::impl::convert_frame
 		{
 			error.clear();
 			return {
-				.type = type, .fin = fin, .continuation = continuation,
-				.body = std::move(value.body)
+				.type = type, .body = std::move(value.body),
+				.continuation = continuation,
+				.fin = fin,
 			};
 		}
 		else
@@ -61,8 +62,9 @@ basic_data_frame<Buffer> basic_stream<Exec>::impl::convert_frame
 			auto body = copy_buffer_data<Buffer>(std::move(value.body));
 			error.clear();
 			return {
-				.type = type, .fin = fin, .continuation = continuation,
-				.body = std::move(body)
+				.type = type, .body = std::move(body),
+				.continuation = continuation,
+				.fin = fin,
 			};
 		}
 	}

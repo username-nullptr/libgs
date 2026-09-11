@@ -31,7 +31,7 @@ constexpr const char
 	if( left.size() != right.size() )
 		return false;
 
-	for(size_t index = 0; index < left.size(); index++)
+	for(size_t index=0; index<left.size(); index++)
 	{
 		const auto lower = [](char value) noexcept
 		{
@@ -262,7 +262,7 @@ private:
 [[nodiscard]] std::string serialize_token_list(const std::vector<std::string> &values)
 {
 	std::string result;
-	for(size_t index = 0; index < values.size(); index++)
+	for(size_t index=0; index<values.size(); index++)
 	{
 		if( not is_token(values[index]) )
 			return {};
@@ -282,7 +282,7 @@ private:
 (const std::vector<extension> &values)
 {
 	std::string result;
-	for(size_t index = 0; index < values.size(); index++)
+	for(size_t index=0; index<values.size(); index++)
 	{
 		const auto &item = values[index];
 		if( not is_token(item.name) )
@@ -332,7 +332,7 @@ private:
 	if( value.size() != 24 or value[22] != '=' or value[23] != '=' )
 		return false;
 
-	for(size_t index = 0; index < 22; index++)
+	for(size_t index=0; index<22; index++)
 	{
 		if( base64_value(value[index]) < 0 )
 			return false;
@@ -348,7 +348,7 @@ private:
 	std::string output;
 	output.reserve((input.size() + 2) / 3 * 4);
 
-	for(size_t offset = 0; offset < input.size(); offset += 3)
+	for(size_t offset=0; offset<input.size(); offset+=3)
 	{
 		uint32_t value = std::to_integer<uint8_t>(input[offset]) << 16;
 
@@ -369,8 +369,8 @@ private:
 
 [[nodiscard]] const std::string *header_value(const http::headers &headers, const char *name)
 {
-	const auto iterator = headers.find(name);
-	return iterator == headers.end() ? nullptr : &iterator->second.to_string();
+	const auto it = headers.find(name);
+	return it == headers.end() ? nullptr : &it->second.to_string();
 }
 
 template <typename Result, typename Function>

@@ -11,7 +11,7 @@ bool ascii_equal_case_insensitive(std::string_view lhs, std::string_view rhs) no
 	if( lhs.size() != rhs.size() )
 		return false;
 
-	for(size_t index = 0; index < lhs.size(); ++index)
+	for(size_t index=0; index<lhs.size(); ++index)
 	{
 		auto left = static_cast<unsigned char>(lhs[index]);
 		auto right = static_cast<unsigned char>(rhs[index]);

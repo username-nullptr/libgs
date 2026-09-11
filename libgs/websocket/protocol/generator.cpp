@@ -68,7 +68,7 @@ sys_expected<encoded_frame_header> encode_frame_header
 	else
 	{
 		storage[result.size++] = static_cast<std::byte>(mask_flag | 127);
-		for(int shift = 56; shift >= 0; shift -= 8)
+		for(int shift=56; shift>=0; shift-=8)
 			storage[result.size++] = static_cast<std::byte>(header.payload_size >> shift);
 	}
 	if( header.mask )
@@ -127,7 +127,7 @@ void apply_mask(const mutable_buffer &payload, const masking_key &key, uint64_t 
 	std::memcpy(&mask, expanded.data(), sizeof(mask));
 
 	size_t index = 0;
-	for(; payload.size() - index >= sizeof(uint64_t); index += sizeof(uint64_t))
+	for(; payload.size()-index>=sizeof(uint64_t); index+=sizeof(uint64_t))
 	{
 		uint64_t value = 0;
 		std::memcpy(&value, data + index, sizeof(value));

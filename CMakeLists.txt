@@ -113,22 +113,10 @@ endif()
 include_directories(.)
 add_subdirectory(libgs)
 
-if (LIBGS_BUILD_FUZZERS)
-	foreach(target gs.core gs.http gs.websocket)
-		if (TARGET ${target})
-			target_compile_options(${target} PRIVATE
-				-fsanitize=fuzzer-no-link,address,undefined
-				-fno-omit-frame-pointer
-			)
-			target_link_options(${target} PRIVATE -fsanitize=address,undefined)
-		endif ()
-	endforeach()
-endif ()
-
 if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 	foreach(target gs.core gs.http gs.websocket gs.utils)
 		if (TARGET ${target})
-			target_link_libraries(${target} PRIVATE libgs.test.sanitizer)
+			target_link_libraries(${target} PUBLIC libgs.test.sanitizer)
 		endif ()
 	endforeach()
 endif ()

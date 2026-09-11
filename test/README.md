@@ -1,8 +1,10 @@
 # LibGS tests
 
-The test suite has two layers:
+The test suite has three layers:
 
 - `functional`: correctness tests for each enabled module.
+- `fuzz`: input-driven Clang libFuzzer harnesses, built separately from the
+  functional suite.
 - `performance`: coarse local measurements for core transforms, lock-free queues,
   coroutine synchronization primitives, HTTP and WebSocket protocol/loopback
   work, and utility dispatch.
@@ -26,6 +28,16 @@ certificate verification and the TLS upgrade path. When WebSocket zlib support
 is enabled, a fragmented compressed loopback and invalid compressed payload are
 also covered. Frame/control/close details already reached through a broader state
 test are not repeated as standalone combinations.
+
+HTTP and WebSocket network tests prefer independent implementations already
+available on the machine, without downloading test dependencies. HTTP uses
+`curl` when present (or Python's standard HTTP stack) against the LibGS server,
+then checks the LibGS client against a Python HTTP server. WebSocket prefers the
+Node `ws` package, which exercises both client/server directions; Python
+`websockets`, `websocket-client`, and `wscat` are accepted client-side fallbacks.
+CMake reports the selected backend. If Python or a WebSocket implementation is
+not available, the dependency-free LibGS loopback tests remain the fallback.
+Interoperability tests carry the `interop` and `external` CTest labels.
 
 Performance tests require the `libgs.functional` CTest fixture. Selecting only
 the `performance` label therefore runs the functional suite first, and skips
@@ -85,17 +97,26 @@ ctest --test-dir build-tsan -L sanitizer --output-on-failure
 For repeated stability runs, append `--repeat until-fail:20` to either CTest
 command.
 
-The incremental frame and opening-handshake parsers also have Clang libFuzzer
-harnesses. Build them separately from the other sanitizer modes and run them
-locally with a bounded iteration count or duration:
+Input-oriented coverage is kept in Clang libFuzzer harnesses rather than the
+functional suite. Core covers URL parsing and percent-encoding round trips;
+HTTP covers incremental request and response parsing; WebSocket covers
+incremental frames and opening handshakes. Build the harnesses separately from
+the functional suite and other sanitizer modes, then run them locally with a
+bounded iteration count or duration:
 
 ```sh
 cmake -S . -B build-fuzz -DBUILD_TESTING=ON \
   -DLIBGS_BUILD_FUZZERS=ON -DCMAKE_CXX_COMPILER=clang++ \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build-fuzz --target \
+  libgs.fuzz.core.url \
+  libgs.fuzz.http.request-parser \
+  libgs.fuzz.http.response-parser \
   libgs.fuzz.websocket.frame-parser \
   libgs.fuzz.websocket.handshake-parser -j
+build-fuzz/output/fuzz/libgs.fuzz.core.url -runs=10000
+build-fuzz/output/fuzz/libgs.fuzz.http.request-parser -runs=10000
+build-fuzz/output/fuzz/libgs.fuzz.http.response-parser -runs=10000
 build-fuzz/output/fuzz/libgs.fuzz.websocket.frame-parser -runs=10000
 build-fuzz/output/fuzz/libgs.fuzz.websocket.handshake-parser -runs=10000
 ```

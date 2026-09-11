@@ -9,7 +9,6 @@
 #endif
 
 #include <libgs/websocket/detail/stream/close_operations.h>
-#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/detail/stream/receive_engine.h>
 #include <libgs/websocket/detail/stream/send_engine.h>
 
@@ -35,7 +34,7 @@ public:
 	using close_wait_operation = detail::close_wait_operation;
 
 	// Construction and connection setup (impl/core.ipp).
-	explicit impl(executor_t exec, config_t config);
+	explicit impl(executor_t exec, const config_t &config);
 
 public:
 	void adopt(connection_ptr connection,
@@ -241,6 +240,7 @@ private:
 };
 
 } //namespace libgs::websocket
+#include <libgs/websocket/detail/permessage_deflate.h>
 
 #include <libgs/websocket/detail/stream/impl/core.ipp>
 #include <libgs/websocket/detail/stream/impl/transport.ipp>

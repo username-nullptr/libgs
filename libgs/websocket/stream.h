@@ -39,9 +39,10 @@ public:
 	explicit basic_stream(config_t config) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
-	explicit basic_stream (
-		core_concepts::match_sched<executor_t> auto &&exec,
-		config_t config = {}
+	template <typename Exec0>
+	explicit basic_stream(Exec0 &&exec, config_t config = {}) requires (
+		not std::same_as<std::remove_cvref_t<Exec0>,basic_stream> and
+		core_concepts::match_sched<Exec0,executor_t>
 	);
 	basic_stream(basic_stream &&other) noexcept;
 	basic_stream &operator=(basic_stream &&other) noexcept;

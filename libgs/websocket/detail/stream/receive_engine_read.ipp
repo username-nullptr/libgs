@@ -346,8 +346,7 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 		waiter->completion = std::move(completion);
 		self->receive_side().m_read_waiter = waiter;
 
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 		{
 			slot.assign([weak = self->weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept
@@ -503,8 +502,7 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 		waiter->completion = std::move(completion);
 		self->receive_side().m_frame_read_waiter = waiter;
 
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 		{
 			slot.assign([weak = self->weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept
@@ -644,8 +642,7 @@ void detail::receive_engine<Owner>::complete_read_waiter
 	auto waiter = std::exchange(m_read_waiter, {});
 	if( clear_slot )
 	{
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 			slot.clear();
 	}
 	try {
@@ -665,8 +662,7 @@ void detail::receive_engine<Owner>::complete_frame_read_waiter
 	auto waiter = std::exchange(m_frame_read_waiter, {});
 	if( clear_slot )
 	{
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 			slot.clear();
 	}
 	try {

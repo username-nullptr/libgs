@@ -12,7 +12,7 @@ namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-basic_stream<Exec>::impl::impl(executor_t exec, config_t config) :
+basic_stream<Exec>::impl::impl(executor_t exec, const config_t &config) :
 	m_exec(std::move(exec)), m_config(config),
 	m_receive_engine(*this), m_send_engine(*this)
 {

@@ -57,3 +57,130 @@ if (LIBGS_BUILD_UTILITIES)
 	add_libgs_test(utils.sbus utils/sbus.cpp gs.utils)
 	add_libgs_test(utils.modules utils/modules.cpp gs.utils)
 endif ()
+
+
+# Network loopback tests remain the dependency-free baseline. When an
+# independent implementation is already available in the build environment,
+# add interoperability checks without downloading anything at configure time.
+find_package(Python3 3.8 QUIET COMPONENTS Interpreter)
+if (Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
+	if (LIBGS_BUILD_HTTP)
+		find_program(LIBGS_TEST_CURL_EXECUTABLE NAMES curl)
+		if (LIBGS_TEST_CURL_EXECUTABLE)
+			set(libgs_http_interop_backend curl)
+			set(libgs_http_interop_arguments
+				--curl ${LIBGS_TEST_CURL_EXECUTABLE}
+			)
+		else ()
+			set(libgs_http_interop_backend python-stdlib)
+			set(libgs_http_interop_arguments)
+		endif ()
+
+		add_libgs_test_program(libgs.test.http.interop-peer
+			http/interop_peer.cpp gs.http)
+		add_test(NAME libgs.http.interop COMMAND
+			${Python3_EXECUTABLE}
+			${CMAKE_CURRENT_SOURCE_DIR}/interop/http_interop.py
+			--peer $<TARGET_FILE:libgs.test.http.interop-peer>
+			--backend ${libgs_http_interop_backend}
+			${libgs_http_interop_arguments}
+		)
+		configure_libgs_functional_test(libgs.http.interop)
+		set_property(TEST libgs.http.interop APPEND PROPERTY LABELS interop external)
+		set_property(TEST libgs.http.interop PROPERTY TIMEOUT 30)
+		message(STATUS
+			"${PRO_NAME}: HTTP interoperability backend: ${libgs_http_interop_backend}"
+		)
+	endif ()
+
+	if (LIBGS_BUILD_WEBSOCKET)
+		find_program(LIBGS_TEST_NODE_EXECUTABLE NAMES node nodejs)
+		set(libgs_websocket_interop_backend "")
+		set(libgs_websocket_interop_arguments)
+		if (LIBGS_TEST_NODE_EXECUTABLE)
+			execute_process(
+				COMMAND ${LIBGS_TEST_NODE_EXECUTABLE} -p "require.resolve('ws')"
+				RESULT_VARIABLE libgs_node_ws_result
+				OUTPUT_VARIABLE libgs_node_ws_module
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+			)
+			if (libgs_node_ws_result EQUAL 0)
+				set(libgs_websocket_interop_backend node-ws)
+				set(libgs_websocket_interop_arguments
+					--node ${LIBGS_TEST_NODE_EXECUTABLE}
+					--node-ws-module ${libgs_node_ws_module}
+					--node-helper
+					${CMAKE_CURRENT_SOURCE_DIR}/interop/websocket_node_ws.js
+				)
+			endif ()
+		endif ()
+
+		if (NOT libgs_websocket_interop_backend)
+			execute_process(
+				COMMAND ${Python3_EXECUTABLE} -c
+					"import websockets; assert hasattr(websockets, 'connect')"
+				RESULT_VARIABLE libgs_python_websockets_result
+				OUTPUT_QUIET ERROR_QUIET
+			)
+			if (libgs_python_websockets_result EQUAL 0)
+				set(libgs_websocket_interop_backend python-websockets)
+			endif ()
+		endif ()
+
+		if (NOT libgs_websocket_interop_backend)
+			execute_process(
+				COMMAND ${Python3_EXECUTABLE} -c
+					"import websocket; assert hasattr(websocket, 'create_connection')"
+				RESULT_VARIABLE libgs_python_websocket_client_result
+				OUTPUT_QUIET ERROR_QUIET
+			)
+			if (libgs_python_websocket_client_result EQUAL 0)
+				set(libgs_websocket_interop_backend python-websocket-client)
+			endif ()
+		endif ()
+
+		if (NOT libgs_websocket_interop_backend)
+			find_program(LIBGS_TEST_WSCAT_EXECUTABLE NAMES wscat)
+			if (LIBGS_TEST_WSCAT_EXECUTABLE)
+				set(libgs_websocket_interop_backend wscat)
+				set(libgs_websocket_interop_arguments
+					--wscat ${LIBGS_TEST_WSCAT_EXECUTABLE}
+				)
+			endif ()
+		endif ()
+
+		if (libgs_websocket_interop_backend)
+			add_libgs_test_program(libgs.test.websocket.interop-peer
+				websocket/interop_peer.cpp gs.websocket)
+			add_test(NAME libgs.websocket.interop COMMAND
+				${Python3_EXECUTABLE}
+				${CMAKE_CURRENT_SOURCE_DIR}/interop/websocket_interop.py
+				--peer $<TARGET_FILE:libgs.test.websocket.interop-peer>
+				--backend ${libgs_websocket_interop_backend}
+				${libgs_websocket_interop_arguments}
+			)
+			configure_libgs_functional_test(libgs.websocket.interop)
+			set_property(TEST libgs.websocket.interop APPEND PROPERTY
+				LABELS interop external)
+			set_property(TEST libgs.websocket.interop PROPERTY TIMEOUT 30)
+			message(STATUS
+				"${PRO_NAME}: WebSocket interoperability backend: ${libgs_websocket_interop_backend}"
+			)
+		else ()
+			message(STATUS
+				"${PRO_NAME}: No external WebSocket client found; using LibGS loopback tests."
+			)
+		endif ()
+	endif ()
+else ()
+	if (CMAKE_CROSSCOMPILING)
+		message(STATUS
+			"${PRO_NAME}: External interoperability tests disabled while cross-compiling; using LibGS loopback tests."
+		)
+	else ()
+		message(STATUS
+			"${PRO_NAME}: Python 3.8+ not found; using LibGS HTTP/WebSocket loopback tests."
+		)
+	endif ()
+endif ()

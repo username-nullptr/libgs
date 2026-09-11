@@ -122,7 +122,7 @@ void detail::send_engine<Owner>::complete_write_waiters()
 		m_write_waiters.pop_front();
 
 		auto error = observe_write_error(waiter->target);
-		deliver_write_waiter(std::move(waiter), error);
+		deliver_write_waiter(waiter, error);
 	}
 }
 
@@ -135,8 +135,7 @@ void detail::send_engine<Owner>::deliver_write_waiter
 
 	if( clear_slot )
 	{
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 			slot.clear();
 	}
 	try {
@@ -149,15 +148,15 @@ void detail::send_engine<Owner>::deliver_write_waiter
 template <typename Owner>
 void detail::send_engine<Owner>::cancel_write_waiter(uint64_t id) noexcept
 {
-	for(auto iterator = m_write_waiters.begin(); iterator != m_write_waiters.end(); ++iterator)
+	for(auto it=m_write_waiters.begin(); it!=m_write_waiters.end(); ++it)
 	{
-		if( (*iterator)->id != id )
+		if( (*it)->id != id )
 			continue;
 
-		auto waiter = std::move(*iterator);
-		m_write_waiters.erase(iterator);
+		auto waiter = std::move(*it);
+		m_write_waiters.erase(it);
 
-		deliver_write_waiter(std::move(waiter), asio::error::operation_aborted, false);
+		deliver_write_waiter(waiter, asio::error::operation_aborted, false);
 		return ;
 	}
 }
@@ -169,8 +168,8 @@ void detail::send_engine<Owner>::deliver_send_completion
 	if( not operation->completion )
 		return ;
 
-	auto slot = asio::get_associated_cancellation_slot(operation->completion);
-	if( slot.is_connected() )
+	if( auto slot = asio::get_associated_cancellation_slot(operation->completion);
+		slot.is_connected() )
 		slot.clear();
 	try {
 		auto completion = std::move(operation->completion);
@@ -233,13 +232,13 @@ void detail::send_engine<Owner>::cancel_queued_send(uint64_t id) noexcept
 		deliver_send_completion(operation, asio::error::operation_aborted);
 		return ;
 	}
-	for(auto iterator = m_control_write_queue.begin(); iterator != m_control_write_queue.end(); ++iterator)
+	for(auto it=m_control_write_queue.begin(); it!=m_control_write_queue.end(); ++it)
 	{
-		if( (*iterator)->id != id )
+		if( (*it)->id != id )
 			continue;
 
-		auto operation = std::move(*iterator);
-		m_control_write_queue.erase(iterator);
+		auto operation = std::move(*it);
+		m_control_write_queue.erase(it);
 
 		if( operation->queued_counted )
 		{
@@ -671,7 +670,7 @@ void detail::send_engine<Owner>::async_write_message
 
 		if( auto error = self->send_side().enqueue_send_operation(operation) )
 		{
-			self->send_side().m_last_write_sequence--;
+			--self->send_side().m_last_write_sequence;
 			self->send_side().deliver_send_completion(operation, error);
 		}
 	}
@@ -834,8 +833,7 @@ void detail::send_engine<Owner>::async_wait_written(Handler &&handler)
 		m_write_waiters.push_back(waiter);
 		queued = true;
 
-		auto slot = asio::get_associated_cancellation_slot(waiter->completion);
-		if( slot.is_connected() )
+		if( auto slot = asio::get_associated_cancellation_slot(waiter->completion); slot.is_connected() )
 		{
 			slot.assign([weak = m_owner.weak_from_this(), id = waiter->id]
 			(asio::cancellation_type type) noexcept
@@ -862,9 +860,9 @@ void detail::send_engine<Owner>::async_wait_written(Handler &&handler)
 		{
 			if( queued )
 			{
-				auto iterator = std::ranges::find(m_write_waiters, waiter);
-				if( iterator != m_write_waiters.end() )
-					m_write_waiters.erase(iterator);
+				auto it = std::ranges::find(m_write_waiters, waiter);
+				if( it != m_write_waiters.end() )
+					m_write_waiters.erase(it);
 			}
 			deliver_write_waiter(waiter, error);
 		}
@@ -883,9 +881,9 @@ void detail::send_engine<Owner>::async_wait_written(Handler &&handler)
 		{
 			if( queued )
 			{
-				auto iterator = std::ranges::find(m_write_waiters, waiter);
-				if( iterator != m_write_waiters.end() )
-					m_write_waiters.erase(iterator);
+				auto it = std::ranges::find(m_write_waiters, waiter);
+				if( it != m_write_waiters.end() )
+					m_write_waiters.erase(it);
 			}
 			deliver_write_waiter(waiter, error);
 		}
