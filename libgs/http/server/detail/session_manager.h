@@ -9,7 +9,7 @@
 namespace libgs::http
 {
 
-class LIBGS_HTTP_VAPI session_manager::impl
+class LIBGS_HTTP_API session_manager::impl
 {
 	LIBGS_DISABLE_COPY(impl)
 

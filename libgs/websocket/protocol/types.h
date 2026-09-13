@@ -85,7 +85,7 @@ enum class close_code : uint16_t
 	bad_gateway         = 1014,
 };
 
-struct close_frame
+struct LIBGS_WEBSOCKET_API close_frame
 {
 	uint16_t code = static_cast<uint16_t>(close_code::normal_closure);
 	std::string reason {};

@@ -3,12 +3,20 @@
 
 set(LIBGS_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(CMAKE_COMPILER_IS_GNUCXX)
+	include(CheckCXXCompilerFlag)
+	check_cxx_compiler_flag("-Wa,-mbig-obj" LIBGS_TEST_GNU_BIG_OBJ)
+endif()
+
 
 # Build a test program without necessarily registering it as a standalone
 # CTest test. Interoperability runners use this for the LibGS peer process.
 function(add_libgs_test_program test_target source library)
 	add_executable(${test_target} ${source})
 	target_link_libraries(${test_target} PRIVATE ${library})
+	target_compile_options(${test_target} PRIVATE
+		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_TEST_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
+	)
 
 	if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 		target_link_libraries(${test_target} PRIVATE libgs.test.sanitizer)
@@ -61,6 +69,9 @@ endfunction()
 function(add_libgs_performance_test name source library)
 	set(test_target libgs.test.performance.${name})
 	add_executable(${test_target} ${source})
+	target_compile_options(${test_target} PRIVATE
+		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_TEST_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
+	)
 
 	target_link_libraries(${test_target} PRIVATE ${library})
 	target_include_directories(${test_target} PRIVATE ${LIBGS_TEST_SOURCE_DIR})

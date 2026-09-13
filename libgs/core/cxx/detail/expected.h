@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Xiaoqiang <username_nullptr@163.com>
+// SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_CORE_CXX_DETAIL_EXPECTED_H
@@ -7,567 +7,650 @@
 namespace libgs { namespace detail
 {
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-void check_expected_has_error(const expected<Value,Error> &exp)
+template <typename Self, typename Func>
+constexpr decltype(auto) invoke_expected(Self &&self, Func &&func)
 {
-	if( exp.has_value() )
-	{
-		runtime_error::loc_throw(std::format (
-			"libgs::expected<{},{}> has no error",
-			type_name<Value>(), type_name<Error>()
-		));
-	}
+	if constexpr( std::is_void_v<typename std::remove_cvref_t<Self>::value_type> )
+		return std::invoke(std::forward<Func>(func));
+	else
+		return std::invoke(std::forward<Func>(func), *std::forward<Self>(self));
 }
 
-template <concepts::optional_value Error>
-void check_expected_has_error(const expected<void,Error> &exp)
+template <typename Self, typename Func>
+constexpr decltype(auto) invoke_expected_error(Self &&self, Func &&func)
 {
-	if( exp.has_value() )
+	if constexpr( std::invocable<Func,decltype(std::forward<Self>(self).error())> )
 	{
-		runtime_error::loc_throw(std::format (
-			"libgs::expected<void,{}> has no error",
-			type_name<Error>()
-		));
+		return std::invoke (
+			std::forward<Func>(func), std::forward<Self>(self).error()
+		);
 	}
+	else
+		return std::invoke(std::forward<Func>(func));
 }
 
-} //namespace detail
+} //namespace libgs::detail
 
-template <concepts::optional_value Error>
+#if !LIBGS_HAS_STD_EXPECTED
+
+template <typename Error>
+template <typename OtherError>
+constexpr unexpected<Error>::unexpected(OtherError &&error) requires (
+	not std::same_as<std::remove_cvref_t<OtherError>,unexpected> and
+	not std::same_as<std::remove_cvref_t<OtherError>,std::in_place_t> and
+	std::constructible_from<error_type,OtherError>
+) : m_error(std::forward<OtherError>(error))
+{
+
+}
+
+template <typename Error>
 template <typename...Args>
-unexpected<Error>::unexpected(Args&&...args) requires
-	concepts::constructible<error_t,Args...> :
+constexpr unexpected<Error>::unexpected(std::in_place_t, Args&&...args)
+	requires std::constructible_from<error_type,Args...> :
 	m_error(std::forward<Args>(args)...)
 {
 
 }
 
-template <concepts::optional_value Error>
-const Error &unexpected<Error>::error() const & noexcept
+template <typename Error>
+template <typename U, typename...Args>
+constexpr unexpected<Error>::unexpected(std::in_place_t, std::initializer_list<U> list, Args&&...args)
+	requires std::constructible_from<error_type,std::initializer_list<U>&,Args...> :
+	m_error(list, std::forward<Args>(args)...)
+{
+
+}
+
+template <typename Error>
+constexpr auto unexpected<Error>::error() const & noexcept -> const error_type&
 {
 	return m_error;
 }
 
-template <concepts::optional_value Error>
-Error &&unexpected<Error>::error() const && noexcept
-{
-	return std::move(m_error);
-}
-
-template <concepts::optional_value Error>
-Error &unexpected<Error>::error() & noexcept
+template <typename Error>
+constexpr auto unexpected<Error>::error() & noexcept -> error_type&
 {
 	return m_error;
 }
 
-template <concepts::optional_value Error>
-Error &&unexpected<Error>::error() && noexcept
+template <typename Error>
+constexpr auto unexpected<Error>::error() const && noexcept -> const error_type&&
 {
 	return std::move(m_error);
 }
 
-template <concepts::optional_value Error, typename Derived>
-expected_base<Error,Derived>::expected_base(error_t error)
+template <typename Error>
+constexpr auto unexpected<Error>::error() && noexcept -> error_type&&
 {
-	_despair(std::move(error));
+	return std::move(m_error);
 }
 
-template <concepts::optional_value Error, typename Derived>
-expected_base<Error,Derived>::expected_base() = default;
-
-template <concepts::optional_value Error, typename Derived>
-const Error &expected_base<Error,Derived>::error() const & noexcept
+template <typename Error>
+constexpr void unexpected<Error>::swap(unexpected &other)
+	noexcept(std::is_nothrow_swappable_v<error_type>)
+	requires std::swappable<error_type>
 {
-	detail::check_expected_has_error (
-		static_cast<const derived_t&>(*this)
-	);
-	return *m_error_ptr;
+	using std::swap;
+	swap(m_error, other.m_error);
 }
 
-template <concepts::optional_value Error, typename Derived>
-Error &&expected_base<Error,Derived>::error() const && noexcept
+template <typename Error>
+constexpr void swap(unexpected<Error> &left, unexpected<Error> &right)
+	noexcept(noexcept(left.swap(right)))
 {
-	detail::check_expected_has_error (
-		static_cast<const derived_t&>(*this)
-	);
-	return std::move(*m_error_ptr);
+	left.swap(right);
 }
 
-template <concepts::optional_value Error, typename Derived>
-Error &expected_base<Error,Derived>::error() & noexcept
-{
-	detail::check_expected_has_error (
-		static_cast<derived_t&>(*this)
-	);
-	return *m_error_ptr;
-}
-
-template <concepts::optional_value Error, typename Derived>
-Error &&expected_base<Error,Derived>::error() && noexcept
-{
-	detail::check_expected_has_error (
-		static_cast<derived_t&>(*this)
-	);
-	return std::move(*m_error_ptr);
-}
-
-template <concepts::optional_value Error, typename Derived>
-template <typename...Args>
-void expected_base<Error,Derived>::_despair(Args&&...args) requires
-	concepts::constructible<error_t,Args...>
-{
-	new (&m_error_storage) error_t(std::forward<Args>(args)...);
-	m_error_ptr = std::launder(reinterpret_cast<error_t*>(&m_error_storage));
-}
-
-template <concepts::optional_value Error, typename Derived>
-void expected_base<Error,Derived>::_swap(expected_base &other)
-	noexcept(std::is_nothrow_swappable_v<error_t>)
-{
-	if( m_error_ptr && other.m_error_ptr )
-		std::swap(*m_error_ptr, *other.m_error_ptr);
-
-	else if( m_error_ptr )
-	{
-		other._despair(std::move(*m_error_ptr));
-		_reset_error();
-	}
-	else if( other.m_error_ptr )
-	{
-		_despair(std::move(*other.m_error_ptr));
-		other._reset_error();
-	}
-}
-
-template <concepts::optional_value Error, typename Derived>
-void expected_base<Error,Derived>::_reset_error() noexcept
-{
-	m_error_ptr->~error_t();
-	m_error_ptr = nullptr;
-}
-
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error>::expected()
-	requires concepts::constructible<value_t> :
-	optional_base<value_t>(value_t())
+template <typename Error>
+bad_expected_access<Error>::bad_expected_access(Error error) :
+	m_error(std::move(error))
 {
 
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error>::expected(value_t value) :
-	optional_base<value_t>(std::move(value))
+template <typename Error>
+const Error &bad_expected_access<Error>::error() const & noexcept
+{
+	return m_error;
+}
+
+template <typename Error>
+Error &bad_expected_access<Error>::error() & noexcept
+{
+	return m_error;
+}
+
+template <typename Error>
+const Error &&bad_expected_access<Error>::error() const && noexcept
+{
+	return std::move(m_error);
+}
+
+template <typename Error>
+Error &&bad_expected_access<Error>::error() && noexcept
+{
+	return std::move(m_error);
+}
+
+#endif //LIBGS_HAS_STD_EXPECTED
+
+template <typename Value, typename Error>
+constexpr expected<Value,Error>::expected(const base_t &other) :
+	base_t(other)
 {
 
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error>::expected(unexpected<error_t> une) :
-	expected_base<error_t,expected>(std::move(une.error()))
+template <typename Value, typename Error>
+constexpr expected<Value,Error>::expected(base_t &&other)
+	noexcept(std::is_nothrow_move_constructible_v<base_t>) :
+	base_t(std::move(other))
 {
 
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error>::expected(const expected &other) requires
-	concepts::copy_constructible<value_t> and
-	concepts::copy_constructible<error_t> :
-	optional_base<value_t>(other)
+template <typename Value, typename Error>
+constexpr expected<Value,Error>::expected(const unexpected_type &error) :
+	base_t(unexpect, error.error())
 {
-	if( other.m_error_ptr )
-		this->_despair(other.error());
+
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::operator=(const expected &other) requires
-	concepts::copy_constructible<value_t> and
-	concepts::copy_constructible<error_t>
+template <typename Value, typename Error>
+constexpr expected<Value,Error>::expected(unexpected_type &&error) :
+	base_t(unexpect, std::move(error).error())
 {
-	if( this != &other )
-	{
-		expected temp(other);
-		swap(temp);
-	}
+
+}
+
+template <typename Value, typename Error>
+constexpr expected<Value,Error> &expected<Value,Error>::operator=(const base_t &other)
+{
+	base_t::operator=(other);
 	return *this;
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error>::expected(expected &&other) noexcept (
-	std::is_nothrow_move_constructible_v<value_t> and
-	std::is_nothrow_move_constructible_v<error_t>
-) requires
-	concepts::move_constructible<value_t> and
-	concepts::move_constructible<error_t> :
-	optional_base<Value>(std::move(other))
+template <typename Value, typename Error>
+constexpr expected<Value,Error> &expected<Value,Error>::operator=(base_t &&other)
+	noexcept(std::is_nothrow_move_assignable_v<base_t>)
 {
-	if( other.m_error_ptr )
-	{
-		this->_despair(std::move(other.error()));
-		other._reset_error();
-	}
-}
-
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::operator=(expected &&other) noexcept (
-	std::is_nothrow_move_constructible_v<value_t> and
-	std::is_nothrow_move_constructible_v<error_t>
-) requires
-	concepts::move_constructible<value_t> and
-	concepts::move_constructible<error_t>
-{
-	if( this == &other )
-		return *this;
-
-	optional_base<Value>::operator=(std::move(other));
-	if( this->m_error_ptr )
-		this->_reset_error();
-	if( other.m_error_ptr )
-	{
-		this->_despair(std::move(other.error()));
-		other._reset_error();
-	}
+	base_t::operator=(std::move(other));
 	return *this;
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-bool expected<Value,Error>::is_error() const noexcept
+template <typename Value, typename Error>
+constexpr expected<Value,Error> &expected<Value,Error>::operator=(unexpected_type error)
+{
+	base_t::operator=(typename base_t::unexpected_type (
+		std::in_place, std::move(error).error()
+	));
+	return *this;
+}
+
+template <typename Value, typename Error>
+template <typename U>
+constexpr expected<Value,Error>::expected(std::type_identity_t<error_type> error)
+	requires std::is_void_v<U> or (not std::convertible_to<error_type,U>) :
+	base_t(unexpect, std::move(error))
+{
+
+}
+
+template <typename Value, typename Error>
+constexpr bool expected<Value,Error>::is_error() const noexcept
 {
 	return not this->has_value();
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
+template <typename Value, typename Error>
+template <typename U>
+constexpr expected<Value,Error> &expected<Value,Error>::operator=(U &&value) requires
+	(not std::is_void_v<value_type>) and
+	(not std::same_as<std::remove_cvref_t<U>,expected>) and
+	(not std::same_as<std::remove_cvref_t<U>,base_t>) and
+	std::constructible_from<value_type,U> and
+	std::is_assignable_v<value_type&,U>
+{
+	base_t::operator=(std::forward<U>(value));
+	return *this;
+}
+
+template <typename Value, typename Error>
 template <typename...Args>
-expected<Value,Error> &expected<Value,Error>::emplace(Args&&...args) requires
-	concepts::constructible<value_t,Args...>
+constexpr expected<Value,Error> &expected<Value,Error>::despair(Args&&...args)
+	requires std::constructible_from<error_type,Args...>
 {
-	if( this->has_value() )
-		this->_reset();
+	return despair(unexpected_type(std::in_place, std::forward<Args>(args)...));
+}
 
-	if( this->m_error_ptr )
-		this->_reset_error();
+template <typename Value, typename Error>
+constexpr expected<Value,Error> &expected<Value,Error>::despair(error_type error)
+{
+	return despair(unexpected_type(std::in_place, std::move(error)));
+}
 
-	this->_emplace(std::forward<Args>(args)...);
+template <typename Value, typename Error>
+constexpr expected<Value,Error> &expected<Value,Error>::despair(unexpected_type error)
+{
+	base_t::operator=(std::move(error));
 	return *this;
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-template <typename...Args>
-expected<Value,Error> &expected<Value,Error>::despair(Args&&...args) requires
-	concepts::constructible<error_t,Args...>
+template <typename Value, typename Error>
+template <typename U>
+constexpr Value expected<Value,Error>::value_or(U &&fallback) const & requires
+	(not std::is_void_v<value_type>) and
+	std::copy_constructible<value_type> and
+	std::convertible_to<U,value_type>
 {
-	if( this->has_value() )
-		this->_reset();
-
-	if( this->m_error_ptr )
-		this->_reset_error();
-
-	this->_despair(std::forward<Args>(args)...);
-	return *this;
+	return base_t::value_or(std::forward<U>(fallback));
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::despair(unexpected<error_t> une)
+template <typename Value, typename Error>
+template <typename U>
+constexpr Value expected<Value,Error>::value_or(U &&fallback) && requires
+	(not std::is_void_v<value_type>) and
+	std::move_constructible<value_type> and
+	std::convertible_to<U,value_type>
 {
-	if( this->has_value() )
-		this->_reset();
-
-	if( this->m_error_ptr )
-		this->_reset_error();
-
-	this->_despair(std::move(une.error()));
-	return *this;
+	return std::move(static_cast<base_t&>(*this)).value_or(std::forward<U>(fallback));
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::operator=(value_t value) noexcept
+template <typename Value, typename Error>
+constexpr Value expected<Value,Error>::value_or() const & requires
+	(not std::is_void_v<value_type>) and
+	std::copy_constructible<value_type> and
+	std::default_initializable<value_type>
 {
-	emplace(std::move(value));
-	return *this;
+	return base_t::value_or(value_type {});
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::operator=(unexpected<error_t> une) noexcept
+template <typename Value, typename Error>
+constexpr Value expected<Value,Error>::value_or() && requires
+	(not std::is_void_v<value_type>) and
+	std::move_constructible<value_type> and
+	std::default_initializable<value_type>
 {
-	despair(std::move(une));
-	return *this;
+	return std::move(static_cast<base_t&>(*this)).value_or(value_type {});
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> &expected<Value,Error>::swap(expected &other) noexcept
-(std::is_nothrow_swappable_v<value_t> and std::is_nothrow_swappable_v<error_t>)
+template <typename Value, typename Error>
+template <typename Self, typename Func>
+constexpr auto expected<Value,Error>::and_then_impl(Self &&self, Func &&func)
 {
-	optional_base<value_t>::_swap(other);
-	expected_base<error_t,expected>::_swap(other);
-	return *this;
-}
+	using result_t = std::remove_cvref_t<decltype(detail::invoke_expected (
+		std::forward<Self>(self), std::forward<Func>(func)
+	))>;
+	static_assert(detail::expected_specialization<result_t>,
+		"expected::and_then callback must return an expected specialization"
+	);
+	using result_error_t = detail::expected_error_t<result_t>;
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-template <typename Func>
-auto expected<Value,Error>::transform(Func &&func) const requires transform_v<Func>
-{
-	using result_t = std::invoke_result_t<Func,value_t>;
-	if constexpr( std::is_void_v<result_t> )
+	static_assert(std::same_as<result_error_t,error_type>,
+		"expected::and_then callback must preserve the error type"
+	);
+	if( self.has_value() )
 	{
-		if( this->has_value() )
-		{
-			func(this->value());
-			return expected<void,error_t>();
-		}
-		return expected<void,error_t> (
-			unexpected<error_t>(this->error())
+		return detail::invoke_expected (
+			std::forward<Self>(self), std::forward<Func>(func)
 		);
 	}
+	return result_t(unexpected<result_error_t> (
+		std::in_place, std::forward<Self>(self).error()
+	));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::and_then(Func &&func) &
+	requires detail::expected_invocable<Func,expected&>
+{
+	return and_then_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::and_then(Func &&func) const &
+	requires detail::expected_invocable<Func,const expected&>
+{
+	return and_then_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::and_then(Func &&func) &&
+	requires detail::expected_invocable<Func,expected&&>
+{
+	return and_then_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::and_then(Func &&func) const &&
+	requires detail::expected_invocable<Func,const expected&&>
+{
+	return and_then_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Self, typename Func>
+constexpr auto expected<Value,Error>::transform_impl(Self &&self, Func &&func)
+{
+	using invoke_t = decltype(detail::invoke_expected (
+		std::forward<Self>(self), std::forward<Func>(func)
+	));
+	using result_value_t = std::remove_cv_t<invoke_t>;
+
+	if constexpr( std::is_void_v<result_value_t> )
+	{
+		if( self.has_value() )
+		{
+			detail::invoke_expected (
+				std::forward<Self>(self), std::forward<Func>(func)
+			);
+			return expected<void,error_type> {};
+		}
+		return expected<void,error_type>(unexpected<error_type> (
+			std::in_place, std::forward<Self>(self).error()
+		));
+	}
 	else
 	{
-		return this->has_value() ?
-			expected<result_t,error_t>(func(this->value())) :
-			expected<result_t,error_t>(unexpected<error_t>(this->error()));
+		static_assert(std::is_object_v<result_value_t> and
+			not std::is_array_v<result_value_t>
+		);
+		if( self.has_value() )
+		{
+			return expected<result_value_t,error_type> (
+				std::in_place, detail::invoke_expected (
+					std::forward<Self>(self), std::forward<Func>(func)
+				)
+			);
+		}
+		return expected<result_value_t,error_type>(unexpected<error_type> (
+			std::in_place, std::forward<Self>(self).error()
+		));
 	}
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
+template <typename Value, typename Error>
 template <typename Func>
-auto expected<Value,Error>::and_then(Func &&func) const requires and_then_v<Func>
+constexpr auto expected<Value,Error>::transform(Func &&func) &
+	requires detail::expected_invocable<Func,expected&>
 {
-	using result_t = std::invoke_result_t<Func,value_t>;
-	return this->has_value() ? func(this->value()) : result_t(this->error());
+	return transform_impl(*this, std::forward<Func>(func));
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
+template <typename Value, typename Error>
 template <typename Func>
-expected<Value,Error> expected<Value,Error>::or_else(Func &&func) const requires or_else_v<Func>
+constexpr auto expected<Value,Error>::transform(Func &&func) const &
+	requires detail::expected_invocable<Func,const expected&>
 {
-	if constexpr( or_else_0_v<Func> )
-		return this->has_value() ? *this : func(this->error());
+	return transform_impl(*this, std::forward<Func>(func));
+}
 
-	else if constexpr( or_else_1_v<Func> )
-		return this->has_value() ? *this : func();
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::transform(Func &&func) &&
+	requires detail::expected_invocable<Func,expected&&>
+{
+	return transform_impl(std::move(*this), std::forward<Func>(func));
+}
 
-	else if constexpr( or_else_2_v<Func> )
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::transform(Func &&func) const &&
+	requires detail::expected_invocable<Func,const expected&&>
+{
+	return transform_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Self, typename Func>
+constexpr auto expected<Value,Error>::or_else_impl(Self &&self, Func &&func)
+{
+	using invoke_t = decltype(detail::invoke_expected_error (
+		std::forward<Self>(self), std::forward<Func>(func)
+	));
+	if constexpr( std::is_void_v<invoke_t> )
 	{
-		if( not this->has_value() )
-			func(this->error());
-		return *this;
+		if( not self.has_value() )
+		{
+			detail::invoke_expected_error (
+				std::forward<Self>(self), std::forward<Func>(func)
+			);
+		}
+		return expected(std::forward<Self>(self));
 	}
-	// else if constexpr( or_else_3_v<Func> )
 	else
 	{
-		if( not this->has_value() )
-			func();
-		return *this;
+		using result_t = std::remove_cvref_t<invoke_t>;
+		static_assert(detail::expected_specialization<result_t>,
+			"expected::or_else callback must return void or an expected specialization"
+		);
+		using result_value_t = detail::expected_value_t<result_t>;
+
+		static_assert(std::same_as<result_value_t,value_type>,
+			"expected::or_else callback must preserve the value type"
+		);
+		if( not self.has_value() )
+		{
+			return detail::invoke_expected_error (
+				std::forward<Self>(self), std::forward<Func>(func)
+			);
+		}
+		if constexpr( std::is_void_v<value_type> )
+			return result_t {};
+		else
+			return result_t(std::in_place, *std::forward<Self>(self));
 	}
 }
 
-template <concepts::optional_value Value, concepts::optional_value Error>
-expected<Value,Error> expected<Value,Error>::or_else(value_t value) const
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::or_else(Func &&func) &
+	requires detail::expected_or_else_invocable<Func,expected&>
 {
-	return this->has_value() ?
-		*this : expected(std::move(value));
+	return or_else_impl(*this, std::forward<Func>(func));
 }
 
-template <concepts::optional_value Error, concepts::optional_value_p Value>
-auto make_expected(Value &&value)
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::or_else(Func &&func) const &
+	requires detail::expected_or_else_invocable<Func,const expected&>
 {
-	return expected<std::remove_cvref_t<Value>,Error>(
-		std::forward<Value>(value)
+	return or_else_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::or_else(Func &&func) &&
+	requires detail::expected_or_else_invocable<Func,expected&&>
+{
+	return or_else_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::or_else(Func &&func) const &&
+	requires detail::expected_or_else_invocable<Func,const expected&&>
+{
+	return or_else_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Self, typename Func>
+constexpr auto expected<Value,Error>::transform_error_impl(Self &&self, Func &&func)
+{
+	using result_error_t = std::remove_cv_t<std::invoke_result_t <
+		Func, decltype(std::forward<Self>(self).error())
+	>>;
+	static_assert(std::is_object_v<result_error_t> and
+		not std::is_array_v<result_error_t>
+	);
+	if( not self.has_value() )
+	{
+		return expected<value_type,result_error_t>(unexpected<result_error_t> (
+			std::in_place, std::invoke (
+				std::forward<Func>(func), std::forward<Self>(self).error()
+			)
+		));
+	}
+	if constexpr( std::is_void_v<value_type> )
+		return expected<void,result_error_t> {};
+	else
+	{
+		return expected<value_type,result_error_t> (
+			std::in_place, *std::forward<Self>(self)
+		);
+	}
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::transform_error(Func &&func) &
+	requires std::invocable<Func,error_type&>
+{
+	return transform_error_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::transform_error(Func &&func) const &
+	requires std::invocable<Func,const error_type&>
+{
+	return transform_error_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::transform_error(Func &&func) &&
+	requires std::invocable<Func,error_type&&>
+{
+	return transform_error_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename Func>
+constexpr auto expected<Value,Error>::transform_error(Func &&func) const &&
+	requires std::invocable<Func,const error_type&&>
+{
+	return transform_error_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value, typename Error>
+template <typename U>
+constexpr expected<Value,Error> expected<Value,Error>::or_else
+(std::type_identity_t<U> value) const & requires
+	std::same_as<U,value_type> and (not std::is_void_v<U>) and
+	std::copy_constructible<value_type>
+{
+	return this->has_value() ? *this : expected(std::in_place, std::move(value));
+}
+
+template <typename Value, typename Error>
+template <typename U>
+constexpr expected<Value,Error> expected<Value,Error>::or_else
+(std::type_identity_t<U> value) && requires
+	std::same_as<U,value_type> and (not std::is_void_v<U>) and
+	std::move_constructible<value_type>
+{
+	return this->has_value() ? std::move(*this) :
+		expected(std::in_place, std::move(value));
+}
+
+template <typename Value, typename Error>
+constexpr expected<Value,Error> expected<Value,Error>::or_else() const & requires
+	(not std::is_void_v<value_type>) and std::copy_constructible<value_type> and
+	std::default_initializable<value_type>
+{
+	return this->has_value() ? *this : expected(std::in_place);
+}
+
+template <typename Value, typename Error>
+constexpr expected<Value,Error> expected<Value,Error>::or_else() && requires
+	(not std::is_void_v<value_type>) and std::move_constructible<value_type> and
+	std::default_initializable<value_type>
+{
+	return this->has_value() ? std::move(*this) : expected(std::in_place);
+}
+
+template <typename Value, typename Error>
+constexpr expected<Value,Error> expected<Value,Error>::or_else() const &
+	requires std::is_void_v<value_type> and std::copy_constructible<error_type>
+{
+	return this->has_value() ? *this : expected {};
+}
+
+template <typename Value, typename Error>
+constexpr expected<Value,Error> expected<Value,Error>::or_else() &&
+	requires std::is_void_v<value_type> and std::move_constructible<error_type>
+{
+	return this->has_value() ? std::move(*this) : expected {};
+}
+
+template <typename Error, concepts::optional_value_p Value>
+constexpr auto make_expected(Value &&value)
+{
+	using value_type = std::remove_cvref_t<Value>;
+	return expected<value_type,Error> (
+		std::in_place, std::forward<Value>(value)
 	);
 }
 
-template <concepts::optional_value Error>
-expected<void,Error>::expected(unexpected<error_t> une) :
-	expected_base<error_t,expected>(std::move(une.error())),
-	m_has_value(false)
+template <typename Error>
+constexpr expected<void,Error> make_expected()
 {
-
+	return expected<void,Error> {};
 }
 
-template <concepts::optional_value Error>
-expected<void,Error>::expected(const expected &other) requires
-	concepts::copy_constructible<error_t> :
-	m_has_value(other.m_has_value)
+template <typename Value, typename Error>
+constexpr void swap(expected<Value,Error> &left, expected<Value,Error> &right)
+	noexcept(noexcept(left.swap(right)))
 {
-	if( other.m_error_ptr )
-		this->_despair(other.error());
+	left.swap(right);
 }
 
-template <concepts::optional_value Error>
-expected<void,Error> &expected<void,Error>::operator=(const expected &other) requires
-	concepts::copy_constructible<error_t>
+template <typename Value, typename Error, typename OtherValue, typename OtherError>
+[[nodiscard]] constexpr bool operator==
+(const expected<Value,Error> &left, const expected<OtherValue,OtherError> &right)
+	requires ((
+		(std::is_void_v<Value> and std::is_void_v<OtherValue>) or (
+				not std::is_void_v<Value> and
+				not std::is_void_v<OtherValue> and
+				requires { { *left == *right } -> std::convertible_to<bool>; }
+			)
+		) and
+		requires { { left.error() == right.error() } -> std::convertible_to<bool>; }
+	)
 {
-	if( this != &other )
-	{
-		expected temp(other);
-		swap(temp);
-	}
-	return *this;
-}
+	if( left.has_value() != right.has_value() )
+		return false;
 
-template <concepts::optional_value Error>
-expected<void,Error>::expected(expected &&other)
-	noexcept(std::is_nothrow_move_constructible_v<error_t>)
-	requires concepts::move_constructible<error_t> :
-	m_has_value(other.m_has_value)
-{
-	other.m_has_value = false;
-	if( other.m_error_ptr )
-	{
-		this->_despair(std::move(other.error()));
-		other._reset_error();
-	}
-}
+	if( not left.has_value() )
+		return left.error() == right.error();
 
-template <concepts::optional_value Error>
-expected<void,Error> &expected<void,Error>::operator=(expected &&other)
-	noexcept(std::is_nothrow_move_constructible_v<error_t>)
-	requires concepts::move_constructible<error_t>
-{
-	if( this == &other )
-		return *this;
-
-	m_has_value = other.m_has_value;
-	other.m_has_value = false;
-
-	if( this->m_error_ptr )
-		this->_reset_error();
-
-	if( other.m_error_ptr )
-	{
-		this->_despair(std::move(other.error()));
-		other._reset_error();
-	}
-	return *this;
-}
-
-template <concepts::optional_value Error>
-bool expected<void,Error>::has_value() const noexcept
-{
-	return m_has_value;
-}
-
-template <concepts::optional_value Error>
-bool expected<void,Error>::is_error() const noexcept
-{
-	return not m_has_value;
-}
-
-template <concepts::optional_value Error>
-expected<void,Error> &expected<void,Error>::emplace() noexcept
-{
-	if( this->m_error_ptr )
-		this->_reset_error();
-	this->m_has_value = true;
-	return *this;
-}
-
-template <concepts::optional_value Error>
-template <typename...Args>
-expected<void,Error> &expected<void,Error>::despair(Args&&...args) requires
-	concepts::constructible<error_t,Args...>
-{
-	m_has_value = false;
-	if( this->m_error_ptr )
-		this->_reset_error();
-
-	this->_despair(std::forward<Args>(args)...);
-	return *this;
-}
-
-template <concepts::optional_value Error>
-expected<void,Error> &expected<void,Error>::despair(unexpected<error_t> une)
-{
-	m_has_value = false;
-	if( this->m_error_ptr )
-		this->_reset_error();
-
-	this->_despair(std::move(une.error()));
-	return *this;
-}
-
-template <concepts::optional_value Error>
-expected<void,Error> &expected<void,Error>::swap(expected &other)
-	noexcept(std::is_nothrow_swappable_v<error_t>)
-{
-	std::swap(m_has_value, other.m_has_value);
-	expected_base<error_t,expected>::_swap(other);
-	return *this;
-}
-
-template <concepts::optional_value Error>
-auto expected<void,Error>::transform(concepts::callable auto &&func) const
-{
-	using Func = decltype(func);
-	using result_t = std::invoke_result_t<Func>;
-
-	if constexpr( std::is_void_v<result_t> )
-	{
-		if( has_value() )
-			func();
-		return *this;
-	}
+	if constexpr( std::is_void_v<Value> )
+		return true;
 	else
-	{
-		return has_value() ?
-			expected<result_t,error_t>(func()) :
-			expected<result_t,error_t>();
-	}
+		return *left == *right;
 }
 
-template <concepts::optional_value Error>
-template <typename Func>
-auto expected<void,Error>::and_then(Func &&func) const requires and_then_v<Func>
+template <typename Value, typename Error, typename U>
+[[nodiscard]] constexpr bool operator==
+(const expected<Value,Error> &left, const U &right) requires
+	(not std::is_void_v<Value>) and (not detail::expected_specialization<U>) and
+	requires { { *left == right } -> std::convertible_to<bool>; }
 {
-	using result_t = std::invoke_result_t<Func>;
-	return has_value() ? func() : result_t();
+	return left.has_value() and *left == right;
 }
 
-template <concepts::optional_value Error>
-template <typename Func>
-expected<void,Error> expected<void,Error>::or_else(Func &&func) const requires or_else_v<Func>
+template <typename Value, typename Error, typename OtherError>
+[[nodiscard]] constexpr bool operator==(const expected<Value,Error> &left, const unexpected<OtherError> &right)
+	requires requires { { left.error() == right.error() } -> std::convertible_to<bool>; }
 {
-	if constexpr( or_else_0_v<Func> )
-		return has_value() ? *this : func(this->error());
-
-	else if constexpr( or_else_1_v<Func> )
-		return has_value() ? *this : func();
-
-	else if constexpr( or_else_2_v<Func> )
-	{
-		if( not has_value() )
-			func(this->error());
-		return *this;
-	}
-	// else if constexpr( or_else_3_v<Func> )
-	else
-	{
-		if( not has_value() )
-			func();
-		return *this;
-	}
-}
-
-template <concepts::optional_value Error>
-expected<void,Error> expected<void,Error>::or_else() const
-{
-	return has_value() ? *this : expected();
-}
-
-template <concepts::optional_value Error>
-expected<void,Error>::operator bool() const noexcept
-{
-	return has_value();
-}
-
-template <concepts::optional_value Error>
-expected<void,Error> &expected<void,Error>::operator=(unexpected<error_t> une) noexcept
-{
-	despair(std::move(une));
-	return *this;
-}
-
-template <concepts::optional_value Error>
-expected<void,Error> make_expected()
-{
-	return expected<void,Error>();
+	return not left.has_value() and left.error() == right.error();
 }
 
 } //namespace libgs

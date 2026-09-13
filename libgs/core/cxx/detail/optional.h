@@ -1,340 +1,310 @@
-// SPDX-FileCopyrightText: 2025 Xiaoqiang <username_nullptr@163.com>
+// SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
-#ifndef LIBGS_CORE_CXX_DETIAL_OPTIONAL_H
-#define LIBGS_CORE_CXX_DETIAL_OPTIONAL_H
+#ifndef LIBGS_CORE_CXX_DETAIL_OPTIONAL_H
+#define LIBGS_CORE_CXX_DETAIL_OPTIONAL_H
 
-#include <libgs/core/cxx/tools.h>
-
-namespace libgs { namespace detail
+namespace libgs
 {
 
-template <concepts::optional_value Value>
-void check_optional_has_value(const optional_base<Value> &opt)
+template <typename Value>
+constexpr optional<Value>::optional(const base_t &other) :
+	base_t(other)
 {
-	if( not opt.has_value() )
-	{
-		runtime_error::loc_throw(std::format (
-			"libgs::optional_base<{}> has no value",
-			type_name<Value>()
-		));
-	}
+
 }
 
-} //namespace detail
-
-template <concepts::optional_value Value>
-optional_base<Value>::optional_base(value_t value)
+template <typename Value>
+constexpr optional<Value>::optional(base_t &&other)
+	noexcept(std::is_nothrow_move_constructible_v<base_t>) :
+	base_t(std::move(other))
 {
-	_emplace(std::move(value));
+
 }
 
-template <concepts::optional_value Value>
-optional_base<Value>::~optional_base()
+template <typename Value>
+constexpr optional<Value> &optional<Value>::operator=(const base_t &other)
 {
-	if( has_value() )
-		_reset();
-}
-
-template <concepts::optional_value Value>
-optional_base<Value>::optional_base(const optional_base &other) requires
-	concepts::copy_constructible<value_t>
-{
-	if( other )
-		_emplace(*other);
-}
-
-template <concepts::optional_value Value>
-optional_base<Value> &optional_base<Value>::operator=(const optional_base &other) requires
-	concepts::copy_constructible<value_t>
-{
-	if( this == &other )
-		return *this;
-
-	if( this->has_value() )
-		this->_reset();
-	if( other )
-		_emplace(*other);
+	base_t::operator=(other);
 	return *this;
 }
 
-template <concepts::optional_value Value>
-optional_base<Value>::optional_base(optional_base &&other)
-	noexcept(std::is_nothrow_move_constructible_v<value_t>)
-	requires concepts::move_constructible<value_t>
+template <typename Value>
+constexpr optional<Value> &optional<Value>::operator=(base_t &&other)
+	noexcept(std::is_nothrow_move_assignable_v<base_t>)
 {
-	if( other )
-	{
-		_emplace(std::move(*other));
-		other._reset();
-	}
-}
-
-template <concepts::optional_value Value>
-optional_base<Value> &optional_base<Value>::operator=(optional_base &&other)
-	noexcept(std::is_nothrow_move_constructible_v<value_t>)
-	requires concepts::move_constructible<value_t>
-{
-	if( this == &other )
-		return *this;
-
-	if( has_value() )
-		_reset();
-	if( other )
-	{
-		_emplace(std::move(*other));
-		other._reset();
-	}
+	base_t::operator=(std::move(other));
 	return *this;
 }
 
-template <concepts::optional_value Value>
-bool optional_base<Value>::has_value() const noexcept
+template <typename Value>
+constexpr optional<Value> &optional<Value>::operator=(nullopt_t) noexcept
 {
-	return !!m_ptr;
-}
-
-template <concepts::optional_value Value>
-const Value &optional_base<Value>::value() const &
-{
-	detail::check_optional_has_value(*this);
-	return *m_ptr;
-}
-
-template <concepts::optional_value Value>
-Value &&optional_base<Value>::value() const &&
-{
-	detail::check_optional_has_value(*this);
-	return *m_ptr;
-}
-
-template <concepts::optional_value Value>
-Value &optional_base<Value>::value() &
-{
-	detail::check_optional_has_value(*this);
-	return *m_ptr;
-}
-
-template <concepts::optional_value Value>
-Value &&optional_base<Value>::value() &&
-{
-	detail::check_optional_has_value(*this);
-	return std::move(*m_ptr);
-}
-
-template <concepts::optional_value Value>
-Value optional_base<Value>::value_or(value_t default_value) const & noexcept
-{
-	return has_value() ? *m_ptr : std::move(default_value);
-}
-
-template <concepts::optional_value Value>
-Value optional_base<Value>::value_or(value_t default_value) const && noexcept
-{
-	return has_value() ? std::move(*m_ptr) : std::move(default_value);
-}
-
-template <concepts::optional_value Value>
-Value optional_base<Value>::value_or() const & noexcept
-	requires concepts::constructible<value_t>
-{
-	return has_value() ? *m_ptr : value_t();
-}
-
-template <concepts::optional_value Value>
-Value optional_base<Value>::value_or() const && noexcept
-	requires concepts::constructible<value_t>
-{
-	return has_value() ? std::move(*m_ptr) : value_t();
-}
-
-template <concepts::optional_value Value>
-optional_base<Value>::operator bool() const noexcept
-{
-	return has_value();
-}
-
-template <concepts::optional_value Value>
-const Value &optional_base<Value>::operator*() const &
-{
-	return value();
-}
-
-template <concepts::optional_value Value>
-Value &&optional_base<Value>::operator*() const &&
-{
-	return std::move(value());
-}
-
-template <concepts::optional_value Value>
-Value &optional_base<Value>::operator*() &
-{
-	return value();
-}
-
-template <concepts::optional_value Value>
-Value &&optional_base<Value>::operator*() &&
-{
-	return std::move(value());
-}
-
-template <concepts::optional_value Value>
-const Value *optional_base<Value>::operator->() const
-{
-	return &value();
-}
-
-template <concepts::optional_value Value>
-Value *optional_base<Value>::operator->()
-{
-	return &value();
-}
-
-template <concepts::optional_value Value>
-bool optional_base<Value>::operator==(const optional_base &other) const
-	requires std::equality_comparable<value_t>
-{
-	return has_value() and other.has_value() and value() == other.value();
-}
-
-template <concepts::optional_value Value>
-template <typename...Args>
-void optional_base<Value>::_emplace(Args&&...args) requires
-	concepts::constructible<value_t,Args...>
-{
-	new (&m_storage) value_t(std::forward<Args>(args)...);
-	this->m_ptr = std::launder(reinterpret_cast<value_t*>(&m_storage));
-}
-
-template <concepts::optional_value Value>
-void optional_base<Value>::_swap(optional_base &other)
-	noexcept(std::is_nothrow_swappable_v<value_t>)
-{
-	if( m_ptr && other.m_ptr )
-		std::swap(*m_ptr, *other.m_ptr);
-
-	else if( m_ptr )
-	{
-		other._emplace(std::move(*m_ptr));
-		_reset();
-	}
-	else if( other.m_ptr )
-	{
-		_emplace(std::move(*other.m_ptr));
-		other._reset();
-	}
-}
-
-template <concepts::optional_value Value>
-void optional_base<Value>::_reset() noexcept
-{
-	m_ptr->~value_t();
-	m_ptr = nullptr;
-}
-
-template <concepts::optional_value Value>
-optional<Value>::optional(value_t value) :
-	optional_base<Value>(std::move(value))
-{
-
-}
-
-template <concepts::optional_value Value>
-optional<Value>::optional(nullopt_t)
-{
-
-}
-
-template <concepts::optional_value Value>
-template <typename...Args>
-optional<Value> &optional<Value>::emplace(Args&&...args) requires
-	concepts::constructible<value_t,Args...>
-{
-	if( this->has_value() )
-		this->_reset();
-	this->_emplace(std::forward<Args>(args)...);
+	base_t::operator=(std::nullopt);
 	return *this;
 }
 
-template <concepts::optional_value Value>
-optional<Value> &optional<Value>::operator=(value_t value) noexcept
-{
-	this->_emplace(std::move(value));
+template <typename Value>
+template <typename U>
+constexpr optional<Value> &optional<Value>::operator=(U &&value) requires (
+	not std::same_as<std::remove_cvref_t<U>,optional> and
+	not std::same_as<std::remove_cvref_t<U>,base_t> and
+	std::constructible_from<value_t,U> and
+	std::is_assignable_v<value_t&,U>
+){
+	base_t::operator=(std::forward<U>(value));
 	return *this;
 }
 
-template <concepts::optional_value Value>
-optional<Value> &optional<Value>::reset() noexcept
+template <typename Value>
+constexpr Value optional<Value>::value_or() const &
+	requires std::copy_constructible<value_t> and std::default_initializable<value_t>
 {
-	if( this->has_value() )
-		this->_reset();
-	return *this;
+	return base_t::value_or(value_t {});
 }
 
-template <concepts::optional_value Value>
-optional<Value> &optional<Value>::swap(optional &other)
-	noexcept(std::is_nothrow_swappable_v<value_t>)
+template <typename Value>
+constexpr Value optional<Value>::value_or() &&
+	requires std::move_constructible<value_t> and std::default_initializable<value_t>
 {
-	this->_swap(other);
-	return *this;
+	return std::move(static_cast<base_t&>(*this)).value_or(value_t {});
 }
 
-template <concepts::optional_value Value>
+template <typename Value>
+template <typename Self, typename Func>
+constexpr auto optional<Value>::and_then_impl(Self &&self, Func &&func)
+{
+	using result_t = std::remove_cvref_t<std::invoke_result_t <
+		Func, decltype(*std::forward<Self>(self))
+	>>;
+	static_assert(detail::optional_specialization<result_t>,
+		"optional::and_then callback must return an optional specialization"
+	);
+	if( self.has_value() )
+		return std::invoke(std::forward<Func>(func), *std::forward<Self>(self));
+	return result_t {};
+}
+
+template <typename Value>
 template <typename Func>
-auto optional<Value>::transform(Func &&func) const requires transform_v<Func>
+constexpr auto optional<Value>::and_then(Func &&func) &
+	requires std::invocable<Func,value_t&>
 {
-	using result_t = std::invoke_result_t<Func,value_t>;
-	return this->has_value() ?
-		libgs::make_optional(func(this->value())) : optional<result_t>();
+	return and_then_impl(*this, std::forward<Func>(func));
 }
 
-template <concepts::optional_value Value>
+template <typename Value>
 template <typename Func>
-auto optional<Value>::and_then(Func &&func) const requires and_then_v<Func>
+constexpr auto optional<Value>::and_then(Func &&func) const &
+	requires std::invocable<Func,const value_t&>
 {
-	using result_t = std::invoke_result_t<Func,value_t>;
-	return this->has_value() ? func(this->value()) : result_t();
+	return and_then_impl(*this, std::forward<Func>(func));
 }
 
-template <concepts::optional_value Value>
+template <typename Value>
 template <typename Func>
-optional<Value> optional<Value>::or_else(Func &&func) const requires or_else_v<Func>
+constexpr auto optional<Value>::and_then(Func &&func) &&
+	requires std::invocable<Func,value_t&&>
 {
-	if constexpr( concepts::callable_ret<Func,optional> )
+	return and_then_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Func>
+constexpr auto optional<Value>::and_then(Func &&func) const &&
+	requires std::invocable<Func,const value_t&&>
+{
+	return and_then_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Self, typename Func>
+constexpr auto optional<Value>::transform_impl(Self &&self, Func &&func)
+{
+	using result_t = std::remove_cv_t<std::invoke_result_t <
+		Func, decltype(*std::forward<Self>(self))
+	>>;
+	static_assert(not std::is_void_v<result_t>,
+		"optional::transform callback must return a value"
+	);
+	static_assert(std::is_object_v<result_t> and not std::is_array_v<result_t>);
+
+	if( self.has_value() )
 	{
-		return this->has_value() ?
-			*this : func();
+		return optional<result_t> (
+			std::in_place,
+			std::invoke(std::forward<Func>(func), *std::forward<Self>(self))
+		);
+	}
+	return optional<result_t> {};
+}
+
+template <typename Value>
+template <typename Func>
+constexpr auto optional<Value>::transform(Func &&func) &
+	requires std::invocable<Func,value_t&>
+{
+	return transform_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Func>
+constexpr auto optional<Value>::transform(Func &&func) const &
+	requires std::invocable<Func,const value_t&>
+{
+	return transform_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Func>
+constexpr auto optional<Value>::transform(Func &&func) &&
+	requires std::invocable<Func,value_t&&>
+{
+	return transform_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Func>
+constexpr auto optional<Value>::transform(Func &&func) const &&
+	requires std::invocable<Func,const value_t&&>
+{
+	return transform_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Self, typename Func>
+constexpr optional<Value> optional<Value>::or_else_impl(Self &&self, Func &&func)
+{
+	using result_t = std::invoke_result_t<Func>;
+	if( self.has_value() )
+		return optional(std::forward<Self>(self));
+
+	if constexpr( std::is_void_v<result_t> )
+	{
+		std::invoke(std::forward<Func>(func));
+		return optional {};
 	}
 	else
-	// else if constexpr( concepts::callable_void<Func> )
 	{
-		if( not this->has_value() )
-			func();
-		return *this;
+		static_assert(detail::optional_specialization<result_t>,
+			"optional::or_else callback must return void or an optional specialization"
+		);
+		static_assert(std::same_as<detail::optional_value_t<result_t>,value_t>,
+			"optional::or_else callback must preserve the value type"
+		);
+		return optional(std::invoke(std::forward<Func>(func)));
 	}
 }
 
-template <concepts::optional_value Value>
-optional<Value> optional<Value>::or_else(value_t value) const
+template <typename Value>
+template <typename Func>
+constexpr optional<Value> optional<Value>::or_else(Func &&func) &
+	requires std::invocable<Func>
 {
-	return this->has_value() ?
-		*this : optional(std::move(value));
+	return or_else_impl(*this, std::forward<Func>(func));
 }
 
-template <concepts::optional_value_p Value>
+template <typename Value>
+template <typename Func>
+constexpr optional<Value> optional<Value>::or_else(Func &&func) const &
+	requires std::invocable<Func>
+{
+	return or_else_impl(*this, std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Func>
+constexpr optional<Value> optional<Value>::or_else(Func &&func) &&
+	requires std::invocable<Func>
+{
+	return or_else_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value>
+template <typename Func>
+constexpr optional<Value> optional<Value>::or_else(Func &&func) const &&
+	requires std::invocable<Func>
+{
+	return or_else_impl(std::move(*this), std::forward<Func>(func));
+}
+
+template <typename Value>
+constexpr optional<Value> optional<Value>::or_else(value_t value) const &
+	requires std::copy_constructible<value_t>
+{
+	return this->has_value() ? *this : optional(std::move(value));
+}
+
+template <typename Value>
+constexpr optional<Value> optional<Value>::or_else(value_t value) &&
+	requires std::move_constructible<value_t>
+{
+	return this->has_value() ? std::move(*this) : optional(std::move(value));
+}
+
+template <typename Value>
+constexpr optional<Value> optional<Value>::or_else() const &
+	requires std::copy_constructible<value_t> and std::default_initializable<value_t>
+{
+	return or_else(value_t {});
+}
+
+template <typename Value>
+constexpr optional<Value> optional<Value>::or_else() &&
+	requires std::move_constructible<value_t> and std::default_initializable<value_t>
+{
+	return std::move(*this).or_else(value_t {});
+}
+
+template <typename Value>
 constexpr auto make_optional(Value &&value)
 {
-	return optional<std::remove_cvref_t<Value>>(std::forward<Value>(value));
+	return optional<std::decay_t<Value>>(std::forward<Value>(value));
 }
 
-template <concepts::optional_value Value, typename...Args>
-optional<Value> make_optional(Args&&...args)
-	requires concepts::constructible<Value,Args...>
+template <typename Value, typename...Args>
+constexpr optional<Value> make_optional(Args&&...args)
+	requires std::constructible_from<Value,Args...>
 {
-	return optional<Value>(std::forward<Args>(args)...);
+	return optional<Value>(std::in_place, std::forward<Args>(args)...);
+}
+
+template <typename Value, typename U, typename...Args>
+constexpr optional<Value> make_optional(std::initializer_list<U> list, Args&&...args)
+	requires std::constructible_from<Value,std::initializer_list<U>&,Args...>
+{
+	return optional<Value>(std::in_place, list, std::forward<Args>(args)...);
+}
+
+template <typename Value>
+constexpr void swap(optional<Value> &left, optional<Value> &right)
+	noexcept(noexcept(left.swap(right)))
+{
+	left.swap(right);
+}
+
+template <typename Value, typename OtherValue>
+[[nodiscard]] constexpr bool operator==
+(const optional<Value> &left, const optional<OtherValue> &right) requires requires {
+	{ *left == *right } -> std::convertible_to<bool>;
+}{
+	using left_base_t = optional<Value>::base_t;
+	using right_base_t = optional<OtherValue>::base_t;
+	return static_cast<const left_base_t&>(left) ==
+		static_cast<const right_base_t&>(right);
+}
+
+template <typename Value, std::three_way_comparable_with<Value> OtherValue>
+[[nodiscard]] constexpr auto operator<=>
+(const optional<Value> &left, const optional<OtherValue> &right)
+{
+	using left_base_t = optional<Value>::base_t;
+	using right_base_t = optional<OtherValue>::base_t;
+	return static_cast<const left_base_t&>(left) <=>
+		static_cast<const right_base_t&>(right);
 }
 
 } //namespace libgs
 
 
-#endif //LIBGS_CORE_CXX_DETIAL_OPTIONAL_H
+#endif //LIBGS_CORE_CXX_DETAIL_OPTIONAL_H

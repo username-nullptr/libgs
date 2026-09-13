@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Xiaoqiang <username_nullptr@163.com>
+// SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_CORE_CXX_OPTIONAL_H
@@ -11,147 +11,185 @@
 namespace libgs
 {
 
-template <concepts::optional_value Value>
-class LIBGS_CORE_TAPI optional_base
+using std::bad_optional_access;
+using std::nullopt_t;
+
+constexpr nullopt_t nullopt = std::nullopt;
+
+template <typename Value>
+class optional;
+
+namespace detail
 {
-public:
-	using value_t = Value;
-	using storage_t = std::byte[sizeof(value_t)];
 
-public:
-	~optional_base();
-	optional_base(const optional_base &other) requires
-		concepts::copy_constructible<value_t>;
+template <typename T>
+struct optional_traits;
 
-	optional_base &operator=(const optional_base &other) requires
-		concepts::copy_constructible<value_t>;
-
-	optional_base(optional_base &&other)
-		noexcept(std::is_nothrow_move_constructible_v<value_t>)
-		requires concepts::move_constructible<value_t>;
-
-	optional_base &operator=(optional_base &&other)
-		noexcept(std::is_nothrow_move_constructible_v<value_t>)
-		requires concepts::move_constructible<value_t>;
-
-public:
-	[[nodiscard]] bool has_value() const noexcept;
-
-	[[nodiscard]] const value_t &value() const &;
-	[[nodiscard]] value_t &&value() const &&;
-
-	[[nodiscard]] value_t &value() &;
-	[[nodiscard]] value_t &&value() &&;
-
-	[[nodiscard]] value_t value_or(value_t default_value) const & noexcept;
-	[[nodiscard]] value_t value_or(value_t default_value) const && noexcept;
-
-	[[nodiscard]] value_t value_or() const & noexcept
-		requires concepts::constructible<value_t>;
-
-	[[nodiscard]] value_t value_or() const && noexcept
-		requires concepts::constructible<value_t>;
-
-public:
-	[[nodiscard]] explicit operator bool() const noexcept;
-
-	[[nodiscard]] const value_t &operator*() const &;
-	[[nodiscard]] value_t &&operator*() const &&;
-
-	[[nodiscard]] value_t &operator*() &;
-	[[nodiscard]] value_t &&operator*() &&;
-
-	[[nodiscard]] const value_t *operator->() const;
-	[[nodiscard]] value_t *operator->();
-
-	[[nodiscard]] bool operator==(const optional_base &other) const
-		requires std::equality_comparable<value_t>;
-
-public:
-	void operator+(const optional_base&) = delete;
-	void operator-(const optional_base&) = delete;
-	void operator/(const optional_base&) = delete;
-	void operator%(const optional_base&) = delete;
-
-protected:
-	optional_base(value_t value);
-	optional_base() = default;
-
-	template <typename...Args>
-	void _emplace(Args&&...args) requires
-		concepts::constructible<value_t,Args...>;
-
-	void _swap(optional_base &other)
-		noexcept(std::is_nothrow_swappable_v<value_t>);
-
-	void _reset() noexcept;
-
-protected:
-	alignas(value_t) storage_t m_storage {};
-	value_t *m_ptr = nullptr;
+template <typename Value>
+struct optional_traits<std::optional<Value>> {
+	using value_type = Value;
 };
+
+template <typename Value>
+struct optional_traits<optional<Value>> {
+	using value_type = Value;
+};
+
+template <typename T>
+concept optional_specialization = requires {
+	typename optional_traits<std::remove_cvref_t<T>>::value_type;
+};
+
+template <typename T>
+using optional_value_t = optional_traits<std::remove_cvref_t<T>>::value_type;
+
+} //namespace detail
 
 #define LIBGS_OPTIONAL_ERROR_IF(opt, fmt, ...) if( not opt ) \
 	throw libgs::runtime_error(libgs::with_location(std::format(fmt,__VA_ARGS__)))
 
-constexpr struct nullopt_t {} nullopt;
-
-template <concepts::optional_value Value>
-class LIBGS_CORE_TAPI optional final : public optional_base<Value>
+template <typename Value>
+class LIBGS_CORE_TAPI optional final : public std::optional<Value>
 {
 public:
+	using base_t = std::optional<Value>;
+	using value_type = Value;
 	using value_t = Value;
 
-	optional(value_t value);
-	optional(nullopt_t);
-	optional() = default;
-
-	template <typename...Args>
-	optional &emplace(Args&&...args) requires
-		concepts::constructible<value_t,Args...>;
-
-	optional &operator=(value_t value) noexcept;
-	optional &reset() noexcept;
-
-	optional &swap(optional &other)
-		noexcept(std::is_nothrow_swappable_v<value_t>);
+	using base_t::base_t;
+	using base_t::value_or;
 
 public:
-	template <concepts::callable_novoid<value_t> Func>
-	static constexpr bool transform_v = requires(Func func, value_t value) {
-		{ func(value) } -> concepts::optional_value;
-	};
-	template <typename Func>
-	auto transform(Func &&func) const requires transform_v<Func>;
+	constexpr optional() noexcept = default;
+	constexpr optional(const optional&) = default;
+	constexpr optional(optional&&) = default;
 
-	template <concepts::callable_novoid<value_t> Func>
-	static constexpr bool and_then_v = requires(Func func, value_t value) {
-		[]<typename U>(optional<U>) {} (func(value));
-	};
+	constexpr optional &operator=(const optional&) = default;
+	constexpr optional &operator=(optional&&) = default;
+
+	constexpr optional(const base_t &other);
+	constexpr optional(base_t &&other)
+		noexcept(std::is_nothrow_move_constructible_v<base_t>);
+
+	constexpr optional &operator=(const base_t &other);
+	constexpr optional &operator=(base_t &&other) noexcept (
+		std::is_nothrow_move_assignable_v<base_t>
+	);
+	constexpr optional &operator=(nullopt_t) noexcept;
+
+	template <typename U = value_t>
+	constexpr optional &operator=(U &&value) requires (
+		not std::same_as<std::remove_cvref_t<U>,optional> and
+		not std::same_as<std::remove_cvref_t<U>,base_t> and
+		std::constructible_from<value_t,U> and
+		std::is_assignable_v<value_t&,U>
+	);
+
+public:
+	[[nodiscard]] constexpr value_t value_or() const &
+		requires std::copy_constructible<value_t> and std::default_initializable<value_t>;
+
+	[[nodiscard]] constexpr value_t value_or() &&
+		requires std::move_constructible<value_t> and std::default_initializable<value_t>;
+
+public:
 	template <typename Func>
-	auto and_then(Func &&func) const requires and_then_v<Func>;
+	[[nodiscard]] constexpr auto and_then(Func &&func) &
+		requires std::invocable<Func,value_t&>;
 
 	template <typename Func>
-	static constexpr bool or_else_v =
-		concepts::callable_ret<Func,optional> or
-		concepts::callable_void<Func>;
+	[[nodiscard]] constexpr auto and_then(Func &&func) const &
+		requires std::invocable<Func,const value_t&>;
 
 	template <typename Func>
-	optional or_else(Func &&func) const requires or_else_v<Func>;
-	[[nodiscard]] optional or_else(value_t value = {}) const;
+	[[nodiscard]] constexpr auto and_then(Func &&func) &&
+		requires std::invocable<Func,value_t&&>;
+
+	template <typename Func>
+	[[nodiscard]] constexpr auto and_then(Func &&func) const &&
+		requires std::invocable<Func,const value_t&&>;
+
+public:
+	template <typename Func>
+	[[nodiscard]] constexpr auto transform(Func &&func) &
+		requires std::invocable<Func,value_t&>;
+
+	template <typename Func>
+	[[nodiscard]] constexpr auto transform(Func &&func) const &
+		requires std::invocable<Func,const value_t&>;
+
+	template <typename Func>
+	[[nodiscard]] constexpr auto transform(Func &&func) &&
+		requires std::invocable<Func,value_t&&>;
+
+	template <typename Func>
+	[[nodiscard]] constexpr auto transform(Func &&func) const &&
+		requires std::invocable<Func,const value_t&&>;
+
+public:
+	template <typename Func>
+	constexpr optional or_else(Func &&func) &
+		requires std::invocable<Func>;
+
+	template <typename Func>
+	constexpr optional or_else(Func &&func) const &
+		requires std::invocable<Func>;
+
+	template <typename Func>
+	constexpr optional or_else(Func &&func) &&
+		requires std::invocable<Func>;
+
+	template <typename Func>
+	constexpr optional or_else(Func &&func) const &&
+		requires std::invocable<Func>;
+
+	[[nodiscard]] constexpr optional or_else(value_t value) const &
+		requires std::copy_constructible<value_t>;
+
+	[[nodiscard]] constexpr optional or_else(value_t value) &&
+		requires std::move_constructible<value_t>;
+
+	[[nodiscard]] constexpr optional or_else() const &
+		requires std::copy_constructible<value_t> and std::default_initializable<value_t>;
+
+	[[nodiscard]] constexpr optional or_else() &&
+		requires std::move_constructible<value_t> and std::default_initializable<value_t>;
+
+private:
+	template <typename Self, typename Func>
+	[[nodiscard]] static constexpr auto and_then_impl(Self &&self, Func &&func);
+
+	template <typename Self, typename Func>
+	[[nodiscard]] static constexpr auto transform_impl(Self &&self, Func &&func);
+
+	template <typename Self, typename Func>
+	[[nodiscard]] static constexpr optional or_else_impl(Self &&self, Func &&func);
 };
 
-template <concepts::optional_value_p Value>
+template <typename Value>
+optional(Value) -> optional<Value>;
+
+template <typename Value>
+optional(std::optional<Value>) -> optional<Value>;
+
+template <typename Value>
 [[nodiscard]] constexpr auto make_optional(Value &&value);
 
-template <concepts::optional_value Value, typename...Args>
-[[nodiscard]] LIBGS_CORE_TAPI optional<Value> make_optional(Args&&...args)
-	requires concepts::constructible<Value,Args...>;
+template <typename Value, typename...Args>
+[[nodiscard]] constexpr optional<Value> make_optional(Args&&...args)
+	requires std::constructible_from<Value,Args...>;
+
+template <typename Value, typename U, typename...Args>
+[[nodiscard]] constexpr optional<Value> make_optional(std::initializer_list<U> list, Args&&...args)
+	requires std::constructible_from<Value,std::initializer_list<U>&,Args...>;
 
 template <typename>
 struct is_optional : std::false_type {};
 
-template <concepts::optional_value Value>
+template <typename Value>
+struct is_optional<std::optional<Value>> : std::true_type {};
+
+template <typename Value>
 struct is_optional<optional<Value>> : std::true_type {};
 
 template <typename T>
@@ -166,7 +204,7 @@ concept optional = is_optional_v<T>;
 template <typename T>
 concept optional_p = optional<std::remove_cvref_t<T>>;
 
-}} //namespace libgs
+}} //namespace libgs::concepts
 #include <libgs/core/cxx/detail/optional.h>
 
 

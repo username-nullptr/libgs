@@ -513,7 +513,7 @@ bool basic_stream<Exec>::impl::add_close_waiter(Handler &&handler) noexcept
 	try {
 		auto associated_allocator = asio::get_associated_allocator(completion);
 		using allocator_t = std::allocator_traits
-			<decltype(associated_allocator)>::rebind_alloc<close_wait_operation>;
+			<decltype(associated_allocator)>::template rebind_alloc<close_wait_operation>;
 
 		waiter = std::allocate_shared<close_wait_operation>(
 			allocator_t(associated_allocator)

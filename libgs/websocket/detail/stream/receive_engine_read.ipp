@@ -337,7 +337,7 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 		auto associated_allocator = asio::get_associated_allocator(completion);
 
 		using waiter_allocator_t = std::allocator_traits
-			<decltype(associated_allocator)>::rebind_alloc<read_wait_operation>;
+			<decltype(associated_allocator)>::template rebind_alloc<read_wait_operation>;
 
 		waiter = std::allocate_shared
 			<read_wait_operation>(waiter_allocator_t(associated_allocator));
@@ -412,7 +412,7 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 				}
 				auto &value = *next.event;
 				if( value.data )
-					co_return std::tuple<error_code,message>{{}, std::move(*value.data)};
+					co_return std::tuple<error_code,message>{error_code{}, std::move(*value.data)};
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
@@ -493,7 +493,7 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 		auto associated_allocator = asio::get_associated_allocator(completion);
 
 		using waiter_allocator_t = std::allocator_traits
-			<decltype(associated_allocator)>::rebind_alloc<frame_read_wait_operation>;
+			<decltype(associated_allocator)>::template rebind_alloc<frame_read_wait_operation>;
 
 		waiter = std::allocate_shared
 			<frame_read_wait_operation>(waiter_allocator_t(associated_allocator));
@@ -569,7 +569,7 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 				}
 				auto &value = *next.event;
 				if( value.frame )
-					co_return std::tuple<error_code,data_frame>{{}, std::move(*value.frame)};
+					co_return std::tuple<error_code,data_frame>{error_code{}, std::move(*value.frame)};
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{

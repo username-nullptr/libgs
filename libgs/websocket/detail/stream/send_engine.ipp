@@ -821,7 +821,7 @@ void detail::send_engine<Owner>::async_wait_written(Handler &&handler)
 		auto associated_allocator = asio::get_associated_allocator(completion);
 
 		using waiter_allocator_t = std::allocator_traits
-			<decltype(associated_allocator)>::rebind_alloc<write_waiter>;
+			<decltype(associated_allocator)>::template rebind_alloc<write_waiter>;
 
 		waiter = std::allocate_shared<write_waiter>(
 			waiter_allocator_t(associated_allocator)

@@ -21,7 +21,7 @@ add_definitions (
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(platform)
-check_compiler_version(CMAKE_CXX_STANDARD)
+check_compiler_version()
 
 message(STATUS "")
 message(STATUS "${PRO_NAME}: Using C++: " ${CMAKE_CXX_STANDARD})

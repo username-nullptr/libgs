@@ -11,7 +11,7 @@
 namespace libgs::http
 {
 
-struct endpoint
+struct LIBGS_HTTP_API endpoint
 {
 	asio::ip::address address {};
 	uint16_t port = 0;

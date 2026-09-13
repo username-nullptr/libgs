@@ -65,11 +65,12 @@ struct streamer<T>
 				"bad packet: {} % {} != 0", exp_size, sizeof(char_t)
 			));
 		}
-		auto char_num = exp_size / sizeof(char_t);
+		auto byte_size = static_cast<size_t>(exp_size);
+		auto char_num = byte_size / sizeof(char_t);
 		std::basic_string<char_t> str(char_num, '\0');
 
-		std::memcpy(str.data(), c_buf + 8, exp_size);
-		return decoder_data<std::basic_string<char_t>> { std::move(str), 8 + exp_size };
+		std::memcpy(str.data(), c_buf + 8, byte_size);
+		return decoder_data<std::basic_string<char_t>> { std::move(str), 8 + byte_size };
 	}
 };
 
@@ -630,16 +631,17 @@ struct streamer<std::filesystem::path>
 			));
 		}
 		auto c_buf = buf.data() + offset;
-		auto size = detail::streamer_read_u64(c_buf);
-		auto byte_size = size;
+		auto serialized_size = detail::streamer_read_u64(c_buf);
+		auto rem_size = buf.size() - offset - 8;
 
-		if( buf.size() - offset < 8 + byte_size )
+		if( rem_size < serialized_size )
 		{
 			runtime_error::loc_throw(std::format (
-				"bad packet: {} / {} bytes", buf.size(), offset + 8 + byte_size
+				"bad packet: {} / {} bytes", rem_size, serialized_size
 			));
 		}
-		std::string str(size, '\0');
+		auto byte_size = static_cast<size_t>(serialized_size);
+		std::string str(byte_size, '\0');
 		std::memcpy(str.data(), c_buf + 8, byte_size);
 		return decoder_data { std::move(str), 8 + byte_size };
 	}

@@ -188,6 +188,19 @@ sys_expected<> unsetenv(std::string_view key) noexcept
 	return result.despair(sys_error());
 }
 
+sys_expected<std::string> current_user() noexcept
+{
+	char buffer[g_max_buf_size] {};
+	DWORD size = g_max_buf_size;
+
+	if( not GetUserNameA(buffer, &size) )
+		return sys_error();
+
+	if( size > 0 and buffer[size - 1] == '\0' )
+		--size;
+	return std::string(buffer, size);
+}
+
 sys_expected<path_t> home_directory() noexcept
 {
 	sys_expected<path_t> result;

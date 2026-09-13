@@ -16,6 +16,7 @@
 #include <libgs/core/utils/byte_order.h>
 #include <libgs/core/utils/streamer.h>
 #include <libgs/core/utils/string_tools.h>
+#include <memory>
 
 namespace
 {
@@ -34,6 +35,36 @@ static_assert(not libgs::is_array_buffer_v<std::array<const std::uint32_t,4>>);
 static_assert(not libgs::is_vector_buffer_v<std::vector<std::string>>);
 static_assert(not libgs::is_vector_buffer_v<std::vector<bool>>);
 static_assert(not libgs::is_buffer_v<std::vector<std::string>>);
+
+static_assert(std::derived_from<libgs::optional<int>,std::optional<int>>);
+static_assert(std::same_as<libgs::nullopt_t,std::nullopt_t>);
+static_assert(libgs::is_optional_v<libgs::optional<int>>);
+static_assert(libgs::is_optional_v<std::optional<int>>);
+static_assert(std::same_as <
+	decltype(libgs::make_optional("value")),libgs::optional<const char*>
+>);
+static_assert(std::same_as <
+	decltype(std::declval<libgs::optional<std::string>&>().emplace(3, 'x')),
+	std::string&
+>);
+static_assert(std::same_as <
+	decltype(std::declval<libgs::optional<int>&>().reset()),void
+>);
+static_assert(std::same_as <
+	decltype(std::declval<libgs::expected<int,std::string>&>().emplace(1)),int&
+>);
+static_assert(std::same_as <
+	decltype(std::declval<libgs::expected<void,std::string>&>().emplace()),void
+>);
+#if LIBGS_HAS_STD_EXPECTED
+static_assert(std::derived_from <
+	libgs::expected<int,std::string>,std::expected<int,std::string>
+>);
+static_assert(std::derived_from <
+	libgs::unexpected<std::string>,std::unexpected<std::string>
+>);
+static_assert(libgs::is_expected_v<std::expected<int,std::string>>);
+#endif
 
 static_assert(buffer_data_copyable<
 	std::vector<std::uint32_t>, std::vector<std::byte>
@@ -328,6 +359,9 @@ void optional_and_expected()
 	libgs::optional<std::string> optional;
 	LIBGS_TEST_CHECK(not optional);
 	LIBGS_TEST_CHECK_EQ(optional.value_or("fallback"), "fallback");
+	LIBGS_TEST_CHECK(optional == libgs::nullopt);
+	LIBGS_TEST_CHECK(optional == libgs::optional<std::string> {});
+	LIBGS_TEST_CHECK_THROWS(optional.value(), libgs::bad_optional_access);
 
 	optional.emplace(3, 'x');
 	LIBGS_TEST_CHECK(optional.has_value());
@@ -336,6 +370,30 @@ void optional_and_expected()
 		return value.size();
 	});
 	LIBGS_TEST_CHECK_EQ(*length, size_t {3});
+
+	std::optional<std::string> standard_optional("standard");
+	optional = standard_optional;
+	LIBGS_TEST_CHECK_EQ(optional.value(), "standard");
+	std::optional<std::string> &optional_base = optional;
+	LIBGS_TEST_CHECK_EQ(optional_base.value(), "standard");
+	LIBGS_TEST_CHECK_EQ(libgs::optional<int> {}.and_then([](int value) {
+		return std::optional<long>(value);
+	}), std::nullopt);
+	LIBGS_TEST_CHECK_EQ(libgs::optional<int> {}.or_else([] {
+		return std::optional<int>(9);
+	}).value(), 9);
+	bool optional_recovered = false;
+	static_cast<void>(libgs::optional<int> {}.or_else([&optional_recovered] {
+		optional_recovered = true;
+	}));
+	LIBGS_TEST_CHECK(optional_recovered);
+
+	libgs::optional<std::unique_ptr<int>> move_source(
+		std::in_place, std::make_unique<int>(1)
+	);
+	auto move_target = std::move(move_source);
+	LIBGS_TEST_CHECK(move_source.has_value());
+	LIBGS_TEST_CHECK(move_target.has_value());
 
 	libgs::expected<int,std::string> success(42);
 	LIBGS_TEST_CHECK(success.has_value());
@@ -348,8 +406,44 @@ void optional_and_expected()
 	LIBGS_TEST_CHECK(not error.has_value());
 	LIBGS_TEST_CHECK(error.is_error());
 	LIBGS_TEST_CHECK_EQ(error.error(), "failure");
+	LIBGS_TEST_CHECK_EQ(error.error_or("fallback"), "failure");
+	LIBGS_TEST_CHECK_EQ(error.transform_error([](const std::string &message) {
+		return message.size();
+	}).error(), size_t {7});
+	LIBGS_TEST_CHECK_EQ(error.and_then([](int value) {
+		return libgs::expected<long,std::string>(value);
+	}).error(), "failure");
+	LIBGS_TEST_CHECK_THROWS(error.value(), libgs::bad_expected_access<std::string>);
 	error.emplace(7);
 	LIBGS_TEST_CHECK_EQ(*error, 7);
+
+	libgs::expected<void,std::string> no_value(libgs::unexpect, "void-error");
+	LIBGS_TEST_CHECK_EQ(no_value.transform([] { return 11; }).error(), "void-error");
+	no_value.emplace();
+	LIBGS_TEST_CHECK(no_value.has_value());
+	libgs::sys_expected<bool> direct_error {
+		std::make_error_code(std::errc::invalid_argument)
+	};
+	LIBGS_TEST_CHECK(not direct_error);
+	LIBGS_TEST_CHECK(direct_error.error() == std::errc::invalid_argument);
+
+#if LIBGS_HAS_STD_EXPECTED
+	std::expected<int,std::string> &expected_base = success;
+	LIBGS_TEST_CHECK_EQ(expected_base.value(), 42);
+	libgs::expected<int,std::string> from_standard(
+		std::expected<int,std::string>(17)
+	);
+	LIBGS_TEST_CHECK((from_standard == std::expected<int,std::string>(17)));
+	auto standard_chain = libgs::expected<int,std::string>(
+		libgs::unexpect, "standard-error"
+	).and_then([](int value) {
+		return std::expected<long,std::string>(value);
+	});
+	static_assert(std::same_as <
+		decltype(standard_chain),std::expected<long,std::string>
+	>);
+	LIBGS_TEST_CHECK_EQ(standard_chain.error(), "standard-error");
+#endif
 }
 
 void hybrid_spin_locks()

@@ -142,7 +142,7 @@ void detail::receive_engine<Owner>::async_wait_control(Handler &&handler)
 		auto associated_allocator = asio::get_associated_allocator(completion);
 
 		using waiter_allocator_t = std::allocator_traits
-			<decltype(associated_allocator)>::rebind_alloc<control_wait_operation>;
+			<decltype(associated_allocator)>::template rebind_alloc<control_wait_operation>;
 
 		auto waiter = std::allocate_shared
 			<control_wait_operation>(waiter_allocator_t(associated_allocator));
