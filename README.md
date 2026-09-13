@@ -145,14 +145,15 @@ server examples, configuration, logging, process control, and other modules.
 | Library or header | Purpose |
 | --- | --- |
 | `gs.core` / `<libgs/core.h>` | Execution, algorithms, values, configuration, containers, and system helpers |
-| `<libgs/coro.h>` | Header-only coroutine synchronization primitives |
+| `gs.coro` / `<libgs/coro.h>` | Coroutine scheduling and synchronization primitives |
 | `gs.http` / `<libgs/http.h>` | HTTP protocol, client, server, and TLS APIs |
 | `gs.websocket` / `<libgs/websocket.h>` | HTTP/1.1 WebSocket protocol, stream, client, server, optional compression, and optional WSS APIs |
 | `gs.utils` / `<libgs/utils.h>` | Utilities library; the umbrella exposes logging, settings, modules, and soft-bus APIs |
 | `<libgs.h>` | Umbrella header for all public modules |
 
-Link `gs.http` or `gs.utils` together with `gs.core`. On Unix-like systems,
-LibGS also links against the platform thread and dynamic-loader libraries.
+Link coroutine users with `gs.coro`; HTTP and Utilities depend on it. On
+Unix-like systems, LibGS also links against the platform thread and
+dynamic-loader libraries.
 
 ## Documentation
 

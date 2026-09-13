@@ -42,9 +42,9 @@ cmake --build build --config Release --parallel
 cmake --install build --config Release
 ```
 
-The default build produces shared `gs.core`, `gs.http`, `gs.websocket`, and
-`gs.utils` libraries. Generated files and binaries are placed below
-`build/output`.
+The default build produces shared `gs.core`, `gs.coro`, `gs.http`,
+`gs.websocket`, and `gs.utils` libraries. Generated files and binaries are
+placed below `build/output`.
 
 ## Build options
 
@@ -116,6 +116,7 @@ A minimal CMake integration for an installed HTTP build is:
 ```cmake
 find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
 find_library(LIBGS_CORE_LIBRARY NAMES gs.core REQUIRED)
+find_library(LIBGS_CORO_LIBRARY NAMES gs.coro REQUIRED)
 find_library(LIBGS_HTTP_LIBRARY NAMES gs.http REQUIRED)
 
 add_executable(my_app main.cpp)
@@ -123,16 +124,17 @@ target_compile_features(my_app PRIVATE cxx_std_20)
 target_include_directories(my_app PRIVATE "${LIBGS_INCLUDE_DIR}")
 target_link_libraries(my_app PRIVATE
     "${LIBGS_HTTP_LIBRARY}"
+    "${LIBGS_CORO_LIBRARY}"
     "${LIBGS_CORE_LIBRARY}"
 )
 ```
 
 Set `CMAKE_PREFIX_PATH` to the install prefix if CMake cannot locate the files.
-Applications using `gs.utils` should locate and link `gs.utils` together with
+Applications using `gs.utils` should locate and link `gs.utils`, `gs.coro`, and
 `gs.core`. Applications using WebSocket should also locate and link
-`gs.websocket`; its public dependency on `gs.http` supplies the HTTP upgrade
-layer. Ensure the shared-library directory is available to the platform runtime
-loader when launching the application.
+`gs.websocket`, `gs.http`, `gs.coro`, and `gs.core`. Ensure the shared-library
+directory is available to the platform runtime loader when launching the
+application.
 
 ## Start the default runtime
 

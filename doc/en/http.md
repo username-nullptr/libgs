@@ -4,7 +4,7 @@ Language: English | [Simplified Chinese](../zh_CN/http.md)
 
 The HTTP module implements HTTP/1.0 and HTTP/1.1 protocol utilities, clients,
 servers, connections, routing, and optional TLS and gzip support. Link it as
-`gs.http` together with `gs.core`.
+`gs.http`; it publicly depends on `gs.coro` and `gs.core`.
 
 WebSocket framing is not implemented by this module. The server exposes a
 generic HTTP Upgrade connection handover boundary used by the separate,

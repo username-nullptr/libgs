@@ -7,9 +7,9 @@ HTTP/1.1. It provides standalone WS/WSS clients and servers, upgrade helpers for
 mixed HTTP applications, protocol codecs, complete-message and data-frame I/O,
 control frames, timeouts, cancellation, and bounded write queues.
 
-Link `gs.websocket`; it publicly depends on `gs.http` and `gs.core`. Include
-`<libgs/websocket.h>` for the client/server umbrella or a narrower header when
-only protocol codecs or `websocket::stream` are needed.
+Link `gs.websocket`; its public dependency chain includes `gs.http`, `gs.coro`,
+and `gs.core`. Include `<libgs/websocket.h>` for the client/server umbrella or a
+narrower header when only protocol codecs or `websocket::stream` are needed.
 
 ## Implemented scope
 

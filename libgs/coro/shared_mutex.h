@@ -6,16 +6,21 @@
 
 #include <libgs/coro/mutex.h>
 
-namespace libgs::coro
+namespace libgs::coro { namespace detail
 {
 
-class LIBGS_CORO_VAPI shared_mutex
+class shared_mutex_impl;
+class shared_lock_impl;
+
+} //namespace detail
+
+class LIBGS_CORO_API shared_mutex
 {
 	LIBGS_DISABLE_COPY_MOVE(shared_mutex)
 
 public:
 	using native_handle_t = mutex;
-	shared_mutex() = default;
+	shared_mutex();
 	~shared_mutex();
 
 public:
@@ -73,12 +78,10 @@ public:
 	[[nodiscard]] native_handle_t &native_handle() noexcept;
 
 private:
-	std::atomic_uint m_read_count {0};
-	native_handle_t m_native_handle;
-	mutex m_read_gate {};
+	detail::shared_mutex_impl *m_impl;
 };
 
-class LIBGS_CORO_VAPI shared_lock
+class LIBGS_CORO_API shared_lock
 {
 	LIBGS_DISABLE_COPY(shared_lock)
 
@@ -86,7 +89,7 @@ public:
 	using mutex_t = shared_mutex;
 
 	explicit shared_lock(mutex_t &mutex);
-	~shared_lock() noexcept(noexcept(m_mutex->unlock_shared()));
+	~shared_lock() noexcept(false);
 
 	shared_lock(shared_lock &&other) noexcept;
 	shared_lock &operator=(shared_lock &&other) noexcept;
@@ -121,8 +124,7 @@ public:
 	[[nodiscard]] mutex_t *mutex() noexcept;
 
 private:
-	mutex_t *m_mutex;
-	bool m_owns = false;
+	detail::shared_lock_impl *m_impl;
 };
 
 using shared_unique_lock = unique_lock<shared_mutex>;

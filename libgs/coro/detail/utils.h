@@ -52,32 +52,6 @@ awaitable<T> wait(const std::future<T> &future)
 	use_awaitable);
 }
 
-inline awaitable<void> wait(const asio::thread_pool &pool)
-{
-	auto exec = co_await asio::this_coro::executor;
-	co_return co_await dispatch(exec, [&pool]() mutable -> awaitable<void>
-	{
-		co_await local_dispatch([&pool] {
-			return remove_const(pool).wait();
-		}, use_awaitable);
-		co_return ;
-	},
-	use_awaitable);
-}
-
-inline awaitable<void> wait(const std::thread &thread)
-{
-	auto exec = co_await asio::this_coro::executor;
-	co_return co_await dispatch(exec, [&thread]() mutable -> awaitable<void>
-	{
-		co_await local_dispatch([&thread] {
-			return remove_const(thread).join();
-		}, use_awaitable);
-		co_return ;
-	},
-	use_awaitable);
-}
-
 template <concepts::sched Exec>
 awaitable<asio::any_io_executor> goto_exec(Exec &&executor_arg)
 {
@@ -94,25 +68,6 @@ awaitable<asio::any_io_executor> goto_exec(Exec &&executor_arg)
 			LIBGS_UNUSED(guard);
 			std::move(posted_handler)(std::move(return_exec));
 		});
-	},
-	asio::use_awaitable);
-}
-
-inline awaitable<asio::any_io_executor> goto_thread()
-{
-	auto current_exec = co_await asio::this_coro::executor;
-	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
-	([previous_exec = std::move(current_exec)](auto completion_handler)
-	{
-		auto work_guard = asio::make_work_guard(completion_handler);
-		std::thread([
-			thread_handler = std::move(completion_handler), guard = std::move(work_guard),
-			previous_exec
-		]() mutable
-		{
-			LIBGS_UNUSED(guard);
-			std::move(thread_handler)(std::move(previous_exec));
-		}).detach();
 	},
 	asio::use_awaitable);
 }
@@ -406,64 +361,7 @@ bool check_error(basic_yield_context<Exec> &yc, const error_code &error, const c
 
 #endif //LIBGS_USING_BOOST_ASIO
 
-namespace literals
-{
-
-inline auto operator""_y(unsigned long long value)
-{
-	using rep_t = std::chrono::years::rep;
-	return sleep_for(std::chrono::years(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_mon(unsigned long long value)
-{
-	using rep_t = std::chrono::months::rep;
-	return sleep_for(std::chrono::months(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_d(unsigned long long value)
-{
-	using rep_t = std::chrono::days::rep;
-	return sleep_for(std::chrono::days(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_h(unsigned long long value)
-{
-	using rep_t = std::chrono::hours::rep;
-	return sleep_for(std::chrono::hours(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_min(unsigned long long value)
-{
-	using rep_t = std::chrono::minutes::rep;
-	return sleep_for(std::chrono::seconds(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_s(unsigned long long value)
-{
-	using rep_t = std::chrono::seconds::rep;
-	return sleep_for(std::chrono::seconds(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_ms(unsigned long long value)
-{
-	using rep_t = std::chrono::milliseconds::rep;
-	return sleep_for(std::chrono::milliseconds(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_us(unsigned long long value)
-{
-	using rep_t = std::chrono::microseconds::rep;
-	return sleep_for(std::chrono::microseconds(static_cast<rep_t>(value)));
-}
-
-inline auto operator""_ns(unsigned long long value)
-{
-	using rep_t = std::chrono::nanoseconds::rep;
-	return sleep_for(std::chrono::nanoseconds(static_cast<rep_t>(value)));
-}
-
-}} //namespace libgs::coro
+} //namespace libgs::coro
 
 
 #endif //LIBGS_CORO_DETAIL_UTILS_H

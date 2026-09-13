@@ -5,7 +5,7 @@ Language: English | [Simplified Chinese](../zh_CN/utilities.md)
 The utilities module provides reusable services that commonly sit around an
 application's event loop: logging, persistent settings, signals, observers,
 module initialization, child processes, and publish/subscribe state. Link it as
-`gs.utils` together with `gs.core`.
+`gs.utils`; it publicly depends on `gs.coro` and `gs.core`.
 
 ## Header guide
 

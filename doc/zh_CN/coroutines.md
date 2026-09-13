@@ -3,7 +3,7 @@
 语言：[English](../en/coroutines.md) | 简体中文
 
 LibGS 基于 standalone Asio 和 Core 运行时提供适合协程使用的调度与同步功能。
-Coroutine 模块是纯头文件模块，通过 `<libgs/coro.h>` 引入；应用需要链接
+通过 `<libgs/coro.h>` 引入，并将应用链接到 `gs.coro`；该目标会公开链接
 `gs.core`。
 
 ## 启动协程

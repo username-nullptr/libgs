@@ -6,9 +6,9 @@
 WS/WSS 客户端与服务端、HTTP 混合应用的 Upgrade helper、协议 codec、完整消息与
 数据帧 IO、控制帧、超时、取消和有界写队列。
 
-链接时使用 `gs.websocket`；它公开依赖 `gs.http` 和 `gs.core`。客户端/服务端可
-包含 `<libgs/websocket.h>` 聚合头，只使用协议 codec 或 `websocket::stream` 时可
-包含更具体的头文件。
+链接时使用 `gs.websocket`；它的公开依赖链包含 `gs.http`、`gs.coro` 和
+`gs.core`。客户端/服务端可包含 `<libgs/websocket.h>` 聚合头，只使用协议 codec
+或 `websocket::stream` 时可包含更具体的头文件。
 
 ## 已实现范围
 

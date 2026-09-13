@@ -17,7 +17,7 @@ add_libgs_test(core.public-api core/public_api.cpp gs.core
 add_dependencies(libgs.test.core.public-api libgs.test.core.fixture)
 
 if (LIBGS_BUILD_CORO)
-	add_libgs_test(coro coro/basic.cpp gs.core)
+	add_libgs_test(coro coro/basic.cpp gs.coro)
 endif ()
 
 if (LIBGS_BUILD_HTTP)

@@ -114,7 +114,7 @@ include_directories(.)
 add_subdirectory(libgs)
 
 if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
-	foreach(target gs.core gs.http gs.websocket gs.utils)
+	foreach(target gs.core gs.coro gs.http gs.websocket gs.utils)
 		if (TARGET ${target})
 			target_link_libraries(${target} PUBLIC libgs.test.sanitizer)
 		endif ()

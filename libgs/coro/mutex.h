@@ -6,10 +6,14 @@
 
 #include <libgs/coro/global.h>
 
-namespace libgs::coro
+namespace libgs::coro { namespace detail
 {
 
-class LIBGS_CORO_VAPI mutex
+class mutex_impl;
+
+} //namespace detail
+
+class LIBGS_CORO_API mutex
 {
 	LIBGS_DISABLE_COPY_MOVE(mutex)
 
@@ -47,8 +51,7 @@ public:
 	[[nodiscard]] native_handle_t &native_handle() noexcept;
 
 private:
-	class impl;
-	impl *m_impl;
+	detail::mutex_impl *m_impl;
 };
 
 template <typename Mutex = mutex>

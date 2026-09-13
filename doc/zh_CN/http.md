@@ -3,7 +3,8 @@
 语言：[English](../en/http.md) | 简体中文
 
 HTTP 模块实现 HTTP/1.0 和 HTTP/1.1 协议工具、客户端、服务端、连接与路由，
-并提供可选的 TLS 和 gzip 支持。链接时使用 `gs.http` 和 `gs.core`。
+并提供可选的 TLS 和 gzip 支持。链接时使用 `gs.http`；它公开依赖 `gs.coro` 和
+`gs.core`。
 
 WebSocket 帧不属于本模块。服务端提供了通用的 HTTP Upgrade 连接移交边界，
 由独立且已经实现的 [`gs.websocket`](websocket.md) 模块使用。

@@ -3,8 +3,8 @@
 Language: English | [Simplified Chinese](../zh_CN/coroutines.md)
 
 LibGS builds coroutine-friendly scheduling and synchronization on top of
-standalone Asio and the core runtime. The coroutine module is header-only and is
-included with `<libgs/coro.h>`; link the application with `gs.core`.
+standalone Asio and the core runtime. Include `<libgs/coro.h>` and link the
+application with `gs.coro`; the target publicly links `gs.core`.
 
 ## Launch a coroutine
 

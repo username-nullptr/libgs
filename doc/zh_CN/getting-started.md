@@ -40,8 +40,8 @@ cmake --build build --config Release --parallel
 cmake --install build --config Release
 ```
 
-默认构建会生成共享的 `gs.core`、`gs.http`、`gs.websocket` 和 `gs.utils` 库。
-生成文件和二进制文件位于 `build/output` 下。
+默认构建会生成共享的 `gs.core`、`gs.coro`、`gs.http`、`gs.websocket` 和
+`gs.utils` 库。生成文件和二进制文件位于 `build/output` 下。
 
 ## 构建选项
 
@@ -108,6 +108,7 @@ WSS 还需要启用 `LIBGS_OPENSSL_SUPPORT=ON`。运行方法和能力覆盖情�
 ```cmake
 find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
 find_library(LIBGS_CORE_LIBRARY NAMES gs.core REQUIRED)
+find_library(LIBGS_CORO_LIBRARY NAMES gs.coro REQUIRED)
 find_library(LIBGS_HTTP_LIBRARY NAMES gs.http REQUIRED)
 
 add_executable(my_app main.cpp)
@@ -115,13 +116,14 @@ target_compile_features(my_app PRIVATE cxx_std_20)
 target_include_directories(my_app PRIVATE "${LIBGS_INCLUDE_DIR}")
 target_link_libraries(my_app PRIVATE
     "${LIBGS_HTTP_LIBRARY}"
+    "${LIBGS_CORO_LIBRARY}"
     "${LIBGS_CORE_LIBRARY}"
 )
 ```
 
 如果 CMake 无法找到这些文件，请将安装前缀加入 `CMAKE_PREFIX_PATH`。使用
-`gs.utils` 的应用需要同时查找并链接 `gs.utils` 和 `gs.core`。使用 WebSocket 的
-应用还应查找并链接 `gs.websocket`；它通过公开依赖取得 HTTP Upgrade 层。启动
+`gs.utils` 的应用需要同时查找并链接 `gs.utils`、`gs.coro` 和 `gs.core`。使用
+WebSocket 的应用应链接 `gs.websocket`、`gs.http`、`gs.coro` 和 `gs.core`。启动
 程序时，还应确保平台的运行时加载器能够找到共享库目录。
 
 ## 启动默认运行时

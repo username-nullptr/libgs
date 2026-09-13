@@ -68,7 +68,7 @@ adopts the handed-over connection into a WebSocket stream.
 Future protocol modules should preserve the existing layering:
 
 1. `gs.core` owns execution, errors, and general facilities.
-2. Header-only coroutine helpers provide non-blocking synchronization.
+2. `gs.coro` provides coroutine scheduling and non-blocking synchronization.
 3. Protocol modules own parsing, generation, connection behavior, clients, and
    servers without redefining the core runtime.
 4. `gs.utils` supplies optional application-level services rather than becoming

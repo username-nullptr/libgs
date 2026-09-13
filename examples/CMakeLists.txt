@@ -68,11 +68,11 @@ add_dependencies(libgs.example.core.dynamic_library
 
 # Coroutines
 if (LIBGS_BUILD_CORO)
-	libgs_add_example(coro basics             LIBRARIES gs.core)
-	libgs_add_example(coro mutex              LIBRARIES gs.core)
-	libgs_add_example(coro shared_mutex       LIBRARIES gs.core)
-	libgs_add_example(coro semaphore          LIBRARIES gs.core)
-	libgs_add_example(coro condition_variable LIBRARIES gs.core)
+	libgs_add_example(coro basics             LIBRARIES gs.coro)
+	libgs_add_example(coro mutex              LIBRARIES gs.coro)
+	libgs_add_example(coro shared_mutex       LIBRARIES gs.coro)
+	libgs_add_example(coro semaphore          LIBRARIES gs.coro)
+	libgs_add_example(coro condition_variable LIBRARIES gs.coro)
 endif ()
 
 # HTTP/1.0 and HTTP/1.1

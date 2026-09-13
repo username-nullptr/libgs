@@ -43,11 +43,11 @@ template <typename T>
 	const std::future<T> &future
 );
 
-[[nodiscard]] LIBGS_CORO_VAPI awaitable<void> wait (
+[[nodiscard]] LIBGS_CORO_API awaitable<void> wait (
 	const asio::thread_pool &pool
 );
 
-[[nodiscard]] LIBGS_CORO_VAPI awaitable<void> wait (
+[[nodiscard]] LIBGS_CORO_API awaitable<void> wait (
 	const std::thread &thread
 );
 
@@ -56,7 +56,7 @@ template <concepts::sched Exec = io_executor_t>
 	Exec &&exec = get_executor()
 );
 
-[[nodiscard]] LIBGS_CORO_VAPI awaitable<asio::any_io_executor> goto_thread();
+[[nodiscard]] LIBGS_CORO_API awaitable<asio::any_io_executor> goto_thread();
 
 template <concepts::any_async_tf_opt_token Token>
 LIBGS_CORO_TAPI bool check_error (
@@ -104,17 +104,17 @@ LIBGS_CORO_VAPI bool check_error (
 namespace literals
 {
 
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_y  (unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_mon(unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_d  (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_y  (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_mon(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_d  (unsigned long long value);
 
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_h  (unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_min(unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_s  (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_h  (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_min(unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_s  (unsigned long long value);
 
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ms (unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_us (unsigned long long value);
-[[nodiscard]] LIBGS_CORO_VAPI auto operator""_ns (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_ms (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_us (unsigned long long value);
+[[nodiscard]] LIBGS_CORO_API awaitable<error_code> operator""_ns (unsigned long long value);
 
 }} //namespace libgs::coro::literals
 #include <libgs/coro/detail/utils.h>

@@ -29,7 +29,7 @@ broader extensions and newer HTTP transports remain planned work.
 | CMake target | Main headers | Role |
 | --- | --- | --- |
 | `gs.core` | `<libgs/core.h>` and `<libgs/core/...>` | Runtime and general-purpose foundation |
-| `gs.core` | `<libgs/coro.h>` and `<libgs/coro/...>` | Header-only coroutine facilities backed by the core runtime |
+| `gs.coro` | `<libgs/coro.h>` and `<libgs/coro/...>` | Coroutine facilities backed by the core runtime |
 | `gs.http` | `<libgs/http.h>` and `<libgs/http/...>` | HTTP protocol, client, server, and optional TLS support |
 | `gs.websocket` | `<libgs/websocket.h>` and `<libgs/websocket/...>` | HTTP/1.1 WebSocket protocol, client, server, stream, optional compression, and optional WSS support |
 | `gs.utils` | `<libgs/utils.h>` and `<libgs/utils/...>` | Reusable application services and utilities |

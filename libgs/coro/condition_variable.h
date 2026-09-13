@@ -6,10 +6,14 @@
 
 #include <libgs/coro/mutex.h>
 
-namespace libgs::coro
+namespace libgs::coro { namespace detail
 {
 
-class LIBGS_CORO_VAPI condition_variable
+class condition_variable_impl;
+
+} //namespace detail
+
+class LIBGS_CORO_API condition_variable
 {
 	LIBGS_DISABLE_COPY_MOVE(condition_variable)
 
@@ -78,8 +82,7 @@ public:
 	);
 
 private:
-	class impl;
-	impl *m_impl;
+	detail::condition_variable_impl *m_impl;
 };
 
 } //namespace libgs::coro

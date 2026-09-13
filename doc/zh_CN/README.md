@@ -26,7 +26,7 @@ HTTP/HTTPS 和 HTTP/1.1 WebSocket 都是已实现的协议模块，但不是项�
 | CMake 目标 | 主要头文件 | 作用 |
 | --- | --- | --- |
 | `gs.core` | `<libgs/core.h>` 和 `<libgs/core/...>` | 运行时与通用基础设施 |
-| `gs.core` | `<libgs/coro.h>` 和 `<libgs/coro/...>` | 基于核心运行时的纯头文件协程设施 |
+| `gs.coro` | `<libgs/coro.h>` 和 `<libgs/coro/...>` | 基于核心运行时的协程设施 |
 | `gs.http` | `<libgs/http.h>` 和 `<libgs/http/...>` | HTTP 协议、客户端、服务端和可选 TLS 支持 |
 | `gs.websocket` | `<libgs/websocket.h>` 和 `<libgs/websocket/...>` | HTTP/1.1 WebSocket 协议、客户端、服务端、stream、可选压缩和可选 WSS 支持 |
 | `gs.utils` | `<libgs/utils.h>` 和 `<libgs/utils/...>` | 可复用的应用服务与工具 |
