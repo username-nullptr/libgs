@@ -176,9 +176,7 @@ private:
 	syntax_reader reader(value);
 	reader.skip_ows();
 
-	if( reader.empty() )
-		return false;
-	for(;;)
+	while( not reader.empty() )
 	{
 		std::string token;
 		if( not reader.token(token) )
@@ -197,8 +195,6 @@ private:
 			return false;
 
 		reader.skip_ows();
-		if( reader.empty() )
-			return false;
 	}
 	return false;
 }
@@ -208,9 +204,7 @@ private:
 	syntax_reader reader(value);
 	reader.skip_ows();
 
-	if( reader.empty() )
-		return false;
-	for(;;)
+	while( not reader.empty() )
 	{
 		extension item;
 		if( not reader.token(item.name) )
@@ -253,8 +247,6 @@ private:
 			return false;
 
 		reader.skip_ows();
-		if( reader.empty() )
-			return false;
 	}
 	return false;
 }

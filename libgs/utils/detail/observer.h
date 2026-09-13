@@ -34,7 +34,7 @@ class LIBGS_UTILS_TAPI basic_observer_base<Derived,Exec,Funcs...>::impl
 
 public:
 	template <typename Exec0>
-	impl(size_t id, Exec0 &&exec) :
+	impl(uint64_t id, Exec0 &&exec) :
 		m_exec(get_executor_helper(std::forward<Exec0>(exec))), m_id(id) {}
 
 public:

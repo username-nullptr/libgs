@@ -6,7 +6,9 @@
 
 #include <libgs/core/execution.h>
 
-#ifdef LIBGS_CORO_SHARED
+#if LIBGS_BUILD_STATIC
+# define LIBGS_CORO_API
+#elif defined(LIBGS_CORO_SHARED)
 # ifdef gs_coro_EXPORTS
 #  define LIBGS_CORO_API  LIBGS_DECL_EXPORT
 # else //gs_coro_EXPORTS

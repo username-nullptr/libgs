@@ -6,7 +6,9 @@
 
 #include <libgs/http/global.h>
 
-#ifdef LIBGS_WEBSOCKET_SHARED
+#if LIBGS_BUILD_STATIC
+# define LIBGS_WEBSOCKET_API
+#elif defined(LIBGS_WEBSOCKET_SHARED)
 # ifdef gs_websocket_EXPORTS
 #  define LIBGS_WEBSOCKET_API  LIBGS_DECL_EXPORT
 # else //gs_websocket_EXPORTS

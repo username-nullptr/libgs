@@ -509,7 +509,8 @@ private:
 			auto extension = strtls::to_lower(token.file_name.extension().string());
 			return extension == ".svgz";
 		}
-		return false;
+		else
+			return false;
 	}
 
 	template <typename Opt>
@@ -1216,7 +1217,7 @@ private:
 			char fr_buf[buf_size] {0};
 
 			token.stream->read(fr_buf, buf_size);
-			auto size = token.stream->gcount();
+			auto size = static_cast<size_t>(token.stream->gcount());
 
 			if( size == 0 )
 				break;
@@ -1464,13 +1465,13 @@ private:
 				if( value.total <= buf_size )
 				{
 					stream->read(buf, value.total);
-					auto size = stream->gcount();
+					auto size = static_cast<size_t>(stream->gcount());
 
 					sum += write_body(buffer(buf,size), error);
 					break;
 				}
 				stream->read(buf, buf_size);
-				auto size = stream->gcount();
+				auto size = static_cast<size_t>(stream->gcount());
 
 				sum += write_body(buffer(buf,size), error);
 				if( error )
@@ -1500,7 +1501,7 @@ private:
 				if( value.total <= buf_size )
 				{
 					stream->read(buf, value.total);
-					auto size = stream->gcount();
+					auto size = static_cast<size_t>(stream->gcount());
 					if( size == 0 )
 						break;
 
@@ -1515,7 +1516,7 @@ private:
 					break;
 				}
 				stream->read(buf, buf_size);
-				auto size = stream->gcount();
+				auto size = static_cast<size_t>(stream->gcount());
 
 				sum += write_body(buffer(buf,size), error);
 				if( error )

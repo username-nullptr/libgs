@@ -58,20 +58,17 @@ sys_expected<> set_current_directory(const path_t &path) noexcept
 
 sys_expected<path_t> current_directory() noexcept
 {
-	wchar_t buf[1024] {0};
-	auto len = GetCurrentDirectoryW(1023, buf);
+	const auto capacity = GetCurrentDirectoryW(0, nullptr);
+	if( capacity == 0 )
+		return sys_error();
 
-	sys_expected<path_t> result {L""};
-	if( len == 0 )
-		result.despair(sys_error());
-	else
-	{
-		auto path = strtls::replace(std::wstring(buf,len), L"\\", L"/");
-		if( not path.ends_with(L"/") )
-			path += L"/";
-		result = path;
-	}
-	return result;
+	std::wstring path(capacity, L'\0');
+	const auto size = GetCurrentDirectoryW(capacity, path.data());
+	if( size == 0 or size >= capacity )
+		return sys_error();
+
+	path.resize(size);
+	return path_t(std::move(path));
 }
 
 constexpr size_t g_max_buf_size = 4096;
@@ -87,7 +84,7 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 			return dir.wstring() + wpath;
 		});
 	}
-	else if( wpath.starts_with(L"~") )
+	else if( wpath.starts_with(L'~') )
 	{
 		wchar_t tmp[g_max_buf_size] {0};
 		auto len = GetEnvironmentVariableW(L"USERPROFILE", tmp, g_max_buf_size);
@@ -97,7 +94,7 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 		else
 		{
 			auto home = strtls::replace(std::wstring(tmp,len), L"\\", L"/");
-			if( home.ends_with(L"/") )
+			if( home.ends_with(L'/') )
 				home.pop_back();
 			result = home + wpath.erase(0,1);
 		}

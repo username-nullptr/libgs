@@ -173,8 +173,17 @@ void application_environment()
 	LIBGS_TEST_CHECK(original);
 	libgs::test::temporary_directory directory;
 	const bool changed = bool(libgs::app::set_current_directory(directory.path()));
-	const bool current_matches = changed and std::filesystem::equivalent(
-		libgs::app::current_directory().value(), directory.path());
+	const auto current = libgs::app::current_directory();
+	std::error_code equivalent_error;
+	const bool current_matches = changed and current and std::filesystem::equivalent(
+		*current, directory.path(), equivalent_error);
+	if( not current_matches )
+	{
+		std::cerr << "current directory mismatch: changed=" << changed
+			<< ", current='" << (current ? current->string() : "<error>")
+			<< "', expected='" << directory.path().string()
+			<< "', equivalent_error='" << equivalent_error.message() << "'\n";
+	}
 	const bool absolute_matches = "relative.txt"_abs ==
 		libgs::app::dir_path().value() / "relative.txt";
 	LIBGS_TEST_CHECK(libgs::app::set_current_directory(*original));

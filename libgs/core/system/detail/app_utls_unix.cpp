@@ -51,12 +51,7 @@ sys_expected<path_t> current_directory() noexcept
 	if( getcwd(buf, sizeof(buf)) == nullptr )
 		result.despair(sys_error());
 	else
-	{
-		std::string str(buf);
-		if( not str.ends_with("/") )
-			str += "/";
-		result = str;
-	}
+		result = path_t(buf);
 	return result;
 }
 

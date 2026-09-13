@@ -111,6 +111,12 @@ constexpr void swap(unexpected<Error> &left, unexpected<Error> &right)
 template <typename Error>
 class bad_expected_access;
 
+#ifdef _MSC_VER
+# pragma warning(push)
+// Exporting the exception type keeps RTTI consistent across LibGS DLL boundaries.
+// MSVC warns about its standard-library base even though all targets use /MD.
+# pragma warning(disable: 4275)
+#endif
 template <>
 class LIBGS_CORE_API bad_expected_access<void> : public std::exception
 {
@@ -124,6 +130,9 @@ protected:
 	bad_expected_access &operator=(const bad_expected_access&) noexcept = default;
 	~bad_expected_access() override = default;
 };
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 
 template <typename Error>
 class LIBGS_CORE_TAPI bad_expected_access : public bad_expected_access<void>

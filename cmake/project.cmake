@@ -36,7 +36,9 @@ function(add_project target_name)
 		RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
 		ARCHIVE_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/lib
 	)
-	if (NOT LIBGS_BUILD_STATIC)
+	if (LIBGS_BUILD_STATIC)
+		install(TARGETS ${target_name} ARCHIVE DESTINATION lib)
+	else ()
 		install(TARGETS ${target_name} DESTINATION ${install_dir}
 			PERMISSIONS
 			OWNER_READ OWNER_WRITE OWNER_EXECUTE

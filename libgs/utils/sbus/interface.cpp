@@ -106,6 +106,11 @@ constexpr size_t g_shared_payload_threshold = 64 * 1'024;
 namespace
 {
 
+#ifdef _MSC_VER
+# pragma warning(push)
+// The padding is intentional: these atomics occupy separate cache lines.
+# pragma warning(disable: 4324)
+#endif
 class /* LIBGS_DECL_HIDDEN */ subscriber_thread
 {
 	LIBGS_DISABLE_COPY_MOVE(subscriber_thread)
@@ -178,6 +183,9 @@ private:
 	 */
 	std::thread m_thread {};
 };
+#ifdef _MSC_VER
+# pragma warning(pop)
+#endif
 
 class /* LIBGS_DECL_HIDDEN */ global_subscriber : public subscriber_thread
 {

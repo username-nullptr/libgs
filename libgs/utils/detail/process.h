@@ -516,25 +516,25 @@ public:
 	{
 		std::vector<std::byte> result;
 		std::array<std::byte,8192> chunk {};
-		for(;;)
-		{
-			auto read_result = m_detail.read(Channel, buffer(chunk));
-			if( not read_result )
-			{
-				const auto read_error = read_result.error();
-				if( is_read_eof(read_error) )
-					return result;
-				m_detail.protect_io_error(read_error);
-				return sys_unexpected(read_error);
-			}
-			const auto read_size = *read_result;
-			if( read_size == 0 )
-				return result;
 
+		auto read_result = m_detail.read(Channel, buffer(chunk));
+		while( read_result and *read_result != 0 )
+		{
+			const auto read_size = *read_result;
 			result.insert (
 				result.end(), chunk.begin(),
 				chunk.begin() + read_size
 			);
+			read_result = m_detail.read(Channel, buffer(chunk));
+		}
+		if( not read_result )
+		{
+			const auto read_error = read_result.error();
+			if( not is_read_eof(read_error) )
+			{
+				m_detail.protect_io_error(read_error);
+				return sys_unexpected(read_error);
+			}
 		}
 		return result;
 	}

@@ -6,7 +6,9 @@
 
 #include <libgs/core/global.h>
 
-#ifdef gs_utils_EXPORTS
+#if LIBGS_BUILD_STATIC
+# define LIBGS_UTILS_API
+#elif defined(gs_utils_EXPORTS)
 # define LIBGS_UTILS_API  LIBGS_DECL_EXPORT
 #else //gs_utils_EXPORTS
 # define LIBGS_UTILS_API  LIBGS_DECL_IMPORT

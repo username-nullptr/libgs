@@ -491,21 +491,9 @@ public:
 			if( auto expected = wait(); not expected )
 				return sys_unexpected(expected.error());
 		}
-		for(;;)
+		auto chunk = m_parser.take_range_body(128 * 1024);
+		while( not chunk and m_parser.stage() != stage::finished and has_connection() )
 		{
-			if( auto chunk = m_parser.take_range_body(128 * 1024) )
-			{
-				finish_connection();
-				return std::move(*chunk);
-			}
-			if( m_parser.stage() == stage::finished )
-			{
-				finish_connection();
-				return sys_unexpected(make_error_code(errc::eof));
-			}
-			if( not has_connection() )
-				return sys_unexpected(make_error_code(std::errc::not_connected));
-
 			auto &conn = connection();
 			if( not conn.is_open() )
 			{
@@ -527,8 +515,19 @@ public:
 				close_connection();
 				return sys_unexpected(expected.error());
 			}
+			chunk = m_parser.take_range_body(128 * 1024);
 		}
-		return {};
+		if( chunk )
+		{
+			finish_connection();
+			return std::move(*chunk);
+		}
+		if( m_parser.stage() == stage::finished )
+		{
+			finish_connection();
+			return sys_unexpected(make_error_code(errc::eof));
+		}
+		return sys_unexpected(make_error_code(std::errc::not_connected));
 	}
 
 	template <typename Token>

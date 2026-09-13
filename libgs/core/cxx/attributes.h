@@ -4,6 +4,8 @@
 #ifndef LIBGS_CORE_CXX_ATTRIBUTES_H
 #define LIBGS_CORE_CXX_ATTRIBUTES_H
 
+#include <libgs/core/cxx/configs.h>
+
 #ifdef _MSC_VER
 
 # pragma execution_character_set("utf-8")
@@ -59,7 +61,9 @@
 
 #endif //_MSC_VER
 
-#ifdef gs_core_EXPORTS
+#if LIBGS_BUILD_STATIC
+# define LIBGS_CORE_API
+#elif defined(gs_core_EXPORTS)
 # define LIBGS_CORE_API  LIBGS_DECL_EXPORT
 #else //gs_core_EXPORTS
 # define LIBGS_CORE_API  LIBGS_DECL_IMPORT

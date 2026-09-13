@@ -6,7 +6,9 @@
 
 #include <libgs/core/global.h>
 
-#ifdef gs_http_EXPORTS
+#if LIBGS_BUILD_STATIC
+# define LIBGS_HTTP_API
+#elif defined(gs_http_EXPORTS)
 # define LIBGS_HTTP_API  LIBGS_DECL_EXPORT
 #else //gs_http_EXPORTS
 # define LIBGS_HTTP_API  LIBGS_DECL_IMPORT

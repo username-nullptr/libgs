@@ -795,28 +795,25 @@ public:
 	[[nodiscard]] bool emplace(Args&&...args) requires
 		concepts::constructible<T,Args...>
 	{
-		for(;;)
-		{
-			auto current = m_enqueue_block.load(std::memory_order_acquire);
-			current->m_active_enqueues.fetch_add(1, std::memory_order_acq_rel);
+		auto current = m_enqueue_block.load(std::memory_order_acquire);
+		current->m_active_enqueues.fetch_add(1, std::memory_order_acq_rel);
 
-			if( current->m_closed.load(std::memory_order_acquire) )
-			{
-				current->m_active_enqueues.fetch_sub(1, std::memory_order_release);
-				continue;
-			}
-			auto result = current->emplace(std::forward<Args>(args)...);
+		while( current->m_closed.load(std::memory_order_acquire) )
+		{
 			current->m_active_enqueues.fetch_sub(1, std::memory_order_release);
-			return result;
+			current = m_enqueue_block.load(std::memory_order_acquire);
+			current->m_active_enqueues.fetch_add(1, std::memory_order_acq_rel);
 		}
-		return false;
+		auto result = current->emplace(std::forward<Args>(args)...);
+		current->m_active_enqueues.fetch_sub(1, std::memory_order_release);
+		return result;
 	}
 
 	[[nodiscard]] optional<T> dequeue()
 	{
-		for(;;)
+		auto current = m_dequeue_block.load(std::memory_order_acquire);
+		while( current )
 		{
-			auto current = m_dequeue_block.load(std::memory_order_acquire);
 			if( auto result = current->dequeue() )
 				return result;
 
@@ -827,10 +824,12 @@ public:
 
 			auto next = current->m_next.load(std::memory_order_acquire);
 			if( not next )
-				return nullopt;
+				break;
 
 			m_dequeue_block.compare_exchange_weak(current, next,
-				std::memory_order_release, std::memory_order_relaxed);
+				std::memory_order_release, std::memory_order_relaxed
+			);
+			current = m_dequeue_block.load(std::memory_order_acquire);
 		}
 		return nullopt;
 	}

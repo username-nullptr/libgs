@@ -162,7 +162,10 @@ struct streamer<std::vector<T,Alloc>>
 		offset += 8;
 		vector_t vector;
 
-		vector.resize(size);
+		if( size > vector.max_size() )
+			runtime_error::loc_throw("bad packet: container size is too large");
+
+		vector.resize(static_cast<size_t>(size));
 		size_t sum = 8;
 
 		for(auto &n : vector)

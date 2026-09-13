@@ -290,7 +290,8 @@ sys_expected<form_data_parts> parse_multipart_form_data
 
 	form_data_parts result {};
 	size_t cursor = delimiter.size();
-	for(;;)
+
+	while( cursor < body.size() )
 	{
 		if( body.substr(cursor).starts_with("--") )
 			return result;

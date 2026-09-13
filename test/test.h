@@ -67,6 +67,16 @@ struct test_case
 	);
 }
 
+inline void check(
+	bool condition,
+	std::string_view expression,
+	const std::source_location &location = std::source_location::current()
+)
+{
+	if( not condition )
+		fail(expression, location);
+}
+
 inline int run(std::initializer_list<test_case> tests)
 {
 	size_t failures = 0;
@@ -121,14 +131,13 @@ inline void check_throws(
 
 #define LIBGS_TEST_CHECK(expression) \
 	do { \
-		if( not static_cast<bool>(expression) ) \
-			::libgs::test::fail(#expression); \
+		::libgs::test::check(static_cast<bool>(expression), #expression); \
 	} while(false)
 
 #define LIBGS_TEST_CHECK_EQ(actual, expected) \
 	do { \
-		if( not ((actual) == (expected)) ) \
-			::libgs::test::fail(#actual " == " #expected); \
+		::libgs::test::check((actual) == (expected), \
+			#actual " == " #expected); \
 	} while(false)
 
 #define LIBGS_TEST_CHECK_THROWS(expression, exception_type) \

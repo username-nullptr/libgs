@@ -1,9 +1,37 @@
 # SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 # SPDX-License-Identifier: MIT
 
+set(libgs_build_static_default OFF)
+set(libgs_gnu_shared_runtime_available TRUE)
+
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	execute_process (
+		COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++-6.dll
+		OUTPUT_VARIABLE libgs_gnu_libstdcxx_dll
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET
+	)
+	if (NOT IS_ABSOLUTE "${libgs_gnu_libstdcxx_dll}" OR NOT EXISTS "${libgs_gnu_libstdcxx_dll}")
+		set(libgs_gnu_shared_runtime_available FALSE)
+		set(libgs_build_static_default ON)
+
+		message(STATUS
+			"${PRO_NAME}: GNU C++ runtime is static-only."
+		)
+	endif ()
+endif ()
+
 option(LIBGS_BUILD_STATIC
-	"-- ${PRO_NAME}: Build static libraries." OFF
+	"-- ${PRO_NAME}: Build static libraries." ${libgs_build_static_default}
 )
+if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
+	NOT libgs_gnu_shared_runtime_available AND NOT LIBGS_BUILD_STATIC)
+	message(FATAL_ERROR
+		"${PRO_NAME}: Shared libraries require a shared GNU C++ runtime on Windows. "
+		"Use -DLIBGS_BUILD_STATIC=ON or a MinGW toolchain that provides libstdc++-6.dll."
+	)
+endif ()
+
 if (NOT LIBGS_BUILD_STATIC)
 	option(LIBGS_ADD_LIBRARY_VERSION
 		"-- ${PRO_NAME}: Add version information to library names." ON

@@ -101,6 +101,10 @@ cmake --build build --parallel
 inherits it automatically and enables the supported `permessage-deflate`
 profile without a second switch.
 
+On Windows, a GNU toolchain without a shared `libstdc++` defaults this option
+to `ON`. Sharing C++ standard-library objects across DLL boundaries is not safe
+when each binary contains a separate static GNU runtime.
+
 Example executables are written below `build/output/examples`.
 
 ## Quick start
