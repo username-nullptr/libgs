@@ -33,7 +33,6 @@ public:
 	using prepared_frame  = detail::prepared_frame;
 	using close_wait_operation = detail::close_wait_operation;
 
-	// Construction and connection setup (impl/core.ipp).
 	explicit impl(executor_t exec, const config_t &config);
 
 public:
@@ -41,7 +40,6 @@ public:
 		adopt_options_t options, error_code &error
 	) noexcept;
 
-	// Outbound application operations (impl/write.ipp).
 	[[nodiscard]] size_t write(message_type type,
 		std::span<const const_buffer> buffers, error_code &error
 	) noexcept;
@@ -65,8 +63,6 @@ public:
 	template <typename Handler>
 	void async_wait_written(Handler &&handler);
 
-	// Inbound application operations (impl/read.ipp) and control observation
-	// (impl/control.ipp).
 	[[nodiscard]] message read(error_code &error) noexcept;
 	[[nodiscard]] data_frame read_frame(error_code &error) noexcept;
 
@@ -91,7 +87,6 @@ public:
 	template <typename Handler>
 	void async_wait_control(Handler &&handler);
 
-	// Close handshake operations (impl/close.ipp).
 	[[nodiscard]] close_info_t close(const close_frame &frame, error_code &error) noexcept;
 
 	template <typename Handler>
@@ -102,18 +97,13 @@ public:
 	template <typename Handler>
 	void async_wait_closed(Handler &&handler);
 
-	// Connection lifecycle operations (impl/lifecycle.ipp).
 	void cancel(error_code &error) noexcept;
 	void shutdown(error_code &error) noexcept;
 
 public:
-	// Narrow host contract used by the directional engines. Although impl is a
-	// private implementation type, keeping this contract public lets the
-	// compiler enforce that engines cannot reach any state field directly.
 	[[nodiscard]] detail::receive_engine<impl> &receive_side() noexcept;
 	[[nodiscard]] detail::send_engine<impl> &send_side() noexcept;
 
-	// Transport I/O primitives.
 	[[nodiscard]] size_t write_prepared (
 		const prepared_frame &frame, error_code &error
 	) noexcept;
@@ -159,7 +149,6 @@ public:
 	void handle_receive_failure(error_code error) noexcept;
 	void handle_receive_protocol_failure(error_code error, bool synchronous = false) noexcept;
 
-	// Protocol events that cross the receive/send boundary.
 	[[nodiscard]] sys_expected<> queue_automatic_pong (
 		const std::vector<std::byte> &payload
 	) noexcept;
@@ -182,7 +171,6 @@ private:
 		const std::vector<std::byte> &payload
 	) noexcept;
 
-	// Close handshake state machine.
 	[[nodiscard]] close_info_t retained_close_info(bool clean = false) const;
 
 	void begin_local_close(prepared_frame frame) noexcept;
@@ -207,7 +195,6 @@ private:
 	void fail(error_code error) noexcept;
 
 private:
-	// Executor, transport and negotiated connection state.
 	executor_t m_exec {};
 	config_t m_config {};
 
@@ -218,11 +205,9 @@ private:
 	std::string m_subprotocol {};
 	std::vector<extension> m_extensions {};
 
-	// Directional operation state.
 	detail::receive_engine<impl> m_receive_engine;
 	detail::send_engine<impl> m_send_engine;
 
-	// Close handshake state.
 	optional<close_info_t> m_peer_close {};
 	optional<close_info_t> m_close_result {};
 

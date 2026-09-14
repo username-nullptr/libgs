@@ -62,9 +62,6 @@ co_handshake_io_with_timeout(Initiator initiation, std::chrono::nanoseconds time
 	);
 }
 
-// The generic timed I/O bridge uses Value{} for an exceptional completion.
-// Handshake results deliberately have no executor-free default constructor, so
-// this variant receives a factory for an idle result bound to the right executor.
 template <typename Value, core_concepts::exec Exec, typename Initiator, typename Fallback, typename Token>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI auto initiate_handshake_io
 (const Exec &exec, Initiator initiation, std::chrono::milliseconds timeout, Fallback fallback, Token &&token)

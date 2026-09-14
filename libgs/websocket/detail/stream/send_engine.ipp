@@ -226,9 +226,6 @@ void detail::send_engine<Owner>::cancel_queued_send(uint64_t id) noexcept
 			continue;
 
 		operation->cancel_requested = true;
-		// Keep a bounded tombstone in sequence order until earlier data writes
-		// finish. This lets wait_written() preserve snapshot ordering without
-		// allowing cancellation churn to bypass the queue limits.
 		deliver_send_completion(operation, asio::error::operation_aborted);
 		return ;
 	}

@@ -35,11 +35,7 @@ void detail::receive_engine<Owner>::complete_control_waiter
 		auto completion = std::move(waiter->completion);
 		std::move(completion)(error, std::move(event));
 	}
-	catch(...)
-	{
-		// Completion dispatch failure is local to the observer and must not
-		// corrupt the receive parser or transport state.
-	}
+	catch(...) {}
 }
 
 template <typename Owner>
@@ -71,17 +67,12 @@ void detail::receive_engine<Owner>::remember_control(opcode op, std::vector<std:
 			complete_control_waiter({}, std::move(event));
 			return ;
 		}
-		// A manual-Pong Ping must not be displaced by an unobserved Pong.
 		if( not m_owner.automatic_pong_enabled() and op == opcode::pong and
 			m_control_event and m_control_event->type == control_type::ping )
 			return ;
 		m_control_event = std::move(event);
 	}
-	catch(...)
-	{
-		// Control observation is auxiliary to read(); failure to retain an
-		// event must not corrupt the receive parser or the connection.
-	}
+	catch(...) {}
 }
 
 template <typename Owner>

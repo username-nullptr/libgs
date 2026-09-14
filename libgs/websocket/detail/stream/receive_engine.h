@@ -24,12 +24,11 @@ struct receive_event_result
 		receive_failure_origin::none;
 };
 
-// Owns receive-operation and control-observer state. Close-handshake code may
-// temporarily drive the same event pump, while Owner remains responsible for
-// transport lifetime and connection lifecycle.
 template <typename Owner>
 class LIBGS_WEBSOCKET_TAPI receive_engine
 {
+	LIBGS_DISABLE_COPY_MOVE(receive_engine)
+
 public:
 	explicit receive_engine(Owner &owner) noexcept;
 
@@ -97,7 +96,6 @@ private:
 };
 
 } //namespace libgs::websocket::detail
-
 #include <libgs/websocket/detail/stream/receive_engine_control.ipp>
 #include <libgs/websocket/detail/stream/receive_engine_read.ipp>
 

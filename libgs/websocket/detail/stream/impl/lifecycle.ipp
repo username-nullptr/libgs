@@ -5,7 +5,7 @@
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_LIFECYCLE_IPP
 
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_H
-#error "Include <libgs/websocket/detail/stream/impl.h> instead."
+# error "Include <libgs/websocket/detail/stream/impl.h> instead."
 #endif
 
 namespace libgs::websocket

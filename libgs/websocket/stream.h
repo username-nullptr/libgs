@@ -53,7 +53,6 @@ public:
 	static constexpr bool task_token_v =
 		concepts::dis_detach_opt_token<Token,error_code,Args...>;
 
-	// Detached completion is observed through the corresponding wait operation.
 	template <typename Token, typename...Args>
 	static constexpr bool completion_token_v =
 		core_concepts::tf_opt_token<Token,error_code,Args...>;
@@ -68,26 +67,15 @@ public:
 	) noexcept;
 
 public:
-	// A closed stream returns eof and an empty result. Cancelling an asynchronous
-	// read preserves the partially parsed frame for the next read.
 	template <typename Buffer = std::vector<std::byte>, typename Token = use_sync_t>
 	[[nodiscard]] auto read(Token &&token = {}) requires
 		concepts::buffer<Buffer> and task_token_v<Token,basic_message<Buffer>>;
 
-	// Returns individual data frames and consumes interleaved control frames.
-	// Compression changes payload boundaries, so negotiated extensions make this
-	// operation fail with std::errc::operation_not_supported.
 	template <typename Buffer = std::vector<std::byte>, typename Token = use_sync_t>
 	[[nodiscard]] auto read_frame(Token &&token = {}) requires
 		concepts::buffer<Buffer> and task_token_v<Token,basic_data_frame<Buffer>>;
 
 public:
-	// Concurrent writes are serialized. Successful size_t results count bytes
-	// from the user payload only; WebSocket frame headers and masking never count.
-	// Non-detached asynchronous writes borrow payload storage until completion;
-	// detached writes take an internal copy before the initiating call returns.
-	// Cancellation removes an operation while it is queued. Once its first frame
-	// owns the transport write, cancellation is too late and may be ignored.
 	template <message_type Type, typename Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
 		requires completion_token_v<Token,size_t>;
@@ -108,14 +96,11 @@ public:
 	auto write_binary(const const_buffer &body, Token &&token = {})
 		requires completion_token_v<Token,size_t>;
 
-	// Cancelling this observer does not affect the writes it is waiting for.
 	template <typename Token = use_sync_t>
 	auto wait_written(Token &&token = {})
 		requires task_token_v<Token>;
 
 public:
-	// Does not start a transport read. The synchronous form reports
-	// operation_would_block unless read() or close() has already parsed an event.
 	template <typename Token = use_sync_t>
 	[[nodiscard]] auto wait_ctrl(Token &&token = {})
 		requires task_token_v<Token,control_event_t>;
@@ -136,10 +121,6 @@ public:
 	auto pong(const const_buffer &payload, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
-	// Repeated asynchronous calls join an in-progress close. After the stream is
-	// closed they complete immediately and successfully with the retained
-	// close_info. A synchronous call cannot drive an executor-owned close already
-	// in progress and reports std::errc::operation_in_progress instead.
 	template <typename Token = use_sync_t>
 	auto close(Token &&token = {})
 		requires completion_token_v<Token,close_info_t>;

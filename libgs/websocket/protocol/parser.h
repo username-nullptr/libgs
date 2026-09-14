@@ -11,17 +11,11 @@ namespace libgs::websocket
 
 struct frame_parse_result
 {
-	// Bytes consumed from the input, including frame header bytes.
 	size_t consumed = 0;
-
-	// Borrowed slice of this call's input. Payload remains wire-masked.
 	mutable_buffer payload {};
 	uint64_t payload_offset = 0;
 
-	// One-shot event: this call completed the current frame header.
 	bool header_ready = false;
-
-	// One-shot event: this call completed the current frame.
 	bool frame_finished = false;
 };
 
@@ -46,7 +40,6 @@ public:
 	[[nodiscard]] bool failed() const noexcept;
 	[[nodiscard]] error_code last_error() const noexcept;
 
-	// Clears the partial frame, failure and cross-frame fragmentation state.
 	frame_parser &reset() noexcept;
 
 private:

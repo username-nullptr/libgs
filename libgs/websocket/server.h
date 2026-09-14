@@ -10,7 +10,6 @@
 namespace libgs::websocket
 {
 
-// Snapshot retained after the HTTP service context is destroyed.
 struct request_info
 {
 	http::method_enum method = http::method::get;
@@ -27,7 +26,6 @@ struct request_info
 	http::endpoint local_endpoint {};
 };
 
-// The body is owned so it remains valid until an asynchronous response finishes.
 struct upgrade_rejection
 {
 	http::status_enum status = http::status::forbidden;
@@ -35,7 +33,6 @@ struct upgrade_rejection
 	std::string body {};
 };
 
-// Empty accepts the request; a value rejects it with the contained response.
 using upgrade_validation_result = optional<upgrade_rejection>;
 
 struct upgrade_options
@@ -60,25 +57,16 @@ struct upgrade_options
 	>;
 	stream_config stream {};
 
-	// Separate from server_config::pending_handshake_timeout.
 	std::chrono::milliseconds handshake_timeout {30000};
 	std::vector<std::string> supported_subprotocols {};
-
-	// The built-in permessage_deflate_extension() profile is available when zlib
-	// support is compiled in. Unsupported profiles are rejected.
 	std::vector<extension> supported_extensions {};
 
-	// Additional 101 response headers. Protocol-owned upgrade headers cannot be
-	// replaced through this collection.
 	http::headers response_headers {};
 	bool require_subprotocol = false;
 
 	request_validator_t request_validator {};
 	origin_validator_t origin_validator {};
 
-	// These validators participate only in asynchronous upgrade/owned-server
-	// paths. A synchronous upgrade reports operation_not_supported when either
-	// callback is configured.
 	async_request_validator_t async_request_validator {};
 	async_origin_validator_t async_origin_validator {};
 
@@ -96,9 +84,6 @@ struct server_config
 {
 	upgrade_options default_upgrade {};
 	size_t max_pending_handshakes = 64;
-
-	// Non-positive prevents a request from waiting in the pending-handshake
-	// queue. A request paired immediately with an accept operation does not wait.
 	std::chrono::milliseconds pending_handshake_timeout {30000};
 };
 
@@ -237,9 +222,6 @@ public:
 	basic_server &unbound_service_error();
 
 public:
-	// Replaces the snapshot used by future accept operations and future pending
-	// handshake admissions. Existing operations, queued requests and registered
-	// handlers retain the snapshots captured when they were created.
 	basic_server &set_config(const config_t &config);
 	[[nodiscard]] config_t config() const;
 

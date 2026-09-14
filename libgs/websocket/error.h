@@ -9,8 +9,6 @@
 namespace libgs::websocket
 {
 
-// Errors shared by the opening-handshake codec and WebSocket operations.
-// Frame wire-format violations remain in protocol_errc.
 #define LIBGS_WEBSOCKET_ERRC_TABLE \
 X_MACRO( handshake_rejected       ,  1 , "WebSocket handshake rejected"      ) \
 X_MACRO( invalid_upgrade          ,  2 , "Invalid WebSocket upgrade"         ) \

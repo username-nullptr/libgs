@@ -31,10 +31,7 @@ handling. Selected client and utility APIs also provide synchronous defaults.
 | C++ | C++20 |
 | GCC | 13 |
 | Clang | 17, with `std::format` support |
-| MSVC | 19.30 / Visual Studio 2022 |
-
-MSVC 19.50 is currently rejected by the build configuration because of a known
-compiler issue.
+| MSVC | 19.30 or newer / Visual Studio 2022 or newer, including MSVC 19.50 / Visual Studio 2026 |
 
 Standalone Asio, spdlog, and nlohmann/json are included in `3rd_party`. OpenSSL
 and zlib are only required when their corresponding features are enabled.

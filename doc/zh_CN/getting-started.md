@@ -12,9 +12,7 @@
 | 语言标准 | C++20 |
 | GCC | 13 或更高版本 |
 | Clang | 17 或更高版本，并支持 `std::format` |
-| MSVC | 19.30 或更高版本 / Visual Studio 2022 |
-
-由于一个已知的编译器问题，当前构建配置会拒绝 MSVC 19.50。
+| MSVC | 19.30 或更高版本 / Visual Studio 2022 或更高版本，包括 MSVC 19.50 / Visual Studio 2026 |
 
 仓库中已内置 standalone Asio、spdlog 和 nlohmann/json。OpenSSL 和 zlib
 是可选的系统依赖。

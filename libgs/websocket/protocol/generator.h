@@ -40,8 +40,6 @@ LIBGS_WEBSOCKET_API void apply_mask (
 	const mutable_buffer &payload, const masking_key &key, uint64_t payload_offset = 0
 ) noexcept;
 
-// Copies and masks the complete source. If destination is too small, returns
-// std::errc::no_buffer_space without modifying destination.
 [[nodiscard]] LIBGS_WEBSOCKET_API sys_expected<size_t> mask_copy (
 	const mutable_buffer &destination, const const_buffer &source,
 	const masking_key &key, uint64_t payload_offset = 0

@@ -13,9 +13,7 @@ LibGS.
 | Language mode | C++20 |
 | GCC | 13 or newer |
 | Clang | 17 or newer, with `std::format` support |
-| MSVC | 19.30 or newer / Visual Studio 2022 |
-
-The build currently rejects MSVC 19.50 because of a known compiler issue.
+| MSVC | 19.30 or newer / Visual Studio 2022 or newer, including MSVC 19.50 / Visual Studio 2026 |
 
 Standalone Asio, spdlog, and nlohmann/json are vendored in the repository.
 OpenSSL and zlib are optional system dependencies.

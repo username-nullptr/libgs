@@ -15,6 +15,8 @@ namespace libgs::websocket::detail
 template <typename Owner>
 class LIBGS_WEBSOCKET_TAPI send_engine
 {
+	LIBGS_DISABLE_COPY_MOVE(send_engine)
+
 public:
 	explicit send_engine(Owner &owner) noexcept;
 

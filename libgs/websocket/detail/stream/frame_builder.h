@@ -20,11 +20,10 @@ struct prepared_frame
 	size_t application_size = 0;
 };
 
-// Owns outbound frame construction policy. It deliberately has no connection
-// or executor dependency, so validation, fragmentation and masking remain
-// separate from the stream's transport lifecycle.
 class LIBGS_WEBSOCKET_API frame_builder
 {
+	LIBGS_DISABLE_COPY_MOVE(frame_builder)
+
 public:
 	frame_builder() noexcept = default;
 

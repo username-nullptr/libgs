@@ -15,17 +15,12 @@ struct opening_request
 {
 	std::string key {};
 	std::vector<std::string> subprotocols {};
-
-	// Wire offers. Client/server adapters apply the installed capability policy
-	// after this syntax-only codec accepts the header.
 	std::vector<extension> extensions {};
 };
 
 struct opening_response
 {
 	optional<std::string> subprotocol {};
-	// Wire selections. The adapter verifies that each selection was offered and
-	// has an installed codec capability.
 	std::vector<extension> extensions {};
 };
 
@@ -35,7 +30,6 @@ sys_expected<std::string> make_client_key(std::span<const std::byte,16> nonce) n
 [[nodiscard]] LIBGS_WEBSOCKET_API
 sys_expected<std::string> make_accept_key(std::string_view client_key) noexcept;
 
-// Host belongs to the URL/HTTP adapter and is intentionally not generated here.
 [[nodiscard]] LIBGS_WEBSOCKET_API
 sys_expected<http::headers> make_opening_request_headers(const opening_request &request) noexcept;
 

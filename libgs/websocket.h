@@ -4,7 +4,6 @@
 #ifndef LIBGS_WEBSOCKET_H
 #define LIBGS_WEBSOCKET_H
 
-#include <libgs/websocket/error.h>
 #include <libgs/websocket/client.h>
 #include <libgs/websocket/server.h>
 

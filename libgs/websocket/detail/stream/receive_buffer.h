@@ -18,11 +18,13 @@ struct received_event
 	std::vector<std::byte> control {};
 };
 
-// Owns buffered wire data, incremental frame parsing and message assembly.
-// Transport I/O and operation waiters remain in receive_engine.
 class LIBGS_WEBSOCKET_API receive_buffer
 {
+	LIBGS_DISABLE_COPY_MOVE(receive_buffer)
+
 public:
+	receive_buffer() = default;
+
 	void reset(role local_role, const stream_config &config,
 		std::span<const extension> extensions, std::vector<std::byte> pending_data
 	);

@@ -9,8 +9,6 @@
 namespace libgs::websocket::detail
 {
 
-// Fills the complete output from the operating system CSPRNG. No deterministic
-// or time-based fallback is permitted: source failure is returned to the caller.
 [[nodiscard]] LIBGS_WEBSOCKET_API
 sys_expected<> secure_random_bytes(const mutable_buffer &output) noexcept;
 

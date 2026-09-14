@@ -120,8 +120,6 @@ sys_expected<std::vector<std::byte>> inflate_message
 
 #else //LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	try {
-		// Z_SYNC_FLUSH always leaves at least one byte before the RFC 7692 tail
-		// is removed, including for an empty application message.
 		if( payload.empty() )
 			return sys_unexpected(make_error_code(
 				protocol_errc::invalid_compressed_payload));
@@ -164,9 +162,6 @@ sys_expected<std::vector<std::byte>> inflate_message
 				const auto produced = output.size() - stream.avail_out;
 				if( code == Z_BUF_ERROR )
 				{
-					// A valid flush normally ends with Z_OK. Z_BUF_ERROR is only
-					// expected for the extra drain call required when valid output
-					// exactly filled the previous output block.
 					if( not drained_full_output or produced != 0 or stream.avail_in != 0 )
 					{
 						return sys_unexpected(make_error_code (

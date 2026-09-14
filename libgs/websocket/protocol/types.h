@@ -14,8 +14,6 @@ enum class role : uint8_t {
 	client, server,
 };
 
-// Normalized RSV bits. These values intentionally use the low three bits;
-// they are shifted to/from the wire header by the frame codec.
 enum class reserved_bit : uint8_t
 {
 	rsv1 = 0x04,
@@ -28,8 +26,6 @@ LIBGS_DECLARE_OPERATORS_FOR_FLAGS(reserved_bits);
 struct extension_parameter
 {
 	std::string name {};
-	// RFC 6455 defines an extension value as token or quoted-string. Numeric
-	// meaning, when any, belongs to the concrete extension codec.
 	optional<std::string> value {};
 };
 
@@ -39,9 +35,6 @@ struct extension
 	std::vector<extension_parameter> parameters {};
 };
 
-// LibGS currently implements the RFC 7692 profile that disables context
-// takeover in both directions. The descriptor returned here is suitable for
-// connect_request::extensions and upgrade_options::supported_extensions.
 [[nodiscard]] LIBGS_WEBSOCKET_API extension
 permessage_deflate_extension();
 
@@ -51,11 +44,7 @@ is_permessage_deflate_extension(const extension &value) noexcept;
 struct frame_codec_config
 {
 	role local_role = role::client;
-
-	// Zero permits every payload length representable by RFC 6455.
 	uint64_t max_frame_size = 16 * 1024 * 1024;
-
-	// Extension codecs set the bits they own; the default rejects all RSV bits.
 	reserved_bits allowed_rsv {};
 };
 
@@ -146,16 +135,12 @@ error_code make_error_code(protocol_errc value) noexcept;
 [[nodiscard]] LIBGS_WEBSOCKET_API
 bool is_known_opcode(opcode value) noexcept;
 
-// Recognized control opcodes only; reserved 0xB-0xF values return false.
 [[nodiscard]] LIBGS_WEBSOCKET_API
 bool is_control_opcode(opcode value) noexcept;
 
-// Message-start opcodes only; continuation is handled as a separate state.
 [[nodiscard]] LIBGS_WEBSOCKET_API
 bool is_data_opcode(opcode value) noexcept;
 
-// Accepts assigned protocol codes represented above and application/library
-// codes in [3000,5000). Reserved sentinels such as 1005/1006/1015 are rejected.
 [[nodiscard]] LIBGS_WEBSOCKET_API
 bool is_valid_close_code(uint16_t value) noexcept;
 

@@ -13,34 +13,23 @@ namespace libgs::websocket
 struct client_config
 {
 	stream_config stream {};
-	// Non-positive means the opening handshake is already timed out. The deadline
-	// can preempt asynchronous I/O; synchronous I/O checks it between calls.
 	std::chrono::milliseconds handshake_timeout {30000};
 };
 
 struct connect_request
 {
-	// http/https are accepted input aliases and normalized to ws/wss before
-	// validation, redirects, diagnostics, and transport selection.
 	url endpoint {};
-
 	http::request_arg request_options {};
 	optional<stream_config> stream_options {};
 
 	optional<std::chrono::milliseconds> handshake_timeout {};
 	std::vector<std::string> subprotocols {};
-
-	// The built-in permessage_deflate_extension() offer is available when zlib
-	// support is compiled in. Unsupported profiles fail before opening I/O.
 	std::vector<extension> extensions {};
 
 	size_t max_redirects = 0;
 	bool allow_insecure_redirects = false;
 };
 
-// Optional out-parameter for retaining the final HTTP opening response.
-// After a successful 101 handshake the reply remains usable as response
-// metadata, but its connection lease has been transferred to websocket::stream.
 template <core_concepts::exec Exec = asio::any_io_executor>
 struct basic_open_diagnostics
 {
