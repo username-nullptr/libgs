@@ -30,16 +30,17 @@ LibGS 的目标是成为可复用的异步应用基础库，而不是绑定到�
 - HTTP Upgrade 验证和连接移交；
 - text、binary、continuation、ping、pong 和 close frame；
 - fragmented message 组装；
-- 数据帧级读取及完整消息读取；
+- 完整消息读取、单消息流式消费及对称的数据帧读写；
 - Upgrade 期间的异步 request 与 Origin 校验；
 - 可选 RFC 7692 `permessage-deflate`，关闭两个方向的 context takeover；
 - callback 和 coroutine 完成方式；
 - cancel、timeout、queue 和 backpressure 行为；
 - 明确的 buffer 与移交连接所有权。
 
-`read()` 返回完整 data message，`read_frame()` 在未协商 extension 时返回单个
-数据帧；读取过程中 Ping/Pong 由控制事件保留；正常 Close 后继续读取会返回 EOF。并发操作必须遵循
-stream 文档中的串行化约定。底层 parser 采用增量解析并借用输入缓冲区，只在
+`read()` 返回完整 data message，`consume()` 以有界 chunk 流式交付一条消息，
+`read_frame()`/`write_frame()` 在未协商 extension 时读取或写入单个数据帧；读取
+过程中 Ping/Pong 由控制事件保留；正常 Close 后继续读取会返回 EOF。并发操作必须
+遵循 stream 文档中的串行化约定。底层 parser 采用增量解析并借用输入缓冲区，只在
 聚合消息和协议变换需要所有权时复制 payload。
 
 下列能力不属于当前实现范围，仍在规划中：

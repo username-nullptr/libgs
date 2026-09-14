@@ -5,12 +5,22 @@
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_OPERATIONS_H
 
 #include <libgs/websocket/detail/stream/frame_builder.h>
+#include <libgs/websocket/protocol/detail/utf8.h>
 
 namespace libgs::websocket::detail
 {
 
 enum class send_kind : uint8_t {
 	data, application_control,
+};
+
+struct prepared_data_frame
+{
+	prepared_frame frame {};
+	optional<message_type> next_message_type {};
+
+	size_t next_message_size = 0;
+	optional<utf8_validator> next_utf8 {};
 };
 
 struct send_operation
@@ -30,6 +40,12 @@ struct send_operation
 
 	bool cancel_requested = false;
 	bool queued_counted = false;
+	bool explicit_data_frame = false;
+
+	optional<message_type> next_message_type {};
+	size_t next_message_size = 0;
+
+	optional<utf8_validator> next_utf8 {};
 };
 
 struct write_waiter

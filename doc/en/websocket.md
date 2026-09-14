@@ -4,8 +4,9 @@ Language: English | [Simplified Chinese](../zh_CN/websocket.md)
 
 The `gs.websocket` module implements the RFC 6455 WebSocket baseline over
 HTTP/1.1. It provides standalone WS/WSS clients and servers, upgrade helpers for
-mixed HTTP applications, protocol codecs, complete-message and data-frame I/O,
-control frames, timeouts, cancellation, and bounded write queues.
+mixed HTTP applications, protocol codecs, complete-message and streaming-message
+reads, symmetric data-frame I/O, control frames, timeouts, cancellation, and
+bounded write queues.
 
 Link `gs.websocket`; its public dependency chain includes `gs.http`, `gs.coro`,
 and `gs.core`. Include `<libgs/websocket.h>` for the client/server umbrella or a
@@ -20,7 +21,8 @@ narrower header when only protocol codecs or `websocket::stream` are needed.
   `websocket::upgrade()`;
 - text, binary, continuation, Ping, Pong, and Close frames;
 - fragmented-message assembly and configurable outgoing fragmentation;
-- complete-message `read()` and data-frame `read_frame()` interfaces;
+- complete-message `read()`, single-message streaming `consume()`, and
+  data-frame `read_frame()` / `write_frame()` interfaces;
 - client masking, UTF-8 validation, frame/message size limits, and protocol
   failure Close responses;
 - subprotocol negotiation, synchronous/asynchronous Upgrade validators,
@@ -94,12 +96,43 @@ assembling the message. Keep a read active if the application needs incoming
 Ping/Pong processing; `wait_ctrl()` observes those events but does not start a
 separate transport read.
 
-`stream::read_frame<Buffer>()` instead returns each text, binary, or continuation
-data frame. The result carries `fin`, `continuation`, and the effective message
-type inherited by continuation frames. It processes control frames in the same
-way as `read()` and is mutually exclusive with another active read. Because
-decompression changes frame payload boundaries, `read_frame()` reports
-`std::errc::operation_not_supported` on a compressed connection.
+`stream::consume()` streams exactly one complete message per call. Its callback
+receives `message_chunk`; `first` and `last` preserve message boundaries and
+`offset` is the byte offset in the current message. A chunk is no larger than
+`stream_config::read_buffer_size`; its actual boundary follows the current
+transport read, not TCP segments or WebSocket frames. `body` is a non-owning
+view valid only until the callback returns. The callback runs synchronously on
+the stream executor and must return promptly; a later Ping cannot be read until
+it returns. Copy data or hand it to application-owned bounded storage when it
+must outlive the callback. If a later part of the message fails protocol
+validation, is cancelled, or reaches EOF, earlier chunks have already been
+delivered; treat successful completion as the message commit point. The
+resulting `message_info` reports message type and total byte count.
+
+```cpp
+auto info = co_await stream.consume(
+    [&output](const libgs::websocket::message_chunk &chunk)
+    {
+        output.write(static_cast<const char*>(chunk.body.data()),
+            static_cast<std::streamsize>(chunk.body.size()));
+    },
+    libgs::use_awaitable
+);
+```
+
+`stream::read_frame<Buffer>()` returns individual text, binary, or continuation
+data frames; `stream::write_frame()` accepts the same
+`basic_data_frame<Buffer>` shape. The value includes `fin`, `continuation`, and
+the effective message type inherited by continuation frames. `write_frame()`
+validates fragment ordering, text UTF-8 across frames, and whole-message size.
+Wait for each frame write to complete before initiating the next frame of that
+fragmented message. Frame I/O and complete-message I/O cannot be switched in the
+middle of a fragmented message.
+
+`read()`, `read_frame()`, and `consume()` cannot overlap. Because decompression
+changes frame and chunk payload boundaries, compressed connections currently
+return `std::errc::operation_not_supported` from `read_frame()`, `write_frame()`,
+and `consume()`; complete-message `read()` and `write()` remain available.
 
 Incoming Ping frames are answered automatically by default. The stream exposes
 `ping()` and `pong()`, but does not schedule periodic Ping, idle timeouts, or a

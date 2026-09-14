@@ -5,6 +5,7 @@
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_BUFFER_H
 
 #include <libgs/websocket/protocol/parser.h>
+#include <libgs/websocket/protocol/detail/utf8.h>
 #include <libgs/websocket/types.h>
 
 namespace libgs::websocket::detail
@@ -13,13 +14,16 @@ namespace libgs::websocket::detail
 struct received_event
 {
 	opcode op = opcode::binary;
+
 	optional<message> data {};
 	optional<data_frame> frame {};
+
+	optional<message_chunk> chunk {};
 	std::vector<std::byte> control {};
 };
 
 enum class receive_target : uint8_t {
-	message, frame,
+	message, frame, chunk,
 };
 
 class LIBGS_WEBSOCKET_API receive_buffer
@@ -37,6 +41,7 @@ public:
 	[[nodiscard]] std::shared_ptr<std::vector<std::byte>> read_storage() const noexcept;
 	[[nodiscard]] error_code commit_read(size_t size) noexcept;
 
+	[[nodiscard]] error_code target_error(receive_target target) const noexcept;
 	[[nodiscard]] sys_expected<optional<received_event>> consume(receive_target target) noexcept;
 
 private:
@@ -54,7 +59,14 @@ private:
 	bool m_message_compressed = false;
 
 	optional<message_type> m_message_type {};
+	optional<receive_target> m_message_target {};
 	std::vector<std::byte> m_message_body {};
+
+	size_t m_message_wire_size = 0;
+	size_t m_message_size = 0;
+	bool m_chunk_first = true;
+
+	optional<utf8_validator> m_chunk_utf8 {};
 	size_t m_frame_offset = 0;
 
 	std::vector<std::byte> m_control_body {};

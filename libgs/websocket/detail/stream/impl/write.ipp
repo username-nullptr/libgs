@@ -70,6 +70,15 @@ size_t basic_stream<Exec>::impl::write
 }
 
 template <core_concepts::exec Exec>
+size_t basic_stream<Exec>::impl::write_frame
+(message_type type, const const_buffer &payload, bool continuation, bool fin, error_code &error) noexcept
+{
+	return m_send_engine.write_data_frame (
+		type, payload, continuation, fin, error
+	);
+}
+
+template <core_concepts::exec Exec>
 size_t basic_stream<Exec>::impl::write_prepared
 (const prepared_frame &frame, error_code &error) noexcept
 {
@@ -91,11 +100,21 @@ size_t basic_stream<Exec>::impl::write_prepared
 
 template <core_concepts::exec Exec>
 template <typename Handler>
-void basic_stream<Exec>::impl::async_write_message
-(message_type type, std::span<const const_buffer> buffers,
+void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<const const_buffer> buffers,
 	std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
 {
 	m_send_engine.async_write_message(type, buffers,
+		std::move(payload_owner), std::forward<Handler>(handler)
+	);
+}
+
+template <core_concepts::exec Exec>
+template <typename Handler>
+void basic_stream<Exec>::impl::async_write_frame
+(message_type type, const const_buffer &payload, bool continuation, bool fin,
+ std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+{
+	m_send_engine.async_write_data_frame(type, payload, continuation, fin,
 		std::move(payload_owner), std::forward<Handler>(handler)
 	);
 }

@@ -85,6 +85,22 @@ error_code basic_stream<Exec>::impl::frame_read_state_error() const noexcept
 }
 
 template <core_concepts::exec Exec>
+error_code basic_stream<Exec>::impl::frame_write_state_error() const noexcept
+{
+	if( not m_extensions.empty() )
+		return make_error_code(std::errc::operation_not_supported);
+	return write_state_error();
+}
+
+template <core_concepts::exec Exec>
+error_code basic_stream<Exec>::impl::consume_state_error() const noexcept
+{
+	if( not m_extensions.empty() )
+		return make_error_code(std::errc::operation_not_supported);
+	return read_state_error();
+}
+
+template <core_concepts::exec Exec>
 error_code basic_stream<Exec>::impl::control_state_error() const noexcept
 {
 	if( m_state == connection_state::open )

@@ -23,6 +23,8 @@ public:
 	using close_info_t = close_info;
 
 	using control_event_t = control_event;
+	using message_chunk_t = message_chunk;
+	using message_info_t = message_info;
 	using adopt_options_t = adopt_options;
 
 	using connection_t = http::basic_connection<executor_t>;
@@ -75,6 +77,13 @@ public:
 	[[nodiscard]] auto read_frame(Token &&token = {}) requires
 		concepts::buffer<Buffer> and task_token_v<Token,basic_data_frame<Buffer>>;
 
+	template <typename Consumer, typename Token = use_sync_t>
+	[[nodiscard]] auto consume(Consumer &&consumer, Token &&token = {}) requires (
+		std::invocable<std::remove_reference_t<Consumer>&,const message_chunk_t&> and
+		std::same_as<std::invoke_result_t<std::remove_reference_t<Consumer>&,const message_chunk_t&>,void> and
+		task_token_v<Token,message_info_t>
+	);
+
 public:
 	template <message_type Type, typename Token = use_sync_t>
 	auto write(const const_buffer &body, Token &&token = {})
@@ -95,6 +104,10 @@ public:
 	template <typename Token = use_sync_t>
 	auto write_binary(const const_buffer &body, Token &&token = {})
 		requires completion_token_v<Token,size_t>;
+
+	template <typename Buffer, typename Token = use_sync_t>
+	auto write_frame(const basic_data_frame<Buffer> &frame, Token &&token = {})
+		requires concepts::buffer<Buffer> and completion_token_v<Token,size_t>;
 
 	template <typename Token = use_sync_t>
 	auto wait_written(Token &&token = {})

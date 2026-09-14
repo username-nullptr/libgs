@@ -11,11 +11,15 @@ namespace libgs::websocket::detail
 
 class LIBGS_WEBSOCKET_API utf8_validator
 {
-	LIBGS_DISABLE_COPY_MOVE(utf8_validator)
-
 public:
 	utf8_validator();
 	~utf8_validator();
+
+	utf8_validator(const utf8_validator &other);
+	utf8_validator(utf8_validator &&other) noexcept;
+
+	utf8_validator &operator=(const utf8_validator &other);
+	utf8_validator &operator=(utf8_validator &&other) noexcept;
 
 	[[nodiscard]] bool consume(std::string_view text) noexcept;
 	[[nodiscard]] bool complete() const noexcept;

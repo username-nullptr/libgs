@@ -4,7 +4,7 @@
 
 `gs.websocket` 模块实现基于 HTTP/1.1 的 RFC 6455 WebSocket 基础版。它提供独立
 WS/WSS 客户端与服务端、HTTP 混合应用的 Upgrade helper、协议 codec、完整消息与
-数据帧 IO、控制帧、超时、取消和有界写队列。
+流式消息读取、对称的数据帧 IO、控制帧、超时、取消和有界写队列。
 
 链接时使用 `gs.websocket`；它的公开依赖链包含 `gs.http`、`gs.coro` 和
 `gs.core`。客户端/服务端可包含 `<libgs/websocket.h>` 聚合头，只使用协议 codec
@@ -18,7 +18,8 @@ WS/WSS 客户端与服务端、HTTP 混合应用的 Upgrade helper、协议 code
 - 通过 `websocket::open()`、`websocket::upgrade()` 混合使用 HTTP/WebSocket；
 - text、binary、continuation、Ping、Pong 和 Close frame；
 - fragmented message 聚合和可配置的出站自动分片；
-- 完整消息 `read()` 与数据帧级 `read_frame()` 接口；
+- 完整消息 `read()`、单消息流式 `consume()`，以及数据帧级
+  `read_frame()`/`write_frame()` 接口；
 - 客户端 masking、UTF-8 校验、frame/message 大小限制和协议失败 Close；
 - subprotocol 协商、同步/异步 Upgrade validator、redirect、Cookie 和 opening
   diagnostics；
@@ -85,11 +86,36 @@ bytes，然后返回已经 adopt 的 WebSocket stream。
 Ping/Pong，应保持 read 运行；`wait_ctrl()` 只观察控制事件，不会单独启动 transport
 read。
 
-`stream::read_frame<Buffer>()` 则逐个返回 text、binary 或 continuation 数据帧。
-结果包含 `fin`、`continuation`，以及 continuation frame 从首帧继承的有效消息
-类型。它与 `read()` 一样处理控制帧，且不能与另一个活动读取并发。由于解压会
-改变 frame payload 的边界，压缩连接上的 `read_frame()` 会返回
-`std::errc::operation_not_supported`。
+`stream::consume()` 每次流式消费一条完整消息。回调收到 `message_chunk`，其中
+`first`/`last` 表示消息边界，`offset` 是 chunk 在当前消息中的字节偏移；chunk
+大小不超过 `stream_config::read_buffer_size`，实际边界由当前 transport read 决定，
+不对应 TCP 分段或 WebSocket frame。`body` 是非持有视图，只在当前回调返回前有效。
+回调在 stream executor 上同步执行，必须及时返回；在它返回前，后续 Ping 也无法被
+读取。需要长期保留数据时应在回调内复制或转移到应用自己的有界存储。若消息后半段
+发生协议错误、取消或 EOF，先前 chunk 已经交付，应用应把最终完成结果作为整条消息
+是否成功的提交点。完成结果 `message_info` 包含消息类型和总字节数。
+
+```cpp
+auto info = co_await stream.consume(
+    [&output](const libgs::websocket::message_chunk &chunk)
+    {
+        output.write(static_cast<const char*>(chunk.body.data()),
+            static_cast<std::streamsize>(chunk.body.size()));
+    },
+    libgs::use_awaitable
+);
+```
+
+`stream::read_frame<Buffer>()` 逐个返回 text、binary 或 continuation 数据帧；
+`stream::write_frame()` 接受相同的 `basic_data_frame<Buffer>` 结构。结果或参数包含
+`fin`、`continuation`，以及 continuation frame 从首帧继承的有效消息类型。
+`write_frame()` 校验分片顺序、跨帧 text UTF-8 和整条消息大小；同一分片消息的
+frame write 必须等待前一次完成后再发起。frame IO 与完整消息 IO 不可在一条未完成
+的分片消息中切换。
+
+`read()`、`read_frame()` 与 `consume()` 不能并发。由于解压会改变 frame/chunk
+payload 边界，压缩连接上的 `read_frame()`、`write_frame()` 和 `consume()` 当前会
+返回 `std::errc::operation_not_supported`；完整消息 `read()`/`write()` 不受影响。
 
 默认会自动回复传入的 Ping。stream 提供 `ping()` 和 `pong()`，但不负责周期 Ping、
 idle timeout 或 Pong deadline；应用可以使用 Asio timer 和 cancellation slot 组合

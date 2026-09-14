@@ -116,6 +116,83 @@ sys_expected<prepared_frame> frame_builder::prepare_close(const close_frame &fra
 	return prepare_control(opcode::close, payload->buffer());
 }
 
+sys_expected<prepared_frame> frame_builder::prepare_data_frame
+(message_type type, const const_buffer &payload, bool continuation, bool fin, bool borrow_payload) const noexcept
+{
+	try {
+		if( type != message_type::text and type != message_type::binary )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		if( payload.size() != 0 and payload.data() == nullptr )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		frame_header header {
+			.fin = fin,
+			.op = continuation ? opcode::continuation :
+				type == message_type::text ? opcode::text : opcode::binary,
+			.payload_size = payload.size(),
+		};
+		if( m_role == role::client )
+		{
+			masking_key key;
+			auto random = secure_random_bytes (
+				mutable_buffer(key.bytes.data(), key.bytes.size())
+			);
+			if( not random )
+				return sys_unexpected(random.error());
+			header.mask = key;
+		}
+		auto encoded = encode_frame_header(header, frame_codec_config {
+			.local_role = m_role, .max_frame_size = m_max_frame_size
+		});
+		if( not encoded )
+			return sys_unexpected(encoded.error());
+
+		const bool borrowed = borrow_payload and
+			not header.mask and payload.size() != 0;
+
+		auto wire = std::make_shared<std::vector<std::byte>>(
+			encoded->size + (borrowed ? 0 : payload.size())
+		);
+		std::memcpy(wire->data(), encoded->buffer().data(), encoded->size);
+
+		prepared_frame result;
+		result.wire = std::move(wire);
+		result.header_size = encoded->size;
+		result.payload_size = payload.size();
+		result.application_size = payload.size();
+
+		if( borrowed )
+		{
+			result.buffers = {
+				const_buffer(result.wire->data(), result.wire->size()), payload
+			};
+			return result;
+		}
+		if( header.mask )
+		{
+			auto copied = mask_copy (
+				mutable_buffer(result.wire->data() + encoded->size, payload.size()),
+				payload, *header.mask
+			);
+			if( not copied )
+				return sys_unexpected(copied.error());
+		}
+		else if( payload.size() != 0 )
+			std::memcpy(result.wire->data() + encoded->size, payload.data(), payload.size());
+
+		result.buffers = {
+			const_buffer(result.wire->data(), result.wire->size())
+		};
+		return result;
+	}
+	catch(const std::bad_alloc&) {
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...) {}
+	return sys_unexpected(make_error_code(std::errc::io_error));
+}
+
 sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 (message_type type, std::span<const const_buffer> buffers) const noexcept
 {

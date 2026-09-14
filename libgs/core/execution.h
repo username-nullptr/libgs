@@ -230,109 +230,32 @@ concept async_wake_up = std::is_rvalue_reference_v<Handler> and (
 
 } //namespace concepts
 
-namespace concepts::detail
-{
-
-template <typename WakeUp, typename...Args>
-concept async_wake_up = requires(WakeUp wake_up, Args&&...args) {
-	wake_up(std::move(args)...);
-};
-
-} //namespace concepts::detail
-
-namespace detail
-{
-
-template <typename...Args>
-struct initiate_token {
-	using type = void(Args...);
-};
-
-template <>
-struct initiate_token<void> {
-	using type = void();
-};
-
-template <>
-struct initiate_token<> : initiate_token<void> {};
-
-template <typename...Args>
-using initiate_token_t = initiate_token<Args...>::type;
-
-template <typename Exec, typename WakeUp, typename Handler>
-LIBGS_CORE_TAPI void async_xx(const Exec &exec, WakeUp &&wake_up, Handler &&handler)
-{
-	using handler_t = std::remove_cvref_t<decltype(handler)>;
-	using exec_t = std::remove_cvref_t<decltype(exec)>;
-
-	if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t, exec_t> )
-		wake_up(std::forward<Handler>(handler), exec);
-	else if constexpr( concepts::detail::async_wake_up<WakeUp, handler_t> )
-		wake_up(std::forward<Handler>(handler));
-	else
-		static_assert(false, "Invalid function signature for async");
-}
-
-} //namespace detail
-
 template <concepts::exec Exec, typename...Args>
 class LIBGS_CORE_TAPI basic_async_work
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_async_work)
 
 public:
-	basic_async_work() = default;
 	using handler_t = asio::detail::awaitable_handler<Exec,Args...>;
+	basic_async_work() = default;
 
-	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
-	[[nodiscard]] static auto handle(concepts::sched auto &&executor_arg,
-		concepts::async_wake_up<handler_t&&> auto &&wake_up_arg, Token &&token = use_awaitable)
-	{
-		using token_t = std::remove_cvref_t<Token>;
-		using func_t = decltype(wake_up_arg);
-		auto ntoken = unbound_redirect_time(std::forward<Token>(token));
+	template <typename T>
+	static constexpr bool is_wake_up_v =
+		concepts::async_wake_up<T,handler_t&&>;
 
-		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
-		[exec = get_executor_helper(executor_arg), wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec, [
-				inner_exec = work.get_executor(), inner_work = std::move(work),
-				inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)
-			]() mutable
-			{
-				LIBGS_UNUSED(inner_work);
-				detail::async_xx(inner_exec, std::move(inner_wake_up), std::move(inner_handler));
-			});
-		},
-		ntoken);
-	}
+	template <typename T>
+	static constexpr bool is_token_v =
+		concepts::async_opt_token<T,Args...>;
 
-	template <concepts::async_opt_token<Args...> Token = const use_awaitable_t&>
+public:
+	template <typename WakeUp, typename Token = const use_awaitable_t&>
 	[[nodiscard]] static auto handle
-	(concepts::async_wake_up<handler_t&&> auto &&wake_up_arg, Token &&token = use_awaitable)
-	{
-		using token_t = std::remove_cvref_t<Token>;
-		using func_t = decltype(wake_up_arg);
-		auto ntoken = unbound_redirect_time(std::forward<Token>(token));
+	(concepts::sched auto &&executor_arg, WakeUp &&wake_up_arg, Token &&token = use_awaitable)
+		requires is_wake_up_v<WakeUp> and is_token_v<Token>;
 
-		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
-		[wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
-		{
-			auto work = asio::make_work_guard(handler);
-			auto exec = work.get_executor();
-
-			asio::dispatch(exec, [
-				exec, inner_work = std::move(work), inner_wake_up = std::move(wake_up),
-				inner_handler = std::move(handler)
-			]() mutable
-			{
-				LIBGS_UNUSED(inner_work);
-				detail::async_xx(exec, std::move(inner_wake_up), std::move(inner_handler));
-			});
-		},
-		ntoken);
-	}
+	template <typename WakeUp, typename Token = const use_awaitable_t&>
+	[[nodiscard]] static auto handle(WakeUp &&wake_up_arg, Token &&token = use_awaitable)
+		requires is_wake_up_v<WakeUp> and is_token_v<Token>;
 };
 
 template <typename...Args>
