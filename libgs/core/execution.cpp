@@ -3,22 +3,34 @@
 
 #include "execution.h"
 
-namespace libgs
+namespace libgs { namespace
 {
 
-static std::atomic_int g_exit_code {0};
-
-static std::atomic_bool g_run_flag {false};
-
 using io_worker_t = asio::executor_work_guard<io_context_t::executor_type>;
-static std::unique_ptr<io_worker_t> g_io_worker;
+
+struct runtime_state
+{
+	io_context_t context;
+	std::atomic_int exit_code {0};
+	std::atomic_bool running {false};
+
+	std::mutex lifecycle_mutex;
+	bool active = false;
+};
+
+runtime_state &default_runtime() noexcept
+{
+	// Keep the default context alive until process teardown. Destroying it from
+	// static deinitialisation has caused failures on older Windows runtimes.
+	static auto *state = new runtime_state();
+	return *state;
+}
+
+} //namespace
 
 io_context_t &io_context() noexcept
 {
-	// Don't destruct it.
-	// An exception occurs when the main function exits in Win10.
-	static auto *g_ioc = new io_context_t();
-	return *g_ioc;
+	return default_runtime().context;
 }
 
 io_executor_t get_executor() noexcept
@@ -28,25 +40,45 @@ io_executor_t get_executor() noexcept
 
 int exec()
 {
-	if( g_run_flag )
+	auto &state = default_runtime();
+	std::optional<io_worker_t> worker;
 	{
-		runtime_error::loc_throw (
-			"libgs::execution::exec: not reentrant."
-		);
+		std::lock_guard lock(state.lifecycle_mutex);
+		if( state.active )
+		{
+			runtime_error::loc_throw (
+				"libgs::execution::exec: not reentrant."
+			);
+		}
+		state.context.restart();
+		worker.emplace(state.context.get_executor());
+		state.active = true;
+		state.running.store(true, std::memory_order_release);
 	}
-	g_run_flag = true;
-	auto &ioc = io_context();
-	ioc.restart();
-
-	g_io_worker = std::make_unique<io_worker_t>(ioc.get_executor());
-	for(;;)
+	auto finish = [&]() noexcept
 	{
-		ioc.run();
-		ioc.restart();
-		if( not g_run_flag )
-			break;
+		state.running.store(false, std::memory_order_release);
+		worker.reset();
+		std::lock_guard lock(state.lifecycle_mutex);
+		state.active = false;
+	};
+	try {
+		for(;;)
+		{
+			state.context.run();
+			state.context.restart();
+			if( not state.running.load(std::memory_order_acquire) )
+				break;
+		}
 	}
-	return g_exit_code;
+	catch(...)
+	{
+		finish();
+		throw;
+	}
+	const auto code = state.exit_code.load(std::memory_order_acquire);
+	finish();
+	return code;
 }
 
 void exec(io_context_t &ioc)
@@ -62,24 +94,20 @@ void exec_detach(io_context_t &ioc)
 
 void exit(int code)
 {
-	if( g_run_flag )
-	{
-		g_exit_code = code;
-		g_run_flag = false;
-	}
-	io_context().stop();
-	g_io_worker.reset();
+	auto &state = default_runtime();
+	std::lock_guard lock(state.lifecycle_mutex);
 
-	while( g_run_flag )
+	if( state.running.load(std::memory_order_acquire) )
 	{
-		g_run_flag = false;
-		io_context().stop();
+		state.exit_code.store(code, std::memory_order_release);
+		state.running.store(false, std::memory_order_release);
 	}
+	state.context.stop();
 }
 
 bool is_run()
 {
-	return g_run_flag;
+	return default_runtime().running.load(std::memory_order_acquire);
 }
 
 } //namespace libgs

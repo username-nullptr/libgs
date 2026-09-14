@@ -290,15 +290,18 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		using func_t = decltype(wake_up_arg);
-		auto ntoken = unbound_redirect_time(token);
+		auto ntoken = unbound_redirect_time(std::forward<Token>(token));
 
 		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
 		[exec = get_executor_helper(executor_arg), wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
 		{
 			auto work = asio::make_work_guard(handler);
-			asio::dispatch(exec,
-			[inner_exec = work.get_executor(), inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)]
-			() mutable noexcept {
+			asio::dispatch(exec, [
+				inner_exec = work.get_executor(), inner_work = std::move(work),
+				inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)
+			]() mutable
+			{
+				LIBGS_UNUSED(inner_work);
 				detail::async_xx(inner_exec, std::move(inner_wake_up), std::move(inner_handler));
 			});
 		},
@@ -311,7 +314,7 @@ public:
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		using func_t = decltype(wake_up_arg);
-		auto ntoken = unbound_redirect_time(token);
+		auto ntoken = unbound_redirect_time(std::forward<Token>(token));
 
 		return asio::async_initiate<token_t, detail::initiate_token_t<Args...>> (
 		[wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
@@ -319,8 +322,12 @@ public:
 			auto work = asio::make_work_guard(handler);
 			auto exec = work.get_executor();
 
-			asio::dispatch(exec,
-			[exec, inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)]() mutable noexcept {
+			asio::dispatch(exec, [
+				exec, inner_work = std::move(work), inner_wake_up = std::move(wake_up),
+				inner_handler = std::move(handler)
+			]() mutable
+			{
+				LIBGS_UNUSED(inner_work);
 				detail::async_xx(exec, std::move(inner_wake_up), std::move(inner_handler));
 			});
 		},
