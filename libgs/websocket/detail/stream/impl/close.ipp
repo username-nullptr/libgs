@@ -60,7 +60,7 @@ void basic_stream<Exec>::impl::handle_wire_frame_sent
 
 	case detail::wire_frame_kind::data:
 	case detail::wire_frame_kind::application_control:
-	case detail::wire_frame_kind::automatic_pong:
+	case detail::wire_frame_kind::auto_pong:
 		break;
 	}
 }
@@ -80,7 +80,7 @@ sys_expected<> basic_stream<Exec>::impl::remember_peer_close(const std::vector<s
 			.clean = false,
 		};
 		m_state = connection_state::closing;
-		m_receive_engine.stop_control_observer(make_error_code(errc::closing));
+		stop_automatic_ping();
 		return make_sys_expected();
 	}
 	catch(const std::bad_alloc&) {
@@ -102,7 +102,7 @@ sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std:
 
 	if( m_config.close_timeout <= std::chrono::milliseconds::zero() )
 	{
-		m_send_engine.clear_automatic_pong();
+		m_send_engine.clear_auto_pong();
 		m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
 		return make_sys_expected();
 	}
@@ -117,7 +117,7 @@ sys_expected<> basic_stream<Exec>::impl::begin_peer_close(const std::vector<std:
 		if( not retained )
 			return retained;
 	}
-	m_send_engine.clear_automatic_pong();
+	m_send_engine.clear_auto_pong();
 	m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
 
 	if( m_state == connection_state::closing )
@@ -142,7 +142,7 @@ sys_expected<> basic_stream<Exec>::impl::handle_sync_peer_close
 		if( not retained )
 			return retained;
 
-		m_send_engine.clear_automatic_pong();
+		m_send_engine.clear_auto_pong();
 		m_send_engine.fail_queued_writes(make_error_code(std::errc::broken_pipe));
 		m_send_engine.schedule();
 		return make_sys_expected();
@@ -172,8 +172,35 @@ auto basic_stream<Exec>::impl::retained_close_info(bool clean) const -> close_in
 }
 
 template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::on_closed(closed_callback_t callback)
+{
+	if( m_closed_notified )
+		return ;
+
+	m_on_closed = std::move(callback);
+	if( m_state == connection_state::closed or m_state == connection_state::failed )
+		notify_closed();
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::notify_closed() noexcept
+{
+	if( m_closed_notified or not m_on_closed )
+		return ;
+
+	m_closed_notified = true;
+	auto callback = std::move(m_on_closed);
+	auto result = m_close_result.value_or(retained_close_info());
+	try {
+		callback(result);
+	}
+	catch(...) {}
+}
+
+template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::complete_close_waiters(error_code error) noexcept
 {
+	notify_closed();
 	while( not m_close_waiters.empty() )
 	{
 		auto waiter = std::move(m_close_waiters.front());
@@ -275,7 +302,7 @@ void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool c
 		complete_close_waiters(close_error);
 		return ;
 	}
-	m_send_engine.clear_automatic_pong();
+	m_send_engine.clear_auto_pong();
 	m_send_engine.clear_local_close();
 	m_send_engine.clear_close_response();
 
@@ -285,8 +312,10 @@ void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool c
 	m_close_result = retained_close_info(clean and not error and not close_error);
 	m_state = connection_state::closed;
 
-	m_receive_engine.stop_control_observer(error ? error : error_code(asio::error::eof));
-	m_send_engine.fail_queued_writes(error ? error : make_error_code(std::errc::broken_pipe));
+	stop_automatic_ping();
+	m_send_engine.fail_queued_writes (
+		 error ? error : make_error_code(std::errc::broken_pipe)
+	);
 	complete_close_waiters(error);
 }
 
@@ -295,9 +324,9 @@ void basic_stream<Exec>::impl::begin_local_close(prepared_frame frame) noexcept
 {
 	mark_local_close_queued();
 	m_state = connection_state::closing;
-	m_send_engine.clear_automatic_pong();
 
-	m_receive_engine.stop_control_observer(make_error_code(errc::closing));
+	stop_automatic_ping();
+	m_send_engine.clear_auto_pong();
 	m_send_engine.fail_queued_controls(make_error_code(errc::closing));
 
 	if( m_config.close_timeout > std::chrono::milliseconds::zero() )
@@ -335,13 +364,9 @@ void basic_stream<Exec>::impl::start_close_receive() noexcept
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					if( value.op == opcode::ping and self->automatic_pong_enabled() )
-					{
-						auto queued = self->queue_automatic_pong(value.control);
-						if( not queued )
-							co_return queued.error();
-					}
-					self->m_receive_engine.remember_control(value.op, std::move(value.control));
+					auto handled = self->handle_async_control(value.op, value.control);
+					if( not handled )
+						co_return handled.error();
 					continue;
 				}
 				if( value.op == opcode::close )
@@ -415,9 +440,10 @@ auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error
 	}
 	mark_local_close_queued();
 	m_state = connection_state::closing;
-	m_receive_engine.stop_control_observer(make_error_code(errc::closing));
 
+	stop_automatic_ping();
 	const auto started = std::chrono::steady_clock::now();
+
 	auto expired = [&]
 	{
 		return m_config.close_timeout <= std::chrono::milliseconds::zero() or
@@ -462,7 +488,13 @@ auto basic_stream<Exec>::impl::close(const close_frame &frame, error_code &error
 
 		if( value.op == opcode::ping or value.op == opcode::pong )
 		{
-			m_receive_engine.remember_control(value.op, std::move(value.control));
+			auto handled = handle_sync_control(value.op, value.control);
+			if( not handled )
+			{
+				error = handled.error();
+				fail(error);
+				return retained_close_info();
+			}
 			continue;
 		}
 		if( value.op == opcode::close )

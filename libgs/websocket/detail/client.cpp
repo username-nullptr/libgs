@@ -85,7 +85,8 @@ error_code validate_open_request(connect_request &request, const stream_config &
 			return endpoint.error();
 
 		request.endpoint = std::move(*endpoint);
-		if( stream.read_buffer_size == 0 )
+		if( stream.read_buffer_size == 0 or
+			stream.auto_ping_interval < std::chrono::milliseconds::zero() )
 			return make_error_code(std::errc::invalid_argument);
 
 		if( not supported_extension_set(request.extensions) )

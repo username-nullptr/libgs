@@ -22,7 +22,8 @@ public:
 	using close_frame_t = close_frame;
 	using close_info_t = close_info;
 
-	using control_event_t = control_event;
+	using control_callback_t = control_callback;
+	using closed_callback_t = closed_callback;
 	using message_chunk_t = message_chunk;
 	using message_info_t = message_info;
 	using adopt_options_t = adopt_options;
@@ -114,9 +115,8 @@ public:
 		requires task_token_v<Token>;
 
 public:
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto wait_ctrl(Token &&token = {})
-		requires task_token_v<Token,control_event_t>;
+	basic_stream &on_ping(control_callback_t callback);
+	basic_stream &on_pong(control_callback_t callback);
 
 	template <typename Token = use_sync_t>
 	auto ping(Token &&token = {})
@@ -134,6 +134,13 @@ public:
 	auto pong(const const_buffer &payload, Token &&token = {})
 		requires task_token_v<Token,size_t>;
 
+public:
+	basic_stream &on_closed(closed_callback_t callback);
+
+	template <typename Token = use_sync_t>
+	[[nodiscard]] auto wait_closed(Token &&token = {})
+		requires task_token_v<Token,close_info_t>;
+
 	template <typename Token = use_sync_t>
 	auto close(Token &&token = {})
 		requires completion_token_v<Token,close_info_t>;
@@ -141,10 +148,6 @@ public:
 	template <typename Token = use_sync_t>
 	auto close(close_frame_t frame, Token &&token = {})
 		requires completion_token_v<Token,close_info_t>;
-
-	template <typename Token = use_sync_t>
-	[[nodiscard]] auto wait_closed(Token &&token = {})
-		requires task_token_v<Token,close_info_t>;
 
 public:
 	basic_stream &cancel(error_code &error) noexcept;

@@ -14,10 +14,6 @@ enum class message_type : uint8_t {
 	text = 0x1, binary = 0x2,
 };
 
-enum class control_type : uint8_t {
-	ping = 0x9, pong = 0xA,
-};
-
 enum class connection_state : uint8_t {
 	idle, open, closing, closed, failed,
 };
@@ -50,11 +46,8 @@ struct basic_data_frame
 
 using data_frame = basic_data_frame<std::vector<std::byte>>;
 
-struct control_event
-{
-	control_type type = control_type::ping;
-	std::vector<std::byte> payload {};
-};
+using control_callback = std::function<bool(const const_buffer&)>;
+using closed_callback = std::function<void(const close_info&)>;
 
 struct message_chunk
 {
@@ -91,8 +84,9 @@ struct stream_config
 	size_t max_queued_write_operations = 64;
 
 	size_t write_fragment_size = 16 * 1024;
-	bool automatic_pong = true;
+	std::chrono::milliseconds auto_ping_interval {5000};
 
+	bool auto_pong = true;
 	std::chrono::milliseconds close_timeout {5000};
 };
 

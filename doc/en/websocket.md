@@ -30,6 +30,7 @@ narrower header when only protocol codecs or `websocket::stream` are needed.
 - optional RFC 7692 `permessage-deflate` with context takeover disabled in both
   directions;
 - synchronous and Asio completion-token operation styles; and
+- Ping/Pong callbacks, periodic Ping, and configurable automatic Pong;
 - cancellation, close deadlines, write-queue limits, and write barriers.
 
 ## Client example
@@ -69,6 +70,12 @@ the setting inherited from the underlying HTTP connection. The free
 `websocket::open(http_client, ...)` operation always preserves the HTTP client
 setting.
 
+`client_config::stream` supplies defaults for streams created by the client;
+`connect_request::stream_options` can override them for one connection. A
+server uses `server_config::default_upgrade.stream` by default and may select
+`upgrade_options::stream` for an individual Upgrade. The resulting stream
+inherits the final configuration.
+
 ## Server and mixed upgrades
 
 `websocket::server` owns the listener and can deliver accepted streams through
@@ -92,9 +99,11 @@ configured. Selectors remain synchronous.
 
 `stream::read<Buffer>()` returns one complete text or binary message. It hides
 TCP segmentation and continuation frames, and consumes control frames while
-assembling the message. Keep a read active if the application needs incoming
-Ping/Pong processing; `wait_ctrl()` observes those events but does not start a
-separate transport read.
+assembling the message. `on_ping()` and `on_pong()` observe or filter incoming
+Ping/Pong frames: returning `true` accepts the frame and returning `false`
+drops it. An unset callback accepts every frame. These callbacks do not start a
+separate transport read, so keep one of `read()`, `read_frame()`, or `consume()`
+active when control frames must be processed.
 
 `stream::consume()` streams exactly one complete message per call. Its callback
 receives `message_chunk`; `first` and `last` preserve message boundaries and
@@ -134,15 +143,24 @@ changes frame and chunk payload boundaries, compressed connections currently
 return `std::errc::operation_not_supported` from `read_frame()`, `write_frame()`,
 and `consume()`; complete-message `read()` and `write()` remain available.
 
-Incoming Ping frames are answered automatically by default. The stream exposes
-`ping()` and `pong()`, but does not schedule periodic Ping, idle timeouts, or a
-Pong deadline. Applications can compose those policies with Asio timers and
-cancellation slots.
+`stream_config::auto_ping_interval` defaults to five seconds; zero disables
+periodic Ping and a negative value is invalid. `stream_config::auto_pong`
+defaults to enabled. An accepted Ping is answered with the same payload when
+automatic Pong is enabled; a Ping rejected by `on_ping()` is not answered. A
+Pong rejected by `on_pong()` is likewise dropped. Periodic Ping only sends the
+control frame: it does not independently read Pong, enforce a Pong deadline, or
+reconnect. Applications remain responsible for composing those policies. The
+stream also exposes `ping()` and `pong()` for explicit control-frame writes.
 
 Concurrent writes are serialized at frame boundaries and bounded by
 `stream_config` queue limits. `wait_written()` observes errors from previously
 accepted writes, including detached writes. `close()` performs the RFC close
 handshake; `shutdown()` immediately aborts operations and closes the transport.
+`wait_closed()` actively waits for the terminal result, while `on_closed()`
+observes the same retained `close_info` without competing with any waiters. The
+callback is delivered at most once; registering it after the stream has already
+reached a terminal state delivers the retained result immediately. Like the
+control callbacks, it does not start a transport read.
 
 Stream, client, and server objects follow Asio shared-object-unsafe rules. Calls
 from multiple threads must be serialized with a strand or an external lock.
@@ -175,8 +193,8 @@ The implemented RFC 7692 profile requires both
 window-bit negotiation, other parameter combinations, and other WebSocket
 extensions are rejected as unsupported.
 
-HTTP/2 and HTTP/3 extended CONNECT, WebSocket-specific proxy fields, automatic
-keepalive, reconnect, and application message routing are not implemented.
+HTTP/2 and HTTP/3 extended CONNECT, WebSocket-specific proxy fields, Pong
+deadlines, reconnect, and application message routing are not implemented.
 Proxy or routing behavior supplied by an injected HTTP connector remains usable.
 
 ## Related material

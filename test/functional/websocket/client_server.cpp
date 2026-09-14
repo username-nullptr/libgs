@@ -52,14 +52,21 @@ void owned_handler_round_trip()
 {
 	libgs::io_context_t context;
 	asio::ip::tcp::acceptor acceptor(context);
-	ws::server service(std::move(acceptor));
+	ws::server_config server_config;
+	server_config.default_upgrade.supported_subprotocols = {"owned.chat"};
+	server_config.default_upgrade.require_subprotocol = true;
+	server_config.default_upgrade.stream.auto_ping_interval =
+		std::chrono::milliseconds(19000);
+	server_config.default_upgrade.stream.auto_pong = false;
+	ws::server service(std::move(acceptor), server_config);
 
-	ws::upgrade_options options;
-	options.supported_subprotocols = {"owned.chat"};
-	options.require_subprotocol = true;
 	service.on_connection("/echo/{id}",
 		[](ws::accept_result accepted) -> libgs::awaitable<void>
 		{
+			LIBGS_TEST_CHECK_EQ(
+				accepted.stream.config().auto_ping_interval,
+				std::chrono::milliseconds(19000));
+			LIBGS_TEST_CHECK(not accepted.stream.config().auto_pong);
 			auto id = accepted.request.path_arguments.find("id");
 			const auto id_text = id == accepted.request.path_arguments.end() ?
 				std::string("missing") : id->second.to_string();
@@ -73,7 +80,7 @@ void owned_handler_round_trip()
 					asio::as_tuple(libgs::use_awaitable));
 			libgs::ignore_unused(close_error, trailing);
 			co_return;
-		}, options);
+		});
 	service.bind({libgs::ip_type::v4, 0}).start();
 
 	const auto port = service.http_server().acceptor_wrap()
@@ -116,6 +123,8 @@ void owned_accept_round_trip()
 	ws::upgrade_options options;
 	options.supported_subprotocols = {"meta.v1", "meta.v2"};
 	options.require_subprotocol = true;
+	options.stream.auto_ping_interval = std::chrono::milliseconds(17000);
+	options.stream.auto_pong = false;
 	options.subprotocol_selector = [](std::span<const std::string> offered)
 		-> libgs::optional<std::string>
 	{
@@ -130,6 +139,9 @@ void owned_accept_round_trip()
 		{
 			auto connection = co_await service.accept(
 				std::move(options), libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(connection.stream.config().auto_ping_interval,
+				std::chrono::milliseconds(17000));
+			LIBGS_TEST_CHECK(not connection.stream.config().auto_pong);
 			LIBGS_TEST_CHECK_EQ(connection.request.method,
 				libgs::http::method::get);
 			LIBGS_TEST_CHECK_EQ(connection.request.version,
@@ -162,7 +174,11 @@ void owned_accept_round_trip()
 			co_return;
 		}, asio::use_future);
 
-	ws::client client(context.get_executor());
+	ws::client_config client_config;
+	client_config.stream.auto_ping_interval =
+		std::chrono::milliseconds(23000);
+	client_config.stream.auto_pong = false;
+	ws::client client(context.get_executor(), client_config);
 	auto connected = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
 		{
@@ -173,6 +189,9 @@ void owned_accept_round_trip()
 				"X-WebSocket-Metadata", "present");
 			auto stream = co_await client.open(
 				std::move(request), libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(stream.config().auto_ping_interval,
+				std::chrono::milliseconds(23000));
+			LIBGS_TEST_CHECK(not stream.config().auto_pong);
 			LIBGS_TEST_CHECK_EQ(stream.negotiated_subprotocol(), "meta.v2");
 			co_await stream.write_text("accept-mode", libgs::use_awaitable);
 			auto response = co_await stream.read<std::string>(
@@ -201,10 +220,14 @@ void owned_configuration_and_resources()
 	ws::client_config client_config;
 	client_config.handshake_timeout = 321ms;
 	client_config.stream.max_message_size = 4096;
+	client_config.stream.auto_ping_interval = 7s;
+	client_config.stream.auto_pong = false;
 	client_config.no_delay = libgs::nullopt;
 	ws::client original(std::move(http_client), client_config);
 	LIBGS_TEST_CHECK_EQ(original.config().handshake_timeout, 321ms);
 	LIBGS_TEST_CHECK_EQ(original.config().stream.max_message_size, 4096U);
+	LIBGS_TEST_CHECK_EQ(original.config().stream.auto_ping_interval, 7s);
+	LIBGS_TEST_CHECK(not original.config().stream.auto_pong);
 	LIBGS_TEST_CHECK(not original.config().no_delay.has_value());
 	LIBGS_TEST_CHECK_EQ(original.cookie_store(), cookie_store);
 	LIBGS_TEST_CHECK(original.get_executor() == context.get_executor());
@@ -220,8 +243,13 @@ void owned_configuration_and_resources()
 	asio::ip::tcp::acceptor acceptor(context);
 	ws::server_config server_config;
 	server_config.max_pending_handshakes = 7;
+	server_config.default_upgrade.stream.auto_ping_interval = 9s;
+	server_config.default_upgrade.stream.auto_pong = false;
 	ws::server service(std::move(acceptor), server_config);
 	LIBGS_TEST_CHECK_EQ(service.config().max_pending_handshakes, 7U);
+	LIBGS_TEST_CHECK_EQ(service.config().default_upgrade.stream.auto_ping_interval,
+		9s);
+	LIBGS_TEST_CHECK(not service.config().default_upgrade.stream.auto_pong);
 	LIBGS_TEST_CHECK(service.get_executor() == context.get_executor());
 	const auto &const_service = service;
 	LIBGS_TEST_CHECK_EQ(&const_service.http_server(), &service.http_server());
@@ -846,12 +874,23 @@ void invalid_owned_config()
 	ws::client_config client_config;
 	client_config.stream.read_buffer_size = 0;
 	LIBGS_TEST_CHECK_THROWS(ws::client(client_config), std::system_error);
+	client_config.stream.read_buffer_size = ws::stream_config{}.read_buffer_size;
+	client_config.stream.auto_ping_interval = std::chrono::milliseconds(-1);
+	LIBGS_TEST_CHECK_THROWS(ws::client(client_config), std::system_error);
 
 	asio::ip::tcp::acceptor acceptor(context);
 	ws::server_config server_config;
 	server_config.default_upgrade.stream.read_buffer_size = 0;
 	LIBGS_TEST_CHECK_THROWS(
 		ws::server(std::move(acceptor), server_config), std::system_error);
+
+	asio::ip::tcp::acceptor ping_acceptor(context);
+	server_config.default_upgrade.stream.read_buffer_size =
+		ws::stream_config{}.read_buffer_size;
+	server_config.default_upgrade.stream.auto_ping_interval =
+		std::chrono::milliseconds(-1);
+	LIBGS_TEST_CHECK_THROWS(
+		ws::server(std::move(ping_acceptor), server_config), std::system_error);
 }
 
 } //namespace

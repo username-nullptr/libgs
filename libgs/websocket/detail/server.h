@@ -257,7 +257,8 @@ template <core_concepts::exec Exec>
 			);
 			return plan;
 		}
-		if( options.stream.read_buffer_size == 0 )
+		if( options.stream.read_buffer_size == 0 or
+			options.stream.auto_ping_interval < std::chrono::milliseconds::zero() )
 		{
 			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
 				http::status::internal_server_error
@@ -385,6 +386,7 @@ void upgrade_sync(http::basic_service_context<Exec> &context, upgrade_options op
 	basic_accept_result<Exec> &result, error_code &error) noexcept
 {
 	try {
+		result.stream = basic_stream<Exec>(context.get_executor(), options.stream);
 		if( options.handshake_timeout <= std::chrono::milliseconds::zero() )
 		{
 			close_upgrade_connection(context);
@@ -459,6 +461,9 @@ auto async_upgrade(http::basic_service_context<Exec> &context, upgrade_options o
 			LIBGS_UNUSED(state);
 			result_t result(active_context->get_executor());
 			try {
+				result.stream = basic_stream<Exec>(
+					active_context->get_executor(), active_options.stream
+				);
 				if( active_options.handshake_timeout <= std::chrono::milliseconds::zero() )
 				{
 					close_upgrade_connection(*active_context);
@@ -717,7 +722,8 @@ public:
 private:
 	[[nodiscard]] static config_t validate_config(config_t config)
 	{
-		if( config.default_upgrade.stream.read_buffer_size == 0 )
+		if( config.default_upgrade.stream.read_buffer_size == 0 or
+			config.default_upgrade.stream.auto_ping_interval < std::chrono::milliseconds::zero() )
 		{
 			system_error::loc_throw (
 				make_error_code(std::errc::invalid_argument),

@@ -25,6 +25,7 @@ WS/WSS 客户端与服务端、HTTP 混合应用的 Upgrade helper、协议 code
   diagnostics；
 - 可选 RFC 7692 `permessage-deflate`，两个方向都关闭 context takeover；
 - 同步操作及 Asio completion-token 完成方式；
+- Ping/Pong 回调、周期 Ping 和可配置的自动 Pong；
 - 取消、关闭 deadline、写队列限制和 write barrier。
 
 ## 客户端示例
@@ -62,6 +63,12 @@ WebSocket 共用连接策略、Cookie jar 或 connector，可以把 HTTP/1.1 cli
 `TCP_NODELAY`，`false` 关闭，`nullopt` 则保留底层 HTTP 连接继承来的设置。自由
 函数 `websocket::open(http_client, ...)` 始终保留 HTTP client 的设置。
 
+`client_config::stream` 是客户端创建的 stream 的默认配置；每次连接可通过
+`connect_request::stream_options` 覆盖。服务端通过
+`server_config::default_upgrade.stream` 配置默认值，也可在单次 Upgrade 的
+`upgrade_options::stream` 中指定。成功连接或 Upgrade 返回的 stream 会继承最终的
+配置。
+
 ## 服务端与混合 Upgrade
 
 `websocket::server` 持有 listener，可通过 `accept()` 主动取得连接，或通过
@@ -82,9 +89,10 @@ bytes，然后返回已经 adopt 的 WebSocket stream。
 ## Stream 行为
 
 `stream::read<Buffer>()` 每次返回一条完整的 text 或 binary message。它会隐藏 TCP
-分段和 continuation frame，并在聚合消息时消费控制帧。如果应用需要处理传入的
-Ping/Pong，应保持 read 运行；`wait_ctrl()` 只观察控制事件，不会单独启动 transport
-read。
+分段和 continuation frame，并在聚合消息时消费控制帧。`on_ping()`/`on_pong()`
+可观察或筛选传入的 Ping/Pong；回调返回 `true` 表示接受该控制帧，返回 `false`
+表示丢弃。未设置回调时默认全部接受。控制回调不会启动独立的 transport read，
+因此应用仍需保持 `read()`、`read_frame()` 或 `consume()` 之一运行。
 
 `stream::consume()` 每次流式消费一条完整消息。回调收到 `message_chunk`，其中
 `first`/`last` 表示消息边界，`offset` 是 chunk 在当前消息中的字节偏移；chunk
@@ -117,13 +125,19 @@ frame write 必须等待前一次完成后再发起。frame IO 与完整消息 I
 payload 边界，压缩连接上的 `read_frame()`、`write_frame()` 和 `consume()` 当前会
 返回 `std::errc::operation_not_supported`；完整消息 `read()`/`write()` 不受影响。
 
-默认会自动回复传入的 Ping。stream 提供 `ping()` 和 `pong()`，但不负责周期 Ping、
-idle timeout 或 Pong deadline；应用可以使用 Asio timer 和 cancellation slot 组合
-这些策略。
+`stream_config::auto_ping_interval` 默认是 5 秒；设为 0 会关闭周期 Ping，
+负值属于无效配置。`stream_config::auto_pong` 默认开启。接受的 Ping 会在开启
+自动 Pong 时回复相同 payload；被 `on_ping()` 拒绝的 Ping 不会触发自动回复。
+`on_pong()` 返回 `false` 时相应 Pong 同样会被丢弃。周期 Ping 只负责发送控制帧，
+不会自行读取 Pong、判定 Pong deadline 或提供重连策略；这些策略仍由应用组合。
+stream 提供 `ping()` 和 `pong()` 用于显式发送控制帧。
 
 并发 write 会在 frame 边界串行化，并受 `stream_config` 队列上限约束。
 `wait_written()` 可观察此前接受的 write（包括 detached write）产生的错误。
 `close()` 执行 RFC close handshake；`shutdown()` 会立即中止操作并关闭 transport。
+`wait_closed()` 用于主动等待终态，`on_closed()` 则通过回调观察同一份持久化的
+`close_info`，不会与任何 waiter 竞争。回调最多交付一次；若注册时 stream 已进入
+终态，会立即交付已保留的结果。与控制回调相同，它不会自行启动 transport read。
 
 stream、client 和 server 遵循 Asio shared-object-unsafe 约定。来自多个线程的调用
 必须通过 strand 或外部锁串行化。
@@ -154,9 +168,9 @@ extension response。协商结果可通过 `stream::negotiated_extensions()` 和
 `client_no_context_takeover`。context takeover、window bits 协商、其他参数组合及
 其他 WebSocket extension 会作为不支持的配置拒绝。
 
-目前也不支持 HTTP/2、HTTP/3 extended CONNECT、WebSocket 专用 proxy 字段、自动
-keepalive、重连和应用消息路由。注入的 HTTP connector 所提供的代理或路由行为仍可
-继续使用。
+目前也不支持 HTTP/2、HTTP/3 extended CONNECT、WebSocket 专用 proxy 字段、
+Pong deadline、重连和应用消息路由。注入的 HTTP connector 所提供的代理或路由行为
+仍可继续使用。
 
 ## 相关资料
 

@@ -28,9 +28,12 @@ class LIBGS_WEBSOCKET_TAPI basic_stream<Exec>::impl :
 
 public:
 	using adopt_options_t = adopt_options;
-	using close_info_t    = close_info   ;
-	using control_event_t = control_event;
-	using prepared_frame  = detail::prepared_frame;
+	using close_info_t = close_info;
+
+	using control_callback_t = control_callback;
+	using closed_callback_t = closed_callback;
+
+	using prepared_frame = detail::prepared_frame;
 	using close_wait_operation = detail::close_wait_operation;
 
 	explicit impl(executor_t exec, const config_t &config);
@@ -97,10 +100,9 @@ public:
 		data_frame value, error_code &error
 	) noexcept;
 
-	[[nodiscard]] control_event_t wait_control(error_code &error) noexcept;
-
-	template <typename Handler>
-	void async_wait_control(Handler &&handler);
+	void on_ping(control_callback_t callback);
+	void on_pong(control_callback_t callback);
+	void on_closed(closed_callback_t callback);
 
 	[[nodiscard]] close_info_t close(const close_frame &frame, error_code &error) noexcept;
 
@@ -138,10 +140,12 @@ public:
 	[[nodiscard]] error_code frame_write_state_error() const noexcept;
 
 	[[nodiscard]] error_code consume_state_error() const noexcept;
-	[[nodiscard]] error_code control_state_error() const noexcept;
-
 	[[nodiscard]] bool send_transport_ready() const noexcept;
-	[[nodiscard]] bool automatic_pong_enabled() const noexcept;
+	[[nodiscard]] bool auto_pong_enabled() const noexcept;
+
+	[[nodiscard]] sys_expected<bool> accept_control (
+		opcode op, const std::vector<std::byte> &payload
+	) noexcept;
 
 	[[nodiscard]] bool close_receive_pending() const noexcept;
 	[[nodiscard]] bool protocol_failure_active() const noexcept;
@@ -151,6 +155,14 @@ public:
 
 	[[nodiscard]] sys_expected<> handle_sync_ping (
 		const std::vector<std::byte> &payload
+	) noexcept;
+
+	[[nodiscard]] sys_expected<> handle_sync_control (
+		opcode op, const std::vector<std::byte> &payload
+	) noexcept;
+
+	[[nodiscard]] sys_expected<> handle_async_control (
+		opcode op, const std::vector<std::byte> &payload
 	) noexcept;
 
 	[[nodiscard]] sys_expected<> handle_sync_peer_close (
@@ -167,14 +179,19 @@ public:
 	void handle_receive_failure(error_code error) noexcept;
 	void handle_receive_protocol_failure(error_code error, bool synchronous = false) noexcept;
 
-	[[nodiscard]] sys_expected<> queue_automatic_pong (
+	[[nodiscard]] sys_expected<> queue_auto_pong (
 		const std::vector<std::byte> &payload
 	) noexcept;
 
 	[[nodiscard]] sys_expected<> begin_peer_close (
 		const std::vector<std::byte> &payload
 	) noexcept;
+
 	void start_close_receive() noexcept;
+
+	[[nodiscard]] sys_expected<> start_automatic_ping() noexcept;
+	[[nodiscard]] sys_expected<> schedule_automatic_ping() noexcept;
+	void stop_automatic_ping() noexcept;
 
 private:
 	void close_transport(error_code &error) noexcept;
@@ -203,6 +220,7 @@ private:
 
 	void complete_close_waiters(error_code error) noexcept;
 	void cancel_close_waiter(uint64_t id) noexcept;
+	void notify_closed() noexcept;
 
 	// Protocol and transport failure handling.
 	[[nodiscard]] static optional<close_code>
@@ -226,6 +244,11 @@ private:
 	detail::receive_engine<impl> m_receive_engine;
 	detail::send_engine<impl> m_send_engine;
 
+	control_callback_t m_on_ping {};
+	control_callback_t m_on_pong {};
+	closed_callback_t m_on_closed {};
+	std::shared_ptr<asio::steady_timer> m_ping_timer {};
+
 	optional<close_info_t> m_peer_close {};
 	optional<close_info_t> m_close_result {};
 
@@ -234,6 +257,7 @@ private:
 
 	uint64_t m_next_close_waiter_id = 0;
 	local_close_phase m_local_close_phase = local_close_phase::none;
+	bool m_closed_notified = false;
 
 	// Terminal failure and transport state.
 	bool m_protocol_failure_active = false;

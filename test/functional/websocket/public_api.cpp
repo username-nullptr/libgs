@@ -27,6 +27,9 @@ void umbrella_and_value_types()
 	LIBGS_TEST_CHECK(stream_config.max_frame_size > 0);
 	LIBGS_TEST_CHECK(stream_config.max_message_size > 0);
 	LIBGS_TEST_CHECK(stream_config.read_buffer_size > 0);
+	LIBGS_TEST_CHECK_EQ(stream_config.auto_ping_interval,
+		std::chrono::seconds(5));
+	LIBGS_TEST_CHECK(stream_config.auto_pong);
 	ws::message_chunk chunk;
 	LIBGS_TEST_CHECK(chunk.body.size() == 0);
 	ws::message_info info;
@@ -73,6 +76,9 @@ void executor_bound_public_objects()
 {
 	libgs::io_context_t context;
 	ws::stream stream(context.get_executor());
+	stream.on_ping([](const libgs::const_buffer&) { return true; })
+		.on_pong([](const libgs::const_buffer&) { return true; })
+		.on_closed([](const ws::close_info&) {});
 	LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::idle);
 	LIBGS_TEST_CHECK(stream.get_executor() == context.get_executor());
 

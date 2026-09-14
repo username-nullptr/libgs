@@ -26,6 +26,7 @@ void basic_stream<Exec>::impl::cancel(error_code &error) noexcept
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::shutdown(error_code &error) noexcept
 {
+	stop_automatic_ping();
 	if( m_close_timer )
 	{
 		try {
@@ -37,7 +38,6 @@ void basic_stream<Exec>::impl::shutdown(error_code &error) noexcept
 	if( m_state == connection_state::closed )
 	{
 		m_receive_engine.complete_read_waiter(asio::error::operation_aborted);
-		m_receive_engine.stop_control_observer(asio::error::operation_aborted);
 
 		complete_close_waiters(asio::error::operation_aborted);
 		error.clear();
@@ -49,15 +49,12 @@ void basic_stream<Exec>::impl::shutdown(error_code &error) noexcept
 		m_state = connection_state::closed;
 
 		m_receive_engine.complete_read_waiter(asio::error::operation_aborted);
-		m_receive_engine.stop_control_observer(asio::error::operation_aborted);
 		complete_close_waiters(asio::error::operation_aborted);
 
 		error.clear();
 		return ;
 	}
 	m_receive_engine.complete_read_waiter(asio::error::operation_aborted);
-	m_receive_engine.stop_control_observer(asio::error::operation_aborted);
-
 	m_send_engine.fail_queued_writes(asio::error::operation_aborted);
 	m_send_engine.clear_protocol_frames();
 
@@ -91,6 +88,7 @@ void basic_stream<Exec>::impl::finish_protocol_failure(bool cancel_transport) no
 	if( not m_protocol_failure_active )
 		return ;
 
+	stop_automatic_ping();
 	if( m_close_timer )
 	{
 		try {
@@ -126,14 +124,15 @@ void basic_stream<Exec>::impl::begin_protocol_failure(error_code error, bool syn
 
 	m_state = connection_state::failed;
 	m_protocol_failure_active = true;
+
+	stop_automatic_ping();
 	m_close_result = retained_close_info(false);
 
 	m_receive_engine.complete_read_waiter(m_error);
-	m_receive_engine.stop_control_observer(m_error);
 	complete_close_waiters(m_error);
 
 	m_send_engine.fail_queued_writes(m_error);
-	m_send_engine.clear_automatic_pong();
+	m_send_engine.clear_auto_pong();
 	m_send_engine.clear_local_close();
 	m_send_engine.clear_close_response();
 	m_send_engine.fail_current_if_idle(m_error);
@@ -182,21 +181,21 @@ void basic_stream<Exec>::impl::fail(error_code error) noexcept
 		m_close_timer.reset();
 	}
 	m_state = connection_state::failed;
-	m_receive_engine.complete_read_waiter(m_error);
-	m_receive_engine.stop_control_observer(m_error);
+	stop_automatic_ping();
 
+	m_receive_engine.complete_read_waiter(m_error);
 	m_send_engine.fail_current_if_idle(m_error);
 	m_send_engine.fail_queued_writes(m_error);
 	m_send_engine.clear_protocol_frames();
-	m_protocol_failure_active = false;
 
-	complete_close_waiters(m_error);
+	m_protocol_failure_active = false;
 	if( m_connection and not m_transport_closed )
 	{
 		ignore_unused(m_connection->cancel());
 		ignore_unused(m_connection->close());
 		m_transport_closed = true;
 	}
+	complete_close_waiters(m_error);
 }
 
 template <core_concepts::exec Exec>
@@ -213,7 +212,7 @@ error_code basic_stream<Exec>::impl::finish_receive_eof() noexcept
 	m_close_result = retained_close_info(false);
 	m_state = connection_state::closed;
 
-	m_receive_engine.stop_control_observer(asio::error::eof);
+	stop_automatic_ping();
 	complete_close_waiters(asio::error::eof);
 	return asio::error::eof;
 }

@@ -48,7 +48,7 @@ public:
 	void fail_queued_controls(error_code error);
 	void fail_queued_writes(error_code error);
 
-	void clear_automatic_pong() noexcept;
+	void clear_auto_pong() noexcept;
 	void clear_local_close() noexcept;
 	void clear_close_response() noexcept;
 	void clear_protocol_close() noexcept;
@@ -59,7 +59,7 @@ public:
 	[[nodiscard]] bool has_local_close() const noexcept;
 
 	[[nodiscard]] sys_expected<> queue_close_response(const std::vector<std::byte> &payload) noexcept;
-	[[nodiscard]] sys_expected<> queue_automatic_pong(const std::vector<std::byte> &payload) noexcept;
+	[[nodiscard]] sys_expected<> queue_auto_pong(const std::vector<std::byte> &payload) noexcept;
 
 	void schedule();
 

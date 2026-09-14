@@ -37,13 +37,15 @@ The implemented baseline includes:
 - asynchronous request and Origin validation during Upgrade;
 - optional RFC 7692 `permessage-deflate` with context takeover disabled;
 - callback and coroutine completion styles;
+- Ping/Pong callbacks, periodic Ping, and configurable automatic Pong;
 - cancellation, timeout, queue, and backpressure behavior; and
 - clear ownership of buffers and handed-over connections.
 
 `read()` returns complete data messages, `consume()` delivers one message in
 bounded chunks, and `read_frame()` / `write_frame()` read or write individual
-data frames when no extension is negotiated. Ping/Pong events are retained while
-reading continues; after a clean Close, subsequent reads return EOF. Concurrent
+data frames when no extension is negotiated. Ping/Pong frames are offered to
+their registered callbacks while reading continues; after a clean Close,
+subsequent reads return EOF. Concurrent
 operations must follow the stream's documented serialization rules. The protocol
 parser is incremental and borrows the input buffer; payload copying is limited to
 message aggregation and transforms where ownership is required.
@@ -54,7 +56,7 @@ Planned extensions, outside the implemented scope, are:
   profiles, including context takeover and window-bit negotiation;
 - HTTP/2 and HTTP/3 extended CONNECT transports;
 - optional WebSocket-level proxy configuration and authentication; and
-- application-level keepalive, reconnect, and message-routing helpers.
+- Pong-deadline, reconnect, and message-routing helpers.
 
 ## Existing preparation for upgrades
 

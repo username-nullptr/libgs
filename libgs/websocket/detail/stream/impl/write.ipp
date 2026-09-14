@@ -148,10 +148,9 @@ void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
 }
 
 template <core_concepts::exec Exec>
-sys_expected<> basic_stream<Exec>::impl::queue_automatic_pong
-(const std::vector<std::byte> &payload) noexcept
+sys_expected<> basic_stream<Exec>::impl::queue_auto_pong(const std::vector<std::byte> &payload) noexcept
 {
-	return m_send_engine.queue_automatic_pong(payload);
+	return m_send_engine.queue_auto_pong(payload);
 }
 
 } //namespace libgs::websocket

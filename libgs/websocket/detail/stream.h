@@ -409,8 +409,8 @@ auto basic_stream<Exec>::write_frame(const basic_data_frame<Buffer> &frame, Toke
 		if constexpr( is_detached_v<token_unbound_t<Token>> )
 		{
 			try {
-				const auto *data = static_cast<const std::byte*>(body.data());
-				if( body.size() != 0 and data == nullptr )
+				if( const auto *data = static_cast<const std::byte*>(body.data());
+					body.size() != 0 and data == nullptr )
 					buffer_error = make_error_code(std::errc::invalid_argument);
 				else
 				{
@@ -478,33 +478,17 @@ auto basic_stream<Exec>::wait_written(Token &&token)
 }
 
 template <core_concepts::exec Exec>
-template <typename Token>
-auto basic_stream<Exec>::wait_ctrl(Token &&token)
-	requires task_token_v<Token, control_event_t>
+basic_stream<Exec> &basic_stream<Exec>::on_ping(control_callback_t callback)
 {
-	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->wait_control(token);
+	m_impl->on_ping(std::move(callback));
+	return *this;
+}
 
-	else if constexpr( is_sync_opt_token_v<Token> )
-	{
-		error_code error;
-		auto event = m_impl->wait_control(error);
-		if( error )
-		{
-			system_error::loc_throw(error,
-				"libgs::websocket::basic_stream::wait_ctrl"
-			);
-		}
-		return event;
-	}
-	else
-	{
-		return initiate_io<control_event_t>(get_executor(),
-			[self = m_impl]<typename T0>(T0 &&completion_token) mutable {
-				self->async_wait_control(std::forward<T0>(completion_token));
-			}, std::forward<Token>(token)
-		);
-	}
+template <core_concepts::exec Exec>
+basic_stream<Exec> &basic_stream<Exec>::on_pong(control_callback_t callback)
+{
+	m_impl->on_pong(std::move(callback));
+	return *this;
 }
 
 template <core_concepts::exec Exec>
@@ -576,6 +560,43 @@ auto basic_stream<Exec>::pong(const const_buffer &payload, Token &&token)
 }
 
 template <core_concepts::exec Exec>
+basic_stream<Exec> &basic_stream<Exec>::on_closed(closed_callback_t callback)
+{
+	m_impl->on_closed(std::move(callback));
+	return *this;
+}
+
+template <core_concepts::exec Exec>
+template <typename Token>
+auto basic_stream<Exec>::wait_closed(Token &&token)
+	requires task_token_v<Token, close_info_t>
+{
+	if constexpr( is_error_code_token_v<Token> )
+		return m_impl->wait_closed(token);
+
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		error_code error;
+		auto result = m_impl->wait_closed(error);
+		if( error )
+		{
+			system_error::loc_throw(error,
+				"libgs::websocket::basic_stream::wait_closed"
+			);
+		}
+		return result;
+	}
+	else
+	{
+		return initiate_io<close_info_t>(get_executor(),
+			[self = m_impl]<typename T0>(T0 &&completion_token) mutable {
+				self->async_wait_closed(std::forward<T0>(completion_token));
+			}, std::forward<Token>(token)
+		);
+	}
+}
+
+template <core_concepts::exec Exec>
 template <typename Token>
 auto basic_stream<Exec>::close(Token &&token)
 	requires completion_token_v<Token, close_info_t>
@@ -608,36 +629,6 @@ auto basic_stream<Exec>::close(close_frame_t frame, Token &&token)
 		return initiate_io<close_info_t>(get_executor(),
 			[self = m_impl, frame = std::move(frame)]<typename T0>(T0 &&completion_token) mutable {
 				self->async_close(std::move(frame), std::forward<T0>(completion_token));
-			}, std::forward<Token>(token)
-		);
-	}
-}
-
-template <core_concepts::exec Exec>
-template <typename Token>
-auto basic_stream<Exec>::wait_closed(Token &&token)
-	requires task_token_v<Token, close_info_t>
-{
-	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->wait_closed(token);
-
-	else if constexpr( is_sync_opt_token_v<Token> )
-	{
-		error_code error;
-		auto result = m_impl->wait_closed(error);
-		if( error )
-		{
-			system_error::loc_throw(error,
-				"libgs::websocket::basic_stream::wait_closed"
-			);
-		}
-		return result;
-	}
-	else
-	{
-		return initiate_io<close_info_t>(get_executor(),
-			[self = m_impl]<typename T0>(T0 &&completion_token) mutable {
-				self->async_wait_closed(std::forward<T0>(completion_token));
 			}, std::forward<Token>(token)
 		);
 	}

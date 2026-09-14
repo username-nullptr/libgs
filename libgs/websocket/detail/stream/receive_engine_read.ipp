@@ -25,7 +25,6 @@ void detail::receive_engine<Owner>::reset(role local_role, const stream_config &
 	m_buffer.reset(local_role, config, extensions, std::move(pending_data));
 	m_read_error.clear();
 	m_read_active = false;
-	m_control_event.reset();
 }
 
 template <typename Owner>
@@ -213,17 +212,13 @@ message detail::receive_engine<Owner>::read(error_code &error) noexcept
 
 		if( value.op == opcode::ping or value.op == opcode::pong )
 		{
-			if( value.op == opcode::ping )
+			auto handled = m_owner.handle_sync_control(value.op, value.control);
+			if( not handled )
 			{
-				auto response = m_owner.handle_sync_ping(value.control);
-				if( not response )
-				{
-					error = response.error();
-					m_owner.handle_receive_failure(error);
-					return {};
-				}
+				error = handled.error();
+				m_owner.handle_receive_failure(error);
+				return {};
 			}
-			remember_control(value.op, std::move(value.control));
 			continue;
 		}
 		if( value.op == opcode::close )
@@ -295,17 +290,13 @@ data_frame detail::receive_engine<Owner>::read_frame(error_code &error) noexcept
 
 		if( value.op == opcode::ping or value.op == opcode::pong )
 		{
-			if( value.op == opcode::ping )
+			auto handled = m_owner.handle_sync_control(value.op, value.control);
+			if( not handled )
 			{
-				auto response = m_owner.handle_sync_ping(value.control);
-				if( not response )
-				{
-					error = response.error();
-					m_owner.handle_receive_failure(error);
-					return {};
-				}
+				error = handled.error();
+				m_owner.handle_receive_failure(error);
+				return {};
 			}
-			remember_control(value.op, std::move(value.control));
 			continue;
 		}
 		if( value.op == opcode::close )
@@ -389,17 +380,13 @@ message_info detail::receive_engine<Owner>::consume(Consumer &&consumer, error_c
 		}
 		if( value.op == opcode::ping or value.op == opcode::pong )
 		{
-			if( value.op == opcode::ping )
+			auto handled = m_owner.handle_sync_control(value.op, value.control);
+			if( not handled )
 			{
-				auto response = m_owner.handle_sync_ping(value.control);
-				if( not response )
-				{
-					error = response.error();
-					m_owner.handle_receive_failure(error);
-					return {};
-				}
+				error = handled.error();
+				m_owner.handle_receive_failure(error);
+				return {};
 			}
-			remember_control(value.op, std::move(value.control));
 			continue;
 		}
 		if( value.op == opcode::close )
@@ -526,16 +513,12 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					if( value.op == opcode::ping and self->automatic_pong_enabled() )
+					auto handled = self->handle_async_control(value.op, value.control);
+					if( not handled )
 					{
-						auto queued = self->queue_automatic_pong(value.control);
-						if( not queued )
-						{
-							self->handle_receive_failure(queued.error());
-							co_return std::tuple<error_code,message>{queued.error(), {}};
-						}
+						self->handle_receive_failure(handled.error());
+						co_return std::tuple<error_code,message>{handled.error(), {}};
 					}
-					self->receive_side().remember_control(value.op, std::move(value.control));
 					continue;
 				}
 				if( value.op == opcode::close )
@@ -688,16 +671,12 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					if( value.op == opcode::ping and self->automatic_pong_enabled() )
+					auto handled = self->handle_async_control(value.op, value.control);
+					if( not handled )
 					{
-						auto queued = self->queue_automatic_pong(value.control);
-						if( not queued )
-						{
-							self->handle_receive_failure(queued.error());
-							co_return std::tuple<error_code,data_frame>{queued.error(), {}};
-						}
+						self->handle_receive_failure(handled.error());
+						co_return std::tuple<error_code,data_frame>{handled.error(), {}};
 					}
-					self->receive_side().remember_control(value.op, std::move(value.control));
 					continue;
 				}
 				if( value.op == opcode::close )
@@ -866,16 +845,12 @@ void detail::receive_engine<Owner>::async_consume(Consumer &&consumer, Handler &
 				}
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					if( value.op == opcode::ping and self->automatic_pong_enabled() )
+					auto handled = self->handle_async_control(value.op, value.control);
+					if( not handled )
 					{
-						auto queued = self->queue_automatic_pong(value.control);
-						if( not queued )
-						{
-							self->handle_receive_failure(queued.error());
-							co_return std::tuple<error_code,message_info>{queued.error(), {}};
-						}
+						self->handle_receive_failure(handled.error());
+						co_return std::tuple<error_code,message_info>{handled.error(), {}};
 					}
-					self->receive_side().remember_control(value.op, std::move(value.control));
 					continue;
 				}
 				if( value.op == opcode::close )

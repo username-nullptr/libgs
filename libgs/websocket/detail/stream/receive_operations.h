@@ -9,12 +9,6 @@
 namespace libgs::websocket::detail
 {
 
-struct control_wait_operation
-{
-	uint64_t id = 0;
-	asio::any_completion_handler<void(error_code,control_event)> completion {};
-};
-
 struct read_wait_operation
 {
 	uint64_t id = 0;

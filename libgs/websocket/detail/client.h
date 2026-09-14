@@ -562,7 +562,8 @@ public:
 private:
 	[[nodiscard]] static config_t validate_config(config_t config)
 	{
-		if( config.stream.read_buffer_size == 0 )
+		if( config.stream.read_buffer_size == 0 or
+			config.stream.auto_ping_interval < std::chrono::milliseconds::zero() )
 		{
 			system_error::loc_throw (
 				make_error_code(std::errc::invalid_argument),

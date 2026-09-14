@@ -58,7 +58,7 @@ struct write_waiter
 
 enum class wire_frame_kind : uint8_t
 {
-	data, application_control, automatic_pong,
+	data, application_control, auto_pong,
 	local_close, close_response, protocol_close,
 };
 

@@ -389,7 +389,7 @@ void detail::send_engine<Owner>::fail_current_if_idle(error_code error) noexcept
 }
 
 template <typename Owner>
-void detail::send_engine<Owner>::clear_automatic_pong() noexcept
+void detail::send_engine<Owner>::clear_auto_pong() noexcept
 {
 	m_pending_auto_pong.reset();
 }
@@ -415,7 +415,7 @@ void detail::send_engine<Owner>::clear_protocol_close() noexcept
 template <typename Owner>
 void detail::send_engine<Owner>::clear_protocol_frames() noexcept
 {
-	clear_automatic_pong();
+	clear_auto_pong();
 	clear_local_close();
 	clear_close_response();
 	clear_protocol_close();
@@ -529,7 +529,7 @@ void detail::send_engine<Owner>::complete_wire_frame(const prepared_frame &frame
 		complete_send_operation(operation, {});
 		break;
 
-	case wire_frame_kind::automatic_pong:
+	case wire_frame_kind::auto_pong:
 		m_last_wire_was_control = true;
 		break;
 
@@ -597,7 +597,7 @@ void detail::send_engine<Owner>::schedule()
 			m_owner.handle_send_failure(frame.error());
 			return ;
 		}
-		start_wire_frame(std::move(*frame), wire_frame_kind::automatic_pong);
+		start_wire_frame(std::move(*frame), wire_frame_kind::auto_pong);
 		return ;
 	}
 	if( (not m_last_wire_was_control or not data_available) and
@@ -1133,7 +1133,7 @@ sys_expected<> detail::send_engine<Owner>::retain_protocol_payload
 }
 
 template <typename Owner>
-sys_expected<> detail::send_engine<Owner>::queue_automatic_pong
+sys_expected<> detail::send_engine<Owner>::queue_auto_pong
 (const std::vector<std::byte> &payload) noexcept
 {
 	auto retained = retain_protocol_payload(m_pending_auto_pong, payload);

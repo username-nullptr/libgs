@@ -101,24 +101,6 @@ error_code basic_stream<Exec>::impl::consume_state_error() const noexcept
 }
 
 template <core_concepts::exec Exec>
-error_code basic_stream<Exec>::impl::control_state_error() const noexcept
-{
-	if( m_state == connection_state::open )
-		return {};
-
-	if( m_state == connection_state::failed )
-		return m_error ? m_error : make_error_code(std::errc::io_error);
-
-	if( m_state == connection_state::closed )
-		return asio::error::eof;
-
-	if( m_state == connection_state::closing )
-		return make_error_code(errc::closing);
-
-	return make_error_code(errc::not_open);
-}
-
-template <core_concepts::exec Exec>
 bool basic_stream<Exec>::impl::send_transport_ready() const noexcept
 {
 	return m_connection and not m_transport_closed and
@@ -127,9 +109,9 @@ bool basic_stream<Exec>::impl::send_transport_ready() const noexcept
 }
 
 template <core_concepts::exec Exec>
-bool basic_stream<Exec>::impl::automatic_pong_enabled() const noexcept
+bool basic_stream<Exec>::impl::auto_pong_enabled() const noexcept
 {
-	return m_config.automatic_pong;
+	return m_config.auto_pong;
 }
 
 template <core_concepts::exec Exec>
@@ -164,7 +146,8 @@ void basic_stream<Exec>::impl::adopt
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
 	}
-	if( m_config.read_buffer_size == 0 )
+	if( m_config.read_buffer_size == 0 or
+		m_config.auto_ping_interval < std::chrono::milliseconds::zero() )
 	{
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
@@ -205,6 +188,12 @@ void basic_stream<Exec>::impl::adopt
 		m_connection = std::move(connection);
 
 		m_state = connection_state::open;
+		if( auto started = start_automatic_ping(); not started )
+		{
+			error = started.error();
+			fail(error);
+			return ;
+		}
 		error.clear();
 	}
 	catch(const std::bad_alloc&) {

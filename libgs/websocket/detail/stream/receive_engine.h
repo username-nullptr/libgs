@@ -45,20 +45,6 @@ public:
 	[[nodiscard]] awaitable<receive_event_result> async_next_event (
 		receive_target target = receive_target::message
 	);
-	[[nodiscard]] error_code control_state_error() const noexcept;
-
-	void complete_control_waiter(error_code error,
-		control_event event = {}, bool clear_slot = true
-	) noexcept;
-
-	void stop_control_observer(error_code error) noexcept;
-	void remember_control(opcode op, std::vector<std::byte> payload) noexcept;
-
-	[[nodiscard]] control_event wait_control(error_code &error) noexcept;
-
-	template <typename Handler>
-	void async_wait_control(Handler &&handler);
-
 	[[nodiscard]] message read(error_code &error) noexcept;
 	[[nodiscard]] data_frame read_frame(error_code &error) noexcept;
 
@@ -89,7 +75,6 @@ public:
 private:
 	[[nodiscard]] message finish_read_error(error_code &error) noexcept;
 
-	void cancel_control_waiter(uint64_t id) noexcept;
 	void cancel_read_waiter(uint64_t id, asio::cancellation_type type) noexcept;
 
 private:
@@ -104,14 +89,9 @@ private:
 	std::shared_ptr<consume_wait_operation> m_consume_waiter {};
 	uint64_t m_next_read_waiter_id = 0;
 
-	optional<control_event> m_control_event {};
-	std::shared_ptr<control_wait_operation> m_control_waiter {};
-
-	uint64_t m_next_control_waiter_id = 0;
 };
 
 } //namespace libgs::websocket::detail
-#include <libgs/websocket/detail/stream/receive_engine_control.ipp>
 #include <libgs/websocket/detail/stream/receive_engine_read.ipp>
 
 

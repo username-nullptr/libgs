@@ -13,6 +13,13 @@ namespace
 
 namespace ws = libgs::websocket;
 
+ws::stream_config no_automatic_ping()
+{
+	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
+	return config;
+}
+
 template <typename Stream, typename Connection>
 concept adopts_connection = requires(Stream &stream,
 	std::shared_ptr<Connection> connection, libgs::error_code &error)
@@ -313,17 +320,11 @@ uint16_t parse_server_close_code(std::vector<std::byte> wire)
 	return 0;
 }
 
-std::string payload_text(const std::vector<std::byte> &payload)
-{
-	return std::string(reinterpret_cast<const char*>(payload.data()),
-		payload.size());
-}
-
 void test_adopt_and_lifecycle()
 {
 	libgs::io_context_t context;
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::idle);
 
 	libgs::error_code error;
@@ -361,13 +362,13 @@ void test_adopt_validation()
 	libgs::io_context_t context;
 	libgs::error_code error;
 
-	ws::stream null_stream(context.get_executor());
+	ws::stream null_stream(context.get_executor(), no_automatic_ping());
 	null_stream.adopt(std::shared_ptr<libgs::http::connection> {}, {}, error);
 	LIBGS_TEST_CHECK_EQ(error,
 		std::make_error_code(std::errc::invalid_argument));
 	LIBGS_TEST_CHECK_EQ(null_stream.state(), ws::connection_state::idle);
 
-	ws::stream extension_stream(context.get_executor());
+	ws::stream extension_stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	ws::adopt_options options;
 	options.negotiated_extensions.push_back({.name = "permessage-deflate"});
@@ -379,7 +380,7 @@ void test_adopt_validation()
 	LIBGS_TEST_CHECK(connection->is_open());
 
 #if !LIBGS_WEBSOCKET_ZLIB_SUPPORT
-	ws::stream unavailable_stream(context.get_executor());
+	ws::stream unavailable_stream(context.get_executor(), no_automatic_ping());
 	ws::adopt_options unavailable_options;
 	unavailable_options.negotiated_extensions = {
 		ws::permessage_deflate_extension()
@@ -392,15 +393,23 @@ void test_adopt_validation()
 #endif
 
 	ws::stream_config bad_config;
+	bad_config.auto_ping_interval = std::chrono::milliseconds::zero();
 	bad_config.read_buffer_size = 0;
 	ws::stream invalid_stream(context.get_executor(), bad_config);
 	invalid_stream.adopt(
 		std::static_pointer_cast<libgs::http::connection>(connection), {}, error);
 	LIBGS_TEST_CHECK_EQ(error,
 		std::make_error_code(std::errc::invalid_argument));
+	bad_config.read_buffer_size = ws::stream_config{}.read_buffer_size;
+	bad_config.auto_ping_interval = std::chrono::milliseconds(-1);
+	ws::stream invalid_ping_stream(context.get_executor(), bad_config);
+	invalid_ping_stream.adopt(
+		std::static_pointer_cast<libgs::http::connection>(connection), {}, error);
+	LIBGS_TEST_CHECK_EQ(error,
+		std::make_error_code(std::errc::invalid_argument));
 
 	libgs::io_context_t other_context;
-	ws::stream mismatched_stream(context.get_executor());
+	ws::stream mismatched_stream(context.get_executor(), no_automatic_ping());
 	auto other_connection =
 		std::make_shared<memory_connection>(other_context.get_executor());
 	mismatched_stream.adopt(
@@ -414,6 +423,7 @@ void test_server_write_and_fragmentation()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -450,6 +460,7 @@ void test_client_write_is_masked()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 0;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -504,7 +515,7 @@ void test_client_write_is_masked()
 void test_write_frame_symmetry_and_validation()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	libgs::error_code error;
 	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
@@ -562,7 +573,7 @@ void test_write_frame_symmetry_and_validation()
 	LIBGS_TEST_CHECK(stream.is_open());
 
 	libgs::io_context_t async_context;
-	ws::stream async_stream(async_context.get_executor());
+	ws::stream async_stream(async_context.get_executor(), no_automatic_ping());
 	auto async_connection =
 		std::make_shared<memory_connection>(async_context.get_executor());
 	async_stream.adopt(
@@ -599,11 +610,11 @@ void test_preflight_and_partial_failure()
 	libgs::io_context_t context;
 	libgs::error_code error;
 
-	ws::stream idle(context.get_executor());
+	ws::stream idle(context.get_executor(), no_automatic_ping());
 	LIBGS_TEST_CHECK_EQ(idle.write_text("x", error), size_t {0});
 	LIBGS_TEST_CHECK_EQ(error, ws::make_error_code(ws::errc::not_open));
 
-	ws::stream text_stream(context.get_executor());
+	ws::stream text_stream(context.get_executor(), no_automatic_ping());
 	auto text_connection =
 		std::make_shared<memory_connection>(context.get_executor());
 	text_stream.adopt(
@@ -636,6 +647,7 @@ void test_preflight_and_partial_failure()
 		split_utf8.data(), split_utf8.size()) == 0);
 
 	ws::stream_config limited_config;
+	limited_config.auto_ping_interval = std::chrono::milliseconds::zero();
 	limited_config.max_message_size = 4;
 	ws::stream limited_stream(context.get_executor(), limited_config);
 	auto limited_connection =
@@ -649,7 +661,7 @@ void test_preflight_and_partial_failure()
 	LIBGS_TEST_CHECK(limited_connection->wire().empty());
 	LIBGS_TEST_CHECK(limited_stream.is_open());
 
-	ws::stream partial_stream(context.get_executor());
+	ws::stream partial_stream(context.get_executor(), no_automatic_ping());
 	auto partial_connection =
 		std::make_shared<memory_connection>(context.get_executor());
 	partial_connection->fail_after(4); // 2-byte header plus 2 payload bytes.
@@ -674,7 +686,7 @@ void test_preflight_and_partial_failure()
 void test_async_write()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	libgs::error_code error;
 	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
@@ -694,7 +706,7 @@ void test_async_write()
 void test_control_write()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	libgs::error_code error;
 	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
@@ -721,6 +733,7 @@ void test_write_queue_fairness_and_barrier()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -756,6 +769,7 @@ void test_write_queue_limits()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 0;
 	config.max_queued_write_operations = 1;
 	config.max_queued_write_bytes = 3;
@@ -796,6 +810,7 @@ void test_queued_write_cancellation()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 0;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -861,7 +876,7 @@ void test_queued_write_cancellation()
 void test_write_barrier_cancellation()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	libgs::error_code error;
 	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
@@ -903,7 +918,7 @@ void test_write_barrier_cancellation()
 void test_detached_write_barrier_error()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	connection->fail_after(4); // 2-byte header plus 2 payload bytes.
 	libgs::error_code error;
@@ -936,6 +951,7 @@ void test_detached_write_owns_payload()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -968,6 +984,7 @@ void test_control_failure_completes_paused_data()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1016,6 +1033,7 @@ void test_shutdown_aborts_write_queue()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1062,10 +1080,11 @@ void test_shutdown_aborts_write_queue()
 	LIBGS_TEST_CHECK(not retained.clean);
 }
 
-void test_read_fragmentation_and_automatic_pong()
+void test_read_fragmentation_and_auto_pong()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.read_buffer_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1097,7 +1116,7 @@ void test_read_fragmentation_and_automatic_pong()
 void test_read_pending_multiple_messages()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	std::vector<std::byte> pending;
 	append_frame(pending, ws::opcode::binary, true, "one");
@@ -1126,7 +1145,7 @@ void test_read_frame_sync_and_async()
 {
 	{
 		libgs::io_context_t context;
-		ws::stream stream(context.get_executor());
+		ws::stream stream(context.get_executor(), no_automatic_ping());
 		auto connection = std::make_shared<memory_connection>(context.get_executor());
 		std::vector<std::byte> input;
 		append_frame(input, ws::opcode::text, false, "hel");
@@ -1139,6 +1158,12 @@ void test_read_frame_sync_and_async()
 		stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
 			{.stream_role = ws::role::server}, error);
 		LIBGS_TEST_CHECK(not error);
+		std::string ping_payload;
+		stream.on_ping([&](const libgs::const_buffer &payload) {
+			const auto *data = static_cast<const char*>(payload.data());
+			ping_payload.assign(data, payload.size());
+			return true;
+		});
 
 		auto first = stream.read_frame<std::string>(error);
 		LIBGS_TEST_CHECK(not error);
@@ -1163,10 +1188,7 @@ void test_read_frame_sync_and_async()
 		LIBGS_TEST_CHECK(second.continuation);
 		LIBGS_TEST_CHECK_EQ(second.body, "lo");
 
-		auto control = stream.wait_ctrl(error);
-		LIBGS_TEST_CHECK(not error);
-		LIBGS_TEST_CHECK_EQ(control.type, ws::control_type::ping);
-		LIBGS_TEST_CHECK_EQ(payload_text(control.payload), "keepalive");
+		LIBGS_TEST_CHECK_EQ(ping_payload, "keepalive");
 
 		auto binary = stream.read_frame<std::string>(error);
 		LIBGS_TEST_CHECK(not error);
@@ -1178,7 +1200,7 @@ void test_read_frame_sync_and_async()
 
 	{
 		libgs::io_context_t context;
-		ws::stream stream(context.get_executor());
+		ws::stream stream(context.get_executor(), no_automatic_ping());
 		auto connection = std::make_shared<memory_connection>(context.get_executor());
 		std::vector<std::byte> input;
 		append_frame(input, ws::opcode::binary, false, "one");
@@ -1211,6 +1233,7 @@ void test_consume_streams_one_message()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.read_buffer_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1300,6 +1323,7 @@ void test_async_consume()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.read_buffer_size = 3;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1330,6 +1354,7 @@ void test_async_read()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.read_buffer_size = 3;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1353,7 +1378,7 @@ void test_async_read()
 void test_async_read_cancellation_preserves_parser()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	connection->stall_reads();
 
@@ -1402,7 +1427,7 @@ void test_async_read_cancellation_preserves_parser()
 void test_async_read_timeout()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	connection->stall_reads();
 	libgs::error_code error;
@@ -1444,6 +1469,7 @@ void test_read_limits_and_utf8()
 	libgs::error_code error;
 
 	ws::stream_config limited_config;
+	limited_config.auto_ping_interval = std::chrono::milliseconds::zero();
 	limited_config.max_message_size = 4;
 	ws::stream limited(context.get_executor(), limited_config);
 	auto limited_connection =
@@ -1462,7 +1488,7 @@ void test_read_limits_and_utf8()
 		static_cast<uint16_t>(ws::close_code::message_too_big));
 	LIBGS_TEST_CHECK_EQ(limited_connection->close_count(), size_t {1});
 
-	ws::stream invalid(context.get_executor());
+	ws::stream invalid(context.get_executor(), no_automatic_ping());
 	auto invalid_connection =
 		std::make_shared<memory_connection>(context.get_executor());
 	const std::array<std::byte,2> invalid_text {
@@ -1505,7 +1531,7 @@ void test_invalid_compressed_payload()
 
 	{
 		libgs::io_context_t context;
-		ws::stream stream(context.get_executor());
+		ws::stream stream(context.get_executor(), no_automatic_ping());
 		auto connection = std::make_shared<memory_connection>(context.get_executor());
 		const std::array<std::byte,3> invalid_payload {
 			std::byte {0xFF}, std::byte {0x00}, std::byte {0xFF}
@@ -1549,6 +1575,7 @@ void test_invalid_compressed_payload()
 	{
 		libgs::io_context_t context;
 		ws::stream_config config;
+		config.auto_ping_interval = std::chrono::milliseconds::zero();
 		config.max_message_size = 8;
 		ws::stream stream(context.get_executor(), config);
 		auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1581,6 +1608,7 @@ void test_protocol_failure_during_async_write()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1635,6 +1663,7 @@ void test_protocol_failure_close_deadline()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.close_timeout = std::chrono::milliseconds(1);
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1673,14 +1702,17 @@ void test_protocol_failure_close_deadline()
 	LIBGS_TEST_CHECK(error == ws::protocol_errc::reserved_opcode);
 }
 
-void test_wait_ctrl_and_retention()
+void test_control_callbacks_and_filtering()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
+	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	std::vector<std::byte> input;
-	append_frame(input, ws::opcode::ping, true, "ping");
+	append_frame(input, ws::opcode::ping, true, "accepted");
 	append_frame(input, ws::opcode::pong, true, "pong");
+	append_frame(input, ws::opcode::ping, true, "rejected");
 	append_frame(input, ws::opcode::text, true, "reply");
 	connection->feed(std::move(input));
 
@@ -1689,40 +1721,35 @@ void test_wait_ctrl_and_retention()
 		{.stream_role = ws::role::server}, error);
 	LIBGS_TEST_CHECK(not error);
 
-	bool control_done = false;
-	bool pong_queued_before_completion = false;
-	ws::control_event first;
-	stream.wait_ctrl([&](libgs::error_code result, ws::control_event event) {
-		LIBGS_TEST_CHECK(not result);
-		control_done = true;
-		first = std::move(event);
-		pong_queued_before_completion = not connection->wire().empty();
+	std::vector<std::string> pings;
+	std::vector<std::string> pongs;
+	stream.on_ping([&](const libgs::const_buffer &payload) {
+		const auto *data = static_cast<const char*>(payload.data());
+		pings.emplace_back(data, payload.size());
+		return pings.back() != "rejected";
+	});
+	stream.on_pong([&](const libgs::const_buffer &payload) {
+		const auto *data = static_cast<const char*>(payload.data());
+		pongs.emplace_back(data, payload.size());
+		return false;
 	});
 	auto received = stream.read<std::string>(libgs::use_future);
 	context.run();
 
-	LIBGS_TEST_CHECK(control_done);
-	LIBGS_TEST_CHECK(pong_queued_before_completion);
-	LIBGS_TEST_CHECK_EQ(first.type, ws::control_type::ping);
-	LIBGS_TEST_CHECK_EQ(payload_text(first.payload), "ping");
 	LIBGS_TEST_CHECK_EQ(received.get().body, "reply");
+	LIBGS_TEST_CHECK_EQ(pings,
+		(std::vector<std::string>{"accepted", "rejected"}));
+	LIBGS_TEST_CHECK_EQ(pongs, std::vector<std::string>{"pong"});
 	const std::vector<ws::opcode> expected {ws::opcode::pong};
 	LIBGS_TEST_CHECK_EQ(parse_server_frames(connection->wire()), expected);
-
-	auto retained = stream.wait_ctrl(error);
-	LIBGS_TEST_CHECK(not error);
-	LIBGS_TEST_CHECK_EQ(retained.type, ws::control_type::pong);
-	LIBGS_TEST_CHECK_EQ(payload_text(retained.payload), "pong");
-	libgs::ignore_unused(stream.wait_ctrl(error));
-	LIBGS_TEST_CHECK_EQ(error,
-		std::make_error_code(std::errc::operation_would_block));
 }
 
-void test_wait_ctrl_manual_pong()
+void test_control_callbacks_manual_pong()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
-	config.automatic_pong = false;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
+	config.auto_pong = false;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	std::vector<std::byte> input;
@@ -1735,180 +1762,66 @@ void test_wait_ctrl_manual_pong()
 	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
 		{.stream_role = ws::role::server}, error);
 	LIBGS_TEST_CHECK(not error);
+	std::vector<std::byte> ping_payload;
+	stream.on_ping([&](const libgs::const_buffer &payload) {
+		const auto *data = static_cast<const std::byte*>(payload.data());
+		ping_payload.assign(data, data + payload.size());
+		return true;
+	});
 	auto received = stream.read<>(libgs::use_future);
 	context.run();
 	LIBGS_TEST_CHECK_EQ(received.get().body.size(), size_t {4});
 	LIBGS_TEST_CHECK(connection->wire().empty());
 
-	auto event = stream.wait_ctrl(error);
-	LIBGS_TEST_CHECK(not error);
-	LIBGS_TEST_CHECK_EQ(event.type, ws::control_type::ping);
-	LIBGS_TEST_CHECK_EQ(payload_text(event.payload), "manual");
 	LIBGS_TEST_CHECK_EQ(stream.pong(libgs::const_buffer(
-		event.payload.data(), event.payload.size()), error), event.payload.size());
+		ping_payload.data(), ping_payload.size()), error), ping_payload.size());
 	LIBGS_TEST_CHECK(not error);
 	const std::vector<ws::opcode> expected {ws::opcode::pong};
 	LIBGS_TEST_CHECK_EQ(parse_server_frames(connection->wire()), expected);
 }
 
-void test_wait_ctrl_overlap_and_cancellation()
+void test_automatic_ping_timer()
 {
+	using namespace std::chrono_literals;
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream_config config;
+	config.auto_ping_interval = 1ms;
+	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	libgs::error_code error;
 	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
 		{.stream_role = ws::role::server}, error);
 	LIBGS_TEST_CHECK(not error);
 
-	asio::cancellation_signal cancellation;
-	auto cancelled = stream.wait_ctrl(asio::bind_cancellation_slot(
-		cancellation.slot(), libgs::use_future));
-	auto overlap = stream.wait_ctrl(libgs::use_future);
-	cancellation.emit(asio::cancellation_type::terminal);
-	context.run();
-	for( auto result : {
-		std::pair {&cancelled,
-			asio::error::make_error_code(asio::error::operation_aborted)},
-		std::pair {&overlap,
-			std::make_error_code(std::errc::operation_in_progress)},
-	} )
-	{
-		try
-		{
-			libgs::ignore_unused(result.first->get());
-			LIBGS_TEST_CHECK(false);
-		}
-		catch(const std::system_error &exception)
-		{
-			LIBGS_TEST_CHECK_EQ(exception.code(), result.second);
-		}
-	}
-	LIBGS_TEST_CHECK(stream.is_open());
+	asio::steady_timer keep_running(context.get_executor(), 8ms);
+	keep_running.async_wait([](libgs::error_code) {});
+	context.run_for(12ms);
+	LIBGS_TEST_CHECK(std::ranges::count(parse_server_frames(connection->wire()),
+		ws::opcode::ping) >= 1);
 
+	stream.shutdown(error);
+	LIBGS_TEST_CHECK(not error);
 	context.restart();
-	std::vector<std::byte> input;
-	append_frame(input, ws::opcode::ping, true, "next");
-	append_frame(input, ws::opcode::text, true, "ok");
-	connection->feed(std::move(input));
-	auto next = stream.wait_ctrl(libgs::use_future);
-	auto received = stream.read<std::string>(libgs::use_future);
-	context.run();
-	LIBGS_TEST_CHECK_EQ(next.get().type, ws::control_type::ping);
-	LIBGS_TEST_CHECK_EQ(received.get().body, "ok");
-}
+	context.poll();
 
-void test_wait_ctrl_eof()
-{
-	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
-	auto connection = std::make_shared<memory_connection>(context.get_executor());
-	libgs::error_code error;
-	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
-		{.stream_role = ws::role::server}, error);
+	libgs::io_context_t disabled_context;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
+	ws::stream disabled(disabled_context.get_executor(), config);
+	auto disabled_connection =
+		std::make_shared<memory_connection>(disabled_context.get_executor());
+	disabled.adopt(std::static_pointer_cast<libgs::http::connection>(
+		disabled_connection), {.stream_role = ws::role::server}, error);
 	LIBGS_TEST_CHECK(not error);
-	auto control = stream.wait_ctrl(libgs::use_future);
-	auto received = stream.read<>(libgs::use_future);
-	context.run();
-	try
-	{
-		libgs::ignore_unused(control.get());
-		LIBGS_TEST_CHECK(false);
-	}
-	catch(const std::system_error &exception)
-	{
-		LIBGS_TEST_CHECK_EQ(exception.code(),
-			asio::error::make_error_code(asio::error::eof));
-	}
-	try
-	{
-		libgs::ignore_unused(received.get());
-		LIBGS_TEST_CHECK(false);
-	}
-	catch(const std::system_error &exception)
-	{
-		LIBGS_TEST_CHECK_EQ(exception.code(),
-			asio::error::make_error_code(asio::error::eof));
-	}
-	LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::closed);
-}
-
-void test_wait_ctrl_terminal_transitions()
-{
-	{
-		libgs::io_context_t context;
-		ws::stream stream(context.get_executor());
-		auto connection =
-			std::make_shared<memory_connection>(context.get_executor());
-		auto close_payload = ws::encode_close_payload(ws::close_frame {
-			ws::close_code::normal_closure, "done"
-		});
-		LIBGS_TEST_CHECK(close_payload.has_value());
-		std::vector<std::byte> input;
-		append_frame(input, ws::opcode::close, true, std::span<const std::byte>(
-			close_payload->storage.data(), close_payload->size));
-		connection->feed(std::move(input));
-
-		libgs::error_code error;
-		stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
-			{.stream_role = ws::role::server}, error);
-		LIBGS_TEST_CHECK(not error);
-		auto control = stream.wait_ctrl(libgs::use_future);
-		auto received = stream.read<>(libgs::use_future);
-		context.run();
-		try
-		{
-			libgs::ignore_unused(control.get());
-			LIBGS_TEST_CHECK(false);
-		}
-		catch(const std::system_error &exception)
-		{
-			LIBGS_TEST_CHECK_EQ(exception.code(),
-				ws::make_error_code(ws::errc::closing));
-		}
-		try
-		{
-			libgs::ignore_unused(received.get());
-			LIBGS_TEST_CHECK(false);
-		}
-		catch(const std::system_error &exception)
-		{
-			LIBGS_TEST_CHECK_EQ(exception.code(),
-				asio::error::make_error_code(asio::error::eof));
-		}
-		LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::closed);
-	}
-
-	{
-		libgs::io_context_t context;
-		ws::stream stream(context.get_executor());
-		auto connection =
-			std::make_shared<memory_connection>(context.get_executor());
-		libgs::error_code error;
-		stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
-			{.stream_role = ws::role::server}, error);
-		LIBGS_TEST_CHECK(not error);
-		auto control = stream.wait_ctrl(libgs::use_future);
-		stream.shutdown(error);
-		LIBGS_TEST_CHECK(not error);
-		context.run();
-		try
-		{
-			libgs::ignore_unused(control.get());
-			LIBGS_TEST_CHECK(false);
-		}
-		catch(const std::system_error &exception)
-		{
-			LIBGS_TEST_CHECK_EQ(exception.code(),
-				asio::error::make_error_code(asio::error::operation_aborted));
-		}
-	}
+	asio::steady_timer disabled_wait(disabled_context.get_executor(), 3ms);
+	disabled_wait.async_wait([](libgs::error_code) {});
+	disabled_context.run();
+	LIBGS_TEST_CHECK(disabled_connection->wire().empty());
 }
 
 void test_peer_close()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	auto close_payload = ws::encode_close_payload(ws::close_frame {
 		ws::close_code::normal_closure, "done"
@@ -1935,10 +1848,87 @@ void test_peer_close()
 	LIBGS_TEST_CHECK_EQ(octet(connection->wire(), 0), uint8_t {0x88});
 }
 
-void test_automatic_pong_during_async_write()
+void test_closed_callback_and_waiter()
+{
+	{
+		libgs::io_context_t context;
+		ws::stream stream(context.get_executor(), no_automatic_ping());
+		auto connection = std::make_shared<memory_connection>(context.get_executor());
+		auto close_payload = ws::encode_close_payload(ws::close_frame {
+			ws::close_code::normal_closure, "observed"
+		});
+		LIBGS_TEST_CHECK(close_payload.has_value());
+		std::vector<std::byte> input;
+		append_frame(input, ws::opcode::close, true, std::span<const std::byte>(
+			close_payload->storage.data(), close_payload->size));
+		connection->feed(std::move(input));
+
+		libgs::error_code error;
+		stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+			{.stream_role = ws::role::server}, error);
+		LIBGS_TEST_CHECK(not error);
+
+		size_t callback_count = 0;
+		ws::close_info callback_info;
+		stream.on_closed([&](const ws::close_info &info) {
+			callback_count++;
+			callback_info = info;
+		});
+		auto waited = stream.wait_closed(libgs::use_future);
+
+		libgs::ignore_unused(stream.read<>(error));
+		LIBGS_TEST_CHECK_EQ(error,
+			asio::error::make_error_code(asio::error::eof));
+		LIBGS_TEST_CHECK_EQ(callback_count, size_t {1});
+		LIBGS_TEST_CHECK_EQ(callback_info.reason, "observed");
+		LIBGS_TEST_CHECK(callback_info.clean);
+
+		auto waited_info = waited.get();
+		LIBGS_TEST_CHECK_EQ(waited_info.reason, callback_info.reason);
+		LIBGS_TEST_CHECK_EQ(waited_info.clean, callback_info.clean);
+
+		stream.shutdown(error);
+		LIBGS_TEST_CHECK(not error);
+		LIBGS_TEST_CHECK_EQ(callback_count, size_t {1});
+	}
+
+	{
+		libgs::io_context_t context;
+		ws::stream stream(context.get_executor(), no_automatic_ping());
+		auto connection = std::make_shared<memory_connection>(context.get_executor());
+		auto close_payload = ws::encode_close_payload(ws::close_frame {
+			ws::close_code::going_away, "late"
+		});
+		LIBGS_TEST_CHECK(close_payload.has_value());
+		std::vector<std::byte> input;
+		append_frame(input, ws::opcode::close, true, std::span<const std::byte>(
+			close_payload->storage.data(), close_payload->size));
+		connection->feed(std::move(input));
+
+		libgs::error_code error;
+		stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+			{.stream_role = ws::role::server}, error);
+		LIBGS_TEST_CHECK(not error);
+		libgs::ignore_unused(stream.read<>(error));
+		LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::closed);
+
+		bool called = false;
+		ws::close_info callback_info;
+		stream.on_closed([&](const ws::close_info &info) {
+			called = true;
+			callback_info = info;
+		});
+		LIBGS_TEST_CHECK(called);
+		LIBGS_TEST_CHECK_EQ(callback_info.reason, "late");
+		LIBGS_TEST_CHECK(callback_info.clean);
+	}
+}
+
+void test_auto_pong_during_async_write()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -1984,6 +1974,7 @@ void test_peer_close_during_async_write()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 2;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -2038,7 +2029,7 @@ void test_peer_close_during_async_write()
 void test_local_close_sync()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	auto peer_payload = ws::encode_close_payload(ws::close_frame {
 		ws::close_code::going_away, "peer"
@@ -2081,6 +2072,7 @@ void test_local_close_async_join_and_drain()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.write_fragment_size = 0;
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -2133,7 +2125,7 @@ void test_local_close_async_join_and_drain()
 void test_local_close_takes_over_read()
 {
 	libgs::io_context_t context;
-	ws::stream stream(context.get_executor());
+	ws::stream stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	auto peer_payload = ws::encode_close_payload(ws::close_frame {
 		ws::close_code::normal_closure, "done"
@@ -2168,6 +2160,7 @@ void test_local_close_immediate_timeout()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.close_timeout = std::chrono::milliseconds::zero();
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -2203,6 +2196,7 @@ void test_local_close_deadline_cancels_read()
 {
 	libgs::io_context_t context;
 	ws::stream_config config;
+	config.auto_ping_interval = std::chrono::milliseconds::zero();
 	config.close_timeout = std::chrono::milliseconds(1);
 	ws::stream stream(context.get_executor(), config);
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
@@ -2255,7 +2249,7 @@ int main()
 			test_control_failure_completes_paused_data},
 		{"shutdown aborts write queue", test_shutdown_aborts_write_queue},
 		{"read fragmentation and automatic pong",
-			test_read_fragmentation_and_automatic_pong},
+			test_read_fragmentation_and_auto_pong},
 		{"read pending multiple messages", test_read_pending_multiple_messages},
 		{"read frame sync and async", test_read_frame_sync_and_async},
 		{"consume streams one message", test_consume_streams_one_message},
@@ -2272,15 +2266,14 @@ int main()
 			test_protocol_failure_during_async_write},
 		{"protocol failure close deadline",
 			test_protocol_failure_close_deadline},
-		{"wait ctrl and retention", test_wait_ctrl_and_retention},
-		{"wait ctrl manual pong", test_wait_ctrl_manual_pong},
-		{"wait ctrl overlap and cancellation",
-			test_wait_ctrl_overlap_and_cancellation},
-		{"wait ctrl eof", test_wait_ctrl_eof},
-		{"wait ctrl terminal transitions", test_wait_ctrl_terminal_transitions},
+		{"control callbacks and filtering",
+			test_control_callbacks_and_filtering},
+		{"control callbacks manual pong", test_control_callbacks_manual_pong},
+		{"automatic ping timer", test_automatic_ping_timer},
 		{"peer close", test_peer_close},
+		{"closed callback and waiter", test_closed_callback_and_waiter},
 		{"automatic pong during async write",
-			test_automatic_pong_during_async_write},
+			test_auto_pong_during_async_write},
 		{"peer close during async write", test_peer_close_during_async_write},
 		{"local close sync", test_local_close_sync},
 		{"local close async join and drain", test_local_close_async_join_and_drain},
