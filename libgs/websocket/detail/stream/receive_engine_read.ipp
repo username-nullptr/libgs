@@ -41,13 +41,14 @@ void detail::receive_engine<Owner>::set_active(bool value) noexcept
 }
 
 template <typename Owner>
-detail::receive_event_result detail::receive_engine<Owner>::next_event() noexcept
+detail::receive_event_result
+detail::receive_engine<Owner>::next_event(receive_target target) noexcept
 {
 	for(;;)
 	{
 		while( m_buffer.available_data().size() != 0 )
 		{
-			auto event = m_buffer.consume();
+			auto event = m_buffer.consume(target);
 			if( not event )
 			{
 				return {
@@ -95,13 +96,13 @@ detail::receive_event_result detail::receive_engine<Owner>::next_event() noexcep
 
 template <typename Owner>
 awaitable<detail::receive_event_result>
-detail::receive_engine<Owner>::async_next_event()
+detail::receive_engine<Owner>::async_next_event(receive_target target)
 {
 	for(;;)
 	{
 		while( m_buffer.available_data().size() != 0 )
 		{
-			auto event = m_buffer.consume();
+			auto event = m_buffer.consume(target);
 			if( not event )
 			{
 				co_return receive_event_result {
@@ -185,7 +186,7 @@ message detail::receive_engine<Owner>::read(error_code &error) noexcept
 
 	for(;;)
 	{
-		auto next = next_event();
+		auto next = next_event(receive_target::message);
 		if( next.error )
 		{
 			error = next.error;
@@ -261,7 +262,7 @@ data_frame detail::receive_engine<Owner>::read_frame(error_code &error) noexcept
 
 	for(;;)
 	{
-		auto next = next_event();
+		auto next = next_event(receive_target::frame);
 		if( next.error )
 		{
 			error = next.error;
@@ -389,7 +390,9 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 				if( self->close_receive_pending() )
 					co_return std::tuple<error_code,message>{make_error_code(errc::closing), {}};
 
-				auto next = co_await self->receive_side().async_next_event();
+				auto next = co_await self->receive_side().async_next_event (
+					receive_target::message
+				);
 				if( next.error )
 				{
 					if( next.failure_origin == receive_failure_origin::protocol )
@@ -545,7 +548,9 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 				if( self->close_receive_pending() )
 					co_return std::tuple<error_code,data_frame>{make_error_code(errc::closing), {}};
 
-				auto next = co_await self->receive_side().async_next_event();
+				auto next = co_await self->receive_side().async_next_event (
+					receive_target::frame
+				);
 				if( next.error )
 				{
 					if( next.failure_origin == receive_failure_origin::protocol )

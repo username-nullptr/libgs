@@ -38,9 +38,13 @@ public:
 	[[nodiscard]] bool active() const noexcept;
 	void set_active(bool value) noexcept;
 
-	[[nodiscard]] receive_event_result next_event() noexcept;
-	[[nodiscard]] awaitable<receive_event_result> async_next_event();
+	[[nodiscard]] receive_event_result next_event (
+		receive_target target = receive_target::message
+	) noexcept;
 
+	[[nodiscard]] awaitable<receive_event_result> async_next_event (
+		receive_target target = receive_target::message
+	);
 	[[nodiscard]] error_code control_state_error() const noexcept;
 
 	void complete_control_waiter(error_code error,

@@ -61,6 +61,12 @@ int main()
 cookie jar, or connector with ordinary requests, pass an HTTP/1.1 client to the
 free `websocket::open()` operation instead.
 
+`websocket::client_config::no_delay` is a three-state option and defaults to
+`true`: `true` enables `TCP_NODELAY`, `false` disables it, and `nullopt` keeps
+the setting inherited from the underlying HTTP connection. The free
+`websocket::open(http_client, ...)` operation always preserves the HTTP client
+setting.
+
 ## Server and mixed upgrades
 
 `websocket::server` owns the listener and can deliver accepted streams through

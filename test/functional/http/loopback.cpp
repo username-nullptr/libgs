@@ -72,6 +72,9 @@ void client_server_round_trip()
 				base + "/hello/LibGS?value=42", libgs::use_awaitable
 			);
 			LIBGS_TEST_CHECK(hello);
+			auto socket_options = hello->lease()->options();
+			LIBGS_TEST_CHECK(socket_options);
+			LIBGS_TEST_CHECK(socket_options->no_delay);
 			LIBGS_TEST_CHECK_EQ(
 				co_await hello->wait_reply(libgs::use_awaitable), status::ok
 			);
@@ -81,6 +84,24 @@ void client_server_round_trip()
 			LIBGS_TEST_CHECK_EQ(
 				co_await hello->reply()->read<std::string>(libgs::use_awaitable),
 				"hello:LibGS:42"
+			);
+
+			client_config delayed_config;
+			delayed_config.no_delay = false;
+			client delayed_requester(context.get_executor(), delayed_config);
+			auto delayed = co_await delayed_requester.request_get(
+				base + "/hello/delayed?value=off", libgs::use_awaitable
+			);
+			LIBGS_TEST_CHECK(delayed);
+			socket_options = delayed->lease()->options();
+			LIBGS_TEST_CHECK(socket_options);
+			LIBGS_TEST_CHECK(not socket_options->no_delay);
+			LIBGS_TEST_CHECK_EQ(
+				co_await delayed->wait_reply(libgs::use_awaitable), status::ok
+			);
+			LIBGS_TEST_CHECK_EQ(
+				co_await delayed->reply()->read<std::string>(libgs::use_awaitable),
+				"hello:delayed:off"
 			);
 
 			auto set_cookie = co_await requester.request_get(

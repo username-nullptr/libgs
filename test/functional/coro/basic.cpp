@@ -328,14 +328,22 @@ void coroutine_utilities()
 
 void future_waiting()
 {
+	constexpr size_t wait_count = 256;
 	libgs::io_context_t context;
-	auto external = std::async(std::launch::async, [] { return 42; });
 	auto result = asio::co_spawn(context, [&]() -> libgs::awaitable<int>
 	{
-		co_return co_await libgs::coro::wait(external);
+		int total = 0;
+		for(size_t index = 0; index < wait_count; ++index)
+		{
+			std::promise<int> promise;
+			auto external = promise.get_future();
+			promise.set_value(42);
+			total += co_await libgs::coro::wait(external);
+		}
+		co_return total;
 	}, asio::use_future);
 	context.run();
-	LIBGS_TEST_CHECK_EQ(result.get(), 42);
+	LIBGS_TEST_CHECK_EQ(result.get(), 42 * wait_count);
 }
 
 } //namespace

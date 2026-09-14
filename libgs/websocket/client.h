@@ -14,6 +14,9 @@ struct client_config
 {
 	stream_config stream {};
 	std::chrono::milliseconds handshake_timeout {30000};
+	// true/false force the WebSocket transport setting; nullopt inherits the
+	// setting already applied by the underlying HTTP client.
+	optional<bool> no_delay {true};
 };
 
 struct connect_request

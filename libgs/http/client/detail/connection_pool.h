@@ -31,6 +31,9 @@ class LIBGS_HTTP_TAPI basic_connection_pool<Exec>::impl :
 			seed ^= std::hash<unsigned>{}(static_cast<unsigned>(key.security))
 				+ 0x9e3779b9U + (seed << 6U) + (seed >> 2U);
 
+			seed ^= std::hash<bool>{}(key.no_delay) + 0x9e3779b9U +
+				(seed << 6U) + (seed >> 2U);
+
 			return seed;
 		}
 	};

@@ -3,6 +3,7 @@
 
 #include "test.h"
 
+#include <libgs/http/client.h>
 #include <libgs/http/cxx/configs.h>
 #include <libgs/http/cxx/container.h>
 #include <libgs/http/protocol/utils/core/compression.h>
@@ -35,6 +36,18 @@ void endpoints_and_case_insensitive_containers()
 	LIBGS_TEST_CHECK_EQ(
 		libgs::http::value_set_get(names, "gzip")->to_string(), "GZip"
 	);
+}
+
+void client_configuration()
+{
+	libgs::io_context_t context;
+	libgs::http::client default_client(context.get_executor());
+	LIBGS_TEST_CHECK(default_client.config().no_delay);
+
+	libgs::http::client_config config;
+	config.no_delay = false;
+	libgs::http::client delayed_client(config);
+	LIBGS_TEST_CHECK(not delayed_client.config().no_delay);
 }
 
 void content_coding_and_mime_policy()
@@ -161,6 +174,7 @@ int main()
 {
 	return libgs::test::run({
 		{"endpoints and case-insensitive containers", endpoints_and_case_insensitive_containers},
+		{"client configuration", client_configuration},
 		{"content coding and MIME policy", content_coding_and_mime_policy},
 		{"gzip codec", gzip_codec},
 		{"file option tokens", file_option_tokens},

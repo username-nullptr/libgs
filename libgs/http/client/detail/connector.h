@@ -120,6 +120,10 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 			if( error )
 				return sys_unexpected(error);
 
+			socket.set_option(asio::ip::tcp::no_delay(target.no_delay), error);
+			if( error )
+				return sys_unexpected(error);
+
 			return connection_ptr(
 				std::make_shared<basic_tcp_connection<executor_t>>(std::move(socket))
 			);
@@ -144,6 +148,12 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 				return sys_unexpected(error);
 
 			asio::connect(socket.next_layer(), results, error);
+			if( error )
+				return sys_unexpected(error);
+
+			socket.next_layer().set_option (
+				asio::ip::tcp::no_delay(target.no_delay), error
+			);
 			if( error )
 				return sys_unexpected(error);
 
@@ -199,6 +209,10 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 			if( error )
 				co_return sys_unexpected(error);
 
+			socket.set_option(asio::ip::tcp::no_delay(target.no_delay), error);
+			if( error )
+				co_return sys_unexpected(error);
+
 			co_return connection_ptr(
 				std::make_shared<basic_tcp_connection<executor_t>>(std::move(socket))
 			);
@@ -224,6 +238,12 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 
 			co_await asio::async_connect(socket.next_layer(), results,
 				asio::redirect_error(use_awaitable, error)
+			);
+			if( error )
+				co_return sys_unexpected(error);
+
+			socket.next_layer().set_option (
+				asio::ip::tcp::no_delay(target.no_delay), error
 			);
 			if( error )
 				co_return sys_unexpected(error);

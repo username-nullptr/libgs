@@ -150,7 +150,8 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 
 		std::shared_ptr<std::vector<std::byte>> transformed_owner;
-		std::vector payload_buffers(buffers.begin(), buffers.end());
+		std::vector<const_buffer> transformed_buffers;
+		std::span<const const_buffer> payload_buffers = buffers;
 
 		if( m_permessage_deflate )
 		{
@@ -161,9 +162,10 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			transformed_owner = std::make_shared
 				<std::vector<std::byte>>(std::move(*compressed));
 
-			payload_buffers = {
+			transformed_buffers = {
 				const_buffer(transformed_owner->data(), transformed_owner->size())
 			};
+			payload_buffers = transformed_buffers;
 		}
 		const auto wire_body_size = transformed_owner ?
 			transformed_owner->size() : body_size;

@@ -57,6 +57,23 @@ LIBGS_WEBSOCKET_TAPI void close_reply_connection
 	}
 }
 
+template <typename ConnectionPtr>
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI error_code configure_client_connection
+(const ConnectionPtr &connection, optional<bool> no_delay) noexcept
+{
+	if( not connection )
+		return make_error_code(std::errc::not_connected);
+
+	if( not no_delay )
+		return {};
+
+	http::tcp_socket_options options;
+	options.no_delay = *no_delay;
+
+	auto configured = connection->set_options(options);
+	return configured ? error_code{} : configured.error();
+}
+
 [[nodiscard]] LIBGS_WEBSOCKET_API
 std::vector<std::byte> pending_bytes(std::string pending);
 
@@ -66,7 +83,8 @@ std::chrono::milliseconds remaining_timeout(std::chrono::steady_clock::time_poin
 template <core_concepts::exec Exec, http::version_enum Version>
 void open_sync(http::basic_client<Exec,Version> &http_client, connect_request request,
 	basic_open_diagnostics<Exec> *diagnostics, stream_config stream_config_value,
-	std::chrono::milliseconds timeout, basic_stream<Exec> &result, error_code &error) noexcept
+	optional<bool> no_delay, std::chrono::milliseconds timeout,
+	basic_stream<Exec> &result, error_code &error) noexcept
 {
 	using context_ptr = http::basic_client<Exec,Version>::
 		template context_ptr<http::method::get>;
@@ -233,6 +251,13 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 			auto pending = pending_bytes(reply->take_pending_data());
 			auto connection = reply->lease().take();
 
+			error = configure_client_connection(connection, no_delay);
+			if( error )
+			{
+				if( connection )
+					ignore_unused(connection->close());
+				return ;
+			}
 			adopt_options adopt {
 				.stream_role = role::client,
 				.pending_data = std::move(pending),
@@ -254,7 +279,7 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 template <core_concepts::exec Exec, http::version_enum Version, typename Handler>
 auto async_open(http::basic_client<Exec,Version> &http_client, connect_request request,
 	basic_open_diagnostics<Exec> *diagnostics, stream_config stream_config_value,
-	std::chrono::milliseconds timeout, Handler &&handler)
+	optional<bool> no_delay, std::chrono::milliseconds timeout, Handler &&handler)
 {
 	using result_t = basic_stream<Exec>;
 	using token_t = std::remove_cvref_t<Handler>;
@@ -264,7 +289,7 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 		asio::co_composed<void(error_code,result_t)>([](
 			auto state, http::basic_client<Exec,Version> *client, connect_request active_request,
 			basic_open_diagnostics<Exec> *active_diagnostics, stream_config active_stream_config,
-			std::chrono::milliseconds active_timeout) -> void
+			optional<bool> active_no_delay, std::chrono::milliseconds active_timeout) -> void
 		{
 			LIBGS_UNUSED(state);
 			using context_ptr = http::basic_client<Exec,Version>::
@@ -272,8 +297,7 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 
 			result_t result(client->get_executor(), active_stream_config);
 			context_ptr context;
-			try
-			{
+			try {
 				auto error = validate_open_request(active_request, active_stream_config);
 				if( error )
 				{
@@ -467,6 +491,17 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 					auto pending = pending_bytes(reply->take_pending_data());
 					auto connection = reply->lease().take();
 
+					auto option_error = configure_client_connection (
+						connection, active_no_delay
+					);
+					if( option_error )
+					{
+						if( connection )
+							ignore_unused(connection->close());
+						co_return std::tuple<error_code,result_t> {
+							option_error, std::move(result)
+						};
+					}
 					adopt_options adopt {
 						.stream_role = role::client,
 						.pending_data = std::move(pending),
@@ -492,7 +527,7 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 			}
 		},
 		http_client.get_executor()), completion_token, &http_client,
-		std::move(request), diagnostics, stream_config_value, timeout
+		std::move(request), diagnostics, stream_config_value, no_delay, timeout
 	);
 }
 
@@ -631,13 +666,15 @@ public:
 
 			const auto stream_options = *request.stream_options;
 			const auto timeout = *request.handshake_timeout;
+			const auto no_delay = self->m_config.no_delay;
 
 			detail::initiate_handshake_io<stream_t>(self->m_http_client.get_executor(),
 				[client = &self->m_http_client, request = std::move(request), diagnostics,
-				 stream_options, timeout]<typename Handler>(Handler &&handler) mutable
+				 stream_options, no_delay, timeout]<typename Handler>(Handler &&handler) mutable
 				{
 					detail::async_open(*client, std::move(request), diagnostics,
-						stream_options, timeout, std::forward<Handler>(handler)
+						stream_options, no_delay, timeout,
+						std::forward<Handler>(handler)
 					);
 				},
 				timeout,
@@ -666,15 +703,14 @@ public:
 			}
 			guard {m_pending_open_count};
 
-			if( diagnostics )
-			{
-				return websocket::open(m_http_client,
-					std::move(request), *diagnostics, error
-				);
-			}
-			return websocket::open (
-				m_http_client, std::move(request), error
+			const auto stream_options = *request.stream_options;
+			const auto timeout = *request.handshake_timeout;
+			stream_t result(m_http_client.get_executor(), stream_options);
+
+			detail::open_sync(m_http_client, std::move(request), diagnostics,
+				stream_options, m_config.no_delay, timeout, result, error
 			);
+			return result;
 		}
 		catch(...) {
 			error = exception_error(std::current_exception());
@@ -884,7 +920,7 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 		basic_stream<Exec> result(http_client.get_executor(), stream_options);
 		detail::open_sync(http_client, std::move(request),
 			static_cast<basic_open_diagnostics<Exec>*>(nullptr),
-			stream_options, timeout, result, token
+			stream_options, nullopt, timeout, result, token
 		);
 		return result;
 	}
@@ -895,7 +931,7 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 
 		detail::open_sync(http_client, std::move(request),
 			static_cast<basic_open_diagnostics<Exec>*>(nullptr),
-			stream_options, timeout, result, error
+			stream_options, nullopt, timeout, result, error
 		);
 		if( error )
 			system_error::loc_throw(error, "libgs::websocket::open");
@@ -909,7 +945,7 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 			{
 				detail::async_open(http_client, std::move(request),
 					static_cast<basic_open_diagnostics<Exec>*>(nullptr),
-					stream_options, timeout, std::forward<Handler>(handler)
+					stream_options, nullopt, timeout, std::forward<Handler>(handler)
 				);
 			},
 			timeout,
@@ -936,7 +972,7 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 	{
 		basic_stream<Exec> result(http_client.get_executor(), stream_options);
 		detail::open_sync(http_client, std::move(request), &diagnostics,
-			stream_options, timeout, result, token
+			stream_options, nullopt, timeout, result, token
 		);
 		return result;
 	}
@@ -946,7 +982,7 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 		error_code error;
 
 		detail::open_sync(http_client, std::move(request), &diagnostics,
-			stream_options, timeout, result, error
+			stream_options, nullopt, timeout, result, error
 		);
 		if( error )
 			system_error::loc_throw(error, "libgs::websocket::open");
@@ -959,7 +995,7 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 			<typename Handler>(Handler &&handler) mutable
 			{
 				detail::async_open(http_client, std::move(request), &diagnostics,
-					stream_options, timeout, std::forward<Handler>(handler)
+					stream_options, nullopt, timeout, std::forward<Handler>(handler)
 				);
 			},
 			timeout,

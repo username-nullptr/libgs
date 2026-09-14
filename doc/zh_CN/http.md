@@ -179,6 +179,15 @@ int main()
 默认 token 会在失败时抛出 `std::system_error`。如果需要非抛异常的同步处理，
 可以向 request、reply 和 body 操作传入 `std::error_code` 对象。
 
+`http::client_config::no_delay` 控制新建客户端连接的 `TCP_NODELAY`，默认值为
+`true`。该设置属于连接池键的一部分，因此使用不同设置创建的连接不会混用：
+
+```cpp
+libgs::http::client_config config;
+config.no_delay = false;
+libgs::http::client client(config);
+```
+
 ## 协程 HTTP 客户端
 
 传入 `libgs::use_awaitable`，即可在协程中使用同一套操作：

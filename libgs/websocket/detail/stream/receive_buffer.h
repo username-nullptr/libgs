@@ -18,6 +18,10 @@ struct received_event
 	std::vector<std::byte> control {};
 };
 
+enum class receive_target : uint8_t {
+	message, frame,
+};
+
 class LIBGS_WEBSOCKET_API receive_buffer
 {
 	LIBGS_DISABLE_COPY_MOVE(receive_buffer)
@@ -33,7 +37,7 @@ public:
 	[[nodiscard]] std::shared_ptr<std::vector<std::byte>> read_storage() const noexcept;
 	[[nodiscard]] error_code commit_read(size_t size) noexcept;
 
-	[[nodiscard]] sys_expected<optional<received_event>> consume() noexcept;
+	[[nodiscard]] sys_expected<optional<received_event>> consume(receive_target target) noexcept;
 
 private:
 	std::vector<std::byte> m_pending_data {};
@@ -51,8 +55,8 @@ private:
 
 	optional<message_type> m_message_type {};
 	std::vector<std::byte> m_message_body {};
+	size_t m_frame_offset = 0;
 
-	std::vector<std::byte> m_frame_body {};
 	std::vector<std::byte> m_control_body {};
 };
 

@@ -191,6 +191,17 @@ The default token throws `std::system_error` on failure. Pass a
 `std::error_code` object to request, reply, and body operations for non-throwing
 synchronous handling.
 
+`http::client_config::no_delay` controls `TCP_NODELAY` on newly established
+client connections and defaults to `true`. The setting is part of the
+connection-pool key, so connections created with different values are never
+mixed:
+
+```cpp
+libgs::http::client_config config;
+config.no_delay = false;
+libgs::http::client client(config);
+```
+
 ## Coroutine HTTP client
 
 Pass `libgs::use_awaitable` to use the same operations from a coroutine:

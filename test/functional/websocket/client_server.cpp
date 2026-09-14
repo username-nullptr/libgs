@@ -11,6 +11,43 @@ namespace
 
 namespace ws = libgs::websocket;
 
+class observing_connector final : public libgs::http::connector
+{
+public:
+	// Keep a non-owning handle so the adopted stream remains the sole owner.
+	explicit observing_connector(executor_t exec) :
+		libgs::http::connector(std::move(exec)) {}
+
+	[[nodiscard]] connection_ptr last_connection() const noexcept
+	{
+		return m_last_connection.lock();
+	}
+
+protected:
+	libgs::sys_expected<connection_ptr> do_connect(
+		const libgs::http::connect_target &target
+	) noexcept override
+	{
+		auto result = libgs::http::connector::do_connect(target);
+		if( result )
+			m_last_connection = *result;
+		return result;
+	}
+
+	libgs::awaitable<libgs::sys_expected<connection_ptr>> co_do_connect(
+		const libgs::http::connect_target &target
+	) noexcept override
+	{
+		auto result = co_await libgs::http::connector::co_do_connect(target);
+		if( result )
+			m_last_connection = *result;
+		co_return result;
+	}
+
+private:
+	std::weak_ptr<connection_t> m_last_connection {};
+};
+
 void owned_handler_round_trip()
 {
 	libgs::io_context_t context;
@@ -164,9 +201,11 @@ void owned_configuration_and_resources()
 	ws::client_config client_config;
 	client_config.handshake_timeout = 321ms;
 	client_config.stream.max_message_size = 4096;
+	client_config.no_delay = libgs::nullopt;
 	ws::client original(std::move(http_client), client_config);
 	LIBGS_TEST_CHECK_EQ(original.config().handshake_timeout, 321ms);
 	LIBGS_TEST_CHECK_EQ(original.config().stream.max_message_size, 4096U);
+	LIBGS_TEST_CHECK(not original.config().no_delay.has_value());
 	LIBGS_TEST_CHECK_EQ(original.cookie_store(), cookie_store);
 	LIBGS_TEST_CHECK(original.get_executor() == context.get_executor());
 	const auto &const_client = original;
@@ -192,6 +231,64 @@ void owned_configuration_and_resources()
 	service.set_config(server_config);
 	LIBGS_TEST_CHECK_EQ(service.config().max_pending_handshakes, 3U);
 	LIBGS_TEST_CHECK_EQ(service.config().pending_handshake_timeout, 456ms);
+}
+
+void client_no_delay_modes()
+{
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server service(std::move(acceptor));
+	service.on_default([](ws::accept_result accepted) -> libgs::awaitable<void>
+	{
+		auto [error, message] = co_await accepted.stream.read<std::string>(
+			asio::as_tuple(libgs::use_awaitable));
+		libgs::ignore_unused(error, message);
+	});
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	const auto endpoint = std::format("ws://127.0.0.1:{}/no-delay", port);
+
+	auto completed = asio::co_spawn(context, [&]() -> libgs::awaitable<void>
+	{
+		auto verify = [&](bool http_no_delay, libgs::optional<bool> ws_no_delay,
+			bool expected) -> libgs::awaitable<void>
+		{
+			auto connector = std::make_shared<observing_connector>(
+				context.get_executor());
+			libgs::http::connection_pool pool(connector);
+			libgs::http::client_config http_config;
+			http_config.no_delay = http_no_delay;
+			libgs::http::client http_client(std::move(pool), http_config);
+
+			ws::client_config ws_config;
+			ws_config.no_delay = ws_no_delay;
+			ws::client client(std::move(http_client), ws_config);
+			auto stream = co_await client.open(endpoint, libgs::use_awaitable);
+
+			auto connection = connector->last_connection();
+			LIBGS_TEST_CHECK(connection);
+			auto options = connection->options();
+			LIBGS_TEST_CHECK(options);
+			LIBGS_TEST_CHECK_EQ(options->no_delay, expected);
+			libgs::ignore_unused(co_await stream.close(libgs::use_awaitable));
+		};
+
+		try {
+			co_await verify(false, true, true);
+			co_await verify(true, false, false);
+			co_await verify(false, libgs::nullopt, false);
+		}
+		catch(...)
+		{
+			service.stop();
+			throw;
+		}
+		service.stop();
+	}, asio::use_future);
+
+	context.run();
+	completed.get();
 }
 
 void delivery_modes_and_cancellation()
@@ -765,6 +862,7 @@ int main()
 		{"owned handler round trip", owned_handler_round_trip},
 		{"owned accept round trip", owned_accept_round_trip},
 		{"owned configuration and resources", owned_configuration_and_resources},
+		{"client TCP_NODELAY modes", client_no_delay_modes},
 		{"delivery modes and cancellation", delivery_modes_and_cancellation},
 		{"pending handshake queue", pending_handshake_queue},
 		{"unavailable handshake queue", unavailable_handshake_queue},

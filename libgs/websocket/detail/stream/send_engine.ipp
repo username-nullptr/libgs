@@ -516,7 +516,7 @@ void detail::send_engine<Owner>::schedule()
 			m_queued_write_operations--;
 			operation->queued_counted = false;
 		}
-		auto frame = operation->frames.front();
+		auto frame = std::move(operation->frames.front());
 
 		start_wire_frame(std::move(frame),
 			wire_frame_kind::application_control, std::move(operation)
@@ -555,7 +555,7 @@ void detail::send_engine<Owner>::schedule()
 				m_current_data->queued_counted = false;
 			}
 		}
-		start_wire_frame(m_current_data->frames[m_current_data->frame_index],
+		start_wire_frame(std::move(m_current_data->frames[m_current_data->frame_index]),
 			wire_frame_kind::data, m_current_data
 		);
 		return ;
@@ -576,7 +576,7 @@ error_code detail::send_engine<Owner>::enqueue_send_operation
 			m_current_data = std::move(operation);
 		else
 		{
-			auto frame = operation->frames.front();
+			auto frame = std::move(operation->frames.front());
 			start_wire_frame(std::move(frame),
 				wire_frame_kind::application_control, std::move(operation)
 			);

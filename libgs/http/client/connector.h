@@ -19,6 +19,7 @@ struct connect_target
 	std::string host {};
 	uint16_t port = 0;
 	security_mode security {};
+	bool no_delay = true;
 
 	friend bool operator== (
 		const connect_target&, const connect_target&

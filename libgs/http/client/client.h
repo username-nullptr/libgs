@@ -10,6 +10,10 @@
 namespace libgs::http
 {
 
+struct client_config {
+	bool no_delay = true;
+};
+
 template <core_concepts::exec Exec = asio::any_io_executor,
 		  version_enum Version = version::v11>
 class LIBGS_HTTP_TAPI basic_client
@@ -20,6 +24,7 @@ public:
 	using executor_t = Exec;
 	static constexpr auto version_v = Version;
 
+	using config_t = client_config;
 	using connection_pool_t = basic_connection_pool<executor_t>;
 	using connection_t = connection_pool_t::connection_t;
 	using connection_ptr = connection_pool_t::connection_ptr;
@@ -98,15 +103,15 @@ public:
 		>;
 
 public:
-	basic_client() requires
+	explicit basic_client(config_t config = {}) requires
 		core_concepts::match_sched<io_executor_t,executor_t>;
 
 	template <typename Exec0>
-	explicit basic_client(Exec0 &&exec) requires (
+	explicit basic_client(Exec0 &&exec, config_t config = {}) requires (
 		not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and
 		core_concepts::match_sched<Exec0,executor_t>
 	);
-	explicit basic_client(connection_pool_t &&pool);
+	explicit basic_client(connection_pool_t &&pool, config_t config = {});
 
 	basic_client(basic_client &&other) noexcept;
 	basic_client &operator=(basic_client &&other) noexcept;
@@ -213,6 +218,8 @@ public:
 
 public:
 	[[nodiscard]] std::shared_ptr<cookie_jar> cookie_store() noexcept;
+	[[nodiscard]] config_t config() const noexcept;
+
 	[[nodiscard]] static consteval version_enum version() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;
 

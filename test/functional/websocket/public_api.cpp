@@ -27,6 +27,11 @@ void umbrella_and_value_types()
 	LIBGS_TEST_CHECK(stream_config.max_frame_size > 0);
 	LIBGS_TEST_CHECK(stream_config.max_message_size > 0);
 	LIBGS_TEST_CHECK(stream_config.read_buffer_size > 0);
+	ws::client_config client_config;
+	LIBGS_TEST_CHECK(client_config.no_delay.has_value());
+	LIBGS_TEST_CHECK(*client_config.no_delay);
+	client_config.no_delay = libgs::nullopt;
+	LIBGS_TEST_CHECK(not client_config.no_delay.has_value());
 
 	ws::connect_request request("https://example.test/socket?mode=public");
 	request.subprotocols = {"public.v1"};

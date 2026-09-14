@@ -20,7 +20,7 @@ LIBGS_CORE_TAPI void promise_set_value(std::promise<T> &promise, auto &&func)
 }
 
 template <typename Func>
-LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, bool &finished)
+LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, std::atomic_bool &finished)
 {
 	using return_t = std::invoke_result_t<Func>;
 	auto counter = std::make_shared<size_t>(0);
@@ -34,7 +34,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, bool &finished)
 			mutable noexcept -> awaitable<std::shared_ptr<size_t>>
 			{
 				co_await func();
-				finished = true;
+				finished.store(true, std::memory_order_release);
 				co_return counter;
 			};
 			return std::make_pair(std::move(lambda), counter);
@@ -45,7 +45,7 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, bool &finished)
 			mutable noexcept -> awaitable<std::pair<co_return_t,std::shared_ptr<size_t>>>
 			{
 				auto res = co_await func();
-				finished = true;
+				finished.store(true, std::memory_order_release);
 				co_return std::make_pair(std::move(res), counter);
 			};
 			return std::make_pair(std::move(lambda), counter);
@@ -58,13 +58,13 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, bool &finished)
 			if constexpr( std::is_void_v<return_t> )
 			{
 				func();
-				finished = true;
+				finished.store(true, std::memory_order_release);
 				return counter;
 			}
 			else
 			{
 				auto res = func();
-				finished = true;
+				finished.store(true, std::memory_order_release);
 				return std::make_pair(std::move(res), counter);
 			}
 		};
@@ -72,11 +72,11 @@ LIBGS_CORE_TAPI auto make_dispatch_lambda(Func &&work, bool &finished)
 	}
 }
 
-LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, bool &finished)
+LIBGS_CORE_TAPI size_t dispatch_poll(auto &exec, std::atomic_bool &finished)
 {
 	size_t counter = 0;
 	do { counter += exec.poll(); }
-	while( not finished );
+	while( not finished.load(std::memory_order_acquire) );
 	return counter;
 }
 
@@ -310,7 +310,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 		using token_t = std::remove_cvref_t<Token>;
 		using ntoken_t = token_unbound_t<token_t>;
 
-		auto finished = std::make_shared<bool>(false);
+		auto finished = std::make_shared<std::atomic_bool>(false);
 		if constexpr( is_detached_v<ntoken_t> )
 		{
 			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
@@ -332,12 +332,17 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 		}
 		else if constexpr( is_async_opt_token_v<ntoken_t> )
 		{
+			// Async tokens may initiate only when their result is awaited.
+			auto poll_work = asio::make_work_guard(exec);
 			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 			auto a = dispatch(exec, std::move(lambda), token);
 
-			std::thread([&exec, finished, counter]() mutable {
+			std::thread([&exec, finished, counter, poll_work = std::move(poll_work)]() mutable
+			{
+				LIBGS_UNUSED(poll_work);
 				*counter = detail::dispatch_poll(exec, *finished);
-			}).detach();
+			})
+			.detach();
 			return std::move(a);
 		}
 		else if constexpr( is_awaitable_v<return_t> )
@@ -351,7 +356,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 				() mutable noexcept -> awaitable<void>
 				{
 					co_await func();
-					*finished = true;
+					finished->store(true, std::memory_order_release);
 					co_return ;
 				},
 				detached);
@@ -365,7 +370,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work, Token &&toke
 				() mutable noexcept -> awaitable<void>
 				{
 					auto res = co_await func();
-					*finished = true;
+					finished->store(true, std::memory_order_release);
 					pair.first = std::move(res);
 					co_return ;
 				},
@@ -398,7 +403,7 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work)
 	}
 	else
 	{
-		auto finished = std::make_shared<bool>(false);
+		auto finished = std::make_shared<std::atomic_bool>(false);
 
 		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 		dispatch(exec, std::move(lambda), detached);
@@ -424,7 +429,7 @@ auto local_dispatch(Work &&work, Token &&token)
 		using return_t = std::invoke_result_t<Work>;
 		using token_t = std::remove_cvref_t<Token>;
 
-		auto finished = std::make_shared<bool>(false);
+		auto finished = std::make_shared<std::atomic_bool>(false);
 		if constexpr( is_detached_v<token_t> )
 		{
 			auto ioc = std::make_shared<asio::io_context>();
@@ -449,10 +454,16 @@ auto local_dispatch(Work &&work, Token &&token)
 		else if constexpr( is_async_opt_token_v<token_t> )
 		{
 			auto ioc = std::make_shared<asio::io_context>();
+			// Keep the context runnable until the lazy operation is initiated.
+			auto poll_work = asio::make_work_guard(*ioc);
+
 			auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 			auto a = dispatch(*ioc, std::move(lambda), token);
 
-			std::thread([poll_context = std::move(ioc), finished, counter]() mutable {
+			std::thread([poll_context = std::move(ioc), finished, counter,
+				poll_work = std::move(poll_work)]() mutable
+			{
+				LIBGS_UNUSED(poll_work);
 				*counter = detail::dispatch_poll(*poll_context, *finished);
 			}).detach();
 			return std::move(a);
@@ -469,7 +480,7 @@ auto local_dispatch(Work &&work, Token &&token)
 				() mutable noexcept -> awaitable<void>
 				{
 					co_await func();
-					*finished = true;
+					finished->store(true, std::memory_order_release);
 					co_return ;
 				},
 				detached);
@@ -483,7 +494,7 @@ auto local_dispatch(Work &&work, Token &&token)
 				() mutable noexcept -> awaitable<void>
 				{
 					auto res = co_await func();
-					*finished = true;
+					finished->store(true, std::memory_order_release);
 					pair.first = std::move(res);
 					co_return ;
 				},
@@ -516,7 +527,7 @@ auto local_dispatch(Work &&work)
 	else
 	{
 		auto ioc = std::make_shared<asio::io_context>();
-		auto finished = std::make_shared<bool>(false);
+		auto finished = std::make_shared<std::atomic_bool>(false);
 
 		auto [lambda, counter] = detail::make_dispatch_lambda(std::forward<Work>(work), *finished);
 		dispatch(*ioc, std::move(lambda), detached);

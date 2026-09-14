@@ -57,6 +57,10 @@ int main()
 WebSocket 共用连接策略、Cookie jar 或 connector，可以把 HTTP/1.1 client 传给
 自由函数 `websocket::open()`。
 
+`websocket::client_config::no_delay` 是三态配置，默认值为 `true`：`true` 开启
+`TCP_NODELAY`，`false` 关闭，`nullopt` 则保留底层 HTTP 连接继承来的设置。自由
+函数 `websocket::open(http_client, ...)` 始终保留 HTTP client 的设置。
+
 ## 服务端与混合 Upgrade
 
 `websocket::server` 持有 listener，可通过 `accept()` 主动取得连接，或通过

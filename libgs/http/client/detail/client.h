@@ -25,20 +25,24 @@ class LIBGS_HTTP_TAPI basic_client<Exec,Version>::impl :
 	using target_t = connection_pool_t::target_t;
 
 public:
-	impl() requires core_concepts::match_sched<io_executor_t,executor_t> :
-		m_pool(io_context()), m_cookie_store(std::make_shared<cookie_jar>()) {}
+	explicit impl(const config_t &config) requires
+		core_concepts::match_sched<io_executor_t,executor_t> :
+		m_pool(io_context()), m_cookie_store(std::make_shared<cookie_jar>()),
+		m_config(config) {}
 
-	explicit impl(const core_concepts::match_exec<executor_t> auto &exec) :
-		m_pool(exec), m_cookie_store(std::make_shared<cookie_jar>()) {}
+	explicit impl(const core_concepts::match_exec<executor_t> auto &exec,
+		const config_t &config) :
+		m_pool(exec), m_cookie_store(std::make_shared<cookie_jar>()),
+		m_config(config) {}
 
-	explicit impl(connection_pool_t &&pool) :
-		m_pool(std::move(pool)), m_cookie_store(std::make_shared<cookie_jar>()) {}
+	explicit impl(connection_pool_t &&pool, const config_t &config) :
+		m_pool(std::move(pool)), m_cookie_store(std::make_shared<cookie_jar>()),
+		m_config(config) {}
 
 private:
-	[[nodiscard]] static sys_expected<target_t> target_from_url(const url_t &value) noexcept
+	[[nodiscard]] static sys_expected<target_t>
+	target_from_url(const url_t &value, bool no_delay) noexcept
 	{
-		// url is a generic hierarchical resource descriptor. HTTP protocol
-		// selection is deliberately enforced only at the client boundary.
 		try {
 			if( not value.is_valid() or value.host().empty() or value.has_fragment() )
 			{
@@ -69,7 +73,7 @@ private:
 				);
 			}
 			return target_t {
-				strtls::to_lower(value.host()), port, security
+				strtls::to_lower(value.host()), port, security, no_delay
 			};
 		}
 		catch(const std::bad_alloc&)
@@ -653,13 +657,17 @@ public:
 	[[nodiscard]] result_t<Method> make_context(req_info info) noexcept
 	{
 		try {
-			auto target_expected = target_from_url(info.url);
+			auto target_expected = target_from_url (
+				info.url, m_config.no_delay
+			);
 			if( not target_expected )
 				return sys_unexpected(target_expected.error());
 
 			if( info.proxy )
 			{
-				target_expected = target_from_url(*info.proxy);
+				target_expected = target_from_url (
+					*info.proxy, m_config.no_delay
+				);
 				if( not target_expected )
 					return sys_unexpected(target_expected.error());
 			}
@@ -709,7 +717,9 @@ public:
 			(auto state, std::shared_ptr<impl> self, req_info request_info) -> void
 			{
 				ignore_unused(state);
-				auto target_expected = target_from_url(request_info.url);
+				auto target_expected = target_from_url (
+					request_info.url, self->m_config.no_delay
+				);
 
 				if( not target_expected )
 				{
@@ -719,7 +729,9 @@ public:
 				}
 				if( request_info.proxy )
 				{
-					target_expected = target_from_url(*request_info.proxy);
+					target_expected = target_from_url (
+						*request_info.proxy, self->m_config.no_delay
+					);
 					if( not target_expected )
 					{
 						co_return std::tuple<error_code,context_ptr<Method>> {
@@ -799,28 +811,31 @@ public:
 public:
 	connection_pool_t m_pool;
 	std::shared_ptr<cookie_jar> m_cookie_store {};
+	config_t m_config {};
 };
 
 template <core_concepts::exec Exec, version_enum Version>
-basic_client<Exec,Version>::basic_client() requires
+basic_client<Exec,Version>::basic_client(config_t config) requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
-	m_impl(std::make_shared<impl>())
+	m_impl(std::make_shared<impl>(config))
 {
 
 }
 
 template <core_concepts::exec Exec, version_enum Version>
 template <typename Exec0>
-basic_client<Exec,Version>::basic_client(Exec0 &&exec) requires
+basic_client<Exec,Version>::basic_client(Exec0 &&exec, config_t config) requires
 (not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and core_concepts::match_sched<Exec0,executor_t>) :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Exec0>(exec))))
+	m_impl(std::make_shared<impl>(
+		get_executor_helper(std::forward<Exec0>(exec)), config
+	))
 {
 
 }
 
 template <core_concepts::exec Exec, version_enum Version>
-basic_client<Exec,Version>::basic_client(connection_pool_t &&pool) :
-	m_impl(std::make_shared<impl>(std::move(pool)))
+basic_client<Exec,Version>::basic_client(connection_pool_t &&pool, config_t config) :
+	m_impl(std::make_shared<impl>(std::move(pool), config))
 {
 
 }
@@ -1055,6 +1070,12 @@ template <core_concepts::exec Exec, version_enum Version>
 std::shared_ptr<cookie_jar> basic_client<Exec,Version>::cookie_store() noexcept
 {
 	return m_impl->m_cookie_store;
+}
+
+template <core_concepts::exec Exec, version_enum Version>
+auto basic_client<Exec,Version>::config() const noexcept -> config_t
+{
+	return m_impl->m_config;
 }
 
 template <core_concepts::exec Exec, version_enum Version>

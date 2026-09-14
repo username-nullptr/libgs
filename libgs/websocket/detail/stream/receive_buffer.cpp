@@ -35,7 +35,8 @@ void receive_buffer::reset(role local_role, const stream_config &config,
 
 	m_message_type.reset();
 	m_message_body.clear();
-	m_frame_body.clear();
+
+	m_frame_offset = 0;
 	m_control_body.clear();
 }
 
@@ -73,7 +74,7 @@ error_code receive_buffer::commit_read(size_t size) noexcept
 	return {};
 }
 
-sys_expected<optional<received_event>> receive_buffer::consume() noexcept
+sys_expected<optional<received_event>> receive_buffer::consume(receive_target target) noexcept
 {
 	auto input = available_data();
 	if( input.size() == 0 )
@@ -106,7 +107,7 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 			m_message_compressed = compressed;
 		}
 		if( is_data_opcode(header.op) or header.op == opcode::continuation )
-			m_frame_body.clear();
+			m_frame_offset = m_message_body.size();
 
 		else if( is_control_opcode(header.op) )
 			m_control_body.clear();
@@ -143,9 +144,6 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 			}
 			else
 			{
-				m_frame_body.insert(m_frame_body.end(), begin,
-					begin + parsed->payload.size());
-
 				m_message_body.insert(m_message_body.end(), begin,
 					begin + parsed->payload.size());
 			}
@@ -184,13 +182,26 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 		if( not m_message_type )
 			return sys_unexpected(make_error_code(protocol_errc::unexpected_continuation));
 
-		event.frame = data_frame {
-			.type = *m_message_type,
-			.body = std::move(m_frame_body),
-			.continuation = header.op == opcode::continuation,
-			.fin = header.fin,
-		};
-		m_frame_body.clear();
+		if( target == receive_target::frame )
+		{
+			try {
+				event.frame = data_frame {
+					.type = *m_message_type,
+					.body = std::vector<std::byte> {
+						m_message_body.begin() + static_cast<std::ptrdiff_t>(m_frame_offset),
+						m_message_body.end()
+					},
+					.continuation = header.op == opcode::continuation,
+					.fin = header.fin,
+				};
+			}
+			catch(const std::bad_alloc&) {
+				return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+			}
+			catch(...) {
+				return sys_unexpected(make_error_code(std::errc::io_error));
+			}
+		}
 		if( header.fin )
 		{
 			if( m_message_compressed )
@@ -208,14 +219,19 @@ sys_expected<optional<received_event>> receive_buffer::consume() noexcept
 				if( not is_valid_utf8(text) )
 					return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 			}
-			event.data = message {
-				.type = *m_message_type,
-				.body = std::move(m_message_body),
-			};
+			if( target == receive_target::message )
+			{
+				event.data = message {
+					.type = *m_message_type,
+					.body = std::move(m_message_body),
+				};
+			}
 			m_message_type.reset();
 			m_message_compressed = false;
 			m_message_body.clear();
 		}
+		else if( target == receive_target::message )
+			return optional<received_event>{};
 	}
 	else
 		event.control = std::move(m_control_body);
