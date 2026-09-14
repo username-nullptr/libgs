@@ -58,6 +58,30 @@ public:
 	}
 
 public:
+	[[nodiscard]] bool enabled(spd_level_t level) const noexcept
+	{
+		if( m_terminal_logger->should_log(level) or
+			(m_file_loggers[0] and m_file_loggers[0]->should_log(level)) )
+			return true;
+
+		for(size_t index = 1; index < 4; ++index)
+		{
+			if( m_file_loggers[index] and m_file_loggers[index]->level() == level )
+				return true;
+		}
+		return false;
+	}
+
+	void flush()
+	{
+		m_terminal_logger->flush();
+		for(auto &logger : m_file_loggers)
+		{
+			if( logger )
+				logger->flush();
+		}
+	}
+
 	void set_config(config_t conf) noexcept
 	{
 		set_logger(m_terminal_logger,
@@ -239,21 +263,24 @@ logger::~logger()
 	delete m_impl;
 }
 
-namespace {
+namespace
+{
+
 struct LIBGS_DECL_HIDDEN no_deleter {
 	void operator()(logger*) const {}
 };
+
 } //namespace
 
 using logger_ptr = std::unique_ptr<logger, no_deleter>;
 
-static std::map<std::string, logger_ptr> g_instances;
+static std::map<std::string, logger_ptr, std::less<>> g_instances;
 static spin_shared_mutex g_instances_lock;
 
 std::vector<std::string> logger::names() noexcept
 {
 	std::vector<std::string> names {};
-	spin_shared_unique_lock locker(g_instances_lock);
+	spin_shared_shared_lock locker(g_instances_lock);
 
 	names.reserve(g_instances.size());
 	for(auto &pair : g_instances)
@@ -263,20 +290,37 @@ std::vector<std::string> logger::names() noexcept
 
 logger &logger::instance(std::string_view name, bool create)
 {
-	std::string _name(name.data(), name.size());
-	spin_shared_unique_lock locker(g_instances_lock);
-
-	if( auto it = g_instances.find(_name); it != g_instances.end() )
-		return *it->second;
-
-	else if( create )
+	// Instance objects and map keys remain valid for the process lifetime.
+	struct cache_t {
+		std::string_view name {};
+		logger *object = nullptr;
+	};
+	thread_local cache_t cache;
+	if( cache.object and cache.name == name )
+		return *cache.object;
 	{
-		logger_ptr object(new logger(_name), no_deleter());
-		it = g_instances.emplace(std::move(_name), std::move(object)).first;
+		spin_shared_shared_lock locker(g_instances_lock);
+		if( auto it = g_instances.find(name); it != g_instances.end() )
+		{
+			cache = {it->first, it->second.get()};
+			return *it->second;
+		}
+	}
+	if( create )
+	{
+		spin_shared_unique_lock locker(g_instances_lock);
+		if( auto it = g_instances.find(name); it != g_instances.end() )
+		{
+			cache = {it->first, it->second.get()};
+			return *it->second;
+		}
+		std::string logger_name(name);
+		logger_ptr object(new logger(logger_name), no_deleter());
+
+		auto it = g_instances.emplace(std::move(logger_name), std::move(object)).first;
+		cache = {it->first, it->second.get()};
 		return *it->second;
 	}
-	locker.unlock();
-
 	runtime_error::loc_throw(std::format (
 		"libgs::utils::logger::instance: Instance '{}' is not exist.", name
 	));
@@ -299,9 +343,20 @@ logger::config_t logger::config() const noexcept
 	return m_impl->m_config;
 }
 
+logger &logger::flush()
+{
+	m_impl->flush();
+	return *this;
+}
+
 std::string_view logger::name() const noexcept
 {
 	return m_impl->m_name;
+}
+
+bool logger::_enabled(level_t lv) const noexcept
+{
+	return m_impl->enabled(impl::conf_level(lv));
 }
 
 void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
@@ -309,19 +364,31 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 	spdlog::source_loc src_loc {loc.file, loc.line, loc.func};
 	auto conf_lv = impl::conf_level(lv);
 
-	m_impl->m_terminal_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
-		std::format(": \n{}\n", strtls::trimmed(msg)) :
-		std::format(": {}", strtls::trimmed(msg))
-	);
-	std::vector<impl::logger_ptr> loggers {};
+	while( not msg.empty() and msg.front() >= 1 and msg.front() <= 32 )
+		msg.remove_prefix(1);
+
+	while( not msg.empty() and msg.back() >= 1 and msg.back() <= 32 )
+		msg.remove_suffix(1);
+
+	std::string text;
+	text.reserve(msg.size() + 4);
+
+	if( m_impl->m_config.line_break )
+		text = ": \n";
+	else
+		text = ": ";
+
+	text.append(msg);
+	if( m_impl->m_config.line_break )
+		text.push_back('\n');
+
+	if( m_impl->m_terminal_logger->should_log(conf_lv) )
+		m_impl->m_terminal_logger->log(src_loc, conf_lv, text);
 
 	if( auto &daily_logger = m_impl->m_file_loggers[0] )
 	{
-		daily_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
-			std::format(": \n{}\n", strtls::trimmed(msg)) :
-			std::format(": {}", strtls::trimmed(msg))
-		);
-		loggers.emplace_back(daily_logger);
+		if( daily_logger->should_log(conf_lv) )
+			daily_logger->log(src_loc, conf_lv, text);
 	}
 	for(size_t i=1; i<4; i++)
 	{
@@ -329,15 +396,8 @@ void logger::_log(level_t lv, const source_loc &loc, std::string_view msg) const
 		if( not file_logger or file_logger->level() != conf_lv )
 			continue;
 
-		file_logger->log(src_loc, conf_lv, m_impl->m_config.line_break ?
-			std::format(": \n{}\n", strtls::trimmed(msg)) :
-			std::format(": {}", strtls::trimmed(msg))
-		);
-		loggers.emplace_back(file_logger);
+		file_logger->log(src_loc, conf_lv, text);
 	}
-	m_impl->m_terminal_logger->flush();
-	for(auto &file_logger : loggers)
-		file_logger->flush();
 }
 
 void logger::check_level(level_t lv)

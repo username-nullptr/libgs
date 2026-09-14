@@ -73,6 +73,13 @@ awaitable baselines, uncontended acquire/release cycles, and queued waiter
 wake-ups. This keeps runtime and primitive overhead distinguishable when
 comparing two builds.
 
+The utility logger measurements separate formatting from dispatch. They cover
+cached and named disabled calls, four-thread named calls, an enabled null sink,
+and asynchronous daily-file enqueue throughput followed by an explicit flush.
+The null sink deliberately removes terminal I/O while preserving the enabled
+logger path; the file measurement uses a temporary directory and validates that
+data reached the sink.
+
 For memory errors and undefined behavior, use a separate ASan/UBSan build. The
 instrumented build omits performance tests and should not be used for install
 artifacts:

@@ -8,6 +8,8 @@
 #include <libgs/utils/sbus.h>
 #include <libgs/utils/settings.h>
 
+#include <fstream>
+
 namespace
 {
 
@@ -283,6 +285,35 @@ void logger_configuration()
 	LIBGS_TEST_CHECK(std::ranges::find(names, "libgs-test-runtime") != names.end());
 }
 
+void logger_file_flush()
+{
+	using logger = libgs::utils::logger;
+	libgs::test::temporary_directory directory;
+	auto &instance = logger::instance("libgs-test-runtime-file");
+	logger::config_t config;
+	config.path = directory.path();
+	config.level.console = logger::level_t::off;
+	config.level.daily = logger::level_t::info;
+	instance.set_config(config);
+	instance.info(
+		logger::source_loc(__FILE__, __func__, __LINE__), "  queued message  "
+	).flush();
+
+	config.path.clear();
+	instance.set_config(config);
+	std::string output;
+	for(const auto &entry : std::filesystem::recursive_directory_iterator(directory.path()))
+	{
+		if( not entry.is_regular_file() )
+			continue;
+		std::ifstream stream(entry.path());
+		output.append(
+			std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()
+		);
+	}
+	LIBGS_TEST_CHECK(output.find(": queued message") != std::string::npos);
+}
+
 } //namespace
 
 int main()
@@ -296,5 +327,6 @@ int main()
 		{"child process cancel options", child_process_cancel_options},
 		{"local message bus", local_message_bus},
 		{"logger configuration", logger_configuration},
+		{"logger file flush", logger_file_flush},
 	});
 }

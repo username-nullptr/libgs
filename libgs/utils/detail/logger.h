@@ -11,6 +11,9 @@ template <logger::level_t Lv, typename Arg0, typename...Args>
 logger &logger::write(const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
 {
 	check_level<Lv>();
+	if( not _enabled(Lv) )
+		return *this;
+
 	_log(Lv, loc, std::format(std::move(msg), std::forward<Arg0>(arg0), std::forward<Args>(args)...));
 	return *this;
 }
@@ -19,7 +22,13 @@ template <logger::level_t Lv, typename T>
 logger &logger::write(const source_loc &loc, T &&msg)
 {
 	check_level<Lv>();
-	_log(Lv, loc, std::format("{}", std::forward<T>(msg)));
+	if( not _enabled(Lv) )
+		return *this;
+
+	if constexpr( concepts::string_p<T,char> )
+		_log(Lv, loc, std::string_view(std::forward<T>(msg)));
+	else
+		_log(Lv, loc, std::format("{}", std::forward<T>(msg)));
 	return *this;
 }
 
@@ -27,6 +36,9 @@ template <typename Arg0, typename...Args>
 logger &logger::write(level_t lv, const source_loc &loc, fmt_str_t<Arg0,Args...> msg, Arg0 &&arg0, Args&&...args)
 {
 	check_level(lv);
+	if( not _enabled(lv) )
+		return *this;
+
 	_log(lv, loc, std::format(std::move(msg), std::forward<Arg0>(arg0), std::forward<Args>(args)...));
 	return *this;
 }
@@ -35,7 +47,13 @@ template <typename T>
 logger &logger::write(level_t lv, const source_loc &loc, T &&msg)
 {
 	check_level(lv);
-	_log(lv, loc, std::format("{}", std::forward<T>(msg)));
+	if( not _enabled(lv) )
+		return *this;
+
+	if constexpr( concepts::string_p<T,char> )
+		_log(lv, loc, std::string_view(std::forward<T>(msg)));
+	else
+		_log(lv, loc, std::format("{}", std::forward<T>(msg)));
 	return *this;
 }
 

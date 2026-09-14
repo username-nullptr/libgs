@@ -46,6 +46,9 @@ int main()
 日志宏通过 `std::source_location` 捕获源文件、函数和行号。除非使用
 `instance(name, false)`，否则命名实例会在第一次访问时创建。
 
+文件 logger 会异步提交日志；warning 及更高级别会请求 sink 执行刷新。如需等待
+所有已排队日志到达 sink，请调用 `logger::flush()`。
+
 ## 设置
 
 `libgs::utils::settings` 将 `libgs::ini` 封装为命名单例，并提供 `changed` 和

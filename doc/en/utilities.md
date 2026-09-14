@@ -49,6 +49,10 @@ The logging macros capture source file, function, and line information through
 `std::source_location`. Named instances are created on first access unless
 `instance(name, false)` is used.
 
+File loggers enqueue records asynchronously. Warning and higher levels request
+a sink-side flush; call `logger::flush()` when the caller must wait until all
+queued records have reached their sinks.
+
 ## Settings
 
 `libgs::utils::settings` wraps `libgs::ini` in a named singleton and exposes

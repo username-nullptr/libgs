@@ -69,6 +69,7 @@ public:
 	logger &set_config(config_t conf);
 	[[nodiscard]] config_t config() const noexcept;
 
+	logger &flush();
 	[[nodiscard]] std::string_view name() const noexcept;
 
 public:
@@ -139,6 +140,7 @@ public:
 	logger &critical(const source_loc &loc, T &&msg);
 
 private:
+	[[nodiscard]] bool _enabled(level_t lv) const noexcept;
 	void _log(level_t lv, const source_loc &loc, std::string_view msg) const;
 
 	template <level_t Lv>
