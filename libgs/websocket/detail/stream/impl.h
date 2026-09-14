@@ -44,11 +44,20 @@ public:
 		std::span<const const_buffer> buffers, error_code &error
 	) noexcept;
 
+	[[nodiscard]] size_t write_frame(message_type type,
+		const const_buffer &payload, bool continuation,
+		bool fin, error_code &error
+	) noexcept;
+
 	template <typename Handler>
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
 		std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
 	);
 
+	template <typename Handler>
+	void async_write_frame(message_type type, const const_buffer &payload,
+		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+	);
 	[[nodiscard]] size_t write_control (
 		opcode op, const const_buffer &payload, error_code &error
 	) noexcept;
@@ -71,6 +80,12 @@ public:
 
 	template <typename Handler>
 	void async_read_frame(Handler &&handler);
+
+	template <typename Consumer>
+	[[nodiscard]] message_info consume(Consumer &&consumer, error_code &error) noexcept;
+
+	template <typename Consumer, typename Handler>
+	void async_consume(Consumer &&consumer, Handler &&handler);
 
 	template <typename Buffer>
 	[[nodiscard]] static basic_message<Buffer> convert_message (
@@ -120,6 +135,9 @@ public:
 	[[nodiscard]] error_code read_state_error() const noexcept;
 
 	[[nodiscard]] error_code frame_read_state_error() const noexcept;
+	[[nodiscard]] error_code frame_write_state_error() const noexcept;
+
+	[[nodiscard]] error_code consume_state_error() const noexcept;
 	[[nodiscard]] error_code control_state_error() const noexcept;
 
 	[[nodiscard]] bool send_transport_ready() const noexcept;

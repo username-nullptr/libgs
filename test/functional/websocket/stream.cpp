@@ -501,6 +501,99 @@ void test_client_write_is_masked()
 		payload.size()) == 0);
 }
 
+void test_write_frame_symmetry_and_validation()
+{
+	libgs::io_context_t context;
+	ws::stream stream(context.get_executor());
+	auto connection = std::make_shared<memory_connection>(context.get_executor());
+	libgs::error_code error;
+	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+		{.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+
+	const ws::basic_data_frame<std::string> first {
+		.type = ws::message_type::text,
+		.body = std::string("\xE2\x82", 2),
+		.continuation = false,
+		.fin = false,
+	};
+	LIBGS_TEST_CHECK_EQ(stream.write_frame(first, error), size_t {2});
+	LIBGS_TEST_CHECK(not error);
+
+	LIBGS_TEST_CHECK_EQ(stream.write_text("interleaved", error), size_t {0});
+	LIBGS_TEST_CHECK_EQ(error,
+		ws::make_error_code(ws::protocol_errc::data_during_fragmentation));
+	LIBGS_TEST_CHECK(stream.is_open());
+
+	const ws::basic_data_frame<std::string> last {
+		.type = ws::message_type::text,
+		.body = std::string("\xAC", 1),
+		.continuation = true,
+		.fin = true,
+	};
+	LIBGS_TEST_CHECK_EQ(stream.write_frame(last, error), size_t {1});
+	LIBGS_TEST_CHECK(not error);
+
+	const auto &wire = connection->wire();
+	LIBGS_TEST_CHECK_EQ(wire.size(), size_t {7});
+	LIBGS_TEST_CHECK_EQ(octet(wire, 0), uint8_t {0x01});
+	LIBGS_TEST_CHECK_EQ(octet(wire, 1), uint8_t {0x02});
+	LIBGS_TEST_CHECK_EQ(octet(wire, 4), uint8_t {0x80});
+	LIBGS_TEST_CHECK_EQ(octet(wire, 5), uint8_t {0x01});
+
+	const ws::basic_data_frame<std::string> unexpected {
+		.type = ws::message_type::binary,
+		.body = "x",
+		.continuation = true,
+		.fin = true,
+	};
+	LIBGS_TEST_CHECK_EQ(stream.write_frame(unexpected, error), size_t {0});
+	LIBGS_TEST_CHECK_EQ(error,
+		ws::make_error_code(ws::protocol_errc::unexpected_continuation));
+	LIBGS_TEST_CHECK(stream.is_open());
+
+	const ws::basic_data_frame<std::string> invalid_text {
+		.type = ws::message_type::text,
+		.body = std::string("\xE2", 1),
+	};
+	LIBGS_TEST_CHECK_EQ(stream.write_frame(invalid_text, error), size_t {0});
+	LIBGS_TEST_CHECK_EQ(error,
+		ws::make_error_code(ws::protocol_errc::invalid_utf8));
+	LIBGS_TEST_CHECK(stream.is_open());
+
+	libgs::io_context_t async_context;
+	ws::stream async_stream(async_context.get_executor());
+	auto async_connection =
+		std::make_shared<memory_connection>(async_context.get_executor());
+	async_stream.adopt(
+		std::static_pointer_cast<libgs::http::connection>(async_connection),
+		{.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+
+	const ws::basic_data_frame<std::string> async_first {
+		.type = ws::message_type::binary,
+		.body = "async-",
+		.continuation = false,
+		.fin = false,
+	};
+	auto first_written = async_stream.write_frame(async_first, libgs::use_future);
+	async_context.run();
+	LIBGS_TEST_CHECK_EQ(first_written.get(), size_t {6});
+
+	async_context.restart();
+	const ws::basic_data_frame<std::string> async_last {
+		.type = ws::message_type::binary,
+		.body = "frame",
+		.continuation = true,
+		.fin = true,
+	};
+	auto last_written = async_stream.write_frame(async_last, libgs::use_future);
+	async_context.run();
+	LIBGS_TEST_CHECK_EQ(last_written.get(), size_t {5});
+	LIBGS_TEST_CHECK_EQ(parse_server_frames(async_connection->wire()),
+		(std::vector<ws::opcode>{ws::opcode::binary, ws::opcode::continuation}));
+}
+
 void test_preflight_and_partial_failure()
 {
 	libgs::io_context_t context;
@@ -1054,6 +1147,15 @@ void test_read_frame_sync_and_async()
 		LIBGS_TEST_CHECK(not first.continuation);
 		LIBGS_TEST_CHECK_EQ(first.body, "hel");
 
+		bool consumed = false;
+		libgs::ignore_unused(stream.consume(
+			[&](const ws::message_chunk&) { consumed = true; }, error
+		));
+		LIBGS_TEST_CHECK_EQ(error,
+			std::make_error_code(std::errc::operation_not_supported));
+		LIBGS_TEST_CHECK(not consumed);
+		LIBGS_TEST_CHECK(stream.is_open());
+
 		auto second = stream.read_frame<std::string>(error);
 		LIBGS_TEST_CHECK(not error);
 		LIBGS_TEST_CHECK_EQ(second.type, ws::message_type::text);
@@ -1103,6 +1205,125 @@ void test_read_frame_sync_and_async()
 		LIBGS_TEST_CHECK(second.fin);
 		LIBGS_TEST_CHECK(second.continuation);
 	}
+}
+
+void test_consume_streams_one_message()
+{
+	libgs::io_context_t context;
+	ws::stream_config config;
+	config.read_buffer_size = 2;
+	ws::stream stream(context.get_executor(), config);
+	auto connection = std::make_shared<memory_connection>(context.get_executor());
+	connection->read_chunk_size(2);
+
+	const std::string expected_body("\x61\xE2\x82\xAC\x62", 5);
+	std::vector<std::byte> input;
+	append_frame(input, ws::opcode::text, false,
+		std::string_view(expected_body.data(), 2));
+	append_frame(input, ws::opcode::ping, true, "p");
+	append_frame(input, ws::opcode::continuation, true,
+		std::string_view(expected_body).substr(2));
+	connection->feed(std::move(input));
+
+	libgs::error_code error;
+	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+		{.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+
+	std::string body;
+	std::vector<ws::message_chunk> observed;
+	auto info = stream.consume([&](const ws::message_chunk &chunk)
+	{
+		LIBGS_TEST_CHECK(chunk.body.size() <= config.read_buffer_size);
+		LIBGS_TEST_CHECK_EQ(chunk.offset, body.size());
+		const auto *data = static_cast<const char*>(chunk.body.data());
+		body.append(data, chunk.body.size());
+		observed.push_back({
+			.type = chunk.type,
+			.body = {},
+			.offset = chunk.offset,
+			.first = chunk.first,
+			.last = chunk.last,
+		});
+	}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(info.type, ws::message_type::text);
+	LIBGS_TEST_CHECK_EQ(info.size, expected_body.size());
+	LIBGS_TEST_CHECK_EQ(body, expected_body);
+	LIBGS_TEST_CHECK(not observed.empty());
+	LIBGS_TEST_CHECK(observed.front().first);
+	LIBGS_TEST_CHECK(observed.back().last);
+	LIBGS_TEST_CHECK_EQ(parse_server_frames(connection->wire()),
+		std::vector<ws::opcode>{ws::opcode::pong});
+
+	std::vector<std::byte> empty;
+	append_frame(empty, ws::opcode::binary, true, "");
+	connection->feed(std::move(empty));
+	size_t callbacks = 0;
+	info = stream.consume([&](const ws::message_chunk &chunk)
+	{
+		callbacks++;
+		LIBGS_TEST_CHECK(chunk.first);
+		LIBGS_TEST_CHECK(chunk.last);
+		LIBGS_TEST_CHECK_EQ(chunk.offset, 0U);
+		LIBGS_TEST_CHECK_EQ(chunk.body.size(), 0U);
+	}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(callbacks, 1U);
+	LIBGS_TEST_CHECK_EQ(info.type, ws::message_type::binary);
+	LIBGS_TEST_CHECK_EQ(info.size, 0U);
+
+	ws::stream pending_stream(context.get_executor(), config);
+	auto pending_connection =
+		std::make_shared<memory_connection>(context.get_executor());
+	std::vector<std::byte> pending;
+	append_frame(pending, ws::opcode::binary, true, "pending-data");
+	pending_stream.adopt(
+		std::static_pointer_cast<libgs::http::connection>(pending_connection), {
+			.stream_role = ws::role::server,
+			.pending_data = std::move(pending),
+		}, error);
+	LIBGS_TEST_CHECK(not error);
+	std::string pending_body;
+	info = pending_stream.consume([&](const ws::message_chunk &chunk)
+	{
+		LIBGS_TEST_CHECK(chunk.body.size() <= config.read_buffer_size);
+		const auto *data = static_cast<const char*>(chunk.body.data());
+		pending_body.append(data, chunk.body.size());
+	}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(info.size, size_t {12});
+	LIBGS_TEST_CHECK_EQ(pending_body, "pending-data");
+}
+
+void test_async_consume()
+{
+	libgs::io_context_t context;
+	ws::stream_config config;
+	config.read_buffer_size = 3;
+	ws::stream stream(context.get_executor(), config);
+	auto connection = std::make_shared<memory_connection>(context.get_executor());
+	connection->read_chunk_size(2);
+	std::vector<std::byte> input;
+	append_frame(input, ws::opcode::binary, true, "streamed");
+	connection->feed(std::move(input));
+
+	libgs::error_code error;
+	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+		{.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+
+	std::string body;
+	auto completed = stream.consume([&](const ws::message_chunk &chunk)
+	{
+		const auto *data = static_cast<const char*>(chunk.body.data());
+		body.append(data, chunk.body.size());
+	}, libgs::use_future);
+	context.run();
+	auto info = completed.get();
+	LIBGS_TEST_CHECK_EQ(info.type, ws::message_type::binary);
+	LIBGS_TEST_CHECK_EQ(info.size, size_t {8});
+	LIBGS_TEST_CHECK_EQ(body, "streamed");
 }
 
 void test_async_read()
@@ -1300,6 +1521,23 @@ void test_invalid_compressed_payload()
 			.negotiated_extensions = {ws::permessage_deflate_extension()},
 		}, error);
 		LIBGS_TEST_CHECK(not error);
+		bool consumed = false;
+		libgs::ignore_unused(stream.consume(
+			[&](const ws::message_chunk&) { consumed = true; }, error
+		));
+		LIBGS_TEST_CHECK_EQ(error,
+			std::make_error_code(std::errc::operation_not_supported));
+		LIBGS_TEST_CHECK(not consumed);
+
+		const ws::basic_data_frame<std::string> frame {
+			.type = ws::message_type::binary,
+			.body = "frame",
+		};
+		LIBGS_TEST_CHECK_EQ(stream.write_frame(frame, error), size_t {0});
+		LIBGS_TEST_CHECK_EQ(error,
+			std::make_error_code(std::errc::operation_not_supported));
+		LIBGS_TEST_CHECK(stream.is_open());
+
 		libgs::ignore_unused(stream.read<>(error));
 		LIBGS_TEST_CHECK_EQ(error,
 			ws::make_error_code(ws::protocol_errc::invalid_compressed_payload));
@@ -2002,6 +2240,8 @@ int main()
 		{"adopt validation", test_adopt_validation},
 		{"server write and fragmentation", test_server_write_and_fragmentation},
 		{"client write masking", test_client_write_is_masked},
+		{"write frame symmetry and validation",
+			test_write_frame_symmetry_and_validation},
 		{"write preflight and partial failure", test_preflight_and_partial_failure},
 		{"async write", test_async_write},
 		{"control write", test_control_write},
@@ -2018,6 +2258,8 @@ int main()
 			test_read_fragmentation_and_automatic_pong},
 		{"read pending multiple messages", test_read_pending_multiple_messages},
 		{"read frame sync and async", test_read_frame_sync_and_async},
+		{"consume streams one message", test_consume_streams_one_message},
+		{"async consume", test_async_consume},
 		{"async read", test_async_read},
 		{"async read cancellation preserves parser",
 			test_async_read_cancellation_preserves_parser},

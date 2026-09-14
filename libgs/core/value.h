@@ -77,6 +77,7 @@ public:
 	[[nodiscard]] optional<uint32_t> to_uint(size_t base = 10) const noexcept;
 	[[nodiscard]] optional<int64_t> to_long(size_t base = 10) const noexcept;
 	[[nodiscard]] optional<uint64_t> to_ulong(size_t base = 10) const noexcept;
+
 	[[nodiscard]] optional<float> to_float() const noexcept;
 	[[nodiscard]] optional<double> to_double() const noexcept;
 	[[nodiscard]] optional<long double> to_ldouble() const noexcept;
@@ -103,12 +104,12 @@ public:
 
 public:
 	[[nodiscard]] bool operator==(const basic_value &other) const = default;
-	[[nodiscard]] bool operator==(const str_view_t &tr) const;
+	[[nodiscard]] bool operator==(const str_view_t &str) const;
 	[[nodiscard]] bool operator==(const string_t &str) const;
 	[[nodiscard]] bool operator==(const char_t *str) const;
 
 	[[nodiscard]] auto operator<=>(const basic_value &other) const;
-	[[nodiscard]] auto operator<=>(const str_view_t &tr) const;
+	[[nodiscard]] auto operator<=>(const str_view_t &str) const;
 	[[nodiscard]] auto operator<=>(const string_t &str) const;
 	[[nodiscard]] auto operator<=>(const char_t *str) const;
 

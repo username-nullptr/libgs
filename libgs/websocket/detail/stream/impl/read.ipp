@@ -5,7 +5,7 @@
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_READ_IPP
 
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_IMPL_H
-#error "Include <libgs/websocket/detail/stream/impl.h> instead."
+# error "Include <libgs/websocket/detail/stream/impl.h> instead."
 #endif
 
 namespace libgs::websocket
@@ -101,6 +101,22 @@ template <typename Handler>
 void basic_stream<Exec>::impl::async_read_frame(Handler &&handler)
 {
 	m_receive_engine.async_read_frame(std::forward<Handler>(handler));
+}
+
+template <core_concepts::exec Exec>
+template <typename Consumer>
+message_info basic_stream<Exec>::impl::consume(Consumer &&consumer, error_code &error) noexcept
+{
+	return m_receive_engine.consume(std::forward<Consumer>(consumer), error);
+}
+
+template <core_concepts::exec Exec>
+template <typename Consumer, typename Handler>
+void basic_stream<Exec>::impl::async_consume(Consumer &&consumer, Handler &&handler)
+{
+	m_receive_engine.async_consume(std::forward<Consumer>(consumer),
+		std::forward<Handler>(handler)
+	);
 }
 
 } //namespace libgs::websocket

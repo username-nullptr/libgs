@@ -45,6 +45,11 @@ public:
 		message_type type, std::span<const const_buffer> buffers
 	) const noexcept;
 
+	[[nodiscard]] sys_expected<prepared_frame> prepare_data_frame (
+		message_type type, const const_buffer &payload,
+		bool continuation, bool fin, bool borrow_payload = false
+	) const noexcept;
+
 private:
 	role m_role = role::client;
 	size_t m_max_frame_size = stream_config{}.max_frame_size;

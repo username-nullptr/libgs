@@ -211,6 +211,48 @@ auto basic_stream<Exec>::read_frame(Token &&token) requires
 }
 
 template <core_concepts::exec Exec>
+template <typename Consumer, typename Token>
+auto basic_stream<Exec>::consume(Consumer &&consumer, Token &&token) requires (
+	std::invocable<std::remove_reference_t<Consumer>&,const message_chunk_t&> and
+	std::same_as<std::invoke_result_t<std::remove_reference_t<Consumer>&,const message_chunk_t&>,void> and
+	task_token_v<Token,message_info_t>
+){
+	if constexpr( is_error_code_token_v<Token> )
+		return m_impl->consume(consumer, token);
+
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		error_code error;
+		auto result = m_impl->consume(consumer, error);
+		if( error )
+			system_error::loc_throw(error, "libgs::websocket::basic_stream::consume");
+		return result;
+	}
+	else
+	{
+		using consumer_t = std::remove_cvref_t<Consumer>;
+		return initiate_io<message_info_t>(get_executor(),
+		[self = m_impl, consumer = consumer_t(std::forward<Consumer>(consumer))]
+		<typename T0>(T0 &&completion_token) mutable
+		{
+			auto slot = asio::get_associated_cancellation_slot(completion_token);
+			auto completion_exec = asio::get_associated_executor(completion_token, self->m_exec);
+			auto allocator = asio::get_associated_allocator(completion_token);
+
+			auto bridge = asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot,
+				[handler = std::forward<T0>(completion_token)]
+				(error_code error, message_info_t info) mutable {
+					std::move(handler)(error, info);
+				}))
+			);
+			self->async_consume(std::move(consumer), std::move(bridge));
+		},
+		std::forward<Token>(token));
+	}
+}
+
+template <core_concepts::exec Exec>
 template <message_type Type, typename Token>
 auto basic_stream<Exec>::write(const const_buffer &body, Token &&token)
 	requires completion_token_v<Token, size_t>
@@ -334,6 +376,76 @@ auto basic_stream<Exec>::write_binary(const const_buffer &body, Token &&token)
 	requires completion_token_v<Token, size_t>
 {
 	return write(message_type::binary, body, std::forward<Token>(token));
+}
+
+template <core_concepts::exec Exec>
+template <typename Buffer, typename Token>
+auto basic_stream<Exec>::write_frame(const basic_data_frame<Buffer> &frame, Token &&token)
+	requires concepts::buffer<Buffer> and completion_token_v<Token,size_t>
+{
+	const const_buffer body(libgs::buffer(frame.body));
+	if constexpr( is_error_code_token_v<Token> )
+	{
+		return m_impl->write_frame(frame.type, body,
+			frame.continuation, frame.fin, token
+		);
+	}
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		error_code error;
+		auto transferred = m_impl->write_frame(frame.type, body,
+			frame.continuation, frame.fin, error
+		);
+		if( error )
+			system_error::loc_throw(error, "libgs::websocket::basic_stream::write_frame");
+		return transferred;
+	}
+	else
+	{
+		std::shared_ptr<std::vector<std::byte>> payload_owner;
+		error_code buffer_error {};
+		const_buffer payload = body;
+
+		if constexpr( is_detached_v<token_unbound_t<Token>> )
+		{
+			try {
+				const auto *data = static_cast<const std::byte*>(body.data());
+				if( body.size() != 0 and data == nullptr )
+					buffer_error = make_error_code(std::errc::invalid_argument);
+				else
+				{
+					payload_owner = std::make_shared<std::vector<std::byte>>(body.size());
+					if( body.size() != 0 )
+						std::memcpy(payload_owner->data(), data, body.size());
+					payload = const_buffer(payload_owner->data(), payload_owner->size());
+				}
+			}
+			catch(const std::bad_alloc&) {
+				buffer_error = make_error_code(std::errc::not_enough_memory);
+			}
+			catch(...) {
+				buffer_error = make_error_code(std::errc::io_error);
+			}
+		}
+		return initiate_io<size_t>(get_executor(), [self = m_impl,
+			type = frame.type, continuation = frame.continuation, fin = frame.fin,
+			payload, payload_owner = std::move(payload_owner), buffer_error
+		]<typename T0>(T0 &&completion_token) mutable
+		{
+			if( buffer_error )
+			{
+				asio::post(self->m_exec,
+				[handler = std::forward<T0>(completion_token), buffer_error]() mutable {
+					std::move(handler)(buffer_error, 0);
+				});
+				return ;
+			}
+			self->async_write_frame(type, payload, continuation, fin,
+				std::move(payload_owner), std::forward<T0>(completion_token)
+			);
+		},
+		std::forward<Token>(token));
+	}
 }
 
 template <core_concepts::exec Exec>

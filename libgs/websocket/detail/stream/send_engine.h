@@ -34,9 +34,14 @@ public:
 		message_type type, std::span<const const_buffer> buffers
 	) const noexcept;
 
+	[[nodiscard]] sys_expected<prepared_data_frame> prepare_data_frame (
+		message_type type, const const_buffer &payload, bool continuation, bool fin
+	) const noexcept;
+
 	[[nodiscard]] bool busy() const noexcept;
 	[[nodiscard]] bool wire_write_active() const noexcept;
 	[[nodiscard]] bool current_data_active() const noexcept;
+	[[nodiscard]] bool data_busy() const noexcept;
 	[[nodiscard]] bool ready_for_sync_protocol_write() const noexcept;
 
 	void fail_current_if_idle(error_code error) noexcept;
@@ -62,6 +67,16 @@ public:
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
 		std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
 	);
+
+	template <typename Handler>
+	void async_write_data_frame(message_type type, const const_buffer &payload,
+		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+	);
+
+	[[nodiscard]] size_t write_data_frame (
+		message_type type, const const_buffer &payload,
+		bool continuation, bool fin, error_code &error
+	) noexcept;
 
 	template <typename Handler>
 	void async_write_control(opcode op, const const_buffer &payload, Handler &&handler);
@@ -102,6 +117,8 @@ private:
 		error_code error
 	) noexcept;
 
+	void commit_data_frame(send_operation &operation) noexcept;
+
 	void install_send_cancellation(const std::shared_ptr<send_operation> &operation);
 	void cancel_queued_send(uint64_t id) noexcept;
 
@@ -120,8 +137,14 @@ private:
 private:
 	Owner &m_owner;
 	frame_builder m_frame_builder {};
+
 	size_t m_max_queued_write_bytes = 0;
 	size_t m_max_queued_write_operations = 0;
+	size_t m_max_message_size = 0;
+
+	optional<message_type> m_outgoing_message_type {};
+	size_t m_outgoing_message_size = 0;
+	optional<utf8_validator> m_outgoing_utf8 {};
 
 	optional<std::vector<std::byte>> m_pending_auto_pong {};
 	optional<prepared_frame> m_pending_local_close {};

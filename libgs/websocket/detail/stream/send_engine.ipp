@@ -23,8 +23,14 @@ void detail::send_engine<Owner>::reset
 (role local_role, const stream_config &config, std::span<const extension> extensions) noexcept
 {
 	m_frame_builder.reset(local_role, config, extensions);
+
 	m_max_queued_write_bytes = config.max_queued_write_bytes;
 	m_max_queued_write_operations = config.max_queued_write_operations;
+	m_max_message_size = config.max_message_size;
+
+	m_outgoing_message_type.reset();
+	m_outgoing_message_size = 0;
+	m_outgoing_utf8.reset();
 }
 
 template <typename Owner>
@@ -45,7 +51,80 @@ template <typename Owner>
 auto detail::send_engine<Owner>::prepare_message(message_type type, std::span<const const_buffer> buffers)
 	const noexcept -> sys_expected<std::vector<prepared_frame>>
 {
+	if( m_outgoing_message_type )
+		return sys_unexpected(make_error_code(protocol_errc::data_during_fragmentation));
+
+	if( (m_current_data and m_current_data->explicit_data_frame) or
+		std::ranges::any_of(m_data_write_queue, [](const auto &operation) {
+			return operation->explicit_data_frame;
+		}) )
+		return sys_unexpected(make_error_code(std::errc::operation_in_progress));
+
 	return m_frame_builder.prepare_message(type, buffers);
+}
+
+template <typename Owner>
+auto detail::send_engine<Owner>::prepare_data_frame
+(message_type type, const const_buffer &payload, bool continuation, bool fin)
+	const noexcept -> sys_expected<prepared_data_frame>
+{
+	try {
+		if( type != message_type::text and type != message_type::binary )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		if( payload.size() != 0 and payload.data() == nullptr )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		if( m_outgoing_message_type )
+		{
+			if( not continuation )
+				return sys_unexpected(make_error_code(protocol_errc::data_during_fragmentation));
+
+			if( type != *m_outgoing_message_type )
+				return sys_unexpected(make_error_code(std::errc::invalid_argument));
+		}
+		else if( continuation )
+			return sys_unexpected(make_error_code(protocol_errc::unexpected_continuation));
+
+		if( payload.size() > std::numeric_limits<size_t>::max() - m_outgoing_message_size )
+			return sys_unexpected(make_error_code(std::errc::value_too_large));
+
+		const auto message_size = m_outgoing_message_size + payload.size();
+		if( m_max_message_size != 0 and message_size > m_max_message_size )
+			return sys_unexpected(make_error_code(errc::message_too_big));
+
+		optional<utf8_validator> next_utf8;
+		if( type == message_type::text )
+		{
+			next_utf8 = m_outgoing_utf8 ? *m_outgoing_utf8 : utf8_validator {};
+			const auto *data = static_cast<const char*>(payload.data());
+
+			const auto text = payload.size() == 0 ?
+				std::string_view{} : std::string_view(data, payload.size());
+
+			if( not next_utf8->consume(text) or (fin and not next_utf8->complete()) )
+				return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
+		}
+		auto frame = m_frame_builder.prepare_data_frame (
+			type, payload, continuation, fin, true
+		);
+		if( not frame )
+			return sys_unexpected(frame.error());
+
+		prepared_data_frame result {.frame = std::move(*frame)};
+		if( not fin )
+		{
+			result.next_message_type = type;
+			result.next_message_size = message_size;
+			result.next_utf8 = std::move(next_utf8);
+		}
+		return result;
+	}
+	catch(const std::bad_alloc&) {
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...) {}
+	return sys_unexpected(make_error_code(std::errc::io_error));
 }
 
 template <typename Owner>
@@ -67,6 +146,12 @@ template <typename Owner>
 bool detail::send_engine<Owner>::current_data_active() const noexcept
 {
 	return static_cast<bool>(m_current_data);
+}
+
+template <typename Owner>
+bool detail::send_engine<Owner>::data_busy() const noexcept
+{
+	return m_current_data or not m_data_write_queue.empty();
 }
 
 template <typename Owner>
@@ -182,6 +267,9 @@ template <typename Owner>
 void detail::send_engine<Owner>::complete_send_operation
 (const std::shared_ptr<send_operation> &operation, error_code error) noexcept
 {
+	if( not error and operation->explicit_data_frame )
+		commit_data_frame(*operation);
+
 	if( operation->kind == send_kind::data )
 	{
 		m_completed_write_sequence = std::max(m_completed_write_sequence, operation->sequence);
@@ -191,6 +279,14 @@ void detail::send_engine<Owner>::complete_send_operation
 
 	if( operation->kind == send_kind::data )
 		complete_write_waiters();
+}
+
+template <typename Owner>
+void detail::send_engine<Owner>::commit_data_frame(send_operation &operation) noexcept
+{
+	m_outgoing_message_type = operation.next_message_type;
+	m_outgoing_message_size = operation.next_message_size;
+	m_outgoing_utf8 = std::move(operation.next_utf8);
 }
 
 template <typename Owner>
@@ -699,6 +795,95 @@ void detail::send_engine<Owner>::async_write_message
 
 template <typename Owner>
 template <typename Handler>
+void detail::send_engine<Owner>::async_write_data_frame
+(message_type type, const const_buffer &payload, bool continuation, bool fin,
+ std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+{
+	auto completion = asio::any_completion_handler
+		<void(error_code, size_t)>(std::forward<Handler>(handler));
+
+	auto self = m_owner.shared_from_this();
+	if( auto error = self->frame_write_state_error() )
+	{
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
+			std::move(handler)(error, 0);
+		});
+		return ;
+	}
+	if( self->send_side().data_busy() )
+	{
+		auto error = make_error_code(std::errc::operation_in_progress);
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
+			std::move(handler)(error, 0);
+		});
+		return ;
+	}
+	auto prepared = self->send_side().prepare_data_frame (
+		type, payload, continuation, fin
+	);
+	if( not prepared )
+	{
+		auto error = prepared.error();
+		asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
+			std::move(handler)(error, 0);
+		});
+		return ;
+	}
+	std::shared_ptr<send_operation> operation;
+	try
+	{
+		operation = std::make_shared<send_operation>();
+		operation->kind = send_kind::data;
+		operation->explicit_data_frame = true;
+
+		operation->frames.push_back(std::move(prepared->frame));
+		operation->payload_owner = std::move(payload_owner);
+		operation->completion = std::move(completion);
+
+		operation->id = ++self->send_side().m_next_send_operation_id;
+		operation->queued_payload_size = operation->frames.front().application_size;
+
+		operation->next_message_type = prepared->next_message_type;
+		operation->next_message_size = prepared->next_message_size;
+		operation->next_utf8 = std::move(prepared->next_utf8);
+
+		self->send_side().install_send_cancellation(operation);
+		operation->sequence = ++self->send_side().m_last_write_sequence;
+
+		if( auto error = self->send_side().enqueue_send_operation(operation) )
+		{
+			--self->send_side().m_last_write_sequence;
+			self->send_side().deliver_send_completion(operation, error);
+		}
+	}
+	catch(const std::bad_alloc&)
+	{
+		auto error = make_error_code(std::errc::not_enough_memory);
+		if( operation and operation->completion )
+			self->send_side().deliver_send_completion(operation, error);
+		else
+		{
+			asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
+				std::move(handler)(error, 0);
+			});
+		}
+	}
+	catch(...)
+	{
+		auto error = make_error_code(std::errc::io_error);
+		if( operation and operation->completion )
+			self->send_side().deliver_send_completion(operation, error);
+		else
+		{
+			asio::post(self->executor(), [handler = std::move(completion), error]() mutable {
+				std::move(handler)(error, 0);
+			});
+		}
+	}
+}
+
+template <typename Owner>
+template <typename Handler>
 void detail::send_engine<Owner>::async_write_control
 (opcode op, const const_buffer &payload, Handler &&handler)
 {
@@ -782,6 +967,44 @@ size_t detail::send_engine<Owner>::write_control
 	auto transferred = m_owner.write_prepared(*frame, error);
 	if( error )
 		m_owner.handle_send_failure(error);
+	return transferred;
+}
+
+template <typename Owner>
+size_t detail::send_engine<Owner>::write_data_frame
+(message_type type, const const_buffer &payload, bool continuation, bool fin, error_code &error) noexcept
+{
+	error.clear();
+	if( auto state_error = m_owner.frame_write_state_error() )
+	{
+		error = state_error;
+		return 0;
+	}
+	if( busy() )
+	{
+		error = make_error_code(std::errc::operation_in_progress);
+		return 0;
+	}
+	auto prepared = prepare_data_frame(type, payload, continuation, fin);
+	if( not prepared )
+	{
+		error = prepared.error();
+		return 0;
+	}
+	auto transferred = m_owner.write_prepared(prepared->frame, error);
+	if( error )
+	{
+		m_owner.handle_send_failure(error);
+		return transferred;
+	}
+	send_operation transition;
+	transition.explicit_data_frame = true;
+
+	transition.next_message_type = prepared->next_message_type;
+	transition.next_message_size = prepared->next_message_size;
+	transition.next_utf8 = std::move(prepared->next_utf8);
+
+	commit_data_frame(transition);
 	return transferred;
 }
 

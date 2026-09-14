@@ -27,6 +27,10 @@ void umbrella_and_value_types()
 	LIBGS_TEST_CHECK(stream_config.max_frame_size > 0);
 	LIBGS_TEST_CHECK(stream_config.max_message_size > 0);
 	LIBGS_TEST_CHECK(stream_config.read_buffer_size > 0);
+	ws::message_chunk chunk;
+	LIBGS_TEST_CHECK(chunk.body.size() == 0);
+	ws::message_info info;
+	LIBGS_TEST_CHECK_EQ(info.size, 0U);
 	ws::client_config client_config;
 	LIBGS_TEST_CHECK(client_config.no_delay.has_value());
 	LIBGS_TEST_CHECK(*client_config.no_delay);
@@ -114,6 +118,28 @@ void asynchronous_completion_signatures()
 		frame_completed = true;
 	});
 
+	bool frame_write_completed = false;
+	const ws::basic_data_frame<std::string> outgoing_frame {
+		.type = ws::message_type::text,
+		.body = "frame",
+	};
+	stream.write_frame(outgoing_frame,
+	[&](libgs::error_code error, size_t written)
+	{
+		LIBGS_TEST_CHECK_EQ(error, ws::make_error_code(ws::errc::not_open));
+		LIBGS_TEST_CHECK_EQ(written, 0U);
+		frame_write_completed = true;
+	});
+
+	bool consume_completed = false;
+	stream.consume([](const ws::message_chunk&) {},
+	[&](libgs::error_code error, ws::message_info info)
+	{
+		LIBGS_TEST_CHECK_EQ(error, ws::make_error_code(ws::errc::not_open));
+		LIBGS_TEST_CHECK_EQ(info.size, 0U);
+		consume_completed = true;
+	});
+
 	bool close_completed = false;
 	stream.close([&](libgs::error_code error, ws::close_info info)
 	{
@@ -125,11 +151,15 @@ void asynchronous_completion_signatures()
 	LIBGS_TEST_CHECK(not read_completed);
 	LIBGS_TEST_CHECK(not write_completed);
 	LIBGS_TEST_CHECK(not frame_completed);
+	LIBGS_TEST_CHECK(not frame_write_completed);
+	LIBGS_TEST_CHECK(not consume_completed);
 	LIBGS_TEST_CHECK(not close_completed);
 	context.run();
 	LIBGS_TEST_CHECK(read_completed);
 	LIBGS_TEST_CHECK(write_completed);
 	LIBGS_TEST_CHECK(frame_completed);
+	LIBGS_TEST_CHECK(frame_write_completed);
+	LIBGS_TEST_CHECK(consume_completed);
 	LIBGS_TEST_CHECK(close_completed);
 }
 

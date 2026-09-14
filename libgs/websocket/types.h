@@ -56,6 +56,22 @@ struct control_event
 	std::vector<std::byte> payload {};
 };
 
+struct message_chunk
+{
+	message_type type = message_type::binary;
+	const_buffer body {};
+
+	size_t offset = 0;
+	bool first = false;
+	bool last = false;
+};
+
+struct message_info
+{
+	message_type type = message_type::binary;
+	size_t size = 0;
+};
+
 struct adopt_options
 {
 	role stream_role = role::client;
