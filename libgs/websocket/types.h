@@ -73,21 +73,39 @@ struct adopt_options
 	std::vector<extension> negotiated_extensions {};
 };
 
+enum class compression_mode : uint8_t {
+	automatic, enabled, disabled,
+};
+
+struct write_options
+{
+	compression_mode compression = compression_mode::automatic;
+};
+
+struct compression_config
+{
+	size_t min_message_size = 0;
+	int level = -1;
+	bool compress_text = true;
+	bool compress_binary = true;
+};
+
 struct stream_config
 {
 	size_t max_frame_size = 16 * 1024 * 1024;
 	size_t max_message_size = 16 * 1024 * 1024;
 
-	size_t read_buffer_size = 16 * 1024;
-
 	size_t max_queued_write_bytes = 64 * 1024 * 1024;
 	size_t max_queued_write_operations = 64;
 
+	size_t read_buffer_size = 16 * 1024;
 	size_t write_fragment_size = 16 * 1024;
-	std::chrono::milliseconds auto_ping_interval {5000};
 
+	std::chrono::milliseconds auto_ping_interval {5000};
 	bool auto_pong = true;
+
 	std::chrono::milliseconds close_timeout {5000};
+	compression_config compression {};
 };
 
 } //namespace libgs::websocket

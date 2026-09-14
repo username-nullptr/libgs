@@ -115,26 +115,24 @@ LIBGS_WEBSOCKET_TAPI void reject_upgrade
 }
 
 template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void complete_server_upgrade_plan(server_upgrade_plan<Exec> &plan,
-	const upgrade_options &options, std::chrono::steady_clock::time_point deadline) noexcept
+LIBGS_WEBSOCKET_TAPI void reject_selector_exception(
+	server_upgrade_plan<Exec> &plan, std::exception_ptr exception) noexcept
 {
-	try {
-		optional<std::string> selected_protocol;
+	reject_upgrade(plan, exception_error(exception),
+		http::status::internal_server_error);
+	plan.preserve_error_on_write_failure = true;
+}
+
+template <core_concepts::exec Exec>
+LIBGS_WEBSOCKET_TAPI void select_server_subprotocol(
+	server_upgrade_plan<Exec> &plan, const upgrade_options &options) noexcept
+{
+	try
+	{
 		if( options.subprotocol_selector )
 		{
-			try {
-				selected_protocol = options.subprotocol_selector (
-					plan.opening.subprotocols
-				);
-			}
-			catch(...)
-			{
-				reject_upgrade(plan, exception_error(std::current_exception()),
-					http::status::internal_server_error
-				);
-				plan.preserve_error_on_write_failure = true;
-				return ;
-			}
+			plan.response.subprotocol = options.subprotocol_selector(
+				plan.request, plan.opening.subprotocols);
 		}
 		else
 		{
@@ -143,80 +141,110 @@ LIBGS_WEBSOCKET_TAPI void complete_server_upgrade_plan(server_upgrade_plan<Exec>
 				if( std::ranges::find(options.supported_subprotocols, offered) !=
 					options.supported_subprotocols.end() )
 				{
-					selected_protocol = offered;
+					plan.response.subprotocol = offered;
 					break;
 				}
 			}
 		}
-		if( server_deadline_expired(deadline) )
-		{
-			reject_upgrade(plan, asio::error::timed_out);
-			return ;
-		}
-		if( selected_protocol and
-			(std::ranges::find(plan.opening.subprotocols, *selected_protocol) ==
-				plan.opening.subprotocols.end() or
-			 std::ranges::find(options.supported_subprotocols, *selected_protocol) ==
-				options.supported_subprotocols.end()) )
-		{
-			reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
-			return ;
-		}
-		if( options.require_subprotocol and not selected_protocol )
-		{
-			reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
-			return ;
-		}
-		plan.response.subprotocol = std::move(selected_protocol);
+	}
+	catch(...) {
+		reject_selector_exception(plan, std::current_exception());
+	}
+}
 
+template <core_concepts::exec Exec>
+LIBGS_WEBSOCKET_TAPI void validate_server_subprotocol(
+	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept
+{
+	if( not plan.accepted )
+		return ;
+	if( server_deadline_expired(deadline) )
+	{
+		reject_upgrade(plan, asio::error::timed_out);
+		return ;
+	}
+	if( plan.response.subprotocol and
+		(std::ranges::find(plan.opening.subprotocols,
+			*plan.response.subprotocol) == plan.opening.subprotocols.end() or
+		 std::ranges::find(options.supported_subprotocols,
+			*plan.response.subprotocol) == options.supported_subprotocols.end()) )
+	{
+		reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
+		return ;
+	}
+	if( options.require_subprotocol and not plan.response.subprotocol )
+		reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
+}
+
+template <core_concepts::exec Exec>
+LIBGS_WEBSOCKET_TAPI void select_server_extensions(
+	server_upgrade_plan<Exec> &plan, const upgrade_options &options) noexcept
+{
+	try
+	{
 		if( options.extension_selector )
 		{
-			try {
-				plan.response.extensions = options.extension_selector (
-					plan.opening.extensions
-				);
-			}
-			catch(...)
-			{
-				reject_upgrade(plan, exception_error(std::current_exception()),
-					http::status::internal_server_error
-				);
-				plan.preserve_error_on_write_failure = true;
-				return ;
-			}
+			plan.response.extensions = options.extension_selector(
+				plan.request, plan.opening.extensions);
 		}
 		else if( not options.supported_extensions.empty() )
 		{
 			for(const auto &offered : plan.opening.extensions)
 			{
-				if( is_permessage_deflate_extension(offered) )
+				for(const auto &policy : options.supported_extensions)
 				{
-					plan.response.extensions = {permessage_deflate_extension()};
-					break;
+					auto selected = negotiate_permessage_deflate(offered, policy);
+					if( selected )
+					{
+						plan.response.extensions = {std::move(*selected)};
+						break;
+					}
 				}
+				if( not plan.response.extensions.empty() )
+					break;
 			}
 		}
-		if( not plan.response.extensions.empty() )
-		{
-			const bool offered = std::ranges::any_of(plan.opening.extensions,
-				[](const extension &value) {
-					return is_permessage_deflate_extension(value);
-				});
-			if( not supported_extension_set(plan.response.extensions) or
-				options.supported_extensions.empty() or not offered )
-			{
-				reject_upgrade(plan, make_error_code(errc::unsupported_extension));
-				return ;
-			}
-		}
+	}
+	catch(...) {
+		reject_selector_exception(plan, std::current_exception());
+	}
+}
+
+template <core_concepts::exec Exec>
+LIBGS_WEBSOCKET_TAPI void validate_server_extensions(
+	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept
+{
+	if( not plan.accepted )
+		return ;
+	if( not plan.response.extensions.empty() and
+		(not supported_extension_response(plan.response.extensions,
+			plan.opening.extensions) or options.supported_extensions.empty()) )
+	{
+		reject_upgrade(plan, make_error_code(errc::unsupported_extension));
+		return ;
+	}
+	if( server_deadline_expired(deadline) )
+		reject_upgrade(plan, asio::error::timed_out);
+}
+
+template <core_concepts::exec Exec>
+LIBGS_WEBSOCKET_TAPI void finalize_server_upgrade_plan(
+	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept
+{
+	if( not plan.accepted )
+		return ;
+	try
+	{
 		if( server_deadline_expired(deadline) )
 		{
 			reject_upgrade(plan, asio::error::timed_out);
 			return ;
 		}
-		auto protocol_headers = make_opening_response_headers (
-			plan.opening, plan.response
-		);
+		auto protocol_headers = make_opening_response_headers(
+			plan.opening, plan.response);
 		if( not protocol_headers )
 		{
 			reject_upgrade(plan, protocol_headers.error());
@@ -224,32 +252,55 @@ LIBGS_WEBSOCKET_TAPI void complete_server_upgrade_plan(server_upgrade_plan<Exec>
 		}
 		plan.headers = options.response_headers;
 		erase_protocol_response_headers(plan.headers);
-
 		for(auto &[name, value] : *protocol_headers)
 			plan.headers[name] = value;
-
 		plan.status = http::status::switching_protocols;
 		plan.accepted = true;
 		plan.error.clear();
 	}
-	catch(...)
-	{
+	catch(...) {
 		reject_upgrade(plan, exception_error(std::current_exception()),
-			http::status::internal_server_error
-		);
+			http::status::internal_server_error);
 	}
+}
+
+template <core_concepts::exec Exec>
+LIBGS_WEBSOCKET_TAPI void complete_server_upgrade_plan(
+	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept
+{
+	select_server_subprotocol(plan, options);
+	validate_server_subprotocol(plan, options, deadline);
+	if( not plan.accepted )
+		return ;
+	select_server_extensions(plan, options);
+	validate_server_extensions(plan, options, deadline);
+	finalize_server_upgrade_plan(plan, options, deadline);
 }
 
 template <core_concepts::exec Exec>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI server_upgrade_plan<Exec> make_server_upgrade_plan(
 	http::basic_service_context<Exec> &context, const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline, bool permit_async_validators = false) noexcept
+	std::chrono::steady_clock::time_point deadline, bool permit_async_callbacks = false) noexcept
 {
 	server_upgrade_plan<Exec> plan;
 	try {
 		plan.request = snapshot_request(context.request());
-		if( not permit_async_validators and
-			(options.async_request_validator or options.async_origin_validator) )
+		const auto subprotocol_selectors =
+			static_cast<size_t>(bool(options.subprotocol_selector)) +
+			static_cast<size_t>(bool(options.async_subprotocol_selector));
+		const auto extension_selectors =
+			static_cast<size_t>(bool(options.extension_selector)) +
+			static_cast<size_t>(bool(options.async_extension_selector));
+		if( subprotocol_selectors > 1 or extension_selectors > 1 )
+		{
+			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
+				http::status::internal_server_error);
+			return plan;
+		}
+		if( not permit_async_callbacks and
+			(options.async_request_validator or options.async_origin_validator or
+			 options.async_subprotocol_selector or options.async_extension_selector) )
 		{
 			reject_upgrade(plan,
 				make_error_code(std::errc::operation_not_supported),
@@ -258,7 +309,9 @@ template <core_concepts::exec Exec>
 			return plan;
 		}
 		if( options.stream.read_buffer_size == 0 or
-			options.stream.auto_ping_interval < std::chrono::milliseconds::zero() )
+			options.stream.auto_ping_interval < std::chrono::milliseconds::zero() or
+			options.stream.compression.level < -1 or
+			options.stream.compression.level > 9 )
 		{
 			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
 				http::status::internal_server_error
@@ -278,7 +331,7 @@ template <core_concepts::exec Exec>
 		}
 		plan.opening = std::move(*opening);
 
-		if( not supported_extension_set(options.supported_extensions) )
+		if( not supported_extension_offers(options.supported_extensions) )
 		{
 			reject_upgrade(plan, make_error_code(errc::unsupported_extension));
 			return plan;
@@ -346,8 +399,7 @@ template <core_concepts::exec Exec>
 		plan.accepted = true;
 		plan.error.clear();
 
-		if( not permit_async_validators or
-			(not options.async_request_validator and not options.async_origin_validator) )
+		if( not permit_async_callbacks )
 			complete_server_upgrade_plan(plan, options, deadline);
 		return plan;
 	}
@@ -547,8 +599,44 @@ auto async_upgrade(http::basic_service_context<Exec> &context, upgrade_options o
 				if( plan.accepted and server_deadline_expired(deadline) )
 					reject_upgrade(plan, asio::error::timed_out);
 
-				if( plan.accepted )
-					complete_server_upgrade_plan(plan, active_options, deadline);
+				if( plan.accepted and active_options.async_subprotocol_selector )
+				{
+					auto invoke = [&active_options, &plan]()
+						-> awaitable<optional<std::string>>
+					{
+						co_return co_await active_options.async_subprotocol_selector(
+							plan.request, plan.opening.subprotocols);
+					};
+					auto [exception, selected] = co_await asio::co_spawn(
+						active_context->get_executor(), invoke(), asio::as_tuple(deferred));
+					if( exception_error(exception) )
+						reject_selector_exception(plan, exception);
+					else
+						plan.response.subprotocol = std::move(selected);
+				}
+				else if( plan.accepted )
+					select_server_subprotocol(plan, active_options);
+				validate_server_subprotocol(plan, active_options, deadline);
+
+				if( plan.accepted and active_options.async_extension_selector )
+				{
+					auto invoke = [&active_options, &plan]()
+						-> awaitable<std::vector<extension>>
+					{
+						co_return co_await active_options.async_extension_selector(
+							plan.request, plan.opening.extensions);
+					};
+					auto [exception, selected] = co_await asio::co_spawn(
+						active_context->get_executor(), invoke(), asio::as_tuple(deferred));
+					if( exception_error(exception) )
+						reject_selector_exception(plan, exception);
+					else
+						plan.response.extensions = std::move(selected);
+				}
+				else if( plan.accepted )
+					select_server_extensions(plan, active_options);
+				validate_server_extensions(plan, active_options, deadline);
+				finalize_server_upgrade_plan(plan, active_options, deadline);
 
 				result.request = plan.request;
 				if( plan.error == asio::error::timed_out or server_deadline_expired(deadline) )

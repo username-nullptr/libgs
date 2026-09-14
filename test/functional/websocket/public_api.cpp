@@ -27,6 +27,8 @@ void umbrella_and_value_types()
 	LIBGS_TEST_CHECK(stream_config.max_frame_size > 0);
 	LIBGS_TEST_CHECK(stream_config.max_message_size > 0);
 	LIBGS_TEST_CHECK(stream_config.read_buffer_size > 0);
+	LIBGS_TEST_CHECK_EQ(stream_config.compression.level, -1);
+	LIBGS_TEST_CHECK_EQ(stream_config.compression.min_message_size, 0U);
 	LIBGS_TEST_CHECK_EQ(stream_config.auto_ping_interval,
 		std::chrono::seconds(5));
 	LIBGS_TEST_CHECK(stream_config.auto_pong);
@@ -50,6 +52,35 @@ void umbrella_and_value_types()
 	upgrade.supported_subprotocols = request.subprotocols;
 	upgrade.require_subprotocol = true;
 	LIBGS_TEST_CHECK(upgrade.require_subprotocol);
+	upgrade.subprotocol_selector = [](const ws::request_info &request,
+		std::span<const std::string> offered) -> libgs::optional<std::string>
+	{
+		return request.path == "/socket" and not offered.empty() ?
+			libgs::optional<std::string>(offered.front()) : libgs::nullopt;
+	};
+	upgrade.extension_selector = [](const ws::request_info&,
+		std::span<const ws::extension>) -> std::vector<ws::extension>
+	{
+		return {};
+	};
+	LIBGS_TEST_CHECK(upgrade.subprotocol_selector);
+	LIBGS_TEST_CHECK(upgrade.extension_selector);
+
+	ws::upgrade_options async_upgrade;
+	async_upgrade.async_subprotocol_selector = [](const ws::request_info&,
+		std::span<const std::string>)
+		-> libgs::awaitable<libgs::optional<std::string>>
+	{
+		co_return libgs::nullopt;
+	};
+	async_upgrade.async_extension_selector = [](const ws::request_info&,
+		std::span<const ws::extension>)
+		-> libgs::awaitable<std::vector<ws::extension>>
+	{
+		co_return std::vector<ws::extension>{};
+	};
+	LIBGS_TEST_CHECK(async_upgrade.async_subprotocol_selector);
+	LIBGS_TEST_CHECK(async_upgrade.async_extension_selector);
 
 	auto compression = ws::permessage_deflate_extension();
 	LIBGS_TEST_CHECK(ws::is_permessage_deflate_extension(compression));
@@ -57,6 +88,40 @@ void umbrella_and_value_types()
 	LIBGS_TEST_CHECK(ws::is_permessage_deflate_extension(compression));
 	compression.parameters.front().value = "1";
 	LIBGS_TEST_CHECK(not ws::is_permessage_deflate_extension(compression));
+
+	ws::permessage_deflate_options compression_options;
+	compression_options.server_max_window_bits = 12;
+	compression_options.client_max_window_bits = 10;
+	compression_options.offer_client_max_window_bits = true;
+	auto negotiated_compression = ws::permessage_deflate_extension(
+		compression_options);
+	LIBGS_TEST_CHECK(ws::is_permessage_deflate_extension(negotiated_compression));
+	LIBGS_TEST_CHECK_EQ(negotiated_compression.parameters.size(), 2U);
+	LIBGS_TEST_CHECK_EQ(*negotiated_compression.parameters[0].value, "12");
+	LIBGS_TEST_CHECK_EQ(*negotiated_compression.parameters[1].value, "10");
+	compression_options.client_max_window_bits.reset();
+	auto compression_offer = ws::permessage_deflate_extension(compression_options);
+	LIBGS_TEST_CHECK(not compression_offer.parameters.back().value);
+
+	ws::proxy_config proxy {
+		.type = ws::proxy_type::http,
+		.endpoint = libgs::url("http://proxy.example:8080"),
+	};
+	proxy.set_basic_auth("user", "secret");
+	LIBGS_TEST_CHECK_EQ(proxy.authorization.value_or(""),
+		"Basic dXNlcjpzZWNyZXQ=");
+	LIBGS_TEST_CHECK_EQ(proxy.username.value_or(""), "user");
+	proxy.set_bearer_auth("token");
+	LIBGS_TEST_CHECK_EQ(proxy.authorization.value_or(""), "Bearer token");
+	LIBGS_TEST_CHECK(not proxy.username);
+	ws::client_config proxy_client_config;
+	LIBGS_TEST_CHECK(std::holds_alternative<ws::use_global_proxy_t>(
+		proxy_client_config.default_proxy));
+	proxy_client_config.default_proxy = ws::no_proxy;
+	LIBGS_TEST_CHECK(std::holds_alternative<ws::no_proxy_t>(
+		proxy_client_config.default_proxy));
+	ws::connect_request inherited("ws://example.test/");
+	LIBGS_TEST_CHECK(not inherited.proxy);
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	static_assert(ws::permessage_deflate_available_v);
 #else

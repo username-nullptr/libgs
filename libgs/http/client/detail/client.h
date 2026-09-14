@@ -10,6 +10,9 @@
 #endif
 
 #include <libgs/core/async_expected.h>
+#include <libgs/http/client/detail/proxy.h>
+
+#include <utility>
 
 namespace libgs::http
 {
@@ -24,16 +27,21 @@ class LIBGS_HTTP_TAPI basic_client<Exec,Version>::impl :
 	using result_t = sys_expected<context_ptr<Method>>;
 	using target_t = connection_pool_t::target_t;
 
+	struct request_target
+	{
+		target_t connection {};
+		bool forward_proxy = false;
+	};
+
 public:
-	explicit impl(const config_t &config) requires
+	explicit impl(config_t config) requires
 		core_concepts::match_sched<io_executor_t,executor_t> :
 		m_pool(io_context()), m_cookie_store(std::make_shared<cookie_jar>()),
-		m_config(config) {}
+		m_config(std::move(config)) {}
 
-	explicit impl(const core_concepts::match_exec<executor_t> auto &exec,
-		const config_t &config) :
+	explicit impl(const core_concepts::match_exec<executor_t> auto &exec, config_t config) :
 		m_pool(exec), m_cookie_store(std::make_shared<cookie_jar>()),
-		m_config(config) {}
+		m_config(std::move(config)) {}
 
 	explicit impl(connection_pool_t &&pool, const config_t &config) :
 		m_pool(std::move(pool)), m_cookie_store(std::make_shared<cookie_jar>()),
@@ -81,6 +89,44 @@ private:
 			return sys_unexpected (
 				make_error_code(std::errc::not_enough_memory)
 			);
+		}
+		catch(...) {}
+		return sys_unexpected(make_error_code(std::errc::io_error));
+	}
+
+	[[nodiscard]] sys_expected<request_target>
+	resolve_request_target(req_info &info) const noexcept
+	{
+		try {
+			auto target = target_from_url(info.url, m_config.no_delay);
+			if( not target )
+				return sys_unexpected(target.error());
+
+			const proxy_t &setting = info.proxy ? *info.proxy : m_config.default_proxy;
+			auto proxy = detail::resolve_proxy(info.url, setting);
+			if( not proxy )
+				return sys_unexpected(proxy.error());
+
+			request_target result {std::move(*target), false};
+			if( proxy->forward )
+			{
+				auto forward_target = target_from_url(*proxy->forward, m_config.no_delay);
+				if( not forward_target )
+					return sys_unexpected(forward_target.error());
+
+				result.connection = std::move(*forward_target);
+				result.forward_proxy = true;
+
+				if( proxy->authorization and
+					info.arg.headers().find(header::proxy_authorization) == info.arg.headers().end() )
+					info.arg.set_header(header::proxy_authorization, *proxy->authorization);
+			}
+			else if( proxy->tunnel )
+				result.connection.tunnel = std::move(proxy->tunnel);
+			return result;
+		}
+		catch(const std::bad_alloc&) {
+			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
 		}
 		catch(...) {}
 		return sys_unexpected(make_error_code(std::errc::io_error));
@@ -657,26 +703,16 @@ public:
 	[[nodiscard]] result_t<Method> make_context(req_info info) noexcept
 	{
 		try {
-			auto target_expected = target_from_url (
-				info.url, m_config.no_delay
-			);
+			auto target_expected = resolve_request_target(info);
 			if( not target_expected )
 				return sys_unexpected(target_expected.error());
 
-			if( info.proxy )
-			{
-				target_expected = target_from_url (
-					*info.proxy, m_config.no_delay
-				);
-				if( not target_expected )
-					return sys_unexpected(target_expected.error());
-			}
 			for(auto &[name,item] : m_cookie_store->cookies_for(info.url))
 			{
 				if( not info.arg.contains_cookie(name) )
 					info.arg.set_cookie(name, std::move(item));
 			}
-			auto lease_expected = m_pool.get(*target_expected);
+			auto lease_expected = m_pool.get(target_expected->connection);
 			if( not lease_expected )
 				return sys_unexpected(lease_expected.error());
 
@@ -684,7 +720,7 @@ public:
 			(
 				std::move(*lease_expected), std::move(info.url),
 				typename context_t<Method>::options {
-					std::move(info.arg), m_cookie_store, info.proxy ?
+					std::move(info.arg), m_cookie_store, target_expected->forward_proxy ?
 						request_target_form::absolute : request_target_form::origin,
 					info.auto_decompression
 				}
@@ -717,27 +753,13 @@ public:
 			(auto state, std::shared_ptr<impl> self, req_info request_info) -> void
 			{
 				ignore_unused(state);
-				auto target_expected = target_from_url (
-					request_info.url, self->m_config.no_delay
-				);
+				auto target_expected = self->resolve_request_target(request_info);
 
 				if( not target_expected )
 				{
 					co_return std::tuple<error_code,context_ptr<Method>>{
 						target_expected.error(), {}
 					};
-				}
-				if( request_info.proxy )
-				{
-					target_expected = target_from_url (
-						*request_info.proxy, self->m_config.no_delay
-					);
-					if( not target_expected )
-					{
-						co_return std::tuple<error_code,context_ptr<Method>> {
-							target_expected.error(), {}
-						};
-					}
 				}
 				try {
 					for(auto &[cookie_name, cookie_item] : self->m_cookie_store->cookies_for(request_info.url))
@@ -763,7 +785,7 @@ public:
 					};
 				}
 				auto [lease_error, lease] = co_await self->m_pool.get (
-					*target_expected, asio::as_tuple(deferred)
+					target_expected->connection, asio::as_tuple(deferred)
 				);
 				if( lease_error )
 				{
@@ -777,7 +799,7 @@ public:
 						std::move(lease), std::move(request_info.url),
 						typename context_t<Method>::options {
 							std::move(request_info.arg), self->m_cookie_store,
-							request_info.proxy ? request_target_form::absolute :
+							target_expected->forward_proxy ? request_target_form::absolute :
 								request_target_form::origin,
 							request_info.auto_decompression
 						}
@@ -817,7 +839,7 @@ public:
 template <core_concepts::exec Exec, version_enum Version>
 basic_client<Exec,Version>::basic_client(config_t config) requires
 	core_concepts::match_sched<io_executor_t,executor_t> :
-	m_impl(std::make_shared<impl>(config))
+	m_impl(std::make_shared<impl>(std::move(config)))
 {
 
 }
@@ -827,7 +849,7 @@ template <typename Exec0>
 basic_client<Exec,Version>::basic_client(Exec0 &&exec, config_t config) requires
 (not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and core_concepts::match_sched<Exec0,executor_t>) :
 	m_impl(std::make_shared<impl>(
-		get_executor_helper(std::forward<Exec0>(exec)), config
+		get_executor_helper(std::forward<Exec0>(exec)), std::move(config)
 	))
 {
 
@@ -835,7 +857,7 @@ basic_client<Exec,Version>::basic_client(Exec0 &&exec, config_t config) requires
 
 template <core_concepts::exec Exec, version_enum Version>
 basic_client<Exec,Version>::basic_client(connection_pool_t &&pool, config_t config) :
-	m_impl(std::make_shared<impl>(std::move(pool), config))
+	m_impl(std::make_shared<impl>(std::move(pool), std::move(config)))
 {
 
 }
@@ -1073,7 +1095,7 @@ std::shared_ptr<cookie_jar> basic_client<Exec,Version>::cookie_store() noexcept
 }
 
 template <core_concepts::exec Exec, version_enum Version>
-auto basic_client<Exec,Version>::config() const noexcept -> config_t
+auto basic_client<Exec,Version>::config() const -> config_t
 {
 	return m_impl->m_config;
 }

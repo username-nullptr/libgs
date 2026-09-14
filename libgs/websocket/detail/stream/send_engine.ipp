@@ -48,7 +48,8 @@ auto detail::send_engine<Owner>::prepare_close(const close_frame &frame)
 }
 
 template <typename Owner>
-auto detail::send_engine<Owner>::prepare_message(message_type type, std::span<const const_buffer> buffers)
+auto detail::send_engine<Owner>::prepare_message
+(message_type type, std::span<const const_buffer> buffers, write_options options)
 	const noexcept -> sys_expected<std::vector<prepared_frame>>
 {
 	if( m_outgoing_message_type )
@@ -60,7 +61,7 @@ auto detail::send_engine<Owner>::prepare_message(message_type type, std::span<co
 		}) )
 		return sys_unexpected(make_error_code(std::errc::operation_in_progress));
 
-	return m_frame_builder.prepare_message(type, buffers);
+	return m_frame_builder.prepare_message(type, buffers, options);
 }
 
 template <typename Owner>
@@ -720,7 +721,7 @@ error_code detail::send_engine<Owner>::enqueue_send_operation
 template <typename Owner>
 template <typename Handler>
 void detail::send_engine<Owner>::async_write_message
-(message_type type, std::span<const const_buffer> buffers,
+(message_type type, std::span<const const_buffer> buffers, write_options options,
 	std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
 {
 	auto completion = asio::any_completion_handler
@@ -734,7 +735,7 @@ void detail::send_engine<Owner>::async_write_message
 		});
 		return ;
 	}
-	auto frames = self->send_side().prepare_message(type, buffers);
+	auto frames = self->send_side().prepare_message(type, buffers, options);
 	if( not frames )
 	{
 		auto error = frames.error();

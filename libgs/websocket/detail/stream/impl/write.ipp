@@ -13,7 +13,8 @@ namespace libgs::websocket
 
 template <core_concepts::exec Exec>
 size_t basic_stream<Exec>::impl::write
-(message_type type, std::span<const const_buffer> buffers, error_code &error) noexcept
+(message_type type, std::span<const const_buffer> buffers,
+	write_options options, error_code &error) noexcept
 {
 	error.clear();
 	if( m_state == connection_state::idle )
@@ -46,7 +47,7 @@ size_t basic_stream<Exec>::impl::write
 		error = make_error_code(std::errc::operation_in_progress);
 		return 0;
 	}
-	auto prepared = m_send_engine.prepare_message(type, buffers);
+	auto prepared = m_send_engine.prepare_message(type, buffers, options);
 	if( not prepared )
 	{
 		error = prepared.error();
@@ -101,9 +102,9 @@ size_t basic_stream<Exec>::impl::write_prepared
 template <core_concepts::exec Exec>
 template <typename Handler>
 void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<const const_buffer> buffers,
-	std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+	write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
 {
-	m_send_engine.async_write_message(type, buffers,
+	m_send_engine.async_write_message(type, buffers, options,
 		std::move(payload_owner), std::forward<Handler>(handler)
 	);
 }

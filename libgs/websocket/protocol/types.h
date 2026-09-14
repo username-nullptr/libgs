@@ -35,8 +35,22 @@ struct extension
 	std::vector<extension_parameter> parameters {};
 };
 
+struct permessage_deflate_options
+{
+	bool server_no_context_takeover = false;
+	bool client_no_context_takeover = false;
+
+	optional<uint8_t> server_max_window_bits {};
+	optional<uint8_t> client_max_window_bits {};
+
+	bool offer_client_max_window_bits = false;
+};
+
 [[nodiscard]] LIBGS_WEBSOCKET_API extension
 permessage_deflate_extension();
+
+[[nodiscard]] LIBGS_WEBSOCKET_API extension
+permessage_deflate_extension(const permessage_deflate_options &options);
 
 [[nodiscard]] LIBGS_WEBSOCKET_API bool
 is_permessage_deflate_extension(const extension &value) noexcept;

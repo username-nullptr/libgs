@@ -76,14 +76,17 @@ template <core_concepts::exec Exec>
 sys_expected<bool> basic_stream<Exec>::impl::accept_control
 (opcode op, const std::vector<std::byte> &payload) noexcept
 {
+	error_code error;
 	try {
 		auto &callback = op == opcode::ping ? m_on_ping : m_on_pong;
 		if( not callback )
 			return true;
 		return callback(const_buffer(payload.data(), payload.size()));
 	}
-	catch(...) {}
-	return sys_unexpected(exception_error(std::current_exception()));
+	catch(...) {
+		error = exception_error(std::current_exception());
+	}
+	return sys_unexpected(error);
 }
 
 template <core_concepts::exec Exec>
@@ -91,6 +94,8 @@ sys_expected<> basic_stream<Exec>::impl::start_automatic_ping() noexcept
 {
 	if( m_config.auto_ping_interval <= std::chrono::milliseconds::zero() )
 		return make_sys_expected();
+
+	error_code error;
 	try {
 		m_ping_timer = std::make_shared<asio::steady_timer>(m_exec);
 		if( auto scheduled = schedule_automatic_ping(); not scheduled )
@@ -100,9 +105,11 @@ sys_expected<> basic_stream<Exec>::impl::start_automatic_ping() noexcept
 		}
 		return make_sys_expected();
 	}
-	catch(...) {}
+	catch(...) {
+		error = exception_error(std::current_exception());
+	}
 	m_ping_timer.reset();
-	return sys_unexpected(exception_error(std::current_exception()));
+	return sys_unexpected(error);
 }
 
 template <core_concepts::exec Exec>
@@ -110,6 +117,8 @@ sys_expected<> basic_stream<Exec>::impl::schedule_automatic_ping() noexcept
 {
 	if( not m_ping_timer or m_state != connection_state::open )
 		return make_sys_expected();
+
+	error_code error;
 	try {
 		auto timer = m_ping_timer;
 		timer->expires_after(m_config.auto_ping_interval);
@@ -143,8 +152,10 @@ sys_expected<> basic_stream<Exec>::impl::schedule_automatic_ping() noexcept
 		});
 		return make_sys_expected();
 	}
-	catch(...) {}
-	return sys_unexpected(exception_error(std::current_exception()));
+	catch(...) {
+		error = exception_error(std::current_exception());
+	}
+	return sys_unexpected(error);
 }
 
 template <core_concepts::exec Exec>

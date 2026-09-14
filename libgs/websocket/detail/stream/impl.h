@@ -44,7 +44,7 @@ public:
 	) noexcept;
 
 	[[nodiscard]] size_t write(message_type type,
-		std::span<const const_buffer> buffers, error_code &error
+		std::span<const const_buffer> buffers, write_options options, error_code &error
 	) noexcept;
 
 	[[nodiscard]] size_t write_frame(message_type type,
@@ -54,7 +54,7 @@ public:
 
 	template <typename Handler>
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
-		std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
 	);
 
 	template <typename Handler>

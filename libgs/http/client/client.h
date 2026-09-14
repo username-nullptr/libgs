@@ -6,11 +6,14 @@
 
 #include <libgs/http/client/connection_pool.h>
 #include <libgs/http/client/request_context.h>
+#include <libgs/http/client/proxy.h>
 
 namespace libgs::http
 {
 
-struct client_config {
+struct client_config
+{
+	proxy_t default_proxy = use_global_proxy;
 	bool no_delay = true;
 };
 
@@ -26,6 +29,7 @@ public:
 
 	using config_t = client_config;
 	using connection_pool_t = basic_connection_pool<executor_t>;
+
 	using connection_t = connection_pool_t::connection_t;
 	using connection_ptr = connection_pool_t::connection_ptr;
 
@@ -44,40 +48,21 @@ public:
 	{
 		url_t url {};
 		request_arg_t arg {};
+		std::optional<proxy_t> proxy {};
 
-		std::optional<url_t> proxy {};
 		size_t max_redirects = 0;
 		bool auto_decompression = true;
+
+		req_info(core_concepts::string_p<char> auto &&request_url) :
+			url(std::forward<decltype(request_url)>(request_url)) {}
 
 		req_info(url_t request_url, request_arg_t request_options) :
 			url(std::move(request_url)), arg(std::move(request_options)) {}
 
 		req_info(url_t request_url) :
 			url(std::move(request_url)) {}
-
-		req_info(core_concepts::string_p<char> auto &&request_url) :
-			url(std::forward<decltype(request_url)>(request_url)) {}
-
-		req_info &set_proxy(url_t value)
-		{
-			proxy = std::move(value);
-			return *this;
-		}
-		req_info &follow_redirects(size_t limit = 10) noexcept
-		{
-			max_redirects = limit;
-			return *this;
-		}
-		req_info &auto_decompress(bool enabled = true) noexcept
-		{
-			auto_decompression = enabled;
-			return *this;
-		}
 	};
 
-	// Synchronous calls return context_ptr directly. The default token throws
-	// std::system_error on failure; error_code& returns nullptr and stores the
-	// error. Asynchronous completion has the signature (error_code, context_ptr).
 	template <method_enum Method, typename Token>
 	static constexpr bool request_token_v =
 		concepts::dis_detach_opt_token <
@@ -218,7 +203,7 @@ public:
 
 public:
 	[[nodiscard]] std::shared_ptr<cookie_jar> cookie_store() noexcept;
-	[[nodiscard]] config_t config() const noexcept;
+	[[nodiscard]] config_t config() const;
 
 	[[nodiscard]] static consteval version_enum version() noexcept;
 	[[nodiscard]] executor_t get_executor() noexcept;

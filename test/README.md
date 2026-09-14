@@ -20,8 +20,9 @@ The HTTP/1.1 WebSocket implementation is covered by protocol, public-API,
 handshake, owned client/server, stream, and optional WSS groups. Coverage includes
 incremental frame parsing across a deterministic chunk corpus, opening-handshake
 validation, cross-origin redirect credential handling, request snapshots,
-subprotocol and constrained `permessage-deflate` negotiation, asynchronous
-Upgrade validators, frame-level reads, accept-queue capacity/FIFO/timeout
+subprotocol and RFC 7692 `permessage-deflate` negotiation, asynchronous
+Upgrade validators, request-aware synchronous/asynchronous selectors,
+frame-level reads, accept-queue capacity/FIFO/timeout
 behavior, real handshake deadlines, simultaneous Close, and stream state
 transitions. When OpenSSL support is enabled, a hermetic WSS loopback covers
 certificate verification and the TLS upgrade path. When WebSocket zlib support

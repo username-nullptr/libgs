@@ -1,46 +1,80 @@
-# HTTP Client and Server
+# HTTP
 
-Language: English | [Simplified Chinese](../zh_CN/http.md)
+Language: English | [简体中文](../zh_CN/http.md)
 
-The HTTP module implements HTTP/1.0 and HTTP/1.1 protocol utilities, clients,
-servers, connections, routing, and optional TLS and gzip support. Link it as
-`gs.http`; it publicly depends on `gs.coro` and `gs.core`.
+`gs.http` implements HTTP/1.0 and HTTP/1.1. Link it through `gs.http`; its
+public dependency is `gs.coro`.
 
-WebSocket framing is not implemented by this module. The server exposes a
-generic HTTP Upgrade connection handover boundary used by the separate,
-implemented [`gs.websocket`](websocket.md) module.
+## Public structure
 
-## Header guide
-
-| Header | Purpose |
+| Header area | Purpose |
 | --- | --- |
-| `<libgs/http/client.h>` | High-level HTTP client |
-| `<libgs/http/server.h>` | HTTP and optional HTTPS server aliases |
-| `<libgs/http/client/connection_pool.h>` | Reusable pooled connections |
-| `<libgs/http/protocol/types.h>` | Methods, statuses, redirects, and request-target forms |
-| `<libgs/http/protocol/utils.h>` | Parsers, generators, cookies, forms, compression, and protocol helpers |
+| `<libgs/http/client.h>` | High-level client, request contexts, replies, cookies, pooling, connectors, and proxies |
+| `<libgs/http/server.h>` | HTTP/HTTPS servers, routing, request/response, AOP, and sessions |
+| `<libgs/http/protocol/...>` | HTTP values, headers, cookies, parsers, generators, ranges, forms, and compression |
+| `<libgs/http/utils/...>` | TCP/TLS connections and I/O completion helpers |
 | `<libgs/http.h>` | Client and server umbrella |
 
-## Optional features
+`LIBGS_OPENSSL_SUPPORT` enables TLS types, HTTPS clients, and HTTPS server
+aliases. `LIBGS_HTTP_ZLIB_SUPPORT` enables HTTP gzip support.
 
-Enable TLS and gzip when configuring LibGS:
+## Client
 
-```shell
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLIBGS_OPENSSL_SUPPORT=ON \
-  -DLIBGS_HTTP_ZLIB_SUPPORT=ON
-cmake --build build --parallel
+A request has three stages: create/send the request, wait for the reply, then
+consume the reply body.
+
+```cpp
+#include <libgs/http/client.h>
+
+#include <iostream>
+#include <string>
+
+int main()
+{
+    libgs::http::client client;
+    std::error_code error;
+
+    auto context = client.request_get("http://127.0.0.1:8080/", error);
+    if (error)
+        return 1;
+
+    auto status = context->wait_reply(error);
+    auto body = context->reply()->read<std::string>(error);
+    if (error)
+        return 1;
+
+    std::cout << static_cast<unsigned>(status) << '\n' << body;
+}
 ```
 
-`LIBGS_OPENSSL_SUPPORT` enables HTTPS client connections, TLS connection types,
-and HTTPS server aliases. `LIBGS_HTTP_ZLIB_SUPPORT` enables automatic HTTP gzip
-compression and decompression. Both options require the corresponding system
-package during configuration.
+The default token is synchronous. Pass `libgs::use_awaitable` at each stage
+for coroutine use, or pass a compatible callback. The high-level client keeps
+a connection pool and cookie jar; consume the full body before releasing a
+context when its connection should be reused.
 
-## HTTP server
+### Request configuration
 
-The following server listens on port 8080 and handles `GET /hello`:
+| Type | Controls |
+| --- | --- |
+| `request_arg` | Headers, cookies, chunk attributes, Basic/Bearer auth, and proxy Basic auth |
+| `client::req_info` | URL, request arguments, per-request proxy, redirects, and decompression |
+| `client_config` | Default proxy and `TCP_NODELAY` policy |
+| `connection_pool_config` | Pool size and connection lifetime policy |
+| `connector` | Direct, TLS, HTTP CONNECT, SOCKS5, or application-defined connection creation |
+
+Redirects are disabled when `max_redirects` is zero. Automatic decompression is
+enabled in `req_info`, but gzip decoding requires zlib support.
+
+`client_config::default_proxy` defaults to `use_global_proxy`. The built-in
+resolver reads `http_proxy`, `https_proxy`, and `all_proxy` (including uppercase
+variants) and applies `no_proxy`. Set `no_proxy` to force direct access. A
+request can inherit the client setting, bypass it, use an HTTP forward proxy,
+or specify an HTTP CONNECT/SOCKS5 `proxy_tunnel`.
+
+The client also provides upload/download helpers and progress callbacks. Body
+byte counts exclude headers, chunk framing, and multipart boundaries.
+
+## Server
 
 ```cpp
 #include <libgs/http/server.h>
@@ -55,11 +89,12 @@ int main()
     server
         .bind({libgs::ip_type::v4, 8080})
         .on_request<libgs::http::method::get>(
-            "/hello",
+            "/hello/{name}",
             [](libgs::http::server::context_t &context)
                 -> libgs::awaitable<void>
             {
-                constexpr std::string_view body = "Hello from LibGS!\n";
+                auto name = context.request().path_arg("name");
+                const auto body = name ? name->to_string() : "unknown";
                 co_await context.response().write(
                     asio::buffer(body), libgs::use_awaitable
                 );
@@ -71,252 +106,55 @@ int main()
 }
 ```
 
-The server owns neither a hidden process thread nor a separate mandatory event
-loop. The acceptor and service work use compatible Asio executors, and
-`libgs::exec()` runs the default context in this example.
+Route rules support literal paths, `*`, `?`, and named `{arguments}`. Use
+`on_default`, `on_server_error`, and `on_service_error` for unmatched requests
+and failures. Routes can attach `basic_aop` before/after/exception hooks or a
+controller-style `basic_ctrlr_aop`.
 
-### Routing
+The request API exposes method, version, target, path/query/path arguments,
+headers, cookies, endpoints, and body/file reads. The response API provides
+status, headers, cookies, fixed or chunked writes, redirects, file responses,
+ranges, and optional compression.
 
-`on_request` accepts one or more HTTP methods and a path rule. Rules support:
+`server_config::resource_root` is the base for relative paths passed to
+`request.save_file()` and `response.send_file()`. It is path resolution, not a
+security sandbox; validate paths derived from request data.
 
-- `*` for a multi-character wildcard;
-- `?` for a single-character wildcard; and
-- `{name}` for a named path argument.
+Sessions are available through `service_context::session()` and
+`session_or()`. The session manager controls the cookie key, expiration, and
+timeout handling.
 
-For example, `/users/{user_id}` exposes `user_id` through
-`context.request().path_arg("user_id")`. Request data also includes the method,
-HTTP version, target, path, query parameters, headers, cookies, endpoints, and
-body-reading operations.
+## HTTP Upgrade
 
-Use `on_default` for requests that do not match a registered route. Server-wide
-and per-service errors can be handled with `on_server_error` and
-`on_service_error`.
+`service_context::hand_over_connection()` transfers an Upgrade connection and
+pending bytes out of the HTTP request lifecycle. WebSocket applications should
+normally call [`websocket::upgrade()`](websocket.md) instead of using this
+low-level boundary directly.
 
-Routes may still be added with `on_request` or removed with `unbound_request`
-after the server starts. These updates are safe to perform concurrently with
-request handling: each individual route update is published atomically, so
-subsequent requests observe either the complete old route table or the complete
-new one, while requests that already selected a handler continue using it.
-Literal paths use a fast exact-match index; wildcard rules and rules ending in
-path arguments keep the matching and precedence behavior described above.
+## I/O rules
 
-### Responses
+- Non-detached asynchronous writes borrow the supplied buffer until completion;
+  detached response writes own a copy.
+- Error-code and asynchronous write forms preserve a partial body-byte count
+  when an error occurs.
+- Cancellation is exposed by clients, request contexts, replies, connections,
+  pools, requests, and responses where applicable.
+- Configure TLS certificates, verification, and protocol policy in the
+  application's `asio::ssl::context`.
 
-The response API can:
+HTTP/2 and HTTP/3 are not implemented. WebSocket framing belongs to the
+separate `gs.websocket` module.
 
-- set status, headers, and cookies;
-- write fixed or chunked bodies;
-- stream files and handle supported range conditions;
-- redirect or send `100 Continue`;
-- finish chunked output with optional trailing headers; and
-- enable automatic compression when zlib support is available.
+## Examples
 
-As with Asio I/O, non-detached asynchronous writes borrow the supplied body
-buffer until completion. Keep that storage alive across the `co_await` or
-callback. Detached response writes make an owned copy.
-
-### Resource root
-
-`server_config::resource_root` is the base directory for relative file paths
-passed to both `response.send_file()` and `request.save_file()`:
-
-```cpp
-auto config = server.config();
-config.resource_root = "/srv/my-service";
-server.set_config(config);
-
-co_await context.response().send_file(
-    "public/index.html", libgs::use_awaitable
-);
-co_await context.request().save_file(
-    "uploads/item.bin", libgs::use_awaitable
-);
-```
-
-Absolute paths bypass the root. An empty root preserves the earlier behavior,
-where relative paths use the executable directory. `resource_root` resolves
-paths; it is not a static-file router or a security sandbox. Validate any path
-derived from request data and reject traversal such as `..` before file I/O.
-
-Path-based `send_file()` calls cache raw file data and negotiated gzip variants
-for files up to 2 MiB. The in-process cache is bounded to 32 MiB and validates
-entries with file size and modification time on every request. Larger files,
-range responses, and caller-owned streams continue to use streaming I/O. This
-trades bounded memory for avoiding repeated reads and compression on hot static
-assets.
-
-### Middleware and sessions
-
-`basic_aop` supplies coroutine `before` and `after` hooks plus exception
-handling. `basic_ctrlr_aop` adds a controller-style `service` operation. A route
-can receive one or more AOP objects.
-
-`context.session()` and `context.session_or()` integrate with the server session
-manager. Sessions support typed extension through inheritance, arbitrary
-attributes, expiration, lifecycle extension, timeout callbacks, and a
-configurable cookie key.
-
-### HTTP Upgrade handover
-
-For a valid upgrade request, `context.hand_over_connection()` transfers the
-underlying connection away from normal HTTP request processing. The caller then
-owns protocol handling and any pending bytes returned by the request. This is a
-low-level ownership boundary; applications normally use
-`websocket::upgrade()` rather than implementing RFC 6455 framing themselves.
-
-## Synchronous HTTP client
-
-High-level client methods use synchronous behavior by default:
-
-```cpp
-#include <libgs/http/client.h>
-
-#include <iostream>
-#include <string>
-
-int main()
-{
-    libgs::http::client client;
-    auto context = client.request_get("http://example.com/");
-
-    auto status = context->wait_reply();
-    auto body = context->reply()->read<std::string>();
-
-    std::cout << static_cast<unsigned>(status) << '\n';
-    std::cout << body;
-}
-```
-
-The default token throws `std::system_error` on failure. Pass a
-`std::error_code` object to request, reply, and body operations for non-throwing
-synchronous handling.
-
-`http::client_config::no_delay` controls `TCP_NODELAY` on newly established
-client connections and defaults to `true`. The setting is part of the
-connection-pool key, so connections created with different values are never
-mixed:
-
-```cpp
-libgs::http::client_config config;
-config.no_delay = false;
-libgs::http::client client(config);
-```
-
-## Coroutine HTTP client
-
-Pass `libgs::use_awaitable` to use the same operations from a coroutine:
-
-```cpp
-#include <libgs/http/client.h>
-
-#include <iostream>
-#include <string>
-
-int main()
-{
-    libgs::http::client client;
-
-    libgs::dispatch([&client]() -> libgs::awaitable<void>
-    {
-        auto context = co_await client.request_get(
-            "http://example.com/", libgs::use_awaitable
-        );
-        co_await context->wait_reply(libgs::use_awaitable);
-
-        auto body = co_await context->reply()->read<std::string>(
-            libgs::use_awaitable
-        );
-        std::cout << body;
-
-        libgs::exit();
-    });
-
-    return libgs::exec();
-}
-```
-
-Callback tokens are also supported. Their completion signatures include an
-error code followed by the operation result.
-
-## Request configuration
-
-`libgs::http::request_arg` stores request headers, cookies, chunk attributes,
-and authentication. It provides helpers for Basic, Bearer, and proxy Basic
-authentication.
-
-`libgs::http::client::req_info` combines the URL and request arguments with
-per-request behavior:
-
-```cpp
-#include <libgs/http/client.h>
-
-int main()
-{
-    libgs::http::request_arg arguments;
-    arguments.set_header("Accept", "application/json");
-
-    libgs::http::client client;
-    libgs::http::client::req_info info(
-        "http://example.com/api", arguments
-    );
-    info.follow_redirects(5).auto_decompress(true);
-
-    auto context = client.request_get(std::move(info));
-    return context ? 0 : 1;
-}
-```
-
-`set_proxy` selects an HTTP proxy for the request. Redirect following is
-disabled until `follow_redirects` is called. Automatic decompression is enabled
-by default but only performs gzip decoding when zlib support was compiled in.
-
-The high-level client maintains a cookie jar and a connection pool. Cookies
-received through `Set-Cookie` are stored after the reply is consumed and are
-selected automatically for later matching URLs. The jar is available through
-`client::cookie_store()`. A custom pool or executor can be supplied when the
-application needs different limits, timeouts, routing, or execution ownership.
-
-## Bodies and files
-
-Request contexts expose body writes for methods that accept a body. Reply
-objects support reads into caller-provided buffers, typed buffer containers,
-byte vectors, and files. The high-level client also provides upload and download
-helpers with optional progress callbacks.
-
-HTTP write counts cover caller-supplied body bytes only (source-file bytes for
-file operations), excluding HTTP headers, chunk framing, and multipart
-boundaries. The `error_code&` and asynchronous forms preserve a partial body
-count alongside an error. Header-only operations and `chunk_end()` return zero.
-
-Read or save the complete reply body before dropping the request context when a
-connection should be reused. Cancellation is available on clients, contexts,
-replies, connections, and pools.
-
-## HTTPS
-
-When OpenSSL support is enabled, an `https://` URL uses the same high-level
-client interface. HTTPS servers use `libgs::https::server` with an
-`asio::ssl::context` that is configured with the application's certificate,
-private key, protocol options, and verification policy.
-
-TLS policy is application-specific. Do not copy development certificate or
-verification settings into production without reviewing them.
-
-## Protocol scope
-
-The HTTP module implements HTTP/1.0 and HTTP/1.1. HTTP/2 and HTTP/3 are not
-implemented. RFC 6455 framing is provided by the separate
-[`gs.websocket`](websocket.md) module over HTTP/1.1 Upgrade.
-
-## Related examples
-
-- [`examples/http/client_sync.cpp`](../../examples/http/client_sync.cpp)
-- [`examples/http/client_awaitable.cpp`](../../examples/http/client_awaitable.cpp)
-- [`examples/http/client_cookies.cpp`](../../examples/http/client_cookies.cpp)
-- [`examples/http/client_file.cpp`](../../examples/http/client_file.cpp)
-- [`examples/http/protocol.cpp`](../../examples/http/protocol.cpp)
-- [`examples/http/server.cpp`](../../examples/http/server.cpp)
-- [`examples/http/server_aop.cpp`](../../examples/http/server_aop.cpp)
-- [`examples/http/server_file.cpp`](../../examples/http/server_file.cpp)
-- [`examples/http/server_session.cpp`](../../examples/http/server_session.cpp)
-- [`examples/http/https_server.cpp`](../../examples/http/https_server.cpp)
+- [Synchronous client](../../examples/http/client_sync.cpp)
+- [Coroutine client](../../examples/http/client_awaitable.cpp)
+- [Cookies](../../examples/http/client_cookies.cpp)
+- [Files](../../examples/http/client_file.cpp)
+- [Proxy client](../../examples/http/proxy_client.cpp)
+- [Protocol codecs](../../examples/http/protocol.cpp)
+- [Server](../../examples/http/server.cpp)
+- [AOP](../../examples/http/server_aop.cpp)
+- [File server](../../examples/http/server_file.cpp)
+- [Sessions](../../examples/http/server_session.cpp)
+- [HTTPS server](../../examples/http/https_server.cpp)

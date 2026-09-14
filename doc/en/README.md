@@ -1,84 +1,47 @@
 # LibGS Documentation
 
-Language: English | [Simplified Chinese](../zh_CN/README.md)
+Language: English | [简体中文](../zh_CN/README.md)
 
-LibGS is a modular C++20 foundation for asynchronous applications and services.
-The project is organized in layers: a core execution and utility layer,
-coroutine-oriented synchronization, protocol modules, and higher-level
-application utilities.
+## Start here
 
-HTTP/HTTPS and HTTP/1.1 WebSocket are implemented protocol modules, but they
-are not the boundary of the project. The protocol layer is intended to expand
-over time; WebSocket includes a constrained RFC 7692 compression profile while
-broader extensions and newer HTTP transports remain planned work.
-
-## Documentation map
-
-| Document | Contents |
+| Document | Use it for |
 | --- | --- |
-| [Getting started](getting-started.md) | Requirements, build options, installation, linking, and API conventions |
-| [Core](core.md) | Event loop, scheduling, values, INI files, algorithms, containers, and system helpers |
-| [Coroutines](coroutines.md) | Coroutine tasks, synchronization primitives, waiting, and executor switching |
-| [HTTP](http.md) | HTTP client, server, routing, sessions, TLS, gzip, and completion styles |
-| [WebSocket](websocket.md) | RFC 6455 stream, client/server APIs, upgrade integration, WS/WSS, and current limits |
-| [Utilities](utilities.md) | Logging, settings, signals, observers, modules, processes, and the extensible soft bus |
-| [Roadmap](roadmap.md) | Implemented scope, planned protocol extensions, and project direction |
+| [Getting started](getting-started.md) | Requirements, configuration, building, installation, and linking |
+| [Core](core.md) | Runtime, scheduling, data types, algorithms, containers, and system APIs |
+| [Coroutines](coroutines.md) | Awaitable waits and non-blocking synchronization |
+| [HTTP](http.md) | HTTP protocol, client, server, files, sessions, TLS, gzip, and proxies |
+| [WebSocket](websocket.md) | RFC 6455 client, server, stream, Upgrade, compression, and proxies |
+| [Utilities](utilities.md) | Logging, settings, signals, observers, modules, processes, and soft bus |
+| [Roadmap](roadmap.md) | Current boundaries and planned areas |
 
-## Module map
+The [examples guide](../../examples/README.md) maps each feature to a small
+executable. Use the public headers in [`libgs/`](../../libgs) as the API source
+of truth.
 
-| CMake target | Main headers | Role |
-| --- | --- | --- |
-| `gs.core` | `<libgs/core.h>` and `<libgs/core/...>` | Runtime and general-purpose foundation |
-| `gs.coro` | `<libgs/coro.h>` and `<libgs/coro/...>` | Coroutine facilities backed by the core runtime |
-| `gs.http` | `<libgs/http.h>` and `<libgs/http/...>` | HTTP protocol, client, server, and optional TLS support |
-| `gs.websocket` | `<libgs/websocket.h>` and `<libgs/websocket/...>` | HTTP/1.1 WebSocket protocol, client, server, stream, optional compression, and optional WSS support |
-| `gs.utils` | `<libgs/utils.h>` and `<libgs/utils/...>` | Reusable application services and utilities |
+## Module structure
 
-`<libgs.h>` includes the enabled top-level module headers. Individual headers are
-recommended when compile time and dependency boundaries matter. Some utility
-APIs, including process and signal/observer types, are exposed through their
-individual headers rather than the `<libgs/utils.h>` umbrella.
+| Module | Public dependency |
+| --- | --- |
+| `gs.core` | — |
+| `gs.coro` | `gs.core` |
+| `gs.http` | `gs.coro` |
+| `gs.websocket` | `gs.http` |
+| `gs.utils` | `gs.coro` |
 
-## Common API conventions
+Each module has an umbrella header, but narrower headers are preferred when an
+application uses only one facility. `<libgs.h>` follows the module switches in
+the generated configuration header.
 
-### Executors and scheduling
+## API conventions
 
-The default runtime owns a process-wide `asio::io_context`, exposed by
-`libgs::io_context()` and `libgs::get_executor()`. Many types can also be
-constructed with a compatible external executor. Work can therefore stay on
-the default event loop or be directed to an application-owned execution
-context.
+- Most asynchronous operations follow Asio completion-token conventions.
+- `libgs::use_awaitable` selects a coroutine result; callbacks and
+  `libgs::detached` are accepted where the declaration permits them.
+- Selected APIs default to synchronous execution. Their throwing form reports
+  I/O failures with `std::system_error`; error-code overloads are non-throwing.
+- Asynchronous I/O normally borrows buffers until completion unless the API
+  explicitly states that it takes a copy.
+- Types that accept an executor can run on an application-owned context instead
+  of the process-wide default context.
 
-### Completion styles
-
-Asynchronous operations generally follow Asio completion-token conventions.
-Depending on the operation, callers can use:
-
-- a callback;
-- `libgs::use_awaitable` from a C++20 coroutine;
-- `libgs::detached` for fire-and-forget work;
-- an error-code token for non-throwing synchronous handling; or
-- the synchronous default offered by selected client and utility APIs.
-
-Check the declaration of a specific operation for its accepted tokens and
-completion signature.
-
-### Errors
-
-Throwing synchronous overloads report I/O failures with `std::system_error`.
-Non-throwing variants accept an error-code token or return `sys_expected<T>`.
-Asynchronous callbacks receive an error code as part of their completion
-signature.
-
-### API status
-
-The project has not reached a 1.0 API
-stability milestone, so public interfaces may still evolve. Implemented and
-planned features are kept separate throughout these documents.
-
-## Source references
-
-- Public headers: [`libgs/`](../../libgs)
-- Examples: [`examples/`](../../examples)
-- Build configuration: [`CMakeLists.txt`](../../CMakeLists.txt)
-- Third-party sources: [`3rd_party/SOURCE.txt`](../../3rd_party/SOURCE.txt)
+LibGS is pre-1.0; public interfaces may still change.

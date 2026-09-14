@@ -18,7 +18,7 @@ int main(int argc, const char *argv[])
 	.set_cookie("libgs-example", "1");
 
 	libgs::http::client::req_info request(url, arguments);
-	request.follow_redirects(3);
+	request.max_redirects = 3;
 
 	libgs::http::client client;
 	auto context = client.request_get(std::move(request), error);

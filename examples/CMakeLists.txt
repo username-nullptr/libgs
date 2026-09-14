@@ -40,13 +40,13 @@ endfunction()
 
 
 # Core
-libgs_add_example(core algorithms       LIBRARIES gs.core)
-libgs_add_example(core app_paths        LIBRARIES gs.core)
-libgs_add_example(core args_parser      LIBRARIES gs.core)
-libgs_add_example(core execution        LIBRARIES gs.core)
-libgs_add_example(core ini              LIBRARIES gs.core)
-libgs_add_example(core lock_free_queue  LIBRARIES gs.core)
-libgs_add_example(core value            LIBRARIES gs.core)
+libgs_add_example(core algorithms      LIBRARIES gs.core)
+libgs_add_example(core app_paths       LIBRARIES gs.core)
+libgs_add_example(core args_parser     LIBRARIES gs.core)
+libgs_add_example(core execution       LIBRARIES gs.core)
+libgs_add_example(core ini             LIBRARIES gs.core)
+libgs_add_example(core lock_free_queue LIBRARIES gs.core)
+libgs_add_example(core value           LIBRARIES gs.core)
 
 add_library(libgs.example.core.dynamic_library_plugin SHARED
 	core/dynamic_library_plugin.cpp
@@ -81,6 +81,7 @@ if (LIBGS_BUILD_HTTP)
 	libgs_add_example(http client_awaitable LIBRARIES gs.http)
 	libgs_add_example(http client_cookies   LIBRARIES gs.http)
 	libgs_add_example(http client_file      LIBRARIES gs.http)
+	libgs_add_example(http proxy_client     LIBRARIES gs.http)
 	libgs_add_example(http protocol         LIBRARIES gs.http)
 	libgs_add_example(http server           LIBRARIES gs.http)
 	libgs_add_example(http server_aop       LIBRARIES gs.http)
@@ -94,9 +95,10 @@ endif ()
 
 # WebSocket protocol
 if (LIBGS_BUILD_WEBSOCKET)
-	libgs_add_example(websocket client LIBRARIES gs.websocket)
-	libgs_add_example(websocket server LIBRARIES gs.websocket)
-	libgs_add_example(websocket protocol LIBRARIES gs.websocket)
+	libgs_add_example(websocket client            LIBRARIES gs.websocket)
+	libgs_add_example(websocket proxy_client      LIBRARIES gs.websocket)
+	libgs_add_example(websocket server            LIBRARIES gs.websocket)
+	libgs_add_example(websocket protocol          LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_client LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_server LIBRARIES gs.websocket)
 
@@ -108,13 +110,13 @@ endif ()
 
 # Application utilities
 if (LIBGS_BUILD_UTILITIES)
-	libgs_add_example(utils logger       LIBRARIES gs.utils)
-	libgs_add_example(utils observer     LIBRARIES gs.utils)
-	libgs_add_example(utils process      LIBRARIES gs.utils)
+	libgs_add_example(utils logger             LIBRARIES gs.utils)
+	libgs_add_example(utils observer           LIBRARIES gs.utils)
+	libgs_add_example(utils process            LIBRARIES gs.utils)
 	libgs_add_example(utils soft_bus_local     LIBRARIES gs.utils)
 	libgs_add_example(utils soft_bus_transport LIBRARIES gs.utils)
-	libgs_add_example(utils settings     LIBRARIES gs.utils)
-	libgs_add_example(utils signal_slot  LIBRARIES gs.utils)
+	libgs_add_example(utils settings           LIBRARIES gs.utils)
+	libgs_add_example(utils signal_slot        LIBRARIES gs.utils)
 	libgs_add_example(utils modules
 		SOURCES
 			utils/modules/main.cpp
@@ -146,6 +148,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	http/client_sync.cpp
 	http/https_server.cpp
 	http/protocol.cpp
+	http/proxy_client.cpp
 	http/server.cpp
 	http/server_aop.cpp
 	http/server_file.cpp
@@ -154,6 +157,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	websocket/mixed_http_server.cpp
 	websocket/protocol.cpp
 	websocket/client.cpp
+	websocket/proxy_client.cpp
 	websocket/server.cpp
 	websocket/wss_client.cpp
 	websocket/wss_server.cpp

@@ -12,6 +12,16 @@ namespace libgs::websocket::detail
 void receive_buffer::reset(role local_role, const stream_config &config,
 	std::span<const extension> extensions, std::vector<std::byte> pending_data)
 {
+	auto compression = make_permessage_deflate_runtime(extensions, local_role);
+	if( not compression )
+		throw system_error(compression.error());
+
+	if( compression->enabled )
+	{
+		if( auto error = m_inflater.reset(compression->incoming_window_bits,
+			compression->incoming_no_context_takeover) )
+			throw system_error(error);
+	}
 	frame_codec_config codec_config {
 		.local_role = local_role, .max_frame_size = config.max_frame_size
 	};
@@ -26,7 +36,9 @@ void receive_buffer::reset(role local_role, const stream_config &config,
 	m_pending_data = std::move(pending_data);
 
 	m_max_message_size = config.max_message_size;
-	m_permessage_deflate = not extensions.empty();
+	m_compression = *compression;
+
+	m_permessage_deflate = compression->enabled;
 	m_message_compressed = false;
 
 	m_pending_offset = 0;
@@ -137,9 +149,6 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 
 			if( target == receive_target::chunk )
 			{
-				if( compressed )
-					return sys_unexpected(make_error_code(std::errc::operation_not_supported));
-
 				if( *m_message_type == message_type::text )
 					m_chunk_utf8.emplace();
 			}
@@ -179,6 +188,11 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 		}
 	}
 	optional<message_chunk> chunk;
+	std::vector<std::byte> decoded_payload;
+
+	bool decoded_payload_owned = false;
+	bool compression_finalized = false;
+
 	if( parsed->payload.size() != 0 )
 	{
 		if( header.mask )
@@ -193,33 +207,62 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 			else
 			{
 				m_message_wire_size += parsed->payload.size();
+				const std::byte *application_begin = begin;
+				size_t application_size = parsed->payload.size();
+
+				if( m_message_compressed )
+				{
+					const bool final = parsed->frame_finished and header.fin;
+
+					const auto current_size = target == receive_target::chunk ?
+						m_message_size : m_message_body.size();
+
+					const auto remaining = m_max_message_size == 0 ?
+						0 : m_max_message_size - std::min(current_size, m_max_message_size);
+
+					auto decoded = m_inflater.inflate_chunk (
+						std::span(begin, parsed->payload.size()), final, remaining
+					);
+					if( not decoded )
+						return sys_unexpected(decoded.error());
+
+					decoded_payload = std::move(*decoded);
+					decoded_payload_owned = true;
+					compression_finalized = final;
+
+					application_begin = decoded_payload.data();
+					application_size = decoded_payload.size();
+				}
 				if( target == receive_target::chunk )
 				{
 					if( not m_message_type )
 						return sys_unexpected(make_error_code(std::errc::io_error));
 
-					if( *m_message_type == message_type::text )
+					if( *m_message_type == message_type::text and application_size != 0 )
 					{
 						const auto text = std::string_view (
-							reinterpret_cast<const char*>(begin), parsed->payload.size()
+							reinterpret_cast<const char*>(application_begin), application_size
 						);
 						if( not m_chunk_utf8 or not m_chunk_utf8->consume(text) )
 							return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 					}
-					chunk = message_chunk {
-						.type = *m_message_type,
-						.body = const_buffer(begin, parsed->payload.size()),
-						.offset = m_message_size,
-						.first = m_chunk_first,
-						.last = parsed->frame_finished and header.fin,
-					};
-					m_message_size += parsed->payload.size();
-					m_chunk_first = false;
+					if( application_size != 0 )
+					{
+						chunk = message_chunk {
+							.type = *m_message_type,
+							.body = const_buffer(application_begin, application_size),
+							.offset = m_message_size,
+							.first = m_chunk_first,
+							.last = parsed->frame_finished and header.fin,
+						};
+						m_message_size += application_size;
+						m_chunk_first = false;
+					}
 				}
 				else
 				{
-					m_message_body.insert(m_message_body.end(), begin,
-						begin + parsed->payload.size()
+					m_message_body.insert(m_message_body.end(),
+						application_begin, application_begin + application_size
 					);
 					m_message_size = m_message_body.size();
 				}
@@ -230,6 +273,54 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 		}
 		catch(...) {
 			return sys_unexpected(make_error_code(std::errc::io_error));
+		}
+	}
+	if( parsed->frame_finished and header.fin and m_message_compressed and
+		(is_data_opcode(header.op) or header.op == opcode::continuation) and
+		not compression_finalized )
+	{
+		const auto current_size = target == receive_target::chunk ?
+			m_message_size : m_message_body.size();
+
+		const auto remaining = m_max_message_size == 0 ?
+			0 : m_max_message_size - std::min(current_size, m_max_message_size);
+
+		auto decoded = m_inflater.inflate_chunk({}, true, remaining);
+		if( not decoded )
+			return sys_unexpected(decoded.error());
+
+		decoded_payload = std::move(*decoded);
+		decoded_payload_owned = true;
+
+		if( target == receive_target::chunk )
+		{
+			if( not decoded_payload.empty() )
+			{
+				if( *m_message_type == message_type::text )
+				{
+					const auto text = std::string_view (
+						reinterpret_cast<const char*>(decoded_payload.data()),
+						decoded_payload.size()
+					);
+					if( not m_chunk_utf8 or not m_chunk_utf8->consume(text) )
+						return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
+				}
+				chunk = message_chunk {
+					.type = *m_message_type,
+					.body = const_buffer(decoded_payload.data(), decoded_payload.size()),
+					.offset = m_message_size,
+					.first = m_chunk_first,
+					.last = true,
+				};
+				m_message_size += decoded_payload.size();
+				m_chunk_first = false;
+			}
+		}
+		else
+		{
+			m_message_body.insert(m_message_body.end(),
+				decoded_payload.begin(), decoded_payload.end());
+			m_message_size = m_message_body.size();
 		}
 	}
 	if( m_pending_offset < m_pending_data.size() )
@@ -256,6 +347,13 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 		{
 			received_event event {};
 			event.op = header.op;
+
+			if( decoded_payload_owned )
+			{
+				event.chunk_storage = std::move(decoded_payload);
+				chunk->body = const_buffer(event.chunk_storage.data(),
+					event.chunk_storage.size());
+			}
 			event.chunk = chunk;
 			return optional(std::move(event));
 		}
@@ -291,13 +389,6 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 		}
 		if( header.fin )
 		{
-			if( m_message_compressed )
-			{
-				auto inflated = inflate_message(m_message_body, m_max_message_size);
-				if( not inflated )
-					return sys_unexpected(inflated.error());
-				m_message_body = std::move(*inflated);
-			}
 			if( *m_message_type == message_type::text and target != receive_target::chunk )
 			{
 				const auto text = m_message_body.empty() ?
@@ -323,7 +414,16 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 					return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 
 				if( chunk )
+				{
+					if( decoded_payload_owned )
+					{
+						event.chunk_storage = std::move(decoded_payload);
+						chunk->body = const_buffer (
+							event.chunk_storage.data(), event.chunk_storage.size()
+						);
+					}
 					event.chunk = chunk;
+				}
 				else
 				{
 					event.chunk = message_chunk {
@@ -353,7 +453,16 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 		else if( target == receive_target::chunk )
 		{
 			if( chunk )
+			{
+				if( decoded_payload_owned )
+				{
+					event.chunk_storage = std::move(decoded_payload);
+					chunk->body = const_buffer (
+						event.chunk_storage.data(), event.chunk_storage.size()
+					);
+				}
 				event.chunk = chunk;
+			}
 			else
 				return optional<received_event>{};
 		}

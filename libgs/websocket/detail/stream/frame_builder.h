@@ -4,6 +4,7 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_FRAME_BUILDER_H
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_FRAME_BUILDER_H
 
+#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/types.h>
 
 namespace libgs::websocket::detail
@@ -42,7 +43,7 @@ public:
 	) const noexcept;
 
 	[[nodiscard]] sys_expected<std::vector<prepared_frame>> prepare_message (
-		message_type type, std::span<const const_buffer> buffers
+		message_type type, std::span<const const_buffer> buffers, write_options options = {}
 	) const noexcept;
 
 	[[nodiscard]] sys_expected<prepared_frame> prepare_data_frame (
@@ -52,10 +53,13 @@ public:
 
 private:
 	role m_role = role::client;
+
 	size_t m_max_frame_size = stream_config{}.max_frame_size;
 	size_t m_max_message_size = stream_config{}.max_message_size;
 	size_t m_fragment_size = stream_config{}.write_fragment_size;
-	bool m_permessage_deflate = false;
+
+	compression_config m_compression_config {};
+	permessage_deflate_runtime m_compression {};
 };
 
 } //namespace libgs::websocket::detail

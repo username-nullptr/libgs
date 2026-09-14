@@ -8,9 +8,44 @@
 #include <libgs/http/protocol/version.h>
 #include <libgs/http/client.h>
 #include <libgs/http/server/response.h>
+#include <libgs/core/system/app_utls.h>
 
 namespace
 {
+
+class scoped_environment
+{
+	struct entry
+	{
+		std::string name;
+		libgs::optional<std::string> value;
+	};
+
+public:
+	scoped_environment(std::initializer_list<std::string_view> names)
+	{
+		for(const auto name : names)
+		{
+			auto value = libgs::app::getenv(name);
+			m_entries.push_back({std::string(name), value ?
+				libgs::optional<std::string>(*value) : libgs::nullopt});
+		}
+	}
+
+	~scoped_environment()
+	{
+		for(const auto &item : m_entries)
+		{
+			if( item.value )
+				libgs::ignore_unused(libgs::app::setenv(item.name, *item.value));
+			else
+				libgs::ignore_unused(libgs::app::unsetenv(item.name));
+		}
+	}
+
+private:
+	std::vector<entry> m_entries;
+};
 
 class scripted_connection final : public libgs::http::basic_connection<>
 {
@@ -90,6 +125,10 @@ public:
 		return m_exec;
 	}
 
+	[[nodiscard]] const std::string &written_data() const noexcept {
+		return m_written_data;
+	}
+
 protected:
 	size_t read_some(
 		libgs::mutable_buffer buffer, libgs::error_code &error
@@ -103,6 +142,8 @@ protected:
 	) noexcept override
 	{
 		auto step = next_write(buffer.size());
+		m_written_data.append(static_cast<const char*>(buffer.data()),
+			step.transferred);
 		error = step.error;
 		return step.transferred;
 	}
@@ -124,6 +165,8 @@ protected:
 	) noexcept override
 	{
 		auto step = next_write(buffer.size());
+		m_written_data.append(static_cast<const char*>(buffer.data()),
+			step.transferred);
 		if( step.wait_for_cancellation )
 		{
 			auto slot = asio::get_associated_cancellation_slot(completion);
@@ -205,6 +248,7 @@ private:
 	std::deque<read_step> m_reads {};
 	std::deque<io_step> m_writes {};
 	libgs::sys_expected<probe_state_t> m_probe_state {probe_state_t::no_event};
+	std::string m_written_data {};
 	bool m_open = true;
 };
 
@@ -230,6 +274,11 @@ public:
 		return m_connections.empty() ? nullptr : m_connections.back();
 	}
 
+	[[nodiscard]] const libgs::http::connect_target &last_target() const
+	{
+		return m_targets.back();
+	}
+
 protected:
 	libgs::sys_expected<connection_ptr> do_connect(
 		const libgs::http::connect_target &target
@@ -237,6 +286,7 @@ protected:
 	{
 		libgs::error_code error {};
 		try {
+			m_targets.emplace_back(target);
 			++m_connection_counts[target.host];
 			auto connection = std::make_shared<scripted_connection>(get_executor());
 			if( not m_responses.empty() )
@@ -267,6 +317,7 @@ private:
 	std::unordered_map<std::string,size_t> m_connection_counts {};
 	std::deque<std::string> m_responses {};
 	std::vector<std::shared_ptr<scripted_connection>> m_connections {};
+	std::vector<libgs::http::connect_target> m_targets {};
 };
 
 void protocol_enums()
@@ -348,6 +399,139 @@ void client_url_validation()
 	);
 	LIBGS_TEST_CHECK(not missing_host);
 	LIBGS_TEST_CHECK(error == std::errc::invalid_argument);
+}
+
+void client_proxy_inheritance_and_environment()
+{
+	using namespace libgs::http;
+	const scoped_environment environment({
+		"http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY",
+		"ws_proxy", "WS_PROXY", "wss_proxy", "WSS_PROXY",
+		"all_proxy", "ALL_PROXY", "no_proxy", "NO_PROXY",
+	});
+	LIBGS_TEST_CHECK(libgs::app::setenv("http_proxy",
+		"http://user:secret@proxy.test:8080/"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("HTTP_PROXY"));
+	LIBGS_TEST_CHECK(libgs::app::setenv("https_proxy",
+		"http://secure-proxy.test:8443/"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("HTTPS_PROXY"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("all_proxy"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("ALL_PROXY"));
+	LIBGS_TEST_CHECK(libgs::app::setenv("ws_proxy",
+		"http://websocket-only.test:8082/"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("WS_PROXY"));
+	LIBGS_TEST_CHECK(libgs::app::setenv("wss_proxy",
+		"http://secure-websocket-only.test:8444/"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("WSS_PROXY"));
+	LIBGS_TEST_CHECK(libgs::app::setenv("no_proxy",
+		".bypass.test,127.0.0.0/8"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("NO_PROXY"));
+
+	libgs::io_context_t context;
+	auto connector = std::make_shared<scripted_connector>(context.get_executor());
+	connection_pool pool(connector);
+	client requester(std::move(pool));
+	libgs::error_code error;
+
+	{
+		auto request = requester.request_get(
+			"http://origin.test/resource?q=1", error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host, "proxy.test");
+		LIBGS_TEST_CHECK_EQ(connector->last_target().port, 8080);
+		LIBGS_TEST_CHECK(not connector->last_target().tunnel);
+		const auto &wire = connector->last_connection()->written_data();
+		LIBGS_TEST_CHECK(wire.starts_with(
+			"GET http://origin.test/resource?q=1 HTTP/1.1\r\n"));
+		LIBGS_TEST_CHECK(wire.find(
+			"Proxy-Authorization: Basic dXNlcjpzZWNyZXQ=\r\n") !=
+			std::string::npos);
+	}
+
+	{
+		auto request = requester.make_get("https://secure.test/resource", error);
+		LIBGS_TEST_CHECK(request and not error);
+		const auto &target = connector->last_target();
+		LIBGS_TEST_CHECK_EQ(target.host, "secure.test");
+		LIBGS_TEST_CHECK_EQ(target.port, 443);
+		LIBGS_TEST_CHECK(target.tunnel);
+		LIBGS_TEST_CHECK_EQ(target.tunnel->type,
+			proxy_tunnel_type::http_connect);
+		LIBGS_TEST_CHECK_EQ(target.tunnel->host, "secure-proxy.test");
+		LIBGS_TEST_CHECK_EQ(target.tunnel->port, 8443);
+	}
+
+	{
+		auto request = requester.make_get("http://api.bypass.test/value", error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host, "api.bypass.test");
+		LIBGS_TEST_CHECK(not connector->last_target().tunnel);
+	}
+
+	{
+		auto request = requester.make_get("http://127.12.34.56/value", error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host, "127.12.34.56");
+	}
+
+	{
+		client::req_info request_info("http://direct.test/value");
+		request_info.proxy = no_proxy;
+		auto request = requester.make_get(std::move(request_info), error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host, "direct.test");
+	}
+
+	{
+		client::req_info request_info("http://override-origin.test/value");
+		request_info.proxy = libgs::url("http://override-proxy.test:9000/");
+		auto request = requester.make_get(std::move(request_info), error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host,
+			"override-proxy.test");
+		LIBGS_TEST_CHECK_EQ(connector->last_target().port, 9000);
+	}
+
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("http_proxy"));
+	LIBGS_TEST_CHECK(libgs::app::setenv("HTTP_PROXY",
+		"http://uppercase-proxy.test:8081/"));
+	{
+		auto request = requester.make_get("http://uppercase-origin.test/", error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host,
+			"uppercase-proxy.test");
+		LIBGS_TEST_CHECK_EQ(connector->last_target().port, 8081);
+	}
+
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("HTTP_PROXY"));
+	{
+		auto request = requester.make_get("http://http-only.test/", error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host, "http-only.test");
+		LIBGS_TEST_CHECK(not connector->last_target().tunnel);
+	}
+
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("https_proxy"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("HTTPS_PROXY"));
+	{
+		auto request = requester.make_get("https://https-only.test/", error);
+		LIBGS_TEST_CHECK(request and not error);
+		LIBGS_TEST_CHECK_EQ(connector->last_target().host, "https-only.test");
+		LIBGS_TEST_CHECK(not connector->last_target().tunnel);
+	}
+
+	LIBGS_TEST_CHECK(libgs::app::setenv("all_proxy",
+		"socks5h://socks-proxy.test:1081/"));
+	{
+		auto request = requester.make_get("http://fallback-origin.test/", error);
+		LIBGS_TEST_CHECK(request and not error);
+		const auto &target = connector->last_target();
+		LIBGS_TEST_CHECK_EQ(target.host, "fallback-origin.test");
+		LIBGS_TEST_CHECK(target.tunnel);
+		LIBGS_TEST_CHECK_EQ(target.tunnel->type, proxy_tunnel_type::socks5);
+		LIBGS_TEST_CHECK_EQ(target.tunnel->host, "socks-proxy.test");
+		LIBGS_TEST_CHECK_EQ(target.tunnel->port, 1081);
+	}
 }
 
 void connection_partial_write_counts()
@@ -807,7 +991,7 @@ void http_client_does_not_reuse_malformed_reply()
 	connector->push_response(
 		"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n");
 	connection_pool pool(connector);
-	client requester(std::move(pool));
+	client requester(std::move(pool), {.default_proxy = no_proxy});
 
 	libgs::error_code error {};
 	auto malformed = requester.request_get(
@@ -835,6 +1019,8 @@ int main()
 		{"protocol enums", protocol_enums},
 		{"cookie values", cookie_values},
 		{"client URL validation", client_url_validation},
+		{"client proxy inheritance and environment",
+			client_proxy_inheritance_and_environment},
 		{"connection partial write counts", connection_partial_write_counts},
 		{"HTTP body write counts", http_body_write_counts},
 		{"HTTP file body write counts", http_file_body_write_counts},

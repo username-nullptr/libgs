@@ -20,10 +20,17 @@ frame_builder &frame_builder::reset
 (role local_role, const stream_config &config, std::span<const extension> extensions) noexcept
 {
 	m_role = local_role;
+
 	m_max_frame_size = config.max_frame_size;
 	m_max_message_size = config.max_message_size;
+
 	m_fragment_size = config.write_fragment_size;
-	m_permessage_deflate = not extensions.empty();
+	m_compression_config = config.compression;
+
+	auto compression = make_permessage_deflate_runtime(extensions, local_role);
+	m_compression = compression ?
+		*compression : permessage_deflate_runtime {};
+
 	return *this;
 }
 
@@ -194,7 +201,7 @@ sys_expected<prepared_frame> frame_builder::prepare_data_frame
 }
 
 sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
-(message_type type, std::span<const const_buffer> buffers) const noexcept
+(message_type type, std::span<const const_buffer> buffers, write_options options) const noexcept
 {
 	try {
 		if( type != message_type::text and type != message_type::binary )
@@ -226,13 +233,33 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 		if( type == message_type::text and not utf8.complete() )
 			return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));
 
+		if( options.compression != compression_mode::automatic and
+			options.compression != compression_mode::enabled and
+			options.compression != compression_mode::disabled )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		bool compress = false;
+		if( options.compression == compression_mode::enabled )
+		{
+			if( not m_compression.enabled )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+			compress = true;
+		}
+		else if( options.compression == compression_mode::automatic and
+				 m_compression.enabled and body_size >= m_compression_config.min_message_size )
+		{
+			compress = type == message_type::text ?
+				m_compression_config.compress_text : m_compression_config.compress_binary;
+		}
 		std::shared_ptr<std::vector<std::byte>> transformed_owner;
 		std::vector<const_buffer> transformed_buffers;
 		std::span<const const_buffer> payload_buffers = buffers;
 
-		if( m_permessage_deflate )
+		if( compress )
 		{
-			auto compressed = deflate_message(buffers);
+			auto compressed = deflate_message(buffers,
+				m_compression.outgoing_window_bits, m_compression_config.level
+			);
 			if( not compressed )
 				return sys_unexpected(compressed.error());
 
@@ -271,7 +298,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 					opcode::continuation,
 				.payload_size = payload_size,
 			};
-			if( first and m_permessage_deflate )
+			if( first and compress )
 				header.rsv = reserved_bit::rsv1;
 
 			if( m_role == role::client )
@@ -287,7 +314,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			frame_codec_config codec_config {
 				.local_role = m_role, .max_frame_size = m_max_frame_size
 			};
-			if( m_permessage_deflate )
+			if( compress )
 				codec_config.allowed_rsv = reserved_bit::rsv1;
 
 			auto encoded = encode_frame_header(header, codec_config);
@@ -299,7 +326,7 @@ sys_expected<std::vector<prepared_frame>> frame_builder::prepare_message
 			prepared.payload_size = payload_size;
 			prepared.payload_owner = transformed_owner;
 
-			prepared.application_size = m_permessage_deflate ?
+			prepared.application_size = compress ?
 				(header.fin ? body_size : 0) : payload_size;
 
 			prepared.wire = std::make_shared<std::vector<std::byte>>(

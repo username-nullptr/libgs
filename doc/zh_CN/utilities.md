@@ -2,224 +2,81 @@
 
 语言：[English](../en/utilities.md) | 简体中文
 
-Utilities 模块提供围绕应用事件循环经常需要的可复用服务：日志、持久化设置、
-信号、观察者、模块初始化、子进程和发布/订阅状态。链接时使用 `gs.utils`；它
-公开依赖 `gs.coro` 和 `gs.core`。
+`gs.utils` 在 `gs.coro` 之上提供应用层服务。
 
-## 头文件索引
+## 公共结构
 
-| 头文件 | 用途 |
+| 头文件 | 功能 |
 | --- | --- |
-| `<libgs/utils/logger.h>` | 命名的控制台 logger 和滚动文件 logger |
-| `<libgs/utils/settings.h>` | 命名的 INI settings 实例与变更信号 |
-| `<libgs/utils/signal_slot.h>` | 同步、异步和背压 signal/slot 分发 |
-| `<libgs/utils/observer.h>` | 在执行器上按 ID 寻址的 observer 回调 |
-| `<libgs/utils/modules.h>` | 感知依赖关系的模块注册与初始化 |
-| `<libgs/utils/process.h>` | 子进程生命周期和标准流 I/O |
-| `<libgs/utils/sbus.h>` | 可扩展软总线、类型化 payload 和 topic 状态缓存 |
-| `<libgs/utils.h>` | Logger、settings、modules 和软总线聚合头 |
+| `<libgs/utils/logger.h>` | 命名控制台与轮转文件日志 |
+| `<libgs/utils/settings.h>` | 命名的 INI 设置与变更信号 |
+| `<libgs/utils/signal_slot.h>` | 同步、异步与背压信号投递 |
+| `<libgs/utils/observer.h>` | 通过 executor 投递的 ID 寻址回调 |
+| `<libgs/utils/modules.h>` | 按依赖顺序初始化应用模块 |
+| `<libgs/utils/process.h>` | 子进程生命周期与标准流 I/O |
+| `<libgs/utils/sbus.h>` | 可扩展发布/订阅与 Topic 缓存 |
 
-Process、signal/slot 和 observer API 目前需要直接包含各自的头文件。
+`<libgs/utils.h>` 聚合 logger、settings、modules 与 soft bus。process、
+signal/slot、observer 需要直接包含各自头文件。
 
-## 日志
+## 功能
 
-`libgs::utils::logger` 管理命名 logger 实例。Logger 配置可以控制输出路径、时间戳
-模式、换行、控制台和 daily log level，以及 warning、error 和 critical 文件的
-滚动限制。
+### 日志
 
-```cpp
-#include <libgs/utils/logger.h>
+`utils::logger` 管理命名实例以及 console、daily、warning、error、critical sink。
+配置控制路径、级别、轮转、时间戳与格式。日志宏会捕获 `std::source_location`。
+文件 sink 异步工作；需要确认写入完成时调用 `logger::flush()`。
 
-int main()
-{
-    libgs::utils::logger::config_t config {
-        .path = "./logs"
-    };
+### 设置
 
-    libgs::utils::logger::instance().set_config(config);
+`utils::settings` 把 `libgs::ini` 包装成命名实例，并发出 `changed` 与
+`loaded` 信号。使用 `get()`/`set()` 读写值，需要直接控制持久化时使用 `ini()`。
 
-    libgs_utils_log_info("service started on port {}", 8080);
-    libgs_utils_clog_warning("network", "retry {}", 3);
-}
-```
+### 信号与观察者
 
-日志宏通过 `std::source_location` 捕获源文件、函数和行号。除非使用
-`instance(name, false)`，否则命名实例会在第一次访问时创建。
-
-文件 logger 会异步提交日志；warning 及更高级别会请求 sink 执行刷新。如需等待
-所有已排队日志到达 sink，请调用 `logger::flush()`。
-
-## 设置
-
-`libgs::utils::settings` 将 `libgs::ini` 封装为命名单例，并提供 `changed` 和
-`loaded` 信号。
-
-```cpp
-#include <libgs/utils/settings.h>
-
-int main()
-{
-    auto &settings = libgs::utils::settings::instance();
-    settings.load("./app.ini");
-
-    settings.changed.connect(
-        [](std::string_view path, const libgs::value &value)
-        {
-            // 响应设置变更。
-        }
-    );
-
-    settings
-        .set("server/host", "127.0.0.1")
-        .set("server/port", 8080)
-        .sync();
-}
-```
-
-可以通过 `get(path)` 或 `{group, key}` pair 读取 optional value。底层 INI 对象
-可通过 `ini()` 访问，用于迭代和更高级的持久化配置。
-
-## 信号与槽
-
-`libgs::utils::signal<Signature>` 可以将一个信号连接到多个兼容 callable。Slot
-参数可以是 signal 参数的兼容前缀，并可以使用支持的参数转换。
-
-分发模式如下：
+`utils::signal<Signature>` 支持三种投递模式：
 
 | 模式 | 行为 |
 | --- | --- |
-| `sync` | 直接阻塞调用；signal 实现将其标记为线程不安全 |
-| `async` | 通过执行器进行非阻塞分发 |
-| `backpressure` | 通过执行器进行线程安全的阻塞分发；在同一个被阻塞执行器上误用可能死锁 |
+| `sync` | 直接调用 slot 并阻塞调用方 |
+| `async` | 把 slot 提交到 executor |
+| `backpressure` | 提交到 executor，并阻塞直到投递完成 |
 
-Signal 支持自由函数、lambda、由 shared pointer 持有的 observer 对象、显式执行器、
-协程 slot、断开连接和临时阻塞。
+不要从负责执行投递的同一 executor 线程使用 backpressure。Signal 会持有投递
+状态和按值参数，但不会延长 view、指针、引用或 slot 捕获对象的生命周期。
 
-触发操作会持有其内部状态和 slot 快照直至本次分发完成，因此已经返回的 awaitable
-不会依赖 signal 对象继续存活。按值传递的参数也由该操作持有。使用 observer 重载时，
-实现会在调用前锁定其 weak pointer，并在整个回调（包括协程挂起期间）持有强引用。
+`utils::observer` 通过稳定对象 ID 路由带索引的回调签名。Observer 采用共享
+所有权，并在析构时注销。
 
-Signal 无法管理 slot 自行捕获的外部对象，也无法延长引用、裸指针或 view 所指数据的
-生命周期。调用方仍须保证这些非 owning 数据有效；signal 对象的析构也不得与另一个
-线程正在进入该对象的成员函数并发发生。
+### 模块
 
-```cpp
-#include <libgs/utils/signal_slot.h>
+`utils::modules` 注册命名初始化器，并按父/子依赖排序。初始化器可以接收命令行
+参数，返回 `void` 或 `bool`。`do_init()` 支持同步与异步完成；`sprint()` 输出
+依赖图。
 
-int main()
-{
-    libgs::utils::signal<void(int)> changed;
+### 进程
 
-    changed.connect([](int value)
-    {
-        // 同步 slot。
-    });
+`utils::process` 与 `utils::wprocess` 支持 start/run、join、detach、terminate、
+kill、取消、超时、环境变量/工作目录、单实例锁以及标准输入/输出/错误流。异步
+I/O 未完成时必须保持进程对象存活，并检查返回错误以处理平台差异。
 
-    changed(42);
-}
-```
+### 软总线
 
-应明确选择 async 或 backpressure 分发方式，尤其不要同步等待已经排队到同一个
-执行器线程上的任务。
+软总线把带类型的 publish/subscribe/cache API 与传输实现分离。
+`sbus::local_interface`、`local_subscriber` 与 `local_cache` 提供内置进程内
+传输。`basic_subscriber<Interface>`、`cache<Subscriber>` 与
+`publish<Interface>()` 可让其他传输复用同一 API；仓库不内置分布式传输。
 
-## 观察者
+`utils::thread_pool()` 返回 Utilities 模块共享的 Asio 线程池。需要隔离或明确
+关闭顺序时，应使用应用自己持有的 executor。
 
-`libgs::utils::observer` 提供按 ID 寻址的回调组。Observer 以共享对象创建，注册
-一个或多个带索引的回调签名，并通过其执行器接收静态 `trigger<Index>(id, ...)`
-事件。
+## 示例
 
-当生产者知道稳定对象 ID、但不应持有接收方直接指针时，这种模型很有用。
-Observer 析构后不会再接收后续分发。
-
-## 感知依赖关系的模块
-
-`libgs::utils::modules` 使用名称注册初始化函数，并按 parent 和 child 依赖关系
-排序。Initializer 可以接收命令行参数，并返回 `void` 或 `bool`。
-
-```cpp
-#include <libgs/utils/modules.h>
-
-LIBGS_UTILS_MODULE_INIT("storage", []
-{
-    // 初始化 storage。
-});
-
-LIBGS_UTILS_MODULE_INIT(
-    "api",
-    {.parents = {"storage"}},
-    []
-    {
-        // 在 storage 之后运行。
-    }
-);
-```
-
-所有 translation unit 完成模块注册后，再调用 `modules::do_init(...)`。该操作支持
-同步、future、detached 和 callback 形式。初始化失败会报告失败模块、缺失模块和
-受依赖关系影响的模块。`modules::sprint()` 返回可打印的注册关系图。
-
-## 进程
-
-`libgs::utils::process` 和 `libgs::utils::wprocess` 使用指定执行器管理子进程。
-API 支持：
-
-- start、run、join、detach、terminate、kill 和 cancel；
-- 在支持的位置使用同步、超时、callback 和 awaitable 完成方式；
-- 标准输入、输出和错误流 I/O；
-- 工作目录和环境变量覆盖；
-- process state、PID 和 exit code 查询；
-- 通过 `set_single` 使用单实例锁文件。
-
-应检查 `sys_expected<T>` 和 error-code 结果来处理平台错误。异步标准流操作结束
-之前，必须保证 process 对象仍然存活。
-`cancel()` 会结束未完成的等待和标准流操作。`cancel_option::none` 保持子进程
-运行且仍可 join；`terminate` 和 `kill` 向子进程发信号，并把回收工作移交给后台
-监控对象；`detach` 不向子进程发信号，只解除对象对它的管理。
-
-## 软总线
-
-Sbus 是 **soft bus（软总线）**。它的发布/订阅和缓存 API 不绑定具体传输。
-LibGS 默认提供进程内传输 `local_interface`：
-
-- `sbus::publish` 发送 raw、string 或支持的类型化 payload；
-- `sbus::local_subscriber` 按 topic 或订阅全部 topic；
-- 订阅回调通过 subscriber 的执行器运行；
-- 可以按 topic、ID 或整个 subscriber 取消订阅；
-- `sbus::local_cache` 保存最新 topic value、发出变更信号，并可以等待变更。
-
-Payload 类型可以通过 `LIBGS_UTILS_SBUS_TYPE` 或 metadata 变体声明稳定 topic。
-
-`basic_subscriber<Interface>`、`cache<Subscriber>` 和 `publish<Interface>` 都可
-替换传输层。Interface 需要提供静态 `publish`、按 topic 和全局 `subscribe`，以及
-按 topic、订阅 ID 和全部取消的方法；创建 subscriber 时还会调用可选的 `init()`。
-例如，DDS 适配器可以在不改变上层 API 的情况下扩展到进程间或分布式通信：
-
-```cpp
-namespace sbus = libgs::utils::sbus;
-
-using dds_subscriber = sbus::basic_subscriber<dds_interface>;
-using dds_cache = sbus::cache<dds_subscriber>;
-
-dds_subscriber subscriber;
-subscriber.subscribe("sensor.state", on_state);
-sbus::publish<dds_interface>("sensor.state", state);
-```
-
-DDS 只是集成示例，不是库的内置依赖。仓库当前只提供进程内的
-`local_interface` 传输。
-
-## Utility 线程池
-
-`libgs::utils::thread_pool()` 返回 Utilities 模块共享的 `asio::thread_pool`。当任务
-隔离或关闭顺序比较重要时，应优先使用显式拥有的执行器。
-
-## 相关示例
-
-- [`examples/utils/logger.cpp`](../../examples/utils/logger.cpp)
-- [`examples/utils/settings.cpp`](../../examples/utils/settings.cpp)
-- [`examples/utils/signal_slot.cpp`](../../examples/utils/signal_slot.cpp)
-- [`examples/utils/observer.cpp`](../../examples/utils/observer.cpp)
-- [`examples/utils/modules`](../../examples/utils/modules)
-- [`examples/utils/process.cpp`](../../examples/utils/process.cpp)
-- [`examples/utils/soft_bus_local.cpp`](../../examples/utils/soft_bus_local.cpp)
-- [`examples/utils/soft_bus_transport.cpp`](../../examples/utils/soft_bus_transport.cpp)
+- [日志](../../examples/utils/logger.cpp)
+- [设置](../../examples/utils/settings.cpp)
+- [信号](../../examples/utils/signal_slot.cpp)
+- [观察者](../../examples/utils/observer.cpp)
+- [模块](../../examples/utils/modules)
+- [进程](../../examples/utils/process.cpp)
+- [本地软总线](../../examples/utils/soft_bus_local.cpp)
+- [自定义软总线传输](../../examples/utils/soft_bus_transport.cpp)

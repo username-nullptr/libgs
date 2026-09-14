@@ -5,32 +5,404 @@
 
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 # include <zlib.h>
-#endif
+#endif //LIBGS_WEBSOCKET_ZLIB_SUPPORT
 
 namespace libgs::websocket::detail
 {
 
-bool supported_extension_set(std::span<const extension> extensions) noexcept
+struct LIBGS_DECL_HIDDEN permessage_inflater::impl
+{
+#if LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	z_stream stream {};
+#endif //LIBGS_WEBSOCKET_ZLIB_SUPPORT
+
+	uint8_t window_bits = 15;
+	bool no_context_takeover = true;
+	bool initialized = false;
+	size_t message_input_size = 0;
+
+	~impl()
+	{
+#if LIBGS_WEBSOCKET_ZLIB_SUPPORT
+		if( initialized )
+			inflateEnd(&stream);
+#endif //LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	}
+};
+
+namespace
+{
+
+optional<uint8_t> parse_window_bits(const optional<std::string> &value) noexcept
+{
+	if( not value )
+		return nullopt;
+
+	if( value->size() == 1 and ((*value)[0] == '8' or (*value)[0] == '9') )
+		return static_cast<uint8_t>((*value)[0] - '0');
+
+	if( value->size() == 2 and (*value)[0] == '1' and (*value)[1] >= '0' and (*value)[1] <= '5' )
+		return static_cast<uint8_t>(10 + (*value)[1] - '0');
+
+	return nullopt;
+}
+
+sys_expected<permessage_deflate_parameters> parse_parameters(const extension &value, bool response) noexcept
+{
+	if( value.name != "permessage-deflate" )
+		return sys_unexpected(make_error_code(errc::unsupported_extension));
+
+	permessage_deflate_parameters result;
+	bool server_no_context_takeover = false;
+	bool client_no_context_takeover = false;
+
+	bool server_max_window_bits = false;
+	bool client_max_window_bits = false;
+
+	for(const auto &parameter : value.parameters)
+	{
+		if( parameter.name == "server_no_context_takeover" )
+		{
+			if( parameter.value or std::exchange(server_no_context_takeover, true) )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+			result.server_no_context_takeover = true;
+		}
+		else if( parameter.name == "client_no_context_takeover" )
+		{
+			if( parameter.value or std::exchange(client_no_context_takeover, true) )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+			result.client_no_context_takeover = true;
+		}
+		else if( parameter.name == "server_max_window_bits" )
+		{
+			if( std::exchange(server_max_window_bits, true) )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+
+			auto bits = parse_window_bits(parameter.value);
+			if( not bits )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+			result.server_max_window_bits = *bits;
+		}
+		else if( parameter.name == "client_max_window_bits" )
+		{
+			if( std::exchange(client_max_window_bits, true) )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+
+			result.client_max_window_bits_present = true;
+			if( parameter.value )
+			{
+				auto bits = parse_window_bits(parameter.value);
+				if( not bits )
+					return sys_unexpected(make_error_code(errc::unsupported_extension));
+				result.client_max_window_bits = *bits;
+			}
+			else if( response )
+				return sys_unexpected(make_error_code(errc::unsupported_extension));
+		}
+		else
+			return sys_unexpected(make_error_code(errc::unsupported_extension));
+	}
+	return result;
+}
+
+bool response_matches_offer
+(const permessage_deflate_parameters &response, const permessage_deflate_parameters &offer) noexcept
+{
+	if( response.client_max_window_bits_present )
+	{
+		if( not offer.client_max_window_bits_present or not response.client_max_window_bits )
+			return false;
+
+		if( offer.client_max_window_bits and
+			*response.client_max_window_bits > *offer.client_max_window_bits )
+			return false;
+	}
+	if( response.server_max_window_bits and offer.server_max_window_bits and
+		*response.server_max_window_bits > *offer.server_max_window_bits )
+		return false;
+	return true;
+}
+
+} //namespace
+
+permessage_inflater::permessage_inflater() noexcept = default;
+permessage_inflater::~permessage_inflater() = default;
+
+permessage_inflater::permessage_inflater(permessage_inflater&&) noexcept = default;
+permessage_inflater &permessage_inflater::operator=(permessage_inflater&&) noexcept = default;
+
+error_code permessage_inflater::reset(uint8_t window_bits, bool no_context_takeover) noexcept
+{
+#if !LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	ignore_unused(window_bits, no_context_takeover);
+	return make_error_code(errc::unsupported_extension);
+
+#else //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	if( window_bits < 8 or window_bits > 15 )
+		return make_error_code(std::errc::invalid_argument);
+	try {
+		auto state = std::make_unique<impl>();
+		state->window_bits = window_bits;
+		state->no_context_takeover = no_context_takeover;
+
+		const auto zlib_window_bits = window_bits == 8 ? 9 : window_bits;
+		if( inflateInit2(&state->stream, -static_cast<int>(zlib_window_bits)) != Z_OK )
+			return make_error_code(std::errc::io_error);
+
+		state->initialized = true;
+		m_impl = std::move(state);
+		return {};
+	}
+	catch(const std::bad_alloc&) {
+		return make_error_code(std::errc::not_enough_memory);
+	}
+	catch(...) {}
+	return make_error_code(std::errc::io_error);
+#endif //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
+}
+
+sys_expected<std::vector<std::byte>> permessage_inflater::inflate
+(std::span<const std::byte> payload, size_t max_message_size) noexcept
+{
+	return inflate_chunk(payload, true, max_message_size);
+}
+
+sys_expected<std::vector<std::byte>> permessage_inflater::inflate_chunk
+(std::span<const std::byte> payload, bool final, size_t max_output_size) noexcept
+{
+#if !LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	ignore_unused(payload, final, max_output_size);
+	return sys_unexpected(make_error_code(errc::unsupported_extension));
+
+#else //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	try {
+		if( not m_impl or not m_impl->initialized )
+			return sys_unexpected(make_error_code(std::errc::io_error));
+
+		if( payload.size() > std::numeric_limits<size_t>::max() - m_impl->message_input_size )
+			return sys_unexpected(make_error_code(std::errc::value_too_large));
+
+		m_impl->message_input_size += payload.size();
+
+		std::vector<std::byte> result;
+		std::array<std::byte, 16 * 1024> output {};
+
+		constexpr std::array trailer {
+			std::byte {0x00}, std::byte {0x00},
+			std::byte {0xFF}, std::byte {0xFF}
+		};
+		auto consume = [&](std::span<const std::byte> input) -> error_code
+		{
+			size_t offset = 0;
+			while( offset < input.size() )
+			{
+				const auto size = static_cast<uInt>(std::min<size_t>(
+					input.size() - offset, std::numeric_limits<uInt>::max())
+				);
+				m_impl->stream.next_in = reinterpret_cast<Bytef*>(
+					const_cast<std::byte*>(input.data() + offset)
+				);
+				m_impl->stream.avail_in = size;
+				do {
+					m_impl->stream.next_out = reinterpret_cast<Bytef*>(output.data());
+					m_impl->stream.avail_out = static_cast<uInt>(output.size());
+
+					const auto code = ::inflate(&m_impl->stream, Z_SYNC_FLUSH);
+					const auto produced = output.size() - m_impl->stream.avail_out;
+
+					if( code != Z_OK and code != Z_BUF_ERROR )
+						return make_error_code(protocol_errc::invalid_compressed_payload);
+
+					if( max_output_size != 0 and produced >
+						max_output_size - std::min(result.size(), max_output_size) )
+						return make_error_code(errc::message_too_big);
+
+					result.insert(result.end(), output.begin(), output.begin() + produced);
+					if( code == Z_BUF_ERROR and produced == 0 )
+					{
+						if( m_impl->stream.avail_in != 0 )
+							return make_error_code(protocol_errc::invalid_compressed_payload);
+						break;
+					}
+				}
+				while( m_impl->stream.avail_in != 0 or m_impl->stream.avail_out == 0 );
+				offset += size;
+			}
+			return {};
+		};
+		if( auto error = consume(payload) )
+			return sys_unexpected(error);
+
+		if( final )
+		{
+			if( m_impl->message_input_size == 0 )
+				return sys_unexpected(make_error_code(protocol_errc::invalid_compressed_payload));
+
+			if( auto error = consume(trailer) )
+				return sys_unexpected(error);
+
+			if( (m_impl->stream.data_type & 128) == 0 )
+				return sys_unexpected(make_error_code(protocol_errc::invalid_compressed_payload));
+
+			m_impl->message_input_size = 0;
+			const auto zlib_window_bits = m_impl->window_bits == 8 ?
+				9 : m_impl->window_bits;
+
+			if( m_impl->no_context_takeover and
+				inflateReset2(&m_impl->stream, -static_cast<int>(zlib_window_bits)) != Z_OK )
+				return sys_unexpected(make_error_code(std::errc::io_error));
+		}
+		return result;
+	}
+	catch(const std::bad_alloc&) {
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...) {}
+	return sys_unexpected(make_error_code(std::errc::io_error));
+#endif //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
+}
+
+bool supported_extension_offers(std::span<const extension> extensions) noexcept
+{
+	if( extensions.empty() )
+		return true;
+
+	if( not permessage_deflate_available_v )
+		return false;
+
+	return std::ranges::all_of(extensions, [](const auto &value) {
+		return !!parse_parameters(value, false);
+	});
+}
+
+bool supported_negotiated_extensions(std::span<const extension> extensions) noexcept
 {
 	return extensions.empty() or (
-		extensions.size() == 1 and
-		is_permessage_deflate_extension(extensions.front()) and
-		permessage_deflate_available_v
+		permessage_deflate_available_v and extensions.size() == 1 and
+		parse_parameters(extensions.front(), true).has_value()
 	);
 }
 
-sys_expected<std::vector<std::byte>>
-deflate_message(std::span<const const_buffer> buffers) noexcept
+bool supported_extension_response(std::span<const extension> response,
+	std::span<const extension> offers) noexcept
+{
+	if( response.empty() )
+		return true;
+
+	if( not permessage_deflate_available_v or response.size() != 1 )
+		return false;
+
+	auto parsed_response = parse_parameters(response.front(), true);
+	if( not parsed_response )
+		return false;
+
+	for(const auto &offer : offers)
+	{
+		auto parsed_offer = parse_parameters(offer, false);
+		if( parsed_offer and response_matches_offer(*parsed_response, *parsed_offer) )
+			return true;
+	}
+	return false;
+}
+
+sys_expected<extension> negotiate_permessage_deflate
+(const extension &offer, const extension &policy) noexcept
+{
+	try {
+		if( not permessage_deflate_available_v )
+			return sys_unexpected(make_error_code(errc::unsupported_extension));
+
+		auto offered = parse_parameters(offer, false);
+		auto configured = parse_parameters(policy, false);
+
+		if( not offered )
+			return sys_unexpected(offered.error());
+
+		if( not configured )
+			return sys_unexpected(configured.error());
+
+		permessage_deflate_options selected;
+		selected.server_no_context_takeover =
+			offered->server_no_context_takeover or configured->server_no_context_takeover;
+
+		selected.client_no_context_takeover =
+			offered->client_no_context_takeover or configured->client_no_context_takeover;
+
+		if( offered->server_max_window_bits or configured->server_max_window_bits )
+		{
+			selected.server_max_window_bits = std::min (
+				offered->server_max_window_bits.value_or(15),
+				configured->server_max_window_bits.value_or(15)
+			);
+		}
+		if( offered->client_max_window_bits_present )
+		{
+			selected.client_max_window_bits = std::min (
+				offered->client_max_window_bits.value_or(15),
+				configured->client_max_window_bits.value_or(15)
+			);
+		}
+		return permessage_deflate_extension(selected);
+	}
+	catch(const std::bad_alloc&) {
+		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	}
+	catch(...) {}
+	return sys_unexpected(make_error_code(std::errc::io_error));
+}
+
+sys_expected<permessage_deflate_runtime> make_permessage_deflate_runtime
+(std::span<const extension> negotiated_extensions, role local_role) noexcept
+{
+	if( negotiated_extensions.empty() )
+		return permessage_deflate_runtime {};
+
+	if( not permessage_deflate_available_v or negotiated_extensions.size() != 1 )
+		return sys_unexpected(make_error_code(errc::unsupported_extension));
+
+	auto parameters = parse_parameters(negotiated_extensions.front(), true);
+	if( not parameters )
+		return sys_unexpected(parameters.error());
+
+	permessage_deflate_runtime result;
+	result.enabled = true;
+
+	if( local_role == role::client )
+	{
+		result.outgoing_no_context_takeover = parameters->client_no_context_takeover;
+		result.incoming_no_context_takeover = parameters->server_no_context_takeover;
+
+		result.outgoing_window_bits = parameters->client_max_window_bits.value_or(15);
+		result.incoming_window_bits = parameters->server_max_window_bits.value_or(15);
+	}
+	else
+	{
+		result.outgoing_no_context_takeover = parameters->server_no_context_takeover;
+		result.incoming_no_context_takeover = parameters->client_no_context_takeover;
+
+		result.outgoing_window_bits = parameters->server_max_window_bits.value_or(15);
+		result.incoming_window_bits = parameters->client_max_window_bits.value_or(15);
+	}
+	return result;
+}
+
+sys_expected<std::vector<std::byte>> deflate_message
+(std::span<const const_buffer> buffers, uint8_t window_bits, int compression_level) noexcept
 {
 #if !LIBGS_WEBSOCKET_ZLIB_SUPPORT
-	ignore_unused(buffers);
+	ignore_unused(buffers, window_bits, compression_level);
 	return sys_unexpected(make_error_code(errc::unsupported_extension));
 
-#else //LIBGS_WEBSOCKET_ZLIB_SUPPORT
+#else //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	try {
+		if( window_bits < 8 or window_bits > 15 or compression_level < -1 or compression_level > 9 )
+			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		const auto zlib_window_bits = window_bits == 8 ? 9 : window_bits;
 		z_stream stream {};
-		if( deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-			-15, 8, Z_DEFAULT_STRATEGY) != Z_OK )
+
+		if( deflateInit2(&stream, compression_level, Z_DEFLATED,
+			-static_cast<int>(zlib_window_bits), 8, Z_DEFAULT_STRATEGY) != Z_OK )
 			return sys_unexpected(make_error_code(std::errc::io_error));
 
 		struct guard_t
@@ -108,93 +480,24 @@ deflate_message(std::span<const const_buffer> buffers) noexcept
 	catch(...) {
 		return sys_unexpected(make_error_code(std::errc::io_error));
 	}
-#endif //LIBGS_WEBSOCKET_ZLIB_SUPPORT
+#endif //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
 }
 
 sys_expected<std::vector<std::byte>> inflate_message
-(std::span<const std::byte> payload, size_t max_message_size) noexcept
+(std::span<const std::byte> payload, size_t max_message_size,
+	uint8_t window_bits) noexcept
 {
 #if !LIBGS_WEBSOCKET_ZLIB_SUPPORT
-	ignore_unused(payload, max_message_size);
+	ignore_unused(payload, max_message_size, window_bits);
 	return sys_unexpected(make_error_code(errc::unsupported_extension));
 
-#else //LIBGS_WEBSOCKET_ZLIB_SUPPORT
-	try {
-		if( payload.empty() )
-			return sys_unexpected(make_error_code(
-				protocol_errc::invalid_compressed_payload));
+#else //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	permessage_inflater inflater;
+	if( auto error = inflater.reset(window_bits, true) )
+		return sys_unexpected(error);
 
-		z_stream stream {};
-		if( inflateInit2(&stream, -15) != Z_OK )
-			return sys_unexpected(make_error_code(std::errc::io_error));
-
-		struct guard_t
-		{
-			z_stream &stream;
-			~guard_t() {
-				inflateEnd(&stream);
-			}
-		}
-		guard {stream};
-
-		std::vector input(payload.begin(), payload.end());
-		input.insert(input.end(), {
-			std::byte {0x00}, std::byte {0x00},
-			std::byte {0xFF}, std::byte {0xFF}
-		});
-		std::vector<std::byte> result;
-		std::array<std::byte, 16 * 1024> output {};
-		size_t offset = 0;
-		bool drained_full_output = false;
-
-		while( offset < input.size() )
-		{
-			const auto input_size = static_cast<uInt>(std::min<size_t>(
-				input.size() - offset, std::numeric_limits<uInt>::max())
-			);
-			stream.next_in = reinterpret_cast<Bytef*>(input.data() + offset);
-			stream.avail_in = input_size;
-			do {
-				stream.next_out = reinterpret_cast<Bytef*>(output.data());
-				stream.avail_out = static_cast<uInt>(output.size());
-
-				const auto code = inflate(&stream, Z_SYNC_FLUSH);
-				const auto produced = output.size() - stream.avail_out;
-				if( code == Z_BUF_ERROR )
-				{
-					if( not drained_full_output or produced != 0 or stream.avail_in != 0 )
-					{
-						return sys_unexpected(make_error_code (
-							protocol_errc::invalid_compressed_payload)
-						);
-					}
-					break;
-				}
-				if( code != Z_OK )
-				{
-					return sys_unexpected(make_error_code (
-						protocol_errc::invalid_compressed_payload)
-					);
-				}
-				if( max_message_size != 0 and
-					produced > max_message_size - std::min(result.size(), max_message_size) )
-					return sys_unexpected(make_error_code(errc::message_too_big));
-
-				result.insert(result.end(), output.begin(), output.begin() + produced);
-				drained_full_output = stream.avail_in == 0 and stream.avail_out == 0;
-			}
-			while( stream.avail_in != 0 or stream.avail_out == 0 );
-			offset += input_size;
-		}
-		return result;
-	}
-	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
-	}
-	catch(...) {
-		return sys_unexpected(make_error_code(std::errc::io_error));
-	}
-#endif //LIBGS_WEBSOCKET_ZLIB_SUPPORT
+	return inflater.inflate(payload, max_message_size);
+#endif //!LIBGS_WEBSOCKET_ZLIB_SUPPORT
 }
 
 } //namespace libgs::websocket::detail

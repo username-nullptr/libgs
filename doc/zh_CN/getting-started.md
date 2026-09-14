@@ -2,24 +2,54 @@
 
 语言：[English](../en/getting-started.md) | 简体中文
 
-本文介绍 LibGS 当前的源码构建与安装流程。
-
 ## 环境要求
 
-| 组件 | 要求 |
+| 组件 | 最低版本 |
 | --- | --- |
-| CMake | 3.13 或更高版本 |
-| 语言标准 | C++20 |
-| GCC | 13 或更高版本 |
-| Clang | 17 或更高版本，并支持 `std::format` |
-| MSVC | 19.30 或更高版本 / Visual Studio 2022 或更高版本，包括 MSVC 19.50 / Visual Studio 2026 |
+| CMake | 3.15 |
+| C++ | C++20 |
+| GCC | 13 |
+| Clang | 17 |
+| MSVC | 19.30 / Visual Studio 2022 |
 
-仓库中已内置 standalone Asio、spdlog 和 nlohmann/json。OpenSSL 和 zlib
-是可选的系统依赖。
+仓库已包含 standalone Asio、spdlog 与 nlohmann/json。可选功能所需的系统依赖
+会在 CMake 配置阶段查找。
 
-## 从源码构建
+## 配置模块
 
-```shell
+所有模块默认启用。模块开关及依赖关系如下：
+
+| 开关 | 默认值 | 作用 |
+| --- | :---: | --- |
+| `LIBGS_BUILD_CORO` | `ON` | 构建 `gs.coro`；HTTP 与 Utilities 依赖它 |
+| `LIBGS_BUILD_HTTP` | `ON` | 构建 `gs.http`；依赖 Coroutines |
+| `LIBGS_BUILD_WEBSOCKET` | `ON` | 构建 `gs.websocket`；依赖 HTTP |
+| `LIBGS_BUILD_UTILITIES` | `ON` | 构建 `gs.utils`；依赖 Coroutines |
+| `LIBGS_BUILD_STATIC` | `OFF`* | 构建静态库而不是共享库 |
+| `LIBGS_ADD_LIBRARY_VERSION` | `ON` | 在共享库文件名中加入版本 |
+| `LIBGS_BUILD_EXAMPLES` | `OFF` | 构建示例程序 |
+
+功能开关：
+
+| 开关 | 平台/依赖 | 作用 |
+| --- | --- | --- |
+| `LIBGS_OPENSSL_SUPPORT` | OpenSSL | HTTPS、WSS 与 TLS 连接类型 |
+| `LIBGS_HTTP_ZLIB_SUPPORT` | zlib | HTTP gzip 与 WebSocket 压缩支持 |
+| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | zlib | 不启用 HTTP gzip 时单独启用 WebSocket `permessage-deflate` |
+| `LIBGS_IO_URING_SUPPORT` | Linux 与 liburing | 使用 Asio io_uring 后端 |
+| `LIBGS_USE_LIBCXX` | Clang | 使用 libc++ |
+| `LIBGS_USE_LLD` | Clang | 使用 lld 链接 |
+| `LIBGS_ENABLE_LTO` | GCC | 启用链接时优化 |
+
+启用 HTTP zlib 后，WebSocket 会继承 zlib 支持，不再提供单独的 WebSocket
+开关。请通过 CMake 配置功能，不要在应用代码中自行定义生成的功能宏。
+
+Windows 上的 GNU 工具链如果没有共享 `libstdc++`，会默认改为静态构建。测试、
+Sanitizer 与 Fuzzer 开关见[测试指南](../../test/README.md)。
+
+## 构建与安装
+
+```sh
 git clone https://gitee.com/jin-xiaoqiang/libgs.git
 cd libgs
 
@@ -30,78 +60,31 @@ cmake --build build --parallel
 cmake --install build
 ```
 
-使用 Visual Studio 等多配置生成器时，需要在构建和安装阶段选择配置：
+多配置生成器需要在构建和安装时指定配置：
 
-```shell
+```sh
 cmake -S . -B build -DCMAKE_INSTALL_PREFIX=C:/libgs
 cmake --build build --config Release --parallel
 cmake --install build --config Release
 ```
 
-默认构建会生成共享的 `gs.core`、`gs.coro`、`gs.http`、`gs.websocket` 和
-`gs.utils` 库。生成文件和二进制文件位于 `build/output` 下。
+库文件生成在 `build/output/bin` 或 `build/output/lib`；示例程序生成在
+`build/output/examples`。
 
-## 构建选项
+## 链接应用
 
-| 选项 | 默认值 | 适用范围 | 用途 |
-| --- | :---: | --- | --- |
-| `LIBGS_BUILD_STATIC` | `OFF` | 所有库 | 构建静态库而不是共享库 |
-| `LIBGS_ADD_LIBRARY_VERSION` | `ON` | 共享库构建 | 在库名称中加入项目版本和 ABI 版本 |
-| `LIBGS_BUILD_EXAMPLES` | `OFF` | 示例 | 构建当前 CMake 配置已启用的示例 |
-| `LIBGS_BUILD_FUZZERS` | `OFF` | 测试 | 构建 Clang libFuzzer parser harness；需要 `BUILD_TESTING=ON` |
-| `LIBGS_OPENSSL_SUPPORT` | `OFF` | Core、HTTP 和 WebSocket | 通过 OpenSSL 启用 TLS、HTTPS 与 WSS 支持 |
-| `LIBGS_HTTP_ZLIB_SUPPORT` | `OFF` | HTTP 与 WebSocket | 启用 HTTP gzip，并让 WebSocket 继承 zlib 支持 |
-| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | `OFF`* | WebSocket | HTTP zlib 关闭时单独启用 `permessage-deflate` |
-| `LIBGS_USE_LIBCXX` | `OFF` | Clang | 使用 libc++ 编译和链接 |
-| `LIBGS_USE_LLD` | `OFF` | Clang | 使用 lld 链接 |
-| `LIBGS_ENABLE_LTO` | `OFF` | GCC | 启用链接时优化 |
+通过 `add_subdirectory` 使用源码树时，只需链接应用直接使用的最高层模块，
+它的公共依赖会自动传递：
 
-仅在需要时启用可选协议依赖：
+```cmake
+add_subdirectory(path/to/libgs)
 
-```shell
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLIBGS_OPENSSL_SUPPORT=ON \
-  -DLIBGS_HTTP_ZLIB_SUPPORT=ON
-cmake --build build --parallel
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE gs.http)
 ```
 
-只有 `LIBGS_HTTP_ZLIB_SUPPORT=OFF` 时才提供
-`LIBGS_WEBSOCKET_ZLIB_SUPPORT` 选项。启用 HTTP zlib 后，WebSocket 会自动继承
-并启用基于 zlib 的受支持压缩配置，无需再设置第二个开关。如果 HTTP 不需要
-zlib，可通过 `-DLIBGS_WEBSOCKET_ZLIB_SUPPORT=ON` 仅启用 WebSocket 压缩。
-
-不要手工定义生成的功能宏。应通过 CMake 选项配置，以保证库与安装后的配置
-头文件保持一致。
-
-## 构建和运行示例
-
-```shell
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLIBGS_BUILD_EXAMPLES=ON
-cmake --build build --parallel
-```
-
-示例可执行文件位于 `build/output/examples` 的各个子目录中。示例源码分组如下：
-
-- [`examples/core`](../../examples/core)
-- [`examples/coro`](../../examples/coro)
-- [`examples/http`](../../examples/http)
-- [`examples/websocket`](../../examples/websocket)
-- [`examples/utils`](../../examples/utils)
-
-启用 `LIBGS_BUILD_EXAMPLES` 后会构建上述全部示例，包括 HTTP 服务端。HTTPS 和
-WSS 还需要启用 `LIBGS_OPENSSL_SUPPORT=ON`。运行方法和能力覆盖情况见
-[示例指南](../../examples/README.md)。
-
-## 使用已安装的构建
-
-安装过程会将公共头文件和生成的头文件放到 `<prefix>/include`，将共享库放到
-平台对应的库目录或运行时目录。项目目前不会安装 CMake package configuration，
-因此使用方需要显式提供头文件和库的位置。
-
-下面是使用已安装 HTTP 构建的最小 CMake 配置：
+安装树目前不提供 CMake package config。使用已安装版本时，需要显式设置头文件
+目录并查找所需库：
 
 ```cmake
 find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
@@ -113,34 +96,20 @@ add_executable(my_app main.cpp)
 target_compile_features(my_app PRIVATE cxx_std_20)
 target_include_directories(my_app PRIVATE "${LIBGS_INCLUDE_DIR}")
 target_link_libraries(my_app PRIVATE
-    "${LIBGS_HTTP_LIBRARY}"
-    "${LIBGS_CORO_LIBRARY}"
-    "${LIBGS_CORE_LIBRARY}"
+  "${LIBGS_HTTP_LIBRARY}"
+  "${LIBGS_CORO_LIBRARY}"
+  "${LIBGS_CORE_LIBRARY}"
 )
 ```
 
-如果 CMake 无法找到这些文件，请将安装前缀加入 `CMAKE_PREFIX_PATH`。使用
-`gs.utils` 的应用需要同时查找并链接 `gs.utils`、`gs.coro` 和 `gs.core`。使用
-WebSocket 的应用应链接 `gs.websocket`、`gs.http`、`gs.coro` 和 `gs.core`。启动
-程序时，还应确保平台的运行时加载器能够找到共享库目录。
-
-## 启动默认运行时
+## 运行默认上下文
 
 ```cpp
 #include <libgs/core/execution.h>
 
-#include <chrono>
-
 int main()
 {
-    using namespace std::chrono_literals;
-
     libgs::post([]
-    {
-        // 在默认事件循环中立即执行的任务。
-    });
-
-    libgs::post(1s, []
     {
         libgs::exit();
     });
@@ -149,38 +118,26 @@ int main()
 }
 ```
 
-`libgs::exec()` 会在运行默认事件循环时阻塞。`libgs::exit()` 请求结束运行，
-并设置 `exec()` 的返回值。
+`libgs::exec()` 会阻塞并运行默认 `asio::io_context`。`libgs::exit(code)`
+停止该上下文，并设置 `exec()` 的返回值。带 executor 的重载可使用应用自己的
+上下文。
 
-## 选择错误处理方式
+## 完成方式与错误
 
-部分 API 同时提供会抛异常的默认同步形式和非抛异常的 error-code 形式。例如：
+具体接口支持哪些 completion token，以其声明为准。常见形式如下：
 
-```cpp
-#include <libgs/http/client.h>
-
-int main()
-{
-    std::error_code error;
-    libgs::http::client client;
-
-    auto context = client.request_get("http://example.com/", error);
-    if (error)
-    {
-        // 处理连接或请求错误。
-        return 1;
-    }
-
-    return context ? 0 : 1;
-}
-```
-
-协程调用方传入 `libgs::use_awaitable` 并对结果使用 `co_await`。回调形式的完成
-签名以对应头文件中的说明为准。
+| 形式 | 用法 |
+| --- | --- |
+| 协程 | 传入 `libgs::use_awaitable`，然后 `co_await` |
+| 回调 | 传入签名兼容的 completion handler |
+| 分离执行 | 接口支持时传入 `libgs::detached` |
+| 同步、抛异常 | 使用默认同步 token |
+| 同步、不抛异常 | 传入 `std::error_code&` |
 
 ## 后续阅读
 
-- 了解[核心运行时与通用设施](core.md)。
-- 使用[协程同步功能](coroutines.md)。
-- 构建 [HTTP 客户端或服务端](http.md)。
-- 探索[应用工具](utilities.md)。
+- [核心运行时与通用设施](core.md)
+- [协程支持](coroutines.md)
+- [HTTP 客户端与服务端](http.md)
+- [WebSocket](websocket.md)
+- [应用工具](utilities.md)

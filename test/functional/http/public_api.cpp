@@ -43,11 +43,21 @@ void client_configuration()
 	libgs::io_context_t context;
 	libgs::http::client default_client(context.get_executor());
 	LIBGS_TEST_CHECK(default_client.config().no_delay);
+	LIBGS_TEST_CHECK(std::holds_alternative<libgs::http::use_global_proxy_t>(
+		default_client.config().default_proxy));
 
 	libgs::http::client_config config;
 	config.no_delay = false;
+	config.default_proxy = libgs::http::no_proxy;
 	libgs::http::client delayed_client(config);
 	LIBGS_TEST_CHECK(not delayed_client.config().no_delay);
+	LIBGS_TEST_CHECK(std::holds_alternative<libgs::http::no_proxy_t>(
+		delayed_client.config().default_proxy));
+
+	libgs::http::client::req_info request("http://example.test/");
+	LIBGS_TEST_CHECK(not request.proxy);
+	request.proxy = libgs::url("http://proxy.test:8080");
+	LIBGS_TEST_CHECK(std::holds_alternative<libgs::url>(*request.proxy));
 }
 
 void content_coding_and_mime_policy()

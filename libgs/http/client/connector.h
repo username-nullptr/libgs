@@ -14,12 +14,35 @@ enum class security_mode {
 	plain, tls, // ... ...
 };
 
+enum class proxy_tunnel_type {
+	http_connect, socks5,
+};
+
+struct proxy_tunnel
+{
+	proxy_tunnel_type type = proxy_tunnel_type::http_connect;
+	std::string host {};
+	uint16_t port = 0;
+	security_mode security = security_mode::plain;
+
+	optional<std::string> authorization {};
+	optional<std::string> username {};
+	optional<std::string> password {};
+
+	friend bool operator== (
+		const proxy_tunnel&, const proxy_tunnel&
+	) = default;
+};
+
 struct connect_target
 {
 	std::string host {};
 	uint16_t port = 0;
+
 	security_mode security {};
 	bool no_delay = true;
+
+	optional<proxy_tunnel> tunnel {};
 
 	friend bool operator== (
 		const connect_target&, const connect_target&
@@ -57,9 +80,9 @@ public:
 	[[nodiscard]] executor_t get_executor() const noexcept;
 
 protected:
-	// The default implementation connects directly. Proxy support is provided by
-	// deriving a configured connector; callers that do not configure one never
-	// need to model proxy routes in their connect_target.
+	// The default implementation handles direct connections and the optional
+	// HTTP CONNECT/SOCKS5 tunnel carried by connect_target. Applications can
+	// still derive a connector for custom routing.
 	[[nodiscard]] virtual sys_expected<connection_ptr>
 	do_connect(const connect_target &target) noexcept;
 

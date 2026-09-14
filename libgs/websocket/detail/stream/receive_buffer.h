@@ -6,6 +6,7 @@
 
 #include <libgs/websocket/protocol/parser.h>
 #include <libgs/websocket/protocol/detail/utf8.h>
+#include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/types.h>
 
 namespace libgs::websocket::detail
@@ -19,6 +20,7 @@ struct received_event
 	optional<data_frame> frame {};
 
 	optional<message_chunk> chunk {};
+	std::vector<std::byte> chunk_storage {};
 	std::vector<std::byte> control {};
 };
 
@@ -57,6 +59,9 @@ private:
 
 	bool m_permessage_deflate = false;
 	bool m_message_compressed = false;
+
+	permessage_deflate_runtime m_compression {};
+	permessage_inflater m_inflater {};
 
 	optional<message_type> m_message_type {};
 	optional<receive_target> m_message_target {};

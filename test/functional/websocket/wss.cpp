@@ -5,11 +5,46 @@
 
 #include <libgs/websocket/client.h>
 #include <libgs/websocket/server.h>
+#include <libgs/core/system/app_utls.h>
 
 namespace
 {
 
 namespace ws = libgs::websocket;
+
+class scoped_environment
+{
+	struct entry
+	{
+		std::string name;
+		libgs::optional<std::string> value;
+	};
+
+public:
+	scoped_environment(std::initializer_list<std::string_view> names)
+	{
+		for(const auto name : names)
+		{
+			auto value = libgs::app::getenv(name);
+			m_entries.push_back({std::string(name), value ?
+				libgs::optional<std::string>(*value) : libgs::nullopt});
+		}
+	}
+
+	~scoped_environment()
+	{
+		for(const auto &item : m_entries)
+		{
+			if( item.value )
+				libgs::ignore_unused(libgs::app::setenv(item.name, *item.value));
+			else
+				libgs::ignore_unused(libgs::app::unsetenv(item.name));
+		}
+	}
+
+private:
+	std::vector<entry> m_entries;
+};
 
 // Test-only CA/server identity for 127.0.0.1 and localhost. Keeping it in the
 // binary makes the TLS round trip hermetic and avoids invoking OpenSSL tools.
@@ -65,8 +100,28 @@ rVFcoTPAjw+pZOOdRgD1V3TG
 -----END PRIVATE KEY-----
 )PEM";
 
+void relay_socket(const std::shared_ptr<asio::ip::tcp::socket> &source,
+	const std::shared_ptr<asio::ip::tcp::socket> &destination)
+{
+	std::array<std::byte,16 * 1024> buffer {};
+	libgs::error_code error;
+	for(;;)
+	{
+		auto size = source->read_some(asio::buffer(buffer), error);
+		if( error )
+			break;
+		asio::write(*destination, asio::buffer(buffer.data(), size), error);
+		if( error )
+			break;
+	}
+	destination->shutdown(asio::ip::tcp::socket::shutdown_send, error);
+}
+
 void secure_round_trip()
 {
+	const scoped_environment environment({
+		"wss_proxy", "WSS_PROXY", "no_proxy", "NO_PROXY",
+	});
 	libgs::io_context_t context;
 	asio::ssl::context server_tls(asio::ssl::context::tls_server);
 	server_tls.set_options(
@@ -85,6 +140,53 @@ void secure_round_trip()
 	service.bind({libgs::ip_type::v4, 0}).start();
 	const auto port = service.http_server().acceptor_wrap()
 		.acceptor().local_endpoint().port();
+
+	asio::io_context proxy_context;
+	asio::ip::tcp::acceptor proxy_acceptor(proxy_context,
+		{asio::ip::address_v4::loopback(), 0});
+	const auto proxy_port = proxy_acceptor.local_endpoint().port();
+	LIBGS_TEST_CHECK(libgs::app::setenv("wss_proxy", std::format(
+		"http://user:secret@127.0.0.1:{}/", proxy_port)));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("WSS_PROXY"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("no_proxy"));
+	LIBGS_TEST_CHECK(libgs::app::unsetenv("NO_PROXY"));
+	std::exception_ptr proxy_error;
+	std::jthread proxy_thread([&]
+	{
+		try {
+			auto downstream = std::make_shared<asio::ip::tcp::socket>(proxy_context);
+			proxy_acceptor.accept(*downstream);
+			std::string header;
+			libgs::error_code error;
+			while( not header.ends_with("\r\n\r\n") )
+			{
+				char byte = 0;
+				asio::read(*downstream, asio::buffer(&byte, 1), error);
+				if( error or header.size() >= 16 * 1024 )
+					throw std::system_error(error ? error :
+						std::make_error_code(std::errc::message_size));
+				header.push_back(byte);
+			}
+			const auto expected_target = std::format(
+				"CONNECT 127.0.0.1:{} HTTP/1.1\r\n", port);
+			if( not header.starts_with(expected_target) or
+				header.find("Proxy-Authorization: Basic dXNlcjpzZWNyZXQ=\r\n") ==
+					std::string::npos )
+				throw std::runtime_error("invalid HTTP CONNECT request");
+
+			auto upstream = std::make_shared<asio::ip::tcp::socket>(proxy_context);
+			upstream->connect({asio::ip::address_v4::loopback(), port});
+			constexpr std::string_view connected =
+				"HTTP/1.1 200 Connection Established\r\n\r\n";
+			asio::write(*downstream, asio::buffer(connected));
+
+			std::jthread outbound([=] { relay_socket(downstream, upstream); });
+			relay_socket(upstream, downstream);
+		}
+		catch(...) {
+			proxy_error = std::current_exception();
+		}
+	});
 
 	auto accepted = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
@@ -114,11 +216,13 @@ void secure_round_trip()
 	ws::client client(std::move(http_client));
 
 	auto connected = asio::co_spawn(context,
-		[&]() -> libgs::awaitable<void>
+		[&, proxy_port]() -> libgs::awaitable<void>
 		{
+			ws::connect_request request(std::format(
+				"wss://127.0.0.1:{}/secure/echo", port));
+			LIBGS_TEST_CHECK(not request.proxy);
 			ws::open_diagnostics diagnostics;
-			auto stream = co_await client.open(ws::connect_request(std::format(
-				"wss://127.0.0.1:{}/secure/echo", port)), diagnostics,
+			auto stream = co_await client.open(std::move(request), diagnostics,
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(diagnostics.endpoint.protocol(), "wss");
 			LIBGS_TEST_CHECK(diagnostics.reply);
@@ -139,6 +243,9 @@ void secure_round_trip()
 	context.run();
 	accepted.get();
 	connected.get();
+	proxy_thread.join();
+	if( proxy_error )
+		std::rethrow_exception(proxy_error);
 }
 
 } //namespace

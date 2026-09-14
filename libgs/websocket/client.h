@@ -10,12 +10,39 @@
 namespace libgs::websocket
 {
 
+enum class proxy_type : uint8_t {
+	http, socks5,
+};
+
+struct LIBGS_WEBSOCKET_API proxy_config
+{
+	proxy_type type = proxy_type::http;
+	url endpoint {};
+
+	optional<std::string> authorization {};
+	optional<std::string> username {};
+	optional<std::string> password {};
+
+	proxy_config &set_basic_auth(std::string_view user, std::string_view secret);
+	proxy_config &set_bearer_auth(std::string_view token);
+};
+
+using http::use_global_proxy_t;
+using http::use_global_proxy;
+
+using http::no_proxy_t;
+using http::no_proxy;
+
+using proxy_t = std::variant <
+	proxy_config, use_global_proxy_t, no_proxy_t
+>;
+
 struct client_config
 {
 	stream_config stream {};
 	std::chrono::milliseconds handshake_timeout {30000};
-	// true/false force the WebSocket transport setting; nullopt inherits the
-	// setting already applied by the underlying HTTP client.
+
+	proxy_t default_proxy = use_global_proxy;
 	optional<bool> no_delay {true};
 };
 
@@ -23,6 +50,8 @@ struct connect_request
 {
 	url endpoint {};
 	http::request_arg request_options {};
+
+	std::optional<proxy_t> proxy {};
 	optional<stream_config> stream_options {};
 
 	optional<std::chrono::milliseconds> handshake_timeout {};
@@ -110,7 +139,7 @@ public:
 public:
 	[[nodiscard]] std::shared_ptr<http::cookie_jar> cookie_store() noexcept;
 	[[nodiscard]] size_t pending_open_count() const noexcept;
-	[[nodiscard]] config_t config() const noexcept;
+	[[nodiscard]] config_t config() const;
 
 	[[nodiscard]] const http_client_t &http_client() const noexcept;
 	[[nodiscard]] http_client_t &http_client() noexcept;

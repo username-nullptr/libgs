@@ -31,7 +31,7 @@ public:
 	[[nodiscard]] sys_expected<prepared_frame> prepare_close(const close_frame &frame) const noexcept;
 
 	[[nodiscard]] sys_expected<std::vector<prepared_frame>> prepare_message (
-		message_type type, std::span<const const_buffer> buffers
+		message_type type, std::span<const const_buffer> buffers, write_options options = {}
 	) const noexcept;
 
 	[[nodiscard]] sys_expected<prepared_data_frame> prepare_data_frame (
@@ -65,7 +65,7 @@ public:
 
 	template <typename Handler>
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
-		std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
 	);
 
 	template <typename Handler>

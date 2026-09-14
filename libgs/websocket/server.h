@@ -50,14 +50,23 @@ struct upgrade_options
 		awaitable<upgrade_validation_result>(optional<std::string>)
 	>;
 	using subprotocol_selector_t = std::function <
-		optional<std::string>(std::span<const std::string>)
+		optional<std::string>(const request_info&, std::span<const std::string>)
 	>;
 	using extension_selector_t = std::function <
-		std::vector<extension>(std::span<const extension>)
+		std::vector<extension>(const request_info&, std::span<const extension>)
 	>;
-	stream_config stream {};
+	using async_subprotocol_selector_t = std::function <
+		awaitable<optional<std::string>>(
+			const request_info&, std::span<const std::string>)
+	>;
+	using async_extension_selector_t = std::function <
+		awaitable<std::vector<extension>>(
+			const request_info&, std::span<const extension>)
+	>;
 
+	stream_config stream {};
 	std::chrono::milliseconds handshake_timeout {30000};
+
 	std::vector<std::string> supported_subprotocols {};
 	std::vector<extension> supported_extensions {};
 
@@ -72,6 +81,9 @@ struct upgrade_options
 
 	subprotocol_selector_t subprotocol_selector {};
 	extension_selector_t extension_selector {};
+
+	async_subprotocol_selector_t async_subprotocol_selector {};
+	async_extension_selector_t async_extension_selector {};
 };
 
 struct upgrade_result
@@ -101,7 +113,6 @@ public:
 		stream_t value, request_info request_value,
 		upgrade_result handshake_value = {}
 	);
-
 	stream_t stream;
 	request_info request {};
 	upgrade_result handshake {};

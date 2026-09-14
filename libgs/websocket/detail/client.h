@@ -10,6 +10,8 @@
 #endif
 
 #include <libgs/websocket/protocol/handshake.h>
+#include <libgs/http/client/detail/proxy.h>
+
 #include <libgs/websocket/detail/permessage_deflate.h>
 #include <libgs/websocket/detail/secure_random.h>
 #include <libgs/websocket/detail/handshake_io.h>
@@ -79,6 +81,106 @@ std::vector<std::byte> pending_bytes(std::string pending);
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
 std::chrono::milliseconds remaining_timeout(std::chrono::steady_clock::time_point deadline) noexcept;
+
+template <typename RequestInfo>
+[[nodiscard]] error_code configure_proxy_request
+(const optional<proxy_t> &proxy, const url &endpoint, RequestInfo &info, bool inherit_global_proxy) noexcept
+{
+	const bool use_global = proxy ?
+		std::holds_alternative<use_global_proxy_t>(*proxy) : inherit_global_proxy;
+
+	if( not proxy and not use_global )
+		return {};
+	try {
+		if( use_global )
+		{
+			auto resolved = [&]() -> sys_expected<http::detail::resolved_proxy>
+			{
+				if( ascii_equal_case_insensitive(endpoint.protocol(), "ws") )
+				{
+					return http::detail::resolve_global_proxy(endpoint, {
+						"ws_proxy", "WS_PROXY", "http_proxy", "HTTP_PROXY",
+						"all_proxy", "ALL_PROXY"
+					});
+				}
+				if( ascii_equal_case_insensitive(endpoint.protocol(), "wss") )
+				{
+					return http::detail::resolve_global_proxy(endpoint, {
+						"wss_proxy", "WSS_PROXY", "https_proxy", "HTTPS_PROXY",
+						"all_proxy", "ALL_PROXY"
+					});
+				}
+				return sys_unexpected (
+					make_error_code(std::errc::protocol_not_supported)
+				);
+			}();
+
+			if( not resolved )
+				return resolved.error();
+
+			if( resolved->forward )
+			{
+				info.proxy = std::move(*resolved->forward);
+				if( resolved->authorization and
+					info.arg.headers().find(http::header::proxy_authorization) == info.arg.headers().end() )
+				{
+					info.arg.set_header(http::header::proxy_authorization,
+						*resolved->authorization
+					);
+				}
+			}
+			else if( resolved->tunnel )
+				info.proxy = std::move(*resolved->tunnel);
+			else
+				info.proxy = no_proxy;
+			return {};
+		}
+		if( std::holds_alternative<no_proxy_t>(*proxy) )
+		{
+			info.proxy = no_proxy;
+			return {};
+		}
+		const auto &config = std::get<proxy_config>(*proxy);
+		const auto endpoint_scheme = strtls::to_lower(endpoint.protocol());
+		const auto proxy_scheme = strtls::to_lower(config.endpoint.protocol());
+
+		if( config.type == proxy_type::http and endpoint_scheme == "ws" )
+		{
+			if( config.authorization )
+				info.arg.set_header(http::header::proxy_authorization, *config.authorization);
+
+			info.proxy = config.endpoint;
+			return {};
+		}
+		http::proxy_tunnel tunnel;
+		tunnel.type = config.type == proxy_type::http ?
+			http::proxy_tunnel_type::http_connect :
+			http::proxy_tunnel_type::socks5;
+
+		tunnel.host = config.endpoint.host();
+		tunnel.port = config.endpoint.port();
+
+		if( tunnel.port == 0 )
+		{
+			tunnel.port = config.type == proxy_type::socks5 ? 1080 :
+				proxy_scheme == "https" ? 443 : 80;
+		}
+		tunnel.security = proxy_scheme == "https" ?
+			http::security_mode::tls : http::security_mode::plain;
+
+		tunnel.authorization = config.authorization;
+		tunnel.username = config.username;
+		tunnel.password = config.password;
+
+		info.proxy = std::move(tunnel);
+		return {};
+	}
+	catch(const std::bad_alloc&) {
+		return make_error_code(std::errc::not_enough_memory);
+	}
+	catch(...) {}
+	return make_error_code(std::errc::io_error);
+}
 
 template <core_concepts::exec Exec, http::version_enum Version>
 void open_sync(http::basic_client<Exec,Version> &http_client, connect_request request,
@@ -153,6 +255,15 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 			info.max_redirects = 0;
 			info.auto_decompression = false;
 
+			const bool inherit_global_proxy =
+				std::holds_alternative<use_global_proxy_t>(http_client.config().default_proxy);
+
+			if( auto proxy_error = configure_proxy_request
+				(request.proxy, endpoint, info, inherit_global_proxy) )
+			{
+				error = proxy_error;
+				return ;
+			}
 			context = http_client.request_get(std::move(info), error);
 			if( error )
 				return ;
@@ -241,8 +352,7 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 					close_reply_connection(reply);
 				return ;
 			}
-			if( not detail::supported_extension_set(response->extensions) or
-				(not response->extensions.empty() and request.extensions.empty()) )
+			if( not detail::supported_extension_response(response->extensions, request.extensions) )
 			{
 				error = make_error_code(errc::unsupported_extension);
 				close_reply_connection(reply);
@@ -298,8 +408,7 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 			result_t result(client->get_executor(), active_stream_config);
 			context_ptr context;
 			try {
-				auto error = validate_open_request(active_request, active_stream_config);
-				if( error )
+				if( auto error = validate_open_request(active_request, active_stream_config) )
 				{
 					co_return std::tuple<error_code,result_t> {
 						error, std::move(result)
@@ -370,6 +479,16 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 					info.auto_decompression = false;
 					info.max_redirects = 0;
 
+					const bool inherit_global_proxy =
+						std::holds_alternative<use_global_proxy_t>(client->config().default_proxy);
+
+					if( auto proxy_error = configure_proxy_request
+						(active_request.proxy, endpoint, info, inherit_global_proxy) )
+					{
+						co_return std::tuple<error_code,result_t> {
+							proxy_error, std::move(result)
+						};
+					}
 					auto [request_error, next_context] = co_await client->request_get (
 						std::move(info), asio::as_tuple(deferred)
 					);
@@ -435,8 +554,7 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 						auto probe = active_request;
 						probe.endpoint = std::move(resolved);
 
-						auto redirect_error = validate_open_request(probe, active_stream_config);
-						if( redirect_error )
+						if( auto redirect_error = validate_open_request(probe, active_stream_config) )
 						{
 							co_return std::tuple<error_code,result_t> {
 								redirect_error, std::move(result)
@@ -479,8 +597,8 @@ auto async_open(http::basic_client<Exec,Version> &http_client, connect_request r
 							response.error(), std::move(result)
 						};
 					}
-					if( not detail::supported_extension_set(response->extensions) or
-						(not response->extensions.empty() and active_request.extensions.empty()) )
+					if( not detail::supported_extension_response
+						(response->extensions, active_request.extensions) )
 					{
 						close_reply_connection(reply);
 						co_return std::tuple<error_code,result_t> {
@@ -575,6 +693,9 @@ private:
 
 	void prepare_request(connect_request_t &request) const
 	{
+		if( not request.proxy )
+			request.proxy = m_config.default_proxy;
+
 		if( not request.stream_options )
 			request.stream_options = m_config.stream;
 
@@ -879,7 +1000,7 @@ size_t basic_client<Exec>::pending_open_count() const noexcept
 }
 
 template <core_concepts::exec Exec>
-auto basic_client<Exec>::config() const noexcept -> config_t
+auto basic_client<Exec>::config() const -> config_t
 {
 	return m_impl->m_config;
 }

@@ -24,6 +24,7 @@ public:
 
 	using control_callback_t = control_callback;
 	using closed_callback_t = closed_callback;
+
 	using message_chunk_t = message_chunk;
 	using message_info_t = message_info;
 	using adopt_options_t = adopt_options;
@@ -113,6 +114,27 @@ public:
 	template <typename Token = use_sync_t>
 	auto wait_written(Token &&token = {})
 		requires task_token_v<Token>;
+
+public:
+	template <message_type Type, typename Token = use_sync_t>
+	auto write(const const_buffer &body, write_options options, Token &&token = {})
+		requires completion_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto write(message_type type, const const_buffer &body, write_options options, Token &&token = {})
+		requires completion_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto write(message_type type, std::span<const const_buffer> body, write_options options, Token &&token = {})
+		requires completion_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto write_text(std::string_view text, write_options options, Token &&token = {})
+		requires completion_token_v<Token,size_t>;
+
+	template <typename Token = use_sync_t>
+	auto write_binary(const const_buffer &body, write_options options, Token &&token = {})
+		requires completion_token_v<Token,size_t>;
 
 public:
 	basic_stream &on_ping(control_callback_t callback);

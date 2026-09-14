@@ -4,6 +4,7 @@
 #ifndef LIBGS_HTTP_CLIENT_DETAIL_CONNECTOR_H
 #define LIBGS_HTTP_CLIENT_DETAIL_CONNECTOR_H
 
+#include <libgs/http/client/detail/proxy_tunnel.h>
 #include <libgs/http/utils/tcp_connection.h>
 #include <libgs/http/utils/tls_connection.h>
 
@@ -99,12 +100,23 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 		if( target.host.empty() or target.port == 0 )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
 
+		if( target.tunnel )
+		{
+			if( auto error = detail::validate_proxy_tunnel(target, *target.tunnel) )
+				return sys_unexpected(error);
+
+			if( target.security == security_mode::tls and target.tunnel->security == security_mode::tls )
+				return sys_unexpected(make_error_code(std::errc::operation_not_supported));
+		}
 		using resolver_t = asio::ip::basic_resolver<asio::ip::tcp,executor_t>;
 		resolver_t resolver(m_impl->m_exec);
 
 		error_code error {};
-		auto results = resolver.resolve(target.host,
-			std::to_string(target.port), error
+		const auto &connect_host = target.tunnel ? target.tunnel->host : target.host;
+		const auto connect_port = target.tunnel ? target.tunnel->port : target.port;
+
+		auto results = resolver.resolve(connect_host,
+			std::to_string(connect_port), error
 		);
 		if( error )
 			return sys_unexpected(error);
@@ -112,7 +124,8 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 		if( results.empty() )
 			return sys_unexpected(make_error_code(errc::host_not_found));
 
-		if( target.security == security_mode::plain )
+		if( target.security == security_mode::plain and
+			(not target.tunnel or target.tunnel->security == security_mode::plain) )
 		{
 			typename basic_tcp_connection<executor_t>::socket_t socket(m_impl->m_exec);
 			asio::connect(socket, results, error);
@@ -124,11 +137,58 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 			if( error )
 				return sys_unexpected(error);
 
+			if( target.tunnel )
+			{
+				error = detail::sync_proxy_connect(socket, target, *target.tunnel);
+				if( error )
+					return sys_unexpected(error);
+			}
 			return connection_ptr(
 				std::make_shared<basic_tcp_connection<executor_t>>(std::move(socket))
 			);
 		}
 #if LIBGS_OPENSSL_SUPPORT
+		if( target.security == security_mode::plain and target.tunnel and
+			target.tunnel->security == security_mode::tls )
+		{
+			typename basic_tls_connection<executor_t>::socket_t socket (
+				m_impl->m_exec, *m_impl->m_tls_context
+			);
+			error_code address_error {};
+			ignore_unused(asio::ip::make_address(target.tunnel->host, address_error));
+
+			if( address_error and
+				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.tunnel->host.c_str()) )
+				return sys_unexpected(make_error_code(std::errc::protocol_error));
+
+			socket.set_verify_callback (
+				asio::ssl::host_name_verification(target.tunnel->host), error
+			);
+			if( error )
+				return sys_unexpected(error);
+
+			asio::connect(socket.next_layer(), results, error);
+			if( error )
+				return sys_unexpected(error);
+
+			socket.next_layer().set_option (
+				asio::ip::tcp::no_delay(target.no_delay), error
+			);
+			if( error )
+				return sys_unexpected(error);
+
+			socket.handshake(asio::ssl::stream_base::client, error);
+			if( error )
+				return sys_unexpected(error);
+
+			error = detail::sync_proxy_connect(socket, target, *target.tunnel);
+			if( error )
+				return sys_unexpected(error);
+
+			return connection_ptr (
+				std::make_shared<basic_tls_connection<executor_t>>(std::move(socket))
+			);
+		}
 		if( target.security == security_mode::tls )
 		{
 			typename basic_tls_connection<executor_t>::socket_t socket (
@@ -157,6 +217,13 @@ basic_connector<Exec>::do_connect(const connect_target &target) noexcept
 			if( error )
 				return sys_unexpected(error);
 
+			if( target.tunnel )
+			{
+				error = detail::sync_proxy_connect(
+					socket.next_layer(), target, *target.tunnel);
+				if( error )
+					return sys_unexpected(error);
+			}
 			socket.handshake(asio::ssl::stream_base::client, error);
 			if( error )
 				return sys_unexpected(error);
@@ -186,13 +253,23 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 		if( target.host.empty() or target.port == 0 )
 			co_return sys_unexpected(make_error_code(std::errc::invalid_argument));
 
+		if( target.tunnel )
+		{
+			if( auto error = detail::validate_proxy_tunnel(target, *target.tunnel) )
+				co_return sys_unexpected(error);
+
+			if( target.security == security_mode::tls and target.tunnel->security == security_mode::tls )
+				co_return sys_unexpected(make_error_code(std::errc::operation_not_supported));
+		}
 		using resolver_t = asio::ip::basic_resolver<asio::ip::tcp,executor_t>;
 		resolver_t resolver(m_impl->m_exec);
 
 		error_code error {};
-		auto results = co_await resolver.async_resolve(target.host,
-			std::to_string(target.port),
-			asio::redirect_error(use_awaitable, error)
+		const auto &connect_host = target.tunnel ? target.tunnel->host : target.host;
+		const auto connect_port = target.tunnel ? target.tunnel->port : target.port;
+
+		auto results = co_await resolver.async_resolve(connect_host,
+			std::to_string(connect_port), asio::redirect_error(use_awaitable, error)
 		);
 		if( error )
 			co_return sys_unexpected(error);
@@ -200,7 +277,8 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 		if( results.empty() )
 			co_return sys_unexpected(make_error_code(errc::host_not_found));
 
-		if( target.security == security_mode::plain )
+		if( target.security == security_mode::plain and
+			(not target.tunnel or target.tunnel->security == security_mode::plain) )
 		{
 			typename basic_tcp_connection<executor_t>::socket_t socket(m_impl->m_exec);
 			co_await asio::async_connect(socket, results,
@@ -213,25 +291,34 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 			if( error )
 				co_return sys_unexpected(error);
 
-			co_return connection_ptr(
+			if( target.tunnel )
+			{
+				error = co_await detail::async_proxy_connect (
+					socket, target, *target.tunnel
+				);
+				if( error )
+					co_return sys_unexpected(error);
+			}
+			co_return connection_ptr (
 				std::make_shared<basic_tcp_connection<executor_t>>(std::move(socket))
 			);
 		}
 #if LIBGS_OPENSSL_SUPPORT
-		if( target.security == security_mode::tls )
+		if( target.security == security_mode::plain and target.tunnel and
+			target.tunnel->security == security_mode::tls )
 		{
 			typename basic_tls_connection<executor_t>::socket_t socket (
 				m_impl->m_exec, *m_impl->m_tls_context
 			);
 			error_code address_error {};
-			ignore_unused(asio::ip::make_address(target.host, address_error));
+			ignore_unused(asio::ip::make_address(target.tunnel->host, address_error));
 
 			if( address_error and
-				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.host.c_str()) )
+				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.tunnel->host.c_str()) )
 				co_return sys_unexpected(make_error_code(std::errc::protocol_error));
 
-			socket.set_verify_callback(
-				asio::ssl::host_name_verification(target.host), error
+			socket.set_verify_callback (
+				asio::ssl::host_name_verification(target.tunnel->host), error
 			);
 			if( error )
 				co_return sys_unexpected(error);
@@ -254,7 +341,61 @@ basic_connector<Exec>::co_do_connect(const connect_target &target) noexcept
 			if( error )
 				co_return sys_unexpected(error);
 
-			co_return connection_ptr(
+			error = co_await detail::async_proxy_connect (
+				socket, target, *target.tunnel
+			);
+			if( error )
+				co_return sys_unexpected(error);
+
+			co_return connection_ptr (
+				std::make_shared<basic_tls_connection<executor_t>>(std::move(socket))
+			);
+		}
+		if( target.security == security_mode::tls )
+		{
+			typename basic_tls_connection<executor_t>::socket_t socket (
+				m_impl->m_exec, *m_impl->m_tls_context
+			);
+			error_code address_error {};
+			ignore_unused(asio::ip::make_address(target.host, address_error));
+
+			if( address_error and
+				not ::SSL_set_tlsext_host_name(socket.native_handle(), target.host.c_str()) )
+				co_return sys_unexpected(make_error_code(std::errc::protocol_error));
+
+			socket.set_verify_callback (
+				asio::ssl::host_name_verification(target.host), error
+			);
+			if( error )
+				co_return sys_unexpected(error);
+
+			co_await asio::async_connect(socket.next_layer(), results,
+				asio::redirect_error(use_awaitable, error)
+			);
+			if( error )
+				co_return sys_unexpected(error);
+
+			socket.next_layer().set_option (
+				asio::ip::tcp::no_delay(target.no_delay), error
+			);
+			if( error )
+				co_return sys_unexpected(error);
+
+			if( target.tunnel )
+			{
+				error = co_await detail::async_proxy_connect (
+					socket.next_layer(), target, *target.tunnel
+				);
+				if( error )
+					co_return sys_unexpected(error);
+			}
+			co_await socket.async_handshake(asio::ssl::stream_base::client,
+				asio::redirect_error(use_awaitable, error)
+			);
+			if( error )
+				co_return sys_unexpected(error);
+
+			co_return connection_ptr (
 				std::make_shared<basic_tls_connection<executor_t>>(std::move(socket))
 			);
 		}

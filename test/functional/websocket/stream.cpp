@@ -371,7 +371,10 @@ void test_adopt_validation()
 	ws::stream extension_stream(context.get_executor(), no_automatic_ping());
 	auto connection = std::make_shared<memory_connection>(context.get_executor());
 	ws::adopt_options options;
-	options.negotiated_extensions.push_back({.name = "permessage-deflate"});
+	options.negotiated_extensions.push_back({
+		.name = "permessage-deflate",
+		.parameters = {{.name = "unknown"}},
+	});
 	extension_stream.adopt(
 		std::static_pointer_cast<libgs::http::connection>(connection),
 		std::move(options), error);
@@ -404,6 +407,13 @@ void test_adopt_validation()
 	bad_config.auto_ping_interval = std::chrono::milliseconds(-1);
 	ws::stream invalid_ping_stream(context.get_executor(), bad_config);
 	invalid_ping_stream.adopt(
+		std::static_pointer_cast<libgs::http::connection>(connection), {}, error);
+	LIBGS_TEST_CHECK_EQ(error,
+		std::make_error_code(std::errc::invalid_argument));
+	bad_config.auto_ping_interval = std::chrono::milliseconds::zero();
+	bad_config.compression.level = 10;
+	ws::stream invalid_compression_stream(context.get_executor(), bad_config);
+	invalid_compression_stream.adopt(
 		std::static_pointer_cast<libgs::http::connection>(connection), {}, error);
 	LIBGS_TEST_CHECK_EQ(error,
 		std::make_error_code(std::errc::invalid_argument));
@@ -1527,6 +1537,18 @@ void test_invalid_compressed_payload()
 		auto inflated = ws::detail::inflate_message(*compressed, 0);
 		LIBGS_TEST_CHECK(inflated.has_value());
 		LIBGS_TEST_CHECK_EQ(*inflated, exact_block);
+		auto truncated = *compressed;
+		truncated.pop_back();
+		auto truncated_result = ws::detail::inflate_message(truncated, 0);
+		LIBGS_TEST_CHECK(not truncated_result.has_value());
+		LIBGS_TEST_CHECK_EQ(truncated_result.error(), ws::make_error_code(
+			ws::protocol_errc::invalid_compressed_payload));
+		auto window_eight = ws::detail::deflate_message(input, 8, 1);
+		LIBGS_TEST_CHECK(window_eight.has_value());
+		auto window_eight_inflated = ws::detail::inflate_message(
+			*window_eight, exact_block.size(), 8);
+		LIBGS_TEST_CHECK(window_eight_inflated.has_value());
+		LIBGS_TEST_CHECK_EQ(*window_eight_inflated, exact_block);
 	}
 
 	{
@@ -1547,23 +1569,6 @@ void test_invalid_compressed_payload()
 			.negotiated_extensions = {ws::permessage_deflate_extension()},
 		}, error);
 		LIBGS_TEST_CHECK(not error);
-		bool consumed = false;
-		libgs::ignore_unused(stream.consume(
-			[&](const ws::message_chunk&) { consumed = true; }, error
-		));
-		LIBGS_TEST_CHECK_EQ(error,
-			std::make_error_code(std::errc::operation_not_supported));
-		LIBGS_TEST_CHECK(not consumed);
-
-		const ws::basic_data_frame<std::string> frame {
-			.type = ws::message_type::binary,
-			.body = "frame",
-		};
-		LIBGS_TEST_CHECK_EQ(stream.write_frame(frame, error), size_t {0});
-		LIBGS_TEST_CHECK_EQ(error,
-			std::make_error_code(std::errc::operation_not_supported));
-		LIBGS_TEST_CHECK(stream.is_open());
-
 		libgs::ignore_unused(stream.read<>(error));
 		LIBGS_TEST_CHECK_EQ(error,
 			ws::make_error_code(ws::protocol_errc::invalid_compressed_payload));
@@ -1601,6 +1606,156 @@ void test_invalid_compressed_payload()
 		LIBGS_TEST_CHECK_EQ(parse_server_close_code(connection->wire()),
 			static_cast<uint16_t>(ws::close_code::message_too_big));
 	}
+}
+
+void test_compressed_frame_chunk_and_write_policy()
+{
+	constexpr std::string_view text =
+		"compressed frame and chunk delivery across parser boundaries";
+	const std::array<libgs::const_buffer,1> input {
+		libgs::const_buffer(text.data(), text.size())
+	};
+	auto compressed = ws::detail::deflate_message(input, 12, 6);
+	LIBGS_TEST_CHECK(compressed.has_value());
+	const auto split = std::max<size_t>(1, compressed->size() / 2);
+
+	std::vector<std::byte> wire;
+	append_frame(wire, ws::opcode::text, false,
+		std::span(compressed->data(), split), ws::reserved_bit::rsv1);
+	append_frame(wire, ws::opcode::ping, true, "compressed-ping");
+	append_frame(wire, ws::opcode::continuation, true,
+		std::span(compressed->data() + split, compressed->size() - split));
+
+	libgs::io_context_t context;
+	libgs::error_code error;
+	ws::permessage_deflate_options parameters;
+	parameters.server_no_context_takeover = true;
+	parameters.client_no_context_takeover = true;
+	parameters.client_max_window_bits = 12;
+	auto extension = ws::permessage_deflate_extension(parameters);
+
+	ws::stream framed(context.get_executor(), no_automatic_ping());
+	auto framed_connection =
+		std::make_shared<memory_connection>(context.get_executor());
+	framed_connection->read_chunk_size(3);
+	framed_connection->feed(wire);
+	framed.adopt(std::static_pointer_cast<libgs::http::connection>(
+		framed_connection), {
+			.stream_role = ws::role::server,
+			.negotiated_extensions = {extension},
+		}, error);
+	LIBGS_TEST_CHECK(not error);
+	auto first = framed.read_frame<std::string>(error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK(not first.continuation);
+	LIBGS_TEST_CHECK(not first.fin);
+	auto second = framed.read_frame<std::string>(error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK(second.continuation);
+	LIBGS_TEST_CHECK(second.fin);
+	LIBGS_TEST_CHECK_EQ(first.body + second.body, text);
+
+	ws::stream chunked(context.get_executor(), no_automatic_ping());
+	auto chunked_connection =
+		std::make_shared<memory_connection>(context.get_executor());
+	chunked_connection->read_chunk_size(2);
+	chunked_connection->feed(std::move(wire));
+	chunked.adopt(std::static_pointer_cast<libgs::http::connection>(
+		chunked_connection), {
+			.stream_role = ws::role::server,
+			.negotiated_extensions = {extension},
+		}, error);
+	LIBGS_TEST_CHECK(not error);
+	std::string chunks;
+	auto info = chunked.consume([&](const ws::message_chunk &chunk) {
+		chunks.append(static_cast<const char*>(chunk.body.data()), chunk.body.size());
+	}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(info.type, ws::message_type::text);
+	LIBGS_TEST_CHECK_EQ(chunks, text);
+
+	auto policy_config = no_automatic_ping();
+	policy_config.compression.min_message_size = 1024;
+	policy_config.compression.level = 1;
+	ws::stream policy(context.get_executor(), policy_config);
+	auto policy_connection =
+		std::make_shared<memory_connection>(context.get_executor());
+	policy.adopt(std::static_pointer_cast<libgs::http::connection>(
+		policy_connection), {
+			.stream_role = ws::role::server,
+			.negotiated_extensions = {extension},
+		}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(policy.write_text("small", error), 5U);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK((octet(policy_connection->wire(), 0) & 0x40) == 0);
+
+	ws::stream forced(context.get_executor(), policy_config);
+	auto forced_connection =
+		std::make_shared<memory_connection>(context.get_executor());
+	forced.adopt(std::static_pointer_cast<libgs::http::connection>(
+		forced_connection), {
+			.stream_role = ws::role::server,
+			.negotiated_extensions = {extension},
+		}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(forced.write_text("small", {
+		.compression = ws::compression_mode::enabled}, error), 5U);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK((octet(forced_connection->wire(), 0) & 0x40) != 0);
+
+	ws::stream unavailable(context.get_executor(), no_automatic_ping());
+	auto unavailable_connection =
+		std::make_shared<memory_connection>(context.get_executor());
+	unavailable.adopt(std::static_pointer_cast<libgs::http::connection>(
+		unavailable_connection), {.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+	LIBGS_TEST_CHECK_EQ(unavailable.write_text("small", {
+		.compression = ws::compression_mode::enabled}, error), 0U);
+	LIBGS_TEST_CHECK_EQ(error, ws::make_error_code(ws::errc::unsupported_extension));
+}
+
+void test_compression_context_takeover()
+{
+	const std::array<std::byte,40> first {
+		std::byte{0x4a}, std::byte{0x4c}, std::byte{0x4a}, std::byte{0x4e},
+		std::byte{0x49}, std::byte{0x4d}, std::byte{0x4b}, std::byte{0xcf},
+		std::byte{0xc8}, std::byte{0xcc}, std::byte{0xca}, std::byte{0xce},
+		std::byte{0xc9}, std::byte{0xcd}, std::byte{0xcb}, std::byte{0x2f},
+		std::byte{0x28}, std::byte{0x2c}, std::byte{0x2a}, std::byte{0x2e},
+		std::byte{0x29}, std::byte{0x2d}, std::byte{0x2b}, std::byte{0xaf},
+		std::byte{0xa8}, std::byte{0xac}, std::byte{0x4a}, std::byte{0x1c},
+		std::byte{0x95}, std::byte{0x19}, std::byte{0x95}, std::byte{0x19},
+		std::byte{0x95}, std::byte{0x19}, std::byte{0x95}, std::byte{0x19},
+		std::byte{0x71}, std::byte{0x32}, std::byte{0x00}, std::byte{0x00},
+	};
+	const std::array<std::byte,14> second {
+		std::byte{0x1a}, std::byte{0x95}, std::byte{0x19}, std::byte{0x95},
+		std::byte{0x19}, std::byte{0x95}, std::byte{0x19}, std::byte{0x95},
+		std::byte{0x19}, std::byte{0x95}, std::byte{0x41}, std::byte{0xc8},
+		std::byte{0x00}, std::byte{0x00},
+	};
+	std::string expected;
+	for(size_t index = 0; index < 50; ++index)
+		expected += "abcdefghijklmnopqrstuvwxyz";
+
+	ws::detail::permessage_inflater inflater;
+	LIBGS_TEST_CHECK(not inflater.reset(15, false));
+	auto first_message = inflater.inflate(first, expected.size());
+	LIBGS_TEST_CHECK(first_message.has_value());
+	LIBGS_TEST_CHECK_EQ(std::string(
+		reinterpret_cast<const char*>(first_message->data()),
+		first_message->size()), expected);
+	auto second_message = inflater.inflate(second, expected.size());
+	LIBGS_TEST_CHECK(second_message.has_value());
+	LIBGS_TEST_CHECK_EQ(std::string(
+		reinterpret_cast<const char*>(second_message->data()),
+		second_message->size()), expected);
+
+	ws::detail::permessage_inflater reset_each_message;
+	LIBGS_TEST_CHECK(not reset_each_message.reset(15, true));
+	auto missing_context = reset_each_message.inflate(second, expected.size());
+	LIBGS_TEST_CHECK(not missing_context.has_value());
 }
 #endif
 
@@ -1778,6 +1933,32 @@ void test_control_callbacks_manual_pong()
 	LIBGS_TEST_CHECK(not error);
 	const std::vector<ws::opcode> expected {ws::opcode::pong};
 	LIBGS_TEST_CHECK_EQ(parse_server_frames(connection->wire()), expected);
+}
+
+void test_control_callback_failure()
+{
+	libgs::io_context_t context;
+	ws::stream stream(context.get_executor(), no_automatic_ping());
+	auto connection = std::make_shared<memory_connection>(context.get_executor());
+	std::vector<std::byte> input;
+	append_frame(input, ws::opcode::ping, true, "fail");
+	connection->feed(std::move(input));
+
+	libgs::error_code error;
+	stream.adopt(std::static_pointer_cast<libgs::http::connection>(connection),
+		{.stream_role = ws::role::server}, error);
+	LIBGS_TEST_CHECK(not error);
+
+	const auto expected = std::make_error_code(std::errc::permission_denied);
+	stream.on_ping([expected](const libgs::const_buffer&) -> bool {
+		throw std::system_error(expected);
+	});
+	libgs::ignore_unused(stream.read<>(error));
+
+	LIBGS_TEST_CHECK_EQ(error, expected);
+	LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::failed);
+	LIBGS_TEST_CHECK_EQ(connection->cancel_count(), size_t {1});
+	LIBGS_TEST_CHECK_EQ(connection->close_count(), size_t {1});
 }
 
 void test_automatic_ping_timer()
@@ -2261,6 +2442,9 @@ int main()
 		{"read limits and utf8", test_read_limits_and_utf8},
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 		{"invalid compressed payload", test_invalid_compressed_payload},
+		{"compressed frame chunk and write policy",
+			test_compressed_frame_chunk_and_write_policy},
+		{"compression context takeover", test_compression_context_takeover},
 #endif
 		{"protocol failure during async write",
 			test_protocol_failure_during_async_write},
@@ -2269,6 +2453,7 @@ int main()
 		{"control callbacks and filtering",
 			test_control_callbacks_and_filtering},
 		{"control callbacks manual pong", test_control_callbacks_manual_pong},
+		{"control callback failure", test_control_callback_failure},
 		{"automatic ping timer", test_automatic_ping_timer},
 		{"peer close", test_peer_close},
 		{"closed callback and waiter", test_closed_callback_and_waiter},

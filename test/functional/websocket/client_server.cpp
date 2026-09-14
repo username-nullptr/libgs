@@ -5,6 +5,7 @@
 
 #include <libgs/websocket/client.h>
 #include <libgs/websocket/server.h>
+#include <libgs/websocket/detail/permessage_deflate.h>
 
 namespace
 {
@@ -125,10 +126,15 @@ void owned_accept_round_trip()
 	options.require_subprotocol = true;
 	options.stream.auto_ping_interval = std::chrono::milliseconds(17000);
 	options.stream.auto_pong = false;
-	options.subprotocol_selector = [](std::span<const std::string> offered)
+	size_t selector_calls = 0;
+	options.subprotocol_selector = [&](const ws::request_info &request,
+		std::span<const std::string> offered)
 		-> libgs::optional<std::string>
 	{
-		if( offered.size() == 2 and offered[0] == "meta.v1" and
+		++selector_calls;
+		if( request.path == "/accept/42" and
+			request.request_headers.contains("X-WebSocket-Metadata") and
+			offered.size() == 2 and offered[0] == "meta.v1" and
 			offered[1] == "meta.v2" )
 			return std::string("meta.v2");
 		return libgs::nullopt;
@@ -208,6 +214,7 @@ void owned_accept_round_trip()
 	context.run();
 	accepted.get();
 	connected.get();
+	LIBGS_TEST_CHECK_EQ(selector_calls, 1U);
 }
 
 void owned_configuration_and_resources()
@@ -760,7 +767,28 @@ void permessage_deflate_round_trip()
 		.acceptor().local_endpoint().port();
 
 	ws::upgrade_options options;
-	options.supported_extensions = {ws::permessage_deflate_extension()};
+	ws::permessage_deflate_options server_compression;
+	server_compression.server_max_window_bits = 11;
+	server_compression.client_max_window_bits = 10;
+	auto server_extension_policy =
+		ws::permessage_deflate_extension(server_compression);
+	options.supported_extensions = {
+		server_extension_policy
+	};
+	size_t extension_selector_calls = 0;
+	options.extension_selector =
+		[&, server_extension_policy](const ws::request_info &request,
+			std::span<const ws::extension> offered)
+			-> std::vector<ws::extension>
+	{
+		++extension_selector_calls;
+		if( request.path != "/compressed" or offered.size() != 1 )
+			return {};
+		auto selected = ws::detail::negotiate_permessage_deflate(
+			offered.front(), server_extension_policy);
+		return selected ? std::vector<ws::extension>{std::move(*selected)} :
+			std::vector<ws::extension>{};
+	};
 	options.stream.write_fragment_size = 7;
 	auto accepted = asio::co_spawn(context,
 		[&, options = std::move(options)]() mutable -> libgs::awaitable<void>
@@ -772,7 +800,7 @@ void permessage_deflate_round_trip()
 				connection.handshake.extensions.front()));
 			LIBGS_TEST_CHECK_EQ(connection.stream.negotiated_extensions().size(), 1U);
 
-			for(size_t index = 0; index < 3; ++index)
+			for(size_t index = 0; index < 4; ++index)
 			{
 				auto request = co_await connection.stream.read<>(
 					libgs::use_awaitable);
@@ -791,25 +819,28 @@ void permessage_deflate_round_trip()
 		{
 			ws::connect_request request(std::format(
 				"ws://127.0.0.1:{}/compressed", port));
-			request.extensions = {ws::permessage_deflate_extension()};
+			ws::permessage_deflate_options client_compression;
+			client_compression.server_max_window_bits = 12;
+			client_compression.offer_client_max_window_bits = true;
+			request.extensions = {
+				ws::permessage_deflate_extension(client_compression)
+			};
 			ws::stream_config stream_config;
 			stream_config.write_fragment_size = 5;
+			stream_config.compression.min_message_size = 16;
+			stream_config.compression.level = 6;
 			request.stream_options = stream_config;
 			auto stream = co_await client.open(
 				std::move(request), libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(stream.negotiated_extensions().size(), 1U);
 
-			libgs::error_code frame_error;
-			libgs::ignore_unused(stream.read_frame<>(frame_error));
-			LIBGS_TEST_CHECK_EQ(frame_error,
-				std::make_error_code(std::errc::operation_not_supported));
-
 			LIBGS_TEST_CHECK_EQ(co_await stream.write_text(
 				"", libgs::use_awaitable), 0U);
-			auto empty = co_await stream.read<std::string>(
+			auto empty = co_await stream.read_frame<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(empty.type, ws::message_type::text);
 			LIBGS_TEST_CHECK(empty.body.empty());
+			LIBGS_TEST_CHECK(empty.fin);
 
 			const std::array<std::byte,8> binary_payload {
 				std::byte {0x00}, std::byte {0xFF}, std::byte {0x01},
@@ -818,16 +849,33 @@ void permessage_deflate_round_trip()
 			};
 			LIBGS_TEST_CHECK_EQ(co_await stream.write_binary(
 				libgs::const_buffer(binary_payload.data(), binary_payload.size()),
+				ws::write_options {.compression = ws::compression_mode::enabled},
 				libgs::use_awaitable), binary_payload.size());
-			auto binary = co_await stream.read<>(libgs::use_awaitable);
-			LIBGS_TEST_CHECK_EQ(binary.type, ws::message_type::binary);
-			LIBGS_TEST_CHECK(std::ranges::equal(binary.body, binary_payload));
+			std::vector<std::byte> binary;
+			auto binary_info = co_await stream.consume(
+				[&](const ws::message_chunk &chunk) {
+					const auto *data = static_cast<const std::byte*>(chunk.body.data());
+					binary.insert(binary.end(), data, data + chunk.body.size());
+				}, libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(binary_info.type, ws::message_type::binary);
+			LIBGS_TEST_CHECK(std::ranges::equal(binary, binary_payload));
+
+			ws::basic_data_frame<std::string> frame {
+				.type = ws::message_type::text,
+				.body = "frame",
+			};
+			LIBGS_TEST_CHECK_EQ(co_await stream.write_frame(
+				frame, libgs::use_awaitable), frame.body.size());
+			auto frame_echo = co_await stream.read<std::string>(libgs::use_awaitable);
+			LIBGS_TEST_CHECK_EQ(frame_echo.body, frame.body);
 
 			std::string payload;
 			for(size_t index = 0; index < 128; ++index)
 				payload += "compressible websocket payload ";
 			LIBGS_TEST_CHECK_EQ(co_await stream.write_text(
-				payload, libgs::use_awaitable), payload.size());
+				payload,
+				ws::write_options {.compression = ws::compression_mode::disabled},
+				libgs::use_awaitable), payload.size());
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(response.body, payload);
@@ -839,6 +887,7 @@ void permessage_deflate_round_trip()
 	context.run();
 	accepted.get();
 	connected.get();
+	LIBGS_TEST_CHECK_EQ(extension_selector_calls, 1U);
 }
 #endif
 
@@ -855,7 +904,10 @@ void invalid_owned_config()
 	LIBGS_TEST_CHECK_EQ(preflight_client.pending_open_count(), 0U);
 
 	ws::connect_request unsupported("ws://example.test/socket");
-	unsupported.extensions.push_back({.name = "permessage-deflate"});
+	unsupported.extensions.push_back({
+		.name = "permessage-deflate",
+		.parameters = {{.name = "unknown"}},
+	});
 	stream = preflight_client.open(std::move(unsupported), error);
 	LIBGS_TEST_CHECK_EQ(error,
 		ws::make_error_code(ws::errc::unsupported_extension));

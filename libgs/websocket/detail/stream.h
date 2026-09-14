@@ -258,7 +258,7 @@ auto basic_stream<Exec>::write(const const_buffer &body, Token &&token)
 	requires completion_token_v<Token, size_t>
 {
 	static_assert(Type == message_type::text or Type == message_type::binary);
-	return write(Type, body, std::forward<Token>(token));
+	return write(Type, body, write_options{}, std::forward<Token>(token));
 }
 
 template <core_concepts::exec Exec>
@@ -266,7 +266,9 @@ template <typename Token>
 auto basic_stream<Exec>::write(message_type type, const const_buffer &body, Token &&token)
 	requires completion_token_v<Token, size_t>
 {
-	return write(type, std::span(&body, 1), std::forward<Token>(token));
+	return write(type, std::span(&body, 1), write_options{},
+		std::forward<Token>(token)
+	);
 }
 
 template <core_concepts::exec Exec>
@@ -274,90 +276,7 @@ template <typename Token>
 auto basic_stream<Exec>::write(message_type type, std::span<const const_buffer> body, Token &&token)
 	requires completion_token_v<Token, size_t>
 {
-	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->write(type, body, token);
-
-	else if constexpr( is_sync_opt_token_v<Token> )
-	{
-		error_code error;
-		auto transferred = m_impl->write(type, body, error);
-		if( error )
-			system_error::loc_throw(error, "libgs::websocket::basic_stream::write");
-		return transferred;
-	}
-	else
-	{
-		auto buffers = std::vector(body.begin(), body.end());
-		std::shared_ptr<std::vector<std::byte>> payload_owner;
-		error_code buffer_error {};
-
-		if constexpr( is_detached_v<token_unbound_t<Token>> )
-		{
-			try {
-				size_t size = 0;
-				for(const auto &input : buffers)
-				{
-					if( input.size() != 0 and input.data() == nullptr )
-					{
-						buffer_error = make_error_code(std::errc::invalid_argument);
-						break;
-					}
-					if( input.size() > std::numeric_limits<size_t>::max() - size )
-					{
-						buffer_error = make_error_code(std::errc::value_too_large);
-						break;
-					}
-					size += input.size();
-				}
-				if( not buffer_error )
-				{
-					payload_owner = std::make_shared<std::vector<std::byte>>(size);
-					size_t offset = 0;
-
-					for(const auto &input : buffers)
-					{
-						if( input.size() == 0 )
-							continue;
-
-						std::memcpy(payload_owner->data() + offset, input.data(), input.size());
-						offset += input.size();
-					}
-					buffers.assign(1, const_buffer (
-						payload_owner->data(), payload_owner->size()
-					));
-				}
-				else
-					buffers.clear();
-			}
-			catch(const std::bad_alloc&)
-			{
-				buffer_error = make_error_code(std::errc::not_enough_memory);
-				buffers.clear();
-			}
-			catch(...)
-			{
-				buffer_error = make_error_code(std::errc::io_error);
-				buffers.clear();
-			}
-		}
-		return initiate_io<size_t>(get_executor(), [self = m_impl, type,
-			buffers = std::move(buffers), payload_owner = std::move(payload_owner), buffer_error
-		]<typename T0>(T0 &&completion_token) mutable
-		{
-			if( buffer_error )
-			{
-				asio::post(self->m_exec,
-				[handler = std::forward<T0>(completion_token), buffer_error]() mutable {
-					std::move(handler)(buffer_error, 0);
-				});
-				return ;
-			}
-			self->async_write_message(type, buffers, std::move(payload_owner),
-				std::forward<T0>(completion_token)
-			);
-		},
-		std::forward<Token>(token));
-	}
+	return write(type, body, write_options{}, std::forward<Token>(token));
 }
 
 template <core_concepts::exec Exec>
@@ -365,9 +284,7 @@ template <typename Token>
 auto basic_stream<Exec>::write_text(std::string_view text, Token &&token)
 	requires completion_token_v<Token, size_t>
 {
-	return write(message_type::text,
-		const_buffer(text.data(), text.size()), std::forward<Token>(token)
-	);
+	return write_text(text, write_options{}, std::forward<Token>(token));
 }
 
 template <core_concepts::exec Exec>
@@ -375,7 +292,7 @@ template <typename Token>
 auto basic_stream<Exec>::write_binary(const const_buffer &body, Token &&token)
 	requires completion_token_v<Token, size_t>
 {
-	return write(message_type::binary, body, std::forward<Token>(token));
+	return write_binary(body, write_options{}, std::forward<Token>(token));
 }
 
 template <core_concepts::exec Exec>
@@ -475,6 +392,137 @@ auto basic_stream<Exec>::wait_written(Token &&token)
 			}, std::forward<Token>(token)
 		);
 	}
+}
+
+template <core_concepts::exec Exec>
+template <message_type Type, typename Token>
+auto basic_stream<Exec>::write(const const_buffer &body, write_options options, Token &&token)
+	requires completion_token_v<Token, size_t>
+{
+	static_assert(Type == message_type::text or Type == message_type::binary);
+	return write(Type, body, options, std::forward<Token>(token));
+}
+
+template <core_concepts::exec Exec>
+template <typename Token>
+auto basic_stream<Exec>::write
+(message_type type, const const_buffer &body, write_options options, Token &&token)
+	requires completion_token_v<Token, size_t>
+{
+	return write(type, std::span(&body, 1), options,
+		std::forward<Token>(token)
+	);
+}
+
+
+template <core_concepts::exec Exec>
+template <typename Token>
+auto basic_stream<Exec>::write
+(message_type type, std::span<const const_buffer> body, write_options options, Token &&token)
+	requires completion_token_v<Token, size_t>
+{
+	if constexpr( is_error_code_token_v<Token> )
+		return m_impl->write(type, body, options, token);
+
+	else if constexpr( is_sync_opt_token_v<Token> )
+	{
+		error_code error;
+		auto transferred = m_impl->write(type, body, options, error);
+		if( error )
+			system_error::loc_throw(error, "libgs::websocket::basic_stream::write");
+		return transferred;
+	}
+	else
+	{
+		auto buffers = std::vector(body.begin(), body.end());
+		std::shared_ptr<std::vector<std::byte>> payload_owner;
+		error_code buffer_error {};
+
+		if constexpr( is_detached_v<token_unbound_t<Token>> )
+		{
+			try {
+				size_t size = 0;
+				for(const auto &input : buffers)
+				{
+					if( input.size() != 0 and input.data() == nullptr )
+					{
+						buffer_error = make_error_code(std::errc::invalid_argument);
+						break;
+					}
+					if( input.size() > std::numeric_limits<size_t>::max() - size )
+					{
+						buffer_error = make_error_code(std::errc::value_too_large);
+						break;
+					}
+					size += input.size();
+				}
+				if( not buffer_error )
+				{
+					payload_owner = std::make_shared<std::vector<std::byte>>(size);
+					size_t offset = 0;
+
+					for(const auto &input : buffers)
+					{
+						if( input.size() == 0 )
+							continue;
+
+						std::memcpy(payload_owner->data() + offset, input.data(), input.size());
+						offset += input.size();
+					}
+					buffers.assign(1, const_buffer (
+						payload_owner->data(), payload_owner->size()
+					));
+				}
+				else
+					buffers.clear();
+			}
+			catch(const std::bad_alloc&)
+			{
+				buffer_error = make_error_code(std::errc::not_enough_memory);
+				buffers.clear();
+			}
+			catch(...)
+			{
+				buffer_error = make_error_code(std::errc::io_error);
+				buffers.clear();
+			}
+		}
+		return initiate_io<size_t>(get_executor(), [self = m_impl, type, options,
+			buffers = std::move(buffers), payload_owner = std::move(payload_owner), buffer_error
+		]<typename T0>(T0 &&completion_token) mutable
+		{
+			if( buffer_error )
+			{
+				asio::post(self->m_exec,
+				[handler = std::forward<T0>(completion_token), buffer_error]() mutable {
+					std::move(handler)(buffer_error, 0);
+				});
+				return ;
+			}
+			self->async_write_message(type, buffers, options, std::move(payload_owner),
+				std::forward<T0>(completion_token)
+			);
+		},
+		std::forward<Token>(token));
+	}
+}
+
+template <core_concepts::exec Exec>
+template <typename Token>
+auto basic_stream<Exec>::write_text(std::string_view text, write_options options, Token &&token)
+	requires completion_token_v<Token, size_t>
+{
+	return write(message_type::text, const_buffer(text.data(), text.size()),
+		options, std::forward<Token>(token)
+	);
+}
+
+template <core_concepts::exec Exec>
+template <typename Token>
+auto basic_stream<Exec>::write_binary(const const_buffer &body, write_options options, Token &&token)
+	requires completion_token_v<Token, size_t>
+{
+	return write(message_type::binary, body, options, std::forward<Token>(token));
 }
 
 template <core_concepts::exec Exec>

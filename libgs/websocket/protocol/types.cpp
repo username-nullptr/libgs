@@ -68,40 +68,84 @@ close_frame::close_frame(uint16_t value, std::string text) :
 
 extension permessage_deflate_extension()
 {
-	return {
-		.name = "permessage-deflate",
-		.parameters = {
-			{.name = "server_no_context_takeover"},
-			{.name = "client_no_context_takeover"},
-		}
-	};
+	permessage_deflate_options options;
+	options.server_no_context_takeover = true;
+	options.client_no_context_takeover = true;
+	return permessage_deflate_extension(options);
+}
+
+extension permessage_deflate_extension(const permessage_deflate_options &options)
+{
+	extension result {.name = "permessage-deflate"};
+	if( options.server_no_context_takeover )
+		result.parameters.push_back({.name = "server_no_context_takeover"});
+
+	if( options.client_no_context_takeover )
+		result.parameters.push_back({.name = "client_no_context_takeover"});
+
+	if( options.server_max_window_bits )
+	{
+		result.parameters.push_back ({
+			.name = "server_max_window_bits",
+			.value = std::to_string(*options.server_max_window_bits),
+		});
+	}
+	if( options.offer_client_max_window_bits or options.client_max_window_bits )
+	{
+		result.parameters.push_back ({
+			.name = "client_max_window_bits",
+			.value = options.client_max_window_bits ?
+				optional(std::to_string(*options.client_max_window_bits)) :
+				nullopt,
+		});
+	}
+	return result;
 }
 
 bool is_permessage_deflate_extension(const extension &value) noexcept
 {
-	if( value.name != "permessage-deflate" or value.parameters.size() != 2 )
+	if( value.name != "permessage-deflate" )
 		return false;
 
 	bool server_no_context_takeover = false;
 	bool client_no_context_takeover = false;
+
+	bool server_max_window_bits = false;
+	bool client_max_window_bits = false;
+
+	auto valid_window_bits = [](const std::string &text) noexcept
+	{
+		return (text.size() == 1 and (text[0] == '8' or text[0] == '9')) or
+			   (text.size() == 2 and text[0] == '1' and text[1] >= '0' and text[1] <= '5');
+	};
 	for(const auto &parameter : value.parameters)
 	{
-		if( parameter.value )
-			return false;
 		if( parameter.name == "server_no_context_takeover" )
 		{
-			if( std::exchange(server_no_context_takeover, true) )
+			if( parameter.value or std::exchange(server_no_context_takeover, true) )
 				return false;
 		}
 		else if( parameter.name == "client_no_context_takeover" )
 		{
-			if( std::exchange(client_no_context_takeover, true) )
+			if( parameter.value or std::exchange(client_no_context_takeover, true) )
+				return false;
+		}
+		else if( parameter.name == "server_max_window_bits" )
+		{
+			if( not parameter.value or not valid_window_bits(*parameter.value) or
+				std::exchange(server_max_window_bits, true) )
+				return false;
+		}
+		else if( parameter.name == "client_max_window_bits" )
+		{
+			if( (parameter.value and not valid_window_bits(*parameter.value)) or
+				std::exchange(client_max_window_bits, true) )
 				return false;
 		}
 		else
 			return false;
 	}
-	return server_no_context_takeover and client_no_context_takeover;
+	return true;
 }
 
 const std::error_category &protocol_error_category() noexcept

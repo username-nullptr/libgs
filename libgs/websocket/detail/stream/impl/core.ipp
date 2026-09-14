@@ -79,24 +79,18 @@ error_code basic_stream<Exec>::impl::read_state_error() const noexcept
 template <core_concepts::exec Exec>
 error_code basic_stream<Exec>::impl::frame_read_state_error() const noexcept
 {
-	if( not m_extensions.empty() )
-		return make_error_code(std::errc::operation_not_supported);
 	return read_state_error();
 }
 
 template <core_concepts::exec Exec>
 error_code basic_stream<Exec>::impl::frame_write_state_error() const noexcept
 {
-	if( not m_extensions.empty() )
-		return make_error_code(std::errc::operation_not_supported);
 	return write_state_error();
 }
 
 template <core_concepts::exec Exec>
 error_code basic_stream<Exec>::impl::consume_state_error() const noexcept
 {
-	if( not m_extensions.empty() )
-		return make_error_code(std::errc::operation_not_supported);
 	return read_state_error();
 }
 
@@ -147,7 +141,8 @@ void basic_stream<Exec>::impl::adopt
 		return ;
 	}
 	if( m_config.read_buffer_size == 0 or
-		m_config.auto_ping_interval < std::chrono::milliseconds::zero() )
+		m_config.auto_ping_interval < std::chrono::milliseconds::zero() or
+		m_config.compression.level < -1 or m_config.compression.level > 9 )
 	{
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
@@ -157,7 +152,7 @@ void basic_stream<Exec>::impl::adopt
 		error = make_error_code(std::errc::invalid_argument);
 		return ;
 	}
-	if( not detail::supported_extension_set(options.negotiated_extensions) )
+	if( not detail::supported_negotiated_extensions(options.negotiated_extensions) )
 	{
 		error = make_error_code(errc::unsupported_extension);
 		return ;
