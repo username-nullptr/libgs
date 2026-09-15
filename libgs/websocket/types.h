@@ -5,6 +5,7 @@
 #define LIBGS_WEBSOCKET_TYPES_H
 
 #include <libgs/websocket/protocol/types.h>
+#include <libgs/websocket/ctrl_payload.h>
 #include <libgs/websocket/error.h>
 
 namespace libgs::websocket
@@ -46,7 +47,6 @@ struct basic_data_frame
 
 using data_frame = basic_data_frame<std::vector<std::byte>>;
 
-using control_callback = std::function<bool(const const_buffer&)>;
 using closed_callback = std::function<void(const close_info&)>;
 
 struct message_chunk
@@ -101,8 +101,8 @@ struct stream_config
 	size_t read_buffer_size = 16 * 1024;
 	size_t write_fragment_size = 16 * 1024;
 
-	std::chrono::milliseconds auto_ping_interval {5000};
-	bool auto_pong = true;
+	std::chrono::milliseconds ping_interval {5000};
+	size_t pong_timeout_retries = 0;
 
 	std::chrono::milliseconds close_timeout {5000};
 	compression_config compression {};

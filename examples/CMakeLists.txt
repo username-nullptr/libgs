@@ -97,6 +97,7 @@ endif ()
 if (LIBGS_BUILD_WEBSOCKET)
 	libgs_add_example(websocket client            LIBRARIES gs.websocket)
 	libgs_add_example(websocket proxy_client      LIBRARIES gs.websocket)
+	libgs_add_example(websocket retry_open        LIBRARIES gs.websocket)
 	libgs_add_example(websocket server            LIBRARIES gs.websocket)
 	libgs_add_example(websocket protocol          LIBRARIES gs.websocket)
 	libgs_add_example(websocket mixed_http_client LIBRARIES gs.websocket)
@@ -158,6 +159,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	websocket/protocol.cpp
 	websocket/client.cpp
 	websocket/proxy_client.cpp
+	websocket/retry_open.cpp
 	websocket/server.cpp
 	websocket/wss_client.cpp
 	websocket/wss_server.cpp

@@ -42,7 +42,7 @@ sys_expected<prepared_frame> frame_builder::prepare_control
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
 
 		if( payload.size() > 125 )
-			return sys_unexpected(make_error_code(protocol_errc::control_payload_too_large));
+			return sys_unexpected(make_error_code(protocol_errc::ctrl_payload_too_large));
 
 		if( payload.size() != 0 and payload.data() == nullptr )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));

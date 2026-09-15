@@ -97,7 +97,7 @@ public:
 				return make_error_code(protocol_errc::fragmented_control_frame);
 
 			if( m_header.payload_size > 125 )
-				return make_error_code(protocol_errc::control_payload_too_large);
+				return make_error_code(protocol_errc::ctrl_payload_too_large);
 		}
 		if( m_config.max_frame_size != 0 and m_header.payload_size > m_config.max_frame_size )
 			return make_error_code(protocol_errc::frame_too_large);

@@ -18,8 +18,39 @@ static_assert(std::movable<ws::stream>);
 static_assert(not std::copy_constructible<ws::stream>);
 static_assert(std::movable<ws::client>);
 static_assert(not std::copy_constructible<ws::client>);
+static_assert(std::movable<ws::retry_open_result>);
+static_assert(not std::copy_constructible<ws::retry_open_result>);
 static_assert(std::is_error_code_enum_v<ws::errc>);
 static_assert(std::is_error_code_enum_v<ws::protocol_errc>);
+
+struct void_control_callback {
+	void operator()(ws::ctrl_payload&) const {}
+};
+
+struct bool_control_callback {
+	bool operator()(ws::ctrl_payload&) const { return true; }
+};
+
+struct invalid_control_callback {
+	void operator()() const {}
+};
+
+struct async_control_callback {
+	libgs::awaitable<int> operator()(ws::ctrl_payload&) const
+	{
+		co_return 1;
+	}
+};
+
+template <typename Func>
+concept ping_callback = requires(ws::stream &stream, Func callback) {
+	stream.on_ping(callback);
+};
+
+static_assert(ping_callback<void_control_callback>);
+static_assert(ping_callback<bool_control_callback>);
+static_assert(ping_callback<async_control_callback>);
+static_assert(not ping_callback<invalid_control_callback>);
 
 void umbrella_and_value_types()
 {
@@ -29,13 +60,22 @@ void umbrella_and_value_types()
 	LIBGS_TEST_CHECK(stream_config.read_buffer_size > 0);
 	LIBGS_TEST_CHECK_EQ(stream_config.compression.level, -1);
 	LIBGS_TEST_CHECK_EQ(stream_config.compression.min_message_size, 0U);
-	LIBGS_TEST_CHECK_EQ(stream_config.auto_ping_interval,
+	LIBGS_TEST_CHECK_EQ(stream_config.ping_interval,
 		std::chrono::seconds(5));
-	LIBGS_TEST_CHECK(stream_config.auto_pong);
+	LIBGS_TEST_CHECK_EQ(stream_config.pong_timeout_retries, 0U);
 	ws::message_chunk chunk;
 	LIBGS_TEST_CHECK(chunk.body.size() == 0);
 	ws::message_info info;
 	LIBGS_TEST_CHECK_EQ(info.size, 0U);
+	ws::ctrl_payload control("ping");
+	LIBGS_TEST_CHECK_EQ(control.text(), "ping");
+	LIBGS_TEST_CHECK_EQ(control.bytes().size(), size_t {4});
+	LIBGS_TEST_CHECK_EQ(control.as_const_buffer().size(), size_t {4});
+	control.bytes().front() = std::byte {'P'};
+	LIBGS_TEST_CHECK_EQ(control.text(), "Ping");
+	control.assign("pong payload");
+	LIBGS_TEST_CHECK_EQ(control.text(), "pong payload");
+	LIBGS_TEST_CHECK_EQ(control.as_mutable_buffer().size(), control.size());
 	ws::client_config client_config;
 	LIBGS_TEST_CHECK(client_config.no_delay.has_value());
 	LIBGS_TEST_CHECK(*client_config.no_delay);
@@ -122,6 +162,10 @@ void umbrella_and_value_types()
 		proxy_client_config.default_proxy));
 	ws::connect_request inherited("ws://example.test/");
 	LIBGS_TEST_CHECK(not inherited.proxy);
+	ws::retry_open_options retry_options;
+	LIBGS_TEST_CHECK_EQ(retry_options.max_attempts, 0U);
+	LIBGS_TEST_CHECK_EQ(ws::suggest_retry_open_delay(retry_options, 0),
+		std::chrono::milliseconds::zero());
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 	static_assert(ws::permessage_deflate_available_v);
 #else
@@ -141,8 +185,10 @@ void executor_bound_public_objects()
 {
 	libgs::io_context_t context;
 	ws::stream stream(context.get_executor());
-	stream.on_ping([](const libgs::const_buffer&) { return true; })
-		.on_pong([](const libgs::const_buffer&) { return true; })
+	stream.on_ping([](ws::ctrl_payload&) { return 17; })
+		.on_pong([](ws::ctrl_payload&) -> libgs::awaitable<std::string> {
+			co_return "ignored";
+		})
 		.on_closed([](const ws::close_info&) {});
 	LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::idle);
 	LIBGS_TEST_CHECK(stream.get_executor() == context.get_executor());
@@ -234,6 +280,71 @@ void asynchronous_completion_signatures()
 	LIBGS_TEST_CHECK(close_completed);
 }
 
+void retry_open_completion_signature()
+{
+	libgs::io_context_t context;
+	ws::client client(context.get_executor());
+	ws::retry_open_options config;
+	config.max_attempts = 1;
+	config.jitter = 0.0;
+
+	bool completed = false;
+	ws::retry_open(client,
+		ws::connect_request("ftp://example.test/socket"), config,
+		[&](libgs::error_code error, ws::retry_open_result result)
+		{
+			LIBGS_TEST_CHECK_EQ(error,
+				std::make_error_code(std::errc::protocol_not_supported));
+			LIBGS_TEST_CHECK_EQ(result.attempts, 1U);
+			LIBGS_TEST_CHECK_EQ(result.last_failure.error, error);
+			LIBGS_TEST_CHECK(not result.stream.is_open());
+			LIBGS_TEST_CHECK(result.stream.get_executor() ==
+				context.get_executor());
+			completed = true;
+		});
+	LIBGS_TEST_CHECK(not completed);
+	context.run();
+	LIBGS_TEST_CHECK(completed);
+
+	context.restart();
+	config.jitter = 0.0;
+	completed = false;
+	size_t factory_calls = 0;
+	ws::retry_open(client,
+		[&](const ws::retry_open_context &previous)
+			-> libgs::awaitable<ws::connect_request>
+		{
+			LIBGS_TEST_CHECK_EQ(previous.attempt, 0U);
+			++factory_calls;
+			co_return ws::connect_request("ftp://example.test/socket");
+		}, config,
+		[&](libgs::error_code error, ws::retry_open_result result)
+		{
+			LIBGS_TEST_CHECK_EQ(error,
+				std::make_error_code(std::errc::protocol_not_supported));
+			LIBGS_TEST_CHECK_EQ(result.attempts, 1U);
+			completed = true;
+		});
+	context.run();
+	LIBGS_TEST_CHECK(completed);
+	LIBGS_TEST_CHECK_EQ(factory_calls, 1U);
+
+	context.restart();
+	config.jitter = 1.1;
+	completed = false;
+	ws::retry_open(client,
+		ws::connect_request("ws://example.test/socket"), config,
+		[&](libgs::error_code error, ws::retry_open_result result)
+		{
+			LIBGS_TEST_CHECK_EQ(error,
+				std::make_error_code(std::errc::invalid_argument));
+			LIBGS_TEST_CHECK_EQ(result.attempts, 0U);
+			completed = true;
+		});
+	context.run();
+	LIBGS_TEST_CHECK(completed);
+}
+
 void non_default_constructible_executor_errors()
 {
 	libgs::io_context_t context;
@@ -266,6 +377,24 @@ void non_default_constructible_executor_errors()
 	LIBGS_TEST_CHECK(not completed);
 	context.run();
 	LIBGS_TEST_CHECK(completed);
+
+	context.restart();
+	bool retry_completed = false;
+	ws::retry_open_options options;
+	options.max_attempts = 1;
+	ws::retry_open(client,
+		ws::connect_request("ftp://example.test/socket"), options,
+		[&](libgs::error_code callback_error,
+			ws::basic_retry_open_result<executor_t> result)
+		{
+			LIBGS_TEST_CHECK_EQ(callback_error,
+				std::make_error_code(std::errc::protocol_not_supported));
+			LIBGS_TEST_CHECK_EQ(result.attempts, 1U);
+			LIBGS_TEST_CHECK(result.stream.get_executor() == executor);
+			retry_completed = true;
+		});
+	context.run();
+	LIBGS_TEST_CHECK(retry_completed);
 }
 
 } //namespace
@@ -276,6 +405,8 @@ int main()
 		{"umbrella and value types", umbrella_and_value_types},
 		{"executor-bound public objects", executor_bound_public_objects},
 		{"asynchronous completion signatures", asynchronous_completion_signatures},
+		{"retry open completion signature",
+			retry_open_completion_signature},
 		{"non-default-constructible executor errors",
 			non_default_constructible_executor_errors},
 	});

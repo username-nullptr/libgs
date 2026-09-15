@@ -30,7 +30,10 @@ public:
 	using adopt_options_t = adopt_options;
 	using close_info_t = close_info;
 
-	using control_callback_t = control_callback;
+	using ctrl_payload_t = ctrl_payload;
+	using sync_control_callback_t = std::function<void(ctrl_payload_t&)>;
+
+	using async_control_callback_t = std::function<awaitable<void>(ctrl_payload_t&)>;
 	using closed_callback_t = closed_callback;
 
 	using prepared_frame = detail::prepared_frame;
@@ -62,12 +65,12 @@ public:
 		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
 	);
 	[[nodiscard]] size_t write_control (
-		opcode op, const const_buffer &payload, error_code &error
+		opcode op, const const_buffer &payload, error_code &error, bool automatic = false
 	) noexcept;
 
 	template <typename Handler>
 	void async_write_control (
-		opcode op, const const_buffer &payload, Handler &&handler
+		opcode op, const const_buffer &payload, Handler &&handler, bool automatic = false
 	);
 
 	void wait_written(error_code &error) noexcept;
@@ -100,8 +103,10 @@ public:
 		data_frame value, error_code &error
 	) noexcept;
 
-	void on_ping(control_callback_t callback);
-	void on_pong(control_callback_t callback);
+	void on_ping(sync_control_callback_t callback);
+	void on_ping(async_control_callback_t callback);
+	void on_pong(sync_control_callback_t callback);
+	void on_pong(async_control_callback_t callback);
 	void on_closed(closed_callback_t callback);
 
 	[[nodiscard]] close_info_t close(const close_frame &frame, error_code &error) noexcept;
@@ -141,11 +146,7 @@ public:
 
 	[[nodiscard]] error_code consume_state_error() const noexcept;
 	[[nodiscard]] bool send_transport_ready() const noexcept;
-	[[nodiscard]] bool auto_pong_enabled() const noexcept;
-
-	[[nodiscard]] sys_expected<bool> accept_control (
-		opcode op, const std::vector<std::byte> &payload
-	) noexcept;
+	[[nodiscard]] bool automatic_control_enabled() const noexcept;
 
 	[[nodiscard]] bool close_receive_pending() const noexcept;
 	[[nodiscard]] bool protocol_failure_active() const noexcept;
@@ -154,16 +155,16 @@ public:
 	[[nodiscard]] error_code finish_receive_eof() noexcept;
 
 	[[nodiscard]] sys_expected<> handle_sync_ping (
-		const std::vector<std::byte> &payload
+		ctrl_payload_t &payload
 	) noexcept;
 
 	[[nodiscard]] sys_expected<> handle_sync_control (
-		opcode op, const std::vector<std::byte> &payload
+		opcode op, std::vector<std::byte> &payload
 	) noexcept;
 
-	[[nodiscard]] sys_expected<> handle_async_control (
-		opcode op, const std::vector<std::byte> &payload
-	) noexcept;
+	[[nodiscard]] awaitable<error_code> handle_async_control (
+		opcode op, std::vector<std::byte> &payload
+	);
 
 	[[nodiscard]] sys_expected<> handle_sync_peer_close (
 		const std::vector<std::byte> &payload
@@ -191,6 +192,7 @@ public:
 
 	[[nodiscard]] sys_expected<> start_automatic_ping() noexcept;
 	[[nodiscard]] sys_expected<> schedule_automatic_ping() noexcept;
+	void acknowledge_automatic_pong(const std::vector<std::byte> &payload) noexcept;
 	void stop_automatic_ping() noexcept;
 
 private:
@@ -244,10 +246,15 @@ private:
 	detail::receive_engine<impl> m_receive_engine;
 	detail::send_engine<impl> m_send_engine;
 
-	control_callback_t m_on_ping {};
-	control_callback_t m_on_pong {};
+	sync_control_callback_t m_on_ping {};
+	async_control_callback_t m_on_async_ping {};
+	sync_control_callback_t m_on_pong {};
+	async_control_callback_t m_on_async_pong {};
 	closed_callback_t m_on_closed {};
 	std::shared_ptr<asio::steady_timer> m_ping_timer {};
+	optional<std::array<std::byte,8>> m_awaited_pong {};
+	uint64_t m_next_ping_id = 0;
+	size_t m_consecutive_pong_timeouts = 0;
 
 	optional<close_info_t> m_peer_close {};
 	optional<close_info_t> m_close_result {};

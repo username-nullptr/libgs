@@ -131,7 +131,7 @@ enum class protocol_errc
 	noncanonical_length,
 	invalid_64bit_length,
 	fragmented_control_frame,
-	control_payload_too_large,
+	ctrl_payload_too_large,
 	frame_too_large,
 	invalid_close_payload,
 	invalid_utf8,

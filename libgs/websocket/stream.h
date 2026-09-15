@@ -22,7 +22,7 @@ public:
 	using close_frame_t = close_frame;
 	using close_info_t = close_info;
 
-	using control_callback_t = control_callback;
+	using ctrl_payload_t = ctrl_payload;
 	using closed_callback_t = closed_callback;
 
 	using message_chunk_t = message_chunk;
@@ -60,6 +60,10 @@ public:
 	template <typename Token, typename...Args>
 	static constexpr bool completion_token_v =
 		core_concepts::tf_opt_token<Token,error_code,Args...>;
+
+	template <typename Func>
+	static constexpr bool control_callback_v =
+		std::invocable<std::remove_reference_t<Func>&,ctrl_payload_t&>;
 
 public:
 	basic_stream &adopt (
@@ -137,8 +141,13 @@ public:
 		requires completion_token_v<Token,size_t>;
 
 public:
-	basic_stream &on_ping(control_callback_t callback);
-	basic_stream &on_pong(control_callback_t callback);
+	template <typename Func>
+	basic_stream &on_ping(Func &&callback)
+		requires control_callback_v<Func>;
+
+	template <typename Func>
+	basic_stream &on_pong(Func &&callback)
+		requires control_callback_v<Func>;
 
 	template <typename Token = use_sync_t>
 	auto ping(Token &&token = {})

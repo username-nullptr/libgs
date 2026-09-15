@@ -513,11 +513,14 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					auto handled = self->handle_async_control(value.op, value.control);
-					if( not handled )
+					auto control_error = co_await
+						self->handle_async_control(value.op, value.control);
+
+					if( control_error )
 					{
-						self->handle_receive_failure(handled.error());
-						co_return std::tuple<error_code,message>{handled.error(), {}};
+						if( control_error != asio::error::operation_aborted )
+							self->handle_receive_failure(control_error);
+						co_return std::tuple<error_code,message>{control_error, {}};
 					}
 					continue;
 				}
@@ -671,11 +674,14 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					auto handled = self->handle_async_control(value.op, value.control);
-					if( not handled )
+					auto control_error = co_await
+						self->handle_async_control(value.op, value.control);
+
+					if( control_error )
 					{
-						self->handle_receive_failure(handled.error());
-						co_return std::tuple<error_code,data_frame>{handled.error(), {}};
+						if( control_error != asio::error::operation_aborted )
+							self->handle_receive_failure(control_error);
+						co_return std::tuple<error_code,data_frame>{control_error, {}};
 					}
 					continue;
 				}
@@ -845,11 +851,14 @@ void detail::receive_engine<Owner>::async_consume(Consumer &&consumer, Handler &
 				}
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					auto handled = self->handle_async_control(value.op, value.control);
-					if( not handled )
+					auto control_error = co_await
+						self->handle_async_control(value.op, value.control);
+
+					if( control_error )
 					{
-						self->handle_receive_failure(handled.error());
-						co_return std::tuple<error_code,message_info>{handled.error(), {}};
+						if( control_error != asio::error::operation_aborted )
+							self->handle_receive_failure(control_error);
+						co_return std::tuple<error_code,message_info>{control_error, {}};
 					}
 					continue;
 				}

@@ -24,11 +24,15 @@ subprotocol and RFC 7692 `permessage-deflate` negotiation, asynchronous
 Upgrade validators, request-aware synchronous/asynchronous selectors,
 frame-level reads, accept-queue capacity/FIFO/timeout
 behavior, real handshake deadlines, simultaneous Close, and stream state
-transitions. When OpenSSL support is enabled, a hermetic WSS loopback covers
-certificate verification and the TLS upgrade path. When WebSocket zlib support
-is enabled, a fragmented compressed loopback and invalid compressed payload are
-also covered. Frame/control/close details already reached through a broader state
-test are not repeated as standalone combinations.
+transitions. Explicit recovery coverage verifies that retrying begins only after
+the business loop reports failure, and exercises request regeneration, capped
+backoff, and cancellation. Stream coverage includes automatic Ping/Pong deadlines
+and retries, mutable control payloads, coroutine control callbacks, and
+manual-control mode. When OpenSSL support is enabled, a
+hermetic WSS loopback covers certificate verification and the TLS upgrade path.
+When WebSocket zlib support is enabled, a fragmented compressed loopback and
+invalid compressed payload are also covered. Frame/control/close details already
+reached through a broader state test are not repeated as standalone combinations.
 
 HTTP and WebSocket network tests prefer independent implementations already
 available on the machine, without downloading test dependencies. HTTP uses

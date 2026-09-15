@@ -12,6 +12,7 @@
 | `<libgs/websocket/protocol/...>` | Opening handshake 与 Frame 解析/生成 |
 | `<libgs/websocket/stream.h>` | 消息、Frame、控制帧、关闭与生命周期 I/O |
 | `<libgs/websocket/client.h>` | WS/WSS 建连、重定向、Cookie、代理与诊断 |
+| `<libgs/websocket/retry.h>` | 显式重试失败的连接建立操作 |
 | `<libgs/websocket/server.h>` | 自有服务端与 HTTP Upgrade 接口 |
 | `<libgs/websocket/types.h>` | Stream、消息、Frame、压缩与关闭配置 |
 | `<libgs/websocket.h>` | 客户端与服务端聚合头 |
@@ -57,6 +58,50 @@ Cookie Jar 与连接策略。
 最后读取 `all_proxy`，同时遵守 `no_proxy`。显式 `proxy_config` 支持带 Basic
 认证的 HTTP 正向/CONNECT 与 SOCKS5；HTTP 代理也支持 Bearer 认证。
 
+### 显式连接恢复
+
+连接是否失效由业务判断。因此首次连接仍由用户直接调用 `client.open()`，只尝试
+一次；库也不接管业务读取循环。当业务确认当前 Stream 已不可用后，可以先暂停业务，
+再显式调用 `retry_open()`：
+
+```cpp
+libgs::websocket::client client;
+auto stream = co_await client.open(
+    libgs::websocket::connect_request("wss://example.test/events"),
+    libgs::use_awaitable); // 首次只尝试一次
+
+auto error = co_await run_business(stream);
+if (connection_is_invalid(error)) {
+    pause_business();
+
+    libgs::websocket::retry_open_options options;
+    options.initial_delay = std::chrono::milliseconds(500);
+    options.max_delay = std::chrono::seconds(30);
+    options.max_attempts = 10;
+
+    auto recovered = co_await libgs::websocket::retry_open(
+        client,
+        [](const libgs::websocket::retry_open_context &previous) {
+            return refreshed_connect_request(previous);
+        }, options, libgs::use_awaitable);
+
+    stream = std::move(recovered.stream);
+    co_await restore_authentication_and_subscriptions(stream);
+    resume_business();
+}
+```
+
+`retry_open()` 只重试指定 `client` 的 `open()`；它不会监视 Stream、判断业务错误、
+运行会话回调或重放消息。调用方可以传固定 `connect_request`，也可以传同步或可等待
+的 request factory。factory 会收到上一次失败信息，因此每次尝试前都可以刷新 URL、
+认证 Header 或 Token。
+
+`retry_open_options` 配置指数退避、上限、抖动、总尝试次数、决策器和观察器；
+`max_attempts = 0` 表示不限次数。第一次尝试立即进行，失败后才退避。默认重试临时
+网络错误及 HTTP 408/429/5xx；协议、认证和 TLS 错误会停止。成功结果包含新的
+Stream、尝试次数、最终 opening 诊断，以及存在时的上一次失败。取消 completion
+token 关联的 cancellation slot 可以停止正在进行的连接或退避等待。
+
 ## 服务端与 Upgrade
 
 `websocket::server` 持有 HTTP listener 并完成 opening handshake。连接可以通过
@@ -88,7 +133,7 @@ Cookie Jar 与连接策略。
 | `read_frame<Buffer>()` | 一个文本、二进制或 continuation 数据帧 |
 | `write_text()`、`write_binary()`、`write()` | 一个完整消息 |
 | `write_frame()` | 带显式分片状态的一个数据帧 |
-| `ping()`、`pong()` | 显式控制帧 |
+| `ping()`、`pong()` | 自定义保活模式下的显式控制帧 |
 | `close()` | RFC Close handshake |
 | `shutdown()` | 立即关闭传输层 |
 | `wait_written()` | 已接收队列写入的完成状态/错误 |
@@ -99,13 +144,29 @@ Cookie Jar 与连接策略。
 - `read()`、`consume()`、`read_frame()` 同时只能有一个处于活动状态。
 - `message_chunk::body` 只在对应 `consume()` 回调期间有效。
 - Ping/Pong 与关闭回调只观察活动读操作处理到的控制流量，不会自行发起传输层读。
+- `on_ping()` 和 `on_pong()` 接受同步或返回 `awaitable` 的回调；返回值不受限制且
+  会被忽略。参数为可变的 `control_payload&`；`text()` 提供便捷的字符串视图，
+  `bytes()` 提供可变/只读字节视图，`as_mutable_buffer()` 和
+  `as_const_buffer()` 提供 Asio buffer 视图，`assign()` 或字符串赋值可以替换内容。
+  这些视图只在 payload 未被调整大小且回调尚未返回时有效。自动模式下，
+  `on_ping()` 修改后的 payload 会作为自动 Pong 的 payload。
+- 协程控制回调必须由异步 `read()`、`consume()` 或 `read_frame()` 驱动；同步读
+  遇到协程控制回调会以 `std::errc::operation_not_supported` 失败。
 - 完整消息读取会组装 continuation frame 并检查消息上限；Frame 读取保留数据帧边界。
 - 写入会串行化，并受 `max_queued_write_bytes` 与
   `max_queued_write_operations` 限制。
 - 多线程共享访问必须通过 strand 或外部锁串行化。
 
 `stream_config` 设置 Frame/消息上限、读缓冲区、发送分片大小、写队列限制、
-自动 Ping/Pong、关闭超时与压缩策略。
+自动 Ping/Pong、关闭超时与压缩策略。正值 `ping_interval` 同时表示自动 Ping
+周期和匹配 Pong 的期限；每个 Ping 携带唯一 8 字节 payload。活动读操作必须在
+下一个周期前处理到匹配 Pong，否则计为一次连续超时。`pong_timeout_retries = N`
+允许前 N 次连续超时继续发送新 Ping，第 N+1 次使 Stream 以
+`asio::error::timed_out` 失败；匹配 Pong 会清零计数，默认值 0 表示首次超时即失败。
+
+`ping_interval = 0` 同时关闭自动 Ping 和自动 Pong，由应用使用 `ping()`、`pong()`
+实现自己的保活流程。`ping_interval > 0` 时调用显式 `ping()` 或 `pong()` 会返回
+`std::errc::operation_not_permitted`，避免手工控制帧破坏自动保活状态机。
 
 ## 压缩
 
@@ -133,11 +194,12 @@ WS/WSS、重定向、Cookie、子协议协商、`permessage-deflate`、HTTP 代�
 SOCKS5、超时、取消与有界队列。
 
 当前不支持基于 HTTP/2 或 HTTP/3 的 WebSocket、`permessage-deflate` 之外的
-扩展、Pong deadline 策略、自动重连或应用消息路由。
+扩展、跨连接透明消息重放或应用消息路由。
 
 ## 示例
 
 - [客户端](../../examples/websocket/client.cpp)
+- [显式连接恢复](../../examples/websocket/retry_open.cpp)
 - [服务端](../../examples/websocket/server.cpp)
 - [混合 HTTP 客户端](../../examples/websocket/mixed_http_client.cpp)
 - [混合 HTTP 服务端](../../examples/websocket/mixed_http_server.cpp)

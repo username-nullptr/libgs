@@ -31,7 +31,7 @@ public:
 			return "Invalid 64-bit WebSocket payload length";
 		case protocol_errc::fragmented_control_frame:
 			return "Fragmented WebSocket control frame";
-		case protocol_errc::control_payload_too_large:
+		case protocol_errc::ctrl_payload_too_large:
 			return "WebSocket control payload too large";
 		case protocol_errc::frame_too_large:
 			return "WebSocket frame too large";

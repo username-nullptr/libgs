@@ -4,6 +4,7 @@
 #include "test.h"
 
 #include <libgs/websocket/client.h>
+#include <libgs/websocket/retry.h>
 #include <libgs/websocket/server.h>
 #include <libgs/websocket/detail/permessage_deflate.h>
 
@@ -56,18 +57,19 @@ void owned_handler_round_trip()
 	ws::server_config server_config;
 	server_config.default_upgrade.supported_subprotocols = {"owned.chat"};
 	server_config.default_upgrade.require_subprotocol = true;
-	server_config.default_upgrade.stream.auto_ping_interval =
+	server_config.default_upgrade.stream.ping_interval =
 		std::chrono::milliseconds(19000);
-	server_config.default_upgrade.stream.auto_pong = false;
+	server_config.default_upgrade.stream.pong_timeout_retries = 4;
 	ws::server service(std::move(acceptor), server_config);
 
 	service.on_connection("/echo/{id}",
 		[](ws::accept_result accepted) -> libgs::awaitable<void>
 		{
 			LIBGS_TEST_CHECK_EQ(
-				accepted.stream.config().auto_ping_interval,
+				accepted.stream.config().ping_interval,
 				std::chrono::milliseconds(19000));
-			LIBGS_TEST_CHECK(not accepted.stream.config().auto_pong);
+			LIBGS_TEST_CHECK_EQ(
+				accepted.stream.config().pong_timeout_retries, 4U);
 			auto id = accepted.request.path_arguments.find("id");
 			const auto id_text = id == accepted.request.path_arguments.end() ?
 				std::string("missing") : id->second.to_string();
@@ -124,8 +126,8 @@ void owned_accept_round_trip()
 	ws::upgrade_options options;
 	options.supported_subprotocols = {"meta.v1", "meta.v2"};
 	options.require_subprotocol = true;
-	options.stream.auto_ping_interval = std::chrono::milliseconds(17000);
-	options.stream.auto_pong = false;
+	options.stream.ping_interval = std::chrono::milliseconds(17000);
+	options.stream.pong_timeout_retries = 2;
 	size_t selector_calls = 0;
 	options.subprotocol_selector = [&](const ws::request_info &request,
 		std::span<const std::string> offered)
@@ -145,9 +147,10 @@ void owned_accept_round_trip()
 		{
 			auto connection = co_await service.accept(
 				std::move(options), libgs::use_awaitable);
-			LIBGS_TEST_CHECK_EQ(connection.stream.config().auto_ping_interval,
+			LIBGS_TEST_CHECK_EQ(connection.stream.config().ping_interval,
 				std::chrono::milliseconds(17000));
-			LIBGS_TEST_CHECK(not connection.stream.config().auto_pong);
+			LIBGS_TEST_CHECK_EQ(
+				connection.stream.config().pong_timeout_retries, 2U);
 			LIBGS_TEST_CHECK_EQ(connection.request.method,
 				libgs::http::method::get);
 			LIBGS_TEST_CHECK_EQ(connection.request.version,
@@ -181,9 +184,9 @@ void owned_accept_round_trip()
 		}, asio::use_future);
 
 	ws::client_config client_config;
-	client_config.stream.auto_ping_interval =
+	client_config.stream.ping_interval =
 		std::chrono::milliseconds(23000);
-	client_config.stream.auto_pong = false;
+	client_config.stream.pong_timeout_retries = 3;
 	ws::client client(context.get_executor(), client_config);
 	auto connected = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
@@ -195,9 +198,9 @@ void owned_accept_round_trip()
 				"X-WebSocket-Metadata", "present");
 			auto stream = co_await client.open(
 				std::move(request), libgs::use_awaitable);
-			LIBGS_TEST_CHECK_EQ(stream.config().auto_ping_interval,
+			LIBGS_TEST_CHECK_EQ(stream.config().ping_interval,
 				std::chrono::milliseconds(23000));
-			LIBGS_TEST_CHECK(not stream.config().auto_pong);
+			LIBGS_TEST_CHECK_EQ(stream.config().pong_timeout_retries, 3U);
 			LIBGS_TEST_CHECK_EQ(stream.negotiated_subprotocol(), "meta.v2");
 			co_await stream.write_text("accept-mode", libgs::use_awaitable);
 			auto response = co_await stream.read<std::string>(
@@ -227,14 +230,14 @@ void owned_configuration_and_resources()
 	ws::client_config client_config;
 	client_config.handshake_timeout = 321ms;
 	client_config.stream.max_message_size = 4096;
-	client_config.stream.auto_ping_interval = 7s;
-	client_config.stream.auto_pong = false;
+	client_config.stream.ping_interval = 7s;
+	client_config.stream.pong_timeout_retries = 5;
 	client_config.no_delay = libgs::nullopt;
 	ws::client original(std::move(http_client), client_config);
 	LIBGS_TEST_CHECK_EQ(original.config().handshake_timeout, 321ms);
 	LIBGS_TEST_CHECK_EQ(original.config().stream.max_message_size, 4096U);
-	LIBGS_TEST_CHECK_EQ(original.config().stream.auto_ping_interval, 7s);
-	LIBGS_TEST_CHECK(not original.config().stream.auto_pong);
+	LIBGS_TEST_CHECK_EQ(original.config().stream.ping_interval, 7s);
+	LIBGS_TEST_CHECK_EQ(original.config().stream.pong_timeout_retries, 5U);
 	LIBGS_TEST_CHECK(not original.config().no_delay.has_value());
 	LIBGS_TEST_CHECK_EQ(original.cookie_store(), cookie_store);
 	LIBGS_TEST_CHECK(original.get_executor() == context.get_executor());
@@ -250,13 +253,14 @@ void owned_configuration_and_resources()
 	asio::ip::tcp::acceptor acceptor(context);
 	ws::server_config server_config;
 	server_config.max_pending_handshakes = 7;
-	server_config.default_upgrade.stream.auto_ping_interval = 9s;
-	server_config.default_upgrade.stream.auto_pong = false;
+	server_config.default_upgrade.stream.ping_interval = 9s;
+	server_config.default_upgrade.stream.pong_timeout_retries = 6;
 	ws::server service(std::move(acceptor), server_config);
 	LIBGS_TEST_CHECK_EQ(service.config().max_pending_handshakes, 7U);
-	LIBGS_TEST_CHECK_EQ(service.config().default_upgrade.stream.auto_ping_interval,
+	LIBGS_TEST_CHECK_EQ(service.config().default_upgrade.stream.ping_interval,
 		9s);
-	LIBGS_TEST_CHECK(not service.config().default_upgrade.stream.auto_pong);
+	LIBGS_TEST_CHECK_EQ(
+		service.config().default_upgrade.stream.pong_timeout_retries, 6U);
 	LIBGS_TEST_CHECK(service.get_executor() == context.get_executor());
 	const auto &const_service = service;
 	LIBGS_TEST_CHECK_EQ(&const_service.http_server(), &service.http_server());
@@ -756,6 +760,168 @@ void simultaneous_close()
 	connected.get();
 }
 
+void explicit_retry_open_recovery()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server service(std::move(acceptor));
+	size_t accepted_count = 0;
+	service.on_default([&](ws::accept_result accepted) -> libgs::awaitable<void>
+	{
+		const auto index = ++accepted_count;
+		co_await accepted.stream.write_text(std::to_string(index),
+			libgs::use_awaitable);
+		if( index == 1 )
+		{
+			auto [error, close] = co_await accepted.stream.close(
+				ws::close_frame(ws::close_code::service_restart, "restart"),
+				asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK(not error);
+			LIBGS_TEST_CHECK(close.clean);
+		}
+		else
+		{
+			auto [error, trailing] = co_await accepted.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK(error);
+			libgs::ignore_unused(trailing);
+		}
+	});
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	const auto endpoint = std::format("ws://127.0.0.1:{}/recovery", port);
+
+	asio::ip::tcp::acceptor unavailable(context,
+		{asio::ip::address_v4::loopback(), 0});
+	const auto unavailable_port = unavailable.local_endpoint().port();
+	unavailable.close();
+
+	std::vector<ws::retry_open_event> observed_events;
+	ws::retry_open_options options;
+	options.initial_delay = 1ms;
+	options.max_delay = 2ms;
+	options.jitter = 0.0;
+	options.max_attempts = 4;
+	options.observe = [&](ws::retry_open_event event,
+		const ws::retry_open_context&) {
+		observed_events.push_back(event);
+	};
+	ws::client client(context.get_executor());
+
+	size_t request_count = 0;
+	std::vector<std::string> messages;
+	auto completed = asio::co_spawn(context,
+		[&]() -> libgs::awaitable<void>
+		{
+			// Startup remains one ordinary open outside retry_open().
+			auto stream = co_await client.open(
+				ws::connect_request(endpoint), libgs::use_awaitable);
+			auto message = co_await stream.read<std::string>(
+				libgs::use_awaitable);
+			messages.push_back(std::move(message.body));
+
+			auto [read_error, trailing] = co_await stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			LIBGS_TEST_CHECK(read_error);
+			libgs::ignore_unused(trailing);
+			stream.shutdown();
+
+			auto recovered = co_await ws::retry_open(client,
+				[&](const ws::retry_open_context &previous)
+					-> ws::connect_request
+				{
+					++request_count;
+					LIBGS_TEST_CHECK_EQ(previous.attempt,
+						request_count - 1);
+					const auto target = request_count == 1 ?
+						std::format("ws://127.0.0.1:{}/unavailable",
+							unavailable_port) : endpoint;
+					ws::connect_request request(target);
+					request.request_options.set_header("X-Recovery-Attempt",
+						std::to_string(request_count));
+					return request;
+				}, options, libgs::use_awaitable);
+
+			LIBGS_TEST_CHECK_EQ(recovered.attempts, 2U);
+			LIBGS_TEST_CHECK(recovered.last_failure.error);
+			LIBGS_TEST_CHECK_EQ(recovered.last_failure.attempt, 1U);
+			LIBGS_TEST_CHECK_EQ(recovered.diagnostics.endpoint.to_string(),
+				endpoint);
+
+			stream = std::move(recovered.stream);
+			message = co_await stream.read<std::string>(libgs::use_awaitable);
+			messages.push_back(std::move(message.body));
+			auto closed = co_await stream.close(libgs::use_awaitable);
+			LIBGS_TEST_CHECK(closed.clean);
+			service.stop();
+		}, asio::use_future);
+
+	context.run();
+	completed.get();
+	LIBGS_TEST_CHECK_EQ(request_count, 2U);
+	LIBGS_TEST_CHECK_EQ(accepted_count, 2U);
+	LIBGS_TEST_CHECK_EQ(messages,
+		(std::vector<std::string>{"1", "2"}));
+	LIBGS_TEST_CHECK_EQ(std::ranges::count(observed_events,
+		ws::retry_open_event::opening), 2);
+	LIBGS_TEST_CHECK_EQ(std::ranges::count(observed_events,
+		ws::retry_open_event::waiting), 1);
+}
+
+void retry_open_cancellation()
+{
+	using namespace std::chrono_literals;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor probe(context,
+		{asio::ip::address_v4::loopback(), 0});
+	const auto port = probe.local_endpoint().port();
+	probe.close();
+
+	ws::retry_open_options options;
+	options.initial_delay = 1s;
+	options.max_delay = 1s;
+	options.jitter = 0.0;
+	options.decide = [](const ws::retry_open_context&,
+		std::chrono::milliseconds suggested) {
+		return ws::retry_open_decision::retry_after(suggested);
+	};
+	bool waiting = false;
+	options.observe = [&](ws::retry_open_event event,
+		const ws::retry_open_context&) {
+		waiting = event == ws::retry_open_event::waiting;
+	};
+	ws::client client(context.get_executor());
+	asio::cancellation_signal cancellation;
+
+	bool completed = false;
+	libgs::error_code completion_error;
+	ws::retry_open(client, ws::connect_request(std::format(
+		"ws://127.0.0.1:{}/cancel", port)), options,
+		asio::bind_cancellation_slot(cancellation.slot(),
+		[&](libgs::error_code error, ws::retry_open_result result)
+		{
+			completion_error = error;
+			LIBGS_TEST_CHECK_EQ(result.attempts, 1U);
+			LIBGS_TEST_CHECK_EQ(result.last_failure.error,
+				asio::error::make_error_code(asio::error::operation_aborted));
+			completed = true;
+		}));
+
+	asio::steady_timer timer(context.get_executor(), 10ms);
+	timer.async_wait([&](libgs::error_code error) {
+		LIBGS_TEST_CHECK(not error);
+		LIBGS_TEST_CHECK(waiting);
+		cancellation.emit(asio::cancellation_type::all);
+	});
+	context.run();
+	LIBGS_TEST_CHECK(completed);
+	LIBGS_TEST_CHECK_EQ(completion_error,
+		asio::error::make_error_code(asio::error::operation_aborted));
+	LIBGS_TEST_CHECK_EQ(client.pending_open_count(), 0U);
+}
+
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 void permessage_deflate_round_trip()
 {
@@ -927,8 +1093,10 @@ void invalid_owned_config()
 	client_config.stream.read_buffer_size = 0;
 	LIBGS_TEST_CHECK_THROWS(ws::client(client_config), std::system_error);
 	client_config.stream.read_buffer_size = ws::stream_config{}.read_buffer_size;
-	client_config.stream.auto_ping_interval = std::chrono::milliseconds(-1);
+	client_config.stream.ping_interval = std::chrono::milliseconds(-1);
 	LIBGS_TEST_CHECK_THROWS(ws::client(client_config), std::system_error);
+	client_config.stream.ping_interval =
+		ws::stream_config{}.ping_interval;
 
 	asio::ip::tcp::acceptor acceptor(context);
 	ws::server_config server_config;
@@ -939,10 +1107,11 @@ void invalid_owned_config()
 	asio::ip::tcp::acceptor ping_acceptor(context);
 	server_config.default_upgrade.stream.read_buffer_size =
 		ws::stream_config{}.read_buffer_size;
-	server_config.default_upgrade.stream.auto_ping_interval =
+	server_config.default_upgrade.stream.ping_interval =
 		std::chrono::milliseconds(-1);
 	LIBGS_TEST_CHECK_THROWS(
 		ws::server(std::move(ping_acceptor), server_config), std::system_error);
+
 }
 
 } //namespace
@@ -963,6 +1132,8 @@ int main()
 		{"pending handshake FIFO and capacity",
 			pending_handshake_fifo_and_capacity},
 		{"simultaneous close", simultaneous_close},
+		{"explicit retry open recovery", explicit_retry_open_recovery},
+		{"retry open cancellation", retry_open_cancellation},
 #if LIBGS_WEBSOCKET_ZLIB_SUPPORT
 		{"permessage-deflate round trip", permessage_deflate_round_trip},
 #endif

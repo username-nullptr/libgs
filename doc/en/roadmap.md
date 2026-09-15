@@ -11,7 +11,8 @@ areas, not promised releases or dates.
 - HTTP/2 and HTTP/3 transports
 - WebSocket extended CONNECT over HTTP/2 or HTTP/3
 - WebSocket extensions beyond `permessage-deflate`
-- Higher-level reconnect, liveness-deadline, and message-routing policies
+- Higher-level session supervision, persistent cross-connection queues,
+  reliable replay, and application routing
 - Installed CMake package configuration and a stable 1.0 API contract
 
 ## Constraint

@@ -88,6 +88,11 @@ owns the HTTP connector used by `open()`:
 ./build/output/examples/websocket/client
 ```
 
+`websocket/retry_open` shows application-controlled recovery. The initial
+`client.open()` is attempted once; after the receive loop detects an invalid
+connection, the application pauses its work, calls `retry_open()`, and restores
+its authentication and subscriptions on the returned stream.
+
 `websocket/proxy_client` connects through an explicit HTTP or SOCKS5 proxy.
 It accepts the endpoint, proxy URL, and optional username and password:
 
@@ -122,6 +127,6 @@ the trust store:
 | Coroutine synchronization | `coro/basics`, `mutex`, `shared_mutex`, `semaphore`, `condition_variable` |
 | HTTP clients and protocol | `http/client_sync`, `client_awaitable`, `client_cookies`, `client_file`, `proxy_client`, `protocol` |
 | HTTP servers | `http/server`, `server_aop`, `server_file` (uploads, downloads, and `resource_root`), `server_session`, and optional `https_server` |
-| WebSocket protocol | `websocket/client` and `server` use the owned high-level API; `proxy_client` connects through HTTP or SOCKS5; optional `wss_client` and `wss_server` add TLS; `protocol` performs an offline handshake/frame round trip; the `mixed_http_*` pair shares one HTTP route |
+| WebSocket protocol | `websocket/client` and `server` use the owned API; `retry_open` demonstrates explicit recovery after a business-loop failure; `proxy_client` connects through HTTP or SOCKS5; optional `wss_client` and `wss_server` add TLS; `protocol` performs an offline handshake/frame round trip; the `mixed_http_*` pair shares one HTTP route |
 | Utilities | `utils/logger`, `settings`, `signal_slot`, `observer`, `modules`, `process` |
 | Soft bus | `utils/soft_bus_local` uses the built-in in-process transport; `soft_bus_transport` shows the interface used to plug in DDS, IPC, or another transport |

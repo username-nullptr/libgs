@@ -10,7 +10,7 @@ LibGS 当前是尚未到达 1.0 的 C++20 库。已实现模块见[文档索引]
 - HTTP/2 与 HTTP/3 传输
 - 基于 HTTP/2 或 HTTP/3 extended CONNECT 的 WebSocket
 - `permessage-deflate` 以外的 WebSocket 扩展
-- 高层自动重连、存活 deadline 与消息路由策略
+- 高层会话守护、跨连接持久消息队列、可靠重放与应用消息路由策略
 - 安装版 CMake package config 与稳定的 1.0 API 契约
 
 ## 约束

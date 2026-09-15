@@ -122,7 +122,7 @@ error_code validate_open_request(connect_request &request, const stream_config &
 
 		request.endpoint = std::move(*endpoint);
 		if( stream.read_buffer_size == 0 or
-			stream.auto_ping_interval < std::chrono::milliseconds::zero() or
+			stream.ping_interval < std::chrono::milliseconds::zero() or
 			stream.compression.level < -1 or stream.compression.level > 9 )
 			return make_error_code(std::errc::invalid_argument);
 

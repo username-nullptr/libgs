@@ -309,7 +309,7 @@ template <core_concepts::exec Exec>
 			return plan;
 		}
 		if( options.stream.read_buffer_size == 0 or
-			options.stream.auto_ping_interval < std::chrono::milliseconds::zero() or
+			options.stream.ping_interval < std::chrono::milliseconds::zero() or
 			options.stream.compression.level < -1 or
 			options.stream.compression.level > 9 )
 		{
@@ -811,7 +811,7 @@ private:
 	[[nodiscard]] static config_t validate_config(config_t config)
 	{
 		if( config.default_upgrade.stream.read_buffer_size == 0 or
-			config.default_upgrade.stream.auto_ping_interval < std::chrono::milliseconds::zero() )
+			config.default_upgrade.stream.ping_interval < std::chrono::milliseconds::zero() )
 		{
 			system_error::loc_throw (
 				make_error_code(std::errc::invalid_argument),

@@ -110,6 +110,7 @@ public:
 	basic_server &on_default(Func &&func) requires
 		concepts::request_handler<Func,executor_t>;
 
+public:
 	basic_server &on_server_error(server_error_handler_t func);
 	basic_server &on_service_error(service_error_handler_t func);
 

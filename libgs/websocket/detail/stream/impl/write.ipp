@@ -13,8 +13,7 @@ namespace libgs::websocket
 
 template <core_concepts::exec Exec>
 size_t basic_stream<Exec>::impl::write
-(message_type type, std::span<const const_buffer> buffers,
-	write_options options, error_code &error) noexcept
+(message_type type, std::span<const const_buffer> buffers, write_options options, error_code &error) noexcept
 {
 	error.clear();
 	if( m_state == connection_state::idle )
@@ -123,15 +122,33 @@ void basic_stream<Exec>::impl::async_write_frame
 template <core_concepts::exec Exec>
 template <typename Handler>
 void basic_stream<Exec>::impl::async_write_control
-(opcode op, const const_buffer &payload, Handler &&handler)
+(opcode op, const const_buffer &payload, Handler &&handler, bool automatic)
 {
+	if( not automatic and automatic_control_enabled() )
+	{
+		auto completion = asio::any_completion_handler
+			<void(error_code,size_t)>(std::forward<Handler>(handler));
+
+		asio::post(m_exec, [handler = std::move(completion)]() mutable
+		{
+			std::move(handler) (
+				make_error_code(std::errc::operation_not_permitted), 0
+			);
+		});
+		return ;
+	}
 	m_send_engine.async_write_control(op, payload, std::forward<Handler>(handler));
 }
 
 template <core_concepts::exec Exec>
 size_t basic_stream<Exec>::impl::write_control
-(opcode op, const const_buffer &payload, error_code &error) noexcept
+(opcode op, const const_buffer &payload, error_code &error, bool automatic) noexcept
 {
+	if( not automatic and automatic_control_enabled() )
+	{
+		error = make_error_code(std::errc::operation_not_permitted);
+		return 0;
+	}
 	return m_send_engine.write_control(op, payload, error);
 }
 

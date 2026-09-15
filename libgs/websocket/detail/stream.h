@@ -526,16 +526,57 @@ auto basic_stream<Exec>::write_binary(const const_buffer &body, write_options op
 }
 
 template <core_concepts::exec Exec>
-basic_stream<Exec> &basic_stream<Exec>::on_ping(control_callback_t callback)
+template <typename Func>
+basic_stream<Exec> &basic_stream<Exec>::on_ping(Func &&callback)
+	requires control_callback_v<Func>
 {
-	m_impl->on_ping(std::move(callback));
+	using callback_t = std::remove_cvref_t<Func>;
+	using result_t = std::invoke_result_t<callback_t&,ctrl_payload_t&>;
+
+	if constexpr( is_awaitable_v<result_t> )
+	{
+		m_impl->on_ping(typename impl::async_control_callback_t(
+		[callback = callback_t(std::forward<Func>(callback))]
+		(ctrl_payload_t &payload) mutable -> awaitable<void> {
+			static_cast<void>(co_await std::invoke(callback, payload));
+		}));
+	}
+	else
+	{
+		m_impl->on_ping(typename impl::sync_control_callback_t(
+		[callback = callback_t(std::forward<Func>(callback))]
+		(ctrl_payload_t &payload) mutable {
+			static_cast<void>(std::invoke(callback, payload));
+		}));
+	}
 	return *this;
 }
 
 template <core_concepts::exec Exec>
-basic_stream<Exec> &basic_stream<Exec>::on_pong(control_callback_t callback)
+template <typename Func>
+basic_stream<Exec> &basic_stream<Exec>::on_pong(Func &&callback)
+	requires control_callback_v<Func>
 {
-	m_impl->on_pong(std::move(callback));
+	using callback_t = std::remove_cvref_t<Func>;
+	using result_t = std::invoke_result_t<callback_t&,ctrl_payload_t&>;
+	if constexpr( is_awaitable_v<result_t> )
+	{
+		m_impl->on_pong(typename impl::async_control_callback_t(
+		[callback = callback_t(std::forward<Func>(callback))]
+		(ctrl_payload_t &payload) mutable -> awaitable<void>
+		{
+			static_cast<void>(co_await std::invoke(callback, payload));
+		}));
+	}
+	else
+	{
+		m_impl->on_pong(typename impl::sync_control_callback_t(
+		[callback = callback_t(std::forward<Func>(callback))]
+		(ctrl_payload_t &payload) mutable
+		{
+			static_cast<void>(std::invoke(callback, payload));
+		}));
+	}
 	return *this;
 }
 

@@ -198,7 +198,7 @@ void test_frame_header_errors()
 		.payload_size = 126,
 	}, server_config);
 	LIBGS_TEST_CHECK(not result.has_value());
-	check_error(result.error(), ws::protocol_errc::control_payload_too_large);
+	check_error(result.error(), ws::protocol_errc::ctrl_payload_too_large);
 
 	result = ws::encode_frame_header({
 		.payload_size = server_config.max_frame_size + 1,
@@ -323,7 +323,7 @@ void test_close_payload()
 		.reason = too_long,
 	});
 	LIBGS_TEST_CHECK(not encoded.has_value());
-	check_error(encoded.error(), ws::protocol_errc::control_payload_too_large);
+	check_error(encoded.error(), ws::protocol_errc::ctrl_payload_too_large);
 
 	const std::array<std::byte,5> surrogate_utf8 {
 		std::byte {0x03}, std::byte {0xE8},
@@ -587,7 +587,7 @@ void test_frame_parser_errors()
 	check_parser_error(std::array {
 		std::byte {0x88}, std::byte {0x7E}, std::byte {0x00}, std::byte {0x7E}
 	}, ws::frame_codec_config {.local_role = ws::role::client},
-		ws::protocol_errc::control_payload_too_large);
+		ws::protocol_errc::ctrl_payload_too_large);
 
 	check_parser_error(std::array {
 		std::byte {0x82}, std::byte {0x7E}, std::byte {0x04}, std::byte {0x00}

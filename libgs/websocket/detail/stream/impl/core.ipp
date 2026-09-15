@@ -103,9 +103,9 @@ bool basic_stream<Exec>::impl::send_transport_ready() const noexcept
 }
 
 template <core_concepts::exec Exec>
-bool basic_stream<Exec>::impl::auto_pong_enabled() const noexcept
+bool basic_stream<Exec>::impl::automatic_control_enabled() const noexcept
 {
-	return m_config.auto_pong;
+	return m_config.ping_interval > std::chrono::milliseconds::zero();
 }
 
 template <core_concepts::exec Exec>
@@ -141,7 +141,7 @@ void basic_stream<Exec>::impl::adopt
 		return ;
 	}
 	if( m_config.read_buffer_size == 0 or
-		m_config.auto_ping_interval < std::chrono::milliseconds::zero() or
+		m_config.ping_interval < std::chrono::milliseconds::zero() or
 		m_config.compression.level < -1 or m_config.compression.level > 9 )
 	{
 		error = make_error_code(std::errc::invalid_argument);

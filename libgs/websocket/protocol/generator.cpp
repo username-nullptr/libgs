@@ -38,7 +38,7 @@ sys_expected<encoded_frame_header> encode_frame_header
 			return sys_unexpected(make_error_code(protocol_errc::fragmented_control_frame));
 
 		if( header.payload_size > 125 )
-			return sys_unexpected(make_error_code(protocol_errc::control_payload_too_large));
+			return sys_unexpected(make_error_code(protocol_errc::ctrl_payload_too_large));
 	}
 	if( config.max_frame_size != 0 and header.payload_size > config.max_frame_size )
 		return sys_unexpected(make_error_code(protocol_errc::frame_too_large));
@@ -96,7 +96,7 @@ sys_expected<encoded_close_payload> encode_close_payload(close_payload_view payl
 		return sys_unexpected(make_error_code(protocol_errc::invalid_close_payload));
 
 	if( payload.reason.size() > 123 )
-		return sys_unexpected(make_error_code(protocol_errc::control_payload_too_large));
+		return sys_unexpected(make_error_code(protocol_errc::ctrl_payload_too_large));
 
 	if( not detail::is_valid_utf8(payload.reason) )
 		return sys_unexpected(make_error_code(protocol_errc::invalid_utf8));

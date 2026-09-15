@@ -364,9 +364,11 @@ void basic_stream<Exec>::impl::start_close_receive() noexcept
 
 				if( value.op == opcode::ping or value.op == opcode::pong )
 				{
-					auto handled = self->handle_async_control(value.op, value.control);
-					if( not handled )
-						co_return handled.error();
+					auto control_error = co_await
+						self->handle_async_control(value.op, value.control);
+
+					if( control_error )
+						co_return control_error;
 					continue;
 				}
 				if( value.op == opcode::close )
