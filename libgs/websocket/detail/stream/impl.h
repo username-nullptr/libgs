@@ -38,6 +38,12 @@ public:
 
 	using prepared_frame = detail::prepared_frame;
 	using close_wait_operation = detail::close_wait_operation;
+	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;
+	using void_handler_t = asio::any_completion_handler<void(error_code)>;
+	using message_handler_t = asio::any_completion_handler<void(error_code,message)>;
+	using frame_handler_t = asio::any_completion_handler<void(error_code,data_frame)>;
+	using info_handler_t = asio::any_completion_handler<void(error_code,message_info_t)>;
+	using close_handler_t = asio::any_completion_handler<void(error_code,close_info_t)>;
 
 	explicit impl(executor_t exec, const config_t &config);
 
@@ -55,43 +61,40 @@ public:
 		bool fin, error_code &error
 	) noexcept;
 
-	template <typename Handler>
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
-		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner,
+		io_handler_t handler
 	);
 
-	template <typename Handler>
 	void async_write_frame(message_type type, const const_buffer &payload,
-		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner,
+		io_handler_t handler
 	);
 	[[nodiscard]] size_t write_control (
 		opcode op, const const_buffer &payload, error_code &error, bool automatic = false
 	) noexcept;
 
-	template <typename Handler>
 	void async_write_control (
-		opcode op, const const_buffer &payload, Handler &&handler, bool automatic = false
+		opcode op, const const_buffer &payload, io_handler_t handler,
+		bool automatic = false
 	);
 
 	void wait_written(error_code &error) noexcept;
 
-	template <typename Handler>
-	void async_wait_written(Handler &&handler);
+	void async_wait_written(void_handler_t handler);
 
 	[[nodiscard]] message read(error_code &error) noexcept;
 	[[nodiscard]] data_frame read_frame(error_code &error) noexcept;
 
-	template <typename Handler>
-	void async_read_message(Handler &&handler);
+	void async_read_message(message_handler_t handler);
 
-	template <typename Handler>
-	void async_read_frame(Handler &&handler);
+	void async_read_frame(frame_handler_t handler);
 
 	template <typename Consumer>
 	[[nodiscard]] message_info consume(Consumer &&consumer, error_code &error) noexcept;
 
-	template <typename Consumer, typename Handler>
-	void async_consume(Consumer &&consumer, Handler &&handler);
+	template <typename Consumer>
+	void async_consume(Consumer &&consumer, info_handler_t handler);
 
 	template <typename Buffer>
 	[[nodiscard]] static basic_message<Buffer> convert_message (
@@ -111,13 +114,11 @@ public:
 
 	[[nodiscard]] close_info_t close(const close_frame &frame, error_code &error) noexcept;
 
-	template <typename Handler>
-	void async_close(close_frame frame, Handler &&handler);
+	void async_close(close_frame frame, close_handler_t handler);
 
 	[[nodiscard]] close_info_t wait_closed(error_code &error) noexcept;
 
-	template <typename Handler>
-	void async_wait_closed(Handler &&handler);
+	void async_wait_closed(close_handler_t handler);
 
 	void cancel(error_code &error) noexcept;
 	void shutdown(error_code &error) noexcept;
@@ -217,8 +218,7 @@ private:
 		bool cancel_transport = false
 	) noexcept;
 
-	template <typename Handler>
-	bool add_close_waiter(Handler &&handler) noexcept;
+	bool add_close_waiter(close_handler_t handler) noexcept;
 
 	void complete_close_waiters(error_code error) noexcept;
 	void cancel_close_waiter(uint64_t id) noexcept;

@@ -719,14 +719,10 @@ error_code detail::send_engine<Owner>::enqueue_send_operation
 }
 
 template <typename Owner>
-template <typename Handler>
 void detail::send_engine<Owner>::async_write_message
 (message_type type, std::span<const const_buffer> buffers, write_options options,
-	std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+	std::shared_ptr<std::vector<std::byte>> payload_owner, io_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, size_t)>(std::forward<Handler>(handler));
-
 	auto self = m_owner.shared_from_this();
 	if( auto error = self->write_state_error() )
 	{
@@ -795,14 +791,10 @@ void detail::send_engine<Owner>::async_write_message
 }
 
 template <typename Owner>
-template <typename Handler>
 void detail::send_engine<Owner>::async_write_data_frame
 (message_type type, const const_buffer &payload, bool continuation, bool fin,
- std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+ std::shared_ptr<std::vector<std::byte>> payload_owner, io_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, size_t)>(std::forward<Handler>(handler));
-
 	auto self = m_owner.shared_from_this();
 	if( auto error = self->frame_write_state_error() )
 	{
@@ -884,13 +876,9 @@ void detail::send_engine<Owner>::async_write_data_frame
 }
 
 template <typename Owner>
-template <typename Handler>
 void detail::send_engine<Owner>::async_write_control
-(opcode op, const const_buffer &payload, Handler &&handler)
+(opcode op, const const_buffer &payload, io_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, size_t)>(std::forward<Handler>(handler));
-
 	auto self = m_owner.shared_from_this();
 	if( auto error = self->write_state_error() )
 	{
@@ -1021,12 +1009,8 @@ void detail::send_engine<Owner>::wait_written(error_code &error) noexcept
 }
 
 template <typename Owner>
-template <typename Handler>
-void detail::send_engine<Owner>::async_wait_written(Handler &&handler)
+void detail::send_engine<Owner>::async_wait_written(void_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code)>(std::forward<Handler>(handler));
-
 	const auto target = m_last_write_sequence;
 	if( target <= m_completed_write_sequence )
 	{

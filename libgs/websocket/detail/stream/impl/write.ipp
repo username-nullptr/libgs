@@ -99,37 +99,32 @@ size_t basic_stream<Exec>::impl::write_prepared
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
 void basic_stream<Exec>::impl::async_write_message(message_type type, std::span<const const_buffer> buffers,
-	write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+	write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner,
+	io_handler_t handler)
 {
 	m_send_engine.async_write_message(type, buffers, options,
-		std::move(payload_owner), std::forward<Handler>(handler)
+		std::move(payload_owner), std::move(handler)
 	);
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
 void basic_stream<Exec>::impl::async_write_frame
 (message_type type, const const_buffer &payload, bool continuation, bool fin,
- std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler)
+ std::shared_ptr<std::vector<std::byte>> payload_owner, io_handler_t handler)
 {
 	m_send_engine.async_write_data_frame(type, payload, continuation, fin,
-		std::move(payload_owner), std::forward<Handler>(handler)
+		std::move(payload_owner), std::move(handler)
 	);
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
 void basic_stream<Exec>::impl::async_write_control
-(opcode op, const const_buffer &payload, Handler &&handler, bool automatic)
+(opcode op, const const_buffer &payload, io_handler_t handler, bool automatic)
 {
 	if( not automatic and automatic_control_enabled() )
 	{
-		auto completion = asio::any_completion_handler
-			<void(error_code,size_t)>(std::forward<Handler>(handler));
-
-		asio::post(m_exec, [handler = std::move(completion)]() mutable
+		asio::post(m_exec, [handler = std::move(handler)]() mutable
 		{
 			std::move(handler) (
 				make_error_code(std::errc::operation_not_permitted), 0
@@ -137,7 +132,7 @@ void basic_stream<Exec>::impl::async_write_control
 		});
 		return ;
 	}
-	m_send_engine.async_write_control(op, payload, std::forward<Handler>(handler));
+	m_send_engine.async_write_control(op, payload, std::move(handler));
 }
 
 template <core_concepts::exec Exec>
@@ -159,10 +154,9 @@ void basic_stream<Exec>::impl::wait_written(error_code &error) noexcept
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
-void basic_stream<Exec>::impl::async_wait_written(Handler &&handler)
+void basic_stream<Exec>::impl::async_wait_written(void_handler_t handler)
 {
-	m_send_engine.async_wait_written(std::forward<Handler>(handler));
+	m_send_engine.async_wait_written(std::move(handler));
 }
 
 template <core_concepts::exec Exec>

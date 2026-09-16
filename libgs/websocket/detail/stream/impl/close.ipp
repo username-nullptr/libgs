@@ -537,12 +537,8 @@ auto basic_stream<Exec>::impl::wait_closed(error_code &error) noexcept -> close_
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
-bool basic_stream<Exec>::impl::add_close_waiter(Handler &&handler) noexcept
+bool basic_stream<Exec>::impl::add_close_waiter(close_handler_t completion) noexcept
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, close_info_t)>(std::forward<Handler>(handler));
-
 	std::shared_ptr<close_wait_operation> waiter;
 	try {
 		auto associated_allocator = asio::get_associated_allocator(completion);
@@ -591,12 +587,8 @@ bool basic_stream<Exec>::impl::add_close_waiter(Handler &&handler) noexcept
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
-void basic_stream<Exec>::impl::async_close(close_frame frame, Handler &&handler)
+void basic_stream<Exec>::impl::async_close(close_frame frame, close_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, close_info_t)>(std::forward<Handler>(handler));
-
 	if( m_state == connection_state::closed )
 	{
 		auto result = m_close_result.value_or(retained_close_info());
@@ -638,12 +630,8 @@ void basic_stream<Exec>::impl::async_close(close_frame frame, Handler &&handler)
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
-void basic_stream<Exec>::impl::async_wait_closed(Handler &&handler)
+void basic_stream<Exec>::impl::async_wait_closed(close_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, close_info_t)>(std::forward<Handler>(handler));
-
 	if( m_state == connection_state::closed )
 	{
 		auto result = m_close_result.value_or(retained_close_info());

@@ -32,6 +32,19 @@ if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
 	)
 endif ()
 
+set(LIBGS_HEAVY_COMPILE_JOBS 0 CACHE STRING
+	"Maximum concurrent memory-heavy HTTP/WebSocket test and example compilations; 0 disables the limit."
+)
+if (NOT LIBGS_HEAVY_COMPILE_JOBS MATCHES "^[0-9]+$")
+	message(FATAL_ERROR
+		"${PRO_NAME}: LIBGS_HEAVY_COMPILE_JOBS must be a non-negative integer."
+	)
+endif ()
+
+option(LIBGS_LOW_MEMORY_DEBUG_INFO
+	"-- ${PRO_NAME}: Use reduced GCC debug information to lower compiler memory use." OFF
+)
+
 if (NOT LIBGS_BUILD_STATIC)
 	option(LIBGS_ADD_LIBRARY_VERSION
 		"-- ${PRO_NAME}: Add version information to library names." ON

@@ -297,118 +297,123 @@ public:
 		return 0;
 	}
 
+private:
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_write(std::shared_ptr<impl> self, const_buffer body,
+		std::shared_ptr<void> owner)
+	{
+		ignore_unused(owner);
+		auto pro_state = self->m_generator.pro_state();
+
+		size_t sum = 0;
+		std::string compressed {};
+		const_buffer wire_body = body;
+		bool transformed = false;
+
+		if( pro_state == generator_state::finish )
+		{
+			co_return std::tuple {
+				make_error_code(errc::eof), sum
+			};
+		}
+		if( pro_state == generator_state::header )
+		{
+			auto content_type = self->m_generator.header(header::content_type)
+				.transform([](const value &item) { return item.to_string(); })
+				.value_or("application/octet-stream");
+
+			if( self->m_auto_compression and self->gzip_candidate(content_type, body.size(), false) )
+				self->add_vary_accept_encoding();
+
+			if( self->should_gzip(content_type, body.size(), false) )
+			{
+				auto encoded = gzip_compress ({
+					static_cast<const char*>(body.data()), body.size()
+				});
+				if( not encoded )
+				{
+					co_return std::tuple {
+						encoded.error(), sum
+					};
+				}
+				if( encoded->size() < body.size() or self->m_req_method == method::head )
+				{
+					compressed = std::move(*encoded);
+					wire_body = buffer(compressed);
+					transformed = true;
+					self->prepare_gzip_headers(false);
+				}
+			}
+		}
+		if( pro_state == generator_state::header )
+		{
+			auto header_data = self->m_generator.header_data (
+				wire_body.size(), self->m_req_method
+			);
+			if( wire_body.size() > 0 and self->m_generator.pro_state() != generator_state::finish )
+			{
+				if( self->m_generator.pro_state() == generator_state::content_length )
+				{
+					auto content = self->m_generator.body_buffer(wire_body);
+					auto offset = header_data.size();
+
+					auto [error, bytes] = co_await co_base_write (
+						self, std::move(header_data), content
+					);
+					co_return std::tuple<error_code,size_t> {
+						error, logical_body_bytes(bytes, offset,
+							transformed ? wire_body.size() : content.size(),
+							body.size(), transformed
+						)
+					};
+				}
+				auto content = self->m_generator.body_data(wire_body);
+				auto representation_size = wire_body.size();
+
+				auto offset = header_data.size() +
+					framed_body_offset(content.size(), representation_size);
+
+				auto [error, bytes] = co_await co_base_write (
+					self, std::move(header_data), std::move(content)
+				);
+				co_return std::tuple<error_code,size_t> {
+					error, logical_body_bytes(bytes, offset, representation_size,
+						body.size(), transformed)
+				};
+			}
+			auto [error, bytes] = co_await co_base_write (
+				self, std::move(header_data)
+			);
+			ignore_unused(bytes);
+			co_return std::tuple<error_code,size_t>{error, 0};
+		}
+		if( wire_body.size() > 0 and self->m_generator.pro_state() != generator_state::finish )
+		{
+			auto [error, bytes] = co_await co_write_body(self, wire_body);
+			co_return std::tuple<error_code,size_t>{error, bytes};
+		}
+		co_return std::tuple{ error_code{}, sum };
+	}
+
+public:
 	template <typename Token>
 	[[nodiscard]] auto async_write
 	(const_buffer input_body, Token &&token, std::shared_ptr<void> body_owner = {})
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
+		auto exec = m_connection->get_executor();
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([](
-				auto state, std::shared_ptr<impl> self, const_buffer body,
-				std::shared_ptr<void> owner
-			) -> void
-			{
-				ignore_unused(state, owner);
-				auto pro_state = self->m_generator.pro_state();
-
-				size_t sum = 0;
-				std::string compressed {};
-				const_buffer wire_body = body;
-				bool transformed = false;
-
-				if( pro_state == generator_state::finish )
-				{
-					co_return std::tuple {
-						make_error_code(errc::eof), sum
-					};
-				}
-				if( pro_state == generator_state::header )
-				{
-					auto content_type = self->m_generator.header(header::content_type)
-						.transform([](const value &item) { return item.to_string(); })
-						.value_or("application/octet-stream");
-
-					if( self->m_auto_compression and self->gzip_candidate(content_type, body.size(), false) )
-						self->add_vary_accept_encoding();
-
-					if( self->should_gzip(content_type, body.size(), false) )
-					{
-						auto encoded = gzip_compress ({
-							static_cast<const char*>(body.data()), body.size()
-						});
-						if( not encoded )
-						{
-							co_return std::tuple {
-								encoded.error(), sum
-							};
-						}
-						if( encoded->size() < body.size() or self->m_req_method == method::head )
-						{
-							compressed = std::move(*encoded);
-							wire_body = buffer(compressed);
-							transformed = true;
-							self->prepare_gzip_headers(false);
-						}
-					}
-				}
-				if( pro_state == generator_state::header )
-				{
-					auto header_data = self->m_generator.header_data (
-						wire_body.size(), self->m_req_method
-					);
-					if( wire_body.size() > 0 and self->m_generator.pro_state() != generator_state::finish )
-					{
-						if( self->m_generator.pro_state() == generator_state::content_length )
-						{
-							auto content = self->m_generator.body_buffer(wire_body);
-							auto offset = header_data.size();
-
-							auto [error, bytes] = co_await self->async_base_write (
-								std::move(header_data), content, asio::as_tuple(deferred)
-							);
-							co_return std::tuple<error_code,size_t> {
-								error, logical_body_bytes(bytes, offset,
-									transformed ? wire_body.size() : content.size(),
-									body.size(), transformed
-								)
-							};
-						}
-						auto content = self->m_generator.body_data(wire_body);
-						auto representation_size = wire_body.size();
-
-						auto offset = header_data.size() +
-							framed_body_offset(content.size(), representation_size);
-
-						auto [error, bytes] = co_await self->async_base_write (
-							std::move(header_data), std::move(content), asio::as_tuple(deferred)
-						);
-						co_return std::tuple<error_code,size_t> {
-							error, logical_body_bytes(bytes, offset, representation_size,
-								body.size(), transformed)
-						};
-					}
-					auto [error, bytes] = co_await self->async_base_write (
-						std::move(header_data), asio::as_tuple(deferred)
-					);
-					ignore_unused(bytes);
-					co_return std::tuple<error_code,size_t>{error, 0};
-				}
-				if( wire_body.size() > 0 and self->m_generator.pro_state() != generator_state::finish )
-				{
-					auto [error, bytes] = co_await self->async_write_body (
-						wire_body, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t>{error, bytes};
-				}
-				co_return std::tuple{ error_code{}, sum };
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), input_body,
-			std::move(body_owner)
+		return asio::async_initiate<token_t,void(error_code,size_t)>(
+		[exec, self = this->shared_from_this(), input_body,
+		 owner = std::move(body_owner)](auto completion_handler) mutable
+		{
+			using handler_t = decltype(completion_handler);
+			libgs::detail::launch_awaitable(exec, co_write(std::move(self), input_body,
+				std::move(owner)),
+				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
+					std::move(completion_handler), exec));
+		}, completion_token
 		);
 	}
 
@@ -603,118 +608,120 @@ public:
 		);
 	}
 
+private:
+	template <typename AsyncOpt>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_send_file(std::shared_ptr<impl> self, AsyncOpt opt)
+	{
+		if( self->m_generator.pro_state() != generator_state::header )
+			co_return std::tuple<error_code,size_t>{error_code{}, 0};
+
+		auto file_token = self->make_file_opt_token (
+			unwrap_async_argument(opt)
+		);
+		if( not file_token )
+		{
+			co_return std::tuple<error_code,size_t> {
+				file_token.error(), 0
+			};
+		}
+		self->set_file_validators(*file_token);
+		self->prepare_file_encoding(*file_token);
+
+		if( auto result = self->precondition_status(); result != status::none )
+		{
+			if( result == status::precondition_failed )
+				self->cancel_file_content_encoding();
+
+			auto length = result == status::not_modified and
+				not self->m_file_gzip ? file_token->file_size : 0;
+
+			self->m_generator.set_status(result);
+			if( result == status::not_modified and self->m_file_gzip )
+				self->m_generator.unset_header(header::content_length);
+			else
+				self->m_generator.set_header(header::content_length, length);
+
+			auto [error, bytes] = co_await co_write_header(self, length);
+			co_return std::tuple<error_code,size_t> {
+				error, bytes
+			};
+		}
+		if( self->m_req_method != method::get or
+			self->m_req_range.empty() or not self->if_range_matches() or
+			file_token->file_size == 0 )
+		{
+			auto [error, bytes] = co_await co_default_transfer (
+				self, *file_token
+			);
+			co_return std::tuple<error_code,size_t> {
+				error, bytes
+			};
+		}
+		auto specifier = parse_range_header(self->m_req_range);
+
+		if( not specifier or specifier->unit != "bytes" or specifier->ranges.size() > 16 )
+		{
+			auto [error, bytes] = co_await co_default_transfer (
+				self, *file_token
+			);
+			co_return std::tuple<error_code,size_t> {
+				error, bytes
+			};
+		}
+		auto resolved = resolve_byte_ranges (
+			*specifier, file_token->file_size
+		);
+		if( resolved.empty() )
+		{
+			self->m_generator
+			.set_status(status::range_not_satisfiable)
+			.set_header(header::accept_ranges, "bytes")
+			.set_header(header::content_length, 0)
+			.set_header(header::content_range,
+				format_unsatisfied_content_range(file_token->file_size)
+			);
+			auto [error, bytes] = co_await co_write_header(self, 0);
+			co_return std::tuple<error_code,size_t>{
+				error, bytes
+			};
+		}
+		if( self->excessive_range_set(resolved, file_token->file_size) )
+		{
+			auto [error, bytes] = co_await co_default_transfer (
+				self, *file_token
+			);
+			co_return std::tuple<error_code,size_t> {
+				error, bytes
+			};
+		}
+		auto ranges = self->make_range_values (
+			resolved, file_token->file_size
+		);
+		auto [error, bytes] = co_await co_range_transfer (
+			self, *file_token, std::move(ranges)
+		);
+		co_return std::tuple<error_code,size_t> {error, bytes};
+	}
+
+public:
 	template <typename AsyncOpt, typename Token>
 	[[nodiscard]] auto async_send_file(AsyncOpt async_opt, Token &&token)
 	{
 		using opt_t = std::remove_cvref_t<AsyncOpt>;
 		using token_t = std::remove_cvref_t<Token>;
 		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
+		auto exec = m_connection->get_executor();
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, opt_t opt) -> void
-			{
-				LIBGS_UNUSED(state);
-				if( self->m_generator.pro_state() != generator_state::header )
-					co_return std::tuple<error_code,size_t>{error_code{}, 0};
-
-				auto file_token = self->make_file_opt_token (
-					unwrap_async_argument(opt)
-				);
-				if( not file_token )
-				{
-					co_return std::tuple<error_code,size_t> {
-						file_token.error(), 0
-					};
-				}
-				self->set_file_validators(*file_token);
-				self->prepare_file_encoding(*file_token);
-
-				if( auto result = self->precondition_status(); result != status::none )
-				{
-					if( result == status::precondition_failed )
-						self->cancel_file_content_encoding();
-
-					auto length = result == status::not_modified and
-						not self->m_file_gzip ? file_token->file_size : 0;
-
-					self->m_generator.set_status(result);
-					if( result == status::not_modified and self->m_file_gzip )
-						self->m_generator.unset_header(header::content_length);
-					else
-						self->m_generator.set_header(header::content_length, length);
-
-					auto [error, bytes] = co_await self->async_write_header (
-						length, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t> {
-						error, bytes
-					};
-				}
-				if( self->m_req_method != method::get or
-					self->m_req_range.empty() or not self->if_range_matches() or
-					file_token->file_size == 0 )
-				{
-					auto [error, bytes] = co_await self->async_default_transfer (
-						*file_token, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t> {
-						error, bytes
-					};
-				}
-				auto specifier = parse_range_header(self->m_req_range);
-
-				if( not specifier or specifier->unit != "bytes" or specifier->ranges.size() > 16 )
-				{
-					auto [error, bytes] = co_await self->async_default_transfer (
-						*file_token, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t> {
-						error, bytes
-					};
-				}
-				auto resolved = resolve_byte_ranges (
-					*specifier, file_token->file_size
-				);
-				if( resolved.empty() )
-				{
-					self->m_generator
-					.set_status(status::range_not_satisfiable)
-					.set_header(header::accept_ranges, "bytes")
-					.set_header(header::content_length, 0)
-					.set_header(header::content_range,
-						format_unsatisfied_content_range(file_token->file_size)
-					);
-					auto [error, bytes] = co_await self->async_write_header (
-						0, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t>{
-						error, bytes
-					};
-				}
-				if( self->excessive_range_set(resolved, file_token->file_size) )
-				{
-					auto [error, bytes] = co_await self->async_default_transfer (
-						*file_token, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t> {
-						error, bytes
-					};
-				}
-				auto ranges = self->make_range_values (
-					resolved, file_token->file_size
-				);
-				auto [error, bytes] = co_await self->async_range_transfer (
-					*file_token, std::move(ranges), asio::as_tuple(deferred)
-				);
-				co_return std::tuple<error_code,size_t> {
-					error, bytes
-				};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), std::move(async_opt)
+		return asio::async_initiate<token_t,void(error_code,size_t)>(
+		[exec, self = this->shared_from_this(),
+		 opt = opt_t(std::move(async_opt))](auto completion_handler) mutable
+		{
+			using handler_t = decltype(completion_handler);
+			libgs::detail::launch_awaitable(exec, co_send_file(std::move(self), std::move(opt)),
+				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
+					std::move(completion_handler), exec));
+		}, completion_token
 		);
 	}
 
@@ -734,34 +741,39 @@ public:
 		return 0;
 	}
 
+private:
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_chunk_end(std::shared_ptr<impl> self, headers_t trailing_headers)
+	{
+		if( self->m_generator.pro_state() != generator_state::chunk )
+			co_return std::tuple<error_code,size_t>{error_code{}, 0};
+
+		auto data = self->m_generator.chunk_end_data(trailing_headers);
+		if( data.empty() )
+			co_return std::tuple<error_code,size_t>{error_code{}, 0};
+
+		auto [error, bytes] = co_await co_base_write(self, std::move(data));
+		ignore_unused(bytes);
+		co_return std::tuple<error_code,size_t>{error, 0};
+	}
+
+public:
 	template <typename Token>
 	[[nodiscard]] auto async_chunk_end(headers_t completion_headers, Token &&token)
 	{
 		using token_t = std::remove_cvref_t<Token>;
 		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
+		auto exec = m_connection->get_executor();
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, headers_t trailing_headers) -> void
-			{
-				LIBGS_UNUSED(state);
-				if( self->m_generator.pro_state() != generator_state::chunk )
-					co_return std::tuple<error_code,size_t>{error_code{}, 0};
-
-				auto data = self->m_generator.chunk_end_data(trailing_headers);
-				if( data.empty() )
-					co_return std::tuple<error_code,size_t>{error_code{}, 0};
-
-				auto [error, bytes] = co_await self->async_base_write (
-					std::move(data), asio::as_tuple(deferred)
-				);
-				ignore_unused(bytes);
-				co_return std::tuple<error_code,size_t>{error, 0};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), std::move(completion_headers)
+		return asio::async_initiate<token_t,void(error_code,size_t)>(
+		[exec, self = this->shared_from_this(),
+		 headers = std::move(completion_headers)](auto completion_handler) mutable
+		{
+			using handler_t = decltype(completion_handler);
+			libgs::detail::launch_awaitable(exec, co_chunk_end(std::move(self), std::move(headers)),
+				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
+					std::move(completion_handler), exec));
+		}, completion_token
 		);
 	}
 
@@ -1034,161 +1046,142 @@ private:
 		return sum;
 	}
 
-	template <typename Opt, typename Token>
-	[[nodiscard]] auto async_gzip_transfer
-	(Opt &source_file, Token &&completion)
+	template <typename Opt>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_gzip_transfer(std::shared_ptr<impl> self, Opt &token)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(completion));
-		auto operation = this->shared_from_this();
+		self->m_generator
+		.set_status(status::ok)
+		.unset_header(header::content_range)
+		.set_header(header::accept_ranges, "none")
+		.set_header(header::content_type, token.mime_type);
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, Opt *file_token) -> void
+		if( auto cached = self->cached_gzip_file(token) )
+		{
+			auto [error, sum] = co_await co_write_header(self, cached->size());
+			if( error or self->m_generator.pro_state() == generator_state::finish )
+				co_return std::tuple<error_code,size_t>{error, sum};
+
+			auto [write_error, bytes] = co_await co_write_body (
+				self, buffer(*cached)
+			);
+			if( write_error )
+				co_return std::tuple<error_code,size_t>{write_error, sum};
+
+			if( bytes != cached->size() )
 			{
-				LIBGS_UNUSED(state);
-				auto &token = *file_token;
-
-				self->m_generator
-				.set_status(status::ok)
-				.unset_header(header::content_range)
-				.set_header(header::accept_ranges, "none")
-				.set_header(header::content_type, token.mime_type);
-
-				if( auto cached = self->cached_gzip_file(token) )
-				{
-					auto [error, sum] = co_await self->async_write_header (
-						cached->size(), asio::as_tuple(deferred)
-					);
-					if( error or self->m_generator.pro_state() == generator_state::finish )
-						co_return std::tuple<error_code,size_t>{error, sum};
-
-					auto [write_error, bytes] = co_await self->async_write_body (
-						buffer(*cached), asio::as_tuple(deferred)
-					);
-					if( write_error )
-						co_return std::tuple<error_code,size_t>{write_error, sum};
-
-					if( bytes != cached->size() )
-					{
-						co_return std::tuple<error_code,size_t> {
-							make_error_code(std::errc::io_error), sum
-						};
-					}
-					sum += token.file_size;
-					if( auto end = self->m_generator.chunk_end_data({}); not end.empty() )
-					{
-						auto [end_error, end_bytes] = co_await self->async_base_write (
-							std::move(end), asio::as_tuple(deferred)
-						);
-						ignore_unused(end_bytes);
-						if( end_error )
-							co_return std::tuple<error_code,size_t>{end_error, sum};
-					}
-					co_return std::tuple<error_code,size_t>{error_code{}, sum};
-				}
-				size_t body_size = 0;
-				if( self->m_req_method == method::head )
-				{
-					auto expected = self->gzip_file_size(token);
-					if( not expected )
-					{
-						co_return std::tuple<error_code,size_t>{
-							expected.error(), 0
-						};
-					}
-					body_size = *expected;
-				}
-				auto [error, sum] = co_await self->async_write_header (
-					body_size, asio::as_tuple(deferred)
+				co_return std::tuple<error_code,size_t> {
+					make_error_code(std::errc::io_error), sum
+				};
+			}
+			sum += token.file_size;
+			if( auto end = self->m_generator.chunk_end_data({}); not end.empty() )
+			{
+				auto [end_error, end_bytes] = co_await co_base_write (
+					self, std::move(end)
 				);
-				if( error or self->m_generator.pro_state() == generator_state::finish )
-					co_return std::tuple<error_code,size_t>{error, sum};
+				ignore_unused(end_bytes);
+				if( end_error )
+					co_return std::tuple<error_code,size_t>{end_error, sum};
+			}
+			co_return std::tuple<error_code,size_t>{error_code{}, sum};
+		}
+		size_t body_size = 0;
+		if( self->m_req_method == method::head )
+		{
+			auto expected = self->gzip_file_size(token);
+			if( not expected )
+			{
+				co_return std::tuple<error_code,size_t>{
+					expected.error(), 0
+				};
+			}
+			body_size = *expected;
+		}
+		auto [error, sum] = co_await co_write_header(self, body_size);
+		if( error or self->m_generator.pro_state() == generator_state::finish )
+			co_return std::tuple<error_code,size_t>{error, sum};
 
-				gzip_encoder encoder;
-				constexpr size_t buf_size = 64 * 1024;
+		gzip_encoder encoder;
+		constexpr size_t buf_size = 64 * 1024;
 
-				char data[buf_size] {};
-				size_t pending_source = 0;
+		char data[buf_size] {};
+		size_t pending_source = 0;
 
-				token.stream->clear();
-				token.stream->seekg(0);
+		token.stream->clear();
+		token.stream->seekg(0);
 
-				while( not token.stream->eof() )
+		while( not token.stream->eof() )
+		{
+			token.stream->read(data, buf_size);
+			auto size = static_cast<size_t>(token.stream->gcount());
+			if( size == 0 )
+			{
+				if( not token.stream->eof() )
 				{
-					token.stream->read(data, buf_size);
-					auto size = static_cast<size_t>(token.stream->gcount());
-					if( size == 0 )
-					{
-						if( not token.stream->eof() )
-						{
-							co_return std::tuple<error_code,size_t>{
-								make_error_code(std::errc::io_error), sum
-							};
-						}
-						break;
-					}
-					auto encoded = encoder.append({data, size});
-					if( not encoded )
-					{
-						co_return std::tuple<error_code,size_t> {
-							encoded.error(), sum
-						};
-					}
-					pending_source += size;
-					if( not encoded->empty() )
-					{
-						auto [write_error, bytes] = co_await self->async_write_body (
-							buffer(*encoded), asio::as_tuple(deferred)
-						);
-						if( write_error )
-							co_return std::tuple<error_code,size_t>{write_error, sum};
-
-						if( bytes != encoded->size() )
-						{
-							co_return std::tuple<error_code,size_t> {
-								make_error_code(std::errc::io_error), sum
-							};
-						}
-						sum += pending_source;
-						pending_source = 0;
-					}
+					co_return std::tuple<error_code,size_t>{
+						make_error_code(std::errc::io_error), sum
+					};
 				}
-				auto encoded = encoder.append({}, true);
-				if( not encoded )
-					co_return std::tuple<error_code,size_t>{encoded.error(), sum};
+				break;
+			}
+			auto encoded = encoder.append({data, size});
+			if( not encoded )
+			{
+				co_return std::tuple<error_code,size_t> {
+					encoded.error(), sum
+				};
+			}
+			pending_source += size;
+			if( not encoded->empty() )
+			{
+				auto [write_error, bytes] = co_await co_write_body (
+					self, buffer(*encoded)
+				);
+				if( write_error )
+					co_return std::tuple<error_code,size_t>{write_error, sum};
 
-				if( not encoded->empty() )
+				if( bytes != encoded->size() )
 				{
-					auto [write_error, bytes] = co_await self->async_write_body (
-						buffer(*encoded), asio::as_tuple(deferred)
-					);
-					if( write_error )
-						co_return std::tuple<error_code,size_t>{write_error, sum};
+					co_return std::tuple<error_code,size_t> {
+						make_error_code(std::errc::io_error), sum
+					};
+				}
+				sum += pending_source;
+				pending_source = 0;
+			}
+		}
+		auto encoded = encoder.append({}, true);
+		if( not encoded )
+			co_return std::tuple<error_code,size_t>{encoded.error(), sum};
 
-					if( bytes != encoded->size() )
-					{
-						co_return std::tuple<error_code,size_t> {
-							make_error_code(std::errc::io_error), sum
-						};
-					}
-					sum += pending_source;
-					pending_source = 0;
-				}
-				if( auto end = self->m_generator.chunk_end_data({}); not end.empty() )
-				{
-					auto [write_error, bytes] = co_await self->async_base_write (
-						std::move(end), asio::as_tuple(deferred)
-					);
-					ignore_unused(bytes);
-					if( write_error )
-						co_return std::tuple<error_code,size_t>{write_error, sum};
-				}
-				co_return std::tuple<error_code,size_t>{error_code{}, sum};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), &source_file
-		);
+		if( not encoded->empty() )
+		{
+			auto [write_error, bytes] = co_await co_write_body (
+				self, buffer(*encoded)
+			);
+			if( write_error )
+				co_return std::tuple<error_code,size_t>{write_error, sum};
+
+			if( bytes != encoded->size() )
+			{
+				co_return std::tuple<error_code,size_t> {
+					make_error_code(std::errc::io_error), sum
+				};
+			}
+			sum += pending_source;
+			pending_source = 0;
+		}
+		if( auto end = self->m_generator.chunk_end_data({}); not end.empty() )
+		{
+			auto [write_error, bytes] = co_await co_base_write (
+				self, std::move(end)
+			);
+			ignore_unused(bytes);
+			if( write_error )
+				co_return std::tuple<error_code,size_t>{write_error, sum};
+		}
+		co_return std::tuple<error_code,size_t>{error_code{}, sum};
 	}
 
 	template <typename Opt>
@@ -1229,71 +1222,51 @@ private:
 		return sum;
 	}
 
-	template <typename Opt, typename Token>
-	[[nodiscard]] auto async_default_transfer
-	(Opt &source_file, Token &&completion)
+	template <typename Opt>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_default_transfer(std::shared_ptr<impl> self, Opt &token)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(completion));
-		auto operation = this->shared_from_this();
+		if( self->m_file_gzip )
+		{
+			auto [error, bytes] = co_await co_gzip_transfer(self, token);
+			co_return std::tuple<error_code,size_t>{error, bytes};
+		}
+		self->m_generator
+		.set_status(status::ok)
+		.unset_header(header::content_range)
+		.set_header(header::accept_ranges, "bytes")
+		.set_header(header::content_type, token.mime_type);
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, Opt *file_token) -> void
-			{
-				LIBGS_UNUSED(state);
-				auto &token = *file_token;
+		auto [error, sum] = co_await co_write_header(self, token.file_size);
+		if( error or token.file_size == 0 or self->m_generator.pro_state() == generator_state::finish )
+			co_return std::tuple<error_code,size_t>{error, sum};
 
-				if( self->m_file_gzip )
-				{
-					auto [error, bytes] = co_await self->async_gzip_transfer (
-						token, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t>{error, bytes};
-				}
-				self->m_generator
-				.set_status(status::ok)
-				.unset_header(header::content_range)
-				.set_header(header::accept_ranges, "bytes")
-				.set_header(header::content_type, token.mime_type);
+		if( auto cached = self->cached_file_source(token) )
+		{
+			auto [write_error, bytes] = co_await co_write_body (
+				self, buffer(*cached)
+			);
+			co_return std::tuple<error_code,size_t>{write_error, sum + bytes};
+		}
+		constexpr size_t buf_size = 0xFFFF;
+		char data[buf_size] {};
+		token.stream->seekg(0);
 
-				auto [error, sum] = co_await self->async_write_header (
-					token.file_size, asio::as_tuple(deferred)
-				);
-				if( error or token.file_size == 0 or self->m_generator.pro_state() == generator_state::finish )
-					co_return std::tuple<error_code,size_t>{error, sum};
+		while( not token.stream->eof() )
+		{
+			token.stream->read(data, buf_size);
+			auto size = static_cast<size_t>(token.stream->gcount());
+			if( size == 0 )
+				break;
 
-				if( auto cached = self->cached_file_source(token) )
-				{
-					auto [write_error, bytes] = co_await self->async_write_body (
-						buffer(*cached), asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t>{write_error, sum + bytes};
-				}
-				constexpr size_t buf_size = 0xFFFF;
-				char data[buf_size] {};
-				token.stream->seekg(0);
-
-				while( not token.stream->eof() )
-				{
-					token.stream->read(data, buf_size);
-					auto size = static_cast<size_t>(token.stream->gcount());
-					if( size == 0 )
-						break;
-
-					auto [write_error, bytes] = co_await self->async_write_body (
-						buffer(data, size), asio::as_tuple(deferred)
-					);
-					sum += bytes;
-					if( write_error )
-						co_return std::tuple<error_code,size_t>{write_error, sum};
-				}
-				co_return std::tuple<error_code,size_t>{error_code{}, sum};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), &source_file
-		);
+			auto [write_error, bytes] = co_await co_write_body (
+				self, buffer(data, size)
+			);
+			sum += bytes;
+			if( write_error )
+				co_return std::tuple<error_code,size_t>{write_error, sum};
+		}
+		co_return std::tuple<error_code,size_t>{error_code{}, sum};
 	}
 
 private:
@@ -1363,81 +1336,62 @@ private:
 		);
 	}
 
-	template <typename Opt, typename Token>
-	[[nodiscard]] auto async_range_transfer
-	(Opt &source_file, std::vector<range_value> range_set, Token &&completion)
+	template <typename Opt>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_range_transfer(std::shared_ptr<impl> self, Opt &token,
+		std::vector<range_value> ranges)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(completion));
-		auto operation = this->shared_from_this();
+		self->m_generator.set_status(status::partial_content);
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([](
-				auto state, std::shared_ptr<impl> self, Opt *file_token,
-				std::vector<range_value> ranges
-			) -> void
-			{
-				LIBGS_UNUSED(state);
-				auto &token = *file_token;
-				self->m_generator.set_status(status::partial_content);
+		if( ranges.size() == 1 )
+		{
+			auto &range = ranges.back();
+			self->m_generator
+			.set_header(header::accept_ranges , "bytes")
+			.set_header(header::content_type  , token.mime_type)
+			.set_header(header::content_length, range.total)
+			.set_header(header::content_range,
+				format_content_range(range, token.file_size)
+			);
+			auto [error, bytes] = co_await co_send_range (
+				self, *token.stream, {}, {}, std::move(ranges)
+			);
+			co_return std::tuple<error_code,size_t>{error, bytes};
+		}
+		using namespace std::chrono;
 
-				if( ranges.size() == 1 )
-				{
-					auto &range = ranges.back();
-					self->m_generator
-					.set_header(header::accept_ranges , "bytes")
-					.set_header(header::content_type  , token.mime_type)
-					.set_header(header::content_length, range.total)
-					.set_header(header::content_range,
-						format_content_range(range, token.file_size)
-					);
-					auto [error, bytes] = co_await self->async_send_range (
-						*token.stream, {}, {}, std::move(ranges),
-						asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t>{error, bytes};
-				}
-				using namespace std::chrono;
-
-				auto boundary = std::format("{}_{}",
-					uuid::generate().to_string(),
-					duration_cast<milliseconds>(
-						system_clock::now().time_since_epoch()
-					).count()
-				);
-				self->m_generator.set_header(header::content_type,
-					"multipart/byteranges; boundary=" + boundary
-				);
-				self->m_generator.unset_header(header::content_range);
-
-				auto content_type_line = std::format (
-					"{}: {}", header::content_type, token.mime_type
-				);
-				size_t content_length = 0;
-				for(const auto &range : ranges)
-				{
-					content_length += 2 + boundary.size() + 2 +
-						content_type_line.size() + 2 +
-						range.cr_line.size() + 2 + 2 + range.total + 2;
-				}
-				content_length += 2 + boundary.size() + 2 + 2;
-
-				self->m_generator
-				.set_header(header::content_length, content_length)
-				.set_header(header::accept_ranges, "bytes");
-
-				auto [error, bytes] = co_await self->async_send_range (
-					*token.stream, std::move(boundary),
-					std::move(content_type_line), std::move(ranges),
-					asio::as_tuple(deferred)
-				);
-				co_return std::tuple<error_code,size_t>{error, bytes};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), &source_file,
-			std::move(range_set)
+		auto boundary = std::format("{}_{}",
+			uuid::generate().to_string(),
+			duration_cast<milliseconds>(
+				system_clock::now().time_since_epoch()
+			).count()
 		);
+		self->m_generator.set_header(header::content_type,
+			"multipart/byteranges; boundary=" + boundary
+		);
+		self->m_generator.unset_header(header::content_range);
+
+		auto content_type_line = std::format (
+			"{}: {}", header::content_type, token.mime_type
+		);
+		size_t content_length = 0;
+		for(const auto &range : ranges)
+		{
+			content_length += 2 + boundary.size() + 2 +
+				content_type_line.size() + 2 +
+				range.cr_line.size() + 2 + 2 + range.total + 2;
+		}
+		content_length += 2 + boundary.size() + 2 + 2;
+
+		self->m_generator
+		.set_header(header::content_length, content_length)
+		.set_header(header::accept_ranges, "bytes");
+
+		auto [error, bytes] = co_await co_send_range (
+			self, *token.stream, std::move(boundary),
+			std::move(content_type_line), std::move(ranges)
+		);
+		co_return std::tuple<error_code,size_t>{error, bytes};
 	}
 
 private:
@@ -1529,118 +1483,101 @@ private:
 		return sum;
 	}
 
-	template <typename FS, typename Token>
-	[[nodiscard]] auto async_send_range(FS &source_stream, std::string multipart_boundary,
-		std::string mime_header, std::vector<range_value> range_set, Token &&completion)
+	template <typename FS>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_send_range(std::shared_ptr<impl> self, FS &source_stream,
+		std::string boundary, std::string content_type_line,
+		std::vector<range_value> ranges)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(completion));
-		auto operation = this->shared_from_this();
+		auto *stream = &source_stream;
+		assert(not ranges.empty());
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([](
-				auto state, std::shared_ptr<impl> self, FS *stream, std::string boundary,
-				std::string content_type_line, std::vector<range_value> ranges
-			) -> void
+		auto [error, sum] = co_await co_write_header(self, 0);
+		if( error )
+			co_return std::tuple<error_code,size_t>{error, sum};
+
+		constexpr size_t buf_size = 0xFFFF;
+		char buf[buf_size + 2] {};
+
+		if( ranges.size() == 1 )
+		{
+			auto &value = ranges.back();
+			stream->seekg(value.begin, std::ios_base::beg);
+
+			while( not stream->eof() )
 			{
-				LIBGS_UNUSED(state);
-				assert(not ranges.empty());
+				auto wanted = std::min(value.total, buf_size);
+				stream->read(buf, wanted);
 
-				auto [error, sum] = co_await self->async_write_header (
-					0, asio::as_tuple(deferred)
+				auto size = static_cast<size_t>(stream->gcount());
+				auto [write_error, bytes] = co_await co_write_body (
+					self, buffer(buf, size)
 				);
-				if( error )
-					co_return std::tuple<error_code,size_t>{error, sum};
-
-				constexpr size_t buf_size = 0xFFFF;
-				char buf[buf_size + 2] {};
-
-				if( ranges.size() == 1 )
+				sum += bytes;
+				if( write_error )
 				{
-					auto &value = ranges.back();
-					stream->seekg(value.begin, std::ios_base::beg);
-
-					while( not stream->eof() )
-					{
-						auto wanted = std::min(value.total, buf_size);
-						stream->read(buf, wanted);
-
-						auto size = static_cast<size_t>(stream->gcount());
-						auto [write_error, bytes] = co_await self->async_write_body (
-							buffer(buf, size), asio::as_tuple(deferred)
-						);
-						sum += bytes;
-						if( write_error )
-						{
-							co_return std::tuple<error_code,size_t> {
-								write_error, sum
-							};
-						}
-						if( value.total <= buf_size )
-							break;
-						value.total -= size;
-					}
-					co_return std::tuple<error_code,size_t>{error_code{}, sum};
+					co_return std::tuple<error_code,size_t> {
+						write_error, sum
+					};
 				}
-				for(auto &value : ranges)
+				if( value.total <= buf_size )
+					break;
+				value.total -= size;
+			}
+			co_return std::tuple<error_code,size_t>{error_code{}, sum};
+		}
+		for(auto &value : ranges)
+		{
+			auto body = std::format (
+				"--{}\r\n{}\r\n{}\r\n\r\n",
+				boundary, content_type_line, value.cr_line
+			);
+			auto [body_error, body_bytes] = co_await co_write_representation (
+				self, buffer(body), 0, 0
+			);
+			sum += body_bytes;
+			if( body_error )
+				co_return std::tuple<error_code,size_t>{body_error, sum};
+
+			stream->seekg(value.begin, std::ios_base::beg);
+			while( not stream->eof() )
+			{
+				auto wanted = std::min(value.total, buf_size);
+				stream->read(buf, wanted);
+
+				auto size = static_cast<size_t>(stream->gcount());
+				if( size == 0 )
+					break;
+				auto logical_size = size;
+
+				if( value.total <= buf_size )
 				{
-					auto body = std::format (
-						"--{}\r\n{}\r\n{}\r\n\r\n",
-						boundary, content_type_line, value.cr_line
-					);
-					auto [body_error, body_bytes] = co_await self->async_write_representation (
-						buffer(body), 0, 0, asio::as_tuple(deferred)
-					);
-					sum += body_bytes;
-					if( body_error )
-						co_return std::tuple<error_code,size_t>{body_error, sum};
-
-					stream->seekg(value.begin, std::ios_base::beg);
-					while( not stream->eof() )
-					{
-						auto wanted = std::min(value.total, buf_size);
-						stream->read(buf, wanted);
-
-						auto size = static_cast<size_t>(stream->gcount());
-						if( size == 0 )
-							break;
-						auto logical_size = size;
-
-						if( value.total <= buf_size )
-						{
-							buf[size] = '\r';
-							buf[size + 1] = '\n';
-							size += 2;
-						}
-						auto [write_error, bytes] = co_await self->async_write_representation (
-							buffer(buf, size), 0, logical_size, asio::as_tuple(deferred)
-						);
-						sum += bytes;
-						if( write_error )
-						{
-							co_return std::tuple<error_code,size_t> {
-								write_error, sum
-							};
-						}
-						if( value.total <= buf_size )
-							break;
-						value.total -= size;
-					}
+					buf[size] = '\r';
+					buf[size + 1] = '\n';
+					size += 2;
 				}
-				auto end = std::format("--{}--\r\n", boundary);
-
-				auto [end_error, end_bytes] = co_await self->async_write_representation (
-					buffer(end), 0, 0, asio::as_tuple(deferred)
+				auto [write_error, bytes] = co_await co_write_representation (
+					self, buffer(buf, size), 0, logical_size
 				);
-				sum += end_bytes;
-				co_return std::tuple<error_code,size_t>{end_error, sum};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), &source_stream,
-			std::move(multipart_boundary), std::move(mime_header),
-			std::move(range_set)
+				sum += bytes;
+				if( write_error )
+				{
+					co_return std::tuple<error_code,size_t> {
+						write_error, sum
+					};
+				}
+				if( value.total <= buf_size )
+					break;
+				value.total -= size;
+			}
+		}
+		auto end = std::format("--{}--\r\n", boundary);
+
+		auto [end_error, end_bytes] = co_await co_write_representation (
+			self, buffer(end), 0, 0
 		);
+		sum += end_bytes;
+		co_return std::tuple<error_code,size_t>{end_error, sum};
 	}
 
 private:
@@ -1650,28 +1587,13 @@ private:
 		return 0;
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_write_header(size_t size, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_write_header(std::shared_ptr<impl> self, size_t size)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
-
-		return asio::async_initiate<token_t,void(error_code,size_t)>(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, std::string data) -> void
-			{
-				LIBGS_UNUSED(state);
-				auto [error, bytes] = co_await self->async_base_write (
-					std::move(data), asio::as_tuple(deferred)
-				);
-				ignore_unused(bytes);
-				co_return std::tuple<error_code,size_t>{error, 0};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation),
-			m_generator.header_data(size, m_req_method)
-		);
+		auto data = self->m_generator.header_data(size, self->m_req_method);
+		auto [error, bytes] = co_await co_base_write(self, std::move(data));
+		ignore_unused(bytes);
+		co_return std::tuple<error_code,size_t>{error, 0};
 	}
 
 	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept
@@ -1724,170 +1646,88 @@ private:
 		return sum;
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_base_write(const_buffer input, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_base_write(std::shared_ptr<impl> self, const_buffer data)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
-
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, const_buffer data) -> void
-			{
-				LIBGS_UNUSED(state);
-				auto [error, bytes] = co_await self->m_connection->write (
-					data, asio::as_tuple(deferred)
-				);
-				if( error )
-					ignore_unused(self->m_connection->close());
-				co_return std::tuple<error_code,size_t>{error, bytes};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), input
+		auto [error, bytes] = co_await self->m_connection->write (
+			data, asio::as_tuple(deferred)
 		);
+		if( error )
+			ignore_unused(self->m_connection->close());
+		co_return std::tuple<error_code,size_t>{error, bytes};
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_base_write(std::string input, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_base_write(std::shared_ptr<impl> self, std::string data)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
-
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, std::string data) -> void
-			{
-				LIBGS_UNUSED(state);
-				auto [error, bytes] = co_await self->m_connection->write (
-					buffer(data), asio::as_tuple(deferred)
-				);
-				if( error )
-					ignore_unused(self->m_connection->close());
-				co_return std::tuple<error_code,size_t>{error, bytes};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), std::move(input)
+		auto [error, bytes] = co_await self->m_connection->write (
+			buffer(data), asio::as_tuple(deferred)
 		);
+		if( error )
+			ignore_unused(self->m_connection->close());
+		co_return std::tuple<error_code,size_t>{error, bytes};
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_base_write
-	(std::string initial_header, const_buffer input_body, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_base_write(std::shared_ptr<impl> self, std::string header_data,
+		const_buffer body)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
-
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([](
-				auto state, std::shared_ptr<impl> self, std::string header_data,
-				const_buffer body
-			) -> void
-			{
-				LIBGS_UNUSED(state);
-				const const_buffer buffers[] {buffer(header_data), body};
-
-				auto [error, bytes] = co_await self->m_connection->write (
-					buffers, asio::as_tuple(deferred)
-				);
-				if( error )
-					ignore_unused(self->m_connection->close());
-				co_return std::tuple<error_code,size_t>{error, bytes};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), std::move(initial_header),
-			input_body
+		const const_buffer buffers[] {buffer(header_data), body};
+		auto [error, bytes] = co_await self->m_connection->write (
+			buffers, asio::as_tuple(deferred)
 		);
+		if( error )
+			ignore_unused(self->m_connection->close());
+		co_return std::tuple<error_code,size_t>{error, bytes};
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_base_write
-	(std::string initial_header, std::string input_body, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_base_write(std::shared_ptr<impl> self, std::string header_data,
+		std::string body)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
-
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([]
-			(auto state, std::shared_ptr<impl> self, std::string header_data, std::string body) -> void
-			{
-				LIBGS_UNUSED(state);
-				const const_buffer buffers[] {buffer(header_data), buffer(body)};
-
-				auto [error, bytes] = co_await self->m_connection->write (
-					buffers, asio::as_tuple(deferred)
-				);
-				if( error )
-					ignore_unused(self->m_connection->close());
-				co_return std::tuple<error_code,size_t>{error, bytes};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), std::move(initial_header),
-			std::move(input_body)
+		const const_buffer buffers[] {buffer(header_data), buffer(body)};
+		auto [error, bytes] = co_await self->m_connection->write (
+			buffers, asio::as_tuple(deferred)
 		);
+		if( error )
+			ignore_unused(self->m_connection->close());
+		co_return std::tuple<error_code,size_t>{error, bytes};
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_write_representation
-	(const_buffer input_body, size_t logical_offset, size_t logical_size, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_write_representation(std::shared_ptr<impl> self, const_buffer body,
+		size_t body_offset, size_t body_size)
 	{
-		using token_t = std::remove_cvref_t<Token>;
-		token_t completion_token(std::forward<Token>(token));
-		auto operation = this->shared_from_this();
-
-		return asio::async_initiate<token_t,void(error_code,size_t)>
-		(
-			asio::co_composed<void(error_code,size_t)>([](auto state, std::shared_ptr<impl> self,
-				const_buffer body, size_t body_offset, size_t body_size) -> void
-			{
-				LIBGS_UNUSED(state);
-				if( self->m_generator.pro_state() == generator_state::content_length )
-				{
-					auto content = self->m_generator.body_buffer(body);
-					auto [error, bytes] = co_await self->async_base_write (
-						content, asio::as_tuple(deferred)
-					);
-					co_return std::tuple<error_code,size_t> {
-						error, body_bytes_transferred(bytes, body_offset,
-							std::min(body_size, content.size() > body_offset ?
-								content.size() - body_offset : size_t{0}
-							)
-						)
-					};
-				}
-				auto content = self->m_generator.body_data(body);
-				auto offset = framed_body_offset(content.size(), body.size()) + body_offset;
-
-				auto [error, bytes] = co_await self->async_base_write (
-					std::move(content), asio::as_tuple(deferred)
-				);
-				co_return std::tuple<error_code,size_t> {
-					error, body_bytes_transferred(bytes, offset,
-						std::min(body_size, body.size() > body_offset ?
-							body.size() - body_offset : size_t{0}
-						)
+		if( self->m_generator.pro_state() == generator_state::content_length )
+		{
+			auto content = self->m_generator.body_buffer(body);
+			auto [error, bytes] = co_await co_base_write(self, content);
+			co_return std::tuple<error_code,size_t> {
+				error, body_bytes_transferred(bytes, body_offset,
+					std::min(body_size, content.size() > body_offset ?
+						content.size() - body_offset : size_t{0}
 					)
-				};
-			},
-			m_connection->get_executor()),
-			completion_token, std::move(operation), input_body,
-			logical_offset, logical_size
-		);
+				)
+			};
+		}
+		auto content = self->m_generator.body_data(body);
+		auto offset = framed_body_offset(content.size(), body.size()) + body_offset;
+
+		auto [error, bytes] = co_await co_base_write(self, std::move(content));
+		co_return std::tuple<error_code,size_t> {
+			error, body_bytes_transferred(bytes, offset,
+				std::min(body_size, body.size() > body_offset ?
+					body.size() - body_offset : size_t{0}
+				)
+			)
+		};
 	}
 
-	template <typename Token>
-	[[nodiscard]] auto async_write_body(const_buffer input_body, Token &&token)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
+	co_write_body(std::shared_ptr<impl> self, const_buffer body)
 	{
-		return async_write_representation(input_body, 0, input_body.size(),
-			std::forward<Token>(token)
-		);
+		co_return co_await co_write_representation(
+			std::move(self), body, 0, body.size());
 	}
 
 private:

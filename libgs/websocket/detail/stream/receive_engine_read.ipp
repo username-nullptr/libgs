@@ -405,12 +405,8 @@ message_info detail::receive_engine<Owner>::consume(Consumer &&consumer, error_c
 }
 
 template <typename Owner>
-template <typename Handler>
-void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
+void detail::receive_engine<Owner>::async_read_message(message_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, message)>(std::forward<Handler>(handler));
-
 	auto self = m_owner.shared_from_this();
 	auto state_error = self->read_state_error();
 
@@ -565,12 +561,8 @@ void detail::receive_engine<Owner>::async_read_message(Handler &&handler)
 }
 
 template <typename Owner>
-template <typename Handler>
-void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
+void detail::receive_engine<Owner>::async_read_frame(frame_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, data_frame)>(std::forward<Handler>(handler));
-
 	auto self = m_owner.shared_from_this();
 	auto state_error = self->frame_read_state_error();
 
@@ -730,12 +722,10 @@ void detail::receive_engine<Owner>::async_read_frame(Handler &&handler)
 }
 
 template <typename Owner>
-template <typename Consumer, typename Handler>
-void detail::receive_engine<Owner>::async_consume(Consumer &&consumer, Handler &&handler)
+template <typename Consumer>
+void detail::receive_engine<Owner>::async_consume
+(Consumer &&consumer, info_handler_t completion)
 {
-	auto completion = asio::any_completion_handler
-		<void(error_code, message_info)>(std::forward<Handler>(handler));
-
 	auto self = m_owner.shared_from_this();
 	auto state_error = self->consume_state_error();
 

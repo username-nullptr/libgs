@@ -386,266 +386,289 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 	}
 }
 
-template <core_concepts::exec Exec, http::version_enum Version, typename Handler>
-auto async_open(http::basic_client<Exec,Version> &http_client, connect_request request,
-	basic_open_diagnostics<Exec> *diagnostics, stream_config stream_config_value,
-	optional<bool> no_delay, std::chrono::milliseconds timeout, Handler &&handler)
+template <core_concepts::exec Exec, http::version_enum Version>
+asio::awaitable<optional<std::tuple<error_code,basic_stream<Exec>>>,Exec>
+co_open(http::basic_client<Exec,Version> *client, connect_request active_request,
+	basic_open_diagnostics<Exec> *active_diagnostics, stream_config active_stream_config,
+	optional<bool> active_no_delay, std::chrono::milliseconds active_timeout)
 {
 	using result_t = basic_stream<Exec>;
-	using token_t = std::remove_cvref_t<Handler>;
-	token_t completion_token(std::forward<Handler>(handler));
+	using context_ptr = http::basic_client<Exec,Version>::
+		template context_ptr<http::method::get>;
 
-	return asio::async_initiate<token_t,void(error_code,result_t)>(
-		asio::co_composed<void(error_code,result_t)>([](
-			auto state, http::basic_client<Exec,Version> *client, connect_request active_request,
-			basic_open_diagnostics<Exec> *active_diagnostics, stream_config active_stream_config,
-			optional<bool> active_no_delay, std::chrono::milliseconds active_timeout) -> void
+	result_t result(client->get_executor(), active_stream_config);
+	context_ptr context;
+	try {
+		if( auto error = validate_open_request(active_request, active_stream_config) )
 		{
-			LIBGS_UNUSED(state);
-			using context_ptr = http::basic_client<Exec,Version>::
-				template context_ptr<http::method::get>;
+			co_return std::tuple<error_code,result_t> {
+				error, std::move(result)
+			};
+		}
+		if( active_diagnostics )
+			active_diagnostics->endpoint = active_request.endpoint;
 
-			result_t result(client->get_executor(), active_stream_config);
-			context_ptr context;
-			try {
-				if( auto error = validate_open_request(active_request, active_stream_config) )
+		if( active_timeout <= std::chrono::milliseconds::zero() )
+		{
+			co_return std::tuple<error_code,result_t> {
+				asio::error::timed_out, std::move(result)
+			};
+		}
+		const auto deadline = std::chrono::steady_clock::now() + active_timeout;
+		auto base_options = active_request.request_options;
+		auto endpoint = active_request.endpoint;
+		size_t redirects = 0;
+		for(;;)
+		{
+			auto remaining = remaining_timeout(deadline);
+			if( remaining <= std::chrono::milliseconds::zero() )
+			{
+				co_return std::tuple<error_code,result_t> {
+					asio::error::timed_out, std::move(result)
+				};
+			}
+			std::array<std::byte,16> nonce {};
+			if( auto random = secure_random_bytes(asio::buffer(nonce)); not random )
+			{
+				co_return std::tuple<error_code,result_t> {
+					random.error(), std::move(result)
+				};
+			}
+			auto key = make_client_key(nonce);
+			if( not key )
+			{
+				co_return std::tuple<error_code,result_t> {
+					key.error(), std::move(result)
+				};
+			}
+			opening_request opening {
+				.key = std::move(*key),
+				.subprotocols = active_request.subprotocols,
+				.extensions = active_request.extensions,
+			};
+			auto opening_headers = make_opening_request_headers(opening);
+			if( not opening_headers )
+			{
+				co_return std::tuple<error_code,result_t> {
+					opening_headers.error(), std::move(result)
+				};
+			}
+			auto transport = http_transport_url(endpoint);
+			if( not transport )
+			{
+				co_return std::tuple<error_code,result_t> {
+					transport.error(), std::move(result)
+				};
+			}
+			auto options = base_options;
+			for(auto &[name, value] : *opening_headers)
+				options.set_header(name, value);
+
+			typename http::basic_client<Exec,Version>::req_info info (
+				std::move(*transport), std::move(options)
+			);
+			info.auto_decompression = false;
+			info.max_redirects = 0;
+
+			const bool inherit_global_proxy =
+				std::holds_alternative<use_global_proxy_t>(client->config().default_proxy);
+
+			if( auto proxy_error = configure_proxy_request
+				(active_request.proxy, endpoint, info, inherit_global_proxy) )
+			{
+				co_return std::tuple<error_code,result_t> {
+					proxy_error, std::move(result)
+				};
+			}
+			auto [request_error, next_context] = co_await client->request_get (
+				std::move(info), asio::as_tuple(deferred)
+			);
+			if( request_error )
+			{
+				co_return std::tuple<error_code,result_t> {
+					request_error, std::move(result)
+				};
+			}
+			context = std::move(next_context);
+			remaining = remaining_timeout(deadline);
+
+			if( remaining <= std::chrono::milliseconds::zero() )
+			{
+				context->cancel();
+				close_reply_connection(context->reply());
+
+				co_return std::tuple<error_code,result_t> {
+					asio::error::timed_out, std::move(result)
+				};
+			}
+			auto [reply_error, status] = co_await context->wait_reply (
+				asio::as_tuple(deferred)
+			);
+			if( reply_error )
+			{
+				context->cancel();
+				close_reply_connection(context->reply());
+
+				co_return std::tuple<error_code,result_t> {
+					reply_error, std::move(result)
+				};
+			}
+			auto reply = context->reply();
+			if( websocket_redirect_status(status) )
+			{
+				if( redirects >= active_request.max_redirects )
 				{
-					co_return std::tuple<error_code,result_t> {
-						error, std::move(result)
-					};
-				}
-				if( active_diagnostics )
-					active_diagnostics->endpoint = active_request.endpoint;
-
-				if( active_timeout <= std::chrono::milliseconds::zero() )
-				{
-					co_return std::tuple<error_code,result_t> {
-						asio::error::timed_out, std::move(result)
-					};
-				}
-				const auto deadline = std::chrono::steady_clock::now() + active_timeout;
-				auto base_options = active_request.request_options;
-				auto endpoint = active_request.endpoint;
-				size_t redirects = 0;
-				for(;;)
-				{
-					auto remaining = remaining_timeout(deadline);
-					if( remaining <= std::chrono::milliseconds::zero() )
-					{
-						co_return std::tuple<error_code,result_t> {
-							asio::error::timed_out, std::move(result)
-						};
-					}
-					std::array<std::byte,16> nonce {};
-					if( auto random = secure_random_bytes(asio::buffer(nonce)); not random )
-					{
-						co_return std::tuple<error_code,result_t> {
-							random.error(), std::move(result)
-						};
-					}
-					auto key = make_client_key(nonce);
-					if( not key )
-					{
-						co_return std::tuple<error_code,result_t> {
-							key.error(), std::move(result)
-						};
-					}
-					opening_request opening {
-						.key = std::move(*key),
-						.subprotocols = active_request.subprotocols,
-						.extensions = active_request.extensions,
-					};
-					auto opening_headers = make_opening_request_headers(opening);
-					if( not opening_headers )
-					{
-						co_return std::tuple<error_code,result_t> {
-							opening_headers.error(), std::move(result)
-						};
-					}
-					auto transport = http_transport_url(endpoint);
-					if( not transport )
-					{
-						co_return std::tuple<error_code,result_t> {
-							transport.error(), std::move(result)
-						};
-					}
-					auto options = base_options;
-					for(auto &[name, value] : *opening_headers)
-						options.set_header(name, value);
-
-					typename http::basic_client<Exec,Version>::req_info info (
-						std::move(*transport), std::move(options)
-					);
-					info.auto_decompression = false;
-					info.max_redirects = 0;
-
-					const bool inherit_global_proxy =
-						std::holds_alternative<use_global_proxy_t>(client->config().default_proxy);
-
-					if( auto proxy_error = configure_proxy_request
-						(active_request.proxy, endpoint, info, inherit_global_proxy) )
-					{
-						co_return std::tuple<error_code,result_t> {
-							proxy_error, std::move(result)
-						};
-					}
-					auto [request_error, next_context] = co_await client->request_get (
-						std::move(info), asio::as_tuple(deferred)
-					);
-					if( request_error )
-					{
-						co_return std::tuple<error_code,result_t> {
-							request_error, std::move(result)
-						};
-					}
-					context = std::move(next_context);
-					remaining = remaining_timeout(deadline);
-
-					if( remaining <= std::chrono::milliseconds::zero() )
-					{
-						context->cancel();
-						close_reply_connection(context->reply());
-
-						co_return std::tuple<error_code,result_t> {
-							asio::error::timed_out, std::move(result)
-						};
-					}
-					auto [reply_error, status] = co_await context->wait_reply (
-						asio::as_tuple(deferred)
-					);
-					if( reply_error )
-					{
-						context->cancel();
-						close_reply_connection(context->reply());
-
-						co_return std::tuple<error_code,result_t> {
-							reply_error, std::move(result)
-						};
-					}
-					auto reply = context->reply();
-					if( websocket_redirect_status(status) )
-					{
-						if( redirects >= active_request.max_redirects )
-						{
-							if( active_diagnostics )
-							{
-								active_diagnostics->endpoint = endpoint;
-								active_diagnostics->reply = reply;
-							}
-							co_return std::tuple<error_code,result_t> {
-								make_error_code(errc::redirect_limit_exceeded),
-								std::move(result)
-							};
-						}
-						auto location = reply->header(http::header::location);
-						if( not location )
-						{
-							if( active_diagnostics )
-							{
-								active_diagnostics->endpoint = endpoint;
-								active_diagnostics->reply = reply;
-							}
-							co_return std::tuple<error_code,result_t> {
-								make_error_code(errc::handshake_rejected),
-								std::move(result)
-							};
-						}
-						auto resolved = url::resolve(endpoint, location->to_string());
-						auto probe = active_request;
-						probe.endpoint = std::move(resolved);
-
-						if( auto redirect_error = validate_open_request(probe, active_stream_config) )
-						{
-							co_return std::tuple<error_code,result_t> {
-								redirect_error, std::move(result)
-							};
-						}
-						auto next = std::move(probe.endpoint);
-
-						if( ascii_equal_case_insensitive(endpoint.protocol(), "wss") and
-							ascii_equal_case_insensitive(next.protocol(), "ws") and
-							not active_request.allow_insecure_redirects )
-						{
-							co_return std::tuple<error_code,result_t> {
-								make_error_code(errc::insecure_redirect),
-								std::move(result)
-							};
-						}
-						if( not same_websocket_origin(endpoint, next) )
-						{
-							base_options.unset_header(http::header::authorization);
-							base_options.unset_header("Cookie");
-							base_options.cookies().clear();
-						}
-						endpoint = std::move(next);
-						context.reset();
-						++redirects;
-						continue;
-					}
 					if( active_diagnostics )
 					{
 						active_diagnostics->endpoint = endpoint;
 						active_diagnostics->reply = reply;
 					}
-					auto response = parse_opening_response(status, reply->headers(), opening);
-					if( not response )
-					{
-						if( status == http::status::switching_protocols )
-							close_reply_connection(reply);
-
-						co_return std::tuple<error_code,result_t> {
-							response.error(), std::move(result)
-						};
-					}
-					if( not detail::supported_extension_response
-						(response->extensions, active_request.extensions) )
-					{
-						close_reply_connection(reply);
-						co_return std::tuple<error_code,result_t> {
-							make_error_code(errc::unsupported_extension),
-							std::move(result)
-						};
-					}
-					auto pending = pending_bytes(reply->take_pending_data());
-					auto connection = reply->lease().take();
-
-					auto option_error = configure_client_connection (
-						connection, active_no_delay
-					);
-					if( option_error )
-					{
-						if( connection )
-							ignore_unused(connection->close());
-						co_return std::tuple<error_code,result_t> {
-							option_error, std::move(result)
-						};
-					}
-					adopt_options adopt {
-						.stream_role = role::client,
-						.pending_data = std::move(pending),
-						.negotiated_subprotocol = response->subprotocol.value_or(""),
-						.negotiated_extensions = response->extensions,
-					};
-					error_code adopt_error;
-					result.adopt(std::move(connection), std::move(adopt), adopt_error);
-
 					co_return std::tuple<error_code,result_t> {
-						adopt_error, std::move(result)
+						make_error_code(errc::redirect_limit_exceeded),
+						std::move(result)
 					};
 				}
+				auto location = reply->header(http::header::location);
+				if( not location )
+				{
+					if( active_diagnostics )
+					{
+						active_diagnostics->endpoint = endpoint;
+						active_diagnostics->reply = reply;
+					}
+					co_return std::tuple<error_code,result_t> {
+						make_error_code(errc::handshake_rejected),
+						std::move(result)
+					};
+				}
+				auto resolved = url::resolve(endpoint, location->to_string());
+				auto probe = active_request;
+				probe.endpoint = std::move(resolved);
+
+				if( auto redirect_error = validate_open_request(probe, active_stream_config) )
+				{
+					co_return std::tuple<error_code,result_t> {
+						redirect_error, std::move(result)
+					};
+				}
+				auto next = std::move(probe.endpoint);
+
+				if( ascii_equal_case_insensitive(endpoint.protocol(), "wss") and
+					ascii_equal_case_insensitive(next.protocol(), "ws") and
+					not active_request.allow_insecure_redirects )
+				{
+					co_return std::tuple<error_code,result_t> {
+						make_error_code(errc::insecure_redirect),
+						std::move(result)
+					};
+				}
+				if( not same_websocket_origin(endpoint, next) )
+				{
+					base_options.unset_header(http::header::authorization);
+					base_options.unset_header("Cookie");
+					base_options.cookies().clear();
+				}
+				endpoint = std::move(next);
+				context.reset();
+				++redirects;
+				continue;
 			}
-			catch(...)
+			if( active_diagnostics )
 			{
-				if( context )
-					close_reply_connection(context->reply());
+				active_diagnostics->endpoint = endpoint;
+				active_diagnostics->reply = reply;
+			}
+			auto response = parse_opening_response(status, reply->headers(), opening);
+			if( not response )
+			{
+				if( status == http::status::switching_protocols )
+					close_reply_connection(reply);
 
 				co_return std::tuple<error_code,result_t> {
-					exception_error(std::current_exception()), std::move(result)
+					response.error(), std::move(result)
 				};
 			}
-		},
-		http_client.get_executor()), completion_token, &http_client,
-		std::move(request), diagnostics, stream_config_value, no_delay, timeout
+			if( not detail::supported_extension_response
+				(response->extensions, active_request.extensions) )
+			{
+				close_reply_connection(reply);
+				co_return std::tuple<error_code,result_t> {
+					make_error_code(errc::unsupported_extension),
+					std::move(result)
+				};
+			}
+			auto pending = pending_bytes(reply->take_pending_data());
+			auto connection = reply->lease().take();
+
+			auto option_error = configure_client_connection (
+				connection, active_no_delay
+			);
+			if( option_error )
+			{
+				if( connection )
+					ignore_unused(connection->close());
+				co_return std::tuple<error_code,result_t> {
+					option_error, std::move(result)
+				};
+			}
+			adopt_options adopt {
+				.stream_role = role::client,
+				.pending_data = std::move(pending),
+				.negotiated_subprotocol = response->subprotocol.value_or(""),
+				.negotiated_extensions = response->extensions,
+			};
+			error_code adopt_error;
+			result.adopt(std::move(connection), std::move(adopt), adopt_error);
+
+			co_return std::tuple<error_code,result_t> {
+				adopt_error, std::move(result)
+			};
+		}
+	}
+	catch(...)
+	{
+		if( context )
+			close_reply_connection(context->reply());
+
+		co_return std::tuple<error_code,result_t> {
+			exception_error(std::current_exception()), std::move(result)
+		};
+	}
+}
+
+template <typename Exec, http::version_enum Version, typename Handler>
+void start_open(http::basic_client<Exec,Version> &http_client, connect_request request,
+	basic_open_diagnostics<Exec> *diagnostics, stream_config stream_config_value,
+	optional<bool> no_delay, std::chrono::milliseconds timeout, Handler &&handler)
+{
+	using result_t = basic_stream<Exec>;
+	auto exec = http_client.get_executor();
+	auto completion_handler = std::forward<Handler>(handler);
+	auto slot = asio::get_associated_cancellation_slot(completion_handler);
+	auto completion_exec = asio::get_associated_executor(completion_handler, exec);
+	auto allocator = asio::get_associated_allocator(completion_handler);
+
+	asio::co_spawn(exec, co_open(&http_client, std::move(request), diagnostics,
+		stream_config_value, no_delay, timeout),
+		asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+			asio::bind_cancellation_slot(slot,
+				[handler = std::move(completion_handler), exec, stream_config_value]
+				(std::exception_ptr exception,
+				 optional<std::tuple<error_code,result_t>> result) mutable
+				{
+					if( auto error = exception_error(exception) )
+						std::move(handler)(error, result_t(exec, stream_config_value));
+					else if( not result )
+					{
+						std::move(handler)(make_error_code(std::errc::io_error),
+							result_t(exec, stream_config_value));
+					}
+					else
+					{
+						std::move(handler)(std::get<0>(*result),
+							std::move(std::get<1>(*result)));
+					}
+				})))
 	);
 }
 
@@ -790,19 +813,17 @@ public:
 			const auto timeout = *request.handshake_timeout;
 			const auto no_delay = self->m_config.no_delay;
 
-			detail::initiate_handshake_io<stream_t>(self->m_http_client.get_executor(),
+			detail::start_handshake_io<stream_t>(self->m_http_client.get_executor(),
 				[client = &self->m_http_client, request = std::move(request), diagnostics,
 				 stream_options, no_delay, timeout]<typename Handler>(Handler &&handler) mutable
 				{
-					detail::async_open(*client, std::move(request), diagnostics,
+					detail::start_open(*client, std::move(request), diagnostics,
 						stream_options, no_delay, timeout,
 						std::forward<Handler>(handler)
 					);
 				},
-				timeout,
-				[exec = self->m_http_client.get_executor(), stream_options] {
-					return stream_t(exec, stream_options);
-				},
+				detail::effective_handshake_timeout(timeout),
+				stream_options,
 				std::move(completion)
 			);
 		},
@@ -1065,15 +1086,13 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 			[&http_client, request = std::move(request), stream_options, timeout]
 			<typename Handler>(Handler &&handler) mutable
 			{
-				detail::async_open(http_client, std::move(request),
+				detail::start_open(http_client, std::move(request),
 					static_cast<basic_open_diagnostics<Exec>*>(nullptr),
 					stream_options, nullopt, timeout, std::forward<Handler>(handler)
 				);
 			},
 			timeout,
-			[exec = http_client.get_executor(), stream_options]{
-				return basic_stream<Exec>(exec, stream_options);
-			},
+			stream_options,
 			unbound_redirect_time(std::forward<Token>(token))
 		);
 	}
@@ -1116,14 +1135,12 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 			[&http_client, request = std::move(request), &diagnostics, stream_options, timeout]
 			<typename Handler>(Handler &&handler) mutable
 			{
-				detail::async_open(http_client, std::move(request), &diagnostics,
+				detail::start_open(http_client, std::move(request), &diagnostics,
 					stream_options, nullopt, timeout, std::forward<Handler>(handler)
 				);
 			},
 			timeout,
-			[exec = http_client.get_executor(), stream_options]{
-				return basic_stream<Exec>(exec, stream_options);
-			},
+			stream_options,
 			unbound_redirect_time(std::forward<Token>(token))
 		);
 	}

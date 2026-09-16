@@ -45,35 +45,30 @@ retry_open_request_factory adapt_retry_open_request_factory(Factory &&factory)
 	};
 }
 
-template <core_concepts::exec Exec, typename Token>
-[[nodiscard]] LIBGS_WEBSOCKET_TAPI auto initiate_retry_open(basic_client<Exec> &client,
-	retry_open_request_factory request_factory, retry_open_options options, Token &&token)
+template <core_concepts::exec Exec>
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI asio::awaitable<
+	std::pair<error_code,std::optional<basic_retry_open_result<Exec>>>,Exec>
+co_retry_open(basic_client<Exec> *active_client,
+	retry_open_request_factory active_factory,
+	retry_open_options active_options, Exec active_exec)
 {
 	using result_t = basic_retry_open_result<Exec>;
-	using token_t = std::remove_cvref_t<Token>;
-
-	token_t completion_token(std::forward<Token>(token));
-	auto operation_exec = client.get_executor();
-
-	return asio::async_initiate<token_t,void(error_code,result_t)>(
-		asio::co_composed<void(error_code,result_t)>([](
-			auto state, basic_client<Exec> *active_client, retry_open_request_factory active_factory,
-			retry_open_options active_options, Exec active_exec) -> void
-		{
+	using completion_t = std::pair<error_code,std::optional<result_t>>;
+	auto cancellation = co_await asio::this_coro::cancellation_state;
 			result_t result(active_exec);
 			if( not valid_retry_open_options(active_options) )
 			{
 				auto error = make_error_code(std::errc::invalid_argument);
 				result.last_failure.error = error;
 
-				co_return std::tuple<error_code,result_t> {
+				co_return completion_t {
 					error, std::move(result)
 				};
 			}
 			retry_open_context previous;
 			for(;;)
 			{
-				if( state.cancelled() != asio::cancellation_type::none )
+				if( cancellation.cancelled() != asio::cancellation_type::none )
 				{
 					auto error = asio::error::make_error_code (
 						asio::error::operation_aborted
@@ -81,7 +76,7 @@ template <core_concepts::exec Exec, typename Token>
 					result.last_failure = previous;
 					result.last_failure.error = error;
 
-					co_return std::tuple<error_code,result_t> {
+					co_return completion_t {
 						error, std::move(result)
 					};
 				}
@@ -95,7 +90,7 @@ template <core_concepts::exec Exec, typename Token>
 						result.last_failure = previous;
 						result.last_failure.error = error;
 
-						co_return std::tuple<error_code,result_t> {
+						co_return completion_t {
 							error, std::move(result)
 						};
 					}
@@ -106,7 +101,7 @@ template <core_concepts::exec Exec, typename Token>
 					result.last_failure = previous;
 					result.last_failure.error = error;
 
-					co_return std::tuple<error_code,result_t> {
+					co_return completion_t {
 						error, std::move(result)
 					};
 				}
@@ -128,7 +123,7 @@ template <core_concepts::exec Exec, typename Token>
 					result.stream = std::move(stream);
 					result.diagnostics = std::move(diagnostics);
 
-					co_return std::tuple<error_code,result_t> {
+					co_return completion_t {
 						error_code{}, std::move(result)
 					};
 				}
@@ -147,14 +142,14 @@ template <core_concepts::exec Exec, typename Token>
 					(active_options.max_attempts != 0 and
 					 result.attempts >= active_options.max_attempts) )
 				{
-					co_return std::tuple<error_code,result_t> {
+					co_return completion_t {
 						open_error, std::move(result)
 					};
 				}
 				auto [retry, delay] = decide_retry_open(active_options, failure);
 				if( not retry )
 				{
-					co_return std::tuple<error_code,result_t> {
+					co_return completion_t {
 						open_error, std::move(result)
 					};
 				}
@@ -169,17 +164,40 @@ template <core_concepts::exec Exec, typename Token>
 					auto error = libgs::detail::canonical_error(wait_error);
 					result.last_failure.error = error;
 
-					co_return std::tuple<error_code,result_t> {
+					co_return completion_t {
 						error, std::move(result)
 					};
 				}
 				previous = std::move(failure);
 			}
-		},
-		operation_exec),
-		completion_token, &client, std::move(request_factory),
-		std::move(options), operation_exec
-	);
+}
+
+template <core_concepts::exec Exec, typename Token>
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI auto initiate_retry_open(basic_client<Exec> &client,
+	retry_open_request_factory request_factory, retry_open_options options, Token &&token)
+{
+	using result_t = basic_retry_open_result<Exec>;
+	using token_t = std::remove_cvref_t<Token>;
+	token_t completion_token(std::forward<Token>(token));
+	auto operation_exec = client.get_executor();
+
+	return asio::async_initiate<token_t,void(error_code,result_t)>(
+	[operation_exec, active_client = &client,
+	 active_factory = std::move(request_factory),
+	 active_options = std::move(options)](auto completion_handler) mutable
+	{
+		using handler_t = decltype(completion_handler);
+		auto error_result = [operation_exec]() mutable {
+			return result_t(operation_exec);
+		};
+		using factory_t = decltype(error_result);
+		asio::co_spawn(operation_exec,
+			co_retry_open(active_client, std::move(active_factory),
+				std::move(active_options), operation_exec),
+			libgs::detail::co_spawn_optional_io_handler<result_t,handler_t,
+				decltype(operation_exec),factory_t>(std::move(completion_handler),
+					operation_exec, std::move(error_result)));
+	}, completion_token);
 }
 
 } //namespace detail

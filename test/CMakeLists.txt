@@ -14,6 +14,9 @@ endif()
 function(add_libgs_test_program test_target source library)
 	add_executable(${test_target} ${source})
 	target_link_libraries(${test_target} PRIVATE ${library})
+	if ("${library}" MATCHES "^gs\\.(http|websocket)$")
+		libgs_limit_heavy_compile(${test_target})
+	endif ()
 	target_compile_options(${test_target} PRIVATE
 		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_TEST_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
 	)
@@ -69,6 +72,9 @@ endfunction()
 function(add_libgs_performance_test name source library)
 	set(test_target libgs.test.performance.${name})
 	add_executable(${test_target} ${source})
+	if ("${library}" MATCHES "^gs\\.(http|websocket)$")
+		libgs_limit_heavy_compile(${test_target})
+	endif ()
 	target_compile_options(${test_target} PRIVATE
 		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_TEST_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
 	)

@@ -65,54 +65,7 @@ struct connection_io_completion
 	size_t transferred = 0;
 };
 
-template <typename Initiation>
-[[nodiscard]] awaitable<connection_io_completion> co_connection_io_with_timeout
-(Initiation initiation, std::chrono::nanoseconds timeout, std::shared_ptr<void> owner)
-{
-	if( timeout <= std::chrono::nanoseconds::zero() )
-	{
-		error_code error {};
-		auto size = co_await initiate_connection_io (
-			std::move(initiation), asio::redirect_error(use_awaitable, error)
-		);
-		ignore_unused(owner);
-		co_return connection_io_completion {
-			libgs::detail::canonical_error(error), size
-		};
-	}
-	auto exec = co_await asio::this_coro::executor;
-	asio::steady_timer timer(exec);
-	timer.expires_after(timeout);
-
-	auto io_operation = initiate_connection_io (
-		std::move(initiation), deferred
-	);
-	auto [order, io_error, transferred, timer_error] =
-		co_await asio::experimental::make_parallel_group (
-			std::move(io_operation), timer.async_wait(deferred)
-		).async_wait(asio::experimental::wait_for_one(), use_awaitable);
-	ignore_unused(owner);
-
-	io_error = libgs::detail::canonical_error(io_error);
-	timer_error = libgs::detail::canonical_error(timer_error);
-	if( order[0] == 0 )
-		co_return connection_io_completion {io_error, transferred};
-
-	// A successful timer completion is the timeout event. parallel_group waits
-	// for cancellation of the I/O operation, so its final partial byte count is
-	// still available here and must not be replaced with zero.
-	if( not timer_error )
-	{
-		co_return connection_io_completion {
-			make_error_code(errc::timed_out), transferred
-		};
-	}
-	co_return connection_io_completion {
-		io_error ? io_error : timer_error, transferred
-	};
-}
-
-template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typename Initiation>
+template <bool OwnsBuffer = false, typename Exec, typename Token, typename Initiation>
 [[nodiscard]] auto initiate_connection_io
 (const Exec &exec, Initiation initiation, Token &&token, std::shared_ptr<void> owner = {})
 {
@@ -125,31 +78,38 @@ template <bool OwnsBuffer = false, core_concepts::exec Exec, typename Token, typ
 		auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(
 			timed_token.time
 		);
+		if( timeout <= std::chrono::nanoseconds::zero() )
+		{
+			if constexpr( OwnsBuffer )
+			{
+				auto owned_token = asio::consign(std::move(completion_token),
+					std::move(owner));
+				return initiate_connection_io(std::move(initiation),
+					std::move(owned_token));
+			}
+			else
+			{
+				return initiate_connection_io(std::move(initiation),
+					std::move(completion_token));
+			}
+		}
 		return asio::async_initiate<completion_token_t,void(error_code,size_t)>(
 		[exec, io_initiation = std::move(initiation), timeout, buffer_owner = std::move(owner)]
 		(auto completion_handler) mutable
 		{
-			auto slot = asio::get_associated_cancellation_slot(completion_handler);
-			auto completion_exec = asio::get_associated_executor (
-				completion_handler, exec
-			);
-			auto allocator = asio::get_associated_allocator(completion_handler);
-
-			asio::co_spawn(exec,
-				co_connection_io_with_timeout (
-					std::move(io_initiation), timeout, std::move(buffer_owner)
-				),
-				asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
-					asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
-					(const std::exception_ptr &exception, connection_io_completion result) mutable
-					{
-						if( auto error = exception_error(exception) )
-							std::move(handler)(error, 0);
-						else
-							std::move(handler)(result.error, result.transferred);
-					})
-				))
-			);
+			if constexpr( OwnsBuffer )
+			{
+				auto owned_handler = asio::consign(std::move(completion_handler),
+					std::move(buffer_owner));
+				libgs::detail::start_timed_io<size_t>(exec,
+					std::move(io_initiation), timeout, std::move(owned_handler));
+			}
+			else
+			{
+				libgs::detail::start_timed_io<size_t>(exec,
+					std::move(io_initiation), timeout,
+					std::move(completion_handler));
+			}
 		},
 		completion_token);
 	}

@@ -18,6 +18,9 @@ class LIBGS_WEBSOCKET_TAPI send_engine
 	LIBGS_DISABLE_COPY_MOVE(send_engine)
 
 public:
+	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;
+	using void_handler_t = asio::any_completion_handler<void(error_code)>;
+
 	explicit send_engine(Owner &owner) noexcept;
 
 	void reset(role local_role, const stream_config &config,
@@ -63,14 +66,14 @@ public:
 
 	void schedule();
 
-	template <typename Handler>
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
-		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner,
+		io_handler_t handler
 	);
 
-	template <typename Handler>
 	void async_write_data_frame(message_type type, const const_buffer &payload,
-		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner, Handler &&handler
+		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner,
+		io_handler_t handler
 	);
 
 	[[nodiscard]] size_t write_data_frame (
@@ -78,8 +81,7 @@ public:
 		bool continuation, bool fin, error_code &error
 	) noexcept;
 
-	template <typename Handler>
-	void async_write_control(opcode op, const const_buffer &payload, Handler &&handler);
+	void async_write_control(opcode op, const const_buffer &payload, io_handler_t handler);
 
 	[[nodiscard]] size_t write_control (
 		opcode op, const const_buffer &payload, error_code &error
@@ -87,8 +89,7 @@ public:
 
 	void wait_written(error_code &error) noexcept;
 
-	template <typename Handler>
-	void async_wait_written(Handler &&handler);
+	void async_wait_written(void_handler_t handler);
 
 	// Transport is owned by stream::impl.  The engine only records the active
 	// frame and consumes its completion to advance the outbound state machine.

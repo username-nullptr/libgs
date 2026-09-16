@@ -90,17 +90,15 @@ data_frame basic_stream<Exec>::impl::read_frame(error_code &error) noexcept
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
-void basic_stream<Exec>::impl::async_read_message(Handler &&handler)
+void basic_stream<Exec>::impl::async_read_message(message_handler_t handler)
 {
-	m_receive_engine.async_read_message(std::forward<Handler>(handler));
+	m_receive_engine.async_read_message(std::move(handler));
 }
 
 template <core_concepts::exec Exec>
-template <typename Handler>
-void basic_stream<Exec>::impl::async_read_frame(Handler &&handler)
+void basic_stream<Exec>::impl::async_read_frame(frame_handler_t handler)
 {
-	m_receive_engine.async_read_frame(std::forward<Handler>(handler));
+	m_receive_engine.async_read_frame(std::move(handler));
 }
 
 template <core_concepts::exec Exec>
@@ -111,11 +109,11 @@ message_info basic_stream<Exec>::impl::consume(Consumer &&consumer, error_code &
 }
 
 template <core_concepts::exec Exec>
-template <typename Consumer, typename Handler>
-void basic_stream<Exec>::impl::async_consume(Consumer &&consumer, Handler &&handler)
+template <typename Consumer>
+void basic_stream<Exec>::impl::async_consume(Consumer &&consumer, info_handler_t handler)
 {
 	m_receive_engine.async_consume(std::forward<Consumer>(consumer),
-		std::forward<Handler>(handler)
+		std::move(handler)
 	);
 }
 

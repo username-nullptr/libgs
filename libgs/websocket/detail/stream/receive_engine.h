@@ -30,6 +30,10 @@ class LIBGS_WEBSOCKET_TAPI receive_engine
 	LIBGS_DISABLE_COPY_MOVE(receive_engine)
 
 public:
+	using message_handler_t = asio::any_completion_handler<void(error_code,message)>;
+	using frame_handler_t = asio::any_completion_handler<void(error_code,data_frame)>;
+	using info_handler_t = asio::any_completion_handler<void(error_code,message_info)>;
+
 	explicit receive_engine(Owner &owner) noexcept;
 
 	void reset(role local_role, const stream_config &config,
@@ -51,14 +55,12 @@ public:
 	template <typename Consumer>
 	[[nodiscard]] message_info consume(Consumer &&consumer, error_code &error) noexcept;
 
-	template <typename Handler>
-	void async_read_message(Handler &&handler);
+	void async_read_message(message_handler_t handler);
 
-	template <typename Handler>
-	void async_read_frame(Handler &&handler);
+	void async_read_frame(frame_handler_t handler);
 
-	template <typename Consumer, typename Handler>
-	void async_consume(Consumer &&consumer, Handler &&handler);
+	template <typename Consumer>
+	void async_consume(Consumer &&consumer, info_handler_t handler);
 
 	void complete_read_waiter(error_code error,
 		message value = {}, bool clear_slot = true

@@ -71,7 +71,6 @@ bool valid_rejection_status(http::status_enum status) noexcept;
 LIBGS_WEBSOCKET_API
 void erase_protocol_response_headers(http::headers &headers) noexcept;
 
-template <core_concepts::exec>
 struct server_upgrade_plan
 {
 	request_info request {};
@@ -87,334 +86,54 @@ struct server_upgrade_plan
 	bool preserve_error_on_write_failure = false;
 };
 
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void reject_upgrade
-(server_upgrade_plan<Exec> &plan, error_code error, http::status_enum status = http::status::bad_request)
-{
-	plan.accepted = false;
-	plan.error = error;
-	plan.status = status;
+LIBGS_WEBSOCKET_API void reject_upgrade(server_upgrade_plan &plan,
+	error_code error, http::status_enum status = http::status::bad_request);
 
-	if( status == http::status::upgrade_required )
-		plan.headers[sec_websocket_version] = "13";
-}
+LIBGS_WEBSOCKET_API void reject_upgrade(server_upgrade_plan &plan,
+	upgrade_rejection rejection, error_code error);
 
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void reject_upgrade
-(server_upgrade_plan<Exec> &plan, upgrade_rejection rejection, error_code error)
-{
-	plan.accepted = false;
-	plan.error = error;
+LIBGS_WEBSOCKET_API void reject_selector_exception(server_upgrade_plan &plan,
+	std::exception_ptr exception) noexcept;
 
-	plan.status = valid_rejection_status(rejection.status) ?
-		rejection.status : http::status::internal_server_error;
+LIBGS_WEBSOCKET_API void select_server_subprotocol(server_upgrade_plan &plan,
+	const upgrade_options &options) noexcept;
 
-	plan.headers = std::move(rejection.headers);
-	erase_protocol_response_headers(plan.headers);
-	plan.body = std::move(rejection.body);
-}
+LIBGS_WEBSOCKET_API void validate_server_subprotocol(server_upgrade_plan &plan,
+	const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept;
 
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void reject_selector_exception(
-	server_upgrade_plan<Exec> &plan, std::exception_ptr exception) noexcept
-{
-	reject_upgrade(plan, exception_error(exception),
-		http::status::internal_server_error);
-	plan.preserve_error_on_write_failure = true;
-}
+LIBGS_WEBSOCKET_API void select_server_extensions(server_upgrade_plan &plan,
+	const upgrade_options &options) noexcept;
 
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void select_server_subprotocol(
-	server_upgrade_plan<Exec> &plan, const upgrade_options &options) noexcept
-{
-	try
-	{
-		if( options.subprotocol_selector )
-		{
-			plan.response.subprotocol = options.subprotocol_selector(
-				plan.request, plan.opening.subprotocols);
-		}
-		else
-		{
-			for(const auto &offered : plan.opening.subprotocols)
-			{
-				if( std::ranges::find(options.supported_subprotocols, offered) !=
-					options.supported_subprotocols.end() )
-				{
-					plan.response.subprotocol = offered;
-					break;
-				}
-			}
-		}
-	}
-	catch(...) {
-		reject_selector_exception(plan, std::current_exception());
-	}
-}
+LIBGS_WEBSOCKET_API void validate_server_extensions(server_upgrade_plan &plan,
+	const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept;
+
+LIBGS_WEBSOCKET_API void finalize_server_upgrade_plan(server_upgrade_plan &plan,
+	const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept;
+
+LIBGS_WEBSOCKET_API void complete_server_upgrade_plan(server_upgrade_plan &plan,
+	const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline) noexcept;
+
+[[nodiscard]] LIBGS_WEBSOCKET_API server_upgrade_plan make_server_upgrade_plan(
+	request_info request, const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline,
+	bool permit_async_callbacks = false) noexcept;
 
 template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void validate_server_subprotocol(
-	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
-{
-	if( not plan.accepted )
-		return ;
-	if( server_deadline_expired(deadline) )
-	{
-		reject_upgrade(plan, asio::error::timed_out);
-		return ;
-	}
-	if( plan.response.subprotocol and
-		(std::ranges::find(plan.opening.subprotocols,
-			*plan.response.subprotocol) == plan.opening.subprotocols.end() or
-		 std::ranges::find(options.supported_subprotocols,
-			*plan.response.subprotocol) == options.supported_subprotocols.end()) )
-	{
-		reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
-		return ;
-	}
-	if( options.require_subprotocol and not plan.response.subprotocol )
-		reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
-}
-
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void select_server_extensions(
-	server_upgrade_plan<Exec> &plan, const upgrade_options &options) noexcept
-{
-	try
-	{
-		if( options.extension_selector )
-		{
-			plan.response.extensions = options.extension_selector(
-				plan.request, plan.opening.extensions);
-		}
-		else if( not options.supported_extensions.empty() )
-		{
-			for(const auto &offered : plan.opening.extensions)
-			{
-				for(const auto &policy : options.supported_extensions)
-				{
-					auto selected = negotiate_permessage_deflate(offered, policy);
-					if( selected )
-					{
-						plan.response.extensions = {std::move(*selected)};
-						break;
-					}
-				}
-				if( not plan.response.extensions.empty() )
-					break;
-			}
-		}
-	}
-	catch(...) {
-		reject_selector_exception(plan, std::current_exception());
-	}
-}
-
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void validate_server_extensions(
-	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
-{
-	if( not plan.accepted )
-		return ;
-	if( not plan.response.extensions.empty() and
-		(not supported_extension_response(plan.response.extensions,
-			plan.opening.extensions) or options.supported_extensions.empty()) )
-	{
-		reject_upgrade(plan, make_error_code(errc::unsupported_extension));
-		return ;
-	}
-	if( server_deadline_expired(deadline) )
-		reject_upgrade(plan, asio::error::timed_out);
-}
-
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void finalize_server_upgrade_plan(
-	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
-{
-	if( not plan.accepted )
-		return ;
-	try
-	{
-		if( server_deadline_expired(deadline) )
-		{
-			reject_upgrade(plan, asio::error::timed_out);
-			return ;
-		}
-		auto protocol_headers = make_opening_response_headers(
-			plan.opening, plan.response);
-		if( not protocol_headers )
-		{
-			reject_upgrade(plan, protocol_headers.error());
-			return ;
-		}
-		plan.headers = options.response_headers;
-		erase_protocol_response_headers(plan.headers);
-		for(auto &[name, value] : *protocol_headers)
-			plan.headers[name] = value;
-		plan.status = http::status::switching_protocols;
-		plan.accepted = true;
-		plan.error.clear();
-	}
-	catch(...) {
-		reject_upgrade(plan, exception_error(std::current_exception()),
-			http::status::internal_server_error);
-	}
-}
-
-template <core_concepts::exec Exec>
-LIBGS_WEBSOCKET_TAPI void complete_server_upgrade_plan(
-	server_upgrade_plan<Exec> &plan, const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
-{
-	select_server_subprotocol(plan, options);
-	validate_server_subprotocol(plan, options, deadline);
-	if( not plan.accepted )
-		return ;
-	select_server_extensions(plan, options);
-	validate_server_extensions(plan, options, deadline);
-	finalize_server_upgrade_plan(plan, options, deadline);
-}
-
-template <core_concepts::exec Exec>
-[[nodiscard]] LIBGS_WEBSOCKET_TAPI server_upgrade_plan<Exec> make_server_upgrade_plan(
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI server_upgrade_plan make_server_upgrade_plan(
 	http::basic_service_context<Exec> &context, const upgrade_options &options,
 	std::chrono::steady_clock::time_point deadline, bool permit_async_callbacks = false) noexcept
 {
-	server_upgrade_plan<Exec> plan;
-	try {
-		plan.request = snapshot_request(context.request());
-		const auto subprotocol_selectors =
-			static_cast<size_t>(bool(options.subprotocol_selector)) +
-			static_cast<size_t>(bool(options.async_subprotocol_selector));
-		const auto extension_selectors =
-			static_cast<size_t>(bool(options.extension_selector)) +
-			static_cast<size_t>(bool(options.async_extension_selector));
-		if( subprotocol_selectors > 1 or extension_selectors > 1 )
-		{
-			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
-				http::status::internal_server_error);
-			return plan;
-		}
-		if( not permit_async_callbacks and
-			(options.async_request_validator or options.async_origin_validator or
-			 options.async_subprotocol_selector or options.async_extension_selector) )
-		{
-			reject_upgrade(plan,
-				make_error_code(std::errc::operation_not_supported),
-				http::status::internal_server_error
-			);
-			return plan;
-		}
-		if( options.stream.read_buffer_size == 0 or
-			options.stream.ping_interval < std::chrono::milliseconds::zero() or
-			options.stream.compression.level < -1 or
-			options.stream.compression.level > 9 )
-		{
-			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
-				http::status::internal_server_error
-			);
-			return plan;
-		}
-		auto opening = parse_opening_request(context.request().method(),
-			context.request().version(), context.request().headers()
-		);
-		if( not opening )
-		{
-			reject_upgrade(plan, opening.error(),
-				opening.error() == errc::unsupported_version ?
-					http::status::upgrade_required : http::status::bad_request
-			);
-			return plan;
-		}
-		plan.opening = std::move(*opening);
-
-		if( not supported_extension_offers(options.supported_extensions) )
-		{
-			reject_upgrade(plan, make_error_code(errc::unsupported_extension));
-			return plan;
-		}
-		if( server_deadline_expired(deadline) )
-		{
-			reject_upgrade(plan, asio::error::timed_out);
-			return plan;
-		}
-		if( options.request_validator )
-		{
-			try {
-				if( auto rejection = options.request_validator(plan.request) )
-				{
-					reject_upgrade(plan, std::move(*rejection),
-						make_error_code(errc::handshake_rejected)
-					);
-					return plan;
-				}
-			}
-			catch(...)
-			{
-				reject_upgrade(plan, exception_error(std::current_exception()),
-					http::status::internal_server_error
-				);
-				plan.preserve_error_on_write_failure = true;
-				return plan;
-			}
-		}
-		if( server_deadline_expired(deadline) )
-		{
-			reject_upgrade(plan, asio::error::timed_out);
-			return plan;
-		}
-		if( options.origin_validator )
-		{
-			try {
-				optional<std::string_view> origin;
-				if( auto it = plan.request.request_headers.find(http::header::origin);
-					it != plan.request.request_headers.end() )
-					origin = it->second.to_string();
-
-				if( auto rejection = options.origin_validator(origin) )
-				{
-					reject_upgrade(plan, std::move(*rejection),
-						make_error_code(errc::handshake_rejected)
-					);
-					return plan;
-				}
-			}
-			catch(...)
-			{
-				reject_upgrade(plan, exception_error(std::current_exception()),
-					http::status::internal_server_error
-				);
-				plan.preserve_error_on_write_failure = true;
-				return plan;
-			}
-		}
-		if( server_deadline_expired(deadline) )
-		{
-			reject_upgrade(plan, asio::error::timed_out);
-			return plan;
-		}
-		plan.accepted = true;
-		plan.error.clear();
-
-		if( not permit_async_callbacks )
-			complete_server_upgrade_plan(plan, options, deadline);
-		return plan;
-	}
-	catch(...)
-	{
-		reject_upgrade(plan, exception_error(std::current_exception()),
-			http::status::internal_server_error
-		);
-	}
-	return plan;
+	return make_server_upgrade_plan(snapshot_request(context.request()),
+		options, deadline, permit_async_callbacks);
 }
 
 template <core_concepts::exec Exec>
 void prepare_response(http::basic_response<Exec> &response,
-	const server_upgrade_plan<Exec> &plan)
+	const server_upgrade_plan &plan)
 {
 	response.unset_header(http::header::content_length);
 	response.unset_header(http::header::transfer_encoding);
@@ -498,222 +217,245 @@ void upgrade_sync(http::basic_service_context<Exec> &context, upgrade_options op
 	}
 }
 
-template <core_concepts::exec Exec, typename Handler>
-auto async_upgrade(http::basic_service_context<Exec> &context, upgrade_options options, Handler &&handler)
+template <core_concepts::exec Exec>
+asio::awaitable<optional<std::tuple<error_code,basic_accept_result<Exec>>>,Exec>
+co_upgrade(http::basic_service_context<Exec> *active_context,
+	upgrade_options active_options)
 {
 	using result_t = basic_accept_result<Exec>;
-	using token_t = std::remove_cvref_t<Handler>;
-	token_t completion_token(std::forward<Handler>(handler));
-
-	return asio::async_initiate<token_t,void(error_code,result_t)>
-	(
-		asio::co_composed<void(error_code,result_t)>([](auto state,
-			http::basic_service_context<Exec> *active_context, upgrade_options active_options) -> void
+	result_t result(active_context->get_executor());
+	try {
+		result.stream = basic_stream<Exec>(
+			active_context->get_executor(), active_options.stream
+		);
+		if( active_options.handshake_timeout <= std::chrono::milliseconds::zero() )
 		{
-			LIBGS_UNUSED(state);
-			result_t result(active_context->get_executor());
-			try {
-				result.stream = basic_stream<Exec>(
-					active_context->get_executor(), active_options.stream
-				);
-				if( active_options.handshake_timeout <= std::chrono::milliseconds::zero() )
-				{
-					close_upgrade_connection(*active_context);
-					co_return std::tuple<error_code,result_t> {
-						asio::error::timed_out, std::move(result)
-					};
-				}
-				const auto deadline = std::chrono::steady_clock::now() +
-					active_options.handshake_timeout;
+			close_upgrade_connection(*active_context);
+			co_return std::tuple<error_code,result_t> {
+				asio::error::timed_out, std::move(result)
+			};
+		}
+		const auto deadline = std::chrono::steady_clock::now() +
+			active_options.handshake_timeout;
 
-				auto plan = make_server_upgrade_plan (
-					*active_context, active_options, deadline, true
-				);
-				if( plan.accepted and active_options.async_request_validator )
-				{
-					auto invoke = [&active_options, &plan]() -> awaitable<upgrade_validation_result>
-					{
-						co_return co_await active_options.async_request_validator (
-							plan.request
-						);
-					};
-					auto [exception, rejection] = co_await asio::co_spawn (
-						active_context->get_executor(), invoke(), asio::as_tuple(deferred)
-					);
-					auto validation_error = exception_error(exception);
-					if( validation_error )
-					{
-						reject_upgrade(plan,
-							upgrade_rejection {
-								.status = http::status::internal_server_error
-							},
-							validation_error
-						);
-						plan.preserve_error_on_write_failure = true;
-					}
-					else if( rejection )
-					{
-						reject_upgrade(plan, std::move(*rejection),
-							make_error_code(errc::handshake_rejected)
-						);
-					}
-				}
-				if( plan.accepted and server_deadline_expired(deadline) )
-					reject_upgrade(plan, asio::error::timed_out);
-
-				if( plan.accepted and active_options.async_origin_validator )
-				{
-					optional<std::string> origin;
-					if( auto it = plan.request.request_headers.find(http::header::origin);
-						it != plan.request.request_headers.end() )
-						origin = it->second.to_string();
-
-					auto invoke = [&active_options, origin = std::move(origin)]
-					() mutable -> awaitable<upgrade_validation_result>
-					{
-						co_return co_await active_options.async_origin_validator (
-							std::move(origin)
-						);
-					};
-					auto [exception, rejection] = co_await asio::co_spawn (
-						active_context->get_executor(), invoke(), asio::as_tuple(deferred)
-					);
-					auto validation_error = exception_error(exception);
-					if( validation_error )
-					{
-						reject_upgrade(plan,
-							upgrade_rejection {
-								.status = http::status::internal_server_error
-							},
-							validation_error
-						);
-						plan.preserve_error_on_write_failure = true;
-					}
-					else if( rejection )
-					{
-						reject_upgrade(plan, std::move(*rejection),
-							make_error_code(errc::handshake_rejected)
-						);
-					}
-				}
-				if( plan.accepted and server_deadline_expired(deadline) )
-					reject_upgrade(plan, asio::error::timed_out);
-
-				if( plan.accepted and active_options.async_subprotocol_selector )
-				{
-					auto invoke = [&active_options, &plan]()
-						-> awaitable<optional<std::string>>
-					{
-						co_return co_await active_options.async_subprotocol_selector(
-							plan.request, plan.opening.subprotocols);
-					};
-					auto [exception, selected] = co_await asio::co_spawn(
-						active_context->get_executor(), invoke(), asio::as_tuple(deferred));
-					if( exception_error(exception) )
-						reject_selector_exception(plan, exception);
-					else
-						plan.response.subprotocol = std::move(selected);
-				}
-				else if( plan.accepted )
-					select_server_subprotocol(plan, active_options);
-				validate_server_subprotocol(plan, active_options, deadline);
-
-				if( plan.accepted and active_options.async_extension_selector )
-				{
-					auto invoke = [&active_options, &plan]()
-						-> awaitable<std::vector<extension>>
-					{
-						co_return co_await active_options.async_extension_selector(
-							plan.request, plan.opening.extensions);
-					};
-					auto [exception, selected] = co_await asio::co_spawn(
-						active_context->get_executor(), invoke(), asio::as_tuple(deferred));
-					if( exception_error(exception) )
-						reject_selector_exception(plan, exception);
-					else
-						plan.response.extensions = std::move(selected);
-				}
-				else if( plan.accepted )
-					select_server_extensions(plan, active_options);
-				validate_server_extensions(plan, active_options, deadline);
-				finalize_server_upgrade_plan(plan, active_options, deadline);
-
-				result.request = plan.request;
-				if( plan.error == asio::error::timed_out or server_deadline_expired(deadline) )
-				{
-					close_upgrade_connection(*active_context);
-					co_return std::tuple<error_code,result_t> {
-						asio::error::timed_out, std::move(result)
-					};
-				}
-				prepare_response(active_context->response(), plan);
-				auto remaining = server_remaining_timeout(deadline);
-
-				if( remaining <= std::chrono::milliseconds::zero() )
-				{
-					close_upgrade_connection(*active_context);
-					co_return std::tuple<error_code,result_t> {
-						asio::error::timed_out, std::move(result)
-					};
-				}
-				auto [write_error, transferred] =
-					co_await active_context->response().write (
-						asio::buffer(plan.body), asio::as_tuple(deferred)
-					);
-				ignore_unused(transferred);
-				if( write_error )
-				{
-					close_upgrade_connection(*active_context);
-					co_return std::tuple<error_code,result_t> {
-						plan.preserve_error_on_write_failure ?
-							plan.error : write_error, std::move(result)
-					};
-				}
-				if( server_deadline_expired(deadline) )
-				{
-					close_upgrade_connection(*active_context);
-					co_return std::tuple<error_code,result_t> {
-						asio::error::timed_out, std::move(result)
-					};
-				}
-				if( not plan.accepted )
-				{
-					co_return std::tuple<error_code,result_t> {
-						plan.error, std::move(result)
-					};
-				}
-				auto pending = active_context->request().take_pending_data();
-				auto connection = active_context->hand_over_connection();
-
-				adopt_options adopt {
-					.stream_role = role::server,
-					.pending_data = std::vector<std::byte>(pending.size()),
-					.negotiated_subprotocol = plan.response.subprotocol.value_or(""),
-					.negotiated_extensions = plan.response.extensions,
-				};
-				if( not pending.empty() )
-					std::memcpy(adopt.pending_data.data(), pending.data(), pending.size());
-
-				result.handshake.subprotocol = adopt.negotiated_subprotocol;
-				result.handshake.extensions = adopt.negotiated_extensions;
-
-				error_code adopt_error;
-				result.stream.adopt(std::move(connection), std::move(adopt), adopt_error);
-
-				co_return std::tuple<error_code,result_t> {
-					adopt_error, std::move(result)
-				};
-			}
-			catch(...)
+		auto plan = make_server_upgrade_plan (
+			*active_context, active_options, deadline, true
+		);
+		if( plan.accepted and active_options.async_request_validator )
+		{
+			auto invoke = [&active_options, &plan]() -> awaitable<upgrade_validation_result>
 			{
-				close_upgrade_connection(*active_context);
-				co_return std::tuple<error_code,result_t> {
-					exception_error(std::current_exception()), std::move(result)
-				};
+				co_return co_await active_options.async_request_validator (
+					plan.request
+				);
+			};
+			auto [exception, rejection] = co_await asio::co_spawn (
+				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
+			);
+			auto validation_error = exception_error(exception);
+			if( validation_error )
+			{
+				reject_upgrade(plan,
+					upgrade_rejection {
+						.status = http::status::internal_server_error
+					},
+					validation_error
+				);
+				plan.preserve_error_on_write_failure = true;
 			}
-		},
-		context.get_executor()),
-		completion_token, &context,std::move(options)
+			else if( rejection )
+			{
+				reject_upgrade(plan, std::move(*rejection),
+					make_error_code(errc::handshake_rejected)
+				);
+			}
+		}
+		if( plan.accepted and server_deadline_expired(deadline) )
+			reject_upgrade(plan, asio::error::timed_out);
+
+		if( plan.accepted and active_options.async_origin_validator )
+		{
+			optional<std::string> origin;
+			if( auto it = plan.request.request_headers.find(http::header::origin);
+				it != plan.request.request_headers.end() )
+				origin = it->second.to_string();
+
+			auto invoke = [&active_options, origin = std::move(origin)]
+			() mutable -> awaitable<upgrade_validation_result>
+			{
+				co_return co_await active_options.async_origin_validator (
+					std::move(origin)
+				);
+			};
+			auto [exception, rejection] = co_await asio::co_spawn (
+				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
+			);
+			auto validation_error = exception_error(exception);
+			if( validation_error )
+			{
+				reject_upgrade(plan,
+					upgrade_rejection {
+						.status = http::status::internal_server_error
+					},
+					validation_error
+				);
+				plan.preserve_error_on_write_failure = true;
+			}
+			else if( rejection )
+			{
+				reject_upgrade(plan, std::move(*rejection),
+					make_error_code(errc::handshake_rejected)
+				);
+			}
+		}
+		if( plan.accepted and server_deadline_expired(deadline) )
+			reject_upgrade(plan, asio::error::timed_out);
+
+		if( plan.accepted and active_options.async_subprotocol_selector )
+		{
+			auto invoke = [&active_options, &plan]()
+				-> awaitable<optional<std::string>>
+			{
+				co_return co_await active_options.async_subprotocol_selector(
+					plan.request, plan.opening.subprotocols);
+			};
+			auto [exception, selected] = co_await asio::co_spawn(
+				active_context->get_executor(), invoke(), asio::as_tuple(deferred));
+			if( exception_error(exception) )
+				reject_selector_exception(plan, exception);
+			else
+				plan.response.subprotocol = std::move(selected);
+		}
+		else if( plan.accepted )
+			select_server_subprotocol(plan, active_options);
+		validate_server_subprotocol(plan, active_options, deadline);
+
+		if( plan.accepted and active_options.async_extension_selector )
+		{
+			auto invoke = [&active_options, &plan]()
+				-> awaitable<std::vector<extension>>
+			{
+				co_return co_await active_options.async_extension_selector(
+					plan.request, plan.opening.extensions);
+			};
+			auto [exception, selected] = co_await asio::co_spawn(
+				active_context->get_executor(), invoke(), asio::as_tuple(deferred));
+			if( exception_error(exception) )
+				reject_selector_exception(plan, exception);
+			else
+				plan.response.extensions = std::move(selected);
+		}
+		else if( plan.accepted )
+			select_server_extensions(plan, active_options);
+		validate_server_extensions(plan, active_options, deadline);
+		finalize_server_upgrade_plan(plan, active_options, deadline);
+
+		result.request = plan.request;
+		if( plan.error == asio::error::timed_out or server_deadline_expired(deadline) )
+		{
+			close_upgrade_connection(*active_context);
+			co_return std::tuple<error_code,result_t> {
+				asio::error::timed_out, std::move(result)
+			};
+		}
+		prepare_response(active_context->response(), plan);
+		auto remaining = server_remaining_timeout(deadline);
+
+		if( remaining <= std::chrono::milliseconds::zero() )
+		{
+			close_upgrade_connection(*active_context);
+			co_return std::tuple<error_code,result_t> {
+				asio::error::timed_out, std::move(result)
+			};
+		}
+		auto [write_error, transferred] =
+			co_await active_context->response().write (
+				asio::buffer(plan.body), asio::as_tuple(deferred)
+			);
+		ignore_unused(transferred);
+		if( write_error )
+		{
+			close_upgrade_connection(*active_context);
+			co_return std::tuple<error_code,result_t> {
+				plan.preserve_error_on_write_failure ?
+					plan.error : write_error, std::move(result)
+			};
+		}
+		if( server_deadline_expired(deadline) )
+		{
+			close_upgrade_connection(*active_context);
+			co_return std::tuple<error_code,result_t> {
+				asio::error::timed_out, std::move(result)
+			};
+		}
+		if( not plan.accepted )
+		{
+			co_return std::tuple<error_code,result_t> {
+				plan.error, std::move(result)
+			};
+		}
+		auto pending = active_context->request().take_pending_data();
+		auto connection = active_context->hand_over_connection();
+
+		adopt_options adopt {
+			.stream_role = role::server,
+			.pending_data = std::vector<std::byte>(pending.size()),
+			.negotiated_subprotocol = plan.response.subprotocol.value_or(""),
+			.negotiated_extensions = plan.response.extensions,
+		};
+		if( not pending.empty() )
+			std::memcpy(adopt.pending_data.data(), pending.data(), pending.size());
+
+		result.handshake.subprotocol = adopt.negotiated_subprotocol;
+		result.handshake.extensions = adopt.negotiated_extensions;
+
+		error_code adopt_error;
+		result.stream.adopt(std::move(connection), std::move(adopt), adopt_error);
+
+		co_return std::tuple<error_code,result_t> {
+			adopt_error, std::move(result)
+		};
+	}
+	catch(...)
+	{
+		close_upgrade_connection(*active_context);
+		co_return std::tuple<error_code,result_t> {
+			exception_error(std::current_exception()), std::move(result)
+		};
+	}
+}
+
+template <typename Exec, typename Handler>
+void start_upgrade(http::basic_service_context<Exec> &context,
+	upgrade_options options, Handler &&handler)
+{
+	using result_t = basic_accept_result<Exec>;
+	auto exec = context.get_executor();
+	auto completion_handler = std::forward<Handler>(handler);
+	auto slot = asio::get_associated_cancellation_slot(completion_handler);
+	auto completion_exec = asio::get_associated_executor(completion_handler, exec);
+	auto allocator = asio::get_associated_allocator(completion_handler);
+
+	asio::co_spawn(exec, co_upgrade(&context, std::move(options)),
+		asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+			asio::bind_cancellation_slot(slot,
+				[handler = std::move(completion_handler), exec]
+				(std::exception_ptr exception,
+				 optional<std::tuple<error_code,result_t>> result) mutable
+				{
+					if( auto error = exception_error(exception) )
+						std::move(handler)(error, result_t(exec));
+					else if( not result )
+					{
+						std::move(handler)(make_error_code(std::errc::io_error),
+							result_t(exec));
+					}
+					else
+					{
+						std::move(handler)(std::get<0>(*result),
+							std::move(std::get<1>(*result)));
+					}
+				})))
 	);
 }
 
@@ -1629,18 +1371,15 @@ auto upgrade(http::basic_service_context<Exec> &context, upgrade_options options
 	else
 	{
 		const auto timeout = options.handshake_timeout;
-		return detail::initiate_handshake_io<basic_accept_result<Exec>>
-		(
+		return detail::initiate_handshake_io<basic_accept_result<Exec>>(
 			context.get_executor(),
 			[&context, options = std::move(options)]<typename Handler>(Handler &&handler) mutable
 			{
-				detail::async_upgrade(context, std::move(options),
+				detail::start_upgrade(context, std::move(options),
 					std::forward<Handler>(handler)
 				);
 			},
-			timeout, [exec = context.get_executor()] {
-				return basic_accept_result<Exec>(exec);
-			},
+			timeout, nullopt,
 			unbound_redirect_time(std::forward<Token>(token))
 		);
 	}
