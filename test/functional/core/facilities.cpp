@@ -17,6 +17,8 @@
 namespace
 {
 
+static_assert(libgs::test::canonical_executor_type<libgs::ini>);
+
 struct ini_char_traits : std::char_traits<char> {};
 
 using ini_traits_string = std::basic_string<char,ini_char_traits>;
@@ -152,6 +154,12 @@ void url_parsing()
 
 	const libgs::url invalid_escape("https://example.test/a%2");
 	LIBGS_TEST_CHECK(not invalid_escape.is_valid());
+	const libgs::url invalid_authority(
+		"htt://4002[:db8::1]:8080-a/b?empty=&x=1");
+	LIBGS_TEST_CHECK(not invalid_authority.is_valid());
+	libgs::url invalid_setter("https://example.test/");
+	invalid_setter.set_address("http://[2001:db8::1");
+	LIBGS_TEST_CHECK(not invalid_setter.is_valid());
 	LIBGS_TEST_CHECK_EQ(
 		libgs::url("https://example.test/a b?q=hello world").to_string(),
 		"https://example.test/a%20b?q=hello%20world"

@@ -58,7 +58,9 @@ signal/slot、observer 需要直接包含各自头文件。
 
 `utils::process` 与 `utils::wprocess` 支持 start/run、join、detach、terminate、
 kill、取消、超时、环境变量/工作目录、单实例锁以及标准输入/输出/错误流。异步
-I/O 未完成时必须保持进程对象存活，并检查返回错误以处理平台差异。
+I/O 未完成时必须保持进程对象存活，并检查返回错误以处理平台差异。按照
+[Asio 兼容的 I/O 模型](io-model.md)，生命周期调用必须与 I/O 发起串行化；同一
+process 同时最多保留一个 stdin 写、一个 stdout 读和一个 stderr 读。
 
 ### 软总线
 

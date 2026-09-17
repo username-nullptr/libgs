@@ -23,7 +23,9 @@ class LIBGS_HTTP_TAPI basic_request_context final :
 	LIBGS_DISABLE_COPY_MOVE(basic_request_context)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using connection_t = basic_connection<executor_t>;
 	using connection_ptr = connection_t::ptr_t;
 

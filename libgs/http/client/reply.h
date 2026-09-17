@@ -20,7 +20,8 @@ class LIBGS_HTTP_TAPI basic_reply final :
 	LIBGS_DISABLE_COPY_MOVE(basic_reply)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using parser_t = client_parser;
 
 	using connection_t = basic_connection<executor_t>;

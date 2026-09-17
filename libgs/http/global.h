@@ -12,7 +12,7 @@ namespace libgs::http
 {
 
 #define LIBGS_HTTP_DEFINE_ENUM(_type, _struct, _list, _str_func, ...) \
-	struct _struct { \
+	struct LIBGS_HTTP_API _struct { \
 		enum enumeration : _type { _list } value = {}; \
 		constexpr _struct(enumeration e) : value(e) {} \
 		constexpr _struct() = default; \

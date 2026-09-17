@@ -124,12 +124,9 @@ void basic_stream<Exec>::impl::async_write_control
 {
 	if( not automatic and automatic_control_enabled() )
 	{
-		asio::post(m_exec, [handler = std::move(handler)]() mutable
-		{
-			std::move(handler) (
-				make_error_code(std::errc::operation_not_permitted), 0
-			);
-		});
+		post_completion(m_exec, std::move(handler),
+			make_error_code(std::errc::operation_not_permitted), size_t{0}
+		);
 		return ;
 	}
 	m_send_engine.async_write_control(op, payload, std::move(handler));

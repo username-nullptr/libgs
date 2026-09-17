@@ -31,11 +31,8 @@ public:
 					base_parser::make_error_code(parse_errc::IREQL)
 				);
 			}
-			method_enum method;
-			try {
-				method = method::from_string(request_line_parts[0]);
-			}
-			catch(const std::exception&)
+			const auto method = method::from_string(request_line_parts[0]);
+			if( method == method::none )
 			{
 				return result.despair (
 					base_parser::make_error_code(parse_errc::IHM)

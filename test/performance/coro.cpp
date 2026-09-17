@@ -240,6 +240,7 @@ duration_t measure_condition_notify_all(size_t waiter_count)
 	libgs::io_context_t context;
 	libgs::coro::mutex mutex;
 	libgs::coro::condition_variable condition;
+	size_t ready = 0;
 	size_t completed = 0;
 
 	for(size_t index = 0; index < waiter_count; ++index)
@@ -248,16 +249,27 @@ duration_t measure_condition_notify_all(size_t waiter_count)
 		{
 			libgs::coro::unique_lock lock(mutex);
 			co_await lock.lock();
+			if( ++ready == waiter_count )
+			{
+				// condition_variable::wait() posts its queue insertion. Use a
+				// two-stage post so the last insertion is guaranteed to run before
+				// notify_all, avoiding a benchmark-side lost wakeup.
+				asio::post(context, [&context, &condition] {
+					asio::post(context, [&condition] {
+						condition.notify_all();
+					});
+				});
+			}
 			co_await condition.wait(lock);
 			++completed;
 			lock.unlock();
 		}, asio::detached);
 	}
-	asio::post(context, [&condition] { condition.notify_all(); });
 
 	const auto begin = steady_clock_t::now();
 	context.run();
 	const auto elapsed = steady_clock_t::now() - begin;
+	LIBGS_TEST_CHECK_EQ(ready, waiter_count);
 	LIBGS_TEST_CHECK_EQ(completed, waiter_count);
 	LIBGS_TEST_CHECK(not mutex.is_locked());
 	return elapsed;

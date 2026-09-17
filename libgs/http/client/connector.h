@@ -55,7 +55,8 @@ class LIBGS_HTTP_TAPI basic_connector
 	LIBGS_DISABLE_COPY_MOVE(basic_connector)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using ptr_t = std::shared_ptr<basic_connector>;
 
 	using connection_t = basic_connection<executor_t>;

@@ -17,12 +17,15 @@ class LIBGS_HTTP_TAPI basic_service_context
 	LIBGS_DISABLE_COPY_MOVE(basic_service_context)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using connection_t = basic_connection<executor_t>;
 	using connection_ptr = connection_t::ptr_t;
 
 	using request_t = basic_request<executor_t>;
 	using response_t = basic_response<executor_t>;
+
 	using session_t = http::session;
 	using parser_t = request_t::parser_t;
 

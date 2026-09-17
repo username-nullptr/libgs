@@ -85,7 +85,14 @@ public:
 protected:
 	map_t m_keys;
 };
-
+/**
+ * @par Thread Safety
+ * @e Distinct @e objects: Safe.@n
+ * @e Shared @e objects: Unsafe.
+ *
+ * File jobs are serialized internally. Calls and completions that access the
+ * same INI object's mutable state must still be serialized by the program.
+ */
 template <concepts::character CharT,
 		  concepts::exec Exec = asio::any_io_executor,
 		  template<typename,typename,typename...> class Map = std::map,
@@ -96,7 +103,8 @@ class LIBGS_CORE_TAPI basic_ini
 
 public:
 	using char_t = CharT;
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 
 	template <typename Key, typename Value, typename...Args>
 	using map_temp = Map<Key,Value,Args...>;

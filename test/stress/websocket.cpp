@@ -1,0 +1,109 @@
+// SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+// SPDX-License-Identifier: MIT
+
+#include "test.h"
+
+#include <libgs/websocket/client.h>
+#include <libgs/websocket/server.h>
+
+namespace
+{
+
+namespace ws = libgs::websocket;
+
+void concurrent_connection_pressure()
+{
+	constexpr size_t client_count = 16;
+	constexpr size_t connection_cycles = 4;
+	const size_t messages_per_connection = 16 * LIBGS_STRESS_SCALE;
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	auto service_executor = asio::make_strand(context);
+	ws::server service(std::move(acceptor), service_executor);
+	std::atomic_size_t echoed {0};
+	service.on_connection("/stress",
+	[&](ws::accept_result accepted) -> libgs::awaitable<void>
+	{
+		for(;;)
+		{
+			auto [error, message] = co_await accepted.stream.read<>(
+				asio::as_tuple(libgs::use_awaitable));
+			if(error)
+				co_return;
+			co_await accepted.stream.write(message.type,
+				libgs::const_buffer(message.body.data(), message.body.size()),
+				libgs::use_awaitable);
+			echoed.fetch_add(1, std::memory_order_relaxed);
+		}
+	});
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	const auto target = std::format("ws://127.0.0.1:{}/stress", port);
+	std::vector<std::future<void>> futures;
+	futures.reserve(client_count);
+	for(size_t client_index = 0; client_index < client_count; ++client_index)
+	{
+		auto client_executor = asio::make_strand(context);
+		futures.emplace_back(asio::co_spawn(client_executor,
+		[&, target, client_index]() -> libgs::awaitable<void>
+		{
+			ws::client client(co_await asio::this_coro::executor);
+			for(size_t cycle = 0; cycle < connection_cycles; ++cycle)
+			{
+				auto stream = co_await client.open(target, libgs::use_awaitable);
+				for(size_t index = 0; index < messages_per_connection; ++index)
+				{
+					const bool large_binary = (index % 16) == 0;
+					const auto type = large_binary ?
+						ws::message_type::binary : ws::message_type::text;
+					const auto payload = large_binary ?
+						std::string(64 * 1'024,
+							static_cast<char>('a' + (client_index + cycle) % 26)) :
+						std::format("{}:{}:{}", client_index, cycle, index);
+					co_await stream.write(type, asio::buffer(payload),
+						libgs::use_awaitable);
+					auto response = co_await stream.read<>(libgs::use_awaitable);
+					LIBGS_TEST_CHECK_EQ(response.type, type);
+					LIBGS_TEST_CHECK_EQ(
+						std::string(reinterpret_cast<const char*>(response.body.data()),
+							response.body.size()), payload);
+				}
+				const auto closed = co_await stream.close(libgs::use_awaitable);
+				LIBGS_TEST_CHECK(closed.clean);
+			}
+		}, libgs::use_future));
+	}
+
+	std::array<std::thread,4> runners;
+	for(auto &runner : runners)
+		runner = std::thread([&] { context.run(); });
+	try
+	{
+		for(auto &future : futures)
+			future.get();
+	}
+	catch(...)
+	{
+		service.stop();
+		context.stop();
+		for(auto &runner : runners)
+			runner.join();
+		throw;
+	}
+	LIBGS_TEST_CHECK_EQ(echoed.load(),
+		client_count * connection_cycles * messages_per_connection);
+	service.stop();
+	context.stop();
+	for(auto &runner : runners)
+		runner.join();
+}
+
+} //namespace
+
+int main()
+{
+	return libgs::test::run({
+		{"concurrent WebSocket connection pressure", concurrent_connection_pressure},
+	});
+}

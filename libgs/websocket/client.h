@@ -65,7 +65,9 @@ struct connect_request
 template <core_concepts::exec Exec = asio::any_io_executor>
 struct basic_open_diagnostics
 {
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using reply_t = http::basic_reply<executor_t>;
 	using reply_ptr = std::shared_ptr<reply_t>;
 
@@ -81,7 +83,8 @@ class LIBGS_WEBSOCKET_TAPI basic_client
 	LIBGS_DISABLE_COPY(basic_client)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using stream_t = basic_stream<executor_t>;
 
 	using config_t = client_config;

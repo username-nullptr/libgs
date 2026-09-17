@@ -5,6 +5,10 @@ Language: English | [简体中文](../zh_CN/coroutines.md)
 Include `<libgs/coro.h>` and link `gs.coro`. The module builds non-blocking
 waits and synchronization on Asio executors.
 
+Executor and lifetime behavior follows the
+[Asio-compatible I/O model](io-model.md). Synchronization primitives support
+concurrent wait/notify operations but must outlive all waiters.
+
 ## Start a coroutine
 
 `libgs::dispatch()` and `libgs::post()` accept callables that return

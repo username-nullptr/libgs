@@ -43,6 +43,13 @@ void basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::accept
 
 template <core_concepts::exec Exec>
 auto basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
+get_executor() noexcept -> executor_t
+{
+	return m_acceptor.get_executor();
+}
+
+template <core_concepts::exec Exec>
+auto basic_acceptor_wrap<asio::basic_stream_socket<asio::ip::tcp,Exec>>::
 acceptor() const noexcept -> const acceptor_t&
 {
 	return m_acceptor;
@@ -133,6 +140,13 @@ void basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::t
 		// progress therefore cannot serialize admission of later clients.
 		accept(exec, std::move(callback), handshake_timeout);
 	});
+}
+
+template <core_concepts::exec Exec>
+auto basic_acceptor_wrap<asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,Exec>>>::
+get_executor() noexcept -> executor_t
+{
+	return m_acceptor.get_executor();
 }
 
 template <core_concepts::exec Exec>

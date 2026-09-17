@@ -17,7 +17,12 @@ struct client_config
 	proxy_t default_proxy = use_global_proxy;
 	bool no_delay = true;
 };
-
+/**
+ * @par Thread Safety
+ * @e Distinct @e objects: Safe.@n
+ * @e Shared @e objects: Unsafe. Use one strand for calls and completions that
+ * access the same client when its execution context has multiple runners.
+ */
 template <core_concepts::exec Exec = asio::any_io_executor,
 		  version_enum Version = version::v11>
 class LIBGS_HTTP_TAPI basic_client
@@ -25,7 +30,8 @@ class LIBGS_HTTP_TAPI basic_client
 	LIBGS_DISABLE_COPY(basic_client)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	static constexpr auto version_v = Version;
 
 	using config_t = client_config;

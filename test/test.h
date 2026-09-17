@@ -7,6 +7,7 @@
 #include <exception>
 #include <atomic>
 #include <chrono>
+#include <concepts>
 #include <filesystem>
 #include <initializer_list>
 #include <iostream>
@@ -18,6 +19,12 @@
 
 namespace libgs::test
 {
+
+template <typename T>
+concept canonical_executor_type = requires {
+	typename T::executor_type;
+	typename T::executor_t;
+} and std::same_as<typename T::executor_type,typename T::executor_t>;
 
 class temporary_directory
 {

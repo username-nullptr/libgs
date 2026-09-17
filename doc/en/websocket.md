@@ -170,7 +170,11 @@ Important rules:
   limits. Frame reads preserve data-frame boundaries.
 - Writes are serialized and bounded by `max_queued_write_bytes` and
   `max_queued_write_operations`.
-- Shared access from multiple threads must be serialized with a strand or lock.
+- The stream follows the [Asio-compatible I/O model](io-model.md): distinct
+  streams are safe, while one shared stream is unsafe. With multiple event-loop
+  threads, use one strand for the stream and every handler or coroutine that
+  accesses it. Locking only the initiating calls does not serialize internal
+  read, write, timer, and close completions.
 
 `stream_config` sets frame/message limits, read buffer size, outgoing fragment
 size, write-queue limits, automatic Ping/Pong, close timeout, and compression

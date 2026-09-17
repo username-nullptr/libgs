@@ -26,7 +26,9 @@ class LIBGS_HTTP_TAPI basic_connection_pool
 	LIBGS_DISABLE_COPY(basic_connection_pool)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using config_t = connection_pool_config;
 	using target_t = connect_target;
 

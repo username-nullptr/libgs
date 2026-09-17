@@ -101,11 +101,45 @@ void core_hot_paths()
 	);
 }
 
+void algorithm_size_scaling()
+{
+#ifdef NDEBUG
+	constexpr size_t byte_budget = 64 * 1024 * 1024;
+#else
+	constexpr size_t byte_budget = 4 * 1024 * 1024;
+#endif
+	for(const size_t input_size : {size_t {64}, size_t {1'024}, size_t {65'536}})
+	{
+		const size_t count = std::max<size_t>(1, byte_budget / input_size);
+		std::string source(input_size, 'a');
+		for(size_t index = 7; index < source.size(); index += 16)
+			source[index] = ' ';
+		size_t checksum = 0;
+		const auto elapsed = median_duration(count, [&](size_t iterations)
+		{
+			const auto begin = std::chrono::steady_clock::now();
+			for(size_t index = 0; index < iterations; ++index)
+			{
+				source[0] = static_cast<char>('a' + index % 26);
+				auto encoded = libgs::to_percent_encoding(source);
+				checksum += encoded.size();
+			}
+			return std::chrono::steady_clock::now() - begin;
+		});
+		LIBGS_TEST_CHECK(checksum > 0);
+		libgs::test::print_performance_result(
+			std::format("core/percent encode {} B complexity sample", input_size),
+			count * input_size, elapsed, "byte"
+		);
+	}
+}
+
 } //namespace
 
 int main()
 {
 	return libgs::test::run({
 		{"core hot paths", core_hot_paths},
+		{"algorithm size scaling", algorithm_size_scaling},
 	});
 }

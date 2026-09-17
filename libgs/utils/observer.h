@@ -21,7 +21,9 @@ public:
 	using ptr_t = std::shared_ptr<derived_t>;
 	using callbacks_t = std::tuple<std::vector<std::function<Funcs>>...>;
 	using callbacks_tuple_t = std::tuple<std::function<Funcs>...>;
-	using executor_t = Exec;
+
+	using executor_type = Exec;
+	using executor_t = executor_type;
 
 	template <size_t Idx>
 	using callback_t = std::tuple_element_t<Idx,callbacks_tuple_t>;

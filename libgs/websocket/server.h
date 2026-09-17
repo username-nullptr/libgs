@@ -103,7 +103,8 @@ template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_WEBSOCKET_TAPI basic_accept_result
 {
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using stream_t = basic_stream<executor_t>;
 
 	explicit basic_accept_result(core_concepts::match_sched<executor_t> auto &&exec);
@@ -127,7 +128,8 @@ class LIBGS_WEBSOCKET_TAPI basic_server
 
 public:
 	using socket_t = Stream;
-	using executor_t = socket_t::executor_type;
+	using executor_type = socket_t::executor_type;
+	using executor_t = executor_type;
 
 	using config_t = server_config;
 	using stream_t = basic_stream<executor_t>;

@@ -15,18 +15,18 @@ int main(int argc, const char *argv[])
 		std::cout << "Changed " << key << " = " << value.to_string() << '\n';
 	});
 
-	if(auto error = settings.load_or(path))
+	if(auto result = settings.load_or(path); not result)
 	{
-		std::cerr << "Load failed: " << error.message() << '\n';
+		std::cerr << "Load failed: " << result.error().message() << '\n';
 		return 1;
 	}
 	settings
 		.set("server/host", "127.0.0.1")
 		.set("server/port", 8080);
 
-	if(auto error = settings.sync())
+	if(auto result = settings.sync(); not result)
 	{
-		std::cerr << "Save failed: " << error.message() << '\n';
+		std::cerr << "Save failed: " << result.error().message() << '\n';
 		return 1;
 	}
 	std::cout << "Saved " << settings.file_name() << '\n';

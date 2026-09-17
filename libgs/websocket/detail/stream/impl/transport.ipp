@@ -48,18 +48,19 @@ void basic_stream<Exec>::impl::start_async_transport_write
 }
 
 template <core_concepts::exec Exec>
-void basic_stream<Exec>::impl::close_transport(error_code &error) noexcept
+void basic_stream<Exec>::impl::close_transport(error_code &error, bool cancel_first) noexcept
 {
 	if( not m_connection or m_transport_closed )
 	{
 		error.clear();
 		return ;
 	}
-	auto result = m_connection->close();
 	m_transport_closed = true;
+	if( cancel_first )
+		ignore_unused(m_connection->cancel());
 
-	error = result ?
-		error_code{} : result.error();
+	auto result = m_connection->close();
+	error = result ? error_code{} : result.error();
 }
 
 } //namespace libgs::websocket

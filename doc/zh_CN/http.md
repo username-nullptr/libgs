@@ -126,6 +126,12 @@ HTTP 请求生命周期。WebSocket 应用通常应调用
 
 ## I/O 规则
 
+- HTTP I/O 遵循 [Asio 兼容的 I/O 模型](io-model.md)：不同对象可以并行，访问同一个
+  有状态对象必须串行化。
+- 同一 connection 可以同时进行一个读和一个写；不能重叠两个读或两个写。
+  Request/reply 的阶段迁移也必须串行化。
+- 多个线程运行 `io_context::run()` 时，为 client 或 server service executor 使用
+  strand，并从该 strand 发起操作。
 - 非 detached 异步写入会借用缓冲区直到完成；detached 响应写入会复制数据。
 - error-code 与异步写入形式会在出错时保留已处理的 Body 字节数。
 - 客户端、请求上下文、响应、连接、连接池以及服务端请求/响应在适用处提供取消。

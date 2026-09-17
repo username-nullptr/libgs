@@ -999,13 +999,8 @@ private:
 		return channel == read_channel_t::std_output ? &m_stdout : &m_stderr;
 	}
 
-	void post_io_result(process::io_handler_t handler, error_code error, size_t size)
-	{
-		auto allocator = asio::get_associated_allocator(handler);
-		asio::post(m_exec, asio::bind_allocator(allocator,
-		[completion = std::move(handler), error, size]() mutable {
-			std::move(completion)(error, size);
-		}));
+	void post_io_result(process::io_handler_t handler, error_code error, size_t size) {
+		libgs::post_completion(m_exec, std::move(handler), error, size);
 	}
 
 public:

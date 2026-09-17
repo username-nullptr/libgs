@@ -133,6 +133,13 @@ low-level boundary directly.
 
 ## I/O rules
 
+- HTTP I/O follows the [Asio-compatible I/O model](io-model.md): distinct
+  objects are safe, while access to one stateful object must be serialized.
+- One connection may have one read and one write outstanding at the same time;
+  do not overlap two reads or two writes. Request and reply phase transitions
+  must also be serialized.
+- With multiple `io_context::run()` threads, use a strand as the client or
+  server service executor and initiate operations from that strand.
 - Non-detached asynchronous writes borrow the supplied buffer until completion;
   detached response writes own a copy.
 - Error-code and asynchronous write forms preserve a partial body-byte count

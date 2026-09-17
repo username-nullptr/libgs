@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "shared_mutex.h"
+#include <mutex>
 #include <utility>
 
 namespace libgs::coro { namespace detail
@@ -25,10 +26,11 @@ public:
 	[[nodiscard]] awaitable<void> lock_shared(asio::any_io_executor exec)
 	{
 		co_await m_read_gate.lock(exec);
-		if( m_read_count.load() == 0 )
+		if( not try_join_readers() )
+		{
 			co_await m_native_handle.lock(exec);
-
-		m_read_count.fetch_add(1);
+			start_reading();
+		}
 		m_read_gate.unlock();
 		co_return ;
 	}
@@ -57,13 +59,15 @@ public:
 		if( not co_await m_read_gate.try_lock_until(exec, timeout) )
 			co_return false;
 
-		if( m_read_count.load() == 0 and
-			not co_await m_native_handle.try_lock_until(exec, timeout) )
+		if( not try_join_readers() )
 		{
-			m_read_gate.unlock();
-			co_return false;
+			if( not co_await m_native_handle.try_lock_until(exec, timeout) )
+			{
+				m_read_gate.unlock();
+				co_return false;
+			}
+			start_reading();
 		}
-		m_read_count.fetch_add(1);
 		m_read_gate.unlock();
 		co_return true;
 	}
@@ -81,28 +85,29 @@ public:
 		if( not m_read_gate.try_lock() )
 			return false;
 
-		if( m_read_count.load() == 0 and not m_native_handle.try_lock() )
+		if( not try_join_readers() )
 		{
-			m_read_gate.unlock();
-			return false;
+			if( not m_native_handle.try_lock() )
+			{
+				m_read_gate.unlock();
+				return false;
+			}
+			start_reading();
 		}
-		m_read_count.fetch_add(1);
 		m_read_gate.unlock();
 		return true;
 	}
 
 	void unlock_shared()
 	{
-		auto counter = m_read_count.load();
-		while( counter > 0 )
 		{
-			if( m_read_count.compare_exchange_weak(counter, counter - 1) )
-			{
-				if( counter == 1 )
-					m_native_handle.unlock();
+			std::lock_guard guard(m_read_count_mutex);
+			if( m_read_count == 0 )
 				return ;
-			}
+			if( --m_read_count != 0 )
+				return ;
 		}
+		m_native_handle.unlock();
 	}
 
 	[[nodiscard]] bool is_locked() const noexcept {
@@ -114,7 +119,24 @@ public:
 	}
 
 private:
-	std::atomic_uint m_read_count {0};
+	[[nodiscard]] bool try_join_readers()
+	{
+		std::lock_guard guard(m_read_count_mutex);
+		if( m_read_count == 0 )
+			return false;
+		++m_read_count;
+		return true;
+	}
+
+	void start_reading()
+	{
+		std::lock_guard guard(m_read_count_mutex);
+		++m_read_count;
+	}
+
+private:
+	unsigned int m_read_count = 0;
+	std::mutex m_read_count_mutex;
 	native_handle_t m_native_handle;
 	mutex m_read_gate;
 };

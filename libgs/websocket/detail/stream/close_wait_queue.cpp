@@ -78,7 +78,7 @@ bool close_wait_queue::add
 		if( waiter and waiter->completion )
 			completion = std::move(waiter->completion);
 		try {
-			std::move(completion)(error, close_info{});
+			post(std::move(completion), exec, error, close_info{});
 		}
 		catch(...) {}
 	}
@@ -88,10 +88,9 @@ bool close_wait_queue::add
 void close_wait_queue::post
 (handler_t completion, const asio::any_io_executor &exec, error_code error, close_info result)
 {
-	asio::post(exec,
-	[handler = std::move(completion), error, result = std::move(result)]() mutable {
-		std::move(handler)(error, std::move(result));
-	});
+	post_completion(exec,
+		std::move(completion), error, std::move(result)
+	);
 }
 
 void close_wait_queue::cancel(uint64_t id) noexcept

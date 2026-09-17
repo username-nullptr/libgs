@@ -60,15 +60,20 @@ struct retry_open_options
 };
 
 template <core_concepts::exec Exec = asio::any_io_executor>
-struct LIBGS_WEBSOCKET_TAPI  basic_retry_open_result
+struct LIBGS_WEBSOCKET_TAPI basic_retry_open_result
 {
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using stream_t = basic_stream<executor_t>;
 	using diagnostics_t = basic_open_diagnostics<executor_t>;
 
 	explicit basic_retry_open_result(executor_t exec) :
 		stream(std::move(exec)) {}
 
+	[[nodiscard]] executor_t get_executor() const noexcept {
+		return stream.get_executor();
+	}
 	stream_t stream;
 	size_t attempts = 0;
 

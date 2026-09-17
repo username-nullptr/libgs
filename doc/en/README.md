@@ -7,6 +7,7 @@ Language: English | [简体中文](../zh_CN/README.md)
 | Document | Use it for |
 | --- | --- |
 | [Getting started](getting-started.md) | Requirements, configuration, building, installation, and linking |
+| [Asio-compatible I/O model](io-model.md) | Executors, completion handlers, strands, cancellation, and per-object concurrency |
 | [Core](core.md) | Runtime, scheduling, data types, algorithms, containers, and system APIs |
 | [Coroutines](coroutines.md) | Awaitable waits and non-blocking synchronization |
 | [HTTP](http.md) | HTTP protocol, client, server, files, sessions, TLS, gzip, and proxies |

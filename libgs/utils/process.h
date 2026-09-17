@@ -17,7 +17,14 @@ using pid_t = uint64_t;
 enum class process_state {
 	idle, running, exited, crashed
 };
-
+/**
+ * @par Thread Safety
+ * @e Distinct @e objects: Safe.@n
+ * @e Shared @e objects: Unsafe.
+ *
+ * Keep at most one stdin write, one stdout read, and one stderr read
+ * outstanding. Serialize lifecycle changes with I/O initiation.
+ */
 template <concepts::character CharT, concepts::exec Exec = asio::any_io_executor>
 class LIBGS_UTILS_TAPI basic_process
 {
@@ -25,9 +32,10 @@ class LIBGS_UTILS_TAPI basic_process
 
 public:
 	using char_t = CharT;
-	using executor_t = Exec;
-	using state_t = process_state;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 
+	using state_t = process_state;
 	using string_t = std::basic_string<char_t>;
 	using value_t = libgs::basic_value<char_t>;
 

@@ -65,7 +65,8 @@ class LIBGS_UTILS_TAPI basic_subscriber
 public:
 	using interface_t = Interface;
 	using interface_ptr = std::shared_ptr<Interface>;
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 
 public:
 	template <libgs::concepts::match_sched<Exec> Exec0 = io_context_t&>

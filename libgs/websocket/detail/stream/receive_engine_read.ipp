@@ -112,10 +112,9 @@ void receive_engine::async_consume(Consumer &&consumer, info_handler_t completio
 		auto error = self->receive_side().m_read_active ?
 			make_error_code(std::errc::operation_in_progress) : state_error;
 
-		asio::post(self->receive_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, message_info{});
-		});
+		post_completion(self->receive_executor(),
+			std::move(completion), error, message_info{}
+		);
 		return ;
 	}
 	std::shared_ptr<consume_wait_operation> waiter;
@@ -159,10 +158,9 @@ void receive_engine::async_consume(Consumer &&consumer, info_handler_t completio
 			self->receive_side().complete_consume_waiter(error);
 		else
 		{
-			asio::post(self->receive_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, message_info{});
-			});
+			post_completion(self->receive_executor(),
+				std::move(completion), error, message_info{}
+			);
 		}
 		return ;
 	}

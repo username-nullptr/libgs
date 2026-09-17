@@ -46,6 +46,12 @@ basic_connection_lease<Exec>::~basic_connection_lease()
 }
 
 template <core_concepts::exec Exec>
+auto basic_connection_lease<Exec>::get_executor() noexcept -> executor_t
+{
+	return get().get_executor();
+}
+
+template <core_concepts::exec Exec>
 auto basic_connection_lease<Exec>::get() noexcept -> connection_t&
 {
 	if( not m_impl->m_connection )

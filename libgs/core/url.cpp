@@ -39,6 +39,16 @@ namespace libgs { namespace
 		   value == '-' or value == '.' or value == '_' or value == '~';
 }
 
+[[nodiscard]] bool valid_host(std::string_view value) noexcept
+{
+	return std::ranges::none_of(value, [](unsigned char item)
+	{
+		return item <= 0x20 or item == 0x7F or
+			item == '[' or item == ']' or item == '/' or item == '?' or
+			item == '#' or item == '@';
+	});
+}
+
 [[nodiscard]] std::string normalize_encoded_component
 (std::string_view value, std::string_view allowed)
 {
@@ -70,7 +80,7 @@ namespace libgs { namespace
 	return result;
 }
 
-[[nodiscard]] std::string remove_dot_segments(std::string input)
+[[nodiscard]] std::string remove_dot_segments(const std::string &input)
 {
 	std::string output;
 	output.reserve(input.size());
@@ -241,7 +251,7 @@ public:
 	void refresh_validity() noexcept
 	{
 		m_valid = not m_protocol.empty() and not m_path.empty() and
-			m_path.front() == '/';
+			m_path.front() == '/' and valid_host(m_host);
 	}
 
 private:
@@ -412,14 +422,14 @@ url::url(std::string_view url_text) :
 	m_parameters = &m_impl->m_parameters;
 }
 
-url::url(const std::string &u) :
-	url(std::string_view(u))
+url::url(const std::string &url_text) :
+	url(std::string_view(url_text))
 {
 
 }
 
-url::url(const char *u) :
-	url(std::string_view(u))
+url::url(const char *url_text) :
+	url(std::string_view(url_text))
 {
 
 }
@@ -639,13 +649,13 @@ url url::resolve(const url &base, std::string_view reference)
 			query_suffix = '?' + base.encoded_query();
 	}
 	else if( value.front() == '/' )
-		path = remove_dot_segments(std::move(value));
+		path = remove_dot_segments(value);
 	else
 	{
 		path = base.encoded_path();
 		path.erase(path.rfind('/') + 1);
 		path += value;
-		path = remove_dot_segments(std::move(path));
+		path = remove_dot_segments(path);
 	}
 	return { origin + path + query_suffix + fragment_suffix };
 }

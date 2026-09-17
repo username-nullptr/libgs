@@ -15,7 +15,8 @@ class LIBGS_HTTP_API session : public std::enable_shared_from_this<session>
 	LIBGS_DISABLE_COPY_MOVE(session)
 
 public:
-	using executor_t = asio::any_io_executor;
+	using executor_type = asio::any_io_executor;
+	using executor_t = executor_type;
 
 	template <typename Rep, typename Period = std::ratio<1>>
 	using duration_t = std::chrono::duration<Rep,Period>;
@@ -28,13 +29,16 @@ public:
 
 public:
 	template <typename Rep, typename Period = std::ratio<1>>
-	explicit session(const duration_t<Rep,Period> &seconds, const executor_t &exec = get_executor());
-
-	explicit session(const executor_t &exec = get_executor());
+	explicit session(const duration_t<Rep,Period> &seconds,
+		const executor_t &exec = libgs::get_executor()
+	);
+	explicit session(const executor_t &exec = libgs::get_executor());
 	virtual ~session();
 
 public:
+	[[nodiscard]] executor_t get_executor() noexcept;
 	[[nodiscard]] std::string_view id() const noexcept;
+
 	[[nodiscard]] time_point_t create_time() const noexcept;
 	[[nodiscard]] bool is_valid() const noexcept;
 

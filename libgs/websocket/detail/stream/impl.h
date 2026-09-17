@@ -226,8 +226,7 @@ public:
 	) noexcept override;
 
 private:
-	void close_transport(error_code &error) noexcept;
-
+	void close_transport(error_code &error, bool cancel_first = false) noexcept;
 	[[nodiscard]] bool local_close_started() const noexcept;
 	[[nodiscard]] bool local_close_sent() const noexcept;
 

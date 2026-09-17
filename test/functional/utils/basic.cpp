@@ -11,6 +11,9 @@ namespace
 
 using namespace std::chrono_literals;
 
+static_assert(libgs::test::canonical_executor_type<
+	libgs::utils::observer<void()>>);
+
 struct awaitable_sender
 {
 	libgs::utils::signal<libgs::awaitable<void>(std::string)> fired;

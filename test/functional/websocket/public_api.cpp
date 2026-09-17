@@ -14,12 +14,21 @@ namespace
 namespace ws = libgs::websocket;
 
 static_assert(std::same_as<ws::stream::executor_t, asio::any_io_executor>);
+static_assert(libgs::test::canonical_executor_type<ws::stream>);
+static_assert(libgs::test::canonical_executor_type<ws::client>);
+static_assert(libgs::test::canonical_executor_type<ws::open_diagnostics>);
+static_assert(libgs::test::canonical_executor_type<ws::accept_result>);
+static_assert(libgs::test::canonical_executor_type<ws::server>);
+static_assert(libgs::test::canonical_executor_type<ws::retry_open_result>);
 static_assert(std::movable<ws::stream>);
 static_assert(not std::copy_constructible<ws::stream>);
 static_assert(std::movable<ws::client>);
 static_assert(not std::copy_constructible<ws::client>);
 static_assert(std::movable<ws::retry_open_result>);
 static_assert(not std::copy_constructible<ws::retry_open_result>);
+static_assert(requires(const ws::retry_open_result &value) {
+	{ value.get_executor() } -> std::same_as<ws::retry_open_result::executor_t>;
+});
 static_assert(std::is_error_code_enum_v<ws::errc>);
 static_assert(std::is_error_code_enum_v<ws::protocol_errc>);
 

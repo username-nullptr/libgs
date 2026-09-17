@@ -24,8 +24,10 @@ struct tcp_socket_options
 {
 	optional<bool> no_delay {};
 	optional<bool> keep_alive {};
+
 	optional<size_t> send_buffer_size {};
 	optional<size_t> receive_buffer_size {};
+
 	optional<asio::socket_base::linger> linger {};
 };
 
@@ -33,22 +35,32 @@ struct tcp_socket_state
 {
 	bool no_delay = false;
 	bool keep_alive = false;
+
 	size_t send_buffer_size = 0;
 	size_t receive_buffer_size = 0;
+
 	asio::socket_base::linger linger {};
 };
 
 enum class connection_probe_state {
 	no_event, data_pending, peer_closed, indeterminate
 };
-
+/**
+ * @par Thread Safety
+ * @e Distinct @e objects: Safe.@n
+ * @e Shared @e objects: Unsafe.
+ *
+ * The program may keep one read and one write outstanding concurrently, but
+ * must not overlap two reads or two writes on the same connection.
+ */
 template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_connection
 {
 	LIBGS_DISABLE_COPY_MOVE(basic_connection)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using probe_state_t = connection_probe_state;
 	using ptr_t = std::shared_ptr<basic_connection>;
 

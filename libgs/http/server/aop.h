@@ -15,7 +15,9 @@ class basic_aop
 	LIBGS_DISABLE_COPY_MOVE(basic_aop)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using ptr_t = std::shared_ptr<basic_aop>;
 	using context_t = basic_service_context<executor_t>;
 
@@ -38,7 +40,8 @@ template <core_concepts::exec Exec = asio::any_io_executor>
 class basic_ctrlr_aop : public basic_aop<Exec>
 {
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using ptr_t = std::shared_ptr<basic_ctrlr_aop>;
 
 	using context_t = basic_service_context<executor_t>;

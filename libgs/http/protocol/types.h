@@ -80,6 +80,7 @@ LIBGS_HTTP_DEFINE_ENUM(uint32_t, status, LIBGS_HTTP_STATUS_TABLE, description);
 #undef X_MACRO
 
 #define LIBGS_HTTP_METHOD_TABLE \
+X_MACRO( none    , 0x0000 , ""        ) \
 X_MACRO( get     , 0x0001 , "GET"     ) \
 X_MACRO( put     , 0x0002 , "PUT"     ) \
 X_MACRO( post    , 0x0004 , "POST"    ) \
@@ -92,7 +93,7 @@ X_MACRO( connect , 0x0100 , "CONNECT" )
 
 #define X_MACRO(e,v,d) e = (v),
 LIBGS_HTTP_DEFINE_ENUM(uint16_t, method, LIBGS_HTTP_METHOD_TABLE, string,
-	[[nodiscard]] static constexpr enumeration from_string(std::string_view str);
+	[[nodiscard]] static constexpr enumeration from_string(std::string_view str, bool _throw = false);
 	constexpr method(std::string_view str);
 );
 #undef X_MACRO

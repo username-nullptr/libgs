@@ -154,8 +154,8 @@ void settings::impl::adopt_ini(ini_t &&source, bool merge_data)
 	m_ini = std::move(source);
 }
 
-error_code settings::impl::load_sync(settings *owner, const path_t &file_name,
-	bool replace_file_name, bool ignore_missing, error_code error)
+sys_expected<> settings::impl::load_sync
+(settings *owner, const path_t &file_name, bool replace_file_name, bool ignore_missing, error_code error)
 {
 	if( not error )
 	{
@@ -181,10 +181,10 @@ error_code settings::impl::load_sync(settings *owner, const path_t &file_name,
 		}
 	}
 	notify_loaded(owner, file_name, error);
-	return error;
+	return error ? sys_expected<>(sys_unexpected(error)) : make_sys_expected();
 }
 
-error_code settings::impl::sync_sync
+sys_expected<> settings::impl::sync_sync
 (settings *owner, const path_t &file_name, bool replace_file_name, error_code error)
 {
 	if( not error )
@@ -201,7 +201,7 @@ error_code settings::impl::sync_sync
 		}
 	}
 	notify_synced(owner, file_name, error);
-	return error;
+	return error ? sys_expected<>(sys_unexpected(error)) : make_sys_expected();
 }
 
 void settings::impl::start_load(settings *owner, path_t file_name,
@@ -213,7 +213,7 @@ void settings::impl::start_load(settings *owner, path_t file_name,
 }
 
 void settings::impl::start_load(settings *owner, path_t file_name,
-	bool replace_file_name, bool ignore_missing, error_code prepare_error, error_handler_t handler)
+	bool replace_file_name, bool ignore_missing, error_code prepare_error, expected_handler_t handler)
 {
 	start_load_impl(owner, std::move(file_name), replace_file_name,
 		ignore_missing, prepare_error, std::move(handler)
@@ -229,7 +229,7 @@ void settings::impl::start_sync
 }
 
 void settings::impl::start_sync
-(settings *owner, path_t file_name, bool replace_file_name, error_code prepare_error, error_handler_t handler)
+(settings *owner, path_t file_name, bool replace_file_name, error_code prepare_error, expected_handler_t handler)
 {
 	start_sync_impl(owner, std::move(file_name), replace_file_name,
 		prepare_error, std::move(handler)
@@ -239,8 +239,12 @@ void settings::impl::start_sync
 template <typename Handler>
 void settings::impl::complete(Handler &&handler, error_code error)
 {
-	if constexpr( std::is_same_v<std::remove_cvref_t<Handler>,error_handler_t> )
-		std::forward<Handler>(handler)(error_code{}, error);
+	if constexpr( std::is_same_v<std::remove_cvref_t<Handler>,expected_handler_t> )
+	{
+		auto result = error ?
+			sys_expected<>(sys_unexpected(error)) : make_sys_expected();
+		std::forward<Handler>(handler)(error_code{}, std::move(result));
+	}
 	else
 		std::forward<Handler>(handler)(error);
 }

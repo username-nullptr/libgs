@@ -18,7 +18,8 @@ class LIBGS_HTTP_TAPI basic_tls_connection : public basic_connection<Exec>
 	LIBGS_DISABLE_COPY_MOVE(basic_tls_connection)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using probe_state_t = connection_probe_state;
 
 	using socket_t = asio::ssl::stream<asio::basic_stream_socket<asio::ip::tcp,executor_t>>;

@@ -1,134 +1,158 @@
 # LibGS tests
 
-The test suite has three layers:
+The test tree is split by purpose. A test belongs to exactly one primary suite;
+do not use iteration count alone to decide where it belongs.
 
-- `functional`: correctness tests for each enabled module.
-- `fuzz`: input-driven Clang libFuzzer harnesses, built separately from the
-  functional suite.
-- `performance`: coarse local measurements for core transforms, lock-free queues,
-  coroutine synchronization primitives, HTTP and WebSocket protocol/loopback
-  work, and utility dispatch.
+| Suite | Purpose | Default build |
+| --- | --- | --- |
+| `functional` | Deterministic correctness of every supported public API call, overload family, error path, and state transition. | Yes |
+| `stress` | High-pressure stability: concurrency, queue saturation, repeated connections, fanout, and long call sequences. | Opt-in |
+| `fuzz` | Sanitized, input-driven calls including malformed values and unusual API call sequences; not limited to protocol parsers. | Dedicated opt-in build |
+| `performance` | Repeatable measurements for complexity-sensitive algorithms, synchronization overhead, and I/O throughput/latency. | Opt-in |
 
-Coverage is organized by observable behavior rather than one test per function.
-A representative public workflow is allowed to cover its small helpers; a separate
-test is added only for a distinct boundary, error, state-transition, ownership, or
-configuration branch. Performance tests likewise sample important dimensions
-(for example protocol versus socket work, small versus large bodies, and reused
-versus reconnected HTTP sessions) instead of building an unbounded cross-product.
+All CTest entries carry the primary suite name as a label. `ctest -L <suite>`
+therefore selects one category without implicitly running another category.
+Functional target and CTest names remain compatible with the historical names.
 
-The HTTP/1.1 WebSocket implementation is covered by protocol, public-API,
-handshake, owned client/server, stream, and optional WSS groups. Coverage includes
-incremental frame parsing across a deterministic chunk corpus, opening-handshake
-validation, cross-origin redirect credential handling, request snapshots,
-subprotocol and RFC 7692 `permessage-deflate` negotiation, asynchronous
-Upgrade validators, request-aware synchronous/asynchronous selectors,
-frame-level reads, accept-queue capacity/FIFO/timeout
-behavior, real handshake deadlines, simultaneous Close, and stream state
-transitions. Explicit recovery coverage verifies that retrying begins only after
-the business loop reports failure, and exercises request regeneration, capped
-backoff, and cancellation. Stream coverage includes automatic Ping/Pong deadlines
-and retries, mutable control payloads, coroutine control callbacks, and
-manual-control mode. When OpenSSL support is enabled, a
-hermetic WSS loopback covers certificate verification and the TLS upgrade path.
-When WebSocket zlib support is enabled, a fragmented compressed loopback and
-invalid compressed payload are also covered. Frame/control/close details already
-reached through a broader state test are not repeated as standalone combinations.
+## Functional
 
-HTTP and WebSocket network tests prefer independent implementations already
-available on the machine, without downloading test dependencies. HTTP uses
-`curl` when present (or Python's standard HTTP stack) against the LibGS server,
-then checks the LibGS client against a Python HTTP server. WebSocket prefers the
-Node `ws` package, which exercises both client/server directions; Python
-`websockets`, `websocket-client`, and `wscat` are accepted client-side fallbacks.
-CMake reports the selected backend. If Python or a WebSocket implementation is
-not available, the dependency-free LibGS loopback tests remain the fallback.
-Interoperability tests carry the `interop` and `external` CTest labels.
+Functional tests are the API contract. Every new or changed public callable must
+be exercised here. Compile-time-only overloads and constraints may be covered by
+`static_assert`; runtime behavior must be invoked and checked. A broad workflow
+may cover small accessors, but boundaries, errors, ownership, cancellation, and
+state transitions need explicit assertions.
 
-Performance tests require the `libgs.functional` CTest fixture. Selecting only
-the `performance` label therefore runs the functional suite first, and skips
-the measurements if correctness does not pass.
+Executor-bound public types also share a compile-time contract: both the standard
+`executor_type` spelling and the compatibility `executor_t` spelling must exist
+and denote the same type. This is checked across core, HTTP, WebSocket, and
+utilities public objects.
 
-For representative local measurements, use a Release build and verbose CTest
-output:
+The module-to-test map and review checklist are in
+[`functional/API_COVERAGE.md`](functional/API_COVERAGE.md). HTTP and WebSocket
+network behavior uses loopback endpoints. Optional interoperability tests use an
+independent implementation already installed on the machine and never download a
+dependency at configure time; these also carry the `interop` and `external`
+labels.
 
 ```sh
-cmake -S . -B build -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DBUILD_TESTING=ON \
+  -DLIBGS_BUILD_HTTP=ON -DLIBGS_BUILD_WEBSOCKET=ON \
+  -DLIBGS_BUILD_UTILITIES=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 ctest --test-dir build -L functional --output-on-failure
-ctest --test-dir build -L performance -V
 ```
 
-The reported throughput and latency have no fixed pass threshold. They are
-intended for rough comparisons on the same machine; a performance test fails
-only when its result is functionally incorrect or it times out.
+## Stress
 
-Core measurements cover percent encoding, URL parse/serialization, and SHA-1.
-HTTP measurements separate parser/generator cost from loopback requests and,
-when `LIBGS_HTTP_ZLIB_SUPPORT=ON`, include a gzip round trip. Loopback reporting
-uses median-of-three samples for keep-alive small bodies, keep-alive 64 KiB
-bodies, and reconnecting small requests.
+Stress tests validate correctness while work is highly concurrent or repeatedly
+recreated. They cover exact-once MPMC delivery in both circular and linked queues
+under single-slot saturation, forced-eviction accounting during concurrent queue
+access, concurrent URL/text work, coroutine mutex and shared-mutex reader/writer
+storms, timed-waiter races, mixed HTTP keep-alive/reconnect traffic with payloads
+through 64 KiB, repeated WebSocket handshakes with small text and 64 KiB binary
+messages, concurrent signal mutation/emission, and message-bus fanout. They are
+serial at the CTest level so two machine-saturating cases do not distort each
+other.
 
-WebSocket measurements keep the protocol and transport costs distinguishable:
-they sample 4 KiB masking and frame parsing, then reuse one loopback connection
-for 64 B and 64 KiB binary messages. They intentionally do not form a matrix of
-roles, opcodes, fragmentation sizes, and connection lifetimes.
+HTTP and WebSocket stress cases run one strand per client and a strand for the
+server-side connection state while several threads run the shared `io_context`.
+This follows Asio's shared-object contract: concurrency is across independent
+connections, while handlers touching one logical I/O object are serialized.
 
-The coroutine synchronization measurements include raw atomic and immediate
-awaitable baselines, uncontended acquire/release cycles, and queued waiter
-wake-ups. This keeps runtime and primitive overhead distinguishable when
-comparing two builds.
+`LIBGS_STRESS_SCALE` is a positive integer work multiplier. The default is `4`;
+larger values are intended for soak jobs. Repeating CTest is useful for detecting
+rare scheduling failures.
 
-The utility logger measurements separate formatting from dispatch. They cover
-cached and named disabled calls, four-thread named calls, an enabled null sink,
-and asynchronous daily-file enqueue throughput followed by an explicit flush.
-The null sink deliberately removes terminal I/O while preserving the enabled
-logger path; the file measurement uses a temporary directory and validates that
-data reached the sink.
+```sh
+cmake -S . -B build-stress -DBUILD_TESTING=ON \
+  -DLIBGS_BUILD_STRESS_TESTS=ON -DLIBGS_STRESS_SCALE=4 \
+  -DLIBGS_BUILD_HTTP=ON -DLIBGS_BUILD_WEBSOCKET=ON \
+  -DLIBGS_BUILD_UTILITIES=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-stress -j
+ctest --test-dir build-stress -L stress --repeat until-fail:20 \
+  --output-on-failure
+```
 
-For memory errors and undefined behavior, use a separate ASan/UBSan build. The
-instrumented build omits performance tests and should not be used for install
-artifacts:
+The local message bus has bounded per-subscriber queues. Its stress case sends
+concurrent bursts within that documented capacity and waits between bursts;
+intentional `force_enqueue` eviction is not reported as data corruption.
+
+## Fuzz
+
+Fuzzing has a dedicated Clang/libFuzzer build with ASan and UBSan. Harnesses cover
+URL and value manipulation, coroutine synchronization call sequences, HTTP
+request/response parsers and public value APIs, WebSocket frames/handshakes and
+public value APIs, and utility signal connect/disconnect/block/emit sequences.
+Expected API rejections are handled; sanitizer findings, invariant violations,
+and unexpected failures still terminate the harness.
+
+Smoke tests start from checked-in structured corpora and protocol dictionaries;
+CMake copies corpora into the build tree so libFuzzer can minimize or extend them
+without modifying the source tree. Harnesses use metamorphic checks where an
+exact oracle is available, including fragmented-versus-contiguous HTTP parsing,
+generated HTTP request/response round trips and parser reuse, URL serialization
+stability, HTTP range round trips, generated WebSocket frame round trips,
+WebSocket mask involution, sticky parser errors/reset, signal connection-state
+modeling, and generated-handshake round trips.
+
+Every fuzzer is also a bounded CTest smoke test. `LIBGS_FUZZ_SMOKE_RUNS` controls
+its iteration count (default `2048`). Longer local or CI campaigns can invoke a
+fuzzer binary directly with `-max_total_time` or `-runs` and a persistent corpus.
+
+```sh
+cmake -S . -B build-fuzz -DBUILD_TESTING=ON \
+  -DLIBGS_BUILD_FUZZERS=ON -DCMAKE_CXX_COMPILER=clang++ \
+  -DLIBGS_BUILD_HTTP=ON -DLIBGS_BUILD_WEBSOCKET=ON \
+  -DLIBGS_BUILD_UTILITIES=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-fuzz -j
+ctest --test-dir build-fuzz -L fuzz --output-on-failure
+
+# Example longer campaign:
+build-fuzz/output/fuzz/libgs.fuzz.core.public-api \
+  -max_total_time=300 corpus/core-public-api
+```
+
+Fuzz harnesses stay within the C++ API's callable domain: they deliberately pass
+malformed values and surprising sequences, but do not manufacture invalid
+pointers or violate object lifetimes in the harness itself. That distinction lets
+sanitizers attribute undefined behavior to the library rather than to test code.
+
+## Performance
+
+Performance tests are measurements, not soak tests. They use warmups and stable
+sample shapes, validate their results, and report throughput/latency without a
+machine-independent pass threshold. Run them in Release mode on a quiet machine
+and compare results from the same host.
+
+Coverage includes input-size samples for algorithmic scaling, lock-free queues,
+coroutine synchronization, HTTP parser/generator and loopback I/O, WebSocket
+codec and loopback I/O, logger formatting/dispatch/file output, signal-slot
+dispatch, and local message-bus fanout.
+
+```sh
+cmake -S . -B build-perf -DBUILD_TESTING=ON \
+  -DLIBGS_BUILD_PERFORMANCE_TESTS=ON \
+  -DLIBGS_BUILD_HTTP=ON -DLIBGS_BUILD_WEBSOCKET=ON \
+  -DLIBGS_BUILD_UTILITIES=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build-perf -j
+ctest --test-dir build-perf -L performance -V
+```
+
+## Sanitizers
+
+ASan/UBSan and TSan builds are mutually exclusive. Performance tests are omitted
+from sanitizer builds because instrumentation invalidates their measurements;
+functional and explicitly enabled stress tests remain available.
 
 ```sh
 cmake -S . -B build-sanitize -DBUILD_TESTING=ON \
   -DLIBGS_ENABLE_TEST_SANITIZERS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build-sanitize -j
 ctest --test-dir build-sanitize -L sanitizer --output-on-failure
-```
 
-ASan/UBSan do not detect data races. Concurrency can be checked in a separate,
-mutually exclusive TSan build:
-
-```sh
 cmake -S . -B build-tsan -DBUILD_TESTING=ON \
-  -DLIBGS_ENABLE_TEST_TSAN=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  -DLIBGS_ENABLE_TEST_TSAN=ON -DLIBGS_BUILD_STRESS_TESTS=ON \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build-tsan -j
 ctest --test-dir build-tsan -L sanitizer --output-on-failure
-```
-
-For repeated stability runs, append `--repeat until-fail:20` to either CTest
-command.
-
-Input-oriented coverage is kept in Clang libFuzzer harnesses rather than the
-functional suite. Core covers URL parsing and percent-encoding round trips;
-HTTP covers incremental request and response parsing; WebSocket covers
-incremental frames and opening handshakes. Build the harnesses separately from
-the functional suite and other sanitizer modes, then run them locally with a
-bounded iteration count or duration:
-
-```sh
-cmake -S . -B build-fuzz -DBUILD_TESTING=ON \
-  -DLIBGS_BUILD_FUZZERS=ON -DCMAKE_CXX_COMPILER=clang++ \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build build-fuzz --target \
-  libgs.fuzz.core.url \
-  libgs.fuzz.http.request-parser \
-  libgs.fuzz.http.response-parser \
-  libgs.fuzz.websocket.frame-parser \
-  libgs.fuzz.websocket.handshake-parser -j
-build-fuzz/output/fuzz/libgs.fuzz.core.url -runs=10000
-build-fuzz/output/fuzz/libgs.fuzz.http.request-parser -runs=10000
-build-fuzz/output/fuzz/libgs.fuzz.http.response-parser -runs=10000
-build-fuzz/output/fuzz/libgs.fuzz.websocket.frame-parser -runs=10000
-build-fuzz/output/fuzz/libgs.fuzz.websocket.handshake-parser -runs=10000
 ```

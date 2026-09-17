@@ -3,7 +3,7 @@
 
 #include "test.h"
 
-#include <libgs/core/execution.h>
+#include <libgs/core/async_expected.h>
 
 namespace
 {
@@ -189,6 +189,49 @@ void asynchronous_sleep_tokens()
 	LIBGS_TEST_CHECK(callback_called);
 }
 
+void async_work_never_completes_inline()
+{
+	libgs::io_context_t context;
+	bool initiating = true;
+	bool completed = false;
+
+	libgs::async_work<>::handle(context,
+		[](auto handler) mutable { std::move(handler)(); },
+		[&]
+		{
+			LIBGS_TEST_CHECK(not initiating);
+			completed = true;
+		});
+	initiating = false;
+
+	LIBGS_TEST_CHECK(not completed);
+	context.run();
+	LIBGS_TEST_CHECK(completed);
+}
+
+void posted_completion_uses_immediate_executor()
+{
+	libgs::io_context_t io_context;
+	libgs::io_context_t completion_context;
+	bool initiating = true;
+	bool completed = false;
+
+	libgs::post_completion(io_context.get_executor(),
+		asio::bind_immediate_executor(completion_context.get_executor(),
+		[&](libgs::error_code error, int value)
+		{
+			LIBGS_TEST_CHECK(not initiating);
+			LIBGS_TEST_CHECK(not error);
+			LIBGS_TEST_CHECK_EQ(value, 42);
+			completed = true;
+		}), libgs::error_code {}, 42);
+	initiating = false;
+
+	LIBGS_TEST_CHECK(not completed);
+	completion_context.run();
+	LIBGS_TEST_CHECK(completed);
+}
+
 void periodic_timer()
 {
 	libgs::io_context_t context;
@@ -277,6 +320,9 @@ int main()
 		{"local dispatch and sleep", local_dispatch_and_sleep},
 		{"local event pumps", local_event_pumps},
 		{"asynchronous sleep tokens", asynchronous_sleep_tokens},
+		{"async work never completes inline", async_work_never_completes_inline},
+		{"posted completion uses immediate executor",
+			posted_completion_uses_immediate_executor},
 		{"periodic timer", periodic_timer},
 		{"cross-thread periodic cancellation", cross_thread_periodic_cancellation},
 		{"awaitable and absolute work", awaitable_and_absolute_work},

@@ -36,6 +36,13 @@ class LIBGS_DECL_HIDDEN initializer
 	using node_ptr = node_t::ptr_t;
 	using dsd_t = std::unordered_map<std::string,node_ptr>;
 
+	struct unexpected_offsets
+	{
+		std::atomic_size_t failures {0};
+		std::atomic_size_t unregistered {0};
+		std::atomic_size_t children {0};
+	};
+
 public:
 	[[nodiscard]] static initializer &instance() noexcept
 	{
@@ -219,30 +226,50 @@ private:
 		std::thread([this, args = std::move(init_args), callback = std::move(completion)]
 		{
 			unexpected_t unexpected;
-			do_init(m_dsd, true, args, unexpected);
+			unexpected_offsets offsets;
+			const auto maximum_results = m_counter.load(std::memory_order_acquire);
 
-			std::mutex mutex;
-			std::unique_lock locker(mutex);
+			unexpected.failures.resize(maximum_results);
+			unexpected.unregistered.resize(maximum_results);
+			unexpected.children.resize(maximum_results);
 
-			m_condition.wait(locker, [this] {
-				return m_counter == 0;
-			});
+			do_init(m_dsd, true, args, unexpected, offsets);
+
+			for(auto remaining = m_counter.load(std::memory_order_acquire);
+				remaining != 0; remaining = m_counter.load(std::memory_order_acquire))
+			{
+				m_counter.wait(remaining, std::memory_order_acquire);
+			}
+			unexpected.failures.resize (
+				offsets.failures.load(std::memory_order_acquire)
+			);
+			unexpected.unregistered.resize (
+				offsets.unregistered.load(std::memory_order_acquire)
+			);
+			unexpected.children.resize (
+				offsets.children.load(std::memory_order_acquire)
+			);
 			if( callback )
 				callback(std::move(unexpected));
 		})
 		.detach();
 	}
 
-	void do_init(const dsd_t &nodes, bool initial_success, const string_vector &args, unexpected_t &unexpected)
+	void do_init(const dsd_t &nodes, bool initial_success, const string_vector &args,
+		unexpected_t &unexpected, unexpected_offsets &offsets)
 	{
 		for(auto &[name, node] : nodes)
 		{
 			if( node->success )
 				node->success = initial_success;
+
 			if( --node->counter > 0 )
 				continue;
 
-			std::thread([this, name, node, success = node->success.load(), &args, &unexpected]() mutable
+			std::thread([this,
+				name, node, success = node->success.load(),
+				&args, &unexpected, &offsets
+			]() mutable
 			{
 				if( node->init.index() != func_state )
 				{
@@ -253,11 +280,13 @@ private:
 						);
 						if( node->init.index() == func0_e )
 							success = std::get<detail::modules::func0_t>(std::move(node->init))();
+
 						else if( node->init.index() == func1_e )
 							success = std::get<detail::modules::func1_t>(std::move(node->init))(args);
 
 						else if( node->init.index() == func2_e )
 							std::get<detail::modules::func2_t>(std::move(node->init))();
+
 						else if( node->init.index() == func3_e )
 							std::get<detail::modules::func3_t>(std::move(node->init))(args);
 
@@ -272,7 +301,10 @@ private:
 							libgs_utils_clog_error("LibGS.Utils",
 								"modules: <{}> failed.", name
 							);
-							unexpected.failures.emplace_back(name);
+							const auto index = offsets.failures.fetch_add (
+								1, std::memory_order_relaxed
+							);
+							unexpected.failures[index] = name;
 						}
 					}
 					else
@@ -282,7 +314,10 @@ private:
 							"because the parent module failed to initialize.",
 							name
 						);
-						unexpected.children.emplace_back(name);
+						const auto index = offsets.children.fetch_add (
+							1, std::memory_order_relaxed
+						);
+						unexpected.children[index] = name;
 					}
 					node->init = detail::modules::state::finished;
 				}
@@ -291,13 +326,18 @@ private:
 					libgs_utils_clog_error("LibGS.Utils",
 						"modules: <{}> is not registered.", name
 					);
-					unexpected.unregistered.emplace_back(name);
+					const auto index = offsets.unregistered.fetch_add (
+						1, std::memory_order_relaxed
+					);
+					unexpected.unregistered[index] = name;
 					success = false;
 				}
 				if( try_notify() )
 					return ;
 
-				do_init(node->children, success, args, unexpected);
+				do_init(node->children, success, args,
+					unexpected, offsets
+				);
 			})
 			.detach();
 		}
@@ -305,9 +345,9 @@ private:
 
 	[[nodiscard]] bool try_notify() noexcept
 	{
-		if( --m_counter == 0 )
+		if( m_counter.fetch_sub(1, std::memory_order_acq_rel) == 1 )
 		{
-			m_condition.notify_all();
+			m_counter.notify_all();
 			return true;
 		}
 		return false;
@@ -439,9 +479,7 @@ public:
 
 private:
 	std::unordered_set<std::string> m_names {};  // Used solely for repetitive testing.
-	std::condition_variable m_condition {};
 	std::atomic_size_t m_counter {0};
-	dsd_t all_nodes {};
 	dsd_t m_dsd {};
 };
 

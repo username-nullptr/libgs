@@ -74,6 +74,11 @@ decltype(auto) unwrap_async_argument(T &argument) noexcept;
 	const std::exception_ptr &exception
 ) noexcept;
 
+template <concepts::exec Exec, typename Handler, typename...Args>
+LIBGS_CORE_TAPI void post_completion (
+	const Exec &exec, Handler &&handler, Args&&...args
+);
+
 template <typename Value, concepts::exec Exec, typename Factory, typename Token>
 [[nodiscard]] LIBGS_CORE_TAPI auto initiate_expected (
 	const Exec &exec, Factory factory, Token &&token

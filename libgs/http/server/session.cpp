@@ -13,7 +13,7 @@ void session::impl::start()
 	else if( not m_valid )
 	{
 		m_valid = true;
-		dispatch(work());
+		dispatch(m_timer.get_executor(), work());
 	}
 }
 
@@ -40,7 +40,8 @@ awaitable<void> session::impl::work()
 			continue;
 
 		self->m_impl->m_valid = false;
-		self->m_impl->m_timeout_handle();
+		if( self->m_impl->m_timeout_handle )
+			self->m_impl->m_timeout_handle();
 		break;
 	}
 	co_return ;
@@ -57,12 +58,17 @@ session::~session()
 	delete m_impl;
 }
 
+auto session::get_executor() noexcept -> executor_t
+{
+	return m_impl->m_timer.get_executor();
+}
+
 std::string_view session::id() const noexcept
 {
 	return m_impl->m_id;
 }
 
-session::time_point_t session::create_time() const noexcept
+auto session::create_time() const noexcept -> time_point_t
 {
 	return m_impl->m_create_time;
 }
@@ -72,12 +78,12 @@ bool session::is_valid() const noexcept
 	return m_impl->m_valid;
 }
 
-const session::attributes_t &session::attributes() const noexcept
+auto session::attributes() const noexcept -> const attributes_t&
 {
 	return m_impl->m_attributes;
 }
 
-session::attributes_t &session::attributes() noexcept
+auto session::attributes() noexcept -> attributes_t&
 {
 	return m_impl->m_attributes;
 }

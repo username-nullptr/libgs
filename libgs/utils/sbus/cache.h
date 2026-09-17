@@ -18,7 +18,8 @@ class LIBGS_UTILS_TAPI cache
 
 public:
 	using subscriber_t = Subscriber;
-	using executor_t = subscriber_t::executor_t;
+	using executor_type = typename subscriber_t::executor_type;
+	using executor_t = executor_type;
 
 	using interface_t = subscriber_t::interface_t;
 	using payload_t = std::vector<std::byte>;

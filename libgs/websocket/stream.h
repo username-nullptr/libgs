@@ -9,14 +9,24 @@
 
 namespace libgs::websocket
 {
-
+/**
+ * @par Thread Safety
+ * @e Distinct @e objects: Safe.@n
+ * @e Shared @e objects: Unsafe.
+ *
+ * One read-side operation and one write-side operation may overlap. Message
+ * writes are a high-level extension and are serialized by the bounded queue.
+ * With multiple executor runners, use one strand for all calls and handlers
+ * that access this stream.
+ */
 template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_WEBSOCKET_TAPI basic_stream
 {
 	LIBGS_DISABLE_COPY(basic_stream)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using config_t = stream_config;
 
 	using close_frame_t = close_frame;

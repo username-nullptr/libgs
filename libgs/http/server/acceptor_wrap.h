@@ -24,7 +24,9 @@ class LIBGS_HTTP_TAPI basic_acceptor_wrap
 	friend class basic_acceptor_wrap;
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
+
 	using connection_t = basic_connection<executor_t>;
 	using connection_ptr = connection_t::ptr_t;
 
@@ -43,6 +45,7 @@ public:
 		core_concepts::match_sched<executor_t> auto &&service_exec,
 		std::function<void(connection_ptr)> callback
 	);
+	[[nodiscard]] executor_t get_executor() noexcept;
 	[[nodiscard]] const acceptor_t &acceptor() const noexcept;
 	[[nodiscard]] acceptor_t &acceptor() noexcept;
 
@@ -62,13 +65,15 @@ class LIBGS_HTTP_TAPI basic_acceptor_wrap
 	friend class basic_acceptor_wrap;
 
 public:
+	using executor_type = Exec;
+	using executor_t = executor_type;
 
-	using executor_t = Exec;
 	using connection_t = basic_connection<executor_t>;
 	using connection_ptr = connection_t::ptr_t;
 
 	using protocol_t = asio::ip::tcp;
 	using socket_t = asio::ssl::stream<asio::basic_stream_socket<protocol_t,executor_t>>;
+
 	using acceptor_t = asio::basic_socket_acceptor<protocol_t,executor_t>;
 	using context_t = asio::ssl::context;
 
@@ -84,6 +89,7 @@ public:
 		std::function<void(connection_ptr)> callback,
 		std::chrono::milliseconds handshake_timeout = std::chrono::milliseconds(5000)
 	);
+	[[nodiscard]] executor_t get_executor() noexcept;
 	[[nodiscard]] const acceptor_t &acceptor() const noexcept;
 	[[nodiscard]] acceptor_t &acceptor() noexcept;
 

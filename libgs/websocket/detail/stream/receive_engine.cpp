@@ -299,10 +299,9 @@ void receive_engine::async_read_message(message_handler_t completion)
 		auto error = self->receive_side().m_read_active ?
 			make_error_code(std::errc::operation_in_progress) : state_error;
 
-		asio::post(self->receive_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, message{});
-		});
+		post_completion(self->receive_executor(),
+			std::move(completion), error, message{}
+		);
 		return ;
 	}
 	std::shared_ptr<read_wait_operation> waiter;
@@ -346,10 +345,9 @@ void receive_engine::async_read_message(message_handler_t completion)
 			self->receive_side().complete_read_waiter(error);
 		else
 		{
-			asio::post(self->receive_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, message{});
-			});
+			libgs::post_completion(self->receive_executor(),
+				std::move(completion), error, message{}
+			);
 		}
 		return ;
 	}
@@ -459,10 +457,9 @@ void receive_engine::async_read_frame(frame_handler_t completion)
 		auto error = self->receive_side().m_read_active ?
 			make_error_code(std::errc::operation_in_progress) : state_error;
 
-		asio::post(self->receive_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, data_frame{});
-		});
+		post_completion(self->receive_executor(),
+			std::move(completion), error, data_frame{}
+		);
 		return ;
 	}
 	std::shared_ptr<frame_read_wait_operation> waiter;
@@ -506,10 +503,9 @@ void receive_engine::async_read_frame(frame_handler_t completion)
 			self->receive_side().complete_frame_read_waiter(error);
 		else
 		{
-			asio::post(self->receive_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, data_frame{});
-			});
+			post_completion(self->receive_executor(),
+				std::move(completion), error, data_frame{}
+			);
 		}
 		return ;
 	}

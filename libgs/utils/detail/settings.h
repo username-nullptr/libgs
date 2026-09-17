@@ -27,12 +27,12 @@ public:
 	void adopt_ini(ini_t &&source, bool merge_data);
 
 	using io_handler_t = asio::any_completion_handler<void(error_code)>;
-	using error_handler_t = asio::any_completion_handler<void(error_code,error_code)>;
+	using expected_handler_t = asio::any_completion_handler<void(error_code,sys_expected<>)>;
 
-	[[nodiscard]] error_code load_sync(settings *owner, const path_t &file_name,
+	[[nodiscard]] sys_expected<> load_sync(settings *owner, const path_t &file_name,
 		bool replace_file_name, bool ignore_missing, error_code error
 	);
-	[[nodiscard]] error_code sync_sync(settings *owner, const path_t &file_name,
+	[[nodiscard]] sys_expected<> sync_sync(settings *owner, const path_t &file_name,
 		bool replace_file_name, error_code error
 	);
 
@@ -40,13 +40,13 @@ public:
 		bool ignore_missing, error_code prepare_error, io_handler_t handler
 	);
 	void start_load(settings *owner, path_t file_name, bool replace_file_name,
-		bool ignore_missing, error_code prepare_error, error_handler_t handler
+		bool ignore_missing, error_code prepare_error, expected_handler_t handler
 	);
 	void start_sync(settings *owner, path_t file_name, bool replace_file_name,
 		error_code prepare_error, io_handler_t handler
 	);
 	void start_sync(settings *owner, path_t file_name, bool replace_file_name,
-		error_code prepare_error, error_handler_t handler
+		error_code prepare_error, expected_handler_t handler
 	);
 
 public:
@@ -59,9 +59,10 @@ public:
 
 		if constexpr( is_error_code_token_v<Token> )
 		{
-			token = load_sync(owner, file_name, replace_file_name,
+			auto result = load_sync(owner, file_name, replace_file_name,
 				IgnoreMissing, prepare_error
 			);
+			token = result ? error_code{} : result.error();
 		}
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
@@ -78,13 +79,13 @@ public:
 			if constexpr( is_use_future_v<unbound_t> or
 				is_use_awaitable_v<unbound_t> or is_deferred_v<unbound_t> )
 			{
-				// Keep the transport error empty and return the operation error as
-				// a value so futures and awaitables never translate it to an exception.
-				return asio::async_initiate<token_t,void(error_code,error_code)>(
+				// Keep the transport error empty and return the operation result as
+				// an expected value so futures and awaitables never translate it to an exception.
+				return asio::async_initiate<token_t,void(error_code,sys_expected<>)>(
 				[this, owner, file_name, replace_file_name, prepare_error](auto handler) mutable
 				{
 					this->start_load(owner, file_name, replace_file_name,
-						IgnoreMissing, prepare_error, error_handler_t(std::move(handler))
+						IgnoreMissing, prepare_error, expected_handler_t(std::move(handler))
 					);
 				},
 				completion_token);
@@ -111,7 +112,10 @@ public:
 			prepare_error = claim_file(owner, file_name);
 
 		if constexpr( is_error_code_token_v<Token> )
-			token = sync_sync(owner, file_name, replace_file_name, prepare_error);
+		{
+			auto result = sync_sync(owner, file_name, replace_file_name, prepare_error);
+			token = result ? error_code{} : result.error();
+		}
 
 		else if constexpr( is_sync_opt_token_v<Token> )
 			return sync_sync(owner, file_name, replace_file_name, prepare_error);
@@ -124,13 +128,13 @@ public:
 			if constexpr( is_use_future_v<unbound_t> or
 				is_use_awaitable_v<unbound_t> or is_deferred_v<unbound_t> )
 			{
-				// Keep the transport error empty and return the operation error as
-				// a value so futures and awaitables never translate it to an exception.
-				return asio::async_initiate<token_t,void(error_code,error_code)>(
+				// Keep the transport error empty and return the operation result as
+				// an expected value so futures and awaitables never translate it to an exception.
+				return asio::async_initiate<token_t,void(error_code,sys_expected<>)>(
 				[this, owner, file_name, replace_file_name, prepare_error](auto handler) mutable
 				{
 					this->start_sync(owner, file_name, replace_file_name,
-						prepare_error, error_handler_t(std::move(handler))
+						prepare_error, expected_handler_t(std::move(handler))
 					);
 				},
 				completion_token);

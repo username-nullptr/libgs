@@ -72,11 +72,13 @@ void enum_input_validation()
 
 	LIBGS_TEST_CHECK(not status::check(invalid_status, false));
 	LIBGS_TEST_CHECK_EQ(std::string(status::description(invalid_status, false)), "");
-	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status), libgs::runtime_error);
+	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status), libgs::invalid_argument);
 
 	LIBGS_TEST_CHECK(not method::check(invalid_method, false));
 	LIBGS_TEST_CHECK_EQ(std::string(method::string(invalid_method, false)), "");
-	LIBGS_TEST_CHECK_THROWS(method::from_string("FETCH"), libgs::runtime_error);
+	LIBGS_TEST_CHECK_EQ(method::from_string("FETCH"), method::none);
+	LIBGS_TEST_CHECK_THROWS(method::from_string("FETCH", true), libgs::invalid_argument);
+	LIBGS_TEST_CHECK_THROWS(method("FETCH"), libgs::invalid_argument);
 
 	LIBGS_TEST_CHECK(not version::check(invalid_version, false));
 	LIBGS_TEST_CHECK_EQ(version::number(invalid_version, false), 0.0);

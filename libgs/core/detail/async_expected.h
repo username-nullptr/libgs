@@ -338,6 +338,12 @@ private:
 		auto handler = std::move(*self.m_handler);
 
 		self.m_handler.reset();
+		if( post )
+		{
+			libgs::post_completion(self.executor(), std::move(handler),
+				std::move(exception), std::move(result));
+			return ;
+		}
 		auto completion_exec = asio::get_associated_executor(handler, self.executor());
 		auto allocator = asio::get_associated_allocator(handler);
 
@@ -347,10 +353,7 @@ private:
 		]() mutable {
 			std::move(handler)(std::move(exception), std::move(result));
 		});
-		if( post )
-			asio::post(completion_exec, std::move(completion));
-		else
-			asio::dispatch(completion_exec, std::move(completion));
+		asio::dispatch(completion_exec, std::move(completion));
 	}
 
 	optional<Handler> m_handler;
@@ -594,12 +597,14 @@ class LIBGS_CORE_TAPI direct_io_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
+	using immediate_executor_type = asio::associated_immediate_executor_t<Handler,Exec>;
 	using allocator_type = asio::associated_allocator_t<Handler>;
 	using cancellation_slot_type = asio::associated_cancellation_slot_t<Handler>;
 
 	direct_io_handler(Handler handler, const Exec &exec) :
 		m_handler(std::move(handler)),
 		m_executor(asio::get_associated_executor(m_handler, exec)),
+		m_immediate_executor(asio::get_associated_immediate_executor(m_handler, exec)),
 		m_allocator(asio::get_associated_allocator(m_handler)),
 		m_slot(asio::get_associated_cancellation_slot(m_handler)) {}
 
@@ -609,6 +614,9 @@ public:
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
+	[[nodiscard]] immediate_executor_type get_immediate_executor() const noexcept {
+		return m_immediate_executor;
+	}
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
@@ -616,15 +624,13 @@ public:
 	void operator()(error_code error, Value value)
 	{
 		error = canonical_error(error);
-		asio::post(m_executor, asio::bind_allocator(m_allocator,
-		[handler = std::move(m_handler), error, value = std::move(value)]() mutable {
-			std::move(handler)(error, std::move(value));
-		}));
+		std::move(m_handler)(error, std::move(value));
 	}
 
 private:
 	Handler m_handler;
 	executor_type m_executor;
+	immediate_executor_type m_immediate_executor;
 	allocator_type m_allocator;
 	cancellation_slot_type m_slot;
 };
@@ -634,12 +640,14 @@ class LIBGS_CORE_TAPI direct_io_void_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
+	using immediate_executor_type = asio::associated_immediate_executor_t<Handler,Exec>;
 	using allocator_type = asio::associated_allocator_t<Handler>;
 	using cancellation_slot_type = asio::associated_cancellation_slot_t<Handler>;
 
 	direct_io_void_handler(Handler handler, const Exec &exec) :
 		m_handler(std::move(handler)),
 		m_executor(asio::get_associated_executor(m_handler, exec)),
+		m_immediate_executor(asio::get_associated_immediate_executor(m_handler, exec)),
 		m_allocator(asio::get_associated_allocator(m_handler)),
 		m_slot(asio::get_associated_cancellation_slot(m_handler)) {}
 
@@ -649,6 +657,9 @@ public:
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
+	[[nodiscard]] immediate_executor_type get_immediate_executor() const noexcept {
+		return m_immediate_executor;
+	}
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
@@ -656,15 +667,13 @@ public:
 	void operator()(error_code error)
 	{
 		error = canonical_error(error);
-		asio::post(m_executor, asio::bind_allocator(m_allocator,
-		[handler = std::move(m_handler), error]() mutable {
-			std::move(handler)(error);
-		}));
+		std::move(m_handler)(error);
 	}
 
 private:
 	Handler m_handler;
 	executor_type m_executor;
+	immediate_executor_type m_immediate_executor;
 	allocator_type m_allocator;
 	cancellation_slot_type m_slot;
 };
@@ -1264,6 +1273,21 @@ private:
 		auto &self = static_cast<self_t&>(base);
 		auto handler = std::move(*self.m_handler);
 		self.m_handler.reset();
+		if( post )
+		{
+			if constexpr( std::same_as<Value,std::monostate> )
+			{
+				ignore_unused(value);
+				libgs::post_completion(self.executor(),
+					std::move(handler), error);
+			}
+			else
+			{
+				libgs::post_completion(self.executor(),
+					std::move(handler), error, std::move(value));
+			}
+			return ;
+		}
 
 		auto completion_exec = asio::get_associated_executor(handler, self.executor());
 		auto allocator = asio::get_associated_allocator(handler);
@@ -1279,10 +1303,7 @@ private:
 			else
 				std::move(handler)(error, std::move(value));
 		});
-		if( post )
-			asio::post(completion_exec, std::move(completion));
-		else
-			asio::dispatch(completion_exec, std::move(completion));
+		asio::dispatch(completion_exec, std::move(completion));
 	}
 
 	optional<Handler> m_handler;
@@ -1353,6 +1374,25 @@ auto initiate_io_direct_void(const Exec &exec, Initiator initiation, Token &&tok
 }
 
 } //namespace detail
+
+template <concepts::exec Exec, typename Handler, typename...Args>
+void post_completion(const Exec &exec, Handler &&handler, Args&&...args)
+{
+	auto immediate_exec = asio::get_associated_immediate_executor(handler, exec);
+	auto allocator = asio::get_associated_allocator(handler);
+
+	auto completion = asio::bind_allocator(allocator,
+	[completion = std::forward<Handler>(handler), ...values = std::forward<Args>(args)]() mutable {
+		std::move(completion)(std::move(values)...);
+	});
+	if constexpr( asio::execution::is_executor<decltype(immediate_exec)>::value )
+	{
+		asio::prefer(immediate_exec, asio::execution::allocator(allocator))
+			.execute(std::move(completion));
+	}
+	else
+		immediate_exec.dispatch(std::move(completion), allocator);
+}
 
 template <typename Buffer, typename Source>
 Buffer copy_buffer_data(Source &&source) requires

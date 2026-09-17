@@ -68,7 +68,7 @@ template <schedule_kind Kind, typename Work>
 LIBGS_CORE_TAPI awaitable<execution_result_t<Work>> scheduled_work(Work work)
 {
 	using traits_t = execution_work_traits<Work>;
-	using result_t = typename traits_t::result_t;
+	using result_t = traits_t::result_t;
 
 	// co_spawn itself has dispatch semantics. Add an explicit scheduling point
 	// so that libgs::post remains an unconditional queueing operation.
@@ -643,15 +643,27 @@ auto local_dispatch(concepts::exec_context auto &exec, Work &&work)
 template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token>
 auto local_dispatch(Work &&work, Token &&token)
 {
-	auto context = std::make_shared<asio::io_context>();
 	using token_t = token_unbound_t<std::remove_cvref_t<Token>>;
 
 	if constexpr( is_sync_opt_token_v<token_t> )
+	{
+		auto context = std::make_shared<asio::io_context>();
 		return detail::local_dispatch_sync(std::move(context), std::forward<Work>(work));
+	}
 	else
 	{
-		return detail::local_dispatch_async(std::move(context),
-			std::forward<Work>(work), std::forward<Token>(token)
+		// An asynchronous result may resume its continuation after the work
+		// itself has completed. A temporary io_context cannot safely destroy
+		// itself on its runner thread during that hand-off. Use Asio's
+		// process-wide executor, whose lifetime is independent of the operation.
+		auto state = std::make_shared<detail::local_dispatch_state>();
+		auto counter = std::make_shared<size_t>(0);
+
+		auto local_work = detail::make_local_work (
+			std::forward<Work>(work), std::move(state), std::move(counter)
+		);
+		return dispatch(asio::system_executor{},
+			std::move(local_work), std::forward<Token>(token)
 		);
 	}
 }
@@ -820,7 +832,7 @@ auto basic_async_work<Exec,Args...>::handle
 	[exec = get_executor_helper(executor_arg), wake_up = std::forward<func_t>(wake_up_arg)](auto handler) mutable
 	{
 		auto work = asio::make_work_guard(handler);
-		asio::dispatch(exec, [
+		asio::post(exec, [
 			inner_exec = work.get_executor(), inner_work = std::move(work),
 			inner_wake_up = std::move(wake_up), inner_handler = std::move(handler)
 		]() mutable
@@ -847,7 +859,7 @@ auto basic_async_work<Exec,Args...>::handle(WakeUp &&wake_up_arg, Token &&token)
 		auto work = asio::make_work_guard(handler);
 		auto exec = work.get_executor();
 
-		asio::dispatch(exec, [
+		asio::post(exec, [
 			exec, inner_work = std::move(work), inner_wake_up = std::move(wake_up),
 			inner_handler = std::move(handler)
 		]() mutable

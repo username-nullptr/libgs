@@ -420,6 +420,10 @@ public:
 		{
 			auto slot = asio::get_associated_cancellation_slot(completion_handler);
 			auto exec = asio::get_associated_executor(completion_handler, self->m_exec);
+
+			auto immediate_exec = asio::get_associated_immediate_executor (
+				completion_handler, self->m_exec
+			);
 			auto alloc = asio::get_associated_allocator(completion_handler);
 
 			auto owned_handler = [self, handler = std::move(completion_handler)]
@@ -428,9 +432,11 @@ public:
 				self->m_detail.protect_io_error(error);
 				std::move(handler)(error, size);
 			};
-			auto bound_handler = asio::bind_allocator(alloc, asio::bind_executor(exec,
-				asio::bind_cancellation_slot(slot, std::move(owned_handler))
-			));
+			auto bound_handler = asio::bind_immediate_executor(immediate_exec,
+				asio::bind_allocator(alloc, asio::bind_executor(exec,
+					asio::bind_cancellation_slot(slot, std::move(owned_handler))
+				))
+			);
 			self->m_detail.async_write(buf,
 				detail::process::io_handler_t(std::move(bound_handler))
 			);
@@ -489,6 +495,10 @@ public:
 		{
 			auto slot = asio::get_associated_cancellation_slot(completion_handler);
 			auto exec = asio::get_associated_executor(completion_handler, self->m_exec);
+
+			auto immediate_exec = asio::get_associated_immediate_executor(
+				completion_handler, self->m_exec
+			);
 			auto alloc = asio::get_associated_allocator(completion_handler);
 
 			auto owned_handler = [self, handler = std::move(completion_handler)]
@@ -496,12 +506,15 @@ public:
 			{
 				self->m_detail.normalize_read_error(error);
 				canonicalize_read_error(error);
+
 				self->m_detail.protect_io_error(error);
 				std::move(handler)(error, size);
 			};
-			auto bound_handler = asio::bind_allocator(alloc, asio::bind_executor(exec,
-				asio::bind_cancellation_slot(slot, std::move(owned_handler))
-			));
+			auto bound_handler = asio::bind_immediate_executor(immediate_exec,
+				asio::bind_allocator(alloc, asio::bind_executor(exec,
+					asio::bind_cancellation_slot(slot, std::move(owned_handler))
+				))
+			);
 			self->m_detail.async_read(Channel, buf,
 				detail::process::io_handler_t(std::move(bound_handler))
 			);

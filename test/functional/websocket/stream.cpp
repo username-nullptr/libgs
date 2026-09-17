@@ -2138,7 +2138,7 @@ void test_automatic_ping_timeout_and_retries()
 			{.stream_role = ws::role::server}, error);
 		LIBGS_TEST_CHECK(not error);
 
-		context.run_for(12ms);
+		context.run();
 		LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::failed);
 		libgs::ignore_unused(stream.wait_closed(error));
 		LIBGS_TEST_CHECK_EQ(error,
@@ -2160,7 +2160,7 @@ void test_automatic_ping_timeout_and_retries()
 			{.stream_role = ws::role::server}, error);
 		LIBGS_TEST_CHECK(not error);
 
-		context.run_for(15ms);
+		context.run();
 		LIBGS_TEST_CHECK_EQ(stream.state(), ws::connection_state::failed);
 		LIBGS_TEST_CHECK_EQ(std::ranges::count(
 			parse_server_frames(connection->wire()), ws::opcode::ping), 3);

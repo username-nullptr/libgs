@@ -62,7 +62,8 @@ int main()
 ```
 
 调度函数与许多高层类型也可接受外部 Asio executor。捕获的对象与借用的缓冲区
-必须存活到异步操作完成。
+必须存活到异步操作完成。Associated executor、非内联完成、strand 与共享对象规则
+见 [Asio 兼容的 I/O 模型](io-model.md)。
 
 ## 数据与配置
 

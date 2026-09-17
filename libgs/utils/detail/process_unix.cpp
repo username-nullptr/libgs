@@ -117,6 +117,8 @@ public:
 		}
 		join_monitor_thread();
 		finish_io(m_generation.load(std::memory_order_acquire), true);
+
+		m_released.store(false, std::memory_order_release);
 		auto generation = m_generation.fetch_add(1, std::memory_order_acq_rel) + 1;
 
 		// From the perspective of the child process.
@@ -363,9 +365,26 @@ private:
 			publish_terminal_state(state, exit_code);
 		}
 		try {
-			libgs::post(m_exec, [self = shared_from_this(), generation]{
-				self->finish_io(generation, false);
-			});
+			if( m_released.load(std::memory_order_acquire) )
+			{
+				// A released control block has no public owner. Keep it alive until
+				// descriptor cleanup has run on its executor, otherwise destruction
+				// may race execution_context shutdown on the monitor thread.
+				libgs::post(m_exec, [self = shared_from_this(), generation]{
+					self->finish_io(generation, false);
+				});
+			}
+			else
+			{
+				// A joined process retains its public owner. Avoid extending that
+				// lifetime merely because executor progress has stopped.
+				std::weak_ptr weak = shared_from_this();
+				libgs::post(m_exec, [weak = std::move(weak), generation]
+				{
+					if( auto self = weak.lock() )
+						self->finish_io(generation, false);
+				});
+			}
 		}
 		catch(...) {
 			finish_io(generation, false);
@@ -530,6 +549,8 @@ public:
 		if( bool expected = true;
 			not m_joinable.compare_exchange_strong(expected, false, std::memory_order_acq_rel) )
 			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+
+		m_released.store(true, std::memory_order_release);
 		return {};
 	}
 
@@ -540,7 +561,10 @@ public:
 	void cancel(bool release) noexcept
 	{
 		if( release )
+		{
+			m_released.store(true, std::memory_order_release);
 			m_joinable.store(false, std::memory_order_release);
+		}
 
 		try {
 			libgs::dispatch(m_exec, [self = shared_from_this()]
@@ -884,13 +908,8 @@ public:
 	}
 
 private:
-	void post_io_result(process::io_handler_t handler, error_code error, size_t size) const
-	{
-		auto allocator = asio::get_associated_allocator(handler);
-		asio::post(m_exec, asio::bind_allocator(allocator,
-		[completion = std::move(handler), error, size]() mutable {
-			std::move(completion)(error, size);
-		}));
+	void post_io_result(process::io_handler_t handler, error_code error, size_t size) const {
+		post_completion(m_exec, std::move(handler), error, size);
 	}
 
 	[[nodiscard]] static optional<std::string> default_shell() noexcept
@@ -915,6 +934,7 @@ public:
 	std::atomic_int m_exit_code {0};
 	std::atomic_bool m_joinable {false};
 	std::atomic_bool m_join_in_progress {false};
+	std::atomic_bool m_released {false};
 
 	// From the perspective of the child process.
 	executor_t m_exec {};

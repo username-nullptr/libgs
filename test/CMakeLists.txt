@@ -32,12 +32,7 @@ function(add_libgs_test_program test_target source library)
 endfunction()
 
 
-function(configure_libgs_functional_test test_name)
-	set_tests_properties(${test_name} PROPERTIES
-		LABELS functional
-		FIXTURES_SETUP libgs.functional
-		TIMEOUT 60
-	)
+function(configure_libgs_sanitized_test test_name)
 	if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 		set_property(TEST ${test_name} APPEND PROPERTY LABELS sanitizer)
 		set_property(TEST ${test_name} PROPERTY RUN_SERIAL TRUE)
@@ -59,9 +54,18 @@ function(configure_libgs_functional_test test_name)
 endfunction()
 
 
-# Existing tests form the functional suite. Keeping their target and CTest
-# names stable avoids breaking commands that select a test by name.
-function(add_libgs_test name source library)
+function(configure_libgs_functional_test test_name)
+	set_tests_properties(${test_name} PROPERTIES
+		LABELS functional
+		TIMEOUT 60
+	)
+	configure_libgs_sanitized_test(${test_name})
+endfunction()
+
+
+# Functional tests keep their historical target and CTest names so existing
+# per-test invocations continue to work.
+function(add_libgs_functional_test name source library)
 	set(test_target libgs.test.${name})
 	add_libgs_test_program(${test_target} ${source} ${library})
 	add_test(NAME libgs.${name} COMMAND $<TARGET_FILE:${test_target}> ${ARGN})
@@ -69,27 +73,35 @@ function(add_libgs_test name source library)
 endfunction()
 
 
+# Compatibility wrapper for out-of-tree tests using the old helper name.
+function(add_libgs_test name source library)
+	add_libgs_functional_test(${name} ${source} ${library} ${ARGN})
+endfunction()
+
+
+function(add_libgs_stress_test name source library)
+	set(test_target libgs.test.stress.${name})
+	add_libgs_test_program(${test_target} ${source} ${library})
+	target_compile_definitions(${test_target} PRIVATE
+		LIBGS_STRESS_SCALE=${LIBGS_STRESS_SCALE}
+	)
+	add_test(NAME libgs.stress.${name} COMMAND $<TARGET_FILE:${test_target}>)
+	set_tests_properties(libgs.stress.${name} PROPERTIES
+		LABELS stress
+		RUN_SERIAL TRUE
+		TIMEOUT 180
+	)
+	configure_libgs_sanitized_test(libgs.stress.${name})
+endfunction()
+
+
 function(add_libgs_performance_test name source library)
 	set(test_target libgs.test.performance.${name})
-	add_executable(${test_target} ${source})
-	if ("${library}" MATCHES "^gs\\.(http|websocket)$")
-		libgs_limit_heavy_compile(${test_target})
-	endif ()
-	target_compile_options(${test_target} PRIVATE
-		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_TEST_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
-	)
-
-	target_link_libraries(${test_target} PRIVATE ${library})
-	target_include_directories(${test_target} PRIVATE ${LIBGS_TEST_SOURCE_DIR})
-
-	set_target_properties(${test_target} PROPERTIES
-		RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
-	)
+	add_libgs_test_program(${test_target} ${source} ${library})
 	add_test(NAME libgs.performance.${name} COMMAND $<TARGET_FILE:${test_target}>)
 
 	set_tests_properties(libgs.performance.${name} PROPERTIES
 		LABELS performance
-		FIXTURES_REQUIRED libgs.functional
 		RUN_SERIAL TRUE
 		TIMEOUT 60
 	)
@@ -99,13 +111,24 @@ endfunction()
 if (LIBGS_BUILD_FUZZERS)
 	add_subdirectory(fuzz)
 	message(STATUS
-		"${PRO_NAME}: Functional and performance tests disabled in fuzzer builds."
+		"${PRO_NAME}: Other test suites disabled in the dedicated fuzzer build."
 	)
 else ()
 	add_subdirectory(functional)
-	if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
-		message(STATUS "${PRO_NAME}: Performance tests disabled in sanitizer builds.")
-	else ()
-		add_subdirectory(performance)
+	if (LIBGS_BUILD_STRESS_TESTS)
+		add_subdirectory(stress)
+	endif ()
+	if (LIBGS_BUILD_PERFORMANCE_TESTS)
+		if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
+			message(STATUS "${PRO_NAME}: Performance tests disabled in sanitizer builds.")
+		else ()
+			add_subdirectory(performance)
+		endif ()
+	endif ()
+	if (NOT LIBGS_BUILD_STRESS_TESTS AND NOT LIBGS_BUILD_PERFORMANCE_TESTS)
+		message(STATUS
+			"${PRO_NAME}: Enable LIBGS_BUILD_STRESS_TESTS or "
+			"LIBGS_BUILD_PERFORMANCE_TESTS for opt-in non-functional suites."
+		)
 	endif ()
 endif ()

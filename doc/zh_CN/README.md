@@ -7,6 +7,7 @@
 | 文档 | 内容 |
 | --- | --- |
 | [快速入门](getting-started.md) | 环境要求、配置、构建、安装与链接 |
+| [Asio 兼容的 I/O 模型](io-model.md) | Executor、完成处理器、strand、取消与单对象并发规则 |
 | [核心模块](core.md) | 运行时、调度、数据类型、算法、容器与系统 API |
 | [协程](coroutines.md) | 可等待操作与非阻塞同步 |
 | [HTTP](http.md) | HTTP 协议、客户端、服务端、文件、会话、TLS、gzip 与代理 |

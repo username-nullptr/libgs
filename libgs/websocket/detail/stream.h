@@ -351,10 +351,9 @@ auto basic_stream<Exec>::write_frame(const basic_data_frame<Buffer> &frame, Toke
 		{
 			if( buffer_error )
 			{
-				asio::post(self->m_exec,
-				[handler = std::forward<T0>(completion_token), buffer_error]() mutable {
-					std::move(handler)(buffer_error, 0);
-				});
+				libgs::post_completion(self->m_exec,
+					std::forward<T0>(completion_token), buffer_error, size_t{0}
+				);
 				return ;
 			}
 			self->async_write_frame(type, payload, continuation, fin,
@@ -493,10 +492,9 @@ auto basic_stream<Exec>::write
 		{
 			if( buffer_error )
 			{
-				asio::post(self->m_exec,
-				[handler = std::forward<T0>(completion_token), buffer_error]() mutable {
-					std::move(handler)(buffer_error, 0);
-				});
+				libgs::post_completion(self->m_exec,
+					std::forward<T0>(completion_token), buffer_error, size_t{0}
+				);
 				return ;
 			}
 			self->async_write_message(type, buffers, options, std::move(payload_owner),

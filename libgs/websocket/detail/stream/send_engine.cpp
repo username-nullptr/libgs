@@ -370,20 +370,18 @@ void send_engine::async_write_message
 	auto self = m_owner.send_owner();
 	if( auto error = self->write_state_error() )
 	{
-		asio::post(self->send_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	auto frames = self->send_side().prepare_message(type, buffers, options);
 	if( not frames )
 	{
 		auto error = frames.error();
-		asio::post(self->send_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	std::shared_ptr<send_operation> operation;
@@ -417,10 +415,9 @@ void send_engine::async_write_message
 			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->send_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, 0);
-			});
+			post_completion(self->send_executor(),
+				std::move(completion), error, size_t{0}
+			);
 		}
 	}
 	catch(...)
@@ -430,10 +427,9 @@ void send_engine::async_write_message
 			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->send_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, 0);
-			});
+			post_completion(self->send_executor(),
+				std::move(completion), error, size_t{0}
+			);
 		}
 	}
 }
@@ -445,17 +441,17 @@ void send_engine::async_write_data_frame
 	auto self = m_owner.send_owner();
 	if( auto error = self->frame_write_state_error() )
 	{
-		asio::post(self->send_executor(), [handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	if( self->send_side().data_busy() )
 	{
 		auto error = make_error_code(std::errc::operation_in_progress);
-		asio::post(self->send_executor(), [handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	auto prepared = self->send_side().prepare_data_frame (
@@ -464,9 +460,9 @@ void send_engine::async_write_data_frame
 	if( not prepared )
 	{
 		auto error = prepared.error();
-		asio::post(self->send_executor(), [handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	std::shared_ptr<send_operation> operation;
@@ -503,9 +499,9 @@ void send_engine::async_write_data_frame
 			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->send_executor(), [handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, 0);
-			});
+			post_completion(self->send_executor(),
+				std::move(completion), error, size_t{0}
+			);
 		}
 	}
 	catch(...)
@@ -515,9 +511,9 @@ void send_engine::async_write_data_frame
 			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->send_executor(), [handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, 0);
-			});
+			post_completion(self->send_executor(),
+				std::move(completion), error, size_t{0}
+			);
 		}
 	}
 }
@@ -565,20 +561,18 @@ void send_engine::async_write_control
 	auto self = m_owner.send_owner();
 	if( auto error = self->write_state_error() )
 	{
-		asio::post(self->send_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	auto frame = self->send_side().prepare_control(op, payload, true);
 	if( not frame )
 	{
 		auto error = frame.error();
-		asio::post(self->send_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, 0);
-		});
+		post_completion(self->send_executor(),
+			std::move(completion), error, size_t{0}
+		);
 		return ;
 	}
 	std::shared_ptr<send_operation> operation;
@@ -603,10 +597,9 @@ void send_engine::async_write_control
 			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->send_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, 0);
-			});
+			post_completion(self->send_executor(),
+				std::move(completion), error, size_t{0}
+			);
 		}
 	}
 	catch(...)
@@ -616,10 +609,9 @@ void send_engine::async_write_control
 			self->send_side().deliver_send_completion(operation, error);
 		else
 		{
-			asio::post(self->send_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error, 0);
-			});
+			post_completion(self->send_executor(),
+				std::move(completion), error, size_t{0}
+			);
 		}
 	}
 }
@@ -662,10 +654,9 @@ void send_engine::async_wait_written(void_handler_t completion)
 	if( target <= m_completed_write_sequence )
 	{
 		auto error = observe_write_error(target);
-		asio::post(m_owner.send_executor(),
-		[handler = std::move(completion), error]() mutable {
-			std::move(handler)(error);
-		});
+		post_completion(m_owner.send_executor(),
+			std::move(completion), error
+		);
 		return ;
 	}
 	std::shared_ptr<write_waiter> waiter;
@@ -721,10 +712,9 @@ void send_engine::async_wait_written(void_handler_t completion)
 		}
 		else
 		{
-			asio::post(m_owner.send_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error);
-			});
+			post_completion(m_owner.send_executor(),
+				std::move(completion), error
+			);
 		}
 	}
 	catch(...)
@@ -742,10 +732,9 @@ void send_engine::async_wait_written(void_handler_t completion)
 		}
 		else
 		{
-			asio::post(m_owner.send_executor(),
-			[handler = std::move(completion), error]() mutable {
-				std::move(handler)(error);
-			});
+			post_completion(m_owner.send_executor(),
+				std::move(completion), error
+			);
 		}
 	}
 }
@@ -776,7 +765,6 @@ void send_engine::complete_wire_frame(const prepared_frame &frame, wire_frame_ki
 	if( error )
 	{
 		const auto completion_error = m_owner.protocol_failure_error(error);
-
 		if( operation )
 		{
 			if( operation->kind == send_kind::data )

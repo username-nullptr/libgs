@@ -252,11 +252,8 @@ void basic_stream<Exec>::impl::finish_close(error_code error, bool clean, bool c
 		return ;
 
 	m_close_deadline.stop();
-	if( cancel_transport and m_connection and not m_transport_closed )
-		ignore_unused(m_connection->cancel());
-
-	error_code close_error;
-	close_transport(close_error);
+	error_code close_error {};
+	close_transport(close_error, cancel_transport);
 
 	if( not error and close_error )
 	{
@@ -493,9 +490,9 @@ void basic_stream<Exec>::impl::async_close(const close_frame &frame, close_handl
 	if( not prepared )
 	{
 		auto error = prepared.error();
-		asio::post(m_exec, [handler = std::move(completion), error]() mutable {
-			std::move(handler)(error, close_info_t{});
-		});
+		post_completion(m_exec,
+			std::move(completion), error, close_info_t{}
+		);
 		return ;
 	}
 	if( not add_close_waiter(std::move(completion)) )

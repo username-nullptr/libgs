@@ -10,6 +10,11 @@ namespace
 
 using namespace std::chrono_literals;
 
+static_assert(libgs::test::canonical_executor_type<
+	libgs::utils::sbus::local_subscriber>);
+static_assert(libgs::test::canonical_executor_type<
+	libgs::utils::sbus::local_cache>);
+
 bool wait_for_count(const std::atomic_size_t &count, size_t expected)
 {
 	for(int retry = 0; retry < 2'000 and count.load() < expected; ++retry)

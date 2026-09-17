@@ -15,7 +15,8 @@ class LIBGS_HTTP_TAPI basic_connection_lease
 	LIBGS_DISABLE_COPY_MOVE(basic_connection_lease)
 
 public:
-	using executor_t = Exec;
+	using executor_type = Exec;
+	using executor_t = executor_type;
 	using ptr_t = std::shared_ptr<basic_connection_lease>;
 
 	using connection_t = basic_connection<executor_t>;
@@ -28,6 +29,8 @@ public:
 	~basic_connection_lease(); // close
 
 public:
+	[[nodiscard]] executor_t get_executor() noexcept;
+
 	[[nodiscard]] connection_t &get() noexcept;
 	[[nodiscard]] connection_t &operator*() noexcept;
 	[[nodiscard]] connection_t *operator->() noexcept;

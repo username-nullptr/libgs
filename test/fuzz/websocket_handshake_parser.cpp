@@ -40,7 +40,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 		response.subprotocol = request->subprotocols.front();
 	if( not request->extensions.empty() )
 		response.extensions.push_back(request->extensions.front());
-	libgs::ignore_unused(
-		libgs::websocket::make_opening_response_headers(*request, response));
+	const auto response_headers =
+		libgs::websocket::make_opening_response_headers(*request, response);
+	if(response_headers)
+	{
+		const auto parsed_response = libgs::websocket::parse_opening_response(
+			libgs::http::status::switching_protocols, *response_headers, *request);
+		if(not parsed_response or
+			parsed_response->subprotocol != response.subprotocol or
+			parsed_response->extensions.size() != response.extensions.size())
+			std::abort();
+	}
 	return 0;
 }

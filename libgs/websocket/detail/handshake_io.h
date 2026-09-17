@@ -99,9 +99,8 @@ public:
 		finish_launch();
 	}
 
-	void fail_start(std::exception_ptr exception)
-	{
-		fail(std::move(exception));
+	void fail_start(const std::exception_ptr &exception) {
+		fail(exception);
 	}
 
 private:
@@ -354,17 +353,12 @@ private:
 		auto handler = std::move(*self.m_handler);
 
 		self.m_handler.reset();
-		auto completion_exec = asio::get_associated_executor(handler, self.executor());
-		auto allocator = asio::get_associated_allocator(handler);
-
-		asio::post(completion_exec, asio::bind_allocator(allocator,
-		[state = self.shared_from_this(), handler = std::move(handler), error]() mutable
-		{
-			auto &operation = static_cast<self_t&>(*state);
-			std::move(handler)(error, operation.make_fallback());
-		}));
+		libgs::post_completion(self.executor(),
+			std::move(handler), error, self.make_fallback()
+		);
 	}
 
+private:
 	optional<Handler> m_handler;
 };
 

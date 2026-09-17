@@ -16,6 +16,8 @@ namespace
 
 using namespace std::chrono_literals;
 
+static_assert(libgs::test::canonical_executor_type<libgs::utils::process>);
+
 bool wait_for(const std::atomic_bool &state)
 {
 	for(int retry = 0; retry < 200 and not state; ++retry)
@@ -53,13 +55,13 @@ void settings_persistence_and_signals()
 		changed_value = std::move(value);
 	});
 
-	LIBGS_TEST_CHECK(not settings.load_or(file));
+	LIBGS_TEST_CHECK(settings.load_or(file));
 	LIBGS_TEST_CHECK(loaded);
 	settings.set("server/port", 8080);
 	LIBGS_TEST_CHECK_EQ(changed_key, "server/port");
 	LIBGS_TEST_CHECK_EQ(changed_value.to_int().value_or(0), 8080);
 	LIBGS_TEST_CHECK_EQ(settings.get("server/port")->to_int().value_or(0), 8080);
-	LIBGS_TEST_CHECK(not settings.sync());
+	LIBGS_TEST_CHECK(settings.sync());
 	LIBGS_TEST_CHECK(std::filesystem::is_regular_file(file));
 	LIBGS_TEST_CHECK_EQ(settings.file_name(), file);
 
@@ -75,6 +77,12 @@ void settings_io_tokens()
 	const auto file = directory.path() / "settings-tokens.ini";
 	const auto missing = directory.path() / "missing.ini";
 	auto &settings = libgs::utils::settings::instance("libgs-test-settings-tokens");
+	static_assert(std::same_as<decltype(settings.load(missing)),libgs::sys_expected<>>);
+	static_assert(std::same_as<decltype(settings.sync(file)),libgs::sys_expected<>>);
+	static_assert(std::same_as<
+		decltype(settings.load(missing, libgs::use_future)),
+		std::future<libgs::sys_expected<>>
+	>);
 
 	std::atomic_int loaded_count {0};
 	std::atomic_int synced_count {0};
@@ -91,31 +99,38 @@ void settings_io_tokens()
 
 	settings.set("tokens/value", 17);
 	auto sync_future = settings.sync(file, libgs::use_future);
-	const auto sync_error = wait_for(sync_future);
-	LIBGS_TEST_CHECK(not sync_error);
+	const auto sync_result = wait_for(sync_future);
+	LIBGS_TEST_CHECK(sync_result);
 	LIBGS_TEST_CHECK(not synced_error);
 	LIBGS_TEST_CHECK_EQ(synced_count.load(), 1);
 
-	const auto direct_error = settings.load(missing);
-	LIBGS_TEST_CHECK_EQ(direct_error,
+	const auto direct_result = settings.load(missing);
+	LIBGS_TEST_CHECK(not direct_result);
+	LIBGS_TEST_CHECK_EQ(direct_result.error(),
 		std::make_error_code(std::errc::no_such_file_or_directory));
+	libgs::error_code token_error;
+	settings.load(missing, token_error);
+	LIBGS_TEST_CHECK_EQ(token_error, direct_result.error());
 
 	auto load_future = settings.load(missing, libgs::use_future);
-	const auto missing_error = wait_for(load_future);
-	LIBGS_TEST_CHECK_EQ(missing_error,
+	const auto missing_result = wait_for(load_future);
+	LIBGS_TEST_CHECK(not missing_result);
+	LIBGS_TEST_CHECK_EQ(missing_result.error(),
 		std::make_error_code(std::errc::no_such_file_or_directory));
-	LIBGS_TEST_CHECK_EQ(loaded_error, missing_error);
+	LIBGS_TEST_CHECK_EQ(loaded_error, missing_result.error());
 
 	auto awaitable_future = asio::co_spawn(libgs::io_context(),
-	[&]() -> libgs::awaitable<libgs::error_code>
+	[&]() -> libgs::awaitable<libgs::sys_expected<>>
 	{
 		co_return co_await settings.load(missing, libgs::use_awaitable);
 	}, libgs::use_future);
-	LIBGS_TEST_CHECK_EQ(wait_for(awaitable_future), missing_error);
+	const auto awaitable_result = wait_for(awaitable_future);
+	LIBGS_TEST_CHECK(not awaitable_result);
+	LIBGS_TEST_CHECK_EQ(awaitable_result.error(), missing_result.error());
 
 	auto deferred_load = settings.load(file, libgs::deferred);
 	auto deferred_future = std::move(deferred_load)(libgs::use_future);
-	LIBGS_TEST_CHECK(not wait_for(deferred_future));
+	LIBGS_TEST_CHECK(wait_for(deferred_future));
 
 	std::promise<libgs::error_code> callback_result;
 	settings.load(file, [&](libgs::error_code error) {
@@ -258,6 +273,30 @@ void child_process_state_errors()
 	LIBGS_TEST_CHECK_EQ(process.state(), libgs::utils::process_state::crashed);
 	LIBGS_TEST_CHECK(process.exit_code() != 0);
 	LIBGS_TEST_CHECK(not process.joinable());
+}
+
+void child_process_uses_immediate_executor_on_early_error()
+{
+	libgs::io_context_t process_context;
+	libgs::io_context_t completion_context;
+	libgs::utils::process process(process_context);
+
+	bool completed = false;
+	const std::string input = "not-running";
+	process.write(asio::buffer(input),
+		asio::bind_immediate_executor(completion_context.get_executor(),
+		[&](libgs::error_code error, size_t transferred)
+		{
+			LIBGS_TEST_CHECK(error);
+			LIBGS_TEST_CHECK_EQ(transferred, 0U);
+			completed = true;
+	}));
+
+	LIBGS_TEST_CHECK(not completed);
+	LIBGS_TEST_CHECK_EQ(process_context.poll(), 0U);
+	LIBGS_TEST_CHECK(not completed);
+	completion_context.run();
+	LIBGS_TEST_CHECK(completed);
 }
 
 void child_process_cancel_options()
@@ -435,6 +474,8 @@ int main()
 		{"completed child single-byte read", child_process_completed_single_byte_read},
 		{"child process environment and channels", child_process_environment_and_channels},
 		{"child process state errors", child_process_state_errors},
+		{"child process immediate executor on early error",
+			child_process_uses_immediate_executor_on_early_error},
 		{"child process cancel options", child_process_cancel_options},
 		{"local message bus", local_message_bus},
 		{"logger configuration", logger_configuration},
