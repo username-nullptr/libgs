@@ -34,7 +34,7 @@ constexpr const char
 	std::chrono::steady_clock::time_point deadline
 ) noexcept;
 
-template <core_concepts::exec Exec>
+template <typename Exec>
 LIBGS_WEBSOCKET_TAPI void close_upgrade_connection(http::basic_service_context<Exec> &context) noexcept
 {
 	auto connection = context.hand_over_connection();
@@ -48,7 +48,7 @@ LIBGS_WEBSOCKET_TAPI void close_upgrade_connection(http::basic_service_context<E
 	}
 }
 
-template <core_concepts::exec Exec>
+template <typename Exec>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI
 request_info snapshot_request(const http::basic_request<Exec> &request)
 {
@@ -87,53 +87,58 @@ struct server_upgrade_plan
 };
 
 LIBGS_WEBSOCKET_API void reject_upgrade(server_upgrade_plan &plan,
-	error_code error, http::status_enum status = http::status::bad_request);
-
+	error_code error, http::status_enum status = http::status::bad_request
+);
 LIBGS_WEBSOCKET_API void reject_upgrade(server_upgrade_plan &plan,
-	upgrade_rejection rejection, error_code error);
+	upgrade_rejection rejection, error_code error
+);
 
-LIBGS_WEBSOCKET_API void reject_selector_exception(server_upgrade_plan &plan,
-	std::exception_ptr exception) noexcept;
+LIBGS_WEBSOCKET_API void reject_selector_exception (
+	server_upgrade_plan &plan, const std::exception_ptr &exception
+) noexcept;
 
-LIBGS_WEBSOCKET_API void select_server_subprotocol(server_upgrade_plan &plan,
-	const upgrade_options &options) noexcept;
+LIBGS_WEBSOCKET_API void select_server_subprotocol (
+	server_upgrade_plan &plan, const upgrade_options &options
+) noexcept;
 
 LIBGS_WEBSOCKET_API void validate_server_subprotocol(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept;
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline
+) noexcept;
 
-LIBGS_WEBSOCKET_API void select_server_extensions(server_upgrade_plan &plan,
-	const upgrade_options &options) noexcept;
+LIBGS_WEBSOCKET_API void select_server_extensions (
+	server_upgrade_plan &plan, const upgrade_options &options
+) noexcept;
 
 LIBGS_WEBSOCKET_API void validate_server_extensions(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept;
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline
+) noexcept;
 
 LIBGS_WEBSOCKET_API void finalize_server_upgrade_plan(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept;
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline
+) noexcept;
 
 LIBGS_WEBSOCKET_API void complete_server_upgrade_plan(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept;
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline
+) noexcept;
 
-[[nodiscard]] LIBGS_WEBSOCKET_API server_upgrade_plan make_server_upgrade_plan(
-	request_info request, const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline,
-	bool permit_async_callbacks = false) noexcept;
+[[nodiscard]] LIBGS_WEBSOCKET_API server_upgrade_plan make_server_upgrade_plan (
+	request_info request, const upgrade_options &options, std::chrono::steady_clock::time_point deadline,
+	bool permit_async_callbacks = false
+) noexcept;
 
-template <core_concepts::exec Exec>
+template <typename Exec>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI server_upgrade_plan make_server_upgrade_plan(
 	http::basic_service_context<Exec> &context, const upgrade_options &options,
 	std::chrono::steady_clock::time_point deadline, bool permit_async_callbacks = false) noexcept
 {
 	return make_server_upgrade_plan(snapshot_request(context.request()),
-		options, deadline, permit_async_callbacks);
+		options, deadline, permit_async_callbacks
+	);
 }
 
-template <core_concepts::exec Exec>
-void prepare_response(http::basic_response<Exec> &response,
-	const server_upgrade_plan &plan)
+template <typename Exec>
+LIBGS_WEBSOCKET_TAPI void
+prepare_response(http::basic_response<Exec> &response, const server_upgrade_plan &plan)
 {
 	response.unset_header(http::header::content_length);
 	response.unset_header(http::header::transfer_encoding);
@@ -152,9 +157,9 @@ void prepare_response(http::basic_response<Exec> &response,
 		response.set_header(name, value);
 }
 
-template <core_concepts::exec Exec>
-void upgrade_sync(http::basic_service_context<Exec> &context, upgrade_options options,
-	basic_accept_result<Exec> &result, error_code &error) noexcept
+template <typename Exec>
+LIBGS_WEBSOCKET_TAPI void upgrade_sync(http::basic_service_context<Exec> &context,
+	upgrade_options options, basic_accept_result<Exec> &result, error_code &error) noexcept
 {
 	try {
 		result.stream = basic_stream<Exec>(context.get_executor(), options.stream);
@@ -217,13 +222,14 @@ void upgrade_sync(http::basic_service_context<Exec> &context, upgrade_options op
 	}
 }
 
-template <core_concepts::exec Exec>
-asio::awaitable<optional<std::tuple<error_code,basic_accept_result<Exec>>>,Exec>
-co_upgrade(http::basic_service_context<Exec> *active_context,
-	upgrade_options active_options)
+template <typename Exec>
+LIBGS_WEBSOCKET_TAPI asio::awaitable<optional<std::tuple<error_code,basic_accept_result<Exec>>>,Exec>
+co_upgrade(http::basic_service_context<Exec> *active_context, upgrade_options active_options)
 {
 	using result_t = basic_accept_result<Exec>;
 	result_t result(active_context->get_executor());
+
+	error_code adopt_error {};
 	try {
 		result.stream = basic_stream<Exec>(
 			active_context->get_executor(), active_options.stream
@@ -252,8 +258,7 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 			auto [exception, rejection] = co_await asio::co_spawn (
 				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
 			);
-			auto validation_error = exception_error(exception);
-			if( validation_error )
+			if( auto validation_error = exception_error(exception) )
 			{
 				reject_upgrade(plan,
 					upgrade_rejection {
@@ -290,8 +295,7 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 			auto [exception, rejection] = co_await asio::co_spawn (
 				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
 			);
-			auto validation_error = exception_error(exception);
-			if( validation_error )
+			if( auto validation_error = exception_error(exception) )
 			{
 				reject_upgrade(plan,
 					upgrade_rejection {
@@ -313,14 +317,14 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 
 		if( plan.accepted and active_options.async_subprotocol_selector )
 		{
-			auto invoke = [&active_options, &plan]()
-				-> awaitable<optional<std::string>>
+			auto invoke = [&active_options, &plan]() -> awaitable<optional<std::string>>
 			{
 				co_return co_await active_options.async_subprotocol_selector(
 					plan.request, plan.opening.subprotocols);
 			};
-			auto [exception, selected] = co_await asio::co_spawn(
-				active_context->get_executor(), invoke(), asio::as_tuple(deferred));
+			auto [exception, selected] = co_await asio::co_spawn (
+				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
+			);
 			if( exception_error(exception) )
 				reject_selector_exception(plan, exception);
 			else
@@ -328,18 +332,20 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 		}
 		else if( plan.accepted )
 			select_server_subprotocol(plan, active_options);
+
 		validate_server_subprotocol(plan, active_options, deadline);
 
 		if( plan.accepted and active_options.async_extension_selector )
 		{
-			auto invoke = [&active_options, &plan]()
-				-> awaitable<std::vector<extension>>
+			auto invoke = [&active_options, &plan]() -> awaitable<std::vector<extension>>
 			{
 				co_return co_await active_options.async_extension_selector(
-					plan.request, plan.opening.extensions);
+					plan.request, plan.opening.extensions
+				);
 			};
-			auto [exception, selected] = co_await asio::co_spawn(
-				active_context->get_executor(), invoke(), asio::as_tuple(deferred));
+			auto [exception, selected] = co_await asio::co_spawn (
+				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
+			);
 			if( exception_error(exception) )
 				reject_selector_exception(plan, exception);
 			else
@@ -347,6 +353,7 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 		}
 		else if( plan.accepted )
 			select_server_extensions(plan, active_options);
+
 		validate_server_extensions(plan, active_options, deadline);
 		finalize_server_upgrade_plan(plan, active_options, deadline);
 
@@ -370,7 +377,7 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 		}
 		auto [write_error, transferred] =
 			co_await active_context->response().write (
-				asio::buffer(plan.body), asio::as_tuple(deferred)
+				asio::buffer(plan.body), asio::as_tuple(asio::use_awaitable_t<Exec>{})
 			);
 		ignore_unused(transferred);
 		if( write_error )
@@ -408,8 +415,6 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 
 		result.handshake.subprotocol = adopt.negotiated_subprotocol;
 		result.handshake.extensions = adopt.negotiated_extensions;
-
-		error_code adopt_error;
 		result.stream.adopt(std::move(connection), std::move(adopt), adopt_error);
 
 		co_return std::tuple<error_code,result_t> {
@@ -419,43 +424,29 @@ co_upgrade(http::basic_service_context<Exec> *active_context,
 	catch(...)
 	{
 		close_upgrade_connection(*active_context);
-		co_return std::tuple<error_code,result_t> {
-			exception_error(std::current_exception()), std::move(result)
-		};
+		adopt_error = exception_error(std::current_exception());
 	}
+	co_return std::tuple<error_code,result_t> {
+		adopt_error, std::move(result)
+	};
 }
 
 template <typename Exec, typename Handler>
-void start_upgrade(http::basic_service_context<Exec> &context,
-	upgrade_options options, Handler &&handler)
+LIBGS_WEBSOCKET_TAPI void start_upgrade
+(http::basic_service_context<Exec> &context, upgrade_options options, Handler &&handler)
 {
 	using result_t = basic_accept_result<Exec>;
 	auto exec = context.get_executor();
-	auto completion_handler = std::forward<Handler>(handler);
-	auto slot = asio::get_associated_cancellation_slot(completion_handler);
-	auto completion_exec = asio::get_associated_executor(completion_handler, exec);
-	auto allocator = asio::get_associated_allocator(completion_handler);
 
-	asio::co_spawn(exec, co_upgrade(&context, std::move(options)),
-		asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
-			asio::bind_cancellation_slot(slot,
-				[handler = std::move(completion_handler), exec]
-				(std::exception_ptr exception,
-				 optional<std::tuple<error_code,result_t>> result) mutable
-				{
-					if( auto error = exception_error(exception) )
-						std::move(handler)(error, result_t(exec));
-					else if( not result )
-					{
-						std::move(handler)(make_error_code(std::errc::io_error),
-							result_t(exec));
-					}
-					else
-					{
-						std::move(handler)(std::get<0>(*result),
-							std::move(std::get<1>(*result)));
-					}
-				})))
+	using handler_t = std::remove_cvref_t<Handler>;
+	auto fallback = [exec] {
+		return result_t(exec);
+	};
+	using factory_t = decltype(fallback);
+	libgs::detail::launch_awaitable(exec, co_upgrade(&context, std::move(options)),
+		libgs::detail::awaitable_optional_tuple_io_handler<result_t,handler_t,decltype(exec),factory_t>(
+			std::forward<Handler>(handler), exec, std::move(fallback)
+		)
 	);
 }
 
@@ -542,8 +533,8 @@ class LIBGS_WEBSOCKET_TAPI basic_server<Stream>::impl :
 	};
 
 public:
-	impl(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec, config_t config) :
-		m_http_server(std::move(wrap), std::forward<decltype(service_exec)>(service_exec)),
+	impl(acceptor_wrap_t &&wrap, asio::any_io_executor service_exec, config_t config) :
+		m_http_server(std::move(wrap), std::move(service_exec)),
 		m_config(validate_config(std::move(config))) {}
 
 	explicit impl(acceptor_wrap_t &&wrap, config_t config) :
@@ -759,8 +750,7 @@ private:
 				m_pending_handshakes.size() >= config.max_pending_handshakes )
 			{
 				co_return acquisition {
-					.rejection_timeout =
-						config.default_upgrade.handshake_timeout
+					.rejection_timeout = config.default_upgrade.handshake_timeout
 				};
 			}
 			pending = std::make_shared<pending_handshake>(
@@ -932,16 +922,15 @@ public:
 		auto state = std::make_shared<sync_state>();
 		try {
 			auto waiter = make_waiter(std::move(options),
-				[state](error_code accept_error, accept_result_t result) mutable
+			[state](error_code accept_error, accept_result_t result) mutable
+			{
 				{
-					{
-						std::lock_guard lock(state->mutex);
-						state->error = accept_error;
-						state->result = std::make_unique<accept_result_t>(std::move(result));
-					}
-					state->changed.notify_one();
+					std::lock_guard lock(state->mutex);
+					state->error = accept_error;
+					state->result = std::make_unique<accept_result_t>(std::move(result));
 				}
-			);
+				state->changed.notify_one();
+			});
 			waiter->completion = [state](error_code accept_error, accept_result_t result) mutable
 			{
 				{
@@ -963,7 +952,7 @@ public:
 				enqueue_accept(waiter);
 
 			std::unique_lock lock(state->mutex);
-			state->changed.wait(lock, [&] { return bool(state->result); });
+			state->changed.wait(lock, [&] { return static_cast<bool>(state->result); });
 
 			error = state->error;
 			return std::move(*state->result);
@@ -1074,8 +1063,9 @@ template <http::concepts::any_exec_stream Stream>
 basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap,
 	core_concepts::sched auto &&service_exec, config_t config) :
 	m_impl(std::make_shared<impl>(std::move(wrap),
-		std::forward<decltype(service_exec)>(service_exec), std::move(config))
-	)
+		asio::any_io_executor(get_executor_helper(std::forward<decltype(service_exec)>(service_exec))),
+		std::move(config)
+	))
 {
 
 }
@@ -1224,8 +1214,7 @@ basic_server<Stream> &basic_server<Stream>::on_connection
 
 template <http::concepts::any_exec_stream Stream>
 template <typename Func>
-basic_server<Stream> &basic_server<Stream>::on_default
-(Func &&func, optional<upgrade_options_t> options)
+basic_server<Stream> &basic_server<Stream>::on_default(Func &&func, optional<upgrade_options_t> options)
 	requires connection_handler_v<Func>
 {
 	m_impl->bind_default(std::forward<Func>(func), std::move(options));
@@ -1236,8 +1225,7 @@ template <http::concepts::any_exec_stream Stream>
 template <core_concepts::text_p<char> Text>
 basic_server<Stream> &basic_server<Stream>::unbound_connection(const Text &path_rule)
 {
-	auto rule = strtls::to_string(path_rule);
-	if( rule.empty() )
+	if( auto rule = strtls::to_string(path_rule); rule.empty() )
 	{
 		m_impl->m_http_server.on_default (
 			[](context_t&) -> awaitable<void> { co_return ; }

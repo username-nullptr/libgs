@@ -119,8 +119,7 @@ public:
 		return m_parser.status();
 	}
 
-	[[nodiscard]] static asio::awaitable<
-		std::tuple<error_code,status_enum>,executor_t>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,status_enum>,executor_t>
 	co_wait(std::shared_ptr<impl> self)
 	{
 		if( self->m_first_error )
@@ -145,6 +144,7 @@ public:
 				{
 					self->capture_cookies();
 					self->finish_connection();
+
 					co_return std::tuple<error_code,status_enum> {
 						error_code{}, self->m_parser.status()
 					};
@@ -154,6 +154,7 @@ public:
 			{
 				self->capture_cookies();
 				self->finish_connection();
+
 				co_return std::tuple<error_code,status_enum> {
 					error_code{}, self->m_parser.status()
 				};
@@ -214,14 +215,15 @@ public:
 		auto exec = m_exec;
 
 		return asio::async_initiate<token_t,void(error_code,status_enum)>(
-		[exec, self = this->shared_from_this()](auto completion_handler) mutable
+		[exec, self = this->shared_from_this()]<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_wait(std::move(self)),
-				libgs::detail::co_spawn_io_handler<
-					status_enum,handler_t,decltype(exec)>(
-						std::move(completion_handler), exec));
-		}, completion_token);
+				libgs::detail::co_spawn_io_handler<status_enum,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 public:
@@ -399,7 +401,7 @@ public:
 		auto dst_buf = static_cast<char*>(buf.data());
 		for(;;)
 		{
-			sum += self->m_parser.read_partial_body(
+			sum += self->m_parser.read_partial_body (
 				{dst_buf + sum, buf.size() - sum}
 			);
 			if( sum == buf.size() or
@@ -477,14 +479,15 @@ public:
 		auto exec = m_exec;
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>(
-		[exec, self = this->shared_from_this(), output]
-		(auto completion_handler) mutable
+		[exec, self = this->shared_from_this(), output]<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_read(std::move(self), output),
-				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
-					std::move(completion_handler), exec));
-		}, completion_token);
+				libgs::detail::co_spawn_io_handler<size_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 public:
@@ -539,8 +542,7 @@ public:
 
 	using range_value_t = byte_range_chunk;
 
-	[[nodiscard]] static asio::awaitable<
-		std::tuple<error_code,range_value_t>,executor_t>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,range_value_t>,executor_t>
 	co_read_range_body(std::shared_ptr<impl> self)
 	{
 		if( self->m_first_error )
@@ -615,14 +617,15 @@ public:
 		auto exec = m_exec;
 
 		return asio::async_initiate<token_t,void(error_code,range_value_t)>(
-		[exec, self = this->shared_from_this()](auto completion_handler) mutable
+		[exec, self = this->shared_from_this()]<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_read_range_body(std::move(self)),
-				libgs::detail::co_spawn_io_handler<
-					range_value_t,handler_t,decltype(exec)>(
-						std::move(completion_handler), exec));
-		}, completion_token);
+				libgs::detail::co_spawn_io_handler<range_value_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 public:
@@ -649,6 +652,7 @@ public:
 			sum.resize(offset);
 			if( expected.error() == errc::eof )
 				break;
+
 			return sys_unexpected(expected.error());
 		}
 		return std::move(sum);
@@ -656,8 +660,7 @@ public:
 
 	using all_buffer_t = std::vector<std::byte>;
 
-	[[nodiscard]] static asio::awaitable<
-		std::tuple<error_code,all_buffer_t>,executor_t>
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,all_buffer_t>,executor_t>
 	co_read_all(std::shared_ptr<impl> self)
 	{
 		all_buffer_t sum {};
@@ -688,6 +691,7 @@ public:
 			sum.resize(offset);
 			if( error == errc::eof )
 				break;
+
 			co_return std::tuple<error_code,all_buffer_t>{error, {}};
 		}
 		co_return std::tuple {error_code{}, std::move(sum)};
@@ -701,14 +705,15 @@ public:
 		auto exec = m_exec;
 
 		return asio::async_initiate<token_t,void(error_code,all_buffer_t)>(
-		[exec, self = this->shared_from_this()](auto completion_handler) mutable
+		[exec, self = this->shared_from_this()]<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_read_all(std::move(self)),
-				libgs::detail::co_spawn_io_handler<
-					all_buffer_t,handler_t,decltype(exec)>(
-						std::move(completion_handler), exec));
-		}, completion_token);
+				libgs::detail::co_spawn_io_handler<all_buffer_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 	template <core_concepts::buffer Buffer>
@@ -720,6 +725,7 @@ public:
 			Buffer result {};
 			auto [error, bytes] = co_await co_read(self, buffer(result));
 			ignore_unused(bytes);
+
 			co_return std::tuple<error_code,Buffer> {
 				error, std::move(result)
 			};
@@ -757,13 +763,15 @@ public:
 		auto exec = m_exec;
 
 		return asio::async_initiate<token_t,void(error_code,Buffer)>(
-		[exec, self = this->shared_from_this()](auto completion_handler) mutable
+		[exec, self = this->shared_from_this()]<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_read_buffer<Buffer>(std::move(self)),
-				libgs::detail::co_spawn_io_handler<Buffer,handler_t,decltype(exec)>(
-					std::move(completion_handler), exec));
-		}, completion_token);
+				libgs::detail::co_spawn_io_handler<Buffer,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 public:
@@ -835,8 +843,7 @@ public:
 
 	template <typename Progress>
 	[[nodiscard]] static asio::awaitable<error_code,executor_t>
-	co_invoke_progress(executor_t exec, Progress &progress,
-		size_t sum, size_t total)
+	co_invoke_progress(executor_t exec, Progress &progress, size_t sum, size_t total)
 	{
 		using result_t = decltype(progress(sum, total));
 		if constexpr( is_awaitable_v<result_t> )
@@ -850,8 +857,9 @@ public:
 					);
 					if( exception )
 						co_return exception_error(exception);
-					co_return keep_going ? error_code{} :
-						make_error_code(errc::operation_aborted);
+
+					co_return keep_going ?
+						error_code{} : make_error_code(errc::operation_aborted);
 				}
 				else
 				{
@@ -873,8 +881,8 @@ public:
 				{
 					if( not progress(sum, total) )
 						error = make_error_code(errc::operation_aborted);
-					}
-					else
+				}
+				else
 					progress(sum, total);
 			}
 			catch(...) {
@@ -904,8 +912,7 @@ public:
 			};
 		}
 		auto file_token = self->make_file_opt_token (
-			unwrap_async_argument(opt),
-			self->m_parser.status() == status::partial_content
+			unwrap_async_argument(opt), self->m_parser.status() == status::partial_content
 		);
 		if( not file_token )
 		{
@@ -974,21 +981,23 @@ public:
 		using opt_t = std::remove_cvref_t<AsyncOpt>;
 		using progress_t = std::remove_cvref_t<AsyncProgress>;
 		using token_t = std::remove_cvref_t<Token>;
+
 		token_t completion_token(std::forward<Token>(token));
 		auto exec = m_exec;
 
-		return asio::async_initiate<token_t,void(error_code,size_t)>(
-		[exec, self = this->shared_from_this(),
-		 opt = opt_t(std::move(async_opt)),
-		 progress = progress_t(std::move(async_progress))]
-		(auto completion_handler) mutable
+		return asio::async_initiate<token_t,void(error_code,size_t)>([exec,
+			self = this->shared_from_this(), opt = opt_t(std::move(async_opt)),
+			progress = progress_t(std::move(async_progress))
+		]<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_save_file(std::move(self), std::move(opt),
 				std::move(progress)),
-				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
-					std::move(completion_handler), exec));
-		}, completion_token);
+				libgs::detail::co_spawn_io_handler<size_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 private:
@@ -1094,8 +1103,7 @@ private:
 		}
 	}
 
-	[[nodiscard]] bool has_connection() const noexcept
-	{
+	[[nodiscard]] bool has_connection() const noexcept {
 		return m_lease and m_lease->is_valid();
 	}
 
@@ -1103,6 +1111,7 @@ private:
 	{
 		if( not has_connection() )
 			return ;
+
 		if( auto connection = m_lease->take() )
 			ignore_unused(connection->close());
 	}
@@ -1128,8 +1137,7 @@ private:
 		}
 	}
 
-	[[nodiscard]] connection_t &connection() noexcept
-	{
+	[[nodiscard]] connection_t &connection() noexcept {
 		return m_lease->get();
 	}
 
@@ -1145,6 +1153,19 @@ public:
 
 	bool m_cookies_captured = false;
 };
+
+namespace detail
+{
+
+struct LIBGS_HTTP_TAPI reply_access
+{
+	template <core_concepts::exec Exec>
+	[[nodiscard]] static auto wait(basic_reply<Exec> &reply) {
+		return basic_reply<Exec>::impl::co_wait(reply.m_impl);
+	}
+};
+
+} //namespace detail
 
 template <core_concepts::exec Exec>
 basic_reply<Exec>::basic_reply(lease_ptr lease) :
@@ -1308,8 +1329,7 @@ auto basic_reply<Exec>::save_file(T &&opt, Progress &&progress, Token &&token)
 	}
 	else
 	{
-		return initiate_io<size_t>(get_executor(), [
-			impl = m_impl,
+		return initiate_io<size_t>(get_executor(), [impl = m_impl,
 			async_opt = capture_async_argument(std::forward<T>(opt)),
 			async_progress = capture_async_argument (
 				std::forward<Progress>(progress)

@@ -16,11 +16,8 @@ class LIBGS_HTTP_TAPI basic_server<Stream>::impl :
 	using connection_ptr = std::shared_ptr<connection_t>;
 
 public:
-	impl(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
-		m_wrap(std::move(wrap)),
-		m_service_exec(get_executor_helper (
-			std::forward<decltype(service_exec)>(service_exec)
-		))
+	impl(acceptor_wrap_t &&wrap, asio::any_io_executor service_exec) :
+		m_wrap(std::move(wrap)), m_service_exec(std::move(service_exec))
 	{
 		bind_session_error_handler();
 	}
@@ -33,8 +30,7 @@ public:
 	}
 
 public:
-	void async_start(size_t max, error_code &error) noexcept
-	{
+	void async_start(size_t max, error_code &error) noexcept {
 		async_start(m_service_exec, max, error);
 	}
 
@@ -195,8 +191,7 @@ private:
 			server_parser parser {};
 			if( not pending_data.empty() )
 			{
-				auto expected = parser.append(buffer(pending_data));
-				if( not expected )
+				if( auto expected = parser.append(buffer(pending_data)); not expected )
 				{
 					call_on_server_error(expected.error());
 					break;
@@ -602,8 +597,8 @@ private:
 			if( end == std::string_view::npos )
 				end = path.size();
 
-			auto segment = path.substr(begin, end - begin);
-			if( not segment.empty() and not is_blank_segment(segment) )
+			if( auto segment = path.substr(begin, end - begin);
+				not segment.empty() and not is_blank_segment(segment) )
 				result.emplace_back(segment);
 
 			if( end == path.size() )
@@ -643,7 +638,7 @@ private:
 		for(auto ch : result.wildcard_rule)
 		{
 			if( ch == '?' )
-				result.wildcard_weight++;
+				++result.wildcard_weight;
 			else if( ch == '*' )
 				result.wildcard_weight += 2;
 		}
@@ -781,7 +776,9 @@ public:
 
 template <concepts::any_exec_stream Stream>
 basic_server<Stream>::basic_server(acceptor_wrap_t &&wrap, core_concepts::sched auto &&service_exec) :
-	m_impl(std::make_shared<impl>(std::move(wrap), std::forward<decltype(service_exec)>(service_exec)))
+	m_impl(std::make_shared<impl>(std::move(wrap), asio::any_io_executor (
+		get_executor_helper(std::forward<decltype(service_exec)>(service_exec))
+	)))
 {
 
 }

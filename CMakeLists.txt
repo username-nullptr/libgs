@@ -21,148 +21,10 @@ add_definitions (
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 include(platform)
-check_compiler_version()
-
-message(STATUS "")
-message(STATUS "${PRO_NAME}: Using C++: " ${CMAKE_CXX_STANDARD})
-message(STATUS "${PRO_NAME}: Build type: " ${CMAKE_BUILD_TYPE})
-message(STATUS "${PRO_NAME}: Install prefix: " ${CMAKE_INSTALL_PREFIX})
-
-set(LIBGS_OUTPUT_DIR ${CMAKE_BINARY_DIR}/output)
-
-option(BUILD_TESTING
-	"-- ${PRO_NAME}: Build tests." OFF
-)
-include(CTest)
-
-option(LIBGS_ENABLE_TEST_SANITIZERS
-	"-- ${PRO_NAME}: Enable ASan and UBSan for functional tests." OFF
-)
-option(LIBGS_ENABLE_TEST_TSAN
-	"-- ${PRO_NAME}: Enable TSan for functional tests." OFF
-)
-option(LIBGS_BUILD_FUZZERS
-	"-- ${PRO_NAME}: Build Clang libFuzzer protocol harnesses." OFF
-)
-if (LIBGS_ENABLE_TEST_SANITIZERS AND LIBGS_ENABLE_TEST_TSAN)
-	message(FATAL_ERROR
-		"${PRO_NAME}: ASan/UBSan and TSan cannot be enabled together."
-	)
-endif ()
-
-if (LIBGS_BUILD_FUZZERS)
-	if (NOT BUILD_TESTING)
-		message(FATAL_ERROR "${PRO_NAME}: Fuzzers require BUILD_TESTING=ON.")
-	endif ()
-	if (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-		message(FATAL_ERROR "${PRO_NAME}: Fuzzers require Clang libFuzzer.")
-	endif ()
-	if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
-		message(FATAL_ERROR
-			"${PRO_NAME}: Fuzzer instrumentation cannot be combined with test sanitizer options."
-		)
-	endif ()
-endif ()
-
-if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
-	if (NOT BUILD_TESTING)
-		message(FATAL_ERROR
-			"${PRO_NAME}: Test sanitizers require BUILD_TESTING=ON."
-		)
-	endif ()
-	if (MSVC OR NOT CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang)$")
-		message(FATAL_ERROR
-			"${PRO_NAME}: Test sanitizers require GCC or Clang with a GNU-style driver."
-		)
-	endif ()
-
-	add_library(libgs.test.sanitizer INTERFACE)
-	if (LIBGS_ENABLE_TEST_SANITIZERS)
-		target_compile_options(libgs.test.sanitizer INTERFACE
-			-fsanitize=address,undefined
-			-fno-omit-frame-pointer
-			-fno-sanitize-recover=all
-		)
-		target_link_options(libgs.test.sanitizer INTERFACE
-			-fsanitize=address,undefined
-		)
-	else ()
-		target_compile_options(libgs.test.sanitizer INTERFACE
-			-fsanitize=thread
-			-fno-omit-frame-pointer
-			-fno-sanitize-recover=all
-		)
-		target_link_options(libgs.test.sanitizer INTERFACE -fsanitize=thread)
-	endif ()
-endif ()
-
+include(heavy_compile)
 include(options)
-if ((LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN) AND LIBGS_ENABLE_LTO)
-	message(FATAL_ERROR
-		"${PRO_NAME}: Disable LIBGS_ENABLE_LTO for sanitizer builds."
-	)
-endif ()
-
-if (LIBGS_LOW_MEMORY_DEBUG_INFO)
-	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-		add_compile_options(
-			$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:Debug>>:-g1>
-		)
-		message(STATUS
-			"${PRO_NAME}: Use reduced GCC debug information for lower compile memory."
-		)
-	else ()
-		message(WARNING
-			"${PRO_NAME}: LIBGS_LOW_MEMORY_DEBUG_INFO currently supports GCC only."
-		)
-	endif ()
-endif ()
-
-if (LIBGS_HEAVY_COMPILE_JOBS GREATER 0)
-	message(STATUS
-		"${PRO_NAME}: Limit concurrent heavy compilations to ${LIBGS_HEAVY_COMPILE_JOBS}."
-	)
-	if (CMAKE_GENERATOR MATCHES "Ninja")
-		set_property(GLOBAL APPEND PROPERTY JOB_POOLS
-			libgs_heavy_compile=${LIBGS_HEAVY_COMPILE_JOBS}
-		)
-	endif ()
-endif ()
-
-# HTTP/WebSocket tests and examples are mostly one-source executables whose
-# template instantiation can still exceed 1 GiB per compiler process.
-# Keep light compilation fully parallel while bounding only those known-heavy
-# sources. Ninja has native compile pools; other generators use independent
-# target lanes so a global -j value can remain high.
-function(libgs_limit_heavy_compile target)
-	if (LIBGS_HEAVY_COMPILE_JOBS EQUAL 0)
-		return()
-	endif ()
-
-	if (CMAKE_GENERATOR MATCHES "Ninja")
-		set_property(TARGET ${target} PROPERTY JOB_POOL_COMPILE libgs_heavy_compile)
-		return()
-	endif ()
-
-	get_property(libgs_heavy_index GLOBAL PROPERTY LIBGS_HEAVY_COMPILE_INDEX)
-	if (NOT libgs_heavy_index)
-		set(libgs_heavy_index 0)
-	endif ()
-	math(EXPR libgs_heavy_lane
-		"${libgs_heavy_index} % ${LIBGS_HEAVY_COMPILE_JOBS}"
-	)
-	get_property(libgs_heavy_previous GLOBAL PROPERTY
-		LIBGS_HEAVY_COMPILE_LANE_${libgs_heavy_lane}
-	)
-	if (libgs_heavy_previous)
-		add_dependencies(${target} ${libgs_heavy_previous})
-	endif ()
-	set_property(GLOBAL PROPERTY
-		LIBGS_HEAVY_COMPILE_LANE_${libgs_heavy_lane} ${target}
-	)
-	math(EXPR libgs_heavy_index "${libgs_heavy_index} + 1")
-	set_property(GLOBAL PROPERTY LIBGS_HEAVY_COMPILE_INDEX ${libgs_heavy_index})
-endfunction()
+include(test)
+include(CTest)
 
 add_subdirectory(3rd_party)
 include(3rd_party)
@@ -173,14 +35,6 @@ endif()
 
 include_directories(.)
 add_subdirectory(libgs)
-
-if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
-	foreach(target gs.core gs.coro gs.http gs.websocket gs.utils)
-		if (TARGET ${target})
-			target_link_libraries(${target} PUBLIC libgs.test.sanitizer)
-		endif ()
-	endforeach()
-endif ()
 
 if (BUILD_TESTING)
 	add_subdirectory(test)
@@ -196,30 +50,3 @@ endif()
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES libgs.h)
 install(FILES libgs.h DESTINATION include/)
-
-
-function(libgs_install_module_headers module)
-	install(FILES libgs/${module}.h DESTINATION include/libgs/)
-	install(DIRECTORY libgs/${module}/ DESTINATION include/libgs/${module}/
-		FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.ipp"
-	)
-endfunction()
-
-
-libgs_install_module_headers(core)
-
-if (LIBGS_BUILD_CORO)
-	libgs_install_module_headers(coro)
-endif ()
-
-if (LIBGS_BUILD_HTTP)
-	libgs_install_module_headers(http)
-endif ()
-
-if (LIBGS_BUILD_WEBSOCKET)
-	libgs_install_module_headers(websocket)
-endif ()
-
-if (LIBGS_BUILD_UTILITIES)
-	libgs_install_module_headers(utils)
-endif ()

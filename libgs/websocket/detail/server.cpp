@@ -80,11 +80,11 @@ void reject_upgrade(server_upgrade_plan &plan, error_code error,
 		plan.headers[sec_websocket_version] = "13";
 }
 
-void reject_upgrade(server_upgrade_plan &plan,
-	upgrade_rejection rejection, error_code error)
+void reject_upgrade(server_upgrade_plan &plan, upgrade_rejection rejection, error_code error)
 {
 	plan.accepted = false;
 	plan.error = error;
+
 	plan.status = valid_rejection_status(rejection.status) ?
 		rejection.status : http::status::internal_server_error;
 
@@ -93,23 +93,23 @@ void reject_upgrade(server_upgrade_plan &plan,
 	plan.body = std::move(rejection.body);
 }
 
-void reject_selector_exception(server_upgrade_plan &plan,
-	std::exception_ptr exception) noexcept
+void reject_selector_exception
+(server_upgrade_plan &plan, const std::exception_ptr &exception) noexcept
 {
 	reject_upgrade(plan, exception_error(exception),
 		http::status::internal_server_error);
 	plan.preserve_error_on_write_failure = true;
 }
 
-void select_server_subprotocol(server_upgrade_plan &plan,
-	const upgrade_options &options) noexcept
+void select_server_subprotocol
+(server_upgrade_plan &plan, const upgrade_options &options) noexcept
 {
-	try
-	{
+	try {
 		if( options.subprotocol_selector )
 		{
-			plan.response.subprotocol = options.subprotocol_selector(
-				plan.request, plan.opening.subprotocols);
+			plan.response.subprotocol = options.subprotocol_selector (
+				plan.request, plan.opening.subprotocols
+			);
 		}
 		else
 		{
@@ -130,11 +130,11 @@ void select_server_subprotocol(server_upgrade_plan &plan,
 }
 
 void validate_server_subprotocol(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline) noexcept
 {
 	if( not plan.accepted )
 		return ;
+
 	if( server_deadline_expired(deadline) )
 	{
 		reject_upgrade(plan, asio::error::timed_out);
@@ -153,15 +153,14 @@ void validate_server_subprotocol(server_upgrade_plan &plan,
 		reject_upgrade(plan, make_error_code(errc::unsupported_subprotocol));
 }
 
-void select_server_extensions(server_upgrade_plan &plan,
-	const upgrade_options &options) noexcept
+void select_server_extensions(server_upgrade_plan &plan, const upgrade_options &options) noexcept
 {
-	try
-	{
+	try {
 		if( options.extension_selector )
 		{
-			plan.response.extensions = options.extension_selector(
-				plan.request, plan.opening.extensions);
+			plan.response.extensions = options.extension_selector (
+				plan.request, plan.opening.extensions
+			);
 		}
 		else if( not options.supported_extensions.empty() )
 		{
@@ -169,8 +168,7 @@ void select_server_extensions(server_upgrade_plan &plan,
 			{
 				for(const auto &policy : options.supported_extensions)
 				{
-					auto selected = negotiate_permessage_deflate(offered, policy);
-					if( selected )
+					if( auto selected = negotiate_permessage_deflate(offered, policy) )
 					{
 						plan.response.extensions = {std::move(*selected)};
 						break;
@@ -187,11 +185,11 @@ void select_server_extensions(server_upgrade_plan &plan,
 }
 
 void validate_server_extensions(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline) noexcept
 {
 	if( not plan.accepted )
 		return ;
+
 	if( not plan.response.extensions.empty() and
 		(not supported_extension_response(plan.response.extensions,
 			plan.opening.extensions) or options.supported_extensions.empty()) )
@@ -204,8 +202,7 @@ void validate_server_extensions(server_upgrade_plan &plan,
 }
 
 void finalize_server_upgrade_plan(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline) noexcept
 {
 	if( not plan.accepted )
 		return ;
@@ -216,8 +213,9 @@ void finalize_server_upgrade_plan(server_upgrade_plan &plan,
 			reject_upgrade(plan, asio::error::timed_out);
 			return ;
 		}
-		auto protocol_headers = make_opening_response_headers(
-			plan.opening, plan.response);
+		auto protocol_headers = make_opening_response_headers (
+			plan.opening, plan.response
+		);
 		if( not protocol_headers )
 		{
 			reject_upgrade(plan, protocol_headers.error());
@@ -225,44 +223,49 @@ void finalize_server_upgrade_plan(server_upgrade_plan &plan,
 		}
 		plan.headers = options.response_headers;
 		erase_protocol_response_headers(plan.headers);
+
 		for(auto &[name, value] : *protocol_headers)
 			plan.headers[name] = value;
+
 		plan.status = http::status::switching_protocols;
 		plan.accepted = true;
 		plan.error.clear();
 	}
-	catch(...) {
+	catch(...)
+	{
 		reject_upgrade(plan, exception_error(std::current_exception()),
-			http::status::internal_server_error);
+			http::status::internal_server_error
+		);
 	}
 }
 
 void complete_server_upgrade_plan(server_upgrade_plan &plan,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline) noexcept
+	const upgrade_options &options, std::chrono::steady_clock::time_point deadline) noexcept
 {
 	select_server_subprotocol(plan, options);
 	validate_server_subprotocol(plan, options, deadline);
+
 	if( not plan.accepted )
 		return ;
+
 	select_server_extensions(plan, options);
 	validate_server_extensions(plan, options, deadline);
 	finalize_server_upgrade_plan(plan, options, deadline);
 }
 
-server_upgrade_plan make_server_upgrade_plan(request_info request,
-	const upgrade_options &options,
-	std::chrono::steady_clock::time_point deadline,
-	bool permit_async_callbacks) noexcept
+server_upgrade_plan make_server_upgrade_plan(request_info request, const upgrade_options &options,
+	std::chrono::steady_clock::time_point deadline, bool permit_async_callbacks) noexcept
 {
 	server_upgrade_plan plan {.request = std::move(request)};
 	try {
 		const auto subprotocol_selectors =
-			static_cast<size_t>(bool(options.subprotocol_selector)) +
-			static_cast<size_t>(bool(options.async_subprotocol_selector));
+			static_cast<size_t>(static_cast<bool>(options.subprotocol_selector)) +
+			static_cast<size_t>(static_cast<bool>(options.async_subprotocol_selector));
+
 		const auto extension_selectors =
-			static_cast<size_t>(bool(options.extension_selector)) +
-			static_cast<size_t>(bool(options.async_extension_selector));
+			static_cast<size_t>(static_cast<bool>(options.extension_selector)) +
+			static_cast<size_t>(static_cast<bool>(options.async_extension_selector));
+
 		if( subprotocol_selectors > 1 or extension_selectors > 1 )
 		{
 			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
@@ -275,7 +278,8 @@ server_upgrade_plan make_server_upgrade_plan(request_info request,
 		{
 			reject_upgrade(plan,
 				make_error_code(std::errc::operation_not_supported),
-				http::status::internal_server_error);
+				http::status::internal_server_error
+			);
 			return plan;
 		}
 		if( options.stream.read_buffer_size == 0 or
@@ -284,16 +288,19 @@ server_upgrade_plan make_server_upgrade_plan(request_info request,
 			options.stream.compression.level > 9 )
 		{
 			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
-				http::status::internal_server_error);
+				http::status::internal_server_error
+			);
 			return plan;
 		}
 		auto opening = parse_opening_request(plan.request.method,
-			plan.request.version, plan.request.request_headers);
+			plan.request.version, plan.request.request_headers
+		);
 		if( not opening )
 		{
 			reject_upgrade(plan, opening.error(),
 				opening.error() == errc::unsupported_version ?
-					http::status::upgrade_required : http::status::bad_request);
+					http::status::upgrade_required : http::status::bad_request
+			);
 			return plan;
 		}
 		plan.opening = std::move(*opening);
@@ -321,7 +328,8 @@ server_upgrade_plan make_server_upgrade_plan(request_info request,
 			catch(...)
 			{
 				reject_upgrade(plan, exception_error(std::current_exception()),
-					http::status::internal_server_error);
+					http::status::internal_server_error
+				);
 				plan.preserve_error_on_write_failure = true;
 				return plan;
 			}
@@ -349,7 +357,8 @@ server_upgrade_plan make_server_upgrade_plan(request_info request,
 			catch(...)
 			{
 				reject_upgrade(plan, exception_error(std::current_exception()),
-					http::status::internal_server_error);
+					http::status::internal_server_error
+				);
 				plan.preserve_error_on_write_failure = true;
 				return plan;
 			}
@@ -369,7 +378,8 @@ server_upgrade_plan make_server_upgrade_plan(request_info request,
 	catch(...)
 	{
 		reject_upgrade(plan, exception_error(std::current_exception()),
-			http::status::internal_server_error);
+			http::status::internal_server_error
+		);
 	}
 	return plan;
 }

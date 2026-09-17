@@ -22,43 +22,29 @@ template <core_concepts::exec Exec>
 awaitable<std::tuple<error_code,size_t>> basic_stream<Exec>::impl::async_read_transport
 (std::shared_ptr<std::vector<std::byte>> storage)
 {
-	auto self = this->shared_from_this();
-	co_return co_await http::detail::initiate_connection_io (
-		[self, storage](auto next_handler) mutable
-		{
-			self->m_connection->read (
-				mutable_buffer(storage->data(), storage->size()),
-				asio::any_completion_handler<void(error_code,size_t)>
-					(std::move(next_handler))
-			);
-		},
-		asio::as_tuple(asio::use_awaitable)
-	);
+	return m_stream_transport.async_read(std::move(storage));
 }
 
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::start_transport_write
-(prepared_frame frame, detail::wire_frame_kind kind,
-	std::shared_ptr<detail::send_operation> operation) noexcept
+(prepared_frame frame, detail::wire_frame_kind kind, std::shared_ptr<detail::send_operation> operation) noexcept
 {
-	auto self = this->shared_from_this();
-	try {
-		m_connection->write(std::span<const const_buffer>(frame.buffers),
-			asio::any_completion_handler<void(error_code, size_t)>(
-			[self, frame, kind, operation](error_code error, size_t wire_size) mutable
-			{
-				self->m_send_engine.complete_wire_frame(std::move(frame), kind,
-					std::move(operation), error, wire_size
-				);
-			}
-		));
-	}
-	catch(...)
-	{
-		m_send_engine.complete_wire_frame(std::move(frame), kind,
-			std::move(operation), exception_error(std::current_exception()), 0
-		);
-	}
+	m_stream_transport.start_write(send_owner(), std::move(frame), kind,
+		std::move(operation));
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::start_async_transport_read
+(void *connection, const mutable_buffer &buffer, io_handler_t handler)
+{
+	static_cast<connection_t*>(connection)->read(buffer, std::move(handler));
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::start_async_transport_write
+(void *connection, std::span<const const_buffer> buffers, io_handler_t handler)
+{
+	static_cast<connection_t*>(connection)->write(buffers, std::move(handler));
 }
 
 template <core_concepts::exec Exec>

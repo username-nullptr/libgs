@@ -123,117 +123,45 @@ sys_expected<> basic_stream<Exec>::impl::start_automatic_ping() noexcept
 	if( not automatic_control_enabled() )
 		return make_sys_expected();
 
-	error_code error;
-	try {
-		m_ping_timer = std::make_shared<asio::steady_timer>(m_exec);
-		if( auto scheduled = schedule_automatic_ping(); not scheduled )
-		{
-			m_ping_timer.reset();
-			return scheduled;
-		}
-		return make_sys_expected();
-	}
-	catch(...) {
-		error = exception_error(std::current_exception());
-	}
-	m_ping_timer.reset();
-	return sys_unexpected(error);
-}
+	auto ping = detail::automatic_ping::create(asio::any_io_executor(m_exec),
+		std::weak_ptr<void>(this->shared_from_this()), m_config.ping_interval,
+		m_config.pong_timeout_retries, &impl::write_automatic_ping,
+		&impl::fail_automatic_ping
+	);
+	if( not ping )
+		return sys_unexpected(ping.error());
 
-template <core_concepts::exec Exec>
-sys_expected<> basic_stream<Exec>::impl::schedule_automatic_ping() noexcept
-{
-	if( not m_ping_timer or m_state != connection_state::open )
-		return make_sys_expected();
-
-	error_code error;
-	try {
-		auto timer = m_ping_timer;
-		timer->expires_after(m_config.ping_interval);
-
-		timer->async_wait (
-		[weak = this->weak_from_this(), timer](error_code error) mutable
-		{
-			if( error )
-				return ;
-			auto self = weak.lock();
-
-			if( not self or self->m_ping_timer != timer or
-				self->m_state != connection_state::open )
-				return ;
-			try {
-				if( self->m_awaited_pong )
-				{
-					if( self->m_consecutive_pong_timeouts >=
-						self->m_config.pong_timeout_retries )
-					{
-						self->fail(asio::error::timed_out);
-						return ;
-					}
-					++self->m_consecutive_pong_timeouts;
-				}
-				auto payload = std::make_shared<std::array<std::byte,8>>();
-				auto id = ++self->m_next_ping_id;
-
-				for(size_t index=0; index<payload->size(); ++index)
-				{
-					(*payload)[payload->size() - index - 1] =
-						static_cast<std::byte>(id & 0xFF);
-					id >>= 8;
-				}
-				self->m_awaited_pong = *payload;
-				const auto body = const_buffer(payload->data(), payload->size());
-
-				self->async_write_control(opcode::ping, body,
-				[weak = std::move(weak), timer, payload](error_code write_error, size_t) mutable
-				{
-					if( auto locked = weak.lock(); locked and locked->m_ping_timer == timer and
-						locked->m_state == connection_state::open )
-					{
-						if( write_error )
-							return ;
-
-						if( auto scheduled = locked->schedule_automatic_ping();
-							not scheduled )
-							locked->fail(scheduled.error());
-					}
-				},
-				true);
-			}
-			catch(...) {
-				self->fail(exception_error(std::current_exception()));
-			}
-		});
-		return make_sys_expected();
-	}
-	catch(...) {
-		error = exception_error(std::current_exception());
-	}
-	return sys_unexpected(error);
+	m_automatic_ping = std::move(*ping);
+	return make_sys_expected();
 }
 
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::acknowledge_automatic_pong(const std::vector<std::byte> &payload) noexcept
 {
-	if( not m_awaited_pong or payload.size() != m_awaited_pong->size() or
-		not std::equal(payload.begin(), payload.end(), m_awaited_pong->begin()) )
-		return ;
-
-	m_awaited_pong.reset();
-	m_consecutive_pong_timeouts = 0;
+	if( m_automatic_ping )
+		m_automatic_ping->acknowledge(payload);
 }
 
 template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::stop_automatic_ping() noexcept
 {
-	auto timer = std::exchange(m_ping_timer, {});
-	m_awaited_pong.reset();
-	m_consecutive_pong_timeouts = 0;
-	try {
-		if( timer )
-			ignore_unused(timer->cancel());
-	}
-	catch(...) {}
+	if( auto ping = std::exchange(m_automatic_ping, {}) )
+		ping->stop();
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::write_automatic_ping
+(void *owner, const const_buffer &payload, io_handler_t handler)
+{
+	static_cast<impl*>(owner)->async_write_control (
+		opcode::ping, payload, std::move(handler), true
+	);
+}
+
+template <core_concepts::exec Exec>
+void basic_stream<Exec>::impl::fail_automatic_ping(void *owner, error_code error) noexcept
+{
+	static_cast<impl*>(owner)->fail(error);
 }
 
 } //namespace libgs::websocket

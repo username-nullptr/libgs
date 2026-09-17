@@ -4,53 +4,13 @@
 #ifndef LIBGS_CORE_DETAIL_ASYNC_EXPECTED_H
 #define LIBGS_CORE_DETAIL_ASYNC_EXPECTED_H
 
-#include <mutex>
-
 namespace libgs { namespace detail
 {
 
-[[nodiscard]] inline error_code canonical_error(error_code error) noexcept
-{
-	if( not error )
-		return {};
-
-	std::string_view category_name(error.category().name());
-	auto category_matches = [category_name](const error_code &sample) noexcept {
-		return category_name == sample.category().name();
-	};
-	if( category_matches(asio::error::make_error_code(asio::error::operation_aborted)) )
-	{
-		return asio::error::make_error_code(
-			static_cast<asio::error::basic_errors>(error.value())
-		);
-	}
-	if( category_matches(asio::error::make_error_code(asio::error::eof)) )
-	{
-		return asio::error::make_error_code (
-			static_cast<asio::error::misc_errors>(error.value())
-		);
-	}
-	if( category_matches(asio::error::make_error_code(asio::error::host_not_found)) )
-	{
-		return asio::error::make_error_code (
-			static_cast<asio::error::netdb_errors>(error.value())
-		);
-	}
-	if( category_matches(asio::error::make_error_code(asio::error::service_not_found)) )
-	{
-		return asio::error::make_error_code (
-			static_cast<asio::error::addrinfo_errors>(error.value())
-		);
-	}
-	if( category_name == std::generic_category().name() )
-		return {error.value(), std::generic_category()};
-	if( category_name == std::system_category().name() )
-		return {error.value(), std::system_category()};
-	return error;
-}
+[[nodiscard]] LIBGS_CORE_API error_code canonical_error(error_code error) noexcept;
 
 template <typename Value>
-void canonicalize_expected(sys_expected<Value> &expected) noexcept
+LIBGS_CORE_TAPI void canonicalize_expected(sys_expected<Value> &expected) noexcept
 {
 	if( not expected )
 		expected = sys_unexpected(canonical_error(expected.error()));
@@ -63,16 +23,16 @@ template <typename T>
 struct is_async_argument_reference<std::reference_wrapper<T>> : std::true_type {};
 
 template <typename Value, typename Factory>
-[[nodiscard]] awaitable<sys_expected<Value>> co_expected_direct(Factory factory)
-{
+[[nodiscard]] LIBGS_CORE_TAPI
+awaitable<sys_expected<Value>> co_expected_direct(Factory factory) {
 	co_return co_await factory();
 }
 
 template <typename Value, typename Exec>
-class timed_expected_state : public std::enable_shared_from_this<
-	timed_expected_state<Value,Exec>>
+class LIBGS_CORE_TAPI timed_expected_state : public
+	std::enable_shared_from_this<timed_expected_state<Value,Exec>>
 {
-	using self_t = timed_expected_state<Value,Exec>;
+	using self_t = timed_expected_state;
 	using result_t = sys_expected<Value>;
 	using completion_fn_t = void (*)(self_t&, std::exception_ptr, result_t, bool);
 
@@ -81,15 +41,12 @@ class timed_expected_state : public std::enable_shared_from_this<
 	struct operation_handler
 	{
 		using cancellation_slot_type = asio::cancellation_slot;
-		std::shared_ptr<self_t> state;
+		std::shared_ptr<self_t> state {};
 
-		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept
-		{
+		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 			return state->m_operation_cancellation.slot();
 		}
-
-		void operator()(std::exception_ptr exception, result_t result)
-		{
+		void operator()(std::exception_ptr exception, result_t result) {
 			state->operation_complete(std::move(exception), std::move(result));
 		}
 	};
@@ -97,22 +54,19 @@ class timed_expected_state : public std::enable_shared_from_this<
 	struct timer_handler
 	{
 		using cancellation_slot_type = asio::cancellation_slot;
-		std::shared_ptr<self_t> state;
+		std::shared_ptr<self_t> state {};
 
-		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept
-		{
+		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 			return state->m_timer_cancellation.slot();
 		}
-
-		void operator()(error_code error)
-		{
+		void operator()(error_code error) {
 			state->timer_complete(error);
 		}
 	};
 
 	struct caller_cancellation_handler
 	{
-		std::weak_ptr<self_t> state;
+		std::weak_ptr<self_t> state {};
 
 		void operator()(asio::cancellation_type_t type)
 		{
@@ -124,7 +78,7 @@ class timed_expected_state : public std::enable_shared_from_this<
 public:
 	timed_expected_state(const Exec &exec, asio::cancellation_slot caller_slot,
 		std::chrono::nanoseconds timeout, completion_fn_t completion_fn) :
-		m_exec(exec), m_timer(exec), m_caller_slot(std::move(caller_slot)),
+		m_exec(exec), m_timer(exec), m_caller_slot(caller_slot),
 		m_completion_fn(completion_fn)
 	{
 		m_timer.expires_after(timeout);
@@ -134,45 +88,46 @@ public:
 	void start(Factory factory)
 	{
 		auto self = this->shared_from_this();
-		try
-		{
+		try {
 			if( m_caller_slot.is_connected() )
 			{
-				m_caller_slot.template emplace<caller_cancellation_handler>(
-					std::weak_ptr<self_t>(self));
+				m_caller_slot.emplace<caller_cancellation_handler>(
+					std::weak_ptr<self_t>(self)
+				);
 			}
-
 			auto operation = factory();
 			asio::co_spawn(m_exec, std::move(operation), operation_handler{self});
+
 			m_timer.async_wait(timer_handler{std::move(self)});
 			finish_launch();
 		}
-		catch(...)
-		{
+		catch(...) {
 			fail(std::current_exception());
 		}
 	}
 
 protected:
-	[[nodiscard]] const Exec& executor() const noexcept
-	{
+	[[nodiscard]] const Exec &executor() const noexcept {
 		return m_exec;
 	}
 
 private:
 	void finish_launch()
 	{
-		asio::cancellation_type_t operation_type = asio::cancellation_type::none;
-		asio::cancellation_type_t timer_type = asio::cancellation_type::none;
+		auto operation_type = asio::cancellation_type::none;
+		auto timer_type = asio::cancellation_type::none;
 		{
 			std::lock_guard lock(m_mutex);
 			if( m_completed )
 				return ;
+
 			m_launching = false;
 			operation_type = std::exchange(m_pending_operation_cancellation,
-				asio::cancellation_type::none);
+				asio::cancellation_type::none
+			);
 			timer_type = std::exchange(m_pending_timer_cancellation,
-				asio::cancellation_type::none);
+				asio::cancellation_type::none
+			);
 		}
 		emit_cancellation(operation_type, timer_type);
 	}
@@ -181,11 +136,13 @@ private:
 	{
 		if( type == asio::cancellation_type::none )
 			return ;
+
 		bool emit = false;
 		{
 			std::lock_guard lock(m_mutex);
 			if( m_completed )
 				return ;
+
 			if( m_launching )
 			{
 				m_pending_operation_cancellation |= type;
@@ -206,11 +163,13 @@ private:
 			std::lock_guard lock(m_mutex);
 			if( m_completed or m_operation_done )
 				return ;
+
 			m_operation_exception = std::move(exception);
 			if( not m_operation_exception )
 			{
 				if( m_first_success == first_success::none )
 					m_first_success = first_success::operation;
+
 				m_result.emplace(std::move(result));
 				if( not m_timer_done )
 				{
@@ -224,8 +183,11 @@ private:
 			complete = m_timer_done;
 		}
 		if( cancel_timer )
+		{
 			emit_cancellation(asio::cancellation_type::none,
-				asio::cancellation_type::all);
+				asio::cancellation_type::all
+			);
+		}
 		if( complete )
 			complete_normal();
 	}
@@ -238,11 +200,13 @@ private:
 			std::lock_guard lock(m_mutex);
 			if( m_completed or m_timer_done )
 				return ;
+
 			m_timer_error = canonical_error(error);
 			if( not m_timer_error )
 			{
 				if( m_first_success == first_success::none )
 					m_first_success = first_success::timer;
+
 				if( not m_operation_done )
 				{
 					if( m_launching )
@@ -255,8 +219,11 @@ private:
 			complete = m_operation_done;
 		}
 		if( cancel_operation )
+		{
 			emit_cancellation(asio::cancellation_type::all,
-				asio::cancellation_type::none);
+				asio::cancellation_type::none
+			);
+		}
 		if( complete )
 			complete_normal();
 	}
@@ -264,18 +231,21 @@ private:
 	void complete_normal()
 	{
 		std::exception_ptr exception;
-		std::optional<result_t> result;
+		optional<result_t> result;
 		{
 			std::lock_guard lock(m_mutex);
 			if( m_completed or not m_operation_done or not m_timer_done )
 				return ;
+
 			m_completed = true;
 			if( m_first_success == first_success::operation )
 				result.emplace(std::move(*m_result));
+
 			else if( m_first_success == first_success::timer )
 			{
-				result.emplace(sys_unexpected(
-					make_error_code(errc::timed_out)));
+				result.emplace(sys_unexpected (
+					make_error_code(errc::timed_out))
+				);
 			}
 			else
 			{
@@ -294,28 +264,33 @@ private:
 			std::lock_guard lock(m_mutex);
 			if( m_completed )
 				return ;
+
 			m_completed = true;
 			m_launching = false;
 		}
 		m_caller_slot.clear();
 		emit_cancellation(asio::cancellation_type::all,
-			asio::cancellation_type::all);
+			asio::cancellation_type::all
+		);
 		m_completion_fn(*this, std::move(exception),
-			result_t(sys_unexpected(make_error_code(std::errc::io_error))), true);
+			result_t(sys_unexpected(make_error_code(std::errc::io_error))), true
+		);
 	}
 
-	void emit_cancellation(asio::cancellation_type_t operation_type,
-		asio::cancellation_type_t timer_type)
+	void emit_cancellation
+	(asio::cancellation_type_t operation_type, asio::cancellation_type_t timer_type)
 	{
 		std::lock_guard emit_lock(m_emit_mutex);
 		if( operation_type != asio::cancellation_type::none )
 			m_operation_cancellation.emit(operation_type);
+
 		if( timer_type != asio::cancellation_type::none )
 			m_timer_cancellation.emit(timer_type);
 	}
 
-	Exec m_exec;
+	Exec m_exec {};
 	asio::steady_timer m_timer;
+
 	asio::cancellation_signal m_operation_cancellation;
 	asio::cancellation_signal m_timer_cancellation;
 	asio::cancellation_slot m_caller_slot;
@@ -323,14 +298,19 @@ private:
 
 	std::mutex m_mutex;
 	std::mutex m_emit_mutex;
+
 	std::optional<result_t> m_result;
 	std::exception_ptr m_operation_exception;
+
 	error_code m_timer_error;
 	first_success m_first_success = first_success::none;
+
 	asio::cancellation_type_t m_pending_operation_cancellation =
 		asio::cancellation_type::none;
+
 	asio::cancellation_type_t m_pending_timer_cancellation =
 		asio::cancellation_type::none;
+
 	bool m_launching = true;
 	bool m_operation_done = false;
 	bool m_timer_done = false;
@@ -338,19 +318,17 @@ private:
 };
 
 template <typename Value, typename Exec, typename Handler>
-class timed_expected_operation final : public timed_expected_state<Value,Exec>
+class LIBGS_CORE_TAPI timed_expected_operation final :
+	public timed_expected_state<Value,Exec>
 {
-	using self_t = timed_expected_operation<Value,Exec,Handler>;
+	using self_t = timed_expected_operation;
 	using base_t = timed_expected_state<Value,Exec>;
 	using result_t = sys_expected<Value>;
 
 public:
-	timed_expected_operation(const Exec &exec, Handler handler,
-		std::chrono::nanoseconds timeout) :
-		base_t(exec, asio::get_associated_cancellation_slot(handler), timeout,
-			&self_t::complete),
-		m_handler(std::move(handler))
-	{}
+	timed_expected_operation(const Exec &exec, Handler handler, std::chrono::nanoseconds timeout) :
+		base_t(exec, asio::get_associated_cancellation_slot(handler), timeout, &self_t::complete),
+		m_handler(std::move(handler)) {}
 
 private:
 	static void complete(base_t &base, std::exception_ptr exception,
@@ -358,15 +336,17 @@ private:
 	{
 		auto &self = static_cast<self_t&>(base);
 		auto handler = std::move(*self.m_handler);
+
 		self.m_handler.reset();
-		auto completion_exec = asio::get_associated_executor(handler,
-			self.executor());
+		auto completion_exec = asio::get_associated_executor(handler, self.executor());
 		auto allocator = asio::get_associated_allocator(handler);
-		auto completion = asio::bind_allocator(allocator,
-			[handler = std::move(handler), exception = std::move(exception),
-			 result = std::move(result)]() mutable {
-				std::move(handler)(std::move(exception), std::move(result));
-			});
+
+		auto completion = asio::bind_allocator(allocator, [
+			handler = std::move(handler), exception = std::move(exception),
+			result = std::move(result)
+		]() mutable {
+			std::move(handler)(std::move(exception), std::move(result));
+		});
 		if( post )
 			asio::post(completion_exec, std::move(completion));
 		else
@@ -377,14 +357,16 @@ private:
 };
 
 template <typename Value, typename Exec, typename Factory, typename Handler>
-void start_timed_expected(const Exec &exec, Factory factory,
-	std::chrono::nanoseconds timeout, Handler &&handler)
+void start_timed_expected
+(const Exec &exec, Factory factory, std::chrono::nanoseconds timeout, Handler &&handler)
 {
 	auto allocator = asio::get_associated_allocator(handler);
 	using handler_t = std::remove_cvref_t<Handler>;
 	using state_t = timed_expected_operation<Value,Exec,handler_t>;
+
 	auto state = std::allocate_shared<state_t>(allocator, exec,
-		std::forward<Handler>(handler), timeout);
+		std::forward<Handler>(handler), timeout
+	);
 	state->start(std::move(factory));
 }
 
@@ -392,7 +374,7 @@ template <bool Timed, typename Value>
 class expected_launcher;
 
 template <typename Value>
-class expected_launcher<false,Value>
+class LIBGS_CORE_TAPI expected_launcher<false,Value>
 {
 public:
 	explicit expected_launcher(std::chrono::nanoseconds) noexcept {}
@@ -402,12 +384,13 @@ public:
 	{
 		asio::co_spawn(exec,
 			co_expected_direct<Value>(std::move(operation)),
-			std::move(handler));
+			std::move(handler)
+		);
 	}
 };
 
 template <typename Value>
-class expected_launcher<true,Value>
+class LIBGS_CORE_TAPI expected_launcher<true,Value>
 {
 public:
 	explicit expected_launcher(std::chrono::nanoseconds timeout) noexcept :
@@ -416,25 +399,24 @@ public:
 	template <typename Exec, typename Factory, typename Handler>
 	void operator()(const Exec &exec, Factory operation, Handler handler) const
 	{
-		start_timed_expected<Value>(exec, std::move(operation), m_timeout,
-			std::move(handler));
+		start_timed_expected<Value>(exec,
+			std::move(operation), m_timeout, std::move(handler)
+		);
 	}
 
 private:
-	std::chrono::nanoseconds m_timeout;
+	std::chrono::nanoseconds m_timeout {};
 };
 
-template <bool Timed, typename Value, typename Exec,
-	typename Factory, typename Token>
-[[nodiscard]] auto initiate_expected
+template <bool Timed, typename Value, typename Exec, typename Factory, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_expected
 (const Exec &exec, Factory factory_fn, std::chrono::nanoseconds timeout, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	token_t completion_token(std::forward<Token>(token));
 
 	return asio::async_initiate<token_t,void(error_code,Value)>(
-	[exec, operation = std::move(factory_fn),
-	 launcher = expected_launcher<Timed,Value>(timeout)]
+	[exec, operation = std::move(factory_fn), launcher = expected_launcher<Timed,Value>(timeout)]
 	(auto completion_handler) mutable
 	{
 		auto slot = asio::get_associated_cancellation_slot(completion_handler);
@@ -442,22 +424,24 @@ template <bool Timed, typename Value, typename Exec,
 			completion_handler, exec
 		);
 		auto allocator = asio::get_associated_allocator(completion_handler);
-		auto handler = asio::bind_allocator(allocator,
-			asio::bind_executor(completion_exec,
-				asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
-				(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+
+		auto handler = asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+			asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+			(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+			{
+				if( auto error = exception_error(exception) )
 				{
-					if( auto error = exception_error(exception) )
-					{
-						std::move(handler)(error, Value{});
-						return ;
-					}
-					canonicalize_expected(result);
-					if( not result )
-						std::move(handler)(result.error(), Value{});
-					else
-						std::move(handler)(error_code{}, std::move(*result));
-				})));
+					std::move(handler)(error, Value{});
+					return ;
+				}
+				canonicalize_expected(result);
+
+				if( not result )
+					std::move(handler)(result.error(), Value{});
+				else
+					std::move(handler)(error_code{}, std::move(*result));
+			})
+		));
 		launcher(exec, std::move(operation), std::move(handler));
 	},
 	completion_token);
@@ -484,9 +468,8 @@ constexpr bool token_has_redirect_error_v =
 // Some APIs deliberately keep expected in their future/coroutine result.  This
 // bridge still presents an error_code to redirect_error, but never turns that
 // error into an exception for an unredirected future or awaitable.
-template <bool Timed, typename Value, typename Exec,
-	typename Factory, typename Token>
-[[nodiscard]] auto initiate_preserved_expected
+template <bool Timed, typename Value, typename Exec, typename Factory, typename Token>
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_preserved_expected
 (const Exec &exec, Factory factory_fn, std::chrono::nanoseconds timeout, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -495,8 +478,7 @@ template <bool Timed, typename Value, typename Exec,
 	if constexpr( token_has_redirect_error_v<token_t> )
 	{
 		return asio::async_initiate<token_t,void(error_code,sys_expected<Value>)>(
-		[exec, operation = std::move(factory_fn),
-		 launcher = expected_launcher<Timed,Value>(timeout)]
+		[exec, operation = std::move(factory_fn), launcher = expected_launcher<Timed,Value>(timeout)]
 		(auto completion_handler) mutable
 		{
 			auto slot = asio::get_associated_cancellation_slot(completion_handler);
@@ -504,22 +486,24 @@ template <bool Timed, typename Value, typename Exec,
 				completion_handler, exec
 			);
 			auto allocator = asio::get_associated_allocator(completion_handler);
-			auto handler = asio::bind_allocator(allocator,
-				asio::bind_executor(completion_exec,
-					asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
-					(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+
+			auto handler = asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+				(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+				{
+					if( auto error = exception_error(exception) )
 					{
-						if( auto error = exception_error(exception) )
-						{
-							std::move(handler)(error,
-								sys_expected<Value>(sys_unexpected(error))
-							);
-							return ;
-						}
-						canonicalize_expected(result);
-						const auto error = result ? error_code{} : result.error();
-						std::move(handler)(error, std::move(result));
-					})));
+						std::move(handler)(error,
+							sys_expected<Value>(sys_unexpected(error))
+						);
+						return ;
+					}
+					canonicalize_expected(result);
+
+					const auto error = result ? error_code{} : result.error();
+					std::move(handler)(error, std::move(result));
+				})
+			));
 			launcher(exec, std::move(operation), std::move(handler));
 		},
 		completion_token);
@@ -527,8 +511,7 @@ template <bool Timed, typename Value, typename Exec,
 	else
 	{
 		return asio::async_initiate<token_t,void(sys_expected<Value>)>(
-		[exec, operation = std::move(factory_fn),
-		 launcher = expected_launcher<Timed,Value>(timeout)]
+		[exec, operation = std::move(factory_fn), launcher = expected_launcher<Timed,Value>(timeout)]
 		(auto completion_handler) mutable
 		{
 			auto slot = asio::get_associated_cancellation_slot(completion_handler);
@@ -536,21 +519,22 @@ template <bool Timed, typename Value, typename Exec,
 				completion_handler, exec
 			);
 			auto allocator = asio::get_associated_allocator(completion_handler);
-			auto handler = asio::bind_allocator(allocator,
-				asio::bind_executor(completion_exec,
-					asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
-					(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+
+			auto handler = asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+				asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+				(const std::exception_ptr &exception, sys_expected<Value> result) mutable
+				{
+					if( auto error = exception_error(exception) )
 					{
-						if( auto error = exception_error(exception) )
-						{
-							std::move(handler)(sys_expected<Value>(
-								sys_unexpected(error)
-							));
-							return ;
-						}
-						canonicalize_expected(result);
-						std::move(handler)(std::move(result));
-					})));
+						std::move(handler)(sys_expected<Value>(
+							sys_unexpected(error)
+						));
+						return ;
+					}
+					canonicalize_expected(result);
+					std::move(handler)(std::move(result));
+				})
+			));
 			launcher(exec, std::move(operation), std::move(handler));
 		},
 		completion_token);
@@ -558,7 +542,8 @@ template <bool Timed, typename Value, typename Exec,
 }
 
 template <typename Factory>
-[[nodiscard]] awaitable<sys_expected<std::monostate>> co_void_expected_value(Factory factory)
+[[nodiscard]] LIBGS_CORE_TAPI
+awaitable<sys_expected<std::monostate>> co_void_expected_value(Factory factory)
 {
 	auto result = co_await factory();
 	if( not result )
@@ -567,38 +552,36 @@ template <typename Factory>
 }
 
 template <bool Timed, typename Exec, typename Factory, typename Token>
-[[nodiscard]] auto initiate_expected_void
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_expected_void
 (const Exec &exec, Factory factory_fn, std::chrono::nanoseconds timeout, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	token_t completion_token(std::forward<Token>(token));
 
 	return asio::async_initiate<token_t,void(error_code)>(
-	[exec, operation = std::move(factory_fn),
-	 launcher = expected_launcher<Timed,std::monostate>(timeout)]
+	[exec, operation = std::move(factory_fn), launcher = expected_launcher<Timed,std::monostate>(timeout)]
 	(auto completion_handler) mutable
 	{
 		auto slot = asio::get_associated_cancellation_slot(completion_handler);
-		auto completion_exec = asio::get_associated_executor(
+		auto completion_exec = asio::get_associated_executor (
 			completion_handler, exec
 		);
 		auto allocator = asio::get_associated_allocator(completion_handler);
-		auto value_operation =
-		[void_operation = std::move(operation)]() mutable {
+		auto value_operation = [void_operation = std::move(operation)]() mutable {
 			return co_void_expected_value(std::move(void_operation));
 		};
-		auto handler = asio::bind_allocator(allocator,
-			asio::bind_executor(completion_exec,
-				asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
-				(const std::exception_ptr &exception, sys_expected<std::monostate> result) mutable
-				{
-					if( auto error = exception_error(exception) )
-						std::move(handler)(error);
-					else if( not result )
-						std::move(handler)(canonical_error(result.error()));
-					else
-						std::move(handler)(error_code{});
-				})));
+		auto handler = asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
+			asio::bind_cancellation_slot(slot, [handler = std::move(completion_handler)]
+			(const std::exception_ptr &exception, sys_expected<std::monostate> result) mutable
+			{
+				if( auto error = exception_error(exception) )
+					std::move(handler)(error);
+				else if( not result )
+					std::move(handler)(canonical_error(result.error()));
+				else
+					std::move(handler)(error_code{});
+			})
+		));
 		launcher(exec, std::move(value_operation), std::move(handler));
 	},
 	completion_token);
@@ -607,7 +590,7 @@ template <bool Timed, typename Exec, typename Factory, typename Token>
 // Ordinary completion tokens stay on the direct async_initiate path. Only a
 // positive redirect_time creates the coroutine/timer race above.
 template <typename Value, typename Handler, typename Exec>
-class direct_io_handler
+class LIBGS_CORE_TAPI direct_io_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
@@ -623,11 +606,9 @@ public:
 	[[nodiscard]] executor_type get_executor() const noexcept {
 		return m_executor;
 	}
-
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
-
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
@@ -636,10 +617,9 @@ public:
 	{
 		error = canonical_error(error);
 		asio::post(m_executor, asio::bind_allocator(m_allocator,
-			[handler = std::move(m_handler), error,
-			 value = std::move(value)]() mutable {
-				std::move(handler)(error, std::move(value));
-			}));
+		[handler = std::move(m_handler), error, value = std::move(value)]() mutable {
+			std::move(handler)(error, std::move(value));
+		}));
 	}
 
 private:
@@ -650,7 +630,7 @@ private:
 };
 
 template <typename Handler, typename Exec>
-class direct_io_void_handler
+class LIBGS_CORE_TAPI direct_io_void_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
@@ -666,11 +646,9 @@ public:
 	[[nodiscard]] executor_type get_executor() const noexcept {
 		return m_executor;
 	}
-
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
-
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
@@ -679,9 +657,9 @@ public:
 	{
 		error = canonical_error(error);
 		asio::post(m_executor, asio::bind_allocator(m_allocator,
-			[handler = std::move(m_handler), error]() mutable {
-				std::move(handler)(error);
-			}));
+		[handler = std::move(m_handler), error]() mutable {
+			std::move(handler)(error);
+		}));
 	}
 
 private:
@@ -692,7 +670,7 @@ private:
 };
 
 template <typename Value, typename Handler, typename Exec>
-class co_spawn_io_handler
+class LIBGS_CORE_TAPI co_spawn_io_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
@@ -708,24 +686,22 @@ public:
 	[[nodiscard]] executor_type get_executor() const noexcept {
 		return m_executor;
 	}
-
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
-
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
 
-	void operator()(std::exception_ptr exception,
-		std::tuple<error_code,Value> result)
+	void operator()(const std::exception_ptr &exception, std::tuple<error_code,Value> result)
 	{
 		if( auto error = exception_error(exception) )
 			std::move(m_handler)(error, Value{});
 		else
 		{
 			std::move(m_handler)(std::get<0>(result),
-				std::move(std::get<1>(result)));
+				std::move(std::get<1>(result))
+			);
 		}
 	}
 
@@ -737,7 +713,7 @@ private:
 };
 
 template <typename Handler, typename Exec>
-class co_spawn_error_handler
+class LIBGS_CORE_TAPI co_spawn_error_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
@@ -753,16 +729,14 @@ public:
 	[[nodiscard]] executor_type get_executor() const noexcept {
 		return m_executor;
 	}
-
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
-
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
 
-	void operator()(std::exception_ptr exception, error_code error)
+	void operator()(const std::exception_ptr &exception, error_code error)
 	{
 		if( auto exception_code = exception_error(exception) )
 			std::move(m_handler)(exception_code);
@@ -778,7 +752,7 @@ private:
 };
 
 template <typename Value, typename Handler, typename Exec, typename Factory>
-class co_spawn_optional_io_handler
+class LIBGS_CORE_TAPI co_spawn_optional_io_handler
 {
 public:
 	using executor_type = asio::associated_executor_t<Handler,Exec>;
@@ -795,27 +769,81 @@ public:
 	[[nodiscard]] executor_type get_executor() const noexcept {
 		return m_executor;
 	}
-
 	[[nodiscard]] allocator_type get_allocator() const noexcept {
 		return m_allocator;
 	}
-
 	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 		return m_slot;
 	}
 
-	void operator()(std::exception_ptr exception,
-		std::pair<error_code,std::optional<Value>> result)
+	void operator()
+	(const std::exception_ptr &exception, std::pair<error_code,std::optional<Value>> result)
 	{
 		if( auto error = exception_error(exception) )
 			std::move(m_handler)(error, m_factory());
+
 		else if( not result.second )
 		{
 			std::move(m_handler)(result.first ? result.first :
-				make_error_code(std::errc::io_error), m_factory());
+				make_error_code(std::errc::io_error), m_factory()
+			);
 		}
 		else
 			std::move(m_handler)(result.first, std::move(*result.second));
+	}
+
+private:
+	Handler m_handler;
+	executor_type m_executor;
+	allocator_type m_allocator;
+	cancellation_slot_type m_slot;
+	Factory m_factory;
+};
+
+template <typename Value, typename Handler, typename Exec, typename Factory>
+class LIBGS_CORE_TAPI awaitable_optional_tuple_io_handler
+{
+public:
+	using executor_type = asio::associated_executor_t<Handler,Exec>;
+	using allocator_type = asio::associated_allocator_t<Handler>;
+	using cancellation_slot_type = asio::associated_cancellation_slot_t<Handler>;
+
+	awaitable_optional_tuple_io_handler(Handler handler, const Exec &exec,
+		Factory factory) :
+		m_handler(std::move(handler)),
+		m_executor(asio::get_associated_executor(m_handler, exec)),
+		m_allocator(asio::get_associated_allocator(m_handler)),
+		m_slot(asio::get_associated_cancellation_slot(m_handler)),
+		m_factory(std::move(factory)) {}
+
+	[[nodiscard]] executor_type get_executor() const noexcept {
+		return m_executor;
+	}
+	[[nodiscard]] allocator_type get_allocator() const noexcept {
+		return m_allocator;
+	}
+	[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
+		return m_slot;
+	}
+
+	void operator()
+	(const std::exception_ptr &exception, std::optional<std::tuple<error_code,Value>> result)
+	{
+		if( auto error = exception_error(exception) )
+			std::move(m_handler)(error, m_factory());
+
+		else if( not result )
+		{
+			std::move(m_handler) (
+				make_error_code(std::errc::io_error), m_factory()
+			);
+		}
+		else
+		{
+			std::move(m_handler)(std::get<0>(*result),
+				std::move(std::get<1>(*result))
+			);
+		}
 	}
 
 private:
@@ -833,7 +861,7 @@ private:
 // awaitable body independent of the completion token while retaining the
 // associated cancellation path and the asynchronous-completion guarantee.
 template <typename Exec>
-class awaitable_cancellation_relay
+class LIBGS_CORE_TAPI awaitable_cancellation_relay
 {
 public:
 	explicit awaitable_cancellation_relay(const Exec &exec) :
@@ -847,7 +875,7 @@ public:
 	void operator()(asio::cancellation_type_t type)
 	{
 		auto signal = m_signal;
-		asio::dispatch(m_exec, [signal = std::move(signal), type] {
+		asio::dispatch(m_exec, [signal = std::move(signal), type]{
 			signal->emit(type);
 		});
 	}
@@ -858,14 +886,12 @@ private:
 };
 
 template <typename Value, typename Handler, typename Exec>
-asio::awaitable<asio::detail::awaitable_thread_entry_point,Exec>
+[[nodiscard]] LIBGS_CORE_TAPI asio::awaitable<asio::detail::awaitable_thread_entry_point,Exec>
 co_launch_awaitable(asio::awaitable<Value,Exec> operation, Handler handler)
 {
 	std::exception_ptr exception;
 	bool completed = false;
-
-	try
-	{
+	try {
 		Value result = co_await std::move(operation);
 		completed = true;
 
@@ -883,7 +909,6 @@ co_launch_awaitable(asio::awaitable<Value,Exec> operation, Handler handler)
 			throw;
 		exception = std::current_exception();
 	}
-
 	if( co_await asio::detail::awaitable_thread_is_launching{} )
 	{
 		co_await asio::this_coro::throw_if_cancelled(false);
@@ -893,58 +918,60 @@ co_launch_awaitable(asio::awaitable<Value,Exec> operation, Handler handler)
 }
 
 template <typename Value, typename Handler, typename Exec>
-void launch_awaitable(const Exec &exec, asio::awaitable<Value,Exec> operation,
-	Handler handler)
+LIBGS_CORE_TAPI void launch_awaitable
+(const Exec &exec, asio::awaitable<Value,Exec> operation, Handler handler)
 {
 	auto parent_slot = asio::get_associated_cancellation_slot(handler);
 	using relay_t = awaitable_cancellation_relay<Exec>;
 
 	auto *relay = parent_slot.is_connected() ?
 		&parent_slot.template emplace<relay_t>(exec) : nullptr;
-	auto child_slot = relay ? relay->slot() : asio::cancellation_slot{};
 
+	auto child_slot = relay ? relay->slot() : asio::cancellation_slot{};
 	auto entry = co_launch_awaitable(std::move(operation), std::move(handler));
+
 	asio::detail::awaitable_handler<Exec,void>(std::move(entry), exec,
-		child_slot, asio::cancellation_state(child_slot)).launch();
+		child_slot, asio::cancellation_state(child_slot)
+	).launch();
 }
 
 template <typename Value, typename Exec, typename Initiator, typename Token>
-[[nodiscard]] auto initiate_io_direct(const Exec &exec, Initiator initiation, Token &&token)
+[[nodiscard]] LIBGS_CORE_TAPI
+auto initiate_io_direct(const Exec &exec, Initiator initiation, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	token_t completion_token(std::forward<Token>(token));
 
 	return asio::async_initiate<token_t,void(error_code,Value)>(
-	[exec, start = std::move(initiation)](auto completion_handler) mutable
+	[exec, start = std::move(initiation)]<typename Handler>(Handler completion_handler) mutable
 	{
-		using handler_t = decltype(completion_handler);
-		start(direct_io_handler<Value,handler_t,Exec>(
-			std::move(completion_handler), exec));
+		start(direct_io_handler<Value,Handler,Exec>(
+			std::move(completion_handler), exec)
+		);
 	},
 	completion_token);
 }
 
 template <typename Value, typename Exec>
-class timed_io_state : public std::enable_shared_from_this<
-	timed_io_state<Value,Exec>>
+class LIBGS_CORE_TAPI timed_io_state :
+	public std::enable_shared_from_this<timed_io_state<Value,Exec>>
 {
-	using self_t = timed_io_state<Value,Exec>;
+	using self_t = timed_io_state;
 	using completion_fn_t = void (*)(self_t&, error_code, Value, bool);
 
-	enum class first_completion { none, io, timer };
+	enum class first_completion {
+		none, io, timer
+	};
 
 	struct io_handler
 	{
 		using cancellation_slot_type = asio::cancellation_slot;
-		std::shared_ptr<self_t> state;
+		std::shared_ptr<self_t> state {};
 
-		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept
-		{
+		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 			return state->m_io_cancellation.slot();
 		}
-
-		void operator()(error_code error, Value value)
-		{
+		void operator()(error_code error, Value value) {
 			state->io_complete(error, std::move(value));
 		}
 	};
@@ -952,15 +979,12 @@ class timed_io_state : public std::enable_shared_from_this<
 	struct void_io_handler
 	{
 		using cancellation_slot_type = asio::cancellation_slot;
-		std::shared_ptr<self_t> state;
+		std::shared_ptr<self_t> state {};
 
-		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept
-		{
+		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 			return state->m_io_cancellation.slot();
 		}
-
-		void operator()(error_code error)
-		{
+		void operator()(error_code error) {
 			state->io_complete(error, Value{});
 		}
 	};
@@ -968,15 +992,12 @@ class timed_io_state : public std::enable_shared_from_this<
 	struct timer_handler
 	{
 		using cancellation_slot_type = asio::cancellation_slot;
-		std::shared_ptr<self_t> state;
+		std::shared_ptr<self_t> state {};
 
-		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept
-		{
+		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept {
 			return state->m_timer_cancellation.slot();
 		}
-
-		void operator()(error_code error)
-		{
+		void operator()(error_code error) {
 			state->timer_complete(error);
 		}
 	};
@@ -995,7 +1016,7 @@ class timed_io_state : public std::enable_shared_from_this<
 public:
 	timed_io_state(const Exec &exec, asio::cancellation_slot caller_slot,
 		std::chrono::nanoseconds timeout, completion_fn_t completion_fn) :
-		m_exec(exec), m_timer(exec), m_caller_slot(std::move(caller_slot)),
+		m_exec(exec), m_timer(exec), m_caller_slot(caller_slot),
 		m_completion_fn(completion_fn)
 	{
 		m_timer.expires_after(timeout);
@@ -1005,47 +1026,48 @@ public:
 	void start(Initiator initiation)
 	{
 		auto self = this->shared_from_this();
-		try
-		{
+		try {
 			if( m_caller_slot.is_connected() )
 			{
-				m_caller_slot.template emplace<caller_cancellation_handler>(
-					std::weak_ptr<self_t>(self));
+				m_caller_slot.emplace<caller_cancellation_handler>(
+					std::weak_ptr<self_t>(self)
+				);
 			}
-
 			if constexpr( std::same_as<Value,std::monostate> )
 				initiation(void_io_handler{self});
 			else
 				initiation(io_handler{self});
+
 			m_timer.async_wait(timer_handler{std::move(self)});
 			finish_launch();
 		}
-		catch(...)
-		{
+		catch(...) {
 			fail(std::current_exception());
 		}
 	}
 
 protected:
-	[[nodiscard]] const Exec& executor() const noexcept
-	{
+	[[nodiscard]] const Exec& executor() const noexcept {
 		return m_exec;
 	}
 
 private:
 	void finish_launch()
 	{
-		asio::cancellation_type_t io_type = asio::cancellation_type::none;
-		asio::cancellation_type_t timer_type = asio::cancellation_type::none;
+		auto io_type = asio::cancellation_type::none;
+		auto timer_type = asio::cancellation_type::none;
 		{
 			std::lock_guard lock(m_mutex);
 			if( m_completed )
 				return ;
+
 			m_launching = false;
 			io_type = std::exchange(m_pending_io_cancellation,
-				asio::cancellation_type::none);
+				asio::cancellation_type::none
+			);
 			timer_type = std::exchange(m_pending_timer_cancellation,
-				asio::cancellation_type::none);
+				asio::cancellation_type::none
+			);
 		}
 		emit_cancellation(io_type, timer_type);
 	}
@@ -1054,11 +1076,13 @@ private:
 	{
 		if( type == asio::cancellation_type::none )
 			return ;
+
 		bool emit = false;
 		{
 			std::lock_guard lock(m_mutex);
 			if( m_completed )
 				return ;
+
 			if( m_launching )
 			{
 				m_pending_io_cancellation |= type;
@@ -1079,11 +1103,14 @@ private:
 			std::lock_guard lock(m_mutex);
 			if( m_completed or m_io_done )
 				return ;
+
 			if( m_first == first_completion::none )
 				m_first = first_completion::io;
+
 			m_io_error = canonical_error(error);
 			m_value.emplace(std::move(value));
 			m_io_done = true;
+
 			complete = m_timer_done;
 			if( not m_timer_done )
 			{
@@ -1094,8 +1121,11 @@ private:
 			}
 		}
 		if( cancel_timer )
+		{
 			emit_cancellation(asio::cancellation_type::none,
-				asio::cancellation_type::all);
+				asio::cancellation_type::all
+			);
+		}
 		if( complete )
 			complete_normal();
 	}
@@ -1108,10 +1138,13 @@ private:
 			std::lock_guard lock(m_mutex);
 			if( m_completed or m_timer_done )
 				return ;
+
 			if( m_first == first_completion::none )
 				m_first = first_completion::timer;
+
 			m_timer_error = canonical_error(error);
 			m_timer_done = true;
+
 			complete = m_io_done;
 			if( not m_io_done )
 			{
@@ -1122,8 +1155,11 @@ private:
 			}
 		}
 		if( cancel_io )
+		{
 			emit_cancellation(asio::cancellation_type::all,
-				asio::cancellation_type::none);
+				asio::cancellation_type::none
+			);
+		}
 		if( complete )
 			complete_normal();
 	}
@@ -1136,46 +1172,54 @@ private:
 			std::lock_guard lock(m_mutex);
 			if( m_completed or not m_io_done or not m_timer_done )
 				return ;
+
 			m_completed = true;
 			if( m_first == first_completion::io )
 				error = m_io_error;
+
 			else if( not m_timer_error )
 				error = make_error_code(errc::timed_out);
 			else
 				error = m_io_error ? m_io_error : m_timer_error;
+
 			value.emplace(std::move(*m_value));
 		}
 		m_caller_slot.clear();
 		m_completion_fn(*this, error, std::move(*value), false);
 	}
 
-	void fail(std::exception_ptr exception)
+	void fail(const std::exception_ptr &exception)
 	{
 		{
 			std::lock_guard lock(m_mutex);
 			if( m_completed )
 				return ;
+
 			m_completed = true;
 			m_launching = false;
 		}
 		m_caller_slot.clear();
+
 		emit_cancellation(asio::cancellation_type::all,
-			asio::cancellation_type::all);
+			asio::cancellation_type::all
+		);
 		m_completion_fn(*this, exception_error(exception), Value{}, true);
 	}
 
-	void emit_cancellation(asio::cancellation_type_t io_type,
-		asio::cancellation_type_t timer_type)
+	void emit_cancellation
+	(asio::cancellation_type_t io_type, asio::cancellation_type_t timer_type)
 	{
 		std::lock_guard emit_lock(m_emit_mutex);
 		if( io_type != asio::cancellation_type::none )
 			m_io_cancellation.emit(io_type);
+
 		if( timer_type != asio::cancellation_type::none )
 			m_timer_cancellation.emit(timer_type);
 	}
 
-	Exec m_exec;
+	Exec m_exec {};
 	asio::steady_timer m_timer;
+
 	asio::cancellation_signal m_io_cancellation;
 	asio::cancellation_signal m_timer_cancellation;
 	asio::cancellation_slot m_caller_slot;
@@ -1184,13 +1228,17 @@ private:
 	std::mutex m_mutex;
 	std::mutex m_emit_mutex;
 	std::optional<Value> m_value;
+
 	error_code m_io_error;
 	error_code m_timer_error;
 	first_completion m_first = first_completion::none;
+
 	asio::cancellation_type_t m_pending_io_cancellation =
 		asio::cancellation_type::none;
+
 	asio::cancellation_type_t m_pending_timer_cancellation =
 		asio::cancellation_type::none;
+
 	bool m_launching = true;
 	bool m_io_done = false;
 	bool m_timer_done = false;
@@ -1198,16 +1246,15 @@ private:
 };
 
 template <typename Value, typename Exec, typename Handler>
-class timed_io_operation final : public timed_io_state<Value,Exec>
+class LIBGS_CORE_TAPI timed_io_operation final :
+	public timed_io_state<Value,Exec>
 {
-	using self_t = timed_io_operation<Value,Exec,Handler>;
+	using self_t = timed_io_operation;
 	using base_t = timed_io_state<Value,Exec>;
 
 public:
-	timed_io_operation(const Exec &exec, Handler handler,
-		std::chrono::nanoseconds timeout) :
-		base_t(exec, asio::get_associated_cancellation_slot(handler), timeout,
-			&self_t::complete),
+	timed_io_operation(const Exec &exec, Handler handler, std::chrono::nanoseconds timeout) :
+		base_t(exec, asio::get_associated_cancellation_slot(handler), timeout, &self_t::complete),
 		m_handler(std::move(handler))
 	{}
 
@@ -1217,20 +1264,21 @@ private:
 		auto &self = static_cast<self_t&>(base);
 		auto handler = std::move(*self.m_handler);
 		self.m_handler.reset();
-		auto completion_exec = asio::get_associated_executor(handler,
-			self.executor());
+
+		auto completion_exec = asio::get_associated_executor(handler, self.executor());
 		auto allocator = asio::get_associated_allocator(handler);
+
 		auto completion = asio::bind_allocator(allocator,
-			[handler = std::move(handler), error, value = std::move(value)]() mutable
+		[handler = std::move(handler), error, value = std::move(value)]() mutable
+		{
+			if constexpr( std::same_as<Value,std::monostate> )
 			{
-				if constexpr( std::same_as<Value,std::monostate> )
-				{
-					ignore_unused(value);
-					std::move(handler)(error);
-				}
-				else
-					std::move(handler)(error, std::move(value));
-			});
+				ignore_unused(value);
+				std::move(handler)(error);
+			}
+			else
+				std::move(handler)(error, std::move(value));
+		});
 		if( post )
 			asio::post(completion_exec, std::move(completion));
 		else
@@ -1241,19 +1289,21 @@ private:
 };
 
 template <typename Value, typename Exec, typename Initiator, typename Handler>
-void start_timed_io(const Exec &exec, Initiator initiation,
-	std::chrono::nanoseconds timeout, Handler &&handler)
+LIBGS_CORE_TAPI void start_timed_io
+(const Exec &exec, Initiator initiation, std::chrono::nanoseconds timeout, Handler &&handler)
 {
 	auto allocator = asio::get_associated_allocator(handler);
 	using handler_t = std::remove_cvref_t<Handler>;
 	using state_t = timed_io_operation<Value,Exec,handler_t>;
+
 	auto state = std::allocate_shared<state_t>(allocator, exec,
-		std::forward<Handler>(handler), timeout);
+		std::forward<Handler>(handler), timeout
+	);
 	state->start(std::move(initiation));
 }
 
 template <typename Value, typename Exec, typename Initiator, typename Token>
-[[nodiscard]] auto initiate_io_timed
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_io_timed
 (const Exec &exec, Initiator initiation, std::chrono::nanoseconds timeout, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -1262,15 +1312,16 @@ template <typename Value, typename Exec, typename Initiator, typename Token>
 	return asio::async_initiate<token_t,void(error_code,Value)>(
 	[exec, operation = std::move(initiation), timeout](auto completion_handler) mutable
 	{
-		start_timed_io<Value>(exec, std::move(operation), timeout,
-			std::move(completion_handler));
+		start_timed_io<Value>(exec,
+			std::move(operation), timeout, std::move(completion_handler)
+		);
 	},
 	completion_token);
 }
 
 template <typename Exec, typename Initiator, typename Token>
-[[nodiscard]] auto initiate_io_timed_void(const Exec &exec,
-	Initiator initiation, std::chrono::nanoseconds timeout, Token &&token)
+[[nodiscard]] LIBGS_CORE_TAPI auto initiate_io_timed_void
+(const Exec &exec, Initiator initiation, std::chrono::nanoseconds timeout, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	token_t completion_token(std::forward<Token>(token));
@@ -1278,23 +1329,25 @@ template <typename Exec, typename Initiator, typename Token>
 	return asio::async_initiate<token_t,void(error_code)>(
 	[exec, operation = std::move(initiation), timeout](auto completion_handler) mutable
 	{
-		start_timed_io<std::monostate>(exec, std::move(operation), timeout,
-			std::move(completion_handler));
+		start_timed_io<std::monostate>(exec,
+			std::move(operation), timeout, std::move(completion_handler)
+		);
 	}, completion_token);
 }
 
 template <typename Exec, typename Initiator, typename Token>
-[[nodiscard]] auto initiate_io_direct_void(const Exec &exec, Initiator initiation, Token &&token)
+[[nodiscard]] LIBGS_CORE_TAPI
+auto initiate_io_direct_void(const Exec &exec, Initiator initiation, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	token_t completion_token(std::forward<Token>(token));
 
 	return asio::async_initiate<token_t,void(error_code)>(
-	[exec, start = std::move(initiation)](auto completion_handler) mutable
+	[exec, start = std::move(initiation)]<typename Handler>(Handler completion_handler) mutable
 	{
-		using handler_t = decltype(completion_handler);
-		start(direct_io_void_handler<handler_t,Exec>(
-			std::move(completion_handler), exec));
+		start(direct_io_void_handler<Handler,Exec>(
+			std::move(completion_handler), exec)
+		);
 	},
 	completion_token);
 }
@@ -1403,8 +1456,7 @@ template <typename Value, concepts::exec Exec, typename Factory, typename Token>
 }
 
 template <typename Value, concepts::exec Exec, typename Factory, typename Token>
-[[nodiscard]] auto initiate_preserved_expected
-(const Exec &exec, Factory factory, Token &&token)
+[[nodiscard]] auto initiate_preserved_expected(const Exec &exec, Factory factory, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_redirect_time_v<token_t> )

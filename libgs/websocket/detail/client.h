@@ -45,7 +45,7 @@ bool same_websocket_origin(const url &lhs, const url &rhs) noexcept;
 [[nodiscard]] LIBGS_WEBSOCKET_API
 bool websocket_redirect_status(http::status_enum status) noexcept;
 
-template <core_concepts::exec Exec>
+template <typename Exec>
 LIBGS_WEBSOCKET_TAPI void close_reply_connection
 (const std::shared_ptr<http::basic_reply<Exec>> &reply) noexcept
 {
@@ -77,112 +77,44 @@ template <typename ConnectionPtr>
 }
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
-std::vector<std::byte> pending_bytes(std::string pending);
+std::vector<std::byte> pending_bytes(const std::string &pending);
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
 std::chrono::milliseconds remaining_timeout(std::chrono::steady_clock::time_point deadline) noexcept;
 
-template <typename RequestInfo>
-[[nodiscard]] error_code configure_proxy_request
-(const optional<proxy_t> &proxy, const url &endpoint, RequestInfo &info, bool inherit_global_proxy) noexcept
+struct open_http_request
 {
-	const bool use_global = proxy ?
-		std::holds_alternative<use_global_proxy_t>(*proxy) : inherit_global_proxy;
+	opening_request opening {};
+	url transport {};
+	http::request_arg options {};
+	std::optional<http::proxy_t> proxy {};
+};
 
-	if( not proxy and not use_global )
-		return {};
-	try {
-		if( use_global )
-		{
-			auto resolved = [&]() -> sys_expected<http::detail::resolved_proxy>
-			{
-				if( ascii_equal_case_insensitive(endpoint.protocol(), "ws") )
-				{
-					return http::detail::resolve_global_proxy(endpoint, {
-						"ws_proxy", "WS_PROXY", "http_proxy", "HTTP_PROXY",
-						"all_proxy", "ALL_PROXY"
-					});
-				}
-				if( ascii_equal_case_insensitive(endpoint.protocol(), "wss") )
-				{
-					return http::detail::resolve_global_proxy(endpoint, {
-						"wss_proxy", "WSS_PROXY", "https_proxy", "HTTPS_PROXY",
-						"all_proxy", "ALL_PROXY"
-					});
-				}
-				return sys_unexpected (
-					make_error_code(std::errc::protocol_not_supported)
-				);
-			}();
+[[nodiscard]] LIBGS_WEBSOCKET_API sys_expected<open_http_request>
+prepare_open_http_request(const connect_request &request, const url &endpoint,
+	const http::request_arg &base_options, bool inherit_global_proxy) noexcept;
 
-			if( not resolved )
-				return resolved.error();
+enum class open_response_action : uint8_t {
+	accept, redirect, reject,
+};
 
-			if( resolved->forward )
-			{
-				info.proxy = std::move(*resolved->forward);
-				if( resolved->authorization and
-					info.arg.headers().find(http::header::proxy_authorization) == info.arg.headers().end() )
-				{
-					info.arg.set_header(http::header::proxy_authorization,
-						*resolved->authorization
-					);
-				}
-			}
-			else if( resolved->tunnel )
-				info.proxy = std::move(*resolved->tunnel);
-			else
-				info.proxy = no_proxy;
-			return {};
-		}
-		if( std::holds_alternative<no_proxy_t>(*proxy) )
-		{
-			info.proxy = no_proxy;
-			return {};
-		}
-		const auto &config = std::get<proxy_config>(*proxy);
-		const auto endpoint_scheme = strtls::to_lower(endpoint.protocol());
-		const auto proxy_scheme = strtls::to_lower(config.endpoint.protocol());
+struct open_response_decision
+{
+	open_response_action action = open_response_action::reject;
+	error_code error {};
+	url redirect_endpoint {};
+	opening_response response {};
+	bool clear_credentials = false;
+	bool close_connection = false;
+	bool record_diagnostics = false;
+};
 
-		if( config.type == proxy_type::http and endpoint_scheme == "ws" )
-		{
-			if( config.authorization )
-				info.arg.set_header(http::header::proxy_authorization, *config.authorization);
+[[nodiscard]] LIBGS_WEBSOCKET_API open_response_decision
+evaluate_open_response(http::status_enum status, const http::headers &headers,
+	const opening_request &opening, const connect_request &request,
+	const url &endpoint, const stream_config &stream, size_t redirects) noexcept;
 
-			info.proxy = config.endpoint;
-			return {};
-		}
-		http::proxy_tunnel tunnel;
-		tunnel.type = config.type == proxy_type::http ?
-			http::proxy_tunnel_type::http_connect :
-			http::proxy_tunnel_type::socks5;
-
-		tunnel.host = config.endpoint.host();
-		tunnel.port = config.endpoint.port();
-
-		if( tunnel.port == 0 )
-		{
-			tunnel.port = config.type == proxy_type::socks5 ? 1080 :
-				proxy_scheme == "https" ? 443 : 80;
-		}
-		tunnel.security = proxy_scheme == "https" ?
-			http::security_mode::tls : http::security_mode::plain;
-
-		tunnel.authorization = config.authorization;
-		tunnel.username = config.username;
-		tunnel.password = config.password;
-
-		info.proxy = std::move(tunnel);
-		return {};
-	}
-	catch(const std::bad_alloc&) {
-		return make_error_code(std::errc::not_enough_memory);
-	}
-	catch(...) {}
-	return make_error_code(std::errc::io_error);
-}
-
-template <core_concepts::exec Exec, http::version_enum Version>
+template <typename Exec, http::version_enum Version>
 void open_sync(http::basic_client<Exec,Version> &http_client, connect_request request,
 	basic_open_diagnostics<Exec> *diagnostics, stream_config stream_config_value,
 	optional<bool> no_delay, std::chrono::milliseconds timeout,
@@ -216,54 +148,21 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 				error = asio::error::timed_out;
 				return ;
 			}
-			std::array<std::byte,16> nonce {};
-			if( auto random = secure_random_bytes(asio::buffer(nonce)); not random )
-			{
-				error = random.error();
-				return ;
-			}
-			auto key = make_client_key(nonce);
-			if( not key )
-			{
-				error = key.error();
-				return ;
-			}
-			opening_request opening {
-				.key = std::move(*key),
-				.subprotocols = request.subprotocols,
-				.extensions = request.extensions,
-			};
-			auto opening_headers = make_opening_request_headers(opening);
-			if( not opening_headers )
-			{
-				error = opening_headers.error();
-				return ;
-			}
-			auto transport = http_transport_url(endpoint);
-			if( not transport )
-			{
-				error = transport.error();
-				return ;
-			}
-			auto options = base_options;
-			for(auto &[name, value] : *opening_headers)
-				options.set_header(name, value);
-
-			typename http::basic_client<Exec,Version>::req_info info(
-				std::move(*transport), std::move(options)
-			);
-			info.max_redirects = 0;
-			info.auto_decompression = false;
-
 			const bool inherit_global_proxy =
 				std::holds_alternative<use_global_proxy_t>(http_client.config().default_proxy);
-
-			if( auto proxy_error = configure_proxy_request
-				(request.proxy, endpoint, info, inherit_global_proxy) )
+			auto prepared = prepare_open_http_request(request, endpoint,
+				base_options, inherit_global_proxy);
+			if( not prepared )
 			{
-				error = proxy_error;
+				error = prepared.error();
 				return ;
 			}
+			auto opening = std::move(prepared->opening);
+			typename http::basic_client<Exec,Version>::req_info info(
+				std::move(prepared->transport), std::move(prepared->options));
+			info.proxy = std::move(prepared->proxy);
+			info.max_redirects = 0;
+			info.auto_decompression = false;
 			context = http_client.request_get(std::move(info), error);
 			if( error )
 				return ;
@@ -289,73 +188,31 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 			auto reply = context->reply();
 			const auto status = reply->status();
 
-			if( websocket_redirect_status(status) )
+			auto decision = evaluate_open_response(status, reply->headers(), opening,
+				request, endpoint, stream_config_value, redirects);
+			if( decision.record_diagnostics and diagnostics )
 			{
-				if( redirects >= request.max_redirects )
-				{
-					if( diagnostics )
-					{
-						diagnostics->endpoint = endpoint;
-						diagnostics->reply = reply;
-					}
-					error = make_error_code(errc::redirect_limit_exceeded);
-					return ;
-				}
-				auto location = reply->header(http::header::location);
-				if( not location )
-				{
-					if( diagnostics )
-					{
-						diagnostics->endpoint = endpoint;
-						diagnostics->reply = reply;
-					}
-					error = make_error_code(errc::handshake_rejected);
-					return ;
-				}
-				auto resolved = url::resolve(endpoint, location->to_string());
-				auto probe = request;
-
-				probe.endpoint = std::move(resolved);
-				error = validate_open_request(probe, stream_config_value);
-				if( error )
-					return ;
-
-				auto next = std::move(probe.endpoint);
-				if( ascii_equal_case_insensitive(endpoint.protocol(), "wss") and
-					ascii_equal_case_insensitive(next.protocol(), "ws") and
-					not request.allow_insecure_redirects )
-				{
-					error = make_error_code(errc::insecure_redirect);
-					return ;
-				}
-				if( not same_websocket_origin(endpoint, next) )
+				diagnostics->endpoint = endpoint;
+				diagnostics->reply = reply;
+			}
+			if( decision.action == open_response_action::redirect )
+			{
+				if( decision.clear_credentials )
 				{
 					base_options.unset_header(http::header::authorization);
 					base_options.unset_header("Cookie");
 					base_options.cookies().clear();
 				}
-				endpoint = std::move(next);
+				endpoint = std::move(decision.redirect_endpoint);
 				context.reset();
 				++redirects;
 				continue;
 			}
-			if( diagnostics )
+			if( decision.action == open_response_action::reject )
 			{
-				diagnostics->endpoint = endpoint;
-				diagnostics->reply = reply;
-			}
-			auto response = parse_opening_response(status, reply->headers(), opening);
-			if( not response )
-			{
-				error = response.error();
-				if( status == http::status::switching_protocols )
+				error = decision.error;
+				if( decision.close_connection )
 					close_reply_connection(reply);
-				return ;
-			}
-			if( not detail::supported_extension_response(response->extensions, request.extensions) )
-			{
-				error = make_error_code(errc::unsupported_extension);
-				close_reply_connection(reply);
 				return ;
 			}
 			auto pending = pending_bytes(reply->take_pending_data());
@@ -371,8 +228,8 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 			adopt_options adopt {
 				.stream_role = role::client,
 				.pending_data = std::move(pending),
-				.negotiated_subprotocol = response->subprotocol.value_or(""),
-				.negotiated_extensions = response->extensions,
+				.negotiated_subprotocol = decision.response.subprotocol.value_or(""),
+				.negotiated_extensions = std::move(decision.response.extensions),
 			};
 			result.adopt(std::move(connection), std::move(adopt), error);
 			return ;
@@ -386,7 +243,7 @@ void open_sync(http::basic_client<Exec,Version> &http_client, connect_request re
 	}
 }
 
-template <core_concepts::exec Exec, http::version_enum Version>
+template <typename Exec, http::version_enum Version>
 asio::awaitable<optional<std::tuple<error_code,basic_stream<Exec>>>,Exec>
 co_open(http::basic_client<Exec,Version> *client, connect_request active_request,
 	basic_open_diagnostics<Exec> *active_diagnostics, stream_config active_stream_config,
@@ -427,62 +284,25 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 					asio::error::timed_out, std::move(result)
 				};
 			}
-			std::array<std::byte,16> nonce {};
-			if( auto random = secure_random_bytes(asio::buffer(nonce)); not random )
-			{
-				co_return std::tuple<error_code,result_t> {
-					random.error(), std::move(result)
-				};
-			}
-			auto key = make_client_key(nonce);
-			if( not key )
-			{
-				co_return std::tuple<error_code,result_t> {
-					key.error(), std::move(result)
-				};
-			}
-			opening_request opening {
-				.key = std::move(*key),
-				.subprotocols = active_request.subprotocols,
-				.extensions = active_request.extensions,
-			};
-			auto opening_headers = make_opening_request_headers(opening);
-			if( not opening_headers )
-			{
-				co_return std::tuple<error_code,result_t> {
-					opening_headers.error(), std::move(result)
-				};
-			}
-			auto transport = http_transport_url(endpoint);
-			if( not transport )
-			{
-				co_return std::tuple<error_code,result_t> {
-					transport.error(), std::move(result)
-				};
-			}
-			auto options = base_options;
-			for(auto &[name, value] : *opening_headers)
-				options.set_header(name, value);
-
-			typename http::basic_client<Exec,Version>::req_info info (
-				std::move(*transport), std::move(options)
-			);
-			info.auto_decompression = false;
-			info.max_redirects = 0;
-
 			const bool inherit_global_proxy =
 				std::holds_alternative<use_global_proxy_t>(client->config().default_proxy);
-
-			if( auto proxy_error = configure_proxy_request
-				(active_request.proxy, endpoint, info, inherit_global_proxy) )
+			auto prepared = prepare_open_http_request(active_request, endpoint,
+				base_options, inherit_global_proxy);
+			if( not prepared )
 			{
 				co_return std::tuple<error_code,result_t> {
-					proxy_error, std::move(result)
+					prepared.error(), std::move(result)
 				};
 			}
-			auto [request_error, next_context] = co_await client->request_get (
-				std::move(info), asio::as_tuple(deferred)
-			);
+			auto opening = std::move(prepared->opening);
+			typename http::basic_client<Exec,Version>::req_info info(
+				std::move(prepared->transport), std::move(prepared->options));
+			info.proxy = std::move(prepared->proxy);
+			info.auto_decompression = false;
+			info.max_redirects = 0;
+			auto [request_error, next_context] =
+				co_await http::detail::client_access::request<http::method::get>(
+					*client, std::move(info));
 			if( request_error )
 			{
 				co_return std::tuple<error_code,result_t> {
@@ -501,9 +321,8 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 					asio::error::timed_out, std::move(result)
 				};
 			}
-			auto [reply_error, status] = co_await context->wait_reply (
-				asio::as_tuple(deferred)
-			);
+			auto [reply_error, status] =
+				co_await http::detail::reply_access::wait(*context->reply());
 			if( reply_error )
 			{
 				context->cancel();
@@ -514,87 +333,32 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 				};
 			}
 			auto reply = context->reply();
-			if( websocket_redirect_status(status) )
+			auto decision = evaluate_open_response(status, reply->headers(), opening,
+				active_request, endpoint, active_stream_config, redirects);
+			if( decision.record_diagnostics and active_diagnostics )
 			{
-				if( redirects >= active_request.max_redirects )
-				{
-					if( active_diagnostics )
-					{
-						active_diagnostics->endpoint = endpoint;
-						active_diagnostics->reply = reply;
-					}
-					co_return std::tuple<error_code,result_t> {
-						make_error_code(errc::redirect_limit_exceeded),
-						std::move(result)
-					};
-				}
-				auto location = reply->header(http::header::location);
-				if( not location )
-				{
-					if( active_diagnostics )
-					{
-						active_diagnostics->endpoint = endpoint;
-						active_diagnostics->reply = reply;
-					}
-					co_return std::tuple<error_code,result_t> {
-						make_error_code(errc::handshake_rejected),
-						std::move(result)
-					};
-				}
-				auto resolved = url::resolve(endpoint, location->to_string());
-				auto probe = active_request;
-				probe.endpoint = std::move(resolved);
-
-				if( auto redirect_error = validate_open_request(probe, active_stream_config) )
-				{
-					co_return std::tuple<error_code,result_t> {
-						redirect_error, std::move(result)
-					};
-				}
-				auto next = std::move(probe.endpoint);
-
-				if( ascii_equal_case_insensitive(endpoint.protocol(), "wss") and
-					ascii_equal_case_insensitive(next.protocol(), "ws") and
-					not active_request.allow_insecure_redirects )
-				{
-					co_return std::tuple<error_code,result_t> {
-						make_error_code(errc::insecure_redirect),
-						std::move(result)
-					};
-				}
-				if( not same_websocket_origin(endpoint, next) )
+				active_diagnostics->endpoint = endpoint;
+				active_diagnostics->reply = reply;
+			}
+			if( decision.action == open_response_action::redirect )
+			{
+				if( decision.clear_credentials )
 				{
 					base_options.unset_header(http::header::authorization);
 					base_options.unset_header("Cookie");
 					base_options.cookies().clear();
 				}
-				endpoint = std::move(next);
+				endpoint = std::move(decision.redirect_endpoint);
 				context.reset();
 				++redirects;
 				continue;
 			}
-			if( active_diagnostics )
+			if( decision.action == open_response_action::reject )
 			{
-				active_diagnostics->endpoint = endpoint;
-				active_diagnostics->reply = reply;
-			}
-			auto response = parse_opening_response(status, reply->headers(), opening);
-			if( not response )
-			{
-				if( status == http::status::switching_protocols )
+				if( decision.close_connection )
 					close_reply_connection(reply);
-
 				co_return std::tuple<error_code,result_t> {
-					response.error(), std::move(result)
-				};
-			}
-			if( not detail::supported_extension_response
-				(response->extensions, active_request.extensions) )
-			{
-				close_reply_connection(reply);
-				co_return std::tuple<error_code,result_t> {
-					make_error_code(errc::unsupported_extension),
-					std::move(result)
+					decision.error, std::move(result)
 				};
 			}
 			auto pending = pending_bytes(reply->take_pending_data());
@@ -614,8 +378,8 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 			adopt_options adopt {
 				.stream_role = role::client,
 				.pending_data = std::move(pending),
-				.negotiated_subprotocol = response->subprotocol.value_or(""),
-				.negotiated_extensions = response->extensions,
+				.negotiated_subprotocol = decision.response.subprotocol.value_or(""),
+				.negotiated_extensions = std::move(decision.response.extensions),
 			};
 			error_code adopt_error;
 			result.adopt(std::move(connection), std::move(adopt), adopt_error);
@@ -643,33 +407,17 @@ void start_open(http::basic_client<Exec,Version> &http_client, connect_request r
 {
 	using result_t = basic_stream<Exec>;
 	auto exec = http_client.get_executor();
-	auto completion_handler = std::forward<Handler>(handler);
-	auto slot = asio::get_associated_cancellation_slot(completion_handler);
-	auto completion_exec = asio::get_associated_executor(completion_handler, exec);
-	auto allocator = asio::get_associated_allocator(completion_handler);
-
-	asio::co_spawn(exec, co_open(&http_client, std::move(request), diagnostics,
-		stream_config_value, no_delay, timeout),
-		asio::bind_allocator(allocator, asio::bind_executor(completion_exec,
-			asio::bind_cancellation_slot(slot,
-				[handler = std::move(completion_handler), exec, stream_config_value]
-				(std::exception_ptr exception,
-				 optional<std::tuple<error_code,result_t>> result) mutable
-				{
-					if( auto error = exception_error(exception) )
-						std::move(handler)(error, result_t(exec, stream_config_value));
-					else if( not result )
-					{
-						std::move(handler)(make_error_code(std::errc::io_error),
-							result_t(exec, stream_config_value));
-					}
-					else
-					{
-						std::move(handler)(std::get<0>(*result),
-							std::move(std::get<1>(*result)));
-					}
-				})))
-	);
+	using handler_t = std::remove_cvref_t<Handler>;
+	auto fallback = [exec, stream_config_value] {
+		return result_t(exec, stream_config_value);
+	};
+	using factory_t = decltype(fallback);
+	libgs::detail::launch_awaitable(exec,
+		co_open(&http_client, std::move(request), diagnostics,
+			stream_config_value, no_delay, timeout),
+		libgs::detail::awaitable_optional_tuple_io_handler<
+			result_t,handler_t,decltype(exec),factory_t>(
+				std::forward<Handler>(handler), exec, std::move(fallback)));
 }
 
 } //namespace detail
@@ -680,10 +428,93 @@ class LIBGS_WEBSOCKET_TAPI basic_client<Exec>::impl :
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 
-	struct open_operation
+	struct open_operation : std::enable_shared_from_this<open_operation>
 	{
+		using complete_fn_t = void (*)(open_operation&, error_code, stream_t);
+
+		open_operation(std::shared_ptr<impl> owner, complete_fn_t complete_fn) :
+			owner(std::move(owner)), complete_fn(complete_fn) {}
+
+		void complete(error_code error, stream_t stream)
+		{
+			complete_fn(*this, error, std::move(stream));
+		}
+
 		asio::cancellation_signal cancellation {};
 		std::atomic_bool finished {false};
+		std::shared_ptr<impl> owner;
+		complete_fn_t complete_fn;
+	};
+
+	template <typename Handler>
+	struct open_handler_operation final : open_operation
+	{
+		using self_t = open_handler_operation<Handler>;
+		using executor_type = asio::associated_executor_t<Handler,executor_t>;
+		using allocator_type = asio::associated_allocator_t<Handler>;
+		using cancellation_slot_type = asio::associated_cancellation_slot_t<Handler>;
+
+		open_handler_operation(std::shared_ptr<impl> owner, Handler handler,
+			const executor_t &exec) :
+			open_operation(std::move(owner), &self_t::complete_handler),
+			handler(std::move(handler)),
+			executor(asio::get_associated_executor(this->handler, exec)),
+			allocator(asio::get_associated_allocator(this->handler)),
+			slot(asio::get_associated_cancellation_slot(this->handler)) {}
+
+		void arm_cancellation(const std::shared_ptr<open_operation> &operation)
+		{
+			if( not slot.is_connected() )
+				return ;
+
+			std::weak_ptr<open_operation> weak_operation = operation;
+			slot.assign([weak_operation](asio::cancellation_type type) noexcept
+			{
+				if( type == asio::cancellation_type::none )
+					return ;
+
+				if( auto active = weak_operation.lock() )
+					active->cancellation.emit(type);
+			});
+		}
+
+		static void complete_handler(open_operation &base, error_code error,
+			stream_t stream)
+		{
+			auto &self = static_cast<self_t&>(base);
+			if( self.slot.is_connected() )
+				self.slot.clear();
+
+			auto operation = self.shared_from_this();
+			self.owner->release_operation(operation);
+			auto handler = std::move(self.handler);
+			asio::post(self.executor, asio::bind_allocator(self.allocator,
+				[handler = std::move(handler), error,
+				 stream = std::move(stream)]() mutable {
+					std::move(handler)(error, std::move(stream));
+				}));
+		}
+
+		Handler handler;
+		executor_type executor;
+		allocator_type allocator;
+		cancellation_slot_type slot;
+	};
+
+	struct open_completion_handler
+	{
+		using cancellation_slot_type = asio::cancellation_slot;
+		std::shared_ptr<open_operation> operation;
+
+		[[nodiscard]] cancellation_slot_type get_cancellation_slot() const noexcept
+		{
+			return operation->cancellation.slot();
+		}
+
+		void operator()(error_code error, stream_t stream)
+		{
+			operation->complete(error, std::move(stream));
+		}
 	};
 
 public:
@@ -694,8 +525,8 @@ public:
 		core_concepts::match_sched<io_executor_t,executor_t> :
 		m_http_client(), m_config(validate_config(config)) {}
 
-	explicit impl(const core_concepts::match_exec<executor_t> auto &exec, const config_t &config) :
-		m_http_client(exec), m_config(validate_config(config)) {}
+	explicit impl(executor_t exec, const config_t &config) :
+		m_http_client(std::move(exec)), m_config(validate_config(config)) {}
 
 	explicit impl(http_client_t &&http_client, const config_t &config) :
 		m_http_client(std::move(http_client)), m_config(validate_config(config)) {}
@@ -772,42 +603,13 @@ public:
 
 		return asio::async_initiate<token_t,void(error_code,stream_t)>(
 		[self = std::move(self), request = std::move(request), diagnostics]
-		(auto completion_handler) mutable
+		<typename Handle>(Handle completion_handler) mutable
 		{
-			auto operation = std::make_shared<open_operation>();
-			auto slot = asio::get_associated_cancellation_slot(completion_handler);
-
-			auto completion_exec = asio::get_associated_executor (
-				completion_handler, self->m_http_client.get_executor()
-			);
-			auto allocator = asio::get_associated_allocator(completion_handler);
+			using operation_t = open_handler_operation<Handle>;
+			auto operation = std::make_shared<operation_t>(self,
+				std::move(completion_handler), self->m_http_client.get_executor());
 			self->retain_operation(operation);
-
-			if( slot.is_connected() )
-			{
-				std::weak_ptr<open_operation> weak_operation = operation;
-				slot.assign([weak_operation](asio::cancellation_type type) noexcept
-				{
-					if( type == asio::cancellation_type::none )
-						return ;
-
-					if( auto active = weak_operation.lock() )
-						active->cancellation.emit(type);
-				});
-			}
-			auto completion = asio::bind_cancellation_slot(operation->cancellation.slot(),
-			[self, operation, slot, completion_exec, allocator, handler = std::move(completion_handler)]
-			(error_code error, stream_t stream) mutable
-			{
-				if( slot.is_connected() )
-					slot.clear();
-
-				self->release_operation(operation);
-				asio::post(completion_exec, asio::bind_allocator(allocator,
-				[handler = std::move(handler), error, stream = std::move(stream)]() mutable {
-					std::move(handler)(error, std::move(stream));
-				}));
-			});
+			operation->arm_cancellation(operation);
 
 			const auto stream_options = *request.stream_options;
 			const auto timeout = *request.handshake_timeout;
@@ -824,7 +626,7 @@ public:
 				},
 				detail::effective_handshake_timeout(timeout),
 				stream_options,
-				std::move(completion)
+				open_completion_handler{std::move(operation)}
 			);
 		},
 		completion_token);
@@ -910,7 +712,9 @@ template <core_concepts::exec Exec>
 template <typename Exec0>
 basic_client<Exec>::basic_client(Exec0 &&exec, config_t config) requires
 (not std::same_as<std::remove_cvref_t<Exec0>,basic_client> and core_concepts::match_sched<Exec0,executor_t>) :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Exec0>(exec)), std::move(config)))
+	m_impl(std::make_shared<impl>(
+		executor_t(get_executor_helper(std::forward<Exec0>(exec))),
+		std::move(config)))
 {
 
 }
@@ -1083,18 +887,16 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 	else
 	{
 		return detail::initiate_handshake_io<basic_stream<Exec>>(http_client.get_executor(),
-			[&http_client, request = std::move(request), stream_options, timeout]
-			<typename Handler>(Handler &&handler) mutable
-			{
-				detail::start_open(http_client, std::move(request),
-					static_cast<basic_open_diagnostics<Exec>*>(nullptr),
-					stream_options, nullopt, timeout, std::forward<Handler>(handler)
-				);
-			},
-			timeout,
-			stream_options,
-			unbound_redirect_time(std::forward<Token>(token))
-		);
+		[&http_client, request = std::move(request), stream_options, timeout]
+		<typename Handler>(Handler &&handler) mutable
+		{
+			detail::start_open(http_client, std::move(request),
+				static_cast<basic_open_diagnostics<Exec>*>(nullptr),
+				stream_options, nullopt, timeout, std::forward<Handler>(handler)
+			);
+		},
+		timeout, stream_options,
+		unbound_redirect_time(std::forward<Token>(token)));
 	}
 }
 
@@ -1132,17 +934,15 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 	else
 	{
 		return detail::initiate_handshake_io<basic_stream<Exec>>(http_client.get_executor(),
-			[&http_client, request = std::move(request), &diagnostics, stream_options, timeout]
-			<typename Handler>(Handler &&handler) mutable
-			{
-				detail::start_open(http_client, std::move(request), &diagnostics,
-					stream_options, nullopt, timeout, std::forward<Handler>(handler)
-				);
-			},
-			timeout,
-			stream_options,
-			unbound_redirect_time(std::forward<Token>(token))
-		);
+		[&http_client, request = std::move(request), &diagnostics, stream_options, timeout]
+		<typename Handler>(Handler &&handler) mutable
+		{
+			detail::start_open(http_client, std::move(request), &diagnostics,
+				stream_options, nullopt, timeout, std::forward<Handler>(handler)
+			);
+		},
+		timeout, stream_options,
+		unbound_redirect_time(std::forward<Token>(token)));
 	}
 }
 

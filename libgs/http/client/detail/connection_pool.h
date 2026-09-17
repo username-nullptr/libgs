@@ -653,7 +653,9 @@ template <typename Exec0>
 basic_connection_pool<Exec>::basic_connection_pool(Exec0 &&exec, const config_t &config) requires (
 	not std::same_as<std::remove_cvref_t<Exec0>,basic_connection_pool> and
 	core_concepts::match_sched<Exec0,executor_t> ):
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<decltype(exec)>(exec)), config))
+	m_impl(std::make_shared<impl>(
+		executor_t(get_executor_helper(std::forward<decltype(exec)>(exec))), config
+	))
 {
 
 }

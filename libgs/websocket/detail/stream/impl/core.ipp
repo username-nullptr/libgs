@@ -20,15 +20,51 @@ basic_stream<Exec>::impl::impl(executor_t exec, const config_t &config) :
 }
 
 template <core_concepts::exec Exec>
-auto basic_stream<Exec>::impl::receive_side() noexcept -> detail::receive_engine<impl>&
+auto basic_stream<Exec>::impl::receive_side() noexcept -> detail::receive_engine&
 {
 	return m_receive_engine;
 }
 
 template <core_concepts::exec Exec>
-auto basic_stream<Exec>::impl::send_side() noexcept -> detail::send_engine<impl>&
+auto basic_stream<Exec>::impl::receive_owner() noexcept -> std::shared_ptr<receive_engine_owner>
+{
+	return this->shared_from_this();
+}
+
+template <core_concepts::exec Exec>
+auto basic_stream<Exec>::impl::weak_receive_owner() noexcept -> std::weak_ptr<receive_engine_owner>
+{
+	return this->weak_from_this();
+}
+
+template <core_concepts::exec Exec>
+asio::any_io_executor basic_stream<Exec>::impl::receive_executor() const noexcept
+{
+	return m_exec;
+}
+
+template <core_concepts::exec Exec>
+auto basic_stream<Exec>::impl::send_side() noexcept -> detail::send_engine&
 {
 	return m_send_engine;
+}
+
+template <core_concepts::exec Exec>
+auto basic_stream<Exec>::impl::send_owner() noexcept -> std::shared_ptr<send_engine_owner>
+{
+	return this->shared_from_this();
+}
+
+template <core_concepts::exec Exec>
+auto basic_stream<Exec>::impl::weak_send_owner() noexcept -> std::weak_ptr<send_engine_owner>
+{
+	return this->weak_from_this();
+}
+
+template <core_concepts::exec Exec>
+asio::any_io_executor basic_stream<Exec>::impl::send_executor() const noexcept
+{
+	return m_exec;
 }
 
 template <core_concepts::exec Exec>
@@ -182,6 +218,10 @@ void basic_stream<Exec>::impl::adopt
 		m_extensions = std::move(options.negotiated_extensions);
 		m_connection = std::move(connection);
 
+		m_stream_transport.reset(m_connection,
+			&impl::start_async_transport_read,
+			&impl::start_async_transport_write
+		);
 		m_state = connection_state::open;
 		if( auto started = start_automatic_ping(); not started )
 		{

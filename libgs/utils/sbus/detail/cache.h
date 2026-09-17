@@ -92,9 +92,8 @@ public:
 	};
 
 public:
-	template <typename Exec0>
-	explicit impl(Exec0 &&exec) :
-		m_subscriber(std::forward<Exec0>(exec))
+	explicit impl(executor_t exec) :
+		m_subscriber(std::move(exec))
 	{
 		m_subscriber.subscribe (
 		[this](std::string_view topic, const void *data, size_t size) -> awaitable<void>
@@ -433,7 +432,7 @@ template <concepts::subscriber Subscriber>
 template <typename Exec0>
 cache<Subscriber>::cache(Exec0 &&exec)
 	requires libgs::concepts::match_sched<Exec0,executor_t> :
-	m_impl(std::make_shared<impl>(std::forward<Exec0>(exec)))
+	m_impl(std::make_shared<impl>(executor_t(get_executor_helper(std::forward<Exec0>(exec)))))
 {
 
 }

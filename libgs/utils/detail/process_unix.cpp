@@ -279,11 +279,9 @@ public:
 	exec_error: {
 		m_joinable.store(false, std::memory_order_release);
 		m_join_in_progress.store(false, std::memory_order_release);
-		m_state = process_state::crashed;
-		m_exit_code = 255;
 		m_pid = -1;
 
-		m_cv.notify_all();
+		publish_terminal_state(process_state::crashed, 255);
 		std::vector<std::shared_ptr<asio::steady_timer>> vector;
 		{
 			std::lock_guard timer_lock(m_timer_mutex);
@@ -312,6 +310,16 @@ public:
 	}
 
 private:
+	void publish_terminal_state(process_state state, int exit_code) noexcept
+	{
+		{
+			std::lock_guard lock(m_cv_mutex);
+			m_exit_code = exit_code;
+			m_state = state;
+		}
+		m_cv.notify_all();
+	}
+
 	void monitor_child(int child_pid, std::uint64_t generation) noexcept
 	{
 		int status = 0;
@@ -338,18 +346,21 @@ private:
 		}
 		if( generation == m_generation.load(std::memory_order_acquire) )
 		{
+			process_state state;
+			int exit_code;
+
 			if( reaped and WIFEXITED(status) )
 			{
-				m_exit_code = WEXITSTATUS(status);
-				m_state = process_state::exited;
+				exit_code = WEXITSTATUS(status);
+				state = process_state::exited;
 			}
 			else
 			{
-				m_exit_code = reaped and WIFSIGNALED(status) ?
+				exit_code = reaped and WIFSIGNALED(status) ?
 					WTERMSIG(status) : 255;
-				m_state = process_state::crashed;
+				state = process_state::crashed;
 			}
-			m_cv.notify_all();
+			publish_terminal_state(state, exit_code);
 		}
 		try {
 			libgs::post(m_exec, [self = shared_from_this(), generation]{
@@ -425,18 +436,14 @@ private:
 			}
 			while( wait_result < 0 and errno == EINTR );
 
-			m_exit_code = wait_result == child_pid and WIFSIGNALED(status) ?
+			const int exit_code = wait_result == child_pid and WIFSIGNALED(status) ?
 				WTERMSIG(status) : 255;
 
-			m_state = process_state::crashed;
-			m_cv.notify_all();
+			publish_terminal_state(process_state::crashed, exit_code);
 		}
 		if( m_state.load(std::memory_order_acquire) == process_state::running )
-		{
-			m_exit_code = 255;
-			m_state = process_state::crashed;
-			m_cv.notify_all();
-		}
+			publish_terminal_state(process_state::crashed, 255);
+
 		finish_io(m_generation.load(std::memory_order_acquire), true);
 	}
 
@@ -445,6 +452,7 @@ private:
 		std::lock_guard timer_lock(m_timer_mutex);
 		if( m_state.load(std::memory_order_acquire) != process_state::running )
 			return false;
+
 		m_co_join_list.emplace_back(timer);
 		return true;
 	}
@@ -534,20 +542,34 @@ public:
 		if( release )
 			m_joinable.store(false, std::memory_order_release);
 
-		libgs::dispatch(m_exec, [self = shared_from_this()]
-		{
-			self->m_stdin .cancel();
-			self->m_stdout.cancel();
-			self->m_stderr.cancel();
-
-			std::vector<std::shared_ptr<asio::steady_timer>> vector;
+		try {
+			libgs::dispatch(m_exec, [self = shared_from_this()]
 			{
-				std::lock_guard timer_lock(self->m_timer_mutex);
-				vector = std::move(self->m_co_join_list);
-			}
-			for(auto &timer : vector)
-				timer->cancel();
-		});
+				error_code error;
+				error = self->m_stdin.cancel(error);
+
+				error.clear();
+				error = self->m_stdout.cancel(error);
+
+				error.clear();
+				error = self->m_stderr.cancel(error);
+
+				LIBGS_UNUSED(error);
+				std::vector<std::shared_ptr<asio::steady_timer>> vector;
+				{
+					std::lock_guard timer_lock(self->m_timer_mutex);
+					vector = std::move(self->m_co_join_list);
+				}
+				for(auto &timer : vector)
+				{
+					try {
+						timer->cancel();
+					}
+					catch(...) {}
+				}
+			});
+		}
+		catch(...) {}
 	}
 
 public:
@@ -612,6 +634,9 @@ public:
 	[[nodiscard]] awaitable<sys_expected<int>> co_join
 	(std::chrono::nanoseconds timeout, asio::cancellation_slot cancel_slot) noexcept
 	{
+		// cancel(release=true) replaces the process object's control block. Keep
+		// this one alive until the suspended join has observed its cancellation.
+		auto self = shared_from_this();
 		if( auto claim_error = claim_join() )
 			co_return sys_unexpected(claim_error);
 
@@ -859,7 +884,7 @@ public:
 	}
 
 private:
-	void post_io_result(process::io_handler_t handler, error_code error, size_t size)
+	void post_io_result(process::io_handler_t handler, error_code error, size_t size) const
 	{
 		auto allocator = asio::get_associated_allocator(handler);
 		asio::post(m_exec, asio::bind_allocator(allocator,
@@ -1144,8 +1169,8 @@ void process::protect_io_error(const error_code &error) const noexcept
 	if( not error or state() != process_state::running )
 		return ;
 
-	const auto condition = error.default_error_condition();
-	if( condition == std::errc::bad_file_descriptor or
+	if( const auto condition = error.default_error_condition();
+		condition == std::errc::bad_file_descriptor or
 		condition == std::errc::io_error or
 		condition == std::errc::bad_address )
 	{

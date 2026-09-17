@@ -9,6 +9,12 @@
 #endif
 
 #include <libgs/websocket/detail/stream/close_operations.h>
+#include <libgs/websocket/detail/stream/close_wait_queue.h>
+#include <libgs/websocket/detail/stream/close_deadline.h>
+
+#include <libgs/websocket/detail/stream/stream_transport.h>
+#include <libgs/websocket/detail/stream/automatic_ping.h>
+
 #include <libgs/websocket/detail/stream/receive_engine.h>
 #include <libgs/websocket/detail/stream/send_engine.h>
 
@@ -16,8 +22,8 @@ namespace libgs::websocket
 {
 
 template <core_concepts::exec Exec>
-class LIBGS_WEBSOCKET_TAPI basic_stream<Exec>::impl :
-	public std::enable_shared_from_this<impl>
+class LIBGS_WEBSOCKET_TAPI basic_stream<Exec>::impl : public std::enable_shared_from_this<impl>,
+	public detail::send_engine_owner, public detail::receive_engine_owner
 {
 	LIBGS_DISABLE_COPY_MOVE(impl)
 	friend class basic_stream;
@@ -38,10 +44,13 @@ public:
 
 	using prepared_frame = detail::prepared_frame;
 	using close_wait_operation = detail::close_wait_operation;
+
 	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;
 	using void_handler_t = asio::any_completion_handler<void(error_code)>;
+
 	using message_handler_t = asio::any_completion_handler<void(error_code,message)>;
 	using frame_handler_t = asio::any_completion_handler<void(error_code,data_frame)>;
+
 	using info_handler_t = asio::any_completion_handler<void(error_code,message_info_t)>;
 	using close_handler_t = asio::any_completion_handler<void(error_code,close_info_t)>;
 
@@ -57,8 +66,7 @@ public:
 	) noexcept;
 
 	[[nodiscard]] size_t write_frame(message_type type,
-		const const_buffer &payload, bool continuation,
-		bool fin, error_code &error
+		const const_buffer &payload, bool continuation, bool fin, error_code &error
 	) noexcept;
 
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
@@ -75,19 +83,16 @@ public:
 	) noexcept;
 
 	void async_write_control (
-		opcode op, const const_buffer &payload, io_handler_t handler,
-		bool automatic = false
+		opcode op, const const_buffer &payload, io_handler_t handler, bool automatic = false
 	);
 
 	void wait_written(error_code &error) noexcept;
-
 	void async_wait_written(void_handler_t handler);
 
 	[[nodiscard]] message read(error_code &error) noexcept;
 	[[nodiscard]] data_frame read_frame(error_code &error) noexcept;
 
 	void async_read_message(message_handler_t handler);
-
 	void async_read_frame(frame_handler_t handler);
 
 	template <typename Consumer>
@@ -113,47 +118,55 @@ public:
 	void on_closed(closed_callback_t callback);
 
 	[[nodiscard]] close_info_t close(const close_frame &frame, error_code &error) noexcept;
-
-	void async_close(close_frame frame, close_handler_t handler);
+	void async_close(const close_frame &frame, close_handler_t completion);
 
 	[[nodiscard]] close_info_t wait_closed(error_code &error) noexcept;
-
-	void async_wait_closed(close_handler_t handler);
+	void async_wait_closed(close_handler_t completion);
 
 	void cancel(error_code &error) noexcept;
 	void shutdown(error_code &error) noexcept;
 
 public:
-	[[nodiscard]] detail::receive_engine<impl> &receive_side() noexcept;
-	[[nodiscard]] detail::send_engine<impl> &send_side() noexcept;
+	[[nodiscard]] detail::receive_engine &receive_side() noexcept override;
+	[[nodiscard]] std::shared_ptr<receive_engine_owner> receive_owner() noexcept override;
+
+	[[nodiscard]] std::weak_ptr<receive_engine_owner> weak_receive_owner() noexcept override;
+	[[nodiscard]] asio::any_io_executor receive_executor() const noexcept override;
+
+	[[nodiscard]] detail::send_engine &send_side() noexcept override;
+	[[nodiscard]] std::shared_ptr<send_engine_owner> send_owner() noexcept override;
+
+	[[nodiscard]] std::weak_ptr<send_engine_owner> weak_send_owner() noexcept override;
+	[[nodiscard]] asio::any_io_executor send_executor() const noexcept override;
 
 	[[nodiscard]] size_t write_prepared (
 		const prepared_frame &frame, error_code &error
-	) noexcept;
+	) noexcept override;
+
 	[[nodiscard]] size_t read_transport (
 		const mutable_buffer &buffer, error_code &error
-	) noexcept;
+	) noexcept override;
 
 	[[nodiscard]] awaitable<std::tuple<error_code,size_t>>
-	async_read_transport(std::shared_ptr<std::vector<std::byte>> storage);
+	async_read_transport(std::shared_ptr<std::vector<std::byte>> storage) override;
 
 	[[nodiscard]] executor_t executor() const noexcept;
 
-	[[nodiscard]] error_code write_state_error() const noexcept;
-	[[nodiscard]] error_code read_state_error() const noexcept;
+	[[nodiscard]] error_code write_state_error() const noexcept override;
+	[[nodiscard]] error_code read_state_error() const noexcept override;
 
-	[[nodiscard]] error_code frame_read_state_error() const noexcept;
-	[[nodiscard]] error_code frame_write_state_error() const noexcept;
+	[[nodiscard]] error_code frame_read_state_error() const noexcept override;
+	[[nodiscard]] error_code frame_write_state_error() const noexcept override;
 
-	[[nodiscard]] error_code consume_state_error() const noexcept;
-	[[nodiscard]] bool send_transport_ready() const noexcept;
+	[[nodiscard]] error_code consume_state_error() const noexcept override;
+	[[nodiscard]] bool send_transport_ready() const noexcept override;
 	[[nodiscard]] bool automatic_control_enabled() const noexcept;
 
-	[[nodiscard]] bool close_receive_pending() const noexcept;
-	[[nodiscard]] bool protocol_failure_active() const noexcept;
+	[[nodiscard]] bool close_receive_pending() const noexcept override;
+	[[nodiscard]] bool protocol_failure_active() const noexcept override;
 
-	[[nodiscard]] error_code protocol_failure_error(error_code fallback) const noexcept;
-	[[nodiscard]] error_code finish_receive_eof() noexcept;
+	[[nodiscard]] error_code protocol_failure_error(error_code fallback) const noexcept override;
+	[[nodiscard]] error_code finish_receive_eof() noexcept override;
 
 	[[nodiscard]] sys_expected<> handle_sync_ping (
 		ctrl_payload_t &payload
@@ -161,25 +174,31 @@ public:
 
 	[[nodiscard]] sys_expected<> handle_sync_control (
 		opcode op, std::vector<std::byte> &payload
-	) noexcept;
+	) noexcept override;
 
 	[[nodiscard]] awaitable<error_code> handle_async_control (
 		opcode op, std::vector<std::byte> &payload
-	);
+	) override;
 
 	[[nodiscard]] sys_expected<> handle_sync_peer_close (
 		const std::vector<std::byte> &payload
-	) noexcept;
+	) noexcept override;
 
 	void start_transport_write(prepared_frame frame,
 		detail::wire_frame_kind kind, std::shared_ptr<detail::send_operation> operation
-	) noexcept;
+	) noexcept override;
 
-	void handle_send_failure(error_code error) noexcept;
-	void handle_wire_frame_sent(detail::wire_frame_kind kind) noexcept;
+	static void start_async_transport_read(void *connection,
+		const mutable_buffer &buffer, io_handler_t handler
+	);
+	static void start_async_transport_write(void *connection,
+		std::span<const const_buffer> buffers, io_handler_t handler
+	);
+	void handle_send_failure(error_code error) noexcept override;
+	void handle_wire_frame_sent(detail::wire_frame_kind kind) noexcept override;
 
-	void handle_receive_failure(error_code error) noexcept;
-	void handle_receive_protocol_failure(error_code error, bool synchronous = false) noexcept;
+	void handle_receive_failure(error_code error) noexcept override;
+	void handle_receive_protocol_failure(error_code error, bool synchronous) noexcept override;
 
 	[[nodiscard]] sys_expected<> queue_auto_pong (
 		const std::vector<std::byte> &payload
@@ -187,14 +206,24 @@ public:
 
 	[[nodiscard]] sys_expected<> begin_peer_close (
 		const std::vector<std::byte> &payload
-	) noexcept;
+	) noexcept override;
 
-	void start_close_receive() noexcept;
-
+	void start_close_receive() noexcept override;
 	[[nodiscard]] sys_expected<> start_automatic_ping() noexcept;
-	[[nodiscard]] sys_expected<> schedule_automatic_ping() noexcept;
+
 	void acknowledge_automatic_pong(const std::vector<std::byte> &payload) noexcept;
 	void stop_automatic_ping() noexcept;
+
+	static void write_automatic_ping(void *owner, const const_buffer &payload, io_handler_t handler);
+	static void fail_automatic_ping(void *owner, error_code error) noexcept;
+
+	[[nodiscard]] sys_expected<> remember_close_receive_peer (
+		const std::vector<std::byte> &payload
+	) noexcept override;
+
+	void complete_close_receive (
+		const std::exception_ptr &exception, error_code error
+	) noexcept override;
 
 private:
 	void close_transport(error_code &error) noexcept;
@@ -213,15 +242,17 @@ private:
 
 	void begin_local_close(prepared_frame frame) noexcept;
 	void start_close_deadline() noexcept;
+	static void close_deadline_expired(void *owner) noexcept;
 
 	void finish_close(error_code error, bool clean,
 		bool cancel_transport = false
 	) noexcept;
 
-	bool add_close_waiter(close_handler_t handler) noexcept;
-
+	bool add_close_waiter(close_handler_t completion) noexcept;
 	void complete_close_waiters(error_code error) noexcept;
 	void cancel_close_waiter(uint64_t id) noexcept;
+
+	static void cancel_close_waiter(void *owner, uint64_t id) noexcept;
 	void notify_closed() noexcept;
 
 	// Protocol and transport failure handling.
@@ -243,28 +274,22 @@ private:
 	std::string m_subprotocol {};
 	std::vector<extension> m_extensions {};
 
-	detail::receive_engine<impl> m_receive_engine;
-	detail::send_engine<impl> m_send_engine;
+	detail::receive_engine m_receive_engine;
+	detail::send_engine m_send_engine;
+	detail::stream_transport m_stream_transport {};
 
 	sync_control_callback_t m_on_ping {};
 	async_control_callback_t m_on_async_ping {};
 	sync_control_callback_t m_on_pong {};
 	async_control_callback_t m_on_async_pong {};
-	closed_callback_t m_on_closed {};
-	std::shared_ptr<asio::steady_timer> m_ping_timer {};
-	optional<std::array<std::byte,8>> m_awaited_pong {};
-	uint64_t m_next_ping_id = 0;
-	size_t m_consecutive_pong_timeouts = 0;
+	std::shared_ptr<detail::automatic_ping> m_automatic_ping {};
 
 	optional<close_info_t> m_peer_close {};
 	optional<close_info_t> m_close_result {};
 
-	std::shared_ptr<asio::steady_timer> m_close_timer {};
-	std::deque<std::shared_ptr<close_wait_operation>> m_close_waiters {};
-
-	uint64_t m_next_close_waiter_id = 0;
+	detail::close_deadline m_close_deadline {};
+	detail::close_wait_queue m_close_wait_queue {};
 	local_close_phase m_local_close_phase = local_close_phase::none;
-	bool m_closed_notified = false;
 
 	// Terminal failure and transport state.
 	bool m_protocol_failure_active = false;

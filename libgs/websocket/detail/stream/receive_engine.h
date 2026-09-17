@@ -6,6 +6,7 @@
 
 #include <libgs/websocket/detail/stream/receive_operations.h>
 #include <libgs/websocket/detail/stream/receive_buffer.h>
+#include <libgs/websocket/detail/stream/receive_engine_owner.h>
 #include <libgs/core/async_expected.h>
 
 namespace libgs::websocket::detail
@@ -24,8 +25,7 @@ struct receive_event_result
 		receive_failure_origin::none;
 };
 
-template <typename Owner>
-class LIBGS_WEBSOCKET_TAPI receive_engine
+class LIBGS_WEBSOCKET_API receive_engine
 {
 	LIBGS_DISABLE_COPY_MOVE(receive_engine)
 
@@ -34,7 +34,8 @@ public:
 	using frame_handler_t = asio::any_completion_handler<void(error_code,data_frame)>;
 	using info_handler_t = asio::any_completion_handler<void(error_code,message_info)>;
 
-	explicit receive_engine(Owner &owner) noexcept;
+	explicit receive_engine(receive_engine_owner &owner) noexcept;
+	~receive_engine();
 
 	void reset(role local_role, const stream_config &config,
 		std::span<const extension> extensions, std::vector<std::byte> pending_data
@@ -55,12 +56,13 @@ public:
 	template <typename Consumer>
 	[[nodiscard]] message_info consume(Consumer &&consumer, error_code &error) noexcept;
 
-	void async_read_message(message_handler_t handler);
+	void async_read_message(message_handler_t completion);
+	void async_read_frame(frame_handler_t completion);
 
-	void async_read_frame(frame_handler_t handler);
+	void start_close_receive() noexcept;
 
 	template <typename Consumer>
-	void async_consume(Consumer &&consumer, info_handler_t handler);
+	void async_consume(Consumer &&consumer, info_handler_t completion);
 
 	void complete_read_waiter(error_code error,
 		message value = {}, bool clear_slot = true
@@ -75,12 +77,17 @@ public:
 	) noexcept;
 
 private:
+	struct close_receive_handler
+	{
+		std::shared_ptr<receive_engine_owner> owner;
+		void operator()(const std::exception_ptr &exception,
+			error_code error) const noexcept;
+	};
 	[[nodiscard]] message finish_read_error(error_code &error) noexcept;
-
 	void cancel_read_waiter(uint64_t id, asio::cancellation_type type) noexcept;
 
 private:
-	Owner &m_owner;
+	receive_engine_owner &m_owner;
 	receive_buffer m_buffer {};
 
 	error_code m_read_error {};
@@ -90,11 +97,10 @@ private:
 	std::shared_ptr<frame_read_wait_operation> m_frame_read_waiter {};
 	std::shared_ptr<consume_wait_operation> m_consume_waiter {};
 	uint64_t m_next_read_waiter_id = 0;
-
 };
 
 } //namespace libgs::websocket::detail
-#include <libgs/websocket/detail/stream/receive_engine_read.ipp>
+# include <libgs/websocket/detail/stream/receive_engine_read.ipp>
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_RECEIVE_ENGINE_H

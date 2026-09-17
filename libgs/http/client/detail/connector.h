@@ -28,21 +28,19 @@ public:
 
 #if LIBGS_OPENSSL_SUPPORT
 	impl(executor_t exec, asio::ssl::context &tls_context) :
-		m_exec(std::move(exec)), m_tls_context(&tls_context) {}
-#endif //LIBGS_OPENSSL_SUPPORT
+		m_tls_context(&tls_context), m_exec(std::move(exec)) {}
 
-	executor_t m_exec {};
-
-#if LIBGS_OPENSSL_SUPPORT
 	asio::ssl::context *m_tls_context =
 		&detail::default_ssl_context();
 #endif //LIBGS_OPENSSL_SUPPORT
+
+	executor_t m_exec {};
 };
 
 template <core_concepts::exec Exec>
 basic_connector<Exec>::basic_connector
 (core_concepts::match_sched<executor_t> auto &&exec) :
-	m_impl(new impl(get_executor_helper(std::forward<decltype(exec)>(exec))))
+	m_impl(new impl(executor_t(get_executor_helper(std::forward<decltype(exec)>(exec)))))
 {
 
 }
@@ -51,7 +49,7 @@ basic_connector<Exec>::basic_connector
 template <core_concepts::exec Exec>
 basic_connector<Exec>::basic_connector
 (core_concepts::match_sched<executor_t> auto &&exec, asio::ssl::context &tls_context) :
-	m_impl(new impl(get_executor_helper(std::forward<decltype(exec)>(exec)), tls_context))
+	m_impl(new impl(executor_t(get_executor_helper(std::forward<decltype(exec)>(exec))), tls_context))
 {
 
 }

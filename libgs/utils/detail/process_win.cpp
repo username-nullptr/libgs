@@ -471,6 +471,16 @@ public:
 	}
 
 private:
+	void publish_terminal_state(process_state state, int exit_code) noexcept
+	{
+		{
+			std::lock_guard lock(m_cv_mutex);
+			m_exit_code = exit_code;
+			m_state = state;
+		}
+		m_cv.notify_all();
+	}
+
 	void monitor_child(HANDLE process_handle, std::uint64_t generation) noexcept
 	{
 		const DWORD wait_result = WaitForSingleObject(process_handle, INFINITE);
@@ -484,18 +494,20 @@ private:
 
 		if( generation == m_generation.load(std::memory_order_acquire) )
 		{
+			process_state state;
+			int exit_code;
 			if( got_exit_code and not forced )
 			{
-				m_exit_code = static_cast<int>(child_exit_code);
-				m_state = process_state::exited;
+				exit_code = static_cast<int>(child_exit_code);
+				state = process_state::exited;
 			}
 			else
 			{
-				m_exit_code = got_exit_code ?
+				exit_code = got_exit_code ?
 					static_cast<int>(child_exit_code) : 255;
-				m_state = process_state::crashed;
+				state = process_state::crashed;
 			}
-			m_cv.notify_all();
+			publish_terminal_state(state, exit_code);
 		}
 		try {
 			libgs::post(m_exec, [self = shared_from_this(), generation] {
@@ -587,16 +599,10 @@ private:
 			if( process_handle != nullptr )
 				WaitForSingleObject(process_handle, INFINITE);
 
-			m_exit_code = 255;
-			m_state = process_state::crashed;
-			m_cv.notify_all();
+			publish_terminal_state(process_state::crashed, 255);
 		}
 		if( m_state.load(std::memory_order_acquire) == process_state::running )
-		{
-			m_exit_code = 255;
-			m_state = process_state::crashed;
-			m_cv.notify_all();
-		}
+			publish_terminal_state(process_state::crashed, 255);
 		finish_io(generation, true);
 	}
 
@@ -700,20 +706,31 @@ public:
 		if( release )
 			m_joinable.store(false, std::memory_order_release);
 
-		libgs::dispatch(m_exec, [self = shared_from_this()]
-		{
-			self->m_stdin .cancel();
-			self->m_stdout.cancel();
-			self->m_stderr.cancel();
-
-			std::vector<std::shared_ptr<asio::steady_timer>> vector;
+		try {
+			libgs::dispatch(m_exec, [self = shared_from_this()]
 			{
-				std::lock_guard timer_lock(self->m_timer_mutex);
-				vector = std::move(self->m_co_join_list);
-			}
-			for(auto &timer : vector)
-				timer->cancel();
-		});
+				error_code error;
+				self->m_stdin.cancel(error);
+				error.clear();
+				self->m_stdout.cancel(error);
+				error.clear();
+				self->m_stderr.cancel(error);
+
+				std::vector<std::shared_ptr<asio::steady_timer>> vector;
+				{
+					std::lock_guard timer_lock(self->m_timer_mutex);
+					vector = std::move(self->m_co_join_list);
+				}
+				for(auto &timer : vector)
+				{
+					try {
+						timer->cancel();
+					}
+					catch(...) {}
+				}
+			});
+		}
+		catch(...) {}
 	}
 
 public:
@@ -778,6 +795,9 @@ public:
 	[[nodiscard]] awaitable<sys_expected<int>> co_join
 	(std::chrono::nanoseconds timeout, asio::cancellation_slot cancel_slot) noexcept
 	{
+		// cancel(release=true) replaces the process object's control block. Keep
+		// this one alive until the suspended join has observed its cancellation.
+		auto self = shared_from_this();
 		if( auto claim_error = claim_join() )
 			co_return sys_unexpected(claim_error);
 

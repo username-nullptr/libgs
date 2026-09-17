@@ -23,6 +23,7 @@ function(libgs_add_example category name)
 
 	set(target "libgs.example.${category}.${name}")
 	add_executable(${target} ${EXAMPLE_SOURCES})
+
 	if (category MATCHES "^(http|websocket)$")
 		libgs_limit_heavy_compile(${target})
 	endif ()

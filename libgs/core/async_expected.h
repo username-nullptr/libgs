@@ -50,8 +50,7 @@ constexpr bool is_buffer_v = is_buffer<T>::value;
 
 template <typename Buffer, typename Source>
 [[nodiscard]] LIBGS_CORE_TAPI Buffer copy_buffer_data(Source &&source) requires (
-	is_buffer_v<Buffer> and
-	is_buffer_v<std::remove_cvref_t<Source>> and
+	is_buffer_v<Buffer> and is_buffer_v<std::remove_cvref_t<Source>> and
 	not is_array_buffer_v<Buffer>
 );
 

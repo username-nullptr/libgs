@@ -4,7 +4,7 @@
 #ifndef LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_H
 #define LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_H
 
-#include <libgs/websocket/detail/stream/send_operations.h>
+#include <libgs/websocket/detail/stream/send_engine_owner.h>
 
 namespace libgs::websocket::detail
 {
@@ -12,8 +12,7 @@ namespace libgs::websocket::detail
 // Owns the complete outbound state machine. Owner remains the single lifetime
 // anchor and supplies transport/lifecycle hooks; the engine itself is a value
 // member and never participates in shared ownership.
-template <typename Owner>
-class LIBGS_WEBSOCKET_TAPI send_engine
+class LIBGS_WEBSOCKET_API send_engine
 {
 	LIBGS_DISABLE_COPY_MOVE(send_engine)
 
@@ -21,7 +20,8 @@ public:
 	using io_handler_t = asio::any_completion_handler<void(error_code,size_t)>;
 	using void_handler_t = asio::any_completion_handler<void(error_code)>;
 
-	explicit send_engine(Owner &owner) noexcept;
+	explicit send_engine(send_engine_owner &owner) noexcept;
+	~send_engine();
 
 	void reset(role local_role, const stream_config &config,
 		std::span<const extension> extensions
@@ -63,17 +63,15 @@ public:
 
 	[[nodiscard]] sys_expected<> queue_close_response(const std::vector<std::byte> &payload) noexcept;
 	[[nodiscard]] sys_expected<> queue_auto_pong(const std::vector<std::byte> &payload) noexcept;
-
 	void schedule();
 
 	void async_write_message(message_type type, std::span<const const_buffer> buffers,
 		write_options options, std::shared_ptr<std::vector<std::byte>> payload_owner,
-		io_handler_t handler
+		io_handler_t completion
 	);
-
 	void async_write_data_frame(message_type type, const const_buffer &payload,
 		bool continuation, bool fin, std::shared_ptr<std::vector<std::byte>> payload_owner,
-		io_handler_t handler
+		io_handler_t completion
 	);
 
 	[[nodiscard]] size_t write_data_frame (
@@ -81,20 +79,20 @@ public:
 		bool continuation, bool fin, error_code &error
 	) noexcept;
 
-	void async_write_control(opcode op, const const_buffer &payload, io_handler_t handler);
-
+	void async_write_control (
+		opcode op, const const_buffer &payload, io_handler_t completion
+	);
 	[[nodiscard]] size_t write_control (
 		opcode op, const const_buffer &payload, error_code &error
 	) noexcept;
 
 	void wait_written(error_code &error) noexcept;
-
-	void async_wait_written(void_handler_t handler);
+	void async_wait_written(void_handler_t completion);
 
 	// Transport is owned by stream::impl.  The engine only records the active
 	// frame and consumes its completion to advance the outbound state machine.
 	void complete_wire_frame(const prepared_frame &frame, wire_frame_kind kind,
-		std::shared_ptr<send_operation> operation, error_code error, size_t wire_size
+		const std::shared_ptr<send_operation> &operation, error_code error, size_t wire_size
 	) noexcept;
 
 private:
@@ -136,7 +134,7 @@ private:
 	) noexcept;
 
 private:
-	Owner &m_owner;
+	send_engine_owner &m_owner;
 	frame_builder m_frame_builder {};
 
 	size_t m_max_queued_write_bytes = 0;
@@ -174,7 +172,6 @@ private:
 };
 
 } //namespace libgs::websocket::detail
-#include <libgs/websocket/detail/stream/send_engine.ipp>
 
 
 #endif //LIBGS_WEBSOCKET_DETAIL_STREAM_SEND_ENGINE_H

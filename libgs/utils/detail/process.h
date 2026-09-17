@@ -227,16 +227,17 @@ public:
 	void kill() noexcept {
 		m_detail.kill();
 	}
+
 	void detach()
 	{
-		auto expected = m_detail.detach();
-		if( not expected )
+		if( auto expected = m_detail.detach(); not expected )
 		{
 			system_error::loc_throw (
 				libgs::detail::canonical_error(expected.error())
 			);
 		}
 	}
+
 	void cancel(cancel_option option) noexcept
 	{
 		switch( option )
@@ -255,6 +256,7 @@ public:
 		}
 		m_detail.cancel(option != cancel_option::none);
 	}
+
 	[[nodiscard]] bool joinable() const noexcept {
 		return m_detail.joinable();
 	}
@@ -379,7 +381,7 @@ public:
 			auto result = m_detail.write(buf);
 			if( not result )
 				m_detail.protect_io_error(result.error());
-			return expected_value_or_throw(std::move(result));
+			return expected_value_or_throw(result);
 		}
 		else
 		{
@@ -388,10 +390,10 @@ public:
 			{
 				auto owner = detail::copy_process_buffer(buf);
 				return initiate_io<size_t>(m_exec,
-				[self = this->shared_from_this(), owner]<typename T0>(T0 &&completion_token) mutable
+				[self = this->shared_from_this(), owner]<typename Handle>(Handle &&completion_token) mutable
 				{
 					return self->async_write(buffer(*owner), asio::consign (
-						std::forward<T0>(completion_token), owner
+						std::forward<Handle>(completion_token), owner
 					));
 				},
 				std::forward<Token>(token));
@@ -399,10 +401,10 @@ public:
 			else
 			{
 				return initiate_io<size_t>(m_exec,
-				[self = this->shared_from_this(), buf]<typename T0>(T0 &&completion_token) mutable
+				[self = this->shared_from_this(), buf]<typename Handle>(Handle &&completion_token) mutable
 				{
 					return self->async_write(buf,
-						std::forward<T0>(completion_token)
+						std::forward<Handle>(completion_token)
 					);
 				},
 				std::forward<Token>(token));
@@ -452,9 +454,7 @@ public:
 				m_detail.protect_io_error(read_error);
 				result = sys_unexpected(read_error);
 			}
-			return expected_value_or_error (
-				std::move(result), token
-			);
+			return expected_value_or_error(std::move(result), token);
 		}
 		else if constexpr( is_sync_opt_token_v<Token> )
 		{
@@ -466,17 +466,15 @@ public:
 				m_detail.protect_io_error(read_error);
 				result = sys_unexpected(read_error);
 			}
-			return expected_value_or_throw (
-				std::move(result)
-			);
+			return expected_value_or_throw(result);
 		}
 		else
 		{
 			return initiate_io<size_t>(m_exec,
-			[self = this->shared_from_this(), buf]<typename T0>(T0 &&completion_token) mutable
+			[self = this->shared_from_this(), buf]<typename Handle>(Handle &&completion_token) mutable
 			{
 				return self->template async_read<Channel>(buf,
-					std::forward<T0>(completion_token)
+					std::forward<Handle>(completion_token)
 				);
 			},
 			std::forward<Token>(token));
@@ -529,8 +527,7 @@ public:
 		}
 		if( not read_result )
 		{
-			const auto read_error = read_result.error();
-			if( not is_read_eof(read_error) )
+			if( const auto read_error = read_result.error(); not is_read_eof(read_error) )
 			{
 				m_detail.protect_io_error(read_error);
 				return sys_unexpected(read_error);
@@ -658,9 +655,9 @@ public:
 		token_t completion_token(std::forward<Token>(token));
 
 		return asio::async_initiate<token_t,void(error_code,Buffer)>(
-		[self = this->shared_from_this()]<typename T0>(T0 completion_handler) mutable
+		[self = this->shared_from_this()]<typename Handle>(Handle completion_handler) mutable
 		{
-			using handler_t = T0;
+			using handler_t = Handle;
 			read_buffer_state<Channel,Buffer,handler_t>::launch (
 				std::move(self), std::move(completion_handler)
 			);
@@ -766,7 +763,7 @@ template <typename Scheduler>
 basic_process<CharT,Exec>::basic_process(Scheduler &&exec, string_t cmd, args_t args) requires
 	(not std::same_as<std::remove_cvref_t<Scheduler>,basic_process>) and
 	concepts::match_sched<Scheduler,Exec> :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Scheduler>(exec))))
+	m_impl(std::make_shared<impl>(executor_t(get_executor_helper(std::forward<Scheduler>(exec)))))
 {
 	m_impl->set(std::move(cmd), std::move(args));
 }
@@ -777,7 +774,7 @@ basic_process<CharT,Exec>::basic_process(Scheduler &&exec, string_t cmd, Args&&.
 	(not std::same_as<std::remove_cvref_t<Scheduler>,basic_process>) and
 	concepts::match_sched<Scheduler,Exec> and
 	concepts::formatter<char_t,Args...> :
-	m_impl(std::make_shared<impl>(get_executor_helper(std::forward<Scheduler>(exec))))
+	m_impl(std::make_shared<impl>(executor_t(get_executor_helper(std::forward<Scheduler>(exec)))))
 {
 	m_impl->set(std::move(cmd), std::forward<Args>(args)...);
 }
@@ -925,10 +922,10 @@ auto basic_process<CharT,Exec>::read(Token &&token) requires
 		else
 		{
 			return initiate_io<Buffer>(get_executor(),
-			[implementation = m_impl]<typename T0>(T0 &&completion_token) mutable
+			[implementation = m_impl]<typename Handle>(Handle &&completion_token) mutable
 			{
 				return implementation->template async_read_buffer
-					<channel::std_output,Buffer>(std::forward<T0>(completion_token));
+					<channel::std_output,Buffer>(std::forward<Handle>(completion_token));
 			},
 			std::forward<Token>(token));
 		}
@@ -950,10 +947,10 @@ auto basic_process<CharT,Exec>::read(Token &&token) requires
 	else
 	{
 		return initiate_io<Buffer>(get_executor(),
-		[implementation = m_impl]<typename T0>(T0 &&completion_token) mutable
+		[implementation = m_impl]<typename Handle>(Handle &&completion_token) mutable
 		{
 			return implementation->template async_read_buffer
-				<channel::std_output,Buffer>(std::forward<T0>(completion_token));
+				<channel::std_output,Buffer>(std::forward<Handle>(completion_token));
 		},
 		std::forward<Token>(token));
 	}
@@ -1003,10 +1000,10 @@ auto basic_process<CharT,Exec>::read_stderr(Token &&token) requires
 		else
 		{
 			return initiate_io<Buffer>(get_executor(),
-			[implementation = m_impl]<typename T0>(T0 &&completion_token) mutable
+			[implementation = m_impl]<typename Handle>(Handle &&completion_token) mutable
 			{
 				return implementation->template async_read_buffer
-					<channel::std_error,Buffer>(std::forward<T0>(completion_token));
+					<channel::std_error,Buffer>(std::forward<Handle>(completion_token));
 			},
 			std::forward<Token>(token));
 		}
@@ -1028,10 +1025,10 @@ auto basic_process<CharT,Exec>::read_stderr(Token &&token) requires
 	else
 	{
 		return initiate_io<Buffer>(get_executor(),
-		[implementation = m_impl]<typename T0>(T0 &&completion_token) mutable
+		[implementation = m_impl]<typename Handle>(Handle &&completion_token) mutable
 		{
 			return implementation->template async_read_buffer
-				<channel::std_error,Buffer>(std::forward<T0>(completion_token));
+				<channel::std_error,Buffer>(std::forward<Handle>(completion_token));
 		},
 		std::forward<Token>(token));
 	}

@@ -45,15 +45,15 @@ retry_open_request_factory adapt_retry_open_request_factory(Factory &&factory)
 	};
 }
 
-template <core_concepts::exec Exec>
+template <typename Exec>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI asio::awaitable<
-	std::pair<error_code,std::optional<basic_retry_open_result<Exec>>>,Exec>
+	optional<std::tuple<error_code,basic_retry_open_result<Exec>>>,Exec>
 co_retry_open(basic_client<Exec> *active_client,
 	retry_open_request_factory active_factory,
 	retry_open_options active_options, Exec active_exec)
 {
 	using result_t = basic_retry_open_result<Exec>;
-	using completion_t = std::pair<error_code,std::optional<result_t>>;
+	using completion_t = std::tuple<error_code,result_t>;
 	auto cancellation = co_await asio::this_coro::cancellation_state;
 			result_t result(active_exec);
 			if( not valid_retry_open_options(active_options) )
@@ -116,7 +116,8 @@ co_retry_open(basic_client<Exec> *active_client,
 				++result.attempts;
 
 				auto [open_error, stream] = co_await active_client->open (
-					std::move(request), diagnostics, asio::as_tuple(deferred)
+					std::move(request), diagnostics,
+					asio::as_tuple(asio::use_awaitable_t<Exec>{})
 				);
 				if( not open_error )
 				{
@@ -159,7 +160,8 @@ co_retry_open(basic_client<Exec> *active_client,
 				asio::steady_timer timer(active_exec);
 				timer.expires_after(delay);
 
-				if( auto [wait_error] = co_await timer.async_wait(asio::as_tuple(deferred)); wait_error )
+				if( auto [wait_error] = co_await timer.async_wait(
+					asio::as_tuple(asio::use_awaitable_t<Exec>{})); wait_error )
 				{
 					auto error = libgs::detail::canonical_error(wait_error);
 					result.last_failure.error = error;
@@ -172,7 +174,7 @@ co_retry_open(basic_client<Exec> *active_client,
 			}
 }
 
-template <core_concepts::exec Exec, typename Token>
+template <typename Exec, typename Token>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI auto initiate_retry_open(basic_client<Exec> &client,
 	retry_open_request_factory request_factory, retry_open_options options, Token &&token)
 {
@@ -191,12 +193,13 @@ template <core_concepts::exec Exec, typename Token>
 			return result_t(operation_exec);
 		};
 		using factory_t = decltype(error_result);
-		asio::co_spawn(operation_exec,
+		libgs::detail::launch_awaitable(operation_exec,
 			co_retry_open(active_client, std::move(active_factory),
 				std::move(active_options), operation_exec),
-			libgs::detail::co_spawn_optional_io_handler<result_t,handler_t,
-				decltype(operation_exec),factory_t>(std::move(completion_handler),
-					operation_exec, std::move(error_result)));
+			libgs::detail::awaitable_optional_tuple_io_handler<
+				result_t,handler_t,decltype(operation_exec),factory_t>(
+					std::move(completion_handler), operation_exec,
+					std::move(error_result)));
 	}, completion_token);
 }
 

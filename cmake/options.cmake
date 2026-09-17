@@ -1,26 +1,6 @@
 # SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 # SPDX-License-Identifier: MIT
 
-set(libgs_build_static_default OFF)
-set(libgs_gnu_shared_runtime_available TRUE)
-
-if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-	execute_process (
-		COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libstdc++-6.dll
-		OUTPUT_VARIABLE libgs_gnu_libstdcxx_dll
-		OUTPUT_STRIP_TRAILING_WHITESPACE
-		ERROR_QUIET
-	)
-	if (NOT IS_ABSOLUTE "${libgs_gnu_libstdcxx_dll}" OR NOT EXISTS "${libgs_gnu_libstdcxx_dll}")
-		set(libgs_gnu_shared_runtime_available FALSE)
-		set(libgs_build_static_default ON)
-
-		message(STATUS
-			"${PRO_NAME}: GNU C++ runtime is static-only."
-		)
-	endif ()
-endif ()
-
 option(LIBGS_BUILD_STATIC
 	"-- ${PRO_NAME}: Build static libraries." ${libgs_build_static_default}
 )
@@ -32,51 +12,10 @@ if (WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
 	)
 endif ()
 
-set(LIBGS_HEAVY_COMPILE_JOBS 0 CACHE STRING
-	"Maximum concurrent memory-heavy HTTP/WebSocket test and example compilations; 0 disables the limit."
-)
-if (NOT LIBGS_HEAVY_COMPILE_JOBS MATCHES "^[0-9]+$")
-	message(FATAL_ERROR
-		"${PRO_NAME}: LIBGS_HEAVY_COMPILE_JOBS must be a non-negative integer."
-	)
-endif ()
-
-option(LIBGS_LOW_MEMORY_DEBUG_INFO
-	"-- ${PRO_NAME}: Use reduced GCC debug information to lower compiler memory use." OFF
-)
-
 if (NOT LIBGS_BUILD_STATIC)
 	option(LIBGS_ADD_LIBRARY_VERSION
 		"-- ${PRO_NAME}: Add version information to library names." ON
 	)
-endif ()
-
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-	option(LIBGS_USE_LIBCXX
-		"-- ${PRO_NAME}: Use clang libcxx." OFF
-	)
-	if (LIBGS_USE_LIBCXX)
-		message(STATUS "${PRO_NAME}: Use clang libcxx.")
-		add_compile_options(-stdlib=libc++)
-		add_link_options(-stdlib=libc++)
-	endif ()
-
-	option(LIBGS_USE_LLD
-		"-- ${PRO_NAME}: Use clang lld." OFF
-	)
-	if (LIBGS_USE_LLD)
-		message(STATUS "${PRO_NAME}: Use clang lld.")
-		set(CMAKE_EXE_LINKER_FLAGS -fuse-ld=lld)
-	endif ()
-
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-	option(LIBGS_ENABLE_LTO
-		"-- ${PRO_NAME}: Use gnu-lto." OFF
-	)
-	if (LIBGS_ENABLE_LTO)
-		message(STATUS "${PRO_NAME}: Use gnu-lto.")
-		add_compile_options(-flto)
-	endif ()
 endif ()
 
 option(LIBGS_OPENSSL_SUPPORT

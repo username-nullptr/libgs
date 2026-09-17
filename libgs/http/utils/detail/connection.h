@@ -9,7 +9,7 @@
 namespace libgs::http { namespace detail
 {
 
-class const_buffer_sequence
+class LIBGS_HTTP_API const_buffer_sequence
 {
 	static constexpr size_t inline_capacity = 4;
 
@@ -17,30 +17,11 @@ public:
 	using value_type = const_buffer;
 	using const_iterator = const value_type*;
 
-	explicit const_buffer_sequence(std::span<const const_buffer> buffers)
-	{
-		m_size = buffers.size();
-		if( m_size <= inline_capacity )
-			std::ranges::copy(buffers, m_inline.begin());
-		else
-			m_dynamic.assign(buffers.begin(), buffers.end());
-	}
+	explicit const_buffer_sequence(std::span<const const_buffer> buffers);
+	[[nodiscard]] std::span<const const_buffer> buffers() const noexcept;
 
-	[[nodiscard]] std::span<const const_buffer> buffers() const noexcept
-	{
-		if( m_size <= inline_capacity )
-			return {m_inline.data(), m_size};
-		return m_dynamic;
-	}
-
-	[[nodiscard]] const_iterator begin() const noexcept {
-		return buffers().data();
-	}
-
-	[[nodiscard]] const_iterator end() const noexcept {
-		auto sequence = buffers();
-		return sequence.data() + sequence.size();
-	}
+	[[nodiscard]] const_iterator begin() const noexcept;
+	[[nodiscard]] const_iterator end() const noexcept;
 
 private:
 	std::array<const_buffer,inline_capacity> m_inline {};
@@ -49,7 +30,7 @@ private:
 };
 
 template <typename Token, typename Initiation>
-[[nodiscard]] auto initiate_connection_io(Initiation initiation, Token &&token)
+[[nodiscard]] LIBGS_HTTP_TAPI auto initiate_connection_io(Initiation initiation, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	token_t ntoken(std::forward<Token>(token));
@@ -66,7 +47,7 @@ struct connection_io_completion
 };
 
 template <bool OwnsBuffer = false, typename Exec, typename Token, typename Initiation>
-[[nodiscard]] auto initiate_connection_io
+[[nodiscard]] LIBGS_HTTP_TAPI auto initiate_connection_io
 (const Exec &exec, Initiation initiation, Token &&token, std::shared_ptr<void> owner = {})
 {
 	using token_t = std::remove_cvref_t<Token>;
@@ -74,6 +55,7 @@ template <bool OwnsBuffer = false, typename Exec, typename Token, typename Initi
 	{
 		token_t timed_token(std::forward<Token>(token));
 		using completion_token_t = std::remove_cvref_t<decltype(timed_token.token)>;
+
 		completion_token_t completion_token(std::move(timed_token.token));
 		auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(
 			timed_token.time
@@ -82,15 +64,14 @@ template <bool OwnsBuffer = false, typename Exec, typename Token, typename Initi
 		{
 			if constexpr( OwnsBuffer )
 			{
-				auto owned_token = asio::consign(std::move(completion_token),
-					std::move(owner));
-				return initiate_connection_io(std::move(initiation),
-					std::move(owned_token));
+				auto owned_token = asio::consign(std::move(completion_token), std::move(owner));
+				return initiate_connection_io(std::move(initiation), std::move(owned_token));
 			}
 			else
 			{
 				return initiate_connection_io(std::move(initiation),
-					std::move(completion_token));
+					std::move(completion_token)
+				);
 			}
 		}
 		return asio::async_initiate<completion_token_t,void(error_code,size_t)>(
@@ -99,16 +80,18 @@ template <bool OwnsBuffer = false, typename Exec, typename Token, typename Initi
 		{
 			if constexpr( OwnsBuffer )
 			{
-				auto owned_handler = asio::consign(std::move(completion_handler),
-					std::move(buffer_owner));
+				auto owned_handler = asio::consign (
+					std::move(completion_handler), std::move(buffer_owner)
+				);
 				libgs::detail::start_timed_io<size_t>(exec,
-					std::move(io_initiation), timeout, std::move(owned_handler));
+					std::move(io_initiation), timeout, std::move(owned_handler)
+				);
 			}
 			else
 			{
 				libgs::detail::start_timed_io<size_t>(exec,
-					std::move(io_initiation), timeout,
-					std::move(completion_handler));
+					std::move(io_initiation), timeout, std::move(completion_handler)
+				);
 			}
 		},
 		completion_token);
@@ -130,44 +113,15 @@ template <bool OwnsBuffer = false, typename Exec, typename Token, typename Initi
 	}
 }
 
-inline std::shared_ptr<std::string> copy_buffer(const const_buffer &buffer)
-{
-	auto result = std::make_shared<std::string>();
-	if( buffer.size() > 0 )
-	{
-		result->assign(
-			static_cast<const char*>(buffer.data()), buffer.size()
-		);
-	}
-	return result;
-}
+[[nodiscard]] LIBGS_HTTP_API
+std::shared_ptr<std::string> copy_buffer(const const_buffer &buffer);
 
-inline std::shared_ptr<std::string>
-copy_buffers(std::span<const const_buffer> buffers)
-{
-	auto result = std::make_shared<std::string>();
-	size_t size = 0;
-	for( const auto &buffer : buffers )
-	{
-		if( buffer.size() > result->max_size() - size )
-			length_error::loc_throw("libgs::http::basic_connection::write");
-		size += buffer.size();
-	}
-	result->reserve(size);
-	for( const auto &buffer : buffers )
-	{
-		if( buffer.size() > 0 )
-		{
-			result->append(
-				static_cast<const char*>(buffer.data()), buffer.size()
-			);
-		}
-	}
-	return result;
-}
+[[nodiscard]] LIBGS_HTTP_API
+std::shared_ptr<std::string> copy_buffers(std::span<const const_buffer> buffers);
 
 template <typename Socket>
-[[nodiscard]] sys_expected<connection_probe_state> probe_tcp_socket(Socket &socket) noexcept
+[[nodiscard]] LIBGS_HTTP_TAPI
+sys_expected<connection_probe_state> probe_tcp_socket(Socket &socket) noexcept
 {
 	if( not socket.is_open() )
 		return connection_probe_state::peer_closed;
@@ -191,8 +145,9 @@ template <typename Socket>
 
 	if( not error )
 	{
-		return size == 0 ? connection_probe_state::peer_closed
-			: connection_probe_state::data_pending;
+		return size == 0 ?
+			connection_probe_state::peer_closed :
+			connection_probe_state::data_pending;
 	}
 	if( error == errc::would_block or error == errc::try_again )
 		return connection_probe_state::no_event;
@@ -205,17 +160,16 @@ template <typename Socket>
 	return sys_unexpected(error);
 }
 
-inline endpoint to_endpoint(const asio::ip::tcp::endpoint &value) noexcept
-{
-	return { .address = value.address(), .port = value.port() };
-}
+[[nodiscard]] LIBGS_HTTP_API
+endpoint to_endpoint(const asio::ip::tcp::endpoint &value) noexcept;
 
 template <typename Socket>
-[[nodiscard]] sys_expected<> set_tcp_socket_options
-(Socket &socket, const tcp_socket_options &options) noexcept
+[[nodiscard]] LIBGS_HTTP_TAPI
+sys_expected<> set_tcp_socket_options(Socket &socket, const tcp_socket_options &options) noexcept
 {
 	error_code error {};
-	auto set = [&socket, &error](const auto &option) {
+	auto set = [&socket, &error](const auto &option)
+	{
 		socket.set_option(option, error);
 		return not error;
 	};
@@ -247,7 +201,8 @@ template <typename Socket>
 }
 
 template <typename Socket>
-[[nodiscard]] sys_expected<tcp_socket_state> get_tcp_socket_options(const Socket &socket) noexcept
+[[nodiscard]] LIBGS_CORE_TAPI
+sys_expected<tcp_socket_state> get_tcp_socket_options(const Socket &socket) noexcept
 {
 	tcp_socket_state state {};
 	error_code error {};

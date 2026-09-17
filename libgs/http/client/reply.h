@@ -8,8 +8,9 @@
 #include <libgs/http/protocol/utils/client/cookie_jar.h>
 #include <libgs/http/client/connection_lease.h>
 
-namespace libgs::http
-{
+namespace libgs::http { namespace detail {
+struct reply_access;
+} //namespace detail
 
 template <core_concepts::exec Exec = asio::any_io_executor>
 class LIBGS_HTTP_TAPI basic_reply final :
@@ -97,6 +98,7 @@ public:
 	basic_reply &cancel() noexcept;
 
 private:
+	friend struct detail::reply_access;
 	class impl;
 	std::shared_ptr<impl> m_impl;
 };

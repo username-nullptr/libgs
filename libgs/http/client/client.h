@@ -8,8 +8,9 @@
 #include <libgs/http/client/request_context.h>
 #include <libgs/http/client/proxy.h>
 
-namespace libgs::http
-{
+namespace libgs::http { namespace detail {
+struct client_access;
+} //namespace detail
 
 struct client_config
 {
@@ -209,6 +210,7 @@ public:
 	[[nodiscard]] executor_t get_executor() noexcept;
 
 private:
+	friend struct detail::client_access;
 	class impl;
 	std::shared_ptr<impl> m_impl;
 };

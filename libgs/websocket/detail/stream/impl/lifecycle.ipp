@@ -27,14 +27,8 @@ template <core_concepts::exec Exec>
 void basic_stream<Exec>::impl::shutdown(error_code &error) noexcept
 {
 	stop_automatic_ping();
-	if( m_close_timer )
-	{
-		try {
-			ignore_unused(m_close_timer->cancel());
-		}
-		catch(...) {}
-		m_close_timer.reset();
-	}
+	m_close_deadline.stop();
+
 	if( m_state == connection_state::closed )
 	{
 		m_receive_engine.complete_read_waiter(asio::error::operation_aborted);
@@ -89,14 +83,8 @@ void basic_stream<Exec>::impl::finish_protocol_failure(bool cancel_transport) no
 		return ;
 
 	stop_automatic_ping();
-	if( m_close_timer )
-	{
-		try {
-			ignore_unused(m_close_timer->cancel());
-		}
-		catch(...) {}
-		m_close_timer.reset();
-	}
+	m_close_deadline.stop();
+
 	if( cancel_transport and m_connection and not m_transport_closed )
 		ignore_unused(m_connection->cancel());
 
@@ -172,14 +160,7 @@ void basic_stream<Exec>::impl::fail(error_code error) noexcept
 	if( not m_error )
 		m_error = error;
 
-	if( m_close_timer )
-	{
-		try {
-			ignore_unused(m_close_timer->cancel());
-		}
-		catch(...) {}
-		m_close_timer.reset();
-	}
+	m_close_deadline.stop();
 	m_state = connection_state::failed;
 	stop_automatic_ping();
 

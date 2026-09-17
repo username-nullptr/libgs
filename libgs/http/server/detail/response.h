@@ -14,7 +14,7 @@
 #include <libgs/http/protocol/utils/core/conditional.h>
 #include <libgs/http/protocol/utils/core/upgrade.h>
 #include <libgs/http/protocol/utils/core/range.h>
-#include <shared_mutex>
+#include <libgs/core/shared_mutex.h>
 
 namespace libgs::http
 {
@@ -72,7 +72,7 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 		}
 
 		void store_source(const std::filesystem::path &path, size_t source_size,
-			file_time_t modified, std::shared_ptr<const std::string> source)
+			file_time_t modified, const std::shared_ptr<const std::string> &source)
 		{
 			if( not source )
 				return ;
@@ -84,8 +84,12 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 			auto order_position = std::prev(m_order.end());
 			try {
 				m_entries.emplace(path, entry {
-					source_size, modified, std::move(source), {}, order_position,
-					std::make_shared<std::atomic_bool>(true)
+					.source_size = source_size,
+					.modified = modified,
+					.source = std::move(source),
+					.gzip = {},
+					.order_position = order_position,
+					.referenced = std::make_shared<std::atomic_bool>(true)
 				});
 			}
 			catch(...)
@@ -151,7 +155,7 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 		std::unordered_map<std::filesystem::path,entry> m_entries {};
 		order_list m_order {};
 		size_t m_total_size = 0;
-		mutable std::shared_mutex m_mutex {};
+		mutable spin_shared_mutex m_mutex {};
 	};
 
 public:
@@ -299,8 +303,7 @@ public:
 
 private:
 	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
-	co_write(std::shared_ptr<impl> self, const_buffer body,
-		std::shared_ptr<void> owner)
+	co_write(std::shared_ptr<impl> self, const_buffer body, std::shared_ptr<void> owner)
 	{
 		ignore_unused(owner);
 		auto pro_state = self->m_generator.pro_state();
@@ -405,16 +408,16 @@ public:
 		auto exec = m_connection->get_executor();
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>(
-		[exec, self = this->shared_from_this(), input_body,
-		 owner = std::move(body_owner)](auto completion_handler) mutable
+		[exec, self = this->shared_from_this(), input_body, owner = std::move(body_owner)]
+		<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
-			libgs::detail::launch_awaitable(exec, co_write(std::move(self), input_body,
-				std::move(owner)),
-				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
-					std::move(completion_handler), exec));
-		}, completion_token
-		);
+			libgs::detail::launch_awaitable(exec, co_write(std::move(self), input_body, std::move(owner)),
+				libgs::detail::co_spawn_io_handler<size_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 private:
@@ -434,8 +437,7 @@ private:
 			   not (m_req_method == method::connect and code >= 200 and code < 300);
 	}
 
-	[[nodiscard]] bool gzip_candidate
-	(std::string_view mime, size_t size, bool file) const noexcept
+	[[nodiscard]] bool gzip_candidate(std::string_view mime, size_t size, bool file) const noexcept
 	{
 		if( size < 256 or
 			not status_allows_representation() or
@@ -443,16 +445,17 @@ private:
 			m_generator.contains_header(header::content_encoding) or
 			header_has_token(m_generator.headers(), header::cache_control, "no-transform") )
 			return false;
+
 		if( file )
 			return m_req_version >= version::v11;
+
 		return not m_generator.contains_header(header::transfer_encoding);
 	}
 
-	[[nodiscard]] bool should_gzip
-	(std::string_view mime, size_t size, bool file) const noexcept
+	[[nodiscard]] bool should_gzip(std::string_view mime, size_t size, bool file) const noexcept
 	{
 		return m_auto_compression and m_client_accepts_gzip and
-			gzip_candidate(mime, size, file) and (not file or m_req_range.empty());
+			   gzip_candidate(mime, size, file) and (not file or m_req_range.empty());
 	}
 
 	void set_gzip_variant_etag() noexcept
@@ -528,7 +531,7 @@ private:
 		if( m_auto_compression and candidate )
 			add_vary_accept_encoding();
 
-		m_file_gzip = candidate and should_gzip(
+		m_file_gzip = candidate and should_gzip (
 			token.mime_type, token.file_size, true
 		);
 		if( m_file_gzip )
@@ -539,8 +542,8 @@ private:
 	{
 		if( not m_file_gzip )
 			return ;
-
 		m_file_gzip = false;
+
 		m_generator
 		.unset_header(header::content_encoding)
 		.unset_header(header::transfer_encoding)
@@ -714,15 +717,16 @@ public:
 		auto exec = m_connection->get_executor();
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>(
-		[exec, self = this->shared_from_this(),
-		 opt = opt_t(std::move(async_opt))](auto completion_handler) mutable
+		[exec, self = this->shared_from_this(), opt = opt_t(std::move(async_opt))]
+		<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_send_file(std::move(self), std::move(opt)),
-				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
-					std::move(completion_handler), exec));
-		}, completion_token
-		);
+				libgs::detail::co_spawn_io_handler<size_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 public:
@@ -766,15 +770,16 @@ public:
 		auto exec = m_connection->get_executor();
 
 		return asio::async_initiate<token_t,void(error_code,size_t)>(
-		[exec, self = this->shared_from_this(),
-		 headers = std::move(completion_headers)](auto completion_handler) mutable
+		[exec, self = this->shared_from_this(), headers = std::move(completion_headers)]
+		<typename Handler>(Handler completion_handler) mutable
 		{
-			using handler_t = decltype(completion_handler);
 			libgs::detail::launch_awaitable(exec, co_chunk_end(std::move(self), std::move(headers)),
-				libgs::detail::co_spawn_io_handler<size_t,handler_t,decltype(exec)>(
-					std::move(completion_handler), exec));
-		}, completion_token
-		);
+				libgs::detail::co_spawn_io_handler<size_t,Handler,decltype(exec)>(
+					std::move(completion_handler), exec
+				)
+			);
+		},
+		completion_token);
 	}
 
 private:
@@ -939,8 +944,8 @@ private:
 
 		if( encoded->size() > std::numeric_limits<size_t>::max() - result )
 			return sys_unexpected(make_error_code(std::errc::value_too_large));
-		result += encoded->size();
 
+		result += encoded->size();
 		token.stream->clear();
 		token.stream->seekg(0);
 
@@ -1338,8 +1343,7 @@ private:
 
 	template <typename Opt>
 	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
-	co_range_transfer(std::shared_ptr<impl> self, Opt &token,
-		std::vector<range_value> ranges)
+	co_range_transfer(std::shared_ptr<impl> self, Opt &token, std::vector<range_value> ranges)
 	{
 		self->m_generator.set_status(status::partial_content);
 
@@ -1430,7 +1434,7 @@ private:
 				sum += write_body(buffer(buf,size), error);
 				if( error )
 					break;
-				value.total -= static_cast<size_t>(size);
+				value.total -= size;
 			}
 			return sum;
 		}
@@ -1596,8 +1600,7 @@ private:
 		co_return std::tuple<error_code,size_t>{error, 0};
 	}
 
-	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept
-	{
+	[[nodiscard]] size_t write_body(const const_buffer &body, error_code &error) noexcept {
 		return write_representation(body, 0, body.size(), error);
 	}
 
@@ -1669,8 +1672,7 @@ private:
 	}
 
 	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
-	co_base_write(std::shared_ptr<impl> self, std::string header_data,
-		const_buffer body)
+	co_base_write(std::shared_ptr<impl> self, std::string header_data, const_buffer body)
 	{
 		const const_buffer buffers[] {buffer(header_data), body};
 		auto [error, bytes] = co_await self->m_connection->write (
@@ -1694,14 +1696,14 @@ private:
 		co_return std::tuple<error_code,size_t>{error, bytes};
 	}
 
-	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec>
-	co_write_representation(std::shared_ptr<impl> self, const_buffer body,
-		size_t body_offset, size_t body_size)
+	[[nodiscard]] static asio::awaitable<std::tuple<error_code,size_t>,Exec> co_write_representation
+	(std::shared_ptr<impl> self, const_buffer body, size_t body_offset, size_t body_size)
 	{
 		if( self->m_generator.pro_state() == generator_state::content_length )
 		{
 			auto content = self->m_generator.body_buffer(body);
 			auto [error, bytes] = co_await co_base_write(self, content);
+
 			co_return std::tuple<error_code,size_t> {
 				error, body_bytes_transferred(bytes, body_offset,
 					std::min(body_size, content.size() > body_offset ?
@@ -1712,8 +1714,8 @@ private:
 		}
 		auto content = self->m_generator.body_data(body);
 		auto offset = framed_body_offset(content.size(), body.size()) + body_offset;
-
 		auto [error, bytes] = co_await co_base_write(self, std::move(content));
+
 		co_return std::tuple<error_code,size_t> {
 			error, body_bytes_transferred(bytes, offset,
 				std::min(body_size, body.size() > body_offset ?
@@ -1771,10 +1773,11 @@ private:
 		{
 		case precondition_result::not_modified:
 			return status::not_modified;
+
 		case precondition_result::precondition_failed:
 			return status::precondition_failed;
-		default:
-			break;
+
+		default: break;
 		}
 		return status::none;
 	}
@@ -1839,8 +1842,7 @@ private:
 		return result;
 	}
 
-	[[nodiscard]] std::filesystem::path
-	resource_file_name(std::filesystem::path file_name) const
+	[[nodiscard]] std::filesystem::path resource_file_name(std::filesystem::path file_name) const
 	{
 		if( file_name.empty() or m_resource_root.empty() or app::is_absolute_path(file_name) )
 			return file_name;
@@ -1863,6 +1865,7 @@ private:
 			auto expected = token.init(std::ios::in | std::ios::binary);
 			if( expected )
 				return sys_expected<token_t>(std::move(token));
+
 			return sys_expected<token_t>(sys_unexpected(expected.error()));
 		}
 		else
@@ -1876,12 +1879,14 @@ private:
 			auto expected = opt.init(std::ios::in | std::ios::binary);
 			if( expected )
 				return sys_expected<opt_t>(std::forward<Opt>(opt));
+
 			return sys_expected<opt_t>(sys_unexpected(expected.error()));
 		}
 	}
 
 public:
 	connection_ptr m_connection {};
+
 	std::filesystem::path m_resource_root {};
 	generator_t m_generator {};
 
@@ -2057,13 +2062,11 @@ auto basic_response<Exec>::send_file(T &&opt, Token &&token)
 	else
 	{
 		return initiate_io<size_t>(get_executor(),
-		[impl = m_impl,
-		 async_opt = capture_async_argument(std::forward<T>(opt))]
+		[impl = m_impl, async_opt = capture_async_argument(std::forward<T>(opt))]
 		<typename T0>(T0 &&completion_token) mutable
 		{
 			return impl->async_send_file (
-				std::move(async_opt),
-				std::forward<T0>(completion_token)
+				std::move(async_opt), std::forward<T0>(completion_token)
 			);
 		},
 		std::forward<Token>(token));
@@ -2082,14 +2085,11 @@ auto basic_response<Exec>::redirect
 
 template <core_concepts::exec Exec>
 template <typename Token>
-auto basic_response<Exec>::redirect
-(core_concepts::text_p<char> auto &&url, Token &&token)
+auto basic_response<Exec>::redirect(core_concepts::text_p<char> auto &&url, Token &&token)
 	requires task_token_v<Token,size_t>
 {
-	return redirect (
-		std::forward<decltype(url)>(url),
-		redirect_enum::moved_permanently,
-		std::forward<Token>(token)
+	return redirect(std::forward<decltype(url)>(url),
+		redirect_enum::moved_permanently, std::forward<Token>(token)
 	);
 }
 
