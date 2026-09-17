@@ -101,7 +101,7 @@ public:
 public:
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		concepts::dis_detach_opt_token<Token,error_code,Value...>;
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,Value...>;
 
 	template <typename Token = use_sync_t>
 	auto wait_reply(Token &&token = {})

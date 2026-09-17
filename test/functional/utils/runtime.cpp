@@ -9,6 +9,7 @@
 #include <libgs/utils/settings.h>
 
 #include <fstream>
+#include <future>
 
 namespace
 {
@@ -22,6 +23,18 @@ bool wait_for(const std::atomic_bool &state)
 	return state;
 }
 
+template <typename T>
+T wait_for(std::future<T> &future)
+{
+	auto &context = libgs::io_context();
+	while( future.wait_for(1ms) != std::future_status::ready )
+	{
+		context.poll();
+		context.restart();
+	}
+	return future.get();
+}
+
 void settings_persistence_and_signals()
 {
 	libgs::test::temporary_directory directory;
@@ -30,20 +43,23 @@ void settings_persistence_and_signals()
 	bool loaded = false;
 	std::string changed_key;
 	libgs::value changed_value;
-	settings.loaded.connect([&] { loaded = true; });
+	settings.loaded.connect([&](const libgs::error_code &error) {
+		LIBGS_TEST_CHECK(not error);
+		loaded = true;
+	});
 	settings.changed.connect([&](std::string_view key, libgs::value value)
 	{
 		changed_key = key;
 		changed_value = std::move(value);
 	});
 
-	LIBGS_TEST_CHECK(settings.load(file).has_value());
+	LIBGS_TEST_CHECK(not settings.load_or(file));
 	LIBGS_TEST_CHECK(loaded);
 	settings.set("server/port", 8080);
 	LIBGS_TEST_CHECK_EQ(changed_key, "server/port");
 	LIBGS_TEST_CHECK_EQ(changed_value.to_int().value_or(0), 8080);
 	LIBGS_TEST_CHECK_EQ(settings.get("server/port")->to_int().value_or(0), 8080);
-	LIBGS_TEST_CHECK(settings.sync().has_value());
+	LIBGS_TEST_CHECK(not settings.sync());
 	LIBGS_TEST_CHECK(std::filesystem::is_regular_file(file));
 	LIBGS_TEST_CHECK_EQ(settings.file_name(), file);
 
@@ -51,6 +67,97 @@ void settings_persistence_and_signals()
 	LIBGS_TEST_CHECK(std::ranges::find(names, "libgs-test-runtime") != names.end());
 	settings.changed.disconnect();
 	settings.loaded.disconnect();
+}
+
+void settings_io_tokens()
+{
+	libgs::test::temporary_directory directory;
+	const auto file = directory.path() / "settings-tokens.ini";
+	const auto missing = directory.path() / "missing.ini";
+	auto &settings = libgs::utils::settings::instance("libgs-test-settings-tokens");
+
+	std::atomic_int loaded_count {0};
+	std::atomic_int synced_count {0};
+	libgs::error_code loaded_error;
+	libgs::error_code synced_error;
+	settings.loaded.connect([&](libgs::error_code error) {
+		loaded_error = error;
+		loaded_count++;
+	});
+	settings.synced.connect([&](libgs::error_code error) {
+		synced_error = error;
+		synced_count++;
+	});
+
+	settings.set("tokens/value", 17);
+	auto sync_future = settings.sync(file, libgs::use_future);
+	const auto sync_error = wait_for(sync_future);
+	LIBGS_TEST_CHECK(not sync_error);
+	LIBGS_TEST_CHECK(not synced_error);
+	LIBGS_TEST_CHECK_EQ(synced_count.load(), 1);
+
+	const auto direct_error = settings.load(missing);
+	LIBGS_TEST_CHECK_EQ(direct_error,
+		std::make_error_code(std::errc::no_such_file_or_directory));
+
+	auto load_future = settings.load(missing, libgs::use_future);
+	const auto missing_error = wait_for(load_future);
+	LIBGS_TEST_CHECK_EQ(missing_error,
+		std::make_error_code(std::errc::no_such_file_or_directory));
+	LIBGS_TEST_CHECK_EQ(loaded_error, missing_error);
+
+	auto awaitable_future = asio::co_spawn(libgs::io_context(),
+	[&]() -> libgs::awaitable<libgs::error_code>
+	{
+		co_return co_await settings.load(missing, libgs::use_awaitable);
+	}, libgs::use_future);
+	LIBGS_TEST_CHECK_EQ(wait_for(awaitable_future), missing_error);
+
+	auto deferred_load = settings.load(file, libgs::deferred);
+	auto deferred_future = std::move(deferred_load)(libgs::use_future);
+	LIBGS_TEST_CHECK(not wait_for(deferred_future));
+
+	std::promise<libgs::error_code> callback_result;
+	settings.load(file, [&](libgs::error_code error) {
+		callback_result.set_value(error);
+	});
+	auto callback_future = callback_result.get_future();
+	LIBGS_TEST_CHECK(not wait_for(callback_future));
+	LIBGS_TEST_CHECK_EQ(settings.get("tokens/value")->to_int().value_or(0), 17);
+
+	libgs::io_context_t completion_context;
+	std::promise<libgs::error_code> associated_result;
+	auto associated_future = associated_result.get_future();
+	std::thread::id completion_thread;
+	std::thread::id callback_thread;
+	settings.load(file, asio::bind_executor(completion_context.get_executor(),
+	[&](libgs::error_code error)
+	{
+		callback_thread = std::this_thread::get_id();
+		associated_result.set_value(error);
+	}));
+	std::thread completion_runner([&]
+	{
+		completion_thread = std::this_thread::get_id();
+		completion_context.run();
+	});
+	LIBGS_TEST_CHECK(not wait_for(associated_future));
+	completion_runner.join();
+	LIBGS_TEST_CHECK(callback_thread == completion_thread);
+
+	const auto before_detached = loaded_count.load();
+	settings.load_or(file, libgs::detached);
+	for(int retry = 0; retry < 200 and loaded_count == before_detached; ++retry)
+	{
+		libgs::io_context().poll();
+		libgs::io_context().restart();
+		std::this_thread::sleep_for(1ms);
+	}
+	LIBGS_TEST_CHECK(loaded_count > before_detached);
+	LIBGS_TEST_CHECK(not loaded_error);
+
+	settings.loaded.disconnect();
+	settings.synced.disconnect();
 }
 
 void child_process_io()
@@ -323,6 +430,7 @@ int main()
 {
 	return libgs::test::run({
 		{"settings persistence and signals", settings_persistence_and_signals},
+		{"settings IO tokens", settings_io_tokens},
 		{"child process IO", child_process_io},
 		{"completed child single-byte read", child_process_completed_single_byte_read},
 		{"child process environment and channels", child_process_environment_and_channels},

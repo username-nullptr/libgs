@@ -52,11 +52,6 @@ concept any_exec_stream = is_any_exec_stream_v<Stream>;
 template <typename Stream>
 concept any_exec_stream_p = is_any_exec_stream_v<std::remove_cvref_t<Stream>>;
 
-template <typename Token, typename...Args>
-concept dis_detach_opt_token =
-	libgs::concepts::tf_opt_token<Token,Args...> and
-	not is_detached_v<token_unbound_t<Token>>;
-
 template <typename Func, typename Token>
 concept progress_handler =
 	libgs::concepts::callable<Func,size_t,size_t> and

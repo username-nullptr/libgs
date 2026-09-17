@@ -43,7 +43,7 @@ if (LIBGS_BUILD_CORO)
 endif ()
 
 option(LIBGS_BUILD_HTTP
-	"-- ${PRO_NAME}: Build module <HTTP>." ON
+	"-- ${PRO_NAME}: Build module <HTTP>." OFF
 )
 if (LIBGS_BUILD_HTTP)
 	if (NOT LIBGS_BUILD_CORO)
@@ -57,7 +57,7 @@ if (LIBGS_BUILD_HTTP)
 endif ()
 
 option(LIBGS_BUILD_WEBSOCKET
-	"-- ${PRO_NAME}: Build module <WebSocket>." ON
+	"-- ${PRO_NAME}: Build module <WebSocket>." OFF
 )
 if (LIBGS_BUILD_WEBSOCKET)
 	if (NOT LIBGS_BUILD_HTTP)
@@ -69,7 +69,7 @@ if (LIBGS_BUILD_WEBSOCKET)
 endif ()
 
 option(LIBGS_BUILD_UTILITIES
-	"-- ${PRO_NAME}: Build module <Utilities>." ON
+	"-- ${PRO_NAME}: Build module <Utilities>." OFF
 )
 if (LIBGS_BUILD_UTILITIES)
 	if (NOT LIBGS_BUILD_CORO)

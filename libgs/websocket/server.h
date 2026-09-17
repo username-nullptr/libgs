@@ -152,7 +152,7 @@ public:
 
 	template <typename Token>
 	static constexpr bool accept_token_v =
-		concepts::dis_detach_opt_token<Token,error_code,accept_result_t>;
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,accept_result_t>;
 
 	template <typename Func>
 	static constexpr bool connection_handler_v = requires(Func &&func, accept_result_t value)
@@ -263,12 +263,12 @@ bool is_upgrade_request(const http::basic_request<Exec> &request) noexcept;
 template <core_concepts::exec Exec, typename Token = use_sync_t>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI auto upgrade
 (http::basic_service_context<Exec> &context, Token &&token = {}) requires
-	concepts::dis_detach_opt_token<Token,error_code,basic_accept_result<Exec>>;
+	core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_accept_result<Exec>>;
 
 template <core_concepts::exec Exec, typename Token = use_sync_t>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI auto upgrade
 (http::basic_service_context<Exec> &context, upgrade_options options, Token &&token = {}) requires
-	concepts::dis_detach_opt_token<Token,error_code,basic_accept_result<Exec>>;
+	core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_accept_result<Exec>>;
 
 } //namespace libgs::websocket
 #include <libgs/websocket/detail/server.h>

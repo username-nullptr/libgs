@@ -1,10 +1,10 @@
-// SPDX-FileCopyrightText: 2024-2025 Xiaoqiang <username_nullptr@163.com>
+// SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_CORE_INI_H
 #define LIBGS_CORE_INI_H
 
-#include <libgs/core/execution.h>
+#include <libgs/core/async_expected.h>
 #include <libgs/core/string_vector.h>
 #include <libgs/core/value.h>
 #include <map>
@@ -237,22 +237,22 @@ public:
 	[[nodiscard]] const_reverse_iterator rend() const noexcept;
 
 public:
-	template <concepts::opt_token<error_code> Token = use_sync_t>
+	template <concepts::dis_detached_opt_token<error_code> Token = use_sync_t>
 	auto load(const path_t &file_name, Token &&token = {});
 
-	template <concepts::opt_token<error_code> Token = use_sync_t>
+	template <concepts::dis_detached_opt_token<error_code> Token = use_sync_t>
 	auto load_or(const path_t &file_name, Token &&token = {});
 
-	template <concepts::opt_token<error_code> Token = use_sync_t>
+	template <concepts::dis_detached_opt_token<error_code> Token = use_sync_t>
 	auto load(Token &&token = {});
 
-	template <concepts::opt_token<error_code> Token = use_sync_t>
+	template <concepts::dis_detached_opt_token<error_code> Token = use_sync_t>
 	auto load_or(Token &&token = {});
 
-	template <concepts::opt_token<error_code> Token = use_sync_t>
+	template <concepts::dis_detached_opt_token<error_code> Token = use_sync_t>
 	auto sync(const path_t &file_name, Token &&token = {});
 
-	template <concepts::opt_token<error_code> Token = use_sync_t>
+	template <concepts::dis_detached_opt_token<error_code> Token = use_sync_t>
 	auto sync(Token &&token = {});
 
 	template <typename Rep, typename Period>

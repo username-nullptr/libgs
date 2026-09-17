@@ -7,8 +7,38 @@
 using namespace std::chrono_literals;
 using namespace libgs::operators;
 
-namespace libgs::utils
+namespace libgs::utils { namespace
 {
+
+using path_t = settings::path_t;
+
+void notify_loaded
+(settings *owner, const path_t &file_name, error_code error) noexcept
+{
+	if( error )
+	{
+		libgs_utils_clog_error("LibGS.Utils",
+			"settings: load file '{}' failed: '{}'.",
+			file_name.empty() ? owner->file_name() : file_name, error
+		);
+	}
+	LIBGS_UNUSED(owner->loaded(error));
+}
+
+void notify_synced
+(settings *owner, const path_t &file_name, error_code error) noexcept
+{
+	if( error )
+	{
+		libgs_utils_clog_error("LibGS.Utils",
+			"settings: sync file '{}' failed: '{}'.",
+			file_name.empty() ? owner->file_name() : file_name, error
+		);
+	}
+	LIBGS_UNUSED(owner->synced(error));
+}
+
+} //namespace
 
 settings::settings(std::string name) :
 	m_impl(new impl(std::move(name)))
@@ -63,70 +93,326 @@ settings &settings::instance()
 static std::map<std::filesystem::path, const settings*> g_file_paths;
 static spin_mutex g_file_paths_lock;
 
-sys_expected<> settings::load(const path_t &file_path)
+error_code settings::impl::claim_file(const settings *owner, const path_t &file_name) noexcept
 {
-	if( not file_path.empty() )
-	{
+	if( file_name.empty() )
+		return {};
+	try {
 		spin_unique_lock locker(g_file_paths_lock);
-		auto [it, inserted] = g_file_paths.emplace(file_path, this);
 
-		if( not inserted and it->second != this )
-		{
-			runtime_error::loc_throw(std::format (
-				"settings::set_file_name: File '{}' is already used by another instance.",
-				file_path.string()
-			));
-		}
-		g_file_paths.erase(it);
-		g_file_paths.emplace(file_path, this);
-		locker.unlock();
+		if( auto [it, inserted] = g_file_paths.emplace(file_name, owner);
+			not inserted and it->second != owner )
+			return make_error_code(std::errc::device_or_resource_busy);
 	}
-	std::error_code error;
-	m_impl->m_ini_lock.lock();
-	m_impl->m_ini.load_or(file_path, error);
-	auto _file_name = m_impl->m_ini.file_name();
-	m_impl->m_ini_lock.unlock();
-
-	if( error )
-	{
-		libgs_utils_clog_error("LibGS.Utils",
-			"settings: load file '{}' failed: '{}'.",
-			_file_name, error
-		);
-		return sys_unexpected(error);
+	catch(...) {
+		return exception_error(std::current_exception());
 	}
-	loaded();
 	return {};
 }
 
-sys_expected<> settings::sync()
+std::shared_ptr<settings::ini_t> settings::impl::snapshot_ini
+(const path_t &file_name, bool replace_file_name, bool copy_data)
 {
-	m_impl->m_ini_lock.lock_shared();
-	libgs::ini ini(get_executor(), m_impl->m_ini.file_name());
+	spin_shared_shared_lock locker(m_ini_lock);
+	LIBGS_UNUSED(locker);
 
-	for(auto &[group, map] : m_impl->m_ini)
+	const auto path = replace_file_name ?
+		file_name : m_ini.file_name();
+
+	if( copy_data )
+		return std::make_shared<ini_t>(m_ini.get_executor(), m_ini.data(), path);
+
+	return std::make_shared<ini_t>(m_ini.get_executor(), path);
+}
+
+void settings::impl::adopt_ini(ini_t &&source, bool merge_data)
+{
+	spin_shared_unique_lock locker(m_ini_lock);
+	auto source_data = merge_data ? source.data() : ini_t::data_t{};
+
+	if( m_ini.file_name() == source.file_name() )
 	{
-		for(auto &[key, value] : map)
-			ini[group][key] = value;
+		if( merge_data )
+			m_ini.set_data(std::move(source_data));
+		return ;
 	}
-	m_impl->m_ini_lock.unlock_shared();
+	const auto period = m_ini.sync_period();
+	const auto sync_on_delete = m_ini.sync_on_delete();
+	auto current_data = m_ini.data();
 
-	std::error_code error;
-	static std::mutex mutex;
+	m_ini.set_sync_period(0s);
+	m_ini.set_sync_on_delete(false);
 
-	mutex.lock();
-	ini.sync(error);
-	mutex.unlock();
+	source.clear();
+	source.set_data(std::move(current_data));
 
-	if( error )
+	if( merge_data )
+		source.set_data(std::move(source_data));
+
+	source.set_sync_on_delete(sync_on_delete);
+	source.set_sync_period(period);
+	m_ini = std::move(source);
+}
+
+error_code settings::impl::load_sync(settings *owner, const path_t &file_name,
+	bool replace_file_name, bool ignore_missing, error_code error)
+{
+	if( not error )
 	{
-		libgs_utils_clog_error("LibGS.Utils",
-			"settings: sync file '{}' failed: '{}'.",
-			file_name(), error
+		try {
+			spin_shared_unique_lock locker(m_ini_lock);
+			if( ignore_missing )
+			{
+				if( replace_file_name )
+					m_ini.load_or(file_name, error);
+				else
+					m_ini.load_or(error);
+			}
+			else
+			{
+				if( replace_file_name )
+					m_ini.load(file_name, error);
+				else
+					m_ini.load(error);
+			}
+		}
+		catch(...) {
+			error = exception_error(std::current_exception());
+		}
+	}
+	notify_loaded(owner, file_name, error);
+	return error;
+}
+
+error_code settings::impl::sync_sync
+(settings *owner, const path_t &file_name, bool replace_file_name, error_code error)
+{
+	if( not error )
+	{
+		try {
+			spin_shared_unique_lock locker(m_ini_lock);
+			if( replace_file_name )
+				m_ini.sync(file_name, error);
+			else
+				m_ini.sync(error);
+		}
+		catch(...) {
+			error = exception_error(std::current_exception());
+		}
+	}
+	notify_synced(owner, file_name, error);
+	return error;
+}
+
+void settings::impl::start_load(settings *owner, path_t file_name,
+	bool replace_file_name, bool ignore_missing, error_code prepare_error, io_handler_t handler)
+{
+	start_load_impl(owner, std::move(file_name), replace_file_name,
+		ignore_missing, prepare_error, std::move(handler)
+	);
+}
+
+void settings::impl::start_load(settings *owner, path_t file_name,
+	bool replace_file_name, bool ignore_missing, error_code prepare_error, error_handler_t handler)
+{
+	start_load_impl(owner, std::move(file_name), replace_file_name,
+		ignore_missing, prepare_error, std::move(handler)
+	);
+}
+
+void settings::impl::start_sync
+(settings *owner, path_t file_name, bool replace_file_name, error_code prepare_error, io_handler_t handler)
+{
+	start_sync_impl(owner, std::move(file_name), replace_file_name,
+		prepare_error, std::move(handler)
+	);
+}
+
+void settings::impl::start_sync
+(settings *owner, path_t file_name, bool replace_file_name, error_code prepare_error, error_handler_t handler)
+{
+	start_sync_impl(owner, std::move(file_name), replace_file_name,
+		prepare_error, std::move(handler)
+	);
+}
+
+template <typename Handler>
+void settings::impl::complete(Handler &&handler, error_code error)
+{
+	if constexpr( std::is_same_v<std::remove_cvref_t<Handler>,error_handler_t> )
+		std::forward<Handler>(handler)(error_code{}, error);
+	else
+		std::forward<Handler>(handler)(error);
+}
+
+template <typename Handler>
+void settings::impl::post_error
+(settings *owner, path_t file_name, error_code error, bool loading, Handler handler)
+{
+	auto fallback_exec = m_ini.get_executor();
+	auto exec = asio::get_associated_executor(handler, fallback_exec);
+	auto allocator = asio::get_associated_allocator(handler);
+
+	auto work = std::make_shared<decltype(asio::make_work_guard(handler))>(
+		asio::make_work_guard(handler)
+	);
+	asio::post(fallback_exec, [owner, file_name = std::move(file_name),
+		error, loading, exec, allocator, work, handler = std::move(handler)]() mutable
+	{
+		exec.execute(asio::bind_allocator(allocator,
+		[owner, file_name = std::move(file_name), error, loading, work, handler = std::move(handler)]
+		() mutable
+		{
+			LIBGS_UNUSED(work);
+			if( loading )
+				notify_loaded(owner, file_name, error);
+			else
+				notify_synced(owner, file_name, error);
+			complete(std::move(handler), error);
+		}));
+	});
+}
+
+template <typename Handler>
+void settings::impl::start_load_impl(settings *owner, path_t file_name,
+	bool replace_file_name, bool ignore_missing, error_code prepare_error, Handler handler)
+{
+	if( prepare_error )
+	{
+		post_error(owner, std::move(file_name),
+			prepare_error, true, std::move(handler)
 		);
-		return sys_unexpected(error);
+		return ;
 	}
-	return {};
+	std::shared_ptr<ini_t> source;
+	try {
+		source = snapshot_ini(file_name, replace_file_name, false);
+	}
+	catch(...)
+	{
+		post_error(owner, std::move(file_name),
+			exception_error(std::current_exception()), true, std::move(handler)
+		);
+		return ;
+	}
+	auto source_exec = source->get_executor();
+
+	auto exec = asio::get_associated_executor(handler, source_exec);
+	auto allocator = asio::get_associated_allocator(handler);
+
+	auto slot = asio::get_associated_cancellation_slot(handler);
+	auto work = std::make_shared<decltype(asio::make_work_guard(handler))>(
+		asio::make_work_guard(handler)
+	);
+	auto handler_state = std::make_shared<Handler>(std::move(handler));
+	auto completed = std::make_shared<std::atomic_bool>(false);
+
+	auto completion = asio::bind_allocator(allocator,
+		asio::bind_executor(source_exec, asio::bind_cancellation_slot(slot, [
+			this, owner, source, file_name = std::move(file_name), replace_file_name,
+			handler_state, completed, exec, allocator, work]
+		(error_code error) mutable
+		{
+			exec.execute(asio::bind_allocator(allocator, [
+				this, owner, source, file_name = std::move(file_name), replace_file_name,
+				handler_state, completed, work, error
+			]() mutable
+			{
+				LIBGS_UNUSED(work);
+				if( completed->exchange(true, std::memory_order_acq_rel) )
+					return ;
+
+				if( not error or replace_file_name )
+					adopt_ini(std::move(*source), not error);
+
+				notify_loaded(owner, file_name, error);
+				complete(std::move(*handler_state), error);
+			}));
+		}))
+	);
+	try {
+		if( ignore_missing )
+			source->load_or(completion);
+		else
+			source->load(completion);
+	}
+	catch(...)
+	{
+		auto error = exception_error(std::current_exception());
+		asio::post(source_exec, asio::bind_allocator(allocator,
+		[completion = std::move(completion), error]() mutable {
+			completion(error);
+		}));
+	}
+}
+
+template <typename Handler>
+void settings::impl::start_sync_impl
+(settings *owner, path_t file_name, bool replace_file_name, error_code prepare_error, Handler handler)
+{
+	if( prepare_error )
+	{
+		post_error(owner, std::move(file_name), prepare_error, false,
+			std::move(handler));
+		return ;
+	}
+	std::shared_ptr<ini_t> source;
+	try {
+		source = snapshot_ini(file_name, replace_file_name, true);
+	}
+	catch(...)
+	{
+		post_error(owner, std::move(file_name),
+			exception_error(std::current_exception()), false, std::move(handler)
+		);
+		return ;
+	}
+	auto source_exec = source->get_executor();
+
+	auto exec = asio::get_associated_executor(handler, source_exec);
+	auto allocator = asio::get_associated_allocator(handler);
+
+	auto slot = asio::get_associated_cancellation_slot(handler);
+	auto work = std::make_shared<decltype(asio::make_work_guard(handler))>(
+		asio::make_work_guard(handler)
+	);
+	auto handler_state = std::make_shared<Handler>(std::move(handler));
+	auto completed = std::make_shared<std::atomic_bool>(false);
+
+	auto completion = asio::bind_allocator(allocator,
+		asio::bind_executor(source_exec, asio::bind_cancellation_slot(slot, [
+			this, owner, source, file_name = std::move(file_name), replace_file_name,
+			handler_state, completed, exec, allocator, work
+		](error_code error) mutable
+		{
+			exec.execute(asio::bind_allocator(allocator, [
+				this, owner, source, file_name = std::move(file_name), replace_file_name,
+				handler_state, completed, work, error
+			]() mutable
+			{
+				LIBGS_UNUSED(work);
+				if( completed->exchange(true, std::memory_order_acq_rel) )
+					return ;
+
+				if( replace_file_name )
+					adopt_ini(std::move(*source), false);
+
+				notify_synced(owner, file_name, error);
+				complete(std::move(*handler_state), error);
+			}));
+		}))
+	);
+	try {
+		source->sync(completion);
+	}
+	catch(...)
+	{
+		auto error = exception_error(std::current_exception());
+		asio::post(source_exec, asio::bind_allocator(allocator,
+		[completion = std::move(completion), error]() mutable {
+			completion(error);
+		}));
+	}
 }
 
 std::vector<std::string> settings::names() noexcept

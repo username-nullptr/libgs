@@ -66,7 +66,7 @@ public:
 
 	template <method_enum Method, typename Token>
 	static constexpr bool request_token_v =
-		concepts::dis_detach_opt_token <
+		core_concepts::dis_detached_tf_opt_token <
 			Token, error_code, context_ptr<Method>
 		>;
 
@@ -75,7 +75,7 @@ public:
 		concepts::file_opt_token_p <
 			T, char, file_optype::combine, io_permission::read
 		> and
-		concepts::dis_detach_opt_token <
+		core_concepts::dis_detached_tf_opt_token <
 			Token, error_code, context_ptr<method::put>
 		>;
 
@@ -84,7 +84,7 @@ public:
 		concepts::file_opt_token_p <
 			T, char, file_optype::single, io_permission::write
 		> and
-		concepts::dis_detach_opt_token <
+		core_concepts::dis_detached_tf_opt_token <
 			Token, error_code, context_ptr<method::get>
 		>;
 

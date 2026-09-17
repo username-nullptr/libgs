@@ -856,8 +856,9 @@ basic_client<Exec> &basic_client<Exec>::cancel() noexcept
 }
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token>
-auto open(http::basic_client<Exec,Version> &http_client, connect_request request, Token &&token) requires
-	(Version == http::version::v11) and concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>
+auto open(http::basic_client<Exec,Version> &http_client, connect_request request, Token &&token)
+	requires (Version == http::version::v11) and
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>
 {
 	const auto stream_options = request.stream_options.value_or(stream_config{});
 	const auto timeout = request.handshake_timeout.value_or(detail::default_handshake_timeout);
@@ -902,8 +903,9 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token>
 auto open(http::basic_client<Exec,Version> &http_client, connect_request request,
-	basic_open_diagnostics<Exec> &diagnostics, Token &&token) requires
-	(Version == http::version::v11) and concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>
+	basic_open_diagnostics<Exec> &diagnostics, Token &&token)
+	requires (Version == http::version::v11) and
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>
 {
 	diagnostics.endpoint = request.endpoint;
 	diagnostics.reply.reset();
@@ -947,8 +949,9 @@ auto open(http::basic_client<Exec,Version> &http_client, connect_request request
 }
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token>
-auto open(http::basic_client<Exec,Version> &http_client, url endpoint, Token &&token) requires
-	(Version == http::version::v11) and concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>
+auto open(http::basic_client<Exec,Version> &http_client, url endpoint, Token &&token)
+	requires (Version == http::version::v11) and
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>
 {
 	return open(http_client, connect_request(std::move(endpoint)),
 		std::forward<Token>(token)
@@ -957,8 +960,9 @@ auto open(http::basic_client<Exec,Version> &http_client, url endpoint, Token &&t
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token>
 auto open(http::basic_client<Exec,Version> &http_client, url endpoint,
-	basic_open_diagnostics<Exec> &diagnostics, Token &&token) requires
-	(Version == http::version::v11) and concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>
+	basic_open_diagnostics<Exec> &diagnostics, Token &&token)
+	requires (Version == http::version::v11) and
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>
 {
 	return open(http_client, connect_request(std::move(endpoint)),
 		diagnostics, std::forward<Token>(token)

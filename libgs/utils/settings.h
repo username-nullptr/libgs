@@ -24,9 +24,6 @@ public:
 	[[nodiscard]] static settings &instance(std::string_view name, bool create = true);
 	[[nodiscard]] static settings &instance();
 
-	sys_expected<> load(const path_t &file_path = {});
-	sys_expected<> sync();
-
 	[[nodiscard]] static std::vector<std::string> names() noexcept;
 	[[nodiscard]] path_t file_name() const noexcept;
 
@@ -34,7 +31,6 @@ public:
 	[[nodiscard]] optional<value> get(const group_key_t &gk);
 	[[nodiscard]] optional<value> get(concepts::string_p<char> auto &&path);
 
-public:
 	settings &set (
 		const group_key_t &gk,
 		const concepts::value_set<char> auto &value
@@ -46,8 +42,28 @@ public:
 	) noexcept;
 
 public:
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load(const path_t &file_name, Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load_or(const path_t &file_name, Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load(Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto load_or(Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto sync(const path_t &file_name, Token &&token = {});
+
+	template <concepts::opt_token<error_code> Token = use_sync_t>
+	auto sync(Token &&token = {});
+
+public:
 	signal<void(std::string_view,value)> changed;
-	signal<void()> loaded;
+	signal<void(error_code)> loaded;
+	signal<void(error_code)> synced;
 
 public:
 	[[nodiscard]] std::string_view name() const noexcept;

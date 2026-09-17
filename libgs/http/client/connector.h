@@ -75,7 +75,7 @@ public:
 
 	template <typename Token = use_sync_t>
 	auto connect(const connect_target &target, Token &&token = {}) noexcept
-		requires concepts::dis_detach_opt_token<Token,error_code,connection_ptr>;
+		requires core_concepts::dis_detached_tf_opt_token<Token,error_code,connection_ptr>;
 
 	[[nodiscard]] executor_t get_executor() const noexcept;
 

@@ -699,7 +699,7 @@ basic_connection_pool<Exec>::operator=(basic_connection_pool &&other) noexcept
 template <core_concepts::exec Exec>
 template <typename Token>
 auto basic_connection_pool<Exec>::get(const target_t &key, Token &&token) noexcept
-	requires concepts::dis_detach_opt_token<Token,error_code,lease_ptr>
+	requires core_concepts::dis_detached_tf_opt_token<Token,error_code,lease_ptr>
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
@@ -722,7 +722,7 @@ auto basic_connection_pool<Exec>::get(const target_t &key, Token &&token) noexce
 template <core_concepts::exec Exec>
 template <typename Token>
 auto basic_connection_pool<Exec>::try_get(const target_t &key, Token &&token) noexcept
-	requires concepts::dis_detach_opt_token<Token,error_code,lease_ptr>
+	requires core_concepts::dis_detached_tf_opt_token<Token,error_code,lease_ptr>
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{

@@ -49,7 +49,66 @@ using token_unbound_t = token_unbound<Token>::type;
 [[nodiscard]] LIBGS_CORE_TAPI
 decltype(auto) get_executor_helper(concepts::sched auto &&exec);
 
-} //namespace libgs
+template <typename Token, typename...Args>
+struct is_dis_func_opt_token
+{
+	static constexpr bool value =
+		is_opt_token_v<Token,Args...> and
+		not is_function_v<token_unbound_t<Token>>;
+};
+
+template <typename Token, typename...Args>
+constexpr bool is_dis_func_opt_token_v = is_dis_func_opt_token<Token,Args...>::value;
+
+template <typename Token, typename...Args>
+struct is_dis_func_tf_opt_token
+{
+	static constexpr bool value =
+		is_tf_opt_token_v<Token,Args...> and
+		not is_function_v<token_unbound_t<Token>>;
+};
+
+template <typename Token, typename...Args>
+constexpr bool is_dis_func_tf_opt_token_v = is_dis_func_tf_opt_token<Token,Args...>::value;
+
+template <typename Token, typename...Args>
+struct is_dis_detached_opt_token
+{
+	static constexpr bool value =
+		is_opt_token_v<Token,Args...> and
+		not is_detached_v<token_unbound_t<Token>>;
+};
+
+template <typename Token, typename...Args>
+constexpr bool is_dis_detached_opt_token_v = is_dis_detached_opt_token<Token,Args...>::value;
+
+template <typename Token, typename...Args>
+struct is_dis_detached_tf_opt_token
+{
+	static constexpr bool value =
+		is_tf_opt_token_v<Token,Args...> and
+		not is_detached_v<token_unbound_t<Token>>;
+};
+
+template <typename Token, typename...Args>
+constexpr bool is_dis_detached_tf_opt_token_v = is_dis_detached_tf_opt_token<Token,Args...>::value;
+
+namespace concepts
+{
+
+template <typename Token, typename...Args>
+concept dis_func_opt_token = is_dis_func_opt_token_v<Token,Args...>;
+
+template <typename Token, typename...Args>
+concept dis_func_tf_opt_token = is_dis_func_tf_opt_token_v<Token,Args...>;
+
+template <typename Token, typename...Args>
+concept dis_detached_opt_token = is_dis_detached_opt_token_v<Token,Args...>;
+
+template <typename Token, typename...Args>
+concept dis_detached_tf_opt_token = is_dis_detached_tf_opt_token_v<Token,Args...>;
+
+}} //namespace libgs::concepts
 #include <libgs/core/utils/detail/asio_tools.h>
 
 

@@ -17,10 +17,196 @@ public:
 	explicit impl(std::string name) :
 		m_name(std::move(name)) {}
 
+	[[nodiscard]] static error_code claim_file (
+		const settings *owner, const path_t &file_name
+	) noexcept;
+
+	[[nodiscard]] std::shared_ptr<ini_t> snapshot_ini (
+		const path_t &file_name, bool replace_file_name, bool copy_data
+	);
+	void adopt_ini(ini_t &&source, bool merge_data);
+
+	using io_handler_t = asio::any_completion_handler<void(error_code)>;
+	using error_handler_t = asio::any_completion_handler<void(error_code,error_code)>;
+
+	[[nodiscard]] error_code load_sync(settings *owner, const path_t &file_name,
+		bool replace_file_name, bool ignore_missing, error_code error
+	);
+	[[nodiscard]] error_code sync_sync(settings *owner, const path_t &file_name,
+		bool replace_file_name, error_code error
+	);
+
+	void start_load(settings *owner, path_t file_name, bool replace_file_name,
+		bool ignore_missing, error_code prepare_error, io_handler_t handler
+	);
+	void start_load(settings *owner, path_t file_name, bool replace_file_name,
+		bool ignore_missing, error_code prepare_error, error_handler_t handler
+	);
+	void start_sync(settings *owner, path_t file_name, bool replace_file_name,
+		error_code prepare_error, io_handler_t handler
+	);
+	void start_sync(settings *owner, path_t file_name, bool replace_file_name,
+		error_code prepare_error, error_handler_t handler
+	);
+
+public:
+	template <bool IgnoreMissing, typename Token>
+	auto load(settings *owner, const path_t &file_name, bool replace_file_name, Token &&token)
+	{
+		error_code prepare_error;
+		if( replace_file_name )
+			prepare_error = claim_file(owner, file_name);
+
+		if constexpr( is_error_code_token_v<Token> )
+		{
+			token = load_sync(owner, file_name, replace_file_name,
+				IgnoreMissing, prepare_error
+			);
+		}
+		else if constexpr( is_sync_opt_token_v<Token> )
+		{
+			return load_sync(owner, file_name, replace_file_name,
+				IgnoreMissing, prepare_error
+			);
+		}
+		else
+		{
+			using token_t = std::remove_cvref_t<Token>;
+			using unbound_t = token_unbound_t<token_t>;
+			token_t completion_token(std::forward<Token>(token));
+
+			if constexpr( is_use_future_v<unbound_t> or
+				is_use_awaitable_v<unbound_t> or is_deferred_v<unbound_t> )
+			{
+				// Keep the transport error empty and return the operation error as
+				// a value so futures and awaitables never translate it to an exception.
+				return asio::async_initiate<token_t,void(error_code,error_code)>(
+				[this, owner, file_name, replace_file_name, prepare_error](auto handler) mutable
+				{
+					this->start_load(owner, file_name, replace_file_name,
+						IgnoreMissing, prepare_error, error_handler_t(std::move(handler))
+					);
+				},
+				completion_token);
+			}
+			else
+			{
+				return asio::async_initiate<token_t,void(error_code)>(
+				[this, owner, file_name, replace_file_name, prepare_error](auto handler) mutable
+				{
+					this->start_load(owner, file_name, replace_file_name,
+						IgnoreMissing, prepare_error, io_handler_t(std::move(handler))
+					);
+				},
+				completion_token);
+			}
+		}
+	}
+
+	template <typename Token>
+	auto sync(settings *owner, const path_t &file_name, bool replace_file_name, Token &&token)
+	{
+		error_code prepare_error;
+		if( replace_file_name )
+			prepare_error = claim_file(owner, file_name);
+
+		if constexpr( is_error_code_token_v<Token> )
+			token = sync_sync(owner, file_name, replace_file_name, prepare_error);
+
+		else if constexpr( is_sync_opt_token_v<Token> )
+			return sync_sync(owner, file_name, replace_file_name, prepare_error);
+		else
+		{
+			using token_t = std::remove_cvref_t<Token>;
+			using unbound_t = token_unbound_t<token_t>;
+			token_t completion_token(std::forward<Token>(token));
+
+			if constexpr( is_use_future_v<unbound_t> or
+				is_use_awaitable_v<unbound_t> or is_deferred_v<unbound_t> )
+			{
+				// Keep the transport error empty and return the operation error as
+				// a value so futures and awaitables never translate it to an exception.
+				return asio::async_initiate<token_t,void(error_code,error_code)>(
+				[this, owner, file_name, replace_file_name, prepare_error](auto handler) mutable
+				{
+					this->start_sync(owner, file_name, replace_file_name,
+						prepare_error, error_handler_t(std::move(handler))
+					);
+				},
+				completion_token);
+			}
+			else
+			{
+				return asio::async_initiate<token_t,void(error_code)>(
+				[this, owner, file_name, replace_file_name, prepare_error](auto handler) mutable
+				{
+					this->start_sync(owner, file_name, replace_file_name,
+						prepare_error, io_handler_t(std::move(handler))
+					);
+				},
+				completion_token);
+			}
+		}
+	}
+
+private:
+	template <typename Handler>
+	static void complete(Handler &&handler, error_code error);
+
+	template <typename Handler>
+	void post_error(settings *owner,
+		path_t file_name, error_code error, bool loading, Handler handler
+	);
+	template <typename Handler>
+	void start_load_impl(settings *owner, path_t file_name, bool replace_file_name,
+		bool ignore_missing, error_code prepare_error, Handler handler
+	);
+	template <typename Handler>
+	void start_sync_impl(settings *owner, path_t file_name,
+		bool replace_file_name, error_code prepare_error, Handler handler
+	);
+
+public:
 	ini_t m_ini;
 	mutable spin_shared_mutex m_ini_lock;
 	std::string m_name;
 };
+
+template <concepts::opt_token<error_code> Token>
+auto settings::load(const path_t &file_name, Token &&token)
+{
+	return m_impl->load<false>(this, file_name, true, std::forward<Token>(token));
+}
+
+template <concepts::opt_token<error_code> Token>
+auto settings::load_or(const path_t &file_name, Token &&token)
+{
+	return m_impl->load<true>(this, file_name, true, std::forward<Token>(token));
+}
+
+template <concepts::opt_token<error_code> Token>
+auto settings::load(Token &&token)
+{
+	return m_impl->load<false>(this, {}, false, std::forward<Token>(token));
+}
+
+template <concepts::opt_token<error_code> Token>
+auto settings::load_or(Token &&token)
+{
+	return m_impl->load<true>(this, {}, false, std::forward<Token>(token));
+}
+
+template <concepts::opt_token<error_code> Token>
+auto settings::sync(const path_t &file_name, Token &&token)
+{
+	return m_impl->sync(this, file_name, true, std::forward<Token>(token));
+}
+
+template <concepts::opt_token<error_code> Token>
+auto settings::sync(Token &&token)
+{
+	return m_impl->sync(this, {}, false, std::forward<Token>(token));
+}
 
 optional<value> settings::get(concepts::string_p<char> auto &&path)
 {

@@ -1331,14 +1331,14 @@ bool is_upgrade_request(const http::basic_request<Exec> &request) noexcept
 
 template <core_concepts::exec Exec, typename Token>
 auto upgrade(http::basic_service_context<Exec> &context, Token &&token)
-	requires concepts::dis_detach_opt_token<Token,error_code,basic_accept_result<Exec>>
+	requires core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_accept_result<Exec>>
 {
 	return upgrade(context, upgrade_options{}, std::forward<Token>(token));
 }
 
 template <core_concepts::exec Exec, typename Token>
 auto upgrade(http::basic_service_context<Exec> &context, upgrade_options options, Token &&token)
-	requires concepts::dis_detach_opt_token<Token,error_code,basic_accept_result<Exec>>
+	requires core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_accept_result<Exec>>
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{

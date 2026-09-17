@@ -93,7 +93,7 @@ public:
 public:
 	template <typename Token>
 	static constexpr bool open_token_v =
-		concepts::dis_detach_opt_token<Token,error_code,stream_t>;
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,stream_t>;
 
 public:
 	basic_client() requires
@@ -155,26 +155,28 @@ private:
 using client = basic_client<>;
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token = use_sync_t>
-[[nodiscard]] LIBGS_WEBSOCKET_TAPI auto open
-(http::basic_client<Exec,Version> &http_client, connect_request request, Token &&token = {}) requires
-	(Version == http::version::v11) and concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>;
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI auto open (
+	http::basic_client<Exec,Version> &http_client, connect_request request, Token &&token = {}
+) requires (Version == http::version::v11) and
+	core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>;
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token = use_sync_t>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI auto open(http::basic_client<Exec,Version> &http_client,
 	connect_request request, basic_open_diagnostics<Exec> &diagnostics, Token &&token = {}
 ) requires (Version == http::version::v11) and
-	concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>;
+	core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>;
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token = use_sync_t>
-[[nodiscard]] LIBGS_WEBSOCKET_TAPI auto open
-(http::basic_client<Exec,Version> &http_client, url endpoint, Token &&token = {}) requires
-	(Version == http::version::v11) and concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>;
+[[nodiscard]] LIBGS_WEBSOCKET_TAPI auto open (
+	http::basic_client<Exec,Version> &http_client, url endpoint, Token &&token = {}
+) requires (Version == http::version::v11) and
+	core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>;
 
 template <core_concepts::exec Exec, http::version_enum Version, typename Token = use_sync_t>
 [[nodiscard]] LIBGS_WEBSOCKET_TAPI auto open(http::basic_client<Exec,Version> &http_client,
 	url endpoint, basic_open_diagnostics<Exec> &diagnostics, Token &&token = {}
 ) requires (Version == http::version::v11) and
-	concepts::dis_detach_opt_token<Token,error_code,basic_stream<Exec>>;
+	core_concepts::dis_detached_tf_opt_token<Token,error_code,basic_stream<Exec>>;
 
 } //namespace libgs::websocket
 #include <libgs/websocket/detail/client.h>

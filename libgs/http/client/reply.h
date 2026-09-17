@@ -39,7 +39,7 @@ public:
 	// stores the error. Async completion uses (error_code, value).
 	template <typename Token, typename...Value>
 	static constexpr bool task_token_v =
-		concepts::dis_detach_opt_token<Token,error_code,Value...>;
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,Value...>;
 
 	template <typename T, typename Token>
 	static constexpr bool file_task_token =

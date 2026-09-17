@@ -55,7 +55,7 @@ public:
 public:
 	template <typename Token, typename...Args>
 	static constexpr bool task_token_v =
-		concepts::dis_detach_opt_token<Token,error_code,Args...>;
+		core_concepts::dis_detached_tf_opt_token<Token,error_code,Args...>;
 
 	template <typename Token, typename...Args>
 	static constexpr bool completion_token_v =

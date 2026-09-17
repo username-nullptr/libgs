@@ -10,11 +10,6 @@
 namespace libgs::websocket { namespace concepts
 {
 
-template <typename Token, typename...Args>
-concept dis_detach_opt_token =
-	libgs::concepts::tf_opt_token<Token,Args...> and
-	not is_detached_v<token_unbound_t<Token>>;
-
 template <typename T>
 concept buffer =
 	libgs::concepts::buffer<T> and

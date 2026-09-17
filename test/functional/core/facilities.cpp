@@ -11,6 +11,8 @@
 #include <libgs/core/system/app_utls.h>
 #include <libgs/core/url.h>
 #include <libgs/core/value.h>
+#include <fstream>
+#include <future>
 
 namespace
 {
@@ -223,6 +225,12 @@ void ini_memory_and_file()
 	LIBGS_TEST_CHECK_EQ(restored.read("server/host")->to_string(), "127.0.0.1");
 	LIBGS_TEST_CHECK(restored.read("feature/enabled")->to_bool().value_or(false));
 	LIBGS_TEST_CHECK_EQ(restored.file_name(), file);
+
+	libgs::ini moved(std::move(restored));
+	LIBGS_TEST_CHECK_EQ(moved.read("server/port")->to_int().value_or(0), 8080);
+	libgs::ini assigned;
+	assigned = std::move(moved);
+	LIBGS_TEST_CHECK(assigned.read("feature/enabled")->to_bool().value_or(false));
 }
 
 void ini_text_parameters()
@@ -255,6 +263,95 @@ void ini_text_parameters()
 	LIBGS_TEST_CHECK_EQ(reader[group_string][key_view]->to_int().value_or(0), 12);
 	LIBGS_TEST_CHECK_EQ(reader[traits_group_view][traits_key_view]->to_int().value_or(0), 13);
 	LIBGS_TEST_CHECK_EQ(reader['g']['k']->to_int().value_or(0), 14);
+}
+
+void ini_asynchronous_file_io()
+{
+	libgs::test::temporary_directory directory;
+	const auto file = directory.path() / "async-settings.ini";
+	libgs::io_context_t context;
+
+	libgs::ini config(context, file);
+	config.write("server/host", "127.0.0.1");
+	config.write("server/port", 8080);
+	auto sync_result = config.sync(libgs::use_future);
+
+	context.run();
+	sync_result.get();
+	LIBGS_TEST_CHECK(std::filesystem::is_regular_file(file));
+
+	libgs::io_context_t completion_context;
+	bool associated_completion = false;
+	config.sync(asio::bind_executor(completion_context.get_executor(),
+		[&](const libgs::error_code &error)
+		{
+			LIBGS_TEST_CHECK(not error);
+			associated_completion = true;
+		}
+	));
+	completion_context.run();
+	LIBGS_TEST_CHECK(associated_completion);
+
+	context.restart();
+	libgs::ini restored(context, file);
+	auto load_result = restored.load(libgs::use_future);
+	context.run();
+	load_result.get();
+	LIBGS_TEST_CHECK_EQ(restored.read("server/host")->to_string(), "127.0.0.1");
+	LIBGS_TEST_CHECK_EQ(restored.read("server/port")->to_int().value_or(0), 8080);
+
+	context.restart();
+	libgs::ini optional(context, directory.path() / "missing.ini");
+	bool completed = false;
+	const auto runner = std::this_thread::get_id();
+	optional.load_or([&](const libgs::error_code &error)
+	{
+		LIBGS_TEST_CHECK(not error);
+		LIBGS_TEST_CHECK(std::this_thread::get_id() == runner);
+		completed = true;
+	});
+	context.run();
+	LIBGS_TEST_CHECK(completed);
+
+	libgs::error_code stale_error = make_error_code(std::errc::io_error);
+	optional.load_or(stale_error);
+	LIBGS_TEST_CHECK(not stale_error);
+
+	std::promise<void> worker_entered;
+	std::promise<void> release_worker;
+	auto worker_ready = worker_entered.get_future();
+	auto worker_release = release_worker.get_future();
+	libgs::detail::ini_commit_io_work([&]
+	{
+		worker_entered.set_value();
+		worker_release.wait();
+	});
+	worker_ready.wait();
+
+	context.restart();
+	libgs::error_code cancellation_error;
+	restored.load([&](const libgs::error_code &error)
+	{
+		cancellation_error = error;
+	});
+	restored.cancel();
+	release_worker.set_value();
+	context.run();
+	LIBGS_TEST_CHECK_EQ(cancellation_error,
+		asio::error::make_error_code(asio::error::operation_aborted));
+
+	const auto malformed_file = directory.path() / "malformed.ini";
+	{
+		std::ofstream stream(malformed_file);
+		stream << "key-without-group=value\n";
+	}
+	context.restart();
+	libgs::ini malformed(context, malformed_file);
+	malformed.write("preserved/value", 42);
+	auto malformed_result = malformed.load(libgs::use_future);
+	context.run();
+	LIBGS_TEST_CHECK_THROWS(malformed_result.get(), std::system_error);
+	LIBGS_TEST_CHECK_EQ(malformed.read("preserved/value")->to_int().value_or(0), 42);
 }
 
 template <typename Queue>
@@ -574,6 +671,7 @@ int main()
 		{"command line parsing", command_line_parsing},
 		{"INI memory and file", ini_memory_and_file},
 		{"INI text parameters", ini_text_parameters},
+		{"INI asynchronous file I/O", ini_asynchronous_file_io},
 		{"lock-free queues", lock_free_queues},
 		{"MIME detection", mime_detection},
 		{"application environment", application_environment},

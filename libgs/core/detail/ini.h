@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2024-2025 Xiaoqiang <username_nullptr@163.com>
+// SPDX-FileCopyrightText: 2024-2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
 #ifndef LIBGS_CORE_DETAIL_INI_H
@@ -6,7 +6,6 @@
 
 #include <libgs/core/algorithm/misc.h>
 #include <libgs/core/system/app_utls.h>
-#include <fstream>
 
 namespace libgs { namespace detail
 {
@@ -188,8 +187,55 @@ private:
 [[nodiscard]] LIBGS_CORE_API ini_error_category &ini_key_is_empty() noexcept;
 [[nodiscard]] LIBGS_CORE_API ini_error_category &ini_invalid_value() noexcept;
 
-[[nodiscard]] LIBGS_CORE_API std::filesystem::path ini_tmp_file(const std::filesystem::path &file_name);
+[[nodiscard]] LIBGS_CORE_API
+std::filesystem::path ini_tmp_file(const std::filesystem::path &file_name);
+
+LIBGS_CORE_API void ini_commit_file(const std::filesystem::path &source,
+	const std::filesystem::path &destination, error_code &error
+) noexcept;
+
+[[nodiscard]] LIBGS_CORE_API asio::any_io_executor ini_io_executor() noexcept;
 LIBGS_CORE_API void ini_commit_io_work(std::function<void()> work);
+
+template <typename Work>
+LIBGS_CORE_TAPI void ini_commit_io_work(Work &&work) {
+	asio::post(ini_io_executor(), std::forward<Work>(work));
+}
+
+struct LIBGS_CORE_API ini_cancellation_handler
+{
+	std::weak_ptr<std::atomic_bool> state {};
+	void operator()(asio::cancellation_type_t type) const noexcept;
+};
+
+class LIBGS_CORE_API ini_cancellation_registry
+{
+public:
+	[[nodiscard]] std::shared_ptr<std::atomic_bool> add();
+	void cancel() noexcept;
+
+private:
+	std::mutex m_mutex {};
+	std::vector <
+		std::weak_ptr<std::atomic_bool>
+	> m_operations {};
+};
+
+[[nodiscard]] LIBGS_CORE_API error_code ini_stream_error() noexcept;
+
+class LIBGS_CORE_API ini_tmp_guard
+{
+	LIBGS_DISABLE_COPY_MOVE(ini_tmp_guard)
+
+public:
+	explicit ini_tmp_guard(std::filesystem::path file_name);
+	~ini_tmp_guard();
+
+	void release() noexcept;
+
+private:
+	std::filesystem::path m_file_name {};
+};
 
 } //namespace detail
 
@@ -202,26 +248,30 @@ class LIBGS_CORE_TAPI basic_ini<CharT,Exec,Map,MapArgs...>::impl :
 	friend class basic_ini;
 
 public:
-	impl(const auto &exec, const path_t &file_name) :
-		m_exec(exec), m_timer(exec)
-	{
-		set_file_name(std::move(file_name));
-	}
+	using cancellation_state_t = std::shared_ptr<std::atomic_bool>;
 
+	impl(const auto &exec, const path_t &file_name) :
+		m_exec(exec), m_timer(exec) {
+		set_file_name(file_name);
+	}
 	impl(impl&&) = default;
 	impl& operator=(impl&&) = default;
 
 	template <typename Exec0>
-	impl(basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other) :
+	explicit impl(basic_ini<char_t,Exec0,Map,MapArgs...>::impl &&other) :
 		m_exec(std::move(other.m_exec)),
 		m_file_name(std::move(other.m_file_name)),
 		m_groups(std::move(other.m_groups)),
 		m_timer(std::move(other.m_timer)),
 		m_sync_period(other.m_sync_period),
-		m_sync_on_delete(other.m_sync_on_delete)
+		m_sync_on_delete(other.m_sync_on_delete),
+		m_io_mutex(std::move(other.m_io_mutex)),
+		m_cancellations(std::move(other.m_cancellations))
 	{
 		other.m_sync_period = milliseconds(0);
 		other.m_sync_on_delete = false;
+		other.m_io_mutex = std::make_shared<std::mutex>();
+		other.m_cancellations = std::make_shared<detail::ini_cancellation_registry>();
 	}
 
 	template <typename Exec0>
@@ -230,8 +280,15 @@ public:
 		m_exec = std::move(other.m_exec);
 		m_file_name = std::move(other.m_file_name);
 		m_groups = std::move(other.m_groups);
+		m_sync_period = other.m_sync_period;
 		m_sync_on_delete = other.m_sync_on_delete;
+		m_io_mutex = std::move(other.m_io_mutex);
+		m_cancellations = std::move(other.m_cancellations);
+
+		other.m_sync_period = milliseconds(0);
 		other.m_sync_on_delete = false;
+		other.m_io_mutex = std::make_shared<std::mutex>();
+		other.m_cancellations = std::make_shared<detail::ini_cancellation_registry>();
 		return *this;
 	}
 
@@ -247,38 +304,60 @@ public:
 	}
 
 public:
-	// It may be executed within the thread, so the const modifier provides protection.
-	[[nodiscard]] data_t load(auto &error, const std::function<bool()> &cancelled) const
+	// File work is serialized with synchronous callers and may run on the
+	// dedicated INI worker thread.
+	[[nodiscard]] data_t load_file(const path_t &file_name, error_code &error,
+		const cancellation_state_t &cancellation, bool ignore_missing) const
 	{
+		std::lock_guard io_lock(*m_io_mutex);
 		data_t data;
-		error = std::error_code();
-		if( not exists(m_file_name) )
+		error.clear();
+
+		namespace fs = std::filesystem;
+		error_code status_error;
+		const bool file_exists = fs::exists(file_name, status_error);
+
+		if( status_error )
 		{
-			error = std::make_error_code(std::errc::no_such_file_or_directory);
+			error = status_error;
 			return data;
 		}
-		std::basic_ifstream<char_t> file;
-		auto prev = file.exceptions();
-		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+		if( not file_exists )
+		{
+			if( not ignore_missing )
+				error = make_error_code(std::errc::no_such_file_or_directory);
+			return data;
+		}
+		if( cancelled(cancellation) )
+		{
+			error = make_error_code(asio::error::operation_aborted);
+			return data;
+		}
+		errno = 0;
+		std::basic_ifstream<char_t> file(file_name);
+
+		if( not file.is_open() )
+		{
+			error = detail::ini_stream_error();
+			return data;
+		}
 		try {
-			file.open(m_file_name);
 			unit_data_t *curr_group = nullptr;
 			string_t buf;
+			size_t line = 0;
 
-			for(size_t line=1;; line++)
+			while( std::getline(file, buf) )
 			{
-				if( cancelled() )
+				line++;
+				if( cancelled(cancellation) )
 				{
 					error = make_error_code(asio::error::operation_aborted);
+					data.clear();
 					return data;
 				}
-				else if( file.eof() or file.peek() == EOF )
-					break;
-
-				std::getline(file, buf);
 				buf = strtls::trimmed(buf);
-
-				if( buf.empty() or buf[0] == static_cast<char_t>('#') or buf[0] == static_cast<char_t>(';') )
+				if( buf.empty() or buf[0] == static_cast<char_t>('#') or
+					buf[0] == static_cast<char_t>(';') )
 					continue;
 
 				auto list = string_vector_t::from_string(buf, static_cast<char_t>('#'));
@@ -286,6 +365,8 @@ public:
 
 				list = string_vector_t::from_string(buf, static_cast<char_t>(';'));
 				buf = strtls::trimmed(list[0]);
+				if( buf.empty() )
+					continue;
 
 				if( buf.starts_with(static_cast<char_t>('[')) )
 					curr_group = &data[parsing_group(buf, line)];
@@ -302,53 +383,77 @@ public:
 					(*curr_group)[std::move(key)] = std::move(parsed_value);
 				}
 			}
+			if( file.bad() )
+				error = make_error_code(std::errc::io_error);
+
+			else if( cancelled(cancellation) )
+				error = make_error_code(asio::error::operation_aborted);
 		}
-		catch(const std::system_error &ex)
-		{
+		catch(const std::system_error &ex) {
 			error = ex.code();
-			data.clear();
 		}
-		file.exceptions(prev);
-		file.close();
+		catch(...) {
+			error = exception_error(std::current_exception());
+		}
+		if( error )
+			data.clear();
 		return data;
 	}
 
-	// It may be executed within the thread, so the const modifier provides protection.
-	void sync(data_t data, std::error_code &error, const std::function<bool()> &cancelled) const
+	void sync_file(const path_t &destination, data_t data, error_code &error,
+		const cancellation_state_t &cancellation) const
 	{
-		auto file_name = detail::ini_tmp_file(m_file_name);
-		auto path = strtls::file_path(file_name.wstring());
+		std::lock_guard io_lock(*m_io_mutex);
+		error.clear();
 
-		namespace fs = std::filesystem;
-		if( not fs::exists(path) and not fs::create_directories(path, error) )
+		if( destination.empty() )
+		{
+			error = make_error_code(std::errc::invalid_argument);
 			return ;
+		}
+		if( cancelled(cancellation) )
+		{
+			error = make_error_code(asio::error::operation_aborted);
+			return ;
+		}
+		namespace fs = std::filesystem;
+		if( const auto parent = destination.parent_path(); not parent.empty() )
+		{
+			fs::create_directories(parent, error);
+			if( error )
+				return ;
+		}
+		auto file_name = detail::ini_tmp_file(destination);
+		detail::ini_tmp_guard tmp_guard(file_name);
+		errno = 0;
 
-		error = {};
-		std::basic_ofstream<char_t> file;
-		auto prev = file.exceptions();
-
-		file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+		std::basic_ofstream<char_t> file (
+			file_name, std::ios_base::out | std::ios_base::trunc
+		);
+		if( not file.is_open() )
+		{
+			error = detail::ini_stream_error();
+			return ;
+		}
 		try {
-			file.open(file_name, std::ios_base::out | std::ios_base::trunc);
 			for(auto &[group, values] : data)
 			{
-				if( cancelled() )
+				if( cancelled(cancellation) )
 				{
 					error = make_error_code(asio::error::operation_aborted);
-					try {
-						file.close();
-						std::filesystem::remove(file_name);
-					}
-					catch(...) {}
-					return ;
+					break;
 				}
 				file << l_str(char_t,"[")
 					 << (strtls::is_ascii(group) ? group : to_percent_encoding(group))
-					 << l_str(char_t,"]")
-					 << l_str(char_t,"\n");
+					 << l_str(char_t,"]\n");
 
 				for(auto &[key, entry_value] : values)
 				{
+					if( cancelled(cancellation) )
+					{
+						error = make_error_code(asio::error::operation_aborted);
+						break;
+					}
 					if( key.empty() or entry_value->empty() )
 						continue;
 
@@ -357,14 +462,14 @@ public:
 
 					if( entry_value.is_rlnum() )
 					{
-						if( entry_value->front() == 0x2B/*+*/ )
+						if( entry_value->front() == static_cast<char_t>('+') )
 							entry_value = entry_value->substr(1);
 						file << entry_value.to_string();
 					}
 					else
 					{
 						auto str = entry_value.to_string();
-						if( str == "true" or str == "false" )
+						if( str == l_str(char_t,"true") or str == l_str(char_t,"false") )
 							file << str;
 						else
 						{
@@ -375,17 +480,180 @@ public:
 					}
 					file << l_str(char_t,"\n");
 				}
+				if( error )
+					break;
 				file << l_str(char_t,"\n");
 			}
+
+			if( not error )
+			{
+				file.flush();
+				if( not file )
+					error = make_error_code(std::errc::io_error);
+			}
 		}
-		catch(const std::system_error &ex)
-		{
+		catch(const std::system_error &ex) {
 			error = ex.code();
+		}
+		catch(...) {
+			error = exception_error(std::current_exception());
+		}
+		file.close();
+		if( not error and file.fail() )
+			error = detail::ini_stream_error();
+
+		if( error )
+			return ;
+
+		if( cancelled(cancellation) )
+		{
+			error = make_error_code(asio::error::operation_aborted);
 			return ;
 		}
-		file.exceptions(prev);
-		file.close();
-		std::filesystem::rename(file_name, m_file_name, error);
+		detail::ini_commit_file(file_name, destination, error);
+
+		if( not error )
+			tmp_guard.release();
+	}
+
+	[[nodiscard]] static bool cancelled(const cancellation_state_t &state) noexcept {
+		return state and state->load(std::memory_order_acquire);
+	}
+
+	template <bool IgnoreMissing, concepts::opt_token<error_code> Token>
+	auto load_impl(Token &&token)
+	{
+		const auto file_name = m_file_name;
+		const cancellation_state_t no_cancellation;
+
+		if constexpr( is_error_code_token_v<Token> )
+		{
+			auto loaded_data = load_file(file_name, token, no_cancellation, IgnoreMissing);
+			if( not token )
+				set_data(std::move(loaded_data));
+		}
+		else if constexpr( is_sync_opt_token_v<Token> )
+		{
+			error_code error;
+			auto loaded_data = load_file(file_name, error, no_cancellation, IgnoreMissing);
+			if( error )
+				system_error::loc_throw(error, "libgs::basic_ini::load");
+			set_data(std::move(loaded_data));
+		}
+		else
+		{
+			auto self = this->shared_from_this();
+			return initiate_io_void(m_exec,
+			[self = std::move(self), file_name]<typename Handler>(Handler &&handler) mutable
+			{
+				auto cancellation = self->m_cancellations->add();
+				auto slot = asio::get_associated_cancellation_slot(handler);
+				if( slot.is_connected() )
+				{
+					slot.template emplace<detail::ini_cancellation_handler>(
+						detail::ini_cancellation_handler{cancellation}
+					);
+				}
+				auto work = asio::make_work_guard(handler);
+				auto completion_exec = work.get_executor();
+				auto allocator = asio::get_associated_allocator(handler);
+
+				detail::ini_commit_io_work([
+					self, file_name, cancellation, slot, completion_exec,
+					work = std::move(work), allocator,
+					completion = std::forward<Handler>(handler)
+				]() mutable
+				{
+					error_code error;
+					auto loaded_data = self->load_file(
+						file_name, error, cancellation, IgnoreMissing
+					);
+					asio::dispatch(completion_exec, asio::bind_allocator(allocator, [self,
+						cancellation, slot, work = std::move(work), completion = std::move(completion),
+						error, loaded_data = std::move(loaded_data)
+					]() mutable
+					{
+						LIBGS_UNUSED(work);
+						if( slot.is_connected() )
+							slot.clear();
+
+						auto result = error;
+						if( not result and cancelled(cancellation) )
+							result = make_error_code(asio::error::operation_aborted);
+
+						if( not result )
+							self->set_data(std::move(loaded_data));
+						std::move(completion)(result);
+					}));
+				});
+			},
+			std::forward<Token>(token));
+		}
+	}
+
+	template <concepts::opt_token<error_code> Token>
+	auto sync(Token &&token)
+	{
+		const auto file_name = m_file_name;
+		const cancellation_state_t no_cancellation;
+
+		if constexpr( is_error_code_token_v<Token> )
+			sync_file(file_name, data(), token, no_cancellation);
+
+		else if constexpr( is_sync_opt_token_v<Token> )
+		{
+			error_code error;
+			sync_file(file_name, data(), error, no_cancellation);
+			if( error )
+				system_error::loc_throw(error, "libgs::basic_ini::sync");
+		}
+		else
+		{
+			auto ini_data = data();
+			auto self = this->shared_from_this();
+
+			return initiate_io_void(m_exec,
+			[self = std::move(self), file_name, ini_data = std::move(ini_data)]
+			<typename Handler>(Handler &&handler) mutable
+			{
+				auto cancellation = self->m_cancellations->add();
+				auto slot = asio::get_associated_cancellation_slot(handler);
+
+				if( slot.is_connected() )
+				{
+					slot.template emplace<detail::ini_cancellation_handler>(
+						detail::ini_cancellation_handler{cancellation}
+					);
+				}
+				auto work = asio::make_work_guard(handler);
+				auto completion_exec = work.get_executor();
+				auto allocator = asio::get_associated_allocator(handler);
+
+				detail::ini_commit_io_work([self,
+					file_name, ini_data = std::move(ini_data), cancellation, slot,
+					completion_exec, work = std::move(work), allocator,
+					completion = std::forward<Handler>(handler)
+				]() mutable
+				{
+					error_code error;
+					self->sync_file(file_name, std::move(ini_data), error, cancellation);
+
+					asio::dispatch(completion_exec, asio::bind_allocator(allocator,
+					[slot, work = std::move(work), completion = std::move(completion), error]() mutable
+					{
+						LIBGS_UNUSED(work);
+						if( slot.is_connected() )
+							slot.clear();
+						std::move(completion)(error);
+					}));
+				});
+			},
+			std::forward<Token>(token));
+		}
+	}
+
+	void cancel() {
+		m_cancellations->cancel();
 	}
 
 public:
@@ -429,10 +697,12 @@ public:
 				co_await self->m_timer.async_wait(use_awaitable | error);
 				if( error )
 					break;
-				detail::ini_commit_io_work([self, data = self->data()]
+
+				detail::ini_commit_io_work (
+				[self, file_name = self->m_file_name, data = self->data()]
 				{
 					error_code sync_error; LIBGS_UNUSED(sync_error);
-					self->sync(std::move(data), sync_error, []{return false;});
+					self->sync_file(file_name, std::move(data), sync_error, {});
 				});
 			}
 			co_return ;
@@ -563,7 +833,12 @@ public:
 	milliseconds m_sync_period {0};
 
 	bool m_sync_on_delete = false;
-	std::vector<std::shared_ptr<bool>> m_cancel_vector {};
+	std::shared_ptr<std::mutex> m_io_mutex {
+		std::make_shared<std::mutex>()
+	};
+	std::shared_ptr<detail::ini_cancellation_registry> m_cancellations {
+		std::make_shared<detail::ini_cancellation_registry>()
+	};
 };
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -652,9 +927,9 @@ basic_ini<CharT,Exec,Map,MapArgs...>::~basic_ini()
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 basic_ini<CharT,Exec,Map,MapArgs...>::basic_ini(basic_ini &&other) noexcept :
-	m_impl(other.m_impl)
+	m_impl(std::move(other.m_impl))
 {
-	other.m_impl = std::make_shared<impl>();
+	other.m_impl = std::make_shared<impl>(m_impl->m_exec, path_t{});
 }
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -663,8 +938,9 @@ basic_ini<CharT,Exec,Map,MapArgs...> &basic_ini<CharT,Exec,Map,MapArgs...>::oper
 {
 	if( this == &other )
 		return *this;
-	m_impl = other.m_impl;
-	other.m_impl = std::make_shared<impl>();
+
+	m_impl = std::move(other.m_impl);
+	other.m_impl = std::make_shared<impl>(m_impl->m_exec, path_t{});
 	return *this;
 }
 
@@ -900,7 +1176,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::rend() const noexcept -> const_revers
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::opt_token<error_code> Token>
+template <concepts::dis_detached_opt_token<error_code> Token>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::load(const path_t &file_name, Token &&token)
 {
 	if( not file_name.empty() )
@@ -910,7 +1186,7 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load(const path_t &file_name, Token &
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::opt_token<error_code> Token>
+template <concepts::dis_detached_opt_token<error_code> Token>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::load_or(const path_t &file_name, Token &&token)
 {
 	if( not file_name.empty() )
@@ -920,82 +1196,23 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::load_or(const path_t &file_name, Toke
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::opt_token<error_code> Token>
+template <concepts::dis_detached_opt_token<error_code> Token>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::load(Token &&token)
 {
-	std::function<bool()> cancelled = []{
-		return false;
-	};
-	if constexpr( is_error_code_token_v<Token> )
-		set_data(m_impl->load(token, std::move(cancelled)));
-
-	else if constexpr( is_sync_opt_token_v<Token> )
-	{
-		error_code error;
-		load(error);
-		if( error )
-		{
-			system_error::loc_throw (
-				error, "libgs::basic_ini::load"
-			);
-		}
-	}
-	else
-	{
-		auto cflag = std::make_shared<bool>(false);
-		m_impl->m_cancel_vector.emplace_back(cflag);
-
-		auto slot = asio::get_associated_cancellation_slot(token);
-		cancelled = [cancellation_flag = std::move(cflag), state = asio::cancellation_state(slot)]{
-			return *cancellation_flag or state.cancelled() != asio::cancellation_type::none;
-		};
-		return async_work<error_code>::handle(get_executor(),
-		[ini_impl = m_impl, cancellation_check = std::move(cancelled)](auto completion_handler, auto exec) mutable
-		{
-			using handle_t = std::remove_cvref_t<decltype(completion_handler)>;
-			detail::ini_commit_io_work([
-				ini_impl, io_cancelled = std::move(cancellation_check),
-				shared_handler = std::make_shared<handle_t>(std::move(completion_handler)), exec
-			]() mutable
-			{
-				error_code error;
-				auto data = ini_impl->load(error, io_cancelled); // !!! thread
-				dispatch(exec, [ini_impl, loaded_data = std::move(data),
-					completion = std::move(shared_handler), error]() mutable
-				{
-					ini_impl->set_data(std::move(loaded_data));
-					std::move(*completion)(error);
-				});
-			});
-		},
-		std::forward<Token>(token));
-	}
+	return m_impl->template load_impl<false>(std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::opt_token<error_code> Token>
+template <concepts::dis_detached_opt_token<error_code> Token>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::load_or(Token &&token)
 {
-	if( exists(file_name()) )
-		return load(std::forward<Token>(token));
-
-	if constexpr( is_async_opt_token_v<Token> )
-	{
-		return async_work<error_code>::handle(get_executor(), [this](auto handle, auto exec) mutable
-		{
-			using handle_t = std::remove_cvref_t<decltype(handle)>;
-			dispatch(exec, [shared_handler = std::make_shared<handle_t>(std::move(handle))]() mutable {
-				std::move(*shared_handler)(std::error_code());
-			});
-		},
-		std::forward<Token>(token));
-	}
+	return m_impl->template load_impl<true>(std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::opt_token<error_code> Token>
+template <concepts::dis_detached_opt_token<error_code> Token>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(const path_t &file_name, Token &&token)
 {
 	m_impl->set_file_name(file_name);
@@ -1004,53 +1221,10 @@ auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(const path_t &file_name, Token &
 
 template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
-template <concepts::opt_token<error_code> Token>
+template <concepts::dis_detached_opt_token<error_code> Token>
 auto basic_ini<CharT,Exec,Map,MapArgs...>::sync(Token &&token)
 {
-	std::function<bool()> cancelled = []{
-		return false;
-	};
-	if constexpr( std::is_same_v<Token,error_code&> )
-		m_impl->sync(data(), token, std::move(cancelled));
-
-	else if constexpr( is_sync_opt_token_v<Token> )
-	{
-		error_code error;
-		sync(error);
-		if( error )
-		{
-			system_error::loc_throw (
-				error, "libgs::basic_ini::sync"
-			);
-		}
-	}
-	else
-	{
-		auto cflag = std::make_shared<bool>(false);
-		m_impl->m_cancel_vector.emplace_back(cflag);
-
-		auto slot = asio::get_associated_cancellation_slot(token);
-		cancelled = [cancellation_flag = std::move(cflag), state = asio::cancellation_state(slot)]{
-			return *cancellation_flag or state.cancelled() != asio::cancellation_type::none;
-		};
-		return async_work<error_code>::handle(get_executor(),
-		[ini_impl = m_impl, cancellation_check = std::move(cancelled)](auto completion_handler, auto exec) mutable
-		{
-			using handle_t = std::remove_cvref_t<decltype(completion_handler)>;
-			detail::ini_commit_io_work([
-				ini_impl, data = ini_impl->data(), io_cancelled = std::move(cancellation_check),
-				shared_handler = std::make_shared<handle_t>(std::move(completion_handler)), exec
-			]() mutable
-			{
-				error_code error;
-				ini_impl->sync(std::move(data), error, io_cancelled);
-				dispatch(exec, [completion = std::move(shared_handler), error]() mutable {
-					std::move(*completion)(error);
-				});
-			});
-		},
-		std::forward<Token>(token));
-	}
+	return m_impl->sync(std::forward<Token>(token));
 }
 
 template <concepts::character CharT, concepts::exec Exec,
@@ -1086,9 +1260,7 @@ template <concepts::character CharT, concepts::exec Exec,
 		  template<typename,typename,typename...> class Map, typename...MapArgs>
 void basic_ini<CharT,Exec,Map,MapArgs...>::cancel()
 {
-	auto flags = std::move(m_impl->m_cancel_vector);
-	for(auto flag : flags)
-		*flag = true;
+	m_impl->cancel();
 }
 
 template <concepts::character CharT, concepts::exec Exec,
