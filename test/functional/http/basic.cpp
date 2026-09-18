@@ -411,21 +411,31 @@ void client_proxy_inheritance_and_environment()
 	});
 	LIBGS_TEST_CHECK(libgs::app::setenv("http_proxy",
 		"http://user:secret@proxy.test:8080/"));
+#if !defined(_WIN32)
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("HTTP_PROXY"));
+#endif
 	LIBGS_TEST_CHECK(libgs::app::setenv("https_proxy",
 		"http://secure-proxy.test:8443/"));
+#if !defined(_WIN32)
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("HTTPS_PROXY"));
+#endif
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("all_proxy"));
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("ALL_PROXY"));
 	LIBGS_TEST_CHECK(libgs::app::setenv("ws_proxy",
 		"http://websocket-only.test:8082/"));
+#if !defined(_WIN32)
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("WS_PROXY"));
+#endif
 	LIBGS_TEST_CHECK(libgs::app::setenv("wss_proxy",
 		"http://secure-websocket-only.test:8444/"));
+#if !defined(_WIN32)
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("WSS_PROXY"));
+#endif
 	LIBGS_TEST_CHECK(libgs::app::setenv("no_proxy",
 		".bypass.test,127.0.0.0/8"));
+#if !defined(_WIN32)
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("NO_PROXY"));
+#endif
 
 	libgs::io_context_t context;
 	auto connector = std::make_shared<scripted_connector>(context.get_executor());

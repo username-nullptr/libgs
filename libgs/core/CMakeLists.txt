@@ -4,6 +4,22 @@
 set(target_name gs.core)
 add_project(${target_name})
 
+# LibGS exposes Asio error codes across module and application boundaries.  A
+# header-only Asio build creates a separate error_category instance in every
+# Windows DLL, so equal error values compare unequal after crossing a DLL
+# boundary.  Keep one Asio implementation in gs.core and make every dependent
+# target use it.
+if (LIBGS_BUILD_STATIC)
+	target_compile_definitions(${target_name} PUBLIC ASIO_SEPARATE_COMPILATION)
+else ()
+	# Sources inside gs.core resolve the implementation directly. Dependents
+	# import the same symbols from the DLL.
+	target_compile_definitions(${target_name}
+		PRIVATE ASIO_SEPARATE_COMPILATION
+		INTERFACE ASIO_DYN_LINK
+	)
+endif ()
+
 if (UNIX)
 	target_link_libraries(${target_name} PUBLIC pthread dl)
 elseif (WIN32)

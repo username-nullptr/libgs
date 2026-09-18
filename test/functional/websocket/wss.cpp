@@ -147,7 +147,9 @@ void secure_round_trip()
 	const auto proxy_port = proxy_acceptor.local_endpoint().port();
 	LIBGS_TEST_CHECK(libgs::app::setenv("wss_proxy", std::format(
 		"http://user:secret@127.0.0.1:{}/", proxy_port)));
+#if !defined(_WIN32)
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("WSS_PROXY"));
+#endif
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("no_proxy"));
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("NO_PROXY"));
 	std::exception_ptr proxy_error;
