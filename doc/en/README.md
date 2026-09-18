@@ -2,47 +2,61 @@
 
 Language: English | [简体中文](../zh_CN/README.md)
 
+These pages describe the current public interface. Start with the task you need;
+module pages can then be used as focused API guides.
+
 ## Start here
 
-| Document | Use it for |
+| Task | Document |
 | --- | --- |
-| [Getting started](getting-started.md) | Requirements, configuration, building, installation, and linking |
-| [Asio-compatible I/O model](io-model.md) | Executors, completion handlers, strands, cancellation, and per-object concurrency |
-| [Core](core.md) | Runtime, scheduling, data types, algorithms, containers, and system APIs |
-| [Coroutines](coroutines.md) | Awaitable waits and non-blocking synchronization |
-| [HTTP](http.md) | HTTP protocol, client, server, files, sessions, TLS, gzip, and proxies |
-| [WebSocket](websocket.md) | RFC 6455 client, server, stream, Upgrade, compression, and proxies |
-| [Utilities](utilities.md) | Logging, settings, signals, observers, modules, processes, and soft bus |
-| [Roadmap](roadmap.md) | Current boundaries and planned areas |
+| Build and run a first program | [Getting started](getting-started.md) |
+| Select modules, features, and dependencies | [Build and configuration](build.md) |
+| Use executors, completion tokens, cancellation, and strands safely | [Execution and I/O model](io-model.md) |
+| Check protocol, platform, and integration boundaries | [Support matrix](support.md) |
 
-The [examples guide](../../examples/README.md) maps each feature to a small
-executable. Use the public headers in [`libgs/`](../../libgs) as the API source
-of truth.
+## Module guides
 
-## Module structure
+| Module | Target | Guide | Main header |
+| --- | --- | --- | --- |
+| Core | `gs.core` | [Runtime and common facilities](core.md) | `<libgs/core.h>` |
+| Coroutines | `gs.coro` | [Awaitable synchronization](coroutines.md) | `<libgs/coro.h>` |
+| HTTP | `gs.http` | [HTTP/1.x client and server](http.md) | `<libgs/http.h>` |
+| WebSocket | `gs.websocket` | [RFC 6455 client, server, and stream](websocket.md) | `<libgs/websocket.h>` |
+| Utilities | `gs.utils` | [Application services](utilities.md) | `<libgs/utils.h>` |
 
-| Module | Public dependency |
-| --- | --- |
-| `gs.core` | — |
-| `gs.coro` | `gs.core` |
-| `gs.http` | `gs.coro` |
-| `gs.websocket` | `gs.http` |
-| `gs.utils` | `gs.coro` |
+The dependency direction is:
 
-Each module has an umbrella header, but narrower headers are preferred when an
-application uses only one facility. `<libgs.h>` follows the module switches in
-the generated configuration header.
+```text
+gs.core
+├── gs.coro
+│   ├── gs.http
+│   │   └── gs.websocket
+│   └── gs.utils
+```
 
-## API conventions
+Link the highest module an application uses; public dependencies propagate when
+LibGS is consumed through `add_subdirectory`.
 
-- Most asynchronous operations follow Asio completion-token conventions.
-- `libgs::use_awaitable` selects a coroutine result; callbacks and
-  `libgs::detached` are accepted where the declaration permits them.
-- Selected APIs default to synchronous execution. Their throwing form reports
-  I/O failures with `std::system_error`; error-code overloads are non-throwing.
-- Asynchronous I/O normally borrows buffers until completion unless the API
-  explicitly states that it takes a copy.
-- Types that accept an executor can run on an application-owned context instead
-  of the process-wide default context.
+## Working code and verification
 
-LibGS is pre-1.0; public interfaces may still change.
+- The [examples guide](../../examples/README.md) maps each capability to a
+  buildable program.
+- The [test guide](../../test/README.md) covers functional, stress, fuzz,
+  performance, and sanitizer builds.
+- Public headers in [`libgs/`](../../libgs) are the source of truth for exact
+  signatures and overload availability.
+
+## Common API conventions
+
+- Asynchronous operations use Asio completion-token conventions.
+- Pass `libgs::use_awaitable` for coroutine results. Callbacks and
+  `libgs::detached` are available where the declaration accepts them.
+- APIs with a synchronous form report failure either by `std::system_error` or
+  through an explicit `std::error_code&` overload.
+- Buffers and other borrowed arguments normally remain owned by the caller until
+  completion.
+- Executor-aware objects can use an application-owned context instead of the
+  process-wide default context.
+
+See [Execution and I/O model](io-model.md) for the full lifetime and concurrency
+rules.

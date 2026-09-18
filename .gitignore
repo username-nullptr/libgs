@@ -69,3 +69,7 @@ Thumbs.db
 /CTestTestfile.cmake
 /DartConfiguration.tcl
 CMakeSettings.json
+
+# Documentation sources, not generated build artifacts.
+!doc/en/build.md
+!doc/zh_CN/build.md

@@ -65,7 +65,7 @@ terminate, kill, cancellation, timeouts, environment/working-directory setup,
 single-instance locks, and standard input/output/error streams. Keep the
 process object alive while asynchronous I/O is pending and inspect returned
 errors for platform-specific failures. Following the
-[Asio-compatible I/O model](io-model.md), serialize lifecycle calls with I/O
+[execution and I/O model](io-model.md), serialize lifecycle calls with I/O
 initiation and keep at most one stdin write, one stdout read, and one stderr
 read outstanding on a process object.
 

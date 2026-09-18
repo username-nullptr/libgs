@@ -1,5 +1,7 @@
 # Functional API coverage map
 
+[Functional test guide](README.md) · [Test index](../README.md)
+
 Functional tests own the public API contract. This map identifies where each
 module's callable surface is exercised; it is intentionally organized by public
 behavior rather than by implementation source file.

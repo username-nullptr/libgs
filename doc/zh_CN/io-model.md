@@ -1,9 +1,9 @@
-# Asio 兼容的 I/O 模型
+# 执行与 I/O 模型
 
 语言：[English](../en/io-model.md) | 简体中文
 
 LibGS 使用与 Asio 相同的执行和并发模型。绑定 executor 的公共类型提供
-`executor_type` 与 `get_executor()`；旧名称 `executor_t` 作为兼容别名保留。
+`executor_type`、`executor_t` 与 `get_executor()`。
 
 ## 完成处理器
 

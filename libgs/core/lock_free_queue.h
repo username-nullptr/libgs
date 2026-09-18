@@ -59,6 +59,7 @@ public:
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
 
 public: // safe
+	// Construction failures leave the queue usable and do not change size().
 	bool enqueue(element_t &&data);
 	bool enqueue(const element_t &data) requires
 		concepts::copy_constructible<element_t>;
@@ -67,6 +68,8 @@ public: // safe
 	bool emplace(Args&&...args) requires
 		concepts::constructible<element_t,Args...>;
 
+	// If moving the returned element throws, that element is removed and the
+	// queue remains usable (basic exception guarantee).
 	optional<element_t> dequeue();
 	bool dequeue(element_t &data);
 
@@ -112,6 +115,7 @@ public:
 	lock_free_queue &operator=(lock_free_queue &&other) noexcept; // unsafe
 
 public: // safe
+	// Construction failures leave the queue usable and do not change size().
 	bool enqueue(element_t &&data);
 	bool enqueue(const element_t &data) requires
 		concepts::copy_constructible<element_t>;
@@ -120,6 +124,8 @@ public: // safe
 	bool emplace(Args&&...args) requires
 		concepts::constructible<element_t,Args...>;
 
+	// If moving the returned element throws, that element is removed and the
+	// queue remains usable (basic exception guarantee).
 	optional<element_t> dequeue();
 	bool dequeue(element_t &data);
 

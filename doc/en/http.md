@@ -133,7 +133,7 @@ low-level boundary directly.
 
 ## I/O rules
 
-- HTTP I/O follows the [Asio-compatible I/O model](io-model.md): distinct
+- HTTP I/O follows the [execution and I/O model](io-model.md): distinct
   objects are safe, while access to one stateful object must be serialized.
 - One connection may have one read and one write outstanding at the same time;
   do not overlap two reads or two writes. Request and reply phase transitions

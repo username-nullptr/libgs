@@ -40,7 +40,7 @@ function(add_libgs_fuzzer module name source library)
 		list(APPEND fuzzer_arguments
 			-dict=${CMAKE_CURRENT_SOURCE_DIR}/${FUZZ_DICTIONARY})
 	endif ()
-	add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}> ${fuzzer_arguments})
+	add_libgs_ctest(${target} $<TARGET_FILE:${target}> ${fuzzer_arguments})
 	set_tests_properties(${target} PROPERTIES
 		LABELS "fuzz;sanitizer"
 		RUN_SERIAL TRUE

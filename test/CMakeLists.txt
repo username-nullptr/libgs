@@ -2,6 +2,38 @@
 # SPDX-License-Identifier: MIT
 
 set(LIBGS_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(LIBGS_TEST_LAUNCHER)
+
+# GCC's ThreadSanitizer cannot reserve its shadow-memory layout with the more
+# aggressive address randomisation used by some recent Linux kernels.  Probe a
+# per-process ASLR-disabled launcher instead of requiring developers to know the
+# platform-specific setarch workaround.  The personality is inherited by
+# interoperability peers spawned by Python as well.
+if (LIBGS_ENABLE_TEST_TSAN AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	find_program(LIBGS_TEST_SETARCH_EXECUTABLE NAMES setarch)
+	if (LIBGS_TEST_SETARCH_EXECUTABLE)
+		execute_process(
+			COMMAND ${LIBGS_TEST_SETARCH_EXECUTABLE}
+				${CMAKE_SYSTEM_PROCESSOR} -R ${CMAKE_COMMAND} -E true
+			RESULT_VARIABLE libgs_test_setarch_result
+			OUTPUT_QUIET ERROR_QUIET
+		)
+		if (libgs_test_setarch_result EQUAL 0)
+			set(LIBGS_TEST_LAUNCHER
+				${LIBGS_TEST_SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R)
+			message(STATUS
+				"${PRO_NAME}: TSan tests disable ASLR per process with setarch."
+			)
+		endif ()
+	endif ()
+	mark_as_advanced(LIBGS_TEST_SETARCH_EXECUTABLE)
+endif ()
+
+
+function(add_libgs_ctest test_name)
+	add_test(NAME ${test_name} COMMAND ${LIBGS_TEST_LAUNCHER} ${ARGN})
+endfunction()
+
 
 if(CMAKE_COMPILER_IS_GNUCXX)
 	include(CheckCXXCompilerFlag)
@@ -73,7 +105,7 @@ endfunction()
 function(add_libgs_functional_test name source library)
 	set(test_target libgs.test.${name})
 	add_libgs_test_program(${test_target} ${source} ${library})
-	add_test(NAME libgs.${name} COMMAND $<TARGET_FILE:${test_target}> ${ARGN})
+	add_libgs_ctest(libgs.${name} $<TARGET_FILE:${test_target}> ${ARGN})
 	configure_libgs_functional_test(libgs.${name})
 endfunction()
 
@@ -90,7 +122,7 @@ function(add_libgs_stress_test name source library)
 	target_compile_definitions(${test_target} PRIVATE
 		LIBGS_STRESS_SCALE=${LIBGS_STRESS_SCALE}
 	)
-	add_test(NAME libgs.stress.${name} COMMAND $<TARGET_FILE:${test_target}>
+	add_libgs_ctest(libgs.stress.${name} $<TARGET_FILE:${test_target}>
 		--repeat ${LIBGS_STRESS_REPEAT}
 		--seed ${LIBGS_STRESS_SEED}
 		--fail-fast
@@ -110,7 +142,7 @@ function(add_libgs_performance_test name source library)
 	target_compile_definitions(${test_target} PRIVATE
 		LIBGS_PERFORMANCE_SCALE=${LIBGS_PERFORMANCE_SCALE}
 	)
-	add_test(NAME libgs.performance.${name} COMMAND $<TARGET_FILE:${test_target}>)
+	add_libgs_ctest(libgs.performance.${name} $<TARGET_FILE:${test_target}>)
 
 	set_tests_properties(libgs.performance.${name} PROPERTIES
 		LABELS performance

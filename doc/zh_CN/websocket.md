@@ -155,7 +155,7 @@ token 关联的 cancellation slot 可以停止正在进行的连接或退避等�
 - 完整消息读取会组装 continuation frame 并检查消息上限；Frame 读取保留数据帧边界。
 - 写入会串行化，并受 `max_queued_write_bytes` 与
   `max_queued_write_operations` 限制。
-- Stream 遵循 [Asio 兼容的 I/O 模型](io-model.md)：不同 stream 可以并行，共享同一个
+- Stream 遵循[执行与 I/O 模型](io-model.md)：不同 stream 可以并行，共享同一个
   stream 不安全。事件泵有多个线程时，让 stream 以及访问它的所有 handler/协程使用
   同一个 strand；只锁住发起调用无法串行化内部 read、write、timer 和 close 完成。
 

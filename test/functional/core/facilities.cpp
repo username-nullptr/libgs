@@ -428,6 +428,84 @@ void check_linked_queue_exception_reuse()
 	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 42);
 }
 
+template <typename Queue>
+void check_circular_queue_exception_reuse(Queue &queue)
+{
+	bool caught = false;
+	try {
+		queue.emplace(-1);
+	}
+	catch(const std::runtime_error&)
+	{
+		caught = true;
+	}
+	LIBGS_TEST_CHECK(caught);
+	LIBGS_TEST_CHECK(queue.empty());
+	LIBGS_TEST_CHECK_EQ(queue.size(), 0U);
+
+	LIBGS_TEST_CHECK(queue.emplace(41));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 41);
+
+	LIBGS_TEST_CHECK(queue.emplace(42));
+	throwing_queue_value::throw_on_move = true;
+	caught = false;
+	try {
+		queue.dequeue();
+	}
+	catch(const std::runtime_error&)
+	{
+		caught = true;
+	}
+	LIBGS_TEST_CHECK(caught);
+	LIBGS_TEST_CHECK(queue.empty());
+	LIBGS_TEST_CHECK_EQ(queue.size(), 0U);
+
+	LIBGS_TEST_CHECK(queue.emplace(43));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 43);
+
+	// A failed construction between live elements must be skipped without
+	// changing the FIFO order of the successfully published values.
+	LIBGS_TEST_CHECK(queue.emplace(44));
+	caught = false;
+	try {
+		queue.emplace(-1);
+	}
+	catch(const std::runtime_error&)
+	{
+		caught = true;
+	}
+	LIBGS_TEST_CHECK(caught);
+	LIBGS_TEST_CHECK(queue.emplace(45));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 44);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 45);
+
+	// A throwing move drops only the claimed element and leaves later values
+	// reachable; this is the queue's basic exception guarantee for dequeue().
+	LIBGS_TEST_CHECK(queue.emplace(46));
+	LIBGS_TEST_CHECK(queue.emplace(47));
+	throwing_queue_value::throw_on_move = true;
+	caught = false;
+	try {
+		queue.dequeue();
+	}
+	catch(const std::runtime_error&)
+	{
+		caught = true;
+	}
+	LIBGS_TEST_CHECK(caught);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue).value, 47);
+	LIBGS_TEST_CHECK(queue.empty());
+}
+
+void check_circular_queue_exception_reuse()
+{
+	libgs::circular_lock_free_queue<throwing_queue_value,4> fixed;
+	check_circular_queue_exception_reuse(fixed);
+
+	libgs::circular_lock_free_queue<throwing_queue_value> dynamic(4);
+	check_circular_queue_exception_reuse(dynamic);
+}
+
 template <libgs::queue_type Type>
 void check_queue_type()
 {
@@ -695,6 +773,7 @@ void lock_free_queues()
 	check_mpmc_queue_type<libgs::queue_type::linked>();
 	check_mpmc_queue_type<libgs::queue_type::circular>();
 	check_linked_queue_exception_reuse();
+	check_circular_queue_exception_reuse();
 	check_circular_queue_compact();
 }
 

@@ -78,7 +78,7 @@ if (Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
 
 		add_libgs_test_program(libgs.test.http.interop-peer
 			http/interop_peer.cpp gs.http)
-		add_test(NAME libgs.http.interop COMMAND
+		add_libgs_ctest(libgs.http.interop
 			${Python3_EXECUTABLE}
 			${CMAKE_CURRENT_SOURCE_DIR}/interop/http_interop.py
 			--peer $<TARGET_FILE:libgs.test.http.interop-peer>
@@ -153,7 +153,7 @@ if (Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
 		if (libgs_websocket_interop_backend)
 			add_libgs_test_program(libgs.test.websocket.interop-peer
 				websocket/interop_peer.cpp gs.websocket)
-			add_test(NAME libgs.websocket.interop COMMAND
+			add_libgs_ctest(libgs.websocket.interop
 				${Python3_EXECUTABLE}
 				${CMAKE_CURRENT_SOURCE_DIR}/interop/websocket_interop.py
 				--peer $<TARGET_FILE:libgs.test.websocket.interop-peer>

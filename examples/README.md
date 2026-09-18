@@ -1,132 +1,96 @@
-# LibGS examples
+# LibGS Examples
 
-The examples are grouped by public module. Each source file focuses on one API
-or one small integration path and is built as an independent executable.
+The examples are small, buildable programs grouped by public module. Use this
+page for build and naming conventions, then open the module guide for program
+arguments and runnable combinations.
 
-| Directory | What it demonstrates |
-| --- | --- |
-| [`core`](core) | Execution, values, INI files, algorithms, queues, application paths, command-line parsing, and dynamic libraries |
-| [`coro`](coro) | Awaitable basics and coroutine synchronization primitives |
-| [`http`](http) | Offline HTTP parsing, clients, servers, middleware, sessions, and optional HTTPS |
-| [`websocket`](websocket) | Standalone WS/WSS clients and servers, offline protocol flow, and a live HTTP/WebSocket mixed application |
-| [`utils`](utils) | Logging, settings, signals, observers, modules, processes, and the extensible soft bus |
+## Module guides
+
+| Module | Target dependency | Guide | Scope |
+| --- | --- | --- | --- |
+| Core | `gs.core` | [Core examples](core/README.md) | Runtime, values, files, algorithms, queues, application paths, arguments, and dynamic libraries |
+| Coroutines | `gs.coro` | [Coroutine examples](coro/README.md) | Awaitable execution and synchronization |
+| HTTP | `gs.http` | [HTTP examples](http/README.md) | Protocol, clients, servers, middleware, sessions, files, proxies, and HTTPS |
+| WebSocket | `gs.websocket` | [WebSocket examples](websocket/README.md) | Protocol, WS/WSS pairs, HTTP Upgrade, recovery, and proxies |
+| Utilities | `gs.utils` | [Utilities examples](utils/README.md) | Logging, settings, signals, observers, modules, processes, and soft bus |
 
 ## Build
 
-From the repository root:
+`LIBGS_BUILD_EXAMPLES=ON` adds examples only for enabled modules. The default
+module configuration builds Core and Coroutine examples:
 
-```bash
-cmake -S . -B build -DLIBGS_BUILD_EXAMPLES=ON
-cmake --build build -j
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DLIBGS_BUILD_EXAMPLES=ON
+cmake --build build --parallel
 ```
 
-Executables are written below `build/output/examples/<module>/`. HTTPS and WSS
-examples are built only when `LIBGS_OPENSSL_SUPPORT=ON` and OpenSSL is available.
+Enable every module for the complete non-TLS example set:
 
-## Run
-
-Most examples are self-contained and complete in well under one second.
-Examples that create a file accept an optional output path, so they need no
-machine-specific directory. Network clients use a local server by default and
-never require a public endpoint.
-
-Start `server` before the basic and Cookie clients:
-
-```bash
-./build/output/examples/http/server
-./build/output/examples/http/client_sync
-./build/output/examples/http/client_cookies
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DLIBGS_BUILD_HTTP=ON \
+  -DLIBGS_BUILD_WEBSOCKET=ON \
+  -DLIBGS_BUILD_UTILITIES=ON \
+  -DLIBGS_BUILD_EXAMPLES=ON
+cmake --build build --parallel
 ```
 
-Run the file server and client with any local source file:
+HTTPS and WSS examples additionally require
+`LIBGS_OPENSSL_SUPPORT=ON` and OpenSSL. Compression changes the enabled
+protocol paths but does not add separate example executables.
 
-```bash
-./build/output/examples/http/server_file README.md
-./build/output/examples/http/client_file README.md
-```
+See [Build and configuration](../doc/en/build.md) for every library and
+toolchain switch.
 
-`client_sync` and `client_awaitable` accept a URL. `client_cookies` accepts a
-base URL, and `client_file` accepts source, destination, and base URL arguments.
-Servers accept a port. `https_server` additionally requires certificate and
-private-key paths; run an executable without arguments to see required inputs.
+## Targets and output
 
-`http/proxy_client` sends an HTTP request through an explicit forward proxy.
-Its arguments are the target URL, proxy URL, and optional Basic-auth username
-and password:
+An example named `<module>/<name>` has:
 
-```bash
-./build/output/examples/http/proxy_client \
-  http://127.0.0.1:8080/hello/Proxy http://127.0.0.1:3128 user secret
-```
-
-The `dynamic_library` executable loads the companion plugin from its own
-directory. You may instead pass another plugin path as the first argument.
-
-The mixed WebSocket examples keep `http::server` and `http::client` as their
-root objects. The same `/mixed` route first handles an ordinary HTTP request,
-then hands an Upgrade request to `websocket::upgrade`. The client upgrades
-the same `http://` URL through `websocket::open` (which also accepts `ws://`)
-and completes a text-frame echo.
-
-```bash
-# Terminal 1
-./build/output/examples/websocket/mixed_http_server
-
-# Terminal 2
-./build/output/examples/websocket/mixed_http_client
-```
-
-For a dedicated WebSocket service, the higher-level `websocket::server` owns
-the listener and performs each opening handshake, while `websocket::client`
-owns the HTTP connector used by `open()`:
-
-```bash
-# Terminal 1
-./build/output/examples/websocket/server
-
-# Terminal 2
-./build/output/examples/websocket/client
-```
-
-`websocket/retry_open` shows application-controlled recovery. The initial
-`client.open()` is attempted once; after the receive loop detects an invalid
-connection, the application pauses its work, calls `retry_open()`, and restores
-its authentication and subscriptions on the returned stream.
-
-`websocket/proxy_client` connects through an explicit HTTP or SOCKS5 proxy.
-It accepts the endpoint, proxy URL, and optional username and password:
-
-```bash
-./build/output/examples/websocket/proxy_client \
-  ws://127.0.0.1:8080/echo http://127.0.0.1:3128 user secret
-
-./build/output/examples/websocket/proxy_client \
-  ws://127.0.0.1:8080/echo socks5://127.0.0.1:1080 user secret
-```
-
-The secure pair uses the same WebSocket API with an injected client TLS context
-and a TLS server. The server takes a certificate and private key; the optional
-second client argument adds a private CA or self-signed server certificate to
-the trust store:
-
-```bash
-# Terminal 1
-./build/output/examples/websocket/wss_server server.pem server-key.pem
-
-# Terminal 2
-./build/output/examples/websocket/wss_client \
-  wss://127.0.0.1:8443/echo server.pem
-```
-
-## Coverage
-
-| Capability | Examples |
+| Item | Pattern |
 | --- | --- |
-| Core runtime and data | `core/execution`, `value`, `ini`, `algorithms`, `lock_free_queue` |
-| Application integration | `core/app_paths`, `args_parser`, `dynamic_library` |
-| Coroutine synchronization | `coro/basics`, `mutex`, `shared_mutex`, `semaphore`, `condition_variable` |
-| HTTP clients and protocol | `http/client_sync`, `client_awaitable`, `client_cookies`, `client_file`, `proxy_client`, `protocol` |
-| HTTP servers | `http/server`, `server_aop`, `server_file` (uploads, downloads, and `resource_root`), `server_session`, and optional `https_server` |
-| WebSocket protocol | `websocket/client` and `server` use the owned API; `retry_open` demonstrates explicit recovery after a business-loop failure; `proxy_client` connects through HTTP or SOCKS5; optional `wss_client` and `wss_server` add TLS; `protocol` performs an offline handshake/frame round trip; the `mixed_http_*` pair shares one HTTP route |
-| Utilities | `utils/logger`, `settings`, `signal_slot`, `observer`, `modules`, `process` |
-| Soft bus | `utils/soft_bus_local` uses the built-in in-process transport; `soft_bus_transport` shows the interface used to plug in DDS, IPC, or another transport |
+| CMake target | `libgs.example.<module>.<name>` |
+| Single-config executable | `build/output/examples/<module>/<name>` |
+| Install location | `examples/<module>/<name>` |
+
+Multi-config generators may add a configuration directory such as `Release/`.
+The Core dynamic-library example also builds a companion plugin beside its
+executable.
+
+Build one example target:
+
+```sh
+cmake --build build --target libgs.example.core.execution
+```
+
+## Running examples
+
+- Offline examples run independently and normally finish immediately.
+- Local network examples bind loopback addresses or connect to loopback by
+  default; start the matching server first.
+- Server and recovery examples keep running until interrupted.
+- File-producing examples accept an output path so the caller controls where
+  data is written.
+- Proxy examples require a separately running HTTP or SOCKS5 proxy.
+- Programs with required arguments print a usage line and exit with status 2
+  when arguments are missing.
+
+Start with:
+
+```sh
+./build/output/examples/core/execution
+./build/output/examples/coro/basics
+```
+
+For client/server pairs and exact arguments, use the module guides above.
+
+## Adding an example
+
+1. Keep one public concept or one small integration path per executable.
+2. Use loopback endpoints and local files by default; do not require a public
+   service.
+3. Accept environment-specific paths, ports, endpoints, and credentials as
+   arguments.
+4. Register the target in [`examples/CMakeLists.txt`](CMakeLists.txt).
+5. Add the program to its module guide, including side effects and its matching
+   server or client.

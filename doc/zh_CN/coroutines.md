@@ -5,7 +5,7 @@
 包含 `<libgs/coro.h>` 并链接 `gs.coro`。该模块基于 Asio executor 提供
 非阻塞等待与同步原语。
 
-Executor 与生命周期行为遵循 [Asio 兼容的 I/O 模型](io-model.md)。同步原语支持
+Executor 与生命周期行为遵循[执行与 I/O 模型](io-model.md)。同步原语支持
 并发 wait/notify，但对象必须比所有等待者存活更久。
 
 ## 启动协程

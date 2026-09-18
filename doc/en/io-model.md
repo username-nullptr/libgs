@@ -1,10 +1,9 @@
-# Asio-compatible I/O model
+# Execution and I/O Model
 
 Language: English | [简体中文](../zh_CN/io-model.md)
 
 LibGS uses the same execution and concurrency model as Asio. Executor-aware
-public types expose `executor_type` and `get_executor()`; the older
-`executor_t` name remains as a compatibility alias.
+public types expose `executor_type`, `executor_t`, and `get_executor()`.
 
 ## Completion handlers
 

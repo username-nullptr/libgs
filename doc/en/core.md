@@ -64,7 +64,7 @@ int main()
 
 Scheduling functions and many higher-level types also accept an external Asio
 executor. Keep captured objects and borrowed buffers alive until asynchronous
-completion. See the [Asio-compatible I/O model](io-model.md) for associated
+completion. See the [execution and I/O model](io-model.md) for associated
 executors, non-inline completion, strands, and shared-object rules.
 
 ## Data and configuration

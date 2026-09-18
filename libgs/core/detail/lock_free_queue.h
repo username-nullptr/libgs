@@ -618,6 +618,7 @@ class LIBGS_CORE_TAPI circular_lock_free_queue_block
 	struct cell
 	{
 		std::atomic_size_t sequence {0};
+		std::atomic_bool occupied {false};
 		alignas(T) char storage[sizeof(T)] {};
 
 		[[nodiscard]] T *value() noexcept {
@@ -647,7 +648,8 @@ public:
 		for(auto pos=begin; pos<end; pos++)
 		{
 			if( auto &entry = m_cells[index(pos)];
-				entry.sequence.load(std::memory_order_relaxed) == pos * 2 + 1 )
+				entry.sequence.load(std::memory_order_relaxed) == pos * 2 + 1 and
+				entry.occupied.load(std::memory_order_relaxed) )
 				entry.value()->~T();
 		}
 	}
@@ -674,11 +676,33 @@ public:
 					break;
 			}
 			else if( diff < 0 )
+			{
+				// A constructor that throws leaves a published tombstone so
+				// consumers can preserve FIFO position. Help reclaim a head
+				// tombstone before reporting that the physical ring is full.
+				if( discard_tombstone() )
+				{
+					pos = m_enqueue_pos.load(std::memory_order_relaxed);
+					continue;
+				}
 				return false;
+			}
 			else
 				pos = m_enqueue_pos.load(std::memory_order_relaxed);
 		}
-		new (entry->storage) T(std::forward<Args>(args)...);
+		try {
+			new (entry->storage) T(std::forward<Args>(args)...);
+			entry->occupied.store(true, std::memory_order_relaxed);
+		}
+		catch(...)
+		{
+			// Publish an empty position. Without this tombstone, dequeue()
+			// remains permanently stuck behind the abandoned sequence.
+			entry->occupied.store(false, std::memory_order_relaxed);
+			entry->sequence.store(pos * 2 + 1, std::memory_order_release);
+			(void)discard_tombstone();
+			throw;
+		}
 		if constexpr( TrackSize )
 			m_size.fetch_add(1, std::memory_order_release);
 
@@ -689,35 +713,60 @@ public:
 	template <bool TrackSize = true>
 	[[nodiscard]] optional<T> dequeue()
 	{
-		size_t pos = m_dequeue_pos.load(std::memory_order_relaxed);
-		cell *entry = nullptr;
 		for(;;)
 		{
-			entry = &m_cells[index(pos)];
-			auto sequence = entry->sequence.load(std::memory_order_acquire);
-
-			auto diff = static_cast<std::intptr_t>(sequence) -
-				static_cast<std::intptr_t>(pos * 2 + 1);
-
-			if( diff == 0 )
+			size_t pos = m_dequeue_pos.load(std::memory_order_relaxed);
+			cell *entry = nullptr;
+			for(;;)
 			{
-				if( m_dequeue_pos.compare_exchange_weak(pos, pos + 1,
-					std::memory_order_relaxed, std::memory_order_relaxed) )
-					break;
+				entry = &m_cells[index(pos)];
+				auto sequence = entry->sequence.load(std::memory_order_acquire);
+
+				auto diff = static_cast<std::intptr_t>(sequence) -
+					static_cast<std::intptr_t>(pos * 2 + 1);
+
+				if( diff == 0 )
+				{
+					if( m_dequeue_pos.compare_exchange_weak(pos, pos + 1,
+						std::memory_order_relaxed, std::memory_order_relaxed) )
+						break;
+				}
+				else if( diff < 0 )
+					return nullopt;
+				else
+					pos = m_dequeue_pos.load(std::memory_order_relaxed);
 			}
-			else if( diff < 0 )
-				return nullopt;
-			else
-				pos = m_dequeue_pos.load(std::memory_order_relaxed);
+			if( not entry->occupied.load(std::memory_order_acquire) )
+			{
+				entry->sequence.store((pos + m_capacity) * 2,
+					std::memory_order_release);
+				continue;
+			}
+			optional<T> result;
+			try {
+				result.emplace(std::move(*entry->value()));
+			}
+			catch(...)
+			{
+				entry->value()->~T();
+				entry->occupied.store(false, std::memory_order_relaxed);
+
+				if constexpr( TrackSize )
+					m_size.fetch_sub(1, std::memory_order_release);
+
+				entry->sequence.store((pos + m_capacity) * 2,
+					std::memory_order_release);
+				throw;
+			}
+			entry->value()->~T();
+			entry->occupied.store(false, std::memory_order_relaxed);
+
+			if constexpr( TrackSize )
+				m_size.fetch_sub(1, std::memory_order_release);
+
+			entry->sequence.store((pos + m_capacity) * 2, std::memory_order_release);
+			return result;
 		}
-		T result = std::move(*entry->value());
-		entry->value()->~T();
-
-		if constexpr( TrackSize )
-			m_size.fetch_sub(1, std::memory_order_release);
-
-		entry->sequence.store((pos + m_capacity) * 2, std::memory_order_release);
-		return result;
 	}
 
 	[[nodiscard]] size_t size() const noexcept {
@@ -740,6 +789,25 @@ public:
 	circular_lock_free_queue_block *m_retired_next = nullptr;
 
 private:
+	[[nodiscard]] bool discard_tombstone() noexcept
+	{
+		auto pos = m_dequeue_pos.load(std::memory_order_relaxed);
+		auto &entry = m_cells[index(pos)];
+		const auto sequence = entry.sequence.load(std::memory_order_acquire);
+		const auto diff = static_cast<std::intptr_t>(sequence) -
+			static_cast<std::intptr_t>(pos * 2 + 1);
+
+		if( diff != 0 or entry.occupied.load(std::memory_order_acquire) )
+			return false;
+		if( not m_dequeue_pos.compare_exchange_weak(pos, pos + 1,
+			std::memory_order_relaxed, std::memory_order_relaxed) )
+			return true;
+
+		entry.sequence.store((pos + m_capacity) * 2,
+			std::memory_order_release);
+		return true;
+	}
+
 	[[nodiscard]] size_t index(size_t position) const noexcept
 	{
 		return m_index_mask != std::numeric_limits<size_t>::max() ?
@@ -1037,10 +1105,22 @@ public:
 		for(;;)
 		{
 			auto current = hazard.protect(m_dequeue_block);
-			if( auto result = current->template dequeue<false>() )
+			bool logical_size_updated = false;
+			try {
+				if( auto result = current->template dequeue<false>() )
+				{
+					m_size.fetch_sub(1, std::memory_order_release);
+					logical_size_updated = true;
+					return result;
+				}
+			}
+			catch(...)
 			{
-				m_size.fetch_sub(1, std::memory_order_release);
-				return result;
+				// The block has already released a claimed element so the
+				// logical count must follow it even when T's move throws.
+				if( not logical_size_updated )
+					m_size.fetch_sub(1, std::memory_order_release);
+				throw;
 			}
 			if( current == m_enqueue_block.load(std::memory_order_acquire) or
 				not current->m_closed.load(std::memory_order_acquire) or
