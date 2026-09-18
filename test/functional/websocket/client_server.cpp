@@ -888,12 +888,17 @@ void retry_open_cancellation()
 		return ws::retry_open_decision::retry_after(suggested);
 	};
 	bool waiting = false;
+	asio::cancellation_signal cancellation;
 	options.observe = [&](ws::retry_open_event event,
 		const ws::retry_open_context&) {
-		waiting = event == ws::retry_open_event::waiting;
+		if( event != ws::retry_open_event::waiting )
+			return;
+		waiting = true;
+		asio::post(context, [&] {
+			cancellation.emit(asio::cancellation_type::all);
+		});
 	};
 	ws::client client(context.get_executor());
-	asio::cancellation_signal cancellation;
 
 	bool completed = false;
 	libgs::error_code completion_error;
@@ -909,13 +914,8 @@ void retry_open_cancellation()
 			completed = true;
 		}));
 
-	asio::steady_timer timer(context.get_executor(), 10ms);
-	timer.async_wait([&](libgs::error_code error) {
-		LIBGS_TEST_CHECK(not error);
-		LIBGS_TEST_CHECK(waiting);
-		cancellation.emit(asio::cancellation_type::all);
-	});
 	context.run();
+	LIBGS_TEST_CHECK(waiting);
 	LIBGS_TEST_CHECK(completed);
 	LIBGS_TEST_CHECK_EQ(completion_error,
 		asio::error::make_error_code(asio::error::operation_aborted));

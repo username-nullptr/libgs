@@ -2178,7 +2178,11 @@ void test_automatic_ping_timeout_and_retries()
 			{.stream_role = ws::role::server}, error);
 		LIBGS_TEST_CHECK(not error);
 
-		context.run_for(25ms);
+		// Run until the complete two-byte header and eight-byte payload have
+		// reached the transport.  The buffer-sequence adapter may require a
+		// different number of completions depending on the Asio backend.
+		while( connection->wire().size() < 10 )
+			LIBGS_TEST_CHECK_EQ(context.run_one(), size_t {1});
 		auto ping_payload = first_server_ping_payload(connection->wire());
 		LIBGS_TEST_CHECK_EQ(ping_payload.size(), 8U);
 		std::vector<std::byte> input;

@@ -171,7 +171,7 @@ std::basic_string<CharT> to_string(concepts::integral_p auto &&value, size_t bas
 	{
 		auto remainder = static_cast<unsigned int>(remaining % base);
 		result.insert(result.begin(), digits[remainder]);
-		remaining = remaining / base;
+		remaining = remaining / static_cast<unsigned_t>(base);
 	}
 	if( is_negative )
 		result.insert(result.begin(), static_cast<CharT>('-'));

@@ -36,6 +36,19 @@
 #cmakedefine01 LIBGS_IO_URING_SUPPORT
 #endif //LIBGS_IO_URING_SUPPORT
 
+// LibGS compiles Asio once in gs.core so error categories remain identical
+// across shared-library boundaries (notably on Windows).  CMake targets also
+// publish the matching definition so it is present even when Asio is included
+// before a LibGS header.
+#if !defined(ASIO_HEADER_ONLY) && \
+	!defined(ASIO_SEPARATE_COMPILATION) && !defined(ASIO_DYN_LINK)
+# if LIBGS_BUILD_STATIC
+#  define ASIO_SEPARATE_COMPILATION 1
+# else
+#  define ASIO_DYN_LINK 1
+# endif
+#endif
+
 #if LIBGS_IO_URING_SUPPORT
 
 # define ASIO_HAS_IO_URING  1

@@ -31,8 +31,9 @@ bool close_deadline::active() const noexcept
 sys_expected<> close_deadline::start(const asio::any_io_executor &exec,
 	std::weak_ptr<void> owner, std::chrono::milliseconds timeout, callback_t callback) noexcept
 {
+	auto result = make_sys_expected();
 	if( m_operation )
-		return make_sys_expected();
+		return result;
 	try {
 		auto operation = std::make_shared<struct operation>(
 			exec, std::move(owner), callback
@@ -49,14 +50,14 @@ sys_expected<> close_deadline::start(const asio::any_io_executor &exec,
 				operation->callback(_owner.get());
 		});
 		m_operation = std::move(operation);
-		return make_sys_expected();
+		return result;
 	}
 	catch(...)
 	{
 		stop();
-		return sys_unexpected(exception_error(std::current_exception()));
+		result.despair(exception_error(std::current_exception()));
 	}
-	return {};
+	return result;
 }
 
 void close_deadline::stop() noexcept

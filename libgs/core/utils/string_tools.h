@@ -9,6 +9,12 @@
 #include <libgs/core/cxx/attributes.h>
 #include <libgs/core/cxx/optional.h>
 
+#if defined(_WIN32)
+# include <cstring>
+#else
+# include <strings.h>
+#endif
+
 namespace libgs::strtls
 {
 
