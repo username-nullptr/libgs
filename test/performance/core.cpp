@@ -12,13 +12,13 @@ namespace
 {
 
 #ifdef NDEBUG
-constexpr size_t text_cycle_count = 100'000;
-constexpr size_t url_cycle_count = 100'000;
-constexpr size_t hash_cycle_count = 20'000;
+constexpr size_t text_cycle_count = 100'000 * libgs::test::performance_scale;
+constexpr size_t url_cycle_count = 100'000 * libgs::test::performance_scale;
+constexpr size_t hash_cycle_count = 20'000 * libgs::test::performance_scale;
 #else
-constexpr size_t text_cycle_count = 5'000;
-constexpr size_t url_cycle_count = 5'000;
-constexpr size_t hash_cycle_count = 1'000;
+constexpr size_t text_cycle_count = 5'000 * libgs::test::performance_scale;
+constexpr size_t url_cycle_count = 5'000 * libgs::test::performance_scale;
+constexpr size_t hash_cycle_count = 1'000 * libgs::test::performance_scale;
 #endif
 
 using duration_t = std::chrono::steady_clock::duration;
@@ -104,9 +104,11 @@ void core_hot_paths()
 void algorithm_size_scaling()
 {
 #ifdef NDEBUG
-	constexpr size_t byte_budget = 64 * 1024 * 1024;
+	constexpr size_t byte_budget =
+		64 * 1024 * 1024 * libgs::test::performance_scale;
 #else
-	constexpr size_t byte_budget = 4 * 1024 * 1024;
+	constexpr size_t byte_budget =
+		4 * 1024 * 1024 * libgs::test::performance_scale;
 #endif
 	for(const size_t input_size : {size_t {64}, size_t {1'024}, size_t {65'536}})
 	{

@@ -19,18 +19,73 @@ option(LIBGS_BUILD_STRESS_TESTS
 option(LIBGS_BUILD_PERFORMANCE_TESTS
 	"-- ${PRO_NAME}: Build performance-sensitive benchmarks." OFF
 )
+set(LIBGS_FUNCTIONAL_REPEAT 1 CACHE STRING
+	"Execution count for each LibGS functional test case (positive integer)."
+)
+set(LIBGS_FUNCTIONAL_SEED 1 CACHE STRING
+	"Base seed for reproducible LibGS functional tests (non-negative integer)."
+)
+set(LIBGS_FUNCTIONAL_TIMEOUT 60 CACHE STRING
+	"CTest timeout in seconds for each LibGS functional executable."
+)
 set(LIBGS_STRESS_SCALE 4 CACHE STRING
 	"Work multiplier for LibGS stress tests (positive integer)."
+)
+set(LIBGS_STRESS_REPEAT 1 CACHE STRING
+	"Fixture recreation count for each LibGS stress case (positive integer)."
+)
+set(LIBGS_STRESS_SEED 1 CACHE STRING
+	"Base seed for reproducible LibGS stress scheduling (non-negative integer)."
+)
+set(LIBGS_STRESS_TIMEOUT 180 CACHE STRING
+	"CTest timeout in seconds for each LibGS stress executable."
 )
 set(LIBGS_FUZZ_SMOKE_RUNS 2048 CACHE STRING
 	"Iterations per LibGS fuzz smoke test (positive integer)."
 )
+set(LIBGS_FUZZ_SEED 1 CACHE STRING
+	"Base seed for reproducible LibGS fuzz smoke tests (non-negative integer)."
+)
+set(LIBGS_FUZZ_MAX_LENGTH 4096 CACHE STRING
+	"Maximum input size for LibGS fuzz smoke tests (positive integer)."
+)
+set(LIBGS_FUZZ_TIMEOUT 5 CACHE STRING
+	"Per-input timeout in seconds for LibGS fuzz smoke tests."
+)
+set(LIBGS_FUZZ_RSS_LIMIT_MB 1024 CACHE STRING
+	"Memory limit in MiB for LibGS fuzz smoke tests."
+)
+set(LIBGS_PERFORMANCE_SCALE 1 CACHE STRING
+	"Work multiplier for LibGS performance tests (positive integer)."
+)
+set(LIBGS_PERFORMANCE_TIMEOUT 60 CACHE STRING
+	"CTest timeout in seconds for each LibGS performance executable."
+)
 
-foreach(option LIBGS_STRESS_SCALE LIBGS_FUZZ_SMOKE_RUNS)
+foreach(option
+	LIBGS_FUNCTIONAL_REPEAT
+	LIBGS_FUNCTIONAL_TIMEOUT
+	LIBGS_STRESS_SCALE
+	LIBGS_STRESS_REPEAT
+	LIBGS_STRESS_TIMEOUT
+	LIBGS_FUZZ_SMOKE_RUNS
+	LIBGS_FUZZ_MAX_LENGTH
+	LIBGS_FUZZ_TIMEOUT
+	LIBGS_FUZZ_RSS_LIMIT_MB
+	LIBGS_PERFORMANCE_SCALE
+	LIBGS_PERFORMANCE_TIMEOUT
+)
 	if (NOT ${option} MATCHES "^[1-9][0-9]*$")
 		message(FATAL_ERROR "${option} must be a positive integer.")
 	endif ()
 endforeach()
+
+foreach(option LIBGS_FUNCTIONAL_SEED LIBGS_STRESS_SEED LIBGS_FUZZ_SEED)
+	if (NOT ${option} MATCHES "^[0-9]+$")
+		message(FATAL_ERROR "${option} must be a non-negative integer.")
+	endif ()
+endforeach()
+
 if (LIBGS_ENABLE_TEST_SANITIZERS AND LIBGS_ENABLE_TEST_TSAN)
 	message(FATAL_ERROR
 		"${PRO_NAME}: ASan/UBSan and TSan cannot be enabled together."

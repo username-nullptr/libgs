@@ -10,16 +10,24 @@ function(add_libgs_fuzzer module name source library)
 		-fsanitize=fuzzer,address,undefined
 		-fno-omit-frame-pointer
 	)
+	target_compile_definitions(${target} PRIVATE
+		LIBGS_FUZZ_MAX_LENGTH=${LIBGS_FUZZ_MAX_LENGTH}
+	)
 	target_link_options(${target} PRIVATE -fsanitize=fuzzer,address,undefined)
 	set_target_properties(${target} PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/fuzz
 	)
+	set(fuzzer_artifacts ${CMAKE_CURRENT_BINARY_DIR}/artifacts/${module}-${name})
+	file(MAKE_DIRECTORY ${fuzzer_artifacts})
 	set(fuzzer_arguments
 		-runs=${LIBGS_FUZZ_SMOKE_RUNS}
-		-max_len=4096
-		-rss_limit_mb=1024
-		-timeout=5
+		-seed=${LIBGS_FUZZ_SEED}
+		-max_len=${LIBGS_FUZZ_MAX_LENGTH}
+		-rss_limit_mb=${LIBGS_FUZZ_RSS_LIMIT_MB}
+		-timeout=${LIBGS_FUZZ_TIMEOUT}
 		-use_value_profile=1
+		-print_final_stats=1
+		-artifact_prefix=${fuzzer_artifacts}/
 	)
 	if (FUZZ_CORPUS)
 		set(fuzzer_corpus ${CMAKE_CURRENT_BINARY_DIR}/corpus/${module}-${name})
@@ -56,6 +64,8 @@ add_libgs_fuzzer(core url core_url.cpp gs.core
 	CORPUS corpus/core DICTIONARY dictionaries/core.dict)
 add_libgs_fuzzer(core public-api core_public_api.cpp gs.core
 	CORPUS corpus/core DICTIONARY dictionaries/core.dict)
+add_libgs_fuzzer(core queue core_queue.cpp gs.core
+	CORPUS corpus/sequences DICTIONARY dictionaries/sequences.dict)
 
 if (LIBGS_BUILD_CORO)
 	add_libgs_fuzzer(coro sync-primitives coro_sync_primitives.cpp gs.coro

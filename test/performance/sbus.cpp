@@ -13,21 +13,35 @@ using steady_clock_t = std::chrono::steady_clock;
 using duration_t = steady_clock_t::duration;
 
 #ifdef NDEBUG
-constexpr size_t no_subscriber_publish_count = 1'000'000;
-constexpr size_t subscribed_publish_count = 20'000;
-constexpr size_t connection_cycle_count = 1'000;
-constexpr size_t payload_64k_publish_count = 4'096;
-constexpr size_t payload_1m_publish_count = 256;
-constexpr size_t payload_64k_fanout_publish_count = 1'024;
-constexpr size_t payload_1m_fanout_publish_count = 128;
+constexpr size_t no_subscriber_publish_count =
+	1'000'000 * libgs::test::performance_scale;
+constexpr size_t subscribed_publish_count =
+	20'000 * libgs::test::performance_scale;
+constexpr size_t connection_cycle_count =
+	1'000 * libgs::test::performance_scale;
+constexpr size_t payload_64k_publish_count =
+	4'096 * libgs::test::performance_scale;
+constexpr size_t payload_1m_publish_count =
+	256 * libgs::test::performance_scale;
+constexpr size_t payload_64k_fanout_publish_count =
+	1'024 * libgs::test::performance_scale;
+constexpr size_t payload_1m_fanout_publish_count =
+	128 * libgs::test::performance_scale;
 #else
-constexpr size_t no_subscriber_publish_count = 100'000;
-constexpr size_t subscribed_publish_count = 2'000;
-constexpr size_t connection_cycle_count = 100;
-constexpr size_t payload_64k_publish_count = 512;
-constexpr size_t payload_1m_publish_count = 32;
-constexpr size_t payload_64k_fanout_publish_count = 128;
-constexpr size_t payload_1m_fanout_publish_count = 16;
+constexpr size_t no_subscriber_publish_count =
+	100'000 * libgs::test::performance_scale;
+constexpr size_t subscribed_publish_count =
+	2'000 * libgs::test::performance_scale;
+constexpr size_t connection_cycle_count =
+	100 * libgs::test::performance_scale;
+constexpr size_t payload_64k_publish_count =
+	512 * libgs::test::performance_scale;
+constexpr size_t payload_1m_publish_count =
+	32 * libgs::test::performance_scale;
+constexpr size_t payload_64k_fanout_publish_count =
+	128 * libgs::test::performance_scale;
+constexpr size_t payload_1m_fanout_publish_count =
+	16 * libgs::test::performance_scale;
 #endif
 
 constexpr size_t publish_batch_size = 64;

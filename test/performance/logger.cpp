@@ -22,11 +22,11 @@ using logger_t = libgs::utils::logger;
 using duration_t = std::chrono::steady_clock::duration;
 
 #ifdef NDEBUG
-constexpr size_t hot_path_count = 500'000;
-constexpr size_t file_log_count = 10'000;
+constexpr size_t hot_path_count = 500'000 * libgs::test::performance_scale;
+constexpr size_t file_log_count = 10'000 * libgs::test::performance_scale;
 #else
-constexpr size_t hot_path_count = 10'000;
-constexpr size_t file_log_count = 500;
+constexpr size_t hot_path_count = 10'000 * libgs::test::performance_scale;
+constexpr size_t file_log_count = 500 * libgs::test::performance_scale;
 #endif
 
 constexpr size_t thread_count = 4;

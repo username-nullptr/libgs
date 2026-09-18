@@ -10,19 +10,23 @@ namespace
 {
 
 #ifdef NDEBUG
-constexpr size_t emission_count = 5'000'000;
+constexpr size_t emission_count = 5'000'000 * libgs::test::performance_scale;
 #else
-constexpr size_t emission_count = 100'000;
+constexpr size_t emission_count = 100'000 * libgs::test::performance_scale;
 #endif
 
 constexpr size_t asynchronous_emission_count = emission_count / 10;
 constexpr size_t connection_cycle_count = emission_count / 10;
 #ifdef NDEBUG
-constexpr size_t large_value_emission_count = 512;
-constexpr size_t large_shared_emission_count = 100'000;
+constexpr size_t large_value_emission_count =
+	512 * libgs::test::performance_scale;
+constexpr size_t large_shared_emission_count =
+	100'000 * libgs::test::performance_scale;
 #else
-constexpr size_t large_value_emission_count = 64;
-constexpr size_t large_shared_emission_count = 5'000;
+constexpr size_t large_value_emission_count =
+	64 * libgs::test::performance_scale;
+constexpr size_t large_shared_emission_count =
+	5'000 * libgs::test::performance_scale;
 #endif
 constexpr size_t large_payload_size = 1'024 * 1'024;
 

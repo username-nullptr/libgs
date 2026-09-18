@@ -49,7 +49,7 @@ void append_fragmented(Parser &parser, std::string_view wire,
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-	if(size < 4 or size > 4'096)
+	if(size < 4 or size > LIBGS_FUZZ_MAX_LENGTH)
 		return 0;
 
 	using namespace libgs::http;

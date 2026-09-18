@@ -15,11 +15,11 @@ namespace
 namespace ws = libgs::websocket;
 
 #ifdef NDEBUG
-constexpr size_t codec_iteration_count = 100'000;
-constexpr size_t message_iteration_count = 2'000;
+constexpr size_t codec_iteration_count = 100'000 * libgs::test::performance_scale;
+constexpr size_t message_iteration_count = 2'000 * libgs::test::performance_scale;
 #else
-constexpr size_t codec_iteration_count = 5'000;
-constexpr size_t message_iteration_count = 200;
+constexpr size_t codec_iteration_count = 5'000 * libgs::test::performance_scale;
+constexpr size_t message_iteration_count = 200 * libgs::test::performance_scale;
 #endif
 constexpr size_t large_message_iteration_count = message_iteration_count / 20;
 constexpr size_t warmup_count = 10;

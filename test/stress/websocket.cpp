@@ -11,6 +11,74 @@ namespace
 
 namespace ws = libgs::websocket;
 
+void low_load_connection_lifecycle_repetition()
+{
+	const size_t rounds = 64 * LIBGS_STRESS_SCALE;
+	const auto seed = libgs::test::current_seed();
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	ws::server service(std::move(acceptor), asio::make_strand(context));
+	std::atomic_size_t echoed {0};
+	service.on_connection("/lifecycle",
+	[&](ws::accept_result accepted) -> libgs::awaitable<void>
+	{
+		for(;;)
+		{
+			auto [error, message] = co_await accepted.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			if(error)
+				co_return;
+			co_await accepted.stream.write_text(message.body,
+				libgs::use_awaitable);
+			echoed.fetch_add(1, std::memory_order_relaxed);
+		}
+	});
+	service.bind({libgs::ip_type::v4, 0}).start();
+	const auto port = service.http_server().acceptor_wrap()
+		.acceptor().local_endpoint().port();
+	const auto target = std::format("ws://127.0.0.1:{}/lifecycle", port);
+	auto completed = asio::co_spawn(asio::make_strand(context),
+		[&, target]() -> libgs::awaitable<void>
+		{
+			auto executor = co_await asio::this_coro::executor;
+			for(size_t round = 0; round < rounds; ++round)
+			{
+				ws::client requester(executor);
+				auto stream = co_await requester.open(target, libgs::use_awaitable);
+				const auto payload = std::format("lifecycle:{}", round);
+				co_await stream.write_text(payload, libgs::use_awaitable);
+				auto response = co_await stream.read<std::string>(
+					libgs::use_awaitable);
+				LIBGS_TEST_CHECK_EQ(response.body, payload);
+				const auto closed = co_await stream.close(libgs::use_awaitable);
+				LIBGS_TEST_CHECK(closed.clean);
+				if(((seed ^ round) & 3U) == 0)
+					co_await asio::post(libgs::use_awaitable);
+			}
+		}, libgs::use_future);
+
+	std::array<std::thread,2> runners;
+	for(auto &runner : runners)
+		runner = std::thread([&] { context.run(); });
+	try
+	{
+		completed.get();
+	}
+	catch(...)
+	{
+		service.stop();
+		context.stop();
+		for(auto &runner : runners)
+			runner.join();
+		throw;
+	}
+	LIBGS_TEST_CHECK_EQ(echoed.load(std::memory_order_relaxed), rounds);
+	service.stop();
+	context.stop();
+	for(auto &runner : runners)
+		runner.join();
+}
+
 void concurrent_connection_pressure()
 {
 	constexpr size_t client_count = 16;
@@ -101,9 +169,11 @@ void concurrent_connection_pressure()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
+		{"low-load WebSocket connection lifecycle repetition",
+			low_load_connection_lifecycle_repetition},
 		{"concurrent WebSocket connection pressure", concurrent_connection_pressure},
 	});
 }

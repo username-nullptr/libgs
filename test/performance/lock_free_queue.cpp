@@ -10,9 +10,9 @@ namespace
 {
 
 #ifdef NDEBUG
-constexpr size_t operation_count = 1'000'000;
+constexpr size_t operation_count = 1'000'000 * libgs::test::performance_scale;
 #else
-constexpr size_t operation_count = 100'000;
+constexpr size_t operation_count = 100'000 * libgs::test::performance_scale;
 #endif
 
 template <libgs::queue_type Type>

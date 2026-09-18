@@ -13,11 +13,11 @@ namespace
 {
 
 #ifdef NDEBUG
-constexpr size_t protocol_cycle_count = 250'000;
-constexpr size_t gzip_cycle_count = 2'000;
+constexpr size_t protocol_cycle_count = 250'000 * libgs::test::performance_scale;
+constexpr size_t gzip_cycle_count = 2'000 * libgs::test::performance_scale;
 #else
-constexpr size_t protocol_cycle_count = 10'000;
-constexpr size_t gzip_cycle_count = 100;
+constexpr size_t protocol_cycle_count = 10'000 * libgs::test::performance_scale;
+constexpr size_t gzip_cycle_count = 100 * libgs::test::performance_scale;
 #endif
 
 using duration_t = std::chrono::steady_clock::duration;

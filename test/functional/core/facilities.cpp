@@ -521,10 +521,39 @@ void check_queue_boundaries_and_reuse()
 	LIBGS_TEST_CHECK(not queue.enqueue(6));
 	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 5);
 
+	queue.set_capacity(4);
+	LIBGS_TEST_CHECK(queue.enqueue(6));
+	LIBGS_TEST_CHECK(queue.enqueue(7));
+	LIBGS_TEST_CHECK(queue.enqueue(8));
+	LIBGS_TEST_CHECK(queue.enqueue(9));
+	queue.set_capacity(2);
+	LIBGS_TEST_CHECK_EQ(queue.capacity(), 2U);
+	LIBGS_TEST_CHECK_EQ(queue.size(), 4U);
+	LIBGS_TEST_CHECK(queue.full());
+	LIBGS_TEST_CHECK(not queue.enqueue(10));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 6);
+	LIBGS_TEST_CHECK(not queue.enqueue(10));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 7);
+	LIBGS_TEST_CHECK(not queue.enqueue(10));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 8);
+	LIBGS_TEST_CHECK(queue.enqueue(10));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 9);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 10);
+
+	queue.set_capacity(2);
+	LIBGS_TEST_CHECK(queue.enqueue(11));
+	LIBGS_TEST_CHECK(queue.enqueue(12));
+	queue.set_capacity(3);
+	LIBGS_TEST_CHECK(queue.enqueue(13));
+	LIBGS_TEST_CHECK(not queue.enqueue(14));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 11);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 12);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 13);
+
 	queue.set_capacity(0);
 	LIBGS_TEST_CHECK(queue.capacity() > 0);
-	LIBGS_TEST_CHECK(queue.enqueue(7));
-	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 7);
+	LIBGS_TEST_CHECK(queue.enqueue(15));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 15);
 
 	libgs::lock_free_queue<int,Type> source(4);
 	LIBGS_TEST_CHECK(source.enqueue(11));
@@ -616,6 +645,45 @@ void check_mpmc_queue_type()
 	LIBGS_TEST_CHECK(queue.empty());
 }
 
+void check_circular_queue_compact()
+{
+	libgs::circular_lock_free_queue<int> odd_capacity(3);
+	LIBGS_TEST_CHECK(odd_capacity.enqueue(1));
+	LIBGS_TEST_CHECK(odd_capacity.enqueue(2));
+	LIBGS_TEST_CHECK(odd_capacity.enqueue(3));
+	LIBGS_TEST_CHECK(not odd_capacity.enqueue(4));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(odd_capacity), 1);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(odd_capacity), 2);
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(odd_capacity), 3);
+
+	libgs::circular_lock_free_queue<int> queue(64);
+
+	queue.set_capacity(33);
+	LIBGS_TEST_CHECK(not queue.compact());
+
+	queue.set_capacity(32);
+	LIBGS_TEST_CHECK(queue.compact());
+	LIBGS_TEST_CHECK(not queue.compact());
+
+	queue.set_capacity(8);
+	LIBGS_TEST_CHECK(queue.enqueue(1));
+	LIBGS_TEST_CHECK(queue.compact());
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 1);
+	LIBGS_TEST_CHECK(queue.compact());
+	LIBGS_TEST_CHECK(not queue.compact());
+
+	// Growing creates a new block. compact() can reclaim the drained history
+	// without rebuilding the current block when its size is still appropriate.
+	queue.set_capacity(17);
+	LIBGS_TEST_CHECK(queue.enqueue(2));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 2);
+	queue.set_capacity(32);
+	LIBGS_TEST_CHECK(queue.compact());
+	LIBGS_TEST_CHECK(not queue.compact());
+	LIBGS_TEST_CHECK(queue.enqueue(3));
+	LIBGS_TEST_CHECK_EQ(checked_dequeue(queue), 3);
+}
+
 void lock_free_queues()
 {
 	check_queue_type<libgs::queue_type::linked>();
@@ -627,6 +695,7 @@ void lock_free_queues()
 	check_mpmc_queue_type<libgs::queue_type::linked>();
 	check_mpmc_queue_type<libgs::queue_type::circular>();
 	check_linked_queue_exception_reuse();
+	check_circular_queue_compact();
 }
 
 void mime_detection()

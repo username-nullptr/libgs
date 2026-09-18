@@ -8,7 +8,7 @@
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-	if(size == 0 or size > 4'096)
+	if(size == 0 or size > LIBGS_FUZZ_MAX_LENGTH)
 		return 0;
 
 	const std::string input(reinterpret_cast<const char*>(data), size);

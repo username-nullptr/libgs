@@ -132,8 +132,16 @@ public:
 	[[nodiscard]] size_t capacity() const noexcept
 		requires (capacity_v == 0);
 
-	void set_capacity(size_t size)
-		requires (capacity_v == 0);
+	// Shrinking changes the logical limit only. Existing elements and the
+	// high-water-mark ring storage are retained.
+	void set_capacity(size_t size) requires (capacity_v == 0);
+
+	// Reclaim drained blocks and, when the logical target is at most half of
+	// the current block and no earlier generation is pending, route future
+	// writes to a smaller block. Safe during queue use and never waits for an
+	// active operation; protected storage is reclaimed by a later call.
+	// Returns true when storage was replaced, retired, or reclaimed.
+	bool compact() requires (capacity_v == 0);
 
 private:
 	class impl;

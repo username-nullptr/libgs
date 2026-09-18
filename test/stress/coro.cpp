@@ -9,13 +9,63 @@
 namespace
 {
 
+void low_load_mutex_lifecycle_repetition()
+{
+	constexpr size_t worker_count = 2;
+	constexpr size_t iterations = 4;
+	const size_t rounds = 64 * LIBGS_STRESS_SCALE;
+	const auto seed = libgs::test::current_seed();
+	for(size_t round = 0; round < rounds; ++round)
+	{
+		libgs::io_context_t context;
+		libgs::coro::mutex mutex;
+		std::atomic_size_t active {0};
+		std::atomic_bool overlap {false};
+		std::atomic_size_t counter {0};
+		std::array<std::future<void>,worker_count> futures;
+		for(size_t worker = 0; worker < worker_count; ++worker)
+		{
+			futures[worker] = asio::co_spawn(context,
+			[&, worker]() -> libgs::awaitable<void>
+			{
+				for(size_t index = 0; index < iterations; ++index)
+				{
+					co_await mutex.lock();
+					if(active.fetch_add(1, std::memory_order_relaxed) != 0)
+						overlap.store(true, std::memory_order_relaxed);
+					counter.fetch_add(1, std::memory_order_relaxed);
+					if(((seed ^ round ^ worker ^ index) & 1U) != 0)
+						co_await asio::post(libgs::use_awaitable);
+					if(active.fetch_sub(1, std::memory_order_relaxed) != 1)
+						overlap.store(true, std::memory_order_relaxed);
+					mutex.unlock();
+					co_await asio::post(libgs::use_awaitable);
+				}
+			}, libgs::use_future);
+		}
+
+		std::array<std::thread,2> runners;
+		for(auto &runner : runners)
+			runner = std::thread([&] { context.run(); });
+		for(auto &future : futures)
+			future.get();
+		for(auto &runner : runners)
+			runner.join();
+		LIBGS_TEST_CHECK_EQ(counter.load(std::memory_order_relaxed),
+			worker_count * iterations);
+		LIBGS_TEST_CHECK_EQ(active.load(std::memory_order_relaxed), 0U);
+		LIBGS_TEST_CHECK(not overlap.load(std::memory_order_relaxed));
+		LIBGS_TEST_CHECK(not mutex.is_locked());
+	}
+}
+
 void coroutine_mutex_pressure()
 {
 	constexpr size_t worker_count = 128;
 	const size_t iterations = 1'000 * LIBGS_STRESS_SCALE;
 	libgs::io_context_t context;
 	libgs::coro::mutex mutex;
-	std::uint64_t counter = 0;
+	std::atomic_uint64_t counter {0};
 	std::atomic_size_t active {0};
 	std::atomic_bool overlap {false};
 	std::vector<std::future<void>> futures;
@@ -31,7 +81,7 @@ void coroutine_mutex_pressure()
 				co_await mutex.lock();
 				if(active.fetch_add(1) != 0)
 					overlap.store(true, std::memory_order_relaxed);
-				++counter;
+				counter.fetch_add(1, std::memory_order_relaxed);
 				if(active.fetch_sub(1) != 1)
 					overlap.store(true, std::memory_order_relaxed);
 				mutex.unlock();
@@ -49,7 +99,8 @@ void coroutine_mutex_pressure()
 	for(auto &runner : runners)
 		runner.join();
 
-	LIBGS_TEST_CHECK_EQ(counter, worker_count * iterations);
+	LIBGS_TEST_CHECK_EQ(counter.load(std::memory_order_relaxed),
+		worker_count * iterations);
 	LIBGS_TEST_CHECK_EQ(active.load(), 0U);
 	LIBGS_TEST_CHECK(not overlap.load());
 	LIBGS_TEST_CHECK(not mutex.is_locked());
@@ -191,9 +242,10 @@ void timed_mutex_waiter_pressure()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
+		{"low-load mutex lifecycle repetition", low_load_mutex_lifecycle_repetition},
 		{"coroutine mutex pressure", coroutine_mutex_pressure},
 		{"shared mutex reader/writer pressure", shared_mutex_reader_writer_pressure},
 		{"timed mutex waiter pressure", timed_mutex_waiter_pressure},

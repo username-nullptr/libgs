@@ -14,6 +14,23 @@ All CTest entries carry the primary suite name as a label. `ctest -L <suite>`
 therefore selects one category without implicitly running another category.
 Functional target and CTest names remain compatible with the historical names.
 
+The common test runner prints each case duration and supports deterministic,
+targeted repetition. Stress executables expose these settings as command-line
+options; every other executable using `test.h` accepts the corresponding
+environment variables.
+
+| Command-line option | Environment variable | Meaning |
+| --- | --- | --- |
+| `--case <name>` | `LIBGS_TEST_CASE` | Run one exact case name. The option may be repeated. |
+| `--repeat <count>` | `LIBGS_TEST_REPEAT` | Recreate the complete case fixture for every iteration. |
+| `--seed <value>` | `LIBGS_TEST_SEED` | Reproduce scheduling perturbations. |
+| `--fail-fast` | `LIBGS_TEST_FAIL_FAST=1` | Stop at the first failing iteration. |
+| `--list` | — | List the cases in a command-line-enabled executable. |
+
+Every repeated failure reports the case, iteration, and derived seed. CMake
+also exposes suite-specific repeat, seed, scale, and timeout cache variables so
+CI jobs do not need to rewrite test commands.
+
 ## Functional
 
 Functional tests are the API contract. Every new or changed public callable must
@@ -42,6 +59,16 @@ cmake --build build -j
 ctest --test-dir build -L functional --output-on-failure
 ```
 
+`LIBGS_FUNCTIONAL_REPEAT`, `LIBGS_FUNCTIONAL_SEED`, and
+`LIBGS_FUNCTIONAL_TIMEOUT` configure CTest execution. For a local targeted
+regression run, use the common runner environment without rebuilding:
+
+```sh
+LIBGS_TEST_CASE="arithmetic and byte order" \
+LIBGS_TEST_REPEAT=100 LIBGS_TEST_SEED=42 \
+  build/output/bin/libgs.test.core
+```
+
 ## Stress
 
 Stress tests validate correctness while work is highly concurrent or repeatedly
@@ -59,18 +86,33 @@ server-side connection state while several threads run the shared `io_context`.
 This follows Asio's shared-object contract: concurrency is across independent
 connections, while handlers touching one logical I/O object are serialized.
 
-`LIBGS_STRESS_SCALE` is a positive integer work multiplier. The default is `4`;
-larger values are intended for soak jobs. Repeating CTest is useful for detecting
-rare scheduling failures.
+The stress suite keeps load and probability amplification independent:
+
+- `LIBGS_STRESS_SCALE` multiplies work performed inside one fixture (default `4`).
+- `LIBGS_STRESS_REPEAT` recreates each complete fixture (default `1`).
+- `LIBGS_STRESS_SEED` makes scheduling perturbations reproducible.
+- `LIBGS_STRESS_TIMEOUT` controls the per-executable CTest watchdog.
+
+Low-load lifecycle cases repeatedly reconstruct queues, coroutine mutexes,
+HTTP clients, WebSocket connections, signals, and local message-bus interfaces.
+They complement the existing high-contention cases and target rare construction,
+shutdown, cancellation, and reclamation failures without requiring machine
+saturation.
 
 ```sh
 cmake -S . -B build-stress -DBUILD_TESTING=ON \
-  -DLIBGS_BUILD_STRESS_TESTS=ON -DLIBGS_STRESS_SCALE=4 \
+  -DLIBGS_BUILD_STRESS_TESTS=ON \
+  -DLIBGS_STRESS_SCALE=1 -DLIBGS_STRESS_REPEAT=100 \
+  -DLIBGS_STRESS_SEED=42 -DLIBGS_STRESS_TIMEOUT=600 \
   -DLIBGS_BUILD_HTTP=ON -DLIBGS_BUILD_WEBSOCKET=ON \
   -DLIBGS_BUILD_UTILITIES=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build-stress -j
-ctest --test-dir build-stress -L stress --repeat until-fail:20 \
-  --output-on-failure
+ctest --test-dir build-stress -L stress --output-on-failure
+
+# Repeat only one fixture and print its reproducible failure seed:
+build-stress/output/bin/libgs.test.stress.core \
+  --case "low-load queue lifecycle repetition" \
+  --repeat 10000 --seed 42 --fail-fast
 ```
 
 The local message bus has bounded per-subscriber queues. Its stress case sends
@@ -91,12 +133,16 @@ CMake copies corpora into the build tree so libFuzzer can minimize or extend the
 without modifying the source tree. Harnesses use metamorphic checks where an
 exact oracle is available, including fragmented-versus-contiguous HTTP parsing,
 generated HTTP request/response round trips and parser reuse, URL serialization
-stability, HTTP range round trips, generated WebSocket frame round trips,
+stability, lock-free queue operations checked against a deque model, HTTP range
+round trips, generated WebSocket frame round trips,
 WebSocket mask involution, sticky parser errors/reset, signal connection-state
 modeling, and generated-handshake round trips.
 
-Every fuzzer is also a bounded CTest smoke test. `LIBGS_FUZZ_SMOKE_RUNS` controls
-its iteration count (default `2048`). Longer local or CI campaigns can invoke a
+Every fuzzer is also a bounded CTest smoke test. `LIBGS_FUZZ_SMOKE_RUNS`,
+`LIBGS_FUZZ_SEED`, `LIBGS_FUZZ_MAX_LENGTH`, `LIBGS_FUZZ_TIMEOUT`, and
+`LIBGS_FUZZ_RSS_LIMIT_MB` control reproducible smoke execution. Final libFuzzer
+statistics are printed, and crash artifacts are retained under
+`build-fuzz/test/fuzz/artifacts/`. Longer local or CI campaigns can invoke a
 fuzzer binary directly with `-max_total_time` or `-runs` and a persistent corpus.
 
 ```sh
@@ -129,9 +175,16 @@ coroutine synchronization, HTTP parser/generator and loopback I/O, WebSocket
 codec and loopback I/O, logger formatting/dispatch/file output, signal-slot
 dispatch, and local message-bus fanout.
 
+`LIBGS_PERFORMANCE_SCALE` multiplies measured work without changing payload or
+topology, and `LIBGS_PERFORMANCE_TIMEOUT` controls the CTest watchdog. Each
+result includes throughput, time per operation, total elapsed time, total
+operation count, and the configured scale. Zero-operation samples and timers
+that do not advance fail instead of printing invalid rates.
+
 ```sh
 cmake -S . -B build-perf -DBUILD_TESTING=ON \
   -DLIBGS_BUILD_PERFORMANCE_TESTS=ON \
+  -DLIBGS_PERFORMANCE_SCALE=1 -DLIBGS_PERFORMANCE_TIMEOUT=120 \
   -DLIBGS_BUILD_HTTP=ON -DLIBGS_BUILD_WEBSOCKET=ON \
   -DLIBGS_BUILD_UTILITIES=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build build-perf -j

@@ -16,6 +16,50 @@ void count_signal(size_t value)
 	signal_count->fetch_add(value, std::memory_order_relaxed);
 }
 
+void low_load_utility_lifecycle_repetition()
+{
+	const size_t signal_rounds = 5'000 * LIBGS_STRESS_SCALE;
+	size_t signal_received = 0;
+	for(size_t round = 0; round < signal_rounds; ++round)
+	{
+		libgs::utils::signal<void(size_t)> signal;
+		signal.connect([&](size_t value) { signal_received += value; });
+		signal(1);
+		signal.block();
+		signal(1);
+		signal.block(false);
+		signal.disconnect();
+		signal(1);
+	}
+	LIBGS_TEST_CHECK_EQ(signal_received, signal_rounds);
+
+	const size_t bus_rounds = 64 * LIBGS_STRESS_SCALE;
+	std::atomic_size_t bus_received {0};
+	for(size_t round = 0; round < bus_rounds; ++round)
+	{
+		const auto topic = std::format(
+			"libgs.test.stress.lifecycle.{}", round);
+		auto interface =
+			std::make_shared<libgs::utils::sbus::local_interface>();
+		interface->subscribe(topic, [&](const void *data, size_t size)
+		{
+			if(data != nullptr and size == sizeof(size_t))
+				bus_received.fetch_add(1, std::memory_order_release);
+		});
+		libgs::utils::sbus::publish(topic, round);
+		const auto expected = round + 1;
+		for(size_t retry = 0;
+			retry < 2'000 and bus_received.load(std::memory_order_acquire) != expected;
+			++retry)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		LIBGS_TEST_CHECK_EQ(
+			bus_received.load(std::memory_order_acquire), expected);
+		interface->cancel();
+	}
+}
+
 void concurrent_signal_pressure()
 {
 	libgs::utils::signal<void(size_t)> signal;
@@ -114,9 +158,11 @@ void message_bus_fanout_pressure()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
+		{"low-load utility lifecycle repetition",
+			low_load_utility_lifecycle_repetition},
 		{"concurrent signal pressure", concurrent_signal_pressure},
 		{"message bus fanout pressure", message_bus_fanout_pressure},
 	});

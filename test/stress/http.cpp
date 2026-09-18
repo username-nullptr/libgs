@@ -9,6 +9,71 @@
 namespace
 {
 
+void low_load_client_lifecycle_repetition()
+{
+	using namespace libgs::http;
+	const size_t rounds = 200 * LIBGS_STRESS_SCALE;
+	const auto seed = libgs::test::current_seed();
+	libgs::io_context_t context;
+	asio::ip::tcp::acceptor acceptor(context);
+	server service(std::move(acceptor), asio::make_strand(context));
+	std::atomic_size_t handled {0};
+	service.bind({libgs::ip_type::v4, 0})
+		.on_request<method::get>("/lifecycle",
+		[&](server::context_t &request_context) -> libgs::awaitable<void>
+		{
+			const auto body = request_context.request().parameter("round")
+				.value_or("missing").to_string();
+			handled.fetch_add(1, std::memory_order_relaxed);
+			co_await request_context.response().write(
+				asio::buffer(body), libgs::use_awaitable);
+		})
+		.start();
+	const auto port = service.acceptor_wrap().acceptor().local_endpoint().port();
+	const auto target = std::format(
+		"http://127.0.0.1:{}/lifecycle?round=", port);
+	auto completed = asio::co_spawn(asio::make_strand(context),
+		[&, target]() -> libgs::awaitable<void>
+		{
+			auto executor = co_await asio::this_coro::executor;
+			for(size_t round = 0; round < rounds; ++round)
+			{
+				client requester(executor);
+				auto request = co_await requester.request_get(
+					target + std::to_string(round), libgs::use_awaitable);
+				LIBGS_TEST_CHECK(request);
+				LIBGS_TEST_CHECK_EQ(
+					co_await request->wait_reply(libgs::use_awaitable), status::ok);
+				LIBGS_TEST_CHECK_EQ(
+					co_await request->reply()->read<std::string>(libgs::use_awaitable),
+					std::to_string(round));
+				if(((seed ^ round) & 3U) == 0)
+					co_await asio::post(libgs::use_awaitable);
+			}
+		}, libgs::use_future);
+
+	std::array<std::thread,2> runners;
+	for(auto &runner : runners)
+		runner = std::thread([&] { context.run(); });
+	try
+	{
+		completed.get();
+	}
+	catch(...)
+	{
+		service.stop();
+		context.stop();
+		for(auto &runner : runners)
+			runner.join();
+		throw;
+	}
+	LIBGS_TEST_CHECK_EQ(handled.load(std::memory_order_relaxed), rounds);
+	service.stop();
+	context.stop();
+	for(auto &runner : runners)
+		runner.join();
+}
+
 void concurrent_keep_alive_pressure()
 {
 	using namespace libgs::http;
@@ -103,9 +168,11 @@ void concurrent_keep_alive_pressure()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
+		{"low-load HTTP client lifecycle repetition",
+			low_load_client_lifecycle_repetition},
 		{"concurrent HTTP keep-alive pressure", concurrent_keep_alive_pressure},
 	});
 }

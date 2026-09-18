@@ -13,13 +13,13 @@ using steady_clock_t = std::chrono::steady_clock;
 using duration_t = steady_clock_t::duration;
 
 #ifdef NDEBUG
-constexpr size_t direct_cycle_count = 5'000'000;
-constexpr size_t await_cycle_count = 250'000;
-constexpr size_t queued_waiter_count = 20'000;
+constexpr size_t direct_cycle_count = 5'000'000 * libgs::test::performance_scale;
+constexpr size_t await_cycle_count = 250'000 * libgs::test::performance_scale;
+constexpr size_t queued_waiter_count = 20'000 * libgs::test::performance_scale;
 #else
-constexpr size_t direct_cycle_count = 100'000;
-constexpr size_t await_cycle_count = 10'000;
-constexpr size_t queued_waiter_count = 2'000;
+constexpr size_t direct_cycle_count = 100'000 * libgs::test::performance_scale;
+constexpr size_t await_cycle_count = 10'000 * libgs::test::performance_scale;
+constexpr size_t queued_waiter_count = 2'000 * libgs::test::performance_scale;
 #endif
 
 constexpr size_t sample_count = 3;

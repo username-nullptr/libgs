@@ -57,7 +57,12 @@ endfunction()
 function(configure_libgs_functional_test test_name)
 	set_tests_properties(${test_name} PROPERTIES
 		LABELS functional
-		TIMEOUT 60
+		TIMEOUT ${LIBGS_FUNCTIONAL_TIMEOUT}
+	)
+	set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
+		"LIBGS_TEST_REPEAT=${LIBGS_FUNCTIONAL_REPEAT}"
+		"LIBGS_TEST_SEED=${LIBGS_FUNCTIONAL_SEED}"
+		"LIBGS_TEST_FAIL_FAST=1"
 	)
 	configure_libgs_sanitized_test(${test_name})
 endfunction()
@@ -85,11 +90,15 @@ function(add_libgs_stress_test name source library)
 	target_compile_definitions(${test_target} PRIVATE
 		LIBGS_STRESS_SCALE=${LIBGS_STRESS_SCALE}
 	)
-	add_test(NAME libgs.stress.${name} COMMAND $<TARGET_FILE:${test_target}>)
+	add_test(NAME libgs.stress.${name} COMMAND $<TARGET_FILE:${test_target}>
+		--repeat ${LIBGS_STRESS_REPEAT}
+		--seed ${LIBGS_STRESS_SEED}
+		--fail-fast
+	)
 	set_tests_properties(libgs.stress.${name} PROPERTIES
 		LABELS stress
 		RUN_SERIAL TRUE
-		TIMEOUT 180
+		TIMEOUT ${LIBGS_STRESS_TIMEOUT}
 	)
 	configure_libgs_sanitized_test(libgs.stress.${name})
 endfunction()
@@ -98,12 +107,15 @@ endfunction()
 function(add_libgs_performance_test name source library)
 	set(test_target libgs.test.performance.${name})
 	add_libgs_test_program(${test_target} ${source} ${library})
+	target_compile_definitions(${test_target} PRIVATE
+		LIBGS_PERFORMANCE_SCALE=${LIBGS_PERFORMANCE_SCALE}
+	)
 	add_test(NAME libgs.performance.${name} COMMAND $<TARGET_FILE:${test_target}>)
 
 	set_tests_properties(libgs.performance.${name} PROPERTIES
 		LABELS performance
 		RUN_SERIAL TRUE
-		TIMEOUT 60
+		TIMEOUT ${LIBGS_PERFORMANCE_TIMEOUT}
 	)
 endfunction()
 

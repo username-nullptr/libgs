@@ -12,10 +12,10 @@ namespace
 
 #ifdef NDEBUG
 constexpr size_t warmup_count = 100;
-constexpr size_t request_count = 2'000;
+constexpr size_t request_count = 2'000 * libgs::test::performance_scale;
 #else
 constexpr size_t warmup_count = 10;
-constexpr size_t request_count = 200;
+constexpr size_t request_count = 200 * libgs::test::performance_scale;
 #endif
 constexpr size_t secondary_request_count = request_count / 10;
 

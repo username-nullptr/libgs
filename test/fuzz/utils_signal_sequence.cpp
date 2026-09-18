@@ -23,7 +23,7 @@ void receive_value_b(uint8_t value)
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-	if(size == 0 or size > 4'096)
+	if(size == 0 or size > LIBGS_FUZZ_MAX_LENGTH)
 		return 0;
 
 	libgs::utils::signal<void(uint8_t)> signal;
