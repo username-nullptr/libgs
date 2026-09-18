@@ -94,36 +94,36 @@ public:
 
 public:
 	template <typename Func>
-	[[nodiscard]] constexpr auto and_then(Func &&func) &
+	constexpr auto and_then(Func &&func) &
 		requires std::invocable<Func,value_t&>;
 
 	template <typename Func>
-	[[nodiscard]] constexpr auto and_then(Func &&func) const &
+	constexpr auto and_then(Func &&func) const &
 		requires std::invocable<Func,const value_t&>;
 
 	template <typename Func>
-	[[nodiscard]] constexpr auto and_then(Func &&func) &&
+	constexpr auto and_then(Func &&func) &&
 		requires std::invocable<Func,value_t&&>;
 
 	template <typename Func>
-	[[nodiscard]] constexpr auto and_then(Func &&func) const &&
+	constexpr auto and_then(Func &&func) const &&
 		requires std::invocable<Func,const value_t&&>;
 
 public:
 	template <typename Func>
-	[[nodiscard]] constexpr auto transform(Func &&func) &
+	constexpr auto transform(Func &&func) &
 		requires std::invocable<Func,value_t&>;
 
 	template <typename Func>
-	[[nodiscard]] constexpr auto transform(Func &&func) const &
+	constexpr auto transform(Func &&func) const &
 		requires std::invocable<Func,const value_t&>;
 
 	template <typename Func>
-	[[nodiscard]] constexpr auto transform(Func &&func) &&
+	constexpr auto transform(Func &&func) &&
 		requires std::invocable<Func,value_t&&>;
 
 	template <typename Func>
-	[[nodiscard]] constexpr auto transform(Func &&func) const &&
+	constexpr auto transform(Func &&func) const &&
 		requires std::invocable<Func,const value_t&&>;
 
 public:
@@ -154,16 +154,6 @@ public:
 
 	[[nodiscard]] constexpr optional or_else() &&
 		requires std::move_constructible<value_t> and std::default_initializable<value_t>;
-
-private:
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr auto and_then_impl(Self &&self, Func &&func);
-
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr auto transform_impl(Self &&self, Func &&func);
-
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr optional or_else_impl(Self &&self, Func &&func);
 };
 
 template <typename Value>

@@ -414,19 +414,6 @@ public:
 
 	[[nodiscard]] constexpr expected or_else() &&
 		requires std::is_void_v<value_type> and std::move_constructible<error_type>;
-
-private:
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr auto and_then_impl(Self &&self, Func &&func);
-
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr auto transform_impl(Self &&self, Func &&func);
-
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr auto or_else_impl(Self &&self, Func &&func);
-
-	template <typename Self, typename Func>
-	[[nodiscard]] static constexpr auto transform_error_impl(Self &&self, Func &&func);
 };
 
 template <typename Error, concepts::optional_value_p Value>
