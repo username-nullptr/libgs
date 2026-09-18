@@ -493,11 +493,11 @@ sys_expected<std::vector<std::byte>> deflate_message
 			std::byte {0x00}, std::byte {0x00},
 			std::byte {0xFF}, std::byte {0xFF}
 		};
-		if( result.size() < trailer.size() or
-			not std::equal(trailer.begin(), trailer.end(), result.end() - trailer.size()) )
+		if( result->size() < trailer.size() or
+			not std::equal(trailer.begin(), trailer.end(), result->end() - trailer.size()) )
 			return result.despair(make_error_code(std::errc::io_error));
 
-		result.resize(result.size() - trailer.size());
+		result->resize(result->size() - trailer.size());
 		return result;
 	}
 	catch(const std::bad_alloc&) {
