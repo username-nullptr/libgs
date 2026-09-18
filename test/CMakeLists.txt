@@ -96,6 +96,15 @@ function(configure_libgs_functional_test test_name)
 		"LIBGS_TEST_SEED=${LIBGS_FUNCTIONAL_SEED}"
 		"LIBGS_TEST_FAIL_FAST=1"
 	)
+	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND
+		libgs_gnu_runtime_dir
+	)
+		set_property(TEST ${test_name} APPEND PROPERTY
+			ENVIRONMENT_MODIFICATION
+			"PATH=path_list_prepend:${libgs_gnu_runtime_dir}"
+		)
+	endif ()
+
 	configure_libgs_sanitized_test(${test_name})
 endfunction()
 

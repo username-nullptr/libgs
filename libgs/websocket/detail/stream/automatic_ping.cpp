@@ -20,18 +20,19 @@ sys_expected<std::shared_ptr<automatic_ping>>
 automatic_ping::create(const asio::any_io_executor &exec, std::weak_ptr<void> owner,
 	std::chrono::milliseconds interval, size_t timeout_retries, write_fn_t write_fn, fail_fn_t fail_fn) noexcept
 {
+	sys_expected<std::shared_ptr<automatic_ping>> result;
 	try {
-		auto result = std::make_shared<automatic_ping>(exec,
+		result = std::make_shared<automatic_ping>(exec,
 			std::move(owner), interval, timeout_retries, write_fn, fail_fn
 		);
-		if( auto started = result->start(); not started )
+		if( auto started = (*result)->start(); not started )
 			return sys_unexpected(started.error());
 		return result;
 	}
 	catch(...) {
-		return sys_unexpected(exception_error(std::current_exception()));
+		result.despair(exception_error(std::current_exception()));
 	}
-	return {};
+	return result;
 }
 
 sys_expected<> automatic_ping::start() noexcept
@@ -42,19 +43,20 @@ sys_expected<> automatic_ping::start() noexcept
 
 sys_expected<> automatic_ping::schedule() noexcept
 {
+	auto result = make_sys_expected();
 	if( not m_active )
-		return make_sys_expected();
+		return result;
 	try {
 		m_timer.expires_after(m_interval);
 		m_timer.async_wait([self = shared_from_this()](error_code error) {
 			self->timer_completed(error);
 		});
-		return make_sys_expected();
+		return result;
 	}
 	catch(...) {
-		return sys_unexpected(exception_error(std::current_exception()));
+		result.despair(exception_error(std::current_exception()));
 	}
-	return {};
+	return result;
 }
 
 void automatic_ping::timer_completed(error_code error) noexcept

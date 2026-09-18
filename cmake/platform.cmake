@@ -65,6 +65,21 @@ if (WIN32)
 			ERROR_QUIET
 		)
 		if (NOT IS_ABSOLUTE "${libgs_gnu_libstdcxx_dll}" OR NOT EXISTS "${libgs_gnu_libstdcxx_dll}")
+			get_filename_component(libgs_gnu_compiler_dir
+				"${CMAKE_CXX_COMPILER}" DIRECTORY
+			)
+			set(libgs_gnu_libstdcxx_dll
+				"${libgs_gnu_compiler_dir}/libstdc++-6.dll"
+			)
+		endif ()
+
+		if (IS_ABSOLUTE "${libgs_gnu_libstdcxx_dll}" AND EXISTS "${libgs_gnu_libstdcxx_dll}")
+			get_filename_component(libgs_gnu_runtime_dir
+				"${libgs_gnu_libstdcxx_dll}" DIRECTORY
+			)
+		endif ()
+
+		if (NOT IS_ABSOLUTE "${libgs_gnu_libstdcxx_dll}" OR NOT EXISTS "${libgs_gnu_libstdcxx_dll}")
 			set(libgs_gnu_shared_runtime_available FALSE)
 			set(libgs_build_static_default ON)
 

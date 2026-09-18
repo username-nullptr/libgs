@@ -24,7 +24,7 @@ if (UNIX)
 	target_link_libraries(${target_name} PUBLIC pthread dl)
 elseif (WIN32)
 	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-		target_link_libraries(${target_name} PUBLIC ws2_32 wsock32)
+		target_link_libraries(${target_name} PUBLIC ws2_32 wsock32 bcrypt)
 	endif ()
 endif()
 

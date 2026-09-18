@@ -6,8 +6,12 @@
 // from gs.core; static builds use ASIO_SEPARATE_COMPILATION instead.
 #include <libgs/core/cxx/configs.h>
 
+#if defined(_WIN32) && !defined(_WIN32_WINNT)
+# define _WIN32_WINNT 0x0601
+#endif
+
 #if !LIBGS_BUILD_STATIC && !defined(ASIO_DYN_LINK)
-# define ASIO_DYN_LINK 1
+# define ASIO_DYN_LINK  1
 #endif
 
 #include <asio/impl/src.hpp>
