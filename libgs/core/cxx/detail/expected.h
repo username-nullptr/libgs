@@ -29,6 +29,138 @@ constexpr decltype(auto) invoke_expected_error(Self &&self, Func &&func)
 		return std::invoke(std::forward<Func>(func));
 }
 
+template <typename Error, typename Self, typename Func>
+constexpr auto expected_and_then(Self &&self, Func &&func)
+{
+	using result_t = std::remove_cvref_t<decltype(detail::invoke_expected (
+		std::forward<Self>(self), std::forward<Func>(func)
+	))>;
+	static_assert(detail::expected_specialization<result_t>,
+		"expected::and_then callback must return an expected specialization"
+	);
+	using result_error_t = expected_error_t<result_t>;
+
+	static_assert(std::same_as<result_error_t,Error>,
+		"expected::and_then callback must preserve the error type"
+	);
+	if( self.has_value() )
+	{
+		return detail::invoke_expected (
+			std::forward<Self>(self), std::forward<Func>(func)
+		);
+	}
+	return result_t(unexpected<result_error_t> (
+		std::in_place, std::forward<Self>(self).error()
+	));
+}
+
+template <typename Error, typename Self, typename Func>
+constexpr auto expected_transform(Self &&self, Func &&func)
+{
+	using invoke_t = decltype(detail::invoke_expected (
+		std::forward<Self>(self), std::forward<Func>(func)
+	));
+	using result_value_t = std::remove_cv_t<invoke_t>;
+
+	if constexpr( std::is_void_v<result_value_t> )
+	{
+		if( self.has_value() )
+		{
+			detail::invoke_expected (
+				std::forward<Self>(self), std::forward<Func>(func)
+			);
+			return expected<void,Error> {};
+		}
+		return expected<void,Error>(unexpected<Error> (
+			std::in_place, std::forward<Self>(self).error()
+		));
+	}
+	else
+	{
+		static_assert(std::is_object_v<result_value_t> and
+			not std::is_array_v<result_value_t>
+		);
+		if( self.has_value() )
+		{
+			return expected<result_value_t,Error> (
+				std::in_place, detail::invoke_expected (
+					std::forward<Self>(self), std::forward<Func>(func)
+				)
+			);
+		}
+		return expected<result_value_t,Error>(unexpected<Error> (
+			std::in_place, std::forward<Self>(self).error()
+		));
+	}
+}
+
+template <typename Value, typename Self, typename Func>
+constexpr auto expected_or_else(Self &&self, Func &&func)
+{
+	using invoke_t = decltype(detail::invoke_expected_error (
+		std::forward<Self>(self), std::forward<Func>(func)
+	));
+	if constexpr( std::is_void_v<invoke_t> )
+	{
+		if( not self.has_value() )
+		{
+			detail::invoke_expected_error (
+				std::forward<Self>(self), std::forward<Func>(func)
+			);
+		}
+		return expected(std::forward<Self>(self));
+	}
+	else
+	{
+		using result_t = std::remove_cvref_t<invoke_t>;
+		static_assert(detail::expected_specialization<result_t>,
+			"expected::or_else callback must return void or an expected specialization"
+		);
+		using result_value_t = expected_value_t<result_t>;
+
+		static_assert(std::same_as<result_value_t,Value>,
+			"expected::or_else callback must preserve the value type"
+		);
+		if( not self.has_value() )
+		{
+			return detail::invoke_expected_error (
+				std::forward<Self>(self), std::forward<Func>(func)
+			);
+		}
+		if constexpr( std::is_void_v<Value> )
+			return result_t {};
+		else
+			return result_t(std::in_place, *std::forward<Self>(self));
+	}
+}
+
+template <typename Value, typename Self, typename Func>
+constexpr auto expected_transform_error(Self &&self, Func &&func)
+{
+	using result_error_t = std::remove_cv_t<std::invoke_result_t <
+		Func, decltype(std::forward<Self>(self).error())
+	>>;
+	static_assert(std::is_object_v<result_error_t> and
+		not std::is_array_v<result_error_t>
+	);
+	if( not self.has_value() )
+	{
+		return expected<Value,result_error_t>(unexpected<result_error_t> (
+			std::in_place, std::invoke (
+				std::forward<Func>(func), std::forward<Self>(self).error()
+			)
+		));
+	}
+	if constexpr( std::is_void_v<Value> )
+		return expected<void,result_error_t> {};
+	else
+	{
+		return expected<Value,result_error_t> (
+			std::in_place, *std::forward<Self>(self)
+		);
+	}
+}
+
 } //namespace libgs::detail
 
 #if !LIBGS_HAS_STD_EXPECTED
@@ -276,37 +408,11 @@ constexpr Value expected<Value,Error>::value_or() && requires
 }
 
 template <typename Value, typename Error>
-template <typename Self, typename Func>
-constexpr auto expected<Value,Error>::and_then_impl(Self &&self, Func &&func)
-{
-	using result_t = std::remove_cvref_t<decltype(detail::invoke_expected (
-		std::forward<Self>(self), std::forward<Func>(func)
-	))>;
-	static_assert(detail::expected_specialization<result_t>,
-		"expected::and_then callback must return an expected specialization"
-	);
-	using result_error_t = detail::expected_error_t<result_t>;
-
-	static_assert(std::same_as<result_error_t,error_type>,
-		"expected::and_then callback must preserve the error type"
-	);
-	if( self.has_value() )
-	{
-		return detail::invoke_expected (
-			std::forward<Self>(self), std::forward<Func>(func)
-		);
-	}
-	return result_t(unexpected<result_error_t> (
-		std::in_place, std::forward<Self>(self).error()
-	));
-}
-
-template <typename Value, typename Error>
 template <typename Func>
 constexpr auto expected<Value,Error>::and_then(Func &&func) &
 	requires detail::expected_invocable<Func,expected&>
 {
-	return and_then_impl(*this, std::forward<Func>(func));
+	return detail::expected_and_then<error_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -314,7 +420,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::and_then(Func &&func) const &
 	requires detail::expected_invocable<Func,const expected&>
 {
-	return and_then_impl(*this, std::forward<Func>(func));
+	return detail::expected_and_then<error_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -322,7 +428,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::and_then(Func &&func) &&
 	requires detail::expected_invocable<Func,expected&&>
 {
-	return and_then_impl(std::move(*this), std::forward<Func>(func));
+	return detail::expected_and_then<error_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -330,48 +436,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::and_then(Func &&func) const &&
 	requires detail::expected_invocable<Func,const expected&&>
 {
-	return and_then_impl(std::move(*this), std::forward<Func>(func));
-}
-
-template <typename Value, typename Error>
-template <typename Self, typename Func>
-constexpr auto expected<Value,Error>::transform_impl(Self &&self, Func &&func)
-{
-	using invoke_t = decltype(detail::invoke_expected (
-		std::forward<Self>(self), std::forward<Func>(func)
-	));
-	using result_value_t = std::remove_cv_t<invoke_t>;
-
-	if constexpr( std::is_void_v<result_value_t> )
-	{
-		if( self.has_value() )
-		{
-			detail::invoke_expected (
-				std::forward<Self>(self), std::forward<Func>(func)
-			);
-			return expected<void,error_type> {};
-		}
-		return expected<void,error_type>(unexpected<error_type> (
-			std::in_place, std::forward<Self>(self).error()
-		));
-	}
-	else
-	{
-		static_assert(std::is_object_v<result_value_t> and
-			not std::is_array_v<result_value_t>
-		);
-		if( self.has_value() )
-		{
-			return expected<result_value_t,error_type> (
-				std::in_place, detail::invoke_expected (
-					std::forward<Self>(self), std::forward<Func>(func)
-				)
-			);
-		}
-		return expected<result_value_t,error_type>(unexpected<error_type> (
-			std::in_place, std::forward<Self>(self).error()
-		));
-	}
+	return detail::expected_and_then<error_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -379,7 +444,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform(Func &&func) &
 	requires detail::expected_invocable<Func,expected&>
 {
-	return transform_impl(*this, std::forward<Func>(func));
+	return detail::expected_transform<error_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -387,7 +452,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform(Func &&func) const &
 	requires detail::expected_invocable<Func,const expected&>
 {
-	return transform_impl(*this, std::forward<Func>(func));
+	return detail::expected_transform<error_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -395,7 +460,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform(Func &&func) &&
 	requires detail::expected_invocable<Func,expected&&>
 {
-	return transform_impl(std::move(*this), std::forward<Func>(func));
+	return detail::expected_transform<error_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -403,48 +468,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform(Func &&func) const &&
 	requires detail::expected_invocable<Func,const expected&&>
 {
-	return transform_impl(std::move(*this), std::forward<Func>(func));
-}
-
-template <typename Value, typename Error>
-template <typename Self, typename Func>
-constexpr auto expected<Value,Error>::or_else_impl(Self &&self, Func &&func)
-{
-	using invoke_t = decltype(detail::invoke_expected_error (
-		std::forward<Self>(self), std::forward<Func>(func)
-	));
-	if constexpr( std::is_void_v<invoke_t> )
-	{
-		if( not self.has_value() )
-		{
-			detail::invoke_expected_error (
-				std::forward<Self>(self), std::forward<Func>(func)
-			);
-		}
-		return expected(std::forward<Self>(self));
-	}
-	else
-	{
-		using result_t = std::remove_cvref_t<invoke_t>;
-		static_assert(detail::expected_specialization<result_t>,
-			"expected::or_else callback must return void or an expected specialization"
-		);
-		using result_value_t = detail::expected_value_t<result_t>;
-
-		static_assert(std::same_as<result_value_t,value_type>,
-			"expected::or_else callback must preserve the value type"
-		);
-		if( not self.has_value() )
-		{
-			return detail::invoke_expected_error (
-				std::forward<Self>(self), std::forward<Func>(func)
-			);
-		}
-		if constexpr( std::is_void_v<value_type> )
-			return result_t {};
-		else
-			return result_t(std::in_place, *std::forward<Self>(self));
-	}
+	return detail::expected_transform<error_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -452,7 +476,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::or_else(Func &&func) &
 	requires detail::expected_or_else_invocable<Func,expected&>
 {
-	return or_else_impl(*this, std::forward<Func>(func));
+	return detail::expected_or_else<value_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -460,7 +484,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::or_else(Func &&func) const &
 	requires detail::expected_or_else_invocable<Func,const expected&>
 {
-	return or_else_impl(*this, std::forward<Func>(func));
+	return detail::expected_or_else<value_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -468,7 +492,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::or_else(Func &&func) &&
 	requires detail::expected_or_else_invocable<Func,expected&&>
 {
-	return or_else_impl(std::move(*this), std::forward<Func>(func));
+	return detail::expected_or_else<value_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -476,35 +500,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::or_else(Func &&func) const &&
 	requires detail::expected_or_else_invocable<Func,const expected&&>
 {
-	return or_else_impl(std::move(*this), std::forward<Func>(func));
-}
-
-template <typename Value, typename Error>
-template <typename Self, typename Func>
-constexpr auto expected<Value,Error>::transform_error_impl(Self &&self, Func &&func)
-{
-	using result_error_t = std::remove_cv_t<std::invoke_result_t <
-		Func, decltype(std::forward<Self>(self).error())
-	>>;
-	static_assert(std::is_object_v<result_error_t> and
-		not std::is_array_v<result_error_t>
-	);
-	if( not self.has_value() )
-	{
-		return expected<value_type,result_error_t>(unexpected<result_error_t> (
-			std::in_place, std::invoke (
-				std::forward<Func>(func), std::forward<Self>(self).error()
-			)
-		));
-	}
-	if constexpr( std::is_void_v<value_type> )
-		return expected<void,result_error_t> {};
-	else
-	{
-		return expected<value_type,result_error_t> (
-			std::in_place, *std::forward<Self>(self)
-		);
-	}
+	return detail::expected_or_else<value_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -512,7 +508,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform_error(Func &&func) &
 	requires std::invocable<Func,error_type&>
 {
-	return transform_error_impl(*this, std::forward<Func>(func));
+	return detail::expected_transform_error<value_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -520,7 +516,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform_error(Func &&func) const &
 	requires std::invocable<Func,const error_type&>
 {
-	return transform_error_impl(*this, std::forward<Func>(func));
+	return detail::expected_transform_error<value_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -528,7 +524,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform_error(Func &&func) &&
 	requires std::invocable<Func,error_type&&>
 {
-	return transform_error_impl(std::move(*this), std::forward<Func>(func));
+	return detail::expected_transform_error<value_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>
@@ -536,7 +532,7 @@ template <typename Func>
 constexpr auto expected<Value,Error>::transform_error(Func &&func) const &&
 	requires std::invocable<Func,const error_type&&>
 {
-	return transform_error_impl(std::move(*this), std::forward<Func>(func));
+	return detail::expected_transform_error<value_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value, typename Error>

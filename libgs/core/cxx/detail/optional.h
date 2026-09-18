@@ -4,8 +4,69 @@
 #ifndef LIBGS_CORE_CXX_DETAIL_OPTIONAL_H
 #define LIBGS_CORE_CXX_DETAIL_OPTIONAL_H
 
-namespace libgs
+namespace libgs { namespace detail
 {
+
+template <typename Self, typename Func>
+constexpr auto optional_and_then(Self &&self, Func &&func)
+{
+	using result_t = std::remove_cvref_t<std::invoke_result_t <
+		Func, decltype(*std::forward<Self>(self))
+	>>;
+	static_assert(detail::optional_specialization<result_t>,
+		"optional::and_then callback must return an optional specialization"
+	);
+	if( self.has_value() )
+		return std::invoke(std::forward<Func>(func), *std::forward<Self>(self));
+	return result_t {};
+}
+
+template <typename Self, typename Func>
+constexpr auto optional_transform(Self &&self, Func &&func)
+{
+	using result_t = std::remove_cv_t<std::invoke_result_t <
+		Func, decltype(*std::forward<Self>(self))
+	>>;
+	static_assert(not std::is_void_v<result_t>,
+		"optional::transform callback must return a value"
+	);
+	static_assert(std::is_object_v<result_t> and not std::is_array_v<result_t>);
+
+	if( self.has_value() )
+	{
+		return optional<result_t> (
+			std::in_place,
+			std::invoke(std::forward<Func>(func), *std::forward<Self>(self))
+		);
+	}
+	return optional<result_t> {};
+}
+
+template <typename Value, typename Self, typename Func>
+constexpr optional<Value> optional_or_else(Self &&self, Func &&func)
+{
+	using result_t = std::invoke_result_t<Func>;
+	if( self.has_value() )
+		return optional(std::forward<Self>(self));
+
+	if constexpr( std::is_void_v<result_t> )
+	{
+		std::invoke(std::forward<Func>(func));
+		return optional<Value> {};
+	}
+	else
+	{
+		static_assert(detail::optional_specialization<result_t>,
+			"optional::or_else callback must return void or an optional specialization"
+		);
+		static_assert(std::same_as<optional_value_t<result_t>,Value>,
+			"optional::or_else callback must preserve the value type"
+		);
+		return optional(std::invoke(std::forward<Func>(func)));
+	}
+}
+
+} //namespace detail
 
 template <typename Value>
 constexpr optional<Value>::optional(const base_t &other) :
@@ -71,26 +132,11 @@ constexpr Value optional<Value>::value_or() &&
 }
 
 template <typename Value>
-template <typename Self, typename Func>
-constexpr auto optional<Value>::and_then_impl(Self &&self, Func &&func)
-{
-	using result_t = std::remove_cvref_t<std::invoke_result_t <
-		Func, decltype(*std::forward<Self>(self))
-	>>;
-	static_assert(detail::optional_specialization<result_t>,
-		"optional::and_then callback must return an optional specialization"
-	);
-	if( self.has_value() )
-		return std::invoke(std::forward<Func>(func), *std::forward<Self>(self));
-	return result_t {};
-}
-
-template <typename Value>
 template <typename Func>
 constexpr auto optional<Value>::and_then(Func &&func) &
 	requires std::invocable<Func,value_t&>
 {
-	return and_then_impl(*this, std::forward<Func>(func));
+	return detail::optional_and_then(*this, std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -98,7 +144,7 @@ template <typename Func>
 constexpr auto optional<Value>::and_then(Func &&func) const &
 	requires std::invocable<Func,const value_t&>
 {
-	return and_then_impl(*this, std::forward<Func>(func));
+	return detail::optional_and_then(*this, std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -106,7 +152,7 @@ template <typename Func>
 constexpr auto optional<Value>::and_then(Func &&func) &&
 	requires std::invocable<Func,value_t&&>
 {
-	return and_then_impl(std::move(*this), std::forward<Func>(func));
+	return detail::optional_and_then(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -114,29 +160,7 @@ template <typename Func>
 constexpr auto optional<Value>::and_then(Func &&func) const &&
 	requires std::invocable<Func,const value_t&&>
 {
-	return and_then_impl(std::move(*this), std::forward<Func>(func));
-}
-
-template <typename Value>
-template <typename Self, typename Func>
-constexpr auto optional<Value>::transform_impl(Self &&self, Func &&func)
-{
-	using result_t = std::remove_cv_t<std::invoke_result_t <
-		Func, decltype(*std::forward<Self>(self))
-	>>;
-	static_assert(not std::is_void_v<result_t>,
-		"optional::transform callback must return a value"
-	);
-	static_assert(std::is_object_v<result_t> and not std::is_array_v<result_t>);
-
-	if( self.has_value() )
-	{
-		return optional<result_t> (
-			std::in_place,
-			std::invoke(std::forward<Func>(func), *std::forward<Self>(self))
-		);
-	}
-	return optional<result_t> {};
+	return detail::optional_and_then(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -144,7 +168,7 @@ template <typename Func>
 constexpr auto optional<Value>::transform(Func &&func) &
 	requires std::invocable<Func,value_t&>
 {
-	return transform_impl(*this, std::forward<Func>(func));
+	return detail::optional_transform(*this, std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -152,7 +176,7 @@ template <typename Func>
 constexpr auto optional<Value>::transform(Func &&func) const &
 	requires std::invocable<Func,const value_t&>
 {
-	return transform_impl(*this, std::forward<Func>(func));
+	return detail::optional_transform(*this, std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -160,7 +184,7 @@ template <typename Func>
 constexpr auto optional<Value>::transform(Func &&func) &&
 	requires std::invocable<Func,value_t&&>
 {
-	return transform_impl(std::move(*this), std::forward<Func>(func));
+	return detail::optional_transform(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -168,32 +192,7 @@ template <typename Func>
 constexpr auto optional<Value>::transform(Func &&func) const &&
 	requires std::invocable<Func,const value_t&&>
 {
-	return transform_impl(std::move(*this), std::forward<Func>(func));
-}
-
-template <typename Value>
-template <typename Self, typename Func>
-constexpr optional<Value> optional<Value>::or_else_impl(Self &&self, Func &&func)
-{
-	using result_t = std::invoke_result_t<Func>;
-	if( self.has_value() )
-		return optional(std::forward<Self>(self));
-
-	if constexpr( std::is_void_v<result_t> )
-	{
-		std::invoke(std::forward<Func>(func));
-		return optional {};
-	}
-	else
-	{
-		static_assert(detail::optional_specialization<result_t>,
-			"optional::or_else callback must return void or an optional specialization"
-		);
-		static_assert(std::same_as<detail::optional_value_t<result_t>,value_t>,
-			"optional::or_else callback must preserve the value type"
-		);
-		return optional(std::invoke(std::forward<Func>(func)));
-	}
+	return detail::optional_transform(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -201,7 +200,7 @@ template <typename Func>
 constexpr optional<Value> optional<Value>::or_else(Func &&func) &
 	requires std::invocable<Func>
 {
-	return or_else_impl(*this, std::forward<Func>(func));
+	return detail::optional_or_else<value_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -209,7 +208,7 @@ template <typename Func>
 constexpr optional<Value> optional<Value>::or_else(Func &&func) const &
 	requires std::invocable<Func>
 {
-	return or_else_impl(*this, std::forward<Func>(func));
+	return detail::optional_or_else<value_t>(*this, std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -217,7 +216,7 @@ template <typename Func>
 constexpr optional<Value> optional<Value>::or_else(Func &&func) &&
 	requires std::invocable<Func>
 {
-	return or_else_impl(std::move(*this), std::forward<Func>(func));
+	return detail::optional_or_else<value_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value>
@@ -225,7 +224,7 @@ template <typename Func>
 constexpr optional<Value> optional<Value>::or_else(Func &&func) const &&
 	requires std::invocable<Func>
 {
-	return or_else_impl(std::move(*this), std::forward<Func>(func));
+	return detail::optional_or_else<value_t>(std::move(*this), std::forward<Func>(func));
 }
 
 template <typename Value>
