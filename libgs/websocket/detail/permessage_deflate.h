@@ -76,11 +76,15 @@ make_permessage_deflate_runtime(std::span<const extension> negotiated_extensions
 
 [[nodiscard]] LIBGS_WEBSOCKET_API sys_expected<std::vector<std::byte>>
 deflate_message (
-	std::span<const const_buffer> buffers, uint8_t window_bits = 15, int compression_level = -1
+	std::span<const const_buffer> buffers, uint8_t window_bits = 15,
+	int compression_level = -1
 ) noexcept;
 
 [[nodiscard]] LIBGS_WEBSOCKET_API sys_expected<std::vector<std::byte>>
-inflate_message(std::span<const std::byte> payload, size_t max_message_size, uint8_t window_bits = 15) noexcept;
+inflate_message (
+	std::span<const std::byte> payload, size_t max_message_size,
+	uint8_t window_bits = 15
+) noexcept;
 
 } //namespace libgs::websocket::detail
 
