@@ -218,7 +218,7 @@ void secure_round_trip()
 	ws::client client(std::move(http_client));
 
 	auto connected = asio::co_spawn(context,
-		[&, proxy_port]() -> libgs::awaitable<void>
+		[&]() -> libgs::awaitable<void>
 		{
 			ws::connect_request request(std::format(
 				"wss://127.0.0.1:{}/secure/echo", port));

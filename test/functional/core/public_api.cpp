@@ -38,6 +38,7 @@ void flags_and_parameters()
 	LIBGS_TEST_CHECK(not selected.test_flag(feature::write));
 	LIBGS_TEST_CHECK(selected.test_flag(feature::execute));
 	LIBGS_TEST_CHECK_EQ(*(feature::read | feature::write), uint32_t {3});
+	LIBGS_TEST_CHECK_EQ(*(feature::read | features {feature::write}), uint32_t {3});
 	LIBGS_TEST_CHECK(!(selected & uint8_t {2}));
 
 	parameter_owner owner;
