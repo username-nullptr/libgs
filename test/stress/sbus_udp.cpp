@@ -308,7 +308,8 @@ void malformed_and_incomplete_fragment_storm_recovery()
 {
 	udp_config_guard config_guard;
 	auto config = udp_interface::config();
-	config.range = msg_range::lan;
+	config.sand_range = msg_range::lan;
+	config.recv_range = msg_range::lan;
 	config.source_datagram_burst = 1'024;
 	config.max_reassemblies = 32;
 	config.max_reassembly_bytes = 16 * 1'024 * 1'024;
