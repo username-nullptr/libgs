@@ -48,6 +48,8 @@ source-tree consumer links only the highest module it uses.
 | `LIBGS_OPENSSL_SUPPORT` | OFF | OpenSSL | Enable TLS connection types, HTTPS, and WSS |
 | `LIBGS_HTTP_ZLIB_SUPPORT` | OFF | HTTP + zlib | Enable HTTP gzip; WebSocket inherits zlib support |
 | `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | OFF | WebSocket + zlib | Enable only WebSocket `permessage-deflate` |
+| `LIBGS_BUILD_UTILITIES_SBUS_UDP` | ON | Utilities | Enable the Asio UDP multicast soft-bus interface |
+| `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` | `local` | Utilities | Select `local` or `udp` for the unqualified soft-bus API |
 | `LIBGS_IO_URING_SUPPORT` | OFF | Linux + liburing | Use Asio's io_uring backend and disable epoll |
 | `LIBGS_USE_LIBCXX` | OFF | Clang | Compile and link with libc++ |
 | `LIBGS_USE_LLD` | OFF | Clang | Link with lld |

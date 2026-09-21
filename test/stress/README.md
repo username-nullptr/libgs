@@ -31,7 +31,14 @@ one another.
 | `libgs.test.stress.coro` | Mutex and shared-mutex reader/writer contention, semaphore and timed-waiter races |
 | `libgs.test.stress.http` | Repeated client lifecycle and concurrent keep-alive/reconnect traffic with payloads through 64 KiB |
 | `libgs.test.stress.websocket` | Repeated handshakes and concurrent text/binary echo connections |
-| `libgs.test.stress.utils` | Signal mutation/emission, object lifecycle, and soft-bus fanout |
+| `libgs.test.stress.utils` | Signal mutation/emission, object lifecycle, and local soft-bus fanout |
+| `libgs.test.stress.utils.sbus_udp` | UDP concurrent publish bursts, receiver lifecycle churn, rate limiting, unmatched-topic rejection, per-source reassembly quotas, slow-callback queue saturation, and post-storm recovery |
+
+The UDP stress executable keeps all load on the test host. Public API traffic
+uses `udp_interface::msg_range::process`; raw malformed-frame injection explicitly
+sets IP multicast TTL to zero. It never generates LAN- or routed-scope stress
+traffic. Because UDP is best effort, burst cases validate integrity and
+post-burst forward progress rather than requiring lossless delivery.
 
 HTTP and WebSocket cases use one strand per client and a strand for server-side
 connection state while multiple threads run the shared `io_context`. Concurrency

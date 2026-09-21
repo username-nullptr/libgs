@@ -6,7 +6,7 @@
 
 #include <libgs/utils/global.h>
 
-namespace libgs::utils::sbus { namespace concepts
+namespace libgs::utils::sbus::concepts
 {
 
 template <typename Interface>
@@ -49,30 +49,19 @@ concept topic_type = requires(std::string_view topic) {
 #define LIBGS_UTILS_SBUS_AUTO_META_TYPE(...) \
 	LIBGS_UTILS_SBUS_AUTO_TYPE LIBGS_META_FIELDS(__VA_ARGS__)
 
-} //namespace concepts
+} //namespace libgs::utils::sbus::concepts
 
-class LIBGS_UTILS_API local_interface final :
-	public std::enable_shared_from_this<local_interface>
+#include <libgs/utils/sbus/detail/local_interface.h>
+#include <libgs/utils/sbus/detail/udp_interface.h>
+
+namespace libgs::utils::sbus
 {
-	LIBGS_DISABLE_COPY_MOVE(local_interface)
 
-public:
-	local_interface();
-	~local_interface();
-
-	static void publish(std::string_view topic, const void *buffer, size_t size);
-
-	uint64_t subscribe(std::string_view topic, std::function<void(const void*, size_t)> func);
-	uint64_t subscribe(std::function<void(std::string_view topic, const void*, size_t)> func);
-
-	void cancel_topic(std::string_view topic);
-	void cancel_sid(uint64_t sid);
-	void cancel();
-
-private:
-	class impl;
-	std::unique_ptr<impl> m_impl {};
-};
+#if LIBGS_UTILS_SBUS_DEFAULT_INTERFACE_UDP
+using default_interface = udp_interface;
+#else //local
+using default_interface = local_interface;
+#endif //
 
 } //namespace libgs::utils::sbus
 

@@ -12,7 +12,7 @@ option(LIBGS_HTTP_ZLIB_SUPPORT
 )
 if (LIBGS_HTTP_ZLIB_SUPPORT)
 	message(STATUS "${PRO_NAME}: Enable z-lib support.")
-	add_definitions(-DLIBGS_HTTP_ZLIB_SUPPORT=1)
+	target_compile_definitions(${target_name} PUBLIC -DLIBGS_HTTP_ZLIB_SUPPORT=1)
 
 	find_package(ZLIB REQUIRED)
 	target_link_libraries(${target_name} PRIVATE ZLIB::ZLIB)

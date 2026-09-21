@@ -46,7 +46,9 @@ void low_load_utility_lifecycle_repetition()
 			if(data != nullptr and size == sizeof(size_t))
 				bus_received.fetch_add(1, std::memory_order_release);
 		});
-		libgs::utils::sbus::publish(topic, round);
+		libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+			topic, round
+		);
 		const auto expected = round + 1;
 		for(size_t retry = 0;
 			retry < 2'000 and bus_received.load(std::memory_order_acquire) != expected;
@@ -142,7 +144,8 @@ void message_bus_fanout_pressure()
 				index += publishers.size())
 				{
 					const uint64_t value = index;
-					libgs::utils::sbus::publish(topic, value);
+					libgs::utils::sbus::publish<
+						libgs::utils::sbus::local_interface>(topic, value);
 				}
 			});
 		}

@@ -102,6 +102,10 @@ private:
 
 using local_cache = cache<local_subscriber>;
 
+#if LIBGS_UTILS_SBUS_UDP_INTERFACE_SUPPORT
+using udp_cache = cache<udp_subscriber>;
+#endif //LIBGS_UTILS_SBUS_UDP_INTERFACE_SUPPORT
+
 } //namespace libgs::utils::sbus
 #include <libgs/utils/sbus/detail/cache.h>
 

@@ -2,8 +2,9 @@
 
 [Examples index](../README.md) · [Utilities guide](../../doc/en/utilities.md)
 
-Utilities examples require `LIBGS_BUILD_UTILITIES=ON`. They use only local
-process, filesystem, thread, and in-process messaging facilities.
+Utilities examples require `LIBGS_BUILD_UTILITIES=ON`. They use local process,
+filesystem, thread, and messaging facilities; `soft_bus_udp` additionally
+uses administratively scoped local-network multicast.
 
 ## Programs
 
@@ -16,6 +17,7 @@ process, filesystem, thread, and in-process messaging facilities.
 | `modules` | Multi-source module registration, dependency graph, and ordered initialization | No arguments |
 | `process` | Child start, stdout read, join, and exit code | Runs `cmd.exe /C echo` on Windows or `/bin/echo` on POSIX |
 | `soft_bus_local` | Built-in local publish/subscribe and topic cache | No arguments |
+| `soft_bus_udp` | Asio UDP multicast publish/subscribe | No arguments; sends one multicast datagram sequence |
 | `soft_bus_transport` | A custom transport implementing the soft-bus interface | No arguments |
 
 The `modules` executable is assembled from `modules/main.cpp`,
@@ -29,6 +31,7 @@ The `modules` executable is assembled from `modules/main.cpp`,
 ./build/output/examples/utils/modules
 ./build/output/examples/utils/process
 ./build/output/examples/utils/soft_bus_local
+./build/output/examples/utils/soft_bus_udp
 ./build/output/examples/utils/soft_bus_transport
 ```
 
@@ -42,5 +45,7 @@ Pass explicit paths for logging and settings:
 ```
 
 `soft_bus_local` uses the built-in in-process transport.
+`soft_bus_udp` uses the built-in best-effort UDP multicast transport and
+requires `LIBGS_BUILD_UTILITIES_SBUS_UDP=ON` plus local multicast support.
 `soft_bus_transport` shows the interface boundary for plugging in DDS, IPC, or
 another transport; it does not start an external transport service.

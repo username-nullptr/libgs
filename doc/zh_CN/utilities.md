@@ -65,9 +65,41 @@ process 同时最多保留一个 stdin 写、一个 stdout 读和一个 stderr �
 ### 软总线
 
 软总线把带类型的 publish/subscribe/cache API 与传输实现分离。
-`sbus::local_interface`、`local_subscriber` 与 `local_cache` 提供内置进程内
-传输。`basic_subscriber<Interface>`、`cache<Subscriber>` 与
-`publish<Interface>()` 可让其他传输复用同一 API；仓库不内置分布式传输。
+`sbus::local_interface`、`local_subscriber` 与 `local_cache` 提供进程内传输。
+启用 `LIBGS_BUILD_UTILITIES_SBUS_UDP` 后，`udp_interface`、`udp_subscriber`
+与 `udp_cache` 提供基于 Asio 的 UDP 多播传输；发布时显式使用
+`publish<udp_interface>()`。
+
+`LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` 可为未指定接口的 `publish()`、
+`subscribe()` 以及 `default_interface`、`default_subscriber` 别名选择
+`local`（默认值）或 `udp`。需要固定传输方式的代码应显式使用对应的 interface
+或 subscriber 类型，以免该构建选项改变其行为。
+
+UDP 传输启用本机回送；`udp_interface::config_t` 默认使用管理域多播组
+`239.255.71.83`、端口 `57183` 以及 `msg_range::process`。进程范围报文携带
+进程令牌并使用 TTL 0；`lan` 使用 TTL 1，`internet` 使用 TTL 64。接收范围
+按层级表示可接受的最远发布范围，而其他进程发布的 `process` 报文始终会被
+拒绝。`internet` 仍
+依赖支持多播路由的网络，并不表示公网必然可达。
+
+带版本的线协议支持最长 4 KiB 的 Topic 和分片后的最大 16 MiB 负载。每个接口
+在解析前执行全局及按源地址的报文数/字节数令牌桶限流，最多跟踪 1024 个源
+地址，忽略没有 Topic 订阅者或全局订阅者的报文，并把单一源地址限制为最多
+8 个未完成消息及 16 MiB 重组内存；周期定时器会按 5 秒超时清理未完成消息。
+每个接口的全局上限为 128 个未完成消息和 64 MiB。完整消息进入最多
+256 条/32 MiB 的有界队列，用户回调在独立投递
+线程上执行，因此慢回调不会无限期阻塞 socket 收包。可通过
+`udp_interface::statistics()` 查看非法报文、限流丢弃、重组淘汰、投递队列
+丢弃和投递进度。多播端点、范围、socket 缓冲区、消息大小、速率/突发阈值、
+来源跟踪、重组限制/超时及投递队列限制均直接在 `config_t` 中配置。
+`set_config()` 影响后续静态发布以及之后默认构造的接收接口；已经存在的接收
+接口保留构造时的配置快照。需要同时使用不同接收策略时，可向构造函数显式
+传入 `config_t`。
+
+UDP 是尽力而为传输，过载保护会主动丢包。它不提供认证或加密；LAN 和路由
+模式只应在合适的可信网络中使用，并应在不可信边界配置来源及多播 ACL。
+`basic_subscriber<Interface>`、`cache<Subscriber>` 与
+`publish<Interface>()` 仍可用于接入自定义传输。
 
 `utils::thread_pool()` 返回 Utilities 模块共享的 Asio 线程池。需要隔离或明确
 关闭顺序时，应使用应用自己持有的 executor。
@@ -81,4 +113,5 @@ process 同时最多保留一个 stdin 写、一个 stdout 读和一个 stderr �
 - [模块](../../examples/utils/modules)
 - [进程](../../examples/utils/process.cpp)
 - [本地软总线](../../examples/utils/soft_bus_local.cpp)
+- [UDP 软总线](../../examples/utils/soft_bus_udp.cpp)
 - [自定义软总线传输](../../examples/utils/soft_bus_transport.cpp)

@@ -74,11 +74,15 @@ duration_t measure_without_subscribers(size_t payload_size)
 {
 	std::vector<std::byte> payload(payload_size, std::byte {0x2a});
 	for(size_t index = 0; index < 1'000; ++index)
-		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+		libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+			topic, payload.data(), payload.size()
+		);
 
 	const auto begin = steady_clock_t::now();
 	for(size_t index = 0; index < no_subscriber_publish_count; ++index)
-		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+		libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+			topic, payload.data(), payload.size()
+		);
 	return steady_clock_t::now() - begin;
 }
 
@@ -98,11 +102,15 @@ duration_t measure_with_unrelated_interfaces(size_t payload_size)
 
 	std::vector<std::byte> payload(payload_size, std::byte {0x2a});
 	for(size_t index = 0; index < 1'000; ++index)
-		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+		libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+			topic, payload.data(), payload.size()
+		);
 
 	const auto begin = steady_clock_t::now();
 	for(size_t index = 0; index < no_subscriber_publish_count; ++index)
-		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+		libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+			topic, payload.data(), payload.size()
+		);
 	const auto elapsed = steady_clock_t::now() - begin;
 	for(auto &interface : interfaces)
 		interface->cancel();
@@ -160,7 +168,9 @@ measurement measure_delivery(
 		publish_batch_size, payload_limited_batch_size, publish_count
 	});
 	for(size_t index = 0; index < batch_size; ++index)
-		libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+		libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+			topic, payload.data(), payload.size()
+		);
 	bool completed = wait_until_received(received, batch_size * subscriber_count);
 	received.store(0, std::memory_order_relaxed);
 
@@ -172,7 +182,9 @@ measurement measure_delivery(
 		const auto count = std::min(batch_size, publish_count - published);
 		const auto publish_begin = steady_clock_t::now();
 		for(size_t index = 0; index < count; ++index)
-			libgs::utils::sbus::publish(topic, payload.data(), payload.size());
+			libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(
+				topic, payload.data(), payload.size()
+			);
 		publish_elapsed += steady_clock_t::now() - publish_begin;
 
 		published += count;

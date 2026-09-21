@@ -17,4 +17,7 @@ endif ()
 
 if (LIBGS_BUILD_UTILITIES)
 	add_libgs_stress_test(utils utils.cpp gs.utils)
+	if (LIBGS_BUILD_UTILITIES_SBUS_UDP)
+		add_libgs_stress_test(utils.sbus_udp sbus_udp.cpp gs.utils)
+	endif ()
 endif ()

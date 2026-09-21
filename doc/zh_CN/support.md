@@ -40,6 +40,7 @@
 | WebSocket | RFC 6455 客户端、服务端、Upgrade、Frame、消息、Mask、分片、控制帧、子协议与有界写队列 | 基于 HTTP/2 或 HTTP/3 的 WebSocket |
 | WebSocket 压缩 | 启用 WebSocket zlib 后支持 RFC 7692 `permessage-deflate` | 其他 WebSocket 扩展 |
 | WebSocket 代理 | 客户端 API 提供 HTTP forward/CONNECT 与 SOCKS5 路径 | 由库管理的系统级代理服务 |
+| UDP 软总线 | 带版本的 IPv4 多播帧、进程/LAN/路由作用域、Topic 路由、按来源入口限流、有界负载重组与有界回调投递 | 可靠投递、认证、加密以及由 LibGS 提供多播路由 |
 
 WebSocket API 管理单条连接。应用层会话守护、跨连接持久队列、可靠消息重放和业务
 路由由应用负责。

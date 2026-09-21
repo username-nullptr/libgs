@@ -8,7 +8,7 @@ namespace libgs::utils::sbus
 
 void publish(std::string_view topic, const void *buffer, size_t size)
 {
-	publish<local_interface>(topic, buffer, size);
+	publish<default_interface>(topic, buffer, size);
 }
 
 } //namespace libgs::utils::sbus

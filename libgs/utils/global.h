@@ -4,6 +4,7 @@
 #ifndef LIBGS_UTILS_GLOBAL_H
 #define LIBGS_UTILS_GLOBAL_H
 
+#include <libgs/utils/cxx/configs.h>
 #include <libgs/core/global.h>
 
 #if LIBGS_BUILD_STATIC

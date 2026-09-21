@@ -73,9 +73,50 @@ read outstanding on a process object.
 
 The soft bus separates its typed publish/subscribe/cache API from the
 transport. `sbus::local_interface`, `local_subscriber`, and `local_cache`
-provide the built-in in-process transport. `basic_subscriber<Interface>`,
-`cache<Subscriber>`, and `publish<Interface>()` allow another transport to use
-the same API; no distributed transport is bundled.
+provide the in-process transport. When `LIBGS_BUILD_UTILITIES_SBUS_UDP` is
+enabled, `udp_interface`, `udp_subscriber`, and `udp_cache` provide an Asio UDP
+multicast transport. Publish through it explicitly with
+`publish<udp_interface>()`.
+
+`LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` selects `local` (the default) or `udp` for
+unqualified `publish()` / `subscribe()` calls and the `default_interface` /
+`default_subscriber` aliases. Code that requires a particular transport should
+use its explicit interface or subscriber type so that changing this build option
+does not change its behavior.
+
+The transport enables loopback delivery. `udp_interface::config_t` defaults to
+administratively scoped group `239.255.71.83`, port `57183`, and
+`msg_range::process`. A process-scoped frame carries a per-process token and
+uses multicast TTL 0; `lan` uses TTL 1, and `internet` uses TTL 64. A receiver's
+range is hierarchical: it selects the widest publish range that is accepted,
+while process-scoped frames from other processes remain rejected. The
+`internet` range still requires a multicast-enabled routed network and does not
+imply public-Internet availability.
+
+The versioned wire frame supports topics up to 4 KiB and fragmented payloads
+up to 16 MiB. Each interface applies global and per-source packet/byte token
+buckets before parsing, tracks at most 1024 source addresses, ignores topics
+without a matching topic or global subscriber, and limits one source to 8
+incomplete messages and 16 MiB of reassembly memory. Incomplete messages are
+expired by a periodic five-second timeout. The interface-wide caps are
+128 incomplete messages and 64 MiB per interface. Completed messages enter a
+bounded 256-message/32-MiB queue and user callbacks run on a separate delivery
+thread, so a slow callback cannot stop socket receive processing indefinitely.
+`udp_interface::statistics()` reports invalid and rate-limited datagrams,
+reassembly evictions, delivery-queue drops, and delivery progress. Endpoint,
+range, socket buffers, message-size bounds, rate/burst limits, source tracking,
+reassembly limits/timeouts, and delivery-queue bounds are configurable directly
+in `config_t`. `set_config()` changes subsequent static publishes and the
+default used by subsequently constructed receivers. An existing receiver keeps
+the snapshot supplied to its constructor; pass a `config_t` explicitly when
+different receiver policies must coexist.
+
+UDP delivery is best effort and overload protection intentionally drops
+traffic. It is neither authenticated nor encrypted; use LAN and routed modes
+only on an appropriate trusted network and enforce network-level source and
+multicast ACLs at untrusted boundaries.
+`basic_subscriber<Interface>`, `cache<Subscriber>`, and
+`publish<Interface>()` remain available for custom transports.
 
 `utils::thread_pool()` returns the module's shared Asio thread pool. Prefer an
 owned executor when isolation or shutdown order matters.
@@ -89,4 +130,5 @@ owned executor when isolation or shutdown order matters.
 - [Modules](../../examples/utils/modules)
 - [Process](../../examples/utils/process.cpp)
 - [Local soft bus](../../examples/utils/soft_bus_local.cpp)
+- [UDP soft bus](../../examples/utils/soft_bus_udp.cpp)
 - [Custom soft-bus transport](../../examples/utils/soft_bus_transport.cpp)

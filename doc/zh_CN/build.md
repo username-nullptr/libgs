@@ -46,6 +46,8 @@ Standalone Asio、spdlog 与 nlohmann/json 已包含在 `3rd_party/` 中。只�
 | `LIBGS_OPENSSL_SUPPORT` | OFF | OpenSSL | 启用 TLS 连接类型、HTTPS 与 WSS |
 | `LIBGS_HTTP_ZLIB_SUPPORT` | OFF | HTTP + zlib | 启用 HTTP gzip；WebSocket 继承 zlib 支持 |
 | `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | OFF | WebSocket + zlib | 只启用 WebSocket `permessage-deflate` |
+| `LIBGS_BUILD_UTILITIES_SBUS_UDP` | ON | Utilities | 启用基于 Asio 的 UDP 多播软总线接口 |
+| `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` | `local` | Utilities | 为未指定接口的软总线 API 选择 `local` 或 `udp` |
 | `LIBGS_IO_URING_SUPPORT` | OFF | Linux + liburing | 使用 Asio io_uring 后端并关闭 epoll |
 | `LIBGS_USE_LIBCXX` | OFF | Clang | 使用 libc++ 编译和链接 |
 | `LIBGS_USE_LLD` | OFF | Clang | 使用 lld 链接 |

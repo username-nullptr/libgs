@@ -81,25 +81,25 @@ template <typename T>
 void publish(std::string_view topic, T &&value) requires
 (not std::is_pointer_v<std::remove_cvref_t<T>> and not concepts::topic_type<T>)
 {
-	publish<local_interface>(topic, std::forward<T>(value));
+	publish<default_interface>(topic, std::forward<T>(value));
 }
 
 template <libgs::concepts::any_string_p...Args>
 void publish(std::string_view topic, Args&&...args) requires (sizeof...(Args) > 0)
 {
-	publish<local_interface>(topic, std::forward<Args>(args)...);
+	publish<default_interface>(topic, std::forward<Args>(args)...);
 }
 
 template <concepts::unregistered_type_p...Args>
 void publish(std::string_view topic, Args&&...args) requires (sizeof...(Args) > 0)
 {
-	publish<local_interface>(topic, std::forward<Args>(args)...);
+	publish<default_interface>(topic, std::forward<Args>(args)...);
 }
 
 template <concepts::topic_type...Args>
 void publish(Args&&...args) requires (sizeof...(Args) > 0)
 {
-	publish<local_interface>(std::forward<Args>(args)...);
+	publish<default_interface>(std::forward<Args>(args)...);
 }
 
 } //namespace libgs::utils::sbus

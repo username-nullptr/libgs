@@ -120,6 +120,9 @@ if (LIBGS_BUILD_UTILITIES)
 	libgs_add_example(utils process            LIBRARIES gs.utils)
 	libgs_add_example(utils soft_bus_local     LIBRARIES gs.utils)
 	libgs_add_example(utils soft_bus_transport LIBRARIES gs.utils)
+	if (LIBGS_BUILD_UTILITIES_SBUS_UDP)
+		libgs_add_example(utils soft_bus_udp LIBRARIES gs.utils)
+	endif ()
 	libgs_add_example(utils settings           LIBRARIES gs.utils)
 	libgs_add_example(utils signal_slot        LIBRARIES gs.utils)
 	libgs_add_example(utils modules
@@ -176,6 +179,7 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES
 	utils/process.cpp
 	utils/soft_bus_local.cpp
 	utils/soft_bus_transport.cpp
+	utils/soft_bus_udp.cpp
 	utils/settings.cpp
 	utils/signal_slot.cpp
 )
