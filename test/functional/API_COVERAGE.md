@@ -66,8 +66,8 @@ behavior rather than by implementation source file.
   argument ownership, synchronous/asynchronous/awaitable delivery.
 - `utils/runtime.cpp`: settings persistence and async tokens, process lifecycle,
   pipes/environment/cancellation, local message bus, and logger configuration/I/O.
-- `utils/sbus.cpp`: raw/typed publish-subscribe, cancellation, topic indexing, and
-  large-payload fanout ownership.
+- `utils/sbus.cpp`: raw/typed publish-subscribe, cancellation, topic indexing,
+  large-payload fanout ownership, UDP scope/fragmentation, and receive statistics.
 
 ## Review checklist
 

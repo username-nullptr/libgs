@@ -288,18 +288,18 @@ std::pair<Subscriber,uint64_t> subscribe(Args&&...args) requires requires
 	return { std::move(obj), sid };
 }
 
-template <libgs::concepts::match_sched<local_subscriber::executor_t> Exec0, typename...Args>
-std::pair<local_subscriber,uint64_t> subscribe(Exec0 &&exec, Args&&...args) requires requires
-	{ local_subscriber(std::forward<Exec0>(exec)).subscribe(std::forward<Args>(args)...); }
+template <libgs::concepts::match_sched<default_subscriber::executor_t> Exec0, typename...Args>
+std::pair<default_subscriber,uint64_t> subscribe(Exec0 &&exec, Args&&...args) requires requires
+	{ default_subscriber(std::forward<Exec0>(exec)).subscribe(std::forward<Args>(args)...); }
 {
-	return subscribe<local_subscriber>(std::forward<Exec0>(exec), std::forward<Args>(args)...);
+	return subscribe<default_subscriber>(std::forward<Exec0>(exec), std::forward<Args>(args)...);
 }
 
 template <typename...Args>
-std::pair<local_subscriber,uint64_t> subscribe(Args&&...args) requires requires
-	{ local_subscriber().subscribe(std::forward<Args>(args)...); }
+std::pair<default_subscriber,uint64_t> subscribe(Args&&...args) requires requires
+	{ default_subscriber().subscribe(std::forward<Args>(args)...); }
 {
-	return subscribe<local_subscriber>(std::forward<Args>(args)...);
+	return subscribe<default_subscriber>(std::forward<Args>(args)...);
 }
 
 } //namespace libgs::utils::sbus

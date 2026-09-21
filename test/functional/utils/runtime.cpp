@@ -372,7 +372,7 @@ void local_message_bus()
 		received_value = value;
 		received = true;
 	});
-	libgs::utils::sbus::publish(topic, 42);
+	libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(topic, 42);
 	LIBGS_TEST_CHECK(wait_for(received));
 	LIBGS_TEST_CHECK_EQ(received_value.load(), 42);
 
@@ -404,7 +404,7 @@ void local_message_bus()
 
 	received = false;
 	subscriber.cancel_sid(sid);
-	libgs::utils::sbus::publish(topic, 99);
+	libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(topic, 99);
 	std::this_thread::sleep_for(5ms);
 	LIBGS_TEST_CHECK(not received);
 	cache.changed(topic).disconnect();

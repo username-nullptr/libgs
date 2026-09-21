@@ -33,7 +33,7 @@ int main()
 		std::cout << "Received " << value << '\n';
 		received = true;
 	});
-	libgs::utils::sbus::publish(topic, 42);
+	libgs::utils::sbus::publish<libgs::utils::sbus::local_interface>(topic, 42);
 
 	libgs::utils::sbus::local_cache cache(pool);
 

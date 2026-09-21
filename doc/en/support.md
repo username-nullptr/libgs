@@ -42,6 +42,7 @@ its return and error model.
 | WebSocket | RFC 6455 client, server, Upgrade, frames, messages, masking, fragmentation, control frames, subprotocols, and bounded writes | WebSocket over HTTP/2 or HTTP/3 |
 | WebSocket compression | RFC 7692 `permessage-deflate` when WebSocket zlib support is enabled | Other WebSocket extensions |
 | WebSocket proxies | HTTP forward/CONNECT and SOCKS5 paths exposed by the client API | A managed system-wide proxy service |
+| UDP soft bus | Versioned IPv4 multicast framing, process/LAN/routed scopes, topic routing, per-source ingress limits, bounded payload reassembly, and bounded callback delivery | Reliable delivery, authentication, encryption, and multicast routing supplied by LibGS |
 
 The WebSocket API manages one connection. Application-level supervision,
 persistent cross-connection queues, reliable message replay, and business

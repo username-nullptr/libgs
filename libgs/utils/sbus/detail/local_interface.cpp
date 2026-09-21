@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
 // SPDX-License-Identifier: MIT
 
-#include "interface.h"
+#include "local_interface.h"
 #include <libgs/core/lock_free_queue.h>
 #include <libgs/utils/signal_slot.h>
 #include <libgs/utils/logger.h>
@@ -312,14 +312,14 @@ public:
 		if( m_global_subscribers.empty() )
 			return ;
 
-		for(auto &[id, subscriber] : m_global_subscribers)
+		for(auto &subscriber : m_global_subscribers | std::views::values)
 			subscriber->tigger(topic, data, size);
 	}
 
 	void global_broadcast(std::string_view topic, const detail::shared_payload_t &payload) noexcept
 	{
 		std::shared_lock lock(m_global_subscribers_lock);
-		for(auto &[id, subscriber] : m_global_subscribers)
+		for(auto &subscriber : m_global_subscribers | std::views::values)
 			subscriber->tigger(topic, payload);
 	}
 
@@ -330,7 +330,7 @@ public:
 		if( it == m_subscribers.end() or it->second.empty() )
 			return ;
 
-		for(auto &[id, subscriber] : it->second)
+		for(auto &subscriber : it->second | std::views::values)
 			subscriber->tigger(data, size);
 	}
 
@@ -341,7 +341,7 @@ public:
 		if( it == m_subscribers.end() )
 			return ;
 
-		for(auto &[id, subscriber] : it->second)
+		for(auto &subscriber : it->second | std::views::values)
 			subscriber->tigger(payload);
 	}
 
