@@ -12,7 +12,7 @@ set(LIBGS_TEST_LAUNCHER)
 if (LIBGS_ENABLE_TEST_TSAN AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 	find_program(LIBGS_TEST_SETARCH_EXECUTABLE NAMES setarch)
 	if (LIBGS_TEST_SETARCH_EXECUTABLE)
-		execute_process(
+		execute_process (
 			COMMAND ${LIBGS_TEST_SETARCH_EXECUTABLE}
 				${CMAKE_SYSTEM_PROCESSOR} -R ${CMAKE_COMMAND} -E true
 			RESULT_VARIABLE libgs_test_setarch_result
@@ -20,7 +20,8 @@ if (LIBGS_ENABLE_TEST_TSAN AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 		)
 		if (libgs_test_setarch_result EQUAL 0)
 			set(LIBGS_TEST_LAUNCHER
-				${LIBGS_TEST_SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R)
+				${LIBGS_TEST_SETARCH_EXECUTABLE} ${CMAKE_SYSTEM_PROCESSOR} -R
+			)
 			message(STATUS
 				"${PRO_NAME}: TSan tests disable ASLR per process with setarch."
 			)
@@ -46,16 +47,18 @@ endif()
 function(add_libgs_test_program test_target source library)
 	add_executable(${test_target} ${source})
 	target_link_libraries(${test_target} PRIVATE ${library})
+
 	if ("${library}" MATCHES "^gs\\.(http|websocket)$")
 		libgs_limit_heavy_compile(${test_target})
 	endif ()
+
 	target_compile_options(${test_target} PRIVATE
 		$<$<AND:$<CXX_COMPILER_ID:GNU>,$<BOOL:${LIBGS_TEST_GNU_BIG_OBJ}>>:-Wa,-mbig-obj>
 	)
-
 	if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 		target_link_libraries(${test_target} PRIVATE libgs.test.sanitizer)
 	endif ()
+
 	target_include_directories(${test_target} PRIVATE ${LIBGS_TEST_SOURCE_DIR})
 
 	set_target_properties(${test_target} PROPERTIES
@@ -96,9 +99,7 @@ function(configure_libgs_functional_test test_name)
 		"LIBGS_TEST_SEED=${LIBGS_FUNCTIONAL_SEED}"
 		"LIBGS_TEST_FAIL_FAST=1"
 	)
-	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND
-		libgs_gnu_runtime_dir
-	)
+	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND libgs_gnu_runtime_dir)
 		set_property(TEST ${test_name} APPEND PROPERTY
 			ENVIRONMENT_MODIFICATION
 			"PATH=path_list_prepend:${libgs_gnu_runtime_dir}"
@@ -114,6 +115,7 @@ endfunction()
 function(add_libgs_functional_test name source library)
 	set(test_target libgs.test.${name})
 	add_libgs_test_program(${test_target} ${source} ${library})
+
 	add_libgs_ctest(libgs.${name} $<TARGET_FILE:${test_target}> ${ARGN})
 	configure_libgs_functional_test(libgs.${name})
 endfunction()
@@ -128,6 +130,7 @@ endfunction()
 function(add_libgs_stress_test name source library)
 	set(test_target libgs.test.stress.${name})
 	add_libgs_test_program(${test_target} ${source} ${library})
+
 	target_compile_definitions(${test_target} PRIVATE
 		LIBGS_STRESS_SCALE=${LIBGS_STRESS_SCALE}
 	)
@@ -148,6 +151,7 @@ endfunction()
 function(add_libgs_performance_test name source library)
 	set(test_target libgs.test.performance.${name})
 	add_libgs_test_program(${test_target} ${source} ${library})
+
 	target_compile_definitions(${test_target} PRIVATE
 		LIBGS_PERFORMANCE_SCALE=${LIBGS_PERFORMANCE_SCALE}
 	)
@@ -168,16 +172,15 @@ if (LIBGS_BUILD_FUZZERS)
 	)
 else ()
 	add_subdirectory(functional)
+
 	if (LIBGS_BUILD_STRESS_TESTS)
 		add_subdirectory(stress)
 	endif ()
+
 	if (LIBGS_BUILD_PERFORMANCE_TESTS)
-		if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
-			message(STATUS "${PRO_NAME}: Performance tests disabled in sanitizer builds.")
-		else ()
-			add_subdirectory(performance)
-		endif ()
+		add_subdirectory(performance)
 	endif ()
+
 	if (NOT LIBGS_BUILD_STRESS_TESTS AND NOT LIBGS_BUILD_PERFORMANCE_TESTS)
 		message(STATUS
 			"${PRO_NAME}: Enable LIBGS_BUILD_STRESS_TESTS or "

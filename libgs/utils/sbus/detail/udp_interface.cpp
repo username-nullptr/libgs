@@ -19,6 +19,8 @@ constexpr uint8_t g_version = 2;
 constexpr size_t g_header_size = 48;
 constexpr size_t g_datagram_size = 60 * 1'024;
 
+// config_t is fixed-size and copied without allocation or system calls.  Its
+// critical section is short enough to justify the low-latency spin policy.
 spin_shared_mutex g_config_mutex {};
 udp_interface::config_t g_config {};
 
@@ -51,7 +53,7 @@ int g_process_anchor = 0;
 	constexpr auto max_socket_buffer = static_cast<size_t>(
 		std::numeric_limits<int>::max()
 	);
-	if( not valid_range(config.sand_range) or
+	if( not valid_range(config.send_range) or
 		not valid_range(config.recv_range) or
 		not asio::ip::address_v4(config.multicast_group).is_multicast() or
 		config.multicast_port == 0 or
@@ -176,7 +178,7 @@ public:
 		const auto count = fragment_count(size, capacity);
 
 		const auto message_id = m_message_sequence.fetch_add(1, std::memory_order_relaxed);
-		const auto packet_range = config.sand_range;
+		const auto packet_range = config.send_range;
 
 		const auto publisher_token = process_token();
 		const auto *payload = static_cast<const std::byte*>(buffer);
@@ -426,7 +428,7 @@ public:
 
 	uint64_t subscribe(std::string_view topic, topic_callback_t callback)
 	{
-		spin_shared_unique_lock lock(m_subscribers_mutex);
+		std::unique_lock lock(m_subscribers_mutex);
 		const auto sid = m_sid_sequence++;
 
 		m_topic_subscribers[std::string(topic)].emplace(sid, std::move(callback));
@@ -436,7 +438,7 @@ public:
 
 	uint64_t subscribe(global_callback_t callback)
 	{
-		spin_shared_unique_lock lock(m_subscribers_mutex);
+		std::unique_lock lock(m_subscribers_mutex);
 		const auto sid = m_sid_sequence++;
 
 		m_global_subscribers.emplace(sid, std::move(callback));
@@ -445,7 +447,7 @@ public:
 
 	void cancel_topic(std::string_view topic)
 	{
-		spin_shared_unique_lock lock(m_subscribers_mutex);
+		std::unique_lock lock(m_subscribers_mutex);
 		if( auto position = m_topic_subscribers.find(topic);
 			position != m_topic_subscribers.end() )
 		{
@@ -460,7 +462,7 @@ public:
 
 	void cancel_sid(uint64_t sid)
 	{
-		spin_shared_unique_lock lock(m_subscribers_mutex);
+		std::unique_lock lock(m_subscribers_mutex);
 		if( m_global_subscribers.erase(sid) > 0 )
 			return ;
 
@@ -480,7 +482,7 @@ public:
 
 	void cancel()
 	{
-		spin_shared_unique_lock lock(m_subscribers_mutex);
+		std::unique_lock lock(m_subscribers_mutex);
 		m_topic_subscribers.clear();
 		m_topics_by_sid.clear();
 		m_global_subscribers.clear();
@@ -673,7 +675,7 @@ private:
 
 	[[nodiscard]] bool has_subscribers(std::string_view topic)
 	{
-		spin_shared_shared_lock lock(m_subscribers_mutex);
+		std::shared_lock lock(m_subscribers_mutex);
 		return not m_global_subscribers.empty() or m_topic_subscribers.contains(topic);
 	}
 
@@ -880,7 +882,7 @@ private:
 		std::vector<global_callback_t> global_callbacks;
 		std::vector<topic_callback_t> topic_callbacks;
 		{
-			spin_shared_shared_lock lock(m_subscribers_mutex);
+			std::shared_lock lock(m_subscribers_mutex);
 			global_callbacks.reserve(m_global_subscribers.size());
 
 			for(const auto &[sid, callback] : m_global_subscribers)
@@ -992,7 +994,8 @@ private:
 	std::thread m_delivery_thread {};
 
 	std::atomic_bool m_stopped {false};
-	spin_shared_mutex m_subscribers_mutex {};
+	// Delivery copies callback vectors and subscription updates allocate maps.
+	shared_mutex m_subscribers_mutex {};
 
 	std::mutex m_delivery_mutex {};
 	std::condition_variable m_delivery_condition {};
@@ -1051,7 +1054,7 @@ void udp_interface::set_config(config_t config)
 
 udp_interface::config_t udp_interface::config() noexcept
 {
-	spin_shared_shared_lock lock(g_config_mutex);
+	spin_shared_lock lock(g_config_mutex);
 	return g_config;
 }
 

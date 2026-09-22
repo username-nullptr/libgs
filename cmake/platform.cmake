@@ -1,24 +1,89 @@
 # SPDX-FileCopyrightText: 2025-2026 Xiaoqiang <username_nullptr@163.com>
 # SPDX-License-Identifier: MIT
 
+option(LIBGS_USE_LIBCXX
+	"-- ${PRO_NAME}: Use clang libcxx." OFF
+)
+option(LIBGS_USE_LLD
+	"-- ${PRO_NAME}: Use clang lld." OFF
+)
+option(LIBGS_ENABLE_LTO
+	"-- ${PRO_NAME}: Use gnu-lto." OFF
+)
+if (LIBGS_USE_LIBCXX AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	message(FATAL_ERROR
+		"${PRO_NAME}: LIBGS_USE_LIBCXX requires the Clang compiler."
+	)
+endif ()
+
+if (LIBGS_USE_LLD AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	message(FATAL_ERROR
+		"${PRO_NAME}: LIBGS_USE_LLD requires the Clang compiler."
+	)
+endif ()
+
+if (LIBGS_ENABLE_LTO AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	message(FATAL_ERROR
+		"${PRO_NAME}: LIBGS_ENABLE_LTO requires the GNU compiler."
+	)
+endif ()
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	if (CMAKE_CXX_COMPILER_VERSION LESS 17)
 		message(FATAL_ERROR "The minimum version of 'Clang' required is 17.")
 	endif ()
 	add_compile_options(-Wall)
 
-	option(LIBGS_USE_LIBCXX
-		"-- ${PRO_NAME}: Use clang libcxx." OFF
-	)
+	if (LIBGS_USE_LIBCXX OR LIBGS_USE_LLD)
+		include(CheckCXXSourceCompiles)
+
+		set(libgs_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+		set(libgs_saved_required_link_options "${CMAKE_REQUIRED_LINK_OPTIONS}")
+
+		set(libgs_clang_required_flags)
+		set(libgs_clang_required_link_options)
+
+		if (LIBGS_USE_LIBCXX)
+			list(APPEND libgs_clang_required_flags -stdlib=libc++)
+			list(APPEND libgs_clang_required_link_options -stdlib=libc++)
+		endif ()
+
+		if (LIBGS_USE_LLD)
+			list(APPEND libgs_clang_required_link_options -fuse-ld=lld)
+		endif ()
+
+		string(JOIN " " libgs_clang_required_flags_string
+			${libgs_clang_required_flags}
+		)
+		set(CMAKE_REQUIRED_FLAGS
+			"${libgs_saved_required_flags} ${libgs_clang_required_flags_string}"
+		)
+		set(CMAKE_REQUIRED_LINK_OPTIONS
+			${libgs_saved_required_link_options}
+			${libgs_clang_required_link_options}
+		)
+		unset(LIBGS_CLANG_TOOLCHAIN_OPTIONS_AVAILABLE CACHE)
+
+		check_cxx_source_compiles (
+			"#include <string>\nint main() { std::string value; return value.size(); }"
+			LIBGS_CLANG_TOOLCHAIN_OPTIONS_AVAILABLE
+		)
+		set(CMAKE_REQUIRED_FLAGS "${libgs_saved_required_flags}")
+		set(CMAKE_REQUIRED_LINK_OPTIONS ${libgs_saved_required_link_options})
+
+		if (NOT LIBGS_CLANG_TOOLCHAIN_OPTIONS_AVAILABLE)
+			message(FATAL_ERROR
+				"${PRO_NAME}: Requested Clang runtime/linker options are unavailable."
+			)
+		endif ()
+	endif ()
+
 	if (LIBGS_USE_LIBCXX)
 		message(STATUS "${PRO_NAME}: Use clang libcxx.")
 		add_compile_options(-stdlib=libc++)
 		add_link_options(-stdlib=libc++)
 	endif ()
 
-	option(LIBGS_USE_LLD
-		"-- ${PRO_NAME}: Use clang lld." OFF
-	)
 	if (LIBGS_USE_LLD)
 		message(STATUS "${PRO_NAME}: Use clang lld.")
 		set(CMAKE_EXE_LINKER_FLAGS -fuse-ld=lld)
@@ -30,10 +95,18 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	endif ()
 	add_compile_options(-Wall)
 
-	option(LIBGS_ENABLE_LTO
-		"-- ${PRO_NAME}: Use gnu-lto." OFF
-	)
 	if (LIBGS_ENABLE_LTO)
+		include(CheckIPOSupported)
+
+		check_ipo_supported(RESULT libgs_lto_available
+			OUTPUT libgs_lto_error LANGUAGES CXX
+		)
+		if (NOT libgs_lto_available)
+			message(FATAL_ERROR
+				"${PRO_NAME}: GNU LTO is unavailable: ${libgs_lto_error}"
+			)
+		endif ()
+
 		message(STATUS "${PRO_NAME}: Use gnu-lto.")
 		add_compile_options(-flto)
 	endif ()

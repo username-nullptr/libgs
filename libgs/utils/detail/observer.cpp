@@ -12,9 +12,9 @@ observer::map_t &observer::map() noexcept
 	return map;
 }
 
-spin_mutex &observer::mutex() noexcept
+shared_mutex &observer::mutex() noexcept
 {
-	static spin_mutex mutex;
+	static shared_mutex mutex;
 	return mutex;
 }
 

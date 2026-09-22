@@ -61,23 +61,26 @@ struct LIBGS_DECL_HIDDEN no_deleter {
 using settings_ptr = std::unique_ptr<settings, no_deleter>;
 
 static std::map<std::string, settings_ptr> g_instances;
-static spin_shared_mutex g_instances_lock;
+static shared_mutex g_instances_lock;
 
 settings &settings::instance(std::string_view name, bool create)
 {
 	std::string _name(name.data(), name.size());
-	spin_shared_unique_lock locker(g_instances_lock);
-
-	if( auto it = g_instances.find(_name); it != g_instances.end() )
-		return *it->second;
-
-	else if( create )
 	{
+		std::shared_lock locker(g_instances_lock);
+		if( auto it = g_instances.find(_name); it != g_instances.end() )
+			return *it->second;
+	}
+	if( create )
+	{
+		std::unique_lock locker(g_instances_lock);
+		if( auto it = g_instances.find(_name); it != g_instances.end() )
+			return *it->second;
+
 		settings_ptr object(new settings(_name), no_deleter());
-		it = g_instances.emplace(std::move(_name), std::move(object)).first;
+		auto it = g_instances.emplace(std::move(_name), std::move(object)).first;
 		return *it->second;
 	}
-	locker.unlock();
 
 	runtime_error::loc_throw(std::format (
 		"libgs::utils::settings::instance: Instance '{}' does not exist.", name
@@ -91,14 +94,14 @@ settings &settings::instance()
 }
 
 static std::map<std::filesystem::path, const settings*> g_file_paths;
-static spin_mutex g_file_paths_lock;
+static std::mutex g_file_paths_lock;
 
 error_code settings::impl::claim_file(const settings *owner, const path_t &file_name) noexcept
 {
 	if( file_name.empty() )
 		return {};
 	try {
-		spin_unique_lock locker(g_file_paths_lock);
+		std::unique_lock locker(g_file_paths_lock);
 
 		if( auto [it, inserted] = g_file_paths.emplace(file_name, owner);
 			not inserted and it->second != owner )
@@ -113,7 +116,7 @@ error_code settings::impl::claim_file(const settings *owner, const path_t &file_
 std::shared_ptr<settings::ini_t> settings::impl::snapshot_ini
 (const path_t &file_name, bool replace_file_name, bool copy_data)
 {
-	spin_shared_shared_lock locker(m_ini_lock);
+	std::shared_lock locker(m_ini_lock);
 	LIBGS_UNUSED(locker);
 
 	const auto path = replace_file_name ?
@@ -127,8 +130,11 @@ std::shared_ptr<settings::ini_t> settings::impl::snapshot_ini
 
 void settings::impl::adopt_ini(ini_t &&source, bool merge_data)
 {
-	spin_shared_unique_lock locker(m_ini_lock);
-	auto source_data = merge_data ? source.data() : ini_t::data_t{};
+	std::unique_lock locker(m_ini_lock);
+	LIBGS_UNUSED(locker);
+
+	auto source_data = merge_data ?
+		source.data() : ini_t::data_t{};
 
 	if( m_ini.file_name() == source.file_name() )
 	{
@@ -160,7 +166,9 @@ sys_expected<> settings::impl::load_sync
 	if( not error )
 	{
 		try {
-			spin_shared_unique_lock locker(m_ini_lock);
+			std::unique_lock locker(m_ini_lock);
+			LIBGS_UNUSED(locker);
+
 			if( ignore_missing )
 			{
 				if( replace_file_name )
@@ -190,7 +198,9 @@ sys_expected<> settings::impl::sync_sync
 	if( not error )
 	{
 		try {
-			spin_shared_unique_lock locker(m_ini_lock);
+			std::unique_lock locker(m_ini_lock);
+			LIBGS_UNUSED(locker);
+
 			if( replace_file_name )
 				m_ini.sync(file_name, error);
 			else
@@ -422,7 +432,7 @@ void settings::impl::start_sync_impl
 std::vector<std::string> settings::names() noexcept
 {
 	std::vector<std::string> names;
-	spin_shared_shared_lock locker(g_instances_lock);
+	std::shared_lock locker(g_instances_lock); LIBGS_UNUSED(locker);
 
 	names.reserve(g_instances.size());
 	for(auto &key : g_instances | std::views::keys)
@@ -432,13 +442,13 @@ std::vector<std::string> settings::names() noexcept
 
 std::filesystem::path settings::file_name() const noexcept
 {
-	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
+	std::shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
 	return m_impl->m_ini.file_name();
 }
 
 optional<value> settings::get(const group_key_t &gk)
 {
-	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
+	std::shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
 	return m_impl->m_ini.read(gk);
 }
 

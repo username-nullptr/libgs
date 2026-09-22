@@ -155,7 +155,10 @@ class LIBGS_HTTP_TAPI basic_response<Exec>::impl :
 		std::unordered_map<std::filesystem::path,entry> m_entries {};
 		order_list m_order {};
 		size_t m_total_size = 0;
-		mutable spin_shared_mutex m_mutex {};
+
+		// Cache fills and eviction allocate, release payloads and may walk the
+		// LRU list, while lookups benefit from concurrent readers.
+		mutable shared_mutex m_mutex {};
 	};
 
 public:
@@ -1966,7 +1969,8 @@ template <core_concepts::exec Exec>
 basic_response<Exec>&
 basic_response<Exec>::set_auto_compression(bool enabled) noexcept
 {
-	m_impl->m_auto_compression = gzip_available_v and enabled;
+	if constexpr( gzip_available_v )
+		m_impl->m_auto_compression = enabled;
 	return *this;
 }
 

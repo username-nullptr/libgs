@@ -22,7 +22,7 @@ public:
 	};
 	struct config_t
 	{
-		msg_range sand_range = msg_range::process;
+		msg_range send_range = msg_range::process;
 		msg_range recv_range = msg_range::process;
 
 		std::array<unsigned char,4> multicast_group {239,255,71,83};

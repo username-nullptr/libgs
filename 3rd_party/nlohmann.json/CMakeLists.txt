@@ -1,1 +1,1 @@
-install(DIRECTORY nlohmann DESTINATION include)
+install(DIRECTORY nlohmann DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

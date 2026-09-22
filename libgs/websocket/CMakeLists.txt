@@ -12,10 +12,6 @@ if (LIBGS_HTTP_ZLIB_SUPPORT)
 	message(STATUS
 		"${PRO_NAME}: WebSocket inherits z-lib support from the HTTP module."
 	)
-else ()
-	option(LIBGS_WEBSOCKET_ZLIB_SUPPORT
-		"-- ${PRO_NAME}: WebSocket permessage-deflate support." OFF
-	)
 endif ()
 
 if (LIBGS_WEBSOCKET_ZLIB_SUPPORT)
@@ -40,7 +36,7 @@ include_directories(${LIBGS_WEBSOCKET_CONFIG_INCLUDE})
 
 install(FILES
 	${LIBGS_WEBSOCKET_CONFIG_INCLUDE}/libgs/websocket/cxx/configs.h
-	DESTINATION include/libgs/websocket/cxx
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libgs/websocket/cxx
 )
 if (WIN32)
 	target_link_libraries(${target_name} PRIVATE bcrypt)

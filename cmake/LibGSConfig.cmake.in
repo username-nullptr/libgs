@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+if (@LIBGS_OPENSSL_SUPPORT@)
+	find_dependency(OpenSSL)
+endif ()
+
+if (@LIBGS_PACKAGE_NEEDS_ZLIB@)
+	find_dependency(ZLIB)
+endif ()
+
+if (@LIBGS_IO_URING_SUPPORT@)
+	find_path(LibGS_LIBURING_INCLUDE_DIR NAMES liburing.h)
+	find_library(LibGS_LIBURING_LIBRARY NAMES uring)
+
+	if (NOT LibGS_LIBURING_INCLUDE_DIR OR NOT LibGS_LIBURING_LIBRARY)
+		set(LibGS_FOUND FALSE)
+		set(LibGS_NOT_FOUND_MESSAGE
+			"LibGS was built with io_uring support, but liburing was not found."
+		)
+		return()
+	endif ()
+
+	if (NOT TARGET LibGS::uring)
+		add_library(LibGS::uring UNKNOWN IMPORTED)
+		set_target_properties(LibGS::uring PROPERTIES
+			IMPORTED_LOCATION "${LibGS_LIBURING_LIBRARY}"
+			INTERFACE_INCLUDE_DIRECTORIES "${LibGS_LIBURING_INCLUDE_DIR}"
+		)
+	endif ()
+endif ()
+
+include("${CMAKE_CURRENT_LIST_DIR}/LibGSTargets.cmake")
+
+set(LibGS_VERSION "@PROJECT_VERSION@")
+
+set(LibGS_core_FOUND TRUE)
+set(LibGS_coro_FOUND @LIBGS_BUILD_CORO@)
+
+set(LibGS_http_FOUND @LIBGS_BUILD_HTTP@)
+set(LibGS_websocket_FOUND @LIBGS_BUILD_WEBSOCKET@)
+
+set(LibGS_utils_FOUND @LIBGS_BUILD_UTILITIES@)
+
+set(_libgs_missing_components)
+
+foreach(_libgs_component IN LISTS LibGS_FIND_COMPONENTS)
+	if (NOT DEFINED LibGS_${_libgs_component}_FOUND)
+		set(LibGS_${_libgs_component}_FOUND FALSE)
+	endif ()
+
+	if (NOT LibGS_${_libgs_component}_FOUND AND
+		LibGS_FIND_REQUIRED_${_libgs_component})
+		list(APPEND _libgs_missing_components ${_libgs_component})
+	endif ()
+endforeach()
+
+if (_libgs_missing_components)
+	list(JOIN _libgs_missing_components ", " _libgs_missing_components_text)
+	set(LibGS_NOT_FOUND_MESSAGE
+		"Required LibGS components are unavailable: ${_libgs_missing_components_text}"
+	)
+endif ()
+
+# Preserve the source-tree target names for consumers that already use them.
+foreach(_libgs_component core coro http websocket utils)
+	if (TARGET LibGS::${_libgs_component} AND NOT TARGET gs.${_libgs_component})
+		add_library(gs.${_libgs_component} INTERFACE IMPORTED)
+		set_property(TARGET gs.${_libgs_component} PROPERTY
+			INTERFACE_LINK_LIBRARIES LibGS::${_libgs_component}
+		)
+	endif ()
+endforeach()
+
+check_required_components(LibGS)
+
+unset(_libgs_component)
+unset(_libgs_missing_components)
+unset(_libgs_missing_components_text)

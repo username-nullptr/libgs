@@ -5,13 +5,14 @@
 #define LIBGS_CORE_H
 
 #include <libgs/core/utils/flags.h>
-#include <libgs/core/algorithm.h>
-#include <libgs/core/system.h>
-#include <libgs/core/args_parser.h>
+#include <libgs/core/atomic_mutex.h>
 #include <libgs/core/shared_mutex.h>
+#include <libgs/core/args_parser.h>
 #include <libgs/core/string_list.h>
 #include <libgs/core/container.h>
-#include <libgs/core/url.h>
+#include <libgs/core/algorithm.h>
+#include <libgs/core/system.h>
 #include <libgs/core/ini.h>
+#include <libgs/core/url.h>
 
 #endif //LIBGS_CORE_H

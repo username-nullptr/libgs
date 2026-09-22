@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 #include "local_interface.h"
+
 #include <libgs/core/lock_free_queue.h>
+#include <libgs/core/shared_mutex.h>
+
 #include <libgs/utils/signal_slot.h>
 #include <libgs/utils/logger.h>
-#include <unordered_set>
 
 namespace libgs::utils::sbus { namespace detail
 {

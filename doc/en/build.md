@@ -2,10 +2,10 @@
 
 Language: English | [简体中文](../zh_CN/build.md)
 
-This page is the reference for build inputs and consuming LibGS. The
-[quick start](getting-started.md) is the shorter path for a first build.
+This page is the single reference for build requirements, CMake switches,
+outputs, installation, and supported integration boundaries.
 
-## Toolchain and dependencies
+## Requirements
 
 | Component | Requirement |
 | --- | --- |
@@ -13,71 +13,33 @@ This page is the reference for build inputs and consuming LibGS. The
 | Language | C++20 |
 | GCC | 13 or newer |
 | Clang | 17 or newer |
-| MSVC | 19.30 or newer / Visual Studio 2022+ |
+| MSVC | 19.30 or newer (Visual Studio 2022+) |
 
-Standalone Asio, spdlog, and nlohmann/json are included under `3rd_party/`.
-The following system packages are needed only when the matching feature is
-enabled:
-
-| Dependency | Feature |
-| --- | --- |
-| OpenSSL | TLS connections, HTTPS, and WSS |
-| zlib | HTTP gzip and WebSocket `permessage-deflate` |
-| liburing | Asio io_uring backend on Linux |
+Standalone Asio, spdlog, and nlohmann/json are bundled. OpenSSL, zlib, and
+liburing are optional system dependencies used only when their features are
+enabled.
 
 ## Module selection
 
-| CMake switch | Default | Target | Requirement |
+| Switch | Default | Target | Dependency |
 | --- | :---: | --- | --- |
-| Core is always built | ON | `gs.core` | — |
+| Core (always built) | ON | `gs.core` | — |
 | `LIBGS_BUILD_CORO` | ON | `gs.coro` | Core |
-| `LIBGS_BUILD_HTTP` | OFF | `gs.http` | Coroutines must be ON |
-| `LIBGS_BUILD_WEBSOCKET` | OFF | `gs.websocket` | HTTP must be ON |
-| `LIBGS_BUILD_UTILITIES` | OFF | `gs.utils` | Coroutines must be ON |
+| `LIBGS_BUILD_HTTP` | OFF | `gs.http` | Coroutines |
+| `LIBGS_BUILD_WEBSOCKET` | OFF | `gs.websocket` | HTTP |
+| `LIBGS_BUILD_UTILITIES` | OFF | `gs.utils` | Coroutines |
 
-CMake rejects a configuration that enables a module while disabling its
-required lower-level module. Module targets publish their dependencies, so a
-source-tree consumer links only the highest module it uses.
+CMake rejects an enabled module whose dependency is disabled. Targets expose
+their dependencies publicly, so consumers link only the highest module they use.
 
-## Feature and toolchain switches
-
-| CMake switch | Default | Availability | Effect |
-| --- | :---: | --- | --- |
-| `LIBGS_BUILD_STATIC` | OFF* | all platforms | Build static rather than shared libraries |
-| `LIBGS_ADD_LIBRARY_VERSION` | ON | shared builds | Add version information to shared-library names |
-| `LIBGS_OPENSSL_SUPPORT` | OFF | OpenSSL | Enable TLS connection types, HTTPS, and WSS |
-| `LIBGS_HTTP_ZLIB_SUPPORT` | OFF | HTTP + zlib | Enable HTTP gzip; WebSocket inherits zlib support |
-| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | OFF | WebSocket + zlib | Enable only WebSocket `permessage-deflate` |
-| `LIBGS_BUILD_UTILITIES_SBUS_UDP` | ON | Utilities | Enable the Asio UDP multicast soft-bus interface |
-| `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` | `local` | Utilities | Select `local` or `udp` for the unqualified soft-bus API |
-| `LIBGS_IO_URING_SUPPORT` | OFF | Linux + liburing | Use Asio's io_uring backend and disable epoll |
-| `LIBGS_USE_LIBCXX` | OFF | Clang | Compile and link with libc++ |
-| `LIBGS_USE_LLD` | OFF | Clang | Link with lld |
-| `LIBGS_ENABLE_LTO` | OFF | GCC | Enable link-time optimization |
-| `LIBGS_BUILD_EXAMPLES` | OFF | enabled modules | Build the repository examples |
-| `LIBGS_HEAVY_COMPILE_JOBS` | platform default | supported build generators | Limit concurrent HTTP/WebSocket compilations; `0` disables the limit |
-| `LIBGS_LOW_MEMORY_DEBUG_INFO` | OFF | GCC | Reduce debug information for lower compiler memory use |
-
-`LIBGS_WEBSOCKET_ZLIB_SUPPORT` is exposed only when WebSocket is enabled and
-HTTP zlib is disabled. Define features through CMake; do not define generated
-configuration macros in application code.
-
-*A Windows GNU toolchain without a shared `libstdc++-6.dll` defaults to a static
-build. Requesting a shared build with that toolchain is rejected.*
-
-Test, stress, fuzz, performance, and sanitizer switches are kept in the
-[test guide](../../test/README.md).
-
-## Common configurations
-
-Default Core and Coroutines build:
+Default build:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-All modules and examples, without optional system dependencies:
+All modules and examples:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -88,53 +50,68 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ```
 
-HTTP, WebSocket, TLS, and compression:
+## Feature switches
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-  -DLIBGS_BUILD_HTTP=ON \
-  -DLIBGS_BUILD_WEBSOCKET=ON \
-  -DLIBGS_OPENSSL_SUPPORT=ON \
-  -DLIBGS_HTTP_ZLIB_SUPPORT=ON
-cmake --build build --parallel
-```
+| Switch | Default | Effect |
+| --- | :---: | --- |
+| `LIBGS_BUILD_STATIC` | OFF* | Build static instead of shared libraries |
+| `LIBGS_ADD_LIBRARY_VERSION` | ON | Add version metadata to shared libraries |
+| `LIBGS_OPENSSL_SUPPORT` | OFF | Enable TLS, HTTPS, and WSS; requires OpenSSL |
+| `LIBGS_HTTP_ZLIB_SUPPORT` | OFF | Enable HTTP gzip; requires zlib |
+| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | OFF | Enable WebSocket `permessage-deflate`; requires zlib |
+| `LIBGS_BUILD_UTILITIES_SBUS_UDP` | ON | Build the UDP soft-bus transport |
+| `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` | `local` | Select `local` or `udp` for unqualified soft-bus APIs |
+| `LIBGS_IO_URING_SUPPORT` | OFF | Use Asio io_uring on Linux; requires liburing |
+| `LIBGS_BUILD_EXAMPLES` | OFF | Build examples for enabled modules |
 
-For Visual Studio and other multi-config generators, select the configuration
-when building and installing:
+HTTP zlib automatically enables WebSocket zlib when WebSocket is built. The
+standalone WebSocket switch is offered only when HTTP zlib is off.
 
-```sh
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX=C:/libgs
-cmake --build build --config Release --parallel
-cmake --install build --config Release
-```
+*On Windows with a GNU toolchain, the default changes to static if a shared
+`libstdc++-6.dll` cannot be found.*
 
-## Build output and installation
+Toolchain controls:
 
-Build-tree artifacts are placed under:
+| Switch | Applies to | Effect |
+| --- | --- | --- |
+| `LIBGS_USE_LIBCXX` | Clang | Compile and link with libc++ |
+| `LIBGS_USE_LLD` | Clang | Link with lld |
+| `LIBGS_ENABLE_LTO` | GCC | Enable LTO |
+| `LIBGS_HEAVY_COMPILE_JOBS` | Tests/examples | Limit concurrent HTTP/WebSocket compilations; `0` disables the limit |
+| `LIBGS_LOW_MEMORY_DEBUG_INFO` | GCC Debug builds | Use `-g1` to reduce compiler memory |
 
-| Artifact | Directory |
+Test-only switches are documented in [Tests](../../test/README.md).
+
+## Output and installation
+
+Single-config builds write:
+
+| Output | Path |
 | --- | --- |
-| Shared libraries and runtime binaries | `build/output/bin` |
-| Static/import libraries | `build/output/lib` |
+| Shared libraries and executables | `build/output/bin` |
+| Static and import libraries | `build/output/lib` |
 | Examples | `build/output/examples/<module>` |
 | Generated configuration headers | `build/output/config_include` |
 
-Install with an explicit prefix when the default system prefix is not desired:
+Multi-config generators may add a configuration directory.
 
 ```sh
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/path/to/libgs-install
 cmake --build build --parallel
 cmake --install build
 ```
 
-The install tree contains public headers, the libraries for enabled modules,
-and examples when `LIBGS_BUILD_EXAMPLES=ON`.
+Visual Studio and other multi-config generators require `--config Release` on
+build and install commands.
 
 ## Consume the source tree
 
 ```cmake
+cmake_minimum_required(VERSION 3.15)
+project(my_app LANGUAGES CXX)
+
+set(LIBGS_BUILD_HTTP ON CACHE BOOL "")
 add_subdirectory(path/to/libgs)
 
 add_executable(my_app main.cpp)
@@ -142,29 +119,36 @@ target_compile_features(my_app PRIVATE cxx_std_20)
 target_link_libraries(my_app PRIVATE gs.http)
 ```
 
-Set LibGS options before `add_subdirectory`; the example above requires
-`LIBGS_BUILD_HTTP=ON` in the containing build.
+Set LibGS options before `add_subdirectory()`. Bundled headers and transitive
+module/system dependencies are supplied by the linked target.
 
 ## Consume an install tree
 
-The install tree does not include a CMake package configuration. Locate the
-headers and each required library explicitly:
+Add the install prefix to `CMAKE_PREFIX_PATH`, then load the installed package
+and link the highest-level module the application uses:
 
 ```cmake
-find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
-find_library(LIBGS_CORE_LIBRARY NAMES gs.core REQUIRED)
-find_library(LIBGS_CORO_LIBRARY NAMES gs.coro REQUIRED)
-find_library(LIBGS_HTTP_LIBRARY NAMES gs.http REQUIRED)
+find_package(LibGS 0.16 CONFIG REQUIRED COMPONENTS http)
 
 add_executable(my_app main.cpp)
-target_compile_features(my_app PRIVATE cxx_std_20)
-target_include_directories(my_app PRIVATE "${LIBGS_INCLUDE_DIR}")
-target_link_libraries(my_app PRIVATE
-  "${LIBGS_HTTP_LIBRARY}"
-  "${LIBGS_CORO_LIBRARY}"
-  "${LIBGS_CORE_LIBRARY}"
-)
+target_link_libraries(my_app PRIVATE LibGS::http)
 ```
 
-Supply optional system libraries required by the selected LibGS feature set as
-part of the consuming application's link configuration.
+For example, configure the consuming project with
+`-DCMAKE_PREFIX_PATH=/path/to/libgs-install`. Available component names and
+imported targets are `core`, `coro`, `http`, `websocket`, and `utils`. A
+requested component must have been enabled when LibGS was built. The package
+also provides the legacy target names (`gs.core`, `gs.coro`, and so on) for
+source-tree compatibility and restores required optional system dependencies.
+
+## Supported boundaries
+
+- LibGS is built as shared or static libraries; it is not header-only.
+- Source and install trees both support target-based CMake integration.
+- The runtime is Asio: use the process-wide default context or an
+  application-owned Asio executor.
+- TLS requires an application-configured OpenSSL context. LibGS does not own
+  certificate policy.
+- HTTP supports 1.0 and 1.1, not HTTP/2 or HTTP/3.
+- WebSocket implements RFC 6455 over HTTP/1.1.
+- Public APIs are pre-1.0 and may change between releases.

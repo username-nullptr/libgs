@@ -275,12 +275,13 @@ struct LIBGS_DECL_HIDDEN no_deleter {
 using logger_ptr = std::unique_ptr<logger, no_deleter>;
 
 static std::map<std::string, logger_ptr, std::less<>> g_instances;
-static spin_shared_mutex g_instances_lock;
+// Logger creation clones and configures spdlog sinks; names() also allocates.
+static shared_mutex g_instances_lock;
 
 std::vector<std::string> logger::names() noexcept
 {
 	std::vector<std::string> names {};
-	spin_shared_shared_lock locker(g_instances_lock);
+	std::shared_lock locker(g_instances_lock);
 
 	names.reserve(g_instances.size());
 	for(auto &pair : g_instances)
@@ -299,7 +300,7 @@ logger &logger::instance(std::string_view name, bool create)
 	if( cache.object and cache.name == name )
 		return *cache.object;
 	{
-		spin_shared_shared_lock locker(g_instances_lock);
+		std::shared_lock locker(g_instances_lock);
 		if( auto it = g_instances.find(name); it != g_instances.end() )
 		{
 			cache = {it->first, it->second.get()};
@@ -308,7 +309,7 @@ logger &logger::instance(std::string_view name, bool create)
 	}
 	if( create )
 	{
-		spin_shared_unique_lock locker(g_instances_lock);
+		std::unique_lock locker(g_instances_lock);
 		if( auto it = g_instances.find(name); it != g_instances.end() )
 		{
 			cache = {it->first, it->second.get()};
