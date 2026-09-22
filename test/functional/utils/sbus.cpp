@@ -229,11 +229,11 @@ void udp_delivery_fragmentation_and_cancellation()
 	constexpr std::string_view topic = "libgs.test.sbus.udp";
 	const auto default_config = udp_interface::config();
 	LIBGS_TEST_CHECK(default_config == udp_interface::config_t {});
-	LIBGS_TEST_CHECK_EQ(default_config.sand_range, msg_range::process);
+	LIBGS_TEST_CHECK_EQ(default_config.send_range, msg_range::process);
 	LIBGS_TEST_CHECK_EQ(default_config.recv_range, msg_range::process);
 
 	auto invalid_config = default_config;
-	invalid_config.sand_range = static_cast<msg_range>(255);
+	invalid_config.send_range = static_cast<msg_range>(255);
 	LIBGS_TEST_CHECK_THROWS(
 		udp_interface::set_config(invalid_config), libgs::invalid_argument
 	);
@@ -334,7 +334,7 @@ void udp_delivery_fragmentation_and_cancellation()
 	LIBGS_TEST_CHECK(initial_statistics.delivered_messages >= 1);
 
 	auto config = default_config;
-	config.sand_range = msg_range::lan;
+	config.send_range = msg_range::lan;
 	udp_interface::set_config(config);
 	libgs::utils::sbus::publish<udp_interface>(
 		topic, uint32_t {0x12345678U}
@@ -356,7 +356,7 @@ void udp_delivery_fragmentation_and_cancellation()
 	LIBGS_TEST_CHECK_EQ(topic_received.load(), 1U);
 	LIBGS_TEST_CHECK_EQ(global_received.load(), 1U);
 
-	config.sand_range = msg_range::internet;
+	config.send_range = msg_range::internet;
 	udp_interface::set_config(config);
 	libgs::utils::sbus::publish<udp_interface>(
 		topic, uint32_t {0x12345678U}
