@@ -1,31 +1,11 @@
 # LibGS Examples
 
-The examples are small, buildable programs grouped by public module. Use this
-page for build and naming conventions, then open the module guide for program
-arguments and runnable combinations.
-
-## Module guides
-
-| Module | Target dependency | Guide | Scope |
-| --- | --- | --- | --- |
-| Core | `gs.core` | [Core examples](core/README.md) | Runtime, values, files, algorithms, queues, application paths, arguments, and dynamic libraries |
-| Coroutines | `gs.coro` | [Coroutine examples](coro/README.md) | Awaitable execution and synchronization |
-| HTTP | `gs.http` | [HTTP examples](http/README.md) | Protocol, clients, servers, middleware, sessions, files, proxies, and HTTPS |
-| WebSocket | `gs.websocket` | [WebSocket examples](websocket/README.md) | Protocol, WS/WSS pairs, HTTP Upgrade, recovery, and proxies |
-| Utilities | `gs.utils` | [Utilities examples](utils/README.md) | Logging, settings, signals, observers, modules, processes, and soft bus |
+Examples are small executables grouped by the module they link. This file is
+the single index for build commands, arguments, and programs.
 
 ## Build
 
-`LIBGS_BUILD_EXAMPLES=ON` adds examples only for enabled modules. The default
-module configuration builds Core and Coroutine examples:
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-  -DLIBGS_BUILD_EXAMPLES=ON
-cmake --build build --parallel
-```
-
-Enable every module for the complete non-TLS example set:
+`LIBGS_BUILD_EXAMPLES=ON` builds examples only for enabled modules:
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -36,61 +16,135 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ```
 
-HTTPS and WSS examples additionally require
-`LIBGS_OPENSSL_SUPPORT=ON` and OpenSSL. Compression changes the enabled
-protocol paths but does not add separate example executables.
+Example target names are `libgs.example.<module>.<name>`. Single-config
+executables are written to `build/output/examples/<module>/`; multi-config
+generators may add a configuration directory.
 
-See [Build and configuration](../doc/en/build.md) for every library and
-toolchain switch.
-
-## Targets and output
-
-An example named `<module>/<name>` has:
-
-| Item | Pattern |
-| --- | --- |
-| CMake target | `libgs.example.<module>.<name>` |
-| Single-config executable | `build/output/examples/<module>/<name>` |
-| Install location | `examples/<module>/<name>` |
-
-Multi-config generators may add a configuration directory such as `Release/`.
-The Core dynamic-library example also builds a companion plugin beside its
-executable.
-
-Build one example target:
+Build one program:
 
 ```sh
 cmake --build build --target libgs.example.core.execution
 ```
 
-## Running examples
+## Core
 
-- Offline examples run independently and normally finish immediately.
-- Local network examples bind loopback addresses or connect to loopback by
-  default; start the matching server first.
-- Server and recovery examples keep running until interrupted.
-- File-producing examples accept an output path so the caller controls where
-  data is written.
-- Proxy examples require a separately running HTTP or SOCKS5 proxy.
-- Programs with required arguments print a usage line and exit with status 2
-  when arguments are missing.
+| Program | Purpose | Arguments / side effects |
+| --- | --- | --- |
+| [`algorithms`](core/algorithms.cpp) | MIME, SHA-1, UUID, wildcard matching | None |
+| [`app_paths`](core/app_paths.cpp) | Executable, working, home, absolute paths | None |
+| [`args_parser`](core/args_parser.cpp) | Options, flags, help/version, positional values | `-o/--output`, `-v/--verbose`, `--version`, `-h/--help` |
+| [`dynamic_library`](core/dynamic_library.cpp) | Load a shared library and resolve a symbol | Optional plugin path; defaults to the companion plugin |
+| [`execution`](core/execution.cpp) | Dispatch, post, timers, cancellation, event loop | None; runs about one second |
+| [`ini`](core/ini.cpp) | Load, update, and save INI | Optional path; writes `libgs-example.ini` by default |
+| [`lock_free_queue`](core/lock_free_queue.cpp) | Concurrent producer/consumer queue | None |
+| [`value`](core/value.cpp) | Text/numeric conversion and formatting | None |
 
-Start with:
+`dynamic_library_plugin` is a fixture built beside `dynamic_library`, not a
+standalone example.
+
+## Coroutines
+
+| Program | Purpose |
+| --- | --- |
+| [`basics`](coro/basics.cpp) | Awaitable start, future wait, delay, worker switch |
+| [`mutex`](coro/mutex.cpp) | Coroutine mutex and unique lock |
+| [`shared_mutex`](coro/shared_mutex.cpp) | Shared readers and exclusive writer |
+| [`semaphore`](coro/semaphore.cpp) | Limit concurrent coroutine work |
+| [`condition_variable`](coro/condition_variable.cpp) | Predicate wait and notification |
+
+These programs are self-contained and take no arguments.
+
+## HTTP
+
+Requires `LIBGS_BUILD_HTTP=ON`.
+
+| Program | Purpose | Arguments / default |
+| --- | --- | --- |
+| [`protocol`](http/protocol.cpp) | Offline parser/generator | None |
+| [`client_sync`](http/client_sync.cpp) | Synchronous request/reply/body | `[url]`; local port 8080 |
+| [`client_awaitable`](http/client_awaitable.cpp) | Coroutine request/reply/body | `[url]`; local port 8080 |
+| [`client_cookies`](http/client_cookies.cpp) | Cookie storage and resend | `[base-url]`; local port 8080 |
+| [`client_file`](http/client_file.cpp) | Upload and download | `<upload-file> [download-file] [base-url]` |
+| [`proxy_client`](http/proxy_client.cpp) | HTTP proxy and optional Basic auth | `[target-url] [proxy-url] [user] [password]` |
+| [`server`](http/server.cpp) | Routes, path arguments, cookies, errors | `[port]`; 8080 |
+| [`server_aop`](http/server_aop.cpp) | Middleware and controller handler | `[port]`; 8081 |
+| [`server_file`](http/server_file.cpp) | File response and upload save | `<download-file> [port] [upload-file]`; 8083 |
+| [`server_session`](http/server_session.cpp) | Sessions and session cookies | `[port]`; 8082 |
+| [`https_server`](http/https_server.cpp) | HTTPS server | `<certificate.pem> <private-key.pem> [port]`; 8443 |
+
+`https_server` is built only with `LIBGS_OPENSSL_SUPPORT=ON`.
+
+Basic pair:
 
 ```sh
-./build/output/examples/core/execution
-./build/output/examples/coro/basics
+# Start first
+./build/output/examples/http/server
+
+# Run in another terminal
+./build/output/examples/http/client_sync
 ```
 
-For client/server pairs and exact arguments, use the module guides above.
+File pair:
 
-## Adding an example
+```sh
+./build/output/examples/http/server_file README.md 8083 /tmp/libgs-uploaded.bin
+./build/output/examples/http/client_file \
+  README.md /tmp/libgs-downloaded.md http://127.0.0.1:8083
+```
 
-1. Keep one public concept or one small integration path per executable.
-2. Use loopback endpoints and local files by default; do not require a public
-   service.
-3. Accept environment-specific paths, ports, endpoints, and credentials as
-   arguments.
-4. Register the target in [`examples/CMakeLists.txt`](CMakeLists.txt).
-5. Add the program to its module guide, including side effects and its matching
-   server or client.
+Proxy examples require an external proxy. File paths derived from request data
+must be validated by applications; `resource_root` is not a sandbox.
+
+## WebSocket
+
+Requires `LIBGS_BUILD_WEBSOCKET=ON`.
+
+| Program | Purpose | Arguments / default |
+| --- | --- | --- |
+| [`protocol`](websocket/protocol.cpp) | Offline handshake and frame codecs | None |
+| [`server`](websocket/server.cpp) | Owned echo server | `[port]`; 8080 at `/echo` |
+| [`client`](websocket/client.cpp) | Open, message I/O, close | `[endpoint]`; local echo server |
+| [`retry_open`](websocket/retry_open.cpp) | Application-controlled recovery | `[endpoint]`; local echo server |
+| [`proxy_client`](websocket/proxy_client.cpp) | HTTP/SOCKS5 proxy | `[endpoint] [proxy-url] [user] [password]` |
+| [`mixed_http_server`](websocket/mixed_http_server.cpp) | HTTP route plus Upgrade | `[port]`; 8080 at `/mixed` |
+| [`mixed_http_client`](websocket/mixed_http_client.cpp) | HTTP request then Upgrade | `[http-url] [websocket-url]` |
+| [`wss_server`](websocket/wss_server.cpp) | TLS echo server | `<certificate.pem> <private-key.pem> [port]`; 8443 |
+| [`wss_client`](websocket/wss_client.cpp) | TLS client and trust setup | `[endpoint] [ca-certificate.pem]` |
+
+WSS programs are built only with `LIBGS_OPENSSL_SUPPORT=ON`. Run either pair
+with the server first:
+
+```sh
+./build/output/examples/websocket/server
+./build/output/examples/websocket/client
+
+./build/output/examples/websocket/mixed_http_server
+./build/output/examples/websocket/mixed_http_client
+```
+
+`retry_open` is long-running. Proxy examples require an external proxy. The
+basic and mixed servers both default to port 8080, so do not run them together
+without changing a port.
+
+## Utilities
+
+Requires `LIBGS_BUILD_UTILITIES=ON`.
+
+| Program | Purpose | Arguments / side effects |
+| --- | --- | --- |
+| [`logger`](utils/logger.cpp) | Default and named loggers | Optional directory; writes `./logs` by default |
+| [`settings`](utils/settings.cpp) | Settings, signals, persistence | Optional INI path; writes `libgs-example-settings.ini` by default |
+| [`signal_slot`](utils/signal_slot.cpp) | Function and lambda slots | None |
+| [`observer`](utils/observer.cpp) | ID-addressed callback lifecycle | None |
+| [`modules`](utils/modules) | Dependency graph and ordered initialization | None |
+| [`process`](utils/process.cpp) | Child start, stdout, join, exit code | Runs the platform echo command |
+| [`soft_bus_local`](utils/soft_bus_local.cpp) | In-process publish/subscribe/cache | None |
+| [`soft_bus_udp`](utils/soft_bus_udp.cpp) | UDP multicast transport | Requires UDP transport and local multicast |
+| [`soft_bus_transport`](utils/soft_bus_transport.cpp) | Custom transport boundary | None |
+
+Pass explicit paths to keep generated files outside the source tree:
+
+```sh
+./build/output/examples/utils/logger /tmp/libgs-example-logs
+./build/output/examples/utils/settings /tmp/libgs-example-settings.ini
+```

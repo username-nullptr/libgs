@@ -2,39 +2,46 @@
 
 Language: English | [简体中文](../zh_CN/io-model.md)
 
-LibGS uses the same execution and concurrency model as Asio. Executor-aware
-public types expose `executor_type`, `executor_t`, and `get_executor()`.
+LibGS follows Asio's executor, completion-token, cancellation, and object-safety
+model. Executor-aware types expose `executor_type`/`executor_t` and
+`get_executor()`.
 
-## Completion handlers
+## Runtime and completion
 
-- An asynchronous initiating function does not invoke its completion handler
-  inline. Immediate validation and state errors are posted as completions.
-- `post_completion(exec, handler, args...)` exposes this rule to custom
-  composed operations while retaining the handler's associated immediate
-  executor and allocator, matching `asio::async_immediate`.
-- With the default immediate executor this completion is queued. As in Asio, a
-  token that explicitly customizes its immediate executor may choose stronger
-  immediate-execution behavior.
-- The executor, allocator, and cancellation slot associated with a completion
-  token are propagated. `get_executor()` supplies the fallback executor when a
-  handler has no associated executor.
-- Binding a different executor changes where the user completion runs. It does
-  not make concurrent access to the I/O object safe.
-- Buffers and other borrowed arguments must remain valid until completion,
-  unless an overload explicitly documents that it owns or copies them.
-- Cancellation is asynchronous. Destroying referenced buffers or state before
-  the cancellation completion is still invalid.
+- `libgs::io_context()` and `libgs::get_executor()` expose the process-wide
+  default runtime. `libgs::exec()` runs it; `libgs::exit()` stops it.
+- Most executor-aware APIs also accept an application-owned Asio executor.
+- Asynchronous initiating functions do not invoke their completion handlers
+  inline. Immediate failures are delivered as completions.
+- A token's associated executor, allocator, immediate executor, and cancellation
+  slot are propagated.
+- Binding a handler to an executor changes where completion runs; it does not
+  make the underlying I/O object thread-safe.
+- Cancellation is asynchronous. Borrowed data remains required until the final
+  completion runs.
 
-## Thread safety and strands
+## Ownership
 
-Unless a type explicitly states otherwise, use the standard Asio contract:
+- Buffers, views, references, and pointer targets are borrowed unless an
+  overload explicitly says it copies or owns them.
+- Detached coroutines should capture owned state. Every referenced object must
+  outlive the coroutine.
+- Destroy an I/O object only after its outstanding operations have completed or
+  been cancelled and completed.
+- Objects returned by a parent object can depend on that parent's lifetime; use
+  the declaration and module guide to confirm ownership.
 
-- Distinct objects: safe.
-- Shared objects: unsafe.
+## Concurrency
 
-For a shared logical I/O object, serialize initiating calls and its handlers.
-When an `io_context` has multiple runner threads, use the same strand for the
-object and the coroutines or handlers that access it:
+Unless a type documents a stronger contract:
+
+- Distinct objects may be used concurrently.
+- Shared stateful objects are unsafe.
+- Serialize initiation, handlers, cancellation, close, and destruction for one
+  logical object.
+
+With multiple `io_context::run()` threads, construct the object on a strand and
+run every handler or coroutine that accesses it on the same strand:
 
 ```cpp
 asio::io_context context;
@@ -45,27 +52,24 @@ asio::co_spawn(strand, [&]() -> libgs::awaitable<void>
 {
     auto stream = co_await client.open(
         "ws://127.0.0.1:8080/", libgs::use_awaitable);
-    // All access to client and stream stays on this strand.
+    // Keep later access to client and stream on this strand.
 }, libgs::detached);
 ```
 
-A mutex around initiating calls alone is insufficient: read, write, timer,
-cancel, and close handlers may still execute concurrently. Destruction must be
-serialized with access to the object and must not race outstanding operations.
+A mutex around initiating calls alone is not enough: read, write, timer, cancel,
+and close handlers may still run concurrently.
 
-## Per-module operation rules
+## Operation limits
 
-| Module/type | Concurrent operations on one object |
+| Type | Rule for one object |
 | --- | --- |
-| Core scheduling | `post` and `dispatch` follow the supplied executor. `basic_ini` is a shared-unsafe I/O object; its file jobs are serialized internally. |
-| Coroutine synchronization | Mutexes, semaphores, and condition variables support concurrent wait/notify operations; they must outlive their waiters. |
-| HTTP connection | At most one read and one write may be outstanding. One read and one write may overlap. Higher-level request/reply state must be accessed serially. |
-| HTTP client/server | Independent clients, connections, and request contexts may run concurrently. Access to each individual stateful object follows the shared-unsafe rule. |
-| WebSocket stream | One `read`, `read_frame`, or `consume` operation may be active. A read and a write may overlap. Message writes are serialized through the bounded write queue. |
-| Process | At most one operation per standard stream direction should be outstanding: one stdin write, one stdout read, and one stderr read. Lifecycle operations must be serialized with I/O initiation. |
-| Settings and application I/O | File work may use worker executors, while completion uses the token's associated executor. Access to mutable object state must still be serialized. |
+| Core scheduling | `post` and `dispatch` follow the supplied executor |
+| Coroutine synchronization | Multiple waiters are supported; the primitive must outlive them |
+| HTTP connection | At most one read and one write may be active; one of each may overlap |
+| HTTP client/server state | Serialize access to each stateful object |
+| WebSocket stream | One read-family operation may be active; a read and write may overlap; writes use a bounded queue |
+| Process | At most one stdin write, one stdout read, and one stderr read may be active |
+| Settings and INI I/O | File work may use a worker executor; serialize mutable object state |
 
-The WebSocket write queue is an intentional high-level extension over
-`asio::async_write`, which normally requires the caller to avoid overlapping
-writes. Queue limits provide backpressure; they do not imply arbitrary
-thread-safe access to the stream object.
+Queueing writes or internal file jobs does not imply arbitrary thread-safe access
+to the containing object.

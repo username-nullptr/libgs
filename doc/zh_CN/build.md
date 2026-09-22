@@ -2,10 +2,9 @@
 
 语言：[English](../en/build.md) | 简体中文
 
-本页集中说明构建输入与应用集成。第一次构建可以直接从[快速入门](getting-started.md)
-开始。
+本页统一说明构建要求、CMake 开关、产物、安装和支持边界。
 
-## 工具链与依赖
+## 要求
 
 | 组件 | 要求 |
 | --- | --- |
@@ -13,68 +12,32 @@
 | 语言 | C++20 |
 | GCC | 13 或更高版本 |
 | Clang | 17 或更高版本 |
-| MSVC | 19.30 或更高版本 / Visual Studio 2022+ |
+| MSVC | 19.30 或更高版本（Visual Studio 2022+） |
 
-Standalone Asio、spdlog 与 nlohmann/json 已包含在 `3rd_party/` 中。只有启用对应
-功能时才需要下列系统依赖：
-
-| 依赖 | 功能 |
-| --- | --- |
-| OpenSSL | TLS 连接、HTTPS 与 WSS |
-| zlib | HTTP gzip 与 WebSocket `permessage-deflate` |
-| liburing | Linux 上的 Asio io_uring 后端 |
+仓库已包含 standalone Asio、spdlog 和 nlohmann/json。OpenSSL、zlib 与
+liburing 只在启用对应功能时作为系统依赖。
 
 ## 模块选择
 
-| CMake 开关 | 默认值 | Target | 要求 |
+| 开关 | 默认值 | Target | 依赖 |
 | --- | :---: | --- | --- |
-| Core 始终构建 | ON | `gs.core` | — |
+| Core（始终构建） | ON | `gs.core` | — |
 | `LIBGS_BUILD_CORO` | ON | `gs.coro` | Core |
-| `LIBGS_BUILD_HTTP` | OFF | `gs.http` | Coroutines 必须为 ON |
-| `LIBGS_BUILD_WEBSOCKET` | OFF | `gs.websocket` | HTTP 必须为 ON |
-| `LIBGS_BUILD_UTILITIES` | OFF | `gs.utils` | Coroutines 必须为 ON |
+| `LIBGS_BUILD_HTTP` | OFF | `gs.http` | Coroutines |
+| `LIBGS_BUILD_WEBSOCKET` | OFF | `gs.websocket` | HTTP |
+| `LIBGS_BUILD_UTILITIES` | OFF | `gs.utils` | Coroutines |
 
-启用高层模块却关闭其底层依赖时，CMake 会拒绝该配置。模块 Target 会公开传递依赖，
-因此源码树集成只需链接应用直接使用的最高层模块。
+启用模块但关闭其依赖时，CMake 会拒绝配置。模块依赖公开传递，应用只需链接直接使用
+的最高层模块。
 
-## 功能与工具链开关
-
-| CMake 开关 | 默认值 | 可用条件 | 作用 |
-| --- | :---: | --- | --- |
-| `LIBGS_BUILD_STATIC` | OFF* | 所有平台 | 构建静态库而不是共享库 |
-| `LIBGS_ADD_LIBRARY_VERSION` | ON | 共享库构建 | 为共享库文件名添加版本信息 |
-| `LIBGS_OPENSSL_SUPPORT` | OFF | OpenSSL | 启用 TLS 连接类型、HTTPS 与 WSS |
-| `LIBGS_HTTP_ZLIB_SUPPORT` | OFF | HTTP + zlib | 启用 HTTP gzip；WebSocket 继承 zlib 支持 |
-| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | OFF | WebSocket + zlib | 只启用 WebSocket `permessage-deflate` |
-| `LIBGS_BUILD_UTILITIES_SBUS_UDP` | ON | Utilities | 启用基于 Asio 的 UDP 多播软总线接口 |
-| `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` | `local` | Utilities | 为未指定接口的软总线 API 选择 `local` 或 `udp` |
-| `LIBGS_IO_URING_SUPPORT` | OFF | Linux + liburing | 使用 Asio io_uring 后端并关闭 epoll |
-| `LIBGS_USE_LIBCXX` | OFF | Clang | 使用 libc++ 编译和链接 |
-| `LIBGS_USE_LLD` | OFF | Clang | 使用 lld 链接 |
-| `LIBGS_ENABLE_LTO` | OFF | GCC | 启用链接时优化 |
-| `LIBGS_BUILD_EXAMPLES` | OFF | 已启用模块 | 构建仓库示例 |
-| `LIBGS_HEAVY_COMPILE_JOBS` | 平台默认值 | 支持的构建生成器 | 限制 HTTP/WebSocket 并行编译数；`0` 表示不限制 |
-| `LIBGS_LOW_MEMORY_DEBUG_INFO` | OFF | GCC | 减少调试信息以降低编译内存占用 |
-
-只有在启用 WebSocket 且关闭 HTTP zlib 时，才会提供
-`LIBGS_WEBSOCKET_ZLIB_SUPPORT`。请通过 CMake 配置功能，不要在应用代码中自行
-定义生成的配置宏。
-
-*Windows GNU 工具链如果找不到共享 `libstdc++-6.dll`，默认使用静态构建；此时显式
-请求共享构建会失败。*
-
-测试、压力、Fuzz、性能和 Sanitizer 开关集中在[测试指南](../../test/README.md)。
-
-## 常用构建配置
-
-默认的 Core 与 Coroutines：
+默认构建：
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-不启用可选系统依赖，构建全部模块与示例：
+构建全部模块与示例：
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
@@ -85,52 +48,67 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --parallel
 ```
 
-构建 HTTP、WebSocket、TLS 与压缩支持：
+## 功能开关
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-  -DLIBGS_BUILD_HTTP=ON \
-  -DLIBGS_BUILD_WEBSOCKET=ON \
-  -DLIBGS_OPENSSL_SUPPORT=ON \
-  -DLIBGS_HTTP_ZLIB_SUPPORT=ON
-cmake --build build --parallel
-```
+| 开关 | 默认值 | 作用 |
+| --- | :---: | --- |
+| `LIBGS_BUILD_STATIC` | OFF* | 构建静态库而非共享库 |
+| `LIBGS_ADD_LIBRARY_VERSION` | ON | 为共享库添加版本信息 |
+| `LIBGS_OPENSSL_SUPPORT` | OFF | 启用 TLS、HTTPS 和 WSS；需要 OpenSSL |
+| `LIBGS_HTTP_ZLIB_SUPPORT` | OFF | 启用 HTTP gzip；需要 zlib |
+| `LIBGS_WEBSOCKET_ZLIB_SUPPORT` | OFF | 启用 WebSocket `permessage-deflate`；需要 zlib |
+| `LIBGS_BUILD_UTILITIES_SBUS_UDP` | ON | 构建 UDP 软总线传输 |
+| `LIBGS_UTILS_SBUS_DEFAULT_INTERFACE` | `local` | 为未限定的软总线 API 选择 `local` 或 `udp` |
+| `LIBGS_IO_URING_SUPPORT` | OFF | 在 Linux 上使用 Asio io_uring；需要 liburing |
+| `LIBGS_BUILD_EXAMPLES` | OFF | 构建已启用模块的示例 |
 
-Visual Studio 等多配置生成器需要在构建和安装时选择配置：
+HTTP zlib 会在构建 WebSocket 时自动启用其 zlib 支持；只有关闭 HTTP zlib 时才提供
+独立的 WebSocket 开关。
 
-```sh
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX=C:/libgs
-cmake --build build --config Release --parallel
-cmake --install build --config Release
-```
+*Windows GNU 工具链找不到共享 `libstdc++-6.dll` 时，默认改为静态构建。*
 
-## 构建产物与安装
+工具链开关：
 
-构建树中的产物位于：
+| 开关 | 适用范围 | 作用 |
+| --- | --- | --- |
+| `LIBGS_USE_LIBCXX` | Clang | 使用 libc++ 编译和链接 |
+| `LIBGS_USE_LLD` | Clang | 使用 lld 链接 |
+| `LIBGS_ENABLE_LTO` | GCC | 启用 LTO |
+| `LIBGS_HEAVY_COMPILE_JOBS` | 测试/示例 | 限制 HTTP/WebSocket 并行编译数；`0` 表示不限 |
+| `LIBGS_LOW_MEMORY_DEBUG_INFO` | GCC Debug 构建 | 使用 `-g1` 降低编译内存 |
 
-| 产物 | 目录 |
+测试专用开关见[测试](../../test/README.md)。
+
+## 产物与安装
+
+单配置构建的输出目录：
+
+| 产物 | 路径 |
 | --- | --- |
-| 共享库与运行时二进制 | `build/output/bin` |
-| 静态库/导入库 | `build/output/lib` |
+| 共享库与可执行文件 | `build/output/bin` |
+| 静态库与导入库 | `build/output/lib` |
 | 示例 | `build/output/examples/<module>` |
 | 生成的配置头文件 | `build/output/config_include` |
 
-不使用默认系统前缀时，显式指定安装目录：
+多配置生成器可能增加配置子目录。
 
 ```sh
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/path/to/libgs-install
 cmake --build build --parallel
 cmake --install build
 ```
 
-安装树包含公共头文件、已启用模块对应的库，以及
-`LIBGS_BUILD_EXAMPLES=ON` 时构建的示例。
+Visual Studio 等多配置生成器需要在构建和安装命令中添加
+`--config Release`。
 
 ## 使用源码树
 
 ```cmake
+cmake_minimum_required(VERSION 3.15)
+project(my_app LANGUAGES CXX)
+
+set(LIBGS_BUILD_HTTP ON CACHE BOOL "")
 add_subdirectory(path/to/libgs)
 
 add_executable(my_app main.cpp)
@@ -138,12 +116,13 @@ target_compile_features(my_app PRIVATE cxx_std_20)
 target_link_libraries(my_app PRIVATE gs.http)
 ```
 
-LibGS 选项需要在 `add_subdirectory` 之前设置；上例要求外层构建启用
-`LIBGS_BUILD_HTTP=ON`。
+在 `add_subdirectory()` 前设置 LibGS 选项。链接 Target 会提供内置头文件和传递
+模块/系统依赖。
 
 ## 使用安装树
 
-安装树不包含 CMake package config，需要显式查找头文件与每个依赖库：
+安装树包含公共头文件和已启用模块的库，但不提供 CMake package config 或 imported
+target。需要按依赖顺序显式查找并链接：
 
 ```cmake
 find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
@@ -161,4 +140,14 @@ target_link_libraries(my_app PRIVATE
 )
 ```
 
-如果启用了可选系统依赖，还要在应用的链接配置中提供对应库。
+同时链接构建 LibGS 时启用的可选系统依赖。
+
+## 支持边界
+
+- LibGS 以共享库或静态库构建，不是 header-only 库。
+- 源码树 CMake Target 是支持的 Target 化集成方式。
+- 运行时基于 Asio，可使用进程级默认上下文或应用持有的 Asio executor。
+- TLS 需要应用配置 OpenSSL context；LibGS 不负责证书策略。
+- HTTP 支持 1.0 和 1.1，不支持 HTTP/2 或 HTTP/3。
+- WebSocket 实现基于 HTTP/1.1 的 RFC 6455。
+- 公共 API 尚未达到 1.0，版本间可能变化。

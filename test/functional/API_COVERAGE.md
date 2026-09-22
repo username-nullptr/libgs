@@ -1,6 +1,6 @@
-# Functional API coverage map
+# Functional API Coverage
 
-[Functional test guide](README.md) · [Test index](../README.md)
+[Test guide](../README.md)
 
 Functional tests own the public API contract. This map identifies where each
 module's callable surface is exercised; it is intentionally organized by public
@@ -69,17 +69,7 @@ behavior rather than by implementation source file.
 - `utils/sbus.cpp`: raw/typed publish-subscribe, cancellation, topic indexing,
   large-payload fanout ownership, UDP scope/fragmentation, and receive statistics.
 
-## Review checklist
-
-When a public declaration is added or changed:
-
-1. Add a successful call through the public header.
-2. Cover each meaningfully different overload/token family; use `static_assert`
-   for compile-time-only constraints.
-3. Add invalid-input/error assertions for public validation behavior.
-4. Cover ownership, cancellation, timeout, and state-transition branches when
-   the API exposes them.
-5. Add a stress case only if correctness depends on pressure or concurrency.
-6. Add a fuzz operation when input or call ordering can explore more states than
-   deterministic examples.
-7. Add a performance sample only for an explicitly performance-sensitive path.
+When a public API changes, update its successful, invalid-input, ownership,
+cancellation, timeout, and state-transition coverage here. Use Stress, Fuzz, or
+Performance only when the behavior matches those suite definitions in the
+[test guide](../README.md).
