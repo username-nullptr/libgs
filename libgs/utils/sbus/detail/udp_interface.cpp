@@ -53,7 +53,7 @@ int g_process_anchor = 0;
 	constexpr auto max_socket_buffer = static_cast<size_t>(
 		std::numeric_limits<int>::max()
 	);
-	if( not valid_range(config.sand_range) or
+	if( not valid_range(config.send_range) or
 		not valid_range(config.recv_range) or
 		not asio::ip::address_v4(config.multicast_group).is_multicast() or
 		config.multicast_port == 0 or
@@ -178,7 +178,7 @@ public:
 		const auto count = fragment_count(size, capacity);
 
 		const auto message_id = m_message_sequence.fetch_add(1, std::memory_order_relaxed);
-		const auto packet_range = config.sand_range;
+		const auto packet_range = config.send_range;
 
 		const auto publisher_token = process_token();
 		const auto *payload = static_cast<const std::byte*>(buffer);
