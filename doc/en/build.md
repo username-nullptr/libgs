@@ -124,32 +124,27 @@ module/system dependencies are supplied by the linked target.
 
 ## Consume an install tree
 
-The install tree contains public headers and enabled module libraries, but it
-does not provide a CMake package config or imported targets. Locate and link the
-libraries explicitly, in dependency order:
+Add the install prefix to `CMAKE_PREFIX_PATH`, then load the installed package
+and link the highest-level module the application uses:
 
 ```cmake
-find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
-find_library(LIBGS_CORE_LIBRARY NAMES gs.core REQUIRED)
-find_library(LIBGS_CORO_LIBRARY NAMES gs.coro REQUIRED)
-find_library(LIBGS_HTTP_LIBRARY NAMES gs.http REQUIRED)
+find_package(LibGS 0.16 CONFIG REQUIRED COMPONENTS http)
 
 add_executable(my_app main.cpp)
-target_compile_features(my_app PRIVATE cxx_std_20)
-target_include_directories(my_app PRIVATE "${LIBGS_INCLUDE_DIR}")
-target_link_libraries(my_app PRIVATE
-  "${LIBGS_HTTP_LIBRARY}"
-  "${LIBGS_CORO_LIBRARY}"
-  "${LIBGS_CORE_LIBRARY}"
-)
+target_link_libraries(my_app PRIVATE LibGS::http)
 ```
 
-Also link optional system dependencies enabled when LibGS was built.
+For example, configure the consuming project with
+`-DCMAKE_PREFIX_PATH=/path/to/libgs-install`. Available component names and
+imported targets are `core`, `coro`, `http`, `websocket`, and `utils`. A
+requested component must have been enabled when LibGS was built. The package
+also provides the legacy target names (`gs.core`, `gs.coro`, and so on) for
+source-tree compatibility and restores required optional system dependencies.
 
 ## Supported boundaries
 
 - LibGS is built as shared or static libraries; it is not header-only.
-- Source-tree CMake targets are the supported target-based integration.
+- Source and install trees both support target-based CMake integration.
 - The runtime is Asio: use the process-wide default context or an
   application-owned Asio executor.
 - TLS requires an application-configured OpenSSL context. LibGS does not own

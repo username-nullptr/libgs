@@ -50,7 +50,12 @@ if (LIBGS_IO_URING_SUPPORT)
 		ASIO_HAS_IO_URING=1
 		ASIO_DISABLE_EPOLL=1
 	)
-	target_include_directories(${target_name} PUBLIC ${LIBURING_INCLUDE_DIR})
-	target_link_libraries(${target_name} PUBLIC ${LIBURING_LIBRARY})
+	add_library(LibGS::uring UNKNOWN IMPORTED)
+
+	set_target_properties(LibGS::uring PROPERTIES
+		IMPORTED_LOCATION "${LIBURING_LIBRARY}"
+		INTERFACE_INCLUDE_DIRECTORIES "${LIBURING_INCLUDE_DIR}"
+	)
+	target_link_libraries(${target_name} PUBLIC LibGS::uring)
 	mark_as_advanced(LIBURING_INCLUDE_DIR LIBURING_LIBRARY)
 endif ()

@@ -124,7 +124,8 @@ ctest --test-dir build-asan -L sanitizer --output-on-failure
 
 Use `LIBGS_ENABLE_TEST_TSAN=ON` in a separate build for TSan. The two sanitizer
 switches are mutually exclusive, require `BUILD_TESTING=ON`, and cannot be
-combined with LTO or Fuzz. Performance tests are omitted from sanitizer builds.
+combined with LTO, Fuzz, or performance tests. CMake rejects these incompatible
+configurations instead of silently omitting requested instrumentation or tests.
 On Linux, CMake uses `setarch -R` per test when available to avoid incompatible
 TSan shadow-memory layouts.
 

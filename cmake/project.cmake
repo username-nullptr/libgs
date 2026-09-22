@@ -24,9 +24,15 @@ function(add_project target_name)
 	endif ()
 
 	string(REPLACE "." "_" target_micro "${target_name}")
-	target_compile_definitions(${target_name} PRIVATE ${target_micro}_EXPORTS)
-#	target_include_directories(${target_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+	target_compile_definitions(${target_name} PRIVATE ${target_micro}_EXPORTS)
+	target_compile_features(${target_name} PUBLIC cxx_std_20)
+
+	target_include_directories(${target_name} PUBLIC
+		$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+		$<BUILD_INTERFACE:${LIBGS_CONFIG_INCLUDE}>
+		$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+	)
 	if (NOT ${ARGN} STREQUAL "")
 		target_link_libraries(${target_name} PUBLIC ${ARGN})
 	endif ()
@@ -36,15 +42,18 @@ function(add_project target_name)
 		RUNTIME_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/bin
 		ARCHIVE_OUTPUT_DIRECTORY ${LIBGS_OUTPUT_DIR}/lib
 	)
-	if (LIBGS_BUILD_STATIC)
-		install(TARGETS ${target_name} ARCHIVE DESTINATION lib)
-	else ()
-		install(TARGETS ${target_name} DESTINATION ${install_dir}
-			PERMISSIONS
-			OWNER_READ OWNER_WRITE OWNER_EXECUTE
-			GROUP_READ GROUP_EXECUTE
-			WORLD_READ WORLD_EXECUTE
-		)
-	endif ()
+	string(REGEX REPLACE "^gs\\." "" target_export_name "${target_name}")
+
+	set_target_properties(${target_name} PROPERTIES
+		EXPORT_NAME ${target_export_name}
+	)
+	add_library(LibGS::${target_export_name} ALIAS ${target_name})
+
+	install(TARGETS ${target_name}
+		EXPORT LibGSTargets
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+		LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+		ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	)
 
 endfunction ()

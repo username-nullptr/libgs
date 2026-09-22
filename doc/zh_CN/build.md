@@ -121,31 +121,25 @@ target_link_libraries(my_app PRIVATE gs.http)
 
 ## 使用安装树
 
-安装树包含公共头文件和已启用模块的库，但不提供 CMake package config 或 imported
-target。需要按依赖顺序显式查找并链接：
+将安装前缀加入 `CMAKE_PREFIX_PATH`，然后加载已安装的 package，并链接应用使用的
+最高层模块：
 
 ```cmake
-find_path(LIBGS_INCLUDE_DIR NAMES libgs.h REQUIRED)
-find_library(LIBGS_CORE_LIBRARY NAMES gs.core REQUIRED)
-find_library(LIBGS_CORO_LIBRARY NAMES gs.coro REQUIRED)
-find_library(LIBGS_HTTP_LIBRARY NAMES gs.http REQUIRED)
+find_package(LibGS 0.16 CONFIG REQUIRED COMPONENTS http)
 
 add_executable(my_app main.cpp)
-target_compile_features(my_app PRIVATE cxx_std_20)
-target_include_directories(my_app PRIVATE "${LIBGS_INCLUDE_DIR}")
-target_link_libraries(my_app PRIVATE
-  "${LIBGS_HTTP_LIBRARY}"
-  "${LIBGS_CORO_LIBRARY}"
-  "${LIBGS_CORE_LIBRARY}"
-)
+target_link_libraries(my_app PRIVATE LibGS::http)
 ```
 
-同时链接构建 LibGS 时启用的可选系统依赖。
+例如，配置消费项目时传入 `-DCMAKE_PREFIX_PATH=/path/to/libgs-install`。可用组件名和
+导入 Target 为 `core`、`coro`、`http`、`websocket` 和 `utils`；请求的组件必须在构建
+LibGS 时已启用。package 同时提供旧目标名（`gs.core`、`gs.coro` 等）以兼容源码树
+用法，并会恢复所需的可选系统依赖。
 
 ## 支持边界
 
 - LibGS 以共享库或静态库构建，不是 header-only 库。
-- 源码树 CMake Target 是支持的 Target 化集成方式。
+- 源码树和安装树均支持 Target 化 CMake 集成。
 - 运行时基于 Asio，可使用进程级默认上下文或应用持有的 Asio executor。
 - TLS 需要应用配置 OpenSSL context；LibGS 不负责证书策略。
 - HTTP 支持 1.0 和 1.1，不支持 HTTP/2 或 HTTP/3。
