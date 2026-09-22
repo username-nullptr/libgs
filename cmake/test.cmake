@@ -61,7 +61,6 @@ set(LIBGS_PERFORMANCE_SCALE 1 CACHE STRING
 set(LIBGS_PERFORMANCE_TIMEOUT 60 CACHE STRING
 	"CTest timeout in seconds for each LibGS performance executable."
 )
-
 foreach(option
 	LIBGS_FUNCTIONAL_REPEAT
 	LIBGS_FUNCTIONAL_TIMEOUT
@@ -92,6 +91,19 @@ if (LIBGS_ENABLE_TEST_SANITIZERS AND LIBGS_ENABLE_TEST_TSAN)
 	)
 endif ()
 
+if ((LIBGS_BUILD_STRESS_TESTS OR LIBGS_BUILD_PERFORMANCE_TESTS) AND NOT BUILD_TESTING)
+	message(FATAL_ERROR
+		"${PRO_NAME}: Stress and performance tests require BUILD_TESTING=ON."
+	)
+endif ()
+
+if (LIBGS_BUILD_PERFORMANCE_TESTS AND
+	(LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN))
+	message(FATAL_ERROR
+		"${PRO_NAME}: Performance tests cannot be combined with test sanitizers."
+	)
+endif ()
+
 if (LIBGS_BUILD_FUZZERS)
 	if (NOT BUILD_TESTING)
 		message(FATAL_ERROR "${PRO_NAME}: Fuzzers require BUILD_TESTING=ON.")
@@ -112,6 +124,44 @@ if (LIBGS_BUILD_FUZZERS)
 			"${PRO_NAME}: Fuzzers use a dedicated build; disable stress and performance tests."
 		)
 	endif ()
+
+	if (LIBGS_BUILD_EXAMPLES)
+		message(FATAL_ERROR
+			"${PRO_NAME}: Fuzzers use a dedicated build; disable examples."
+		)
+	endif ()
+
+	include(CheckCXXSourceCompiles)
+	set(libgs_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+	set(libgs_saved_required_link_options "${CMAKE_REQUIRED_LINK_OPTIONS}")
+
+	set(CMAKE_REQUIRED_FLAGS
+		"${libgs_saved_required_flags} -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer"
+	)
+	set(CMAKE_REQUIRED_LINK_OPTIONS
+		${libgs_saved_required_link_options}
+		-fsanitize=fuzzer,address,undefined
+	)
+	unset(LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE CACHE)
+
+	check_cxx_source_compiles(
+		"#include <cstddef>\n#include <cstdint>\nextern \"C\" int LLVMFuzzerTestOneInput(const uint8_t*, size_t) { return 0; }"
+		LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE
+	)
+	set(CMAKE_REQUIRED_FLAGS "${libgs_saved_required_flags}")
+	set(CMAKE_REQUIRED_LINK_OPTIONS ${libgs_saved_required_link_options})
+
+	if (NOT LIBGS_FUZZER_INSTRUMENTATION_AVAILABLE)
+		message(FATAL_ERROR
+			"${PRO_NAME}: Clang libFuzzer instrumentation is unavailable."
+		)
+	endif ()
+endif ()
+
+if ((LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN) AND LIBGS_ENABLE_LTO)
+	message(FATAL_ERROR
+		"${PRO_NAME}: Disable LIBGS_ENABLE_LTO for sanitizer builds."
+	)
 endif ()
 
 if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
@@ -127,7 +177,43 @@ if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 		)
 	endif ()
 
+	include(CheckCXXSourceCompiles)
+	set(libgs_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+	set(libgs_saved_required_link_options "${CMAKE_REQUIRED_LINK_OPTIONS}")
+
+	if (LIBGS_ENABLE_TEST_SANITIZERS)
+		set(libgs_sanitizer_flags -fsanitize=address,undefined)
+	else ()
+		set(libgs_sanitizer_flags -fsanitize=thread)
+	endif ()
+
+	set(CMAKE_REQUIRED_FLAGS
+		"${libgs_saved_required_flags} ${libgs_sanitizer_flags}"
+	)
+	set(CMAKE_REQUIRED_LINK_OPTIONS
+		${libgs_saved_required_link_options} ${libgs_sanitizer_flags}
+	)
+	unset(LIBGS_TEST_SANITIZER_AVAILABLE CACHE)
+
+	check_cxx_source_compiles (
+		"int main() { return 0; }"
+		LIBGS_TEST_SANITIZER_AVAILABLE
+	)
+	set(CMAKE_REQUIRED_FLAGS "${libgs_saved_required_flags}")
+	set(CMAKE_REQUIRED_LINK_OPTIONS ${libgs_saved_required_link_options})
+
+	if (NOT LIBGS_TEST_SANITIZER_AVAILABLE)
+		message(FATAL_ERROR
+			"${PRO_NAME}: Requested test sanitizer runtime is unavailable."
+		)
+	endif ()
+
 	add_library(libgs.test.sanitizer INTERFACE)
+	set_target_properties(libgs.test.sanitizer PROPERTIES
+		EXPORT_NAME sanitizer
+	)
+	add_library(LibGS::sanitizer ALIAS libgs.test.sanitizer)
+	install(TARGETS libgs.test.sanitizer EXPORT LibGSTargets)
 
 	if (LIBGS_ENABLE_TEST_SANITIZERS)
 		target_compile_options(libgs.test.sanitizer INTERFACE
@@ -146,10 +232,4 @@ if (LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN)
 		)
 		target_link_options(libgs.test.sanitizer INTERFACE -fsanitize=thread)
 	endif ()
-endif ()
-
-if ((LIBGS_ENABLE_TEST_SANITIZERS OR LIBGS_ENABLE_TEST_TSAN) AND LIBGS_ENABLE_LTO)
-	message(FATAL_ERROR
-		"${PRO_NAME}: Disable LIBGS_ENABLE_LTO for sanitizer builds."
-	)
 endif ()

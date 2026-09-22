@@ -8,33 +8,37 @@ namespace libgs::http
 
 session_ptr session_manager::impl::find(std::string_view id, bool _throw)
 {
-	spin_shared_shared_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
-	auto it = m_session_map.find(id);
-
-	if( it == m_session_map.end() )
+	session_ptr session;
 	{
-		if( _throw )
+		std::shared_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
+		auto it = m_session_map.find(id);
+
+		if( it == m_session_map.end() )
 		{
-			runtime_error::loc_throw(std::format (
-				"libgs::http::session_manager: <map>: id '{}' not exists.", id
-			));
+			if( _throw )
+			{
+				runtime_error::loc_throw(std::format (
+					"libgs::http::session_manager: <map>: id '{}' not exists.", id
+				));
+			}
+			return {};
 		}
-		return {};
+		session = it->second;
 	}
-	it->second->expand();
-	return it->second;
+	session->expand();
+	return session;
 }
 
 std::pair<std::map<std::string_view,session_ptr>::iterator,bool>
 session_manager::impl::emplace(session_ptr session)
 {
-	spin_shared_unique_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
+	std::unique_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
 	return m_session_map.emplace(session->id(), std::move(session));
 }
 
 void session_manager::impl::erase(std::string_view id)
 {
-	spin_shared_unique_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
+	std::unique_lock locker(m_map_mutex); LIBGS_UNUSED(locker);
 	m_session_map.erase(std::string(id.data(), id.size()));
 }
 

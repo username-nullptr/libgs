@@ -12,7 +12,7 @@
 #include <libgs/core/cxx/optional.h>
 #include <libgs/core/cxx/tools.h>
 #include <libgs/core/shared_mutex.h>
-#include <libgs/core/spin_mutex.h>
+#include <libgs/core/atomic_mutex.h>
 #include <libgs/core/utils/byte_order.h>
 #include <libgs/core/utils/streamer.h>
 #include <libgs/core/utils/string_tools.h>
@@ -446,9 +446,14 @@ void optional_and_expected()
 #endif
 }
 
-void hybrid_spin_locks()
+template <libgs::atomic_mutex_policy Policy>
+void atomic_locks_with_policy()
 {
-	libgs::spin_mutex mutex;
+	libgs::basic_atomic_mutex<Policy> mutex;
+	LIBGS_TEST_CHECK(mutex.try_lock());
+	LIBGS_TEST_CHECK(not mutex.try_lock());
+	mutex.unlock();
+
 	size_t count = 0;
 	std::vector<std::thread> workers;
 	for(size_t worker = 0; worker < 8; ++worker)
@@ -466,7 +471,7 @@ void hybrid_spin_locks()
 		worker.join();
 	LIBGS_TEST_CHECK_EQ(count, 40'000U);
 
-	libgs::spin_shared_mutex shared_mutex;
+	libgs::basic_atomic_shared_mutex<Policy> shared_mutex;
 	size_t shared_value = 0;
 	std::atomic_size_t writers_done {0};
 	std::atomic_bool invalid_read {false};
@@ -501,6 +506,12 @@ void hybrid_spin_locks()
 		worker.join();
 	LIBGS_TEST_CHECK(not invalid_read.load(std::memory_order_relaxed));
 	LIBGS_TEST_CHECK_EQ(shared_value, 10'000U);
+	LIBGS_TEST_CHECK(shared_mutex.try_lock_shared());
+	LIBGS_TEST_CHECK(not shared_mutex.try_lock());
+	shared_mutex.unlock_shared();
+	LIBGS_TEST_CHECK(shared_mutex.try_lock());
+	LIBGS_TEST_CHECK(not shared_mutex.try_lock_shared());
+	shared_mutex.unlock();
 
 	shared_mutex.lock_shared();
 	std::atomic_bool writer_entered {false};
@@ -509,11 +520,57 @@ void hybrid_spin_locks()
 		std::unique_lock lock(shared_mutex);
 		writer_entered.store(true, std::memory_order_release);
 	});
-	std::this_thread::sleep_for(std::chrono::milliseconds(5));
-	LIBGS_TEST_CHECK(not writer_entered.load(std::memory_order_acquire));
+
+	std::atomic_bool writer_pending {false};
+	std::thread pending_probe([&]
+	{
+		for(size_t count = 0; count < 10'000; ++count)
+		{
+			if( not shared_mutex.try_lock_shared() )
+			{
+				writer_pending.store(true, std::memory_order_release);
+				return ;
+			}
+			shared_mutex.unlock_shared();
+			std::this_thread::yield();
+		}
+	});
+	pending_probe.join();
+
+	std::atomic_bool late_reader_entered {false};
+	std::atomic_bool late_reader_saw_writer {false};
+	std::thread late_reader;
+	if( writer_pending.load(std::memory_order_acquire) )
+	{
+		late_reader = std::thread([&]
+		{
+			std::shared_lock lock(shared_mutex);
+			late_reader_saw_writer.store(
+				writer_entered.load(std::memory_order_acquire),
+				std::memory_order_release
+			);
+			late_reader_entered.store(true, std::memory_order_release);
+		});
+	}
+
+	std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	const auto reader_was_blocked = not late_reader_entered.load(std::memory_order_acquire);
 	shared_mutex.unlock_shared();
 	blocked_writer.join();
+	if( late_reader.joinable() )
+		late_reader.join();
+
+	LIBGS_TEST_CHECK(writer_pending.load(std::memory_order_acquire));
+	LIBGS_TEST_CHECK(reader_was_blocked);
 	LIBGS_TEST_CHECK(writer_entered.load(std::memory_order_acquire));
+	LIBGS_TEST_CHECK(late_reader_entered.load(std::memory_order_acquire));
+	LIBGS_TEST_CHECK(late_reader_saw_writer.load(std::memory_order_acquire));
+}
+
+void atomic_locks()
+{
+	atomic_locks_with_policy<libgs::atomic_mutex_policy::balanced>();
+	atomic_locks_with_policy<libgs::atomic_mutex_policy::low_latency>();
 }
 
 } //namespace
@@ -531,6 +588,6 @@ int main()
 		{"string tools", string_tools},
 		{"buffer copying", buffer_copying},
 		{"optional and expected", optional_and_expected},
-		{"hybrid spin locks", hybrid_spin_locks},
+		{"atomic locks", atomic_locks},
 	});
 }

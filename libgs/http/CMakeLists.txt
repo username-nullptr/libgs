@@ -7,9 +7,6 @@ add_project(${target_name} gs.coro)
 target_compile_definitions (
 	${target_name} PRIVATE LIBGS_HTTP_SHARED
 )
-option(LIBGS_HTTP_ZLIB_SUPPORT
-	"-- ${PRO_NAME}: HTTP z-lib support." OFF
-)
 if (LIBGS_HTTP_ZLIB_SUPPORT)
 	message(STATUS "${PRO_NAME}: Enable z-lib support.")
 	target_compile_definitions(${target_name} PUBLIC -DLIBGS_HTTP_ZLIB_SUPPORT=1)
@@ -34,5 +31,5 @@ include_directories(${LIBGS_HTTP_CONFIG_INCLUDE})
 
 install(FILES
 	${LIBGS_HTTP_CONFIG_INCLUDE}/libgs/http/cxx/configs.h
-	DESTINATION include/libgs/http/cxx
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libgs/http/cxx
 )

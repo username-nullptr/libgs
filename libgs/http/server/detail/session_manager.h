@@ -30,7 +30,9 @@ public:
 	std::string m_cookie_key = "session";
 
 	std::map<std::string_view, session_ptr> m_session_map {};
-	spin_shared_mutex m_map_mutex;
+	// Map updates allocate, while lookups can safely share the lock.  find()
+	// copies the shared_ptr before refreshing the session outside this lock.
+	shared_mutex m_map_mutex;
 
 	std::function<void(session_ptr,error_code)> m_error_handle {};
 };

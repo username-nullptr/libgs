@@ -4,8 +4,8 @@
 #ifndef LIBGS_UTILS_DETAIL_SIGNAL_SLOT_H
 #define LIBGS_UTILS_DETAIL_SIGNAL_SLOT_H
 
-#include <libgs/core/shared_mutex.h>
 #include <libgs/core/execution.h>
+#include <mutex>
 
 namespace libgs::utils { namespace detail
 {
@@ -1399,7 +1399,9 @@ public:
 	mutable std::atomic<const slot_snapshot*> m_snapshot;
 
 	mutable std::atomic_size_t m_snapshot_readers { 0 };
-	mutable spin_shared_mutex m_mutex;
+	// Mutation is exclusive and rebuilds allocating snapshot vectors.  Emission
+	// is already lock-free, so a reader/writer lock brings no benefit here.
+	mutable std::mutex m_mutex;
 };
 
 template <typename Derived, concepts::std_func_temp Func>

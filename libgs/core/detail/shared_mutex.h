@@ -4,124 +4,170 @@
 #ifndef LIBGS_CORE_DETAIL_SHARED_MUTEX_H
 #define LIBGS_CORE_DETAIL_SHARED_MUTEX_H
 
-#include <libgs/core/spin_mutex.h>
+#include <libgs/core/atomic_mutex.h>
 #include <shared_mutex>
 
 namespace libgs
 {
 
-inline spin_shared_mutex::~spin_shared_mutex()
+template <atomic_mutex_policy Policy>
+void basic_atomic_shared_mutex<Policy>::lock() noexcept
 {
-#if 0
-	if( m_read_count == 0 )
+	if( state_t expected = 0;
+		m_writer_state.compare_exchange_strong(expected, writer_active,
+			std::memory_order_acquire, std::memory_order_relaxed) )
+	{
+		wait_for_readers();
 		return ;
-	runtime_error::loc_throw (
-		"libgs::spin_shared_mutex: Destruct a spin mutex that has not yet been unlock_shared."
-	);
-#endif
-}
-
-inline void spin_shared_mutex::lock()
-{
-	constexpr size_t spin_count = 64;
+	}
+	auto state = m_writer_state.fetch_add(1, std::memory_order_relaxed) + 1;
 	for(;;)
 	{
-		bool expected = false;
-		if( m_write_flag.compare_exchange_weak(expected, true,
-			std::memory_order_acquire, std::memory_order_relaxed) )
-			break;
-
-		for(size_t count = 0; count < spin_count; ++count)
+		if( (state & writer_active) == 0 )
 		{
-			if( not m_write_flag.load(std::memory_order_relaxed) )
-				break;
-			none_instruction();
+			if( const auto desired = (state - 1) | writer_active;
+				m_writer_state.compare_exchange_weak(state, desired,
+					std::memory_order_acquire, std::memory_order_relaxed) )
+			{
+				wait_for_readers();
+				return ;
+			}
+			continue;
 		}
-		if( m_write_flag.load(std::memory_order_relaxed) )
-			m_write_flag.wait(true, std::memory_order_relaxed);
-	}
-	for(auto readers = m_read_count.load(std::memory_order_acquire); readers > 0;
-		readers = m_read_count.load(std::memory_order_acquire))
-	{
-		for(size_t count = 0; count < spin_count; ++count)
+		if constexpr( Policy == atomic_mutex_policy::low_latency )
 		{
-			if( m_read_count.load(std::memory_order_relaxed) == 0 )
-				break;
-			none_instruction();
+			detail::spin_while_equal(m_writer_state, state);
+			state = m_writer_state.load(std::memory_order_relaxed);
 		}
-		readers = m_read_count.load(std::memory_order_acquire);
-		if( readers > 0 )
-			m_read_count.wait(readers, std::memory_order_relaxed);
+		else
+		{
+			m_writer_state.wait(state, std::memory_order_relaxed);
+			state = m_writer_state.load(std::memory_order_relaxed);
+		}
 	}
 }
 
-inline bool spin_shared_mutex::try_lock()
+template <atomic_mutex_policy Policy>
+bool basic_atomic_shared_mutex<Policy>::try_lock() noexcept
 {
-	bool expected = false;
-	if( not m_write_flag.compare_exchange_strong(expected, true,
-		std::memory_order_acquire, std::memory_order_relaxed) )
+	if( state_t expected = 0;
+		not m_writer_state.compare_exchange_strong(expected, writer_active,
+			std::memory_order_acquire, std::memory_order_relaxed) )
 		return false;
 
-	if( m_read_count.load(std::memory_order_acquire) == 0 )
+	if( m_reader_count.load(std::memory_order_acquire) == 0 )
 		return true;
 
-	m_write_flag.store(false, std::memory_order_release);
-	m_write_flag.notify_all();
+	m_writer_state.store(0, std::memory_order_release);
+	if constexpr( Policy == atomic_mutex_policy::balanced )
+	{
+		m_reader_epoch.fetch_add(1, std::memory_order_relaxed);
+		m_reader_epoch.notify_all();
+	}
 	return false;
 }
 
-inline void spin_shared_mutex::unlock()
+template <atomic_mutex_policy Policy>
+void basic_atomic_shared_mutex<Policy>::unlock() noexcept
 {
-	m_write_flag.store(false, std::memory_order_release);
-	m_write_flag.notify_all();
+	const auto previous = m_writer_state.fetch_and(
+		~writer_active, std::memory_order_release
+	);
+	if constexpr( Policy == atomic_mutex_policy::balanced )
+	{
+		if( (previous & writer_waiter_mask) != 0 )
+			m_writer_state.notify_one();
+		else
+		{
+			m_reader_epoch.fetch_add(1, std::memory_order_relaxed);
+			m_reader_epoch.notify_all();
+		}
+	}
 }
 
-inline void spin_shared_mutex::lock_shared()
+template <atomic_mutex_policy Policy>
+void basic_atomic_shared_mutex<Policy>::lock_shared() noexcept
 {
-	constexpr size_t spin_count = 64;
+	auto state = m_writer_state.load(std::memory_order_acquire);
 	for(;;)
 	{
-		while( m_write_flag.load(std::memory_order_acquire) )
+		if( state == 0 )
 		{
-			for(size_t count = 0; count < spin_count; ++count)
+			m_reader_count.fetch_add(1, std::memory_order_relaxed);
+			if( m_writer_state.load(std::memory_order_acquire) == 0 )
+				return ;
+
+			const auto rollback = m_reader_count.fetch_sub(
+				1, std::memory_order_release
+			);
+			if constexpr( Policy == atomic_mutex_policy::balanced )
 			{
-				if( not m_write_flag.load(std::memory_order_relaxed) )
-					break;
-				none_instruction();
+				if( rollback == 1 )
+					m_reader_count.notify_one();
 			}
-			if( m_write_flag.load(std::memory_order_relaxed) )
-				m_write_flag.wait(true, std::memory_order_relaxed);
-		}
-		m_read_count.fetch_add(1, std::memory_order_relaxed);
-		if( m_write_flag.load(std::memory_order_acquire) )
-		{
-			if( m_read_count.fetch_sub(1, std::memory_order_release) == 1 )
-				m_read_count.notify_all();
+			state = m_writer_state.load(std::memory_order_acquire);
 			continue;
 		}
-		break;
+		if constexpr( Policy == atomic_mutex_policy::low_latency )
+		{
+			detail::spin_while_equal(m_writer_state, state);
+			state = m_writer_state.load(std::memory_order_acquire);
+		}
+		else
+		{
+			const auto epoch = m_reader_epoch.load(std::memory_order_relaxed);
+			state = m_writer_state.load(std::memory_order_acquire);
+
+			if( state != 0 )
+				m_reader_epoch.wait(epoch, std::memory_order_relaxed);
+
+			state = m_writer_state.load(std::memory_order_acquire);
+		}
 	}
 }
 
-inline bool spin_shared_mutex::try_lock_shared()
+template <atomic_mutex_policy Policy>
+bool basic_atomic_shared_mutex<Policy>::try_lock_shared() noexcept
 {
-	if( m_write_flag.load(std::memory_order_acquire) )
+	if( m_writer_state.load(std::memory_order_acquire) != 0 )
 		return false;
 
-	m_read_count.fetch_add(1, std::memory_order_relaxed);
-	if( m_write_flag.load(std::memory_order_acquire) )
+	m_reader_count.fetch_add(1, std::memory_order_relaxed);
+	if( m_writer_state.load(std::memory_order_acquire) == 0 )
+		return true;
+
+	const auto rollback = m_reader_count.fetch_sub(1, std::memory_order_release);
+	if constexpr( Policy == atomic_mutex_policy::balanced )
 	{
-		if( m_read_count.fetch_sub(1, std::memory_order_release) == 1 )
-			m_read_count.notify_all();
-		return false;
+		if( rollback == 1 )
+			m_reader_count.notify_one();
 	}
-	return true;
+	return false;
 }
 
-inline void spin_shared_mutex::unlock_shared()
+template <atomic_mutex_policy Policy>
+void basic_atomic_shared_mutex<Policy>::unlock_shared() noexcept
 {
-	if( m_read_count.fetch_sub(1, std::memory_order_release) == 1 )
-		m_read_count.notify_all();
+	const auto previous = m_reader_count.fetch_sub(1, std::memory_order_release);
+	if constexpr( Policy == atomic_mutex_policy::balanced )
+	{
+		if( previous == 1 )
+			m_reader_count.notify_one();
+	}
+}
+
+template <atomic_mutex_policy Policy>
+void basic_atomic_shared_mutex<Policy>::wait_for_readers() noexcept
+{
+	auto readers = m_reader_count.load(std::memory_order_acquire);
+	while( readers != 0 )
+	{
+		if constexpr( Policy == atomic_mutex_policy::low_latency )
+			detail::spin_while_equal(m_reader_count, readers);
+		else
+			m_reader_count.wait(readers, std::memory_order_relaxed);
+		readers = m_reader_count.load(std::memory_order_acquire);
+	}
 }
 
 } //namesapace libgs

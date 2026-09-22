@@ -5,16 +5,22 @@ include(project)
 
 
 function(libgs_install_module_headers module)
-	install(FILES ${module}.h DESTINATION include/libgs/)
-	install(DIRECTORY ${module}/ DESTINATION include/libgs/${module}/
+	install(FILES ${module}.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libgs)
+	install(DIRECTORY ${module}/
+		DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/libgs/${module}
 		FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "*.ipp"
+		${ARGN}
 	)
 endfunction()
 
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES core.h)
 add_subdirectory(core)
-libgs_install_module_headers(core)
+# This PIMPL definition is compiled into gs.core and is not included by any
+# public header.
+libgs_install_module_headers(core
+	PATTERN "library_impl.ipp" EXCLUDE
+)
 
 if (LIBGS_BUILD_CORO)
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES coro.h)
@@ -25,7 +31,13 @@ endif ()
 if (LIBGS_BUILD_HTTP)
 	source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES http.h)
 	add_subdirectory(http)
-	libgs_install_module_headers(http)
+	# The base parser is an implementation detail used only by the client and
+	# server parser translation units. Other detail headers contain public
+	# template definitions and must remain in the install tree.
+	libgs_install_module_headers(http
+		REGEX "/protocol/utils/core/parser[.]h$" EXCLUDE
+		REGEX "/protocol/utils/core/detail/parser[.]h$" EXCLUDE
+	)
 endif ()
 
 if (LIBGS_BUILD_WEBSOCKET)

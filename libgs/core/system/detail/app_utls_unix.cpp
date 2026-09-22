@@ -66,7 +66,7 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 			return dir.string() + str;
 		});
 	}
-	else if( str.starts_with("~") )
+	else if( str.starts_with('~') )
 	{
 		result = home_directory().transform([&](const path_t &_path) -> path_t {
 			return _path.string() + str.erase(0,1);
@@ -82,20 +82,22 @@ sys_expected<path_t> absolute_path(const path_t &path) noexcept
 bool is_absolute_path(const path_t &path) noexcept
 {
 	auto str = path.string();
-	if( str.starts_with("/") )
+	if( str.starts_with('/') )
 		return true;
-	else if( str.starts_with("~") )
+
+	else if( str.starts_with('~') )
 		return str.size() == 1 or str[1] == '/';
 	return false;
 }
 
-static spin_shared_mutex g_env_mutex;
+// libc environment access can allocate and walk the complete environment.
+// This is not a bounded low-latency critical section.
+static shared_mutex g_env_mutex;
 
 sys_expected<std::string> getenv(std::string_view key) noexcept
 {
-	g_env_mutex.lock_shared();
+	std::shared_lock lock(g_env_mutex);
 	auto value = ::getenv(key.data());
-	g_env_mutex.unlock_shared();
 
 	sys_expected<std::string> result {""};
 	if( value )
@@ -108,7 +110,7 @@ sys_expected<std::string> getenv(std::string_view key) noexcept
 sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 {
 	std::map<std::string,std::string> envs;
-	g_env_mutex.lock_shared();
+	std::shared_lock lock(g_env_mutex);
 
 	for(int i=0; environ[i]!=nullptr; i++)
 	{
@@ -120,14 +122,13 @@ sys_expected<std::map<std::string,std::string>> getenvs() noexcept
 		else
 			envs.emplace(tmp.substr(0,pos), tmp.substr(pos+1));
 	}
-	g_env_mutex.unlock_shared();
 	return envs;
 }
 
 sys_expected<> setenv(std::string_view key, const libgs::value &value, bool overwrite) noexcept
 {
 	sys_expected<> result;
-	spin_shared_unique_lock locker(g_env_mutex);
+	std::unique_lock locker(g_env_mutex);
 
 	if( ::setenv(key.data(), value->c_str(), overwrite) != 0 )
 		result.despair(sys_error());
@@ -137,7 +138,7 @@ sys_expected<> setenv(std::string_view key, const libgs::value &value, bool over
 sys_expected<> unsetenv(std::string_view key) noexcept
 {
 	sys_expected<> result;
-	spin_shared_unique_lock locker(g_env_mutex);
+	std::unique_lock locker(g_env_mutex);
 
 	if( ::unsetenv(key.data()) != 0 )
 		result.despair(sys_error());
@@ -185,7 +186,7 @@ sys_expected<path_t> home_directory() noexcept
 		else
 			return expected.despair(sys_error());
 	}
-	if( path.ends_with("/") )
+	if( path.ends_with('/') )
 		path.pop_back();
 
 	expected = std::move(path);
