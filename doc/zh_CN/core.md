@@ -13,13 +13,28 @@
 | `<libgs/core/url.h>`、`<libgs/core/ini.h>` | URL 处理与 INI 持久化 |
 | `<libgs/core/args_parser.h>` | 命令行分组、选项、帮助与版本处理 |
 | `<libgs/core/algorithm.h>` | UUID、SHA-1、通配符匹配、编码与数学工具 |
-| `<libgs/core/lock_free_queue.h>`、`<libgs/core/shared_mutex.h>` | 线程级队列与锁 |
+| `<libgs/core/lock_free_queue.h>`、`<libgs/core/atomic_mutex.h>`、`<libgs/core/shared_mutex.h>` | 线程级队列与锁 |
 | `<libgs/core/system.h>` | 应用路径、CPU 信息、环境与动态库 |
 | `<libgs/core/mime_type.h>` | MIME 查询与文本/二进制判断 |
 | `<libgs/core/cxx/...>` | 兼容类型、concept、trait、格式化与 expected/optional 支持 |
 
 `<libgs/core.h>` 聚合常用 Core 功能。执行功能及部分专用功能应直接包含对应
 头文件。
+
+`atomic_mutex` 与 `atomic_shared_mutex` 默认使用 `atomic_mutex_policy::balanced`：发生持续
+竞争时通过 `std::atomic::wait` 阻塞。延迟敏感且能保证临界区极短的代码可实例化
+`basic_atomic_mutex<atomic_mutex_policy::low_latency>` 或对应的共享互斥量；该策略不会阻塞
+等待线程，因此竞争期间会持续占用 CPU。
+
+应根据持锁期间的实际工作选择锁：
+
+- 临界区可能执行 I/O、等待、调用外部代码、分配内存或遍历无界容器时，使用
+  `std::mutex` / `std::shared_mutex`。
+- 只保护有界的内存状态、需要快速无竞争路径，但竞争仍可能持续时，使用 balanced
+  原子锁。
+- 仅当临界区严格有界且不会阻塞，并且运行环境能控制线程超额订阅时，使用低延迟
+  spin 别名。
+- 若一次原子状态转换即可完整维护不变量，应优先直接使用原子变量而非任何互斥锁。
 
 ## 执行运行时
 

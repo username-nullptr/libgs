@@ -30,6 +30,7 @@ because the measurements are printed by each executable.
 | --- | --- |
 | `libgs.performance.lock-free-queue` | SPSC and MPMC linked/circular queue throughput |
 | `libgs.performance.core` | Text, URL, hash, and input-size scaling |
+| `libgs.performance.mutex` | Thread, atomic-wait and spin mutex/shared-mutex contention |
 | `libgs.performance.coro` | Coroutine mutex, semaphore, condition, and waiter overhead |
 | `libgs.performance.http` | HTTP loopback request throughput and payload shapes |
 | `libgs.performance.http-protocol` | HTTP parser/generator and optional gzip throughput |

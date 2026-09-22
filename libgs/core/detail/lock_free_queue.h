@@ -4,8 +4,6 @@
 #ifndef LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H
 #define LIBGS_CORE_DETAIL_LOCK_FREE_QUEUE_H
 
-#include <libgs/core/spin_mutex.h>
-
 #ifdef _MSC_VER
 # pragma warning(push)
 # pragma warning(disable: 4324)
@@ -1256,7 +1254,9 @@ public:
 private:
 	block *m_first = nullptr;
 	block *m_retired_blocks = nullptr;
-	spin_mutex m_resize_mutex;
+	// Resizing allocates and may reclaim an entire block chain.  Keep waiters
+	// asleep instead of burning a CPU around that comparatively long work.
+	std::mutex m_resize_mutex;
 
 	alignas(64) std::atomic_size_t m_capacity {};
 	alignas(64) std::atomic_size_t m_size {0};

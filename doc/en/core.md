@@ -14,13 +14,32 @@ module.
 | `<libgs/core/url.h>`, `<libgs/core/ini.h>` | URL handling and INI persistence |
 | `<libgs/core/args_parser.h>` | Command-line groups, flags, help, and version handling |
 | `<libgs/core/algorithm.h>` | UUID, SHA-1, wildcard matching, encoding, and math helpers |
-| `<libgs/core/lock_free_queue.h>`, `<libgs/core/shared_mutex.h>` | Thread-level queues and locks |
+| `<libgs/core/lock_free_queue.h>`, `<libgs/core/atomic_mutex.h>`, `<libgs/core/shared_mutex.h>` | Thread-level queues and locks |
 | `<libgs/core/system.h>` | Application paths, CPU information, environment, and dynamic libraries |
 | `<libgs/core/mime_type.h>` | MIME lookup and text/binary checks |
 | `<libgs/core/cxx/...>` | Compatibility types, concepts, traits, formatting, and expected/optional support |
 
 `<libgs/core.h>` includes the commonly used Core facilities. Execution and
 some specialized headers are included directly.
+
+`atomic_mutex` and `atomic_shared_mutex` use `atomic_mutex_policy::balanced` by
+default, blocking through `std::atomic::wait` during sustained contention.
+Latency-sensitive code with reliably short critical sections can instantiate
+`basic_atomic_mutex<atomic_mutex_policy::low_latency>` or its shared counterpart; this
+policy never blocks a waiter and therefore occupies a CPU while contended.
+
+Choose the lock from the work done while it is held:
+
+- Use `std::mutex` / `std::shared_mutex` when the critical section can perform
+  I/O, wait, invoke external code, allocate or traverse an unbounded container.
+- Use the balanced atomic locks for bounded in-memory state when a fast
+  uncontended path matters but contention can last long enough to justify
+  sleeping.
+- Use the low-latency spin aliases only for strictly bounded, non-blocking work;
+  they are intended for latency-sensitive paths where oversubscription is
+  controlled.
+- Prefer a directly atomic field over any mutex when one atomic transition can
+  preserve the complete invariant.
 
 ## Execution runtime
 

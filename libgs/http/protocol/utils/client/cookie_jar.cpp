@@ -3,7 +3,6 @@
 
 #include "cookie_jar.h"
 #include <libgs/http/protocol/utils/core/conditional.h>
-#include <libgs/core/spin_mutex.h>
 
 namespace libgs::http { namespace
 {
@@ -368,7 +367,8 @@ public:
 		const entry*, expiry_iterator
 	> m_expiry_positions {};
 
-	spin_mutex m_mutex {};
+	// Every operation may expire entries and update several allocating indexes.
+	std::mutex m_mutex {};
 };
 
 cookie_jar::cookie_jar() :

@@ -6,6 +6,7 @@
 
 #include <libgs/utils/process.h>
 #include <libgs/coro/utils.h>
+#include <libgs/core/shared_mutex.h>
 #include <atomic>
 
 namespace libgs::utils
@@ -132,17 +133,17 @@ public:
 			locker.unlock();
 
 			signal_ptr<payload_t,payload_t> signal {};
-			m_signals_mutex.lock();
 			{
+				std::lock_guard lock(m_signals_mutex);
 				auto &obj = m_signals[_topic];
+
 				if( not obj )
 					obj = std::make_shared<signal_t<payload_t,payload_t>>();
 				signal = obj;
 			}
-			m_signals_mutex.unlock();
-
 			co_await signal->emit(_curr, _prev);
-			co_await m_signal.emit(
+
+			co_await m_signal.emit (
 				std::move(_topic), std::move(_curr), std::move(_prev)
 			);
 			co_return ;
@@ -218,17 +219,17 @@ public:
 			previous_payload = std::move(_prev), current_payload = _curr]() mutable -> awaitable<void>
 		{
 			signal_ptr<payload_t,payload_t> signal {};
-			m_signals_mutex.lock();
 			{
+				std::lock_guard lock(m_signals_mutex);
 				auto &obj = m_signals[delivery_topic];
+
 				if( not obj )
 					obj = std::make_shared<signal_t<payload_t,payload_t>>();
 				signal = obj;
 			}
-			m_signals_mutex.unlock();
-
 			co_await signal->emit(current_payload, previous_payload);
-			co_await m_signal.emit(
+
+			co_await m_signal.emit (
 				std::move(delivery_topic),
 				std::move(current_payload), std::move(previous_payload)
 			);
@@ -418,14 +419,19 @@ public:
 	std::unordered_map<
 		std::string, cache_t, transparent_string_hash, std::equal_to<>
 	> m_caches {};
-	spin_shared_mutex m_caches_mutex {};
+
+	// Payload copies and map growth are unbounded; readers can still proceed in
+	// parallel through the blocking shared lock.
+	shared_mutex m_caches_mutex {};
 
 	signal_t<std::string_view,payload_t,payload_t> m_signal {};
 
 	std::unordered_map <
 		std::string, signal_ptr<payload_t,payload_t>
 	> m_signals {};
-	spin_mutex m_signals_mutex {};
+
+	// This map is only ever accessed exclusively and may allocate a signal.
+	std::mutex m_signals_mutex {};
 };
 
 template <concepts::subscriber Subscriber>
@@ -505,8 +511,9 @@ optional<T> cache<Subscriber>::get(std::string_view topic) const
 		if( topic != type::libgs_sbus_topic_v )
 			invalid_argument::loc_throw("Topic does not match.");
 	}
-	spin_shared_shared_lock locker(m_impl->m_caches_mutex);
+	std::shared_lock locker(m_impl->m_caches_mutex);
 	auto pos = m_impl->m_caches.find(topic);
+
 	if( pos == m_impl->m_caches.end() )
 		return {};
 
@@ -524,7 +531,7 @@ optional<T> cache<Subscriber>::get(std::string_view topic) const
 template <concepts::subscriber Subscriber>
 auto cache<Subscriber>::get(std::string_view topic) const -> payload_t
 {
-	spin_shared_shared_lock locker(m_impl->m_caches_mutex); LIBGS_UNUSED(locker);
+	std::shared_lock locker(m_impl->m_caches_mutex); LIBGS_UNUSED(locker);
 	auto pos = m_impl->m_caches.find(topic);
 	return pos == m_impl->m_caches.end() ? payload_t{} : pos->second.data;
 }
@@ -533,12 +540,10 @@ template <concepts::subscriber Subscriber>
 auto cache<Subscriber>::get() const noexcept -> std::map<std::string,payload_t>
 {
 	std::map<std::string,payload_t> map;
-	m_impl->m_caches_mutex.lock_shared();
+	std::shared_lock locker(m_impl->m_caches_mutex); LIBGS_UNUSED(locker);
 
 	for(auto &[topic, cached_entry] : m_impl->m_caches)
 		map.emplace(topic, cached_entry.data);
-
-	m_impl->m_caches_mutex.unlock_shared();
 	return map;
 }
 

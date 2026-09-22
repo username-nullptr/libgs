@@ -172,7 +172,9 @@ private:
 
 public:
 	ini_t m_ini;
-	mutable spin_shared_mutex m_ini_lock;
+	// Loading and syncing perform file I/O while holding this lock; snapshots
+	// can also copy the complete INI tree.
+	mutable shared_mutex m_ini_lock;
 	std::string m_name;
 };
 
@@ -214,15 +216,16 @@ auto settings::sync(Token &&token)
 
 optional<value> settings::get(concepts::string_p<char> auto &&path)
 {
-	spin_shared_shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
+	std::shared_lock locker(m_impl->m_ini_lock); LIBGS_UNUSED(locker);
 	return m_impl->m_ini.read(std::forward<decltype(path)>(path));
 }
 
 settings &settings::set(const group_key_t &gk, const concepts::value_set<char> auto &value) noexcept
 {
-	m_impl->m_ini_lock.lock();
-	m_impl->m_ini.write(gk, value);
-	m_impl->m_ini_lock.unlock();
+	{
+		std::unique_lock locker(m_impl->m_ini_lock);
+		m_impl->m_ini.write(gk, value);
+	}
 
 	changed(gk.group + "/" + gk.key, value);
 	return *this;
@@ -231,9 +234,10 @@ settings &settings::set(const group_key_t &gk, const concepts::value_set<char> a
 settings &settings::set
 (const concepts::string_p<char> auto &path, const concepts::value_set<char> auto &value) noexcept
 {
-	m_impl->m_ini_lock.lock();
-	m_impl->m_ini.write(path, value);
-	m_impl->m_ini_lock.unlock();
+	{
+		std::unique_lock locker(m_impl->m_ini_lock);
+		m_impl->m_ini.write(path, value);
+	}
 
 	changed(path, value);
 	return *this;

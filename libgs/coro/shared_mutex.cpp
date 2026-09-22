@@ -2,13 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "shared_mutex.h"
-#include <mutex>
-#include <utility>
 
 namespace libgs::coro { namespace detail
 {
 
-class shared_mutex_impl
+class LIBGS_CORO_API shared_mutex_impl
 {
 	LIBGS_DISABLE_COPY_MOVE(shared_mutex_impl)
 
@@ -100,14 +98,17 @@ public:
 
 	void unlock_shared()
 	{
+		auto readers = m_read_count.load(std::memory_order_relaxed);
+		while( readers != 0 )
 		{
-			std::lock_guard guard(m_read_count_mutex);
-			if( m_read_count == 0 )
+			if( m_read_count.compare_exchange_weak(readers, readers - 1,
+				std::memory_order_acq_rel, std::memory_order_relaxed) )
+			{
+				if( readers == 1 )
+					m_native_handle.unlock();
 				return ;
-			if( --m_read_count != 0 )
-				return ;
+			}
 		}
-		m_native_handle.unlock();
 	}
 
 	[[nodiscard]] bool is_locked() const noexcept {
@@ -121,22 +122,26 @@ public:
 private:
 	[[nodiscard]] bool try_join_readers()
 	{
-		std::lock_guard guard(m_read_count_mutex);
-		if( m_read_count == 0 )
-			return false;
-		++m_read_count;
-		return true;
+		auto readers = m_read_count.load(std::memory_order_acquire);
+		while( readers != 0 )
+		{
+			if( m_read_count.compare_exchange_weak(readers, readers + 1,
+				std::memory_order_acquire, std::memory_order_relaxed) )
+				return true;
+		}
+		return false;
 	}
 
 	void start_reading()
 	{
-		std::lock_guard guard(m_read_count_mutex);
-		++m_read_count;
+		// m_native_handle and m_read_gate make this the only zero-to-one
+		// transition.  Publishing it with release lets joining readers inherit
+		// the writer-to-reader synchronization without another mutex.
+		m_read_count.store(1, std::memory_order_release);
 	}
 
 private:
-	unsigned int m_read_count = 0;
-	std::mutex m_read_count_mutex;
+	std::atomic_uint m_read_count {0};
 	native_handle_t m_native_handle;
 	mutex m_read_gate;
 };

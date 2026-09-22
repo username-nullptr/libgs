@@ -23,7 +23,7 @@ inline void none_instruction() noexcept
 # elif defined(__powerpc__) || defined(__ppc__)
 	asm volatile("or 0, 0, 0" : : : "memory");
 # elif defined(__riscv)
-	asm volatile("wfi" : : : "memory");
+	asm volatile("fence w, 0" : : : "memory");
 # else // Unknown
 	asm volatile("" : : : "memory");
 # endif // CPU Architecture
