@@ -178,9 +178,9 @@ private:
 	std::thread m_thread {};
 };
 
-void swap(stop_token &left, stop_token &right) noexcept;
-void swap(stop_source &left, stop_source &right) noexcept;
-void swap(jthread &left, jthread &right) noexcept;
+LIBGS_CORE_API void swap(stop_token &left, stop_token &right) noexcept;
+LIBGS_CORE_API void swap(stop_source &left, stop_source &right) noexcept;
+LIBGS_CORE_API void swap(jthread &left, jthread &right) noexcept;
 
 #endif //LIBGS_HAS_STD_JTHREAD
 

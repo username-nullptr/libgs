@@ -12,7 +12,7 @@ class LIBGS_DECL_HIDDEN error_category : public error_category_t
 
 public:
 	error_category() = default;
-	virtual ~error_category() = default;
+	~error_category() override = default;
 
 	[[nodiscard]] const char *name() const noexcept override {
 		return "libgs::http::request_parser_error";

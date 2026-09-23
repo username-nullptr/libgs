@@ -18,7 +18,7 @@ static class LIBGS_DECL_HIDDEN library_category : public error_category_t
 
 public:
 	library_category() = default;
-	virtual ~library_category() = default;
+	~library_category() override = default;
 
 public:
 	[[nodiscard]] const char *name() const noexcept override {
