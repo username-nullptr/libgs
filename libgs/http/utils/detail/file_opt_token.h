@@ -68,7 +68,7 @@ init_file_size(concepts::any_file_opt_token auto &opt) noexcept
 		return {};
 	}
 	return io_unexpected (
-		make_error_code(std::errc::permission_denied)
+		make_system_error_code(std::errc::permission_denied)
 	);
 }
 
@@ -115,7 +115,7 @@ inline sys_expected<> file_opt_token<void,file_optype::single>::init(std::ios_ba
 	}
 	return app::absolute_path(file_name).and_then([&](const path_t &abs_name) -> sys_expected<>
 	{
-		file_name = std::move(abs_name);
+		file_name = abs_name;
 		namespace fs = std::filesystem;
 
 		if( (mode & std::ios_base::out) == 0 and not exists(file_name) )

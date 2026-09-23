@@ -269,6 +269,12 @@ public:
 	constexpr expected(const unexpected_type &error);
 	constexpr expected(unexpected_type &&error);
 
+	template <typename OtherError, typename U = value_type>
+	constexpr expected(OtherError &&error) requires (
+		not std::same_as<std::remove_cvref_t<OtherError>,error_type> and
+		std::constructible_from<error_type,OtherError> and
+		(std::is_void_v<U> or not std::convertible_to<OtherError,U>)
+	);
 	constexpr expected &operator=(const base_t &other);
 	constexpr expected &operator=(base_t &&other) noexcept (
 		std::is_nothrow_move_assignable_v<base_t>

@@ -15,9 +15,10 @@ outputs, installation, and supported integration boundaries.
 | Clang | 17 or newer |
 | MSVC | 19.30 or newer (Visual Studio 2022+) |
 
-Standalone Asio, spdlog, and nlohmann/json are bundled. OpenSSL, zlib, and
-liburing are optional system dependencies used only when their features are
-enabled.
+Standalone Asio and spdlog are bundled and selected by default. They may be
+replaced with installed packages, and Boost.Asio may be used instead of
+standalone Asio. OpenSSL, zlib, and liburing are optional system dependencies
+used only when their features are enabled.
 
 ## Module selection
 
@@ -81,6 +82,38 @@ Toolchain controls:
 | `LIBGS_LOW_MEMORY_DEBUG_INFO` | GCC Debug builds | Use `-g1` to reduce compiler memory |
 
 Test-only switches are documented in [Tests](../../test/README.md).
+
+Dependency selection:
+
+| Switch | Default | Effect |
+| --- | :---: | --- |
+| `LIBGS_USE_EMBEDDED_ASIO` | ON | Use the bundled standalone Asio |
+| `LIBGS_USE_BOOST_ASIO` | OFF | Use an installed Boost.Asio; takes precedence over `LIBGS_USE_EMBEDDED_ASIO` |
+| `LIBGS_USE_EMBEDDED_SPDLOG` | ON | Use the bundled spdlog |
+| `LIBGS_BOOST_INSTALL_PREFIX` | empty | Optional Boost install prefix |
+| `LIBGS_ASIO_INSTALL_PREFIX` | empty | Optional standalone Asio install prefix |
+| `LIBGS_SPDLOG_INSTALL_PREFIX` | empty | Optional spdlog install prefix |
+
+To use installed standalone Asio and spdlog, disable both embedded switches.
+LibGS first looks for their CMake packages and then falls back to finding the
+headers below the supplied install prefixes:
+
+```sh
+cmake -S . -B build \
+  -DLIBGS_USE_EMBEDDED_ASIO=OFF \
+  -DLIBGS_ASIO_INSTALL_PREFIX=/path/to/asio \
+  -DLIBGS_USE_EMBEDDED_SPDLOG=OFF \
+  -DLIBGS_SPDLOG_INSTALL_PREFIX=/path/to/spdlog
+```
+
+To use Boost.Asio, enable `LIBGS_USE_BOOST_ASIO`; the embedded-Asio switch does
+not need to be changed:
+
+```sh
+cmake -S . -B build \
+  -DLIBGS_USE_BOOST_ASIO=ON \
+  -DLIBGS_BOOST_INSTALL_PREFIX=/path/to/boost
+```
 
 ## Output and installation
 

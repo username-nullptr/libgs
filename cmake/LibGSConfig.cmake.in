@@ -5,6 +5,66 @@
 
 include(CMakeFindDependencyMacro)
 
+set(LibGS_ASIO_PROVIDER "@LIBGS_ASIO_PROVIDER@")
+set(LibGS_SPDLOG_PROVIDER "@LIBGS_SPDLOG_PROVIDER@")
+
+if (LibGS_ASIO_PROVIDER STREQUAL "boost")
+	if (NOT DEFINED Boost_ROOT AND NOT "@LIBGS_BOOST_INSTALL_PREFIX@" STREQUAL "")
+		set(Boost_ROOT "@LIBGS_BOOST_INSTALL_PREFIX@")
+	endif ()
+	find_dependency(Boost CONFIG)
+
+elseif (LibGS_ASIO_PROVIDER STREQUAL "external")
+	find_package(asio CONFIG QUIET HINTS "@LIBGS_ASIO_INSTALL_PREFIX@")
+	if (NOT TARGET @LIBGS_ASIO_PACKAGE_TARGET@)
+		find_package(Asio CONFIG QUIET HINTS "@LIBGS_ASIO_INSTALL_PREFIX@")
+	endif ()
+
+	if (NOT TARGET @LIBGS_ASIO_PACKAGE_TARGET@)
+		find_path(LibGS_ASIO_INCLUDE_DIR
+			NAMES asio.hpp
+			HINTS "@LIBGS_ASIO_INSTALL_PREFIX@"
+			PATH_SUFFIXES include
+		)
+		if (NOT LibGS_ASIO_INCLUDE_DIR)
+			set(LibGS_FOUND FALSE)
+			set(LibGS_NOT_FOUND_MESSAGE
+				"LibGS was built with external standalone Asio, but asio.hpp was not found."
+			)
+			return()
+		endif ()
+
+		add_library(@LIBGS_ASIO_PACKAGE_TARGET@ INTERFACE IMPORTED)
+		set_target_properties(@LIBGS_ASIO_PACKAGE_TARGET@ PROPERTIES
+			INTERFACE_INCLUDE_DIRECTORIES "${LibGS_ASIO_INCLUDE_DIR}"
+		)
+	endif ()
+endif ()
+
+if (LibGS_SPDLOG_PROVIDER STREQUAL "external")
+	find_package(spdlog CONFIG QUIET HINTS "@LIBGS_SPDLOG_INSTALL_PREFIX@")
+
+	if (NOT TARGET @LIBGS_SPDLOG_PACKAGE_TARGET@)
+		find_path(LibGS_SPDLOG_INCLUDE_DIR
+			NAMES spdlog/spdlog.h
+			HINTS "@LIBGS_SPDLOG_INSTALL_PREFIX@"
+			PATH_SUFFIXES include
+		)
+		if (NOT LibGS_SPDLOG_INCLUDE_DIR)
+			set(LibGS_FOUND FALSE)
+			set(LibGS_NOT_FOUND_MESSAGE
+				"LibGS was built with external spdlog, but spdlog/spdlog.h was not found."
+			)
+			return()
+		endif ()
+
+		add_library(@LIBGS_SPDLOG_PACKAGE_TARGET@ INTERFACE IMPORTED)
+		set_target_properties(@LIBGS_SPDLOG_PACKAGE_TARGET@ PROPERTIES
+			INTERFACE_INCLUDE_DIRECTORIES "${LibGS_SPDLOG_INCLUDE_DIR}"
+		)
+	endif ()
+endif ()
+
 if (@LIBGS_OPENSSL_SUPPORT@)
 	find_dependency(OpenSSL)
 endif ()

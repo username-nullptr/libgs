@@ -249,7 +249,7 @@ private:
 			}
 			else
 			{
-				const auto error = make_error_code(std::errc::io_error);
+				const auto error = make_system_error_code(std::errc::io_error);
 				exception = std::make_exception_ptr(std::system_error(error));
 				result.emplace(sys_unexpected(error));
 			}
@@ -273,7 +273,7 @@ private:
 			asio::cancellation_type::all
 		);
 		m_completion_fn(*this, std::move(exception),
-			result_t(sys_unexpected(make_error_code(std::errc::io_error))), true
+			result_t(sys_unexpected(make_system_error_code(std::errc::io_error))), true
 		);
 	}
 
@@ -794,7 +794,7 @@ public:
 		else if( not result.second )
 		{
 			std::move(m_handler)(result.first ? result.first :
-				make_error_code(std::errc::io_error), m_factory()
+				make_system_error_code(std::errc::io_error), m_factory()
 			);
 		}
 		else
@@ -844,7 +844,7 @@ public:
 		else if( not result )
 		{
 			std::move(m_handler) (
-				make_error_code(std::errc::io_error), m_factory()
+				make_system_error_code(std::errc::io_error), m_factory()
 			);
 		}
 		else
@@ -898,13 +898,21 @@ template <typename Value, typename Handler, typename Exec>
 [[nodiscard]] LIBGS_CORE_TAPI asio::awaitable<asio::detail::awaitable_thread_entry_point,Exec>
 co_launch_awaitable(asio::awaitable<Value,Exec> operation, Handler handler)
 {
+#if LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
+	co_await asio::detail::awaitable_thread_has_context_switched {} = false;
+#endif //LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
+
 	std::exception_ptr exception;
 	bool completed = false;
 	try {
 		Value result = co_await std::move(operation);
 		completed = true;
 
-		if( co_await asio::detail::awaitable_thread_is_launching{} )
+#if LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
+		if( not co_await asio::detail::awaitable_thread_has_context_switched {} )
+#else //LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
+		if( co_await asio::detail::awaitable_thread_is_launching {} )
+#endif //LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
 		{
 			co_await asio::this_coro::throw_if_cancelled(false);
 			co_await asio::post(deferred);
@@ -918,7 +926,11 @@ co_launch_awaitable(asio::awaitable<Value,Exec> operation, Handler handler)
 			throw;
 		exception = std::current_exception();
 	}
+#if LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
+	if( not (co_await asio::detail::awaitable_thread_has_context_switched{}) )
+#else //LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
 	if( co_await asio::detail::awaitable_thread_is_launching{} )
+#endif //LIBGS_ASIO_LEGACY_AWAITABLE_CONTEXT
 	{
 		co_await asio::this_coro::throw_if_cancelled(false);
 		co_await asio::post(deferred);
@@ -1427,9 +1439,10 @@ template <typename Value>
 	return std::move(*expected);
 }
 
-template <typename Value>
-[[nodiscard]] Value expected_value_or_error(sys_expected<Value> expected, error_code &error)
+template <typename Value, typename Error>
+[[nodiscard]] Value expected_value_or_error(sys_expected<Value> expected, Error &error)
 	noexcept(std::is_nothrow_move_constructible_v<Value>)
+	requires is_error_code_token_v<Error&>
 {
 	if( not expected )
 	{
@@ -1469,10 +1482,10 @@ inline error_code exception_error(const std::exception_ptr &exception) noexcept
 		return detail::canonical_error(ex.code());
 	}
 	catch(const std::bad_alloc&) {
-		return make_error_code(std::errc::not_enough_memory);
+		return make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...) {}
-	return make_error_code(std::errc::io_error);
+	return make_system_error_code(std::errc::io_error);
 }
 
 template <typename Value, concepts::exec Exec, typename Factory, typename Token>

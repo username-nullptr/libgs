@@ -268,7 +268,7 @@ server_upgrade_plan make_server_upgrade_plan(request_info request, const upgrade
 
 		if( subprotocol_selectors > 1 or extension_selectors > 1 )
 		{
-			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
+			reject_upgrade(plan, make_system_error_code(std::errc::invalid_argument),
 				http::status::internal_server_error);
 			return plan;
 		}
@@ -277,7 +277,7 @@ server_upgrade_plan make_server_upgrade_plan(request_info request, const upgrade
 			 options.async_subprotocol_selector or options.async_extension_selector) )
 		{
 			reject_upgrade(plan,
-				make_error_code(std::errc::operation_not_supported),
+				make_system_error_code(std::errc::operation_not_supported),
 				http::status::internal_server_error
 			);
 			return plan;
@@ -287,7 +287,7 @@ server_upgrade_plan make_server_upgrade_plan(request_info request, const upgrade
 			options.stream.compression.level < -1 or
 			options.stream.compression.level > 9 )
 		{
-			reject_upgrade(plan, make_error_code(std::errc::invalid_argument),
+			reject_upgrade(plan, make_system_error_code(std::errc::invalid_argument),
 				http::status::internal_server_error
 			);
 			return plan;

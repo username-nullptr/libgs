@@ -12,8 +12,6 @@
 #include <libgs/core/async_expected.h>
 #include <libgs/http/client/detail/proxy.h>
 
-#include <utility>
-
 namespace libgs::http
 {
 
@@ -56,7 +54,7 @@ private:
 			if( not value.is_valid() or value.host().empty() or value.has_fragment() )
 			{
 				return sys_unexpected (
-					make_error_code(std::errc::invalid_argument)
+					make_system_error_code(std::errc::invalid_argument)
 				);
 			}
 			auto scheme = strtls::to_lower(value.protocol());
@@ -78,7 +76,7 @@ private:
 			else
 			{
 				return sys_unexpected (
-					make_error_code(std::errc::protocol_not_supported)
+					make_system_error_code(std::errc::protocol_not_supported)
 				);
 			}
 			return target_t {
@@ -88,11 +86,11 @@ private:
 		catch(const std::bad_alloc&)
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::not_enough_memory)
+				make_system_error_code(std::errc::not_enough_memory)
 			);
 		}
 		catch(...) {}
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}
 
 	[[nodiscard]] sys_expected<request_target>
@@ -130,10 +128,10 @@ private:
 			return result;
 		}
 		catch(const std::bad_alloc&) {
-			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+			return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 		}
 		catch(...) {}
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}
 
 	void add_request_cookies(req_info &info)
@@ -212,13 +210,13 @@ private:
 		catch(const std::bad_alloc&)
 		{
 			co_return std::tuple<error_code,context_ptr<Method>> {
-				make_error_code(std::errc::not_enough_memory), {}
+				make_system_error_code(std::errc::not_enough_memory), {}
 			};
 		}
 		catch(...)
 		{
 			co_return std::tuple<error_code,context_ptr<Method>> {
-				make_error_code(std::errc::io_error), {}
+				make_system_error_code(std::errc::io_error), {}
 			};
 		}
 		auto [lease_error, lease] = co_await self->m_pool.get(
@@ -252,12 +250,12 @@ private:
 		catch(const std::bad_alloc&)
 		{
 			co_return std::tuple<error_code,context_ptr<Method>> {
-				make_error_code(std::errc::not_enough_memory), {}
+				make_system_error_code(std::errc::not_enough_memory), {}
 			};
 		}
 		catch(...) {}
 		co_return std::tuple<error_code,context_ptr<Method>> {
-			make_error_code(std::errc::io_error), {}
+			make_system_error_code(std::errc::io_error), {}
 		};
 	}
 
@@ -313,7 +311,7 @@ private:
 			catch(...)
 			{
 				return sys_unexpected (
-					make_error_code(std::errc::protocol_error)
+					make_system_error_code(std::errc::protocol_error)
 				);
 			}
 			auto next = make_context<Method>(info);
@@ -408,7 +406,7 @@ private:
 			catch(...)
 			{
 				co_return std::tuple<error_code,context_ptr<Method>> {
-					make_error_code(std::errc::protocol_error), {}
+					make_system_error_code(std::errc::protocol_error), {}
 				};
 			}
 			auto [context_error, next_context] =
@@ -824,11 +822,11 @@ public:
 		catch(const std::bad_alloc&)
 		{
 			return sys_unexpected (
-				make_error_code(std::errc::not_enough_memory)
+				make_system_error_code(std::errc::not_enough_memory)
 			);
 		}
 		catch(...) {}
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}
 
 	template <method_enum Method, typename Handler>

@@ -315,7 +315,7 @@ void child_process_cancel_options()
 	#endif
 		LIBGS_TEST_CHECK(process.start());
 		const auto pid = process.pid();
-		std::error_code run_error;
+		libgs::error_code run_error;
 		auto completed = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
 		{

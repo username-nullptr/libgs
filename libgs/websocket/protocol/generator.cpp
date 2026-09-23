@@ -143,7 +143,7 @@ sys_expected<size_t> mask_copy(const mutable_buffer &destination, const const_bu
 	const masking_key &key, uint64_t payload_offset) noexcept
 {
 	if( destination.size() < source.size() )
-		return sys_unexpected(make_error_code(std::errc::no_buffer_space));
+		return sys_unexpected(make_system_error_code(std::errc::no_buffer_space));
 
 	if( source.size() != 0 )
 		std::memmove(destination.data(), source.data(), source.size());

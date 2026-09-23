@@ -6,47 +6,59 @@
 namespace libgs::websocket { namespace
 {
 
-class websocket_protocol_error_category final : public std::error_category
+class LIBGS_DECL_HIDDEN websocket_protocol_error_category final : public error_category_t
 {
 public:
 	[[nodiscard]] const char *name() const noexcept override {
 		return "libgs::websocket::protocol";
 	}
-
 	[[nodiscard]] std::string message(int code) const override
 	{
 		switch(static_cast<protocol_errc>(code))
 		{
 		case protocol_errc::reserved_opcode:
 			return "Reserved WebSocket opcode";
+
 		case protocol_errc::unexpected_rsv:
 			return "Unexpected WebSocket reserved bit";
+
 		case protocol_errc::unexpected_mask:
 			return "Unexpected WebSocket masking key";
+
 		case protocol_errc::missing_mask:
 			return "Missing WebSocket masking key";
+
 		case protocol_errc::noncanonical_length:
 			return "Non-canonical WebSocket payload length";
+
 		case protocol_errc::invalid_64bit_length:
 			return "Invalid 64-bit WebSocket payload length";
+
 		case protocol_errc::fragmented_control_frame:
 			return "Fragmented WebSocket control frame";
+
 		case protocol_errc::ctrl_payload_too_large:
 			return "WebSocket control payload too large";
+
 		case protocol_errc::frame_too_large:
 			return "WebSocket frame too large";
+
 		case protocol_errc::invalid_close_payload:
 			return "Invalid WebSocket Close payload";
+
 		case protocol_errc::invalid_utf8:
 			return "Invalid WebSocket UTF-8";
+
 		case protocol_errc::unexpected_continuation:
 			return "Unexpected WebSocket continuation frame";
+
 		case protocol_errc::data_during_fragmentation:
 			return "WebSocket data frame during fragmented message";
+
 		case protocol_errc::invalid_compressed_payload:
 			return "Invalid compressed WebSocket message payload";
-		default:
-			break;
+
+		default: break;
 		}
 		return "Unknown WebSocket protocol error";
 	}
@@ -148,7 +160,7 @@ bool is_permessage_deflate_extension(const extension &value) noexcept
 	return true;
 }
 
-const std::error_category &protocol_error_category() noexcept
+const error_category_t &protocol_error_category() noexcept
 {
 	static websocket_protocol_error_category category;
 	return category;
@@ -216,12 +228,9 @@ close_code close_code_for(protocol_errc value) noexcept
 {
 	switch(value)
 	{
-	case protocol_errc::invalid_utf8:
-		return close_code::invalid_payload;
-	case protocol_errc::frame_too_large:
-		return close_code::message_too_big;
-	default:
-		break;
+	case protocol_errc::invalid_utf8   : return close_code::invalid_payload;
+	case protocol_errc::frame_too_large: return close_code::message_too_big;
+	default: break;
 	}
 	return close_code::protocol_error;
 }

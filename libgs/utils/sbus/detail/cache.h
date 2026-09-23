@@ -325,10 +325,10 @@ public:
 	}
 
 	template <typename T = payload_t>
-	[[nodiscard]] awaitable<sys_expected<changed_result<T>>> co_wait_changed(std::string_view topic,
-		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
+	[[nodiscard]] awaitable<sys_expected<changed_result<T>>> co_wait_changed
+	(std::string_view topic, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
-		using worker_t = async_work<std::error_code,changed_result<T>>;
+		using worker_t = async_work<error_code,changed_result<T>>;
 		using work_handler_t = worker_t::handler_t;
 
 		auto exec = m_subscriber.get_executor();
@@ -375,7 +375,7 @@ public:
 					return ;
 				changed(topic).disconnect(observer);
 
-				std::move(*change_notifier)(std::error_code(),
+				std::move(*change_notifier)(error_code(),
 					decode_changed<T>(std::move(curr), std::move(prev))
 				);
 			});
@@ -402,7 +402,7 @@ public:
 		co_return expected;
 	}
 
-	[[nodiscard]] awaitable<io_expected> co_wait_changed(std::error_code &error, std::string_view topic,
+	[[nodiscard]] awaitable<io_expected> co_wait_changed(error_code &error, std::string_view topic,
 		asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		auto expected = co_await co_wait_changed(topic,

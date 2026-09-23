@@ -297,6 +297,17 @@ constexpr expected<Value,Error>::expected(unexpected_type &&error) :
 }
 
 template <typename Value, typename Error>
+template <typename OtherError, typename U>
+constexpr expected<Value,Error>::expected(OtherError &&error) requires (
+	not std::same_as<std::remove_cvref_t<OtherError>,error_type> and
+	std::constructible_from<error_type,OtherError> and
+	(std::is_void_v<U> or not std::convertible_to<OtherError,U>)
+) : base_t(unexpect, std::forward<OtherError>(error))
+{
+
+}
+
+template <typename Value, typename Error>
 constexpr expected<Value,Error> &expected<Value,Error>::operator=(const base_t &other)
 {
 	base_t::operator=(other);

@@ -33,20 +33,15 @@ enum class errc
 };
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
-const std::error_category &error_category() noexcept;
+const error_category_t &error_category() noexcept;
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
 error_code make_error_code(errc value) noexcept;
 
 } //namespace libgs::websocket
 
-namespace std
-{
-
 template <>
-struct is_error_code_enum<libgs::websocket::errc> : true_type {};
-
-} //namespace std
+struct std::is_error_code_enum<libgs::websocket::errc> : true_type {};
 
 
 #endif //LIBGS_WEBSOCKET_ERROR_H

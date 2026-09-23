@@ -89,7 +89,7 @@ std::shared_ptr<std::vector<std::byte>> receive_buffer::read_storage() const noe
 error_code receive_buffer::commit_read(size_t size) noexcept
 {
 	if( not m_read_buffer or size > m_read_buffer->size() )
-		return make_error_code(std::errc::io_error);
+		return make_system_error_code(std::errc::io_error);
 
 	m_read_size = size;
 	m_read_offset = 0;
@@ -99,7 +99,7 @@ error_code receive_buffer::commit_read(size_t size) noexcept
 error_code receive_buffer::target_error(receive_target target) const noexcept
 {
 	if( m_message_target and *m_message_target != target )
-		return make_error_code(std::errc::operation_not_supported);
+		return make_system_error_code(std::errc::operation_not_supported);
 	return {};
 }
 
@@ -115,14 +115,14 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 		return optional<received_event>{};
 
 	if( not m_parser )
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 	auto parsed = m_parser->parse(input);
 	if( not parsed )
 		return sys_unexpected(parsed.error());
 
 	if( parsed->consumed == 0 )
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 	const auto &header = m_parser->header();
 	if( parsed->header_ready )
@@ -236,7 +236,7 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 				if( target == receive_target::chunk )
 				{
 					if( not m_message_type )
-						return sys_unexpected(make_error_code(std::errc::io_error));
+						return sys_unexpected(make_system_error_code(std::errc::io_error));
 
 					if( *m_message_type == message_type::text and application_size != 0 )
 					{
@@ -269,10 +269,10 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 			}
 		}
 		catch(const std::bad_alloc&) {
-			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+			return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 		}
 		catch(...) {
-			return sys_unexpected(make_error_code(std::errc::io_error));
+			return sys_unexpected(make_system_error_code(std::errc::io_error));
 		}
 	}
 	if( parsed->frame_finished and header.fin and m_message_compressed and
@@ -381,10 +381,10 @@ sys_expected<optional<received_event>> receive_buffer::consume(receive_target ta
 				};
 			}
 			catch(const std::bad_alloc&) {
-				return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+				return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 			}
 			catch(...) {
-				return sys_unexpected(make_error_code(std::errc::io_error));
+				return sys_unexpected(make_system_error_code(std::errc::io_error));
 			}
 		}
 		if( header.fin )

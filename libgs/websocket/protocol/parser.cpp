@@ -180,7 +180,7 @@ frame_parser &frame_parser::operator=(frame_parser &&other) noexcept
 sys_expected<frame_parse_result> frame_parser::parse(const mutable_buffer &input) noexcept
 {
 	if( not m_impl )
-		return sys_unexpected(make_error_code(std::errc::operation_not_permitted));
+		return sys_unexpected(make_system_error_code(std::errc::operation_not_permitted));
 
 	if( m_impl->m_error )
 		return sys_unexpected(m_impl->m_error);
@@ -280,7 +280,7 @@ bool frame_parser::failed() const noexcept
 error_code frame_parser::last_error() const noexcept
 {
 	return m_impl ? m_impl->m_error :
-		make_error_code(std::errc::operation_not_permitted);
+		make_system_error_code(std::errc::operation_not_permitted);
 }
 
 frame_parser &frame_parser::reset() noexcept

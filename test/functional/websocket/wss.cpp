@@ -186,7 +186,7 @@ void secure_round_trip()
 				asio::read(*downstream, asio::buffer(&byte, 1), error);
 				if( error or header.size() >= 16 * 1024 )
 					throw std::system_error(error ? error :
-						std::make_error_code(std::errc::message_size));
+						libgs::make_system_error_code(std::errc::message_size));
 				header.push_back(byte);
 			}
 			const auto expected_target = std::format(

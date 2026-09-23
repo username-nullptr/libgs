@@ -547,7 +547,7 @@ private:
 			config.default_upgrade.stream.ping_interval < std::chrono::milliseconds::zero() )
 		{
 			system_error::loc_throw (
-				make_error_code(std::errc::invalid_argument),
+				make_system_error_code(std::errc::invalid_argument),
 				"libgs::websocket::basic_server"
 			);
 		}
@@ -900,7 +900,7 @@ public:
 			if( not self->enter_accept_mode() )
 			{
 				waiter->complete (
-					make_error_code(std::errc::operation_not_supported),
+					make_system_error_code(std::errc::operation_not_supported),
 					self->idle_result()
 				);
 				return ;
@@ -944,7 +944,7 @@ public:
 			if( not enter_accept_mode() )
 			{
 				waiter->complete (
-					make_error_code(std::errc::operation_not_supported),
+					make_system_error_code(std::errc::operation_not_supported),
 					idle_result()
 				);
 			}
@@ -1164,8 +1164,10 @@ auto basic_server<Stream>::accept(upgrade_options_t options, Token &&token)
 	requires accept_token_v<Token>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->accept_sync(std::move(options), token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->accept_sync(std::move(options), adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -1343,7 +1345,9 @@ auto upgrade(http::basic_service_context<Exec> &context, upgrade_options options
 	if constexpr( is_error_code_token_v<Token> )
 	{
 		basic_accept_result<Exec> result(context.get_executor());
-		detail::upgrade_sync(context, std::move(options), result, token);
+		auto adapted_error = adapt_error_code(token);
+
+		detail::upgrade_sync(context, std::move(options), result, adapted_error.get());
 		return result;
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )

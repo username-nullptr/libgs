@@ -112,7 +112,7 @@ public:
 						return sys_unexpected(make_error_code(errc::operation_aborted));
 
 					if( m_config.max_count == 0 )
-						return sys_unexpected(make_error_code(std::errc::no_buffer_space));
+						return sys_unexpected(make_system_error_code(std::errc::no_buffer_space));
 
 					conn = take_idle_locked(key);
 					if( conn )
@@ -155,13 +155,13 @@ public:
 			}
 		}
 		catch(const std::bad_alloc&) {
-			return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+			return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 		}
 		catch(const std::system_error &ex) {
 			return sys_unexpected(ex.code());
 		}
 		catch(...) {}
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}
 
 	[[nodiscard]] awaitable<sys_expected<lease_ptr>>
@@ -186,7 +186,7 @@ public:
 					co_return sys_unexpected(make_error_code(errc::operation_aborted));
 
 				if( m_config.max_count == 0 )
-					co_return sys_unexpected(make_error_code(std::errc::no_buffer_space));
+					co_return sys_unexpected(make_system_error_code(std::errc::no_buffer_space));
 
 				conn = take_idle_locked(key);
 				if( conn )
@@ -254,7 +254,7 @@ public:
 				std::move(conn), error
 			);
 		}
-		co_return sys_unexpected(make_error_code(std::errc::io_error));
+		co_return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}
 
 public:
@@ -415,7 +415,7 @@ private:
 				{
 					error = m_stopped or generation != m_cancel_generation ?
 						make_error_code(errc::operation_aborted) :
-						make_error_code(std::errc::not_connected);
+						make_system_error_code(std::errc::not_connected);
 				}
 			}
 			else
@@ -437,10 +437,10 @@ private:
 			return make_lease(key, std::move(conn));
 		}
 		catch(const std::bad_alloc&) {
-			error = make_error_code(std::errc::not_enough_memory);
+			error = make_system_error_code(std::errc::not_enough_memory);
 		}
 		catch(...) {
-			error = make_error_code(std::errc::io_error);
+			error = make_system_error_code(std::errc::io_error);
 		}
 		std::lock_guard lock(m_mutex);
 		drop_count_locked(m_buckets.find(key));

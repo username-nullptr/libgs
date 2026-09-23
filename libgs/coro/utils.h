@@ -6,7 +6,7 @@
 
 #include <libgs/coro/global.h>
 
-#ifdef LIBGS_USING_BOOST_ASIO
+#if LIBGS_USING_BOOST_ASIO
 # include <boost/asio/experimental/awaitable_operators.hpp>
 #else //LIBGS_USING_BOOST_ASIO
 # include <asio/experimental/awaitable_operators.hpp>

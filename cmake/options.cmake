@@ -15,6 +15,26 @@ endif ()
 option(LIBGS_ADD_LIBRARY_VERSION
 	"-- ${PRO_NAME}: Add version information to shared library names." ON
 )
+option(LIBGS_USE_EMBEDDED_ASIO
+	"-- ${PRO_NAME}: Use embedded Asio." ON
+)
+option(LIBGS_USE_BOOST_ASIO
+	"-- ${PRO_NAME}: Use Boost.Asio." OFF
+)
+option(LIBGS_USE_EMBEDDED_SPDLOG
+	"-- ${PRO_NAME}: Use embedded spdlog." ON
+)
+set(LIBGS_BOOST_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external Boost package."
+)
+set(LIBGS_ASIO_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external Asio package."
+)
+set(LIBGS_SPDLOG_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external spdlog package."
+)
+set(LIBGS_USING_BOOST_ASIO ${LIBGS_USE_BOOST_ASIO})
+
 option(LIBGS_OPENSSL_SUPPORT
 	"-- ${PRO_NAME}: OpenSSL support." OFF
 )

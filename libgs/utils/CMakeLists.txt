@@ -4,6 +4,7 @@
 set(target_name gs.utils)
 add_project(${target_name} gs.coro)
 
+target_link_libraries(${target_name} PRIVATE libgs.spdlog)
 target_compile_definitions (
 	${target_name} PRIVATE LIBGS_UTILS_SHARED
 )

@@ -41,7 +41,7 @@ enum class parse_errc
 };
 
 [[nodiscard]] LIBGS_HTTP_API
-const std::error_category &parse_error_category() noexcept;
+const error_category_t &parse_error_category() noexcept;
 
 [[nodiscard]] LIBGS_HTTP_API
 error_code make_error_code(parse_errc value) noexcept;

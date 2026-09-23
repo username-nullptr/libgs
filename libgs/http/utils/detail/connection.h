@@ -182,7 +182,7 @@ sys_expected<> set_tcp_socket_options(Socket &socket, const tcp_socket_options &
 	if( options.send_buffer_size )
 	{
 		if( *options.send_buffer_size > static_cast<size_t>(std::numeric_limits<int>::max()) )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( not set(asio::socket_base::send_buffer_size(static_cast<int>(*options.send_buffer_size))) )
 			return sys_unexpected(error);
@@ -190,7 +190,7 @@ sys_expected<> set_tcp_socket_options(Socket &socket, const tcp_socket_options &
 	if( options.receive_buffer_size )
 	{
 		if( *options.receive_buffer_size > static_cast<size_t>(std::numeric_limits<int>::max()) )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( not set(asio::socket_base::receive_buffer_size(static_cast<int>(*options.receive_buffer_size))) )
 			return sys_unexpected(error);
@@ -249,8 +249,10 @@ auto basic_connection<Exec>::read(const mutable_buffer &buf, Token &&token)
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		token.clear();
-		return read_some(buf, token);
+		auto adapted_error = adapt_error_code(token);
+		auto &error = adapted_error.get();
+		error.clear();
+		return read_some(buf, error);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -273,8 +275,10 @@ auto basic_connection<Exec>::write(const const_buffer &body, Token &&token) noex
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		token.clear();
-		return write_all(body, token);
+		auto adapted_error = adapt_error_code(token);
+		auto &error = adapted_error.get();
+		error.clear();
+		return write_all(body, error);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -314,8 +318,10 @@ auto basic_connection<Exec>::write(std::span<const const_buffer> buffers, Token 
 {
 	if constexpr( is_error_code_token_v<Token> )
 	{
-		token.clear();
-		return write_all(buffers, token);
+		auto adapted_error = adapt_error_code(token);
+		auto &error = adapted_error.get();
+		error.clear();
+		return write_all(buffers, error);
 	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
@@ -364,7 +370,7 @@ size_t basic_connection<Exec>::write_all
 		auto size = write_all(buffer, error);
 		if( size > std::numeric_limits<size_t>::max() - sum )
 		{
-			error = make_error_code(std::errc::value_too_large);
+			error = make_system_error_code(std::errc::value_too_large);
 			return sum;
 		}
 		sum += size;
@@ -404,7 +410,7 @@ void basic_connection<Exec>::co_write_all
 			if( size > std::numeric_limits<size_t>::max() - sum )
 			{
 				co_return detail::connection_io_completion {
-					make_error_code(std::errc::value_too_large), sum
+					make_system_error_code(std::errc::value_too_large), sum
 				};
 			}
 			sum += size;
@@ -432,13 +438,13 @@ void basic_connection<Exec>::co_write_all
 				catch(const std::bad_alloc&)
 				{
 					std::move(completion_handler) (
-						make_error_code(std::errc::not_enough_memory), 0
+						make_system_error_code(std::errc::not_enough_memory), 0
 					);
 				}
 				catch(...)
 				{
 					std::move(completion_handler) (
-						make_error_code(std::errc::io_error), 0
+						make_system_error_code(std::errc::io_error), 0
 					);
 				}
 				return ;

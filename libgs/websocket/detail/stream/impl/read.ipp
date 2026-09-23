@@ -30,10 +30,10 @@ basic_message<Buffer> basic_stream<Exec>::impl::convert_message(message value, e
 		}
 	}
 	catch(const std::bad_alloc&) {
-		error = make_error_code(std::errc::not_enough_memory);
+		error = make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...) {
-		error = make_error_code(std::errc::io_error);
+		error = make_system_error_code(std::errc::io_error);
 	}
 	return {};
 }
@@ -69,10 +69,10 @@ basic_data_frame<Buffer> basic_stream<Exec>::impl::convert_frame
 		}
 	}
 	catch(const std::bad_alloc&) {
-		error = make_error_code(std::errc::not_enough_memory);
+		error = make_system_error_code(std::errc::not_enough_memory);
 	}
 	catch(...) {
-		error = make_error_code(std::errc::io_error);
+		error = make_system_error_code(std::errc::io_error);
 	}
 	return {};
 }

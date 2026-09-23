@@ -890,7 +890,7 @@ private:
 			sum += token.file_size;
 
 		else if( not error )
-			error = make_error_code(std::errc::io_error);
+			error = make_system_error_code(std::errc::io_error);
 
 		if( not error )
 		{
@@ -913,7 +913,7 @@ private:
 		token.stream->seekg(0);
 
 		if( not *token.stream )
-			return sys_unexpected(make_error_code(std::errc::io_error));
+			return sys_unexpected(make_system_error_code(std::errc::io_error));
 		for(;;)
 		{
 			token.stream->read(data, buf_size);
@@ -923,7 +923,7 @@ private:
 			{
 				if( token.stream->eof() )
 					break;
-				return sys_unexpected(make_error_code(std::errc::io_error));
+				return sys_unexpected(make_system_error_code(std::errc::io_error));
 			}
 			auto encoded = encoder.append({
 				data, static_cast<size_t>(count)
@@ -932,28 +932,28 @@ private:
 				return sys_unexpected(encoded.error());
 
 			if( encoded->size() > std::numeric_limits<size_t>::max() - result )
-				return sys_unexpected(make_error_code(std::errc::value_too_large));
+				return sys_unexpected(make_system_error_code(std::errc::value_too_large));
 
 			result += encoded->size();
 			if( token.stream->eof() )
 				break;
 
 			if( not *token.stream )
-				return sys_unexpected(make_error_code(std::errc::io_error));
+				return sys_unexpected(make_system_error_code(std::errc::io_error));
 		}
 		auto encoded = encoder.append({}, true);
 		if( not encoded )
 			return sys_unexpected(encoded.error());
 
 		if( encoded->size() > std::numeric_limits<size_t>::max() - result )
-			return sys_unexpected(make_error_code(std::errc::value_too_large));
+			return sys_unexpected(make_system_error_code(std::errc::value_too_large));
 
 		result += encoded->size();
 		token.stream->clear();
 		token.stream->seekg(0);
 
 		if( not *token.stream )
-			return sys_unexpected(make_error_code(std::errc::io_error));
+			return sys_unexpected(make_system_error_code(std::errc::io_error));
 		return result;
 	}
 
@@ -1001,7 +1001,7 @@ private:
 			if( size == 0 )
 			{
 				if( not token.stream->eof() )
-					error = make_error_code(std::errc::io_error);
+					error = make_system_error_code(std::errc::io_error);
 				break;
 			}
 			auto encoded = encoder.append({data, size});
@@ -1020,7 +1020,7 @@ private:
 					pending_source = 0;
 				}
 				else if( not error )
-					error = make_error_code(std::errc::io_error);
+					error = make_system_error_code(std::errc::io_error);
 			}
 			if( error )
 				return sum;
@@ -1043,7 +1043,7 @@ private:
 				pending_source = 0;
 			}
 			else if( not error )
-				error = make_error_code(std::errc::io_error);
+				error = make_system_error_code(std::errc::io_error);
 		}
 
 		if( error )
@@ -1079,7 +1079,7 @@ private:
 			if( bytes != cached->size() )
 			{
 				co_return std::tuple<error_code,size_t> {
-					make_error_code(std::errc::io_error), sum
+					make_system_error_code(std::errc::io_error), sum
 				};
 			}
 			sum += token.file_size;
@@ -1128,7 +1128,7 @@ private:
 				if( not token.stream->eof() )
 				{
 					co_return std::tuple<error_code,size_t>{
-						make_error_code(std::errc::io_error), sum
+						make_system_error_code(std::errc::io_error), sum
 					};
 				}
 				break;
@@ -1152,7 +1152,7 @@ private:
 				if( bytes != encoded->size() )
 				{
 					co_return std::tuple<error_code,size_t> {
-						make_error_code(std::errc::io_error), sum
+						make_system_error_code(std::errc::io_error), sum
 					};
 				}
 				sum += pending_source;
@@ -1174,7 +1174,7 @@ private:
 			if( bytes != encoded->size() )
 			{
 				co_return std::tuple<error_code,size_t> {
-					make_error_code(std::errc::io_error), sum
+					make_system_error_code(std::errc::io_error), sum
 				};
 			}
 			sum += pending_source;
@@ -1966,8 +1966,7 @@ basic_response<Exec> &basic_response<Exec>::auto_set(request_t &req)
 }
 
 template <core_concepts::exec Exec>
-basic_response<Exec>&
-basic_response<Exec>::set_auto_compression(bool enabled) noexcept
+basic_response<Exec> &basic_response<Exec>::set_auto_compression(bool enabled) noexcept
 {
 	if constexpr( gzip_available_v )
 		m_impl->m_auto_compression = enabled;
@@ -1987,8 +1986,10 @@ auto basic_response<Exec>::write(const const_buffer &body, Token &&token)
 {
 	using token_t = std::remove_cvref_t<Token>;
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->write(body, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->write(body, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -2047,8 +2048,10 @@ auto basic_response<Exec>::send_file(T &&opt, Token &&token)
 	requires file_task_token_v<T,Token>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->send_file(std::forward<T>(opt), token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->send_file(std::forward<T>(opt), adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;
@@ -2113,8 +2116,10 @@ auto basic_response<Exec>::chunk_end
 	requires task_token_v<Token,size_t>
 {
 	if constexpr( is_error_code_token_v<Token> )
-		return m_impl->chunk_end(trailing_headers, token);
-
+	{
+		auto adapted_error = adapt_error_code(token);
+		return m_impl->chunk_end(trailing_headers, adapted_error.get());
+	}
 	else if constexpr( is_sync_opt_token_v<Token> )
 	{
 		error_code error;

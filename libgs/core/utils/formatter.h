@@ -8,7 +8,7 @@
 #include <libgs/core/cxx/formatter.h>
 #include <libgs/core/cxx/expected.h>
 #include <libgs/core/cxx/tools.h>
-#include <asio.hpp>
+#include <libgs/core/cxx/asio.h>
 
 #include <filesystem>
 #include <optional>
@@ -234,9 +234,9 @@ private:
 };
 
 template <libgs::concepts::character CharT>
-struct LIBGS_CORE_TAPI formatter<error_code, CharT> : libgs::no_parse_formatter<CharT>
+struct LIBGS_CORE_TAPI formatter<libgs::error_code, CharT> : libgs::no_parse_formatter<CharT>
 {
-	auto format(const error_code &error, auto &context) const {
+	auto format(const libgs::error_code &error, auto &context) const {
 		return format_to(context.out(), l_str(CharT,"{} ({})"), error.message(), error.value());
 	}
 };

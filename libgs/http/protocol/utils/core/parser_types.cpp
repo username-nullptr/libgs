@@ -6,12 +6,13 @@
 namespace libgs::http { namespace
 {
 
-class LIBGS_DECL_HIDDEN error_category : public std::error_category
+class LIBGS_DECL_HIDDEN error_category : public error_category_t
 {
 	LIBGS_DISABLE_COPY_MOVE(error_category)
 
 public:
 	error_category() = default;
+	virtual ~error_category() = default;
 
 	[[nodiscard]] const char *name() const noexcept override {
 		return "libgs::http::request_parser_error";
@@ -33,14 +34,14 @@ g_error_category;
 
 } //namespace
 
-const std::error_category &parse_error_category() noexcept
+const error_category_t &parse_error_category() noexcept
 {
 	return g_error_category;
 }
 
 error_code make_error_code(parse_errc value) noexcept
 {
-	return { static_cast<int>(value), parse_error_category() };
+	return {static_cast<int>(value), parse_error_category()};
 }
 
 } //namespace libgs::http

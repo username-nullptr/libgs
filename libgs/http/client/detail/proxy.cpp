@@ -243,10 +243,10 @@ parse_proxy_environment(std::string text) noexcept
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::invalid_argument));
+	return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 }
 
 [[nodiscard]] std::string base64_encode(std::string_view input)
@@ -280,14 +280,14 @@ parse_proxy_environment(std::string text) noexcept
 {
 	try {
 		if( username.find(':') != std::string_view::npos )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		return "Basic " + base64_encode (
 			std::string(username) + ":" + std::string(password)
 		);
 	}
 	catch(const std::bad_alloc&) {}
-	return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+	return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 }
 
 [[nodiscard]] sys_expected<resolved_proxy> resolve_environment_proxy
@@ -309,7 +309,7 @@ parse_proxy_environment(std::string text) noexcept
 		url endpoint(parsed->endpoint);
 		if( not endpoint.is_valid() or endpoint.host().empty() or
 			endpoint.has_fragment() or endpoint.has_query() or endpoint.path() != "/" )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		const auto scheme = strtls::to_lower(endpoint.protocol());
 		const bool secure_target =
@@ -363,13 +363,13 @@ parse_proxy_environment(std::string text) noexcept
 			};
 			return result;
 		}
-		return sys_unexpected(make_error_code(std::errc::protocol_not_supported));
+		return sys_unexpected(make_system_error_code(std::errc::protocol_not_supported));
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 } //namespace
@@ -407,11 +407,11 @@ sys_expected<resolved_proxy> resolve_proxy(const url &target, const proxy_t &set
 		{
 			if( not forward->is_valid() or forward->host().empty() or
 				forward->has_fragment() or forward->has_query() or forward->path() != "/" )
-				return sys_unexpected(make_error_code(std::errc::invalid_argument));
+				return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 			const auto scheme = strtls::to_lower(forward->protocol());
 			if( scheme != "http" and scheme != "https" )
-				return sys_unexpected(make_error_code(std::errc::protocol_not_supported));
+				return sys_unexpected(make_system_error_code(std::errc::protocol_not_supported));
 
 			result.forward = *forward;
 			return result;
@@ -420,10 +420,10 @@ sys_expected<resolved_proxy> resolve_proxy(const url &target, const proxy_t &set
 		return result;
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {}
-	return sys_unexpected(make_error_code(std::errc::io_error));
+	return sys_unexpected(make_system_error_code(std::errc::io_error));
 }
 
 } //namespace libgs::http::detail

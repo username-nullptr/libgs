@@ -164,7 +164,7 @@ protected:
 			m_wire.insert(m_wire.end(), data, data + size);
 		}
 		error = size == buffer.size() ? libgs::error_code{} :
-			std::make_error_code(std::errc::broken_pipe);
+			libgs::make_system_error_code(std::errc::broken_pipe);
 		return size;
 	}
 

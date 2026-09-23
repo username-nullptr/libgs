@@ -82,7 +82,11 @@ void ini_commit_file(const path_t &source, const path_t &destination,
 #ifdef _WIN32
 	if( not MoveFileExW(source.c_str(), destination.c_str(),
 		MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
-		error = error_code(static_cast<int>(GetLastError()), std::system_category());
+	{
+		error = error_code(std::error_code (
+			static_cast<int>(GetLastError()), std::system_category()
+		));
+	}
 #else //_WIN32
 	std::filesystem::rename(source, destination, error);
 #endif //_WIN32
@@ -137,8 +141,8 @@ void ini_cancellation_registry::cancel() noexcept
 error_code ini_stream_error() noexcept
 {
 	if( errno != 0 )
-		return {errno, std::generic_category()};
-	return make_error_code(std::errc::io_error);
+		return error_code(std::error_code(errno, std::generic_category()));
+	return make_system_error_code(std::errc::io_error);
 }
 
 ini_tmp_guard::ini_tmp_guard(std::filesystem::path file_name) :

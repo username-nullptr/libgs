@@ -141,7 +141,7 @@ enum class protocol_errc
 };
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
-const std::error_category &protocol_error_category() noexcept;
+const error_category_t &protocol_error_category() noexcept;
 
 [[nodiscard]] LIBGS_WEBSOCKET_API
 error_code make_error_code(protocol_errc value) noexcept;
@@ -163,13 +163,8 @@ close_code close_code_for(protocol_errc value) noexcept;
 
 } //namespace libgs::websocket
 
-namespace std
-{
-
 template <>
-struct is_error_code_enum<libgs::websocket::protocol_errc> : true_type {};
-
-} //namespace std
+struct std::is_error_code_enum<libgs::websocket::protocol_errc> : true_type {};
 
 
 #endif //LIBGS_WEBSOCKET_PROTOCOL_TYPES_H

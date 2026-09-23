@@ -4,9 +4,8 @@
 #ifndef LIBGS_CORE_CXX_DETAIL_STREAMER_ASIO_H
 #define LIBGS_CORE_CXX_DETAIL_STREAMER_ASIO_H
 
-#include <asio.hpp>
+#include <libgs/core/cxx/asio.h>
 #include <chrono>
-#include <ctime>
 
 namespace libgs
 {

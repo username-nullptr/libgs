@@ -34,9 +34,8 @@ using read_channel_t = process::read_channel;
 using args_t = std::vector<std::string>;
 using envs_t = std::map<std::string, value>;
 
-[[nodiscard]] static error_code sys_error()
-{
-	return { errno, std::system_category() };
+[[nodiscard]] static error_code sys_error() {
+	return error_code(std::error_code(errno, std::system_category()));
 }
 
 [[nodiscard]] static bool is_shell_assignment(std::string_view word) noexcept
@@ -268,12 +267,12 @@ public:
 		}
 		catch(const std::bad_alloc&)
 		{
-			expected.despair(make_error_code(std::errc::not_enough_memory));
+			expected.despair(make_system_error_code(std::errc::not_enough_memory));
 			stop_and_reap(true);
 		}
 		catch(...)
 		{
-			expected.despair(make_error_code(std::errc::io_error));
+			expected.despair(make_system_error_code(std::errc::io_error));
 			stop_and_reap(true);
 		}
 		return expected;
@@ -479,16 +478,16 @@ private:
 	[[nodiscard]] error_code claim_join() noexcept
 	{
 		if( not m_joinable.load(std::memory_order_acquire) )
-			return make_error_code(std::errc::invalid_argument);
+			return make_system_error_code(std::errc::invalid_argument);
 
 		if( bool expected = false;
 			not m_join_in_progress.compare_exchange_strong(expected, true, std::memory_order_acq_rel) )
-			return make_error_code(std::errc::device_or_resource_busy);
+			return make_system_error_code(std::errc::device_or_resource_busy);
 
 		if( not m_joinable.load(std::memory_order_acquire) )
 		{
 			m_join_in_progress.store(false, std::memory_order_release);
-			return make_error_code(std::errc::invalid_argument);
+			return make_system_error_code(std::errc::invalid_argument);
 		}
 		return {};
 	}
@@ -538,7 +537,7 @@ public:
 	[[nodiscard]] sys_expected<> detach() noexcept
 	{
 		if( not m_joinable.load(std::memory_order_acquire) )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		if( m_join_in_progress.load(std::memory_order_acquire) )
 		{
@@ -548,7 +547,7 @@ public:
 		}
 		if( bool expected = true;
 			not m_joinable.compare_exchange_strong(expected, false, std::memory_order_acq_rel) )
-			return sys_unexpected(make_error_code(std::errc::invalid_argument));
+			return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 		m_released.store(true, std::memory_order_release);
 		return {};
@@ -609,14 +608,14 @@ public:
 		{
 			claim.consume();
 			return sys_unexpected (
-				make_error_code(std::errc::no_such_process)
+				make_system_error_code(std::errc::no_such_process)
 			);
 		}
 		else if( state == process_state::crashed )
 		{
 			claim.consume();
 			return sys_unexpected (
-				make_error_code(std::errc::io_error)
+				make_system_error_code(std::errc::io_error)
 			);
 		}
 		else if( state == process_state::exited )
@@ -648,7 +647,7 @@ public:
 		{
 			claim.consume();
 			return sys_unexpected (
-				make_error_code(std::errc::io_error)
+				make_system_error_code(std::errc::io_error)
 			);
 		}
 		claim.consume();
@@ -671,14 +670,14 @@ public:
 		{
 			claim.consume();
 			co_return sys_unexpected (
-				make_error_code(std::errc::no_such_process)
+				make_system_error_code(std::errc::no_such_process)
 			);
 		}
 		else if( state == process_state::crashed )
 		{
 			claim.consume();
 			co_return sys_unexpected (
-				make_error_code(std::errc::io_error)
+				make_system_error_code(std::errc::io_error)
 			);
 		}
 		else if( state == process_state::exited )
@@ -700,11 +699,11 @@ public:
 					if( state != process_state::exited )
 					{
 						claim.consume();
-						co_return sys_unexpected(make_error_code(std::errc::io_error));
+						co_return sys_unexpected(make_system_error_code(std::errc::io_error));
 					}
 					break;
 				}
-				std::error_code error;
+				error_code error;
 				if( cancel_slot.is_connected() )
 					co_await timer->async_wait(use_awaitable | cancel_slot | error);
 				else
@@ -721,7 +720,7 @@ public:
 				{
 					claim.consume();
 					co_return sys_unexpected (
-						make_error_code(std::errc::io_error)
+						make_system_error_code(std::errc::io_error)
 					);
 				}
 				break;
@@ -732,7 +731,7 @@ public:
 			timer->expires_after(timeout);
 			const bool timer_registered = register_join_timer(timer);
 
-			std::error_code error;
+			error_code error;
 			if( timer_registered )
 			{
 				if( cancel_slot.is_connected() )
@@ -751,7 +750,7 @@ public:
 			{
 				claim.consume();
 				co_return sys_unexpected (
-					make_error_code(std::errc::io_error)
+					make_system_error_code(std::errc::io_error)
 				);
 			}
 		}
@@ -765,10 +764,10 @@ public:
 		if( m_state != process_state::running )
 		{
 			return io_unexpected (
-				make_error_code(std::errc::no_such_process)
+				make_system_error_code(std::errc::no_such_process)
 			);
 		}
-		std::error_code error;
+		error_code error;
 		error = m_stdin.non_blocking(false, error);
 		if( error )
 			return {error};
@@ -789,11 +788,11 @@ public:
 		if( m_state != process_state::running )
 		{
 			post_io_result(std::move(handler),
-				make_error_code(std::errc::no_such_process), 0
+				make_system_error_code(std::errc::no_such_process), 0
 			);
 			return ;
 		}
-		std::error_code error;
+		error_code error;
 		error = m_stdin.non_blocking(true, error);
 		if( error )
 		{
@@ -809,7 +808,7 @@ public:
 		if( m_state == process_state::idle )
 		{
 			return io_unexpected (
-				make_error_code(std::errc::no_such_process)
+				make_system_error_code(std::errc::no_such_process)
 			);
 		}
 		descriptor_t *stream = nullptr;
@@ -819,7 +818,7 @@ public:
 			if( not m_stdout.is_open() )
 			{
 				return io_unexpected (
-					make_error_code(std::errc::no_such_process)
+					make_system_error_code(std::errc::no_such_process)
 				);
 			}
 			stream = &m_stdout;
@@ -829,12 +828,12 @@ public:
 			if( not m_stderr.is_open() )
 			{
 				return io_unexpected (
-					make_error_code(std::errc::no_such_process)
+					make_system_error_code(std::errc::no_such_process)
 				);
 			}
 			stream = &m_stderr;
 		}
-		std::error_code error;
+		error_code error;
 		error = stream->non_blocking(false, error);
 		if( error )
 			return {error};
@@ -855,11 +854,11 @@ public:
 		if( m_state == process_state::idle )
 		{
 			post_io_result(std::move(handler),
-				make_error_code(std::errc::no_such_process), 0
+				make_system_error_code(std::errc::no_such_process), 0
 			);
 			return ;
 		}
-		std::error_code error;
+		error_code error;
 		descriptor_t *stream = nullptr;
 
 		if( channel == read_channel_t::std_output )
@@ -867,7 +866,7 @@ public:
 			if( not m_stdout.is_open() )
 			{
 				post_io_result(std::move(handler),
-					make_error_code(std::errc::no_such_process), 0
+					make_system_error_code(std::errc::no_such_process), 0
 				);
 				return ;
 			}
@@ -878,7 +877,7 @@ public:
 			if( not m_stderr.is_open() )
 			{
 				post_io_result(std::move(handler),
-					make_error_code(std::errc::no_such_process), 0
+					make_system_error_code(std::errc::no_such_process), 0
 				);
 				return ;
 			}
@@ -1091,10 +1090,10 @@ sys_expected<> process::detach() const noexcept
 		return sys_unexpected(exception.code());
 	}
 	catch(const std::bad_alloc&) {
-		return sys_unexpected(make_error_code(std::errc::not_enough_memory));
+		return sys_unexpected(make_system_error_code(std::errc::not_enough_memory));
 	}
 	catch(...) {
-		return sys_unexpected(make_error_code(std::errc::io_error));
+		return sys_unexpected(make_system_error_code(std::errc::io_error));
 	}
 	if( auto expected = m_impl->m_vindicator->detach(); not expected )
 		return expected;

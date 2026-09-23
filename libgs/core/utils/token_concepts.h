@@ -13,7 +13,10 @@ template <typename>
 struct is_use_future : std::false_type {};
 
 template <typename Allocator>
-struct is_use_future<use_basic_future_t<Allocator>> : std::true_type {};
+struct is_use_future<asio::use_future_t<Allocator>> : std::true_type {};
+
+template <typename Allocator>
+struct is_use_future<detail::std_error_token_t<asio::use_future_t<Allocator>>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_use_future_v = is_use_future<T>::value;
@@ -49,7 +52,10 @@ template <typename>
 struct is_use_awaitable : std::false_type {};
 
 template <concepts::exec Exec>
-struct is_use_awaitable<use_basic_awaitable_t<Exec>> : std::true_type {};
+struct is_use_awaitable<detail::std_error_token_t<asio::use_awaitable_t<Exec>>> : std::true_type {};
+
+template <concepts::exec Exec>
+struct is_use_awaitable<asio::use_awaitable_t<Exec>> : std::true_type {};
 
 template <typename T>
 constexpr bool is_use_awaitable_v = is_use_awaitable<T>::value;
@@ -99,24 +105,20 @@ private: // Fucking msvc !!!
 	// Fucking msvc !!!
 	[[nodiscard]] static consteval bool helper()
 	{
-		if constexpr( is_function_v<token_t> )
-		{
-			if constexpr( is_use_future_v<token_t> or is_deferred_v<token_t> or
-						  is_cancellation_slot_binder_v<token_t> )
-				return is_async_opt_token_v<Token>;
+		if constexpr( not is_function_v<token_t> or
+					  is_use_future_v<token_t> or is_use_awaitable_v<token_t> or
+					  is_deferred_v<token_t> or is_cancellation_slot_binder_v<token_t> )
+			return is_async_opt_token_v<Token>;
 
-			else if constexpr( is_void_func_v<token_t> )
-			{
-				if constexpr( constexpr auto arg_count = function_traits<token_t>::arg_count; arg_count == 0 )
-					return is_async_opt_token_v<Token>;
-				else
-					return helper(std::make_index_sequence<arg_count>{});
-			}
+		else if constexpr( is_void_func_v<token_t> )
+		{
+			if constexpr( constexpr auto arg_count = function_traits<token_t>::arg_count; arg_count == 0 )
+				return is_async_opt_token_v<Token>;
 			else
-				return false;
+				return helper(std::make_index_sequence<arg_count>{});
 		}
 		else
-			return is_async_opt_token_v<Token>;
+			return false;
 	}
 
 public:
@@ -181,7 +183,8 @@ template <typename Token>
 struct is_error_code_token
 {
 	static constexpr bool value =
-		std::is_same_v<Token,error_code&>;
+		std::is_same_v<Token,error_code&> or
+		std::is_same_v<Token,std::error_code&>;
 };
 
 template <typename Token>
@@ -293,6 +296,9 @@ concept async_tf_opt_token = is_async_tf_opt_token_v<Token,Args...>;
 
 template <typename Token>
 concept any_async_tf_opt_token = is_any_async_tf_opt_token_v<Token>;
+
+template <typename Token>
+concept error_code_token = is_error_code_token_v<Token>;
 
 template <typename Token>
 concept sync_opt_token = is_sync_opt_token_v<Token>;

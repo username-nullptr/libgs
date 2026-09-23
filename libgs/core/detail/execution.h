@@ -285,25 +285,39 @@ LIBGS_CORE_TAPI auto make_local_work
 			func = work_t(std::forward<Work>(work))
 		]() mutable -> awaitable<local_result_t>
 		{
+			using stored_result_t = std::conditional_t <
+				std::is_void_v<result_t>, std::monostate, result_t
+			>;
+			std::exception_ptr exception;
+			optional<stored_result_t> result;
 			try {
 				if constexpr( std::is_void_v<result_t> )
-				{
 					co_await scheduled_work<schedule_kind::dispatch,work_t>(std::move(func));
-					state->finish();
-					co_return counter;
-				}
 				else
 				{
-					auto result = co_await scheduled_work<schedule_kind::dispatch,work_t>(std::move(func));
-					state->finish();
-					co_return std::make_pair(std::move(result), counter);
+					result.emplace(co_await scheduled_work<schedule_kind::dispatch,work_t>(
+						std::move(func)
+					));
 				}
 			}
-			catch(...)
-			{
-				state->finish();
-				throw;
+			catch(...) {
+				exception = std::current_exception();
 			}
+			// Boost.Asio before awaitable_thread_is_launching was introduced may
+			// otherwise post co_spawn's completion after the work marks itself as
+			// finished. Ensure completion can be dispatched inline before the local
+			// event pump observes the finished state.
+			co_await asio::this_coro::throw_if_cancelled(false);
+			co_await asio::post(use_awaitable);
+
+			state->finish();
+			if( exception )
+				std::rethrow_exception(exception);
+
+			if constexpr( std::is_void_v<result_t> )
+				co_return counter;
+			else
+				co_return std::make_pair(std::move(*result), counter);
 		};
 	}
 	else

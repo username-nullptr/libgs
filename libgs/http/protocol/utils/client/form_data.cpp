@@ -282,11 +282,11 @@ sys_expected<form_data_parts> parse_multipart_form_data
 {
 	auto boundary = form_data_boundary(content_type);
 	if( not boundary )
-		return sys_unexpected(make_error_code(std::errc::invalid_argument));
+		return sys_unexpected(make_system_error_code(std::errc::invalid_argument));
 
 	const auto delimiter = "--" + *boundary;
 	if( not body.starts_with(delimiter) )
-		return sys_unexpected(make_error_code(std::errc::protocol_error));
+		return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 	form_data_parts result {};
 	size_t cursor = delimiter.size();
@@ -297,51 +297,51 @@ sys_expected<form_data_parts> parse_multipart_form_data
 			return result;
 
 		if( not body.substr(cursor).starts_with("\r\n") )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
+			return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 		cursor += 2;
 		auto header_end = body.find("\r\n\r\n", cursor);
 
 		if( header_end == std::string_view::npos )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
+			return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 		form_data_part part {};
 		for(auto &line : string_vector::from_string(body.substr(cursor, header_end - cursor), "\r\n"))
 		{
 			auto colon = line.find(':');
 			if( colon == std::string::npos )
-				return sys_unexpected(make_error_code(std::errc::protocol_error));
+				return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 			part.fields[strtls::trimmed(line.substr(0, colon))] =
 				strtls::trimmed(line.substr(colon + 1));
 		}
 		auto disposition = part.fields.find(header::content_disposition);
 		if( disposition == part.fields.end() )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
+			return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 		auto disposition_value = disposition->second.to_string();
 
 		if( auto disposition_type = disposition_value.substr(0, disposition_value.find(';'));
 			strtls::to_lower(strtls::trimmed(disposition_type)) != "form-data" )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
+			return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 		part.name = disposition_parameter(disposition_value, "name").value_or("");
 		part.filename = disposition_parameter(disposition_value, "filename").value_or("");
 
 		if( part.name.empty() )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
+			return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 		cursor = header_end + 4;
 		auto next = body.find("\r\n" + delimiter, cursor);
 
 		if( next == std::string_view::npos )
-			return sys_unexpected(make_error_code(std::errc::protocol_error));
+			return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 
 		part.data = body.substr(cursor, next - cursor);
 		result.emplace_back(std::move(part));
 		cursor = next + 2 + delimiter.size();
 	}
-	return sys_unexpected(make_error_code(std::errc::protocol_error));
+	return sys_unexpected(make_system_error_code(std::errc::protocol_error));
 }
 
 } //namespace libgs::http
