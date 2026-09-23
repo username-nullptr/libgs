@@ -11,6 +11,7 @@
 #include <libgs/core/string_list.h>
 #include <libgs/core/container.h>
 #include <libgs/core/algorithm.h>
+#include <libgs/core/jthread.h>
 #include <libgs/core/system.h>
 #include <libgs/core/ini.h>
 #include <libgs/core/url.h>

@@ -7,10 +7,30 @@
 #include <libgs/websocket/server.h>
 #include <libgs/core/system/app_utls.h>
 
+#include <thread>
+
 namespace
 {
 
 namespace ws = libgs::websocket;
+
+class thread_joiner
+{
+public:
+	explicit thread_joiner(std::thread &thread) noexcept : m_thread(thread) {}
+
+	thread_joiner(const thread_joiner &) = delete;
+	thread_joiner &operator=(const thread_joiner &) = delete;
+
+	~thread_joiner()
+	{
+		if( m_thread.joinable() )
+			m_thread.join();
+	}
+
+private:
+	std::thread &m_thread;
+};
 
 class scoped_environment
 {
@@ -153,7 +173,7 @@ void secure_round_trip()
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("no_proxy"));
 	LIBGS_TEST_CHECK(libgs::app::unsetenv("NO_PROXY"));
 	std::exception_ptr proxy_error;
-	std::jthread proxy_thread([&]
+	std::thread proxy_thread([&]
 	{
 		try {
 			auto downstream = std::make_shared<asio::ip::tcp::socket>(proxy_context);
@@ -182,13 +202,15 @@ void secure_round_trip()
 				"HTTP/1.1 200 Connection Established\r\n\r\n";
 			asio::write(*downstream, asio::buffer(connected));
 
-			std::jthread outbound([=] { relay_socket(downstream, upstream); });
+			std::thread outbound([=] { relay_socket(downstream, upstream); });
+			thread_joiner outbound_joiner(outbound);
 			relay_socket(upstream, downstream);
 		}
 		catch(...) {
 			proxy_error = std::current_exception();
 		}
 	});
+	thread_joiner proxy_thread_joiner(proxy_thread);
 
 	auto accepted = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>

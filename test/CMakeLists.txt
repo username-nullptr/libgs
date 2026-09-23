@@ -76,13 +76,33 @@ function(configure_libgs_sanitized_test test_name)
 			"AddressSanitizer" "LeakSanitizer" "ThreadSanitizer" "runtime error:"
 		)
 		if (LIBGS_ENABLE_TEST_SANITIZERS)
+			set(libgs_asan_options
+				"detect_leaks=0:halt_on_error=1:abort_on_error=1"
+			)
+			# Ubuntu's libc++abi 18 frees standard exception messages through
+			# free(), while compiler-rt records their allocation as operator new.
+			# A standalone throw/catch reproduces this runtime mismatch, so do not
+			# treat it as a project allocation error in libc++ sanitizer builds.
+			if (LIBGS_USE_LIBCXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+				string(APPEND libgs_asan_options ":alloc_dealloc_mismatch=0")
+			endif ()
+
 			set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
-				"ASAN_OPTIONS=detect_leaks=0:halt_on_error=1:abort_on_error=1"
+				"ASAN_OPTIONS=${libgs_asan_options}"
 				"UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1"
 			)
 		else ()
+			set(libgs_tsan_options "halt_on_error=1")
+			# Distribution libc++ is not TSan-instrumented. Its future and
+			# condition-variable internals otherwise produce false races (and can
+			# stall waits), while project code remains fully instrumented.
+			if (LIBGS_USE_LIBCXX AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+				string(APPEND libgs_tsan_options
+					":ignore_noninstrumented_modules=1")
+			endif ()
+
 			set_property(TEST ${test_name} APPEND PROPERTY ENVIRONMENT
-				"TSAN_OPTIONS=halt_on_error=1"
+				"TSAN_OPTIONS=${libgs_tsan_options}"
 			)
 		endif ()
 	endif ()

@@ -50,10 +50,11 @@ cmake --build build-stress --parallel
 ctest --test-dir build-stress -L stress --output-on-failure
 ```
 
-CTest names are `libgs.stress.<module>`. The suite covers Core queues and
-locks, coroutine synchronization, repeated HTTP/WebSocket connections, utility
-lifecycle/fanout, and optional UDP soft-bus pressure. Entries run serially at
-the CTest level; concurrency occurs inside each executable.
+CTest names are `libgs.stress.<module>`. The suite covers Core queues, locks,
+the fallback joining-thread/stop-state implementation, coroutine
+synchronization, repeated HTTP/WebSocket connections, utility lifecycle/fanout,
+and optional UDP soft-bus pressure. Entries run serially at the CTest level;
+concurrency occurs inside each executable.
 
 ## Fuzz tests
 

@@ -4,7 +4,7 @@
 #ifndef LIBGS_CORE_EXECUTION_H
 #define LIBGS_CORE_EXECUTION_H
 
-#include <libgs/core/global.h>
+#include <libgs/core/jthread.h>
 
 namespace libgs
 {
@@ -14,7 +14,6 @@ using io_executor_t = io_context_t::executor_type;
 
 [[nodiscard]] LIBGS_CORE_API io_context_t &io_context() noexcept;
 [[nodiscard]] LIBGS_CORE_API io_executor_t get_executor() noexcept;
-
 /*
  * Start event scheduling;
  * This function will block until it returns after calling
@@ -73,7 +72,6 @@ concept dispatch_token = []() consteval -> bool
 }();
 
 } //namespace concepts
-
 /*
  * If the current context is consistent with the executor context,
  * the work is executed immediately, otherwise it is pushed to the work queue.
@@ -82,7 +80,6 @@ template <concepts::dispatch_work Work, concepts::dispatch_token<Work> Token = c
 LIBGS_CORE_TAPI decltype(auto) dispatch (
 	concepts::sched auto &&exec, Work &&work, Token &&token = detached
 );
-
 /*
  * If the current context is consistent with main executor context [libgs::io_context()],
  * the work is executed immediately, otherwise it is pushed to the work queue.
@@ -105,7 +102,6 @@ LIBGS_CORE_TAPI decltype(auto) post (
 );
 
 using work_canceller_t = std::function<void()>;
-
 /*
  * Push a work to a work queue.
  * The work will be executed after the specified relative time.
@@ -114,7 +110,6 @@ template <concepts::dispatch_work Work, typename Rep, typename Period>
 LIBGS_CORE_TAPI work_canceller_t post (
 	concepts::sched auto &&exec, const duration<Rep,Period> &rtime, Work &&work
 );
-
 /*
  * Push a work to a work queue.
  * The work will be executed after the specified relative time.
@@ -123,7 +118,6 @@ template <concepts::dispatch_work Work, typename Rep, typename Period>
 LIBGS_CORE_TAPI work_canceller_t post (
 	const duration<Rep,Period> &rtime, Work &&work
 );
-
 /*
  * Push a work to a work queue.
  * The work will be executed at the specified absolute time.
@@ -132,7 +126,6 @@ template <concepts::dispatch_work Work, typename Clock, typename Duration>
 LIBGS_CORE_TAPI work_canceller_t post (
 	concepts::sched auto &&exec, const time_point<Clock,Duration> &atime, Work &&work
 );
-
 /*
  * Push a work to a work queue.
  * The work will be executed at the specified absolute time.

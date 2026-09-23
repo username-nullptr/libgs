@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <libgs/core/lock_free_queue.h>
+#include <libgs/core/jthread.h>
 #include <iostream>
 #include <atomic>
 #include <thread>
@@ -14,7 +15,7 @@ int main()
 	std::atomic_int consumed = 0;
 	std::atomic_bool producer_done = false;
 
-	std::thread producer([&]
+	libgs::jthread producer([&]
 	{
 		for(int value = 0; value < item_count; ++value)
 		{
@@ -24,7 +25,7 @@ int main()
 		producer_done = true;
 	});
 
-	std::thread consumer([&]
+	libgs::jthread consumer([&]
 	{
 		while(not producer_done or not queue.empty())
 		{

@@ -2,6 +2,11 @@
 # SPDX-License-Identifier: MIT
 
 add_libgs_stress_test(core core.cpp gs.core)
+add_libgs_stress_test(core.jthread jthread.cpp gs.core)
+# Stress only the LibGS fallback, never the native standard-library type.
+target_compile_definitions(libgs.test.stress.core.jthread PRIVATE
+	LIBGS_HAS_STD_JTHREAD=0
+)
 
 if (LIBGS_BUILD_CORO)
 	add_libgs_stress_test(coro coro.cpp gs.coro)

@@ -40,7 +40,7 @@ Delay literals are available from years down to nanoseconds:
 | `coro::shared_mutex`, `coro::shared_lock` | Shared/exclusive locking |
 | `coro::semaphore`, `coro::binary_semaphore` | Counting and binary permits |
 | `coro::condition_variable` | Predicate, timed, notify-one/all waits |
-| `coro::wait()` | Await a `std::future`, `std::thread`, or `asio::thread_pool` |
+| `coro::wait()` | Await a `std::future`, `std::thread`, `libgs::jthread`, or `asio::thread_pool` |
 | `coro::goto_exec()` | Resume on another executor and return the previous one |
 | `coro::goto_thread()` | Resume on a worker thread |
 

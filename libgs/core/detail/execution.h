@@ -454,7 +454,7 @@ LIBGS_CORE_TAPI auto local_dispatch_sync(ContextHolder context, Work &&work)
 }
 
 template <typename ContextHolder, typename Work>
-LIBGS_CORE_TAPI std::thread local_dispatch_thread(ContextHolder context, Work &&work)
+LIBGS_CORE_TAPI jthread local_dispatch_thread(ContextHolder context, Work &&work)
 {
 	auto &exec = local_context(context);
 	auto state = std::make_shared<local_dispatch_state>();
@@ -464,7 +464,7 @@ LIBGS_CORE_TAPI std::thread local_dispatch_thread(ContextHolder context, Work &&
 	auto local_work = make_local_work(std::forward<Work>(work), state, counter);
 	dispatch(exec, std::move(local_work), detached);
 
-	return std::thread(
+	return jthread (
 	[context = std::move(context), state, counter, poll_work = std::move(poll_work)]() mutable
 	{
 		LIBGS_UNUSED(poll_work);

@@ -39,24 +39,24 @@ template <typename Clock, typename Duration, concepts::sleep_opt_token Token = c
 );
 
 template <typename T>
-[[nodiscard]] LIBGS_CORO_TAPI awaitable<T> wait (
-	const std::future<T> &future
-);
+[[nodiscard]] LIBGS_CORO_TAPI
+awaitable<T> wait(const std::future<T> &future);
 
-[[nodiscard]] LIBGS_CORO_API awaitable<void> wait (
-	const asio::thread_pool &pool
-);
+[[nodiscard]] LIBGS_CORO_API
+awaitable<void> wait(const asio::thread_pool &pool);
 
-[[nodiscard]] LIBGS_CORO_API awaitable<void> wait (
-	const std::thread &thread
-);
+[[nodiscard]] LIBGS_CORO_API
+awaitable<void> wait (const std::thread &thread);
+
+[[nodiscard]] LIBGS_CORO_API
+awaitable<void> wait(const jthread &thread);
 
 template <concepts::sched Exec = io_executor_t>
-[[nodiscard]] LIBGS_CORO_TAPI awaitable<asio::any_io_executor> goto_exec (
-	Exec &&exec = get_executor()
-);
+[[nodiscard]] LIBGS_CORO_TAPI
+awaitable<asio::any_io_executor> goto_exec(Exec &&exec = get_executor());
 
-[[nodiscard]] LIBGS_CORO_API awaitable<asio::any_io_executor> goto_thread();
+[[nodiscard]] LIBGS_CORO_API
+awaitable<asio::any_io_executor> goto_thread();
 
 template <concepts::any_async_tf_opt_token Token>
 LIBGS_CORO_TAPI bool check_error (
@@ -83,6 +83,9 @@ template <concepts::exec YCExec>
 
 template <concepts::exec YCExec>
 [[nodiscard]] LIBGS_CORO_VAPI void wait(basic_yield_context<YCExec> yc, const std::thread &thread);
+
+template <concepts::exec YCExec>
+[[nodiscard]] LIBGS_CORO_VAPI void wait(basic_yield_context<YCExec> yc, const jthread &thread);
 
 template <concepts::exec YCExec, concepts::sched Exec = YCExec>
 [[nodiscard]] LIBGS_CORO_TAPI asio::any_io_executor goto_exec (

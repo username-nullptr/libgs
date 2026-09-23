@@ -16,6 +16,9 @@ behavior rather than by implementation source file.
 - `core/runtime.cpp`: global/local execution, dispatch/post/delay, timers,
   cancellation, event pumps, futures, awaitables, public `post_completion`,
   associated immediate executors, and exception recovery.
+- `core/jthread.cpp`: the fallback joining-thread and stop-token/source/callback
+  API, including ownership, moves, automatic stop/join, callback lifetime, and
+  concurrent callback destruction.
 - `core/public_api.cpp`: flags, parameter containers, value conversion overloads,
   formatting, endpoint wrappers, environment operations, dynamic libraries, and
   compile-time public type properties.

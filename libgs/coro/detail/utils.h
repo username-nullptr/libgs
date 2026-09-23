@@ -53,11 +53,11 @@ awaitable<T> wait(const std::future<T> &future)
 }
 
 template <concepts::sched Exec>
-awaitable<asio::any_io_executor> goto_exec(Exec &&executor_arg)
+awaitable<asio::any_io_executor> goto_exec(Exec &&exec)
 {
 	auto current_exec = co_await asio::this_coro::executor;
 	co_return co_await asio::async_initiate<decltype(asio::use_awaitable), void(asio::any_io_executor)>
-	([previous_exec = std::move(current_exec), target_exec = get_executor_helper(executor_arg)](auto completion_handler)
+	([previous_exec = std::move(current_exec), target_exec = get_executor_helper(exec)](auto completion_handler)
 	{
 		auto work_guard = asio::make_work_guard(completion_handler);
 		asio::post(target_exec, [
@@ -311,6 +311,14 @@ void wait(basic_yield_context<YCExec> yc, const asio::thread_pool &pool)
 
 template <concepts::exec YCExec>
 void wait(basic_yield_context<YCExec> yc, const std::thread &thread)
+{
+	co_thread(yc, [&thread] {
+		return remove_const(thread).join();
+	});
+}
+
+template <concepts::exec YCExec>
+void wait(basic_yield_context<YCExec> yc, const jthread &thread)
 {
 	co_thread(yc, [&thread] {
 		return remove_const(thread).join();
