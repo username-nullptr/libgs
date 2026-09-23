@@ -312,38 +312,7 @@ concept any_tf_opt_token = is_any_tf_opt_token_v<Token>;
 template <typename Token, typename...Args>
 concept dis_sync_tf_opt_token = is_dis_sync_tf_opt_token_v<Token,Args...>;
 
-} //namespace concepts
-
-#ifdef LIBGS_USING_BOOST_ASIO
-
-template <concepts::exec Exec>
-using basic_yield_context = asio::basic_yield_context<Exec>;
-
-using yield_context = asio::yield_context;
-
-template <typename>
-struct is_basic_yield_context : std::false_type {};
-
-template <concepts::exec Exec>
-struct is_basic_yield_context<basic_yield_context<Exec>> : std::true_type {};
-
-template <typename T>
-constexpr bool is_basic_yield_context_v = is_basic_yield_context<T>::value;
-
-template <typename T>
-constexpr bool is_yield_context_v = is_basic_yield_context_v<yield_context>;
-
-namespace concepts
-{
-
-template <typename T>
-concept yield_context = is_basic_yield_context_v<T>;
-
-} //namespace concepts
-
-#endif //LIBGS_USING_BOOST_ASIO
-
-} //namespace libgs
+}} //namespace libgs::concepts
 
 
 #endif //LIBGS_CORE_UTILS_TOKEN_CONCEPTS_H

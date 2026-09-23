@@ -10,8 +10,7 @@
 
 #ifdef LIBGS_USING_BOOST_ASIO
 # include <boost/asio/experimental/awaitable_operators.hpp>
-# include <boost/asio/spawn.hpp>
-#else
+#else //LIBGS_USING_BOOST_ASIO
 # include <asio/experimental/awaitable_operators.hpp>
 #endif //LIBGS_USING_BOOST_ASIO
 
