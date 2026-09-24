@@ -329,17 +329,19 @@ public:
 	(std::string_view topic, asio::cancellation_slot cancel_slot, std::chrono::nanoseconds timeout) noexcept
 	{
 		using worker_t = async_work<error_code,changed_result<T>>;
-		using work_handler_t = worker_t::handler_t;
 
 		auto exec = m_subscriber.get_executor();
 		auto cancel_state = co_await asio::this_coro::cancellation_state;
 
 		auto task = worker_t::handle(exec, [this,
 			topic = std::string(topic), exec, cancel_state, cancel_slot
-		](work_handler_t &&notifier) mutable noexcept
+		]<typename Handle>(Handle &&notifier) mutable noexcept
 		{
+			using work_handler_t = std::remove_cvref_t<Handle>;
 			auto observer = std::make_shared<int>();
-			auto notifier_ptr = std::make_shared<work_handler_t>(std::move(notifier));
+			auto notifier_ptr = std::make_shared<work_handler_t>(
+				std::forward<Handle>(notifier)
+			);
 			auto completed = std::make_shared<std::atomic_bool>(false);
 
 			auto canceller = [this, topic, exec, observer, completed, notifier_ptr]
