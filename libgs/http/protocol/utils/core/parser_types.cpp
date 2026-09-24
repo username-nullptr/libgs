@@ -6,14 +6,19 @@
 namespace libgs::http { namespace
 {
 
-class LIBGS_DECL_HIDDEN error_category : public error_category_t
+class LIBGS_DECL_HIDDEN error_category final : public error_category_t
 {
 	LIBGS_DISABLE_COPY_MOVE(error_category)
 
 public:
 	error_category() = default;
+#if LIBGS_USING_BOOST_ASIO
+	virtual ~error_category() = default;
+#else //LIBGS_USING_BOOST_ASIO
 	~error_category() override = default;
+#endif //LIBGS_USING_BOOST_ASIO
 
+public:
 	[[nodiscard]] const char *name() const noexcept override {
 		return "libgs::http::request_parser_error";
 	}

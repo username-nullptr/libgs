@@ -1023,9 +1023,9 @@ void http_client_does_not_reuse_malformed_reply()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"protocol enums", protocol_enums},
 		{"cookie values", cookie_values},
 		{"client URL validation", client_url_validation},

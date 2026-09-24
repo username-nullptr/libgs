@@ -87,31 +87,29 @@ Dependency selection:
 
 | Switch | Default | Effect |
 | --- | :---: | --- |
-| `LIBGS_USE_EMBEDDED_ASIO` | ON | Use the bundled standalone Asio |
-| `LIBGS_USE_BOOST_ASIO` | OFF | Use an installed Boost.Asio; takes precedence over `LIBGS_USE_EMBEDDED_ASIO` |
-| `LIBGS_USE_EMBEDDED_SPDLOG` | ON | Use the bundled spdlog |
+| `LIBGS_ASIO_PROVIDER` | empty (`BUNDLED`) | Select `BUNDLED`, `EXTERNAL`, or `BOOST` Asio; values are case-insensitive |
+| `LIBGS_USE_BUNDLED_SPDLOG` | ON | Use the bundled spdlog |
 | `LIBGS_BOOST_INSTALL_PREFIX` | empty | Optional Boost install prefix |
 | `LIBGS_ASIO_INSTALL_PREFIX` | empty | Optional standalone Asio install prefix |
 | `LIBGS_SPDLOG_INSTALL_PREFIX` | empty | Optional spdlog install prefix |
 
-To use installed standalone Asio and spdlog, disable both embedded switches.
-LibGS first looks for their CMake packages and then falls back to finding the
-headers below the supplied install prefixes:
+To use installed standalone Asio and spdlog, select the external Asio provider
+and disable bundled spdlog. LibGS first looks for their CMake packages and then
+falls back to finding the headers below the supplied install prefixes:
 
 ```sh
 cmake -S . -B build \
-  -DLIBGS_USE_EMBEDDED_ASIO=OFF \
+  -DLIBGS_ASIO_PROVIDER=EXTERNAL \
   -DLIBGS_ASIO_INSTALL_PREFIX=/path/to/asio \
-  -DLIBGS_USE_EMBEDDED_SPDLOG=OFF \
+  -DLIBGS_USE_BUNDLED_SPDLOG=OFF \
   -DLIBGS_SPDLOG_INSTALL_PREFIX=/path/to/spdlog
 ```
 
-To use Boost.Asio, enable `LIBGS_USE_BOOST_ASIO`; the embedded-Asio switch does
-not need to be changed:
+To use Boost.Asio, select the `BOOST` provider:
 
 ```sh
 cmake -S . -B build \
-  -DLIBGS_USE_BOOST_ASIO=ON \
+  -DLIBGS_ASIO_PROVIDER=BOOST \
   -DLIBGS_BOOST_INSTALL_PREFIX=/path/to/boost
 ```
 

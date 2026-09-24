@@ -740,9 +740,9 @@ void test_frame_codec_chunk_corpus()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"error categories", test_error_categories},
 		{"secure random source", test_secure_random_source},
 		{"opcode and close code helpers", test_opcode_and_close_code_helpers},

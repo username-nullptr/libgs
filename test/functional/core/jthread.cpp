@@ -383,9 +383,9 @@ void move_and_swap_preserve_stop_state()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"source and token state", source_and_token_state},
 		{"source and token assignment", source_and_token_assignment_and_swap},
 		{"callback registration", callback_registration_and_invocation},

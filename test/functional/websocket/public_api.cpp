@@ -408,9 +408,9 @@ void non_default_constructible_executor_errors()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"umbrella and value types", umbrella_and_value_types},
 		{"executor-bound public objects", executor_bound_public_objects},
 		{"asynchronous completion signatures", asynchronous_completion_signatures},

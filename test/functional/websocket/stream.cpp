@@ -2608,9 +2608,9 @@ void test_local_close_deadline_cancels_read()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"adopt and lifecycle", test_adopt_and_lifecycle},
 		{"adopt validation", test_adopt_validation},
 		{"server write and fragmentation", test_server_write_and_fragmentation},

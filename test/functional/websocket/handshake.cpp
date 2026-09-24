@@ -1171,9 +1171,9 @@ void asynchronous_upgrade_validators()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"permessage-deflate negotiation", permessage_deflate_negotiation},
 		{"client preflight sync", client_preflight_sync},
 		{"proxy round trips", proxy_round_trips},

@@ -28,6 +28,12 @@ function(add_project target_name)
 	target_compile_definitions(${target_name} PRIVATE ${target_micro}_EXPORTS)
 	target_compile_features(${target_name} PUBLIC cxx_std_20)
 
+	# Public headers use conforming variadic-macro expansion.  MSVC's legacy
+	# preprocessor cannot parse them, so installed consumers need the same mode
+	# as the library build itself.
+	target_compile_options(${target_name} PUBLIC
+		"$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:preprocessor>"
+	)
 	target_include_directories(${target_name} PUBLIC
 		$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
 		$<BUILD_INTERFACE:${LIBGS_CONFIG_INCLUDE}>

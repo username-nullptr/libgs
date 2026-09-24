@@ -8,6 +8,16 @@ namespace libgs::websocket { namespace
 
 class LIBGS_DECL_HIDDEN websocket_protocol_error_category final : public error_category_t
 {
+	LIBGS_DISABLE_COPY_MOVE(websocket_protocol_error_category)
+
+public:
+	websocket_protocol_error_category() = default;
+#if LIBGS_USING_BOOST_ASIO
+	virtual ~websocket_protocol_error_category() = default;
+#else //LIBGS_USING_BOOST_ASIO
+	~websocket_protocol_error_category() override = default;
+#endif //LIBGS_USING_BOOST_ASIO
+
 public:
 	[[nodiscard]] const char *name() const noexcept override {
 		return "libgs::websocket::protocol";

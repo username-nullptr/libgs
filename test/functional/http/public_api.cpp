@@ -283,9 +283,9 @@ void sessions()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"endpoints and case-insensitive containers", endpoints_and_case_insensitive_containers},
 		{"client configuration", client_configuration},
 		{"client convenience overloads", client_convenience_overloads},

@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
+# SPDX-License-Identifier: MIT
+
+set(LIBGS_INSTALL_CMAKEDIR
+	"${CMAKE_INSTALL_LIBDIR}/cmake/${PRO_NAME}"
+	CACHE STRING "Install path for ${PRO_NAME} CMake package files."
+)
+set(LIBGS_PACKAGE_NEEDS_ZLIB OFF)
+
+if (LIBGS_BUILD_STATIC AND (
+	(LIBGS_BUILD_HTTP AND LIBGS_HTTP_ZLIB_SUPPORT) OR
+	(LIBGS_BUILD_WEBSOCKET AND LIBGS_WEBSOCKET_ZLIB_SUPPORT) ))
+	set(LIBGS_PACKAGE_NEEDS_ZLIB ON)
+endif ()
+
+configure_package_config_file (
+	cmake/LibGSConfig.cmake.in
+	${CMAKE_CURRENT_BINARY_DIR}/LibGSConfig.cmake
+	INSTALL_DESTINATION ${LIBGS_INSTALL_CMAKEDIR}
+)
+write_basic_package_version_file (
+	${CMAKE_CURRENT_BINARY_DIR}/LibGSConfigVersion.cmake
+	VERSION ${PROJECT_VERSION}
+	COMPATIBILITY SameMinorVersion
+)
+install(EXPORT LibGSTargets
+	FILE LibGSTargets.cmake
+	NAMESPACE LibGS::
+	DESTINATION ${LIBGS_INSTALL_CMAKEDIR}
+)
+install(FILES
+	${CMAKE_CURRENT_BINARY_DIR}/LibGSConfig.cmake
+	${CMAKE_CURRENT_BINARY_DIR}/LibGSConfigVersion.cmake
+	DESTINATION ${LIBGS_INSTALL_CMAKEDIR}
+)

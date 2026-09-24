@@ -1,13 +1,52 @@
 # SPDX-FileCopyrightText: 2026 Xiaoqiang <username_nullptr@163.com>
 # SPDX-License-Identifier: MIT
 
+option(LIBGS_ADD_LIBRARY_VERSION
+	"-- ${PRO_NAME}: Add version information to shared library names." ON
+)
+set(LIBGS_ASIO_PROVIDER "" CACHE STRING
+	"-- ${PRO_NAME}: Asio provider (BUNDLED, EXTERNAL, or BOOST); empty uses BUNDLED."
+)
+set_property(CACHE LIBGS_ASIO_PROVIDER PROPERTY STRINGS BUNDLED EXTERNAL BOOST)
+
+string(STRIP "${LIBGS_ASIO_PROVIDER}" LIBGS_ASIO_PROVIDER)
+string(TOUPPER "${LIBGS_ASIO_PROVIDER}" LIBGS_ASIO_PROVIDER)
+
+if (LIBGS_ASIO_PROVIDER STREQUAL "")
+	set(LIBGS_ASIO_PROVIDER BUNDLED)
+
+elseif (NOT LIBGS_ASIO_PROVIDER MATCHES "^(BUNDLED|EXTERNAL|BOOST)$")
+	message(FATAL_ERROR
+		"${PRO_NAME}: Invalid LIBGS_ASIO_PROVIDER='${LIBGS_ASIO_PROVIDER}'. "
+		"Expected BUNDLED, EXTERNAL, BOOST, or an empty value."
+	)
+endif ()
+
+set(LIBGS_BOOST_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external Boost package."
+)
+set(LIBGS_ASIO_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external Asio package."
+)
+set(LIBGS_USING_BOOST_ASIO OFF)
+
+if (LIBGS_ASIO_PROVIDER STREQUAL "BOOST")
+	set(LIBGS_USING_BOOST_ASIO ON)
+endif ()
+
+option(LIBGS_USE_BUNDLED_SPDLOG
+	"-- ${PRO_NAME}: Use bundled spdlog." ON
+)
+set(LIBGS_SPDLOG_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external spdlog package."
+)
 add_library(libgs.asio INTERFACE)
 add_library(LibGS::asio ALIAS libgs.asio)
 
 set_target_properties(libgs.asio PROPERTIES EXPORT_NAME asio)
 set(LIBGS_ASIO_PACKAGE_TARGET asio::asio)
 
-if (LIBGS_USE_BOOST_ASIO)
+if (LIBGS_ASIO_PROVIDER STREQUAL "BOOST")
 	message(STATUS "${PRO_NAME}: Use external Boost.Asio.")
 
 	if (LIBGS_BOOST_INSTALL_PREFIX)
@@ -28,10 +67,9 @@ if (LIBGS_USE_BOOST_ASIO)
 
 	target_link_libraries(libgs.asio INTERFACE ${LIBGS_ASIO_PACKAGE_TARGET})
 	target_compile_definitions(libgs.asio INTERFACE LIBGS_USING_BOOST_ASIO=1)
-	set(LIBGS_ASIO_PROVIDER boost)
 
-elseif (LIBGS_USE_EMBEDDED_ASIO)
-	message(STATUS "${PRO_NAME}: Use embedded standalone Asio.")
+elseif (LIBGS_ASIO_PROVIDER STREQUAL "BUNDLED")
+	message(STATUS "${PRO_NAME}: Use bundled standalone Asio.")
 
 	target_include_directories(libgs.asio SYSTEM INTERFACE
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/asio>
@@ -40,9 +78,8 @@ elseif (LIBGS_USE_EMBEDDED_ASIO)
 	target_compile_definitions(libgs.asio INTERFACE ASIO_STANDALONE=1)
 
 	add_subdirectory(asio)
-	set(LIBGS_ASIO_PROVIDER embedded)
 
-else ()
+elseif (LIBGS_ASIO_PROVIDER STREQUAL "EXTERNAL")
 	message(STATUS "${PRO_NAME}: Use external standalone Asio.")
 	find_package(asio CONFIG QUIET HINTS "${LIBGS_ASIO_INSTALL_PREFIX}")
 
@@ -77,7 +114,6 @@ else ()
 
 	target_link_libraries(libgs.asio INTERFACE ${LIBGS_ASIO_PACKAGE_TARGET})
 	target_compile_definitions(libgs.asio INTERFACE ASIO_STANDALONE=1)
-	set(LIBGS_ASIO_PROVIDER external)
 endif ()
 
 add_library(libgs.spdlog INTERFACE)
@@ -86,15 +122,15 @@ add_library(LibGS::spdlog ALIAS libgs.spdlog)
 set_target_properties(libgs.spdlog PROPERTIES EXPORT_NAME spdlog)
 set(LIBGS_SPDLOG_PACKAGE_TARGET spdlog::spdlog_header_only)
 
-if (LIBGS_USE_EMBEDDED_SPDLOG)
-	message(STATUS "${PRO_NAME}: Use embedded spdlog.")
+if (LIBGS_USE_BUNDLED_SPDLOG)
+	message(STATUS "${PRO_NAME}: Use bundled spdlog.")
 
 	target_include_directories(libgs.spdlog SYSTEM INTERFACE
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/spdlog>
 		$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 	)
 	add_subdirectory(spdlog)
-	set(LIBGS_SPDLOG_PROVIDER embedded)
+	set(LIBGS_SPDLOG_PROVIDER bundled)
 
 else ()
 	message(STATUS "${PRO_NAME}: Use external spdlog.")

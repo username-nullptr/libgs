@@ -213,9 +213,9 @@ void lock_free_queue_throughput()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"lock-free queue throughput", lock_free_queue_throughput},
 	});
 }

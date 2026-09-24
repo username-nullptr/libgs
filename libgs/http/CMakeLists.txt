@@ -7,11 +7,24 @@ add_project(${target_name} gs.coro)
 target_compile_definitions (
 	${target_name} PRIVATE LIBGS_HTTP_SHARED
 )
+option(LIBGS_HTTP_ZLIB_SUPPORT
+	"-- ${PRO_NAME}: HTTP z-lib support." OFF
+)
+set(LIBGS_ZLIB_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external zlib package."
+)
 if (LIBGS_HTTP_ZLIB_SUPPORT)
 	message(STATUS "${PRO_NAME}: Enable z-lib support.")
 	target_compile_definitions(${target_name} PUBLIC -DLIBGS_HTTP_ZLIB_SUPPORT=1)
 
+	if (LIBGS_ZLIB_INSTALL_PREFIX)
+		set(ZLIB_ROOT "${LIBGS_ZLIB_INSTALL_PREFIX}")
+	endif ()
 	find_package(ZLIB REQUIRED)
+
+	libgs_validate_msvc_imported_targets(ZLIB
+		LIBGS_ZLIB_INSTALL_PREFIX ZLIB::ZLIB
+	)
 	target_link_libraries(${target_name} PRIVATE ZLIB::ZLIB)
 endif ()
 

@@ -341,9 +341,9 @@ void suspended_waiters()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"coroutine synchronization direct fast paths", direct_fast_paths},
 		{"coroutine synchronization awaitable fast paths", awaitable_fast_paths},
 		{"coroutine synchronization suspended waiters", suspended_waiters},

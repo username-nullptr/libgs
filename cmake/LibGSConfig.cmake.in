@@ -8,14 +8,15 @@ include(CMakeFindDependencyMacro)
 set(LibGS_ASIO_PROVIDER "@LIBGS_ASIO_PROVIDER@")
 set(LibGS_SPDLOG_PROVIDER "@LIBGS_SPDLOG_PROVIDER@")
 
-if (LibGS_ASIO_PROVIDER STREQUAL "boost")
+if (LibGS_ASIO_PROVIDER STREQUAL "BOOST")
 	if (NOT DEFINED Boost_ROOT AND NOT "@LIBGS_BOOST_INSTALL_PREFIX@" STREQUAL "")
 		set(Boost_ROOT "@LIBGS_BOOST_INSTALL_PREFIX@")
 	endif ()
 	find_dependency(Boost CONFIG)
 
-elseif (LibGS_ASIO_PROVIDER STREQUAL "external")
+elseif (LibGS_ASIO_PROVIDER STREQUAL "EXTERNAL")
 	find_package(asio CONFIG QUIET HINTS "@LIBGS_ASIO_INSTALL_PREFIX@")
+
 	if (NOT TARGET @LIBGS_ASIO_PACKAGE_TARGET@)
 		find_package(Asio CONFIG QUIET HINTS "@LIBGS_ASIO_INSTALL_PREFIX@")
 	endif ()
@@ -69,8 +70,30 @@ if (@LIBGS_OPENSSL_SUPPORT@)
 	find_dependency(OpenSSL)
 endif ()
 
-if (@LIBGS_PACKAGE_NEEDS_ZLIB@)
+set(_libgs_zlib_component_requested FALSE)
+
+if (NOT LibGS_FIND_COMPONENTS OR
+	"http" IN_LIST LibGS_FIND_COMPONENTS OR
+	"websocket" IN_LIST LibGS_FIND_COMPONENTS)
+	set(_libgs_zlib_component_requested TRUE)
+endif ()
+
+if (@LIBGS_PACKAGE_NEEDS_ZLIB@ AND _libgs_zlib_component_requested)
 	find_dependency(ZLIB)
+
+	# MinGW scans static archives from left to right.  Some static OpenSSL
+	# packages are built with zlib but omit it from OpenSSL::Crypto's imported
+	# interface.  Add the missing private edge only for HTTP/WebSocket consumers;
+	# core-only consumers must not acquire a zlib dependency.
+	if (MINGW AND @LIBGS_BUILD_STATIC@ AND TARGET OpenSSL::Crypto)
+		get_target_property(_libgs_openssl_crypto_links
+			OpenSSL::Crypto INTERFACE_LINK_LIBRARIES
+		)
+		if (NOT ZLIB::ZLIB IN_LIST _libgs_openssl_crypto_links)
+			set_property(TARGET OpenSSL::Crypto APPEND PROPERTY
+				INTERFACE_LINK_LIBRARIES ZLIB::ZLIB)
+		endif ()
+	endif ()
 endif ()
 
 if (@LIBGS_IO_URING_SUPPORT@)
@@ -139,5 +162,9 @@ endforeach()
 check_required_components(LibGS)
 
 unset(_libgs_component)
+
 unset(_libgs_missing_components)
 unset(_libgs_missing_components_text)
+
+unset(_libgs_openssl_crypto_links)
+unset(_libgs_zlib_component_requested)

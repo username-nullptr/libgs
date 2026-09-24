@@ -100,9 +100,15 @@ std::chrono::steady_clock::duration measure_shared(
 	size_t thread_count, size_t write_interval
 )
 {
+	// std::shared_mutex does not guarantee writer fairness.  With a continuous
+	// stream of readers the baseline can starve a writer indefinitely, turning
+	// a performance sample into a CTest timeout.  Periodic rendezvous bound that
+	// starvation while leaving the measured lock mix unchanged between them.
+	constexpr size_t checkpoint_interval = 2'048;
 	Mutex mutex;
 	size_t value = 0;
 	std::barrier start(static_cast<std::ptrdiff_t>(thread_count + 1));
+	std::barrier checkpoint(static_cast<std::ptrdiff_t>(thread_count));
 	std::vector<std::thread> workers;
 	workers.reserve(thread_count);
 	for(size_t thread = 0; thread < thread_count; ++thread)
@@ -123,6 +129,8 @@ std::chrono::steady_clock::duration measure_shared(
 					std::shared_lock lock(mutex);
 					checksum += value;
 				}
+				if( (index + 1) % checkpoint_interval == 0 )
+					checkpoint.arrive_and_wait();
 			}
 			if( checksum == std::numeric_limits<size_t>::max() )
 				std::abort();
@@ -239,11 +247,11 @@ void shared_mutex_contention()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
 	// Keep glibc's single-thread-only pthread fast path out of the comparison.
 	std::thread([] {}).join();
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"mutex contention", mutex_contention},
 		{"shared mutex contention", shared_mutex_contention},
 	});

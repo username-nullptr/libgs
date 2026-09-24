@@ -32,10 +32,6 @@ if (LIBGS_BUILD_HTTP)
 
 	add_libgs_test(http.public-api http/public_api.cpp gs.http)
 	add_libgs_test(http.loopback http/loopback.cpp gs.http)
-
-	if (NOT LIBGS_ENABLE_TEST_SANITIZERS AND NOT LIBGS_ENABLE_TEST_TSAN)
-		set_tests_properties(libgs.http.loopback PROPERTIES TIMEOUT 15)
-	endif ()
 endif ()
 
 if (LIBGS_BUILD_WEBSOCKET)
@@ -49,14 +45,6 @@ if (LIBGS_BUILD_WEBSOCKET)
 		add_libgs_test(websocket.wss websocket/wss.cpp gs.websocket)
 	endif ()
 
-	if (NOT LIBGS_ENABLE_TEST_SANITIZERS AND NOT LIBGS_ENABLE_TEST_TSAN)
-		set_tests_properties(libgs.websocket.handshake PROPERTIES TIMEOUT 15)
-		set_tests_properties(libgs.websocket.client-server PROPERTIES TIMEOUT 15)
-		if (LIBGS_OPENSSL_SUPPORT)
-			set_tests_properties(libgs.websocket.wss PROPERTIES TIMEOUT 15)
-		endif ()
-	endif ()
-
 	add_libgs_test(websocket.stream websocket/stream.cpp gs.websocket)
 endif ()
 
@@ -64,6 +52,7 @@ if (LIBGS_BUILD_UTILITIES)
 	add_libgs_test(utils utils/basic.cpp gs.utils)
 	add_libgs_test(utils.runtime utils/runtime.cpp gs.utils)
 	add_libgs_test(utils.sbus utils/sbus.cpp gs.utils)
+	add_libgs_test(utils.sbus.cache utils/sbus_cache.cpp gs.utils)
 	add_libgs_test(utils.modules utils/modules.cpp gs.utils)
 endif ()
 
@@ -100,7 +89,6 @@ if (Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
 		configure_libgs_functional_test(libgs.http.interop)
 
 		set_property(TEST libgs.http.interop APPEND PROPERTY LABELS interop external)
-		set_property(TEST libgs.http.interop PROPERTY TIMEOUT 30)
 
 		message(STATUS
 			"${PRO_NAME}: HTTP interoperability backend: ${libgs_http_interop_backend}"
@@ -183,7 +171,6 @@ if (Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
 			set_property(TEST libgs.websocket.interop APPEND PROPERTY
 				LABELS interop external
 			)
-			set_property(TEST libgs.websocket.interop PROPERTY TIMEOUT 30)
 			message(STATUS
 				"${PRO_NAME}: WebSocket interoperability backend: ${libgs_websocket_interop_backend}"
 			)

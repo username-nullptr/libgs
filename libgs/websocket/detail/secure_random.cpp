@@ -28,11 +28,10 @@ namespace libgs::websocket::detail { namespace
 #if !defined(_WIN32) && \
 	!(defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || \
 	  defined(__OpenBSD__) || defined(__DragonFly__))
-[[nodiscard]] error_code errno_error() noexcept
-{
-	return error_code(std::error_code(errno, std::generic_category()));
+[[nodiscard]] error_code errno_error() noexcept {
+	return { std::error_code(errno, std::generic_category()) };
 }
-#endif
+#endif //...
 
 } //namespace
 
@@ -60,7 +59,7 @@ sys_expected<> secure_random_bytes(const mutable_buffer &output) noexcept
 		if( status < 0 )
 		{
 			return sys_unexpected(error_code (
-				static_cast<int>(status), std::system_category()
+				static_cast<int>(status), system_category()
 			));
 		}
 		data += chunk;

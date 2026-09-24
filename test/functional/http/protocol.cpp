@@ -26,31 +26,31 @@ libgs::const_buffer buffer(std::string_view value)
 void parser_errors()
 {
 	using namespace libgs::http;
-	const libgs::error_code empty = parse_errc::IDE;
-	LIBGS_TEST_CHECK(empty == parse_errc::IDE);
-	LIBGS_TEST_CHECK(parse_errc::IDE == empty);
-	LIBGS_TEST_CHECK(empty != parse_errc::RE);
-	LIBGS_TEST_CHECK(parse_errc::RE != empty);
-	LIBGS_TEST_CHECK_EQ(empty, make_error_code(parse_errc::IDE));
+	const libgs::error_code empty = parse_errc::inserted_data_empty;
+	LIBGS_TEST_CHECK(empty == parse_errc::inserted_data_empty);
+	LIBGS_TEST_CHECK(parse_errc::inserted_data_empty == empty);
+	LIBGS_TEST_CHECK(empty != parse_errc::request_end);
+	LIBGS_TEST_CHECK(parse_errc::request_end != empty);
+	LIBGS_TEST_CHECK_EQ(empty, make_error_code(parse_errc::inserted_data_empty));
 	LIBGS_TEST_CHECK_EQ(empty.category(), parse_error_category());
 	LIBGS_TEST_CHECK_EQ(empty.message(), "The inserted data is empty.");
 
 	server_parser parser;
 	auto result = parser.append({});
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::IDE);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::inserted_data_empty);
 
 	server_parser malformed_header;
 	result = malformed_header.append(buffer(
 		"GET / HTTP/1.1\r\nMissing-Colon\r\n\r\n"
 	));
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::IHL);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::invalid_header_line);
 
 	server_parser invalid_method;
 	result = invalid_method.append(buffer("FETCH / HTTP/1.1\r\n\r\n"));
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::IHM);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::invalid_method);
 
 	server_parser conflicting_size;
 	result = conflicting_size.append(buffer(
@@ -60,22 +60,24 @@ void parser_errors()
 		"Transfer-Encoding: chunked\r\n\r\n"
 	));
 	LIBGS_TEST_CHECK(not result);
-	LIBGS_TEST_CHECK(result.error() == parse_errc::SFE);
+	LIBGS_TEST_CHECK(result.error() == parse_errc::invalid_size_format);
 }
 
 void enum_input_validation()
 {
 	using namespace libgs::http;
-	const auto invalid_status = static_cast<status_enum>(999);
+	const auto invalid_status_code = static_cast<status_enum>(999);
 	const auto invalid_method = static_cast<method_enum>(0x8000);
 	const auto invalid_version = static_cast<version_enum>(0x0909);
 
-	LIBGS_TEST_CHECK(not status::check(invalid_status, false));
-	LIBGS_TEST_CHECK_EQ(std::string(status::description(invalid_status, false)), "");
-	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status), libgs::invalid_argument);
+	LIBGS_TEST_CHECK(not status::check(invalid_status_code, false));
+	LIBGS_TEST_CHECK_EQ(
+		std::string(status::description(invalid_status_code, false)), "None"
+	);
+	LIBGS_TEST_CHECK_THROWS(status::check(invalid_status_code), libgs::invalid_argument);
 
 	LIBGS_TEST_CHECK(not method::check(invalid_method, false));
-	LIBGS_TEST_CHECK_EQ(std::string(method::string(invalid_method, false)), "");
+	LIBGS_TEST_CHECK_EQ(std::string(method::string(invalid_method, false)), "NONE");
 	LIBGS_TEST_CHECK_EQ(method::from_string("FETCH"), method::none);
 	LIBGS_TEST_CHECK_THROWS(method::from_string("FETCH", true), libgs::invalid_argument);
 	LIBGS_TEST_CHECK_THROWS(method("FETCH"), libgs::invalid_argument);
@@ -161,6 +163,20 @@ void request_parser()
 void response_parser()
 {
 	using namespace libgs::http;
+	for(const auto invalid_response : {
+		"HTTP/1.1 10\r\n\r\n",
+		"HTTP/1.1 099\r\n\r\n",
+		"HTTP/1.1 599\r\n\r\n",
+		"HTTP/1.1 600\r\n\r\n",
+		"HTTP/1.1 2x0\r\n\r\n",
+	})
+	{
+		client_parser invalid_parser;
+		auto invalid_result = invalid_parser.append(buffer(invalid_response));
+		LIBGS_TEST_CHECK(not invalid_result);
+		LIBGS_TEST_CHECK(invalid_result.error() == parse_errc::invalid_status_code);
+	}
+
 	const std::string response =
 		"HTTP/1.1 200 OK\r\n"
 		"Content-Type: text/plain\r\n"
@@ -441,9 +457,9 @@ void cookie_storage_policy()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"parser errors", parser_errors},
 		{"enum input validation", enum_input_validation},
 		{"parser reuse", parser_reuse},

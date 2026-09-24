@@ -71,6 +71,10 @@ behavior rather than by implementation source file.
   pipes/environment/cancellation, local message bus, and logger configuration/I/O.
 - `utils/sbus.cpp`: raw/typed publish-subscribe, cancellation, topic indexing,
   large-payload fanout ownership, UDP scope/fragmentation, and receive statistics.
+- `utils/sbus_cache.cpp`: cache set/get overloads, snapshots, typed topics,
+  duplicate suppression, local publish updates, change signals, and
+  edge-triggered `wait_changed` across synchronous, callback, future, deferred,
+  and awaitable tokens, including timeout, token cancellation, and cache cancel.
 
 When a public API changes, update its successful, invalid-input, ownership,
 cancellation, timeout, and state-transition coverage here. Use Stress, Fuzz, or

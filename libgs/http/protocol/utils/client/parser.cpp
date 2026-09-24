@@ -28,7 +28,7 @@ public:
 				not strtls::to_upper(request_line_parts[0]).starts_with("HTTP/") )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errc::IRPYL)
+					base_parser::make_error_code(parse_errc::invalid_reply_line)
 				);
 			}
 			try {
@@ -37,49 +37,42 @@ public:
 			catch(const std::exception&)
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errc::IRPYL)
+					base_parser::make_error_code(parse_errc::invalid_reply_line)
 				);
 			}
 			auto status_value = strtls::to_arith<status_enum>(request_line_parts[1]);
-			if( not status_value )
+			if( not status_value or not status::check(*status_value, false) )
 			{
 				return result.despair (
-					base_parser::make_error_code(parse_errc::IHSC)
+					base_parser::make_error_code(parse_errc::invalid_status_code)
 				);
 			}
 			m_status = *status_value;
 
-			if( m_status == static_cast<status_enum>(0) )
-			{
-				return result.despair (
-					base_parser::make_error_code(parse_errc::IHSC)
-				);
-			}
-			auto code = static_cast<uint16_t>(m_status);
 			m_parser.skip_body (
 				m_request_method == method::head or
-				(code >= 100 and code < 200) or
+				(m_status >= 100 and m_status < 200) or
 				m_status == status::no_content or
 				m_status == status::not_modified or
-				(m_request_method == method::connect and code >= 200 and code < 300)
+				(m_request_method == method::connect and m_status >= 200 and m_status < 300)
 			);
 			if( request_line_parts.size() > 2 )
 				m_description = request_line_parts.join(2, ' ');
 			else
-				m_description = status::description(m_status);
+				m_description = status::description(m_status, false);
 			return result;
 		})
 		.on_parse_cookie([this](std::string_view line_buf)
 		{
 			auto vector = string_vector::from_string(line_buf, ';');
 			if( vector.empty() )
-				return base_parser::make_error_code(parse_errc::ICL);
+				return base_parser::make_error_code(parse_errc::invalid_cookie_line);
 
 			vector[0] = strtls::trimmed(vector[0]);
 			auto pos = vector[0].find('=');
 
 			if( pos == std::string::npos )
-				return base_parser::make_error_code(parse_errc::ICL);
+				return base_parser::make_error_code(parse_errc::invalid_cookie_line);
 
 			auto key = strtls::trimmed(vector[0].substr(0, pos));
 			auto cookie_name = key;
@@ -168,7 +161,7 @@ public:
 
 			auto range = parse_content_range(it->second.to_string());
 			if( not range or range->unit != "bytes" or range->satisfied )
-				return base_parser::make_error_code(parse_errc::SFE);
+				return base_parser::make_error_code(parse_errc::invalid_size_format);
 
 			m_content_range = *range;
 			return {};
@@ -189,7 +182,7 @@ public:
 			{
 				auto boundary = parse_multipart_byte_ranges_boundary(content_type);
 				if( not boundary )
-					return base_parser::make_error_code(parse_errc::SFE);
+					return base_parser::make_error_code(parse_errc::invalid_size_format);
 
 				m_multipart_parser = std::make_unique<multipart_byte_ranges_parser>(*boundary);
 				m_body_norms = multipart_body_norms {.boundary = *boundary};
@@ -198,11 +191,11 @@ public:
 		}
 		it = response_headers.find(header::content_range);
 		if( it == response_headers.end() )
-			return base_parser::make_error_code(parse_errc::SFE);
+			return base_parser::make_error_code(parse_errc::invalid_size_format);
 
 		auto range = parse_content_range(it->second.to_string());
 		if( not range or range->unit != "bytes" or not range->satisfied )
-			return base_parser::make_error_code(parse_errc::SFE);
+			return base_parser::make_error_code(parse_errc::invalid_size_format);
 
 		m_content_range = *range;
 		m_body_norms = range_body_norms {
@@ -221,7 +214,7 @@ public:
 				body, m_parser.stage() == stage::finished
 			);
 			if( not decoded )
-				return base_parser::make_error_code(parse_errc::SFE);
+				return base_parser::make_error_code(parse_errc::invalid_size_format);
 
 			body = std::move(*decoded);
 			m_content_decoded = true;
@@ -232,7 +225,7 @@ public:
 			{
 				auto chunks = m_multipart_parser->append(body);
 				if( not chunks )
-					return base_parser::make_error_code(parse_errc::SFE);
+					return base_parser::make_error_code(parse_errc::invalid_size_format);
 
 				for(auto &[part_index, offset, data] : *chunks)
 					append_body(part_index, offset, data);
@@ -241,7 +234,7 @@ public:
 			if( m_parser.stage() == stage::finished )
 			{
 				if( auto error = m_multipart_parser->finish(); error )
-					return base_parser::make_error_code(parse_errc::SFE);
+					return base_parser::make_error_code(parse_errc::invalid_size_format);
 				sync_multipart_norms();
 			}
 			return {};
@@ -253,7 +246,7 @@ public:
 			{
 				if( body.size() > m_content_range->length() -
 					std::min(m_plain_body_size, m_content_range->length()) )
-					return base_parser::make_error_code(parse_errc::SFE);
+					return base_parser::make_error_code(parse_errc::invalid_size_format);
 				offset += m_content_range->first;
 			}
 			m_plain_body_size += body.size();
@@ -261,7 +254,7 @@ public:
 		}
 		if( m_parser.stage() == stage::finished and m_content_range and
 			m_content_range->satisfied and m_plain_body_size != m_content_range->length() )
-			return base_parser::make_error_code(parse_errc::SFE);
+			return base_parser::make_error_code(parse_errc::invalid_size_format);
 		return {};
 	}
 
@@ -479,7 +472,7 @@ public:
 	base_parser m_parser;
 	status_enum m_status = status::none;
 
-	std::string m_description = status::description<status::none>();
+	std::string m_description = "None";
 	cookies_t m_cookies {};
 
 	set_cookie_values_t m_set_cookies {};
@@ -740,7 +733,7 @@ parser<protocol_model::client> &parser<protocol_model::client>::operator<<(const
 sys_expected<bool> parser<protocol_model::client>::next_message()
 {
 	m_impl->m_status = status::none;
-	m_impl->m_description = status::description<status::none>();
+	m_impl->m_description = "None";
 
 	m_impl->m_cookies.clear();
 	m_impl->m_set_cookies.clear();
@@ -792,7 +785,7 @@ parser<protocol_model::client> &parser<protocol_model::client>::reset()
 {
 	m_impl->m_parser.reset();
 	m_impl->m_status = status::none;
-	m_impl->m_description = status::description<status::none>();
+	m_impl->m_description = "None";
 
 	m_impl->m_cookies.clear();
 	m_impl->m_set_cookies.clear();

@@ -115,9 +115,9 @@ void http_loopback_throughput()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"HTTP loopback throughput", http_loopback_throughput},
 	});
 }

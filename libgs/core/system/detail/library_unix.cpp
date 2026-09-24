@@ -12,13 +12,17 @@ namespace fs = std::filesystem;
 namespace libgs
 {
 
-static class LIBGS_DECL_HIDDEN library_category : public error_category_t
+static class LIBGS_DECL_HIDDEN library_category final : public error_category_t
 {
 	LIBGS_DISABLE_COPY_MOVE(library_category)
 
 public:
 	library_category() = default;
+#if LIBGS_USING_BOOST_ASIO
+	virtual ~library_category() = default;
+#else //LIBGS_USING_BOOST_ASIO
 	~library_category() override = default;
+#endif //LIBGS_USING_BOOST_ASIO
 
 public:
 	[[nodiscard]] const char *name() const noexcept override {

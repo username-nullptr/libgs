@@ -393,9 +393,9 @@ void static_file_cache_updates()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"client/server loopback", client_server_round_trip},
 		{"runtime route updates", runtime_route_updates},
 		{"static file cache updates", static_file_cache_updates},

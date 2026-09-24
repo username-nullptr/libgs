@@ -179,9 +179,9 @@ void message_loopback_throughput()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"WebSocket frame codec throughput", frame_codec_throughput},
 		{"WebSocket message loopback throughput", message_loopback_throughput},
 	});

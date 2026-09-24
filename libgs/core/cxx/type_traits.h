@@ -33,11 +33,17 @@ template<typename Clock, typename Duration>
 using time_point = std::chrono::time_point<Clock, Duration>;
 
 #if LIBGS_USING_BOOST_ASIO
+
 using error_code = boost::system::error_code;
 using error_category_t = boost::system::error_category;
+using boost::system::system_category;
+
 #else //LIBGS_USING_BOOST_ASIO
+
 using error_code = std::error_code;
 using error_category_t = std::error_category;
+using std::system_category;
+
 #endif //LIBGS_USING_BOOST_ASIO
 
 [[nodiscard]] inline error_code make_system_error_code(std::errc value) noexcept {

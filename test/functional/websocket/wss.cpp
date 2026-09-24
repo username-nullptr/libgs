@@ -274,9 +274,9 @@ void secure_round_trip()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"secure round trip", secure_round_trip},
 	});
 }

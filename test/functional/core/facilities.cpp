@@ -817,9 +817,9 @@ void application_environment()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"values", values},
 		{"string containers", string_containers},
 		{"URL parsing", url_parsing},

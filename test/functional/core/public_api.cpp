@@ -238,12 +238,14 @@ void dynamic_library()
 
 } //namespace
 
-int main(int argc, char *argv[])
+int main(int argc, const char *const argv[])
 {
-	if( argc != 2 )
+	if( argc < 2 )
 		return 2;
 	fixture_path = std::filesystem::absolute(argv[1]);
-	return libgs::test::run({
+	// Treat the required fixture path as argv[0] for the shared test parser so
+	// optional --case/--repeat/--seed arguments can follow it.
+	return libgs::test::run(argc - 1, argv + 1, {
 		{"flags and parameters", flags_and_parameters},
 		{"value and string algorithms", value_and_string_algorithms},
 		{"optional, expected, and async helpers", optional_expected_and_async_helpers},

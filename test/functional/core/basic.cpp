@@ -474,6 +474,8 @@ void atomic_locks_with_policy()
 	libgs::basic_atomic_shared_mutex<Policy> shared_mutex;
 	size_t shared_value = 0;
 	std::atomic_size_t writers_done {0};
+	std::atomic_size_t try_writes {0};
+	std::atomic_bool try_writer_done {false};
 	std::atomic_bool invalid_read {false};
 	workers.clear();
 	for(size_t writer = 0; writer < 2; ++writer)
@@ -488,12 +490,28 @@ void atomic_locks_with_policy()
 			writers_done.fetch_add(1, std::memory_order_release);
 		});
 	}
+	workers.emplace_back([&]
+	{
+		for(size_t index = 0; index < 50'000; ++index)
+		{
+			if( shared_mutex.try_lock() )
+			{
+				++shared_value;
+				try_writes.fetch_add(1, std::memory_order_relaxed);
+				shared_mutex.unlock();
+			}
+			else
+				std::this_thread::yield();
+		}
+		try_writer_done.store(true, std::memory_order_release);
+	});
 	for(size_t reader = 0; reader < 4; ++reader)
 	{
 		workers.emplace_back([&]
 		{
 			size_t observed = 0;
-			while( writers_done.load(std::memory_order_acquire) != 2 )
+			while( writers_done.load(std::memory_order_acquire) != 2 or
+				not try_writer_done.load(std::memory_order_acquire) )
 			{
 				std::shared_lock lock(shared_mutex);
 				if( shared_value < observed )
@@ -505,7 +523,8 @@ void atomic_locks_with_policy()
 	for(auto &worker : workers)
 		worker.join();
 	LIBGS_TEST_CHECK(not invalid_read.load(std::memory_order_relaxed));
-	LIBGS_TEST_CHECK_EQ(shared_value, 10'000U);
+	LIBGS_TEST_CHECK_EQ(shared_value,
+		10'000U + try_writes.load(std::memory_order_relaxed));
 	LIBGS_TEST_CHECK(shared_mutex.try_lock_shared());
 	LIBGS_TEST_CHECK(not shared_mutex.try_lock());
 	shared_mutex.unlock_shared();
@@ -575,9 +594,9 @@ void atomic_locks()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"meta fields macros", meta_fields_macros},
 		{"type names", type_names},
 		{"percent encoding", percent_encoding},

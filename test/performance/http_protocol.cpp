@@ -119,9 +119,9 @@ void protocol_hot_paths()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"HTTP protocol hot paths", protocol_hot_paths},
 	});
 }

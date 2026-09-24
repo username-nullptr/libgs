@@ -1116,9 +1116,9 @@ void invalid_owned_config()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"owned handler round trip", owned_handler_round_trip},
 		{"owned accept round trip", owned_accept_round_trip},
 		{"owned configuration and resources", owned_configuration_and_resources},

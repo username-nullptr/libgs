@@ -308,9 +308,9 @@ void global_event_loop()
 
 } //namespace
 
-int main()
+int main(int argc, const char *const argv[])
 {
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"dispatch and post ordering", dispatch_and_post_ordering},
 		{"synchronous dispatch context selection", synchronous_dispatch_context_selection},
 		{"queued and delayed work", queued_and_delayed_work},

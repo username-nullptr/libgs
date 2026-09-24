@@ -9,9 +9,11 @@
 #include <charconv>
 #include <chrono>
 #include <concepts>
+#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <initializer_list>
 #include <iostream>
 #include <sstream>
@@ -19,6 +21,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -172,6 +175,46 @@ inline void check_equal(
 namespace detail
 {
 
+inline std::atomic<const test_case*> terminating_test {nullptr};
+inline std::atomic_size_t terminating_iteration {0};
+inline std::atomic_size_t terminating_repeat {0};
+inline std::atomic_uint64_t terminating_seed {0};
+
+[[noreturn]] inline void terminate_with_diagnostics() noexcept
+{
+	const auto *test = terminating_test.load(std::memory_order_acquire);
+	const auto thread = std::hash<std::thread::id> {}(std::this_thread::get_id());
+	if( test )
+	{
+		std::fprintf(stderr,
+			"[TERMINATE] %.*s (iteration %zu/%zu, seed %llu, thread %zu)\n",
+			static_cast<int>(test->name.size()), test->name.data(),
+			terminating_iteration.load(std::memory_order_relaxed),
+			terminating_repeat.load(std::memory_order_relaxed),
+			static_cast<unsigned long long>(
+				terminating_seed.load(std::memory_order_relaxed)),
+			thread
+		);
+	}
+	else
+		std::fprintf(stderr, "[TERMINATE] outside a test case (thread %zu)\n", thread);
+
+	if( const auto exception = std::current_exception() )
+	{
+		try {
+			std::rethrow_exception(exception);
+		}
+		catch(const std::exception &error) {
+			std::fprintf(stderr, "[TERMINATE] active exception: %s\n", error.what());
+		}
+		catch(...) {
+			std::fprintf(stderr, "[TERMINATE] active non-standard exception\n");
+		}
+	}
+	std::fflush(stderr);
+	std::abort();
+}
+
 struct run_options
 {
 	std::vector<std::string_view> cases;
@@ -293,6 +336,7 @@ inline void print_help()
 inline int run_with_options(
 	std::initializer_list<test_case> tests, const run_options &options)
 {
+	std::set_terminate(terminate_with_diagnostics);
 	if(options.help)
 	{
 		print_help();
@@ -334,6 +378,13 @@ inline int run_with_options(
 				options.repeat,
 				iteration_seed(options.seed, test.name, iteration)
 			};
+			terminating_iteration.store(iteration, std::memory_order_relaxed);
+			terminating_repeat.store(options.repeat, std::memory_order_relaxed);
+			terminating_seed.store(active_run_context.seed, std::memory_order_relaxed);
+			terminating_test.store(&test, std::memory_order_release);
+			std::cout << "[RUN] " << test.name << " (iteration " << iteration
+				<< '/' << options.repeat << ", seed " << active_run_context.seed
+				<< ")\n" << std::flush;
 			try
 			{
 				const auto begin = std::chrono::steady_clock::now();
@@ -360,6 +411,7 @@ inline int run_with_options(
 					<< '/' << options.repeat << ", seed " << active_run_context.seed
 					<< "): unknown exception\n";
 			}
+			terminating_test.store(nullptr, std::memory_order_release);
 			completed++;
 			if(failures != 0 and options.fail_fast)
 				break;
@@ -367,6 +419,7 @@ inline int run_with_options(
 		if(failures != 0 and options.fail_fast)
 			break;
 	}
+	terminating_test.store(nullptr, std::memory_order_release);
 	active_run_context = {};
 
 	std::cout << (completed - failures) << '/' << completed

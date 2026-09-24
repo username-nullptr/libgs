@@ -135,9 +135,9 @@ public:
 				if( source().size() < 8192 )
 					break;
 				else if( m_state == state::waiting_request )
-					result.despair(make_error_code(parse_errc::RLTL));
+					result.despair(make_error_code(parse_errc::req_line_too_long));
 				else if( m_state == state::reading_headers )
-					result.despair(make_error_code(parse_errc::HLTL));
+					result.despair(make_error_code(parse_errc::header_line_too_long));
 				break;
 			}
 			auto line_buf = std::string(source().substr(0, pos));
@@ -196,7 +196,7 @@ public:
 		{
 			reset();
 			return result.despair (
-				make_error_code(parse_errc::IHL)
+				make_error_code(parse_errc::invalid_header_line)
 			);
 		}
 		auto field_name = line_buf.substr(0, colon_index);
@@ -204,7 +204,7 @@ public:
 		{
 			reset();
 			return result.despair (
-				make_error_code(parse_errc::IHL)
+				make_error_code(parse_errc::invalid_header_line)
 			);
 		}
 		auto error = header_insert (
@@ -231,13 +231,13 @@ public:
 		auto transfer_encoding = m_headers.find(header::transfer_encoding);
 
 		if( content_length != m_headers.end() and transfer_encoding != m_headers.end() )
-			return make_error_code(parse_errc::SFE);
+			return make_error_code(parse_errc::invalid_size_format);
 
 		if( content_length != m_headers.end() )
 		{
 			auto expected = content_length->second.get<size_t>();
 			if( not expected )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 
 			m_content_length = *expected;
 			parse_length();
@@ -245,11 +245,11 @@ public:
 		else if( transfer_encoding != m_headers.end() )
 		{
 			if( m_version != version::v11 )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 
 			auto codings = string_vector::from_string(transfer_encoding->second.to_string(), ',');
 			if( codings.size() != 1 or strtls::to_lower(strtls::trimmed(codings.back())) != "chunked" )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 
 			m_state = state::chunked_wait_size;
 			parse_chunked().or_else([&](const error_code &e) {
@@ -320,7 +320,7 @@ public:
 		while( pos < line_buf.size() )
 		{
 			if( line_buf[pos] != ';' )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 			++pos;
 			skip_bws();
 
@@ -329,7 +329,7 @@ public:
 				++pos;
 
 			if( begin == pos )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 
 			std::string attribute(line_buf.substr(begin, pos - begin));
 			skip_bws();
@@ -339,7 +339,7 @@ public:
 				++pos;
 				skip_bws();
 				if( pos == line_buf.size() )
-					return make_error_code(parse_errc::SFE);
+					return make_error_code(parse_errc::invalid_size_format);
 
 				begin = pos;
 				if( line_buf[pos] == '"' )
@@ -357,17 +357,17 @@ public:
 						if( ch == '\\' )
 						{
 							if( pos == line_buf.size() )
-								return make_error_code(parse_errc::SFE);
+								return make_error_code(parse_errc::invalid_size_format);
 
 							ch = static_cast<uint8_t>(line_buf[pos++]);
 							if( ch != '\t' and (ch < 0x20 or ch == 0x7F) )
-								return make_error_code(parse_errc::SFE);
+								return make_error_code(parse_errc::invalid_size_format);
 						}
 						else if( not is_quoted_char(ch) )
-							return make_error_code(parse_errc::SFE);
+							return make_error_code(parse_errc::invalid_size_format);
 					}
 					if( not closed )
-						return make_error_code(parse_errc::SFE);
+						return make_error_code(parse_errc::invalid_size_format);
 				}
 				else
 				{
@@ -375,13 +375,13 @@ public:
 						++pos;
 
 					if( begin == pos )
-						return make_error_code(parse_errc::SFE);
+						return make_error_code(parse_errc::invalid_size_format);
 				}
 				attribute += line_buf.substr(begin, pos - begin);
 				skip_bws();
 			}
 			if( pos < line_buf.size() and line_buf[pos] != ';' )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 			attributes.emplace(std::move(attribute));
 		}
 		for(auto &attribute : attributes)
@@ -400,7 +400,7 @@ public:
 				if( pos == std::string::npos )
 				{
 					if( source().size() > 8192 )
-						result.despair(make_error_code(parse_errc::HLTL));
+						result.despair(make_error_code(parse_errc::header_line_too_long));
 					return result;
 				}
 				auto line_buf = std::string(source().substr(0, pos));
@@ -412,13 +412,13 @@ public:
 				size_buf = strtls::trimmed(size_buf);
 				if( size_buf.empty() or size_buf.size() > sizeof(size_t) * 2 )
 				{
-					result.despair(make_error_code(parse_errc::SFE));
+					result.despair(make_error_code(parse_errc::invalid_size_format));
 					return result;
 				}
 				auto expected = strtls::to_arith<size_t>(size_buf, 16);
 				if( not expected )
 				{
-					result.despair(make_error_code(parse_errc::SFE));
+					result.despair(make_error_code(parse_errc::invalid_size_format));
 					return result;
 				}
 				if( attributes_pos != std::string::npos )
@@ -458,7 +458,7 @@ public:
 
 				if( not source().starts_with("\r\n") )
 				{
-					result.despair(make_error_code(parse_errc::SFE));
+					result.despair(make_error_code(parse_errc::invalid_size_format));
 					return result;
 				}
 				consume_source(2);
@@ -471,7 +471,7 @@ public:
 				if( pos == std::string::npos )
 				{
 					if( source().size() > 8192 )
-						result.despair(make_error_code(parse_errc::HLTL));
+						result.despair(make_error_code(parse_errc::header_line_too_long));
 					return result;
 				}
 				auto line_buf = std::string(source().substr(0, pos));
@@ -486,13 +486,13 @@ public:
 				auto colon_index = line_buf.find(':');
 				if( colon_index == std::string::npos )
 				{
-					result.despair(make_error_code(parse_errc::SFE));
+					result.despair(make_error_code(parse_errc::invalid_size_format));
 					return result;
 				}
 				auto field_name = line_buf.substr(0, colon_index);
 				if( not valid_field_name(field_name) )
 				{
-					result.despair(make_error_code(parse_errc::SFE));
+					result.despair(make_error_code(parse_errc::invalid_size_format));
 					return result;
 				}
 				auto error = header_insert (
@@ -525,7 +525,7 @@ public:
 		if( auto it = m_headers.find(key); it != m_headers.end() )
 		{
 			if( key == "content-length" )
-				return make_error_code(parse_errc::SFE);
+				return make_error_code(parse_errc::invalid_size_format);
 			it->second = it->second.to_string() + ", " + value;
 		}
 		else
@@ -642,10 +642,10 @@ sys_expected<bool> parser<protocol_model::base>::append(const const_buffer &buf)
 {
 	using state_t = impl::state;
 	if( buf.size() == 0 )
-		return { make_error_code(parse_errc::IDE) };
+		return { make_error_code(parse_errc::inserted_data_empty) };
 
 	else if( m_impl->m_state == state_t::finished )
-		return { make_error_code(parse_errc::RE) };
+		return { make_error_code(parse_errc::request_end) };
 
 	m_impl->append_source(buf);
 	if( m_impl->m_state <= state_t::reading_headers )

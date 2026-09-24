@@ -438,14 +438,14 @@ void sbus_throughput()
 
 } //namespace
 
-int main(int argc, char *argv[])
+int main(int argc, const char *const argv[])
 {
 	if( argc == 2 and std::string_view(argv[1]) == "--connection-only" )
 	{
 		print_connection_performance();
 		return 0;
 	}
-	return libgs::test::run({
+	return libgs::test::run(argc, argv, {
 		{"sbus throughput", sbus_throughput},
 	});
 }
