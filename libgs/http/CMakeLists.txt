@@ -10,9 +10,6 @@ target_compile_definitions (
 option(LIBGS_HTTP_ZLIB_SUPPORT
 	"-- ${PRO_NAME}: HTTP z-lib support." OFF
 )
-set(LIBGS_ZLIB_INSTALL_PREFIX "" CACHE PATH
-	"Install prefix of an external zlib package."
-)
 if (LIBGS_HTTP_ZLIB_SUPPORT)
 	message(STATUS "${PRO_NAME}: Enable z-lib support.")
 	target_compile_definitions(${target_name} PUBLIC -DLIBGS_HTTP_ZLIB_SUPPORT=1)

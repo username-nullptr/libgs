@@ -4,24 +4,14 @@
 set(target_name gs.utils)
 add_project(${target_name} gs.coro)
 
-target_link_libraries(${target_name} PRIVATE libgs.spdlog)
-target_compile_definitions(${target_name} PRIVATE
-	LIBGS_UTILS_SHARED
-	SPDLOG_COMPILED_LIB
-	SPDLOG_USE_STD_FORMAT
-)
+target_link_libraries(${target_name} PUBLIC libgs.spdlog)
+target_compile_definitions(${target_name} PRIVATE LIBGS_UTILS_SHARED)
+
 # Keep a single spdlog implementation in gs.utils instead of instantiating its
 # header-only implementation in logger.cpp.  Shared builds export the spdlog
 # symbols from the utils library; static builds resolve them from the archive.
 if (NOT LIBGS_BUILD_STATIC)
-	target_compile_definitions(${target_name} PRIVATE
-		SPDLOG_SHARED_LIB
-		spdlog_EXPORTS
-	)
-endif ()
-
-if (WIN32)
-	target_compile_definitions(${target_name} PRIVATE SPDLOG_WCHAR_FILENAMES)
+	target_compile_definitions(${target_name} PRIVATE spdlog_EXPORTS)
 endif ()
 
 option(LIBGS_BUILD_UTILITIES_SBUS_UDP

@@ -46,6 +46,22 @@ add_library(LibGS::asio ALIAS libgs.asio)
 set_target_properties(libgs.asio PROPERTIES EXPORT_NAME asio)
 set(LIBGS_ASIO_PACKAGE_TARGET asio::asio)
 
+# External Asio packages are commonly advertised as header-only.  LibGS keeps
+# exactly one implementation in gs.core, so explicitly cancel any provider
+# definition that would make headers include their .ipp implementation files.
+if (MSVC)
+	set(libgs_undefine_asio_header_only
+		/UASIO_HEADER_ONLY /UBOOST_ASIO_HEADER_ONLY
+	)
+else ()
+	set(libgs_undefine_asio_header_only
+		-UASIO_HEADER_ONLY -UBOOST_ASIO_HEADER_ONLY
+	)
+endif ()
+
+target_compile_options(libgs.asio INTERFACE
+	"$<$<COMPILE_LANGUAGE:CXX>:${libgs_undefine_asio_header_only}>"
+)
 if (LIBGS_ASIO_PROVIDER STREQUAL "BOOST")
 	message(STATUS "${PRO_NAME}: Use external Boost.Asio.")
 
@@ -122,6 +138,29 @@ add_library(LibGS::spdlog ALIAS libgs.spdlog)
 set_target_properties(libgs.spdlog PROPERTIES EXPORT_NAME spdlog)
 set(LIBGS_SPDLOG_PACKAGE_TARGET spdlog::spdlog_header_only)
 
+# A provider may itself be header-only, but gs.utils owns the one compiled
+# spdlog implementation.  Consumers must see declarations/imports only.
+target_compile_definitions(libgs.spdlog INTERFACE
+	SPDLOG_COMPILED_LIB
+	SPDLOG_USE_STD_FORMAT
+)
+if (NOT LIBGS_BUILD_STATIC)
+	target_compile_definitions(libgs.spdlog INTERFACE SPDLOG_SHARED_LIB)
+endif ()
+
+if (WIN32)
+	target_compile_definitions(libgs.spdlog INTERFACE SPDLOG_WCHAR_FILENAMES)
+endif ()
+
+if (MSVC)
+	set(libgs_undefine_spdlog_header_only /USPDLOG_HEADER_ONLY)
+else ()
+	set(libgs_undefine_spdlog_header_only -USPDLOG_HEADER_ONLY)
+endif ()
+
+target_compile_options(libgs.spdlog INTERFACE
+	"$<$<COMPILE_LANGUAGE:CXX>:${libgs_undefine_spdlog_header_only}>"
+)
 if (LIBGS_USE_BUNDLED_SPDLOG)
 	message(STATUS "${PRO_NAME}: Use bundled spdlog.")
 

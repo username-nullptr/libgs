@@ -15,6 +15,9 @@ endif ()
 set(LIBGS_OPENSSL_INSTALL_PREFIX "" CACHE PATH
 	"Install prefix of an external OpenSSL package."
 )
+set(LIBGS_ZLIB_INSTALL_PREFIX "" CACHE PATH
+	"Install prefix of an external zlib package."
+)
 option(LIBGS_OPENSSL_SUPPORT
 	"-- ${PRO_NAME}: OpenSSL support." OFF
 )

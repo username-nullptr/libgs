@@ -57,11 +57,17 @@ constexpr std::string_view g_flush_barrier_name =
 		std::memcmp(lhs.data(), rhs.data(), rhs.size()) == 0;
 }
 
-[[nodiscard]] std::shared_ptr<spdlog::details::thread_pool>
-file_logger_thread_pool()
+[[nodiscard]] std::shared_ptr<spdlog::details::thread_pool> file_logger_thread_pool()
 {
-	static auto pool = std::make_shared<spdlog::details::thread_pool>(8192, 1);
-	return pool;
+	// Logger instances intentionally have process lifetime. Keep their shared
+	// worker pool under the same policy: destroying a function-static pool while
+	// gs.utils is being detached makes MinGW join its worker under the Windows
+	// loader lock and deadlocks process shutdown. The indirection also leaves a
+	// stable pool for every logger without creating one worker per logger.
+	static const auto *pool = new std::shared_ptr (
+		std::make_shared<spdlog::details::thread_pool>(8192, 1)
+	);
+	return *pool;
 }
 
 class LIBGS_DECL_HIDDEN flush_barrier

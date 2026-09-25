@@ -12,9 +12,11 @@ add_project(${target_name} libgs.asio)
 if (LIBGS_USING_BOOST_ASIO)
 	set(asio_separate_compilation BOOST_ASIO_SEPARATE_COMPILATION)
 	set(asio_dynamic_link BOOST_ASIO_DYN_LINK)
+	set(asio_declaration BOOST_ASIO_DECL)
 else ()
 	set(asio_separate_compilation ASIO_SEPARATE_COMPILATION)
 	set(asio_dynamic_link ASIO_DYN_LINK)
+	set(asio_declaration ASIO_DECL)
 endif ()
 
 if (LIBGS_BUILD_STATIC)
@@ -26,6 +28,16 @@ else ()
 		PRIVATE ${asio_separate_compilation}
 		INTERFACE ${asio_dynamic_link}
 	)
+	# Asio's own visibility header applies dllimport/dllexport for MSVC but not
+	# for MinGW.  Without an explicit declaration the implementation is present
+	# in gs.core.dll yet absent from its import library, so dependent LibGS DLLs
+	# cannot link.  Publish the import decoration to dependents and consumers.
+	if (MINGW)
+		target_compile_definitions(${target_name}
+			PRIVATE "${asio_declaration}=__declspec(dllexport)"
+			INTERFACE "${asio_declaration}=__declspec(dllimport)"
+		)
+	endif ()
 endif ()
 
 if (LIBGS_OPENSSL_SUPPORT)
@@ -37,6 +49,7 @@ if (LIBGS_OPENSSL_SUPPORT)
 	libgs_validate_msvc_imported_targets(OpenSSL
 		LIBGS_OPENSSL_INSTALL_PREFIX OpenSSL::SSL OpenSSL::Crypto
 	)
+	libgs_complete_openssl_link_closure()
 	target_link_libraries(${target_name} PUBLIC
 		OpenSSL::SSL OpenSSL::Crypto
 	)

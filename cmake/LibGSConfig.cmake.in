@@ -8,6 +8,7 @@ include(CMakeFindDependencyMacro)
 set(LibGS_ASIO_PROVIDER "@LIBGS_ASIO_PROVIDER@")
 set(LibGS_SPDLOG_PROVIDER "@LIBGS_SPDLOG_PROVIDER@")
 set(LibGS_OPENSSL_INSTALL_PREFIX "@LIBGS_OPENSSL_INSTALL_PREFIX@")
+set(LibGS_ZLIB_INSTALL_PREFIX "@LIBGS_ZLIB_INSTALL_PREFIX@")
 set(LibGS_VERSION "@PROJECT_VERSION@")
 
 # Resolve component availability before looking for dependencies.  A missing
@@ -148,14 +149,25 @@ else ()
 	endif ()
 endif ()
 
+set(_libgs_zlib_dependency_required
+	@LIBGS_PACKAGE_OPENSSL_NEEDS_ZLIB@
+)
 if (_libgs_zlib_component_requested)
+	set(_libgs_zlib_dependency_required TRUE)
+endif ()
+
+if (_libgs_zlib_dependency_required)
+	if (NOT DEFINED ZLIB_ROOT AND
+		NOT LibGS_ZLIB_INSTALL_PREFIX STREQUAL "" AND
+		IS_DIRECTORY "${LibGS_ZLIB_INSTALL_PREFIX}")
+		set(ZLIB_ROOT "${LibGS_ZLIB_INSTALL_PREFIX}")
+	endif ()
 	find_dependency(ZLIB)
 
-	# MinGW scans static archives from left to right.  Some static OpenSSL
-	# packages are built with zlib but omit it from OpenSSL::Crypto's imported
-	# interface.  Add the missing private edge only for HTTP/WebSocket consumers;
-	# core-only consumers must not acquire a zlib dependency.
-	if (MINGW AND @LIBGS_BUILD_STATIC@ AND TARGET OpenSSL::Crypto)
+	# Keep core's logical dependency on OpenSSL only.  When the OpenSSL selected
+	# while building LibGS needed an unadvertised zlib edge, repair that
+	# imported target rather than adding ZLIB to LibGS::core itself.
+	if (@LIBGS_PACKAGE_OPENSSL_NEEDS_ZLIB@ AND TARGET OpenSSL::Crypto)
 		get_target_property(_libgs_openssl_crypto_links
 			OpenSSL::Crypto INTERFACE_LINK_LIBRARIES
 		)
@@ -206,3 +218,4 @@ unset(_libgs_missing_components_text)
 unset(_libgs_openssl_crypto_links)
 unset(_libgs_utils_component_requested)
 unset(_libgs_zlib_component_requested)
+unset(_libgs_zlib_dependency_required)
