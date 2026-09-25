@@ -8,8 +8,31 @@ Tests are grouped by purpose. CTest entries carry the corresponding suite label.
 | Stress | Correctness under concurrency, saturation, and repeated lifecycle work | `LIBGS_BUILD_STRESS_TESTS=ON` |
 | Fuzz | Input and call-sequence exploration with libFuzzer/ASan/UBSan | `LIBGS_BUILD_FUZZERS=ON` |
 | Performance | Throughput and latency measurements without fixed thresholds | `LIBGS_BUILD_PERFORMANCE_TESTS=ON` |
+| CMake | Module/option constraints and installed-package consumption | `LIBGS_BUILD_CMAKE_TESTS=ON` |
 
 Only enabled library modules contribute tests.
+
+## CMake integration tests
+
+`LIBGS_BUILD_CMAKE_TESTS` follows `BUILD_TESTING` by default.  The configure
+suite enumerates every Core/Coroutine/HTTP/WebSocket/Utilities module
+combination, checks that invalid dependency combinations are rejected for the
+documented reason, and verifies the generated package component state.  It also
+checks the constraints between sanitizer, fuzz, stress, performance, provider,
+and numeric test options.  Package probes verify that component selection
+restores only its transitive external dependencies and reports unavailable
+components before attempting unrelated dependency discovery.
+
+The install-consumer test installs the current build into an isolated prefix.
+An independent downstream project then uses `find_package(LibGS COMPONENTS
+...)`, builds against every installed `LibGS::` target and the legacy `gs.`
+targets, and runs the resulting executables.  Run these tests after building:
+
+```sh
+cmake -S . -B build-cmake-test -DBUILD_TESTING=ON
+cmake --build build-cmake-test --parallel
+ctest --test-dir build-cmake-test -L cmake --output-on-failure
+```
 
 ## Functional tests
 

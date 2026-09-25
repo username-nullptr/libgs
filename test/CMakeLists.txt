@@ -4,6 +4,10 @@
 set(LIBGS_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBGS_TEST_LAUNCHER)
 
+if (LIBGS_BUILD_CMAKE_TESTS)
+	add_subdirectory(cmake)
+endif ()
+
 # GCC's ThreadSanitizer cannot reserve its shadow-memory layout with the more
 # aggressive address randomisation used by some recent Linux kernels.  Probe a
 # per-process ASLR-disabled launcher instead of requiring developers to know the

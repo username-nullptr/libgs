@@ -12,10 +12,13 @@
 #include <barrier>
 #include <cstdlib>
 #include <format>
+#include <iostream>
 #include <limits>
 #include <mutex>
 #include <ranges>
 #include <shared_mutex>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -31,14 +34,23 @@ constexpr size_t iterations = 10'000 * libgs::test::performance_scale;
 constexpr size_t sample_count = 3;
 
 template <typename Func>
-std::chrono::steady_clock::duration median_duration(Func &&func)
+void measure_and_print(
+	std::string name, size_t operations, Func &&func, std::string_view unit
+)
 {
+	std::cout << "[SAMPLE] " << name << ": warmup" << std::endl;
 	func();
 	std::array<std::chrono::steady_clock::duration,sample_count> samples {};
-	for(auto &sample : samples)
-		sample = func();
+	for(size_t index = 0; index < samples.size(); ++index)
+	{
+		std::cout << "[SAMPLE] " << name << ": " << index + 1 << '/'
+			<< samples.size() << std::endl;
+		samples[index] = func();
+	}
 	std::ranges::sort(samples);
-	return samples[sample_count / 2];
+	libgs::test::print_performance_result(
+		name, operations, samples[sample_count / 2], unit
+	);
 }
 
 template <typename Mutex, bool Shared = false>
@@ -100,10 +112,10 @@ std::chrono::steady_clock::duration measure_shared(
 	size_t thread_count, size_t write_interval
 )
 {
-	// std::shared_mutex does not guarantee writer fairness.  With a continuous
-	// stream of readers the baseline can starve a writer indefinitely, turning
-	// a performance sample into a CTest timeout.  Periodic rendezvous bound that
-	// starvation while leaving the measured lock mix unchanged between them.
+	// std::shared_mutex does not guarantee writer fairness.  Periodic rendezvous
+	// bound ordinary writer starvation while leaving the measured lock mix
+	// unchanged between checkpoints.  They cannot recover from a platform
+	// runtime deadlock inside lock/unlock; such a baseline is skipped below.
 	constexpr size_t checkpoint_interval = 2'048;
 	Mutex mutex;
 	size_t value = 0;
@@ -145,42 +157,42 @@ std::chrono::steady_clock::duration measure_shared(
 
 void mutex_contention()
 {
-	libgs::test::print_performance_result(
+	measure_and_print(
 		"std::mutex uncontended", iterations,
-		median_duration(measure_uncontended<std::mutex>), "lock"
+		measure_uncontended<std::mutex>, "lock"
 	);
-	libgs::test::print_performance_result(
+	measure_and_print(
 		"atomic_mutex uncontended", iterations,
-		median_duration(measure_uncontended<libgs::atomic_mutex>), "lock"
+		measure_uncontended<libgs::atomic_mutex>, "lock"
 	);
-	libgs::test::print_performance_result(
+	measure_and_print(
 		"spin_mutex uncontended", iterations,
-		median_duration(measure_uncontended<libgs::spin_mutex>), "lock"
+		measure_uncontended<libgs::spin_mutex>, "lock"
 	);
 	for(const size_t threads : {2U, 4U, 8U})
 	{
 		for(const size_t work : {0U, 16U})
 		{
-			libgs::test::print_performance_result(
+			measure_and_print(
 				std::format("std::mutex {} threads, work {}", threads, work),
 				threads * iterations,
-				median_duration([=] {
+				[=] {
 					return measure_exclusive<std::mutex>(threads, work);
-				}), "lock"
+				}, "lock"
 			);
-			libgs::test::print_performance_result(
+			measure_and_print(
 				std::format("atomic_mutex {} threads, work {}", threads, work),
 				threads * iterations,
-				median_duration([=] {
+				[=] {
 					return measure_exclusive<libgs::atomic_mutex>(threads, work);
-				}), "lock"
+				}, "lock"
 			);
-			libgs::test::print_performance_result(
+			measure_and_print(
 				std::format("spin_mutex {} threads, work {}", threads, work),
 				threads * iterations,
-				median_duration([=] {
+				[=] {
 					return measure_exclusive<libgs::spin_mutex>(threads, work);
-				}), "lock"
+				}, "lock"
 			);
 		}
 	}
@@ -191,55 +203,72 @@ void shared_mutex_contention()
 	for(const bool shared : {false, true})
 	{
 		const auto suffix = shared ? "shared" : "exclusive";
-		libgs::test::print_performance_result(
+		measure_and_print(
 			std::format("std::shared_mutex uncontended {}", suffix), iterations,
-			median_duration([=] {
+			[=] {
 				return shared ? measure_uncontended<std::shared_mutex,true>() :
 					measure_uncontended<std::shared_mutex>();
-			}), "lock"
+			}, "lock"
 		);
-		libgs::test::print_performance_result(
+		measure_and_print(
 			std::format("atomic_shared_mutex uncontended {}", suffix), iterations,
-			median_duration([=] {
+			[=] {
 				return shared ? measure_uncontended<libgs::atomic_shared_mutex,true>() :
 					measure_uncontended<libgs::atomic_shared_mutex>();
-			}), "lock"
+			}, "lock"
 		);
-		libgs::test::print_performance_result(
+		measure_and_print(
 			std::format("spin_shared_mutex uncontended {}", suffix), iterations,
-			median_duration([=] {
+			[=] {
 				return shared ? measure_uncontended<libgs::spin_shared_mutex,true>() :
 					measure_uncontended<libgs::spin_shared_mutex>();
-			}), "lock"
+			}, "lock"
 		);
 	}
 	for(const size_t threads : {2U, 4U, 8U})
 	{
 		for(const size_t write_interval : {size_t {0}, size_t {1}, size_t {10}})
 		{
-			libgs::test::print_performance_result(
-				std::format("std::shared_mutex {} threads, write interval {}",
-					threads, write_interval),
-				threads * iterations,
-				median_duration([=] {
-					return measure_shared<std::shared_mutex>(threads, write_interval);
-				}), "lock"
+			const auto standard_name = std::format(
+				"std::shared_mutex {} threads, write interval {}",
+				threads, write_interval
 			);
-			libgs::test::print_performance_result(
+#if defined(__MINGW32__)
+			if( write_interval > 1 )
+			{
+				// libstdc++ implements std::shared_mutex with winpthreads.  Its
+				// pthread_rwlock can deadlock internally under mixed reader/writer
+				// contention (threads remain in rdlock, wrlock and unlock).  Pure
+				// reader/writer baselines and all LibGS mixed tests remain enabled.
+				std::cout << "[SKIP] " << standard_name
+					<< ": MinGW winpthreads mixed rwlock contention can deadlock"
+					<< std::endl;
+			}
+			else
+#endif
+			{
+				measure_and_print(
+					standard_name, threads * iterations,
+					[=] {
+						return measure_shared<std::shared_mutex>(threads, write_interval);
+					}, "lock"
+				);
+			}
+			measure_and_print(
 				std::format("atomic_shared_mutex {} threads, write interval {}",
 					threads, write_interval),
 				threads * iterations,
-				median_duration([=] {
+				[=] {
 					return measure_shared<libgs::atomic_shared_mutex>(threads, write_interval);
-				}), "lock"
+				}, "lock"
 			);
-			libgs::test::print_performance_result(
+			measure_and_print(
 				std::format("spin_shared_mutex {} threads, write interval {}",
 					threads, write_interval),
 				threads * iterations,
-				median_duration([=] {
+				[=] {
 					return measure_shared<libgs::spin_shared_mutex>(threads, write_interval);
-				}), "lock"
+				}, "lock"
 			);
 		}
 	}

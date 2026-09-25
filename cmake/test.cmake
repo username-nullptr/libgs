@@ -4,6 +4,10 @@
 option(BUILD_TESTING
 	"-- ${PRO_NAME}: Build tests." OFF
 )
+option(LIBGS_BUILD_CMAKE_TESTS
+	"-- ${PRO_NAME}: Test CMake option constraints and the installed package."
+	${BUILD_TESTING}
+)
 option(LIBGS_ENABLE_TEST_SANITIZERS
 	"-- ${PRO_NAME}: Enable ASan and UBSan for functional and stress tests." OFF
 )
@@ -88,6 +92,12 @@ endforeach()
 if (LIBGS_ENABLE_TEST_SANITIZERS AND LIBGS_ENABLE_TEST_TSAN)
 	message(FATAL_ERROR
 		"${PRO_NAME}: ASan/UBSan and TSan cannot be enabled together."
+	)
+endif ()
+
+if (LIBGS_BUILD_CMAKE_TESTS AND NOT BUILD_TESTING)
+	message(FATAL_ERROR
+		"${PRO_NAME}: CMake integration tests require BUILD_TESTING=ON."
 	)
 endif ()
 

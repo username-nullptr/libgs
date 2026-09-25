@@ -34,6 +34,16 @@ function(add_project target_name)
 	target_compile_options(${target_name} PUBLIC
 		"$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/Zc:preprocessor>"
 	)
+	# libc++ is an ABI choice, not a private build warning.  Export it with
+	# every installed LibGS target so a plain target_link_libraries() consumer
+	# compiles and links against the same C++ standard library as LibGS.
+	if (LIBGS_USE_LIBCXX)
+		target_compile_options(${target_name} PUBLIC
+			"$<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>"
+		)
+		target_link_options(${target_name} PUBLIC -stdlib=libc++)
+	endif ()
+
 	target_include_directories(${target_name} PUBLIC
 		$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
 		$<BUILD_INTERFACE:${LIBGS_CONFIG_INCLUDE}>

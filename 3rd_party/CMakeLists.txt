@@ -165,7 +165,10 @@ else ()
 	set(LIBGS_SPDLOG_PROVIDER external)
 endif ()
 
-install(TARGETS libgs.asio libgs.spdlog EXPORT LibGSTargets)
+install(TARGETS libgs.asio EXPORT LibGSTargets)
+if (LIBGS_BUILD_UTILITIES)
+	install(TARGETS libgs.spdlog EXPORT LibGSTargets)
+endif ()
 
 # These values are needed while generating the installed package config in the
 # parent directory.
