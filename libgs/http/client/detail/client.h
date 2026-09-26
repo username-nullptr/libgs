@@ -219,9 +219,10 @@ private:
 				make_system_error_code(std::errc::io_error), {}
 			};
 		}
-		auto [lease_error, lease] = co_await self->m_pool.get(
+		auto lease_result = co_await self->m_pool.get (
 			target_expected->connection, asio::as_tuple(asio::use_awaitable_t<Exec>{})
 		);
+		auto &[lease_error, lease] = lease_result;
 		if( lease_error )
 		{
 			co_return std::tuple<error_code,context_ptr<Method>> {
@@ -409,8 +410,8 @@ private:
 					make_system_error_code(std::errc::protocol_error), {}
 				};
 			}
-			auto [context_error, next_context] =
-				co_await co_make_context<Method>(self, request_info);
+			auto context_result = co_await co_make_context<Method>(self, request_info);
+			auto &[context_error, next_context] = context_result;
 
 			if( context_error )
 			{
@@ -505,9 +506,9 @@ private:
 	co_request(std::shared_ptr<impl> self, req_info request_info)
 	{
 		const bool wait_for_continue = expects_continue(request_info);
-		auto [context_error, active_context] =
-			co_await co_make_context<Method>(self, request_info);
+		auto context_result = co_await co_make_context<Method>(self, request_info);
 
+		auto &[context_error, active_context] = context_result;
 		if( context_error )
 		{
 			co_return std::tuple<error_code,context_ptr<Method>> {

@@ -732,7 +732,9 @@ public:
 		}
 		else
 		{
-			auto [error, source] = co_await co_read_all(self);
+			auto read_result = co_await co_read_all(self);
+			auto &[error, source] = read_result;
+
 			if( error )
 				co_return std::tuple<error_code,Buffer>{error, {}};
 

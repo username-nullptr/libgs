@@ -222,9 +222,9 @@ void secure_round_trip()
 			LIBGS_TEST_CHECK_EQ(message.body, "hello over TLS");
 			co_await connection.stream.write_text(
 				"secure: " + message.body, libgs::use_awaitable);
-			auto [close_error, trailing] = co_await
-				connection.stream.read<std::string>(
-					asio::as_tuple(libgs::use_awaitable));
+			auto close_result = co_await connection.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, trailing] = close_result;
 			libgs::ignore_unused(close_error, trailing);
 			co_return;
 		}, asio::use_future);
@@ -256,8 +256,9 @@ void secure_round_trip()
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(response.body, "secure: hello over TLS");
-			auto [close_error, closed] = co_await stream.close(
+			auto close_result = co_await stream.close(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, closed] = close_result;
 			service.stop();
 			LIBGS_TEST_CHECK(not close_error);
 			LIBGS_TEST_CHECK(closed.clean);

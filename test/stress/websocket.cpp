@@ -24,8 +24,9 @@ void low_load_connection_lifecycle_repetition()
 	{
 		for(;;)
 		{
-			auto [error, message] = co_await accepted.stream.read<std::string>(
+			auto read_result = co_await accepted.stream.read<std::string>(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, message] = read_result;
 			if(error)
 				co_return;
 			co_await accepted.stream.write_text(message.body,
@@ -94,8 +95,9 @@ void concurrent_connection_pressure()
 	{
 		for(;;)
 		{
-			auto [error, message] = co_await accepted.stream.read<>(
+			auto read_result = co_await accepted.stream.read<>(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, message] = read_result;
 			if(error)
 				co_return;
 			co_await accepted.stream.write(message.type,

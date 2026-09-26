@@ -14,7 +14,7 @@ bool status::check(enumeration status, bool _throw)
 		{
 #define X_MACRO(e,v,d) case e:
 		LIBGS_HTTP_STATUS_TABLE
-		return true;
+			return true;
 #undef X_MACRO
 		default: break;
 		}
@@ -59,7 +59,7 @@ bool method::check(enumeration method, bool _throw)
 		{
 #define X_MACRO(e,v,d) case e:
 		LIBGS_HTTP_METHOD_TABLE
-		return true;
+			return true;
 #undef X_MACRO
 		default: break;
 		}
@@ -102,7 +102,7 @@ bool redirect::check(enumeration redirect, bool _throw)
 	{
 #define X_MACRO(e,v,d) case e:
 	LIBGS_HTTP_REDIRECT_TYPE_TABLE
-	return true;
+		return true;
 #undef X_MACRO
 	default: break;
 	}

@@ -62,6 +62,12 @@ endif ()
 target_compile_options(libgs.asio INTERFACE
 	"$<$<COMPILE_LANGUAGE:CXX>:${libgs_undefine_asio_header_only}>"
 )
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	target_compile_options(libgs.asio INTERFACE
+		-Wno-mismatched-new-delete
+	)
+endif ()
+
 if (LIBGS_ASIO_PROVIDER STREQUAL "BOOST")
 	message(STATUS "${PRO_NAME}: Use external Boost.Asio.")
 

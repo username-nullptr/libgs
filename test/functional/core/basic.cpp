@@ -533,33 +533,35 @@ void atomic_locks_with_policy()
 	shared_mutex.unlock();
 
 	shared_mutex.lock_shared();
+	std::atomic_bool writer_started {false};
 	std::atomic_bool writer_entered {false};
 	std::thread blocked_writer([&]
 	{
+		writer_started.store(true, std::memory_order_release);
+		writer_started.notify_one();
 		std::unique_lock lock(shared_mutex);
 		writer_entered.store(true, std::memory_order_release);
 	});
 
-	std::atomic_bool writer_pending {false};
-	std::thread pending_probe([&]
+	writer_started.wait(false, std::memory_order_acquire);
+	bool writer_pending = false;
+	const auto pending_deadline =
+		std::chrono::steady_clock::now() + std::chrono::seconds(5);
+	while( std::chrono::steady_clock::now() < pending_deadline )
 	{
-		for(size_t count = 0; count < 10'000; ++count)
+		if( not shared_mutex.try_lock_shared() )
 		{
-			if( not shared_mutex.try_lock_shared() )
-			{
-				writer_pending.store(true, std::memory_order_release);
-				return ;
-			}
-			shared_mutex.unlock_shared();
-			std::this_thread::yield();
+			writer_pending = true;
+			break;
 		}
-	});
-	pending_probe.join();
+		shared_mutex.unlock_shared();
+		std::this_thread::yield();
+	}
 
 	std::atomic_bool late_reader_entered {false};
 	std::atomic_bool late_reader_saw_writer {false};
 	std::thread late_reader;
-	if( writer_pending.load(std::memory_order_acquire) )
+	if( writer_pending )
 	{
 		late_reader = std::thread([&]
 		{
@@ -572,15 +574,12 @@ void atomic_locks_with_policy()
 		});
 	}
 
-	std::this_thread::sleep_for(std::chrono::milliseconds(1));
-	const auto reader_was_blocked = not late_reader_entered.load(std::memory_order_acquire);
 	shared_mutex.unlock_shared();
 	blocked_writer.join();
 	if( late_reader.joinable() )
 		late_reader.join();
 
-	LIBGS_TEST_CHECK(writer_pending.load(std::memory_order_acquire));
-	LIBGS_TEST_CHECK(reader_was_blocked);
+	LIBGS_TEST_CHECK(writer_pending);
 	LIBGS_TEST_CHECK(writer_entered.load(std::memory_order_acquire));
 	LIBGS_TEST_CHECK(late_reader_entered.load(std::memory_order_acquire));
 	LIBGS_TEST_CHECK(late_reader_saw_writer.load(std::memory_order_acquire));

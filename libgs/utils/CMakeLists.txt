@@ -7,6 +7,17 @@ add_project(${target_name} gs.coro)
 target_link_libraries(${target_name} PUBLIC libgs.spdlog)
 target_compile_definitions(${target_name} PRIVATE LIBGS_UTILS_SHARED)
 
+# GCC's LTO optimiser diagnoses spdlog's scoped_padder destructor as a
+# possible oversized string resize even though the third-party code guards the
+# negative padding path.  Keep that one provider implementation out of LTO so
+# LibGS sources retain the full warning set instead of globally disabling
+# -Wstringop-overflow.
+if (LIBGS_ENABLE_LTO AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+	set_source_files_properties(detail/spdlog.cpp PROPERTIES
+		COMPILE_OPTIONS -fno-lto
+	)
+endif ()
+
 # Keep a single spdlog implementation in gs.utils instead of instantiating its
 # header-only implementation in logger.cpp.  Shared builds export the spdlog
 # symbols from the utils library; static builds resolve them from the archive.

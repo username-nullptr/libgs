@@ -37,9 +37,10 @@ int main(int argc, const char *argv[])
 			options.require_subprotocol = true;
 			options.response_headers["X-LibGS-Transport"] = "websocket";
 
-			auto [upgrade_error, accepted] = co_await ws::upgrade (
+			auto upgrade_result = co_await ws::upgrade (
 				context, std::move(options), asio::as_tuple(libgs::use_awaitable)
 			);
+			auto &[upgrade_error, accepted] = upgrade_result;
 			if( upgrade_error )
 			{
 				std::cerr << "WebSocket upgrade failed: "

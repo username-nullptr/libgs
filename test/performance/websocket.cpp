@@ -100,14 +100,16 @@ void message_loopback_throughput()
 		{
 			for(;;)
 			{
-				auto [read_error, message] = co_await accepted.stream.read<>(
+				auto read_result = co_await accepted.stream.read<>(
 					asio::as_tuple(libgs::use_awaitable));
+				auto &[read_error, message] = read_result;
 				if( read_error )
 					co_return;
-				auto [write_error, transferred] = co_await accepted.stream.write(
+				auto write_result = co_await accepted.stream.write(
 					message.type,
 					libgs::const_buffer(message.body.data(), message.body.size()),
 					asio::as_tuple(libgs::use_awaitable));
+				auto &[write_error, transferred] = write_result;
 				libgs::ignore_unused(transferred);
 				if( write_error )
 					co_return;

@@ -556,16 +556,19 @@ optional<T> cache<Subscriber>::get(std::string_view topic) const
 	std::shared_lock locker(m_impl->m_caches_mutex);
 	auto pos = m_impl->m_caches.find(topic);
 
-	if( pos == m_impl->m_caches.end() )
+	if( pos == m_impl->m_caches.end() or pos->second.data.empty() )
 		return {};
 
-	auto payload = pos->second;
-	if( payload.data.empty() )
-		return {};
+	payload_t payload;
+	payload.reserve(pos->second.data.size());
 
+	payload.insert (payload.end(),
+		pos->second.data.begin(), pos->second.data.end()
+	);
 	locker.unlock();
+
 	if constexpr( libgs::concepts::streamer_type<type> )
-		return *streamer<type>::decode(payload.data);
+		return *streamer<type>::decode(payload);
 	else
 		return *reinterpret_cast<const type*>(payload.data());
 }

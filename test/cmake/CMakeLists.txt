@@ -6,6 +6,9 @@ set(libgs_cmake_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/work")
 function(add_libgs_configure_case name)
 	cmake_parse_arguments(CASE "SUCCESS" "ERROR" "OPTIONS;COMPONENTS" ${ARGN})
 
+	string(MD5 case_work_id "configure-${name}")
+	string(SUBSTRING "${case_work_id}" 0 12 case_work_id)
+
 	if (CASE_SUCCESS)
 		set(case_expect_success ON)
 	else ()
@@ -19,7 +22,7 @@ function(add_libgs_configure_case name)
 		COMMAND ${CMAKE_COMMAND}
 			"-DTEST_NAME=${name}"
 			"-DTEST_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
-			"-DTEST_BINARY_DIR=${libgs_cmake_test_work_dir}/configure-${name}"
+			"-DTEST_BINARY_DIR=${libgs_cmake_test_work_dir}/c-${case_work_id}"
 			"-DTEST_GENERATOR=${CMAKE_GENERATOR}"
 			"-DTEST_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
 			"-DTEST_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
@@ -44,6 +47,8 @@ function(add_libgs_package_probe_case name)
 	cmake_parse_arguments(CASE "FOUND" "COMPONENT;ERROR"
 		"OPTIONS;COMPONENTS;PROBE_OPTIONS" ${ARGN}
 	)
+	string(MD5 case_work_id "package-${name}")
+	string(SUBSTRING "${case_work_id}" 0 12 case_work_id)
 
 	if (CASE_FOUND)
 		set(case_expect_found ON)
@@ -59,7 +64,7 @@ function(add_libgs_package_probe_case name)
 		COMMAND ${CMAKE_COMMAND}
 			"-DTEST_NAME=${name}"
 			"-DTEST_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
-			"-DTEST_BINARY_DIR=${libgs_cmake_test_work_dir}/package-${name}"
+			"-DTEST_BINARY_DIR=${libgs_cmake_test_work_dir}/p-${case_work_id}"
 			"-DTEST_PROBE_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/package_probe"
 			"-DTEST_GENERATOR=${CMAKE_GENERATOR}"
 			"-DTEST_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"

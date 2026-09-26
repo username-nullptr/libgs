@@ -1329,10 +1329,12 @@ private:
 		if( slots.empty() )
 			co_return ;
 
-		auto [unused, exs] = co_await asio::experimental::make_parallel_group(std::move(slots))
+		auto completion = co_await asio::experimental::make_parallel_group(std::move(slots))
 			.async_wait(asio::experimental::wait_for_all(), use_awaitable);
 
+		auto &exs = std::get<1>(completion);
 		std::exception_ptr first_ex {};
+
 		for(auto &ex : exs)
 		{
 			if( not ex )

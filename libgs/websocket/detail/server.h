@@ -255,9 +255,10 @@ co_upgrade(http::basic_service_context<Exec> *active_context, upgrade_options ac
 					plan.request
 				);
 			};
-			auto [exception, rejection] = co_await asio::co_spawn (
+			auto validation_result = co_await asio::co_spawn (
 				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
 			);
+			auto &[exception, rejection] = validation_result;
 			if( auto validation_error = exception_error(exception) )
 			{
 				reject_upgrade(plan,
@@ -292,9 +293,10 @@ co_upgrade(http::basic_service_context<Exec> *active_context, upgrade_options ac
 					std::move(origin)
 				);
 			};
-			auto [exception, rejection] = co_await asio::co_spawn (
+			auto validation_result = co_await asio::co_spawn (
 				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
 			);
+			auto &[exception, rejection] = validation_result;
 			if( auto validation_error = exception_error(exception) )
 			{
 				reject_upgrade(plan,
@@ -322,9 +324,11 @@ co_upgrade(http::basic_service_context<Exec> *active_context, upgrade_options ac
 				co_return co_await active_options.async_subprotocol_selector(
 					plan.request, plan.opening.subprotocols);
 			};
-			auto [exception, selected] = co_await asio::co_spawn (
+			auto selection_result = co_await asio::co_spawn (
 				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
 			);
+			auto &[exception, selected] = selection_result;
+
 			if( exception_error(exception) )
 				reject_selector_exception(plan, exception);
 			else
@@ -343,9 +347,10 @@ co_upgrade(http::basic_service_context<Exec> *active_context, upgrade_options ac
 					plan.request, plan.opening.extensions
 				);
 			};
-			auto [exception, selected] = co_await asio::co_spawn (
+			auto selection_result = co_await asio::co_spawn (
 				active_context->get_executor(), invoke(), asio::as_tuple(deferred)
 			);
+			auto &[exception, selected] = selection_result;
 			if( exception_error(exception) )
 				reject_selector_exception(plan, exception);
 			else
@@ -817,10 +822,10 @@ private:
 				std::lock_guard lock(m_mutex);
 				options = m_config.default_upgrade;
 			}
-			auto [error, result] = co_await websocket::upgrade (
+			auto upgrade_result = co_await websocket::upgrade (
 				context, std::move(options), asio::as_tuple(use_awaitable)
 			);
-			ignore_unused(error, result);
+			ignore_unused(upgrade_result);
 			co_return ;
 		}
 		auto acquired = co_await acquire_accept();
@@ -843,11 +848,12 @@ private:
 			);
 			co_return ;
 		}
-		auto [error, result] = co_await websocket::upgrade (
+		auto upgrade_result = co_await websocket::upgrade (
 			context, waiter->options, asio::bind_cancellation_slot (
 				waiter->cancellation.slot(), asio::as_tuple(use_awaitable)
 			)
 		);
+		auto &[error, result] = upgrade_result;
 		if( not error )
 		{
 			waiter->complete({}, std::move(result));
@@ -976,9 +982,11 @@ public:
 		m_http_server.template on_request<http::method::get>(path_rules,
 		[handler, selected = std::move(selected)](context_t &context) mutable -> awaitable<void>
 		{
-			auto [error, result] = co_await websocket::upgrade (
+			auto upgrade_result = co_await websocket::upgrade (
 				context, selected, asio::as_tuple(use_awaitable)
 			);
+			auto &[error, result] = upgrade_result;
+
 			if( not error )
 				co_await (*handler)(std::move(result));
 			co_return ;
@@ -997,9 +1005,11 @@ public:
 		m_http_server.on_default (
 		[handler, selected = std::move(selected)](context_t &context) mutable -> awaitable<void>
 		{
-			auto [error, result] = co_await websocket::upgrade (
+			auto upgrade_result = co_await websocket::upgrade (
 				context, selected, asio::as_tuple(use_awaitable)
 			);
+			auto &[error, result] = upgrade_result;
+
 			if( not error )
 				co_await (*handler)(std::move(result));
 			co_return ;

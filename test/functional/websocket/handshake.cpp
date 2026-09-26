@@ -88,7 +88,8 @@ void permessage_deflate_negotiation()
 	LIBGS_TEST_CHECK(not ws::detail::supported_extension_response(
 		std::span(&*selected, 1), std::span(&no_window_offer, 1)));
 	auto invalid = offer;
-	invalid.parameters.push_back(invalid.parameters.front());
+	auto duplicate_parameter = invalid.parameters.front();
+	invalid.parameters.push_back(std::move(duplicate_parameter));
 	LIBGS_TEST_CHECK(not ws::is_permessage_deflate_extension(invalid));
 #endif
 }
@@ -303,9 +304,10 @@ void mixed_http_upgrade_round_trip()
 					.body = "origin rejected"
 				};
 			};
-			auto [upgrade_error, accepted] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[upgrade_error, accepted] = upgrade_result;
 			if( upgrade_error )
 				co_return;
 			auto message = co_await accepted.stream.read<std::string>(
@@ -339,9 +341,10 @@ void mixed_http_upgrade_round_trip()
 					.body = "denied"
 				};
 			};
-			auto [error, rejected] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, rejected] = upgrade_result;
 			libgs::ignore_unused(rejected);
 			if( error != ws::errc::handshake_rejected )
 				throw std::runtime_error("unexpected server rejection result");
@@ -397,9 +400,10 @@ void mixed_http_upgrade_round_trip()
 			stream.shutdown();
 
 			ws::open_diagnostics rejected_diagnostics;
-			auto [rejection_error, rejected_stream] = co_await ws::open(
+			auto rejection_result = co_await ws::open(
 				http_client, ws::connect_request(base + "/reject"),
 				rejected_diagnostics, asio::as_tuple(libgs::use_awaitable));
+			auto &[rejection_error, rejected_stream] = rejection_result;
 			LIBGS_TEST_CHECK_EQ(rejection_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not rejected_stream.is_open());
@@ -410,9 +414,10 @@ void mixed_http_upgrade_round_trip()
 				->read<std::string>(libgs::use_awaitable), "denied");
 
 			ws::open_diagnostics redirect_diagnostics;
-			auto [redirect_error, redirect_idle] = co_await ws::open(
+			auto redirect_result = co_await ws::open(
 				http_client, ws::connect_request(base + "/redirect"),
 				redirect_diagnostics, asio::as_tuple(libgs::use_awaitable));
+			auto &[redirect_error, redirect_idle] = redirect_result;
 			LIBGS_TEST_CHECK_EQ(redirect_error,
 				ws::make_error_code(ws::errc::redirect_limit_exceeded));
 			LIBGS_TEST_CHECK(not redirect_idle.is_open());
@@ -457,18 +462,20 @@ void mixed_http_upgrade_round_trip()
 
 			ws::connect_request expired(base + "/echo");
 			expired.handshake_timeout = std::chrono::milliseconds::zero();
-			auto [timeout_error, idle_stream] = co_await ws::open(
+			auto timeout_result = co_await ws::open(
 				http_client, std::move(expired),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[timeout_error, idle_stream] = timeout_result;
 			LIBGS_TEST_CHECK_EQ(timeout_error,
 				libgs::error_code(asio::error::timed_out));
 			LIBGS_TEST_CHECK(not idle_stream.is_open());
 
 			ws::connect_request conflicting(base + "/echo");
 			conflicting.request_options.set_header("Sec-WebSocket-Key", "owned");
-			auto [header_error, another_idle_stream] = co_await ws::open(
+			auto header_result = co_await ws::open(
 				http_client, std::move(conflicting),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[header_error, another_idle_stream] = header_result;
 			LIBGS_TEST_CHECK_EQ(header_error,
 				ws::make_error_code(ws::errc::invalid_upgrade));
 			LIBGS_TEST_CHECK(not another_idle_stream.is_open());
@@ -576,18 +583,19 @@ void cross_origin_redirect_credentials()
 				destination_checked = true;
 				return libgs::nullopt;
 			};
-			auto [upgrade_error, accepted] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[upgrade_error, accepted] = upgrade_result;
 			if( upgrade_error )
 				co_return;
 			auto message = co_await accepted.stream.read<std::string>(
 				libgs::use_awaitable);
 			co_await accepted.stream.write_text(
 				message.body, libgs::use_awaitable);
-			auto [close_error, trailing] = co_await
-				accepted.stream.read<std::string>(
-					asio::as_tuple(libgs::use_awaitable));
+			auto close_result = co_await accepted.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, trailing] = close_result;
 			libgs::ignore_unused(close_error, trailing);
 		})
 		.start();
@@ -681,9 +689,10 @@ void validator_failures_are_bounded()
 				exception_remote_port = request.remote_endpoint.port;
 				throw std::runtime_error("validator failed");
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			exception_result = error;
 		})
@@ -704,9 +713,10 @@ void validator_failures_are_bounded()
 					.body = "bounded rejection",
 				};
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			invalid_rejection_result = error;
 		})
@@ -721,9 +731,10 @@ void validator_failures_are_bounded()
 			try
 			{
 				ws::open_diagnostics diagnostics;
-				auto [throw_error, throw_stream] = co_await client.open(
+				auto throw_result = co_await client.open(
 					ws::connect_request(base + "/throw"), diagnostics,
 					asio::as_tuple(libgs::use_awaitable));
+				auto &[throw_error, throw_stream] = throw_result;
 				LIBGS_TEST_CHECK_EQ(throw_error,
 					ws::make_error_code(ws::errc::handshake_rejected));
 				LIBGS_TEST_CHECK(not throw_stream.is_open());
@@ -733,9 +744,10 @@ void validator_failures_are_bounded()
 				libgs::ignore_unused(co_await diagnostics.reply->read<std::string>(
 					libgs::use_awaitable));
 
-				auto [reject_error, reject_stream] = co_await client.open(
+				auto reject_result = co_await client.open(
 					ws::connect_request(base + "/invalid-rejection"), diagnostics,
 					asio::as_tuple(libgs::use_awaitable));
+				auto &[reject_error, reject_stream] = reject_result;
 				LIBGS_TEST_CHECK_EQ(reject_error,
 					ws::make_error_code(ws::errc::handshake_rejected));
 				LIBGS_TEST_CHECK(not reject_stream.is_open());
@@ -855,9 +867,10 @@ void asynchronous_upgrade_validators()
 #endif
 				co_return std::vector<ws::extension>{};
 			};
-			auto [error, accepted] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, accepted] = upgrade_result;
 			if( error )
 				co_return;
 			auto message = co_await accepted.stream.read<std::string>(
@@ -888,9 +901,10 @@ void asynchronous_upgrade_validators()
 					.body = "async denied"
 				};
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			denied_result = error;
 		})
@@ -906,9 +920,10 @@ void asynchronous_upgrade_validators()
 				throw std::runtime_error("async validator failed");
 				co_return libgs::nullopt;
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			exception_result = error;
 		})
@@ -923,9 +938,10 @@ void asynchronous_upgrade_validators()
 			{
 				co_return std::string("selector.v2");
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			invalid_selector_result = error;
 		})
@@ -942,9 +958,10 @@ void asynchronous_upgrade_validators()
 				throw std::runtime_error("async selector failed");
 				co_return libgs::nullopt;
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			selector_exception_result = error;
 		})
@@ -966,9 +983,10 @@ void asynchronous_upgrade_validators()
 				conflicting_selector_called = true;
 				co_return libgs::nullopt;
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			selector_conflict_result = error;
 		})
@@ -999,14 +1017,16 @@ void asynchronous_upgrade_validators()
 			{
 				asio::steady_timer timer(co_await asio::this_coro::executor);
 				timer.expires_after(std::chrono::seconds(1));
-				auto [error] = co_await timer.async_wait(
+				auto wait_result = co_await timer.async_wait(
 					asio::as_tuple(libgs::use_awaitable));
+				auto &[error] = wait_result;
 				timed_validator_cancelled = error == asio::error::operation_aborted;
 				co_return libgs::nullopt;
 			};
-			auto [error, result] = co_await ws::upgrade(
+			auto upgrade_result = co_await ws::upgrade(
 				http_context, std::move(options),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, result] = upgrade_result;
 			libgs::ignore_unused(result);
 			timeout_result = error;
 		})
@@ -1041,9 +1061,10 @@ void asynchronous_upgrade_validators()
 			LIBGS_TEST_CHECK(closed.clean);
 
 			ws::open_diagnostics diagnostics;
-			auto [deny_error, denied] = co_await client.open(
+			auto deny_result = co_await client.open(
 				ws::connect_request(base + "/deny"), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[deny_error, denied] = deny_result;
 			LIBGS_TEST_CHECK_EQ(deny_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not denied.is_open());
@@ -1052,9 +1073,10 @@ void asynchronous_upgrade_validators()
 			LIBGS_TEST_CHECK_EQ(co_await diagnostics.reply->read<std::string>(
 				libgs::use_awaitable), "async denied");
 
-			auto [throw_error, thrown] = co_await client.open(
+			auto throw_result = co_await client.open(
 				ws::connect_request(base + "/throw-async"), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[throw_error, thrown] = throw_result;
 			LIBGS_TEST_CHECK_EQ(throw_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not thrown.is_open());
@@ -1065,9 +1087,11 @@ void asynchronous_upgrade_validators()
 
 			ws::connect_request invalid_selector(base + "/invalid-selector");
 			invalid_selector.subprotocols = {"selector.v1"};
-			auto [invalid_selector_error, invalid_selector_stream] =
-				co_await client.open(std::move(invalid_selector), diagnostics,
-					asio::as_tuple(libgs::use_awaitable));
+			auto invalid_selector_result = co_await client.open(
+				std::move(invalid_selector), diagnostics,
+				asio::as_tuple(libgs::use_awaitable));
+			auto &[invalid_selector_error, invalid_selector_stream] =
+				invalid_selector_result;
 			LIBGS_TEST_CHECK_EQ(invalid_selector_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not invalid_selector_stream.is_open());
@@ -1076,9 +1100,10 @@ void asynchronous_upgrade_validators()
 
 			ws::connect_request selector_throw(base + "/throw-selector");
 			selector_throw.subprotocols = {"selector.v1"};
-			auto [selector_throw_error, selector_thrown] = co_await client.open(
+			auto selector_throw_result = co_await client.open(
 				std::move(selector_throw), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[selector_throw_error, selector_thrown] = selector_throw_result;
 			LIBGS_TEST_CHECK_EQ(selector_throw_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not selector_thrown.is_open());
@@ -1087,9 +1112,10 @@ void asynchronous_upgrade_validators()
 			libgs::ignore_unused(co_await diagnostics.reply->read<std::string>(
 				libgs::use_awaitable));
 
-			auto [conflict_error, conflict_stream] = co_await client.open(
+			auto conflict_result = co_await client.open(
 				ws::connect_request(base + "/selector-conflict"), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[conflict_error, conflict_stream] = conflict_result;
 			LIBGS_TEST_CHECK_EQ(conflict_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not conflict_stream.is_open());
@@ -1098,9 +1124,10 @@ void asynchronous_upgrade_validators()
 			libgs::ignore_unused(co_await diagnostics.reply->read<std::string>(
 				libgs::use_awaitable));
 
-			auto [sync_selector_error, sync_selector_stream] = co_await client.open(
+			auto sync_selector_result = co_await client.open(
 				ws::connect_request(base + "/sync-async-selector"), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[sync_selector_error, sync_selector_stream] = sync_selector_result;
 			LIBGS_TEST_CHECK_EQ(sync_selector_error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not sync_selector_stream.is_open());
@@ -1111,8 +1138,9 @@ void asynchronous_upgrade_validators()
 
 			ws::connect_request timed(base + "/timeout-async");
 			timed.handshake_timeout = std::chrono::milliseconds(250);
-			auto [timeout_error, timed_stream] = co_await client.open(
+			auto timeout_result = co_await client.open(
 				std::move(timed), asio::as_tuple(libgs::use_awaitable));
+			auto &[timeout_error, timed_stream] = timeout_result;
 			LIBGS_TEST_CHECK(timeout_error);
 			LIBGS_TEST_CHECK(not timed_stream.is_open());
 

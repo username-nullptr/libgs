@@ -37,6 +37,37 @@ set(libgs_expected_definitions)
 
 if (WIN32 AND LIBGS_RUNTIME_DIR)
 	file(GLOB libgs_runtime_dlls "${LIBGS_RUNTIME_DIR}/*.dll")
+
+	# The installed package test must be independent of the caller's PATH.  A
+	# machine can have several MinGW distributions whose runtime DLLs have the
+	# same names but incompatible symbol sets, so copy the DLLs reported by the
+	# compiler that built this consumer beside each test executable.
+	if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+		get_filename_component(compiler_runtime_dir
+			"${CMAKE_CXX_COMPILER}" DIRECTORY
+		)
+		foreach(runtime_name
+			libstdc++-6.dll
+			libgcc_s_seh-1.dll
+			libgcc_s_dw2-1.dll
+			libgcc_s_sjlj-1.dll
+			libwinpthread-1.dll
+		)
+			execute_process(
+				COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=${runtime_name}
+				OUTPUT_VARIABLE runtime_path
+				OUTPUT_STRIP_TRAILING_WHITESPACE
+				ERROR_QUIET
+			)
+			if (NOT IS_ABSOLUTE "${runtime_path}" OR NOT EXISTS "${runtime_path}")
+				set(runtime_path "${compiler_runtime_dir}/${runtime_name}")
+			endif ()
+			if (IS_ABSOLUTE "${runtime_path}" AND EXISTS "${runtime_path}")
+				list(APPEND libgs_runtime_dlls "${runtime_path}")
+			endif ()
+		endforeach()
+		list(REMOVE_DUPLICATES libgs_runtime_dlls)
+	endif ()
 endif ()
 
 function(add_libgs_consumer_runtime_test target)

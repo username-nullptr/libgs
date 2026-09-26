@@ -13,7 +13,20 @@
 #include <libgs/http/protocol/utils/server/generator.h>
 #include <libgs/http/protocol/utils/server/parser.h>
 
+#include <array>
+
 static_assert(std::is_error_code_enum_v<libgs::http::parse_errc>);
+static_assert(not libgs::http::version::is_valid_v<libgs::http::version::none>);
+static_assert(libgs::http::version::is_valid_v<libgs::http::version::v10>);
+static_assert(libgs::http::version::is_valid_v<libgs::http::version::v11>);
+static_assert(not libgs::http::version::is_valid_v<
+	static_cast<libgs::http::version_enum>(0x0102)>);
+static_assert(std::string_view(
+	libgs::http::version::string<libgs::http::version::v10>()) == "1.0");
+static_assert(std::string_view(
+	libgs::http::version::string<libgs::http::version::v11>()) == "1.1");
+static_assert(libgs::http::version::number<libgs::http::version::v10>() == 1.0);
+static_assert(libgs::http::version::number<libgs::http::version::v11>() == 1.1);
 
 namespace
 {
@@ -68,7 +81,6 @@ void enum_input_validation()
 	using namespace libgs::http;
 	const auto invalid_status_code = static_cast<status_enum>(999);
 	const auto invalid_method = static_cast<method_enum>(0x8000);
-	const auto invalid_version = static_cast<version_enum>(0x0909);
 
 	LIBGS_TEST_CHECK(not status::check(invalid_status_code, false));
 	LIBGS_TEST_CHECK_EQ(
@@ -82,9 +94,67 @@ void enum_input_validation()
 	LIBGS_TEST_CHECK_THROWS(method::from_string("FETCH", true), libgs::invalid_argument);
 	LIBGS_TEST_CHECK_THROWS(method("FETCH"), libgs::invalid_argument);
 
-	LIBGS_TEST_CHECK(not version::check(invalid_version, false));
-	LIBGS_TEST_CHECK_EQ(version::number(invalid_version, false), 0.0);
-	LIBGS_TEST_CHECK_THROWS(version::from_string("9.9"), libgs::runtime_error);
+}
+
+void version_contract()
+{
+	using namespace libgs::http;
+	struct valid_case
+	{
+		version_enum value;
+		std::string_view text;
+		double number;
+	};
+	constexpr std::array valid_cases {
+		valid_case {version::v10, "1.0", 1.0},
+		valid_case {version::v11, "1.1", 1.1},
+	};
+	for(const auto &[value, text, number] : valid_cases)
+	{
+		LIBGS_TEST_CHECK(version::check(value));
+		LIBGS_TEST_CHECK(version::check(value, false));
+		LIBGS_TEST_CHECK_EQ(std::string_view(version::string(value)), text);
+		LIBGS_TEST_CHECK_EQ(version::number(value), number);
+		LIBGS_TEST_CHECK_EQ(version::from_string(text), value);
+
+		const version from_enum(value);
+		const version from_text(text);
+		LIBGS_TEST_CHECK(from_enum.check());
+		LIBGS_TEST_CHECK_EQ(std::string_view(from_enum.string()), text);
+		LIBGS_TEST_CHECK_EQ(from_enum.number(), number);
+		LIBGS_TEST_CHECK_EQ(from_text.value, value);
+	}
+
+	constexpr std::array invalid_values {
+		version::none,
+		static_cast<version_enum>(0x0001),
+		static_cast<version_enum>(0x00ff),
+		static_cast<version_enum>(0x0102),
+		static_cast<version_enum>(0x0200),
+		static_cast<version_enum>(0xffff),
+	};
+	for(const auto value : invalid_values)
+	{
+		LIBGS_TEST_CHECK(not version::check(value, false));
+		LIBGS_TEST_CHECK_EQ(std::string_view(version::string(value, false)), "0.0");
+		LIBGS_TEST_CHECK_EQ(version::number(value, false), 0.0);
+		LIBGS_TEST_CHECK_THROWS(version::check(value), libgs::runtime_error);
+		LIBGS_TEST_CHECK_THROWS(version::string(value), libgs::runtime_error);
+		LIBGS_TEST_CHECK_THROWS(version::number(value), libgs::runtime_error);
+	}
+
+	const version unset;
+	LIBGS_TEST_CHECK(not unset.check(false));
+	LIBGS_TEST_CHECK_EQ(std::string_view(unset.string(false)), "0.0");
+	LIBGS_TEST_CHECK_EQ(unset.number(false), 0.0);
+
+	for(const std::string_view text : {
+		"", "0.0", "1", "1.00", "1.2", "2.0", "01.1", "1.1 ", " 1.1", "9.9"
+	})
+	{
+		LIBGS_TEST_CHECK_THROWS(version::from_string(text), libgs::runtime_error);
+		LIBGS_TEST_CHECK_THROWS(version(text), libgs::runtime_error);
+	}
 }
 
 void parser_reuse()
@@ -462,6 +532,7 @@ int main(int argc, const char *const argv[])
 	return libgs::test::run(argc, argv, {
 		{"parser errors", parser_errors},
 		{"enum input validation", enum_input_validation},
+		{"HTTP version contract", version_contract},
 		{"parser reuse", parser_reuse},
 		{"request parser", request_parser},
 		{"response parser", response_parser},

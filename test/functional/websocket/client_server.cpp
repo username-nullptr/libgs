@@ -78,9 +78,9 @@ void owned_handler_round_trip()
 			co_await accepted.stream.write_text(
 				"owned:" + id_text + ": " + request.body,
 				libgs::use_awaitable);
-			auto [close_error, trailing] = co_await
-				accepted.stream.read<std::string>(
-					asio::as_tuple(libgs::use_awaitable));
+			auto close_result = co_await accepted.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, trailing] = close_result;
 			libgs::ignore_unused(close_error, trailing);
 			co_return;
 		});
@@ -104,8 +104,9 @@ void owned_handler_round_trip()
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(response.body, "owned:7: hello");
-			auto [close_error, closed] = co_await stream.close(
+			auto close_result = co_await stream.close(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, closed] = close_result;
 			service.stop();
 			LIBGS_TEST_CHECK(not close_error);
 			LIBGS_TEST_CHECK(closed.clean);
@@ -176,9 +177,9 @@ void owned_accept_round_trip()
 				libgs::use_awaitable);
 			co_await connection.stream.write_text(
 				message.body, libgs::use_awaitable);
-			auto [close_error, trailing] = co_await
-				connection.stream.read<std::string>(
-					asio::as_tuple(libgs::use_awaitable));
+			auto close_result = co_await connection.stream.read<std::string>(
+				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, trailing] = close_result;
 			libgs::ignore_unused(close_error, trailing);
 			co_return;
 		}, asio::use_future);
@@ -206,8 +207,9 @@ void owned_accept_round_trip()
 			auto response = co_await stream.read<std::string>(
 				libgs::use_awaitable);
 			LIBGS_TEST_CHECK_EQ(response.body, "accept-mode");
-			auto [close_error, closed] = co_await stream.close(
+			auto close_result = co_await stream.close(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, closed] = close_result;
 			service.stop();
 			LIBGS_TEST_CHECK(not close_error);
 			LIBGS_TEST_CHECK(closed.clean);
@@ -279,8 +281,9 @@ void client_no_delay_modes()
 	ws::server service(std::move(acceptor));
 	service.on_default([](ws::accept_result accepted) -> libgs::awaitable<void>
 	{
-		auto [error, message] = co_await accepted.stream.read<std::string>(
+		auto read_result = co_await accepted.stream.read<std::string>(
 			asio::as_tuple(libgs::use_awaitable));
+		auto &[error, message] = read_result;
 		libgs::ignore_unused(error, message);
 	});
 	service.bind({libgs::ip_type::v4, 0}).start();
@@ -476,9 +479,10 @@ void unavailable_handshake_queue()
 		[&]() -> libgs::awaitable<void>
 		{
 			ws::open_diagnostics diagnostics;
-			auto [error, stream] = co_await client.open(ws::connect_request(
+			auto open_result = co_await client.open(ws::connect_request(
 				std::format("ws://127.0.0.1:{}/unavailable", port)),
 				diagnostics, asio::as_tuple(libgs::use_awaitable));
+			auto &[error, stream] = open_result;
 			LIBGS_TEST_CHECK_EQ(error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not stream.is_open());
@@ -513,9 +517,10 @@ void owned_client_cancellation()
 	auto opening = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
 		{
-			auto [error, stream] = co_await client.open(
+			auto open_result = co_await client.open(
 				std::format("ws://127.0.0.1:{}/stall", port),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, stream] = open_result;
 			LIBGS_TEST_CHECK_EQ(error,
 				libgs::error_code(asio::error::operation_aborted));
 			LIBGS_TEST_CHECK(not stream.is_open());
@@ -556,9 +561,10 @@ void owned_client_handshake_timeout()
 	auto opening = asio::co_spawn(context,
 		[&]() -> libgs::awaitable<void>
 		{
-			auto [error, stream] = co_await client.open(
+			auto open_result = co_await client.open(
 				std::format("ws://127.0.0.1:{}/stall", port),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, stream] = open_result;
 			LIBGS_TEST_CHECK_EQ(error,
 				libgs::error_code(asio::error::timed_out));
 			LIBGS_TEST_CHECK(not stream.is_open());
@@ -598,9 +604,10 @@ void pending_handshake_timeout()
 		[&]() -> libgs::awaitable<void>
 		{
 			ws::open_diagnostics diagnostics;
-			auto [error, stream] = co_await client.open(ws::connect_request(
+			auto open_result = co_await client.open(ws::connect_request(
 				std::format("ws://127.0.0.1:{}/timeout", port)), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, stream] = open_result;
 			LIBGS_TEST_CHECK_EQ(error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not stream.is_open());
@@ -680,9 +687,10 @@ void pending_handshake_fifo_and_capacity()
 				co_await delay.async_wait(libgs::use_awaitable);
 			}
 			ws::open_diagnostics diagnostics;
-			auto [error, stream] = co_await overflow_client.open(
+			auto open_result = co_await overflow_client.open(
 				ws::connect_request(endpoint("/overflow")), diagnostics,
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, stream] = open_result;
 			LIBGS_TEST_CHECK_EQ(error,
 				ws::make_error_code(ws::errc::handshake_rejected));
 			LIBGS_TEST_CHECK(not stream.is_open());
@@ -774,16 +782,18 @@ void explicit_retry_open_recovery()
 			libgs::use_awaitable);
 		if( index == 1 )
 		{
-			auto [error, close] = co_await accepted.stream.close(
+			auto close_result = co_await accepted.stream.close(
 				ws::close_frame(ws::close_code::service_restart, "restart"),
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, close] = close_result;
 			LIBGS_TEST_CHECK(not error);
 			LIBGS_TEST_CHECK(close.clean);
 		}
 		else
 		{
-			auto [error, trailing] = co_await accepted.stream.read<std::string>(
+			auto read_result = co_await accepted.stream.read<std::string>(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[error, trailing] = read_result;
 			LIBGS_TEST_CHECK(error);
 			libgs::ignore_unused(trailing);
 		}
@@ -822,8 +832,9 @@ void explicit_retry_open_recovery()
 				libgs::use_awaitable);
 			messages.push_back(std::move(message.body));
 
-			auto [read_error, trailing] = co_await stream.read<std::string>(
+			auto read_result = co_await stream.read<std::string>(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[read_error, trailing] = read_result;
 			LIBGS_TEST_CHECK(read_error);
 			libgs::ignore_unused(trailing);
 			stream.shutdown();
@@ -974,8 +985,9 @@ void permessage_deflate_round_trip()
 					libgs::const_buffer(request.body.data(), request.body.size()),
 					libgs::use_awaitable);
 			}
-			auto [close_error, trailing] = co_await connection.stream.read<>(
+			auto close_result = co_await connection.stream.read<>(
 				asio::as_tuple(libgs::use_awaitable));
+			auto &[close_error, trailing] = close_result;
 			libgs::ignore_unused(close_error, trailing);
 		}, asio::use_future);
 

@@ -23,19 +23,19 @@ option(LIBGS_BUILD_STRESS_TESTS
 option(LIBGS_BUILD_PERFORMANCE_TESTS
 	"-- ${PRO_NAME}: Build performance-sensitive benchmarks." OFF
 )
-set(LIBGS_FUNCTIONAL_REPEAT 1 CACHE STRING
+set(LIBGS_FUNCTIONAL_REPEAT 3 CACHE STRING
 	"Execution count for each LibGS functional test case (positive integer)."
 )
 set(LIBGS_FUNCTIONAL_SEED 1 CACHE STRING
 	"Base seed for reproducible LibGS functional tests (non-negative integer)."
 )
-set(LIBGS_FUNCTIONAL_TIMEOUT 60 CACHE STRING
+set(LIBGS_FUNCTIONAL_TIMEOUT 120 CACHE STRING
 	"CTest timeout in seconds for each LibGS functional executable."
 )
-set(LIBGS_STRESS_SCALE 4 CACHE STRING
+set(LIBGS_STRESS_SCALE 5 CACHE STRING
 	"Work multiplier for LibGS stress tests (positive integer)."
 )
-set(LIBGS_STRESS_REPEAT 1 CACHE STRING
+set(LIBGS_STRESS_REPEAT 3 CACHE STRING
 	"Fixture recreation count for each LibGS stress case (positive integer)."
 )
 set(LIBGS_STRESS_SEED 1 CACHE STRING

@@ -265,20 +265,24 @@ void runtime_route_updates()
 
 		try
 		{
-			auto [exact_status, exact_body] = co_await request_body("/routes/exact");
+			auto exact_result = co_await request_body("/routes/exact");
+			auto &[exact_status, exact_body] = exact_result;
 			LIBGS_TEST_CHECK_EQ(exact_status, status::ok);
 			LIBGS_TEST_CHECK_EQ(exact_body, "exact");
 
-			auto [pattern_status, pattern_body] = co_await request_body("/routes/other");
+			auto pattern_result = co_await request_body("/routes/other");
+			auto &[pattern_status, pattern_body] = pattern_result;
 			LIBGS_TEST_CHECK_EQ(pattern_status, status::ok);
 			LIBGS_TEST_CHECK_EQ(pattern_body, "pattern");
 
-			auto [runtime_status, runtime_body] = co_await request_body("/runtime-route");
+			auto runtime_result = co_await request_body("/runtime-route");
+			auto &[runtime_status, runtime_body] = runtime_result;
 			LIBGS_TEST_CHECK_EQ(runtime_status, status::ok);
 			LIBGS_TEST_CHECK_EQ(runtime_body, "runtime");
 
 			service.unbound_request("/runtime-route");
-			auto [removed_status, removed_body] = co_await request_body("/runtime-route");
+			auto removed_result = co_await request_body("/runtime-route");
+			auto &[removed_status, removed_body] = removed_result;
 			LIBGS_TEST_CHECK_EQ(removed_status, status::not_found);
 			LIBGS_TEST_CHECK_EQ(removed_body, "not found");
 
@@ -287,7 +291,8 @@ void runtime_route_updates()
 				std::this_thread::yield();
 			for(size_t index = 0; index < 50; ++index)
 			{
-				auto [status_value, body] = co_await request_body("/routes/exact");
+				auto request_result = co_await request_body("/routes/exact");
+				auto &[status_value, body] = request_result;
 				LIBGS_TEST_CHECK_EQ(status_value, status::ok);
 				LIBGS_TEST_CHECK_EQ(body, "exact");
 			}

@@ -83,9 +83,10 @@ co_retry_open(basic_client<Exec> *active_client, retry_open_request_factory acti
 		}
 		connect_request request;
 		try {
-			auto [exception, generated] = co_await asio::co_spawn (
+			auto generated_result = co_await asio::co_spawn (
 				active_exec, active_factory(previous), asio::as_tuple(deferred)
 			);
+			auto &[exception, generated] = generated_result;
 			if( auto error = exception_error(exception) )
 			{
 				result.last_failure = previous;
@@ -117,10 +118,10 @@ co_retry_open(basic_client<Exec> *active_client, retry_open_request_factory acti
 		typename result_t::diagnostics_t diagnostics;
 		++result.attempts;
 
-		auto [open_error, stream] = co_await active_client->open (
-			std::move(request), diagnostics,
-			asio::as_tuple(asio::use_awaitable_t<Exec>{})
+		auto open_result = co_await active_client->open (
+			std::move(request), diagnostics, asio::as_tuple(asio::use_awaitable_t<Exec>{})
 		);
+		auto &[open_error, stream] = open_result;
 		if( not open_error )
 		{
 			result.stream = std::move(stream);
@@ -162,8 +163,10 @@ co_retry_open(basic_client<Exec> *active_client, retry_open_request_factory acti
 		asio::steady_timer timer(active_exec);
 		timer.expires_after(delay);
 
-		if( auto [wait_error] = co_await timer.async_wait
-			(asio::as_tuple(asio::use_awaitable_t<Exec>{})); wait_error )
+		auto wait_result = co_await timer.async_wait (
+			asio::as_tuple(asio::use_awaitable_t<Exec>{})
+		);
+		if( auto &[wait_error] = wait_result; wait_error )
 		{
 			auto error = libgs::detail::canonical_error(wait_error);
 			result.last_failure.error = error;

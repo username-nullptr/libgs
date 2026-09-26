@@ -4,10 +4,6 @@
 set(LIBGS_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIBGS_TEST_LAUNCHER)
 
-if (LIBGS_BUILD_CMAKE_TESTS)
-	add_subdirectory(cmake)
-endif ()
-
 # GCC's ThreadSanitizer cannot reserve its shadow-memory layout with the more
 # aggressive address randomisation used by some recent Linux kernels.  Probe a
 # per-process ASLR-disabled launcher instead of requiring developers to know the
@@ -37,6 +33,15 @@ endif ()
 
 function(add_libgs_ctest test_name)
 	add_test(NAME ${test_name} COMMAND ${LIBGS_TEST_LAUNCHER} ${ARGN})
+	# CTest may be launched from an environment whose PATH contains another
+	# MinGW distribution.  Put the runtime matching CMAKE_CXX_COMPILER first for
+	# every suite, not just the functional tests, so DLL resolution is stable.
+	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND libgs_gnu_runtime_dir)
+		set_property(TEST ${test_name} APPEND PROPERTY
+			ENVIRONMENT_MODIFICATION
+			"PATH=path_list_prepend:${libgs_gnu_runtime_dir}"
+		)
+	endif ()
 endfunction()
 
 
@@ -123,13 +128,6 @@ function(configure_libgs_functional_test test_name)
 		"LIBGS_TEST_SEED=${LIBGS_FUNCTIONAL_SEED}"
 		"LIBGS_TEST_FAIL_FAST=1"
 	)
-	if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.22 AND libgs_gnu_runtime_dir)
-		set_property(TEST ${test_name} APPEND PROPERTY
-			ENVIRONMENT_MODIFICATION
-			"PATH=path_list_prepend:${libgs_gnu_runtime_dir}"
-		)
-	endif ()
-
 	configure_libgs_sanitized_test(${test_name})
 endfunction()
 
@@ -211,4 +209,8 @@ else ()
 			"LIBGS_BUILD_PERFORMANCE_TESTS for opt-in non-functional suites."
 		)
 	endif ()
+endif ()
+
+if (LIBGS_BUILD_CMAKE_TESTS)
+	add_subdirectory(cmake)
 endif ()

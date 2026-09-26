@@ -295,14 +295,19 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 				};
 			}
 			auto opening = std::move(prepared->opening);
-			typename http::basic_client<Exec,Version>::req_info info(
-				std::move(prepared->transport), std::move(prepared->options));
+			using req_info_t = http::basic_client<Exec,Version>::req_info;
+
+			req_info_t info (
+				std::move(prepared->transport), std::move(prepared->options)
+			);
 			info.proxy = std::move(prepared->proxy);
 			info.auto_decompression = false;
 			info.max_redirects = 0;
-			auto [request_error, next_context] =
-				co_await http::detail::client_access::request<http::method::get>(
-					*client, std::move(info));
+
+			auto request_result = co_await http::detail::client_access::request
+				<http::method::get>(*client, std::move(info));
+
+			auto &[request_error, next_context] = request_result;
 			if( request_error )
 			{
 				co_return std::tuple<error_code,result_t> {
@@ -321,8 +326,9 @@ co_open(http::basic_client<Exec,Version> *client, connect_request active_request
 					asio::error::timed_out, std::move(result)
 				};
 			}
-			auto [reply_error, status] =
-				co_await http::detail::reply_access::wait(*context->reply());
+			auto reply_result = co_await http::detail::reply_access::wait(*context->reply());
+			auto &[reply_error, status] = reply_result;
+
 			if( reply_error )
 			{
 				context->cancel();
